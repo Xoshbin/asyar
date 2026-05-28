@@ -4,6 +4,7 @@ pub mod pairing;
 pub mod protocol;
 pub mod server;
 pub mod token_store;
+pub mod ws_handler;
 // More submodules added in later tasks.
 
 use std::sync::Arc;

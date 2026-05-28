@@ -1,7 +1,8 @@
 use crate::browser::bridge::BridgeState;
 use axum::{
-    extract::{Path, State},
-    http::StatusCode,
+    extract::{ws::WebSocketUpgrade, Path, State},
+    http::{HeaderMap, StatusCode},
+    response::Response,
     routing::{get, post},
     Json, Router,
 };
@@ -88,6 +89,53 @@ async fn pair_status_handler<R: tauri::Runtime>(
     })
 }
 
+#[derive(serde::Deserialize)]
+struct BridgeQuery {
+    family: String,
+    variant: String,
+}
+
+async fn bridge_ws_handler<R: tauri::Runtime>(
+    ws: WebSocketUpgrade,
+    State(state): State<BridgeState<R>>,
+    axum::extract::Query(q): axum::extract::Query<BridgeQuery>,
+    headers: HeaderMap,
+) -> Result<Response, (StatusCode, String)> {
+    let token = headers
+        .get("authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "missing bearer token".to_string()))?
+        .to_string();
+    let family = match q.family.as_str() {
+        "chromium" => crate::browser::types::BrowserFamily::Chromium,
+        "firefox" => crate::browser::types::BrowserFamily::Firefox,
+        "safari" => crate::browser::types::BrowserFamily::Safari,
+        other => return Err((StatusCode::BAD_REQUEST, format!("bad family: {}", other))),
+    };
+    let key = crate::browser::types::BrowserKey {
+        family,
+        variant: q.variant.clone(),
+    };
+    let stored = state
+        .tokens
+        .get(&key)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                "no pairing for this browser".to_string(),
+            )
+        })?;
+    if stored != token {
+        return Err((StatusCode::UNAUTHORIZED, "token mismatch".to_string()));
+    }
+    let state_for_socket = state.clone();
+    Ok(ws.on_upgrade(move |socket| {
+        crate::browser::bridge::ws_handler::handle_socket(socket, state_for_socket, key)
+    }))
+}
+
 pub async fn start_server<R: tauri::Runtime>(
     state: BridgeState<R>,
 ) -> Result<ServerHandle, String> {
@@ -95,6 +143,7 @@ pub async fn start_server<R: tauri::Runtime>(
         .route("/discover", get(discover_handler))
         .route("/pair-request", post(pair_request_handler::<R>))
         .route("/pair-status/:pairing_id", get(pair_status_handler::<R>))
+        .route("/bridge", get(bridge_ws_handler::<R>))
         .with_state(state);
 
     let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
@@ -234,6 +283,68 @@ mod tests {
             .unwrap();
         assert_eq!(resp["status"], "approved");
         assert_eq!(resp["token"], "test-token-xyz");
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn ws_rejects_without_token() {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        let state = build_test_state();
+        let handle = start_server(state.clone()).await.unwrap();
+        let url = format!(
+            "ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome",
+            handle.port()
+        );
+        let req = url.into_client_request().unwrap();
+        let result = tokio_tungstenite::connect_async(req).await;
+        assert!(result.is_err(), "expected 401-class failure");
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn ws_accepts_with_valid_token() {
+        use crate::browser::types::{BrowserFamily, BrowserKey};
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        use tokio_tungstenite::tungstenite::http::HeaderValue;
+        let state = build_test_state();
+        state
+            .tokens
+            .set(
+                &BrowserKey {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                },
+                "secret-token",
+            )
+            .unwrap();
+        let handle = start_server(state.clone()).await.unwrap();
+        let url = format!(
+            "ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome",
+            handle.port()
+        );
+        let mut req = url.into_client_request().unwrap();
+        req.headers_mut().insert(
+            "authorization",
+            HeaderValue::from_static("Bearer secret-token"),
+        );
+        let (mut socket, _resp) = tokio_tungstenite::connect_async(req).await.unwrap();
+        use futures_util::SinkExt;
+        socket
+            .send(tokio_tungstenite::tungstenite::Message::Text(
+                r#"{"type":"hello","version":1,"browser":{"family":"chromium","variant":"chrome","profiles":["Default"]}}"#.to_string(),
+            ))
+            .await
+            .unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        assert!(
+            state
+                .connections
+                .is_connected(&BrowserKey {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string()
+                })
+                .await
+        );
         handle.shutdown().await;
     }
 
