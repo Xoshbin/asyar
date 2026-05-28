@@ -75,7 +75,8 @@ pub enum PairDecision {
     Deny,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BrowserKey {
     pub family: BrowserFamily,
     pub variant: String,
