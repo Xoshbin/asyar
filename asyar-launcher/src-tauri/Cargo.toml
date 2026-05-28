@@ -37,6 +37,7 @@ tauri-plugin-store = "2"
 thiserror = "1.0.63"
 enigo = "0.1.3"
 rusqlite = { version = "0.31", features = ["bundled"] }
+plist = "1.7"
 tauri-plugin-notification = "2"
 tokio = { version = "1.0", features = ["full"] }
 tauri-plugin-clipboard-x = "2"
@@ -92,7 +93,6 @@ cargo-clippy = []
 libc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-plist = "1"
 icns = "0.3"
 block2 = "0.5"
 objc2 = "0.5"

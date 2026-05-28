@@ -69,6 +69,7 @@ pub mod oauth;
 pub mod onboarding;
 pub mod shell;
 pub mod application;
+pub mod browser;
 pub mod window_management;
 pub mod deeplink;
 pub mod app_updater;
