@@ -39,20 +39,6 @@ export interface SearchHistoryOptions {
   sinceMs?: number;
 }
 
-export interface IBrowserService {
-  /** Browsers detected on disk (have a readable data directory). No permission required. */
-  listAvailableBrowsers(): Promise<BrowserId[]>;
-
-  /** Always returns false in this milestone — companion bridge ships in Plan 2. */
-  isCompanionInstalled(family: BrowserFamily): Promise<boolean>;
-
-  /** Reads bookmarks from on-disk files. Requires `browser:bookmarks.read`. */
-  listBookmarks(filter?: ListBookmarksFilter): Promise<Bookmark[]>;
-
-  /** Reads visit history from on-disk SQLite. Requires `browser:history.read`. */
-  searchHistory(query: string, opts?: SearchHistoryOptions): Promise<HistoryEntry[]>;
-}
-
 export interface Tab {
   id: string;
   browser: BrowserId;
@@ -81,4 +67,46 @@ export interface TabsChangedEvent {
   family: BrowserFamily;
   variant: string;
   tabs: Tab[];
+}
+
+export interface IBrowserService {
+  // — Existing —
+
+  /** Browsers detected on disk (have a readable data directory). No permission required. */
+  listAvailableBrowsers(): Promise<BrowserId[]>;
+
+  /** Returns true when the companion extension is currently paired for the given family. */
+  isCompanionInstalled(family: BrowserFamily): Promise<boolean>;
+
+  /** Reads bookmarks from on-disk files. Requires `browser:bookmarks.read`. */
+  listBookmarks(filter?: ListBookmarksFilter): Promise<Bookmark[]>;
+
+  /** Reads visit history from on-disk SQLite. Requires `browser:history.read`. */
+  searchHistory(query: string, opts?: SearchHistoryOptions): Promise<HistoryEntry[]>;
+
+  // — New in Plan 2 (companion bridge) —
+
+  /** Lists open tabs from paired browsers. Requires `browser:tabs.read`. */
+  listTabs(filter?: { browser?: BrowserId; query?: string }): Promise<Tab[]>;
+
+  /** Returns the active tab for the given browser (or the frontmost paired browser). */
+  getActiveTab(browser?: BrowserId): Promise<Tab | null>;
+
+  /** Focuses the given tab. Requires `browser:tabs.control`. */
+  activateTab(tabId: string): Promise<void>;
+
+  /** Closes the given tab. Requires `browser:tabs.control`. */
+  closeTab(tabId: string): Promise<void>;
+
+  /** Opens the URL in the requested target. Requires `browser:openUrl`. */
+  openUrl(url: string, target?: OpenUrlTarget): Promise<void>;
+
+  /** Lists browser families/variants currently paired with the companion bridge. */
+  listPairedBrowsers(): Promise<BrowserKey[]>;
+
+  /**
+   * Subscribe to tab changes. Returns an async cleanup function so callers can `await off()`.
+   * The cleanup is async to mirror the host implementation, which awaits Tauri's `listen` handle.
+   */
+  onTabsChanged(handler: (e: TabsChangedEvent) => void): () => Promise<void>;
 }

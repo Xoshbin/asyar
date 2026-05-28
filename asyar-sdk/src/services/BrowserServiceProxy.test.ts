@@ -5,6 +5,8 @@ vi.mock('../ipc/MessageBroker', () => {
   return {
     messageBroker: {
       invoke: vi.fn(),
+      on: vi.fn(),
+      off: vi.fn(),
     },
   };
 });
@@ -64,5 +66,57 @@ describe('BrowserServiceProxy', () => {
       undefined,
       5000,
     );
+  });
+});
+
+describe('BrowserServiceProxy — bridge methods', () => {
+  let proxy: BrowserServiceProxy;
+  let mockBroker: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockBroker = messageBroker;
+    proxy = new BrowserServiceProxy();
+  });
+
+  it('listTabs invokes browser:listTabs', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce([]);
+    await proxy.listTabs({ query: 'react' });
+    expect(mockBroker.invoke).toHaveBeenCalledWith(
+      'browser:listTabs',
+      { filter: { query: 'react' } },
+      undefined,
+      5000,
+    );
+  });
+
+  it('activateTab invokes browser:activateTab', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(undefined);
+    await proxy.activateTab('t1');
+    expect(mockBroker.invoke).toHaveBeenCalledWith(
+      'browser:activateTab',
+      { tabId: 't1' },
+      undefined,
+      5000,
+    );
+  });
+
+  it('openUrl invokes browser:openUrl with target', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(undefined);
+    await proxy.openUrl('https://x', { newWindow: true });
+    expect(mockBroker.invoke).toHaveBeenCalledWith(
+      'browser:openUrl',
+      { url: 'https://x', target: { newWindow: true } },
+      undefined,
+      5000,
+    );
+  });
+
+  it('onTabsChanged registers on the broker and off cleans up', async () => {
+    const handler = vi.fn();
+    const off = proxy.onTabsChanged(handler);
+    expect(mockBroker.on).toHaveBeenCalledWith('browser:tabs-changed', expect.any(Function));
+    await off();
+    expect(mockBroker.off).toHaveBeenCalledWith('browser:tabs-changed', expect.any(Function));
   });
 });
