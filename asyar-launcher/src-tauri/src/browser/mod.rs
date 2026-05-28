@@ -1,2 +1,3 @@
 pub mod types;
-// scanner, paths, readers, service modules added in later tasks
+pub mod paths;
+// scanner, readers, service modules added in later tasks
