@@ -1,3 +1,4 @@
+pub mod bridge;
 pub mod paths;
 pub mod readers;
 pub mod scanner;
