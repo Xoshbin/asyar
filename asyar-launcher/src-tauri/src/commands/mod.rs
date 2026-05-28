@@ -38,6 +38,7 @@ pub mod dynamic_commands;
 pub mod mcp;
 pub mod runs;
 pub mod scripts;
+pub mod browser;
 
 #[cfg(test)]
 mod agents_test;
