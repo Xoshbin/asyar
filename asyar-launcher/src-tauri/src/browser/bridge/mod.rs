@@ -7,6 +7,7 @@ pub mod token_store;
 pub mod ws_handler;
 // More submodules added in later tasks.
 
+use crate::browser::events::BrowserEventsHub;
 use std::sync::Arc;
 
 pub struct BridgeState<R: tauri::Runtime = tauri::Wry> {
@@ -14,6 +15,7 @@ pub struct BridgeState<R: tauri::Runtime = tauri::Wry> {
     pub pairing: Arc<pairing::PairingRegistry>,
     pub connections: Arc<connections::CompanionRegistry>,
     pub cache: Arc<cache::TabSnapshotCache>,
+    pub events: Arc<BrowserEventsHub>,
     pub app_handle: tauri::AppHandle<R>,
 }
 
@@ -27,6 +29,7 @@ impl<R: tauri::Runtime> Clone for BridgeState<R> {
             pairing: self.pairing.clone(),
             connections: self.connections.clone(),
             cache: self.cache.clone(),
+            events: self.events.clone(),
             app_handle: self.app_handle.clone(),
         }
     }

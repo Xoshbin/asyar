@@ -287,6 +287,8 @@ pub fn run() {
             commands::browser::browser_list_pending_pairings,
             commands::browser::browser_resolve_pairing,
             commands::browser::browser_revoke_pairing,
+            commands::browser::browser_events_subscribe,
+            commands::browser::browser_events_unsubscribe,
             commands::write_binary_file_recursive,
             commands::write_text_file_absolute,
             commands::read_text_file_absolute,
@@ -1393,6 +1395,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             pairing: Arc::new(PairingRegistry::new()),
             connections: Arc::new(CompanionRegistry::new()),
             cache: Arc::new(TabSnapshotCache::new()),
+            events: Arc::new(crate::browser::events::BrowserEventsHub::new()),
             app_handle: app.handle().clone(),
         };
 
@@ -1413,6 +1416,46 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         });
+
+        // Browser events hub: register the Arc with Tauri's managed state
+        // so `State<'_, Arc<BrowserEventsHub>>` resolves in the subscribe /
+        // unsubscribe commands; then wire the emitter that turns
+        // `hub.dispatch(...)` into one Tauri `asyar:browser-event` emit per
+        // subscribed extension, plus a worker mailbox enqueue so the event
+        // survives a dormant worker. Mirrors the system_events emitter block
+        // at the top of `setup_app`.
+        app.manage(Arc::clone(&bridge_state.events));
+        {
+            let app_handle_for_events = app.handle().clone();
+            let hub_arc: Arc<crate::browser::events::BrowserEventsHub> =
+                Arc::clone(&bridge_state.events);
+            hub_arc.set_emitter(Box::new(move |extension_id, event| {
+                let payload = serde_json::json!({
+                    "extensionId": extension_id,
+                    "event": event,
+                });
+                if let Err(e) =
+                    app_handle_for_events.emit("asyar:browser-event", payload.clone())
+                {
+                    log::warn!("[browser_events] failed to emit Tauri event: {e}");
+                }
+                if let Some(mgr) = app_handle_for_events
+                    .try_state::<Arc<ExtensionRuntimeManager>>()
+                {
+                    let now = std::time::Instant::now();
+                    mgr.enqueue_worker(
+                        &extension_id,
+                        crate::extensions::extension_runtime::PendingMessage {
+                            kind: crate::extensions::extension_runtime::MessageKind::Action,
+                            payload,
+                            enqueued_at: now,
+                            source: crate::extensions::extension_runtime::TriggerSource::Invoke,
+                        },
+                        now,
+                    );
+                }
+            }));
+        }
 
         app.manage(bridge_state);
     }

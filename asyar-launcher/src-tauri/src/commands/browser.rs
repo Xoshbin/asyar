@@ -160,3 +160,203 @@ pub async fn browser_revoke_pairing(
     bridge.connections.unregister(&key).await;
     Ok(())
 }
+
+// ── Browser events: subscribe / unsubscribe ───────────────────────────────
+//
+// Mirrors `commands::system_events::system_events_{subscribe,unsubscribe}`:
+// thin Tauri wrappers delegating to pure `*_inner` functions for unit-testing
+// without a running Tauri app. Gated in Rust by the same permission the JS
+// `PERMISSION_MAP` enforces — `browser:tabs.read`.
+
+use crate::browser::events::{BrowserEventKind, BrowserEventsHub};
+use crate::error::AppError;
+use crate::permissions::ExtensionPermissionRegistry;
+use std::collections::HashSet;
+use std::sync::Arc;
+
+const REQUIRED_PERMISSION: &str = "browser:tabs.read";
+
+#[tauri::command]
+pub fn browser_events_subscribe(
+    hub: State<'_, Arc<BrowserEventsHub>>,
+    permissions: State<'_, ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
+    event_types: Vec<String>,
+) -> Result<String, AppError> {
+    browser_events_subscribe_inner(&hub, &permissions, extension_id, event_types)
+}
+
+#[tauri::command]
+pub fn browser_events_unsubscribe(
+    hub: State<'_, Arc<BrowserEventsHub>>,
+    permissions: State<'_, ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
+    subscription_id: String,
+) -> Result<(), AppError> {
+    browser_events_unsubscribe_inner(&hub, &permissions, extension_id, subscription_id)
+}
+
+pub(crate) fn browser_events_subscribe_inner(
+    hub: &BrowserEventsHub,
+    permissions: &ExtensionPermissionRegistry,
+    extension_id: Option<String>,
+    event_types: Vec<String>,
+) -> Result<String, AppError> {
+    permissions.check(&extension_id, REQUIRED_PERMISSION)?;
+    let ext = extension_id
+        .as_deref()
+        .ok_or_else(|| AppError::Validation("extensionId required for subscribe".into()))?;
+    let kinds: HashSet<BrowserEventKind> = event_types
+        .iter()
+        .filter_map(|s| BrowserEventKind::from_wire(s))
+        .collect();
+    if kinds.is_empty() {
+        return Err(AppError::Validation(
+            "at least one valid event type required".into(),
+        ));
+    }
+    hub.subscribe(ext, kinds)
+}
+
+pub(crate) fn browser_events_unsubscribe_inner(
+    hub: &BrowserEventsHub,
+    permissions: &ExtensionPermissionRegistry,
+    extension_id: Option<String>,
+    subscription_id: String,
+) -> Result<(), AppError> {
+    permissions.check(&extension_id, REQUIRED_PERMISSION)?;
+    let ext = extension_id
+        .as_deref()
+        .ok_or_else(|| AppError::Validation("extensionId required for unsubscribe".into()))?;
+    hub.unsubscribe(ext, &subscription_id)
+}
+
+#[cfg(test)]
+mod browser_events_command_tests {
+    use super::*;
+
+    fn permissions_with(ext_id: &str) -> ExtensionPermissionRegistry {
+        let reg = ExtensionPermissionRegistry::new();
+        let mut inner = reg.inner.lock().unwrap();
+        let mut set = HashSet::new();
+        set.insert(REQUIRED_PERMISSION.to_string());
+        inner.insert(ext_id.to_string(), set);
+        drop(inner);
+        reg
+    }
+
+    fn empty_permissions() -> ExtensionPermissionRegistry {
+        ExtensionPermissionRegistry::new()
+    }
+
+    #[test]
+    fn subscribe_without_permission_is_rejected() {
+        let hub = BrowserEventsHub::new();
+        let perms = empty_permissions();
+        let err = browser_events_subscribe_inner(
+            &hub,
+            &perms,
+            Some("ext-a".into()),
+            vec!["tabs.changed".into()],
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
+    }
+
+    #[test]
+    fn subscribe_with_permission_returns_uuid() {
+        let hub = BrowserEventsHub::new();
+        let perms = permissions_with("ext-a");
+        let id = browser_events_subscribe_inner(
+            &hub,
+            &perms,
+            Some("ext-a".into()),
+            vec!["tabs.changed".into()],
+        )
+        .unwrap();
+        assert!(uuid::Uuid::parse_str(&id).is_ok());
+    }
+
+    #[test]
+    fn subscribe_with_no_valid_kinds_is_validation_error() {
+        let hub = BrowserEventsHub::new();
+        let perms = permissions_with("ext-a");
+        let err = browser_events_subscribe_inner(
+            &hub,
+            &perms,
+            Some("ext-a".into()),
+            vec!["bogus-kind".into()],
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
+    }
+
+    #[test]
+    fn subscribe_ignores_unknown_kinds_and_keeps_valid_ones() {
+        let hub = BrowserEventsHub::new();
+        let perms = permissions_with("ext-a");
+        let id = browser_events_subscribe_inner(
+            &hub,
+            &perms,
+            Some("ext-a".into()),
+            vec!["tabs.changed".into(), "bogus".into()],
+        )
+        .unwrap();
+        assert!(uuid::Uuid::parse_str(&id).is_ok());
+    }
+
+    #[test]
+    fn unsubscribe_roundtrip() {
+        let hub = BrowserEventsHub::new();
+        let perms = permissions_with("ext-a");
+        let id = browser_events_subscribe_inner(
+            &hub,
+            &perms,
+            Some("ext-a".into()),
+            vec!["tabs.changed".into()],
+        )
+        .unwrap();
+        browser_events_unsubscribe_inner(&hub, &perms, Some("ext-a".into()), id)
+            .expect("unsubscribe ok");
+    }
+
+    #[test]
+    fn unsubscribe_without_permission_is_rejected() {
+        let hub = BrowserEventsHub::new();
+        let perms = empty_permissions();
+        let err = browser_events_unsubscribe_inner(
+            &hub,
+            &perms,
+            Some("ext-a".into()),
+            "any-id".into(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
+    }
+
+    #[test]
+    fn core_caller_without_extension_id_passes_permission_but_fails_validation() {
+        // extension_id = None bypasses permission check but subscribe still
+        // requires a concrete extension id.
+        let hub = BrowserEventsHub::new();
+        let perms = empty_permissions();
+        let err =
+            browser_events_subscribe_inner(&hub, &perms, None, vec!["tabs.changed".into()])
+                .unwrap_err();
+        assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
+    }
+
+    #[test]
+    fn unsubscribe_unknown_id_returns_not_found() {
+        let hub = BrowserEventsHub::new();
+        let perms = permissions_with("ext-a");
+        let err = browser_events_unsubscribe_inner(
+            &hub,
+            &perms,
+            Some("ext-a".into()),
+            "bogus".into(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
+    }
+}

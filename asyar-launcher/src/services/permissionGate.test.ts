@@ -596,8 +596,42 @@ describe('checkPermission', () => {
       expect(checkPermission('e', 'asyar:api:browser:listPairedBrowsers', []).allowed).toBe(false);
     });
 
-    it('browser:tabs-changed subscription requires browser:tabs.read', () => {
-      expect(checkPermission('e', 'asyar:event:browser:tabs-changed', []).allowed).toBe(false);
+    it('asyar:event:browser:tabs-changed entry is gone (dispatch is gated at subscribe)', () => {
+      // The Plan-2 entry has been removed. Unknown keys default to allow because
+      // the dispatcher only inspects `asyar:api:*` keys — gating happens at the
+      // subscribe RPC, not at the event push.
+      expect(checkPermission('e', 'asyar:event:browser:tabs-changed', []).allowed).toBe(true);
+    });
+  })
+
+  describe('browser events subscription gating', () => {
+    it('asyar:api:browser:subscribeEvents requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:subscribeEvents', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:subscribeEvents', ['browser:tabs.read']).allowed,
+      ).toBe(true);
+    });
+
+    it('asyar:api:browser:subscribeEvents denied with unrelated permission', () => {
+      const r = checkPermission('e', 'asyar:api:browser:subscribeEvents', ['browser:bookmarks.read']);
+      expect(r.allowed).toBe(false);
+      expect(r.requiredPermission).toBe('browser:tabs.read');
+    });
+
+    it('asyar:api:browser:unsubscribeEvents requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:unsubscribeEvents', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:unsubscribeEvents', ['browser:tabs.read']).allowed,
+      ).toBe(true);
+    });
+
+    it('PERMISSION_MAP includes both subscribe and unsubscribe entries', () => {
+      expect(PERMISSION_MAP['asyar:api:browser:subscribeEvents']).toBe('browser:tabs.read');
+      expect(PERMISSION_MAP['asyar:api:browser:unsubscribeEvents']).toBe('browser:tabs.read');
+    });
+
+    it('PERMISSION_MAP does not contain the dead asyar:event:browser:tabs-changed key', () => {
+      expect('asyar:event:browser:tabs-changed' in PERMISSION_MAP).toBe(false);
     });
   })
 

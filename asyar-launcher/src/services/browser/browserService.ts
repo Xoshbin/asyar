@@ -1,20 +1,17 @@
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import type {
   Bookmark,
   BrowserFamily,
   BrowserId,
   BrowserKey,
   HistoryEntry,
-  IBrowserService,
   ListBookmarksFilter,
   OpenUrlTarget,
   SearchHistoryOptions,
   Tab,
-  TabsChangedEvent,
 } from 'asyar-sdk/contracts';
 
-export class BrowserService implements IBrowserService {
+export class BrowserService {
   async listAvailableBrowsers(): Promise<BrowserId[]> {
     return invoke<BrowserId[]>('browser_list_available_browsers');
   }
@@ -66,16 +63,6 @@ export class BrowserService implements IBrowserService {
 
   async listPairedBrowsers(): Promise<BrowserKey[]> {
     return invoke<BrowserKey[]>('browser_list_paired_browsers');
-  }
-
-  onTabsChanged(handler: (e: TabsChangedEvent) => void): () => Promise<void> {
-    const unlistenPromise = listen<TabsChangedEvent>('browser:tabs-changed', (event) => {
-      handler(event.payload);
-    });
-    return async () => {
-      const unlisten = await unlistenPromise;
-      unlisten();
-    };
   }
 }
 
