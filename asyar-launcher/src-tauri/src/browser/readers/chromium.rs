@@ -1,4 +1,5 @@
-use crate::browser::types::{Bookmark, BrowserId};
+use crate::browser::readers::sqlite_copy::copy_for_read;
+use crate::browser::types::{Bookmark, BrowserId, HistoryEntry};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -84,6 +85,53 @@ fn walk(node: &ChromiumNode, parents: &[String], browser: &BrowserId, out: &mut 
     }
 }
 
+pub fn read_history_file(
+    path: &Path,
+    browser: &BrowserId,
+    query: &str,
+    limit: Option<u32>,
+) -> Result<Vec<HistoryEntry>, String> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let copy = copy_for_read(path)?;
+    let conn = rusqlite::Connection::open_with_flags(
+        copy.path(),
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .map_err(|e| e.to_string())?;
+
+    let limit_clause = match limit {
+        Some(n) => format!(" LIMIT {}", n),
+        None => String::new(),
+    };
+    let sql = format!(
+        "SELECT url, title, visit_count, last_visit_time FROM urls \
+         WHERE (LOWER(url) LIKE ?1 OR LOWER(title) LIKE ?1) AND hidden = 0 \
+         ORDER BY last_visit_time DESC{}",
+        limit_clause
+    );
+    let like_pattern = format!("%{}%", query.to_lowercase());
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([&like_pattern], |row| {
+            let url: String = row.get(0)?;
+            let title: String = row.get::<_, Option<String>>(1)?.unwrap_or_default();
+            let visit_count: u32 = row.get(2)?;
+            let last_visit_micros: i64 = row.get(3)?;
+            Ok(HistoryEntry {
+                url,
+                title,
+                browser: browser.clone(),
+                last_visit_at: chromium_micros_to_unix_ms(&last_visit_micros.to_string()),
+                visit_count,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +184,65 @@ mod tests {
             &fake_browser(),
         );
         assert_eq!(result.unwrap(), Vec::new());
+    }
+
+    #[test]
+    #[ignore] // Run manually with: cargo test --lib generate_chrome_history_fixture -- --ignored --nocapture
+    fn generate_chrome_history_fixture() {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/browser/fixtures/chrome_history.sqlite");
+        let _ = std::fs::remove_file(&path);
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE urls (
+                id INTEGER PRIMARY KEY,
+                url LONGVARCHAR,
+                title LONGVARCHAR,
+                visit_count INTEGER DEFAULT 0 NOT NULL,
+                typed_count INTEGER DEFAULT 0 NOT NULL,
+                last_visit_time INTEGER NOT NULL,
+                hidden INTEGER DEFAULT 0 NOT NULL
+            );
+            INSERT INTO urls VALUES (1, 'https://github.com', 'GitHub', 5, 2, 13350000000000000, 0);
+            INSERT INTO urls VALUES (2, 'https://doc.rust-lang.org', 'Rust Docs', 3, 1, 13350000010000000, 0);
+            INSERT INTO urls VALUES (3, 'https://news.ycombinator.com', 'Hacker News', 12, 0, 13350000020000000, 0);"
+        ).unwrap();
+        println!("Generated fixture at {}", path.display());
+    }
+
+    fn history_fixture_path() -> std::path::PathBuf {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/browser/fixtures/chrome_history.sqlite")
+    }
+
+    #[test]
+    fn reads_all_history_entries_when_query_is_empty() {
+        let entries = read_history_file(&history_fixture_path(), &fake_browser(), "", None).unwrap();
+        assert_eq!(entries.len(), 3);
+    }
+
+    #[test]
+    fn filters_by_query_case_insensitive() {
+        let entries = read_history_file(&history_fixture_path(), &fake_browser(), "rust", None).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].title, "Rust Docs");
+    }
+
+    #[test]
+    fn respects_limit() {
+        let entries = read_history_file(&history_fixture_path(), &fake_browser(), "", Some(2)).unwrap();
+        assert_eq!(entries.len(), 2);
+    }
+
+    #[test]
+    fn history_file_missing_returns_empty() {
+        let entries = read_history_file(
+            &std::path::PathBuf::from("/no/such/History"),
+            &fake_browser(),
+            "",
+            None,
+        )
+        .unwrap();
+        assert!(entries.is_empty());
     }
 }
