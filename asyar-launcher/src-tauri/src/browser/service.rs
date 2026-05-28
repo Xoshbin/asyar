@@ -279,6 +279,7 @@ mod tests {
             pairing: Arc::new(PairingRegistry::new()),
             connections: Arc::new(CompanionRegistry::new()),
             cache: Arc::new(TabSnapshotCache::new()),
+            events: Arc::new(crate::browser::events::BrowserEventsHub::new()),
             app_handle: app.handle().clone(),
         }
     }

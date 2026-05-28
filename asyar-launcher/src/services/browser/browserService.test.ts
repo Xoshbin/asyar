@@ -1,18 +1,15 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-const { invokeMock, listenMock } = vi.hoisted(() => ({
+const { invokeMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
-  listenMock: vi.fn(),
 }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
-vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock }));
 
 import { browserService } from './browserService';
 import type { Bookmark, BrowserId, HistoryEntry } from 'asyar-sdk/contracts';
 
 beforeEach(() => {
   invokeMock.mockReset();
-  listenMock.mockReset();
 });
 
 describe('browserService', () => {
@@ -105,15 +102,5 @@ describe('browserService — live bridge', () => {
     invokeMock.mockResolvedValue([]);
     await browserService.listPairedBrowsers();
     expect(invokeMock).toHaveBeenCalledWith('browser_list_paired_browsers');
-  });
-
-  it('onTabsChanged registers a Tauri event listener and returns an unsubscribe', async () => {
-    const unlisten = vi.fn();
-    listenMock.mockResolvedValue(unlisten);
-    const handler = vi.fn();
-    const off = browserService.onTabsChanged(handler);
-    expect(listenMock).toHaveBeenCalledWith('browser:tabs-changed', expect.any(Function));
-    await off();
-    expect(unlisten).toHaveBeenCalled();
   });
 });

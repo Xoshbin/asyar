@@ -64,8 +64,8 @@ export interface BrowserKey {
 }
 
 export interface TabsChangedEvent {
-  family: BrowserFamily;
-  variant: string;
+  type: 'tabs-changed';
+  browser: BrowserKey;
   tabs: Tab[];
 }
 
@@ -105,8 +105,13 @@ export interface IBrowserService {
   listPairedBrowsers(): Promise<BrowserKey[]>;
 
   /**
-   * Subscribe to tab changes. Returns an async cleanup function so callers can `await off()`.
-   * The cleanup is async to mirror the host implementation, which awaits Tauri's `listen` handle.
+   * Subscribe to live tab changes. Requires `browser:tabs.read` (gated at the
+   * `browser:subscribeEvents` RPC in Rust).
+   *
+   * Returns a synchronous disposer — invoke it to unsubscribe. Listeners are
+   * ref-counted: the first listener issues one `browser:subscribeEvents` RPC;
+   * subsequent listeners reuse that subscription. The last disposer triggers
+   * one `browser:unsubscribeEvents` RPC. The disposer is idempotent.
    */
-  onTabsChanged(handler: (e: TabsChangedEvent) => void): () => Promise<void>;
+  onTabsChanged(handler: (e: TabsChangedEvent) => void): () => void;
 }

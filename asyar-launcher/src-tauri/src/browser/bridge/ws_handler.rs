@@ -77,14 +77,12 @@ async fn dispatch_message<R: tauri::Runtime>(
             "tabs.snapshot" | "tabs.changed" => {
                 if let Ok(snapshot) = serde_json::from_value::<Vec<Tab>>(payload) {
                     state.cache.set(key, snapshot.clone());
-                    let _ = state.app_handle.emit(
-                        "browser:tabs-changed",
-                        serde_json::json!({
-                            "family": format!("{:?}", key.family).to_lowercase(),
-                            "variant": key.variant,
-                            "tabs": snapshot,
-                        }),
-                    );
+                    state
+                        .events
+                        .dispatch(crate::browser::events::BrowserEvent::TabsChanged {
+                            browser: key.clone(),
+                            tabs: snapshot,
+                        });
                 }
             }
             _ => {}
@@ -102,5 +100,126 @@ async fn dispatch_message<R: tauri::Runtime>(
             };
             let _ = state.connections.deliver_response(&id, outcome).await;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::browser::bridge::{
+        cache::TabSnapshotCache, connections::CompanionRegistry, pairing::PairingRegistry,
+        token_store::InMemoryTokenStore, BridgeState,
+    };
+    use crate::browser::events::{BrowserEvent, BrowserEventKind, BrowserEventsHub};
+    use crate::browser::types::{BrowserFamily, BrowserKey};
+    use crate::event_hub::fake::RecordingEmitter;
+    use std::collections::HashSet;
+    use std::sync::Arc;
+
+    fn build_state() -> BridgeState<tauri::test::MockRuntime> {
+        let app = tauri::test::mock_app();
+        BridgeState {
+            tokens: Arc::new(InMemoryTokenStore::new()),
+            pairing: Arc::new(PairingRegistry::new()),
+            connections: Arc::new(CompanionRegistry::new()),
+            cache: Arc::new(TabSnapshotCache::new()),
+            events: Arc::new(BrowserEventsHub::new()),
+            app_handle: app.handle().clone(),
+        }
+    }
+
+    #[tokio::test]
+    async fn tabs_snapshot_dispatches_to_subscribed_extension_only() {
+        let state = build_state();
+        let rec: RecordingEmitter<BrowserEvent> = RecordingEmitter::new();
+        state.events.set_emitter(rec.clone().into_emit_fn());
+
+        let mut kinds = HashSet::new();
+        kinds.insert(BrowserEventKind::TabsChanged);
+        let _ = state.events.subscribe("ext-a", kinds).unwrap();
+
+        let key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        let payload = serde_json::json!([{
+            "id": "1",
+            "browser": { "family": "chromium", "variant": "chrome", "profileId": "Default" },
+            "windowId": "w", "index": 0,
+            "title": "T", "url": "U",
+            "isActive": true, "isPinned": false, "isAudible": false,
+        }]);
+        let msg = CompanionMessage::Event {
+            name: "tabs.snapshot".to_string(),
+            payload,
+        };
+        dispatch_message(&state, &key, msg).await;
+
+        let snap = rec.snapshot();
+        assert_eq!(snap.len(), 1, "exactly one dispatch expected");
+        assert_eq!(snap[0].0, "ext-a");
+        assert!(matches!(snap[0].1, BrowserEvent::TabsChanged { .. }));
+    }
+
+    #[tokio::test]
+    async fn tabs_snapshot_with_no_subscribers_dispatches_nothing() {
+        let state = build_state();
+        let rec: RecordingEmitter<BrowserEvent> = RecordingEmitter::new();
+        state.events.set_emitter(rec.clone().into_emit_fn());
+        // No subscriber registered.
+
+        let key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        let payload = serde_json::json!([{
+            "id": "1",
+            "browser": { "family": "chromium", "variant": "chrome", "profileId": "Default" },
+            "windowId": "w", "index": 0,
+            "title": "T", "url": "U",
+            "isActive": true, "isPinned": false, "isAudible": false,
+        }]);
+        dispatch_message(
+            &state,
+            &key,
+            CompanionMessage::Event {
+                name: "tabs.snapshot".to_string(),
+                payload,
+            },
+        )
+        .await;
+
+        assert!(rec.snapshot().is_empty(), "no subscribers -> no dispatch");
+    }
+
+    #[tokio::test]
+    async fn tabs_snapshot_still_populates_cache_even_without_subscribers() {
+        let state = build_state();
+        // No subscribers and no emitter.
+
+        let key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        let payload = serde_json::json!([{
+            "id": "tab-cache",
+            "browser": { "family": "chromium", "variant": "chrome", "profileId": "Default" },
+            "windowId": "w", "index": 0,
+            "title": "T", "url": "U",
+            "isActive": true, "isPinned": false, "isAudible": false,
+        }]);
+        dispatch_message(
+            &state,
+            &key,
+            CompanionMessage::Event {
+                name: "tabs.snapshot".to_string(),
+                payload,
+            },
+        )
+        .await;
+
+        let cached = state.cache.list_all();
+        assert_eq!(cached.len(), 1);
+        assert_eq!(cached[0].id, "tab-cache");
     }
 }
