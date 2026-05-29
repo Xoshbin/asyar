@@ -34,7 +34,7 @@
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-store": "~2.4.2",
     "@tauri-apps/plugin-updater": "~2.10.0",
-    "asyar-sdk": "^3.0.1",
+    "asyar-sdk": "^3.1.0",
     "date-fns": "^4.1.0",
     "katex": "^0.16.45",
     "marked": "^17.0.5",
