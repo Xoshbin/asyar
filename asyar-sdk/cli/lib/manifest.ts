@@ -170,6 +170,10 @@ export const VALID_PERMISSIONS = [
   'tools:register',
   'snippets:contribute',
   'runs:track',
+  'browser:tabs.read', 'browser:tabs.write',
+  'browser:bookmarks.read',
+  'browser:history.read',
+  'browser:page.read', 'browser:page.write',
 ] as const
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const
