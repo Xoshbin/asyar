@@ -106,7 +106,7 @@ impl BrowserService {
         if let Some(since) = opts.since_ms {
             out.retain(|e| e.last_visit_at >= since);
         }
-        out.sort_by(|a, b| b.last_visit_at.cmp(&a.last_visit_at));
+        out.sort_by_key(|e| std::cmp::Reverse(e.last_visit_at));
         if let Some(limit) = opts.limit {
             out.truncate(limit as usize);
         }
