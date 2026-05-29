@@ -40,7 +40,12 @@ vi.mock('../services/search/searchOrchestrator.svelte', () => ({
   },
 }))
 
+vi.mock('../services/window/windowService', () => ({
+  windowService: { hide: vi.fn().mockResolvedValue(undefined) },
+}))
+
 import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte'
+import { windowService } from '../services/window/windowService'
 
 import { resolveItemMeta, buildMappedItems } from './searchResultMapper'
 import type { SearchResult } from '../services/search/interfaces/SearchResult'
@@ -293,6 +298,8 @@ describe('buildMappedItems command action consults the orchestrator result-actio
       'ext_my-ext_Toggle_Thing_0',
     )
     expect(vi.mocked(extensionManager.handleCommandAction)).not.toHaveBeenCalled()
+    // The launcher dismisses itself so the app the companion raised is unobstructed.
+    expect(vi.mocked(windowService.hide)).toHaveBeenCalled()
   })
 
   it('falls through to handleCommandAction for a normal command not in the result-action map', async () => {

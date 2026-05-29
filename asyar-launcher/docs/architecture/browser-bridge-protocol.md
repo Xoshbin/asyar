@@ -176,6 +176,14 @@ These three states are distinct and the companion must honor them.
 
 The companion is expected to respond within 5 seconds for tab methods, and 10 seconds for page methods. The launcher times out RPCs after these durations and returns an error to the calling extension.
 
+**Window focus (required for `tabs.activate` / `tabs.open`):** the companion MUST
+also focus the tab's window — `chrome.windows.update(windowId, { focused: true })`
+(or the browser's equivalent) — so the browser comes to the foreground.
+`tabs.update(..., { active: true })` only changes the active tab *within* the
+browser; without focusing the window the switch happens invisibly in a
+background window. The launcher dismisses itself after dispatching the
+activation, leaving the focused browser window unobstructed.
+
 ## 8. Revocation
 
 The user can revoke pairing in the launcher's Settings → Browsers UI. The
