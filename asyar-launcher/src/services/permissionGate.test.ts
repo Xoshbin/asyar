@@ -669,6 +669,17 @@ describe('checkPermission', () => {
     });
   })
 
+  describe('browser command-bar permission gating', () => {
+    it('browser:searchWeb requires browser:tabs.write', () => {
+      expect(checkPermission('e', 'asyar:api:browser:searchWeb', []).allowed).toBe(false);
+      expect(checkPermission('e', 'asyar:api:browser:searchWeb', ['browser:tabs.write']).allowed).toBe(true);
+    });
+    it('browser:getMostRecentActiveBrowser requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:getMostRecentActiveBrowser', []).allowed).toBe(false);
+      expect(checkPermission('e', 'asyar:api:browser:getMostRecentActiveBrowser', ['browser:tabs.read']).allowed).toBe(true);
+    });
+  })
+
   describe('snippets:contribute', () => {
     it('requires snippets:contribute for snippets:registerShortcodes', () => {
       const result = checkPermission('any.ext', 'asyar:api:snippets:registerShortcodes', [])

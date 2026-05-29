@@ -1,7 +1,7 @@
 use crate::browser::bridge::BridgeState;
 use crate::browser::service::{BrowserService, ListBookmarksFilter, SearchHistoryOptions};
 use crate::browser::types::{
-    Bookmark, BrowserFamily, BrowserId, HistoryEntry, OpenUrlTarget, PairDecision, Tab,
+    Bookmark, BrowserFamily, BrowserId, BrowserKey, HistoryEntry, OpenUrlTarget, PairDecision, Tab,
 };
 use tauri::State;
 
@@ -73,7 +73,9 @@ pub async fn browser_close_tab(
     bridge: State<'_, BridgeState>,
     tab_id: String,
 ) -> Result<(), String> {
-    BrowserService::new().close_tab(bridge.inner(), tab_id).await
+    BrowserService::new()
+        .close_tab(bridge.inner(), tab_id)
+        .await
 }
 
 #[tauri::command]
@@ -159,6 +161,24 @@ pub async fn browser_revoke_pairing(
     bridge.tokens.delete(&key)?;
     bridge.connections.unregister(&key).await;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn browser_search_web(
+    bridge: State<'_, BridgeState>,
+    text: String,
+    browser: Option<BrowserId>,
+) -> Result<(), String> {
+    BrowserService::new()
+        .search_web(bridge.inner(), text, browser)
+        .await
+}
+
+#[tauri::command]
+pub fn browser_get_most_recent_active_browser(
+    bridge: State<'_, BridgeState>,
+) -> Option<BrowserKey> {
+    BrowserService::new().most_recent_active_browser(bridge.inner())
 }
 
 // ── Browser page methods ──────────────────────────────────────────────────
@@ -361,13 +381,9 @@ mod browser_events_command_tests {
     fn unsubscribe_without_permission_is_rejected() {
         let hub = BrowserEventsHub::new();
         let perms = empty_permissions();
-        let err = browser_events_unsubscribe_inner(
-            &hub,
-            &perms,
-            Some("ext-a".into()),
-            "any-id".into(),
-        )
-        .unwrap_err();
+        let err =
+            browser_events_unsubscribe_inner(&hub, &perms, Some("ext-a".into()), "any-id".into())
+                .unwrap_err();
         assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
     }
 
@@ -377,9 +393,8 @@ mod browser_events_command_tests {
         // requires a concrete extension id.
         let hub = BrowserEventsHub::new();
         let perms = empty_permissions();
-        let err =
-            browser_events_subscribe_inner(&hub, &perms, None, vec!["tabs.changed".into()])
-                .unwrap_err();
+        let err = browser_events_subscribe_inner(&hub, &perms, None, vec!["tabs.changed".into()])
+            .unwrap_err();
         assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
     }
 
@@ -387,13 +402,9 @@ mod browser_events_command_tests {
     fn unsubscribe_unknown_id_returns_not_found() {
         let hub = BrowserEventsHub::new();
         let perms = permissions_with("ext-a");
-        let err = browser_events_unsubscribe_inner(
-            &hub,
-            &perms,
-            Some("ext-a".into()),
-            "bogus".into(),
-        )
-        .unwrap_err();
+        let err =
+            browser_events_unsubscribe_inner(&hub, &perms, Some("ext-a".into()), "bogus".into())
+                .unwrap_err();
         assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
     }
 }

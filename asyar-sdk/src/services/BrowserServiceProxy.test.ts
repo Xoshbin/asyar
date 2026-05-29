@@ -299,6 +299,23 @@ describe('BrowserServiceProxy.onTabsChanged — subscribe pattern', () => {
   });
 });
 
+describe('BrowserServiceProxy — command-bar additions', () => {
+  it('searchWeb invokes browser:searchWeb with text + browser', async () => {
+    const invokeMock = vi.fn(async () => undefined);
+    const proxy = new BrowserServiceProxy();
+    (proxy as unknown as { broker: unknown }).broker = { invoke: invokeMock, on: vi.fn(), off: vi.fn() };
+    await proxy.searchWeb('react hooks');
+    expect(invokeMock).toHaveBeenCalledWith('browser:searchWeb', { text: 'react hooks', browser: undefined }, undefined, 5000);
+  });
+  it('getMostRecentActiveBrowser invokes browser:getMostRecentActiveBrowser', async () => {
+    const invokeMock = vi.fn(async () => null);
+    const proxy = new BrowserServiceProxy();
+    (proxy as unknown as { broker: unknown }).broker = { invoke: invokeMock, on: vi.fn(), off: vi.fn() };
+    await proxy.getMostRecentActiveBrowser();
+    expect(invokeMock).toHaveBeenCalledWith('browser:getMostRecentActiveBrowser', {}, undefined, 5000);
+  });
+});
+
 describe('BrowserServiceProxy.onPageChanged — subscribe pattern', () => {
   let proxy: BrowserServiceProxy;
   let invokeMock: ReturnType<typeof vi.fn>;

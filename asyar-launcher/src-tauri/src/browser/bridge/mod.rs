@@ -16,6 +16,7 @@ pub struct BridgeState<R: tauri::Runtime = tauri::Wry> {
     pub connections: Arc<connections::CompanionRegistry>,
     pub cache: Arc<cache::TabSnapshotCache>,
     pub events: Arc<BrowserEventsHub>,
+    pub last_active: Arc<std::sync::RwLock<Option<crate::browser::types::BrowserKey>>>,
     pub app_handle: tauri::AppHandle<R>,
 }
 
@@ -30,6 +31,7 @@ impl<R: tauri::Runtime> Clone for BridgeState<R> {
             connections: self.connections.clone(),
             cache: self.cache.clone(),
             events: self.events.clone(),
+            last_active: self.last_active.clone(),
             app_handle: self.app_handle.clone(),
         }
     }

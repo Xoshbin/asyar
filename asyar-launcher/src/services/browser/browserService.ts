@@ -80,6 +80,16 @@ export class BrowserService {
     return invoke<void>('browser_act_on_page', { tabId, action });
   }
 
+  // — Plan A (command-bar additions) —
+
+  async searchWeb(text: string, browser?: BrowserId): Promise<void> {
+    return invoke<void>('browser_search_web', { text, browser });
+  }
+
+  async getMostRecentActiveBrowser(): Promise<BrowserKey | null> {
+    return invoke<BrowserKey | null>('browser_get_most_recent_active_browser');
+  }
+
   // — Per-kind subscribe methods. Each hard-codes `eventTypes` so the wire payload
   // cannot side-channel a different kind. See permissionGate.ts for the per-kind gates.
   async subscribeTabsChanged(): Promise<string> {

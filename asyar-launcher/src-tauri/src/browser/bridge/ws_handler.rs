@@ -92,16 +92,19 @@ async fn dispatch_message<R: tauri::Runtime>(
                     tab_id: String,
                     page: crate::browser::types::PageSnapshot,
                 }
-                if let Ok(pc) =
-                    serde_json::from_value::<PageChangedPayload>(payload)
-                {
-                    state.events.dispatch(
-                        crate::browser::events::BrowserEvent::PageChanged {
+                if let Ok(pc) = serde_json::from_value::<PageChangedPayload>(payload) {
+                    state
+                        .events
+                        .dispatch(crate::browser::events::BrowserEvent::PageChanged {
                             browser: key.clone(),
                             tab_id: pc.tab_id,
                             page: pc.page,
-                        },
-                    );
+                        });
+                }
+            }
+            "window.focused" => {
+                if let Ok(mut guard) = state.last_active.write() {
+                    *guard = Some(key.clone());
                 }
             }
             _ => {}
@@ -143,6 +146,7 @@ mod tests {
             connections: Arc::new(CompanionRegistry::new()),
             cache: Arc::new(TabSnapshotCache::new()),
             events: Arc::new(BrowserEventsHub::new()),
+            last_active: Arc::new(std::sync::RwLock::new(None)),
             app_handle: app.handle().clone(),
         }
     }
@@ -240,6 +244,22 @@ mod tests {
         let cached = state.cache.list_all();
         assert_eq!(cached.len(), 1);
         assert_eq!(cached[0].id, "tab-cache");
+    }
+
+    #[tokio::test]
+    async fn window_focused_event_updates_last_active() {
+        let state = build_state();
+        let key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        let msg = CompanionMessage::Event {
+            name: "window.focused".to_string(),
+            payload: serde_json::json!({}),
+        };
+        dispatch_message(&state, &key, msg).await;
+        let got = state.last_active.read().unwrap().clone();
+        assert_eq!(got, Some(key));
     }
 
     #[tokio::test]

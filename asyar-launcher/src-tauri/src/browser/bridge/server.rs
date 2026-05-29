@@ -18,13 +18,9 @@ const BRIDGE_PORT_RANGE: std::ops::RangeInclusive<u16> = 54300..=54320;
 /// Binds the first free port from `ports` on 127.0.0.1. Returns an error if none
 /// are available — we deliberately do NOT fall back to a random port, because a
 /// port outside the discovery range is unreachable by browser companions.
-async fn bind_in_range(
-    ports: impl IntoIterator<Item = u16>,
-) -> Result<TcpListener, String> {
+async fn bind_in_range(ports: impl IntoIterator<Item = u16>) -> Result<TcpListener, String> {
     for port in ports {
-        if let Ok(listener) =
-            TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], port))).await
-        {
+        if let Ok(listener) = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], port))).await {
             return Ok(listener);
         }
     }
@@ -69,7 +65,12 @@ async fn pair_request_handler<R: tauri::Runtime>(
         "chromium" => crate::browser::types::BrowserFamily::Chromium,
         "firefox" => crate::browser::types::BrowserFamily::Firefox,
         "safari" => crate::browser::types::BrowserFamily::Safari,
-        other => return Err((StatusCode::BAD_REQUEST, format!("unknown family: {}", other))),
+        other => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!("unknown family: {}", other),
+            ))
+        }
     };
     let key = crate::browser::types::BrowserKey {
         family,
@@ -226,6 +227,7 @@ mod tests {
             connections: Arc::new(CompanionRegistry::new()),
             cache: Arc::new(TabSnapshotCache::new()),
             events: Arc::new(crate::browser::events::BrowserEventsHub::new()),
+            last_active: Arc::new(std::sync::RwLock::new(None)),
             app_handle: app.handle().clone(),
         }
     }
@@ -290,10 +292,7 @@ mod tests {
         let handle = start_server(state.clone()).await.unwrap();
         let client = reqwest::Client::new();
         let resp: serde_json::Value = client
-            .post(format!(
-                "http://127.0.0.1:{}/pair-request",
-                handle.port()
-            ))
+            .post(format!("http://127.0.0.1:{}/pair-request", handle.port()))
             .json(&serde_json::json!({ "family": "chromium", "variant": "chrome" }))
             .send()
             .await
@@ -315,10 +314,7 @@ mod tests {
         let client = reqwest::Client::new();
 
         let req: serde_json::Value = client
-            .post(format!(
-                "http://127.0.0.1:{}/pair-request",
-                handle.port()
-            ))
+            .post(format!("http://127.0.0.1:{}/pair-request", handle.port()))
             .json(&serde_json::json!({ "family": "chromium", "variant": "chrome" }))
             .send()
             .await
@@ -518,10 +514,7 @@ mod tests {
         let handle = start_server(state.clone()).await.unwrap();
         let client = reqwest::Client::new();
         let req: serde_json::Value = client
-            .post(format!(
-                "http://127.0.0.1:{}/pair-request",
-                handle.port()
-            ))
+            .post(format!("http://127.0.0.1:{}/pair-request", handle.port()))
             .json(&serde_json::json!({ "family": "firefox", "variant": "firefox" }))
             .send()
             .await

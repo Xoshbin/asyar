@@ -84,15 +84,19 @@ Send `hello` as the first message:
 | { "type": "hello", "version": 1, "browser": { family, variant, profiles[] } }
 | { "type": "event", "name": "tabs.snapshot" | "tabs.changed", "payload": Tab[] }
 | { "type": "event", "name": "page.changed", "payload": { tabId: string, page: PageSnapshot } }
+| { "type": "event", "name": "window.focused", "payload": {} }
 | { "type": "res", "id": string, "ok": true,  "result": any }
 | { "type": "res", "id": string, "ok": false, "error": string }
 ```
+
+**`window.focused` note:** the companion emits `{ type: 'event', name: 'window.focused', payload: {} }` whenever its browser window gains focus (the companion ignores `WINDOW_ID_NONE` — i.e. focus-loss events — and only fires when a real window ID is received). The launcher tracks the most-recently-focused browser (`last_active`) so it can route newly-opened content to the browser the user is actually using.
 
 ### Server → companion
 
 ```ts
 | { "type": "req", "id": string, "method": "tabs.activate" | "tabs.close" | "tabs.open", "params": any }
 | { "type": "req", "id": string, "method": "page.snapshot" | "page.query" | "page.action", "params": any }
+| { "type": "req", "id": string, "method": "search.web", "params": { text: string } }
 ```
 
 ## 5. Tab shape
@@ -173,8 +177,13 @@ These three states are distinct and the companion must honor them.
 | `page.snapshot`   | `{ tabId: string }`               | `PageSnapshot`           |
 | `page.query`      | `{ tabId, selector, attrs? }`     | `PageMatch[]`            |
 | `page.action`     | `{ tabId, action: { kind } }`     | `null`                   |
+| `search.web`      | `{ text: string }`                | `{ searched: true }`     |
 
-The companion is expected to respond within 5 seconds for tab methods, and 10 seconds for page methods. The launcher times out RPCs after these durations and returns an error to the calling extension.
+The companion is expected to respond within 5 seconds for tab methods and `search.web`, and 10 seconds for page methods. The launcher times out RPCs after these durations and returns an error to the calling extension.
+
+**`search.web`:** uses the browser's configured default search engine via `chrome.search.query` (opens a new tab with the search results). 5-second timeout.
+
+**`tabs.open` with `newWindow: true`:** opens a genuinely new browser window via `chrome.windows.create` (rather than a new tab in an existing window).
 
 **Window focus (required for `tabs.activate` / `tabs.open`):** the companion MUST
 also focus the tab's window — `chrome.windows.update(windowId, { focused: true })`

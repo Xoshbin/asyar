@@ -126,6 +126,10 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:browser:getCurrentPage':                  'browser:page.read',
   'asyar:api:browser:queryPage':                       'browser:page.read',
   'asyar:api:browser:actOnPage':                       'browser:page.write',
+  // Browser bridge — command-bar additions. searchWeb opens a tab (tabs.write);
+  // getMostRecentActiveBrowser exposes browser identity (tabs.read, like listPairedBrowsers).
+  'asyar:api:browser:searchWeb':                       'browser:tabs.write',
+  'asyar:api:browser:getMostRecentActiveBrowser':      'browser:tabs.read',
 }
 
 /**

@@ -123,6 +123,27 @@ describe('browserService — live bridge', () => {
   });
 });
 
+describe('browserService — command-bar additions', () => {
+  it('searchWeb calls browser_search_web with text + browser undefined', async () => {
+    invokeMock.mockResolvedValue(undefined);
+    await browserService.searchWeb('q');
+    expect(invokeMock).toHaveBeenCalledWith('browser_search_web', { text: 'q', browser: undefined });
+  });
+
+  it('searchWeb calls browser_search_web with text + specific browser', async () => {
+    invokeMock.mockResolvedValue(undefined);
+    const someBrowser = { family: 'chromium' as const, variant: 'chrome', profileId: 'Default' };
+    await browserService.searchWeb('q', someBrowser);
+    expect(invokeMock).toHaveBeenCalledWith('browser_search_web', { text: 'q', browser: someBrowser });
+  });
+
+  it('getMostRecentActiveBrowser calls browser_get_most_recent_active_browser', async () => {
+    invokeMock.mockResolvedValue(null);
+    await browserService.getMostRecentActiveBrowser();
+    expect(invokeMock).toHaveBeenCalledWith('browser_get_most_recent_active_browser');
+  });
+});
+
 describe('browserService — subscribe per-kind (hard-coded eventTypes)', () => {
   it('subscribeTabsChanged invokes browser_events_subscribe with hard-coded tabs.changed', async () => {
     invokeMock.mockResolvedValue('sub-1');

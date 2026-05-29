@@ -2,7 +2,8 @@ use asyar_lib::browser::bridge::{
     cache::TabSnapshotCache, connections::CompanionRegistry, pairing::PairingRegistry,
     server::start_server, token_store::InMemoryTokenStore, BridgeState,
 };
-use asyar_lib::browser::types::{BrowserFamily, BrowserKey, PairDecision};
+use asyar_lib::browser::service::BrowserService;
+use asyar_lib::browser::types::{BrowserFamily, BrowserId, BrowserKey, PairDecision};
 use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -17,6 +18,7 @@ fn build_state() -> BridgeState<tauri::test::MockRuntime> {
         connections: Arc::new(CompanionRegistry::new()),
         cache: Arc::new(TabSnapshotCache::new()),
         events: Arc::new(asyar_lib::browser::events::BrowserEventsHub::new()),
+        last_active: Arc::new(std::sync::RwLock::new(None)),
         app_handle: app.handle().clone(),
     }
 }
@@ -75,7 +77,10 @@ async fn full_pairing_then_tabs_round_trip() {
     });
 
     let status: serde_json::Value = http
-        .get(format!("http://127.0.0.1:{}/pair-status/{}", port, pairing_id))
+        .get(format!(
+            "http://127.0.0.1:{}/pair-status/{}",
+            port, pairing_id
+        ))
         .send()
         .await
         .unwrap()
@@ -86,7 +91,10 @@ async fn full_pairing_then_tabs_round_trip() {
     let token = status["token"].as_str().unwrap().to_string();
 
     // 4) Connect WS with the token.
-    let url = format!("ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome", port);
+    let url = format!(
+        "ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome",
+        port
+    );
     let mut wreq = url.into_client_request().unwrap();
     wreq.headers_mut().insert(
         "authorization",
@@ -178,7 +186,12 @@ async fn full_pairing_then_page_methods_round_trip() {
     let req: serde_json::Value = http
         .post(format!("http://127.0.0.1:{}/pair-request", port))
         .json(&serde_json::json!({ "family": "chromium", "variant": "chrome" }))
-        .send().await.unwrap().json().await.unwrap();
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
     let pairing_id = req["pairing_id"].as_str().unwrap().to_string();
 
     let state2 = state.clone();
@@ -186,21 +199,45 @@ async fn full_pairing_then_page_methods_round_trip() {
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let token = "tok-page".to_string();
-        state2.tokens.set(
-            &BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() },
-            &token,
-        ).unwrap();
-        state2.pairing.resolve(&id, PairDecision::Allow, Some(token)).await.unwrap();
+        state2
+            .tokens
+            .set(
+                &BrowserKey {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                },
+                &token,
+            )
+            .unwrap();
+        state2
+            .pairing
+            .resolve(&id, PairDecision::Allow, Some(token))
+            .await
+            .unwrap();
     });
 
     let status: serde_json::Value = http
-        .get(format!("http://127.0.0.1:{}/pair-status/{}", port, pairing_id))
-        .send().await.unwrap().json().await.unwrap();
+        .get(format!(
+            "http://127.0.0.1:{}/pair-status/{}",
+            port, pairing_id
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
     let token = status["token"].as_str().unwrap().to_string();
 
-    let url = format!("ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome", port);
+    let url = format!(
+        "ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome",
+        port
+    );
     let mut wreq = url.into_client_request().unwrap();
-    wreq.headers_mut().insert("authorization", HeaderValue::from_str(&format!("Bearer {}", token)).unwrap());
+    wreq.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_str(&format!("Bearer {}", token)).unwrap(),
+    );
     let (mut ws, _) = tokio_tungstenite::connect_async(wreq).await.unwrap();
 
     ws.send(Message::Text(r#"{"type":"hello","version":1,"browser":{"family":"chromium","variant":"chrome","profiles":["Default"]}}"#.to_string())).await.unwrap();
@@ -223,24 +260,32 @@ async fn full_pairing_then_page_methods_round_trip() {
             "page": { "url": "https://x", "title": "T", "readableText": "body", "meta": {} }
         }
     });
-    ws.send(Message::Text(page_event.to_string())).await.unwrap();
+    ws.send(Message::Text(page_event.to_string()))
+        .await
+        .unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-    
+
     let got = rec.snapshot();
     assert_eq!(got.len(), 1);
     assert_eq!(got[0].0, "ext-page");
     assert!(matches!(got[0].1, BrowserEvent::PageChanged { .. }));
 
     // Server-initiated page.snapshot RPC
-    let key = BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() };
+    let key = BrowserKey {
+        family: BrowserFamily::Chromium,
+        variant: "chrome".to_string(),
+    };
     let state_clone = state.clone();
     let rpc_task = tokio::spawn(async move {
-        state_clone.connections.send_req(
-            &key,
-            "page.snapshot".to_string(),
-            serde_json::json!({ "tabId": "t1" }),
-            std::time::Duration::from_secs(3),
-        ).await
+        state_clone
+            .connections
+            .send_req(
+                &key,
+                "page.snapshot".to_string(),
+                serde_json::json!({ "tabId": "t1" }),
+                std::time::Duration::from_secs(3),
+            )
+            .await
     });
 
     let msg = ws.next().await.unwrap().unwrap();
@@ -320,7 +365,10 @@ async fn subscribed_extension_receives_dispatched_event() {
     });
 
     let status: serde_json::Value = http
-        .get(format!("http://127.0.0.1:{}/pair-status/{}", port, pairing_id))
+        .get(format!(
+            "http://127.0.0.1:{}/pair-status/{}",
+            port, pairing_id
+        ))
         .send()
         .await
         .unwrap()
@@ -329,7 +377,10 @@ async fn subscribed_extension_receives_dispatched_event() {
         .unwrap();
     let token = status["token"].as_str().unwrap().to_string();
 
-    let url = format!("ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome", port);
+    let url = format!(
+        "ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome",
+        port
+    );
     let mut wreq = url.into_client_request().unwrap();
     wreq.headers_mut().insert(
         "authorization",
@@ -355,7 +406,12 @@ async fn subscribed_extension_receives_dispatched_event() {
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
     let snap = rec.snapshot();
-    assert_eq!(snap.len(), 1, "exactly one dispatch expected, got {:?}", snap);
+    assert_eq!(
+        snap.len(),
+        1,
+        "exactly one dispatch expected, got {:?}",
+        snap
+    );
     assert_eq!(snap[0].0, "ext-a");
     assert!(matches!(snap[0].1, BrowserEvent::TabsChanged { .. }));
 
@@ -409,7 +465,10 @@ async fn unsubscribed_extension_receives_nothing() {
             .unwrap();
     });
     let status: serde_json::Value = http
-        .get(format!("http://127.0.0.1:{}/pair-status/{}", port, pairing_id))
+        .get(format!(
+            "http://127.0.0.1:{}/pair-status/{}",
+            port, pairing_id
+        ))
         .send()
         .await
         .unwrap()
@@ -418,7 +477,10 @@ async fn unsubscribed_extension_receives_nothing() {
         .unwrap();
     let token = status["token"].as_str().unwrap().to_string();
 
-    let url = format!("ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome", port);
+    let url = format!(
+        "ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome",
+        port
+    );
     let mut wreq = url.into_client_request().unwrap();
     wreq.headers_mut().insert(
         "authorization",
@@ -438,8 +500,11 @@ async fn unsubscribed_extension_receives_nothing() {
                 "title": "T", "url": "U",
                 "isActive": true, "isPinned": false, "isAudible": false,
             }]
-        }).to_string(),
-    )).await.unwrap();
+        })
+        .to_string(),
+    ))
+    .await
+    .unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
     assert!(
@@ -447,6 +512,143 @@ async fn unsubscribed_extension_receives_nothing() {
         "no subscribers → no dispatches, got {:?}",
         rec.snapshot()
     );
+
+    ws.close(None).await.unwrap();
+    server.shutdown().await;
+}
+
+#[tokio::test]
+async fn search_web_and_focus_round_trip() {
+    let state = build_state();
+    let server = start_server(state.clone()).await.unwrap();
+    let port = server.port();
+    let http = reqwest::Client::new();
+
+    // 1) Discover.
+    let disc: serde_json::Value = http
+        .get(format!("http://127.0.0.1:{}/discover", port))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(disc["name"], "asyar");
+
+    // 2) Pair request.
+    let req: serde_json::Value = http
+        .post(format!("http://127.0.0.1:{}/pair-request", port))
+        .json(&serde_json::json!({ "family": "chromium", "variant": "chrome" }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let pairing_id = req["pairing_id"].as_str().unwrap().to_string();
+
+    // 3) Simulate user clicking Allow.
+    let state2 = state.clone();
+    let id = pairing_id.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let token = "tok-search-focus".to_string();
+        state2
+            .tokens
+            .set(
+                &BrowserKey {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                },
+                &token,
+            )
+            .unwrap();
+        state2
+            .pairing
+            .resolve(&id, PairDecision::Allow, Some(token))
+            .await
+            .unwrap();
+    });
+
+    // 4) Poll pair-status.
+    let status: serde_json::Value = http
+        .get(format!(
+            "http://127.0.0.1:{}/pair-status/{}",
+            port, pairing_id
+        ))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(status["status"], "approved");
+    let token = status["token"].as_str().unwrap().to_string();
+
+    // 5) Connect WS with the token.
+    let url = format!(
+        "ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome",
+        port
+    );
+    let mut wreq = url.into_client_request().unwrap();
+    wreq.headers_mut().insert(
+        "authorization",
+        HeaderValue::from_str(&format!("Bearer {}", token)).unwrap(),
+    );
+    let (mut ws, _) = tokio_tungstenite::connect_async(wreq).await.unwrap();
+
+    // 6) Send hello.
+    ws.send(Message::Text(
+        r#"{"type":"hello","version":1,"browser":{"family":"chromium","variant":"chrome","profiles":["Default"]}}"#.to_string(),
+    ))
+    .await
+    .unwrap();
+
+    // --- Assertion 1: window.focused → last_active tracking ---
+    let focus_event = serde_json::json!({
+        "type": "event",
+        "name": "window.focused",
+        "payload": {}
+    });
+    ws.send(Message::Text(focus_event.to_string())).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    let last = state.last_active.read().unwrap().clone();
+    assert_eq!(
+        last,
+        Some(BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        })
+    );
+
+    // --- Assertion 2: search.web RPC round-trip via BrowserService ---
+    let svc = BrowserService::new();
+    let state_clone = state.clone();
+    let rpc_task = tokio::spawn(async move {
+        svc.search_web(
+            &state_clone,
+            "react".to_string(),
+            Some(BrowserId {
+                family: BrowserFamily::Chromium,
+                variant: "chrome".to_string(),
+                profile_id: "Default".to_string(),
+            }),
+        )
+        .await
+    });
+
+    let msg = ws.next().await.unwrap().unwrap();
+    let parsed: serde_json::Value = match msg {
+        Message::Text(s) => serde_json::from_str(&s).unwrap(),
+        other => panic!("unexpected ws message: {:?}", other),
+    };
+    assert_eq!(parsed["type"], "req");
+    assert_eq!(parsed["method"], "search.web");
+    assert_eq!(parsed["params"]["text"], "react");
+    let req_id = parsed["id"].as_str().unwrap();
+    let res = serde_json::json!({ "type": "res", "id": req_id, "ok": true, "result": { "searched": true } });
+    ws.send(Message::Text(res.to_string())).await.unwrap();
+    rpc_task.await.unwrap().unwrap();
 
     ws.close(None).await.unwrap();
     server.shutdown().await;

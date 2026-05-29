@@ -37,10 +37,7 @@ impl BrowserService {
         false
     }
 
-    pub fn list_bookmarks(
-        &self,
-        filter: ListBookmarksFilter,
-    ) -> Result<Vec<Bookmark>, String> {
+    pub fn list_bookmarks(&self, filter: ListBookmarksFilter) -> Result<Vec<Bookmark>, String> {
         let browsers = self.list_available_browsers();
         let target = filter.browser.as_ref();
         let mut out = Vec::new();
@@ -123,7 +120,9 @@ impl BrowserService {
         query: Option<String>,
     ) -> Result<Vec<crate::browser::types::Tab>, String> {
         let mut tabs = match browser.as_ref() {
-            Some(id) => bridge.cache.get(&crate::browser::types::BrowserKey::from_id(id)),
+            Some(id) => bridge
+                .cache
+                .get(&crate::browser::types::BrowserKey::from_id(id)),
             None => bridge.cache.list_all(),
         };
         if let Some(q) = query.as_deref() {
@@ -315,6 +314,41 @@ impl BrowserService {
         serde_json::from_value(raw).map_err(|e| format!("invalid PageMatch list: {}", e))
     }
 
+    pub async fn search_web<R: tauri::Runtime>(
+        &self,
+        bridge: &crate::browser::bridge::BridgeState<R>,
+        text: String,
+        target: Option<crate::browser::types::BrowserId>,
+    ) -> Result<(), String> {
+        let key = match target {
+            Some(id) => crate::browser::types::BrowserKey::from_id(&id),
+            None => bridge
+                .connections
+                .list_connected()
+                .await
+                .into_iter()
+                .next()
+                .ok_or_else(|| "no companion connected".to_string())?,
+        };
+        bridge
+            .connections
+            .send_req(
+                &key,
+                "search.web".to_string(),
+                serde_json::json!({ "text": text }),
+                std::time::Duration::from_secs(5),
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub fn most_recent_active_browser<R: tauri::Runtime>(
+        &self,
+        bridge: &crate::browser::bridge::BridgeState<R>,
+    ) -> Option<crate::browser::types::BrowserKey> {
+        bridge.last_active.read().ok().and_then(|g| g.clone())
+    }
+
     pub async fn act_on_page<R: tauri::Runtime>(
         &self,
         bridge: &crate::browser::bridge::BridgeState<R>,
@@ -400,6 +434,7 @@ mod tests {
             connections: Arc::new(CompanionRegistry::new()),
             cache: Arc::new(TabSnapshotCache::new()),
             events: Arc::new(crate::browser::events::BrowserEventsHub::new()),
+            last_active: Arc::new(std::sync::RwLock::new(None)),
             app_handle: app.handle().clone(),
         }
     }
@@ -429,18 +464,43 @@ mod tests {
     #[test]
     fn list_bookmarks_aggregates_across_installed_chromium_profiles() {
         let dir = tempfile::tempdir().unwrap();
-        write_chromium_bookmarks(dir.path(), "chrome", "Default", minimal_chrome_bookmarks_json());
-        write_chromium_bookmarks(dir.path(), "chrome", "Profile 1", minimal_chrome_bookmarks_json());
+        write_chromium_bookmarks(
+            dir.path(),
+            "chrome",
+            "Default",
+            minimal_chrome_bookmarks_json(),
+        );
+        write_chromium_bookmarks(
+            dir.path(),
+            "chrome",
+            "Profile 1",
+            minimal_chrome_bookmarks_json(),
+        );
         let svc = BrowserService::with_home(dir.path().to_path_buf());
-        let bookmarks = svc.list_bookmarks(ListBookmarksFilter { browser: None, query: None }).unwrap();
+        let bookmarks = svc
+            .list_bookmarks(ListBookmarksFilter {
+                browser: None,
+                query: None,
+            })
+            .unwrap();
         assert_eq!(bookmarks.len(), 2);
     }
 
     #[test]
     fn list_bookmarks_filters_by_browser() {
         let dir = tempfile::tempdir().unwrap();
-        write_chromium_bookmarks(dir.path(), "chrome", "Default", minimal_chrome_bookmarks_json());
-        write_chromium_bookmarks(dir.path(), "brave", "Default", minimal_chrome_bookmarks_json());
+        write_chromium_bookmarks(
+            dir.path(),
+            "chrome",
+            "Default",
+            minimal_chrome_bookmarks_json(),
+        );
+        write_chromium_bookmarks(
+            dir.path(),
+            "brave",
+            "Default",
+            minimal_chrome_bookmarks_json(),
+        );
         let svc = BrowserService::with_home(dir.path().to_path_buf());
         let only_chrome = BrowserId {
             family: BrowserFamily::Chromium,
@@ -448,7 +508,10 @@ mod tests {
             profile_id: "Default".to_string(),
         };
         let bookmarks = svc
-            .list_bookmarks(ListBookmarksFilter { browser: Some(only_chrome), query: None })
+            .list_bookmarks(ListBookmarksFilter {
+                browser: Some(only_chrome),
+                query: None,
+            })
             .unwrap();
         assert_eq!(bookmarks.len(), 1);
         assert_eq!(bookmarks[0].browser.variant, "chrome");
@@ -457,17 +520,26 @@ mod tests {
     #[test]
     fn list_bookmarks_filters_by_query_case_insensitive() {
         let dir = tempfile::tempdir().unwrap();
-        write_chromium_bookmarks(dir.path(), "chrome", "Default", minimal_chrome_bookmarks_json());
+        write_chromium_bookmarks(
+            dir.path(),
+            "chrome",
+            "Default",
+            minimal_chrome_bookmarks_json(),
+        );
         let svc = BrowserService::with_home(dir.path().to_path_buf());
-        let q = svc.list_bookmarks(ListBookmarksFilter {
-            browser: None,
-            query: Some("X".to_string()),
-        }).unwrap();
+        let q = svc
+            .list_bookmarks(ListBookmarksFilter {
+                browser: None,
+                query: Some("X".to_string()),
+            })
+            .unwrap();
         assert_eq!(q.len(), 1);
-        let nothing = svc.list_bookmarks(ListBookmarksFilter {
-            browser: None,
-            query: Some("nomatch".to_string()),
-        }).unwrap();
+        let nothing = svc
+            .list_bookmarks(ListBookmarksFilter {
+                browser: None,
+                query: Some("nomatch".to_string()),
+            })
+            .unwrap();
         assert!(nothing.is_empty());
     }
 
@@ -490,9 +562,13 @@ mod tests {
     async fn list_tabs_returns_cache_for_all_browsers() {
         let svc = BrowserService::new();
         let bridge = build_bridge_state();
-        let key = BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() };
-        bridge.cache.set(&key, vec![
-            crate::browser::types::Tab {
+        let key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        bridge.cache.set(
+            &key,
+            vec![crate::browser::types::Tab {
                 id: "1".to_string(),
                 browser: BrowserId {
                     family: BrowserFamily::Chromium,
@@ -508,8 +584,8 @@ mod tests {
                 is_pinned: false,
                 is_audible: false,
                 group_name: None,
-            },
-        ]);
+            }],
+        );
         let tabs = svc.list_tabs(&bridge, None, None).await.unwrap();
         assert_eq!(tabs.len(), 1);
     }
@@ -518,43 +594,49 @@ mod tests {
     async fn list_tabs_filters_by_query_case_insensitive() {
         let svc = BrowserService::new();
         let bridge = build_bridge_state();
-        let key = BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() };
-        bridge.cache.set(&key, vec![
-            crate::browser::types::Tab {
-                id: "1".to_string(),
-                browser: BrowserId {
-                    family: BrowserFamily::Chromium,
-                    variant: "chrome".to_string(),
-                    profile_id: "Default".to_string(),
+        let key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        bridge.cache.set(
+            &key,
+            vec![
+                crate::browser::types::Tab {
+                    id: "1".to_string(),
+                    browser: BrowserId {
+                        family: BrowserFamily::Chromium,
+                        variant: "chrome".to_string(),
+                        profile_id: "Default".to_string(),
+                    },
+                    window_id: "w".to_string(),
+                    index: 0,
+                    title: "GitHub".to_string(),
+                    url: "https://github.com".to_string(),
+                    favicon_url: None,
+                    is_active: false,
+                    is_pinned: false,
+                    is_audible: false,
+                    group_name: None,
                 },
-                window_id: "w".to_string(),
-                index: 0,
-                title: "GitHub".to_string(),
-                url: "https://github.com".to_string(),
-                favicon_url: None,
-                is_active: false,
-                is_pinned: false,
-                is_audible: false,
-                group_name: None,
-            },
-            crate::browser::types::Tab {
-                id: "2".to_string(),
-                browser: BrowserId {
-                    family: BrowserFamily::Chromium,
-                    variant: "chrome".to_string(),
-                    profile_id: "Default".to_string(),
+                crate::browser::types::Tab {
+                    id: "2".to_string(),
+                    browser: BrowserId {
+                        family: BrowserFamily::Chromium,
+                        variant: "chrome".to_string(),
+                        profile_id: "Default".to_string(),
+                    },
+                    window_id: "w".to_string(),
+                    index: 1,
+                    title: "Mozilla".to_string(),
+                    url: "https://mozilla.org".to_string(),
+                    favicon_url: None,
+                    is_active: false,
+                    is_pinned: false,
+                    is_audible: false,
+                    group_name: None,
                 },
-                window_id: "w".to_string(),
-                index: 1,
-                title: "Mozilla".to_string(),
-                url: "https://mozilla.org".to_string(),
-                favicon_url: None,
-                is_active: false,
-                is_pinned: false,
-                is_audible: false,
-                group_name: None,
-            },
-        ]);
+            ],
+        );
         let tabs = svc
             .list_tabs(&bridge, None, Some("github".to_string()))
             .await
@@ -567,20 +649,25 @@ mod tests {
     async fn is_companion_installed_reflects_registry() {
         let svc = BrowserService::new();
         let bridge = build_bridge_state();
-        assert!(!svc
-            .is_companion_installed_via(&bridge, BrowserFamily::Chromium)
-            .await);
+        assert!(
+            !svc.is_companion_installed_via(&bridge, BrowserFamily::Chromium)
+                .await
+        );
         let (tx, _rx) = tokio::sync::mpsc::channel(8);
         bridge
             .connections
             .register(
-                BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() },
+                BrowserKey {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                },
                 tx,
             )
             .await;
-        assert!(svc
-            .is_companion_installed_via(&bridge, BrowserFamily::Chromium)
-            .await);
+        assert!(
+            svc.is_companion_installed_via(&bridge, BrowserFamily::Chromium)
+                .await
+        );
     }
 
     #[tokio::test]
@@ -590,14 +677,20 @@ mod tests {
         bridge
             .tokens
             .set(
-                &BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() },
+                &BrowserKey {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                },
                 "t",
             )
             .unwrap();
         bridge
             .tokens
             .set(
-                &BrowserKey { family: BrowserFamily::Firefox, variant: "firefox".to_string() },
+                &BrowserKey {
+                    family: BrowserFamily::Firefox,
+                    variant: "firefox".to_string(),
+                },
                 "t",
             )
             .unwrap();
@@ -647,15 +740,11 @@ mod tests {
         bridge.connections.register(key.clone(), tx).await;
 
         let bridge_clone = bridge.clone();
-        let svc_task = tokio::spawn(async move {
-            svc.get_current_page(&bridge_clone, None).await
-        });
+        let svc_task = tokio::spawn(async move { svc.get_current_page(&bridge_clone, None).await });
 
         let req = rx.recv().await.expect("expected req");
         let req_id = match req {
-            crate::browser::bridge::protocol::ServerMessage::Req {
-                id, method, ..
-            } => {
+            crate::browser::bridge::protocol::ServerMessage::Req { id, method, .. } => {
                 assert_eq!(method, "page.snapshot");
                 id
             }
@@ -724,11 +813,7 @@ mod tests {
 
         let req = rx.recv().await.unwrap();
         let id = match req {
-            crate::browser::bridge::protocol::ServerMessage::Req {
-                id,
-                method,
-                params,
-            } => {
+            crate::browser::bridge::protocol::ServerMessage::Req { id, method, params } => {
                 assert_eq!(method, "page.query");
                 assert_eq!(params["tabId"], "tab-7");
                 assert_eq!(params["selector"], "a[href]");
@@ -754,8 +839,14 @@ mod tests {
     #[test]
     fn open_strategy_uses_companion_when_target_browser_connected() {
         use crate::browser::types::BrowserFamily;
-        let key = BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() };
-        let connected = vec![BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() }];
+        let key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        let connected = vec![BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        }];
         let strat = resolve_open_strategy(Some(key.clone()), &connected);
         assert!(matches!(strat, OpenStrategy::Companion(ref k) if *k == key));
     }
@@ -763,7 +854,10 @@ mod tests {
     #[test]
     fn open_strategy_uses_first_companion_when_no_target_but_some_connected() {
         use crate::browser::types::BrowserFamily;
-        let connected = vec![BrowserKey { family: BrowserFamily::Firefox, variant: "firefox".to_string() }];
+        let connected = vec![BrowserKey {
+            family: BrowserFamily::Firefox,
+            variant: "firefox".to_string(),
+        }];
         let strat = resolve_open_strategy(None, &connected);
         assert!(matches!(strat, OpenStrategy::Companion(ref k) if k.variant == "firefox"));
     }
@@ -777,10 +871,76 @@ mod tests {
     #[test]
     fn open_strategy_errors_when_target_requested_but_that_browser_not_connected() {
         use crate::browser::types::BrowserFamily;
-        let target = Some(BrowserKey { family: BrowserFamily::Safari, variant: "safari".to_string() });
-        let connected = vec![BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() }];
+        let target = Some(BrowserKey {
+            family: BrowserFamily::Safari,
+            variant: "safari".to_string(),
+        });
+        let connected = vec![BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        }];
         let strat = resolve_open_strategy(target, &connected);
         assert!(matches!(strat, OpenStrategy::ErrorTargetUnreachable));
+    }
+
+    #[tokio::test]
+    async fn search_web_routes_to_target_companion() {
+        let svc = BrowserService::new();
+        let bridge = build_bridge_state();
+        let key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        let (tx, mut rx) =
+            tokio::sync::mpsc::channel::<crate::browser::bridge::protocol::ServerMessage>(8);
+        bridge.connections.register(key.clone(), tx).await;
+
+        let target = BrowserId {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+            profile_id: "Default".to_string(),
+        };
+        let bridge_clone = bridge.clone();
+        let task = tokio::spawn(async move {
+            svc.search_web(&bridge_clone, "react hooks".to_string(), Some(target))
+                .await
+        });
+
+        let req = rx.recv().await.unwrap();
+        let id = match req {
+            crate::browser::bridge::protocol::ServerMessage::Req { id, method, params } => {
+                assert_eq!(method, "search.web");
+                assert_eq!(params["text"], "react hooks");
+                id
+            }
+        };
+        bridge
+            .connections
+            .deliver_response(&id, Ok(serde_json::Value::Null))
+            .await
+            .unwrap();
+        task.await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn search_web_errors_when_target_not_connected() {
+        let svc = BrowserService::new();
+        let bridge = build_bridge_state();
+        let target = BrowserId {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+            profile_id: "Default".to_string(),
+        };
+        let result = svc.search_web(&bridge, "q".to_string(), Some(target)).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn search_web_errors_when_no_companion_connected() {
+        let svc = BrowserService::new();
+        let bridge = build_bridge_state();
+        let result = svc.search_web(&bridge, "q".to_string(), None).await;
+        assert!(result.is_err());
     }
 
     #[tokio::test]
@@ -823,11 +983,7 @@ mod tests {
 
         let req = rx.recv().await.unwrap();
         let id = match req {
-            crate::browser::bridge::protocol::ServerMessage::Req {
-                id,
-                method,
-                params,
-            } => {
+            crate::browser::bridge::protocol::ServerMessage::Req { id, method, params } => {
                 assert_eq!(method, "page.action");
                 assert_eq!(params["tabId"], "tab-3");
                 assert_eq!(params["action"]["kind"], "reload");

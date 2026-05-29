@@ -213,4 +213,14 @@ export class BrowserServiceProxy extends BaseServiceProxy implements IBrowserSer
       10000,
     );
   }
+
+  // — Plan A (command-bar additions) —
+
+  searchWeb(text: string, browser?: BrowserId): Promise<void> {
+    return this.broker.invoke<void>('browser:searchWeb', { text, browser }, undefined, 5000);
+  }
+
+  getMostRecentActiveBrowser(): Promise<BrowserKey | null> {
+    return this.broker.invoke<BrowserKey | null>('browser:getMostRecentActiveBrowser', {}, undefined, 5000);
+  }
 }

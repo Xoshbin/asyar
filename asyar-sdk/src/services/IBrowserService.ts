@@ -166,4 +166,11 @@ export interface IBrowserService {
    * `browser:subscribePageChanged` RPC in Rust). Disposer is idempotent and ref-counted.
    */
   onPageChanged(handler: (e: PageChangedEvent) => void): () => void;
+
+  // — Plan A (command-bar additions) —
+
+  /** Open a web search using the browser's own default engine (new tab). Requires browser:tabs.write. */
+  searchWeb(text: string, browser?: BrowserId): Promise<void>;
+  /** The browser whose window was most recently focused (for "open new content here"). Requires browser:tabs.read. */
+  getMostRecentActiveBrowser(): Promise<BrowserKey | null>;
 }
