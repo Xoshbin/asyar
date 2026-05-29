@@ -57,13 +57,16 @@ pub fn firefox_variants() -> &'static [FirefoxVariant] {
         FirefoxVariant {
             id: "firefox",
             macos_subpath: "Firefox",
-            linux_subpath: "../.mozilla/firefox",
+            // Linux Firefox lives at ~/.mozilla/firefox (relative to home, NOT under
+            // ~/.config). No `../` — a leading `../` would climb above home AND, in
+            // tempdir-scoped tests, escape the sandbox to read the real filesystem.
+            linux_subpath: ".mozilla/firefox",
             windows_subpath: "Mozilla/Firefox",
         },
         FirefoxVariant {
             id: "librewolf",
             macos_subpath: "LibreWolf",
-            linux_subpath: "../.librewolf",
+            linux_subpath: ".librewolf",
             windows_subpath: "LibreWolf",
         },
     ]
@@ -138,6 +141,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn chromium_user_data_root_macos_chrome() {
         let home = std::path::Path::new("/Users/test");
         let root = chromium_user_data_root(home, "chrome");
@@ -148,6 +152,15 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
+    fn chromium_user_data_root_linux_chrome() {
+        let home = std::path::Path::new("/home/test");
+        let root = chromium_user_data_root(home, "chrome");
+        assert_eq!(root, std::path::Path::new("/home/test/.config/google-chrome"));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
     fn firefox_profiles_dir_macos() {
         let home = std::path::Path::new("/Users/test");
         let dir = firefox_profiles_dir(home, "firefox");
@@ -155,6 +168,17 @@ mod tests {
             dir,
             std::path::Path::new("/Users/test/Library/Application Support/Firefox/Profiles")
         );
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn firefox_profiles_dir_linux_stays_within_home() {
+        // Regression guard for the `../` escape bug: the resolved path MUST stay
+        // under home (no climbing above it), so tempdir-scoped scans stay hermetic.
+        let home = std::path::Path::new("/home/test");
+        let dir = firefox_profiles_dir(home, "firefox");
+        assert!(dir.starts_with("/home/test"), "firefox dir escaped home: {dir:?}");
+        assert!(!dir.to_string_lossy().contains(".."), "firefox dir contains ..: {dir:?}");
     }
 
     #[test]
