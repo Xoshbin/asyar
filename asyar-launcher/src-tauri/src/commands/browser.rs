@@ -231,7 +231,15 @@ use crate::permissions::ExtensionPermissionRegistry;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-const REQUIRED_PERMISSION: &str = "browser:tabs.read";
+/// The permission a given browser event kind requires. Page events expose page
+/// content, so they need `browser:page.read`; tab events need `browser:tabs.read`.
+/// Exhaustive on purpose: a new kind forces an explicit permission decision here.
+fn permission_for_kind(kind: BrowserEventKind) -> &'static str {
+    match kind {
+        BrowserEventKind::PageChanged => "browser:page.read",
+        BrowserEventKind::TabsChanged => "browser:tabs.read",
+    }
+}
 
 #[tauri::command]
 pub fn browser_events_subscribe(
@@ -259,7 +267,6 @@ pub(crate) fn browser_events_subscribe_inner(
     extension_id: Option<String>,
     event_types: Vec<String>,
 ) -> Result<String, AppError> {
-    permissions.check(&extension_id, REQUIRED_PERMISSION)?;
     let ext = extension_id
         .as_deref()
         .ok_or_else(|| AppError::Validation("extensionId required for subscribe".into()))?;
@@ -272,6 +279,12 @@ pub(crate) fn browser_events_subscribe_inner(
             "at least one valid event type required".into(),
         ));
     }
+    // Check the permission required for EACH requested kind — page events need
+    // browser:page.read, tab events browser:tabs.read. A hardcoded single
+    // permission would either bypass page.read or over-require tabs.read.
+    for kind in &kinds {
+        permissions.check(&extension_id, permission_for_kind(*kind))?;
+    }
     hub.subscribe(ext, kinds)
 }
 
@@ -281,7 +294,12 @@ pub(crate) fn browser_events_unsubscribe_inner(
     extension_id: Option<String>,
     subscription_id: String,
 ) -> Result<(), AppError> {
-    permissions.check(&extension_id, REQUIRED_PERMISSION)?;
+    // Unsubscribe removes only the caller's own subscription (ownership enforced
+    // by the hub) and accesses no data. Accept either browser event-read
+    // permission so a page-only extension can unsubscribe its page subscription.
+    permissions
+        .check(&extension_id, "browser:tabs.read")
+        .or_else(|_| permissions.check(&extension_id, "browser:page.read"))?;
     let ext = extension_id
         .as_deref()
         .ok_or_else(|| AppError::Validation("extensionId required for unsubscribe".into()))?;
@@ -296,7 +314,7 @@ mod browser_events_command_tests {
         let reg = ExtensionPermissionRegistry::new();
         let mut inner = reg.inner.lock().unwrap();
         let mut set = HashSet::new();
-        set.insert(REQUIRED_PERMISSION.to_string());
+        set.insert("browser:tabs.read".to_string());
         inner.insert(ext_id.to_string(), set);
         drop(inner);
         reg
@@ -304,6 +322,47 @@ mod browser_events_command_tests {
 
     fn empty_permissions() -> ExtensionPermissionRegistry {
         ExtensionPermissionRegistry::new()
+    }
+
+    fn permissions_with_perm(ext_id: &str, perm: &str) -> ExtensionPermissionRegistry {
+        let reg = ExtensionPermissionRegistry::new();
+        let mut inner = reg.inner.lock().unwrap();
+        let mut set = HashSet::new();
+        set.insert(perm.to_string());
+        inner.insert(ext_id.to_string(), set);
+        drop(inner);
+        reg
+    }
+
+    #[test]
+    fn subscribe_page_changed_requires_page_read_not_tabs_read() {
+        // The bug: a hardcoded browser:tabs.read check let tabs.read stand in for
+        // page.read. tabs.read alone MUST NOT authorize a page.changed subscription.
+        let hub = BrowserEventsHub::new();
+        let perms = permissions_with_perm("ext-a", "browser:tabs.read");
+        let err = browser_events_subscribe_inner(
+            &hub,
+            &perms,
+            Some("ext-a".into()),
+            vec!["page.changed".into()],
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
+    }
+
+    #[test]
+    fn subscribe_page_changed_allowed_with_page_read() {
+        // And page.read alone (no tabs.read) MUST authorize it — no over-strictness.
+        let hub = BrowserEventsHub::new();
+        let perms = permissions_with_perm("ext-a", "browser:page.read");
+        let id = browser_events_subscribe_inner(
+            &hub,
+            &perms,
+            Some("ext-a".into()),
+            vec!["page.changed".into()],
+        )
+        .unwrap();
+        assert!(uuid::Uuid::parse_str(&id).is_ok());
     }
 
     #[test]
