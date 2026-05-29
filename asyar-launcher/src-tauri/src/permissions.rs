@@ -213,6 +213,28 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:snippets:forgetLearnedShortcode"         => Some("snippets:contribute"),
         "asyar:api:snippets:clearLearnedShortcodes"         => Some("snippets:contribute"),
         "asyar:api:snippets:setInlineFallbackEnabled"       => Some("snippets:contribute"),
+        // Browser bridge — tabs (read = list/inspect, write = act/open/search).
+        "asyar:api:browser:listTabs"                        => Some("browser:tabs.read"),
+        "asyar:api:browser:getActiveTab"                    => Some("browser:tabs.read"),
+        "asyar:api:browser:listPairedBrowsers"              => Some("browser:tabs.read"),
+        "asyar:api:browser:getMostRecentActiveBrowser"      => Some("browser:tabs.read"),
+        "asyar:api:browser:subscribeTabsChanged"            => Some("browser:tabs.read"),
+        "asyar:api:browser:unsubscribeTabsChanged"          => Some("browser:tabs.read"),
+        "asyar:api:browser:activateTab"                     => Some("browser:tabs.write"),
+        "asyar:api:browser:closeTab"                        => Some("browser:tabs.write"),
+        "asyar:api:browser:openUrl"                         => Some("browser:tabs.write"),
+        "asyar:api:browser:searchWeb"                       => Some("browser:tabs.write"),
+        // Browser bridge — bookmarks / history (read from disk).
+        "asyar:api:browser:listBookmarks"                   => Some("browser:bookmarks.read"),
+        "asyar:api:browser:searchHistory"                   => Some("browser:history.read"),
+        // Browser bridge — page content (read = snapshot/query, write = act).
+        "asyar:api:browser:getCurrentPage"                  => Some("browser:page.read"),
+        "asyar:api:browser:queryPage"                       => Some("browser:page.read"),
+        "asyar:api:browser:subscribePageChanged"            => Some("browser:page.read"),
+        "asyar:api:browser:unsubscribePageChanged"          => Some("browser:page.read"),
+        "asyar:api:browser:actOnPage"                       => Some("browser:page.write"),
+        // browser:listAvailableBrowsers / isCompanionInstalled are intentionally
+        // permission-free (discovery, low blast radius) → fall through to None.
         // Not in map = core call, always allowed
         _ => None,
     }
@@ -328,6 +350,33 @@ mod tests {
     #[test]
     fn test_get_required_permission_unknown_call() {
         assert_eq!(get_required_permission("asyar:api:log:info"), None);
+    }
+
+    #[test]
+    fn test_browser_calls_require_their_permission() {
+        // Regression guard: browser IPC commands MUST be gated. If any returns
+        // None it defaults to "core call, always allowed" — letting any extension
+        // read tabs/bookmarks/history/page content without declaring permission.
+        assert_eq!(get_required_permission("asyar:api:browser:listTabs"), Some("browser:tabs.read"));
+        assert_eq!(get_required_permission("asyar:api:browser:getActiveTab"), Some("browser:tabs.read"));
+        assert_eq!(get_required_permission("asyar:api:browser:listPairedBrowsers"), Some("browser:tabs.read"));
+        assert_eq!(get_required_permission("asyar:api:browser:getMostRecentActiveBrowser"), Some("browser:tabs.read"));
+        assert_eq!(get_required_permission("asyar:api:browser:activateTab"), Some("browser:tabs.write"));
+        assert_eq!(get_required_permission("asyar:api:browser:closeTab"), Some("browser:tabs.write"));
+        assert_eq!(get_required_permission("asyar:api:browser:openUrl"), Some("browser:tabs.write"));
+        assert_eq!(get_required_permission("asyar:api:browser:searchWeb"), Some("browser:tabs.write"));
+        assert_eq!(get_required_permission("asyar:api:browser:listBookmarks"), Some("browser:bookmarks.read"));
+        assert_eq!(get_required_permission("asyar:api:browser:searchHistory"), Some("browser:history.read"));
+        assert_eq!(get_required_permission("asyar:api:browser:getCurrentPage"), Some("browser:page.read"));
+        assert_eq!(get_required_permission("asyar:api:browser:queryPage"), Some("browser:page.read"));
+        assert_eq!(get_required_permission("asyar:api:browser:actOnPage"), Some("browser:page.write"));
+        assert_eq!(get_required_permission("asyar:api:browser:subscribeTabsChanged"), Some("browser:tabs.read"));
+        assert_eq!(get_required_permission("asyar:api:browser:unsubscribeTabsChanged"), Some("browser:tabs.read"));
+        assert_eq!(get_required_permission("asyar:api:browser:subscribePageChanged"), Some("browser:page.read"));
+        assert_eq!(get_required_permission("asyar:api:browser:unsubscribePageChanged"), Some("browser:page.read"));
+        // Discovery calls are intentionally permission-free (low blast radius).
+        assert_eq!(get_required_permission("asyar:api:browser:listAvailableBrowsers"), None);
+        assert_eq!(get_required_permission("asyar:api:browser:isCompanionInstalled"), None);
     }
 
     #[test]
