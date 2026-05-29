@@ -238,7 +238,7 @@ export default defineConfig(({ mode }) => ({
     "publish":  "asyar publish"
   },
   "dependencies": {
-    "asyar-sdk": "^1.3.3",
+    "asyar-sdk": "^3.1.0",
     "svelte": "^5.0.0"
   },
   "devDependencies": {

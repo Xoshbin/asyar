@@ -20,7 +20,7 @@ Open Asyar → type **"Create Extension"** → press Enter.
 ### What the scaffolder does
 
 1. **Prompts you** for: name, ID, description, save location, extension type.
-2. **Resolves the latest SDK version** from the npm registry (`npm view asyar-sdk version`). Falls back to `^1.3.3` if offline.
+2. **Resolves the latest SDK version** from the npm registry (`npm view asyar-sdk version`). Falls back to `^3.1.0` if offline.
 3. **Writes all project files** from templates, replacing `{{EXTENSION_NAME}}`, `{{EXTENSION_ID}}`, `{{EXTENSION_DESC}}`, and `{{SDK_VERSION}}` placeholders.
 4. **Runs `pnpm install`** to install all dependencies.
 5. **Runs `pnpm run build`** to produce the initial `dist/`.
