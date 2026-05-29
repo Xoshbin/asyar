@@ -203,29 +203,40 @@ impl BrowserService {
         target: Option<crate::browser::types::OpenUrlTarget>,
     ) -> Result<(), String> {
         let target = target.unwrap_or_default();
-        let key = match target.browser.as_ref() {
-            Some(b) => crate::browser::types::BrowserKey::from_id(b),
-            None => bridge
-                .connections
-                .list_connected()
-                .await
-                .into_iter()
-                .next()
-                .ok_or_else(|| "no companion connected".to_string())?,
-        };
-        bridge
-            .connections
-            .send_req(
-                &key,
-                "tabs.open".to_string(),
-                serde_json::json!({
-                    "url": url,
-                    "newWindow": target.new_window.unwrap_or(false),
-                }),
-                std::time::Duration::from_secs(5),
-            )
-            .await?;
-        Ok(())
+        let target_key = target
+            .browser
+            .as_ref()
+            .map(crate::browser::types::BrowserKey::from_id);
+        let connected = bridge.connections.list_connected().await;
+
+        match resolve_open_strategy(target_key, &connected) {
+            OpenStrategy::Companion(key) => {
+                bridge
+                    .connections
+                    .send_req(
+                        &key,
+                        "tabs.open".to_string(),
+                        serde_json::json!({
+                            "url": url,
+                            "newWindow": target.new_window.unwrap_or(false),
+                        }),
+                        std::time::Duration::from_secs(5),
+                    )
+                    .await?;
+                Ok(())
+            }
+            OpenStrategy::OsDefault => {
+                use tauri_plugin_opener::OpenerExt;
+                bridge
+                    .app_handle
+                    .opener()
+                    .open_url(url, None::<&str>)
+                    .map_err(|e| format!("OS opener failed: {}", e))
+            }
+            OpenStrategy::ErrorTargetUnreachable => {
+                Err("requested browser has no connected companion".to_string())
+            }
+        }
     }
 
     pub async fn is_companion_installed_via<R: tauri::Runtime>(
@@ -333,6 +344,34 @@ impl BrowserService {
 impl Default for BrowserService {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum OpenStrategy {
+    Companion(crate::browser::types::BrowserKey),
+    OsDefault,
+    ErrorTargetUnreachable,
+}
+
+/// Decide how to open a URL given the requested target (if any) and the set of
+/// currently-connected companion browsers. Pure — no I/O, fully unit-testable.
+pub fn resolve_open_strategy(
+    target: Option<crate::browser::types::BrowserKey>,
+    connected: &[crate::browser::types::BrowserKey],
+) -> OpenStrategy {
+    match target {
+        Some(key) => {
+            if connected.contains(&key) {
+                OpenStrategy::Companion(key)
+            } else {
+                OpenStrategy::ErrorTargetUnreachable
+            }
+        }
+        None => match connected.first() {
+            Some(k) => OpenStrategy::Companion(k.clone()),
+            None => OpenStrategy::OsDefault,
+        },
     }
 }
 
@@ -710,6 +749,38 @@ mod tests {
         let matches = task.await.unwrap().unwrap();
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].tag, "a");
+    }
+
+    #[test]
+    fn open_strategy_uses_companion_when_target_browser_connected() {
+        use crate::browser::types::BrowserFamily;
+        let key = BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() };
+        let connected = vec![BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() }];
+        let strat = resolve_open_strategy(Some(key.clone()), &connected);
+        assert!(matches!(strat, OpenStrategy::Companion(ref k) if *k == key));
+    }
+
+    #[test]
+    fn open_strategy_uses_first_companion_when_no_target_but_some_connected() {
+        use crate::browser::types::BrowserFamily;
+        let connected = vec![BrowserKey { family: BrowserFamily::Firefox, variant: "firefox".to_string() }];
+        let strat = resolve_open_strategy(None, &connected);
+        assert!(matches!(strat, OpenStrategy::Companion(ref k) if k.variant == "firefox"));
+    }
+
+    #[test]
+    fn open_strategy_falls_back_to_os_default_when_no_target_and_none_connected() {
+        let strat = resolve_open_strategy(None, &[]);
+        assert!(matches!(strat, OpenStrategy::OsDefault));
+    }
+
+    #[test]
+    fn open_strategy_errors_when_target_requested_but_that_browser_not_connected() {
+        use crate::browser::types::BrowserFamily;
+        let target = Some(BrowserKey { family: BrowserFamily::Safari, variant: "safari".to_string() });
+        let connected = vec![BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() }];
+        let strat = resolve_open_strategy(target, &connected);
+        assert!(matches!(strat, OpenStrategy::ErrorTargetUnreachable));
     }
 
     #[tokio::test]
