@@ -40,7 +40,7 @@ export class ActionServiceProxy extends BaseServiceProxy implements IActionServi
     return this.currentContext;
   }
 
-  registerActionHandler(actionId: string, handler: () => Promise<void> | void): void {
+  registerActionHandler(actionId: string, handler: (payload?: unknown) => Promise<void> | void): void {
     extensionBridge.registerActionHandler(this.extensionId, actionId, handler);
     // Round-trip the registration so the launcher learns which iframe role
     // (view vs worker) owns the handler. The role itself is derived host-side

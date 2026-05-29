@@ -11,6 +11,26 @@ use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
+/// Browser companions discover the launcher by probing this fixed port range,
+/// so the bridge MUST bind within it (not an OS-assigned random port).
+const BRIDGE_PORT_RANGE: std::ops::RangeInclusive<u16> = 54300..=54320;
+
+/// Binds the first free port from `ports` on 127.0.0.1. Returns an error if none
+/// are available — we deliberately do NOT fall back to a random port, because a
+/// port outside the discovery range is unreachable by browser companions.
+async fn bind_in_range(
+    ports: impl IntoIterator<Item = u16>,
+) -> Result<TcpListener, String> {
+    for port in ports {
+        if let Ok(listener) =
+            TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], port))).await
+        {
+            return Ok(listener);
+        }
+    }
+    Err("no free port available in the browser bridge range (54300-54320)".to_string())
+}
+
 pub struct ServerHandle {
     port: u16,
     shutdown_tx: tokio::sync::oneshot::Sender<()>,
@@ -95,18 +115,37 @@ struct BridgeQuery {
     variant: String,
 }
 
+/// Browsers can't set the Authorization header on a WebSocket, so the companion
+/// smuggles the token through `Sec-WebSocket-Protocol` as a `bearer.<token>`
+/// entry alongside the protocol marker `asyar.v1`. Returns the token if present.
+pub fn token_from_subprotocols(header_value: &str) -> Option<String> {
+    header_value
+        .split(',')
+        .map(|s| s.trim())
+        .find_map(|entry| entry.strip_prefix("bearer.").map(|t| t.to_string()))
+}
+
 async fn bridge_ws_handler<R: tauri::Runtime>(
     ws: WebSocketUpgrade,
     State(state): State<BridgeState<R>>,
     axum::extract::Query(q): axum::extract::Query<BridgeQuery>,
     headers: HeaderMap,
 ) -> Result<Response, (StatusCode, String)> {
-    let token = headers
+    // 1. Authorization: Bearer <token>  (non-browser clients, tests)
+    let header_token = headers
         .get("authorization")
         .and_then(|h| h.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "))
-        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "missing bearer token".to_string()))?
-        .to_string();
+        .map(|s| s.to_string());
+    // 2. Sec-WebSocket-Protocol: asyar.v1, bearer.<token>  (browsers)
+    let subproto_token = headers
+        .get("sec-websocket-protocol")
+        .and_then(|v| v.to_str().ok())
+        .and_then(token_from_subprotocols);
+    let used_subprotocol = subproto_token.is_some();
+    let token = header_token
+        .or(subproto_token)
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "missing bearer token".to_string()))?;
     let family = match q.family.as_str() {
         "chromium" => crate::browser::types::BrowserFamily::Chromium,
         "firefox" => crate::browser::types::BrowserFamily::Firefox,
@@ -131,6 +170,13 @@ async fn bridge_ws_handler<R: tauri::Runtime>(
         return Err((StatusCode::UNAUTHORIZED, "token mismatch".to_string()));
     }
     let state_for_socket = state.clone();
+    // Browsers close the socket if the server does not select one of the offered
+    // subprotocols, so echo `asyar.v1` back when the subprotocol channel was used.
+    let ws = if used_subprotocol {
+        ws.protocols(["asyar.v1"])
+    } else {
+        ws
+    };
     Ok(ws.on_upgrade(move |socket| {
         crate::browser::bridge::ws_handler::handle_socket(socket, state_for_socket, key)
     }))
@@ -146,9 +192,7 @@ pub async fn start_server<R: tauri::Runtime>(
         .route("/bridge", get(bridge_ws_handler::<R>))
         .with_state(state);
 
-    let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-        .await
-        .map_err(|e| e.to_string())?;
+    let listener = bind_in_range(BRIDGE_PORT_RANGE).await?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
     let join = tokio::spawn(async move {
@@ -192,6 +236,42 @@ mod tests {
         let handle = start_server(state).await.unwrap();
         assert!(handle.port() > 0, "expected nonzero OS-assigned port");
         handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn start_server_binds_within_discovery_range() {
+        let state = build_test_state();
+        let handle = start_server(state).await.unwrap();
+        let port = handle.port();
+        assert!(
+            (54300..=54320).contains(&port),
+            "bridge must bind within the discovery range, got {port}"
+        );
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn bind_in_range_errors_when_no_ports_given() {
+        let result = bind_in_range(std::iter::empty::<u16>()).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn bind_in_range_skips_an_occupied_port() {
+        // Occupy a port, and find a separate known-free port.
+        let occupied = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .unwrap();
+        let occupied_port = occupied.local_addr().unwrap().port();
+        let probe = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .unwrap();
+        let free_port = probe.local_addr().unwrap().port();
+        drop(probe); // release it so bind_in_range can take it
+
+        // Range = [occupied, free]; helper must skip the occupied one and bind free.
+        let listener = bind_in_range([occupied_port, free_port]).await.unwrap();
+        assert_eq!(listener.local_addr().unwrap().port(), free_port);
     }
 
     #[tokio::test]
@@ -347,6 +427,88 @@ mod tests {
                 .await
         );
         handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn ws_accepts_with_subprotocol_token() {
+        use crate::browser::types::{BrowserFamily, BrowserKey};
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        use tokio_tungstenite::tungstenite::http::HeaderValue;
+        let state = build_test_state();
+        state
+            .tokens
+            .set(
+                &BrowserKey {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                },
+                "secret-token",
+            )
+            .unwrap();
+        let handle = start_server(state.clone()).await.unwrap();
+        let url = format!(
+            "ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome",
+            handle.port()
+        );
+        let mut req = url.into_client_request().unwrap();
+        // No Authorization header: token arrives only via the subprotocol channel,
+        // exactly as a browser `new WebSocket(url, ['asyar.v1', 'bearer.<token>'])`.
+        req.headers_mut().insert(
+            "sec-websocket-protocol",
+            HeaderValue::from_static("asyar.v1, bearer.secret-token"),
+        );
+        let (mut socket, resp) = tokio_tungstenite::connect_async(req).await.unwrap();
+        // Server must echo back the selected subprotocol or browsers close the socket.
+        assert_eq!(
+            resp.headers()
+                .get("sec-websocket-protocol")
+                .and_then(|v| v.to_str().ok()),
+            Some("asyar.v1")
+        );
+        use futures_util::SinkExt;
+        socket
+            .send(tokio_tungstenite::tungstenite::Message::Text(
+                r#"{"type":"hello","version":1,"browser":{"family":"chromium","variant":"chrome","profiles":["Default"]}}"#.to_string(),
+            ))
+            .await
+            .unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        assert!(
+            state
+                .connections
+                .is_connected(&BrowserKey {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string()
+                })
+                .await
+        );
+        handle.shutdown().await;
+    }
+
+    #[test]
+    fn extracts_bearer_token_from_subprotocol_header() {
+        assert_eq!(
+            token_from_subprotocols("asyar.v1, bearer.TOKEN123"),
+            Some("TOKEN123".to_string())
+        );
+    }
+
+    #[test]
+    fn subprotocol_token_tolerates_no_spaces() {
+        assert_eq!(
+            token_from_subprotocols("asyar.v1,bearer.abc"),
+            Some("abc".to_string())
+        );
+    }
+
+    #[test]
+    fn subprotocol_without_bearer_entry_returns_none() {
+        assert_eq!(token_from_subprotocols("asyar.v1"), None);
+    }
+
+    #[test]
+    fn subprotocol_empty_returns_none() {
+        assert_eq!(token_from_subprotocols(""), None);
     }
 
     #[tokio::test]

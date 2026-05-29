@@ -34,6 +34,14 @@ vi.mock('../services/extension/viewManager.svelte', () => ({
   viewManager: { navigateToView: vi.fn() },
 }))
 
+vi.mock('../services/search/searchOrchestrator.svelte', () => ({
+  searchOrchestrator: {
+    tryExecuteResultAction: vi.fn().mockReturnValue(false),
+  },
+}))
+
+import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte'
+
 import { resolveItemMeta, buildMappedItems } from './searchResultMapper'
 import type { SearchResult } from '../services/search/interfaces/SearchResult'
 import type { Run } from 'asyar-sdk/contracts'
@@ -250,6 +258,70 @@ describe('buildMappedItems command action returns result', () => {
 
     const result = await mappedItems[0].action()
     expect(result).toBeUndefined()
+  })
+})
+
+// ── buildMappedItems: result-action interception ─────────────────────────────
+
+describe('buildMappedItems command action consults the orchestrator result-action map', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(extensionManager.handleCommandAction).mockResolvedValue(undefined)
+  })
+
+  it('dispatches the worker-side action and skips handleCommandAction when the objectId is a result-action', async () => {
+    vi.mocked(searchOrchestrator.tryExecuteResultAction).mockReturnValue(true)
+
+    const cmdResult = makeResult({
+      objectId: 'ext_my-ext_Toggle_Thing_0',
+      name: 'Toggle Thing',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [cmdResult],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'toggle',
+      selectedIndex: 0,
+      onError: vi.fn(),
+    })
+
+    await mappedItems[0].action()
+
+    expect(vi.mocked(searchOrchestrator.tryExecuteResultAction)).toHaveBeenCalledWith(
+      'ext_my-ext_Toggle_Thing_0',
+    )
+    expect(vi.mocked(extensionManager.handleCommandAction)).not.toHaveBeenCalled()
+  })
+
+  it('falls through to handleCommandAction for a normal command not in the result-action map', async () => {
+    vi.mocked(searchOrchestrator.tryExecuteResultAction).mockReturnValue(false)
+
+    const cmdResult = makeResult({
+      objectId: 'cmd_quit_quit-asyar',
+      name: 'Quit Asyar',
+      type: 'command',
+    })
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [cmdResult],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'quit',
+      selectedIndex: 0,
+      onError: vi.fn(),
+    })
+
+    await mappedItems[0].action()
+
+    expect(vi.mocked(searchOrchestrator.tryExecuteResultAction)).toHaveBeenCalledWith(
+      'cmd_quit_quit-asyar',
+    )
+    expect(vi.mocked(extensionManager.handleCommandAction)).toHaveBeenCalledWith(
+      'cmd_quit_quit-asyar',
+      { query: 'quit' },
+    )
   })
 })
 

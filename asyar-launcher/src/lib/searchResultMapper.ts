@@ -11,6 +11,7 @@ import { runService } from '../services/run/runService.svelte';
 import { viewManager } from '../services/extension/viewManager.svelte';
 import { agentsManager } from '../built-in-features/agents/agentsManager.svelte';
 import { agentsFindRunOrigin } from './ipc/commands';
+import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte';
 
 export type ResolvedItemMeta = {
   objectId: string;
@@ -298,6 +299,9 @@ export function buildMappedItems({
       const isPortalCommand = activeContext !== null && objectId === `cmd_portals_${activeContext.provider.id.replace('portal_', '')}`;
       const capturedQuery = isPortalCommand ? activeContext!.query : localSearchValue;
       actionFunction = async () => {
+        if (searchOrchestrator.tryExecuteResultAction(commandObjectId)) {
+          return;
+        }
         logService.debug(`[searchResultMapper] Executing command: ${commandObjectId}`);
         try {
           return await extensionManager.handleCommandAction(commandObjectId, { query: capturedQuery });

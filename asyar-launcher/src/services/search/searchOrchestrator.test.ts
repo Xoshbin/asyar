@@ -6,6 +6,7 @@ import { viewManager } from '../extension/viewManager.svelte';
 import { searchStores } from './stores/search.svelte';
 import * as commands from '../../lib/ipc/commands';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
+import { actionService } from '../action/actionService.svelte';
 
 // Mocking dependencies
 vi.mock('../appInitializer', () => ({
@@ -62,6 +63,12 @@ vi.mock('../../lib/ipc/commands', () => ({
 
 vi.mock('../extension/extensionDiscovery', () => ({
   isBuiltInFeature: vi.fn(),
+}));
+
+vi.mock('../action/actionService.svelte', () => ({
+  actionService: {
+    executeExtensionAction: vi.fn().mockReturnValue(true),
+  },
 }));
 
 describe('searchOrchestrator characterization tests', () => {
@@ -270,5 +277,76 @@ describe('searchOrchestrator characterization tests', () => {
     const results = searchOrchestrator.items;
     const injectedRow = results.find((r: any) => r.objectId === 'cmd_agents_ask');
     expect(injectedRow).toBeUndefined();
+  });
+
+  it('tryExecuteResultAction dispatches the action for a result carrying actionId', async () => {
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([
+      {
+        title: 'Toggle Thing',
+        subtitle: 'Sub',
+        score: 0.8,
+        extensionId: 'my-ext',
+        actionId: 'toggle',
+        actionPayload: { id: 42 },
+      } as any,
+    ]);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: [], aliasMatch: null });
+
+    await searchOrchestrator.handleSearch('toggle');
+
+    const objectId = 'ext_my-ext_Toggle_Thing_0';
+    const handled = searchOrchestrator.tryExecuteResultAction(objectId);
+
+    expect(handled).toBe(true);
+    expect(vi.mocked(actionService.executeExtensionAction)).toHaveBeenCalledWith(
+      'my-ext',
+      'toggle',
+      { id: 42 },
+    );
+  });
+
+  it('tryExecuteResultAction returns false for an unknown objectId and does not dispatch', async () => {
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([
+      {
+        title: 'Toggle Thing',
+        subtitle: 'Sub',
+        score: 0.8,
+        extensionId: 'my-ext',
+        actionId: 'toggle',
+        actionPayload: { id: 42 },
+      } as any,
+    ]);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: [], aliasMatch: null });
+
+    await searchOrchestrator.handleSearch('toggle');
+
+    const handled = searchOrchestrator.tryExecuteResultAction('cmd_some_normal_command');
+
+    expect(handled).toBe(false);
+    expect(vi.mocked(actionService.executeExtensionAction)).not.toHaveBeenCalled();
+  });
+
+  it('tryExecuteResultAction does not retain stale entries from a previous search', async () => {
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([
+      {
+        title: 'Toggle Thing',
+        subtitle: 'Sub',
+        score: 0.8,
+        extensionId: 'my-ext',
+        actionId: 'toggle',
+        actionPayload: { id: 42 },
+      } as any,
+    ]);
+    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: [], aliasMatch: null });
+
+    await searchOrchestrator.handleSearch('toggle');
+    const objectId = 'ext_my-ext_Toggle_Thing_0';
+    expect(searchOrchestrator.tryExecuteResultAction(objectId)).toBe(true);
+
+    // A second search with no actionId results must wipe the side-map.
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([]);
+    await searchOrchestrator.handleSearch('other');
+
+    expect(searchOrchestrator.tryExecuteResultAction(objectId)).toBe(false);
   });
 });

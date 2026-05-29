@@ -65,7 +65,7 @@ async_zip = { version = "0.0.17", features = ["full", "tokio"] } # Enable tokio 
 # feature unification.
 liblzma-sys = { version = "0.4", features = ["static"] }
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
-tauri-plugin-dialog = "2.6.0"
+tauri-plugin-dialog = "2.7"
 tauri-plugin-shell = "2.3.5"
 tauri-plugin-os = "2.0.0"
 tauri-plugin-updater = "2.0.0"

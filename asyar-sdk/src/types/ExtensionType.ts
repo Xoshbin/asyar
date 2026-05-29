@@ -173,6 +173,15 @@ export interface ExtensionResult {
   icon?: string;
   style?: "default" | "large";
   /**
+   * Optional: when set, pressing Enter on this result dispatches a registered
+   * action handler in the extension (instead of opening a view). Register the
+   * handler with `context.proxies.actions.registerActionHandler(actionId, fn)`.
+   * The handler receives `actionPayload` as its argument.
+   */
+  actionId?: string;
+  /** Serializable payload delivered to the action handler. Must survive JSON. */
+  actionPayload?: unknown;
+  /**
    * @internal Reserved for built-in features (Calculator, Currency, etc.) that
    * compute synthetic answers from the user's query. Third-party extensions
    * may set this field, but the launcher silently strips it before ranking.

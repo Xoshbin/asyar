@@ -41,7 +41,7 @@ export interface ExtensionAction {
   extensionId: string;
   category?: string;
   context?: ActionContext; // Add the context property with the enum type
-  execute: () => Promise<void> | void;
+  execute: (payload?: unknown) => Promise<void> | void;
   confirm?: boolean;
   shortcut?: string;
   /** Renders in the launcher's danger color. Independent of `confirm`. */
@@ -57,7 +57,7 @@ export interface IActionService {
   setContext(context: ActionContext, data?: { commandId?: string }): void;
   getContext(): ActionContext; // Return the enum type
   /** Register a handler for a manifest-declared action. Local-only — no IPC. */
-  registerActionHandler(actionId: string, handler: () => Promise<void> | void): void;
+  registerActionHandler(actionId: string, handler: (payload?: unknown) => Promise<void> | void): void;
 }
 
 /**

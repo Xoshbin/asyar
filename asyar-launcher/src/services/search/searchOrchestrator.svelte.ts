@@ -11,6 +11,7 @@ import { settingsService } from '../settings/settingsService.svelte';
 import { dispatch } from '../extension/extensionDispatcher.svelte';
 import { commandService } from '../extension/commandService.svelte';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
+import { actionService } from '../action/actionService.svelte';
 
 export { invalidateTopItemsCache };
 
@@ -48,10 +49,15 @@ class SearchOrchestratorClass {
   // called twice with the same `<alias> ` query. Cleared whenever the query
   // changes (including the empty string fired by searchStores.clearInput()).
   #lastAutoExecutedQuery: string | null = null;
+  // Maps a search-result objectId to the worker-side action it should trigger
+  // on Enter. Populated from ExtensionResult.actionId/actionPayload during each
+  // search; consulted by searchResultMapper before the normal command lookup.
+  #resultActions = new Map<string, { extensionId: string; actionId: string; actionPayload: unknown }>();
 
   async handleSearch(query: string): Promise<void> {
     if (!appInitializer.isAppInitialized() || viewManager.activeView) return;
     const token = ++this.#searchToken;
+    this.#resultActions.clear();
     searchStores.isLoading = true;
     logService.debug(`Starting combined search for query: "${query}"`);
     try {
@@ -59,18 +65,28 @@ class SearchOrchestratorClass {
       const resultsFromExtensions = await extensionManager.searchAll(query);
 
       // Map extension results to serializable format for Rust
-      const externalResults = resultsFromExtensions.map((extRes: ExtensionResult & { extensionId?: string }, index: number) => ({
-        objectId: `ext_${extRes.extensionId || 'unknown'}_${extRes.title.replace(/\s+/g, '_')}_${index}`,
-        name: extRes.title,
-        description: extRes.subtitle,
-        type: 'command',
-        score: extRes.score ?? 0.5,
-        icon: extRes.icon,
-        extensionId: extRes.extensionId,
-        category: 'extension',
-        style: extRes.style,
-        priority: extRes.extensionId && isBuiltInFeature(extRes.extensionId) ? extRes.priority : undefined,
-      }));
+      const externalResults = resultsFromExtensions.map((extRes: ExtensionResult & { extensionId?: string }, index: number) => {
+        const objectId = `ext_${extRes.extensionId || 'unknown'}_${extRes.title.replace(/\s+/g, '_')}_${index}`;
+        if (extRes.actionId && extRes.extensionId) {
+          this.#resultActions.set(objectId, {
+            extensionId: extRes.extensionId,
+            actionId: extRes.actionId,
+            actionPayload: extRes.actionPayload,
+          });
+        }
+        return {
+          objectId,
+          name: extRes.title,
+          description: extRes.subtitle,
+          type: 'command',
+          score: extRes.score ?? 0.5,
+          icon: extRes.icon,
+          extensionId: extRes.extensionId,
+          category: 'extension',
+          style: extRes.style,
+          priority: extRes.extensionId && isBuiltInFeature(extRes.extensionId) ? extRes.priority : undefined,
+        };
+      });
 
       const resp = await commands.mergedSearch(query, externalResults, 10);
       let combinedResults: SearchResult[] = resp.results as SearchResult[];
@@ -128,6 +144,19 @@ class SearchOrchestratorClass {
     } finally {
       if (token === this.#searchToken) searchStores.isLoading = false;
     }
+  }
+
+  /**
+   * If the highlighted search result carries a worker-side action (an
+   * ExtensionResult with actionId), dispatch it and return true. Returns
+   * false for any objectId that is not a result-action — the caller then
+   * falls through to the normal command activation path.
+   */
+  tryExecuteResultAction(objectId: string): boolean {
+    const info = this.#resultActions.get(objectId);
+    if (!info) return false;
+    actionService.executeExtensionAction(info.extensionId, info.actionId, info.actionPayload);
+    return true;
   }
 }
 
