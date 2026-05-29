@@ -1,0 +1,38 @@
+{
+  "checksum": "00000000000000000000000000000000",
+  "roots": {
+    "bookmark_bar": {
+      "children": [
+        {
+          "date_added": "13350000000000000",
+          "id": "10",
+          "name": "GitHub",
+          "type": "url",
+          "url": "https://github.com"
+        },
+        {
+          "children": [
+            {
+              "date_added": "13350000010000000",
+              "id": "12",
+              "name": "Rust Book",
+              "type": "url",
+              "url": "https://doc.rust-lang.org/book/"
+            }
+          ],
+          "date_added": "13350000005000000",
+          "id": "11",
+          "name": "Work",
+          "type": "folder"
+        }
+      ],
+      "date_added": "13350000000000000",
+      "id": "1",
+      "name": "Bookmarks Bar",
+      "type": "folder"
+    },
+    "other": { "children": [], "date_added": "0", "id": "2", "name": "Other", "type": "folder" },
+    "synced": { "children": [], "date_added": "0", "id": "3", "name": "Mobile", "type": "folder" }
+  },
+  "version": 1
+}

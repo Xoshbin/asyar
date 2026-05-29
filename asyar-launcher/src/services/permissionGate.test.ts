@@ -534,6 +534,152 @@ describe('checkPermission', () => {
     })
   })
 
+  describe('browser permission gating', () => {
+    it('browser:listAvailableBrowsers requires no permission', () => {
+      const result = checkPermission('ext.id', 'asyar:api:browser:listAvailableBrowsers', []);
+      expect(result.allowed).toBe(true);
+    });
+
+    it('browser:isCompanionInstalled requires no permission', () => {
+      const result = checkPermission('ext.id', 'asyar:api:browser:isCompanionInstalled', []);
+      expect(result.allowed).toBe(true);
+    });
+
+    it('browser:listBookmarks requires browser:bookmarks.read', () => {
+      const denied = checkPermission('ext.id', 'asyar:api:browser:listBookmarks', []);
+      expect(denied.allowed).toBe(false);
+      expect(denied.requiredPermission).toBe('browser:bookmarks.read');
+
+      const allowed = checkPermission(
+        'ext.id',
+        'asyar:api:browser:listBookmarks',
+        ['browser:bookmarks.read'],
+      );
+      expect(allowed.allowed).toBe(true);
+    });
+
+    it('browser:searchHistory requires browser:history.read', () => {
+      const denied = checkPermission('ext.id', 'asyar:api:browser:searchHistory', []);
+      expect(denied.allowed).toBe(false);
+      expect(denied.requiredPermission).toBe('browser:history.read');
+    });
+  })
+
+  describe('browser tabs permission gating', () => {
+    it('browser:listTabs requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:listTabs', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:listTabs', ['browser:tabs.read']).allowed,
+      ).toBe(true);
+    });
+
+    it('browser:getActiveTab requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:getActiveTab', []).allowed).toBe(false);
+    });
+
+    it('browser:activateTab requires browser:tabs.write', () => {
+      expect(checkPermission('e', 'asyar:api:browser:activateTab', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:activateTab', ['browser:tabs.write']).allowed,
+      ).toBe(true);
+    });
+
+    it('browser:closeTab requires browser:tabs.write', () => {
+      expect(checkPermission('e', 'asyar:api:browser:closeTab', []).allowed).toBe(false);
+    });
+
+    it('browser:openUrl requires browser:tabs.write', () => {
+      expect(checkPermission('e', 'asyar:api:browser:openUrl', []).allowed).toBe(false);
+    });
+
+    it('browser:listPairedBrowsers requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:listPairedBrowsers', []).allowed).toBe(false);
+    });
+
+    it('asyar:event:browser:tabs-changed entry is gone (dispatch is gated at subscribe)', () => {
+      // The Plan-2 entry has been removed. Unknown keys default to allow because
+      // the dispatcher only inspects `asyar:api:*` keys — gating happens at the
+      // subscribe RPC, not at the event push.
+      expect(checkPermission('e', 'asyar:event:browser:tabs-changed', []).allowed).toBe(true);
+    });
+  })
+
+  describe('browser subscribe wire names — per-kind permission', () => {
+    it('browser:subscribeTabsChanged requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:subscribeTabsChanged', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:subscribeTabsChanged', ['browser:tabs.read']).allowed,
+      ).toBe(true);
+    });
+
+    it('browser:unsubscribeTabsChanged requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:unsubscribeTabsChanged', []).allowed).toBe(false);
+    });
+
+    it('browser:subscribePageChanged requires browser:page.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:subscribePageChanged', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:subscribePageChanged', ['browser:page.read']).allowed,
+      ).toBe(true);
+    });
+
+    it('browser:unsubscribePageChanged requires browser:page.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:unsubscribePageChanged', []).allowed).toBe(false);
+    });
+
+    it('browser:tabs.read does NOT grant subscribe to page events (anti-side-channel)', () => {
+      expect(
+        checkPermission('e', 'asyar:api:browser:subscribePageChanged', ['browser:tabs.read']).allowed,
+      ).toBe(false);
+    });
+
+    it('the generic Plan-2.5 names are gone', () => {
+      // Unknown keys default-allow because they're not in PERMISSION_MAP.
+      // If anyone re-adds the generic entries, this test will fail.
+      expect(checkPermission('e', 'asyar:api:browser:subscribeEvents', []).allowed).toBe(true);
+      expect(checkPermission('e', 'asyar:api:browser:unsubscribeEvents', []).allowed).toBe(true);
+      expect('asyar:api:browser:subscribeEvents' in PERMISSION_MAP).toBe(false);
+      expect('asyar:api:browser:unsubscribeEvents' in PERMISSION_MAP).toBe(false);
+    });
+  })
+
+  describe('browser page permission gating', () => {
+    it('browser:getCurrentPage requires browser:page.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:getCurrentPage', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:getCurrentPage', ['browser:page.read']).allowed,
+      ).toBe(true);
+    });
+
+    it('browser:queryPage requires browser:page.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:queryPage', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:queryPage', ['browser:page.read']).allowed,
+      ).toBe(true);
+    });
+
+    it('browser:actOnPage requires browser:page.write (not page.read)', () => {
+      expect(checkPermission('e', 'asyar:api:browser:actOnPage', []).allowed).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:actOnPage', ['browser:page.read']).allowed,
+      ).toBe(false);
+      expect(
+        checkPermission('e', 'asyar:api:browser:actOnPage', ['browser:page.write']).allowed,
+      ).toBe(true);
+    });
+  })
+
+  describe('browser command-bar permission gating', () => {
+    it('browser:searchWeb requires browser:tabs.write', () => {
+      expect(checkPermission('e', 'asyar:api:browser:searchWeb', []).allowed).toBe(false);
+      expect(checkPermission('e', 'asyar:api:browser:searchWeb', ['browser:tabs.write']).allowed).toBe(true);
+    });
+    it('browser:getMostRecentActiveBrowser requires browser:tabs.read', () => {
+      expect(checkPermission('e', 'asyar:api:browser:getMostRecentActiveBrowser', []).allowed).toBe(false);
+      expect(checkPermission('e', 'asyar:api:browser:getMostRecentActiveBrowser', ['browser:tabs.read']).allowed).toBe(true);
+    });
+  })
+
   describe('snippets:contribute', () => {
     it('requires snippets:contribute for snippets:registerShortcodes', () => {
       const result = checkPermission('any.ext', 'asyar:api:snippets:registerShortcodes', [])

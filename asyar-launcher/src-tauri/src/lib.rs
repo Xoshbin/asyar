@@ -2,8 +2,8 @@
 use tauri::{Emitter, Listener, Manager};
 
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 
 use crate::extensions::extension_runtime::{
     ticker as extension_runtime_ticker, ExtensionRuntimeManager, RuntimeConfig,
@@ -49,48 +49,49 @@ pub struct AppState {
 }
 
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
-pub mod commands;
-pub mod tray;
-pub mod platform;
-pub mod error;
-pub mod uri_schemes;
-pub mod diagnostics;
-mod search_engine;
+pub mod agents;
+pub mod ai;
 mod aliases;
-mod snippets;
-pub mod storage;
-pub mod permissions;
-pub mod extensions;
-pub mod profile;
+pub mod app_events;
+pub mod app_updater;
+pub mod application;
 pub mod auth;
+pub mod browser;
+pub mod clipboard_privacy;
+pub mod commands;
+pub mod crypto;
+pub mod deeplink;
+pub mod diagnostics;
+pub mod error;
+pub mod event_hub;
+pub mod extension_tray;
+pub mod extensions;
+pub mod fs_watcher;
 pub mod hud_window;
-pub mod selection;
+pub mod index_events;
+pub mod mcp;
+pub mod network;
+pub mod notifications;
 pub mod oauth;
 pub mod onboarding;
-pub mod shell;
-pub mod application;
-pub mod window_management;
-pub mod deeplink;
-pub mod app_updater;
+pub mod permissions;
+pub mod platform;
 pub mod power;
-pub mod event_hub;
-pub mod system_events;
-pub mod app_events;
-pub mod index_events;
-pub mod extension_tray;
-pub mod notifications;
-pub mod timers;
-pub mod fs_watcher;
-pub mod clipboard_privacy;
-pub mod secret_detection;
-pub mod crypto;
-pub mod sync;
-pub mod network;
+pub mod profile;
 pub mod runs;
 pub mod scripts;
-pub mod agents;
-pub mod mcp;
-pub mod ai;
+mod search_engine;
+pub mod secret_detection;
+pub mod selection;
+pub mod shell;
+mod snippets;
+pub mod storage;
+pub mod sync;
+pub mod system_events;
+pub mod timers;
+pub mod tray;
+pub mod uri_schemes;
+pub mod window_management;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
@@ -142,7 +143,9 @@ pub fn run() {
                 })
                 .build(),
         )
-        .manage(extensions::headless::HeadlessRegistry(Mutex::new(HashMap::new())))
+        .manage(extensions::headless::HeadlessRegistry(Mutex::new(
+            HashMap::new(),
+        )))
         .manage(extensions::ExtensionRegistryState::new())
         .manage(extensions::dynamic_commands::DynamicCommandRegistry::new())
         .manage(permissions::ExtensionPermissionRegistry::new())
@@ -153,7 +156,9 @@ pub fn run() {
         .manage(shell::ShellProcessRegistry::new())
         .manage(extensions::scheduler::SchedulerState::new())
         .manage(scripts::InlineSchedulerState::new())
-        .manage(std::sync::Arc::new(ExtensionRuntimeManager::new(RuntimeConfig::default())))
+        .manage(std::sync::Arc::new(ExtensionRuntimeManager::new(
+            RuntimeConfig::default(),
+        )))
         .manage(extensions::onboarding_intercept::StashRegistry::default())
         .manage(app_updater::AppUpdaterState::new())
         .manage(power::PowerRegistry::new(power::default_backend()))
@@ -164,10 +169,11 @@ pub fn run() {
         .manage(clipboard_privacy::ClipboardPrivacyState::new())
         .manage(commands::clipboard_privacy::UserDenylist::new())
         .manage(secret_detection::SecretDetectionState::new())
-        .manage::<std::sync::Arc<dyn app_events::AppPresenceQuery>>(
-            std::sync::Arc::from(app_events::default_presence_query()),
-        )
-        .manage(std::sync::Arc::new(agents::tools::ToolRegistry::new()) as agents::tools::ToolRegistryState)
+        .manage::<std::sync::Arc<dyn app_events::AppPresenceQuery>>(std::sync::Arc::from(
+            app_events::default_presence_query(),
+        ))
+        .manage(std::sync::Arc::new(agents::tools::ToolRegistry::new())
+            as agents::tools::ToolRegistryState)
         .manage(mcp_supervisor)
         .manage(mcp_sidecar_state)
         .manage(AppState {
@@ -187,9 +193,9 @@ pub fn run() {
             is_expanding: AtomicBool::new(false),
             inline_emoji_fallback: Default::default(),
         })
-        .manage(crate::onboarding::commands::OnboardingCursor::new(
-            cfg!(target_os = "macos"),
-        ))
+        .manage(crate::onboarding::commands::OnboardingCursor::new(cfg!(
+            target_os = "macos"
+        )))
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
             commands::set_focus_lock,
@@ -221,7 +227,7 @@ pub fn run() {
             commands::get_autostart_status,
             commands::check_path_exists,
             commands::uninstall_extension,
-            commands::install_extension_from_url, 
+            commands::install_extension_from_url,
             commands::open_application_path,
             commands::uninstall_application,
             commands::scan_uninstall_targets,
@@ -273,6 +279,26 @@ pub fn run() {
             commands::scripts::scripts_pick_directory,
             commands::scripts::scripts_rescan,
             commands::scripts::scripts_set_inline_scripts,
+            commands::browser::browser_list_available_browsers,
+            commands::browser::browser_is_companion_installed,
+            commands::browser::browser_list_bookmarks,
+            commands::browser::browser_search_history,
+            commands::browser::browser_list_tabs,
+            commands::browser::browser_get_active_tab,
+            commands::browser::browser_activate_tab,
+            commands::browser::browser_close_tab,
+            commands::browser::browser_open_url,
+            commands::browser::browser_list_paired_browsers,
+            commands::browser::browser_list_pending_pairings,
+            commands::browser::browser_resolve_pairing,
+            commands::browser::browser_revoke_pairing,
+            commands::browser::browser_events_subscribe,
+            commands::browser::browser_events_unsubscribe,
+            commands::browser::browser_get_current_page,
+            commands::browser::browser_query_page,
+            commands::browser::browser_act_on_page,
+            commands::browser::browser_search_web,
+            commands::browser::browser_get_most_recent_active_browser,
             commands::write_binary_file_recursive,
             commands::write_text_file_absolute,
             commands::read_text_file_absolute,
@@ -514,7 +540,9 @@ pub fn run() {
 /// TS side; the Rust tests below guard the parsing logic.
 fn read_launch_view(app: &tauri::AppHandle) -> &'static str {
     use tauri_plugin_store::StoreExt;
-    let Ok(store) = app.store("settings.dat") else { return "default"; };
+    let Ok(store) = app.store("settings.dat") else {
+        return "default";
+    };
     parse_launch_view(store.get("settings").as_ref())
 }
 
@@ -547,7 +575,9 @@ pub enum ThemePreference {
 #[cfg(target_os = "macos")]
 fn read_appearance_theme(app: &tauri::AppHandle) -> ThemePreference {
     use tauri_plugin_store::StoreExt;
-    let Ok(store) = app.store("settings.dat") else { return ThemePreference::System; };
+    let Ok(store) = app.store("settings.dat") else {
+        return ThemePreference::System;
+    };
     parse_appearance_theme(store.get("settings").as_ref())
 }
 
@@ -584,14 +614,17 @@ fn parse_launch_view(settings_root: Option<&serde_json::Value>) -> &'static str 
         .and_then(|a| a.get("launchView"))
         .and_then(|v| v.as_str())
         == Some("compact");
-    if is_compact { "compact" } else { "default" }
+    if is_compact {
+        "compact"
+    } else {
+        "default"
+    }
 }
 
 fn register_builtin_tools(
     app_handle: &tauri::AppHandle,
     search_state: std::sync::Arc<search_engine::SearchState>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use std::sync::Arc;
     use crate::agents::builtin_tools::{
         calculator::CalculatorTool,
         clipboard::{ClipboardProvider, ClipboardReadTool, ClipboardWriteTool, SystemClipboard},
@@ -600,28 +633,39 @@ fn register_builtin_tools(
         shell::ShellExecTool,
         web_fetch::WebFetchTool,
     };
+    use std::sync::Arc;
     use tauri::Manager;
 
     let registry = app_handle
         .try_state::<crate::agents::tools::ToolRegistryState>()
         .ok_or("ToolRegistry not managed")?;
 
-    registry.register_builtin(Arc::new(CalculatorTool::new()))
+    registry
+        .register_builtin(Arc::new(CalculatorTool::new()))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     let clipboard_provider: Arc<dyn ClipboardProvider> = Arc::new(SystemClipboard);
-    registry.register_builtin(Arc::new(ClipboardReadTool::new(Arc::clone(&clipboard_provider))))
+    registry
+        .register_builtin(Arc::new(ClipboardReadTool::new(Arc::clone(
+            &clipboard_provider,
+        ))))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
-    registry.register_builtin(Arc::new(ClipboardWriteTool::new(clipboard_provider)))
+    registry
+        .register_builtin(Arc::new(ClipboardWriteTool::new(clipboard_provider)))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
-    registry.register_builtin(Arc::new(FsReadTool::new()))
+    registry
+        .register_builtin(Arc::new(FsReadTool::new()))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
-    registry.register_builtin(Arc::new(FsWriteTool::new()))
+    registry
+        .register_builtin(Arc::new(FsWriteTool::new()))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
-    registry.register_builtin(Arc::new(ShellExecTool::new()))
+    registry
+        .register_builtin(Arc::new(ShellExecTool::new()))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
-    registry.register_builtin(Arc::new(WebFetchTool::new()))
+    registry
+        .register_builtin(Arc::new(WebFetchTool::new()))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
-    registry.register_builtin(Arc::new(SearchTool::new(search_state)))
+    registry
+        .register_builtin(Arc::new(SearchTool::new(search_state)))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     Ok(())
 }
@@ -676,17 +720,15 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // ones and routes click events back to the originating extension.
     {
         use std::sync::Arc;
-        let lookup: Arc<dyn extension_tray::icon::ExtensionDirLookup + Send + Sync> =
-            Arc::new(extension_tray::extension_lookup::AppHandleExtensionDirLookup::new(
+        let lookup: Arc<dyn extension_tray::icon::ExtensionDirLookup + Send + Sync> = Arc::new(
+            extension_tray::extension_lookup::AppHandleExtensionDirLookup::new(
                 app.handle().clone(),
-            ));
-        let backend = extension_tray::backend::TauriTrayBackend::new(
-            app.handle().clone(),
-            lookup,
+            ),
         );
+        let backend = extension_tray::backend::TauriTrayBackend::new(app.handle().clone(), lookup);
         app.manage(extension_tray::ExtensionTrayManager::new(Box::new(backend)));
     }
-    
+
     // Deep link handler — routes incoming asyar:// URLs.
     // Extension deep links (asyar://extensions/{extId}/{cmdId}?args) are parsed
     // in Rust and emitted as a typed "asyar:deeplink:extension" event.
@@ -695,14 +737,16 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         use tauri_plugin_deep_link::DeepLinkExt;
         let handle = app.handle().clone();
         app.deep_link().on_open_url(move |event| {
-            let urls: Vec<String> = event.urls().iter()
-                .map(|u| u.to_string())
-                .collect();
+            let urls: Vec<String> = event.urls().iter().map(|u| u.to_string()).collect();
             for url in urls {
                 if url.starts_with("asyar://extensions/") {
                     match deeplink::parse_extension_deeplink(&url) {
                         Some(payload) => {
-                            log::info!("[Deeplink] Extension trigger: {}/{}", payload.extension_id, payload.command_id);
+                            log::info!(
+                                "[Deeplink] Extension trigger: {}/{}",
+                                payload.extension_id,
+                                payload.command_id
+                            );
                             let _ = handle.emit("asyar:deeplink:extension", payload);
                         }
                         None => {
@@ -720,9 +764,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
     let handle = app.app_handle();
-    let window = handle.get_webview_window(SPOTLIGHT_LABEL)
+    let window = handle
+        .get_webview_window(SPOTLIGHT_LABEL)
         .ok_or("Main launcher window not found")?;
-    
+
     #[cfg(target_os = "macos")]
     let initial_theme_pref = read_appearance_theme(handle);
 
@@ -730,7 +775,8 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(Mutex::new(initial_theme_pref));
 
     #[cfg(target_os = "macos")]
-    let panel = crate::platform::macos::setup_spotlight_window(&window, handle, initial_theme_pref)?;
+    let panel =
+        crate::platform::macos::setup_spotlight_window(&window, handle, initial_theme_pref)?;
 
     // Convert the HUD window into an NSPanel so it can appear over
     // fullscreen apps (NSWindowCollectionBehaviorFullScreenAuxiliary) and
@@ -763,7 +809,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         use crate::platform::macos::{LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT};
         crate::platform::macos::pin_launcher_webview(&window);
         crate::platform::macos::create_show_more_bar(&window, handle.clone());
-        let height = if compact { LAUNCHER_COMPACT_HEIGHT } else { LAUNCHER_MAX_HEIGHT };
+        let height = if compact {
+            LAUNCHER_COMPACT_HEIGHT
+        } else {
+            LAUNCHER_MAX_HEIGHT
+        };
         // Size only — the bar is created setHidden:YES so cold-start paint
         // latency never shows "bar visible, header blank". The frontend's
         // onMount rAF calls mark_launcher_ready to flip it in the same
@@ -783,7 +833,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(size) = window.inner_size() {
             let scale = window.scale_factor().unwrap_or(1.0);
             let logical_width = size.width as f64 / scale;
-            let _ = window.set_size(Size::Logical(LogicalSize { width: logical_width, height: 96.0 }));
+            let _ = window.set_size(Size::Logical(LogicalSize {
+                width: logical_width,
+                height: 96.0,
+            }));
         }
     }
 
@@ -939,7 +992,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // MCP: forward supervisor status transitions to the frontend so the Manage
     // view's status badges update in real time without polling.
     {
-        let supervisor = app.state::<std::sync::Arc<crate::mcp::McpSupervisor>>().inner().clone();
+        let supervisor = app
+            .state::<std::sync::Arc<crate::mcp::McpSupervisor>>()
+            .inner()
+            .clone();
         let mut rx = supervisor.subscribe_status();
         let app_handle = app.handle().clone();
         tauri::async_runtime::spawn(async move {
@@ -963,15 +1019,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         };
         let directories_state = crate::scripts::watcher::build_directories_state(initial_dirs);
         let app_handle_for_emit = app.handle().clone();
-        let scripts_watcher = crate::scripts::watcher::ScriptsWatcher::start(
-            directories_state,
-            move || {
+        let scripts_watcher =
+            crate::scripts::watcher::ScriptsWatcher::start(directories_state, move || {
                 let _ = app_handle_for_emit.emit("scripts:changed", ());
-            },
-        )?;
-        app.manage(crate::commands::scripts::ScriptsWatcherState(
-            Arc::clone(&scripts_watcher),
-        ));
+            })?;
+        app.manage(crate::commands::scripts::ScriptsWatcherState(Arc::clone(
+            &scripts_watcher,
+        )));
     }
 
     // Alias storage shares the DataStore SQLite connection. The schema is
@@ -979,10 +1033,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // we build the in-memory cache and prune any orphan rows whose owning
     // search-index item disappeared while the launcher was off.
     {
-        let alias_state = aliases::AliasState::new_with_db(
-            app.state::<storage::DataStore>().conn_arc(),
-        )
-        .expect("init alias state");
+        let alias_state =
+            aliases::AliasState::new_with_db(app.state::<storage::DataStore>().conn_arc())
+                .expect("init alias state");
         if let Some(search_state) = app.try_state::<std::sync::Arc<search_engine::SearchState>>() {
             if let Ok(live_ids) = search_state.all_ids() {
                 let _ = alias_state.prune_orphans(&live_ids);
@@ -1034,7 +1087,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             format!("{}_panel_did_resign_key", SPOTLIGHT_LABEL),
             move |_| {
                 let state = handle_clone.state::<AppState>();
-                if state.focus_locked.load(Ordering::Relaxed) { return; }
+                if state.focus_locked.load(Ordering::Relaxed) {
+                    return;
+                }
                 state.asyar_visible.store(false, Ordering::Relaxed);
 
                 // If the user pressed Show More and then hid without typing,
@@ -1090,18 +1145,30 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         handle.listen("asyar:launch-view-changed", move |event| {
             let compact = serde_json::from_str::<serde_json::Value>(event.payload())
                 .ok()
-                .and_then(|v| v.get("launchView").and_then(|s| s.as_str()).map(|s| s.to_owned()))
+                .and_then(|v| {
+                    v.get("launchView")
+                        .and_then(|s| s.as_str())
+                        .map(|s| s.to_owned())
+                })
                 .as_deref()
                 == Some("compact");
 
             let handle_for_main = handle_for_listen.clone();
             let _ = handle_for_listen.run_on_main_thread(move || {
-                let Some(window) = handle_for_main.get_webview_window(SPOTLIGHT_LABEL) else { return; };
+                let Some(window) = handle_for_main.get_webview_window(SPOTLIGHT_LABEL) else {
+                    return;
+                };
 
                 #[cfg(target_os = "macos")]
                 {
-                    use crate::platform::macos::{LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT, ResizeMode};
-                    let height = if compact { LAUNCHER_COMPACT_HEIGHT } else { LAUNCHER_MAX_HEIGHT };
+                    use crate::platform::macos::{
+                        ResizeMode, LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT,
+                    };
+                    let height = if compact {
+                        LAUNCHER_COMPACT_HEIGHT
+                    } else {
+                        LAUNCHER_MAX_HEIGHT
+                    };
                     crate::platform::macos::set_launcher_window_height(
                         &window,
                         height,
@@ -1177,7 +1244,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             if let Err(e) = app_handle_for_events.emit("asyar:system-event", payload.clone()) {
                 log::warn!("[system_events] failed to emit Tauri event: {e}");
             }
-            if let Some(mgr) = app_handle_for_events.try_state::<std::sync::Arc<ExtensionRuntimeManager>>() {
+            if let Some(mgr) =
+                app_handle_for_events.try_state::<std::sync::Arc<ExtensionRuntimeManager>>()
+            {
                 let now = std::time::Instant::now();
                 mgr.enqueue_worker(
                     &extension_id,
@@ -1211,7 +1280,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             if let Err(e) = app_handle_for_app_events.emit("asyar:app-event", payload.clone()) {
                 log::warn!("[app_events] failed to emit Tauri event: {e}");
             }
-            if let Some(mgr) = app_handle_for_app_events.try_state::<std::sync::Arc<ExtensionRuntimeManager>>() {
+            if let Some(mgr) =
+                app_handle_for_app_events.try_state::<std::sync::Arc<ExtensionRuntimeManager>>()
+            {
                 let now = std::time::Instant::now();
                 mgr.enqueue_worker(
                     &extension_id,
@@ -1244,10 +1315,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 "extensionId": extension_id,
                 "event": event,
             });
-            if let Err(e) = app_handle_for_index_events.emit("asyar:application-index", payload.clone()) {
+            if let Err(e) =
+                app_handle_for_index_events.emit("asyar:application-index", payload.clone())
+            {
                 log::warn!("[index_events] failed to emit Tauri event: {e}");
             }
-            if let Some(mgr) = app_handle_for_index_events.try_state::<std::sync::Arc<ExtensionRuntimeManager>>() {
+            if let Some(mgr) =
+                app_handle_for_index_events.try_state::<std::sync::Arc<ExtensionRuntimeManager>>()
+            {
                 let now = std::time::Instant::now();
                 mgr.enqueue_worker(
                     &extension_id,
@@ -1362,6 +1437,84 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             "current autostart status: {}",
             autostart_manager.is_enabled().unwrap_or(false)
         );
+    }
+
+    // Browser bridge: local axum WS server companions connect to.
+    // Tokens persisted in the OS keychain via `KeyringTokenStore`.
+    {
+        use crate::browser::bridge::{
+            cache::TabSnapshotCache, connections::CompanionRegistry, pairing::PairingRegistry,
+            server::start_server, token_store::KeyringTokenStore, BridgeState,
+        };
+        use std::sync::Arc;
+        use tauri::Emitter;
+
+        let bridge_state = BridgeState {
+            tokens: Arc::new(KeyringTokenStore::new()),
+            pairing: Arc::new(PairingRegistry::new()),
+            connections: Arc::new(CompanionRegistry::new()),
+            cache: Arc::new(TabSnapshotCache::new()),
+            events: Arc::new(crate::browser::events::BrowserEventsHub::new()),
+            last_active: Arc::new(std::sync::RwLock::new(None)),
+            app_handle: app.handle().clone(),
+        };
+
+        let bridge_for_server = bridge_state.clone();
+        let app_handle_for_emit = app.handle().clone();
+        let app_handle_for_manage = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+            match start_server(bridge_for_server).await {
+                Ok(handle) => {
+                    let port = handle.port();
+                    log::info!("browser bridge listening on 127.0.0.1:{}", port);
+                    let _ = app_handle_for_emit
+                        .emit("browser:bridge-ready", serde_json::json!({ "port": port }));
+                    app_handle_for_manage.manage(handle);
+                }
+                Err(e) => {
+                    log::error!("failed to start browser bridge: {}", e);
+                }
+            }
+        });
+
+        // Browser events hub: register the Arc with Tauri's managed state
+        // so `State<'_, Arc<BrowserEventsHub>>` resolves in the subscribe /
+        // unsubscribe commands; then wire the emitter that turns
+        // `hub.dispatch(...)` into one Tauri `asyar:browser-event` emit per
+        // subscribed extension, plus a worker mailbox enqueue so the event
+        // survives a dormant worker. Mirrors the system_events emitter block
+        // at the top of `setup_app`.
+        app.manage(Arc::clone(&bridge_state.events));
+        {
+            let app_handle_for_events = app.handle().clone();
+            let hub_arc: Arc<crate::browser::events::BrowserEventsHub> =
+                Arc::clone(&bridge_state.events);
+            hub_arc.set_emitter(Box::new(move |extension_id, event| {
+                let payload = serde_json::json!({
+                    "extensionId": extension_id,
+                    "event": event,
+                });
+                if let Err(e) = app_handle_for_events.emit("asyar:browser-event", payload.clone()) {
+                    log::warn!("[browser_events] failed to emit Tauri event: {e}");
+                }
+                if let Some(mgr) = app_handle_for_events.try_state::<Arc<ExtensionRuntimeManager>>()
+                {
+                    let now = std::time::Instant::now();
+                    mgr.enqueue_worker(
+                        &extension_id,
+                        crate::extensions::extension_runtime::PendingMessage {
+                            kind: crate::extensions::extension_runtime::MessageKind::Action,
+                            payload,
+                            enqueued_at: now,
+                            source: crate::extensions::extension_runtime::TriggerSource::Invoke,
+                        },
+                        now,
+                    );
+                }
+            }));
+        }
+
+        app.manage(bridge_state);
     }
 
     crate::ai::inline_emoji_fallback::install_shortcode_miss_listener(app.handle().clone());
@@ -1560,12 +1713,18 @@ mod theme_preference_str_tests {
 
     #[test]
     fn maps_system_string_to_system() {
-        assert_eq!(parse_theme_preference_str("system"), ThemePreference::System);
+        assert_eq!(
+            parse_theme_preference_str("system"),
+            ThemePreference::System
+        );
     }
 
     #[test]
     fn unknown_string_falls_back_to_system() {
-        assert_eq!(parse_theme_preference_str("hot-pink"), ThemePreference::System);
+        assert_eq!(
+            parse_theme_preference_str("hot-pink"),
+            ThemePreference::System
+        );
     }
 }
 
@@ -1617,4 +1776,3 @@ mod link_audit_tests {
         );
     }
 }
-

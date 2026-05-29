@@ -54,11 +54,11 @@ export class ExtensionIframeManager {
    * trips registerActionHandler), target that role's iframe directly. Fall
    * back to view, then worker, then an unscoped selector.
    */
-  sendActionExecuteToExtension(extensionId: string, actionId: string, role?: 'view' | 'worker'): void {
+  sendActionExecuteToExtension(extensionId: string, actionId: string, role?: 'view' | 'worker', payload?: unknown): void {
     const iframe = pickExtensionIframe(extensionId, role ?? 'view');
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
-        { type: 'asyar:action:execute', payload: { actionId } },
+        { type: 'asyar:action:execute', payload: { actionId, actionPayload: payload } },
         getExtensionFrameOrigin(extensionId)
       );
     } else {

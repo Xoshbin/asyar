@@ -420,6 +420,38 @@ describe('handler-role registry', () => {
   })
 })
 
+// ── executeExtensionAction (Tier 2 result-action dispatch) ────────────────────
+
+describe('executeExtensionAction', () => {
+  it('looks up the recorded role and forwards (extensionId, actionId, role, payload)', () => {
+    const svc = freshService()
+    const forwarder = vi.fn()
+    svc.setExtensionForwarder(forwarder)
+    svc.recordActionHandlerRole('my-ext', 'open-item', 'worker')
+    const payload = { url: 'https://x.test' }
+    const ok = svc.executeExtensionAction('my-ext', 'open-item', payload)
+    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_open-item', 'worker', payload)
+    expect(ok).toBe(true)
+  })
+
+  it('falls back to the worker role when none was recorded', () => {
+    const svc = freshService()
+    const forwarder = vi.fn()
+    svc.setExtensionForwarder(forwarder)
+    svc.executeExtensionAction('my-ext', 'open-item', { a: 1 })
+    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_open-item', 'worker', { a: 1 })
+  })
+
+  it('forwards a recorded view role unchanged', () => {
+    const svc = freshService()
+    const forwarder = vi.fn()
+    svc.setExtensionForwarder(forwarder)
+    svc.recordActionHandlerRole('my-ext', 'open-item', 'view')
+    svc.executeExtensionAction('my-ext', 'open-item')
+    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_open-item', 'view', undefined)
+  })
+})
+
 // ── filteredActions updates ───────────────────────────────────────────────────────
 
 describe('filteredActions', () => {

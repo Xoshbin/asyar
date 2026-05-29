@@ -93,6 +93,10 @@ export class ExtensionSearchAggregator {
                 return (results || []).map((r: any) => ({
                   ...r,
                   extensionId: id,
+                  // Carry the worker-side result-action through explicitly so a
+                  // future refactor of the spread can't silently drop them.
+                  actionId: r.actionId,
+                  actionPayload: r.actionPayload,
                   // Create a host-side action since functions can't be serialized
                   action: () => {
                     // Prefer the extension-returned viewPath. Otherwise fall

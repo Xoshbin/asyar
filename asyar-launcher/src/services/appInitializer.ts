@@ -35,6 +35,7 @@ import { ExtensionPreferencesSyncProvider } from './profile/providers/extensionP
 import { systemEventsBridge } from './systemEvents/systemEventsBridge.svelte';
 import { appEventsBridge } from './appEvents/appEventsBridge.svelte';
 import { indexEventsBridge } from './applicationIndex/indexEventsBridge.svelte';
+import { browserEventsBridge } from './browser/browserEventsBridge.svelte';
 import { fsWatcherBridge } from './fsWatcher/fsWatcherBridge.svelte';
 import { stateChangedBridge } from './extensionState/stateChangedBridge.svelte';
 import { rpcReplyBridge } from './extensionState/rpcReplyBridge.svelte';
@@ -168,6 +169,9 @@ export const appInitializer = {
       });
       indexEventsBridge.init().catch((err: any) => {
         logService.warn(`indexEventsBridge init failed: ${err}`);
+      });
+      browserEventsBridge.init().catch((err: any) => {
+        logService.warn(`browserEventsBridge init failed: ${err}`);
       });
       fsWatcherBridge.init().catch((err: any) => {
         logService.warn(`fsWatcherBridge init failed: ${err}`);

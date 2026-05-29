@@ -11,6 +11,8 @@ import { runService } from '../services/run/runService.svelte';
 import { viewManager } from '../services/extension/viewManager.svelte';
 import { agentsManager } from '../built-in-features/agents/agentsManager.svelte';
 import { agentsFindRunOrigin } from './ipc/commands';
+import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte';
+import { windowService } from '../services/window/windowService';
 
 export type ResolvedItemMeta = {
   objectId: string;
@@ -298,6 +300,14 @@ export function buildMappedItems({
       const isPortalCommand = activeContext !== null && objectId === `cmd_portals_${activeContext.provider.id.replace('portal_', '')}`;
       const capturedQuery = isPortalCommand ? activeContext!.query : localSearchValue;
       actionFunction = async () => {
+        if (searchOrchestrator.tryExecuteResultAction(commandObjectId)) {
+          // The action was dispatched to the extension worker (e.g. switch
+          // browser tab, which the companion raises to the foreground). Dismiss
+          // the launcher so the target app is unobstructed — macOS has no
+          // hide-on-blur, so hide explicitly.
+          void windowService.hide();
+          return;
+        }
         logService.debug(`[searchResultMapper] Executing command: ${commandObjectId}`);
         try {
           return await extensionManager.handleCommandAction(commandObjectId, { query: capturedQuery });

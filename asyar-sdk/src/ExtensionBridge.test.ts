@@ -210,6 +210,62 @@ describe('ExtensionBridge search IPC', () => {
       expect(result).not.toHaveProperty('action');
     });
   });
+
+  it('carries actionId and actionPayload through the search response (no action fn)', async () => {
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
+
+    bridge.registerManifest({
+      id: 'action-ext',
+      name: 'Action Test',
+      version: '1.0.0',
+      description: 'Test',
+      type: 'extension',
+      commands: [],
+    });
+
+    bridge.registerExtensionImplementation('action-ext', {
+      initialize: vi.fn(),
+      activate: vi.fn(),
+      deactivate: vi.fn(),
+      onUnload: vi.fn(),
+      executeCommand: vi.fn(),
+      search: vi.fn().mockResolvedValue([
+        {
+          title: 'Activate Tab',
+          score: 0.7,
+          type: 'result',
+          action: () => {},
+          actionId: 'activate-tab',
+          actionPayload: { tabId: '7' },
+        },
+      ]),
+    });
+
+    expect(messageHandler).toBeDefined();
+
+    const event = new MessageEvent('message', {
+      data: {
+        type: 'asyar:search:request',
+        messageId: 'search_action',
+        payload: { query: 'tab' },
+      },
+      source: window.parent,
+    });
+
+    messageHandler!(event);
+
+    await vi.waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalled();
+    });
+    const call = postMessageSpy.mock.calls.find(
+      (c) => c[0]?.messageId === 'search_action'
+    );
+    expect(call).toBeDefined();
+    const result = call![0].result[0];
+    expect(result.actionId).toBe('activate-tab');
+    expect(result.actionPayload.tabId).toBe('7');
+    expect(result).not.toHaveProperty('action');
+  });
 });
 
 describe('ExtensionBridge registerActionHandler', () => {
@@ -266,6 +322,34 @@ describe('ExtensionBridge registerActionHandler', () => {
 
     await vi.waitFor(() => {
       expect(handler).toHaveBeenCalledOnce();
+    });
+    // Backward-compat: an envelope with no actionPayload delivers `undefined`.
+    expect(handler).toHaveBeenCalledWith(undefined);
+  });
+
+  it('passes actionPayload to the handler when present in the envelope', async () => {
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
+    const handler = vi.fn();
+
+    bridge.registerActionHandler('com.example.github', 'open-browser', handler);
+
+    expect(messageHandler).toBeDefined();
+
+    const event = new MessageEvent('message', {
+      data: {
+        type: 'asyar:action:execute',
+        payload: {
+          actionId: 'act_com.example.github_open-browser',
+          actionPayload: { n: 1 },
+        },
+      },
+      source: window.parent,
+    });
+
+    messageHandler!(event);
+
+    await vi.waitFor(() => {
+      expect(handler).toHaveBeenCalledWith({ n: 1 });
     });
   });
 

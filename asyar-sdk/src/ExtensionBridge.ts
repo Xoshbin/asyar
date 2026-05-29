@@ -159,7 +159,8 @@ export class ExtensionBridge {
           if (actionId) {
             const action = this.actionRegistry.get(actionId);
             if (action?.execute) {
-              Promise.resolve(action.execute()).catch((err: Error) =>
+              const actionPayload = data.payload?.actionPayload;
+              Promise.resolve(action.execute(actionPayload)).catch((err: Error) =>
                 console.error('[asyar-sdk] action execute failed:', err),
               );
             }
@@ -204,6 +205,8 @@ export class ExtensionBridge {
                   type: r.type,
                   style: r.style,
                   viewPath: r.viewPath,
+                  actionId: r.actionId,
+                  actionPayload: r.actionPayload,
                   // Do NOT send `action` — functions can't be serialized via postMessage
                 })),
               ];
@@ -269,7 +272,7 @@ export class ExtensionBridge {
    * asyar:action:execute message from the host can find it.
    * No IPC message sent — the host already knows about the action from the manifest.
    */
-  registerActionHandler(extensionId: string, actionId: string, handler: () => Promise<void> | void): void {
+  registerActionHandler(extensionId: string, actionId: string, handler: (payload?: unknown) => Promise<void> | void): void {
     const fullActionId = `act_${extensionId}_${actionId}`;
     this.actionRegistry.set(fullActionId, {
       id: fullActionId,

@@ -231,6 +231,17 @@ describe('ExtensionIframeManager', () => {
         'asyar-extension://legacy-ext',
       )
     })
+
+    it('includes actionPayload in the envelope when a payload is supplied', () => {
+      manager.sendActionExecuteToExtension('ext-1', 'open-item', 'worker', { url: 'https://x.test' })
+      expect(workerPostMessage).toHaveBeenCalledWith(
+        {
+          type: 'asyar:action:execute',
+          payload: { actionId: 'open-item', actionPayload: { url: 'https://x.test' } },
+        },
+        'asyar-extension://ext-1',
+      )
+    })
   })
 
   describe('handleSearchResponse', () => {

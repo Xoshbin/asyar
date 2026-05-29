@@ -98,6 +98,38 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:snippets:forgetLearnedShortcode':         'snippets:contribute',
   'asyar:api:snippets:clearLearnedShortcodes':         'snippets:contribute',
   'asyar:api:snippets:setInlineFallbackEnabled':       'snippets:contribute',
+  // Browser bridge — bookmarks and history read scopes.
+  // listAvailableBrowsers and isCompanionInstalled are intentionally
+  // unmapped (permission-free discovery, no security boundary).
+  'asyar:api:browser:listBookmarks':                   'browser:bookmarks.read',
+  'asyar:api:browser:searchHistory':                   'browser:history.read',
+  // Browser bridge — companion tabs (read + write scopes).
+  // listPairedBrowsers is paired-discovery and exposes only browser identity,
+  // but a paired list is itself sensitive enough to gate behind tabs.read.
+  'asyar:api:browser:listTabs':                        'browser:tabs.read',
+  'asyar:api:browser:getActiveTab':                    'browser:tabs.read',
+  'asyar:api:browser:activateTab':                     'browser:tabs.write',
+  'asyar:api:browser:closeTab':                        'browser:tabs.write',
+  'asyar:api:browser:openUrl':                         'browser:tabs.write',
+  'asyar:api:browser:listPairedBrowsers':              'browser:tabs.read',
+  // Browser events push subscription — gated at the subscribe call per kind.
+  // Tabs events require `browser:tabs.read` (matches listTabs/getActiveTab);
+  // page events require `browser:page.read` (matches getCurrentPage/queryPage).
+  // Per-kind wire names + hard-coded eventTypes on the host method prevent a
+  // tabs-permitted extension from side-channelling into page events.
+  'asyar:api:browser:subscribeTabsChanged':            'browser:tabs.read',
+  'asyar:api:browser:unsubscribeTabsChanged':          'browser:tabs.read',
+  'asyar:api:browser:subscribePageChanged':            'browser:page.read',
+  'asyar:api:browser:unsubscribePageChanged':          'browser:page.read',
+  // Browser page methods — getCurrentPage/queryPage gated by browser:page.read;
+  // actOnPage requires the separate browser:page.write (write surface).
+  'asyar:api:browser:getCurrentPage':                  'browser:page.read',
+  'asyar:api:browser:queryPage':                       'browser:page.read',
+  'asyar:api:browser:actOnPage':                       'browser:page.write',
+  // Browser bridge — command-bar additions. searchWeb opens a tab (tabs.write);
+  // getMostRecentActiveBrowser exposes browser identity (tabs.read, like listPairedBrowsers).
+  'asyar:api:browser:searchWeb':                       'browser:tabs.write',
+  'asyar:api:browser:getMostRecentActiveBrowser':      'browser:tabs.read',
 }
 
 /**

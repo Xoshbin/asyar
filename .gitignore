@@ -13,6 +13,9 @@ node_modules/
 # Dogfood extensions live in their own repos; setup.mjs clones them here
 /extensions/
 
+# Browser companions live in their own repos; developed here, extracted later.
+/browser-companions/
+
 # Build artifacts (subpackages have their own .gitignore too — this is belt + suspenders)
 dist/
 build/

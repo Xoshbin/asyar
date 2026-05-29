@@ -88,7 +88,7 @@ export interface ApplicationAction {
 export class ActionService implements IActionService {
   private allActions: Map<string, ApplicationAction> = new Map();
   private currentContext: ActionContext = ActionContext.CORE;
-  private sendToExtension?: (extensionId: string, actionId: string, role?: 'view' | 'worker') => void;
+  private sendToExtension?: (extensionId: string, actionId: string, role?: 'view' | 'worker', payload?: unknown) => void;
   // Which iframe role registered the handler for a given full actionId
   // (`act_<extensionId>_<shortId>`). Populated by the IPC router from the
   // calling iframe's data-role attribute when the SDK calls
@@ -105,7 +105,7 @@ export class ActionService implements IActionService {
     this.updateState();
   }
 
-  setExtensionForwarder(fn: (extensionId: string, actionId: string, role?: 'view' | 'worker') => void): void {
+  setExtensionForwarder(fn: (extensionId: string, actionId: string, role?: 'view' | 'worker', payload?: unknown) => void): void {
     this.sendToExtension = fn;
   }
 
@@ -337,6 +337,22 @@ export class ActionService implements IActionService {
       logService.error(`Error executing action ${actionId}: ${error}`);
       throw error;
     }
+  }
+
+  /**
+   * Dispatch a Tier 2 result-action: look up which iframe role registered the
+   * handler for (extensionId, actionId) and post the action-execute envelope
+   * with the payload. Falls back to the 'worker' role since search-result
+   * handlers are registered from the worker in activate().
+   */
+  executeExtensionAction(extensionId: string, actionId: string, payload?: unknown): boolean {
+    // The SDK's action registry keys handlers on the full `act_<ext>_<short>`
+    // id (both registerActionHandler and the asyar:action:execute receiver),
+    // so the envelope must carry the full id — callers pass the short id.
+    const fullActionId = `act_${extensionId}_${actionId}`;
+    const role = this.handlerRoles.get(fullActionId);
+    this.sendToExtension?.(extensionId, fullActionId, role ?? 'worker', payload);
+    return true;
   }
 
   /**
