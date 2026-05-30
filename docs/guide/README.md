@@ -33,7 +33,7 @@ Every **feature** page follows the same shape so the manual reads consistently:
 
     > One-sentence summary of what this does for the user.
 
-    ![<hero alt text>](../images/<name>.png)
+    ![<hero alt text>](../../images/<name>.png)
     *Figure: <what the hero shot shows>.*
     <!-- image-todo: <name>.png — <what to capture> -->
 
@@ -43,7 +43,7 @@ Every **feature** page follows the same shape so the manual reads consistently:
     ## Tips
     ## Related            (links to other guide pages)
 
-Images live in `docs/guide/images/`. Use `./images/...` from top-level pages and
-`../images/...` from pages inside `features/`. Until a PNG is added, the slot
-renders as a broken-image icon by design — run `grep -rn "image-todo" docs/guide`
-to list every slot still to fill.
+Images live in `docs/images/` (a single folder at the docs root — the site serves
+them from there). Use `../images/...` from top-level guide pages and `../../images/...`
+from pages inside `features/`. Until a PNG is added, the slot renders as a broken-image
+icon by design — run `grep -rn "image-todo" docs/guide` to list every slot still to fill.

@@ -2,7 +2,7 @@
 
 > Ask AI, build agents, choose providers, and manage threads.
 
-![Agent chat view streaming a reply](../images/feature-ai-agents-hero.png)
+![Agent chat view streaming a reply](../../images/feature-ai-agents-hero.png)
 *Figure: the agent chat view streaming a reply.*
 
 ## What it does
@@ -54,7 +54,7 @@ Each agent keeps its conversation history in threads. Inside the chat view:
 
 A **silent agent** runs in the background with no chat window. You trigger it with a global hotkey, it grabs some input, does its work, and puts the result right back — all without you needing to open the launcher or read a chat thread.
 
-![A silent AI command fixing selected text in place](../images/feature-ai-agents-silent-command.png)
+![A silent AI command fixing selected text in place](../../images/feature-ai-agents-silent-command.png)
 *Figure: select text in any app, press the hotkey, and a silent agent replaces it with the result.*
 <!-- image-todo: feature-ai-agents-silent-command.png — Grammar Fix replacing selected text in an app after the hotkey is pressed -->
 

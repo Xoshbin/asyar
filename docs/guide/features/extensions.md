@@ -2,7 +2,7 @@
 
 > Browse, install, and manage extensions from the store.
 
-![The Extension Store view](../images/feature-extensions-hero.png)
+![The Extension Store view](../../images/feature-extensions-hero.png)
 *Figure: the Extension Store view.*
 
 ## What it does
