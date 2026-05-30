@@ -2,7 +2,7 @@
 
 > Install Asyar, finish first-run setup, and run your first search.
 
-![The Asyar launcher open with a search query](./images/getting-started-hero.png)
+![The Asyar launcher open with a search query](../images/getting-started-hero.png)
 *Figure: the Asyar launcher, opened with the global hotkey.*
 
 ## Install
@@ -16,7 +16,7 @@ Once Asyar starts, a small icon appears in the menu bar (macOS) or system tray (
 
 ## First-run setup (hotkey, accessibility, theme)
 
-![The first-run onboarding, choosing a global hotkey](./images/getting-started-onboarding.png)
+![The first-run onboarding, choosing a global hotkey](../images/getting-started-onboarding.png)
 *Figure: the onboarding step where you pick your global hotkey.*
 
 Asyar walks you through a short onboarding flow the first time you launch it. Here is what each step does:

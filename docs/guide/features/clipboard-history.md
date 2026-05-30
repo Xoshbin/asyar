@@ -2,7 +2,7 @@
 
 > Browse, filter, favorite, and paste past copies.
 
-![Clipboard list with type filter](../images/feature-clipboard-hero.png)
+![Clipboard list with type filter](../../images/feature-clipboard-hero.png)
 *Figure: the clipboard list with the type filter visible.*
 
 ## What it does

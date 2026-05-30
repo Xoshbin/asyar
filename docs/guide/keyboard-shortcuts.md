@@ -2,7 +2,7 @@
 
 > Every Asyar shortcut in one place. The same list appears in-app under "Help".
 
-![The in-app Help view cheat sheet](./images/keyboard-shortcuts-help.png)
+![The in-app Help view cheat sheet](../images/keyboard-shortcuts-help.png)
 *Figure: the in-app Help view cheat sheet.*
 
 ## Global

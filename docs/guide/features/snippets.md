@@ -2,7 +2,7 @@
 
 > Text expansion: type a keyword, paste the full text.
 
-![Snippets list view](../images/feature-snippets-hero.png)
+![Snippets list view](../../images/feature-snippets-hero.png)
 *Figure: the snippets list view.*
 
 ## What it does

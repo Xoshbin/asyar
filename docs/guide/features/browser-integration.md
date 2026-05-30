@@ -2,7 +2,7 @@
 
 > Search bookmarks, history, and tabs.
 
-![Bookmark and tab results in search](../images/feature-browser-hero.png)
+![Bookmark and tab results in search](../../images/feature-browser-hero.png)
 *Figure: bookmark and tab results appearing in search.*
 
 ## What it does

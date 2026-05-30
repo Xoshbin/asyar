@@ -2,7 +2,7 @@
 
 > Do math, unit conversion, currency conversion, and date math right from the search bar.
 
-![A calculator result shown inline in the search bar](../images/feature-calculator-hero.png)
+![A calculator result shown inline in the search bar](../../images/feature-calculator-hero.png)
 *Figure: type a sum and the answer appears inline, ready to copy.*
 
 ## What it does

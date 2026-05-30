@@ -2,7 +2,7 @@
 
 > Save URLs as named launchers you can find by name.
 
-![A portal result in search](../images/feature-portals-hero.png)
+![A portal result in search](../../images/feature-portals-hero.png)
 *Figure: a portal result appearing in search.*
 
 ## What it does

@@ -2,7 +2,7 @@
 
 > How search, results, navigation, and the action panel fit together.
 
-![Results list with the action panel visible](./images/the-basics-results.png)
+![Results list with the action panel visible](../images/the-basics-results.png)
 *Figure: results list with the action panel visible.*
 
 ## The search bar
