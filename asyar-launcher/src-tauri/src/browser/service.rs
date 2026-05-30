@@ -168,6 +168,10 @@ impl BrowserService {
                 std::time::Duration::from_secs(5),
             )
             .await?;
+        // The companion switched the tab inside the browser; bring the
+        // browser app to the foreground so the switch is actually visible
+        // (Arc ignores the companion's own window-focus call).
+        crate::browser::activation::activate(&key);
         Ok(())
     }
 
@@ -222,6 +226,7 @@ impl BrowserService {
                         std::time::Duration::from_secs(5),
                     )
                     .await?;
+                crate::browser::activation::activate(&key);
                 Ok(())
             }
             OpenStrategy::OsDefault => {
@@ -339,6 +344,7 @@ impl BrowserService {
                 std::time::Duration::from_secs(5),
             )
             .await?;
+        crate::browser::activation::activate(&key);
         Ok(())
     }
 
