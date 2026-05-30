@@ -130,7 +130,7 @@ mod tests {
     use super::*;
     use crate::browser::bridge::{
         cache::TabSnapshotCache, connections::CompanionRegistry, pairing::PairingRegistry,
-        token_store::InMemoryTokenStore, BridgeState,
+        rate_limit::ConnectionRateLimiter, token_store::InMemoryTokenStore, BridgeState,
     };
     use crate::browser::events::{BrowserEvent, BrowserEventKind, BrowserEventsHub};
     use crate::browser::types::{BrowserFamily, BrowserKey};
@@ -147,6 +147,7 @@ mod tests {
             cache: Arc::new(TabSnapshotCache::new()),
             events: Arc::new(BrowserEventsHub::new()),
             last_active: Arc::new(std::sync::RwLock::new(None)),
+            rate_limiter: Arc::new(ConnectionRateLimiter::default()),
             app_handle: app.handle().clone(),
         }
     }

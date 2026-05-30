@@ -44,6 +44,24 @@ impl ServerHandle {
     }
 }
 
+/// Per-peer connection throttle shared by the `/pair-request` and `/bridge`
+/// routes. Returns a `429 Too Many Requests` error (with a `Retry-After` hint in
+/// the body) when the browser key has exceeded its rate budget, or `None` when
+/// the request may proceed.
+fn throttle<R: tauri::Runtime>(
+    state: &BridgeState<R>,
+    key: &crate::browser::types::BrowserKey,
+) -> Option<(StatusCode, String)> {
+    use crate::browser::bridge::rate_limit::RateDecision;
+    match state.rate_limiter.check(key) {
+        RateDecision::Allow => None,
+        RateDecision::Deny { retry_after_secs } => Some((
+            StatusCode::TOO_MANY_REQUESTS,
+            format!("rate limited; retry after {retry_after_secs}s"),
+        )),
+    }
+}
+
 async fn discover_handler() -> Json<serde_json::Value> {
     Json(json!({
         "name": "asyar",
@@ -76,6 +94,9 @@ async fn pair_request_handler<R: tauri::Runtime>(
         family,
         variant: body.variant.clone(),
     };
+    if let Some(err) = throttle(&state, &key) {
+        return Err(err);
+    }
     let pairing_id = state.pairing.request(key).await;
 
     use tauri::Emitter;
@@ -126,12 +147,60 @@ pub fn token_from_subprotocols(header_value: &str) -> Option<String> {
         .find_map(|entry| entry.strip_prefix("bearer.").map(|t| t.to_string()))
 }
 
+/// WebSocket close codes that tell a browser companion WHY its `/bridge`
+/// connection was rejected. A browser's `WebSocket` API cannot read the HTTP
+/// status of a *failed* upgrade, so instead of rejecting with `401`/`429` (which
+/// the companion only ever sees as an opaque `1006`), we accept the upgrade and
+/// immediately close with one of these. That lets the companion react correctly:
+/// clear a stale token and re-pair, or back off without discarding a valid one.
+pub const WS_CLOSE_AUTH: u16 = 1008; // Policy Violation: bad/missing token or no pairing.
+pub const WS_CLOSE_THROTTLED: u16 = 1013; // Try Again Later: rate limited.
+
+/// Upper bound on the client-supplied `variant`. Real browser variants are short
+/// (`chrome`, `chrome-beta`, `edge`, `brave`, …); anything longer is abusive
+/// input and is rejected before it can key a rate-limiter bucket.
+const MAX_VARIANT_LEN: usize = 64;
+
+/// Sends a single Close frame and drops the socket. Used for the rejection paths
+/// above — no connection is registered and no data is exchanged.
+async fn close_with<S>(mut socket: S, code: u16, reason: &'static str)
+where
+    S: futures_util::Sink<axum::extract::ws::Message> + Unpin,
+{
+    use axum::extract::ws::{CloseFrame, Message};
+    use futures_util::SinkExt;
+    let _ = socket
+        .send(Message::Close(Some(CloseFrame {
+            code,
+            reason: reason.into(),
+        })))
+        .await;
+}
+
 async fn bridge_ws_handler<R: tauri::Runtime>(
     ws: WebSocketUpgrade,
     State(state): State<BridgeState<R>>,
     axum::extract::Query(q): axum::extract::Query<BridgeQuery>,
     headers: HeaderMap,
 ) -> Result<Response, (StatusCode, String)> {
+    use crate::browser::bridge::rate_limit::RateDecision;
+
+    let family = match q.family.as_str() {
+        "chromium" => crate::browser::types::BrowserFamily::Chromium,
+        "firefox" => crate::browser::types::BrowserFamily::Firefox,
+        "safari" => crate::browser::types::BrowserFamily::Safari,
+        other => return Err((StatusCode::BAD_REQUEST, format!("bad family: {}", other))),
+    };
+    // Reject abusive `variant` up front — before it can allocate a rate-limiter
+    // bucket or reach the keychain lookup.
+    if q.variant.len() > MAX_VARIANT_LEN {
+        return Err((StatusCode::BAD_REQUEST, "variant too long".to_string()));
+    }
+    let key = crate::browser::types::BrowserKey {
+        family,
+        variant: q.variant.clone(),
+    };
+
     // 1. Authorization: Bearer <token>  (non-browser clients, tests)
     let header_token = headers
         .get("authorization")
@@ -144,40 +213,38 @@ async fn bridge_ws_handler<R: tauri::Runtime>(
         .and_then(|v| v.to_str().ok())
         .and_then(token_from_subprotocols);
     let used_subprotocol = subproto_token.is_some();
-    let token = header_token
-        .or(subproto_token)
-        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "missing bearer token".to_string()))?;
-    let family = match q.family.as_str() {
-        "chromium" => crate::browser::types::BrowserFamily::Chromium,
-        "firefox" => crate::browser::types::BrowserFamily::Firefox,
-        "safari" => crate::browser::types::BrowserFamily::Safari,
-        other => return Err((StatusCode::BAD_REQUEST, format!("bad family: {}", other))),
-    };
-    let key = crate::browser::types::BrowserKey {
-        family,
-        variant: q.variant.clone(),
-    };
-    let stored = state
-        .tokens
-        .get(&key)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?
-        .ok_or_else(|| {
-            (
-                StatusCode::UNAUTHORIZED,
-                "no pairing for this browser".to_string(),
-            )
-        })?;
-    if stored != token {
-        return Err((StatusCode::UNAUTHORIZED, "token mismatch".to_string()));
-    }
-    let state_for_socket = state.clone();
-    // Browsers close the socket if the server does not select one of the offered
-    // subprotocols, so echo `asyar.v1` back when the subprotocol channel was used.
+
+    // Browsers close the socket if the server does not echo one of the offered
+    // subprotocols — including on the rejection paths below, otherwise our close
+    // frame (and its reason code) would never reach the companion.
     let ws = if used_subprotocol {
         ws.protocols(["asyar.v1"])
     } else {
         ws
     };
+
+    // Throttle BEFORE any auth work so a reconnect storm can't hammer the token
+    // store (and, through it, the OS keychain). Tell the companion to back off
+    // via a 1013 close rather than an HTTP 429 it cannot read.
+    if matches!(state.rate_limiter.check(&key), RateDecision::Deny { .. }) {
+        return Ok(ws.on_upgrade(|socket| close_with(socket, WS_CLOSE_THROTTLED, "rate limited")));
+    }
+
+    // Authenticate. ANY failure (missing token, no pairing, mismatch) closes with
+    // 1008 so the companion clears its stale token and re-pairs — instead of
+    // looping forever against an invisible 401.
+    let Some(token) = header_token.or(subproto_token) else {
+        return Ok(ws.on_upgrade(|socket| close_with(socket, WS_CLOSE_AUTH, "missing token")));
+    };
+    let stored = state
+        .tokens
+        .get(&key)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    if stored.as_deref() != Some(token.as_str()) {
+        return Ok(ws.on_upgrade(|socket| close_with(socket, WS_CLOSE_AUTH, "unauthorized")));
+    }
+
+    let state_for_socket = state.clone();
     Ok(ws.on_upgrade(move |socket| {
         crate::browser::bridge::ws_handler::handle_socket(socket, state_for_socket, key)
     }))
@@ -215,11 +282,17 @@ mod tests {
     use super::*;
     use crate::browser::bridge::{
         cache::TabSnapshotCache, connections::CompanionRegistry, pairing::PairingRegistry,
-        token_store::InMemoryTokenStore,
+        rate_limit::ConnectionRateLimiter, token_store::InMemoryTokenStore,
     };
     use std::sync::Arc;
 
     fn build_test_state() -> BridgeState<tauri::test::MockRuntime> {
+        build_test_state_with_limiter(ConnectionRateLimiter::default())
+    }
+
+    fn build_test_state_with_limiter(
+        limiter: ConnectionRateLimiter,
+    ) -> BridgeState<tauri::test::MockRuntime> {
         let app = tauri::test::mock_app();
         BridgeState {
             tokens: Arc::new(InMemoryTokenStore::new()),
@@ -228,6 +301,7 @@ mod tests {
             cache: Arc::new(TabSnapshotCache::new()),
             events: Arc::new(crate::browser::events::BrowserEventsHub::new()),
             last_active: Arc::new(std::sync::RwLock::new(None)),
+            rate_limiter: Arc::new(limiter),
             app_handle: app.handle().clone(),
         }
     }
@@ -307,6 +381,92 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn pair_request_is_throttled_after_capacity() {
+        let state = build_test_state_with_limiter(ConnectionRateLimiter::new(3.0, 1.0));
+        let handle = start_server(state.clone()).await.unwrap();
+        let client = reqwest::Client::new();
+        let url = format!("http://127.0.0.1:{}/pair-request", handle.port());
+        let body = serde_json::json!({ "family": "chromium", "variant": "chrome" });
+        // First `capacity` rapid requests are accepted.
+        for i in 0..3 {
+            let resp = client.post(&url).json(&body).send().await.unwrap();
+            assert_eq!(resp.status(), reqwest::StatusCode::OK, "request {i}");
+        }
+        // The next one in the same window is throttled.
+        let resp = client.post(&url).json(&body).send().await.unwrap();
+        assert_eq!(resp.status(), reqwest::StatusCode::TOO_MANY_REQUESTS);
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn bridge_ws_rejects_overlong_variant_before_allocating() {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        use tokio_tungstenite::tungstenite::Error as WsError;
+        let state = build_test_state();
+        let handle = start_server(state.clone()).await.unwrap();
+        // `variant` is client-controlled; an abusive over-long value must be
+        // rejected up front, before it can allocate a rate-limiter bucket or
+        // reach the keychain lookup.
+        let variant = "x".repeat(500);
+        let url = format!(
+            "ws://127.0.0.1:{}/bridge?family=chromium&variant={}",
+            handle.port(),
+            variant
+        );
+        let req = url.into_client_request().unwrap();
+        match tokio_tungstenite::connect_async(req).await {
+            Err(WsError::Http(resp)) => assert_eq!(resp.status().as_u16(), 400),
+            other => panic!("expected a 400 rejection, got {other:?}"),
+        }
+        assert_eq!(
+            state.rate_limiter.bucket_count(),
+            0,
+            "an over-long variant must not create a bucket"
+        );
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn bridge_ws_throttle_closes_with_1013() {
+        use crate::browser::types::{BrowserFamily, BrowserKey};
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        use tokio_tungstenite::tungstenite::http::HeaderValue;
+
+        let state = build_test_state_with_limiter(ConnectionRateLimiter::new(1.0, 1.0));
+        state
+            .tokens
+            .set(
+                &BrowserKey {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                },
+                "secret-token",
+            )
+            .unwrap();
+        let handle = start_server(state.clone()).await.unwrap();
+        let url = format!(
+            "ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome",
+            handle.port()
+        );
+        let make_req = || {
+            let mut req = url.clone().into_client_request().unwrap();
+            req.headers_mut().insert(
+                "authorization",
+                HeaderValue::from_static("Bearer secret-token"),
+            );
+            req
+        };
+        // First connection (within the burst) upgrades successfully.
+        let (_socket, _resp) = tokio_tungstenite::connect_async(make_req()).await.unwrap();
+        // The second within the same window is throttled — delivered as a 1013
+        // "Try Again Later" close so the companion backs off WITHOUT discarding
+        // its (valid) token.
+        let (socket, _resp) = tokio_tungstenite::connect_async(make_req()).await.unwrap();
+        assert_eq!(first_close_code(socket).await, Some(WS_CLOSE_THROTTLED));
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
     async fn pair_status_returns_approved_with_token_after_resolve() {
         use crate::browser::types::{BrowserFamily, BrowserKey, PairDecision};
         let state = build_test_state();
@@ -363,8 +523,26 @@ mod tests {
         handle.shutdown().await;
     }
 
+    /// Reads frames until the server's Close frame arrives, returning its code.
+    async fn first_close_code(
+        mut socket: tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+    ) -> Option<u16> {
+        use futures_util::StreamExt;
+        use tokio_tungstenite::tungstenite::Message;
+        while let Some(msg) = socket.next().await {
+            match msg {
+                Ok(Message::Close(Some(frame))) => return Some(frame.code.into()),
+                Ok(_) => continue,
+                Err(_) => return None,
+            }
+        }
+        None
+    }
+
     #[tokio::test]
-    async fn ws_rejects_without_token() {
+    async fn ws_closes_with_1008_when_token_missing() {
         use tokio_tungstenite::tungstenite::client::IntoClientRequest;
         let state = build_test_state();
         let handle = start_server(state.clone()).await.unwrap();
@@ -373,8 +551,47 @@ mod tests {
             handle.port()
         );
         let req = url.into_client_request().unwrap();
-        let result = tokio_tungstenite::connect_async(req).await;
-        assert!(result.is_err(), "expected 401-class failure");
+        // The upgrade now succeeds; the rejection reason is delivered as a WS
+        // close code (a browser cannot read an HTTP 401 on a failed upgrade).
+        let (socket, _resp) = tokio_tungstenite::connect_async(req).await.unwrap();
+        assert_eq!(first_close_code(socket).await, Some(WS_CLOSE_AUTH));
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn ws_closes_with_1008_on_token_mismatch() {
+        use crate::browser::types::{BrowserFamily, BrowserKey};
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        use tokio_tungstenite::tungstenite::http::HeaderValue;
+        let state = build_test_state();
+        // A pairing EXISTS, but the companion presents a stale/wrong token —
+        // exactly the drift that caused the infinite reconnect loop.
+        state
+            .tokens
+            .set(
+                &BrowserKey {
+                    family: BrowserFamily::Chromium,
+                    variant: "chrome".to_string(),
+                },
+                "the-real-token",
+            )
+            .unwrap();
+        let handle = start_server(state.clone()).await.unwrap();
+        let url = format!(
+            "ws://127.0.0.1:{}/bridge?family=chromium&variant=chrome",
+            handle.port()
+        );
+        let mut req = url.into_client_request().unwrap();
+        req.headers_mut().insert(
+            "authorization",
+            HeaderValue::from_static("Bearer a-stale-token"),
+        );
+        let (socket, _resp) = tokio_tungstenite::connect_async(req).await.unwrap();
+        assert_eq!(
+            first_close_code(socket).await,
+            Some(WS_CLOSE_AUTH),
+            "a mismatched token must yield a 1008 so the client clears it and re-pairs"
+        );
         handle.shutdown().await;
     }
 
