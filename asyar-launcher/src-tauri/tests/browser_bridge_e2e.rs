@@ -1,6 +1,7 @@
 use asyar_lib::browser::bridge::{
     cache::TabSnapshotCache, connections::CompanionRegistry, pairing::PairingRegistry,
-    server::start_server, token_store::InMemoryTokenStore, BridgeState,
+    rate_limit::ConnectionRateLimiter, server::start_server, token_store::InMemoryTokenStore,
+    BridgeState,
 };
 use asyar_lib::browser::service::BrowserService;
 use asyar_lib::browser::types::{BrowserFamily, BrowserId, BrowserKey, PairDecision};
@@ -19,6 +20,9 @@ fn build_state() -> BridgeState<tauri::test::MockRuntime> {
         cache: Arc::new(TabSnapshotCache::new()),
         events: Arc::new(asyar_lib::browser::events::BrowserEventsHub::new()),
         last_active: Arc::new(std::sync::RwLock::new(None)),
+        // High capacity so the throttle never interferes with the multi-step
+        // pairing/round-trip flows exercised here.
+        rate_limiter: Arc::new(ConnectionRateLimiter::new(10_000.0, 10_000.0)),
         app_handle: app.handle().clone(),
     }
 }

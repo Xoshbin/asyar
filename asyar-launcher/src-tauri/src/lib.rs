@@ -118,7 +118,22 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_x::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
-        .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(
+            // Silence verbose third-party crate logging (the browser-bridge axum
+            // server, the WebSocket layer, hyper, and the keychain) so a busy or
+            // reconnecting companion does not flood the console with connection
+            // TRACE lines. Asyar's own logs are unaffected.
+            tauri_plugin_log::Builder::new()
+                .level_for("axum", log::LevelFilter::Warn)
+                .level_for("hyper", log::LevelFilter::Warn)
+                .level_for("hyper_util", log::LevelFilter::Warn)
+                .level_for("tower_http", log::LevelFilter::Warn)
+                .level_for("tokio_tungstenite", log::LevelFilter::Warn)
+                .level_for("tungstenite", log::LevelFilter::Warn)
+                .level_for("keyring", log::LevelFilter::Warn)
+                .level_for("mio", log::LevelFilter::Warn)
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
@@ -1444,7 +1459,8 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     {
         use crate::browser::bridge::{
             cache::TabSnapshotCache, connections::CompanionRegistry, pairing::PairingRegistry,
-            server::start_server, token_store::KeyringTokenStore, BridgeState,
+            rate_limit::ConnectionRateLimiter, server::start_server,
+            token_store::KeyringTokenStore, BridgeState,
         };
         use std::sync::Arc;
         use tauri::Emitter;
@@ -1456,6 +1472,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             cache: Arc::new(TabSnapshotCache::new()),
             events: Arc::new(crate::browser::events::BrowserEventsHub::new()),
             last_active: Arc::new(std::sync::RwLock::new(None)),
+            rate_limiter: Arc::new(ConnectionRateLimiter::default()),
             app_handle: app.handle().clone(),
         };
 
