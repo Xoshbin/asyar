@@ -3,8 +3,8 @@
 //! Provides absolute-path read, write, and directory creation helpers
 //! callable from the frontend over Tauri IPC.
 
-use std::fs;
 use crate::error::AppError;
+use std::fs;
 use tauri::Manager;
 
 /// Normalizes a path by resolving `.` and `..` components without requiring the path to exist on disk.
@@ -50,13 +50,21 @@ fn validate_path_allowed<R: tauri::Runtime>(
         crate::error::AppError::Other(format!("Cannot resolve app data dir: {}", e))
     })?;
     let temp_dir = std::env::temp_dir();
-    let home_dir = app_handle.path().home_dir().map_err(|e| {
-        crate::error::AppError::Other(format!("Cannot resolve home dir: {}", e))
-    })?;
+    let home_dir = app_handle
+        .path()
+        .home_dir()
+        .map_err(|e| crate::error::AppError::Other(format!("Cannot resolve home dir: {}", e)))?;
 
-    let allowed_roots = [normalize_path(&app_data), normalize_path(&temp_dir), normalize_path(&home_dir)];
+    let allowed_roots = [
+        normalize_path(&app_data),
+        normalize_path(&temp_dir),
+        normalize_path(&home_dir),
+    ];
 
-    if !allowed_roots.iter().any(|root| normalized.starts_with(root)) {
+    if !allowed_roots
+        .iter()
+        .any(|root| normalized.starts_with(root))
+    {
         return Err(crate::error::AppError::Other(format!(
             "Access denied: '{}' is outside the allowed directories (home, app data, or temp)",
             path_str
@@ -145,11 +153,17 @@ mod tests {
         let path = tmp.path().join("hello.txt");
         let path_str = path.to_str().unwrap().to_string();
 
-        write_text_file_absolute(app.handle().clone(), path_str.clone(), "hello world".to_string())
+        write_text_file_absolute(
+            app.handle().clone(),
+            path_str.clone(),
+            "hello world".to_string(),
+        )
+        .await
+        .unwrap();
+
+        let content = read_text_file_absolute(app.handle().clone(), path_str)
             .await
             .unwrap();
-
-        let content = read_text_file_absolute(app.handle().clone(), path_str).await.unwrap();
         assert_eq!(content, "hello world");
     }
 
@@ -200,7 +214,11 @@ mod tests {
         let app = tauri::test::mock_app();
         // Use a path in the OS temp dir to satisfy validation
         let temp_file = std::env::temp_dir().join("__does_not_exist_asyar_test__");
-        let result = read_text_file_absolute(app.handle().clone(), temp_file.to_str().unwrap().to_string()).await;
+        let result = read_text_file_absolute(
+            app.handle().clone(),
+            temp_file.to_str().unwrap().to_string(),
+        )
+        .await;
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), AppError::Io(_)));
     }
@@ -219,8 +237,9 @@ mod tests {
             .await
             .unwrap();
 
-        let content = read_text_file_absolute(app.handle().clone(), path_str).await.unwrap();
+        let content = read_text_file_absolute(app.handle().clone(), path_str)
+            .await
+            .unwrap();
         assert_eq!(content, "second");
     }
 }
-

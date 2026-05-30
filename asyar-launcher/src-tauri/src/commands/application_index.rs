@@ -192,13 +192,9 @@ mod tests {
     fn unsubscribe_without_permission_is_rejected() {
         let hub = IndexEventsHub::new();
         let perms = empty_permissions();
-        let err = application_index_unsubscribe_inner(
-            &hub,
-            &perms,
-            Some("ext-a".into()),
-            "bogus".into(),
-        )
-        .unwrap_err();
+        let err =
+            application_index_unsubscribe_inner(&hub, &perms, Some("ext-a".into()), "bogus".into())
+                .unwrap_err();
         assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
     }
 
@@ -206,13 +202,9 @@ mod tests {
     fn unsubscribe_unknown_id_returns_not_found() {
         let hub = IndexEventsHub::new();
         let perms = permissions_with("ext-a", APPLICATION_INDEX_PERMISSION);
-        let err = application_index_unsubscribe_inner(
-            &hub,
-            &perms,
-            Some("ext-a".into()),
-            "bogus".into(),
-        )
-        .unwrap_err();
+        let err =
+            application_index_unsubscribe_inner(&hub, &perms, Some("ext-a".into()), "bogus".into())
+                .unwrap_err();
         assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
     }
 

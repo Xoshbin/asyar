@@ -25,10 +25,7 @@ const PRUNE_AGE_MILLIS: u64 = 24 * 60 * 60 * 1000;
 /// Pure function extracted for unit testing without SQLite or Tauri.
 /// Callers pass the list of currently-pending descriptors (usually the
 /// output of [`TimerRegistry::due_now`]).
-pub fn select_fireable(
-    pending: &[TimerDescriptor],
-    now_ms: u64,
-) -> Vec<&TimerDescriptor> {
+pub fn select_fireable(pending: &[TimerDescriptor], now_ms: u64) -> Vec<&TimerDescriptor> {
     pending.iter().filter(|d| d.fire_at <= now_ms).collect()
 }
 
@@ -87,10 +84,7 @@ pub(crate) fn fire_one(
         fired_at,
     };
     if let Err(e) = app.emit(TIMER_FIRE_EVENT, &payload) {
-        warn!(
-            "[timers] failed to emit {}: {}",
-            TIMER_FIRE_EVENT, e
-        );
+        warn!("[timers] failed to emit {}: {}", TIMER_FIRE_EVENT, e);
     }
 }
 

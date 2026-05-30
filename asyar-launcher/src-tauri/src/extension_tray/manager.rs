@@ -43,20 +43,25 @@ impl ExtensionTrayManager {
             .as_deref()
             .filter(|s| !s.is_empty())
             .ok_or_else(|| {
-                AppError::Validation(
-                    "Status-bar item is missing its extension id".into(),
-                )
+                AppError::Validation("Status-bar item is missing its extension id".into())
             })?;
 
         validate_top_level(item)?;
 
         let key: TrayKey = (extension_id.to_string(), item.id.clone());
-        let already_known = self.known_keys.lock().map_err(|_| AppError::Lock)?.contains(&key);
+        let already_known = self
+            .known_keys
+            .lock()
+            .map_err(|_| AppError::Lock)?
+            .contains(&key);
         if already_known {
             self.backend.update(&key, item)?;
         } else {
             self.backend.create(&key, item)?;
-            self.known_keys.lock().map_err(|_| AppError::Lock)?.insert(key);
+            self.known_keys
+                .lock()
+                .map_err(|_| AppError::Lock)?
+                .insert(key);
         }
         Ok(())
     }
@@ -99,8 +104,7 @@ impl ExtensionTrayManager {
 
     #[cfg(test)]
     pub(crate) fn known_keys(&self) -> Vec<TrayKey> {
-        let mut keys: Vec<TrayKey> =
-            self.known_keys.lock().unwrap().iter().cloned().collect();
+        let mut keys: Vec<TrayKey> = self.known_keys.lock().unwrap().iter().cloned().collect();
         keys.sort();
         keys
     }
@@ -281,10 +285,7 @@ mod tests {
         sorted.sort();
         assert_eq!(
             sorted,
-            vec![
-                ("ext-a".into(), "c1".into()),
-                ("ext-a".into(), "c2".into()),
-            ]
+            vec![("ext-a".into(), "c1".into()), ("ext-a".into(), "c2".into()),]
         );
 
         let destroys: Vec<TrayKey> = calls
@@ -300,10 +301,7 @@ mod tests {
         sorted_destroys.sort();
         assert_eq!(
             sorted_destroys,
-            vec![
-                ("ext-a".into(), "c1".into()),
-                ("ext-a".into(), "c2".into()),
-            ]
+            vec![("ext-a".into(), "c1".into()), ("ext-a".into(), "c2".into()),]
         );
 
         assert_eq!(m.known_keys(), vec![("ext-b".into(), "c1".into())]);
@@ -367,15 +365,24 @@ mod tests {
         }
         impl TrayBackend for ReentrantBackend {
             fn create(&self, key: &TrayKey, _: &StatusBarItem) -> Result<(), AppError> {
-                self.inner_calls.lock().unwrap().push(Call::Create(key.clone()));
+                self.inner_calls
+                    .lock()
+                    .unwrap()
+                    .push(Call::Create(key.clone()));
                 Ok(())
             }
             fn update(&self, key: &TrayKey, _: &StatusBarItem) -> Result<(), AppError> {
-                self.inner_calls.lock().unwrap().push(Call::Update(key.clone()));
+                self.inner_calls
+                    .lock()
+                    .unwrap()
+                    .push(Call::Update(key.clone()));
                 Ok(())
             }
             fn destroy(&self, key: &TrayKey) -> Result<(), AppError> {
-                self.inner_calls.lock().unwrap().push(Call::Destroy(key.clone()));
+                self.inner_calls
+                    .lock()
+                    .unwrap()
+                    .push(Call::Destroy(key.clone()));
                 Ok(())
             }
         }

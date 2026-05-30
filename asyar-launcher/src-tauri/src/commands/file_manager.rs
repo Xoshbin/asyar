@@ -8,10 +8,16 @@ use tauri::Manager;
 fn validate_show_path(path_str: &str) -> Result<(), AppError> {
     let path = Path::new(path_str);
     if !path.is_absolute() {
-        return Err(AppError::Other(format!("Path must be absolute: {}", path_str)));
+        return Err(AppError::Other(format!(
+            "Path must be absolute: {}",
+            path_str
+        )));
     }
     if !path.exists() {
-        return Err(AppError::Other(format!("Path does not exist: {}", path_str)));
+        return Err(AppError::Other(format!(
+            "Path does not exist: {}",
+            path_str
+        )));
     }
     Ok(())
 }
@@ -21,10 +27,16 @@ fn validate_show_path(path_str: &str) -> Result<(), AppError> {
 fn validate_trash_path(path_str: &str, home_dir: &Path) -> Result<(), AppError> {
     let path = Path::new(path_str);
     if !path.is_absolute() {
-        return Err(AppError::Other(format!("Path must be absolute: {}", path_str)));
+        return Err(AppError::Other(format!(
+            "Path must be absolute: {}",
+            path_str
+        )));
     }
     if !path.exists() {
-        return Err(AppError::Other(format!("Path does not exist: {}", path_str)));
+        return Err(AppError::Other(format!(
+            "Path does not exist: {}",
+            path_str
+        )));
     }
 
     // Normalize using the helper from the files module
@@ -68,7 +80,9 @@ pub async fn show_in_file_manager(path_str: String) -> Result<(), AppError> {
         Command::new("xdg-open")
             .arg(parent_dir)
             .spawn()
-            .map_err(|e| AppError::Other(format!("Failed to reveal path in file manager: {}", e)))?;
+            .map_err(|e| {
+                AppError::Other(format!("Failed to reveal path in file manager: {}", e))
+            })?;
     }
 
     Ok(())
@@ -88,7 +102,8 @@ pub async fn trash_path<R: tauri::Runtime>(
 
     validate_trash_path(&path_str, &home_dir)?;
 
-    trash::delete(&path_str).map_err(|e| AppError::Other(format!("Failed to move path to trash: {}", e)))?;
+    trash::delete(&path_str)
+        .map_err(|e| AppError::Other(format!("Failed to move path to trash: {}", e)))?;
 
     Ok(())
 }
@@ -150,13 +165,17 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let file = tmp.path().join("outside.txt");
         std::fs::write(&file, "data").unwrap();
-        
+
         // Use a fake home that doesn't contain the temp file
         let fake_home = TempDir::new().unwrap();
         let result = validate_trash_path(file.to_str().unwrap(), fake_home.path());
         assert!(result.is_err());
         let err_msg = format!("{}", result.unwrap_err());
-        assert!(err_msg.contains("outside"), "Error should mention 'outside': {}", err_msg);
+        assert!(
+            err_msg.contains("outside"),
+            "Error should mention 'outside': {}",
+            err_msg
+        );
     }
 
     #[test]
@@ -164,7 +183,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let file = tmp.path().join("legit.txt");
         std::fs::write(&file, "data").unwrap();
-        
+
         // Construct a path with traversal that normalizes outside home
         let traversal_path = format!("{}/../../../etc/hosts", tmp.path().display());
         let result = validate_trash_path(&traversal_path, tmp.path());

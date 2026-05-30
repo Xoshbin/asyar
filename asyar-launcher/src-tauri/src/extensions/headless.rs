@@ -1,7 +1,7 @@
 //! Headless (background) extension process management.
 
-use log::{info, warn};
 use crate::error::AppError;
+use log::{info, warn};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -19,8 +19,8 @@ fn node_candidates() -> Vec<String> {
     } else if cfg!(target_os = "macos") {
         vec![
             "node".to_string(),
-            "/opt/homebrew/bin/node".to_string(),   // Apple Silicon Homebrew
-            "/usr/local/bin/node".to_string(),       // Intel Homebrew / nvm
+            "/opt/homebrew/bin/node".to_string(), // Apple Silicon Homebrew
+            "/usr/local/bin/node".to_string(),    // Intel Homebrew / nvm
             "/usr/bin/node".to_string(),
         ]
     } else {
@@ -57,7 +57,6 @@ fn resolve_node_binary() -> Option<String> {
 }
 
 pub fn spawn(id: &str, path: &str, registry: &HeadlessRegistry) -> Result<bool, AppError> {
-
     let mut reg = registry.0.lock().map_err(|_| AppError::Lock)?;
 
     // Terminate existing if already running
@@ -68,17 +67,19 @@ pub fn spawn(id: &str, path: &str, registry: &HeadlessRegistry) -> Result<bool, 
 
     let node_bin = resolve_node_binary().ok_or_else(|| {
         AppError::Extension(
-            "Node.js runtime not found. Install Node.js and ensure it is on PATH.".to_string()
+            "Node.js runtime not found. Install Node.js and ensure it is on PATH.".to_string(),
         )
     })?;
 
-    info!("Spawning headless extension {} from {} using {}", id, path, node_bin);
+    info!(
+        "Spawning headless extension {} from {} using {}",
+        id, path, node_bin
+    );
 
     let child = std::process::Command::new(&node_bin)
         .arg(path)
         .spawn()
         .map_err(|e| AppError::Extension(format!("Failed to spawn headless process: {}", e)))?;
-
 
     reg.insert(id.to_string(), child);
     Ok(true)
@@ -89,8 +90,12 @@ pub fn kill(id: &str, registry: &HeadlessRegistry) -> Result<bool, AppError> {
 
     if let Some(mut child) = reg.remove(id) {
         info!("Terminating headless extension {}", id);
-        child.kill().map_err(|e| AppError::Extension(format!("Failed to kill process: {}", e)))?;
-        child.wait().map_err(|e| AppError::Extension(format!("Failed to wait for process: {}", e)))?;
+        child
+            .kill()
+            .map_err(|e| AppError::Extension(format!("Failed to kill process: {}", e)))?;
+        child
+            .wait()
+            .map_err(|e| AppError::Extension(format!("Failed to wait for process: {}", e)))?;
         Ok(true)
     } else {
         warn!("Extension {} not found in registry", id);
@@ -110,8 +115,6 @@ mod tests {
             Some(path) => assert!(!path.is_empty()),
             None => eprintln!("SKIP: node not found — install Node.js to enable this test"),
         }
-
-
     }
 
     #[test]
@@ -151,7 +154,11 @@ mod tests {
         assert!(result.is_err());
         match result.unwrap_err() {
             crate::error::AppError::Extension(msg) => {
-                assert!(msg.contains("Node.js"), "Error must mention Node.js: {}", msg);
+                assert!(
+                    msg.contains("Node.js"),
+                    "Error must mention Node.js: {}",
+                    msg
+                );
             }
             other => panic!("Expected AppError::Extension, got {:?}", other),
         }

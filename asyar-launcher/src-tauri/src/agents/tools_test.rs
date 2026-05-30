@@ -23,10 +23,7 @@ impl BuiltinTool for EchoTool {
         }
     }
 
-    async fn invoke(
-        &self,
-        args: serde_json::Value,
-    ) -> Result<serde_json::Value, AppError> {
+    async fn invoke(&self, args: serde_json::Value) -> Result<serde_json::Value, AppError> {
         Ok(args)
     }
 }
@@ -49,7 +46,10 @@ fn manifest_tool(id: &str) -> ManifestTool {
 #[test]
 fn new_registry_is_empty() {
     let registry = ToolRegistry::new();
-    assert!(registry.list_all().is_empty(), "new registry must return empty list");
+    assert!(
+        registry.list_all().is_empty(),
+        "new registry must return empty list"
+    );
 }
 
 // ── 2. register_builtin_appears_in_list ──────────────────────────────────────
@@ -89,7 +89,10 @@ fn get_builtin_returns_registered_tool() {
     registry.register_builtin(echo("echo")).unwrap();
 
     let found = registry.get_builtin("echo");
-    assert!(found.is_some(), "get_builtin must return Some after registration");
+    assert!(
+        found.is_some(),
+        "get_builtin must return Some after registration"
+    );
     assert_eq!(found.unwrap().descriptor().id, "echo");
 }
 
@@ -170,9 +173,18 @@ fn register_tier2_does_not_affect_other_extensions() {
 
     let list = registry.list_all();
     let fqids: Vec<&str> = list.iter().map(|d| d.fully_qualified_id.as_str()).collect();
-    assert!(fqids.contains(&"ext.beta:y"), "ext.beta:y must still be present");
-    assert!(!fqids.contains(&"ext.alpha:x"), "ext.alpha:x must have been replaced");
-    assert!(fqids.contains(&"ext.alpha:z"), "ext.alpha:z must be present after replace");
+    assert!(
+        fqids.contains(&"ext.beta:y"),
+        "ext.beta:y must still be present"
+    );
+    assert!(
+        !fqids.contains(&"ext.alpha:x"),
+        "ext.alpha:x must have been replaced"
+    );
+    assert!(
+        fqids.contains(&"ext.alpha:z"),
+        "ext.alpha:z must be present after replace"
+    );
 }
 
 // ── 9. unregister_tier2_drops_extension_tools ────────────────────────────────
@@ -214,11 +226,19 @@ fn list_all_orders_builtins_first_then_tier2_each_alpha() {
     let registry = ToolRegistry::new();
     registry.register_builtin(echo("z-builtin")).unwrap();
     registry
-        .register_tier2("ext.foo", vec![manifest_tool("b-tier2"), manifest_tool("a-tier2")])
+        .register_tier2(
+            "ext.foo",
+            vec![manifest_tool("b-tier2"), manifest_tool("a-tier2")],
+        )
         .unwrap();
 
     let list = registry.list_all();
-    assert_eq!(list.len(), 3, "expected 3 entries total, got {}", list.len());
+    assert_eq!(
+        list.len(),
+        3,
+        "expected 3 entries total, got {}",
+        list.len()
+    );
 
     // Builtins first.
     assert_eq!(
@@ -244,7 +264,11 @@ fn agents_tools_list_impl_returns_descriptors() {
     registry.register_builtin(echo("echo")).unwrap();
 
     let result = agents_tools_list_impl(&registry).unwrap();
-    assert_eq!(result, registry.list_all(), "impl must return same as list_all");
+    assert_eq!(
+        result,
+        registry.list_all(),
+        "impl must return same as list_all"
+    );
 }
 
 // ── 13. register_tier2_rejects_tool_id_with_colon ────────────────────────────
@@ -382,15 +406,24 @@ fn tool_source_round_trips_through_json() {
 fn register_mcp_inserts_tools() {
     let registry = ToolRegistry::new();
     registry
-        .register_mcp("srv-acme", vec![manifest_tool("tool-a"), manifest_tool("tool-b")])
+        .register_mcp(
+            "srv-acme",
+            vec![manifest_tool("tool-a"), manifest_tool("tool-b")],
+        )
         .unwrap();
 
     let list = registry.list_all();
     assert_eq!(list.len(), 2, "list must contain 2 mcp entries");
 
     let fqids: Vec<&str> = list.iter().map(|d| d.fully_qualified_id.as_str()).collect();
-    assert!(fqids.contains(&"mcp:srv-acme:tool-a"), "missing mcp:srv-acme:tool-a");
-    assert!(fqids.contains(&"mcp:srv-acme:tool-b"), "missing mcp:srv-acme:tool-b");
+    assert!(
+        fqids.contains(&"mcp:srv-acme:tool-a"),
+        "missing mcp:srv-acme:tool-a"
+    );
+    assert!(
+        fqids.contains(&"mcp:srv-acme:tool-b"),
+        "missing mcp:srv-acme:tool-b"
+    );
 
     for entry in &list {
         assert_eq!(
@@ -405,7 +438,10 @@ fn register_mcp_inserts_tools() {
 fn register_mcp_replaces_previous_set() {
     let registry = ToolRegistry::new();
     registry
-        .register_mcp("srv-acme", vec![manifest_tool("tool-a"), manifest_tool("tool-b")])
+        .register_mcp(
+            "srv-acme",
+            vec![manifest_tool("tool-a"), manifest_tool("tool-b")],
+        )
         .unwrap();
     registry
         .register_mcp("srv-acme", vec![manifest_tool("tool-c")])
@@ -438,9 +474,18 @@ fn register_mcp_does_not_affect_other_servers() {
 
     let list = registry.list_all();
     let fqids: Vec<&str> = list.iter().map(|d| d.fully_qualified_id.as_str()).collect();
-    assert!(fqids.contains(&"mcp:srv-beta:y"), "mcp:srv-beta:y must still be present");
-    assert!(!fqids.contains(&"mcp:srv-alpha:x"), "mcp:srv-alpha:x must have been replaced");
-    assert!(fqids.contains(&"mcp:srv-alpha:z"), "mcp:srv-alpha:z must be present after replace");
+    assert!(
+        fqids.contains(&"mcp:srv-beta:y"),
+        "mcp:srv-beta:y must still be present"
+    );
+    assert!(
+        !fqids.contains(&"mcp:srv-alpha:x"),
+        "mcp:srv-alpha:x must have been replaced"
+    );
+    assert!(
+        fqids.contains(&"mcp:srv-alpha:z"),
+        "mcp:srv-alpha:z must be present after replace"
+    );
 }
 
 #[test]
@@ -467,7 +512,10 @@ fn register_mcp_rejects_tool_id_with_colon() {
 fn unregister_mcp_drops_server_tools() {
     let registry = ToolRegistry::new();
     registry
-        .register_mcp("srv-acme", vec![manifest_tool("tool-a"), manifest_tool("tool-b")])
+        .register_mcp(
+            "srv-acme",
+            vec![manifest_tool("tool-a"), manifest_tool("tool-b")],
+        )
         .unwrap();
 
     registry.unregister_mcp("srv-acme").unwrap();
@@ -485,14 +533,25 @@ fn list_all_orders_builtins_then_tier2_then_mcp_each_alpha() {
     let registry = ToolRegistry::new();
     registry.register_builtin(echo("z-builtin")).unwrap();
     registry
-        .register_tier2("ext.foo", vec![manifest_tool("b-tier2"), manifest_tool("a-tier2")])
+        .register_tier2(
+            "ext.foo",
+            vec![manifest_tool("b-tier2"), manifest_tool("a-tier2")],
+        )
         .unwrap();
     registry
-        .register_mcp("srv-x", vec![manifest_tool("b-mcp"), manifest_tool("a-mcp")])
+        .register_mcp(
+            "srv-x",
+            vec![manifest_tool("b-mcp"), manifest_tool("a-mcp")],
+        )
         .unwrap();
 
     let list = registry.list_all();
-    assert_eq!(list.len(), 5, "expected 5 entries total, got {}", list.len());
+    assert_eq!(
+        list.len(),
+        5,
+        "expected 5 entries total, got {}",
+        list.len()
+    );
 
     // Builtins first.
     assert_eq!(

@@ -77,7 +77,9 @@ pub fn validate_arguments(args: &[CommandArgument]) -> Result<(), String> {
                 .as_ref()
                 .ok_or_else(|| format!("{base}.data dropdown requires non-empty data array"))?;
             if data.is_empty() {
-                return Err(format!("{base}.data dropdown requires non-empty data array"));
+                return Err(format!(
+                    "{base}.data dropdown requires non-empty data array"
+                ));
             }
             for (di, opt) in data.iter().enumerate() {
                 if opt.value.is_empty() || opt.title.is_empty() {
@@ -92,9 +94,7 @@ pub fn validate_arguments(args: &[CommandArgument]) -> Result<(), String> {
                     other => other.to_string(),
                 };
                 if !data.iter().any(|d| d.value == default_str) {
-                    return Err(format!(
-                        "{base}.default '{default_str}' not in data[]"
-                    ));
+                    return Err(format!("{base}.default '{default_str}' not in data[]"));
                 }
             }
         }
@@ -162,9 +162,7 @@ pub fn validate_dynamic_id(id: &str) -> Result<(), String> {
         .iter()
         .all(|b| b.is_ascii_alphanumeric() || *b == b'_' || *b == b'-');
     if !ok {
-        return Err(format!(
-            "id '{id}' must match /^[a-zA-Z0-9_-]+$/"
-        ));
+        return Err(format!("id '{id}' must match /^[a-zA-Z0-9_-]+$/"));
     }
     Ok(())
 }
@@ -280,8 +278,8 @@ mod tests {
     #[test]
     fn required_after_optional_rejects() {
         let args = vec![
-            arg("opt", CommandArgumentType::Text),               // optional (default)
-            required(arg("req", CommandArgumentType::Text)),     // required
+            arg("opt", CommandArgumentType::Text), // optional (default)
+            required(arg("req", CommandArgumentType::Text)), // required
         ];
         let err = validate_arguments(&args).unwrap_err();
         assert!(err.contains("cannot follow an optional"));
@@ -344,14 +342,20 @@ mod tests {
 
     #[test]
     fn number_default_string_rejects() {
-        let args = vec![with_default(arg("n", CommandArgumentType::Number), json!("5"))];
+        let args = vec![with_default(
+            arg("n", CommandArgumentType::Number),
+            json!("5"),
+        )];
         let err = validate_arguments(&args).unwrap_err();
         assert!(err.contains("number default must be a number"));
     }
 
     #[test]
     fn number_default_number_is_ok() {
-        let args = vec![with_default(arg("n", CommandArgumentType::Number), json!(5))];
+        let args = vec![with_default(
+            arg("n", CommandArgumentType::Number),
+            json!(5),
+        )];
         assert!(validate_arguments(&args).is_ok());
     }
 

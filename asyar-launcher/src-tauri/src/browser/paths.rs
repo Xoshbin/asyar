@@ -79,7 +79,8 @@ pub fn chromium_user_data_root(home: &Path, variant_id: &str) -> PathBuf {
         .expect("unknown chromium variant");
     #[cfg(target_os = "macos")]
     {
-        home.join("Library/Application Support").join(variant.macos_subpath)
+        home.join("Library/Application Support")
+            .join(variant.macos_subpath)
     }
     #[cfg(target_os = "linux")]
     {
@@ -156,7 +157,10 @@ mod tests {
     fn chromium_user_data_root_linux_chrome() {
         let home = std::path::Path::new("/home/test");
         let root = chromium_user_data_root(home, "chrome");
-        assert_eq!(root, std::path::Path::new("/home/test/.config/google-chrome"));
+        assert_eq!(
+            root,
+            std::path::Path::new("/home/test/.config/google-chrome")
+        );
     }
 
     #[test]
@@ -177,8 +181,14 @@ mod tests {
         // under home (no climbing above it), so tempdir-scoped scans stay hermetic.
         let home = std::path::Path::new("/home/test");
         let dir = firefox_profiles_dir(home, "firefox");
-        assert!(dir.starts_with("/home/test"), "firefox dir escaped home: {dir:?}");
-        assert!(!dir.to_string_lossy().contains(".."), "firefox dir contains ..: {dir:?}");
+        assert!(
+            dir.starts_with("/home/test"),
+            "firefox dir escaped home: {dir:?}"
+        );
+        assert!(
+            !dir.to_string_lossy().contains(".."),
+            "firefox dir contains ..: {dir:?}"
+        );
     }
 
     #[test]

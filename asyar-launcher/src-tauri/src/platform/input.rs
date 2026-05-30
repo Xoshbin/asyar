@@ -1,6 +1,6 @@
 //! Shared keyboard input simulation logic.
 
-use enigo::{Enigo, KeyboardControllable, Key};
+use enigo::{Enigo, Key, KeyboardControllable};
 
 /// Simulates a paste chord (Cmd+V on macOS, Ctrl+V elsewhere).
 pub fn post_paste_chord() {
@@ -56,7 +56,12 @@ pub fn post_key_chord_to_pid(pid: i32, virtual_key: u16, cg_event_flags: u64) {
         fn CFRelease(cf: *mut c_void);
     }
 
-    log::info!("[input] post_key_chord_to_pid: target_pid={}, vk={}, flags={:#x}", pid, virtual_key, cg_event_flags);
+    log::info!(
+        "[input] post_key_chord_to_pid: target_pid={}, vk={}, flags={:#x}",
+        pid,
+        virtual_key,
+        cg_event_flags
+    );
 
     unsafe {
         // Key-down

@@ -8,11 +8,11 @@
 //! events out to extension iframes.
 
 use crate::error::AppError;
+use crate::extension_tray::icon as icon_mod;
 use crate::extension_tray::icon::{ExtensionDirLookup, IconSpec};
 use crate::extension_tray::item::StatusBarItem;
 use crate::extension_tray::manager::{TrayBackend, TrayKey};
 use crate::extension_tray::path;
-use crate::extension_tray::{icon as icon_mod};
 use log::{debug, info, warn};
 use serde_json::json;
 use std::collections::HashMap;
@@ -48,10 +48,7 @@ pub struct TauriTrayBackend {
 }
 
 impl TauriTrayBackend {
-    pub fn new(
-        app: AppHandle,
-        extension_dirs: Arc<dyn ExtensionDirLookup + Send + Sync>,
-    ) -> Self {
+    pub fn new(app: AppHandle, extension_dirs: Arc<dyn ExtensionDirLookup + Send + Sync>) -> Self {
         Self {
             app,
             extension_dirs,
@@ -158,7 +155,11 @@ impl TrayBackend for TauriTrayBackend {
             tray.set_title(title_opt)
                 .map_err(|e| AppError::Platform(format!("Failed to set tray title: {e}")))?;
         }
-        let tip: Option<&str> = if item.text.is_empty() { None } else { Some(&item.text) };
+        let tip: Option<&str> = if item.text.is_empty() {
+            None
+        } else {
+            Some(&item.text)
+        };
         tray.set_tooltip(tip)
             .map_err(|e| AppError::Platform(format!("Failed to set tray tooltip: {e}")))?;
         tray.set_menu(menu)
@@ -260,10 +261,7 @@ fn resolve_icon_image(
         Ok(IconSpec::Absolute(path)) => load_icon_from_path(&path),
         Ok(IconSpec::Extension { ext_id, rel_path }) => {
             let base = lookup.base_dir(&ext_id)?;
-            let candidates = [
-                base.join("dist").join(&rel_path),
-                base.join(&rel_path),
-            ];
+            let candidates = [base.join("dist").join(&rel_path), base.join(&rel_path)];
             for candidate in &candidates {
                 if candidate.exists() {
                     if let Some(img) = load_icon_from_path(candidate) {
@@ -364,8 +362,7 @@ fn build_item(
             let mut sub_builder = SubmenuBuilder::with_id(app, encoded, &label).enabled(enabled);
             let mut owned: Vec<BuiltMenuItem> = Vec::with_capacity(children.len());
             for grand in children {
-                if let Some(entry) =
-                    build_item(app, extension_id, &child_path, grand, check_state)?
+                if let Some(entry) = build_item(app, extension_id, &child_path, grand, check_state)?
                 {
                     owned.push(entry);
                 }

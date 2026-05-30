@@ -94,9 +94,7 @@ impl PowerBackend for WindowsPowerBackend {
                     SetThreadExecutionState(ES_CONTINUOUS);
                 }
             })
-            .map_err(|e| {
-                AppError::Power(format!("failed to spawn inhibitor thread: {e}"))
-            })?;
+            .map_err(|e| AppError::Power(format!("failed to spawn inhibitor thread: {e}")))?;
 
         match ready_rx.recv() {
             Ok(Ok(())) => Ok(Box::new(WindowsThreadHandle {
@@ -104,9 +102,7 @@ impl PowerBackend for WindowsPowerBackend {
                 join: Some(join),
             })),
             Ok(Err(e)) => Err(e),
-            Err(e) => Err(AppError::Power(format!(
-                "inhibitor thread died early: {e}"
-            ))),
+            Err(e) => Err(AppError::Power(format!("inhibitor thread died early: {e}"))),
         }
     }
 }

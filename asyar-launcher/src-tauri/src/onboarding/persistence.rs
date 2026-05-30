@@ -139,19 +139,15 @@ mod tests {
 
     #[test]
     fn set_overwrites_existing_value() {
-        let updated = set_onboarding_completed(
-            json!({ "onboarding": { "completed": false } }),
-            true,
-        );
+        let updated =
+            set_onboarding_completed(json!({ "onboarding": { "completed": false } }), true);
         assert_eq!(updated["onboarding"]["completed"], json!(true));
     }
 
     #[test]
     fn set_preserves_other_top_level_keys() {
-        let updated = set_onboarding_completed(
-            json!({ "appearance": { "launchView": "compact" } }),
-            true,
-        );
+        let updated =
+            set_onboarding_completed(json!({ "appearance": { "launchView": "compact" } }), true);
         assert_eq!(updated["appearance"]["launchView"], json!("compact"));
         assert_eq!(updated["onboarding"]["completed"], json!(true));
     }

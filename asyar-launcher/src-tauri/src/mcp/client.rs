@@ -55,7 +55,10 @@ impl McpClient {
         Ok(())
     }
 
-    async fn recv_response(&mut self, expected_id: u64) -> Result<serde_json::Value, McpClientError> {
+    async fn recv_response(
+        &mut self,
+        expected_id: u64,
+    ) -> Result<serde_json::Value, McpClientError> {
         loop {
             match self.transport.recv().await? {
                 None => return Err(McpClientError::EarlyExit),
@@ -66,22 +69,19 @@ impl McpClient {
                     match v.get("id") {
                         None => continue,
                         Some(id_val) => {
-                            let id = id_val
-                                .as_u64()
-                                .ok_or_else(|| McpClientError::Protocol("non-integer id".to_string()))?;
+                            let id = id_val.as_u64().ok_or_else(|| {
+                                McpClientError::Protocol("non-integer id".to_string())
+                            })?;
                             if id != expected_id {
                                 continue;
                             }
                         }
                     }
                     if let Some(err) = v.get("error") {
-                        let code = err["code"]
-                            .as_i64()
-                            .ok_or_else(|| McpClientError::Protocol("missing error.code".to_string()))?;
-                        let message = err["message"]
-                            .as_str()
-                            .unwrap_or("unknown")
-                            .to_string();
+                        let code = err["code"].as_i64().ok_or_else(|| {
+                            McpClientError::Protocol("missing error.code".to_string())
+                        })?;
+                        let message = err["message"].as_str().unwrap_or("unknown").to_string();
                         return Err(McpClientError::Rpc { code, message });
                     }
                     return Ok(v["result"].clone());
@@ -215,11 +215,11 @@ mod tests {
                 req.contains("\"protocolVersion\""),
                 "missing protocolVersion: {req}"
             );
+            assert!(req.contains("\"clientInfo\""), "missing clientInfo: {req}");
             assert!(
-                req.contains("\"clientInfo\""),
-                "missing clientInfo: {req}"
+                req.contains("\"Asyar\""),
+                "clientInfo name must be Asyar: {req}"
             );
-            assert!(req.contains("\"Asyar\""), "clientInfo name must be Asyar: {req}");
             server
                 .send_line(
                     r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{},"serverInfo":{"name":"x","version":"0"}}}"#,
@@ -250,11 +250,13 @@ mod tests {
             let v: serde_json::Value =
                 serde_json::from_str(&notif).expect("notification must be valid json");
             assert_eq!(
-                v["method"],
-                "notifications/initialized",
+                v["method"], "notifications/initialized",
                 "notification method wrong: {notif}"
             );
-            assert!(v.get("id").is_none(), "notification must not have id: {notif}");
+            assert!(
+                v.get("id").is_none(),
+                "notification must not have id: {notif}"
+            );
             server
         });
 
@@ -291,9 +293,7 @@ mod tests {
         let server_task = tokio::spawn(async move {
             let _req = server.recv_line().await;
             server
-                .send_line(
-                    r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"x"}}"#,
-                )
+                .send_line(r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"x"}}"#)
                 .await;
             server
         });
@@ -392,9 +392,18 @@ mod tests {
 
             // Handle call_tool
             let call_req = server.recv_line().await.unwrap();
-            assert!(call_req.contains("\"tools/call\""), "must call tools/call: {call_req}");
-            assert!(call_req.contains("\"echo\""), "must include tool name echo: {call_req}");
-            assert!(call_req.contains("\"x\""), "must include argument x: {call_req}");
+            assert!(
+                call_req.contains("\"tools/call\""),
+                "must call tools/call: {call_req}"
+            );
+            assert!(
+                call_req.contains("\"echo\""),
+                "must include tool name echo: {call_req}"
+            );
+            assert!(
+                call_req.contains("\"x\""),
+                "must include argument x: {call_req}"
+            );
 
             server
                 .send_line(
@@ -471,17 +480,13 @@ mod tests {
             // Return error for call_tool
             let _call_req = server.recv_line().await.unwrap();
             server
-                .send_line(
-                    r#"{"jsonrpc":"2.0","id":2,"error":{"code":-32603,"message":"boom"}}"#,
-                )
+                .send_line(r#"{"jsonrpc":"2.0","id":2,"error":{"code":-32603,"message":"boom"}}"#)
                 .await;
             server
         });
 
         client.initialize().await.unwrap();
-        let result = client
-            .call_tool("echo", serde_json::json!({}))
-            .await;
+        let result = client.call_tool("echo", serde_json::json!({})).await;
         let _ = server_task.await.unwrap();
         match result {
             Err(McpClientError::Rpc { code, message }) => {
@@ -594,7 +599,9 @@ mod tests {
                 let result = client.initialize().await;
                 match result {
                     Err(McpClientError::Transport(_)) => {}
-                    Err(e) => panic!("expected Transport error on conn refused, got other error: {e}"),
+                    Err(e) => {
+                        panic!("expected Transport error on conn refused, got other error: {e}")
+                    }
                     Ok(()) => panic!("expected Transport error on conn refused, got Ok"),
                 }
             }

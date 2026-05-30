@@ -109,9 +109,7 @@ pub fn perform_pending_factory_reset_if_marked(app: &AppHandle) -> bool {
     if let Ok(local) = app.path().app_local_data_dir() {
         if local != app_data_dir {
             if let Err(e) = wipe_dir_contents(&local) {
-                log::error!(
-                    "[factory_reset] failed to wipe app_local_data_dir {local:?}: {e}"
-                );
+                log::error!("[factory_reset] failed to wipe app_local_data_dir {local:?}: {e}");
             }
         }
     }

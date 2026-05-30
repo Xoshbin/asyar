@@ -137,7 +137,8 @@ pub fn read_history_file(
             })
         })
         .map_err(|e| e.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -147,8 +148,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/browser/fixtures/firefox_places.sqlite")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/browser/fixtures/firefox_places.sqlite")
     }
 
     fn fake_firefox() -> BrowserId {
@@ -194,7 +194,10 @@ mod tests {
     #[test]
     fn reads_bookmarks_with_folder_path() {
         let bookmarks = read_bookmarks_file(&fixture_path(), &fake_firefox()).unwrap();
-        let gh = bookmarks.iter().find(|b| b.title == "GitHub").expect("GitHub");
+        let gh = bookmarks
+            .iter()
+            .find(|b| b.title == "GitHub")
+            .expect("GitHub");
         assert_eq!(gh.url, "https://github.com");
         assert_eq!(gh.folder_path, vec!["Bookmarks Toolbar".to_string()]);
     }

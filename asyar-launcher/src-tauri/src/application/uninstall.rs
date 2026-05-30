@@ -100,11 +100,7 @@ pub(crate) fn uninstall_macos(
     for dp in data_paths {
         match validate_data_path_under_home(dp, &home) {
             Ok(canonical) => validated.push(canonical),
-            Err(e) => log::warn!(
-                "skipping uninstall data path '{}': {}",
-                dp,
-                e
-            ),
+            Err(e) => log::warn!("skipping uninstall data path '{}': {}", dp, e),
         }
     }
 
@@ -114,11 +110,7 @@ pub(crate) fn uninstall_macos(
     // App already trashed; data-path failures are non-fatal from here on.
     for p in validated {
         if let Err(e) = trash::delete(&p) {
-            log::warn!(
-                "failed to trash data path '{}': {}",
-                p.display(),
-                e
-            );
+            log::warn!("failed to trash data path '{}': {}", p.display(), e);
         }
     }
 
@@ -280,14 +272,21 @@ const APPDATA_BUNDLE_DIR_CANDIDATES: &[(&str, &str)] = &[
 #[allow(dead_code)]
 const APPDATA_BUNDLE_FILE_CANDIDATES: &[(&str, &str, &str)] = &[
     ("Library/Preferences", "plist", "Preferences"),
-    ("Library/Saved Application State", "savedState", "Saved window state"),
+    (
+        "Library/Saved Application State",
+        "savedState",
+        "Saved window state",
+    ),
     ("Library/LaunchAgents", "plist", "Launch agent"),
     ("Library/Cookies", "binarycookies", "Cookies"),
 ];
 
 #[allow(dead_code)]
 const APPDATA_NAME_DIR_CANDIDATES: &[(&str, &str)] = &[
-    ("Library/Application Support", "Application data (name-keyed)"),
+    (
+        "Library/Application Support",
+        "Application data (name-keyed)",
+    ),
     ("Library/Caches", "Cache (name-keyed)"),
 ];
 
@@ -382,12 +381,11 @@ pub(crate) fn dir_size_bytes(path: &Path) -> u64 {
 /// (abs + exists + under `$HOME/Library` + not a symlink) make sense on any
 /// unix-family filesystem even though only macOS currently invokes it.
 #[allow(dead_code)]
-pub(crate) fn validate_data_path_under_home(
-    path: &str,
-    home: &Path,
-) -> Result<PathBuf, AppError> {
+pub(crate) fn validate_data_path_under_home(path: &str, home: &Path) -> Result<PathBuf, AppError> {
     if path.trim().is_empty() {
-        return Err(AppError::Validation("data path must be non-empty".to_string()));
+        return Err(AppError::Validation(
+            "data path must be non-empty".to_string(),
+        ));
     }
     let raw = Path::new(path);
     if !raw.is_absolute() {
@@ -396,9 +394,8 @@ pub(crate) fn validate_data_path_under_home(
             path
         )));
     }
-    let meta = std::fs::symlink_metadata(raw).map_err(|_| {
-        AppError::NotFound(format!("data path does not exist: {}", path))
-    })?;
+    let meta = std::fs::symlink_metadata(raw)
+        .map_err(|_| AppError::NotFound(format!("data path does not exist: {}", path)))?;
     if meta.file_type().is_symlink() {
         return Err(AppError::Validation(format!(
             "refusing to follow symlink: {}",
@@ -727,11 +724,9 @@ mod tests {
 
         #[test]
         fn rejects_nonexistent_path() {
-            let err = validate_macos_bundle_path(
-                "/tmp/__asyar_nonexistent_uninstall_test__.app",
-                None,
-            )
-            .unwrap_err();
+            let err =
+                validate_macos_bundle_path("/tmp/__asyar_nonexistent_uninstall_test__.app", None)
+                    .unwrap_err();
             assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
         }
 
@@ -779,8 +774,12 @@ mod tests {
             let tmp = TempDir::new().unwrap();
             let app = make_fake_app(&tmp, "Other.app");
             let asyar = make_fake_app(&tmp, "Asyar.app");
-            let canonical = validate_macos_bundle_path(app.to_str().unwrap(), Some(&asyar)).unwrap();
-            assert_eq!(canonical.file_name().and_then(|n| n.to_str()), Some("Other.app"));
+            let canonical =
+                validate_macos_bundle_path(app.to_str().unwrap(), Some(&asyar)).unwrap();
+            assert_eq!(
+                canonical.file_name().and_then(|n| n.to_str()),
+                Some("Other.app")
+            );
         }
 
         #[test]
@@ -858,10 +857,7 @@ mod tests {
         fn scan_finds_bundle_id_keyed_application_support() {
             let home = fake_home();
             let bid = "com.example.Widget";
-            let support = home
-                .path()
-                .join("Library/Application Support")
-                .join(bid);
+            let support = home.path().join("Library/Application Support").join(bid);
             make_dir_with_file(&support, b"hello world");
 
             let hits = scan_app_data_in(home.path(), Some(bid), "Widget");
@@ -881,7 +877,10 @@ mod tests {
 
             let hits = scan_app_data_in(home.path(), Some(bid), "Widget");
 
-            let found = hits.iter().find(|h| h.path == plist.to_string_lossy()).unwrap();
+            let found = hits
+                .iter()
+                .find(|h| h.path == plist.to_string_lossy())
+                .unwrap();
             assert_eq!(found.category, "Preferences");
             assert!(found.size_bytes > 0);
         }
@@ -904,9 +903,17 @@ mod tests {
                 .filter(|h| h.category == "ByHost preference")
                 .collect();
 
-            assert_eq!(byhost_hits.len(), 2, "should match both bundle-id entries only");
-            assert!(byhost_hits.iter().any(|h| h.path.ends_with("ABC-123.plist")));
-            assert!(byhost_hits.iter().any(|h| h.path.ends_with("DEF-456.plist")));
+            assert_eq!(
+                byhost_hits.len(),
+                2,
+                "should match both bundle-id entries only"
+            );
+            assert!(byhost_hits
+                .iter()
+                .any(|h| h.path.ends_with("ABC-123.plist")));
+            assert!(byhost_hits
+                .iter()
+                .any(|h| h.path.ends_with("DEF-456.plist")));
         }
 
         #[test]
@@ -929,10 +936,7 @@ mod tests {
             // name-keyed scans would target the same dir. De-dup must prevent
             // duplicate entries.
             let shared = "SharedName";
-            let dir = home
-                .path()
-                .join("Library/Application Support")
-                .join(shared);
+            let dir = home.path().join("Library/Application Support").join(shared);
             make_dir_with_file(&dir, b"x");
 
             let hits = scan_app_data_in(home.path(), Some(shared), shared);
@@ -956,10 +960,7 @@ mod tests {
                 let bid = "com.example.Widget";
                 let real = home.path().join("real_dir");
                 fs::create_dir_all(&real).unwrap();
-                let link = home
-                    .path()
-                    .join("Library/Application Support")
-                    .join(bid);
+                let link = home.path().join("Library/Application Support").join(bid);
                 fs::create_dir_all(link.parent().unwrap()).unwrap();
                 symlink(&real, &link).unwrap();
 
@@ -1006,11 +1007,9 @@ mod tests {
         #[test]
         fn validate_data_path_rejects_missing() {
             let tmp = fake_home();
-            let err = validate_data_path_under_home(
-                "/tmp/__asyar_nonexistent_data_path__",
-                tmp.path(),
-            )
-            .unwrap_err();
+            let err =
+                validate_data_path_under_home("/tmp/__asyar_nonexistent_data_path__", tmp.path())
+                    .unwrap_err();
             assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
         }
 
@@ -1031,7 +1030,9 @@ mod tests {
         #[test]
         fn validate_data_path_accepts_file_inside_home_library() {
             let tmp = fake_home();
-            let inside = tmp.path().join("Library/Application Support/com.example.Widget");
+            let inside = tmp
+                .path()
+                .join("Library/Application Support/com.example.Widget");
             fs::create_dir_all(&inside).unwrap();
             fs::write(inside.join("data.bin"), b"hello").unwrap();
 
@@ -1109,10 +1110,7 @@ mod tests {
             // (stem == "Mozilla Firefox"), and the registry DisplayName is
             // "Mozilla Firefox (x64 en-US)" with a version/locale suffix the
             // exact-match pass doesn't catch.
-            let entries = vec![entry(
-                "Mozilla Firefox (x64 en-US)",
-                "uninstall.exe",
-            )];
+            let entries = vec![entry("Mozilla Firefox (x64 en-US)", "uninstall.exe")];
             let found = match_windows_entry(&entries, "Mozilla Firefox").unwrap();
             assert_eq!(found.uninstall_string, "uninstall.exe");
         }
@@ -1197,8 +1195,9 @@ mod tests {
 
         #[test]
         fn ensure_allowed_rejects_empty_uninstall_string() {
-            let err = ensure_windows_entry_allowed(&entry("SomeApp", ""), ASYAR_WINDOWS_DISPLAY_NAME)
-                .unwrap_err();
+            let err =
+                ensure_windows_entry_allowed(&entry("SomeApp", ""), ASYAR_WINDOWS_DISPLAY_NAME)
+                    .unwrap_err();
             assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
         }
 
@@ -1222,10 +1221,9 @@ mod tests {
 
         #[test]
         fn derive_display_name_handles_spaces_in_filename() {
-            let name = derive_display_name_from_shortcut(Path::new(
-                "/Users/x/Visual Studio Code.lnk",
-            ))
-            .unwrap();
+            let name =
+                derive_display_name_from_shortcut(Path::new("/Users/x/Visual Studio Code.lnk"))
+                    .unwrap();
             assert_eq!(name, "Visual Studio Code");
         }
 

@@ -277,7 +277,6 @@ impl IndexWatcher {
 
         Ok(())
     }
-
 }
 
 /// Runs on the debouncer thread after each quiescent window. Re-derives
@@ -648,5 +647,4 @@ mod tests {
             "no-op scan must not dispatch an event"
         );
     }
-
 }

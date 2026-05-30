@@ -132,9 +132,8 @@ mod tests {
     fn release_of_unknown_token_returns_not_found() {
         let reg = make_registry();
         let perms = registered_permissions("ext-a");
-        let err =
-            power_release_inner(&reg, &perms, Some("ext-a".into()), "bogus-token".into())
-                .unwrap_err();
+        let err = power_release_inner(&reg, &perms, Some("ext-a".into()), "bogus-token".into())
+            .unwrap_err();
         assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
     }
 
@@ -143,10 +142,8 @@ mod tests {
         let reg = make_registry();
         let perms_a = registered_permissions("ext-a");
         let perms_b = registered_permissions("ext-b");
-        let _ta =
-            power_keep_awake_inner(&reg, &perms_a, Some("ext-a".into()), opts("a")).unwrap();
-        let _tb =
-            power_keep_awake_inner(&reg, &perms_b, Some("ext-b".into()), opts("b")).unwrap();
+        let _ta = power_keep_awake_inner(&reg, &perms_a, Some("ext-a".into()), opts("a")).unwrap();
+        let _tb = power_keep_awake_inner(&reg, &perms_b, Some("ext-b".into()), opts("b")).unwrap();
         let seen_by_a = power_list_inner(&reg, &perms_a, Some("ext-a".into())).unwrap();
         assert_eq!(seen_by_a.len(), 1);
         assert_eq!(seen_by_a[0].reason, "a");

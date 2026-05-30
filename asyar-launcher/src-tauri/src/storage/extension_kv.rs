@@ -40,12 +40,7 @@ pub fn get(conn: &Connection, extension_id: &str, key: &str) -> Result<Option<St
 }
 
 /// Set a key-value pair for an extension (upsert).
-pub fn set(
-    conn: &Connection,
-    extension_id: &str,
-    key: &str,
-    value: &str,
-) -> Result<(), AppError> {
+pub fn set(conn: &Connection, extension_id: &str, key: &str, value: &str) -> Result<(), AppError> {
     conn.execute(
         "INSERT OR REPLACE INTO extension_storage (extension_id, key, value)
          VALUES (?1, ?2, ?3)",
@@ -179,7 +174,13 @@ mod tests {
         set(&conn, "ext.a", "shared_key", "a_value").unwrap();
         set(&conn, "ext.b", "shared_key", "b_value").unwrap();
 
-        assert_eq!(get(&conn, "ext.a", "shared_key").unwrap().as_deref(), Some("a_value"));
-        assert_eq!(get(&conn, "ext.b", "shared_key").unwrap().as_deref(), Some("b_value"));
+        assert_eq!(
+            get(&conn, "ext.a", "shared_key").unwrap().as_deref(),
+            Some("a_value")
+        );
+        assert_eq!(
+            get(&conn, "ext.b", "shared_key").unwrap().as_deref(),
+            Some("b_value")
+        );
     }
 }

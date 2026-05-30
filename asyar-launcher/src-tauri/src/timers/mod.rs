@@ -261,7 +261,13 @@ mod tests {
     fn schedule_persists_args_json_verbatim() {
         let r = make();
         let id = r
-            .schedule("ext-a", "cmd", r#"{"snooze":300000,"note":"hi"}"#, 5_000, 1_000)
+            .schedule(
+                "ext-a",
+                "cmd",
+                r#"{"snooze":300000,"note":"hi"}"#,
+                5_000,
+                1_000,
+            )
             .unwrap();
         let got = r.list_pending("ext-a").unwrap();
         assert_eq!(got[0].timer_id, id);

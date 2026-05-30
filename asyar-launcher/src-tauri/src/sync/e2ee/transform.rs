@@ -69,10 +69,7 @@ pub fn encrypt_decisions(
 /// this branch becomes dead in practice — but the code stays defensive
 /// in case a future flow (per-item opt-out, partial-encryption) ever
 /// re-introduces a mixed state.
-pub fn decrypt_pull_page(
-    mode: &Mode,
-    mut page: ItemPullPage,
-) -> Result<ItemPullPage, AppError> {
+pub fn decrypt_pull_page(mode: &Mode, mut page: ItemPullPage) -> Result<ItemPullPage, AppError> {
     let Mode::On { master_seed, .. } = mode else {
         return Ok(page);
     };
@@ -196,7 +193,9 @@ mod tests {
         let mode = on_mode();
         let input = vec![
             push_tombstone("t1"),
-            UploadDecision::Skip { item_id: "s1".into() },
+            UploadDecision::Skip {
+                item_id: "s1".into(),
+            },
             UploadDecision::DropOversize {
                 item_id: "d1".into(),
                 category_id: "clipboard".into(),
@@ -244,10 +243,7 @@ mod tests {
         let mode = on_mode();
         let plaintext = "alpha";
         let ct = sync_envelope::encrypt_payload(plaintext, &[42u8; 32]).unwrap();
-        let p = page(vec![
-            live_record("a", Some(&ct)),
-            tombstone_record("t1"),
-        ]);
+        let p = page(vec![live_record("a", Some(&ct)), tombstone_record("t1")]);
         let out = decrypt_pull_page(&mode, p).unwrap();
         assert_eq!(out.items[0].payload.as_deref(), Some(plaintext));
         assert_eq!(out.items[1].payload, None);

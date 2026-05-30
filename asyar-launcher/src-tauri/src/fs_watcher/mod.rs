@@ -125,10 +125,9 @@ impl FsWatcherRegistry {
             }
         }
 
-        let debounce = opts.debounce.clamp(
-            Duration::from_millis(50),
-            Duration::from_millis(5000),
-        );
+        let debounce = opts
+            .debounce
+            .clamp(Duration::from_millis(50), Duration::from_millis(5000));
         let mode = if opts.recursive {
             RecursiveMode::Recursive
         } else {
@@ -141,33 +140,27 @@ impl FsWatcherRegistry {
         let emit_for_cb = self.emit.clone();
         let roots_for_cb = paths.clone();
 
-        let mut debouncer = new_debouncer(
-            debounce,
-            None,
-            move |result: DebounceEventResult| {
-                let events = match result {
-                    Ok(e) if !e.is_empty() => e,
-                    _ => return,
-                };
-                let raw_paths: Vec<PathBuf> = events
-                    .into_iter()
-                    .flat_map(|ev| ev.paths.clone())
-                    .collect();
-                let coalesced = coalesce_to_roots(&raw_paths, &roots_for_cb);
-                if coalesced.is_empty() {
-                    return;
+        let mut debouncer = new_debouncer(debounce, None, move |result: DebounceEventResult| {
+            let events = match result {
+                Ok(e) if !e.is_empty() => e,
+                _ => return,
+            };
+            let raw_paths: Vec<PathBuf> =
+                events.into_iter().flat_map(|ev| ev.paths.clone()).collect();
+            let coalesced = coalesce_to_roots(&raw_paths, &roots_for_cb);
+            if coalesced.is_empty() {
+                return;
+            }
+            if let Ok(guard) = emit_for_cb.lock() {
+                if let Some(ref f) = *guard {
+                    f(
+                        ext_for_cb.clone(),
+                        hid_for_cb.clone(),
+                        FsWatchEvent { paths: coalesced },
+                    );
                 }
-                if let Ok(guard) = emit_for_cb.lock() {
-                    if let Some(ref f) = *guard {
-                        f(
-                            ext_for_cb.clone(),
-                            hid_for_cb.clone(),
-                            FsWatchEvent { paths: coalesced },
-                        );
-                    }
-                }
-            },
-        )
+            }
+        })
         .map_err(|e| AppError::Other(format!("failed to create debouncer: {e}")))?;
 
         for p in &paths {
@@ -208,10 +201,7 @@ impl FsWatcherRegistry {
     /// Sweep every handle owned by `extension_id`. Returns the count
     /// removed. Called from `extensions::lifecycle::uninstall` alongside
     /// the existing hub cleanup sweeps.
-    pub fn remove_all_for_extension(
-        &self,
-        extension_id: &str,
-    ) -> Result<usize, AppError> {
+    pub fn remove_all_for_extension(&self, extension_id: &str) -> Result<usize, AppError> {
         let mut guard = self.handles.lock().map_err(|_| AppError::Lock)?;
         let victims: Vec<String> = guard
             .iter()
@@ -251,7 +241,11 @@ pub fn coalesce_to_roots(event_paths: &[PathBuf], roots: &[PathBuf]) -> Vec<Path
             }
         }
     }
-    roots.iter().filter(|r| seen.contains(*r)).cloned().collect()
+    roots
+        .iter()
+        .filter(|r| seen.contains(*r))
+        .cloned()
+        .collect()
 }
 
 // ---- test-only fake emitter ----
@@ -310,10 +304,7 @@ mod coalesce_tests {
 
     #[test]
     fn events_under_two_roots_yield_both_roots() {
-        let events = vec![
-            PathBuf::from("/tmp/a/x"),
-            PathBuf::from("/tmp/b/y"),
-        ];
+        let events = vec![PathBuf::from("/tmp/a/x"), PathBuf::from("/tmp/b/y")];
         let roots = vec![PathBuf::from("/tmp/a"), PathBuf::from("/tmp/b")];
         let out = coalesce_to_roots(&events, &roots);
         assert_eq!(out.len(), 2);
@@ -427,9 +418,7 @@ mod registry_tests {
             std::fs::create_dir(&p).unwrap();
             paths.push(p);
         }
-        let err = reg
-            .create("ext.a", paths, Default::default())
-            .unwrap_err();
+        let err = reg.create("ext.a", paths, Default::default()).unwrap_err();
         assert!(format!("{err}").contains("limit exceeded"), "got: {err}");
     }
 

@@ -445,10 +445,7 @@ pub fn delete_thread(conn: &Connection, id: &str) -> Result<(), AppError> {
 /// Returns `None` when the run is unknown (not an agent run, or the messages
 /// were deleted). Used by the "Open Run in Chat" action so the user can
 /// navigate from a Run row back to the conversation that produced it.
-pub fn find_run_origin(
-    conn: &Connection,
-    run_id: &str,
-) -> Result<Option<RunOrigin>, AppError> {
+pub fn find_run_origin(conn: &Connection, run_id: &str) -> Result<Option<RunOrigin>, AppError> {
     let mut stmt = conn
         .prepare(
             "SELECT t.id, t.agent_id
@@ -463,10 +460,8 @@ pub fn find_run_origin(
         .map_err(|e| AppError::Database(e.to_string()))?;
     match rows.next().map_err(|e| AppError::Database(e.to_string()))? {
         Some(row) => {
-            let thread_id: String =
-                row.get(0).map_err(|e| AppError::Database(e.to_string()))?;
-            let agent_id: String =
-                row.get(1).map_err(|e| AppError::Database(e.to_string()))?;
+            let thread_id: String = row.get(0).map_err(|e| AppError::Database(e.to_string()))?;
+            let agent_id: String = row.get(1).map_err(|e| AppError::Database(e.to_string()))?;
             Ok(Some(RunOrigin {
                 agent_id,
                 thread_id,
@@ -561,7 +556,10 @@ pub fn update_thread_title(
 }
 
 /// Return all threads for the given agent ordered by `updated_at` descending.
-pub fn list_threads_for_agent(conn: &Connection, agent_id: &str) -> Result<Vec<ThreadRow>, AppError> {
+pub fn list_threads_for_agent(
+    conn: &Connection,
+    agent_id: &str,
+) -> Result<Vec<ThreadRow>, AppError> {
     let mut stmt = conn
         .prepare(
             "SELECT id, agent_id, title, created_at, updated_at
@@ -622,7 +620,10 @@ pub fn insert_message(conn: &Connection, msg: &MessageRow) -> Result<(), AppErro
 }
 
 /// Return all messages for the given thread ordered by `created_at` ascending.
-pub fn list_messages_for_thread(conn: &Connection, thread_id: &str) -> Result<Vec<MessageRow>, AppError> {
+pub fn list_messages_for_thread(
+    conn: &Connection,
+    thread_id: &str,
+) -> Result<Vec<MessageRow>, AppError> {
     let mut stmt = conn
         .prepare(
             "SELECT id, thread_id, role, content, created_at, run_id

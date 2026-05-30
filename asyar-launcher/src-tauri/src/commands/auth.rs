@@ -25,11 +25,9 @@ pub async fn auth_poll(
     let response = api_client.poll_auth(&session_code).await?;
 
     if response.status == "complete" {
-        if let (Some(token), Some(user), Some(entitlements)) = (
-            &response.token,
-            &response.user,
-            &response.entitlements,
-        ) {
+        if let (Some(token), Some(user), Some(entitlements)) =
+            (&response.token, &response.user, &response.entitlements)
+        {
             // Persist to disk
             token_store::save_auth(&app, token, user, entitlements)?;
 
@@ -42,7 +40,10 @@ pub async fn auth_poll(
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs() as i64)
                 .unwrap_or(0);
-            *auth_state.entitlements_cached_at.lock().map_err(|_| AppError::Lock)? = Some(now);
+            *auth_state
+                .entitlements_cached_at
+                .lock()
+                .map_err(|_| AppError::Lock)? = Some(now);
         }
     }
 
@@ -64,8 +65,10 @@ pub fn auth_load_cached(
             *auth_state.user.lock().map_err(|_| AppError::Lock)? = Some(data.user.clone());
             *auth_state.entitlements.lock().map_err(|_| AppError::Lock)? =
                 data.entitlements.clone();
-            *auth_state.entitlements_cached_at.lock().map_err(|_| AppError::Lock)? =
-                Some(data.cached_at);
+            *auth_state
+                .entitlements_cached_at
+                .lock()
+                .map_err(|_| AppError::Lock)? = Some(data.cached_at);
 
             Ok(Some(AuthStateResponse {
                 is_logged_in: true,
@@ -83,7 +86,10 @@ pub fn auth_get_state(auth_state: State<'_, AuthState>) -> Result<AuthStateRespo
     let token = auth_state.token.lock().map_err(|_| AppError::Lock)?;
     let user = auth_state.user.lock().map_err(|_| AppError::Lock)?;
     let entitlements = auth_state.entitlements.lock().map_err(|_| AppError::Lock)?;
-    let cached_at = auth_state.entitlements_cached_at.lock().map_err(|_| AppError::Lock)?;
+    let cached_at = auth_state
+        .entitlements_cached_at
+        .lock()
+        .map_err(|_| AppError::Lock)?;
 
     Ok(AuthStateResponse {
         is_logged_in: token.is_some(),
@@ -115,7 +121,10 @@ pub async fn auth_refresh_entitlements(
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
-    *auth_state.entitlements_cached_at.lock().map_err(|_| AppError::Lock)? = Some(now);
+    *auth_state
+        .entitlements_cached_at
+        .lock()
+        .map_err(|_| AppError::Lock)? = Some(now);
 
     // Update disk cache
     token_store::update_entitlements(&app, &entitlements)?;
@@ -141,11 +150,7 @@ pub async fn auth_logout(
     api_client: State<'_, ApiClient>,
 ) -> Result<(), AppError> {
     // Best-effort revoke on backend
-    let token = auth_state
-        .token
-        .lock()
-        .map_err(|_| AppError::Lock)?
-        .clone();
+    let token = auth_state.token.lock().map_err(|_| AppError::Lock)?.clone();
 
     if let Some(t) = token {
         api_client.revoke_token(&t).await?;
@@ -155,7 +160,10 @@ pub async fn auth_logout(
     *auth_state.token.lock().map_err(|_| AppError::Lock)? = None;
     *auth_state.user.lock().map_err(|_| AppError::Lock)? = None;
     *auth_state.entitlements.lock().map_err(|_| AppError::Lock)? = vec![];
-    *auth_state.entitlements_cached_at.lock().map_err(|_| AppError::Lock)? = None;
+    *auth_state
+        .entitlements_cached_at
+        .lock()
+        .map_err(|_| AppError::Lock)? = None;
 
     // Clear disk
     token_store::clear_auth(&app)?;

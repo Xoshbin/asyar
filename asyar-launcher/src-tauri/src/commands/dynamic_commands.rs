@@ -77,18 +77,16 @@ pub async fn replace_dynamic_commands(
 
     // Step 1: validate every registration before touching any state.
     for reg in &regs {
-        validate_dynamic_id(&reg.id).map_err(|e| {
-            AppError::Validation(format!("dynamic command id '{}': {e}", reg.id))
-        })?;
+        validate_dynamic_id(&reg.id)
+            .map_err(|e| AppError::Validation(format!("dynamic command id '{}': {e}", reg.id)))?;
         if reg.name.trim().is_empty() {
             return Err(AppError::Validation(format!(
                 "dynamic command id '{}': name must not be empty",
                 reg.id
             )));
         }
-        validate_arguments(&reg.arguments).map_err(|e| {
-            AppError::Validation(format!("dynamic command id '{}': {e}", reg.id))
-        })?;
+        validate_arguments(&reg.arguments)
+            .map_err(|e| AppError::Validation(format!("dynamic command id '{}': {e}", reg.id)))?;
     }
 
     // Step 2: gate on background.main. Dynamic commands must register
@@ -99,9 +97,9 @@ pub async fn replace_dynamic_commands(
             .extensions
             .lock()
             .map_err(|_| AppError::Lock)?;
-        let record = reg_guard.get(&extension_id).ok_or_else(|| {
-            AppError::NotFound(format!("Extension not found: {extension_id}"))
-        })?;
+        let record = reg_guard
+            .get(&extension_id)
+            .ok_or_else(|| AppError::NotFound(format!("Extension not found: {extension_id}")))?;
         let has_worker = record
             .manifest
             .background
@@ -124,12 +122,15 @@ pub async fn replace_dynamic_commands(
     // current set and it will remove stale + index added/kept.
     search_state
         .replace_dynamic_commands(&extension_id, &regs)
-        .map_err(|e| AppError::Other(format!("Failed to sync dynamic command search index: {e}")))?;
+        .map_err(|e| {
+            AppError::Other(format!("Failed to sync dynamic command search index: {e}"))
+        })?;
 
     // Step 5: GC persisted argument last-values for ids that no longer exist.
     let conn = data_store.conn()?;
     for removed_id in &diff.removed {
-        if let Err(e) = command_arg_defaults::clear_for_dynamic_id(&conn, &extension_id, removed_id) {
+        if let Err(e) = command_arg_defaults::clear_for_dynamic_id(&conn, &extension_id, removed_id)
+        {
             log::warn!(
                 "Failed to clear persisted args for removed dynamic command '{}/{}': {}",
                 extension_id,
@@ -178,18 +179,16 @@ pub(crate) fn replace_dynamic_commands_builtin_impl(
 
     // Validate every registration before touching any state.
     for reg in &regs {
-        validate_dynamic_id(&reg.id).map_err(|e| {
-            AppError::Validation(format!("dynamic command id '{}': {e}", reg.id))
-        })?;
+        validate_dynamic_id(&reg.id)
+            .map_err(|e| AppError::Validation(format!("dynamic command id '{}': {e}", reg.id)))?;
         if reg.name.trim().is_empty() {
             return Err(AppError::Validation(format!(
                 "dynamic command id '{}': name must not be empty",
                 reg.id
             )));
         }
-        validate_arguments(&reg.arguments).map_err(|e| {
-            AppError::Validation(format!("dynamic command id '{}': {e}", reg.id))
-        })?;
+        validate_arguments(&reg.arguments)
+            .map_err(|e| AppError::Validation(format!("dynamic command id '{}': {e}", reg.id)))?;
     }
 
     // Replace in registry and capture the diff.
@@ -198,7 +197,9 @@ pub(crate) fn replace_dynamic_commands_builtin_impl(
     // Sync the search index.
     search_state
         .replace_dynamic_commands(extension_id, &regs)
-        .map_err(|e| AppError::Other(format!("Failed to sync dynamic command search index: {e}")))?;
+        .map_err(|e| {
+            AppError::Other(format!("Failed to sync dynamic command search index: {e}"))
+        })?;
 
     // GC persisted argument last-values for ids that no longer exist.
     for removed_id in &diff.removed {
@@ -242,7 +243,13 @@ pub async fn replace_dynamic_commands_builtin(
     data_store: State<'_, crate::storage::DataStore>,
 ) -> Result<(), AppError> {
     let conn = data_store.conn()?;
-    replace_dynamic_commands_builtin_impl(&dynamic_registry, &search_state, &conn, &extension_id, regs)
+    replace_dynamic_commands_builtin_impl(
+        &dynamic_registry,
+        &search_state,
+        &conn,
+        &extension_id,
+        regs,
+    )
 }
 
 /// Look up the meta for a dynamic command by its full search-index
@@ -332,9 +339,7 @@ mod tests {
             "allowlisted id must be accepted, got {result:?}"
         );
 
-        let stored = registry
-            .get_meta("scripts", "script-1")
-            .unwrap();
+        let stored = registry.get_meta("scripts", "script-1").unwrap();
         assert!(
             stored.is_some(),
             "registration must be present in registry after builtin replace"
@@ -398,14 +403,8 @@ mod tests {
         )
         .unwrap();
 
-        replace_dynamic_commands_builtin_impl(
-            &registry,
-            &search,
-            &conn,
-            "scripts",
-            vec![],
-        )
-        .unwrap();
+        replace_dynamic_commands_builtin_impl(&registry, &search, &conn, "scripts", vec![])
+            .unwrap();
 
         let list = registry.list_for_extension("scripts").unwrap();
         assert!(

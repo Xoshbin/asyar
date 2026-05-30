@@ -1,7 +1,7 @@
-use tokio::sync::Mutex;
-use std::time::{Instant, Duration};
 use crate::selection::error::SelectionError;
 use crate::selection::platform;
+use std::time::{Duration, Instant};
+use tokio::sync::Mutex;
 
 static SELECTION_MUTEX: Mutex<()> = Mutex::const_new(());
 
@@ -31,7 +31,7 @@ pub async fn get_selected_text() -> Result<Option<String>, SelectionError> {
 
     // Step 2 — clipboard trick fallback
     let guard = platform::ClipboardGuard::new();
-    
+
     // Capture the before-marker
     let before = platform::clipboard_change_marker();
 
@@ -65,14 +65,16 @@ pub async fn get_selected_text() -> Result<Option<String>, SelectionError> {
     Ok(Some(text))
 }
 
-pub async fn get_selected_finder_items(_app: &tauri::AppHandle) -> Result<Vec<String>, SelectionError> {
+pub async fn get_selected_finder_items(
+    _app: &tauri::AppHandle,
+) -> Result<Vec<String>, SelectionError> {
     let _lock = SELECTION_MUTEX.lock().await;
-    
+
     // Primarily platform-specific logic
     #[cfg(target_os = "windows")]
     {
-        use tauri::Manager;
         use crate::AppState;
+        use tauri::Manager;
         let target_hwnd = *_app.state::<AppState>().previous_hwnd.lock().unwrap();
         platform::get_selected_finder_items(target_hwnd)
     }

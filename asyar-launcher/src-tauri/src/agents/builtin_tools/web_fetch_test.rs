@@ -20,7 +20,9 @@ fn descriptor_has_expected_shape() {
         "parameters.properties.url must be present, got {params}"
     );
 
-    let required = params["required"].as_array().expect("required must be array");
+    let required = params["required"]
+        .as_array()
+        .expect("required must be array");
     assert!(
         required.iter().any(|v| v.as_str() == Some("url")),
         "required must include 'url', got {required:?}"

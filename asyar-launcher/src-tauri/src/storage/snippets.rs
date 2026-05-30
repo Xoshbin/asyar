@@ -71,9 +71,7 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
 
     if !redacted_kinds_exists {
         conn.execute("ALTER TABLE snippets ADD COLUMN redacted_kinds TEXT", [])
-            .map_err(|e| {
-                AppError::Database(format!("Failed to add redacted_kinds column: {e}"))
-            })?;
+            .map_err(|e| AppError::Database(format!("Failed to add redacted_kinds column: {e}")))?;
     }
 
     Ok(())
@@ -83,11 +81,7 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
 /// is encrypted under `master_key`; `keyword` stays plaintext because
 /// the global keystroke matcher needs to compare incoming keystrokes
 /// against keywords without decrypting every row on every press.
-pub fn upsert(
-    conn: &Connection,
-    snippet: &Snippet,
-    master_key: &[u8; 32],
-) -> Result<(), AppError> {
+pub fn upsert(conn: &Connection, snippet: &Snippet, master_key: &[u8; 32]) -> Result<(), AppError> {
     let encrypted_expansion = cipher::encrypt(&snippet.expansion, master_key)?;
     conn.execute(
         "INSERT OR REPLACE INTO snippets (id, keyword, expansion, name, created_at, pinned, redacted_kinds)
@@ -142,10 +136,7 @@ pub fn update(
         return Ok(());
     }
 
-    let sql = format!(
-        "UPDATE snippets SET {} WHERE id = ?",
-        sets.join(", ")
-    );
+    let sql = format!("UPDATE snippets SET {} WHERE id = ?", sets.join(", "));
     values.push(Box::new(id.to_string()));
 
     let params: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|v| v.as_ref()).collect();

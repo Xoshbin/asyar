@@ -25,9 +25,7 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
         CREATE INDEX IF NOT EXISTS idx_command_arg_defaults_extension
             ON command_arg_defaults(extension_id);",
     )
-    .map_err(|e| {
-        AppError::Database(format!("Failed to init command_arg_defaults table: {e}"))
-    })?;
+    .map_err(|e| AppError::Database(format!("Failed to init command_arg_defaults table: {e}")))?;
     Ok(())
 }
 
@@ -55,8 +53,7 @@ pub fn get(
     );
     match result {
         Ok(json) => {
-            let parsed: HashMap<String, String> =
-                serde_json::from_str(&json).unwrap_or_default();
+            let parsed: HashMap<String, String> = serde_json::from_str(&json).unwrap_or_default();
             Ok(parsed)
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(HashMap::new()),
@@ -80,15 +77,12 @@ pub fn set(
              WHERE extension_id = ?1 AND command_id = ?2",
             params![extension_id, command_id],
         )
-        .map_err(|e| {
-            AppError::Database(format!("Failed to clear command arg defaults: {e}"))
-        })?;
+        .map_err(|e| AppError::Database(format!("Failed to clear command arg defaults: {e}")))?;
         return Ok(());
     }
 
-    let json = serde_json::to_string(values).map_err(|e| {
-        AppError::Database(format!("Failed to encode command arg defaults: {e}"))
-    })?;
+    let json = serde_json::to_string(values)
+        .map_err(|e| AppError::Database(format!("Failed to encode command arg defaults: {e}")))?;
 
     conn.execute(
         "INSERT INTO command_arg_defaults (extension_id, command_id, values_json, updated_at)
@@ -110,9 +104,7 @@ pub fn clear_for_extension(conn: &Connection, extension_id: &str) -> Result<u64,
             "DELETE FROM command_arg_defaults WHERE extension_id = ?1",
             params![extension_id],
         )
-        .map_err(|e| {
-            AppError::Database(format!("Failed to clear command arg defaults: {e}"))
-        })?;
+        .map_err(|e| AppError::Database(format!("Failed to clear command arg defaults: {e}")))?;
     Ok(count as u64)
 }
 
@@ -123,10 +115,7 @@ pub fn clear_for_extension(conn: &Connection, extension_id: &str) -> Result<u64,
 /// Called when an extension is disabled (the dynamic command list
 /// disappears from the registry, but persisted last-values should
 /// survive a re-enable).
-pub fn clear_dynamic_for_extension(
-    conn: &Connection,
-    extension_id: &str,
-) -> Result<u64, AppError> {
+pub fn clear_dynamic_for_extension(conn: &Connection, extension_id: &str) -> Result<u64, AppError> {
     let count = conn
         .execute(
             "DELETE FROM command_arg_defaults
@@ -134,9 +123,7 @@ pub fn clear_dynamic_for_extension(
             params![extension_id],
         )
         .map_err(|e| {
-            AppError::Database(format!(
-                "Failed to clear dynamic command arg defaults: {e}"
-            ))
+            AppError::Database(format!("Failed to clear dynamic command arg defaults: {e}"))
         })?;
     Ok(count as u64)
 }
@@ -264,9 +251,18 @@ mod tests {
         set(&conn, "ext-a", "cmd-2", &b).unwrap();
         set(&conn, "ext-b", "cmd-1", &c).unwrap();
 
-        assert_eq!(get(&conn, "ext-a", "cmd-1").unwrap().get("q").unwrap(), "ext-a-cmd-1");
-        assert_eq!(get(&conn, "ext-a", "cmd-2").unwrap().get("q").unwrap(), "ext-a-cmd-2");
-        assert_eq!(get(&conn, "ext-b", "cmd-1").unwrap().get("q").unwrap(), "ext-b-cmd-1");
+        assert_eq!(
+            get(&conn, "ext-a", "cmd-1").unwrap().get("q").unwrap(),
+            "ext-a-cmd-1"
+        );
+        assert_eq!(
+            get(&conn, "ext-a", "cmd-2").unwrap().get("q").unwrap(),
+            "ext-a-cmd-2"
+        );
+        assert_eq!(
+            get(&conn, "ext-b", "cmd-1").unwrap().get("q").unwrap(),
+            "ext-b-cmd-1"
+        );
     }
 
     #[test]
@@ -284,7 +280,10 @@ mod tests {
         assert!(get(&conn, "ext-a", "cmd-1").unwrap().is_empty());
         assert!(get(&conn, "ext-a", "cmd-2").unwrap().is_empty());
         assert_eq!(
-            get(&conn, "ext-b", "cmd-1").unwrap().get("k").map(|s| s.as_str()),
+            get(&conn, "ext-b", "cmd-1")
+                .unwrap()
+                .get("k")
+                .map(|s| s.as_str()),
             Some("v")
         );
     }
@@ -407,7 +406,10 @@ mod tests {
         set(&conn, "ext", &dynamic_command_id_key("open"), &b).unwrap();
 
         assert_eq!(
-            get(&conn, "ext", "open").unwrap().get("from").map(|s| s.as_str()),
+            get(&conn, "ext", "open")
+                .unwrap()
+                .get("from")
+                .map(|s| s.as_str()),
             Some("manifest")
         );
         assert_eq!(

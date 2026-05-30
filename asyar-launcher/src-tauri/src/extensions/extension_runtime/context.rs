@@ -25,12 +25,7 @@ impl ContextMachine {
         }
     }
 
-    pub fn enqueue(
-        &mut self,
-        ext: &str,
-        msg: PendingMessage,
-        now: Instant,
-    ) -> DispatchOutcome {
+    pub fn enqueue(&mut self, ext: &str, msg: PendingMessage, now: Instant) -> DispatchOutcome {
         let state = self.states.entry(ext.to_string()).or_default();
         match state {
             LifecycleState::Dormant => {
@@ -76,9 +71,7 @@ impl ContextMachine {
                 ..
             } => {
                 let strike_count = *strikes;
-                let cooldown_expired = cooldown_until
-                    .map(|until| now >= until)
-                    .unwrap_or(true);
+                let cooldown_expired = cooldown_until.map(|until| now >= until).unwrap_or(true);
 
                 if cooldown_expired {
                     let token = self.next_mount_token;
@@ -337,10 +330,17 @@ mod tests {
     fn enqueue_on_dormant_returns_needs_mount_and_queues_message() {
         let mut m = view_machine();
         let now = Instant::now();
-        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
+        let outcome = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            now,
+        );
         assert!(matches!(outcome, DispatchOutcome::NeedsMount { .. }));
         assert_eq!(m.mailbox_len("ext.a"), 1);
-        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Mounting { .. })));
+        assert!(matches!(
+            m.state("ext.a"),
+            Some(LifecycleState::Mounting { .. })
+        ));
     }
 
     #[test]
@@ -360,8 +360,16 @@ mod tests {
     fn enqueue_on_mounting_appends_and_returns_mounting_wait() {
         let mut m = view_machine();
         let now = Instant::now();
-        m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
-        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Argument), now);
+        m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            now,
+        );
+        let outcome = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Argument),
+            now,
+        );
         assert!(matches!(outcome, DispatchOutcome::MountingWaitForReady));
         assert_eq!(m.mailbox_len("ext.a"), 2);
     }
@@ -370,7 +378,11 @@ mod tests {
     fn enqueue_predictive_warm_on_mounting_does_not_append() {
         let mut m = view_machine();
         let now = Instant::now();
-        m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
+        m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            now,
+        );
         let outcome = m.enqueue(
             "ext.a",
             msg(MessageKind::PredictiveWarm, TriggerSource::UserHighlight),
@@ -384,7 +396,11 @@ mod tests {
     fn on_ready_ack_with_matching_token_drains_and_transitions_to_ready() {
         let mut m = view_machine();
         let now = Instant::now();
-        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
+        let outcome = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            now,
+        );
         let token = match outcome {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!("expected NeedsMount"),
@@ -392,17 +408,27 @@ mod tests {
         let drained = m.on_ready_ack("ext.a", token, now);
         assert_eq!(drained.len(), 1);
         assert_eq!(m.mailbox_len("ext.a"), 0);
-        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Ready { .. })));
+        assert!(matches!(
+            m.state("ext.a"),
+            Some(LifecycleState::Ready { .. })
+        ));
     }
 
     #[test]
     fn on_ready_ack_with_stale_token_is_rejected() {
         let mut m = view_machine();
         let now = Instant::now();
-        m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
+        m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            now,
+        );
         let drained = m.on_ready_ack("ext.a", 999, now);
         assert!(drained.is_empty());
-        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Mounting { .. })));
+        assert!(matches!(
+            m.state("ext.a"),
+            Some(LifecycleState::Mounting { .. })
+        ));
         assert_eq!(m.mailbox_len("ext.a"), 1);
     }
 
@@ -410,13 +436,21 @@ mod tests {
     fn enqueue_on_ready_returns_ready_deliver_now_with_single_message() {
         let mut m = view_machine();
         let now = Instant::now();
-        let first = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
+        let first = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            now,
+        );
         let token = match first {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
         };
         m.on_ready_ack("ext.a", token, now);
-        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Timer), now);
+        let outcome = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Timer),
+            now,
+        );
         match outcome {
             DispatchOutcome::ReadyDeliverNow { messages } => {
                 assert_eq!(messages.len(), 1);
@@ -431,7 +465,11 @@ mod tests {
     fn enqueue_on_ready_bumps_last_activity() {
         let mut m = view_machine();
         let t0 = Instant::now();
-        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), t0);
+        let outcome = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            t0,
+        );
         let token = match outcome {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
@@ -449,7 +487,11 @@ mod tests {
     fn view_tick_unmounts_ready_after_keep_alive() {
         let mut m = view_machine();
         let t0 = Instant::now();
-        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), t0);
+        let outcome = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            t0,
+        );
         let token = match outcome {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
@@ -465,7 +507,11 @@ mod tests {
     fn view_tick_does_not_unmount_within_keep_alive() {
         let mut m = view_machine();
         let t0 = Instant::now();
-        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), t0);
+        let outcome = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            t0,
+        );
         let token = match outcome {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
@@ -474,14 +520,21 @@ mod tests {
         let soon = t0 + Duration::from_secs(60);
         let actions = m.tick(soon);
         assert!(actions.idle_unmounts.is_empty());
-        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Ready { .. })));
+        assert!(matches!(
+            m.state("ext.a"),
+            Some(LifecycleState::Ready { .. })
+        ));
     }
 
     #[test]
     fn worker_tick_never_idle_evicts_regardless_of_age() {
         let mut m = worker_machine();
         let t0 = Instant::now();
-        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), t0);
+        let outcome = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            t0,
+        );
         let token = match outcome {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
@@ -494,14 +547,21 @@ mod tests {
             actions.idle_unmounts.is_empty(),
             "worker machine must never idle-evict"
         );
-        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Ready { .. })));
+        assert!(matches!(
+            m.state("ext.a"),
+            Some(LifecycleState::Ready { .. })
+        ));
     }
 
     #[test]
     fn on_mount_timeout_records_strike_drops_messages_returns_to_dormant() {
         let mut m = view_machine();
         let now = Instant::now();
-        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
+        let outcome = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            now,
+        );
         let token = match outcome {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
@@ -530,11 +590,7 @@ mod tests {
                 DispatchOutcome::Degraded { .. } => break,
                 other => panic!("unexpected outcome on attempt {i}: {other:?}"),
             };
-            let r = m.on_mount_timeout(
-                "ext.a",
-                token,
-                now + Duration::from_secs(i as u64 + 1),
-            );
+            let r = m.on_mount_timeout("ext.a", token, now + Duration::from_secs(i as u64 + 1));
             if i == 2 {
                 assert!(r.transition_to_degraded);
                 assert_eq!(r.new_strike_count, 3);
@@ -550,7 +606,11 @@ mod tests {
     fn strikes_outside_window_do_not_accumulate() {
         let mut m = view_machine();
         let t0 = Instant::now();
-        let o1 = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), t0);
+        let o1 = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            t0,
+        );
         let tok1 = match o1 {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
@@ -559,7 +619,11 @@ mod tests {
         assert_eq!(r1.new_strike_count, 1);
 
         let t1 = t0 + Duration::from_secs(301);
-        let o2 = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), t1);
+        let o2 = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            t1,
+        );
         let tok2 = match o2 {
             DispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
@@ -583,9 +647,16 @@ mod tests {
                 m.on_mount_timeout("ext.a", mount_token, t + Duration::from_secs(i + 1));
             }
         }
-        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Degraded { .. })));
+        assert!(matches!(
+            m.state("ext.a"),
+            Some(LifecycleState::Degraded { .. })
+        ));
         let later = t + Duration::from_secs(60);
-        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), later);
+        let outcome = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            later,
+        );
         assert!(matches!(outcome, DispatchOutcome::Degraded { strikes: 3 }));
         assert_eq!(m.mailbox_len("ext.a"), 0);
     }
@@ -605,16 +676,27 @@ mod tests {
             }
         }
         let far_future = t + Duration::from_secs(3604);
-        let outcome = m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), far_future);
+        let outcome = m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            far_future,
+        );
         assert!(matches!(outcome, DispatchOutcome::NeedsMount { .. }));
-        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Mounting { .. })));
+        assert!(matches!(
+            m.state("ext.a"),
+            Some(LifecycleState::Mounting { .. })
+        ));
     }
 
     #[test]
     fn on_extension_removed_clears_all_state_and_signals_unmount() {
         let mut m = view_machine();
         let now = Instant::now();
-        m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
+        m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            now,
+        );
         let emit_unmount = m.on_extension_removed("ext.a");
         assert!(emit_unmount);
         assert!(m.state("ext.a").is_none());
@@ -632,7 +714,11 @@ mod tests {
     fn on_unmount_ack_resets_to_dormant_for_known_id() {
         let mut m = view_machine();
         let now = Instant::now();
-        m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Search), now);
+        m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Search),
+            now,
+        );
         m.on_unmount_ack("ext.a");
         assert!(matches!(m.state("ext.a"), Some(LifecycleState::Dormant)));
     }
@@ -641,7 +727,11 @@ mod tests {
     fn snapshot_entries_include_role() {
         let mut m = worker_machine();
         let now = Instant::now();
-        m.enqueue("ext.a", msg(MessageKind::Command, TriggerSource::Timer), now);
+        m.enqueue(
+            "ext.a",
+            msg(MessageKind::Command, TriggerSource::Timer),
+            now,
+        );
         let snap = m.snapshot_entries();
         assert_eq!(snap.len(), 1);
         assert_eq!(snap[0].role, ContextRole::Worker);
@@ -696,7 +786,10 @@ mod tests {
         let token = m.transition_dormant_to_mounting("ext.a", now).unwrap();
         m.on_ready_ack("ext.a", token, now);
         assert!(m.transition_dormant_to_mounting("ext.a", now).is_none());
-        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Ready { .. })));
+        assert!(matches!(
+            m.state("ext.a"),
+            Some(LifecycleState::Ready { .. })
+        ));
 
         // Degraded: cooldown owns retry timing; caller must not force remount.
         let mut m = worker_machine();
@@ -711,7 +804,10 @@ mod tests {
                 m.on_mount_timeout("ext.a", mount_token, t0 + Duration::from_secs(i + 1));
             }
         }
-        assert!(matches!(m.state("ext.a"), Some(LifecycleState::Degraded { .. })));
+        assert!(matches!(
+            m.state("ext.a"),
+            Some(LifecycleState::Degraded { .. })
+        ));
         assert!(m.transition_dormant_to_mounting("ext.a", t0).is_none());
     }
 }

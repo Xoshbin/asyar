@@ -146,7 +146,16 @@ pub fn purge_for_server(conn: &Connection, server_id: &str) -> Result<usize, App
     Ok(n)
 }
 
-type AuditTuple = (i64, String, String, Option<String>, i64, i64, Option<String>, String);
+type AuditTuple = (
+    i64,
+    String,
+    String,
+    Option<String>,
+    i64,
+    i64,
+    Option<String>,
+    String,
+);
 
 fn map_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AuditTuple> {
     Ok((

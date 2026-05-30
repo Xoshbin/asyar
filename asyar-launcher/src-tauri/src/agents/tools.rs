@@ -206,11 +206,7 @@ impl ToolRegistry {
     /// The call is replace-style: all previously registered entries for
     /// `server_id` are removed and replaced by the new `tools` list.
     /// fqid format: `mcp:<server_id>:<tool_id>`.
-    pub fn register_mcp(
-        &self,
-        server_id: &str,
-        tools: Vec<ManifestTool>,
-    ) -> Result<(), AppError> {
+    pub fn register_mcp(&self, server_id: &str, tools: Vec<ManifestTool>) -> Result<(), AppError> {
         if server_id.trim().is_empty() {
             return Err(AppError::Validation(
                 "server_id must not be empty".to_string(),

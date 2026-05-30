@@ -27,9 +27,13 @@ pub async fn initialize_autostart_from_settings(
         );
 
         if enable && !current_status {
-            autostart_manager.enable().map_err(|e| AppError::Platform(format!("Failed to enable autostart: {}", e)))?;
+            autostart_manager
+                .enable()
+                .map_err(|e| AppError::Platform(format!("Failed to enable autostart: {}", e)))?;
         } else if !enable && current_status {
-            autostart_manager.disable().map_err(|e| AppError::Platform(format!("Failed to disable autostart: {}", e)))?;
+            autostart_manager
+                .disable()
+                .map_err(|e| AppError::Platform(format!("Failed to disable autostart: {}", e)))?;
         }
 
         // Verify the change was successful
@@ -55,7 +59,10 @@ pub async fn get_autostart_status(app_handle: AppHandle) -> Result<bool, AppErro
         let autostart_manager = app_handle.autolaunch();
         match autostart_manager.is_enabled() {
             Ok(enabled) => Ok(enabled),
-            Err(e) => Err(AppError::Platform(format!("Failed to get autostart status: {}", e))),
+            Err(e) => Err(AppError::Platform(format!(
+                "Failed to get autostart status: {}",
+                e
+            ))),
         }
     }
 

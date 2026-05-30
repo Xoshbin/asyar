@@ -428,7 +428,11 @@ fn unix_secs_to_civil(secs: i64) -> (i32, u32, u32, u32, u32, u32) {
 
     // Hinnant's civil_from_days, shifted so day 0 = 1970-01-01.
     let z = days + 719_468;
-    let era = if z >= 0 { z / 146_097 } else { (z - 146_096) / 146_097 };
+    let era = if z >= 0 {
+        z / 146_097
+    } else {
+        (z - 146_096) / 146_097
+    };
     let doe = (z - era * 146_097) as u64; // [0, 146_096]
     let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365; // [0, 399]
     let y = (yoe as i64) + era * 400;
@@ -468,7 +472,11 @@ mod tests {
         }
     }
 
-    fn journal_dirty(item_id: &str, category: &str, last_hash: Option<[u8; 32]>) -> ItemJournalEntry {
+    fn journal_dirty(
+        item_id: &str,
+        category: &str,
+        last_hash: Option<[u8; 32]>,
+    ) -> ItemJournalEntry {
         ItemJournalEntry {
             item_id: item_id.into(),
             category_id: category.into(),
@@ -519,7 +527,8 @@ mod tests {
         // "abc" → ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
         let (_, hex_abc) = compute_content_hash(b"abc");
         assert_eq!(
-            hex_abc, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+            hex_abc,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
     }
 
@@ -787,7 +796,13 @@ mod tests {
     fn merge_pull_skips_alive_server_record_when_local_tombstone_pending() {
         let plaintext = "still-alive-on-server";
         let server_page = ItemPullPage {
-            items: vec![server_record("doomed", "snippets", Some(plaintext), 1103, false)],
+            items: vec![server_record(
+                "doomed",
+                "snippets",
+                Some(plaintext),
+                1103,
+                false,
+            )],
             server_version: 1103,
             has_more: false,
         };
@@ -834,7 +849,13 @@ mod tests {
     fn merge_pull_pending_tombstone_with_newer_server_version_emits_lww() {
         let plaintext = "edited-by-other-device";
         let server_page = ItemPullPage {
-            items: vec![server_record("doomed", "snippets", Some(plaintext), 2050, false)],
+            items: vec![server_record(
+                "doomed",
+                "snippets",
+                Some(plaintext),
+                2050,
+                false,
+            )],
             server_version: 2050,
             has_more: false,
         };
@@ -864,7 +885,13 @@ mod tests {
     fn merge_pull_returns_lww_warning_when_local_dirty_and_server_newer() {
         let plaintext = "server wins";
         let server_page = ItemPullPage {
-            items: vec![server_record("conflict-1", "snippets", Some(plaintext), 5, false)],
+            items: vec![server_record(
+                "conflict-1",
+                "snippets",
+                Some(plaintext),
+                5,
+                false,
+            )],
             server_version: 5,
             has_more: false,
         };
@@ -897,7 +924,13 @@ mod tests {
         let (hash_bytes, _) = compute_content_hash(plaintext.as_bytes());
 
         let server_page = ItemPullPage {
-            items: vec![server_record("same-1", "snippets", Some(plaintext), 7, false)],
+            items: vec![server_record(
+                "same-1",
+                "snippets",
+                Some(plaintext),
+                7,
+                false,
+            )],
             server_version: 7,
             has_more: false,
         };

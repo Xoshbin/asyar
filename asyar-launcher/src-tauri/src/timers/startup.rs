@@ -70,9 +70,7 @@ mod tests {
 
     #[test]
     fn up_to_burst_size_fires_with_no_delay() {
-        let timers: Vec<_> = (0..5)
-            .map(|i| d(&format!("t{i}"), 1_000 + i))
-            .collect();
+        let timers: Vec<_> = (0..5).map(|i| d(&format!("t{i}"), 1_000 + i)).collect();
         let out = stagger_startup_fires(timers, 5);
         assert_eq!(out.len(), 5);
         for (_, delay) in &out {
@@ -110,10 +108,7 @@ mod tests {
         }
         // 11th is 100ms; last is (100 - 10) * 100 = 9_000ms
         assert_eq!(out[10].1, Duration::from_millis(INTER_FIRE_DELAY_MS));
-        assert_eq!(
-            out[99].1,
-            Duration::from_millis(90 * INTER_FIRE_DELAY_MS)
-        );
+        assert_eq!(out[99].1, Duration::from_millis(90 * INTER_FIRE_DELAY_MS));
     }
 
     #[test]

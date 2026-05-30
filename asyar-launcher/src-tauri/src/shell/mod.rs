@@ -119,10 +119,7 @@ impl ShellProcessRegistry {
 
     /// Live (not-finished) spawns owned by the given extension, sorted by
     /// ascending `started_at`.
-    pub fn list_for_extension(
-        &self,
-        extension_id: &str,
-    ) -> Result<Vec<ShellDescriptor>, AppError> {
+    pub fn list_for_extension(&self, extension_id: &str) -> Result<Vec<ShellDescriptor>, AppError> {
         let map = self.entries.lock().map_err(|_| AppError::Lock)?;
         let mut out: Vec<ShellDescriptor> = map
             .iter()
@@ -174,7 +171,11 @@ impl ShellProcessRegistry {
         now_millis: u64,
     ) -> Result<usize, AppError> {
         let mut map = self.entries.lock().map_err(|_| AppError::Lock)?;
-        Ok(prune_finished_entries(&mut map, older_than_millis, now_millis))
+        Ok(prune_finished_entries(
+            &mut map,
+            older_than_millis,
+            now_millis,
+        ))
     }
 }
 
@@ -189,9 +190,7 @@ pub(crate) fn prune_finished_entries(
 ) -> usize {
     let to_drop: Vec<String> = entries
         .iter()
-        .filter(|(_, e)| {
-            e.finished && now_millis.saturating_sub(e.started_at) >= older_than_millis
-        })
+        .filter(|(_, e)| e.finished && now_millis.saturating_sub(e.started_at) >= older_than_millis)
         .map(|(sid, _)| sid.clone())
         .collect();
     let n = to_drop.len();

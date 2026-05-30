@@ -18,10 +18,7 @@ const EXT_SCHEME: &str = "asyar-extension://";
 pub enum IconSpec {
     /// `asyar-extension://{ext_id}/{rel}` — the host must resolve `ext_id`
     /// to its base directory and join `rel` onto it.
-    Extension {
-        ext_id: String,
-        rel_path: String,
-    },
+    Extension { ext_id: String, rel_path: String },
     /// Absolute filesystem path supplied by the extension.
     Absolute(PathBuf),
 }
@@ -39,13 +36,11 @@ pub fn parse_spec(spec: &str) -> Result<IconSpec, AppError> {
     }
 
     if let Some(rest) = spec.strip_prefix(EXT_SCHEME) {
-        let (ext_id, rel_path) = rest
-            .split_once('/')
-            .ok_or_else(|| {
-                AppError::Validation(format!(
-                    "asyar-extension:// iconPath '{spec}' is missing the relative file path"
-                ))
-            })?;
+        let (ext_id, rel_path) = rest.split_once('/').ok_or_else(|| {
+            AppError::Validation(format!(
+                "asyar-extension:// iconPath '{spec}' is missing the relative file path"
+            ))
+        })?;
         if ext_id.is_empty() {
             return Err(AppError::Validation(format!(
                 "asyar-extension:// iconPath '{spec}' has an empty extension id"
@@ -80,10 +75,7 @@ pub fn parse_spec(spec: &str) -> Result<IconSpec, AppError> {
     Ok(IconSpec::Absolute(p.to_path_buf()))
 }
 
-pub fn resolve(
-    spec: &str,
-    lookup: &dyn ExtensionDirLookup,
-) -> Result<PathBuf, AppError> {
+pub fn resolve(spec: &str, lookup: &dyn ExtensionDirLookup) -> Result<PathBuf, AppError> {
     match parse_spec(spec)? {
         IconSpec::Absolute(path) => Ok(path),
         IconSpec::Extension { ext_id, rel_path } => {
@@ -93,9 +85,7 @@ pub fn resolve(
                 )));
             }
             let base = lookup.base_dir(&ext_id).ok_or_else(|| {
-                AppError::NotFound(format!(
-                    "iconPath references missing extension '{ext_id}'"
-                ))
+                AppError::NotFound(format!("iconPath references missing extension '{ext_id}'"))
             })?;
             Ok(base.join(rel_path))
         }

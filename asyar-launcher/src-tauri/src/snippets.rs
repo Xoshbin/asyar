@@ -2,9 +2,9 @@ use tauri::AppHandle;
 #[allow(unused_imports)]
 use tauri::{Emitter, Manager};
 
+use regex::Regex;
 use std::collections::HashMap;
 use std::sync::OnceLock;
-use regex::Regex;
 
 pub type ExtensionId = String;
 pub type ShortcodeMap = HashMap<String, String>;
@@ -147,7 +147,10 @@ pub fn start_listener(app_handle: AppHandle) {
                                     .contributed_snippets
                                     .lock()
                                     .unwrap_or_else(|p: std::sync::PoisonError<_>| p.into_inner());
-                                crate::snippets::merge_active_snippets(&user_guard, &contributed_guard)
+                                crate::snippets::merge_active_snippets(
+                                    &user_guard,
+                                    &contributed_guard,
+                                )
                             };
                             for (keyword, expansion) in merged.iter() {
                                 if current.ends_with(keyword.as_str()) {
@@ -166,7 +169,9 @@ pub fn start_listener(app_handle: AppHandle) {
                                 }
                             }
                             if c == ':' {
-                                if let Some(candidate) = crate::snippets::detect_completed_shortcode_at_end(&current) {
+                                if let Some(candidate) =
+                                    crate::snippets::detect_completed_shortcode_at_end(&current)
+                                {
                                     if !merged.contains_key(&candidate) {
                                         let _ = app_handle.emit_to(
                                             crate::SPOTLIGHT_LABEL,
@@ -206,7 +211,10 @@ mod tests {
     #[test]
     fn detects_completed_shortcode_at_end_of_buffer() {
         let s = "hello :party:".to_string();
-        assert_eq!(super::detect_completed_shortcode_at_end(&s), Some(":party:".to_string()));
+        assert_eq!(
+            super::detect_completed_shortcode_at_end(&s),
+            Some(":party:".to_string())
+        );
     }
 
     #[test]
@@ -224,7 +232,10 @@ mod tests {
     #[test]
     fn detects_minimal_one_char_shortcode() {
         let s = ":a:".to_string();
-        assert_eq!(super::detect_completed_shortcode_at_end(&s), Some(":a:".to_string()));
+        assert_eq!(
+            super::detect_completed_shortcode_at_end(&s),
+            Some(":a:".to_string())
+        );
     }
 
     #[test]

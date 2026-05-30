@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use thiserror::Error;
 
 pub type McpServerId = String;
@@ -142,8 +142,14 @@ mod tests {
             message: "x".to_string(),
         };
         let display = format!("{}", err);
-        assert!(display.contains("-32601"), "display must contain the code: {display}");
-        assert!(display.contains("x"), "display must contain the message: {display}");
+        assert!(
+            display.contains("-32601"),
+            "display must contain the code: {display}"
+        );
+        assert!(
+            display.contains("x"),
+            "display must contain the message: {display}"
+        );
     }
 
     // 6. server_config_default_enabled_field_round_trips

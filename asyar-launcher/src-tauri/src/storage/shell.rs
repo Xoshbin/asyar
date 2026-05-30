@@ -22,7 +22,11 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
     Ok(())
 }
 
-pub fn is_trusted(conn: &Connection, extension_id: &str, binary_path: &str) -> Result<bool, AppError> {
+pub fn is_trusted(
+    conn: &Connection,
+    extension_id: &str,
+    binary_path: &str,
+) -> Result<bool, AppError> {
     let count: i32 = conn.query_row(
         "SELECT COUNT(*) FROM shell_trusted_binaries WHERE extension_id = ?1 AND binary_path = ?2",
         params![extension_id, binary_path],
@@ -31,7 +35,11 @@ pub fn is_trusted(conn: &Connection, extension_id: &str, binary_path: &str) -> R
     Ok(count > 0)
 }
 
-pub fn grant_trust(conn: &Connection, extension_id: &str, binary_path: &str) -> Result<(), AppError> {
+pub fn grant_trust(
+    conn: &Connection,
+    extension_id: &str,
+    binary_path: &str,
+) -> Result<(), AppError> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -43,11 +51,16 @@ pub fn grant_trust(conn: &Connection, extension_id: &str, binary_path: &str) -> 
     Ok(())
 }
 
-pub fn revoke_trust(conn: &Connection, extension_id: &str, binary_path: &str) -> Result<(), AppError> {
+pub fn revoke_trust(
+    conn: &Connection,
+    extension_id: &str,
+    binary_path: &str,
+) -> Result<(), AppError> {
     conn.execute(
         "DELETE FROM shell_trusted_binaries WHERE extension_id = ?1 AND binary_path = ?2",
         params![extension_id, binary_path],
-    ).map_err(|e| AppError::Database(format!("Failed to revoke trust: {e}")))?;
+    )
+    .map_err(|e| AppError::Database(format!("Failed to revoke trust: {e}")))?;
     Ok(())
 }
 
@@ -56,12 +69,14 @@ pub fn list_trusted(conn: &Connection, extension_id: &str) -> Result<Vec<Trusted
         "SELECT binary_path, trusted_at FROM shell_trusted_binaries WHERE extension_id = ?1 ORDER BY trusted_at DESC"
     ).map_err(|e| AppError::Database(format!("Failed to prepare list_trusted: {e}")))?;
 
-    let iter = stmt.query_map(params![extension_id], |row| {
-        Ok(TrustedBinary {
-            binary_path: row.get(0)?,
-            trusted_at: row.get(1)?,
+    let iter = stmt
+        .query_map(params![extension_id], |row| {
+            Ok(TrustedBinary {
+                binary_path: row.get(0)?,
+                trusted_at: row.get(1)?,
+            })
         })
-    }).map_err(|e| AppError::Database(format!("Failed to query trusted binaries: {e}")))?;
+        .map_err(|e| AppError::Database(format!("Failed to query trusted binaries: {e}")))?;
 
     let mut results = Vec::new();
     for item in iter {
@@ -74,6 +89,7 @@ pub fn cleanup_extension(conn: &Connection, extension_id: &str) -> Result<(), Ap
     conn.execute(
         "DELETE FROM shell_trusted_binaries WHERE extension_id = ?1",
         params![extension_id],
-    ).map_err(|e| AppError::Database(format!("Failed to cleanup shell trust for extension: {e}")))?;
+    )
+    .map_err(|e| AppError::Database(format!("Failed to cleanup shell trust for extension: {e}")))?;
     Ok(())
 }

@@ -4,8 +4,8 @@
 //! agent run that paste-replaces the trigger.
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 const MAX_DISPATCHES_PER_MIN: usize = 10;
@@ -141,7 +141,9 @@ use tauri::{AppHandle, Emitter, Listener, Manager};
 
 pub fn install_shortcode_miss_listener(app: AppHandle) {
     let Some(window) = app.get_webview_window(crate::SPOTLIGHT_LABEL) else {
-        log::warn!("[inline-emoji-fallback] main window not found; shortcode-miss listener not installed");
+        log::warn!(
+            "[inline-emoji-fallback] main window not found; shortcode-miss listener not installed"
+        );
         return;
     };
     let app_for_handler = app.clone();
@@ -159,7 +161,9 @@ pub fn install_shortcode_miss_listener(app: AppHandle) {
         };
 
         let state = app_for_handler.state::<crate::AppState>();
-        let decision = state.inline_emoji_fallback.evaluate(&shortcode, std::time::Instant::now());
+        let decision = state
+            .inline_emoji_fallback
+            .evaluate(&shortcode, std::time::Instant::now());
 
         match decision {
             DispatchDecision::Dispatch => {
@@ -200,7 +204,10 @@ mod tests {
     #[test]
     fn first_miss_dispatches() {
         let s = InlineEmojiFallbackState::default();
-        assert!(matches!(s.evaluate(":party:", Instant::now()), DispatchDecision::Dispatch));
+        assert!(matches!(
+            s.evaluate(":party:", Instant::now()),
+            DispatchDecision::Dispatch
+        ));
     }
 
     #[test]
@@ -208,7 +215,10 @@ mod tests {
         let s = InlineEmojiFallbackState::default();
         let now = Instant::now();
         let _ = s.evaluate(":party:", now);
-        assert!(matches!(s.evaluate(":party:", now), DispatchDecision::SkipInFlight));
+        assert!(matches!(
+            s.evaluate(":party:", now),
+            DispatchDecision::SkipInFlight
+        ));
     }
 
     #[test]
@@ -227,7 +237,10 @@ mod tests {
         let now = Instant::now();
         let _ = s.evaluate(":asdfgh:", now);
         s.record_outcome(":asdfgh:", CacheEntry::Miss, now);
-        assert!(matches!(s.evaluate(":asdfgh:", now), DispatchDecision::SkipCached));
+        assert!(matches!(
+            s.evaluate(":asdfgh:", now),
+            DispatchDecision::SkipCached
+        ));
     }
 
     #[test]
@@ -240,7 +253,10 @@ mod tests {
             s.record_outcome(&key, CacheEntry::Miss, now);
             s.forget(&key);
         }
-        assert!(matches!(s.evaluate(":x11:", now), DispatchDecision::SkipRateLimit));
+        assert!(matches!(
+            s.evaluate(":x11:", now),
+            DispatchDecision::SkipRateLimit
+        ));
     }
 
     #[test]
@@ -254,7 +270,10 @@ mod tests {
             s.forget(&key);
         }
         let later = start + Duration::from_secs(61);
-        assert!(matches!(s.evaluate(":y11:", later), DispatchDecision::Dispatch));
+        assert!(matches!(
+            s.evaluate(":y11:", later),
+            DispatchDecision::Dispatch
+        ));
     }
 
     #[test]
@@ -263,7 +282,10 @@ mod tests {
         let t0 = Instant::now();
         s.record_outcome(":party:", CacheEntry::Hit("🎉".into()), t0);
         let later = t0 + CACHE_TTL + Duration::from_secs(1);
-        assert!(matches!(s.evaluate(":party:", later), DispatchDecision::Dispatch));
+        assert!(matches!(
+            s.evaluate(":party:", later),
+            DispatchDecision::Dispatch
+        ));
     }
 
     #[test]
@@ -272,7 +294,10 @@ mod tests {
         let t = Instant::now();
         s.record_outcome(":party:", CacheEntry::Hit("🎉".into()), t);
         s.forget(":party:");
-        assert!(matches!(s.evaluate(":party:", t), DispatchDecision::Dispatch));
+        assert!(matches!(
+            s.evaluate(":party:", t),
+            DispatchDecision::Dispatch
+        ));
     }
 
     #[test]
@@ -291,7 +316,9 @@ mod tests {
         let s = InlineEmojiFallbackState::default();
         let t = Instant::now();
         s.record_outcome(":party:", CacheEntry::Hit("🎉".into()), t);
-        assert!(matches!(s.evaluate(":party:", t), DispatchDecision::UseCached(ref e) if e == "🎉"));
+        assert!(
+            matches!(s.evaluate(":party:", t), DispatchDecision::UseCached(ref e) if e == "🎉")
+        );
     }
 
     #[test]
@@ -303,7 +330,10 @@ mod tests {
         }
         s.record_outcome(":overflow:", CacheEntry::Hit("X".into()), t);
         let snap_keys: Vec<String> = s.snapshot_hits().iter().map(|(k, _)| k.clone()).collect();
-        assert!(!snap_keys.contains(&":k0:".to_string()), ":k0: should have been evicted");
+        assert!(
+            !snap_keys.contains(&":k0:".to_string()),
+            ":k0: should have been evicted"
+        );
         assert!(snap_keys.contains(&":overflow:".to_string()));
     }
 

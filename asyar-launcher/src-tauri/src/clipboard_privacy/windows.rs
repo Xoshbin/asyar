@@ -1,6 +1,6 @@
+use windows::Win32::System::Com::{IDataObject, IEnumFORMATETC, DATADIR_GET, FORMATETC};
 use windows::Win32::System::DataExchange::GetClipboardFormatNameW;
 use windows::Win32::System::Ole::{OleGetClipboard, OleInitialize};
-use windows::Win32::System::Com::{IDataObject, IEnumFORMATETC, FORMATETC, DATADIR_GET};
 
 /// Read the current Windows clipboard's registered format names.
 ///
@@ -28,11 +28,7 @@ pub fn read_pasteboard_types() -> Vec<String> {
         loop {
             let mut formats = [FORMATETC::default(); 1];
             let mut fetched = 0u32;
-            if enumerator
-                .Next(&mut formats, Some(&mut fetched))
-                .is_err()
-                || fetched == 0
-            {
+            if enumerator.Next(&mut formats, Some(&mut fetched)).is_err() || fetched == 0 {
                 break;
             }
             let cf = formats[0].cfFormat as u32;

@@ -1,5 +1,5 @@
-use base64::Engine;
 use crate::error::AppError;
+use base64::Engine;
 use rand::RngExt;
 use sha2::{Digest, Sha256};
 
@@ -122,7 +122,10 @@ mod tests {
             url.contains("redirect_uri=asyar%3A%2F%2Foauth%2Fcallback"),
             "missing redirect_uri"
         );
-        assert!(url.contains("code_challenge=abc123challenge"), "missing code_challenge");
+        assert!(
+            url.contains("code_challenge=abc123challenge"),
+            "missing code_challenge"
+        );
         assert!(url.contains("code_challenge_method=S256"), "missing method");
         assert!(url.contains("state=xyz-state"), "missing state");
     }

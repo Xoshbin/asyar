@@ -164,7 +164,10 @@ pub fn dispatch_to_extension(
 ) -> Result<IpcDispatchOutcome, AppError> {
     let emitter = TauriEventEmitter { app };
     let manifest_lookup = |id: &str| {
-        let guard = registry.extensions.lock().expect("ExtensionRegistryState poisoned");
+        let guard = registry
+            .extensions
+            .lock()
+            .expect("ExtensionRegistryState poisoned");
         guard.get(id).map(|r| r.manifest.clone())
     };
     let is_onboarded_lookup = |id: &str| {
@@ -293,7 +296,13 @@ pub fn auto_mount_worker(
     extension_id: String,
 ) -> bool {
     let emitter = TauriEventEmitter { app: app.clone() };
-    auto_mount_worker_inner(mgr, &emitter, has_background_main, extension_id, Instant::now())
+    auto_mount_worker_inner(
+        mgr,
+        &emitter,
+        has_background_main,
+        extension_id,
+        Instant::now(),
+    )
 }
 
 /// Pure batch-restoration logic. Iterates `snapshots` (id, has_background_main)
@@ -486,13 +495,29 @@ mod tests {
         let stash = StashRegistry::default();
         let now = Instant::now();
         dispatch_to_extension_inner(
-            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
-            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
-        ).unwrap();
+            &mgr,
+            &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
+            "ext.a".into(),
+            ipc(TriggerSource::Search),
+            ContextRole::View,
+            now,
+        )
+        .unwrap();
         let out = dispatch_to_extension_inner(
-            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
-            "ext.a".into(), ipc(TriggerSource::Argument), ContextRole::View, now,
-        ).unwrap();
+            &mgr,
+            &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
+            "ext.a".into(),
+            ipc(TriggerSource::Argument),
+            ContextRole::View,
+            now,
+        )
+        .unwrap();
         assert!(matches!(out, IpcDispatchOutcome::MountingWaitForReady));
         assert_eq!(emitter.events().len(), 1);
     }
@@ -504,9 +529,17 @@ mod tests {
         let stash = StashRegistry::default();
         let now = Instant::now();
         let out = dispatch_to_extension_inner(
-            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
-            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
-        ).unwrap();
+            &mgr,
+            &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
+            "ext.a".into(),
+            ipc(TriggerSource::Search),
+            ContextRole::View,
+            now,
+        )
+        .unwrap();
         let token = match out {
             IpcDispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
@@ -524,9 +557,17 @@ mod tests {
         let stash = StashRegistry::default();
         let now = Instant::now();
         dispatch_to_extension_inner(
-            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
-            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
-        ).unwrap();
+            &mgr,
+            &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
+            "ext.a".into(),
+            ipc(TriggerSource::Search),
+            ContextRole::View,
+            now,
+        )
+        .unwrap();
         let drained =
             iframe_ready_ack_inner(&mgr, "ext.a".into(), 9999, ContextRole::View, now).unwrap();
         assert!(drained.is_empty());
@@ -538,14 +579,30 @@ mod tests {
         let emitter = RecordingEmitter::default();
         let stash = StashRegistry::default();
         dispatch_to_extension_inner(
-            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
-            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, Instant::now(),
-        ).unwrap();
+            &mgr,
+            &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
+            "ext.a".into(),
+            ipc(TriggerSource::Search),
+            ContextRole::View,
+            Instant::now(),
+        )
+        .unwrap();
         iframe_unmount_ack_inner(&mgr, "ext.a".into(), ContextRole::View).unwrap();
         let out = dispatch_to_extension_inner(
-            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
-            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, Instant::now(),
-        ).unwrap();
+            &mgr,
+            &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
+            "ext.a".into(),
+            ipc(TriggerSource::Search),
+            ContextRole::View,
+            Instant::now(),
+        )
+        .unwrap();
         assert!(matches!(out, IpcDispatchOutcome::NeedsMount { .. }));
     }
 
@@ -556,16 +613,30 @@ mod tests {
         let stash = StashRegistry::default();
         let now = Instant::now();
         let out = dispatch_to_extension_inner(
-            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
-            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
-        ).unwrap();
+            &mgr,
+            &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
+            "ext.a".into(),
+            ipc(TriggerSource::Search),
+            ContextRole::View,
+            now,
+        )
+        .unwrap();
         let token = match out {
             IpcDispatchOutcome::NeedsMount { mount_token } => mount_token,
             _ => panic!(),
         };
         iframe_mount_timeout_reported_inner(
-            &mgr, &emitter, "ext.a".into(), token, ContextRole::View, now,
-        ).unwrap();
+            &mgr,
+            &emitter,
+            "ext.a".into(),
+            token,
+            ContextRole::View,
+            now,
+        )
+        .unwrap();
         let events = emitter.events();
         assert_eq!(events.len(), 2);
         assert_eq!(events[1].0, EVENT_UNMOUNT);
@@ -579,9 +650,17 @@ mod tests {
         let emitter = RecordingEmitter::default();
         let stash = StashRegistry::default();
         dispatch_to_extension_inner(
-            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
-            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, Instant::now(),
-        ).unwrap();
+            &mgr,
+            &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
+            "ext.a".into(),
+            ipc(TriggerSource::Search),
+            ContextRole::View,
+            Instant::now(),
+        )
+        .unwrap();
         let snap = get_extension_runtime_snapshot_inner(&mgr).unwrap();
         let entry = snap.iter().find(|e| e.extension_id == "ext.a").unwrap();
         assert_eq!(entry.state, "mounting");
@@ -623,20 +702,45 @@ mod tests {
         let stash = StashRegistry::default();
         let now = Instant::now();
         let worker_out = dispatch_to_extension_inner(
-            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
-            "ext.a".into(), ipc(TriggerSource::Schedule), ContextRole::Worker, now,
-        ).unwrap();
+            &mgr,
+            &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
+            "ext.a".into(),
+            ipc(TriggerSource::Schedule),
+            ContextRole::Worker,
+            now,
+        )
+        .unwrap();
         let view_out = dispatch_to_extension_inner(
-            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
-            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, now,
-        ).unwrap();
-        assert!(matches!(worker_out, IpcDispatchOutcome::NeedsMount { .. }),
-            "worker dispatch must need mount");
-        assert!(matches!(view_out, IpcDispatchOutcome::NeedsMount { .. }),
-            "view dispatch must independently need mount");
+            &mgr,
+            &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
+            "ext.a".into(),
+            ipc(TriggerSource::Search),
+            ContextRole::View,
+            now,
+        )
+        .unwrap();
+        assert!(
+            matches!(worker_out, IpcDispatchOutcome::NeedsMount { .. }),
+            "worker dispatch must need mount"
+        );
+        assert!(
+            matches!(view_out, IpcDispatchOutcome::NeedsMount { .. }),
+            "view dispatch must independently need mount"
+        );
         let events = emitter.events();
-        assert_eq!(events.len(), 2, "both worker and view must emit mount events independently");
-        let roles: Vec<&str> = events.iter()
+        assert_eq!(
+            events.len(),
+            2,
+            "both worker and view must emit mount events independently"
+        );
+        let roles: Vec<&str> = events
+            .iter()
             .map(|(_, v)| v["role"].as_str().unwrap_or(""))
             .collect();
         assert!(roles.contains(&"worker"), "must have worker mount event");
@@ -649,9 +753,17 @@ mod tests {
         let emitter = RecordingEmitter::default();
         let stash = StashRegistry::default();
         dispatch_to_extension_inner(
-            &mgr, &emitter, &no_manifest, &always_onboarded, &stash,
-            "ext.a".into(), ipc(TriggerSource::Search), ContextRole::View, Instant::now(),
-        ).unwrap();
+            &mgr,
+            &emitter,
+            &no_manifest,
+            &always_onboarded,
+            &stash,
+            "ext.a".into(),
+            ipc(TriggerSource::Search),
+            ContextRole::View,
+            Instant::now(),
+        )
+        .unwrap();
         notify_extension_removed_inner(&mgr, &emitter, "ext.a".into()).unwrap();
         let events = emitter.events();
         let last = events.last().unwrap();
@@ -777,7 +889,10 @@ mod tests {
             Instant::now(),
         );
         assert!(!did_emit);
-        assert!(emitter.events().is_empty(), "no emit when extension has no background");
+        assert!(
+            emitter.events().is_empty(),
+            "no emit when extension has no background"
+        );
         // Worker machine is unchanged (still has no state for ext.a).
         assert!(mgr.worker.lock().unwrap().state("ext.a").is_none());
     }
@@ -793,7 +908,7 @@ mod tests {
         let now = Instant::now();
 
         let enabled: Vec<(&str, bool)> = vec![
-            ("ext.bg", true),   // background worker extension
+            ("ext.bg", true),    // background worker extension
             ("ext.view", false), // view-only extension
         ];
         let mut emit_count = 0;
@@ -913,9 +1028,7 @@ mod onboarding_dispatch_tests {
     use super::*;
     use crate::extensions::extension_runtime::emitter::RecordingEmitter;
     use crate::extensions::onboarding_intercept::StashRegistry;
-    use crate::extensions::{
-        ExtensionManifest, ExtensionCommand, OnboardingDecl,
-    };
+    use crate::extensions::{ExtensionCommand, ExtensionManifest, OnboardingDecl};
 
     fn make_manifest_with_onboarding() -> ExtensionManifest {
         ExtensionManifest {
@@ -965,7 +1078,9 @@ mod onboarding_dispatch_tests {
             platforms: None,
             preferences: None,
             actions: None,
-            onboarding: Some(OnboardingDecl { command: "setup".into() }),
+            onboarding: Some(OnboardingDecl {
+                command: "setup".into(),
+            }),
             tools: None,
         }
     }
@@ -998,7 +1113,10 @@ mod onboarding_dispatch_tests {
 
         // Stash must hold the original "brew" payload.
         let pending = stash.take("ext.coffee").expect("stash populated");
-        assert_eq!(pending.original_payload["commandId"], serde_json::json!("brew"));
+        assert_eq!(
+            pending.original_payload["commandId"],
+            serde_json::json!("brew")
+        );
     }
 
     #[test]

@@ -36,17 +36,16 @@ impl BuiltinTool for SearchTool {
     }
 
     async fn invoke(&self, args: serde_json::Value) -> Result<serde_json::Value, AppError> {
-        let query = args
-            .get("query")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| AppError::Validation("missing required 'query' string argument".into()))?;
+        let query = args.get("query").and_then(|v| v.as_str()).ok_or_else(|| {
+            AppError::Validation("missing required 'query' string argument".into())
+        })?;
 
         let limit: usize = match args.get("limit") {
             None | Some(serde_json::Value::Null) => 10,
             Some(serde_json::Value::Number(n)) => {
-                let i = n.as_i64().ok_or_else(|| {
-                    AppError::Validation("'limit' must be an integer".into())
-                })?;
+                let i = n
+                    .as_i64()
+                    .ok_or_else(|| AppError::Validation("'limit' must be an integer".into()))?;
                 if i < 0 {
                     return Err(AppError::Validation("'limit' must be non-negative".into()));
                 }

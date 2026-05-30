@@ -3,38 +3,42 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 pub mod discovery;
-pub mod installer;
-pub mod lifecycle;
-pub mod headless;
 pub mod extension_runtime;
 pub mod extension_state;
-pub mod onboarding_state;
+pub mod headless;
+pub mod installer;
+pub mod lifecycle;
 pub mod onboarding_intercept;
-pub mod updater;
+pub mod onboarding_state;
 pub mod scheduler;
 pub mod update_scheduler;
+pub mod updater;
 
-use tauri::{AppHandle, Manager};
 use crate::error::AppError;
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
+use tauri::{AppHandle, Manager};
 
 /// Returns the app's data directory.
 pub(crate) fn get_app_data_dir(app_handle: &AppHandle) -> Result<PathBuf, AppError> {
-    app_handle.path().app_data_dir().map_err(|e| AppError::Other(e.to_string()))
+    app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Other(e.to_string()))
 }
 
 /// Returns the path to the user extensions directory, creating it if needed.
 pub(crate) fn get_extensions_dir(app_handle: &AppHandle) -> Result<String, AppError> {
     let app_data_dir = get_app_data_dir(app_handle)?;
     let extensions_dir = app_data_dir.join("extensions");
-    
+
     // Create the directory if it doesn't exist
     if !extensions_dir.exists() {
         fs::create_dir_all(&extensions_dir)?;
     }
-    
-    extensions_dir.to_str()
+
+    extensions_dir
+        .to_str()
         .map(|s| s.to_string())
         .ok_or_else(|| AppError::Other("Invalid UTF-8 in extensions directory path".to_string()))
 }
@@ -44,16 +48,15 @@ pub(crate) fn get_builtin_features_path(app_handle: &AppHandle) -> Result<String
     #[cfg(debug_assertions)]
     {
         let current_dir = std::env::current_dir().unwrap_or_default();
-        let dev_dir = current_dir
-            .join("src")
-            .join("built-in-features");
-        
+        let dev_dir = current_dir.join("src").join("built-in-features");
+
         log::info!("[Rust] Current working directory: {:?}", current_dir);
         log::info!("[Rust] Constructing dev features path: {:?}", dev_dir);
 
         if dev_dir.exists() {
             log::info!("[Rust] Dev features path EXISTS.");
-            return Ok(dev_dir.to_str()
+            return Ok(dev_dir
+                .to_str()
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| "Invalid UTF-8 in dev features path".to_string()));
         } else {
@@ -61,30 +64,39 @@ pub(crate) fn get_builtin_features_path(app_handle: &AppHandle) -> Result<String
         }
     }
 
-    let resource_dir = app_handle.path().resource_dir()
-        .map_err(|e| AppError::Other(format!("Failed to access resource directory path resolver: {}", e)))?;
-        
+    let resource_dir = app_handle.path().resource_dir().map_err(|e| {
+        AppError::Other(format!(
+            "Failed to access resource directory path resolver: {}",
+            e
+        ))
+    })?;
+
     if !resource_dir.exists() {
-        return Err(AppError::NotFound("Resource directory does not exist".to_string()));
+        return Err(AppError::NotFound(
+            "Resource directory does not exist".to_string(),
+        ));
     }
 
     let builtin_dir = resource_dir.join("built-in-features");
 
-    builtin_dir.to_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| AppError::Other("Invalid UTF-8 in built-in features directory path".to_string()))
+    builtin_dir.to_str().map(|s| s.to_string()).ok_or_else(|| {
+        AppError::Other("Invalid UTF-8 in built-in features directory path".to_string())
+    })
 }
 
 /// Returns dev extension paths from dev_extensions.json.
-pub(crate) fn get_dev_extension_paths(app_handle: &AppHandle) -> Result<HashMap<String, String>, AppError> {
+pub(crate) fn get_dev_extension_paths(
+    app_handle: &AppHandle,
+) -> Result<HashMap<String, String>, AppError> {
     let dev_extensions_file = get_app_data_dir(app_handle)?.join("dev_extensions.json");
     if !dev_extensions_file.exists() {
         return Ok(HashMap::new());
     }
-    
+
     let content = fs::read_to_string(&dev_extensions_file)?;
-        
-    let dev_extensions: HashMap<String, String> = serde_json::from_str(&content).unwrap_or_default();
+
+    let dev_extensions: HashMap<String, String> =
+        serde_json::from_str(&content).unwrap_or_default();
     Ok(dev_extensions)
 }
 
@@ -136,9 +148,9 @@ pub struct PreferenceDeclaration {
 pub mod dynamic_commands;
 
 #[cfg(test)]
-mod manifest_tools_test;
-#[cfg(test)]
 mod lifecycle_tools_test;
+#[cfg(test)]
+mod manifest_tools_test;
 
 /// Mirrors the CommandArgumentType enum from asyar-sdk. Lower-case variants
 /// match the wire format ("text", "password", "dropdown", "number").
@@ -562,7 +574,8 @@ mod tests {
     fn test_read_manifest_valid() {
         let tmp = TempDir::new().unwrap();
         create_test_manifest(tmp.path(), "test-ext", "Test Extension");
-        let manifest = discovery::read_manifest(&tmp.path().join("test-ext/manifest.json")).unwrap();
+        let manifest =
+            discovery::read_manifest(&tmp.path().join("test-ext/manifest.json")).unwrap();
         assert_eq!(manifest.id, "test-ext");
         assert_eq!(manifest.name, "Test Extension");
         assert_eq!(manifest.commands.len(), 1);
@@ -595,7 +608,10 @@ mod tests {
         assert_eq!(m.background.as_ref().unwrap().main, "dist/worker.js");
         assert_eq!(m.searchable, Some(true));
         assert_eq!(m.icon, Some("🔍".into()));
-        assert_eq!(m.permissions, Some(vec!["clipboard:read".into(), "network".into()]));
+        assert_eq!(
+            m.permissions,
+            Some(vec!["clipboard:read".into(), "network".into()])
+        );
     }
 
     /// A single-command manifest body that passes the new schema validator.
@@ -625,15 +641,18 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let ext_dir = tmp.path();
         // Use /tmp as the prefix so validation accepts it regardless of $HOME.
-        let manifest = merge_json(valid_manifest_fields(), serde_json::json!({
-            "id": "test.fs-watch-ext",
-            "name": "FS Watch Test",
-            "version": "0.1.0",
-            "permissions": ["fs:watch"],
-            "permissionArgs": {
-                "fs:watch": ["/tmp/asyar-fs-watch/**", "/tmp/asyar-ssh-config"]
-            }
-        }));
+        let manifest = merge_json(
+            valid_manifest_fields(),
+            serde_json::json!({
+                "id": "test.fs-watch-ext",
+                "name": "FS Watch Test",
+                "version": "0.1.0",
+                "permissions": ["fs:watch"],
+                "permissionArgs": {
+                    "fs:watch": ["/tmp/asyar-fs-watch/**", "/tmp/asyar-ssh-config"]
+                }
+            }),
+        );
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
 
         let m = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap();
@@ -648,12 +667,15 @@ mod tests {
     fn rejects_manifest_declaring_fs_watch_without_args() {
         let tmp = TempDir::new().unwrap();
         let ext_dir = tmp.path();
-        let manifest = merge_json(valid_manifest_fields(), serde_json::json!({
-            "id": "bad.ext",
-            "name": "Bad",
-            "version": "0.1.0",
-            "permissions": ["fs:watch"]
-        }));
+        let manifest = merge_json(
+            valid_manifest_fields(),
+            serde_json::json!({
+                "id": "bad.ext",
+                "name": "Bad",
+                "version": "0.1.0",
+                "permissions": ["fs:watch"]
+            }),
+        );
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
         let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
         assert!(format!("{err}").contains("fs:watch"), "got: {err}");
@@ -663,14 +685,17 @@ mod tests {
     fn rejects_manifest_declaring_fs_watch_args_without_permission() {
         let tmp = TempDir::new().unwrap();
         let ext_dir = tmp.path();
-        let manifest = merge_json(valid_manifest_fields(), serde_json::json!({
-            "id": "bad.ext",
-            "name": "Bad",
-            "version": "0.1.0",
-            "permissionArgs": {
-                "fs:watch": ["/tmp/foo"]
-            }
-        }));
+        let manifest = merge_json(
+            valid_manifest_fields(),
+            serde_json::json!({
+                "id": "bad.ext",
+                "name": "Bad",
+                "version": "0.1.0",
+                "permissionArgs": {
+                    "fs:watch": ["/tmp/foo"]
+                }
+            }),
+        );
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
         let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
         assert!(format!("{err}").contains("fs:watch"), "got: {err}");
@@ -680,13 +705,16 @@ mod tests {
     fn rejects_manifest_with_fs_watch_non_array_value() {
         let tmp = TempDir::new().unwrap();
         let ext_dir = tmp.path();
-        let manifest = merge_json(valid_manifest_fields(), serde_json::json!({
-            "id": "bad.ext",
-            "name": "Bad",
-            "version": "0.1.0",
-            "permissions": ["fs:watch"],
-            "permissionArgs": { "fs:watch": "/tmp/foo" }
-        }));
+        let manifest = merge_json(
+            valid_manifest_fields(),
+            serde_json::json!({
+                "id": "bad.ext",
+                "name": "Bad",
+                "version": "0.1.0",
+                "permissions": ["fs:watch"],
+                "permissionArgs": { "fs:watch": "/tmp/foo" }
+            }),
+        );
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
         let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
         assert!(format!("{err}").contains("fs:watch"), "got: {err}");
@@ -696,13 +724,16 @@ mod tests {
     fn rejects_manifest_with_fs_watch_pattern_outside_home() {
         let tmp = TempDir::new().unwrap();
         let ext_dir = tmp.path();
-        let manifest = merge_json(valid_manifest_fields(), serde_json::json!({
-            "id": "bad.ext",
-            "name": "Bad",
-            "version": "0.1.0",
-            "permissions": ["fs:watch"],
-            "permissionArgs": { "fs:watch": ["/etc/passwd"] }
-        }));
+        let manifest = merge_json(
+            valid_manifest_fields(),
+            serde_json::json!({
+                "id": "bad.ext",
+                "name": "Bad",
+                "version": "0.1.0",
+                "permissions": ["fs:watch"],
+                "permissionArgs": { "fs:watch": ["/etc/passwd"] }
+            }),
+        );
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
         let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
         assert!(format!("{err}").contains("must resolve"), "got: {err}");
@@ -741,7 +772,7 @@ mod tests {
         fs::create_dir_all(tmp.path().join("not-an-ext")).unwrap();
         // Add a file (should be skipped)
         fs::write(tmp.path().join("random.txt"), "hello").unwrap();
-        
+
         let records = discovery::scan_extensions_dir(tmp.path(), false);
         assert_eq!(records.len(), 2);
         assert!(records.iter().all(|r| !r.is_built_in));
@@ -751,7 +782,7 @@ mod tests {
     fn test_scan_extensions_dir_built_in() {
         let tmp = TempDir::new().unwrap();
         create_test_manifest(tmp.path(), "calculator", "Calculator");
-        
+
         let records = discovery::scan_extensions_dir(tmp.path(), true);
         assert_eq!(records.len(), 1);
         assert!(records[0].is_built_in);
@@ -771,7 +802,7 @@ mod tests {
         fs::create_dir_all(&ext_dir).unwrap();
         fs::write(ext_dir.join("manifest.json"), "not valid json").unwrap();
         create_test_manifest(tmp.path(), "good-ext", "Good");
-        
+
         let records = discovery::scan_extensions_dir(tmp.path(), false);
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].manifest.id, "good-ext");
@@ -795,7 +826,10 @@ mod tests {
         }"#;
         let def: ThemeDefinition = serde_json::from_str(json).unwrap();
         assert_eq!(def.variables.len(), 2);
-        assert_eq!(def.variables.get("--bg-primary").unwrap(), "rgba(25, 25, 35, 0.85)");
+        assert_eq!(
+            def.variables.get("--bg-primary").unwrap(),
+            "rgba(25, 25, 35, 0.85)"
+        );
         assert_eq!(def.fonts.len(), 1);
         assert_eq!(def.fonts[0].family, "Inter");
         assert_eq!(def.fonts[0].src, "fonts/Inter-Regular.woff2");
@@ -833,34 +867,37 @@ mod tests {
         let mut reg = registry.extensions.lock().unwrap();
         assert!(reg.is_empty());
 
-        reg.insert("test".into(), ExtensionRecord {
-            manifest: ExtensionManifest {
-                id: "test".into(),
-                name: "Test".into(),
-                version: "1.0.0".into(),
-                description: String::new(),
-                author: None,
-                extension_type: None,
-                background: None,
-                searchable: None,
-                icon: None,
-                commands: vec![],
-                permissions: None,
-                permission_args: None,
-                min_app_version: None,
-                asyar_sdk: None,
-                platforms: None,
-                preferences: None,
-                actions: None,
-                onboarding: None,
-                tools: None,
+        reg.insert(
+            "test".into(),
+            ExtensionRecord {
+                manifest: ExtensionManifest {
+                    id: "test".into(),
+                    name: "Test".into(),
+                    version: "1.0.0".into(),
+                    description: String::new(),
+                    author: None,
+                    extension_type: None,
+                    background: None,
+                    searchable: None,
+                    icon: None,
+                    commands: vec![],
+                    permissions: None,
+                    permission_args: None,
+                    min_app_version: None,
+                    asyar_sdk: None,
+                    platforms: None,
+                    preferences: None,
+                    actions: None,
+                    onboarding: None,
+                    tools: None,
+                },
+                enabled: true,
+                is_built_in: false,
+                path: "/tmp/test".into(),
+                compatibility: CompatibilityStatus::Unknown,
+                first_view_component: None,
             },
-            enabled: true,
-            is_built_in: false,
-            path: "/tmp/test".into(),
-            compatibility: CompatibilityStatus::Unknown,
-            first_view_component: None,
-        });
+        );
         assert_eq!(reg.len(), 1);
     }
 
@@ -891,7 +928,9 @@ mod tests {
 
     #[test]
     fn test_schedule_roundtrip_serialization() {
-        let decl = ScheduleDeclaration { interval_seconds: 600 };
+        let decl = ScheduleDeclaration {
+            interval_seconds: 600,
+        };
         let json = serde_json::to_string(&decl).unwrap();
         let parsed: ScheduleDeclaration = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.interval_seconds, 600);
@@ -934,7 +973,16 @@ mod tests {
 
     #[test]
     fn preference_type_accepts_all_supported_variants() {
-        for t in &["textfield", "password", "number", "checkbox", "dropdown", "appPicker", "file", "directory"] {
+        for t in &[
+            "textfield",
+            "password",
+            "number",
+            "checkbox",
+            "dropdown",
+            "appPicker",
+            "file",
+            "directory",
+        ] {
             let json = format!(r#"{{ "name":"x", "type":"{}", "title":"x" }}"#, t);
             let _: PreferenceDeclaration = serde_json::from_str(&json)
                 .unwrap_or_else(|e| panic!("Failed to parse type {}: {}", t, e));

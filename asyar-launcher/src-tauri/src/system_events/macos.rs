@@ -160,12 +160,8 @@ fn start_system_power_listener(hub: Arc<SystemEventsHub>) {
             let refcon = refcon_addr as *mut std::ffi::c_void;
             let mut port: *mut std::ffi::c_void = std::ptr::null_mut();
             let mut notifier: u32 = 0;
-            let kernel_port = IORegisterForSystemPower(
-                refcon,
-                &mut port,
-                system_power_callback,
-                &mut notifier,
-            );
+            let kernel_port =
+                IORegisterForSystemPower(refcon, &mut port, system_power_callback, &mut notifier);
             if kernel_port == 0 || port.is_null() {
                 log::warn!("[system_events/macos] IORegisterForSystemPower failed");
                 return;
@@ -231,10 +227,7 @@ fn read_clamshell_closed() -> Option<bool> {
 
     extern "C" {
         fn IOServiceMatching(name: *const std::os::raw::c_char) -> CFDictionaryRef;
-        fn IOServiceGetMatchingService(
-            master_port: u32,
-            matching: CFDictionaryRef,
-        ) -> u32;
+        fn IOServiceGetMatchingService(master_port: u32, matching: CFDictionaryRef) -> u32;
         fn IORegistryEntryCreateCFProperty(
             entry: u32,
             key: CFStringRef,
@@ -335,13 +328,11 @@ fn read_power_snapshot() -> Option<PowerSnapshot> {
                 Some(p) => p,
                 None => continue,
             };
-            let desc_ref =
-                IOPSGetPowerSourceDescription(blob, ps_item.as_CFTypeRef() as *const _);
+            let desc_ref = IOPSGetPowerSourceDescription(blob, ps_item.as_CFTypeRef() as *const _);
             if desc_ref.is_null() {
                 continue;
             }
-            let desc: CFDictionary<CFString, CFType> =
-                CFDictionary::wrap_under_get_rule(desc_ref);
+            let desc: CFDictionary<CFString, CFType> = CFDictionary::wrap_under_get_rule(desc_ref);
 
             let state_key = CFString::new("Power Source State");
             if let Some(v) = desc.find(&state_key) {
@@ -366,6 +357,9 @@ fn read_power_snapshot() -> Option<PowerSnapshot> {
         }
         core_foundation::base::CFRelease(blob);
 
-        Some(PowerSnapshot { percent, on_battery })
+        Some(PowerSnapshot {
+            percent,
+            on_battery,
+        })
     }
 }

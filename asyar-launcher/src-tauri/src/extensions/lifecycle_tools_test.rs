@@ -11,8 +11,8 @@ mod lifecycle_tools_tests {
 
     use crate::agents::tools::{ManifestTool, ToolRegistry, ToolSource};
     use crate::extensions::{
-        BackgroundSpec, ExtensionManifest, ExtensionRecord, ExtensionRegistryState,
-        CompatibilityStatus,
+        BackgroundSpec, CompatibilityStatus, ExtensionManifest, ExtensionRecord,
+        ExtensionRegistryState,
     };
     use tauri::Manager;
 
@@ -35,7 +35,9 @@ mod lifecycle_tools_tests {
             description: String::new(),
             author: None,
             extension_type: Some("extension".to_string()),
-            background: Some(BackgroundSpec { main: "dist/worker.js".to_string() }),
+            background: Some(BackgroundSpec {
+                main: "dist/worker.js".to_string(),
+            }),
             searchable: None,
             icon: None,
             commands: vec![],
@@ -103,7 +105,8 @@ mod lifecycle_tools_tests {
             fqids
         );
         assert!(
-            list.iter().any(|d| d.source == ToolSource::Tier2(extension_id.to_string())),
+            list.iter()
+                .any(|d| d.source == ToolSource::Tier2(extension_id.to_string())),
             "tool source must be Tier2(extension_id)"
         );
     }
@@ -164,7 +167,11 @@ mod lifecycle_tools_tests {
             .register_tier2(extension_id, vec![manifest_tool("run")])
             .unwrap();
 
-        assert_eq!(tool_registry.list_all().len(), 1, "tool must be present before uninstall");
+        assert_eq!(
+            tool_registry.list_all().len(),
+            1,
+            "tool must be present before uninstall"
+        );
 
         let app = tauri::test::mock_app();
 
@@ -217,7 +224,9 @@ mod lifecycle_tools_tests {
             .map(|d| d.fully_qualified_id.clone())
             .collect();
         assert!(
-            fqids.iter().any(|s| s == "ext.via-managed-state-enable:run"),
+            fqids
+                .iter()
+                .any(|s| s == "ext.via-managed-state-enable:run"),
             "tool must be registered via managed-state path; got {:?}",
             fqids,
         );

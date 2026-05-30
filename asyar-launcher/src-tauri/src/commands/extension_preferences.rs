@@ -52,7 +52,9 @@ pub async fn extension_preferences_set(
     keystore: State<'_, KeystoreState>,
 ) -> Result<(), AppError> {
     if extension_id.trim().is_empty() {
-        return Err(AppError::Validation("extension_id cannot be empty".to_string()));
+        return Err(AppError::Validation(
+            "extension_id cannot be empty".to_string(),
+        ));
     }
     if key.trim().is_empty() {
         return Err(AppError::Validation("key cannot be empty".to_string()));
@@ -80,7 +82,9 @@ pub async fn extension_preferences_reset(
     data_store: State<'_, DataStore>,
 ) -> Result<(), AppError> {
     if extension_id.trim().is_empty() {
-        return Err(AppError::Validation("extension_id cannot be empty".to_string()));
+        return Err(AppError::Validation(
+            "extension_id cannot be empty".to_string(),
+        ));
     }
     {
         let conn = data_store.conn()?;
@@ -108,7 +112,11 @@ pub async fn extension_preferences_import_all(
     let strat = match strategy.as_str() {
         "replace" => prefs_store::ImportStrategy::Replace,
         "merge" => prefs_store::ImportStrategy::Merge,
-        other => return Err(AppError::Validation(format!("Unknown import strategy: {other}"))),
+        other => {
+            return Err(AppError::Validation(format!(
+                "Unknown import strategy: {other}"
+            )))
+        }
     };
     let conn = data_store.conn()?;
     prefs_store::import_all(&conn, payload, strat, keystore.master_key())

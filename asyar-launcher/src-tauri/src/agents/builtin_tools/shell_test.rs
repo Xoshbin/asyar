@@ -20,7 +20,9 @@ fn descriptor_has_expected_shape() {
         "parameters.properties.command must be present, got {params}"
     );
 
-    let required = params["required"].as_array().expect("required must be array");
+    let required = params["required"]
+        .as_array()
+        .expect("required must be array");
     assert!(
         required.iter().any(|v| v.as_str() == Some("command")),
         "required must include 'command', got {required:?}"
@@ -111,10 +113,7 @@ async fn invoke_returns_error_for_missing_command() {
     let tool = ShellExecTool::new();
     let result = tool.invoke(json!({})).await;
 
-    assert!(
-        result.is_err(),
-        "missing 'command' must return Err, got Ok"
-    );
+    assert!(result.is_err(), "missing 'command' must return Err, got Ok");
     match result.unwrap_err() {
         AppError::Validation(msg) => assert!(
             msg.contains("command"),
@@ -169,10 +168,7 @@ async fn invoke_returns_error_for_non_array_args() {
         .invoke(json!({ "command": "echo", "args": "not-array" }))
         .await;
 
-    assert!(
-        result.is_err(),
-        "non-array 'args' must return Err, got Ok"
-    );
+    assert!(result.is_err(), "non-array 'args' must return Err, got Ok");
     match result.unwrap_err() {
         AppError::Validation(_) => {}
         other => panic!("expected AppError::Validation, got {other:?}"),
@@ -233,7 +229,10 @@ async fn invoke_treats_args_as_omitted_when_missing() {
     let tool = ShellExecTool::new();
     let result = tool.invoke(json!({ "command": "echo" })).await;
 
-    assert!(result.is_ok(), "expected Ok when args omitted, got {result:?}");
+    assert!(
+        result.is_ok(),
+        "expected Ok when args omitted, got {result:?}"
+    );
     let val = result.unwrap();
     assert_eq!(
         val["exitCode"],

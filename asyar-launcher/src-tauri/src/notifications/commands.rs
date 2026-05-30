@@ -80,7 +80,9 @@ pub fn validate_and_flatten(inputs: &[ActionInput]) -> Result<Vec<BackendAction>
         .iter()
         .map(|a| {
             if a.id.is_empty() {
-                return Err(AppError::Validation("notification action missing id".into()));
+                return Err(AppError::Validation(
+                    "notification action missing id".into(),
+                ));
             }
             if a.title.is_empty() {
                 return Err(AppError::Validation(format!(
@@ -124,7 +126,12 @@ mod tests {
     #[test]
     fn flattens_valid_actions_and_serialises_args() {
         let out = validate_and_flatten(&[
-            input("extend", "Extend", "coffee.extend", Some(serde_json::json!({"minutes": 30}))),
+            input(
+                "extend",
+                "Extend",
+                "coffee.extend",
+                Some(serde_json::json!({"minutes": 30})),
+            ),
             input("stop", "Stop", "coffee.stop", None),
         ])
         .unwrap();

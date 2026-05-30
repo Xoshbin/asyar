@@ -21,8 +21,7 @@ pub const VERSION_PREFIX: &str = "enc:v1:";
 /// re-encrypting the same plaintext under the same key produces a
 /// different ciphertext, which is the AES-GCM contract.
 pub fn encrypt(plaintext: &str, key: &[u8; 32]) -> Result<String, AppError> {
-    let cipher =
-        Aes256Gcm::new_from_slice(key).map_err(|e| AppError::Encryption(e.to_string()))?;
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| AppError::Encryption(e.to_string()))?;
 
     let nonce_bytes: [u8; 12] = rand::random();
     let nonce = Nonce::from_slice(&nonce_bytes);
@@ -58,13 +57,12 @@ pub fn decrypt(value: &str, key: &[u8; 32]) -> Result<String, AppError> {
     }
 
     let (nonce_bytes, ciphertext) = combined.split_at(12);
-    let cipher =
-        Aes256Gcm::new_from_slice(key).map_err(|e| AppError::Encryption(e.to_string()))?;
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| AppError::Encryption(e.to_string()))?;
     let nonce = Nonce::from_slice(nonce_bytes);
 
-    let plaintext = cipher
-        .decrypt(nonce, ciphertext)
-        .map_err(|_| AppError::Encryption("Decryption failed — wrong key or tampered ciphertext".into()))?;
+    let plaintext = cipher.decrypt(nonce, ciphertext).map_err(|_| {
+        AppError::Encryption("Decryption failed — wrong key or tampered ciphertext".into())
+    })?;
 
     String::from_utf8(plaintext)
         .map_err(|e| AppError::Encryption(format!("UTF-8 decode failed: {e}")))
@@ -125,7 +123,10 @@ mod tests {
         let key = test_key();
         let e1 = encrypt("same input", &key).unwrap();
         let e2 = encrypt("same input", &key).unwrap();
-        assert_ne!(e1, e2, "two encrypts of same plaintext must differ (random nonce)");
+        assert_ne!(
+            e1, e2,
+            "two encrypts of same plaintext must differ (random nonce)"
+        );
     }
 
     #[test]
@@ -187,6 +188,9 @@ mod tests {
         assert!(is_encrypted_value("enc:v1:abc"));
         assert!(!is_encrypted_value("plain"));
         assert!(!is_encrypted_value(""));
-        assert!(!is_encrypted_value("enc:aes256gcm:abc"), "legacy prefix is not v1");
+        assert!(
+            !is_encrypted_value("enc:aes256gcm:abc"),
+            "legacy prefix is not v1"
+        );
     }
 }

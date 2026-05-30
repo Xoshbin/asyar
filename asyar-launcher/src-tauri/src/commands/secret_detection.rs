@@ -58,7 +58,10 @@ mod tests {
         let state = SecretDetectionState::new();
         let r = redact_inner("key=AKIAIOSFODNN7EXAMPLE", &state);
         assert_eq!(r.kinds, vec!["aws_access_key".to_string()]);
-        assert_eq!(state.get_session_stats().get("aws_access_key").copied(), Some(1));
+        assert_eq!(
+            state.get_session_stats().get("aws_access_key").copied(),
+            Some(1)
+        );
     }
 
     #[test]

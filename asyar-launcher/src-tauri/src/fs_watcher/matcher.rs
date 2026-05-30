@@ -90,9 +90,9 @@ pub fn paths_covered_by_patterns(
             }
         }
     }
-    let set = builder.build().map_err(|e| {
-        AppError::Validation(format!("fs:watch: failed to build glob set: {}", e))
-    })?;
+    let set = builder
+        .build()
+        .map_err(|e| AppError::Validation(format!("fs:watch: failed to build glob set: {}", e)))?;
     for r in requested {
         if !set.is_match(r) {
             return Err(AppError::Validation(format!(

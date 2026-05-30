@@ -60,15 +60,15 @@ mod watcher {
     use super::*;
     use crate::app_events::{AppEvent, AppEventsHub, AppEventsWatcher, AppPresenceQuery};
     use crate::error::AppError;
-    use log::{info, warn};
-    use std::sync::Arc;
-    use std::sync::OnceLock;
     use ::windows::Win32::Foundation::HWND;
     use ::windows::Win32::UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK};
     use ::windows::Win32::UI::WindowsAndMessaging::{
-        DispatchMessageW, GetMessageW, GetWindowThreadProcessId, TranslateMessage, MSG,
-        EVENT_SYSTEM_FOREGROUND, WINEVENT_OUTOFCONTEXT,
+        DispatchMessageW, GetMessageW, GetWindowThreadProcessId, TranslateMessage,
+        EVENT_SYSTEM_FOREGROUND, MSG, WINEVENT_OUTOFCONTEXT,
     };
+    use log::{info, warn};
+    use std::sync::Arc;
+    use std::sync::OnceLock;
 
     static HUB_PTR: OnceLock<usize> = OnceLock::new();
 
@@ -333,8 +333,8 @@ mod watcher {
                 let target = bundle_id.to_ascii_lowercase();
                 loop {
                     let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(0);
-                    let name = String::from_utf16_lossy(&entry.szExeFile[..len])
-                        .to_ascii_lowercase();
+                    let name =
+                        String::from_utf16_lossy(&entry.szExeFile[..len]).to_ascii_lowercase();
                     if name == target || exe_basename_without_ext(&name) == target {
                         return true;
                     }
@@ -364,15 +364,15 @@ mod tests {
 
     #[test]
     fn exe_basename_is_case_insensitive_on_extension() {
-        assert_eq!(
-            exe_basename_without_ext("C:\\App\\Discord.EXE"),
-            "Discord"
-        );
+        assert_eq!(exe_basename_without_ext("C:\\App\\Discord.EXE"), "Discord");
     }
 
     #[test]
     fn exe_basename_preserves_no_extension() {
-        assert_eq!(exe_basename_without_ext("C:\\weird\\noextension"), "noextension");
+        assert_eq!(
+            exe_basename_without_ext("C:\\weird\\noextension"),
+            "noextension"
+        );
     }
 
     #[test]

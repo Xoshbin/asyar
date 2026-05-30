@@ -13,12 +13,11 @@ pub fn is_accessibility_trusted() -> bool {
     true
 }
 
-pub fn open_accessibility_prefs() {
-}
+pub fn open_accessibility_prefs() {}
 
 pub fn clipboard_change_marker() -> [u8; 32] {
     // TODO: multi-format snapshot — currently text-only, images will be lost
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
     if let Ok(mut cb) = Clipboard::new() {
         if let Ok(text) = cb.get_text() {
             let mut hasher = Sha256::new();
@@ -32,12 +31,10 @@ pub fn clipboard_change_marker() -> [u8; 32] {
 pub fn get_selected_finder_items() -> Result<Vec<String>, SelectionError> {
     // Tier A: simulate Ctrl+C, read clipboard text/uri-list target
     // Snapshot current clipboard before we modify it
-    let before_text = Clipboard::new().ok()
-        .and_then(|mut c| c.get_text().ok());
+    let before_text = Clipboard::new().ok().and_then(|mut c| c.get_text().ok());
 
     // Post Ctrl+C to frontmost window
-    crate::platform::input::post_key_chord_via_enigo(
-        enigo::Key::Control, 'c');
+    crate::platform::input::post_key_chord_via_enigo(enigo::Key::Control, 'c');
 
     // Wait for the file manager to process it
     std::thread::sleep(std::time::Duration::from_millis(150));
@@ -68,9 +65,7 @@ pub fn get_selected_finder_items() -> Result<Vec<String>, SelectionError> {
 }
 
 fn percent_decode(s: &str) -> String {
-    percent_decode_str(s)
-        .decode_utf8_lossy()
-        .into_owned()
+    percent_decode_str(s).decode_utf8_lossy().into_owned()
 }
 
 pub struct ClipboardGuard {

@@ -143,9 +143,20 @@ pub fn get_server(conn: &Connection, id: &str) -> Result<Option<McpServerRow>, A
     match rows.next() {
         None => Ok(None),
         Some(row) => {
-            let (id, display_name, description, transport_kind, command, args_json,
-                 env_json, url, headers_json, enabled_int, created_at, updated_at) =
-                row.map_err(|e| AppError::Database(e.to_string()))?;
+            let (
+                id,
+                display_name,
+                description,
+                transport_kind,
+                command,
+                args_json,
+                env_json,
+                url,
+                headers_json,
+                enabled_int,
+                created_at,
+                updated_at,
+            ) = row.map_err(|e| AppError::Database(e.to_string()))?;
             Ok(Some(McpServerRow {
                 id,
                 display_name,
@@ -196,9 +207,20 @@ pub fn list_servers(conn: &Connection) -> Result<Vec<McpServerRow>, AppError> {
 
     let mut servers = Vec::new();
     for row in rows {
-        let (id, display_name, description, transport_kind, command, args_json,
-             env_json, url, headers_json, enabled_int, created_at, updated_at) =
-            row.map_err(|e| AppError::Database(e.to_string()))?;
+        let (
+            id,
+            display_name,
+            description,
+            transport_kind,
+            command,
+            args_json,
+            env_json,
+            url,
+            headers_json,
+            enabled_int,
+            created_at,
+            updated_at,
+        ) = row.map_err(|e| AppError::Database(e.to_string()))?;
         servers.push(McpServerRow {
             id,
             display_name,

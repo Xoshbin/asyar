@@ -3,14 +3,14 @@ pub mod models;
 pub mod ranker;
 
 // Import necessary items
-use models::{SearchableItem, SearchResult};
-use std::fs;
-use std::sync::{RwLock, Mutex};
-use std::collections::HashSet;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use tauri::{AppHandle, Manager};
+use models::{SearchResult, SearchableItem};
 use rusqlite::params;
+use std::collections::HashSet;
+use std::fs;
+use std::sync::{Mutex, RwLock};
+use tauri::{AppHandle, Manager};
 
 // Constant for the persistence database name
 const DB_FILE_NAME: &str = "search_index.db";
@@ -27,22 +27,26 @@ fn init_db(conn: &rusqlite::Connection) -> Result<(), SearchError> {
             id TEXT PRIMARY KEY,
             category TEXT NOT NULL,
             data TEXT NOT NULL
-        );"
-    ).map_err(|e| SearchError::Other(format!("Failed to initialize database: {}", e)))?;
+        );",
+    )
+    .map_err(|e| SearchError::Other(format!("Failed to initialize database: {}", e)))?;
     Ok(())
 }
 
 fn load_items_from_db(conn: &rusqlite::Connection) -> Result<Vec<SearchableItem>, SearchError> {
-    let mut stmt = conn.prepare("SELECT data FROM search_items")
+    let mut stmt = conn
+        .prepare("SELECT data FROM search_items")
         .map_err(|e| SearchError::Other(format!("Failed to prepare query: {}", e)))?;
-    
-    let item_rows = stmt.query_map([], |row| {
-        let data: String = row.get(0)?;
-        Ok(data)
-    }).map_err(|e| SearchError::Other(format!("Failed to query items: {}", e)))?;
 
-    let items = item_rows.filter_map(|r| {
-        match r {
+    let item_rows = stmt
+        .query_map([], |row| {
+            let data: String = row.get(0)?;
+            Ok(data)
+        })
+        .map_err(|e| SearchError::Other(format!("Failed to query items: {}", e)))?;
+
+    let items = item_rows
+        .filter_map(|r| match r {
             Ok(data) => match serde_json::from_str::<SearchableItem>(&data) {
                 Ok(item) => Some(item),
                 Err(e) => {
@@ -54,8 +58,8 @@ fn load_items_from_db(conn: &rusqlite::Connection) -> Result<Vec<SearchableItem>
                 log::warn!("Failed to read row: {}", e);
                 None
             }
-        }
-    }).collect();
+        })
+        .collect();
 
     Ok(items)
 }
@@ -64,15 +68,17 @@ fn save_items_to_db(
     conn: &rusqlite::Connection,
     items: &[SearchableItem],
 ) -> Result<(), SearchError> {
-    let tx = conn.unchecked_transaction()
+    let tx = conn
+        .unchecked_transaction()
         .map_err(|e| SearchError::Other(format!("Failed to begin transaction: {}", e)))?;
-    
+
     tx.execute("DELETE FROM search_items", [])
         .map_err(|e| SearchError::Other(format!("Failed to clear table: {}", e)))?;
-    
-    let mut stmt = tx.prepare("INSERT INTO search_items (id, category, data) VALUES (?1, ?2, ?3)")
+
+    let mut stmt = tx
+        .prepare("INSERT INTO search_items (id, category, data) VALUES (?1, ?2, ?3)")
         .map_err(|e| SearchError::Other(format!("Failed to prepare insert: {}", e)))?;
-    
+
     for item in items {
         let id = item.id();
         let category = match item {
@@ -83,44 +89,54 @@ fn save_items_to_db(
         stmt.execute(params![id, category, data])
             .map_err(|e| SearchError::Other(format!("Failed to insert item {}: {}", id, e)))?;
     }
-    
+
     drop(stmt);
     tx.commit()
         .map_err(|e| SearchError::Other(format!("Failed to commit transaction: {}", e)))?;
-    
+
     log::info!("Successfully saved {} items to database.", items.len());
     Ok(())
 }
 
-fn migrate_json_to_db(app_data_dir: &std::path::Path, conn: &rusqlite::Connection) -> Result<(), SearchError> {
+fn migrate_json_to_db(
+    app_data_dir: &std::path::Path,
+    conn: &rusqlite::Connection,
+) -> Result<(), SearchError> {
     let json_path = app_data_dir.join("search_data.json");
     if !json_path.exists() {
         return Ok(());
     }
-    
+
     // Check if DB already has data (already migrated)
-    let count: i64 = conn.query_row("SELECT COUNT(*) FROM search_items", [], |row| row.get(0))
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM search_items", [], |row| row.get(0))
         .unwrap_or(0);
     if count > 0 {
-        log::info!("Database already contains {} items, skipping JSON migration.", count);
+        log::info!(
+            "Database already contains {} items, skipping JSON migration.",
+            count
+        );
         return Ok(());
     }
-    
+
     log::info!("Migrating search data from JSON to SQLite...");
     let file = fs::File::open(&json_path).map_err(SearchError::Io)?;
     let reader = std::io::BufReader::new(file);
     let items: Vec<SearchableItem> = serde_json::from_reader(reader).map_err(SearchError::Json)?;
-    
+
     save_items_to_db(conn, &items)?;
-    
+
     // Rename JSON file to indicate migration is done (don't delete — safer)
     let backup_path = app_data_dir.join("search_data.json.migrated");
     if let Err(e) = fs::rename(&json_path, &backup_path) {
         log::warn!("Failed to rename migrated JSON file: {}", e);
     } else {
-        log::info!("Migrated {} items from JSON to SQLite. Old file renamed to search_data.json.migrated", items.len());
+        log::info!(
+            "Migrated {} items from JSON to SQLite. Old file renamed to search_data.json.migrated",
+            items.len()
+        );
     }
-    
+
     Ok(())
 }
 
@@ -132,27 +148,27 @@ pub fn initialize_search_state<R: tauri::Runtime>(
         .path()
         .app_data_dir()
         .expect("Failed to get app data dir");
-    
+
     // Ensure directory exists
     fs::create_dir_all(&app_data_dir)?;
-    
+
     let db_path = app_data_dir.join(DB_FILE_NAME);
     let conn = rusqlite::Connection::open(&db_path)
         .map_err(|e| format!("Failed to open database: {}", e))?;
-    
+
     // Enable WAL mode for better concurrent read performance
     conn.execute_batch("PRAGMA journal_mode=WAL;")
         .map_err(|e| format!("Failed to set WAL mode: {}", e))?;
-    
+
     init_db(&conn)?;
-    
+
     // Migrate from JSON if needed
     migrate_json_to_db(&app_data_dir, &conn)?;
-    
+
     // Load items into memory
     let items = load_items_from_db(&conn)?;
     log::info!("Loaded {} items from database.", items.len());
-    
+
     Ok(SearchState {
         items: RwLock::new(items),
         db: Mutex::new(conn),
@@ -220,19 +236,25 @@ impl crate::diagnostics::HasSeverity for SearchError {
             _ => crate::diagnostics::Severity::Error,
         }
     }
-    fn retryable(&self) -> bool { matches!(self, SearchError::Io(_)) }
+    fn retryable(&self) -> bool {
+        matches!(self, SearchError::Io(_))
+    }
     fn context(&self) -> std::collections::HashMap<&'static str, String> {
         let mut ctx = std::collections::HashMap::new();
-        if let SearchError::NotFound(s) = self { ctx.insert("target", s.clone()); }
-        if let SearchError::Other(s) = self { ctx.insert("detail", s.clone()); }
+        if let SearchError::NotFound(s) = self {
+            ctx.insert("target", s.clone());
+        }
+        if let SearchError::Other(s) = self {
+            ctx.insert("detail", s.clone());
+        }
         ctx
     }
 }
 
 impl serde::Serialize for SearchError {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeStruct;
         use crate::diagnostics::HasSeverity;
+        use serde::ser::SerializeStruct;
         let mut state = s.serialize_struct("Diagnostic", 6)?;
         state.serialize_field("source", "rust")?;
         state.serialize_field("kind", self.kind())?;
@@ -246,7 +268,7 @@ impl serde::Serialize for SearchError {
 
 /// Computes a frecency score combining usage frequency with recency decay.
 /// Formula: usage_count × e^(-λ × days_since_last_use), where λ = 0.1 (half-life ≈ 7 days).
-/// 
+///
 /// - If `last_used_at` is None (legacy data), falls back to `usage_count as f32`
 ///   (decay = 1.0) to preserve backward compatibility.
 /// - If `usage_count` is 0, always returns 0.0.
@@ -255,7 +277,7 @@ fn frecency_score(usage_count: u32, last_used_at: Option<u32>) -> f32 {
         return 0.0;
     }
     let decay = match last_used_at {
-        None => 1.0_f32,  // Legacy items: no decay applied, rank by raw count
+        None => 1.0_f32, // Legacy items: no decay applied, rank by raw count
         Some(ts) => {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -346,7 +368,8 @@ impl SearchState {
             sorted.sort_unstable_by(|a, b| {
                 let score_a = frecency_score(a.usage_count(), a.last_used_at());
                 let score_b = frecency_score(b.usage_count(), b.last_used_at());
-                score_b.partial_cmp(&score_a)
+                score_b
+                    .partial_cmp(&score_a)
                     .unwrap_or(std::cmp::Ordering::Equal)
                     .then_with(|| a.get_name().cmp(b.get_name()))
             });
@@ -378,14 +401,18 @@ impl SearchState {
             let mut scored: Vec<(i64, f32, &SearchableItem)> = guard
                 .iter()
                 .filter_map(|item| {
-                    matcher.fuzzy_match(item.get_name(), trimmed)
-                        .map(|score| (score, frecency_score(item.usage_count(), item.last_used_at()), item))
+                    matcher.fuzzy_match(item.get_name(), trimmed).map(|score| {
+                        (
+                            score,
+                            frecency_score(item.usage_count(), item.last_used_at()),
+                            item,
+                        )
+                    })
                 })
                 .collect();
             scored.sort_unstable_by(|a, b| {
                 b.0.cmp(&a.0)
-                    .then_with(|| b.1.partial_cmp(&a.1)
-                        .unwrap_or(std::cmp::Ordering::Equal))
+                    .then_with(|| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal))
             });
 
             let mut seen = HashSet::new();
@@ -556,7 +583,9 @@ impl SearchState {
         guard.retain(|item| item.id() != object_id);
         let deleted = guard.len() < before;
         drop(guard);
-        if deleted { self.save_items_to_db()?; }
+        if deleted {
+            self.save_items_to_db()?;
+        }
         Ok(())
     }
 
@@ -566,7 +595,9 @@ impl SearchState {
         drop(guard);
         self.save_items_to_db()?;
         if let Some(cache) = icon_cache_dir {
-            if cache.exists() { let _ = std::fs::remove_dir_all(cache); }
+            if cache.exists() {
+                let _ = std::fs::remove_dir_all(cache);
+            }
         }
         Ok(())
     }
@@ -593,10 +624,13 @@ impl SearchState {
         // Empty-query short-circuit: pure frecency sort, no tier overhead.
         if query.trim().is_empty() {
             let raw = self.search(query)?;
-            let mut combined: Vec<models::SearchResult> = raw.into_iter().map(|mut r| {
-                r.score = r.score.min(1.0);
-                r
-            }).collect();
+            let mut combined: Vec<models::SearchResult> = raw
+                .into_iter()
+                .map(|mut r| {
+                    r.score = r.score.min(1.0);
+                    r
+                })
+                .collect();
             for ext in external_results {
                 combined.push(models::SearchResult {
                     object_id: ext.object_id,
@@ -653,7 +687,12 @@ impl SearchState {
                         None => (None, vec![]),
                     };
 
-                    ClassifyInput { result: r, subtitle, keywords, frecency }
+                    ClassifyInput {
+                        result: r,
+                        subtitle,
+                        keywords,
+                        frecency,
+                    }
                 })
                 .collect()
             // guard is dropped here
@@ -707,8 +746,13 @@ impl SearchState {
 
         // Sort by (tier asc, frecency desc, fuzzy_score desc, name_lower asc).
         combined.sort_by(|a, b| {
-            a.1.tier.cmp(&b.1.tier)
-                .then_with(|| b.1.frecency.partial_cmp(&a.1.frecency).unwrap_or(std::cmp::Ordering::Equal))
+            a.1.tier
+                .cmp(&b.1.tier)
+                .then_with(|| {
+                    b.1.frecency
+                        .partial_cmp(&a.1.frecency)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
                 .then_with(|| b.1.fuzzy_score.cmp(&a.1.fuzzy_score))
                 .then_with(|| a.1.name_lower.cmp(&b.1.name_lower))
         });
@@ -731,7 +775,9 @@ impl SearchState {
             let append_count = min_results - results.len();
             let mut appended = 0;
             for mut suggestion in suggestions {
-                if appended >= append_count { break; }
+                if appended >= append_count {
+                    break;
+                }
                 if !existing_ids.contains(&suggestion.object_id)
                     && !existing_names.contains(&suggestion.name)
                 {
@@ -764,9 +810,8 @@ impl SearchState {
 
         // Determine alias_match.
         let trimmed = query.trim();
-        let has_trailing_space = query.ends_with(' ')
-            && trimmed.len() + 1 == query.len()
-            && !trimmed.is_empty();
+        let has_trailing_space =
+            query.ends_with(' ') && trimmed.len() + 1 == query.len() && !trimmed.is_empty();
         let alias_match = if trimmed.is_empty() {
             None
         } else {
@@ -780,7 +825,10 @@ impl SearchState {
             }
         };
 
-        Ok(models::MergedSearchResponse { results, alias_match })
+        Ok(models::MergedSearchResponse {
+            results,
+            alias_match,
+        })
     }
 }
 
@@ -791,8 +839,8 @@ mod service_tests {
     use std::sync::RwLock;
 
     fn make_state() -> SearchState {
-        let conn = rusqlite::Connection::open_in_memory()
-            .expect("Failed to create in-memory database");
+        let conn =
+            rusqlite::Connection::open_in_memory().expect("Failed to create in-memory database");
         init_db(&conn).expect("Failed to init test db");
         SearchState {
             items: RwLock::new(vec![]),
@@ -802,9 +850,11 @@ mod service_tests {
 
     fn app(id: &str, name: &str, usage: u32) -> SearchableItem {
         SearchableItem::Application(Application {
-            id: id.to_string(), name: name.to_string(),
+            id: id.to_string(),
+            name: name.to_string(),
             path: format!("/Applications/{}.app", name),
-            usage_count: usage, icon: None,
+            usage_count: usage,
+            icon: None,
             last_used_at: None,
             bundle_id: None,
         })
@@ -812,9 +862,13 @@ mod service_tests {
 
     fn cmd(id: &str, name: &str, usage: u32) -> SearchableItem {
         SearchableItem::Command(Command {
-            id: id.to_string(), name: name.to_string(),
-            extension: "test".to_string(), trigger: name.to_lowercase(),
-            command_type: "command".to_string(), usage_count: usage, icon: None,
+            id: id.to_string(),
+            name: name.to_string(),
+            extension: "test".to_string(),
+            trigger: name.to_lowercase(),
+            command_type: "command".to_string(),
+            usage_count: usage,
+            icon: None,
             last_used_at: None,
             subtitle: None,
             is_dynamic: false,
@@ -844,12 +898,18 @@ mod service_tests {
         // Recent item with lower count should beat old item with higher count
         let state = make_state();
         // "OldApp" used 20 times, but 60 days ago → decay ≈ 0.002 → frecency ≈ 0.05
-        state.index_one(app_used_secs_ago("app_old", "OldApp", 20, 60 * 86400)).unwrap();
+        state
+            .index_one(app_used_secs_ago("app_old", "OldApp", 20, 60 * 86400))
+            .unwrap();
         // "NewApp" used 3 times, today → decay = 1.0 → frecency = 3.0
-        state.index_one(app_used_secs_ago("app_new", "NewApp", 3, 0)).unwrap();
+        state
+            .index_one(app_used_secs_ago("app_new", "NewApp", 3, 0))
+            .unwrap();
         let results = state.search("").unwrap();
-        assert_eq!(results[0].name, "NewApp",
-            "Recently used app should rank above rarely-but-old app");
+        assert_eq!(
+            results[0].name, "NewApp",
+            "Recently used app should rank above rarely-but-old app"
+        );
     }
 
     #[test]
@@ -867,11 +927,13 @@ mod service_tests {
     fn test_frecency_legacy_items_rank_by_usage_count() {
         // Items with no last_used_at (legacy data) rank by usage_count only (decay treated as 1.0)
         let state = make_state();
-        state.index_one(app("app_a", "Alpha", 5)).unwrap();   // last_used_at = None
-        state.index_one(app("app_b", "Beta", 10)).unwrap();   // last_used_at = None
+        state.index_one(app("app_a", "Alpha", 5)).unwrap(); // last_used_at = None
+        state.index_one(app("app_b", "Beta", 10)).unwrap(); // last_used_at = None
         let results = state.search("").unwrap();
-        assert_eq!(results[0].name, "Beta",
-            "Legacy items (no timestamp) should still rank by usage_count");
+        assert_eq!(
+            results[0].name, "Beta",
+            "Legacy items (no timestamp) should still rank by usage_count"
+        );
     }
 
     #[test]
@@ -885,8 +947,11 @@ mod service_tests {
         state.record_usage("app_arc").unwrap();
         let results = state.search("").unwrap();
         // Score should be ≈ 1.0 (used 1 time, right now, decay ≈ 1.0)
-        assert!(results[0].score > 0.9 && results[0].score <= 1.0,
-            "Score after single recent use should be ≈ 1.0, got {}", results[0].score);
+        assert!(
+            results[0].score > 0.9 && results[0].score <= 1.0,
+            "Score after single recent use should be ≈ 1.0, got {}",
+            results[0].score
+        );
         // Verify last_used_at was set by checking the score reflects recency
         // (We cannot directly inspect last_used_at from SearchResult, but score proves it)
         let _ = before;
@@ -899,14 +964,25 @@ mod service_tests {
         // Both match "Arc" equally (exact same name)
         // app_arc_old: used 10 times, 90 days ago → low frecency
         // app_arc_new: used 2 times, today → higher frecency
-        state.index_one(app_used_secs_ago("app_arc_old", "Arc Browser", 10, 90 * 86400)).unwrap();
-        state.index_one(app_used_secs_ago("app_arc_new", "Arc", 2, 0)).unwrap();
+        state
+            .index_one(app_used_secs_ago(
+                "app_arc_old",
+                "Arc Browser",
+                10,
+                90 * 86400,
+            ))
+            .unwrap();
+        state
+            .index_one(app_used_secs_ago("app_arc_new", "Arc", 2, 0))
+            .unwrap();
         let results = state.search("Arc").unwrap();
         // Both should appear; the recently used one should rank higher (or equal)
         assert!(!results.is_empty());
         // "Arc" is an exact prefix match and recently used — should be first
-        assert_eq!(results[0].name, "Arc",
-            "Recently used item should rank first or equal among same-name matches");
+        assert_eq!(
+            results[0].name, "Arc",
+            "Recently used item should rank first or equal among same-name matches"
+        );
     }
 
     #[test]
@@ -925,7 +1001,9 @@ mod service_tests {
     fn test_index_one_replaces_duplicate() {
         let state = make_state();
         state.index_one(app("app_safari", "Safari", 0)).unwrap();
-        state.index_one(app("app_safari", "Safari Updated", 1)).unwrap();
+        state
+            .index_one(app("app_safari", "Safari Updated", 1))
+            .unwrap();
         assert_eq!(state.all_ids().unwrap().len(), 1);
     }
 
@@ -969,10 +1047,9 @@ mod service_tests {
     #[test]
     fn test_batch_index_deduplicates() {
         let state = make_state();
-        state.batch_index(vec![
-            app("app_x", "X", 0),
-            app("app_x", "X v2", 1),
-        ]).unwrap();
+        state
+            .batch_index(vec![app("app_x", "X", 0), app("app_x", "X v2", 1)])
+            .unwrap();
         assert_eq!(state.all_ids().unwrap().len(), 1);
     }
 
@@ -997,9 +1074,7 @@ mod service_tests {
         let state = Arc::new(make_state());
         state.index_one(app("app_safari", "Safari", 0)).unwrap();
         let state2 = Arc::clone(&state);
-        let handle = std::thread::spawn(move || {
-            state2.search("saf").unwrap()
-        });
+        let handle = std::thread::spawn(move || state2.search("saf").unwrap());
         let r1 = state.search("saf").unwrap();
         let r2 = handle.join().unwrap();
         assert!(!r1.is_empty());
@@ -1010,7 +1085,7 @@ mod service_tests {
     fn test_merged_search_combines_and_sorts() {
         let state = make_state();
         state.index_one(app("app_safari", "Safari", 5)).unwrap();
-        
+
         let external = vec![models::ExternalSearchResult {
             object_id: "ext_calc_result_0".to_string(),
             name: "Calculate".to_string(),
@@ -1023,27 +1098,34 @@ mod service_tests {
             style: None,
             priority: None,
         }];
-        
+
         let results = state.merged_search("", external, 10).unwrap();
-        assert!(results.len() >= 2, "Should have both indexed and external results");
+        assert!(
+            results.len() >= 2,
+            "Should have both indexed and external results"
+        );
     }
 
     #[test]
     fn test_merged_search_normalizes_skim_scores() {
         let state = make_state();
         state.index_one(app("app_safari", "Safari", 0)).unwrap();
-        
+
         let results = state.merged_search("saf", vec![], 10).unwrap();
         assert!(!results.is_empty());
         // Skim scores are normalized to [0, 1] — should not exceed 1.0
-        assert!(results[0].score <= 1.0, "Score should be normalized to [0,1], got {}", results[0].score);
+        assert!(
+            results[0].score <= 1.0,
+            "Score should be normalized to [0,1], got {}",
+            results[0].score
+        );
     }
 
     #[test]
     fn test_merged_search_deduplicates_by_id() {
         let state = make_state();
         state.index_one(app("app_safari", "Safari", 5)).unwrap();
-        
+
         // External result with same object_id as indexed item
         let external = vec![models::ExternalSearchResult {
             object_id: "app_safari".to_string(),
@@ -1057,9 +1139,12 @@ mod service_tests {
             style: None,
             priority: None,
         }];
-        
+
         let results = state.merged_search("", external, 10).unwrap();
-        let safari_count = results.iter().filter(|r| r.object_id == "app_safari").count();
+        let safari_count = results
+            .iter()
+            .filter(|r| r.object_id == "app_safari")
+            .count();
         assert_eq!(safari_count, 1, "Duplicates should be removed");
     }
 
@@ -1072,11 +1157,15 @@ mod service_tests {
         state.index_one(app("app_c", "Charlie", 6)).unwrap();
         state.index_one(app("app_d", "Delta", 4)).unwrap();
         state.index_one(app("app_e", "Echo", 2)).unwrap();
-        
+
         // Search for something that only matches one item
         let results = state.merged_search("alph", vec![], 5).unwrap();
         // Should have Alpha as primary match + backfill items up to min_results
-        assert!(results.len() >= 2, "Should backfill when fewer than min_results, got {}", results.len());
+        assert!(
+            results.len() >= 2,
+            "Should backfill when fewer than min_results, got {}",
+            results.len()
+        );
     }
 
     #[test]
@@ -1086,7 +1175,10 @@ mod service_tests {
         state.index_one(app("app_b", "Beta", 10)).unwrap();
 
         let results = state.merged_search("", vec![], 10).unwrap();
-        assert_eq!(results[0].name, "Beta", "Empty query should rank by frecency");
+        assert_eq!(
+            results[0].name, "Beta",
+            "Empty query should rank by frecency"
+        );
     }
 
     #[test]
@@ -1118,7 +1210,9 @@ mod service_tests {
     #[test]
     fn test_search_returns_none_description_when_no_subtitle() {
         let state = make_state();
-        state.index_one(cmd("cmd_test_calc", "Calculator", 1)).unwrap();
+        state
+            .index_one(cmd("cmd_test_calc", "Calculator", 1))
+            .unwrap();
         let results = state.search("").unwrap();
         assert_eq!(results[0].description, None);
     }
@@ -1133,15 +1227,17 @@ mod service_tests {
         let app_path = default_dir.join("Ice.app");
 
         let state = make_state();
-        state.index_one(SearchableItem::Application(models::Application {
-            id: "app_ice_default".to_string(),
-            name: "Ice".to_string(),
-            path: app_path.to_string_lossy().into_owned(),
-            usage_count: 1,
-            icon: None,
-            last_used_at: None,
-            bundle_id: None,
-        })).unwrap();
+        state
+            .index_one(SearchableItem::Application(models::Application {
+                id: "app_ice_default".to_string(),
+                name: "Ice".to_string(),
+                path: app_path.to_string_lossy().into_owned(),
+                usage_count: 1,
+                icon: None,
+                last_used_at: None,
+                bundle_id: None,
+            }))
+            .unwrap();
 
         let empty = state.search("").unwrap();
         assert_eq!(empty[0].description, None);
@@ -1158,22 +1254,20 @@ mod service_tests {
         } else {
             "/opt/asyar-test"
         };
-        let custom_path = format!(
-            "{}{}Ice.app",
-            custom_parent,
-            std::path::MAIN_SEPARATOR
-        );
+        let custom_path = format!("{}{}Ice.app", custom_parent, std::path::MAIN_SEPARATOR);
 
         let state = make_state();
-        state.index_one(SearchableItem::Application(models::Application {
-            id: "app_ice_custom".to_string(),
-            name: "Ice".to_string(),
-            path: custom_path,
-            usage_count: 1,
-            icon: None,
-            last_used_at: None,
-            bundle_id: None,
-        })).unwrap();
+        state
+            .index_one(SearchableItem::Application(models::Application {
+                id: "app_ice_custom".to_string(),
+                name: "Ice".to_string(),
+                path: custom_path,
+                usage_count: 1,
+                icon: None,
+                last_used_at: None,
+                bundle_id: None,
+            }))
+            .unwrap();
 
         let empty = state.search("").unwrap();
         assert_eq!(empty[0].description.as_deref(), Some(custom_parent));
@@ -1200,19 +1294,33 @@ mod service_tests {
         }];
 
         let results = state.merged_search("6 * 7", external, 10).unwrap();
-        let calc = results.iter().find(|r| r.object_id == "ext_calculator_42_0");
+        let calc = results
+            .iter()
+            .find(|r| r.object_id == "ext_calculator_42_0");
         assert!(calc.is_some(), "Calculator result should be present");
         let calc = calc.unwrap();
-        assert_eq!(calc.style.as_deref(), Some("large"), "style must survive merged_search");
-        assert_eq!(calc.description.as_deref(), Some("6 * 7"), "description must survive merged_search");
+        assert_eq!(
+            calc.style.as_deref(),
+            Some("large"),
+            "style must survive merged_search"
+        );
+        assert_eq!(
+            calc.description.as_deref(),
+            Some("6 * 7"),
+            "description must survive merged_search"
+        );
     }
 
     #[test]
     fn test_update_command_subtitle_sets_value() {
         let state = make_state();
-        state.index_one(cmd("cmd_test_weather", "Weather", 0)).unwrap();
+        state
+            .index_one(cmd("cmd_test_weather", "Weather", 0))
+            .unwrap();
 
-        state.update_command_subtitle("cmd_test_weather", Some("72 F".to_string())).unwrap();
+        state
+            .update_command_subtitle("cmd_test_weather", Some("72 F".to_string()))
+            .unwrap();
 
         let results = state.search("").unwrap();
         assert_eq!(results[0].description.as_deref(), Some("72 F"));
@@ -1235,7 +1343,9 @@ mod service_tests {
         });
         state.index_one(item).unwrap();
 
-        state.update_command_subtitle("cmd_test_weather", None).unwrap();
+        state
+            .update_command_subtitle("cmd_test_weather", None)
+            .unwrap();
 
         let results = state.search("").unwrap();
         assert_eq!(results[0].description, None);
@@ -1260,7 +1370,9 @@ mod service_tests {
     fn test_update_command_subtitle_persists_to_db() {
         let state = make_state();
         state.index_one(cmd("cmd_test_timer", "Timer", 0)).unwrap();
-        state.update_command_subtitle("cmd_test_timer", Some("5:00 remaining".to_string())).unwrap();
+        state
+            .update_command_subtitle("cmd_test_timer", Some("5:00 remaining".to_string()))
+            .unwrap();
 
         // Reload from DB to verify persistence
         let conn = state.db.lock().unwrap();
@@ -1277,7 +1389,10 @@ mod service_tests {
     fn search_error_severities() {
         use crate::diagnostics::{HasSeverity, Severity};
         assert_eq!(SearchError::LockError.severity(), Severity::Fatal);
-        assert_eq!(SearchError::NotFound("x".into()).severity(), Severity::Warning);
+        assert_eq!(
+            SearchError::NotFound("x".into()).severity(),
+            Severity::Warning
+        );
         assert_eq!(SearchError::Other("y".into()).severity(), Severity::Error);
     }
 
@@ -1304,7 +1419,8 @@ mod service_tests {
         conn.execute(
             "CREATE TABLE search_items (id TEXT PRIMARY KEY, category TEXT, data TEXT)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
         SearchState {
             items: std::sync::RwLock::new(items),
             db: std::sync::Mutex::new(conn),
@@ -1327,7 +1443,9 @@ mod service_tests {
         });
         let search_state = fresh_search_state_with(vec![cmd]);
         let alias_state = AliasState::new_in_memory();
-        alias_state.set_alias("cmd_clip_history", "cl", "Clipboard History", "command", 1).unwrap();
+        alias_state
+            .set_alias("cmd_clip_history", "cl", "Clipboard History", "command", 1)
+            .unwrap();
 
         let resp = search_state
             .merged_search_with_aliases("cl ", vec![], 10, &alias_state)
@@ -1352,7 +1470,9 @@ mod service_tests {
         });
         let search_state = fresh_search_state_with(vec![app]);
         let alias_state = AliasState::new_in_memory();
-        alias_state.set_alias("app_finder", "f", "Finder", "application", 1).unwrap();
+        alias_state
+            .set_alias("app_finder", "f", "Finder", "application", 1)
+            .unwrap();
 
         let resp = search_state
             .merged_search_with_aliases("f ", vec![], 10, &alias_state)
@@ -1385,7 +1505,9 @@ mod service_tests {
         });
         let search_state = fresh_search_state_with(vec![app]);
         let alias_state = AliasState::new_in_memory();
-        alias_state.set_alias("app_finder", "f", "Finder", "application", 1).unwrap();
+        alias_state
+            .set_alias("app_finder", "f", "Finder", "application", 1)
+            .unwrap();
 
         let resp = search_state
             .merged_search_with_aliases("Finder", vec![], 10, &alias_state)
@@ -1398,7 +1520,12 @@ mod service_tests {
         assert_eq!(finder.alias.as_deref(), Some("f"));
     }
 
-    fn ext_result(object_id: &str, name: &str, score: f32, priority: Option<models::ResultPriority>) -> models::ExternalSearchResult {
+    fn ext_result(
+        object_id: &str,
+        name: &str,
+        score: f32,
+        priority: Option<models::ResultPriority>,
+    ) -> models::ExternalSearchResult {
         models::ExternalSearchResult {
             object_id: object_id.to_string(),
             name: name.to_string(),
@@ -1420,21 +1547,25 @@ mod service_tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs() as u32;
-        state.index_one(SearchableItem::Application(models::Application {
-            id: "app_slack".to_string(),
-            name: "Slack".to_string(),
-            path: "/Applications/Slack.app".to_string(),
-            usage_count: 20,
-            icon: None,
-            last_used_at: Some(now_ts),
-            bundle_id: None,
-        })).unwrap();
+        state
+            .index_one(SearchableItem::Application(models::Application {
+                id: "app_slack".to_string(),
+                name: "Slack".to_string(),
+                path: "/Applications/Slack.app".to_string(),
+                usage_count: 20,
+                icon: None,
+                last_used_at: Some(now_ts),
+                bundle_id: None,
+            }))
+            .unwrap();
 
         let external = vec![ext_result("ext_slack_chan_0", "Slack channel", 1.0, None)];
         let results = state.merged_search("slack", external, 10).unwrap();
         assert!(!results.is_empty());
-        assert_eq!(results[0].object_id, "app_slack",
-            "High-frecency app (tier 1 exact) must beat extension with score 1.0 (tier 3/4)");
+        assert_eq!(
+            results[0].object_id, "app_slack",
+            "High-frecency app (tier 1 exact) must beat extension with score 1.0 (tier 3/4)"
+        );
     }
 
     #[test]
@@ -1448,8 +1579,10 @@ mod service_tests {
         let external = vec![ext_result("ext_slack_0", "Slack", 0.0001, None)];
         let results = state.merged_search("Slack", external, 10).unwrap();
         assert!(!results.is_empty());
-        assert_eq!(results[0].object_id, "ext_slack_0",
-            "Extension exact title match (tier 1) must beat fuzzy app match (tier 3)");
+        assert_eq!(
+            results[0].object_id, "ext_slack_0",
+            "Extension exact title match (tier 1) must beat fuzzy app match (tier 3)"
+        );
     }
 
     #[test]
@@ -1469,8 +1602,10 @@ mod service_tests {
         // It is included as a non-regression check (required by plan step 3).
         let results = state.merged_search("Mail", vec![], 10).unwrap();
         assert!(!results.is_empty());
-        assert_eq!(results[0].object_id, "app_mail_a",
-            "Within tier 1, higher frecency (usage 5) must beat lower frecency (usage 0)");
+        assert_eq!(
+            results[0].object_id, "app_mail_a",
+            "Within tier 1, higher frecency (usage 5) must beat lower frecency (usage 0)"
+        );
     }
 
     #[test]
@@ -1480,25 +1615,36 @@ mod service_tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs() as u32;
-        state.index_one(SearchableItem::Application(models::Application {
-            id: "app_calculator".to_string(),
-            name: "Calculator".to_string(),
-            path: "/Applications/Calculator.app".to_string(),
-            usage_count: 10,
-            icon: None,
-            last_used_at: Some(now_ts),
-            bundle_id: None,
-        })).unwrap();
+        state
+            .index_one(SearchableItem::Application(models::Application {
+                id: "app_calculator".to_string(),
+                name: "Calculator".to_string(),
+                path: "/Applications/Calculator.app".to_string(),
+                usage_count: 10,
+                icon: None,
+                last_used_at: Some(now_ts),
+                bundle_id: None,
+            }))
+            .unwrap();
 
         // score: 0.0 so the current code ranks it BELOW the Calculator app;
         // only the tier ranker (tier 0) lifts it to position 0.
-        let external = vec![ext_result("ext_calc_42_0", "42", 0.0, Some(models::ResultPriority::Top))];
+        let external = vec![ext_result(
+            "ext_calc_42_0",
+            "42",
+            0.0,
+            Some(models::ResultPriority::Top),
+        )];
         let results = state.merged_search("Calculator", external, 10).unwrap();
         assert!(results.len() >= 2);
-        assert_eq!(results[0].object_id, "ext_calc_42_0",
-            "Pinned (tier 0) external result must sit above tier-1 Calculator app");
-        assert_eq!(results[1].object_id, "app_calculator",
-            "Calculator app (tier 1 exact) must be second");
+        assert_eq!(
+            results[0].object_id, "ext_calc_42_0",
+            "Pinned (tier 0) external result must sit above tier-1 Calculator app"
+        );
+        assert_eq!(
+            results[1].object_id, "app_calculator",
+            "Calculator app (tier 1 exact) must be second"
+        );
     }
 
     #[test]
@@ -1508,23 +1654,32 @@ mod service_tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs() as u32;
-        state.index_one(SearchableItem::Application(models::Application {
-            id: "app_safari_big".to_string(),
-            name: "Safari".to_string(),
-            path: "/Applications/Safari.app".to_string(),
-            usage_count: 100,
-            icon: None,
-            last_used_at: Some(now_ts),
-            bundle_id: None,
-        })).unwrap();
+        state
+            .index_one(SearchableItem::Application(models::Application {
+                id: "app_safari_big".to_string(),
+                name: "Safari".to_string(),
+                path: "/Applications/Safari.app".to_string(),
+                usage_count: 100,
+                icon: None,
+                last_used_at: Some(now_ts),
+                bundle_id: None,
+            }))
+            .unwrap();
 
         // score: 0.0 so current code never puts this first;
         // only tier 0 (pinned) lifts it above the high-frecency app.
-        let external = vec![ext_result("ext_pinned_0", "Pinned Result", 0.0, Some(models::ResultPriority::Top))];
+        let external = vec![ext_result(
+            "ext_pinned_0",
+            "Pinned Result",
+            0.0,
+            Some(models::ResultPriority::Top),
+        )];
         let results = state.merged_search("Safari", external, 10).unwrap();
         assert!(!results.is_empty());
-        assert_eq!(results[0].object_id, "ext_pinned_0",
-            "Pinned (tier 0) result must beat app with usage_count 100 at tier 1");
+        assert_eq!(
+            results[0].object_id, "ext_pinned_0",
+            "Pinned (tier 0) result must beat app with usage_count 100 at tier 1"
+        );
     }
 
     // ------------------------------------------------------------------
@@ -1612,9 +1767,7 @@ mod service_tests {
         let state = make_state();
 
         // Manifest command for ext1
-        state
-            .index_one(cmd("cmd_ext1_open", "Open", 5))
-            .unwrap();
+        state.index_one(cmd("cmd_ext1_open", "Open", 5)).unwrap();
 
         // Add then clear dynamic commands for the same extension
         state
@@ -1660,7 +1813,10 @@ mod service_tests {
 
         let results = state.search("New").unwrap();
         let found = results.iter().find(|r| r.object_id == "cmd_ext1_dyn_a");
-        assert!(found.is_some(), "renamed dynamic command should be findable by new name");
+        assert!(
+            found.is_some(),
+            "renamed dynamic command should be findable by new name"
+        );
         assert_eq!(found.unwrap().name, "New name");
     }
 
@@ -1672,10 +1828,7 @@ mod service_tests {
         state.replace_dynamic_commands("ext1", &[r]).unwrap();
 
         let guard = state.items.read().unwrap();
-        let item = guard
-            .iter()
-            .find(|i| i.id() == "cmd_ext1_dyn_a")
-            .unwrap();
+        let item = guard.iter().find(|i| i.id() == "cmd_ext1_dyn_a").unwrap();
         match item {
             SearchableItem::Command(c) => assert_eq!(c.subtitle.as_deref(), Some("subtitle text")),
             _ => panic!("expected Command"),

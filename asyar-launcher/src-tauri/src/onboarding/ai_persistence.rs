@@ -110,19 +110,15 @@ mod tests {
 
     #[test]
     fn set_overwrites_existing_field() {
-        let updated = set_ai_onboarding_completed(
-            json!({ "onboarding": { "aiCompleted": false } }),
-            true,
-        );
+        let updated =
+            set_ai_onboarding_completed(json!({ "onboarding": { "aiCompleted": false } }), true);
         assert_eq!(updated["onboarding"]["aiCompleted"], json!(true));
     }
 
     #[test]
     fn set_preserves_other_onboarding_keys() {
-        let updated = set_ai_onboarding_completed(
-            json!({ "onboarding": { "completed": true } }),
-            true,
-        );
+        let updated =
+            set_ai_onboarding_completed(json!({ "onboarding": { "completed": true } }), true);
         assert_eq!(updated["onboarding"]["aiCompleted"], json!(true));
         assert_eq!(updated["onboarding"]["completed"], json!(true));
     }

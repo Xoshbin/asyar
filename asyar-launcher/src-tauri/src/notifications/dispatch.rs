@@ -39,8 +39,11 @@ pub fn resolve_click(
     notification_id: &str,
     action_id: &str,
 ) -> Option<NotificationActionEvent> {
-    let PendingAction { extension_id, command_id, args_json } =
-        registry.lookup(notification_id, action_id)?;
+    let PendingAction {
+        extension_id,
+        command_id,
+        args_json,
+    } = registry.lookup(notification_id, action_id)?;
     Some(NotificationActionEvent {
         notification_id: notification_id.to_string(),
         action_id: action_id.to_string(),
@@ -67,7 +70,10 @@ mod tests {
         let registry = NotificationActionRegistry::new();
         registry.insert_many(
             "notif-1",
-            vec![("extend".to_string(), pending("coffee", "coffee.extend", Some(r#"{"minutes":30}"#)))],
+            vec![(
+                "extend".to_string(),
+                pending("coffee", "coffee.extend", Some(r#"{"minutes":30}"#)),
+            )],
         );
 
         let ev = resolve_click(&registry, "notif-1", "extend").expect("should resolve");

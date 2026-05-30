@@ -45,7 +45,9 @@ pub async fn check_and_maybe_download(
             // Write to managed state so "Restart now" can read the pending version.
             if let Some(updater_state) = app.try_state::<crate::app_updater::AppUpdaterState>() {
                 if let Ok(mut pending) = updater_state.pending.lock() {
-                    *pending = Some(crate::app_updater::PendingUpdate { version: version.clone() });
+                    *pending = Some(crate::app_updater::PendingUpdate {
+                        version: version.clone(),
+                    });
                 }
             }
 
@@ -60,9 +62,7 @@ pub async fn check_and_maybe_download(
             crate::app_updater::sentinel::write_sentinel(app, &version).ok();
 
             // Download and install (passive — relies on sentinel for apply-on-next-launch flow).
-            let install_result = u
-                .download_and_install(|_chunk, _total| {}, || {})
-                .await;
+            let install_result = u.download_and_install(|_chunk, _total| {}, || {}).await;
 
             if let Err(e) = install_result {
                 error!("app_updater: download_and_install failed: {}", e);
@@ -96,7 +96,8 @@ pub async fn apply_on_start(app: &AppHandle) {
     // Read channel from settings, default to stable
     let channel = {
         use tauri_plugin_store::StoreExt;
-        app.store("settings.dat").ok()
+        app.store("settings.dat")
+            .ok()
             .and_then(|s| s.get("settings"))
             .and_then(|v| v.get("updates").cloned())
             .and_then(|u| u.get("channel").cloned())

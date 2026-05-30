@@ -1,2 +1,2 @@
-pub mod encryption;
 pub mod archive;
+pub mod encryption;

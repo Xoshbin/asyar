@@ -408,7 +408,16 @@ mod tests {
     fn encrypted_values_roundtrip_plaintext_through_set_and_get() {
         let conn = mem_conn();
         let key = test_key();
-        set(&conn, "ext1", None, "api_key", "sk-plaintext-secret", true, &key).unwrap();
+        set(
+            &conn,
+            "ext1",
+            None,
+            "api_key",
+            "sk-plaintext-secret",
+            true,
+            &key,
+        )
+        .unwrap();
 
         let raw: String = conn
             .query_row(
@@ -417,8 +426,14 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_ne!(raw, "sk-plaintext-secret", "value column must NOT contain plaintext");
-        assert!(raw.starts_with(cipher::VERSION_PREFIX), "must use enc:v1: scheme");
+        assert_ne!(
+            raw, "sk-plaintext-secret",
+            "value column must NOT contain plaintext"
+        );
+        assert!(
+            raw.starts_with(cipher::VERSION_PREFIX),
+            "must use enc:v1: scheme"
+        );
 
         let got = get(&conn, "ext1", None, "api_key", &key).unwrap();
         assert_eq!(got, Some(("sk-plaintext-secret".to_string(), true)));
@@ -451,7 +466,10 @@ mod tests {
 
         let rows = get_all_for_extension(&conn, "ext1", &key).unwrap();
         let secret_row = rows.iter().find(|r| r.key == "secret").unwrap();
-        assert_eq!(secret_row.value, "sk-abc", "get_all must return decrypted plaintext");
+        assert_eq!(
+            secret_row.value, "sk-abc",
+            "get_all must return decrypted plaintext"
+        );
         assert!(secret_row.is_encrypted);
     }
 
@@ -470,7 +488,11 @@ mod tests {
         .unwrap();
 
         let rows = get_all_for_extension(&conn, "ext1", &key).unwrap();
-        assert_eq!(rows.len(), 1, "legacy row dropped, only the plain row survives");
+        assert_eq!(
+            rows.len(),
+            1,
+            "legacy row dropped, only the plain row survives"
+        );
         assert_eq!(rows[0].key, "plain");
     }
 
@@ -484,7 +506,10 @@ mod tests {
 
         let rows = get_all_for_extension(&conn, "ext1", &key).unwrap();
         assert_eq!(rows.len(), 2);
-        let keys: Vec<_> = rows.iter().map(|r| (r.command_id.clone(), r.key.clone())).collect();
+        let keys: Vec<_> = rows
+            .iter()
+            .map(|r| (r.command_id.clone(), r.key.clone()))
+            .collect();
         assert!(keys.contains(&(None, "units".to_string())));
         assert!(keys.contains(&(Some("forecast".to_string()), "days".to_string())));
     }
@@ -509,7 +534,9 @@ mod tests {
 
         let removed = clear(&conn, "ext1").unwrap();
         assert_eq!(removed, 2);
-        assert!(get_all_for_extension(&conn, "ext1", &key).unwrap().is_empty());
+        assert!(get_all_for_extension(&conn, "ext1", &key)
+            .unwrap()
+            .is_empty());
         assert_eq!(get_all_for_extension(&conn, "ext2", &key).unwrap().len(), 1);
     }
 

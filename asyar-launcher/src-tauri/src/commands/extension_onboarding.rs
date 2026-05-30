@@ -2,9 +2,7 @@
 
 use crate::error::AppError;
 use crate::extensions::extension_runtime::{
-    emitter::TauriEventEmitter,
-    manager::ExtensionRuntimeManager,
-    types::ContextRole,
+    emitter::TauriEventEmitter, manager::ExtensionRuntimeManager, types::ContextRole,
     wire::IpcPendingMessage,
 };
 use crate::extensions::onboarding_intercept::StashRegistry;
@@ -65,7 +63,10 @@ pub fn complete_extension_onboarding(
         let ipc_msg = IpcPendingMessage::from_stashed(p);
 
         let manifest_lookup = |id: &str| {
-            let guard = registry.extensions.lock().expect("ExtensionRegistryState poisoned");
+            let guard = registry
+                .extensions
+                .lock()
+                .expect("ExtensionRegistryState poisoned");
             guard.get(id).map(|r| r.manifest.clone())
         };
         // After marking onboarded, the is_onboarded lookup must return true so

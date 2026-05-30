@@ -18,9 +18,9 @@ use crate::error::AppError;
 use crate::event_hub::{EventHub, HubEvent};
 use serde::{Deserialize, Serialize};
 
+pub mod linux;
 #[cfg(target_os = "macos")]
 pub mod macos;
-pub mod linux;
 pub mod windows;
 
 /// Discriminant used on the wire (kebab-case) and as registry keys.
@@ -59,9 +59,13 @@ pub enum SystemEvent {
     LidOpen,
     LidClose,
     #[serde(rename_all = "camelCase")]
-    BatteryLevelChanged { percent: u8 },
+    BatteryLevelChanged {
+        percent: u8,
+    },
     #[serde(rename_all = "camelCase")]
-    PowerSourceChanged { on_battery: bool },
+    PowerSourceChanged {
+        on_battery: bool,
+    },
 }
 
 impl SystemEvent {
@@ -293,14 +297,13 @@ mod tests {
             ("wake", SystemEventKind::Wake),
             ("lid-open", SystemEventKind::LidOpen),
             ("lid-close", SystemEventKind::LidClose),
-            ("battery-level-changed", SystemEventKind::BatteryLevelChanged),
+            (
+                "battery-level-changed",
+                SystemEventKind::BatteryLevelChanged,
+            ),
             ("power-source-changed", SystemEventKind::PowerSourceChanged),
         ] {
-            assert_eq!(
-                SystemEventKind::from_wire(wire),
-                Some(kind),
-                "wire: {wire}"
-            );
+            assert_eq!(SystemEventKind::from_wire(wire), Some(kind), "wire: {wire}");
         }
         assert_eq!(SystemEventKind::from_wire("bogus"), None);
     }

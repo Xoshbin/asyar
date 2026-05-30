@@ -53,16 +53,31 @@ pub fn classify(
     let name_lower = title_lower;
 
     if name_lower == query_lower {
-        return RankKey { tier: Tier::ExactTitle, frecency, fuzzy_score: 0, name_lower };
+        return RankKey {
+            tier: Tier::ExactTitle,
+            frecency,
+            fuzzy_score: 0,
+            name_lower,
+        };
     }
 
     if name_lower.starts_with(&query_lower) {
-        return RankKey { tier: Tier::TitlePrefix, frecency, fuzzy_score: 0, name_lower };
+        return RankKey {
+            tier: Tier::TitlePrefix,
+            frecency,
+            fuzzy_score: 0,
+            name_lower,
+        };
     }
 
     let matcher = SkimMatcherV2::default();
     if let Some(score) = matcher.fuzzy_match(title, query) {
-        return RankKey { tier: Tier::TitleFuzzy, frecency, fuzzy_score: score, name_lower };
+        return RankKey {
+            tier: Tier::TitleFuzzy,
+            frecency,
+            fuzzy_score: score,
+            name_lower,
+        };
     }
 
     // Build haystack from subtitle + keywords for secondary fuzzy match.
@@ -76,11 +91,21 @@ pub fn classify(
     if !haystack_parts.is_empty() {
         let haystack = haystack_parts.join(" ");
         if let Some(score) = matcher.fuzzy_match(&haystack, query) {
-            return RankKey { tier: Tier::SubtitleOrKeyword, frecency, fuzzy_score: score, name_lower };
+            return RankKey {
+                tier: Tier::SubtitleOrKeyword,
+                frecency,
+                fuzzy_score: score,
+                name_lower,
+            };
         }
     }
 
-    RankKey { tier: Tier::FrecencyOnly, frecency, fuzzy_score: 0, name_lower }
+    RankKey {
+        tier: Tier::FrecencyOnly,
+        frecency,
+        fuzzy_score: 0,
+        name_lower,
+    }
 }
 
 #[cfg(test)]

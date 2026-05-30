@@ -53,7 +53,13 @@ impl NotificationBackend for MacOsBackend {
             return Ok(());
         }
 
-        let NotificationRequest { notification_id, title, body, actions, .. } = request;
+        let NotificationRequest {
+            notification_id,
+            title,
+            body,
+            actions,
+            ..
+        } = request;
         let sink = self.click_sink.clone();
 
         // mac_notification_sys::send() blocks for user interaction. Spawn
@@ -69,7 +75,9 @@ impl NotificationBackend for MacOsBackend {
             let dropdown_labels: Vec<&str>;
             match actions.len() {
                 0 => {}
-                1 => { n.main_button(MainButton::SingleAction(&actions[0].title)); }
+                1 => {
+                    n.main_button(MainButton::SingleAction(&actions[0].title));
+                }
                 _ => {
                     dropdown_labels = actions.iter().map(|a| a.title.as_str()).collect();
                     n.main_button(MainButton::DropdownActions("Actions", &dropdown_labels));
@@ -79,7 +87,10 @@ impl NotificationBackend for MacOsBackend {
             match n.send() {
                 Ok(NotificationResponse::ActionButton(label)) => {
                     if let Some(action_id) = label_to_id.get(&label) {
-                        info!("[notifications/macos] action '{}' clicked on {}", action_id, notification_id);
+                        info!(
+                            "[notifications/macos] action '{}' clicked on {}",
+                            action_id, notification_id
+                        );
                         sink(&notification_id, action_id);
                     } else {
                         warn!(
@@ -97,7 +108,10 @@ impl NotificationBackend for MacOsBackend {
                     // Reply input not currently exposed through the SDK; ignore.
                 }
                 Err(e) => {
-                    warn!("[notifications/macos] send failed for {}: {}", notification_id, e);
+                    warn!(
+                        "[notifications/macos] send failed for {}: {}",
+                        notification_id, e
+                    );
                 }
             }
         });
@@ -121,7 +135,9 @@ fn send_plain_async(title: &str, body: &str) {
     });
 }
 
-fn build_label_to_id_map(actions: &[crate::notifications::backend::BackendAction]) -> HashMap<String, String> {
+fn build_label_to_id_map(
+    actions: &[crate::notifications::backend::BackendAction],
+) -> HashMap<String, String> {
     actions
         .iter()
         .map(|a| (a.title.clone(), a.id.clone()))
@@ -149,5 +165,4 @@ mod tests {
         assert_eq!(map.get("Extend 30m"), Some(&"extend".to_string()));
         assert_eq!(map.get("Stop now"), Some(&"stop".to_string()));
     }
-
 }

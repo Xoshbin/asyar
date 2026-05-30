@@ -84,7 +84,10 @@ pub struct BrowserKey {
 
 impl BrowserKey {
     pub fn from_id(id: &BrowserId) -> Self {
-        Self { family: id.family, variant: id.variant.clone() }
+        Self {
+            family: id.family,
+            variant: id.variant.clone(),
+        }
     }
 }
 

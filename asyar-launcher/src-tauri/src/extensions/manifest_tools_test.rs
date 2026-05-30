@@ -34,11 +34,15 @@ mod manifest_tools_tests {
             ]
         }"#;
 
-        let m = parse_manifest(json)
-            .expect("manifest with tools array must parse");
+        let m = parse_manifest(json).expect("manifest with tools array must parse");
 
         let tools = m.tools.as_ref().expect("tools field must be Some");
-        assert_eq!(tools.len(), 1, "expected exactly 1 tool, got {}", tools.len());
+        assert_eq!(
+            tools.len(),
+            1,
+            "expected exactly 1 tool, got {}",
+            tools.len()
+        );
         assert_eq!(tools[0].id, "echo", "tool id must be 'echo'");
         assert_eq!(tools[0].name, "Echo", "tool name must be 'Echo'");
     }
@@ -54,10 +58,12 @@ mod manifest_tools_tests {
             "commands": []
         }"#;
 
-        let m = parse_manifest(json)
-            .expect("manifest without tools field must still parse");
+        let m = parse_manifest(json).expect("manifest without tools field must still parse");
 
-        assert!(m.tools.is_none(), "tools field must be None when absent from manifest");
+        assert!(
+            m.tools.is_none(),
+            "tools field must be None when absent from manifest"
+        );
     }
 
     // ── 3. manifest_tools_multiple_entries_parsed ────────────────────────────
@@ -85,8 +91,7 @@ mod manifest_tools_tests {
             ]
         }"#;
 
-        let m = parse_manifest(json)
-            .expect("manifest with multiple tools must parse");
+        let m = parse_manifest(json).expect("manifest with multiple tools must parse");
 
         let tools = m.tools.as_ref().expect("tools field must be Some");
         assert_eq!(tools.len(), 2);
@@ -110,8 +115,8 @@ mod manifest_tools_tests {
             "parameters": { "type": "object", "properties": { "count": { "type": "integer" } } }
         }"#;
 
-        let tool: ManifestTool = serde_json::from_str(json)
-            .expect("ManifestTool must deserialize from JSON");
+        let tool: ManifestTool =
+            serde_json::from_str(json).expect("ManifestTool must deserialize from JSON");
 
         assert_eq!(tool.id, "my-tool");
         assert_eq!(tool.name, "My Tool");

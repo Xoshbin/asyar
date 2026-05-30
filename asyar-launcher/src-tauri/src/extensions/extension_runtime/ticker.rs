@@ -6,11 +6,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
 
-pub(crate) fn tick_once(
-    mgr: &ExtensionRuntimeManager,
-    emitter: &dyn EventEmitter,
-    now: Instant,
-) {
+pub(crate) fn tick_once(mgr: &ExtensionRuntimeManager, emitter: &dyn EventEmitter, now: Instant) {
     // Tick worker — produces timeouts only (keep_alive=None, never idle-evicts).
     let worker_actions = mgr.tick_worker(now);
     for (ext, token) in worker_actions.timeouts {

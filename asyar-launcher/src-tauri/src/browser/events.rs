@@ -28,10 +28,7 @@ impl BrowserEventKind {
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum BrowserEvent {
     #[serde(rename_all = "camelCase")]
-    TabsChanged {
-        browser: BrowserKey,
-        tabs: Vec<Tab>,
-    },
+    TabsChanged { browser: BrowserKey, tabs: Vec<Tab> },
     #[serde(rename_all = "camelCase")]
     PageChanged {
         browser: BrowserKey,
@@ -197,7 +194,11 @@ mod tests {
                 readable_text: "body".to_string(),
                 html: None,
                 selection: None,
-                meta: PageMeta { description: None, og_image: None, lang: None },
+                meta: PageMeta {
+                    description: None,
+                    og_image: None,
+                    lang: None,
+                },
             },
         };
         assert_eq!(event.kind(), BrowserEventKind::PageChanged);
@@ -218,7 +219,10 @@ mod tests {
     #[test]
     fn page_changed_serializes_to_kebab_with_camel_inner_fields() {
         let event = BrowserEvent::PageChanged {
-            browser: BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() },
+            browser: BrowserKey {
+                family: BrowserFamily::Chromium,
+                variant: "chrome".to_string(),
+            },
             tab_id: "tab-7".to_string(),
             page: PageSnapshot {
                 url: "https://x".to_string(),
@@ -226,7 +230,11 @@ mod tests {
                 readable_text: "body".to_string(),
                 html: None,
                 selection: None,
-                meta: PageMeta { description: None, og_image: None, lang: None },
+                meta: PageMeta {
+                    description: None,
+                    og_image: None,
+                    lang: None,
+                },
             },
         };
         let json = serde_json::to_value(&event).unwrap();

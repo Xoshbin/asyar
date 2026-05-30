@@ -60,7 +60,9 @@ fn descriptor_has_expected_shape() {
         "parameters.properties.limit must be present, got {params}"
     );
 
-    let required = params["required"].as_array().expect("required must be an array");
+    let required = params["required"]
+        .as_array()
+        .expect("required must be an array");
     assert!(
         required.iter().any(|v| v.as_str() == Some("query")),
         "required must include 'query', got {required:?}"
@@ -85,8 +87,13 @@ async fn invoke_returns_matching_apps() {
     assert!(result.is_ok(), "expected Ok, got {result:?}");
     let val = result.unwrap();
     let results = val["results"].as_array().expect("results must be an array");
-    let safari = results.iter().find(|r| r["name"].as_str() == Some("Safari"));
-    assert!(safari.is_some(), "expected Safari in results, got {results:?}");
+    let safari = results
+        .iter()
+        .find(|r| r["name"].as_str() == Some("Safari"));
+    assert!(
+        safari.is_some(),
+        "expected Safari in results, got {results:?}"
+    );
     assert_eq!(
         safari.unwrap()["type"].as_str(),
         Some("application"),
@@ -99,7 +106,9 @@ async fn invoke_returns_matching_apps() {
 #[tokio::test]
 async fn invoke_returns_matching_commands() {
     let state = make_state();
-    state.index_one(cmd("cmd_ext_clipboard", "Clipboard History")).unwrap();
+    state
+        .index_one(cmd("cmd_ext_clipboard", "Clipboard History"))
+        .unwrap();
 
     let tool = SearchTool::new(state);
     let result = tool.invoke(json!({"query": "clipboard"})).await;
@@ -110,7 +119,10 @@ async fn invoke_returns_matching_commands() {
     let clip = results
         .iter()
         .find(|r| r["name"].as_str() == Some("Clipboard History"));
-    assert!(clip.is_some(), "expected 'Clipboard History' in results, got {results:?}");
+    assert!(
+        clip.is_some(),
+        "expected 'Clipboard History' in results, got {results:?}"
+    );
     assert_eq!(
         clip.unwrap()["type"].as_str(),
         Some("command"),
@@ -131,7 +143,10 @@ async fn invoke_returns_empty_for_no_matches() {
     assert!(result.is_ok(), "expected Ok, got {result:?}");
     let val = result.unwrap();
     let results = val["results"].as_array().expect("results must be an array");
-    assert!(results.is_empty(), "expected empty results, got {results:?}");
+    assert!(
+        results.is_empty(),
+        "expected empty results, got {results:?}"
+    );
 }
 
 // ── 5. invoke_respects_limit ──────────────────────────────────────────────────
@@ -151,7 +166,12 @@ async fn invoke_respects_limit() {
     assert!(result.is_ok(), "expected Ok, got {result:?}");
     let val = result.unwrap();
     let results = val["results"].as_array().expect("results must be an array");
-    assert_eq!(results.len(), 2, "limit 2 must return exactly 2 results, got {}", results.len());
+    assert_eq!(
+        results.len(),
+        2,
+        "limit 2 must return exactly 2 results, got {}",
+        results.len()
+    );
 }
 
 // ── 6. invoke_uses_default_limit_when_omitted ─────────────────────────────────
@@ -199,10 +219,7 @@ async fn invoke_returns_error_for_non_string_query() {
     let tool = SearchTool::new(make_state());
     let result = tool.invoke(json!({"query": 42})).await;
 
-    assert!(
-        result.is_err(),
-        "non-string query must return Err, got Ok"
-    );
+    assert!(result.is_err(), "non-string query must return Err, got Ok");
 }
 
 // ── 9. invoke_returns_error_for_negative_limit ───────────────────────────────
@@ -227,10 +244,7 @@ async fn invoke_returns_error_for_non_number_limit() {
     let tool = SearchTool::new(make_state());
     let result = tool.invoke(json!({"query": "x", "limit": "lots"})).await;
 
-    assert!(
-        result.is_err(),
-        "non-number limit must return Err, got Ok"
-    );
+    assert!(result.is_err(), "non-number limit must return Err, got Ok");
 }
 
 // ── 11. invoke_omits_extra_fields ─────────────────────────────────────────────
@@ -293,5 +307,8 @@ async fn limit_zero_returns_empty() {
     assert!(result.is_ok(), "expected Ok, got {result:?}");
     let val = result.unwrap();
     let results = val["results"].as_array().expect("results must be an array");
-    assert!(results.is_empty(), "limit 0 must return empty results, got {results:?}");
+    assert!(
+        results.is_empty(),
+        "limit 0 must return empty results, got {results:?}"
+    );
 }

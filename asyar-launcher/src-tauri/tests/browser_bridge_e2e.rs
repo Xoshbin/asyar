@@ -610,7 +610,9 @@ async fn search_web_and_focus_round_trip() {
         "name": "window.focused",
         "payload": {}
     });
-    ws.send(Message::Text(focus_event.to_string())).await.unwrap();
+    ws.send(Message::Text(focus_event.to_string()))
+        .await
+        .unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     let last = state.last_active.read().unwrap().clone();
     assert_eq!(

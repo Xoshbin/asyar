@@ -149,9 +149,11 @@ fn parse_refresh_time(value: &str) -> Result<(u64, bool), HeaderError> {
     }
     // Split into numeric prefix + single-char unit suffix
     let bytes = value.as_bytes();
-    let unit = *bytes.last().ok_or_else(|| HeaderError::InvalidRefreshTime {
-        value: value.to_string(),
-    })?;
+    let unit = *bytes
+        .last()
+        .ok_or_else(|| HeaderError::InvalidRefreshTime {
+            value: value.to_string(),
+        })?;
     let multiplier: u64 = match unit {
         b's' => 1,
         b'm' => 60,
@@ -187,14 +189,17 @@ mod tests {
     #[test]
     fn parses_empty_content_returns_default() {
         let result = parse_header("").unwrap();
-        assert_eq!(result, ParsedScriptHeader {
-            title: None,
-            icon: None,
-            arguments: vec![],
-            mode: ScriptMode::Compact,
-            refresh_time_seconds: None,
-            refresh_time_clamped: false,
-        });
+        assert_eq!(
+            result,
+            ParsedScriptHeader {
+                title: None,
+                icon: None,
+                arguments: vec![],
+                mode: ScriptMode::Compact,
+                refresh_time_seconds: None,
+                refresh_time_clamped: false,
+            }
+        );
     }
 
     #[test]
@@ -252,7 +257,10 @@ mod tests {
         assert_eq!(result.arguments[0].name, "first");
         assert_eq!(result.arguments[1].name, "second");
         assert_eq!(result.arguments[2].name, "third");
-        assert_eq!(result.arguments[2].argument_type, CommandArgumentType::Number);
+        assert_eq!(
+            result.arguments[2].argument_type,
+            CommandArgumentType::Number
+        );
     }
 
     #[test]

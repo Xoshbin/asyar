@@ -55,16 +55,10 @@ pub fn show(
         .ok_or_else(|| AppError::NotFound("hud window".to_string()))?;
 
     let state = app.state::<HudState>();
-    let content = HudContent {
-        title,
-        spinning,
-    };
+    let content = HudContent { title, spinning };
 
     {
-        let mut slot = state
-            .current
-            .lock()
-            .map_err(|_| AppError::Lock)?;
+        let mut slot = state.current.lock().map_err(|_| AppError::Lock)?;
         *slot = Some(content.clone());
     }
 
@@ -77,10 +71,7 @@ pub fn show(
 
     // Cancel any pending auto-hide; only re-schedule when not spinning.
     {
-        let mut slot = state
-            .auto_hide_task
-            .lock()
-            .map_err(|_| AppError::Lock)?;
+        let mut slot = state.auto_hide_task.lock().map_err(|_| AppError::Lock)?;
         if let Some(prev) = slot.take() {
             prev.abort();
         }

@@ -1,16 +1,18 @@
+use crate::selection::error::SelectionError;
+use objc2::{rc::Retained, runtime::ProtocolObject};
+use objc2_app_kit::{
+    NSPasteboard, NSPasteboardItem, NSPasteboardWriting, NSRunningApplication, NSWorkspace,
+};
+use objc2_foundation::{NSArray, NSData, NSString};
 use std::ffi::{c_void, CStr};
 use std::process::Command;
-use crate::selection::error::SelectionError;
-use objc2_foundation::{NSString, NSArray, NSData};
-use objc2::{rc::Retained, runtime::ProtocolObject};
-use objc2_app_kit::{NSPasteboard, NSPasteboardItem, NSWorkspace, NSRunningApplication, NSPasteboardWriting};
 
 #[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
     fn AXUIElementCreateSystemWide() -> *mut c_void;
     fn AXUIElementCopyAttributeValue(
         element: *mut c_void,
-        attribute: *mut c_void, // CFStringRef
+        attribute: *mut c_void,  // CFStringRef
         value: *mut *mut c_void, // CFTypeRef out
     ) -> i32; // AXError
     fn CFRelease(cf: *mut c_void);
@@ -26,28 +28,42 @@ extern "C" {
 const K_CF_STRING_ENCODING_UTF8: u32 = 0x08000100;
 
 unsafe fn cf_string_to_rust(cf: *mut c_void) -> Option<String> {
-    if cf.is_null() { return None; }
-    
+    if cf.is_null() {
+        return None;
+    }
+
     let ptr = CFStringGetCStringPtr(cf, K_CF_STRING_ENCODING_UTF8);
     if !ptr.is_null() {
         return Some(CStr::from_ptr(ptr).to_string_lossy().into_owned());
     }
 
     let len = CFStringGetLength(cf);
-    if len <= 0 { return Some(String::new()); }
+    if len <= 0 {
+        return Some(String::new());
+    }
 
     let mut buf = vec![0u8; (len * 4 + 1) as usize];
-    if CFStringGetCString(cf, buf.as_mut_ptr() as *mut i8, buf.len() as isize, K_CF_STRING_ENCODING_UTF8) {
-        return Some(CStr::from_ptr(buf.as_ptr() as *const i8).to_string_lossy().into_owned());
+    if CFStringGetCString(
+        cf,
+        buf.as_mut_ptr() as *mut i8,
+        buf.len() as isize,
+        K_CF_STRING_ENCODING_UTF8,
+    ) {
+        return Some(
+            CStr::from_ptr(buf.as_ptr() as *const i8)
+                .to_string_lossy()
+                .into_owned(),
+        );
     }
     None
 }
 
-
 pub fn get_selected_text_via_a11y() -> Option<String> {
     unsafe {
         let system_wide = AXUIElementCreateSystemWide();
-        if system_wide.is_null() { return None; }
+        if system_wide.is_null() {
+            return None;
+        }
 
         // Hold Retained values alive until AFTER the AX call that uses them.
         let focused_attr_ns = NSString::from_str("AXFocusedUIElement");
@@ -55,16 +71,20 @@ pub fn get_selected_text_via_a11y() -> Option<String> {
         let mut focused: *mut c_void = std::ptr::null_mut();
         let err = AXUIElementCopyAttributeValue(system_wide, focused_attr, &mut focused);
         CFRelease(system_wide);
-        drop(focused_attr_ns);           // safe: AX call is already done
-        if err != 0 || focused.is_null() { return None; }
+        drop(focused_attr_ns); // safe: AX call is already done
+        if err != 0 || focused.is_null() {
+            return None;
+        }
 
         let text_attr_ns = NSString::from_str("AXSelectedText");
         let text_attr: *mut c_void = Retained::as_ptr(&text_attr_ns) as *mut c_void;
         let mut text_val: *mut c_void = std::ptr::null_mut();
         let err2 = AXUIElementCopyAttributeValue(focused, text_attr, &mut text_val);
         CFRelease(focused);
-        drop(text_attr_ns);              // safe: AX call is already done
-        if err2 != 0 || text_val.is_null() { return None; }
+        drop(text_attr_ns); // safe: AX call is already done
+        if err2 != 0 || text_val.is_null() {
+            return None;
+        }
 
         let result = cf_string_to_rust(text_val);
         CFRelease(text_val);
@@ -107,18 +127,25 @@ const FINDER_SCRIPT: &str = r#"
 
 pub fn get_selected_finder_items() -> Result<Vec<String>, SelectionError> {
     if !frontmost_app_is_finder() {
-        return Ok(vec![]); 
+        return Ok(vec![]);
     }
 
     let out = Command::new("osascript")
-        .arg("-e").arg(FINDER_SCRIPT)
+        .arg("-e")
+        .arg(FINDER_SCRIPT)
         .output()
         .map_err(|e| SelectionError::OperationFailed(e.to_string()))?;
 
-    if !out.status.success() { return Ok(vec![]); }
-    
+    if !out.status.success() {
+        return Ok(vec![]);
+    }
+
     let text = String::from_utf8_lossy(&out.stdout);
-    Ok(text.lines().filter(|l| !l.is_empty()).map(String::from).collect())
+    Ok(text
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(String::from)
+        .collect())
 }
 
 fn frontmost_app_is_finder() -> bool {
@@ -165,7 +192,9 @@ impl ClipboardGuard {
                     items_snapshot.push(data_pairs);
                 }
             }
-            Self { items: items_snapshot }
+            Self {
+                items: items_snapshot,
+            }
         }
     }
 }
@@ -175,7 +204,7 @@ impl Drop for ClipboardGuard {
         unsafe {
             let pb = NSPasteboard::generalPasteboard();
             pb.clearContents();
-            
+
             let mut pb_items = Vec::new();
             for item_snapshot in &self.items {
                 let pb_item = NSPasteboardItem::new();
@@ -186,11 +215,12 @@ impl Drop for ClipboardGuard {
                 }
                 pb_items.push(pb_item);
             }
-            
+
             if !pb_items.is_empty() {
                 let ns_pb_items = NSArray::from_id_slice(&pb_items);
                 // Safe to transmute because NSPasteboardItem implements NSPasteboardWriting
-                let protocol_items: &NSArray<ProtocolObject<dyn NSPasteboardWriting>> = std::mem::transmute(&*ns_pb_items);
+                let protocol_items: &NSArray<ProtocolObject<dyn NSPasteboardWriting>> =
+                    std::mem::transmute(&*ns_pb_items);
                 let _ = pb.writeObjects(protocol_items);
             }
         }

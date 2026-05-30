@@ -76,7 +76,9 @@ fn write_descriptor_has_expected_shape() {
         "parameters.properties.text must be present, got {params}"
     );
 
-    let required = params["required"].as_array().expect("required must be array");
+    let required = params["required"]
+        .as_array()
+        .expect("required must be array");
     assert!(
         required.iter().any(|v| v.as_str() == Some("text")),
         "required must include 'text', got {required:?}"
@@ -173,6 +175,11 @@ async fn write_accepts_empty_string() {
     );
     assert_eq!(result.unwrap(), json!({"ok": true}));
 
-    let stored = read_back.read_text().expect("mock must contain empty string");
-    assert_eq!(stored, "", "clipboard must contain empty string after write");
+    let stored = read_back
+        .read_text()
+        .expect("mock must contain empty string");
+    assert_eq!(
+        stored, "",
+        "clipboard must contain empty string after write"
+    );
 }

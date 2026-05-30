@@ -47,16 +47,12 @@ pub(crate) fn scripts_remove_directory_impl(
 }
 
 /// Return all configured script directories in insertion order.
-pub(crate) fn scripts_list_directories_impl(
-    conn: &Connection,
-) -> Result<Vec<String>, AppError> {
+pub(crate) fn scripts_list_directories_impl(conn: &Connection) -> Result<Vec<String>, AppError> {
     crate::storage::script_directories::list(conn)
 }
 
 /// Read configured directories from SQLite and scan them for scripts.
-pub(crate) fn scripts_rescan_impl(
-    conn: &Connection,
-) -> Result<Vec<ScannedScript>, AppError> {
+pub(crate) fn scripts_rescan_impl(conn: &Connection) -> Result<Vec<ScannedScript>, AppError> {
     let dirs = crate::storage::script_directories::list(conn)?;
     let paths: Vec<std::path::PathBuf> = dirs.into_iter().map(std::path::PathBuf::from).collect();
     Ok(crate::scripts::scan_directories(&paths))
@@ -99,9 +95,7 @@ pub async fn scripts_remove_directory(
 
 /// Return all configured script directories in insertion order.
 #[tauri::command]
-pub async fn scripts_list_directories(
-    db: State<'_, DataStore>,
-) -> Result<Vec<String>, AppError> {
+pub async fn scripts_list_directories(db: State<'_, DataStore>) -> Result<Vec<String>, AppError> {
     let conn = db.conn()?;
     scripts_list_directories_impl(&conn)
 }
@@ -118,9 +112,7 @@ pub async fn scripts_pick_directory(app: tauri::AppHandle) -> Result<Option<Stri
 /// Read the configured directories from SQLite and rescan them, returning
 /// every discovered script.
 #[tauri::command]
-pub async fn scripts_rescan(
-    db: State<'_, DataStore>,
-) -> Result<Vec<ScannedScript>, AppError> {
+pub async fn scripts_rescan(db: State<'_, DataStore>) -> Result<Vec<ScannedScript>, AppError> {
     let conn = db.conn()?;
     scripts_rescan_impl(&conn)
 }
@@ -214,7 +206,10 @@ mod tests {
         scripts_remove_directory_impl(&conn, &watcher, "/foo".into()).unwrap();
 
         let dirs = scripts_list_directories_impl(&conn).unwrap();
-        assert!(dirs.is_empty(), "list must be empty after remove, got {dirs:?}");
+        assert!(
+            dirs.is_empty(),
+            "list must be empty after remove, got {dirs:?}"
+        );
 
         let watched = watcher.current_directories();
         assert!(
@@ -228,7 +223,10 @@ mod tests {
     fn remove_unknown_directory_no_error() {
         let (conn, watcher) = make_test_env();
         let result = scripts_remove_directory_impl(&conn, &watcher, "/never-added".into());
-        assert!(result.is_ok(), "removing unknown path must return Ok, got {result:?}");
+        assert!(
+            result.is_ok(),
+            "removing unknown path must return Ok, got {result:?}"
+        );
     }
 
     // 5. list returns empty vec when no rows in DB
@@ -236,7 +234,10 @@ mod tests {
     fn list_directories_empty_when_no_rows() {
         let (conn, _watcher) = make_test_env();
         let dirs = scripts_list_directories_impl(&conn).unwrap();
-        assert!(dirs.is_empty(), "fresh DB must return empty list, got {dirs:?}");
+        assert!(
+            dirs.is_empty(),
+            "fresh DB must return empty list, got {dirs:?}"
+        );
     }
 
     // 6. rescan with no configured dirs returns empty vec

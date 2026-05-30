@@ -32,7 +32,10 @@ fn end_to_end_chromium_bookmarks_round_trip() {
     assert!(browsers.iter().any(|b| b.variant == "chrome"));
 
     let bookmarks = svc
-        .list_bookmarks(ListBookmarksFilter { browser: None, query: None })
+        .list_bookmarks(ListBookmarksFilter {
+            browser: None,
+            query: None,
+        })
         .unwrap();
     assert_eq!(bookmarks.len(), 1);
     assert_eq!(bookmarks[0].title, "Hello");
@@ -53,11 +56,20 @@ fn end_to_end_empty_home_returns_empty() {
     let svc = BrowserService::with_home(home.path().to_path_buf());
     assert!(svc.list_available_browsers().is_empty());
     assert!(svc
-        .list_bookmarks(ListBookmarksFilter { browser: None, query: None })
+        .list_bookmarks(ListBookmarksFilter {
+            browser: None,
+            query: None
+        })
         .unwrap()
         .is_empty());
     assert!(svc
-        .search_history("anything", SearchHistoryOptions { limit: None, since_ms: None })
+        .search_history(
+            "anything",
+            SearchHistoryOptions {
+                limit: None,
+                since_ms: None
+            }
+        )
         .unwrap()
         .is_empty());
 }

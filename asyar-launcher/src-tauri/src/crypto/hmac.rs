@@ -13,8 +13,7 @@ type HmacSha256 = Hmac<Sha256>;
 /// for the verify path (we don't currently verify, but this keeps the door
 /// open if a use case appears).
 pub fn hmac_sha256(key: &[u8; 32], message: &[u8]) -> [u8; 32] {
-    let mut mac =
-        HmacSha256::new_from_slice(key).expect("HMAC-SHA256 accepts any 32-byte key");
+    let mut mac = HmacSha256::new_from_slice(key).expect("HMAC-SHA256 accepts any 32-byte key");
     mac.update(message);
     mac.finalize().into_bytes().into()
 }
@@ -64,9 +63,8 @@ mod tests {
         // Computed once from the same (key, message). Pinning this byte-for-byte
         // catches a silent swap of the hash function or HMAC construction.
         let expected: [u8; 32] = [
-            119, 183, 107, 219, 96, 141, 147, 239, 25, 229, 141, 134, 186, 200,
-            166, 253, 120, 248, 171, 200, 172, 165, 237, 59, 129, 251, 146, 82,
-            42, 242, 121, 93,
+            119, 183, 107, 219, 96, 141, 147, 239, 25, 229, 141, 134, 186, 200, 166, 253, 120, 248,
+            171, 200, 172, 165, 237, 59, 129, 251, 146, 82, 42, 242, 121, 93,
         ];
         assert_eq!(out, expected);
     }

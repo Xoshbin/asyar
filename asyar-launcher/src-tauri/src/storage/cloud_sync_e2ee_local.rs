@@ -107,8 +107,11 @@ pub fn get(conn: &Connection) -> Result<Option<E2eeLocalState>, AppError> {
 }
 
 pub fn clear(conn: &Connection) -> Result<(), AppError> {
-    conn.execute("DELETE FROM cloud_sync_e2ee_local WHERE scope = 'global'", [])
-        .map_err(|e| AppError::Database(format!("clear e2ee_local: {e}")))?;
+    conn.execute(
+        "DELETE FROM cloud_sync_e2ee_local WHERE scope = 'global'",
+        [],
+    )
+    .map_err(|e| AppError::Database(format!("clear e2ee_local: {e}")))?;
     Ok(())
 }
 

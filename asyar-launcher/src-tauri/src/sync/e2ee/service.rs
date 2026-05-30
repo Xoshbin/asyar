@@ -159,12 +159,7 @@ impl<'a> E2eeService<'a> {
         Ok(())
     }
 
-    pub async fn rotate(
-        &self,
-        token: &str,
-        old: &str,
-        new: &str,
-    ) -> Result<(), AppError> {
+    pub async fn rotate(&self, token: &str, old: &str, new: &str) -> Result<(), AppError> {
         // Verify old passphrase by trial decrypt + cache the master_seed
         // (this also handles the case where the cache was empty for some reason).
         self.unlock(token, old).await?;
@@ -225,9 +220,9 @@ impl<'a> E2eeService<'a> {
         let recovered_seed = mnemonic::decode(phrase)?;
 
         if let Some(ct) = verify_with_payload {
-            crate::crypto::sync_envelope::decrypt_payload(ct, &recovered_seed).map_err(
-                |_| AppError::Validation("recovery phrase doesn't match your account".into()),
-            )?;
+            crate::crypto::sync_envelope::decrypt_payload(ct, &recovered_seed).map_err(|_| {
+                AppError::Validation("recovery phrase doesn't match your account".into())
+            })?;
         }
 
         let mut salt = [0u8; 32];
@@ -282,7 +277,9 @@ impl<'a> E2eeService<'a> {
             .read_slot(KEYCHAIN_SLOT)?
             .ok_or_else(|| AppError::Encryption("master_seed not cached".into()))?;
         if seed_bytes.len() != 32 {
-            return Err(AppError::Encryption("cached master_seed wrong length".into()));
+            return Err(AppError::Encryption(
+                "cached master_seed wrong length".into(),
+            ));
         }
         let mut seed = [0u8; 32];
         seed.copy_from_slice(&seed_bytes);

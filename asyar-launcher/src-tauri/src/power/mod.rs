@@ -12,10 +12,10 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[cfg(target_os = "macos")]
-pub mod macos;
 #[cfg(target_os = "linux")]
 pub mod linux;
+#[cfg(target_os = "macos")]
+pub mod macos;
 #[cfg(target_os = "windows")]
 pub mod windows;
 
@@ -221,10 +221,7 @@ pub mod fake {
             options: ResolvedOptions,
             _reason: &str,
         ) -> Result<Box<dyn PowerHandle>, AppError> {
-            let mut fail = self
-                .fail_next
-                .lock()
-                .map_err(|_| AppError::Lock)?;
+            let mut fail = self.fail_next.lock().map_err(|_| AppError::Lock)?;
             if *fail {
                 *fail = false;
                 return Err(AppError::Power("fake failure".into()));
@@ -351,7 +348,9 @@ mod tests {
     fn backend_failure_is_propagated_and_no_entry_recorded() {
         let (reg, fake) = make_registry();
         fake.fail_next_inhibit();
-        let err = reg.keep_awake(Some("ext-a".into()), basic_opts()).unwrap_err();
+        let err = reg
+            .keep_awake(Some("ext-a".into()), basic_opts())
+            .unwrap_err();
         assert!(matches!(err, AppError::Power(_)), "got: {err:?}");
         assert_eq!(fake.active_count(), 0);
         assert_eq!(reg.list(None).unwrap().len(), 0);

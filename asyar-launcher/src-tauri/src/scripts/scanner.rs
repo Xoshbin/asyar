@@ -167,7 +167,11 @@ mod tests {
     fn empty_dir_returns_empty_vec() {
         let dir = TempDir::new().unwrap();
         let result = scan_directories(&[dir.path().to_path_buf()]);
-        assert!(result.is_empty(), "expected empty vec, got {} scripts", result.len());
+        assert!(
+            result.is_empty(),
+            "expected empty vec, got {} scripts",
+            result.len()
+        );
     }
 
     // 2. scans one valid script
@@ -183,10 +187,7 @@ mod tests {
         let result = scan_directories(&[dir.path().to_path_buf()]);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].header.title, Some("Hello".to_string()));
-        assert_eq!(
-            result[0].absolute_path,
-            file_path.canonicalize().unwrap()
-        );
+        assert_eq!(result[0].absolute_path, file_path.canonicalize().unwrap());
         #[cfg(unix)]
         assert!(result[0].executable);
     }
@@ -209,7 +210,10 @@ mod tests {
                 script.dynamic_id
             );
             assert!(
-                script.dynamic_id.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
+                script
+                    .dynamic_id
+                    .chars()
+                    .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
                 "dynamic_id must be lowercase hex, got {:?}",
                 script.dynamic_id
             );
@@ -223,20 +227,41 @@ mod tests {
 
         // different paths produce different ids
         let (id_a, id_b) = {
-            let mut sorted = result.iter().map(|s| s.dynamic_id.clone()).collect::<Vec<_>>();
+            let mut sorted = result
+                .iter()
+                .map(|s| s.dynamic_id.clone())
+                .collect::<Vec<_>>();
             sorted.sort();
             (sorted[0].clone(), sorted[1].clone())
         };
-        assert_ne!(id_a, id_b, "different paths must produce different dynamic_ids");
+        assert_ne!(
+            id_a, id_b,
+            "different paths must produce different dynamic_ids"
+        );
     }
 
     // 4. multiple scripts in one dir — all returned
     #[test]
     fn multiple_scripts_in_one_dir() {
         let dir = TempDir::new().unwrap();
-        write_script(dir.path(), "one.sh", "#!/bin/bash\n# @asyar.title Alpha\n", true);
-        write_script(dir.path(), "two.sh", "#!/bin/bash\n# @asyar.title Beta\n", true);
-        write_script(dir.path(), "three.sh", "#!/bin/bash\n# @asyar.title Gamma\n", true);
+        write_script(
+            dir.path(),
+            "one.sh",
+            "#!/bin/bash\n# @asyar.title Alpha\n",
+            true,
+        );
+        write_script(
+            dir.path(),
+            "two.sh",
+            "#!/bin/bash\n# @asyar.title Beta\n",
+            true,
+        );
+        write_script(
+            dir.path(),
+            "three.sh",
+            "#!/bin/bash\n# @asyar.title Gamma\n",
+            true,
+        );
 
         let result = scan_directories(&[dir.path().to_path_buf()]);
         assert_eq!(result.len(), 3);
@@ -257,11 +282,21 @@ mod tests {
     #[test]
     fn subdirectories_not_descended() {
         let dir = TempDir::new().unwrap();
-        write_script(dir.path(), "top.sh", "#!/bin/bash\n# @asyar.title Top\n", true);
+        write_script(
+            dir.path(),
+            "top.sh",
+            "#!/bin/bash\n# @asyar.title Top\n",
+            true,
+        );
 
         let subdir = dir.path().join("subdir");
         fs::create_dir(&subdir).unwrap();
-        write_script(&subdir, "nested.sh", "#!/bin/bash\n# @asyar.title Nested\n", true);
+        write_script(
+            &subdir,
+            "nested.sh",
+            "#!/bin/bash\n# @asyar.title Nested\n",
+            true,
+        );
 
         let result = scan_directories(&[dir.path().to_path_buf()]);
         assert_eq!(result.len(), 1);
@@ -272,8 +307,18 @@ mod tests {
     #[test]
     fn non_executable_skipped_on_unix() {
         let dir = TempDir::new().unwrap();
-        write_script(dir.path(), "exec.sh", "#!/bin/bash\n# @asyar.title Exec\n", true);
-        write_script(dir.path(), "noexec.sh", "#!/bin/bash\n# @asyar.title NoExec\n", false);
+        write_script(
+            dir.path(),
+            "exec.sh",
+            "#!/bin/bash\n# @asyar.title Exec\n",
+            true,
+        );
+        write_script(
+            dir.path(),
+            "noexec.sh",
+            "#!/bin/bash\n# @asyar.title NoExec\n",
+            false,
+        );
 
         let result = scan_directories(&[dir.path().to_path_buf()]);
 
@@ -286,7 +331,11 @@ mod tests {
 
         #[cfg(not(unix))]
         {
-            assert_eq!(result.len(), 2, "on non-Unix both scripts are returned (no exec gating)");
+            assert_eq!(
+                result.len(),
+                2,
+                "on non-Unix both scripts are returned (no exec gating)"
+            );
         }
     }
 
@@ -317,8 +366,18 @@ mod tests {
     fn multiple_directories_aggregated() {
         let dir1 = TempDir::new().unwrap();
         let dir2 = TempDir::new().unwrap();
-        write_script(dir1.path(), "script1.sh", "#!/bin/bash\n# @asyar.title One\n", true);
-        write_script(dir2.path(), "script2.sh", "#!/bin/bash\n# @asyar.title Two\n", true);
+        write_script(
+            dir1.path(),
+            "script1.sh",
+            "#!/bin/bash\n# @asyar.title One\n",
+            true,
+        );
+        write_script(
+            dir2.path(),
+            "script2.sh",
+            "#!/bin/bash\n# @asyar.title Two\n",
+            true,
+        );
 
         let result = scan_directories(&[dir1.path().to_path_buf(), dir2.path().to_path_buf()]);
         assert_eq!(result.len(), 2);
@@ -341,11 +400,19 @@ mod tests {
     #[test]
     fn same_directory_listed_twice_dedupe_by_path() {
         let dir = TempDir::new().unwrap();
-        write_script(dir.path(), "only.sh", "#!/bin/bash\n# @asyar.title Only\n", true);
+        write_script(
+            dir.path(),
+            "only.sh",
+            "#!/bin/bash\n# @asyar.title Only\n",
+            true,
+        );
 
-        let result =
-            scan_directories(&[dir.path().to_path_buf(), dir.path().to_path_buf()]);
-        assert_eq!(result.len(), 1, "duplicate directory must not produce duplicate entries");
+        let result = scan_directories(&[dir.path().to_path_buf(), dir.path().to_path_buf()]);
+        assert_eq!(
+            result.len(),
+            1,
+            "duplicate directory must not produce duplicate entries"
+        );
     }
 
     // 11. script without header is included with default (empty) header
@@ -370,8 +437,7 @@ mod tests {
         let result = scan_directories(&[dir.path().to_path_buf()]);
         assert_eq!(result.len(), 1);
         assert_eq!(
-            result[0].header.title,
-            None,
+            result[0].header.title, None,
             "scanner must not inject a fallback title; that is the TS-side responsibility"
         );
     }
@@ -421,8 +487,7 @@ mod tests {
         let result = scan_directories(&[dir.path().to_path_buf()]);
         assert_eq!(result.len(), 1);
         assert_eq!(
-            result[0].header.title,
-            None,
+            result[0].header.title, None,
             "title placed after the header section boundary must not be parsed"
         );
     }

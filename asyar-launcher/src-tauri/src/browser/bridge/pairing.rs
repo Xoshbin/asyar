@@ -35,7 +35,9 @@ pub struct PairingRegistry {
 
 impl PairingRegistry {
     pub fn new() -> Self {
-        Self { pending: Mutex::new(HashMap::new()) }
+        Self {
+            pending: Mutex::new(HashMap::new()),
+        }
     }
 
     pub async fn request(&self, browser: BrowserKey) -> String {
@@ -125,7 +127,10 @@ mod tests {
     use crate::browser::types::BrowserFamily;
 
     fn key() -> BrowserKey {
-        BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() }
+        BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        }
     }
 
     #[tokio::test]
@@ -143,7 +148,9 @@ mod tests {
         let reg_for_wait = Arc::clone(&reg);
         let id_for_wait = id.clone();
         let waiter = tokio::spawn(async move {
-            reg_for_wait.wait(&id_for_wait, std::time::Duration::from_secs(2)).await
+            reg_for_wait
+                .wait(&id_for_wait, std::time::Duration::from_secs(2))
+                .await
         });
 
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -166,7 +173,9 @@ mod tests {
         let reg_for_wait = Arc::clone(&reg);
         let id_for_wait = id.clone();
         let waiter = tokio::spawn(async move {
-            reg_for_wait.wait(&id_for_wait, std::time::Duration::from_secs(2)).await
+            reg_for_wait
+                .wait(&id_for_wait, std::time::Duration::from_secs(2))
+                .await
         });
 
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -190,7 +199,12 @@ mod tests {
     async fn pending_requests_returns_current_pending() {
         let reg = PairingRegistry::new();
         let _id1 = reg.request(key()).await;
-        let _id2 = reg.request(BrowserKey { family: BrowserFamily::Firefox, variant: "firefox".to_string() }).await;
+        let _id2 = reg
+            .request(BrowserKey {
+                family: BrowserFamily::Firefox,
+                variant: "firefox".to_string(),
+            })
+            .await;
         let pending = reg.pending_requests().await;
         assert_eq!(pending.len(), 2);
     }

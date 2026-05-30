@@ -45,10 +45,7 @@ enum ChromiumNode {
     },
 }
 
-pub fn read_bookmarks_file(
-    path: &Path,
-    browser: &BrowserId,
-) -> Result<Vec<Bookmark>, String> {
+pub fn read_bookmarks_file(path: &Path, browser: &BrowserId) -> Result<Vec<Bookmark>, String> {
     if !path.exists() {
         return Ok(Vec::new());
     }
@@ -65,7 +62,12 @@ pub fn read_bookmarks_file(
 
 fn walk(node: &ChromiumNode, parents: &[String], browser: &BrowserId, out: &mut Vec<Bookmark>) {
     match node {
-        ChromiumNode::Url { id, name, url, date_added } => {
+        ChromiumNode::Url {
+            id,
+            name,
+            url,
+            date_added,
+        } => {
             out.push(Bookmark {
                 id: format!("{}:{}:{}", browser.variant, browser.profile_id, id),
                 browser: browser.clone(),
@@ -129,7 +131,8 @@ pub fn read_history_file(
             })
         })
         .map_err(|e| e.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -139,8 +142,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn fixture_path() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/browser/fixtures/chrome_bookmarks.json")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/browser/fixtures/chrome_bookmarks.json")
     }
 
     fn fake_browser() -> BrowserId {
@@ -154,7 +156,10 @@ mod tests {
     #[test]
     fn reads_flat_bookmark_at_root_with_correct_folder_path() {
         let bookmarks = read_bookmarks_file(&fixture_path(), &fake_browser()).unwrap();
-        let gh = bookmarks.iter().find(|b| b.title == "GitHub").expect("GitHub bookmark");
+        let gh = bookmarks
+            .iter()
+            .find(|b| b.title == "GitHub")
+            .expect("GitHub bookmark");
         assert_eq!(gh.url, "https://github.com");
         assert_eq!(gh.folder_path, vec!["Bookmarks Bar".to_string()]);
         assert_eq!(gh.browser.variant, "chrome");
@@ -163,8 +168,14 @@ mod tests {
     #[test]
     fn descends_into_nested_folders() {
         let bookmarks = read_bookmarks_file(&fixture_path(), &fake_browser()).unwrap();
-        let rust = bookmarks.iter().find(|b| b.title == "Rust Book").expect("Rust Book");
-        assert_eq!(rust.folder_path, vec!["Bookmarks Bar".to_string(), "Work".to_string()]);
+        let rust = bookmarks
+            .iter()
+            .find(|b| b.title == "Rust Book")
+            .expect("Rust Book");
+        assert_eq!(
+            rust.folder_path,
+            vec!["Bookmarks Bar".to_string(), "Work".to_string()]
+        );
     }
 
     #[test]
@@ -173,8 +184,16 @@ mod tests {
         let gh = bookmarks.iter().find(|b| b.title == "GitHub").unwrap();
         // 13350000000000000 microseconds since 1601-01-01 → 2023-09-03T20:00:00Z (approx).
         // Assert it converts to a plausible 2020s timestamp (between 2020 and 2030).
-        assert!(gh.added_at > 1_577_836_800_000, "added_at too old: {}", gh.added_at);
-        assert!(gh.added_at < 1_893_456_000_000, "added_at too new: {}", gh.added_at);
+        assert!(
+            gh.added_at > 1_577_836_800_000,
+            "added_at too old: {}",
+            gh.added_at
+        );
+        assert!(
+            gh.added_at < 1_893_456_000_000,
+            "added_at too new: {}",
+            gh.added_at
+        );
     }
 
     #[test]
@@ -217,20 +236,23 @@ mod tests {
 
     #[test]
     fn reads_all_history_entries_when_query_is_empty() {
-        let entries = read_history_file(&history_fixture_path(), &fake_browser(), "", None).unwrap();
+        let entries =
+            read_history_file(&history_fixture_path(), &fake_browser(), "", None).unwrap();
         assert_eq!(entries.len(), 3);
     }
 
     #[test]
     fn filters_by_query_case_insensitive() {
-        let entries = read_history_file(&history_fixture_path(), &fake_browser(), "rust", None).unwrap();
+        let entries =
+            read_history_file(&history_fixture_path(), &fake_browser(), "rust", None).unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].title, "Rust Docs");
     }
 
     #[test]
     fn respects_limit() {
-        let entries = read_history_file(&history_fixture_path(), &fake_browser(), "", Some(2)).unwrap();
+        let entries =
+            read_history_file(&history_fixture_path(), &fake_browser(), "", Some(2)).unwrap();
         assert_eq!(entries.len(), 2);
     }
 

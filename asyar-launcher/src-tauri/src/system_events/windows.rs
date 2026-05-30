@@ -94,8 +94,6 @@ mod watcher {
     use super::*;
     use crate::error::AppError;
     use crate::system_events::{SystemEventsHub, SystemEventsWatcher};
-    use log::{info, warn};
-    use std::sync::Arc;
     use ::windows::core::{w, GUID, PCWSTR};
     use ::windows::Win32::Foundation::{HANDLE, HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
     use ::windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -108,6 +106,8 @@ mod watcher {
         GWLP_USERDATA, HWND_MESSAGE, MSG, WINDOW_EX_STYLE, WINDOW_STYLE, WM_POWERBROADCAST,
         WNDCLASSEXW,
     };
+    use log::{info, warn};
+    use std::sync::Arc;
 
     // GUIDs as seen by Win32. Construct from the u128 forms in the parent
     // module so the pure parser and the glue can't drift apart.
@@ -176,15 +176,12 @@ mod watcher {
                 let state = unsafe { &mut *ptr };
                 if wparam.0 == PBT_POWERSETTINGCHANGE {
                     if lparam.0 != 0 {
-                        let setting =
-                            unsafe { &*(lparam.0 as *const POWERBROADCAST_SETTING) };
+                        let setting = unsafe { &*(lparam.0 as *const POWERBROADCAST_SETTING) };
                         let data_len = setting.DataLength as usize;
                         let data_ptr = setting.Data.as_ptr();
                         // Safety: `Data` is a flexible array member; Win32
                         // guarantees `DataLength` bytes are readable.
-                        let payload = unsafe {
-                            std::slice::from_raw_parts(data_ptr, data_len)
-                        };
+                        let payload = unsafe { std::slice::from_raw_parts(data_ptr, data_len) };
                         let guid_u128 = guid_to_u128(&setting.PowerSetting);
                         if let Some(ev) = parse_power_setting(guid_u128, payload) {
                             dispatch_with_dedup(state, ev);
@@ -371,8 +368,7 @@ mod tests {
     #[test]
     fn battery_percentage_emits_battery_level_changed() {
         let payload = 73u32.to_le_bytes();
-        let ev =
-            parse_power_setting(GUID_BATTERY_PERCENTAGE_REMAINING_U128, &payload).unwrap();
+        let ev = parse_power_setting(GUID_BATTERY_PERCENTAGE_REMAINING_U128, &payload).unwrap();
         assert!(matches!(
             ev,
             SystemEvent::BatteryLevelChanged { percent: 73 }
@@ -382,8 +378,7 @@ mod tests {
     #[test]
     fn battery_percentage_clamps_above_100() {
         let payload = 150u32.to_le_bytes();
-        let ev =
-            parse_power_setting(GUID_BATTERY_PERCENTAGE_REMAINING_U128, &payload).unwrap();
+        let ev = parse_power_setting(GUID_BATTERY_PERCENTAGE_REMAINING_U128, &payload).unwrap();
         assert!(matches!(
             ev,
             SystemEvent::BatteryLevelChanged { percent: 100 }
@@ -393,8 +388,7 @@ mod tests {
     #[test]
     fn battery_percentage_zero_emits() {
         let payload = 0u32.to_le_bytes();
-        let ev =
-            parse_power_setting(GUID_BATTERY_PERCENTAGE_REMAINING_U128, &payload).unwrap();
+        let ev = parse_power_setting(GUID_BATTERY_PERCENTAGE_REMAINING_U128, &payload).unwrap();
         assert!(matches!(
             ev,
             SystemEvent::BatteryLevelChanged { percent: 0 }
@@ -430,9 +424,7 @@ mod tests {
     #[test]
     fn unknown_guid_is_none() {
         let payload = 1u32.to_le_bytes();
-        assert!(
-            parse_power_setting(0xdead_beef_cafe_f00d_0000_0000_0000_0000, &payload).is_none()
-        );
+        assert!(parse_power_setting(0xdead_beef_cafe_f00d_0000_0000_0000_0000, &payload).is_none());
     }
 
     #[test]

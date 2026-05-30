@@ -52,7 +52,9 @@ impl Default for NotificationActionRegistry {
 
 impl NotificationActionRegistry {
     pub fn new() -> Self {
-        Self { entries: Mutex::new(HashMap::new()) }
+        Self {
+            entries: Mutex::new(HashMap::new()),
+        }
     }
 
     /// Store the actions for a freshly-sent notification. Overwrites any
@@ -76,7 +78,10 @@ impl NotificationActionRegistry {
         for (action_id, action) in actions {
             guard.insert(
                 (notification_id.to_string(), action_id),
-                Entry { action, inserted_at: now },
+                Entry {
+                    action,
+                    inserted_at: now,
+                },
             );
         }
     }
@@ -145,8 +150,14 @@ mod tests {
                 ("stop".to_string(), act("coffee", "coffee.stop")),
             ],
         );
-        assert_eq!(r.lookup("notif-1", "extend"), Some(act("coffee", "coffee.extend")));
-        assert_eq!(r.lookup("notif-1", "stop"), Some(act("coffee", "coffee.stop")));
+        assert_eq!(
+            r.lookup("notif-1", "extend"),
+            Some(act("coffee", "coffee.extend"))
+        );
+        assert_eq!(
+            r.lookup("notif-1", "stop"),
+            Some(act("coffee", "coffee.stop"))
+        );
     }
 
     #[test]

@@ -18,9 +18,9 @@
 use crate::error::AppError;
 use crate::extensions::extension_runtime::{
     emitter::{emit_typed, EventEmitter, TauriEventEmitter},
+    types::ContextRole,
     wire::IpcDispatchOutcome,
     DispatchOutcome, ExtensionRuntimeManager, MessageKind, PendingMessage, TriggerSource,
-    types::ContextRole,
     EVENT_DEGRADED, EVENT_MOUNT,
 };
 use crate::extensions::extension_state::{
@@ -305,7 +305,13 @@ pub fn state_rpc_abort(
     mgr: State<'_, Arc<ExtensionRuntimeManager>>,
 ) -> Result<IpcDispatchOutcome, AppError> {
     let emitter = TauriEventEmitter { app };
-    state_rpc_abort_inner(&mgr, &emitter, &extension_id, correlation_id, Instant::now())
+    state_rpc_abort_inner(
+        &mgr,
+        &emitter,
+        &extension_id,
+        correlation_id,
+        Instant::now(),
+    )
 }
 
 #[tauri::command]
@@ -322,10 +328,7 @@ pub fn state_rpc_reply(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::extensions::extension_runtime::{
-        emitter::RecordingEmitter,
-        RuntimeConfig,
-    };
+    use crate::extensions::extension_runtime::{emitter::RecordingEmitter, RuntimeConfig};
     use crate::extensions::extension_state::RecordingStateEmitter;
     use crate::storage::extension_state as store;
     use rusqlite::Connection;
@@ -378,7 +381,10 @@ mod tests {
         assert_eq!(state_get_inner(&svc, "ext.a", "k").unwrap(), None);
 
         state_set_inner(&svc, "ext.a", "k", serde_json::json!(2), 0).unwrap();
-        assert!(emitter.changed().is_empty(), "subscriptions dropped on clear");
+        assert!(
+            emitter.changed().is_empty(),
+            "subscriptions dropped on clear"
+        );
     }
 
     // ── Dev inspector introspection commands ──────────────────────────────
@@ -410,7 +416,8 @@ mod tests {
         state_subscribe_inner(&svc, "ext.a".into(), "k".into(), ContextRole::View, 100).unwrap();
         state_subscribe_inner(&svc, "ext.a".into(), "k".into(), ContextRole::View, 200).unwrap();
         state_subscribe_inner(&svc, "ext.a".into(), "k".into(), ContextRole::Worker, 300).unwrap();
-        state_subscribe_inner(&svc, "ext.b".into(), "noise".into(), ContextRole::View, 400).unwrap();
+        state_subscribe_inner(&svc, "ext.b".into(), "noise".into(), ContextRole::View, 400)
+            .unwrap();
 
         let rows = state_get_subscriptions_inner(&svc, "ext.a").unwrap();
         assert_eq!(rows.len(), 2);
@@ -425,7 +432,9 @@ mod tests {
     fn state_get_subscriptions_on_extension_with_no_subs_returns_empty() {
         let (svc, _) = fresh_svc_with_emitter();
         state_subscribe_inner(&svc, "ext.a".into(), "k".into(), ContextRole::View, 0).unwrap();
-        assert!(state_get_subscriptions_inner(&svc, "ext.b").unwrap().is_empty());
+        assert!(state_get_subscriptions_inner(&svc, "ext.b")
+            .unwrap()
+            .is_empty());
     }
 
     // ── RPC reply routing ──────────────────────────────────────────────────
@@ -463,7 +472,11 @@ mod tests {
             None,
         )
         .unwrap();
-        assert_eq!(emitter.replies().len(), 1, "Rust always relays; view filters");
+        assert_eq!(
+            emitter.replies().len(),
+            1,
+            "Rust always relays; view filters"
+        );
     }
 
     // ── RPC request enqueuing into the worker mailbox ──────────────────────
@@ -508,7 +521,16 @@ mod tests {
         let emitter = RecordingEmitter::default();
         let now = Instant::now();
         // Walk the worker into Ready: mount, then ack.
-        state_rpc_request_inner(&mgr, &emitter, "ext.a", "seed".into(), "cor-seed".into(), serde_json::json!({}), now).unwrap();
+        state_rpc_request_inner(
+            &mgr,
+            &emitter,
+            "ext.a",
+            "seed".into(),
+            "cor-seed".into(),
+            serde_json::json!({}),
+            now,
+        )
+        .unwrap();
         let token = 1u64;
         mgr.on_ready_ack("ext.a", token, ContextRole::Worker, now);
         // Now the worker is Ready. A fresh rpc request should return
@@ -552,7 +574,11 @@ mod tests {
         // Find the Mounting token so we can ack readiness and drain.
         let token = {
             let worker = mgr.worker.lock().unwrap();
-            match worker.snapshot_entries().into_iter().find(|e| e.extension_id == "ext.a") {
+            match worker
+                .snapshot_entries()
+                .into_iter()
+                .find(|e| e.extension_id == "ext.a")
+            {
                 Some(_) => 1u64, // first mount token starts at 1 per ContextMachine::new
                 None => panic!("expected entry"),
             }
@@ -591,7 +617,10 @@ mod tests {
         let token = 1u64;
         let drained = mgr.on_ready_ack("ext.a", token, ContextRole::Worker, now);
         assert_eq!(drained.len(), 2);
-        let abort = drained.iter().find(|m| m.payload["__rpc__"] == "abort").unwrap();
+        let abort = drained
+            .iter()
+            .find(|m| m.payload["__rpc__"] == "abort")
+            .unwrap();
         assert_eq!(abort.payload["correlationId"], "cor-1");
     }
 

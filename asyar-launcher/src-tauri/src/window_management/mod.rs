@@ -1,5 +1,5 @@
 pub mod types;
-pub use types::{WindowBounds, WindowBoundsUpdate, validate_bounds_update};
+pub use types::{validate_bounds_update, WindowBounds, WindowBoundsUpdate};
 
 #[cfg(target_os = "macos")]
 pub mod macos;

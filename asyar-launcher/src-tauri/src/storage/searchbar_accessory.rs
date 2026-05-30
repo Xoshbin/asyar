@@ -74,9 +74,7 @@ pub fn set(
              updated_at = excluded.updated_at",
         params![extension_id, command_id, value, now_millis()],
     )
-    .map_err(|e| {
-        AppError::Database(format!("Failed to set searchbar accessory value: {e}"))
-    })?;
+    .map_err(|e| AppError::Database(format!("Failed to set searchbar accessory value: {e}")))?;
     Ok(())
 }
 
@@ -128,7 +126,10 @@ mod tests {
     fn set_then_get_roundtrip() {
         let conn = mem_conn();
         set(&conn, "ext-a", "cmd-1", "images").unwrap();
-        assert_eq!(get(&conn, "ext-a", "cmd-1").unwrap(), Some("images".to_string()));
+        assert_eq!(
+            get(&conn, "ext-a", "cmd-1").unwrap(),
+            Some("images".to_string())
+        );
     }
 
     #[test]

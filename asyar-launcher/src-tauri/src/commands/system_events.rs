@@ -90,13 +90,9 @@ mod tests {
     fn subscribe_without_permission_is_rejected() {
         let hub = SystemEventsHub::new();
         let perms = empty_permissions();
-        let err = system_events_subscribe_inner(
-            &hub,
-            &perms,
-            Some("ext-a".into()),
-            vec!["wake".into()],
-        )
-        .unwrap_err();
+        let err =
+            system_events_subscribe_inner(&hub, &perms, Some("ext-a".into()), vec!["wake".into()])
+                .unwrap_err();
         assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
     }
 
@@ -146,13 +142,9 @@ mod tests {
     fn unsubscribe_roundtrip() {
         let hub = SystemEventsHub::new();
         let perms = permissions_with("ext-a");
-        let id = system_events_subscribe_inner(
-            &hub,
-            &perms,
-            Some("ext-a".into()),
-            vec!["wake".into()],
-        )
-        .unwrap();
+        let id =
+            system_events_subscribe_inner(&hub, &perms, Some("ext-a".into()), vec!["wake".into()])
+                .unwrap();
         system_events_unsubscribe_inner(&hub, &perms, Some("ext-a".into()), id)
             .expect("unsubscribe ok");
     }
@@ -172,13 +164,9 @@ mod tests {
     fn unsubscribe_unknown_id_returns_not_found() {
         let hub = SystemEventsHub::new();
         let perms = permissions_with("ext-a");
-        let err = system_events_unsubscribe_inner(
-            &hub,
-            &perms,
-            Some("ext-a".into()),
-            "bogus".into(),
-        )
-        .unwrap_err();
+        let err =
+            system_events_unsubscribe_inner(&hub, &perms, Some("ext-a".into()), "bogus".into())
+                .unwrap_err();
         assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
     }
 }

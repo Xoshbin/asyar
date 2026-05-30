@@ -37,14 +37,13 @@ impl ScriptsWatcher {
         let on_change = Arc::new(on_change);
         let on_change_cb = on_change.clone();
 
-        let watcher = notify::recommended_watcher(
-            move |res: Result<notify::Event, notify::Error>| {
+        let watcher =
+            notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
                 if res.is_ok() {
                     on_change_cb();
                 }
-            },
-        )
-        .map_err(|e| AppError::Other(format!("scripts watcher init: {e}")))?;
+            })
+            .map_err(|e| AppError::Other(format!("scripts watcher init: {e}")))?;
 
         let initial_dirs: Vec<PathBuf> = directories
             .lock()
@@ -109,7 +108,10 @@ mod tests {
     fn build_directories_state_with_empty_vec() {
         let state = build_directories_state(vec![]);
         let guard = state.lock().unwrap();
-        assert!(guard.is_empty(), "expected empty Vec from build_directories_state(vec![])");
+        assert!(
+            guard.is_empty(),
+            "expected empty Vec from build_directories_state(vec![])"
+        );
     }
 
     #[test]

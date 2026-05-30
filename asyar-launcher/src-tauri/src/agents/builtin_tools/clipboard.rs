@@ -92,10 +92,9 @@ impl BuiltinTool for ClipboardWriteTool {
     }
 
     async fn invoke(&self, args: serde_json::Value) -> Result<serde_json::Value, AppError> {
-        let text = args
-            .get("text")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| AppError::Validation("missing or invalid 'text' argument".to_string()))?;
+        let text = args.get("text").and_then(|v| v.as_str()).ok_or_else(|| {
+            AppError::Validation("missing or invalid 'text' argument".to_string())
+        })?;
         self.provider.write_text(text)?;
         Ok(json!({"ok": true}))
     }

@@ -240,7 +240,13 @@ impl McpSupervisor {
         const POLL_MS: u64 = 50;
 
         loop {
-            let status = self.inner.lock().unwrap().servers.get(&id).map(|h| h.status);
+            let status = self
+                .inner
+                .lock()
+                .unwrap()
+                .servers
+                .get(&id)
+                .map(|h| h.status);
             match status {
                 Some(McpServerStatus::Connected) => {
                     return self.list_tools(&id).await;
@@ -321,10 +327,7 @@ async fn run_watchdog(
 
         // Exponential backoff before next attempt
         let exp = attempt.min(10);
-        let backoff = std::cmp::min(
-            cfg.initial_backoff * 2u32.pow(exp),
-            cfg.max_backoff,
-        );
+        let backoff = std::cmp::min(cfg.initial_backoff * 2u32.pow(exp), cfg.max_backoff);
         attempt += 1;
 
         tokio::select! {
@@ -401,7 +404,6 @@ fn clear_client(inner: &Arc<std::sync::Mutex<Inner>>, id: &McpServerId) {
         handle.client = None;
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -518,8 +520,7 @@ mod tests {
         expected: McpServerStatus,
         timeout_ms: u64,
     ) -> Option<McpServerStatus> {
-        let deadline = tokio::time::Instant::now()
-            + tokio::time::Duration::from_millis(timeout_ms);
+        let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_millis(timeout_ms);
         loop {
             let s = supervisor.status(&id.to_string()).await;
             if s == Some(expected) {
@@ -599,7 +600,10 @@ mod tests {
         supervisor.enable(config).await.expect("enable");
         let _ = wait_for_status(&supervisor, "srv3", McpServerStatus::Connected, 2000).await;
 
-        supervisor.disable(&"srv3".to_string()).await.expect("disable");
+        supervisor
+            .disable(&"srv3".to_string())
+            .await
+            .expect("disable");
 
         let status = supervisor.status(&"srv3".to_string()).await;
         assert_eq!(status, Some(McpServerStatus::Disabled), "expected Disabled");
@@ -776,7 +780,11 @@ mod tests {
             "must reach Connected before poisoning"
         );
         // Factory must have been called exactly once at this point.
-        assert_eq!(factory.call_count(), 1, "exactly one connect before poisoning");
+        assert_eq!(
+            factory.call_count(),
+            1,
+            "exactly one connect before poisoning"
+        );
 
         // Poison the client so the next call_tool returns a Transport error.
         // We replace the client with None so call_tool gets "not connected",
@@ -804,8 +812,7 @@ mod tests {
         // watchdog restarted. The transition through Starting may be too fast
         // to observe reliably, so we poll factory.call_count() directly.
         let second_connect_happened = {
-            let deadline =
-                tokio::time::Instant::now() + tokio::time::Duration::from_millis(3000);
+            let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_millis(3000);
             loop {
                 if factory.call_count() >= 2 {
                     break true;
@@ -927,10 +934,7 @@ mod tests {
             .enable_and_wait_for_tools(config, Duration::from_millis(100))
             .await;
 
-        assert!(
-            result.is_err(),
-            "expected Err on timeout, got: {result:?}"
-        );
+        assert!(result.is_err(), "expected Err on timeout, got: {result:?}");
         let err_msg = result.unwrap_err().to_string();
         assert!(
             err_msg.contains("srv12"),

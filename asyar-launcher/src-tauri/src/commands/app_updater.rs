@@ -1,11 +1,12 @@
-use tauri::AppHandle;
 use crate::app_updater::{AppUpdaterState, PendingUpdate};
+use tauri::AppHandle;
 
 /// Read the update channel from settings.dat.
 /// Falls back to "stable" when the store or key is unavailable.
 fn read_channel_from_store(app: &AppHandle) -> String {
     use tauri_plugin_store::StoreExt;
-    app.store("settings.dat").ok()
+    app.store("settings.dat")
+        .ok()
         .and_then(|s| s.get("settings"))
         .and_then(|v| v.get("updates").cloned())
         .and_then(|u| u.get("channel").cloned())
@@ -16,9 +17,7 @@ fn read_channel_from_store(app: &AppHandle) -> String {
 /// Manual "Check for updates now" — called by the About tab button.
 /// Delegates entirely to the service layer; no logic here.
 #[tauri::command]
-pub async fn app_updater_check_now(
-    app: AppHandle,
-) -> Result<Option<String>, String> {
+pub async fn app_updater_check_now(app: AppHandle) -> Result<Option<String>, String> {
     let channel = read_channel_from_store(&app);
     crate::app_updater::service::check_and_maybe_download(&app, &channel).await
 }
@@ -26,9 +25,7 @@ pub async fn app_updater_check_now(
 /// Returns the pending update info if a download is ready.
 /// Frontend calls this on mount to restore badge state across sessions.
 #[tauri::command]
-pub fn app_updater_get_pending(
-    state: tauri::State<'_, AppUpdaterState>,
-) -> Option<PendingUpdate> {
+pub fn app_updater_get_pending(state: tauri::State<'_, AppUpdaterState>) -> Option<PendingUpdate> {
     state.pending.lock().ok()?.clone()
 }
 
@@ -70,7 +67,10 @@ mod tests {
 
     #[test]
     fn test_should_show_whats_new_fresh_install() {
-        assert!(!app_updater_should_show_whats_new(None, "1.0.0".to_string()));
+        assert!(!app_updater_should_show_whats_new(
+            None,
+            "1.0.0".to_string()
+        ));
     }
 
     #[test]

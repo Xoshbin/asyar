@@ -1,7 +1,7 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::Mutex;
 use crate::error::AppError;
 use serde::Serialize;
+use std::collections::{HashMap, HashSet};
+use std::sync::Mutex;
 
 /// Rust-side extension permission registry. Populated by extensionManager.ts at extension
 /// load time. Queried by sensitive commands for defense-in-depth enforcement.
@@ -86,21 +86,14 @@ impl ExtensionPermissionRegistry {
     /// Generic arg lookup. Returns a cloned JSON value for the (extension,
     /// permission) pair, or `None` if absent. Callers narrow to the expected
     /// shape (e.g. `fs_watch_patterns` for `Vec<String>`).
-    pub fn args_for(
-        &self,
-        extension_id: &str,
-        permission: &str,
-    ) -> Option<serde_json::Value> {
+    pub fn args_for(&self, extension_id: &str, permission: &str) -> Option<serde_json::Value> {
         let guard = self.args.lock().ok()?;
         guard.get(extension_id)?.get(permission).cloned()
     }
 
     /// Narrowed typed view of `fs:watch` patterns. Errors if the extension
     /// hasn't declared the permission.
-    pub fn fs_watch_patterns(
-        &self,
-        extension_id: &str,
-    ) -> Result<Vec<String>, AppError> {
+    pub fn fs_watch_patterns(&self, extension_id: &str) -> Result<Vec<String>, AppError> {
         let value = self.args_for(extension_id, "fs:watch").ok_or_else(|| {
             AppError::Permission(format!(
                 "Extension '{}' has no fs:watch patterns declared in manifest",
@@ -108,16 +101,12 @@ impl ExtensionPermissionRegistry {
             ))
         })?;
         let arr = value.as_array().ok_or_else(|| {
-            AppError::Validation(
-                "permissionArgs.fs:watch must be an array of strings".into(),
-            )
+            AppError::Validation("permissionArgs.fs:watch must be an array of strings".into())
         })?;
         arr.iter()
             .map(|v| {
                 v.as_str().map(|s| s.to_string()).ok_or_else(|| {
-                    AppError::Validation(
-                        "permissionArgs.fs:watch entries must be strings".into(),
-                    )
+                    AppError::Validation("permissionArgs.fs:watch entries must be strings".into())
                 })
             })
             .collect()
@@ -179,60 +168,60 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:application:syncApplicationIndex" => Some("application:read"),
         "asyar:api:application:listApplications" => Some("application:read"),
         // Window Management
-        "asyar:api:window:getWindowBounds"                  => Some("window:manage"),
-        "asyar:api:window:setWindowBounds"                  => Some("window:manage"),
-        "asyar:api:window:setFullscreen"                    => Some("window:manage"),
+        "asyar:api:window:getWindowBounds" => Some("window:manage"),
+        "asyar:api:window:setWindowBounds" => Some("window:manage"),
+        "asyar:api:window:setFullscreen" => Some("window:manage"),
         // Extension Preferences
-        "asyar:api:preferences:getAll"                      => Some("preferences:read"),
-        "asyar:api:preferences:set"                         => Some("preferences:write"),
-        "asyar:api:preferences:reset"                       => Some("preferences:write"),
+        "asyar:api:preferences:getAll" => Some("preferences:read"),
+        "asyar:api:preferences:set" => Some("preferences:write"),
+        "asyar:api:preferences:reset" => Some("preferences:write"),
         // Power inhibitor
-        "asyar:api:power:keepAwake"                         => Some("power:inhibit"),
-        "asyar:api:power:release"                           => Some("power:inhibit"),
-        "asyar:api:power:list"                              => Some("power:inhibit"),
+        "asyar:api:power:keepAwake" => Some("power:inhibit"),
+        "asyar:api:power:release" => Some("power:inhibit"),
+        "asyar:api:power:list" => Some("power:inhibit"),
         // System events (OS sleep/wake/lid/battery push)
-        "asyar:api:systemEvents:subscribe"                  => Some("systemEvents:read"),
-        "asyar:api:systemEvents:unsubscribe"                => Some("systemEvents:read"),
+        "asyar:api:systemEvents:subscribe" => Some("systemEvents:read"),
+        "asyar:api:systemEvents:unsubscribe" => Some("systemEvents:read"),
         // App-presence push events (launched / terminated / frontmost-changed)
-        "asyar:api:appEvents:subscribe"                     => Some("app:frontmost-watch"),
-        "asyar:api:appEvents:unsubscribe"                   => Some("app:frontmost-watch"),
+        "asyar:api:appEvents:subscribe" => Some("app:frontmost-watch"),
+        "asyar:api:appEvents:unsubscribe" => Some("app:frontmost-watch"),
         // Application one-shot query — same permission as the rest of application:*
-        "asyar:api:application:isRunning"                   => Some("application:read"),
+        "asyar:api:application:isRunning" => Some("application:read"),
         // Persistent one-shot timers (fire even after relaunch).
-        "asyar:api:timers:schedule"                         => Some("timers:schedule"),
-        "asyar:api:timers:cancel"                           => Some("timers:cancel"),
-        "asyar:api:timers:list"                             => Some("timers:list"),
+        "asyar:api:timers:schedule" => Some("timers:schedule"),
+        "asyar:api:timers:cancel" => Some("timers:cancel"),
+        "asyar:api:timers:list" => Some("timers:list"),
         // Filesystem watcher — patterns are sidecarred in permissionArgs.
-        "asyar:api:fsWatcher:create"                        => Some("fs:watch"),
-        "asyar:api:fsWatcher:dispose"                       => Some("fs:watch"),
+        "asyar:api:fsWatcher:create" => Some("fs:watch"),
+        "asyar:api:fsWatcher:dispose" => Some("fs:watch"),
         // Snippets — extension contributes shortcodes to the snippets service
-        "asyar:api:snippets:registerShortcodes"             => Some("snippets:contribute"),
-        "asyar:api:snippets:unregisterShortcodes"           => Some("snippets:contribute"),
-        "asyar:api:snippets:listLearnedShortcodes"          => Some("snippets:contribute"),
-        "asyar:api:snippets:promoteLearnedShortcode"        => Some("snippets:contribute"),
-        "asyar:api:snippets:forgetLearnedShortcode"         => Some("snippets:contribute"),
-        "asyar:api:snippets:clearLearnedShortcodes"         => Some("snippets:contribute"),
-        "asyar:api:snippets:setInlineFallbackEnabled"       => Some("snippets:contribute"),
+        "asyar:api:snippets:registerShortcodes" => Some("snippets:contribute"),
+        "asyar:api:snippets:unregisterShortcodes" => Some("snippets:contribute"),
+        "asyar:api:snippets:listLearnedShortcodes" => Some("snippets:contribute"),
+        "asyar:api:snippets:promoteLearnedShortcode" => Some("snippets:contribute"),
+        "asyar:api:snippets:forgetLearnedShortcode" => Some("snippets:contribute"),
+        "asyar:api:snippets:clearLearnedShortcodes" => Some("snippets:contribute"),
+        "asyar:api:snippets:setInlineFallbackEnabled" => Some("snippets:contribute"),
         // Browser bridge — tabs (read = list/inspect, write = act/open/search).
-        "asyar:api:browser:listTabs"                        => Some("browser:tabs.read"),
-        "asyar:api:browser:getActiveTab"                    => Some("browser:tabs.read"),
-        "asyar:api:browser:listPairedBrowsers"              => Some("browser:tabs.read"),
-        "asyar:api:browser:getMostRecentActiveBrowser"      => Some("browser:tabs.read"),
-        "asyar:api:browser:subscribeTabsChanged"            => Some("browser:tabs.read"),
-        "asyar:api:browser:unsubscribeTabsChanged"          => Some("browser:tabs.read"),
-        "asyar:api:browser:activateTab"                     => Some("browser:tabs.write"),
-        "asyar:api:browser:closeTab"                        => Some("browser:tabs.write"),
-        "asyar:api:browser:openUrl"                         => Some("browser:tabs.write"),
-        "asyar:api:browser:searchWeb"                       => Some("browser:tabs.write"),
+        "asyar:api:browser:listTabs" => Some("browser:tabs.read"),
+        "asyar:api:browser:getActiveTab" => Some("browser:tabs.read"),
+        "asyar:api:browser:listPairedBrowsers" => Some("browser:tabs.read"),
+        "asyar:api:browser:getMostRecentActiveBrowser" => Some("browser:tabs.read"),
+        "asyar:api:browser:subscribeTabsChanged" => Some("browser:tabs.read"),
+        "asyar:api:browser:unsubscribeTabsChanged" => Some("browser:tabs.read"),
+        "asyar:api:browser:activateTab" => Some("browser:tabs.write"),
+        "asyar:api:browser:closeTab" => Some("browser:tabs.write"),
+        "asyar:api:browser:openUrl" => Some("browser:tabs.write"),
+        "asyar:api:browser:searchWeb" => Some("browser:tabs.write"),
         // Browser bridge — bookmarks / history (read from disk).
-        "asyar:api:browser:listBookmarks"                   => Some("browser:bookmarks.read"),
-        "asyar:api:browser:searchHistory"                   => Some("browser:history.read"),
+        "asyar:api:browser:listBookmarks" => Some("browser:bookmarks.read"),
+        "asyar:api:browser:searchHistory" => Some("browser:history.read"),
         // Browser bridge — page content (read = snapshot/query, write = act).
-        "asyar:api:browser:getCurrentPage"                  => Some("browser:page.read"),
-        "asyar:api:browser:queryPage"                       => Some("browser:page.read"),
-        "asyar:api:browser:subscribePageChanged"            => Some("browser:page.read"),
-        "asyar:api:browser:unsubscribePageChanged"          => Some("browser:page.read"),
-        "asyar:api:browser:actOnPage"                       => Some("browser:page.write"),
+        "asyar:api:browser:getCurrentPage" => Some("browser:page.read"),
+        "asyar:api:browser:queryPage" => Some("browser:page.read"),
+        "asyar:api:browser:subscribePageChanged" => Some("browser:page.read"),
+        "asyar:api:browser:unsubscribePageChanged" => Some("browser:page.read"),
+        "asyar:api:browser:actOnPage" => Some("browser:page.write"),
         // browser:listAvailableBrowsers / isCompanionInstalled are intentionally
         // permission-free (discovery, low blast radius) → fall through to None.
         // Not in map = core call, always allowed
@@ -263,7 +252,11 @@ pub fn check_extension_permission(
         Some(perm) => perm,
         None => {
             // Call type not in map — core call, always allowed
-            return PermissionCheckResult { allowed: true, required_permission: None, reason: None };
+            return PermissionCheckResult {
+                allowed: true,
+                required_permission: None,
+                reason: None,
+            };
         }
     };
 
@@ -284,13 +277,20 @@ pub fn check_extension_permission(
             return PermissionCheckResult {
                 allowed: false,
                 required_permission: Some(required.to_string()),
-                reason: Some(format!("Extension \"{}\" is not registered in the permission registry.", extension_id)),
+                reason: Some(format!(
+                    "Extension \"{}\" is not registered in the permission registry.",
+                    extension_id
+                )),
             };
         }
     };
 
     if permissions.contains(required) {
-        PermissionCheckResult { allowed: true, required_permission: None, reason: None }
+        PermissionCheckResult {
+            allowed: true,
+            required_permission: None,
+            reason: None,
+        }
     } else {
         PermissionCheckResult {
             allowed: false,
@@ -314,13 +314,13 @@ pub fn register_extension_permissions(
     registry: tauri::State<'_, ExtensionPermissionRegistry>,
 ) -> Result<(), AppError> {
     if extension_id.trim().is_empty() {
-        return Err(AppError::Validation("extension_id cannot be empty".to_string()));
+        return Err(AppError::Validation(
+            "extension_id cannot be empty".to_string(),
+        ));
     }
     let perms: HashSet<String> = permissions.into_iter().collect();
-    let args: HashMap<String, serde_json::Value> = permission_args
-        .unwrap_or_default()
-        .into_iter()
-        .collect();
+    let args: HashMap<String, serde_json::Value> =
+        permission_args.unwrap_or_default().into_iter().collect();
     registry.register(&extension_id, perms, args);
     Ok(())
 }
@@ -344,7 +344,10 @@ mod tests {
 
     #[test]
     fn test_get_required_permission_known_call() {
-        assert_eq!(get_required_permission("asyar:api:network:fetch"), Some("network"));
+        assert_eq!(
+            get_required_permission("asyar:api:network:fetch"),
+            Some("network")
+        );
     }
 
     #[test]
@@ -357,38 +360,99 @@ mod tests {
         // Regression guard: browser IPC commands MUST be gated. If any returns
         // None it defaults to "core call, always allowed" — letting any extension
         // read tabs/bookmarks/history/page content without declaring permission.
-        assert_eq!(get_required_permission("asyar:api:browser:listTabs"), Some("browser:tabs.read"));
-        assert_eq!(get_required_permission("asyar:api:browser:getActiveTab"), Some("browser:tabs.read"));
-        assert_eq!(get_required_permission("asyar:api:browser:listPairedBrowsers"), Some("browser:tabs.read"));
-        assert_eq!(get_required_permission("asyar:api:browser:getMostRecentActiveBrowser"), Some("browser:tabs.read"));
-        assert_eq!(get_required_permission("asyar:api:browser:activateTab"), Some("browser:tabs.write"));
-        assert_eq!(get_required_permission("asyar:api:browser:closeTab"), Some("browser:tabs.write"));
-        assert_eq!(get_required_permission("asyar:api:browser:openUrl"), Some("browser:tabs.write"));
-        assert_eq!(get_required_permission("asyar:api:browser:searchWeb"), Some("browser:tabs.write"));
-        assert_eq!(get_required_permission("asyar:api:browser:listBookmarks"), Some("browser:bookmarks.read"));
-        assert_eq!(get_required_permission("asyar:api:browser:searchHistory"), Some("browser:history.read"));
-        assert_eq!(get_required_permission("asyar:api:browser:getCurrentPage"), Some("browser:page.read"));
-        assert_eq!(get_required_permission("asyar:api:browser:queryPage"), Some("browser:page.read"));
-        assert_eq!(get_required_permission("asyar:api:browser:actOnPage"), Some("browser:page.write"));
-        assert_eq!(get_required_permission("asyar:api:browser:subscribeTabsChanged"), Some("browser:tabs.read"));
-        assert_eq!(get_required_permission("asyar:api:browser:unsubscribeTabsChanged"), Some("browser:tabs.read"));
-        assert_eq!(get_required_permission("asyar:api:browser:subscribePageChanged"), Some("browser:page.read"));
-        assert_eq!(get_required_permission("asyar:api:browser:unsubscribePageChanged"), Some("browser:page.read"));
+        assert_eq!(
+            get_required_permission("asyar:api:browser:listTabs"),
+            Some("browser:tabs.read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:getActiveTab"),
+            Some("browser:tabs.read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:listPairedBrowsers"),
+            Some("browser:tabs.read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:getMostRecentActiveBrowser"),
+            Some("browser:tabs.read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:activateTab"),
+            Some("browser:tabs.write")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:closeTab"),
+            Some("browser:tabs.write")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:openUrl"),
+            Some("browser:tabs.write")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:searchWeb"),
+            Some("browser:tabs.write")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:listBookmarks"),
+            Some("browser:bookmarks.read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:searchHistory"),
+            Some("browser:history.read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:getCurrentPage"),
+            Some("browser:page.read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:queryPage"),
+            Some("browser:page.read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:actOnPage"),
+            Some("browser:page.write")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:subscribeTabsChanged"),
+            Some("browser:tabs.read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:unsubscribeTabsChanged"),
+            Some("browser:tabs.read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:subscribePageChanged"),
+            Some("browser:page.read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:unsubscribePageChanged"),
+            Some("browser:page.read")
+        );
         // Discovery calls are intentionally permission-free (low blast radius).
-        assert_eq!(get_required_permission("asyar:api:browser:listAvailableBrowsers"), None);
-        assert_eq!(get_required_permission("asyar:api:browser:isCompanionInstalled"), None);
+        assert_eq!(
+            get_required_permission("asyar:api:browser:listAvailableBrowsers"),
+            None
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:browser:isCompanionInstalled"),
+            None
+        );
     }
 
     #[test]
     fn test_check_allows_registered_permission() {
         let reg = make_registry();
-        assert!(reg.check(&Some("org.asyar.test".to_string()), "network").is_ok());
+        assert!(reg
+            .check(&Some("org.asyar.test".to_string()), "network")
+            .is_ok());
     }
 
     #[test]
     fn test_check_denies_missing_permission() {
         let reg = make_registry();
-        assert!(reg.check(&Some("org.asyar.test".to_string()), "notifications:send").is_err());
+        assert!(reg
+            .check(&Some("org.asyar.test".to_string()), "notifications:send")
+            .is_err());
     }
 
     #[test]
@@ -400,56 +464,97 @@ mod tests {
     #[test]
     fn test_check_denies_unregistered_extension() {
         let reg = make_registry();
-        assert!(reg.check(&Some("org.asyar.unknown".to_string()), "network").is_err());
+        assert!(reg
+            .check(&Some("org.asyar.unknown".to_string()), "network")
+            .is_err());
     }
 
     #[test]
     fn test_get_required_permission_clipboard_write() {
-        assert_eq!(get_required_permission("asyar:api:clipboard:writeToClipboard"), Some("clipboard:write"));
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:writeToClipboard"),
+            Some("clipboard:write")
+        );
     }
 
     #[test]
     fn fs_show_maps_to_fs_read() {
-        assert_eq!(get_required_permission("asyar:api:fs:showInFileManager"), Some("fs:read"));
+        assert_eq!(
+            get_required_permission("asyar:api:fs:showInFileManager"),
+            Some("fs:read")
+        );
     }
 
     #[test]
     fn fs_trash_maps_to_fs_write() {
-        assert_eq!(get_required_permission("asyar:api:fs:trash"), Some("fs:write"));
+        assert_eq!(
+            get_required_permission("asyar:api:fs:trash"),
+            Some("fs:write")
+        );
     }
 
     #[test]
     fn test_interop_service_permission() {
-        assert_eq!(get_required_permission("asyar:api:interop:launchCommand"), Some("extension:invoke"));
+        assert_eq!(
+            get_required_permission("asyar:api:interop:launchCommand"),
+            Some("extension:invoke")
+        );
     }
 
     #[test]
     fn application_canonical_namespace_permissions_mapped() {
-        assert_eq!(get_required_permission("asyar:api:application:getFrontmostApplication"), Some("application:read"));
-        assert_eq!(get_required_permission("asyar:api:application:syncApplicationIndex"), Some("application:read"));
-        assert_eq!(get_required_permission("asyar:api:application:listApplications"), Some("application:read"));
+        assert_eq!(
+            get_required_permission("asyar:api:application:getFrontmostApplication"),
+            Some("application:read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:application:syncApplicationIndex"),
+            Some("application:read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:application:listApplications"),
+            Some("application:read")
+        );
     }
 
     #[test]
     fn window_manage_permission_mapped() {
-        assert_eq!(get_required_permission("asyar:api:window:getWindowBounds"), Some("window:manage"));
-        assert_eq!(get_required_permission("asyar:api:window:setWindowBounds"), Some("window:manage"));
-        assert_eq!(get_required_permission("asyar:api:window:setFullscreen"), Some("window:manage"));
+        assert_eq!(
+            get_required_permission("asyar:api:window:getWindowBounds"),
+            Some("window:manage")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:window:setWindowBounds"),
+            Some("window:manage")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:window:setFullscreen"),
+            Some("window:manage")
+        );
     }
 
     #[test]
     fn preferences_get_all_maps_to_preferences_read() {
-        assert_eq!(get_required_permission("asyar:api:preferences:getAll"), Some("preferences:read"));
+        assert_eq!(
+            get_required_permission("asyar:api:preferences:getAll"),
+            Some("preferences:read")
+        );
     }
 
     #[test]
     fn preferences_set_maps_to_preferences_write() {
-        assert_eq!(get_required_permission("asyar:api:preferences:set"), Some("preferences:write"));
+        assert_eq!(
+            get_required_permission("asyar:api:preferences:set"),
+            Some("preferences:write")
+        );
     }
 
     #[test]
     fn preferences_reset_maps_to_preferences_write() {
-        assert_eq!(get_required_permission("asyar:api:preferences:reset"), Some("preferences:write"));
+        assert_eq!(
+            get_required_permission("asyar:api:preferences:reset"),
+            Some("preferences:write")
+        );
     }
 
     // --- Canonical wire type entries (broker.invoke('shell:spawn')
@@ -457,41 +562,65 @@ mod tests {
 
     #[test]
     fn shell_spawn_wire_type_maps_to_shell_spawn() {
-        assert_eq!(get_required_permission("asyar:api:shell:spawn"), Some("shell:spawn"));
+        assert_eq!(
+            get_required_permission("asyar:api:shell:spawn"),
+            Some("shell:spawn")
+        );
     }
 
     #[test]
     fn shell_list_wire_type_maps_to_shell_spawn() {
-        assert_eq!(get_required_permission("asyar:api:shell:list"), Some("shell:spawn"));
+        assert_eq!(
+            get_required_permission("asyar:api:shell:list"),
+            Some("shell:spawn")
+        );
     }
 
     #[test]
     fn shell_attach_wire_type_maps_to_shell_spawn() {
-        assert_eq!(get_required_permission("asyar:api:shell:attach"), Some("shell:spawn"));
+        assert_eq!(
+            get_required_permission("asyar:api:shell:attach"),
+            Some("shell:spawn")
+        );
     }
 
     #[test]
     fn oauth_authorize_maps_to_oauth_use() {
-        assert_eq!(get_required_permission("asyar:api:oauth:authorize"), Some("oauth:use"));
+        assert_eq!(
+            get_required_permission("asyar:api:oauth:authorize"),
+            Some("oauth:use")
+        );
     }
 
     #[test]
     fn oauth_revoke_token_maps_to_oauth_use() {
-        assert_eq!(get_required_permission("asyar:api:oauth:revokeToken"), Some("oauth:use"));
+        assert_eq!(
+            get_required_permission("asyar:api:oauth:revokeToken"),
+            Some("oauth:use")
+        );
     }
 
     #[test]
     fn ai_stream_chat_maps_to_ai_use() {
-        assert_eq!(get_required_permission("asyar:api:ai:streamChat"), Some("ai:use"));
+        assert_eq!(
+            get_required_permission("asyar:api:ai:streamChat"),
+            Some("ai:use")
+        );
     }
 
     #[test]
     fn entitlements_check_maps_to_entitlements_read() {
-        assert_eq!(get_required_permission("asyar:api:entitlements:check"), Some("entitlements:read"));
+        assert_eq!(
+            get_required_permission("asyar:api:entitlements:check"),
+            Some("entitlements:read")
+        );
     }
     #[test]
     fn entitlements_get_all_maps_to_entitlements_read() {
-        assert_eq!(get_required_permission("asyar:api:entitlements:getAll"), Some("entitlements:read"));
+        assert_eq!(
+            get_required_permission("asyar:api:entitlements:getAll"),
+            Some("entitlements:read")
+        );
     }
 
     /// Proves that the defense-in-depth check in shell_spawn must pass the manifest
@@ -508,18 +637,31 @@ mod tests {
             });
         }
         // Passing the manifest permission name → allowed
-        assert!(reg.check(&Some("org.asyar.sdk-playground".to_string()), "shell:spawn").is_ok());
+        assert!(reg
+            .check(&Some("org.asyar.sdk-playground".to_string()), "shell:spawn")
+            .is_ok());
         // Passing the IPC wire type → denied (proves shell.rs must NOT use this string)
-        assert!(reg.check(&Some("org.asyar.sdk-playground".to_string()), "asyar:api:shell:spawn").is_err());
+        assert!(reg
+            .check(
+                &Some("org.asyar.sdk-playground".to_string()),
+                "asyar:api:shell:spawn"
+            )
+            .is_err());
     }
 
     #[test]
     fn selection_get_selected_text_maps_to_selection_read() {
-        assert_eq!(get_required_permission("asyar:api:selection:getSelectedText"), Some("selection:read"));
+        assert_eq!(
+            get_required_permission("asyar:api:selection:getSelectedText"),
+            Some("selection:read")
+        );
     }
     #[test]
     fn selection_get_selected_finder_items_maps_to_selection_read() {
-        assert_eq!(get_required_permission("asyar:api:selection:getSelectedFinderItems"), Some("selection:read"));
+        assert_eq!(
+            get_required_permission("asyar:api:selection:getSelectedFinderItems"),
+            Some("selection:read")
+        );
     }
 
     #[test]
@@ -611,15 +753,8 @@ mod tests {
     fn args_for_returns_registered_value() {
         let reg = ExtensionPermissionRegistry::default();
         let mut inner_args = HashMap::new();
-        inner_args.insert(
-            "fs:watch".to_string(),
-            serde_json::json!(["~/foo/**"]),
-        );
-        reg.register(
-            "ext.a",
-            HashSet::from(["fs:watch".to_string()]),
-            inner_args,
-        );
+        inner_args.insert("fs:watch".to_string(), serde_json::json!(["~/foo/**"]));
+        reg.register("ext.a", HashSet::from(["fs:watch".to_string()]), inner_args);
         let v = reg.args_for("ext.a", "fs:watch").unwrap();
         assert!(v.is_array());
     }
@@ -632,11 +767,7 @@ mod tests {
             "fs:watch".to_string(),
             serde_json::json!(["~/foo/**", "~/bar/config"]),
         );
-        reg.register(
-            "ext.a",
-            HashSet::from(["fs:watch".to_string()]),
-            inner_args,
-        );
+        reg.register("ext.a", HashSet::from(["fs:watch".to_string()]), inner_args);
         let patterns = reg.fs_watch_patterns("ext.a").unwrap();
         assert_eq!(
             patterns,
@@ -687,11 +818,7 @@ mod tests {
         let reg = ExtensionPermissionRegistry::default();
         let mut inner_args = HashMap::new();
         inner_args.insert("fs:watch".to_string(), serde_json::json!(["~/foo"]));
-        reg.register(
-            "ext.a",
-            HashSet::from(["fs:watch".to_string()]),
-            inner_args,
-        );
+        reg.register("ext.a", HashSet::from(["fs:watch".to_string()]), inner_args);
         reg.unregister("ext.a");
         assert!(reg.check(&Some("ext.a".to_string()), "fs:watch").is_err());
         assert!(reg.args_for("ext.a", "fs:watch").is_none());

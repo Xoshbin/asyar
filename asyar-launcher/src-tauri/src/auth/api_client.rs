@@ -66,8 +66,8 @@ impl Default for ApiClient {
 
 impl ApiClient {
     pub fn new() -> Self {
-        let base_url = std::env::var("ASYAR_API_BASE")
-            .unwrap_or_else(|_| DEFAULT_API_BASE.to_string());
+        let base_url =
+            std::env::var("ASYAR_API_BASE").unwrap_or_else(|_| DEFAULT_API_BASE.to_string());
         Self {
             base_url,
             client: build_http_client(),
@@ -108,7 +108,8 @@ fn build_http_client() -> reqwest::Client {
 impl ApiClient {
     /// POST /api/desktop/auth/initiate — get session_code and auth URL.
     pub async fn initiate_auth(&self, provider: &str) -> Result<AuthInitResponse, AppError> {
-        let response = self.client
+        let response = self
+            .client
             .post(format!("{}/api/desktop/auth/initiate", self.base_url))
             .json(&serde_json::json!({ "provider": provider }))
             .send()
@@ -126,8 +127,12 @@ impl ApiClient {
 
     /// GET /api/desktop/auth/poll/{session_code} — check if OAuth completed.
     pub async fn poll_auth(&self, session_code: &str) -> Result<PollResponse, AppError> {
-        let response = self.client
-            .get(format!("{}/api/desktop/auth/poll/{}", self.base_url, session_code))
+        let response = self
+            .client
+            .get(format!(
+                "{}/api/desktop/auth/poll/{}",
+                self.base_url, session_code
+            ))
             .send()
             .await?;
 
@@ -152,7 +157,8 @@ impl ApiClient {
 
     /// GET /api/entitlements — fetch current user's entitlements.
     pub async fn fetch_entitlements(&self, token: &str) -> Result<Vec<String>, AppError> {
-        let response = self.client
+        let response = self
+            .client
             .get(format!("{}/api/entitlements", self.base_url))
             .bearer_auth(token)
             .send()
@@ -175,7 +181,8 @@ impl ApiClient {
 
     /// POST /api/desktop/auth/refresh — rotate token.
     pub async fn refresh_token(&self, old_token: &str) -> Result<TokenRefreshResponse, AppError> {
-        let response = self.client
+        let response = self
+            .client
             .post(format!("{}/api/desktop/auth/refresh", self.base_url))
             .bearer_auth(old_token)
             .send()
@@ -194,7 +201,8 @@ impl ApiClient {
     /// POST /api/desktop/auth/logout — revoke token (best-effort).
     pub async fn revoke_token(&self, token: &str) -> Result<(), AppError> {
         // Best-effort: ignore errors since we're clearing local state anyway
-        let _ = self.client
+        let _ = self
+            .client
             .post(format!("{}/api/desktop/auth/logout", self.base_url))
             .bearer_auth(token)
             .send()
@@ -245,9 +253,7 @@ impl ApiClient {
             return Err(AppError::Validation(message));
         }
         if !status.is_success() {
-            return Err(AppError::Auth(format!(
-                "Push items batch failed: {status}"
-            )));
+            return Err(AppError::Auth(format!("Push items batch failed: {status}")));
         }
 
         Ok(response
@@ -279,10 +285,7 @@ impl ApiClient {
             .client
             .get(format!("{}/api/sync/items", self.base_url))
             .bearer_auth(token)
-            .query(&[
-                ("since", since.to_string()),
-                ("limit", limit.to_string()),
-            ])
+            .query(&[("since", since.to_string()), ("limit", limit.to_string())])
             .send()
             .await?;
 
@@ -303,14 +306,10 @@ impl ApiClient {
             return Err(AppError::Validation(message));
         }
         if !status.is_success() {
-            return Err(AppError::Auth(format!(
-                "Pull items failed: {status}"
-            )));
+            return Err(AppError::Auth(format!("Pull items failed: {status}")));
         }
 
-        Ok(response
-            .json::<crate::sync::types::ItemPullPage>()
-            .await?)
+        Ok(response.json::<crate::sync::types::ItemPullPage>().await?)
     }
 
     // ── E2EE state endpoints ─────────────────────────────────────────────────────
@@ -330,12 +329,7 @@ impl ApiClient {
         token: &str,
     ) -> Result<Option<crate::sync::types::E2eeStateResponse>, AppError> {
         let url = format!("{}/api/sync/e2ee/state", self.base_url);
-        let response = self
-            .client
-            .get(&url)
-            .bearer_auth(token)
-            .send()
-            .await?;
+        let response = self.client.get(&url).bearer_auth(token).send().await?;
         match response.status().as_u16() {
             200 => Ok(Some(
                 response
@@ -416,12 +410,7 @@ impl ApiClient {
     /// DELETE /api/sync/e2ee/state — disable E2EE on the server. Idempotent.
     pub async fn delete_e2ee_state(&self, token: &str) -> Result<(), AppError> {
         let url = format!("{}/api/sync/e2ee/state", self.base_url);
-        let response = self
-            .client
-            .delete(&url)
-            .bearer_auth(token)
-            .send()
-            .await?;
+        let response = self.client.delete(&url).bearer_auth(token).send().await?;
         let status = response.status();
         if status == reqwest::StatusCode::UNAUTHORIZED {
             return Err(AppError::Auth("Token expired or invalid".to_string()));
@@ -843,7 +832,10 @@ mod tests {
                 kdf_t_cost: 3,
                 kdf_p_cost: 1,
             };
-            let resp = client.post_e2ee_state("test-token", &payload).await.unwrap();
+            let resp = client
+                .post_e2ee_state("test-token", &payload)
+                .await
+                .unwrap();
             assert_eq!(resp.key_version, 1);
             mock.assert_async().await;
         }

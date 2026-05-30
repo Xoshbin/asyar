@@ -23,8 +23,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 fn default_db_path() -> PathBuf {
     if cfg!(target_os = "macos") {
         let home = std::env::var("HOME").expect("HOME not set");
-        PathBuf::from(home)
-            .join("Library/Application Support/org.asyar.app/asyar_data.db")
+        PathBuf::from(home).join("Library/Application Support/org.asyar.app/asyar_data.db")
     } else if cfg!(target_os = "linux") {
         let home = std::env::var("HOME").expect("HOME not set");
         PathBuf::from(home).join(".local/share/org.asyar.app/asyar_data.db")
@@ -37,8 +36,8 @@ fn default_db_path() -> PathBuf {
 }
 
 fn load_master_key() -> [u8; 32] {
-    let entry = Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
-        .expect("keychain entry construction");
+    let entry =
+        Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT).expect("keychain entry construction");
     let value = entry
         .get_password()
         .expect("master key not found in OS keychain — launch Asyar at least once to generate one");
@@ -47,7 +46,12 @@ fn load_master_key() -> [u8; 32] {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(value.as_bytes())
         .expect("master key is not base64 — keychain entry corrupted?");
-    assert_eq!(bytes.len(), 32, "master key must be 32 bytes, got {}", bytes.len());
+    assert_eq!(
+        bytes.len(),
+        32,
+        "master key must be 32 bytes, got {}",
+        bytes.len()
+    );
     let mut k = [0u8; 32];
     k.copy_from_slice(&bytes);
     k

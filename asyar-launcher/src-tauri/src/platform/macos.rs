@@ -2,18 +2,16 @@
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
-use tauri::{AppHandle, Manager, WebviewWindow, Runtime, Emitter};
-use tauri_nspanel::{
-    panel_delegate, Panel, WebviewWindowExt as PanelWebviewWindowExt,
-};
-use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 use std::sync::atomic::Ordering;
+use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewWindow};
+use tauri_nspanel::{panel_delegate, Panel, WebviewWindowExt as PanelWebviewWindowExt};
+use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
 // Use objc2 and its foundation for everything
-use objc2::{msg_send, msg_send_id};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyClass, AnyObject, Bool};
-use objc2_foundation::{NSString, NSRect, NSPoint, NSSize};
+use objc2::{msg_send, msg_send_id};
+use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
 
 /// The resolved (OS-actual) appearance at window creation time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,10 +47,14 @@ fn detect_system_appearance() -> ResolvedTheme {
             None => return ResolvedTheme::Dark,
         };
         let ns_app: *mut AnyObject = msg_send![app_cls, sharedApplication];
-        if ns_app.is_null() { return ResolvedTheme::Dark; }
+        if ns_app.is_null() {
+            return ResolvedTheme::Dark;
+        }
 
         let appearance: *mut AnyObject = msg_send![ns_app, effectiveAppearance];
-        if appearance.is_null() { return ResolvedTheme::Dark; }
+        if appearance.is_null() {
+            return ResolvedTheme::Dark;
+        }
 
         // Ask the appearance to choose the best match from [DarkAqua, Aqua].
         let dark_name = NSString::from_str("NSAppearanceNameDarkAqua");
@@ -73,8 +75,11 @@ fn detect_system_appearance() -> ResolvedTheme {
             count: 2usize
         ];
 
-        let best: *mut AnyObject = msg_send![appearance, bestMatchFromAppearancesWithNames: name_array];
-        if best.is_null() { return ResolvedTheme::Dark; }
+        let best: *mut AnyObject =
+            msg_send![appearance, bestMatchFromAppearancesWithNames: name_array];
+        if best.is_null() {
+            return ResolvedTheme::Dark;
+        }
 
         let best_name: Option<Retained<NSString>> = msg_send_id![best, description];
         match best_name.map(|s| s.to_string()) {
@@ -86,9 +91,15 @@ fn detect_system_appearance() -> ResolvedTheme {
 }
 
 /// Configures a window to behave as a macOS Spotlight-style search bar.
-pub fn setup_spotlight_window<R: Runtime>(window: &WebviewWindow<R>, app: &AppHandle<R>, theme_pref: crate::ThemePreference) -> tauri::Result<Panel> {
-    let panel = window.to_panel().map_err(|_| tauri::Error::FailedToReceiveMessage)?;
-    
+pub fn setup_spotlight_window<R: Runtime>(
+    window: &WebviewWindow<R>,
+    app: &AppHandle<R>,
+    theme_pref: crate::ThemePreference,
+) -> tauri::Result<Panel> {
+    let panel = window
+        .to_panel()
+        .map_err(|_| tauri::Error::FailedToReceiveMessage)?;
+
     // Panel levels and behaviors can be set via the Panel wrapper which handles the raw conversion
     panel.set_level(tauri_nspanel::cocoa::appkit::NSMainMenuWindowLevel + 1);
     panel.set_collection_behaviour(tauri_nspanel::cocoa::appkit::NSWindowCollectionBehavior::NSWindowCollectionBehaviorFullScreenAuxiliary);
@@ -106,16 +117,19 @@ pub fn setup_spotlight_window<R: Runtime>(window: &WebviewWindow<R>, app: &AppHa
     let label = window.label().to_string();
     panel_delegate.set_listener(Box::new(move |delegate_name: String| {
         match delegate_name.as_str() {
-            "window_did_become_key" => { let _ = app_handle.emit(&format!("{}_panel_did_become_key", label), ()); }
-            "window_did_resign_key" => { let _ = app_handle.emit(&format!("{}_panel_did_resign_key", label), ()); }
+            "window_did_become_key" => {
+                let _ = app_handle.emit(&format!("{}_panel_did_become_key", label), ());
+            }
+            "window_did_resign_key" => {
+                let _ = app_handle.emit(&format!("{}_panel_did_resign_key", label), ());
+            }
             _ => (),
         }
     }));
     panel.set_delegate(panel_delegate);
 
     let material = material_for_resolved_theme(resolve_theme_preference(theme_pref));
-    apply_vibrancy(window, material, None, Some(15.0))
-        .expect("Failed to apply vibrancy");
+    apply_vibrancy(window, material, None, Some(15.0)).expect("Failed to apply vibrancy");
 
     // Seed the NSWindow appearance so the first composited frame already has
     // the correct blur tint — without this, a mismatch between Asyar's stored
@@ -220,7 +234,9 @@ pub fn set_window_frame<R: Runtime>(window: &WebviewWindow<R>, rect: NSRect) {
 /// `commit_show` flips alpha to 1 — the user only sees the up-to-date frame.
 pub fn set_window_alpha<R: Runtime>(window: &WebviewWindow<R>, alpha: f64) {
     let ns_window = window.ns_window().unwrap() as *mut AnyObject;
-    unsafe { let _: () = msg_send![ns_window, setAlphaValue: alpha]; }
+    unsafe {
+        let _: () = msg_send![ns_window, setAlphaValue: alpha];
+    }
 }
 
 /// Reseat the WKWebView as first responder. A `show` on an already-visible
@@ -269,8 +285,12 @@ unsafe fn find_subview(content_view: *mut AnyObject, match_vibrancy: bool) -> *m
     }
     std::ptr::null_mut()
 }
-unsafe fn find_webview(cv: *mut AnyObject) -> *mut AnyObject { find_subview(cv, false) }
-unsafe fn find_vibrancy_view(cv: *mut AnyObject) -> *mut AnyObject { find_subview(cv, true) }
+unsafe fn find_webview(cv: *mut AnyObject) -> *mut AnyObject {
+    find_subview(cv, false)
+}
+unsafe fn find_vibrancy_view(cv: *mut AnyObject) -> *mut AnyObject {
+    find_subview(cv, true)
+}
 
 /// Pin the WKWebView and vibrancy view at LAUNCHER_MAX_HEIGHT with height
 /// auto-resizing off, so NSWindow resize only crops — AppKit's frame change
@@ -295,7 +315,10 @@ pub fn pin_launcher_webview<R: Runtime>(window: &WebviewWindow<R>) {
         // NSViewWidthSizable = 2 (width stretches, height frozen).
         let pinned_frame = NSRect {
             origin: NSPoint { x: 0.0, y: 0.0 },
-            size: NSSize { width: content_frame.size.width, height: LAUNCHER_MAX_HEIGHT },
+            size: NSSize {
+                width: content_frame.size.width,
+                height: LAUNCHER_MAX_HEIGHT,
+            },
         };
         let webview = find_webview(content_view);
         if !webview.is_null() {
@@ -346,8 +369,14 @@ pub fn set_launcher_window_height<R: Runtime>(
         let frame: NSRect = msg_send![nsw, frame];
         let new_y = frame.origin.y + frame.size.height - height;
         let new_frame = NSRect {
-            origin: NSPoint { x: frame.origin.x, y: new_y },
-            size: NSSize { width: frame.size.width, height },
+            origin: NSPoint {
+                x: frame.origin.x,
+                y: new_y,
+            },
+            size: NSSize {
+                width: frame.size.width,
+                height,
+            },
         };
         // animate: NO — AppKit's default ~200ms resize animation would paint
         // interstitial frames instead of committing atomically below.
@@ -359,9 +388,17 @@ pub fn set_launcher_window_height<R: Runtime>(
         let new_origin_y = height - LAUNCHER_MAX_HEIGHT;
 
         for view in [find_webview(content_view), find_vibrancy_view(content_view)] {
-            if view.is_null() { continue; }
+            if view.is_null() {
+                continue;
+            }
             let f: NSRect = msg_send![view, frame];
-            let new_f = NSRect { origin: NSPoint { x: 0.0, y: new_origin_y }, size: f.size };
+            let new_f = NSRect {
+                origin: NSPoint {
+                    x: 0.0,
+                    y: new_origin_y,
+                },
+                size: f.size,
+            };
             let _: () = msg_send![view, setFrame: new_f];
         }
 
@@ -387,7 +424,9 @@ fn schedule_on_next_pre_commit<F: FnOnce() + 'static>(f: F) {
     let slot: OnceSlot = Rc::new(RefCell::new(Some(Box::new(f))));
     let for_block = slot.clone();
     let block = block2::RcBlock::new(move || {
-        if let Some(f) = for_block.borrow_mut().take() { f(); }
+        if let Some(f) = for_block.borrow_mut().take() {
+            f();
+        }
     });
 
     unsafe {
@@ -398,13 +437,16 @@ fn schedule_on_next_pre_commit<F: FnOnce() + 'static>(f: F) {
             forPhase: CA_TRANSACTION_PHASE_PRE_COMMIT
         ];
         if !ok.as_bool() {
-            if let Some(f) = slot.borrow_mut().take() { f(); }
+            if let Some(f) = slot.borrow_mut().take() {
+                f();
+            }
         }
     }
 }
 
 pub fn center_at_cursor_monitor<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
-    let monitor = monitor::get_monitor_with_cursor().ok_or_else(|| tauri::Error::FailedToReceiveMessage)?;
+    let monitor =
+        monitor::get_monitor_with_cursor().ok_or_else(|| tauri::Error::FailedToReceiveMessage)?;
     let monitor_scale_factor = monitor.scale_factor();
     let monitor_size = monitor.size().to_logical::<f64>(monitor_scale_factor);
     let monitor_position = monitor.position().to_logical::<f64>(monitor_scale_factor);
@@ -424,8 +466,11 @@ pub fn center_at_cursor_monitor<R: Runtime>(window: &WebviewWindow<R>) -> tauri:
 fn get_app_icon_name(path: &Path) -> String {
     let plist_path = path.join("Contents/Info.plist");
     plist::from_file::<_, plist::Value>(&plist_path)
-        .ok().and_then(|v| v.into_dictionary()).and_then(|d| d.get("CFBundleIconFile").cloned())
-        .and_then(|v| v.into_string()).unwrap_or_else(|| "AppIcon".to_string())
+        .ok()
+        .and_then(|v| v.into_dictionary())
+        .and_then(|d| d.get("CFBundleIconFile").cloned())
+        .and_then(|v| v.into_string())
+        .unwrap_or_else(|| "AppIcon".to_string())
 }
 
 /// Returns a 128×128 PNG of the app's icon. Tries the discrete-`.icns` fast
@@ -438,12 +483,21 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
 
 fn extract_icon_from_icns(path: &Path) -> Option<Vec<u8>> {
     let icon_name = get_app_icon_name(path);
-    let icon_filename = if icon_name.ends_with(".icns") { icon_name } else { format!("{}.icns", icon_name) };
+    let icon_filename = if icon_name.ends_with(".icns") {
+        icon_name
+    } else {
+        format!("{}.icns", icon_name)
+    };
     let icns_path = path.join("Contents/Resources").join(&icon_filename);
-    let icns_path = if icns_path.exists() { icns_path } else {
+    let icns_path = if icns_path.exists() {
+        icns_path
+    } else {
         let resources_dir = path.join("Contents/Resources");
-        std::fs::read_dir(&resources_dir).ok()?.filter_map(|e| e.ok())
-            .find(|e| e.path().extension().map(|x| x == "icns").unwrap_or(false))?.path()
+        std::fs::read_dir(&resources_dir)
+            .ok()?
+            .filter_map(|e| e.ok())
+            .find(|e| e.path().extension().map(|x| x == "icns").unwrap_or(false))?
+            .path()
     };
     let file = std::fs::File::open(&icns_path).ok()?;
     let icon_family = icns::IconFamily::read(file).ok()?;
@@ -482,12 +536,14 @@ fn extract_icon_from_icns(path: &Path) -> Option<Vec<u8>> {
 /// the sync `clipboard_record_capture` Tauri command and the application
 /// scanner, both of which are dispatched on the main thread.
 fn extract_icon_via_nsworkspace(path: &Path) -> Option<Vec<u8>> {
-    use std::ffi::CString;
     use objc2::encode::{Encoding, RefEncode};
     use objc2_foundation::NSData;
+    use std::ffi::CString;
 
     #[repr(C)]
-    struct CGImageStub { _private: [u8; 0] }
+    struct CGImageStub {
+        _private: [u8; 0],
+    }
     unsafe impl RefEncode for CGImageStub {
         const ENCODING_REF: Encoding = Encoding::Pointer(&Encoding::Struct("CGImage", &[]));
     }
@@ -511,13 +567,19 @@ fn extract_icon_via_nsworkspace(path: &Path) -> Option<Vec<u8>> {
 
         let image: *mut AnyObject = msg_send![workspace, iconForFile: ns_path];
         if image.is_null() {
-            log::warn!("[icon] NSWorkspace iconForFile returned null for {}", path_str);
+            log::warn!(
+                "[icon] NSWorkspace iconForFile returned null for {}",
+                path_str
+            );
             return None;
         }
 
         // Match the .icns fast path's preferred 128px size so cached files
         // are visually consistent regardless of which branch produced them.
-        let target = NSSize { width: 128.0, height: 128.0 };
+        let target = NSSize {
+            width: 128.0,
+            height: 128.0,
+        };
         let _: () = msg_send![image, setSize: target];
 
         let mut proposed = NSRect {
@@ -532,14 +594,20 @@ fn extract_icon_via_nsworkspace(path: &Path) -> Option<Vec<u8>> {
             hints: nil
         ];
         if cg_image.is_null() {
-            log::warn!("[icon] CGImageForProposedRect returned null for {}", path_str);
+            log::warn!(
+                "[icon] CGImageForProposedRect returned null for {}",
+                path_str
+            );
             return None;
         }
 
         let bitmap: *mut AnyObject = msg_send![nsbitmap_cls, alloc];
         let bitmap: *mut AnyObject = msg_send![bitmap, initWithCGImage: cg_image];
         if bitmap.is_null() {
-            log::warn!("[icon] NSBitmapImageRep initWithCGImage returned null for {}", path_str);
+            log::warn!(
+                "[icon] NSBitmapImageRep initWithCGImage returned null for {}",
+                path_str
+            );
             return None;
         }
         let _: () = msg_send![bitmap, setSize: target];
@@ -552,7 +620,10 @@ fn extract_icon_via_nsworkspace(path: &Path) -> Option<Vec<u8>> {
         ];
         let bytes = png_data.bytes();
         if bytes.is_empty() {
-            log::warn!("[icon] NSBitmapImageRep produced empty PNG payload for {}", path_str);
+            log::warn!(
+                "[icon] NSBitmapImageRep produced empty PNG payload for {}",
+                path_str
+            );
             return None;
         }
         Some(bytes.to_vec())
@@ -677,7 +748,9 @@ pub fn install_appearance_observer<R: Runtime + 'static>(app: &AppHandle<R>) {
         let center_cls = match AnyClass::get("NSDistributedNotificationCenter") {
             Some(c) => c,
             None => {
-                log::error!("[install_appearance_observer] NSDistributedNotificationCenter class not found");
+                log::error!(
+                    "[install_appearance_observer] NSDistributedNotificationCenter class not found"
+                );
                 return;
             }
         };
@@ -730,7 +803,8 @@ pub fn register_cmdq_monitor(app_handle: AppHandle) {
         if keycode == VK_Q && (flags & CMD_FLAG) != 0 {
             if let Some(sw) = app.get_webview_window("settings") {
                 if sw.is_visible().unwrap_or(false) && sw.is_focused().unwrap_or(false) {
-                    let _ = sw.hide(); return std::ptr::null_mut();
+                    let _ = sw.hide();
+                    return std::ptr::null_mut();
                 }
             }
         }
@@ -770,23 +844,28 @@ pub fn register_snippet_monitor(app_handle: AppHandle) {
 
         let keycode: u16 = unsafe { msg_send![event, keyCode] };
         match keycode {
-            53 => { // Escape
+            53 => {
+                // Escape
                 buf.lock().unwrap_or_else(|p| p.into_inner()).clear();
                 return;
             }
-            36 | 52 => { // Return / numpad Enter
+            36 | 52 => {
+                // Return / numpad Enter
                 buf.lock().unwrap_or_else(|p| p.into_inner()).clear();
                 return;
             }
-            48 => { // Tab
+            48 => {
+                // Tab
                 buf.lock().unwrap_or_else(|p| p.into_inner()).clear();
                 return;
             }
-            51 | 117 => { // Delete / Forward Delete
+            51 | 117 => {
+                // Delete / Forward Delete
                 buf.lock().unwrap_or_else(|p| p.into_inner()).pop();
                 return;
             }
-            123..=126 => { // Arrow keys
+            123..=126 => {
+                // Arrow keys
                 buf.lock().unwrap_or_else(|p| p.into_inner()).clear();
                 return;
             }
@@ -851,7 +930,9 @@ pub fn register_snippet_monitor(app_handle: AppHandle) {
                 }
             }
             if current.ends_with(':') {
-                if let Some(candidate) = crate::snippets::detect_completed_shortcode_at_end(&current) {
+                if let Some(candidate) =
+                    crate::snippets::detect_completed_shortcode_at_end(&current)
+                {
                     if !merged.contains_key(&candidate) {
                         let _ = app.emit_to(
                             crate::SPOTLIGHT_LABEL,
@@ -882,10 +963,16 @@ pub fn register_snippet_monitor(app_handle: AppHandle) {
 }
 
 #[link(name = "ApplicationServices", kind = "framework")]
-extern "C" { fn AXIsProcessTrusted() -> bool; }
-pub fn is_accessibility_trusted() -> bool { unsafe { AXIsProcessTrusted() } }
+extern "C" {
+    fn AXIsProcessTrusted() -> bool;
+}
+pub fn is_accessibility_trusted() -> bool {
+    unsafe { AXIsProcessTrusted() }
+}
 pub fn open_accessibility_prefs() {
-    let _ = std::process::Command::new("open").arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility").spawn();
+    let _ = std::process::Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        .spawn();
 }
 
 pub fn get_frontmost_app_pid() -> Option<i32> {
@@ -916,23 +1003,39 @@ pub fn get_frontmost_application_metadata() -> Option<(String, String, String, S
     unsafe {
         let workspace_class = AnyClass::get("NSWorkspace")?;
         let workspace: *mut AnyObject = msg_send![workspace_class, sharedWorkspace];
-        if workspace.is_null() { return None; }
+        if workspace.is_null() {
+            return None;
+        }
         let app: *mut AnyObject = msg_send![workspace, frontmostApplication];
-        if app.is_null() { return None; }
+        if app.is_null() {
+            return None;
+        }
 
         let bid_obj: Option<Retained<NSString>> = msg_send_id![app, bundleIdentifier];
-        let bid = bid_obj.map(|s: Retained<NSString>| s.to_string()).unwrap_or_default();
+        let bid = bid_obj
+            .map(|s: Retained<NSString>| s.to_string())
+            .unwrap_or_default();
 
         let url: *mut AnyObject = msg_send![app, bundleURL];
         let path = if !url.is_null() {
             let path_obj: Option<Retained<NSString>> = msg_send_id![url, path];
-            path_obj.map(|s: Retained<NSString>| s.to_string()).unwrap_or_default()
-        } else { String::new() };
+            path_obj
+                .map(|s: Retained<NSString>| s.to_string())
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
 
         let name_obj: Option<Retained<NSString>> = msg_send_id![app, localizedName];
-        let name = name_obj.map(|s: Retained<NSString>| s.to_string()).unwrap_or_else(|| {
-            Path::new(&path).file_stem().and_then(|s| s.to_str()).unwrap_or("Unknown").to_string()
-        });
+        let name = name_obj
+            .map(|s: Retained<NSString>| s.to_string())
+            .unwrap_or_else(|| {
+                Path::new(&path)
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("Unknown")
+                    .to_string()
+            });
 
         let title = get_focused_window_title().unwrap_or_default();
         Some((name, bid, path, title))
@@ -944,39 +1047,74 @@ fn get_focused_window_title() -> Option<String> {
     #[link(name = "ApplicationServices", kind = "framework")]
     extern "C" {
         fn AXUIElementCreateSystemWide() -> *mut c_void;
-        fn AXUIElementCopyAttributeValue(element: *mut c_void, attribute: *mut c_void, value: *mut *mut c_void) -> i32;
+        fn AXUIElementCopyAttributeValue(
+            element: *mut c_void,
+            attribute: *mut c_void,
+            value: *mut *mut c_void,
+        ) -> i32;
         fn CFRelease(cf: *mut c_void);
         fn CFStringGetCStringPtr(s: *mut c_void, encoding: u32) -> *const i8;
         fn CFStringGetLength(s: *mut c_void) -> isize;
-        fn CFStringGetCString(s: *mut c_void, buf: *mut i8, buf_size: isize, encoding: u32) -> bool;
+        fn CFStringGetCString(s: *mut c_void, buf: *mut i8, buf_size: isize, encoding: u32)
+            -> bool;
     }
     const K_CF_STRING_ENCODING_UTF8: u32 = 0x08000100;
     unsafe {
         let system_wide = AXUIElementCreateSystemWide();
-        if system_wide.is_null() { return None; }
+        if system_wide.is_null() {
+            return None;
+        }
         let focused_attr_ns = NSString::from_str("AXFocusedUIElement");
         let mut focused: *mut c_void = std::ptr::null_mut();
-        let err = AXUIElementCopyAttributeValue(system_wide, Retained::as_ptr(&focused_attr_ns) as *mut _, &mut focused);
+        let err = AXUIElementCopyAttributeValue(
+            system_wide,
+            Retained::as_ptr(&focused_attr_ns) as *mut _,
+            &mut focused,
+        );
         CFRelease(system_wide);
-        if err != 0 || focused.is_null() { return None; }
+        if err != 0 || focused.is_null() {
+            return None;
+        }
         let title_attr_ns = NSString::from_str("AXTitle");
         let mut title_val: *mut c_void = std::ptr::null_mut();
-        let err2 = AXUIElementCopyAttributeValue(focused, Retained::as_ptr(&title_attr_ns) as *mut _, &mut title_val);
+        let err2 = AXUIElementCopyAttributeValue(
+            focused,
+            Retained::as_ptr(&title_attr_ns) as *mut _,
+            &mut title_val,
+        );
         CFRelease(focused);
-        if err2 != 0 || title_val.is_null() { return None; }
+        if err2 != 0 || title_val.is_null() {
+            return None;
+        }
         let result = if !title_val.is_null() {
             let ptr = CFStringGetCStringPtr(title_val, K_CF_STRING_ENCODING_UTF8);
-            if !ptr.is_null() { Some(CStr::from_ptr(ptr).to_string_lossy().into_owned()) }
-            else {
+            if !ptr.is_null() {
+                Some(CStr::from_ptr(ptr).to_string_lossy().into_owned())
+            } else {
                 let len = CFStringGetLength(title_val);
                 if len > 0 {
                     let mut buf = vec![0u8; (len * 4 + 1) as usize];
-                    if CFStringGetCString(title_val, buf.as_mut_ptr() as *mut i8, buf.len() as isize, K_CF_STRING_ENCODING_UTF8) {
-                        Some(CStr::from_ptr(buf.as_ptr() as *const i8).to_string_lossy().into_owned())
-                    } else { None }
-                } else { Some(String::new()) }
+                    if CFStringGetCString(
+                        title_val,
+                        buf.as_mut_ptr() as *mut i8,
+                        buf.len() as isize,
+                        K_CF_STRING_ENCODING_UTF8,
+                    ) {
+                        Some(
+                            CStr::from_ptr(buf.as_ptr() as *const i8)
+                                .to_string_lossy()
+                                .into_owned(),
+                        )
+                    } else {
+                        None
+                    }
+                } else {
+                    Some(String::new())
+                }
             }
-        } else { None };
+        } else {
+            None
+        };
         CFRelease(title_val);
         result
     }
@@ -998,13 +1136,13 @@ fn get_focused_window_title() -> Option<String> {
 // ────────────────────────────────────────────────────────────────────────────
 
 mod show_more_bar {
-    use std::ffi::CString;
-    use std::sync::Mutex;
     use objc2::declare::ClassBuilder;
     use objc2::encode::{Encoding, RefEncode};
     use objc2::runtime::{AnyClass, AnyObject, Bool, Sel};
     use objc2::{msg_send, sel};
-    use objc2_foundation::{NSRect, NSPoint, NSSize};
+    use objc2_foundation::{NSPoint, NSRect, NSSize};
+    use std::ffi::CString;
+    use std::sync::Mutex;
 
     const SEARCH_HEADER_HEIGHT: f64 = 56.0;
     const SHOW_MORE_BAR_HEIGHT: f64 = 40.0;
@@ -1074,7 +1212,10 @@ mod show_more_bar {
             // Bar initial frame (compact: window height = 96, bar at y=0).
             let bar_frame = NSRect {
                 origin: NSPoint { x: 0.0, y: 0.0 },
-                size: NSSize { width: content_width, height: SHOW_MORE_BAR_HEIGHT },
+                size: NSSize {
+                    width: content_width,
+                    height: SHOW_MORE_BAR_HEIGHT,
+                },
             };
             let bar: *mut AnyObject = msg_send![bar_class, alloc];
             let bar: *mut AnyObject = msg_send![bar, initWithFrame: bar_frame];
@@ -1096,8 +1237,14 @@ mod show_more_bar {
             let chip_y = (SHOW_MORE_BAR_HEIGHT - chip_height) / 2.0;
             let chip_x = content_width - chip_right_margin - chip_width;
             let chip = make_plain_view(NSRect {
-                origin: NSPoint { x: chip_x, y: chip_y },
-                size: NSSize { width: chip_width, height: chip_height },
+                origin: NSPoint {
+                    x: chip_x,
+                    y: chip_y,
+                },
+                size: NSSize {
+                    width: chip_width,
+                    height: chip_height,
+                },
             });
             // NSViewMinXMargin = 1 (left margin flexible → pins right).
             let _: () = msg_send![chip, setAutoresizingMask: 1u64];
@@ -1115,11 +1262,17 @@ mod show_more_bar {
                 "arrow.down",
                 NSRect {
                     origin: NSPoint { x: 0.0, y: 0.0 },
-                    size: NSSize { width: chip_width, height: chip_height },
+                    size: NSSize {
+                        width: chip_width,
+                        height: chip_height,
+                    },
                 },
                 9.0,
                 SymbolWeight::Medium,
-                235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.65,
+                235.0 / 255.0,
+                235.0 / 255.0,
+                245.0 / 255.0,
+                0.65,
             );
             let _: () = msg_send![chip, addSubview: glyph];
             let _: () = msg_send![bar, addSubview: chip];
@@ -1132,18 +1285,31 @@ mod show_more_bar {
                 "Show More",
                 NSRect {
                     origin: NSPoint { x: 0.0, y: 0.0 },
-                    size: NSSize { width: 200.0, height: 18.0 },
+                    size: NSSize {
+                        width: 200.0,
+                        height: 18.0,
+                    },
                 },
                 13.0,
-                235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.65,
+                235.0 / 255.0,
+                235.0 / 255.0,
+                245.0 / 255.0,
+                0.65,
                 TextAlign::Left,
             );
             let _: () = msg_send![label, sizeToFit];
             let label_frame: NSRect = msg_send![label, frame];
-            let label_x = content_width - chip_right_margin - chip_width - TEXT_TO_CHIP_GAP - label_frame.size.width;
+            let label_x = content_width
+                - chip_right_margin
+                - chip_width
+                - TEXT_TO_CHIP_GAP
+                - label_frame.size.width;
             let label_y = (SHOW_MORE_BAR_HEIGHT - label_frame.size.height) / 2.0;
             let positioned_frame = NSRect {
-                origin: NSPoint { x: label_x, y: label_y },
+                origin: NSPoint {
+                    x: label_x,
+                    y: label_y,
+                },
                 size: label_frame.size,
             };
             let _: () = msg_send![label, setFrame: positioned_frame];
@@ -1157,7 +1323,7 @@ mod show_more_bar {
             // visibility per segment + per chip. Pinned LEFT (NSViewMaxXMargin
             // = 4) so the bar's autoresize doesn't shift them on width change.
             let scripts = build_hud_chip(bar, "chevron.left.forwardslash.chevron.right");
-            let agents  = build_hud_chip(bar, "bubble.left.and.bubble.right");
+            let agents = build_hud_chip(bar, "bubble.left.and.bubble.right");
 
             // Top subview of contentView (above webview + vibrancy).
             let _: () = msg_send![content_view, addSubview: bar];
@@ -1190,8 +1356,14 @@ mod show_more_bar {
         // after measuring labels. Width-zero start prevents a one-frame
         // flash of the seed frame if the bar reveals before the first push.
         let container = make_plain_view(NSRect {
-            origin: NSPoint { x: HUD_LEFT_MARGIN, y: 0.0 },
-            size: NSSize { width: 0.0, height: SHOW_MORE_BAR_HEIGHT },
+            origin: NSPoint {
+                x: HUD_LEFT_MARGIN,
+                y: 0.0,
+            },
+            size: NSSize {
+                width: 0.0,
+                height: SHOW_MORE_BAR_HEIGHT,
+            },
         });
         let _: () = msg_send![container, setAutoresizingMask: 4u64];
         let _: () = msg_send![container, setHidden: Bool::YES];
@@ -1202,11 +1374,17 @@ mod show_more_bar {
             sf_symbol,
             NSRect {
                 origin: NSPoint { x: 0.0, y: chip_y },
-                size: NSSize { width: HUD_ICON_SIZE, height: HUD_ICON_SIZE },
+                size: NSSize {
+                    width: HUD_ICON_SIZE,
+                    height: HUD_ICON_SIZE,
+                },
             },
             12.0,
             SymbolWeight::Medium,
-            235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.65,
+            235.0 / 255.0,
+            235.0 / 255.0,
+            245.0 / 255.0,
+            0.65,
         );
         let _: () = msg_send![container, addSubview: icon];
 
@@ -1214,23 +1392,41 @@ mod show_more_bar {
         // `set_layer_bg` seeds defaults that mirror StatusDot.svelte's CSS
         // variables; `apply_huds_dot_colors` re-pushes from the theme.
         let active_dot = make_round_dot(46.0 / 255.0, 196.0 / 255.0, 182.0 / 255.0, 1.0);
-        let done_dot   = make_round_dot(52.0 / 255.0, 199.0 / 255.0,  89.0 / 255.0, 1.0);
+        let done_dot = make_round_dot(52.0 / 255.0, 199.0 / 255.0, 89.0 / 255.0, 1.0);
         let _: () = msg_send![container, addSubview: active_dot];
         let _: () = msg_send![container, addSubview: done_dot];
 
         // Labels (set later — empty until apply_huds writes counts).
         let active_label = make_label(
             "",
-            NSRect { origin: NSPoint { x: 0.0, y: 0.0 }, size: NSSize { width: 100.0, height: 18.0 } },
+            NSRect {
+                origin: NSPoint { x: 0.0, y: 0.0 },
+                size: NSSize {
+                    width: 100.0,
+                    height: 18.0,
+                },
+            },
             HUD_FONT_SIZE,
-            235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.65,
+            235.0 / 255.0,
+            235.0 / 255.0,
+            245.0 / 255.0,
+            0.65,
             TextAlign::Left,
         );
         let done_label = make_label(
             "",
-            NSRect { origin: NSPoint { x: 0.0, y: 0.0 }, size: NSSize { width: 100.0, height: 18.0 } },
+            NSRect {
+                origin: NSPoint { x: 0.0, y: 0.0 },
+                size: NSSize {
+                    width: 100.0,
+                    height: 18.0,
+                },
+            },
             HUD_FONT_SIZE,
-            235.0 / 255.0, 235.0 / 255.0, 245.0 / 255.0, 0.65,
+            235.0 / 255.0,
+            235.0 / 255.0,
+            245.0 / 255.0,
+            0.65,
             TextAlign::Left,
         );
         let _: () = msg_send![container, addSubview: active_label];
@@ -1254,7 +1450,10 @@ mod show_more_bar {
     unsafe fn make_round_dot(r: f64, g: f64, b: f64, a: f64) -> *mut AnyObject {
         let v = make_plain_view(NSRect {
             origin: NSPoint { x: 0.0, y: 0.0 },
-            size: NSSize { width: HUD_DOT_SIZE, height: HUD_DOT_SIZE },
+            size: NSSize {
+                width: HUD_DOT_SIZE,
+                height: HUD_DOT_SIZE,
+            },
         });
         let layer: *mut AnyObject = msg_send![v, layer];
         let _: () = msg_send![layer, setCornerRadius: HUD_DOT_SIZE / 2.0];
@@ -1265,7 +1464,9 @@ mod show_more_bar {
     /// Reposition + visibility toggle. Called from inside the same unsafe
     /// block as setFrame: so both mutations commit to the same CATransaction.
     pub(super) unsafe fn reposition_and_toggle(height: f64, expanded: Option<bool>) {
-        let Some(views) = *BAR_VIEWS.lock().unwrap() else { return };
+        let Some(views) = *BAR_VIEWS.lock().unwrap() else {
+            return;
+        };
         let bar: *mut AnyObject = views.bar as *mut AnyObject;
 
         let new_y = height - SEARCH_HEADER_HEIGHT - SHOW_MORE_BAR_HEIGHT;
@@ -1284,7 +1485,9 @@ mod show_more_bar {
     /// Bar visibility only, no reposition. Used for the first-paint reveal —
     /// see note in `create`.
     pub(super) unsafe fn set_hidden(hidden: bool) {
-        let Some(views) = *BAR_VIEWS.lock().unwrap() else { return };
+        let Some(views) = *BAR_VIEWS.lock().unwrap() else {
+            return;
+        };
         let bar: *mut AnyObject = views.bar as *mut AnyObject;
         let _: () = msg_send![bar, setHidden: Bool::new(hidden)];
     }
@@ -1313,22 +1516,24 @@ mod show_more_bar {
         agents_active: u32,
         agents_done: u32,
     ) {
-        let Some(views) = *BAR_VIEWS.lock().unwrap() else { return };
+        let Some(views) = *BAR_VIEWS.lock().unwrap() else {
+            return;
+        };
         unsafe {
             let scripts_w = layout_chip(views.scripts, scripts_active, scripts_done, "Done");
-            let agents_w  = layout_chip(views.agents,  agents_active,  agents_done,  "Idle");
+            let agents_w = layout_chip(views.agents, agents_active, agents_done, "Idle");
 
             // Position chips left-to-right with HUD_INTER_CHIP_GAP between
             // them. When a chip is hidden (width 0), its sibling slides left
             // so it doesn't gap awkwardly against the left margin.
             let scripts_x = HUD_LEFT_MARGIN;
-            let agents_x  = if scripts_w > 0.0 {
+            let agents_x = if scripts_w > 0.0 {
                 scripts_x + scripts_w + HUD_INTER_CHIP_GAP
             } else {
                 scripts_x
             };
             set_chip_origin_x(views.scripts.container as *mut AnyObject, scripts_x);
-            set_chip_origin_x(views.agents.container  as *mut AnyObject, agents_x);
+            set_chip_origin_x(views.agents.container as *mut AnyObject, agents_x);
 
             // Defensive clamp: if the combined width would crash into the
             // Show More cluster, hide the agents chip. Width ~140 worst-case
@@ -1337,7 +1542,8 @@ mod show_more_bar {
             let bar_frame: NSRect = msg_send![bar, frame];
             let right_edge_limit = bar_frame.size.width - HUD_RIGHT_RESERVE;
             if agents_x + agents_w > right_edge_limit {
-                let _: () = msg_send![views.agents.container as *mut AnyObject, setHidden: Bool::YES];
+                let _: () =
+                    msg_send![views.agents.container as *mut AnyObject, setHidden: Bool::YES];
             }
         }
     }
@@ -1356,7 +1562,7 @@ mod show_more_bar {
 
         let chip_v_center = SHOW_MORE_BAR_HEIGHT / 2.0;
         let icon_y = chip_v_center - HUD_ICON_SIZE / 2.0;
-        let dot_y  = chip_v_center - HUD_DOT_SIZE  / 2.0;
+        let dot_y = chip_v_center - HUD_DOT_SIZE / 2.0;
 
         // Icon is always at x=0 inside the container.
         let icon = chip.icon as *mut AnyObject;
@@ -1453,30 +1659,77 @@ mod show_more_bar {
     /// Applies a new color palette to the already-built bar. Returns silently
     /// if the bar hasn't been built yet (early startup before create()).
     pub(super) fn apply_style(style: BarStyle) {
-        let Some(views) = *BAR_VIEWS.lock().unwrap() else { return };
+        let Some(views) = *BAR_VIEWS.lock().unwrap() else {
+            return;
+        };
         unsafe {
             let bar: *mut AnyObject = views.bar as *mut AnyObject;
             let chip: *mut AnyObject = views.chip as *mut AnyObject;
             let label: *mut AnyObject = views.label as *mut AnyObject;
             let glyph: *mut AnyObject = views.glyph as *mut AnyObject;
 
-            set_layer_bg(bar, style.bar_bg.0, style.bar_bg.1, style.bar_bg.2, style.bar_bg.3);
-            set_layer_bg(chip, style.chip_bg.0, style.chip_bg.1, style.chip_bg.2, style.chip_bg.3);
-            set_layer_border(chip, style.chip_border.0, style.chip_border.1, style.chip_border.2, style.chip_border.3);
+            set_layer_bg(
+                bar,
+                style.bar_bg.0,
+                style.bar_bg.1,
+                style.bar_bg.2,
+                style.bar_bg.3,
+            );
+            set_layer_bg(
+                chip,
+                style.chip_bg.0,
+                style.chip_bg.1,
+                style.chip_bg.2,
+                style.chip_bg.3,
+            );
+            set_layer_border(
+                chip,
+                style.chip_border.0,
+                style.chip_border.1,
+                style.chip_border.2,
+                style.chip_border.3,
+            );
 
-            set_text_color(label, style.text.0, style.text.1, style.text.2, style.text.3);
-            set_image_tint(glyph, style.text.0, style.text.1, style.text.2, style.text.3);
+            set_text_color(
+                label,
+                style.text.0,
+                style.text.1,
+                style.text.2,
+                style.text.3,
+            );
+            set_image_tint(
+                glyph,
+                style.text.0,
+                style.text.1,
+                style.text.2,
+                style.text.3,
+            );
 
             // HUD chip icons + labels share the bar's --text-secondary tone.
             // Dots use accent colors that don't theme — they're semantic
             // (info / success), not text.
             for chip_views in [views.scripts, views.agents] {
-                set_image_tint(chip_views.icon as *mut AnyObject,
-                    style.text.0, style.text.1, style.text.2, style.text.3);
-                set_text_color(chip_views.active_label as *mut AnyObject,
-                    style.text.0, style.text.1, style.text.2, style.text.3);
-                set_text_color(chip_views.done_label as *mut AnyObject,
-                    style.text.0, style.text.1, style.text.2, style.text.3);
+                set_image_tint(
+                    chip_views.icon as *mut AnyObject,
+                    style.text.0,
+                    style.text.1,
+                    style.text.2,
+                    style.text.3,
+                );
+                set_text_color(
+                    chip_views.active_label as *mut AnyObject,
+                    style.text.0,
+                    style.text.1,
+                    style.text.2,
+                    style.text.3,
+                );
+                set_text_color(
+                    chip_views.done_label as *mut AnyObject,
+                    style.text.0,
+                    style.text.1,
+                    style.text.2,
+                    style.text.3,
+                );
             }
         }
     }
@@ -1537,7 +1790,11 @@ mod show_more_bar {
     // ── Helpers ────────────────────────────────────────────────────────────
 
     #[allow(dead_code)]
-    enum TextAlign { Left, Center, Right }
+    enum TextAlign {
+        Left,
+        Center,
+        Right,
+    }
 
     unsafe fn make_plain_view(frame: NSRect) -> *mut AnyObject {
         let cls = AnyClass::get("NSView").expect("NSView");
@@ -1552,7 +1809,10 @@ mod show_more_bar {
         text: &str,
         frame: NSRect,
         font_size: f64,
-        r: f64, g: f64, b: f64, a: f64,
+        r: f64,
+        g: f64,
+        b: f64,
+        a: f64,
         align: TextAlign,
     ) -> *mut AnyObject {
         let tf_cls = AnyClass::get("NSTextField").expect("NSTextField");
@@ -1591,7 +1851,12 @@ mod show_more_bar {
     }
 
     #[allow(dead_code)]
-    enum SymbolWeight { Regular, Medium, Semibold, Bold }
+    enum SymbolWeight {
+        Regular,
+        Medium,
+        Semibold,
+        Bold,
+    }
     impl SymbolWeight {
         fn raw(&self) -> f64 {
             match self {
@@ -1609,7 +1874,10 @@ mod show_more_bar {
         frame: NSRect,
         point_size: f64,
         weight: SymbolWeight,
-        r: f64, g: f64, b: f64, a: f64,
+        r: f64,
+        g: f64,
+        b: f64,
+        a: f64,
     ) -> *mut AnyObject {
         let nsstring_cls = AnyClass::get("NSString").expect("NSString");
         let nsimage_cls = AnyClass::get("NSImage").expect("NSImage");
@@ -1617,7 +1885,8 @@ mod show_more_bar {
         let nscolor_cls = AnyClass::get("NSColor").expect("NSColor");
 
         let name_cstr = CString::new(symbol_name).unwrap();
-        let ns_name: *mut AnyObject = msg_send![nsstring_cls, stringWithUTF8String: name_cstr.as_ptr()];
+        let ns_name: *mut AnyObject =
+            msg_send![nsstring_cls, stringWithUTF8String: name_cstr.as_ptr()];
         let nil: *mut AnyObject = std::ptr::null_mut();
         let image: *mut AnyObject = msg_send![
             nsimage_cls,
@@ -1625,7 +1894,8 @@ mod show_more_bar {
             accessibilityDescription: nil
         ];
 
-        let sym_cfg_cls = AnyClass::get("NSImageSymbolConfiguration").expect("NSImageSymbolConfiguration");
+        let sym_cfg_cls =
+            AnyClass::get("NSImageSymbolConfiguration").expect("NSImageSymbolConfiguration");
         let cfg: *mut AnyObject = msg_send![
             sym_cfg_cls,
             configurationWithPointSize: point_size
@@ -1665,7 +1935,9 @@ mod show_more_bar {
     // `*mut AnyObject` (encoded as `@`). Declare an opaque stub whose
     // RefEncode matches the selector's declared return type.
     #[repr(C)]
-    struct CGColorStub { _private: [u8; 0] }
+    struct CGColorStub {
+        _private: [u8; 0],
+    }
     unsafe impl RefEncode for CGColorStub {
         const ENCODING_REF: Encoding = Encoding::Pointer(&Encoding::Struct("CGColor", &[]));
     }
@@ -1698,7 +1970,9 @@ pub fn create_show_more_bar<R: Runtime>(window: &WebviewWindow<R>, app_handle: A
 /// rAF so this flip lines up with WebKit's first present. `expanded: true` →
 /// bar hidden, `false` → bar visible.
 pub fn reveal_show_more_bar(expanded: bool) {
-    unsafe { show_more_bar::set_hidden(expanded); }
+    unsafe {
+        show_more_bar::set_hidden(expanded);
+    }
 }
 
 /// Applies a color palette to the native Show More bar; components in [0, 1].
@@ -1766,13 +2040,10 @@ mod tests {
     fn extract_icon_falls_back_to_nsworkspace_when_icns_missing() {
         use std::fs;
 
-        let tmp = std::env::temp_dir().join(format!(
-            "asyar_test_no_icns_{}.app",
-            std::process::id(),
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("asyar_test_no_icns_{}.app", std::process::id(),));
         let _ = fs::remove_dir_all(&tmp);
-        fs::create_dir_all(tmp.join("Contents/Resources"))
-            .expect("setup: create fake app bundle");
+        fs::create_dir_all(tmp.join("Contents/Resources")).expect("setup: create fake app bundle");
         // Intentionally NO .icns and NO Info.plist — guarantees the
         // fast path returns None and exercises the fallback.
 
@@ -1828,8 +2099,7 @@ mod tests {
 
     #[test]
     fn heights_match_typescript_source() {
-        const TS_SRC: &str =
-            include_str!("../../../src/lib/launcher/launcherGeometry.ts");
+        const TS_SRC: &str = include_str!("../../../src/lib/launcher/launcherGeometry.ts");
 
         fn extract(src: &str, name: &str) -> f64 {
             let needle = format!("export const {name} = ");

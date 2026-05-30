@@ -25,7 +25,9 @@ pub struct KeyringTokenStore {
 
 impl KeyringTokenStore {
     pub fn new() -> Self {
-        Self { index: Arc::new(RwLock::new(Vec::new())) }
+        Self {
+            index: Arc::new(RwLock::new(Vec::new())),
+        }
     }
 
     pub fn seed_index(&self, known: Vec<BrowserKey>) {
@@ -41,8 +43,8 @@ impl Default for KeyringTokenStore {
 
 impl TokenStore for KeyringTokenStore {
     fn set(&self, key: &BrowserKey, token: &str) -> Result<(), String> {
-        let entry = keyring::Entry::new(KEYRING_SERVICE, &account_for(key))
-            .map_err(|e| e.to_string())?;
+        let entry =
+            keyring::Entry::new(KEYRING_SERVICE, &account_for(key)).map_err(|e| e.to_string())?;
         entry.set_password(token).map_err(|e| e.to_string())?;
         let mut idx = self.index.write().unwrap();
         if !idx.contains(key) {
@@ -52,8 +54,8 @@ impl TokenStore for KeyringTokenStore {
     }
 
     fn get(&self, key: &BrowserKey) -> Result<Option<String>, String> {
-        let entry = keyring::Entry::new(KEYRING_SERVICE, &account_for(key))
-            .map_err(|e| e.to_string())?;
+        let entry =
+            keyring::Entry::new(KEYRING_SERVICE, &account_for(key)).map_err(|e| e.to_string())?;
         match entry.get_password() {
             Ok(t) => Ok(Some(t)),
             Err(keyring::Error::NoEntry) => Ok(None),
@@ -62,8 +64,8 @@ impl TokenStore for KeyringTokenStore {
     }
 
     fn delete(&self, key: &BrowserKey) -> Result<(), String> {
-        let entry = keyring::Entry::new(KEYRING_SERVICE, &account_for(key))
-            .map_err(|e| e.to_string())?;
+        let entry =
+            keyring::Entry::new(KEYRING_SERVICE, &account_for(key)).map_err(|e| e.to_string())?;
         match entry.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => {}
             Err(e) => return Err(e.to_string()),
@@ -91,7 +93,10 @@ impl InMemoryTokenStore {
 
 impl TokenStore for InMemoryTokenStore {
     fn set(&self, key: &BrowserKey, token: &str) -> Result<(), String> {
-        self.inner.write().unwrap().insert(key.clone(), token.to_string());
+        self.inner
+            .write()
+            .unwrap()
+            .insert(key.clone(), token.to_string());
         Ok(())
     }
     fn get(&self, key: &BrowserKey) -> Result<Option<String>, String> {
@@ -119,7 +124,10 @@ mod tests {
     use super::*;
 
     fn key() -> BrowserKey {
-        BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() }
+        BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        }
     }
 
     #[test]
@@ -146,8 +154,14 @@ mod tests {
     #[test]
     fn in_memory_store_lists_all_paired() {
         let store = InMemoryTokenStore::new();
-        let k1 = BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() };
-        let k2 = BrowserKey { family: BrowserFamily::Firefox, variant: "firefox".to_string() };
+        let k1 = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        let k2 = BrowserKey {
+            family: BrowserFamily::Firefox,
+            variant: "firefox".to_string(),
+        };
         store.set(&k1, "t1").unwrap();
         store.set(&k2, "t2").unwrap();
         let all = store.list_paired().unwrap();
@@ -160,6 +174,8 @@ mod tests {
         // 32 bytes -> 43 base64url chars (no padding).
         assert_eq!(token.len(), 43);
         // base64url alphabet: [A-Za-z0-9_-]
-        assert!(token.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'));
+        assert!(token
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'));
     }
 }

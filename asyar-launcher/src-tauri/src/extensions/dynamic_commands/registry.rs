@@ -201,7 +201,8 @@ mod tests {
     #[test]
     fn replace_with_empty_list_clears_extension() {
         let r = DynamicCommandRegistry::new();
-        r.replace_for_extension("ext", vec![rc("sc-1", "A")]).unwrap();
+        r.replace_for_extension("ext", vec![rc("sc-1", "A")])
+            .unwrap();
 
         let diff = r.replace_for_extension("ext", vec![]).unwrap();
         assert_eq!(diff.removed, vec!["sc-1".to_string()]);
@@ -214,11 +215,8 @@ mod tests {
     #[test]
     fn replace_returns_diff_added_removed_kept() {
         let r = DynamicCommandRegistry::new();
-        r.replace_for_extension(
-            "ext",
-            vec![rc("a", "A"), rc("b", "B"), rc("c", "C")],
-        )
-        .unwrap();
+        r.replace_for_extension("ext", vec![rc("a", "A"), rc("b", "B"), rc("c", "C")])
+            .unwrap();
 
         let diff = r
             .replace_for_extension("ext", vec![rc("b", "B"), rc("c", "C2"), rc("d", "D")])
@@ -244,8 +242,10 @@ mod tests {
     #[test]
     fn replace_does_not_affect_other_extensions() {
         let r = DynamicCommandRegistry::new();
-        r.replace_for_extension("ext-a", vec![rc("a1", "A1")]).unwrap();
-        r.replace_for_extension("ext-b", vec![rc("b1", "B1")]).unwrap();
+        r.replace_for_extension("ext-a", vec![rc("a1", "A1")])
+            .unwrap();
+        r.replace_for_extension("ext-b", vec![rc("b1", "B1")])
+            .unwrap();
 
         // Replace ext-a; ext-b's items must remain intact.
         r.replace_for_extension("ext-a", vec![]).unwrap();
@@ -260,10 +260,7 @@ mod tests {
         // the registry must not crash on it.
         let r = DynamicCommandRegistry::new();
         let diff = r
-            .replace_for_extension(
-                "ext",
-                vec![rc("dup", "First"), rc("dup", "Second")],
-            )
+            .replace_for_extension("ext", vec![rc("dup", "First"), rc("dup", "Second")])
             .unwrap();
         assert_eq!(diff.added, vec!["dup".to_string()]);
         let got = r.get_meta("ext", "dup").unwrap().unwrap();
@@ -292,11 +289,8 @@ mod tests {
     #[test]
     fn list_for_extension_is_sorted() {
         let r = DynamicCommandRegistry::new();
-        r.replace_for_extension(
-            "ext",
-            vec![rc("z", "Z"), rc("a", "A"), rc("m", "M")],
-        )
-        .unwrap();
+        r.replace_for_extension("ext", vec![rc("z", "Z"), rc("a", "A"), rc("m", "M")])
+            .unwrap();
         let list = r.list_for_extension("ext").unwrap();
         let ids: Vec<&str> = list.iter().map(|c| c.id.as_str()).collect();
         assert_eq!(ids, vec!["a", "m", "z"]);

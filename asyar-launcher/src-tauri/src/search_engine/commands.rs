@@ -93,7 +93,7 @@ pub async fn reset_search_index(
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandSyncInput {
-    pub id: String,        // Full object ID, e.g. "cmd_extensionId_commandId"
+    pub id: String, // Full object ID, e.g. "cmd_extensionId_commandId"
     pub name: String,
     pub extension: String, // Extension ID
     pub trigger: String,
@@ -137,8 +137,8 @@ pub fn sync_command_index_internal_with_aliases(
     search_state: &crate::search_engine::SearchState,
     alias_state: Option<&crate::aliases::AliasState>,
 ) -> Result<CommandSyncResult, crate::error::AppError> {
+    use crate::search_engine::models::{Command, SearchableItem};
     use std::collections::{HashMap, HashSet};
-    use crate::search_engine::models::{SearchableItem, Command};
 
     // 1. Build current command map from input
     let mut current_commands: HashMap<String, CommandSyncInput> = HashMap::new();
@@ -148,12 +148,19 @@ pub fn sync_command_index_internal_with_aliases(
 
     // 2. Get currently indexed cmd_ IDs
     let indexed_ids: Vec<String> = {
-        let items = search_state.items.read()
+        let items = search_state
+            .items
+            .read()
             .map_err(|_| crate::error::AppError::Lock)?;
-        items.iter()
+        items
+            .iter()
             .filter_map(|item| {
                 let id = item.id();
-                if id.starts_with("cmd_") { Some(id.to_string()) } else { None }
+                if id.starts_with("cmd_") {
+                    Some(id.to_string())
+                } else {
+                    None
+                }
             })
             .collect()
     };
@@ -162,7 +169,10 @@ pub fn sync_command_index_internal_with_aliases(
     let current_set: HashSet<&str> = current_commands.keys().map(|s| s.as_str()).collect();
 
     // 3. Diff
-    let to_add: Vec<String> = current_set.difference(&indexed_set).map(|s| s.to_string()).collect();
+    let to_add: Vec<String> = current_set
+        .difference(&indexed_set)
+        .map(|s| s.to_string())
+        .collect();
     // Dynamic commands (id pattern `cmd_<ext>_dyn_<id>`) own a separate
     // registration path via `replace_dynamic_commands` /
     // `replace_dynamic_commands_builtin` — they MUST NOT be wiped by the
@@ -180,7 +190,9 @@ pub fn sync_command_index_internal_with_aliases(
 
     // 4. Update SearchState
     if !to_add.is_empty() || !to_remove.is_empty() {
-        let mut items = search_state.items.write()
+        let mut items = search_state
+            .items
+            .write()
             .map_err(|_| crate::error::AppError::Lock)?;
 
         // Remove stale commands
@@ -209,28 +221,42 @@ pub fn sync_command_index_internal_with_aliases(
     }
 
     // 5. Persist
-    search_state.save_items_to_db()
+    search_state
+        .save_items_to_db()
         .map_err(|e| crate::error::AppError::Other(format!("Failed to save index: {}", e)))?;
 
     let total = {
-        let items = search_state.items.read()
+        let items = search_state
+            .items
+            .read()
             .map_err(|_| crate::error::AppError::Lock)?;
         items.iter().filter(|i| i.id().starts_with("cmd_")).count() as u32
     };
 
-    log::info!("Command sync complete: {} added, {} removed, {} total commands", added, removed, total);
+    log::info!(
+        "Command sync complete: {} added, {} removed, {} total commands",
+        added,
+        removed,
+        total
+    );
 
     // 6. Prune orphan aliases (those whose object_id is no longer in the index)
     if let Some(aliases) = alias_state {
         let live_ids: std::collections::HashSet<String> = {
-            let items = search_state.items.read()
+            let items = search_state
+                .items
+                .read()
                 .map_err(|_| crate::error::AppError::Lock)?;
             items.iter().map(|i| i.id().to_string()).collect()
         };
         let _ = aliases.prune_orphans(&live_ids);
     }
 
-    Ok(CommandSyncResult { added, removed, total })
+    Ok(CommandSyncResult {
+        added,
+        removed,
+        total,
+    })
 }
 
 /// Input for updating a command's runtime metadata (currently: subtitle only).
@@ -291,12 +317,16 @@ mod tests {
     // --- sync_command_index tests ---
 
     fn make_test_state() -> SearchState {
-        use std::sync::{RwLock, Mutex};
+        use std::sync::{Mutex, RwLock};
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         // Since we can't easily call init_db from here without making it public or duplicating,
         // we'll just skip the DB persistence part in these unit tests by mocking save_items_to_db if needed,
         // or just let it fail if it hits DB. Actually, let's just initialize the table.
-        conn.execute("CREATE TABLE search_items (id TEXT PRIMARY KEY, category TEXT, data TEXT)", []).unwrap();
+        conn.execute(
+            "CREATE TABLE search_items (id TEXT PRIMARY KEY, category TEXT, data TEXT)",
+            [],
+        )
+        .unwrap();
         SearchState {
             items: RwLock::new(vec![]),
             db: Mutex::new(conn),
@@ -308,9 +338,9 @@ mod tests {
         let state = make_test_state();
         state.index_one(make_cmd("cmd_1", "Cmd 1", 0)).unwrap();
         state.index_one(make_cmd("cmd_2", "Cmd 2", 0)).unwrap();
-        
+
         let result = sync_command_index_internal(vec![], &state).unwrap();
-        
+
         assert_eq!(result.removed, 2);
         assert_eq!(result.total, 0);
     }
@@ -318,7 +348,7 @@ mod tests {
     #[tokio::test]
     async fn test_sync_command_index_adds_new() {
         let state = make_test_state();
-        
+
         let input = vec![CommandSyncInput {
             id: "cmd_new".to_string(),
             name: "New".to_string(),
@@ -327,7 +357,7 @@ mod tests {
             command_type: "command".to_string(),
             icon: None,
         }];
-        
+
         let result = sync_command_index_internal(input, &state).unwrap();
         assert_eq!(result.added, 1);
         assert_eq!(result.total, 1);
@@ -338,13 +368,13 @@ mod tests {
         let state = make_test_state();
         state.index_one(make_app("app_1", "App 1", 0)).unwrap();
         state.index_one(make_cmd("cmd_1", "Cmd 1", 0)).unwrap();
-        
+
         // Syncing with empty command list should remove cmd_1 but KEEP app_1
         let result = sync_command_index_internal(vec![], &state).unwrap();
-        
+
         assert_eq!(result.removed, 1);
         assert_eq!(result.total, 0);
-        
+
         // Final check of the state
         let items = state.items.read().unwrap();
         assert_eq!(items.len(), 1);
@@ -372,7 +402,7 @@ mod tests {
                 trigger: "second".to_string(),
                 command_type: "command".to_string(),
                 icon: None,
-            }
+            },
         ];
 
         let result = sync_command_index_internal(input, &state).unwrap();
@@ -391,8 +421,12 @@ mod tests {
         // manifest sync would silently wipe Tier 1 dynamic registrations
         // (e.g. Scripts) moments after the feature seeded them.
         let state = make_test_state();
-        state.index_one(make_cmd("cmd_scripts_dyn_abcdef0123456789", "Hello", 0)).unwrap();
-        state.index_one(make_cmd("cmd_static_one", "Static", 0)).unwrap();
+        state
+            .index_one(make_cmd("cmd_scripts_dyn_abcdef0123456789", "Hello", 0))
+            .unwrap();
+        state
+            .index_one(make_cmd("cmd_static_one", "Static", 0))
+            .unwrap();
 
         // Sync with only the static command — no dynamic ids in manifest input.
         let input = vec![CommandSyncInput {
@@ -416,9 +450,13 @@ mod tests {
     #[tokio::test]
     async fn sync_command_index_prunes_orphan_aliases() {
         let state = make_test_state();
-        state.index_one(make_cmd("cmd_pomodoro_start", "Start", 0)).unwrap();
+        state
+            .index_one(make_cmd("cmd_pomodoro_start", "Start", 0))
+            .unwrap();
         let alias_state = crate::aliases::AliasState::new_in_memory();
-        alias_state.set_alias("cmd_pomodoro_start", "ps", "Start", "command", 1).unwrap();
+        alias_state
+            .set_alias("cmd_pomodoro_start", "ps", "Start", "command", 1)
+            .unwrap();
 
         // Sync with empty input — pomodoro removed.
         sync_command_index_internal_with_aliases(vec![], &state, Some(&alias_state)).unwrap();

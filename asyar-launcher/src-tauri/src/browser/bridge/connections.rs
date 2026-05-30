@@ -129,7 +129,10 @@ mod tests {
     use crate::browser::types::BrowserFamily;
 
     fn key() -> BrowserKey {
-        BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() }
+        BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        }
     }
 
     #[tokio::test]

@@ -20,7 +20,10 @@ pub struct WindowsBackend<R: Runtime> {
 
 impl<R: Runtime> WindowsBackend<R> {
     pub fn new(app: AppHandle<R>, click_sink: ActionClickSink) -> Self {
-        Self { app, _click_sink: click_sink }
+        Self {
+            app,
+            _click_sink: click_sink,
+        }
     }
 }
 
