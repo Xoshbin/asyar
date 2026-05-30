@@ -4,7 +4,6 @@
 
 ![The Asyar launcher open with a search query](./images/getting-started-hero.png)
 *Figure: the Asyar launcher, opened with the global hotkey.*
-<!-- image-todo: getting-started-hero.png — launcher open over the desktop with a query typed -->
 
 ## Install
 
@@ -19,7 +18,6 @@ Once Asyar starts, a small icon appears in the menu bar (macOS) or system tray (
 
 ![The first-run onboarding, choosing a global hotkey](./images/getting-started-onboarding.png)
 *Figure: the onboarding step where you pick your global hotkey.*
-<!-- image-todo: getting-started-onboarding.png — onboarding "Pick hotkey" step -->
 
 Asyar walks you through a short onboarding flow the first time you launch it. Here is what each step does:
 

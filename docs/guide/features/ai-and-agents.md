@@ -4,7 +4,6 @@
 
 ![Agent chat view streaming a reply](../images/feature-ai-agents-hero.png)
 *Figure: the agent chat view streaming a reply.*
-<!-- image-todo: feature-ai-agents-hero.png — agent chat view streaming a reply -->
 
 ## What it does
 

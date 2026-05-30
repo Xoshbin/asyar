@@ -4,7 +4,6 @@
 
 ![Layout presets list](../images/feature-window-management-hero.png)
 *Figure: the layout presets list.*
-<!-- image-todo: feature-window-management-hero.png — layout presets list -->
 
 ## What it does
 

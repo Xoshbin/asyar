@@ -4,7 +4,6 @@
 
 ![A portal result in search](../images/feature-portals-hero.png)
 *Figure: a portal result appearing in search.*
-<!-- image-todo: feature-portals-hero.png — a portal result in search -->
 
 ## What it does
 

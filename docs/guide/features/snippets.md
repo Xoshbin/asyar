@@ -4,7 +4,6 @@
 
 ![Snippets list view](../images/feature-snippets-hero.png)
 *Figure: the snippets list view.*
-<!-- image-todo: feature-snippets-hero.png — snippets list view -->
 
 ## What it does
 

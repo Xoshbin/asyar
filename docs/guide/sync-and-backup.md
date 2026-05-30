@@ -4,7 +4,6 @@
 
 ![The Account settings tab](./images/sync-account-tab.png)
 *Figure: the Account settings tab.*
-<!-- image-todo: sync-account-tab.png — the Account settings tab -->
 
 ## Signing in
 

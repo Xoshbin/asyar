@@ -4,7 +4,6 @@
 
 ![The Extension Store view](../images/feature-extensions-hero.png)
 *Figure: the Extension Store view.*
-<!-- image-todo: feature-extensions-hero.png — the Extension Store view -->
 
 ## What it does
 
