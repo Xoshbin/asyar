@@ -2003,6 +2003,65 @@ pub fn apply_show_more_bar_huds(
     show_more_bar::apply_huds(scripts_active, scripts_done, agents_active, agents_done);
 }
 
+/// Number of running application instances with the given bundle id.
+///
+/// SAFETY: `+[NSRunningApplication runningApplicationsWithBundleIdentifier:]`
+/// is thread-safe and only reads process metadata. We never deref returned
+/// objects beyond `count`, and `NSString::from_str` owns its buffer.
+fn running_app_count(bundle_id: &str) -> usize {
+    unsafe {
+        let Some(cls) = AnyClass::get("NSRunningApplication") else {
+            return 0;
+        };
+        let bid = NSString::from_str(bundle_id);
+        let apps: *mut AnyObject = msg_send![cls, runningApplicationsWithBundleIdentifier: &*bid];
+        if apps.is_null() {
+            return 0;
+        }
+        msg_send![apps, count]
+    }
+}
+
+/// True when at least one running app has the given bundle id. Used to decide
+/// whether activation is safe — we only ever bring already-running browsers
+/// forward, never launch one.
+pub fn is_app_running(bundle_id: &str) -> bool {
+    running_app_count(bundle_id) > 0
+}
+
+/// Bring an already-running app (by bundle id) to the foreground. Returns
+/// `false` (a no-op) when no instance is running — it never launches the app.
+///
+/// SAFETY: AppKit object messaging via the Objective-C runtime. The returned
+/// array and its elements are autoreleased and only messaged synchronously
+/// here; `activateWithOptions:` is safe to call from any thread.
+pub fn activate_running_app(bundle_id: &str) -> bool {
+    unsafe {
+        let Some(cls) = AnyClass::get("NSRunningApplication") else {
+            return false;
+        };
+        let bid = NSString::from_str(bundle_id);
+        let apps: *mut AnyObject = msg_send![cls, runningApplicationsWithBundleIdentifier: &*bid];
+        if apps.is_null() {
+            return false;
+        }
+        let count: usize = msg_send![apps, count];
+        if count == 0 {
+            return false;
+        }
+        let app: *mut AnyObject = msg_send![apps, objectAtIndex: 0usize];
+        if app.is_null() {
+            return false;
+        }
+        // NSApplicationActivateAllWindows (1<<0) | ActivateIgnoringOtherApps
+        // (1<<1) — bring every window of the browser forward, overriding the
+        // still-frontmost launcher panel.
+        const OPTS: u64 = (1 << 0) | (1 << 1);
+        let _: Bool = msg_send![app, activateWithOptions: OPTS];
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
