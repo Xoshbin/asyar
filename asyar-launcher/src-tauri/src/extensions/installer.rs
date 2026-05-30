@@ -1,16 +1,16 @@
 //! Extension installation: download, verify, and extract extension packages.
 
-use log::{info, warn};
 use crate::error::AppError;
 use crate::extensions::{get_app_data_dir, read_theme_definition, ExtensionManifest};
+use async_zip::tokio::read::seek::ZipFileReader;
+use futures_util::StreamExt;
+use log::{info, warn};
 use std::fs;
 use std::path::Path;
 use tauri::{AppHandle, Emitter};
-use futures_util::StreamExt;
 use tempfile::NamedTempFile;
-use async_zip::tokio::read::seek::ZipFileReader;
 use tokio::fs::File as TokioFile;
-use tokio::io::{BufReader, AsyncWriteExt};
+use tokio::io::{AsyncWriteExt, BufReader};
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
 pub(crate) async fn download_to_temp_file(url: &str) -> Result<NamedTempFile, AppError> {
@@ -20,8 +20,7 @@ pub(crate) async fn download_to_temp_file(url: &str) -> Result<NamedTempFile, Ap
     let mut dest = TokioFile::create(temp_file.path()).await?;
 
     // Make the HTTP request
-    let response = reqwest::get(url)
-        .await?;
+    let response = reqwest::get(url).await?;
 
     if !response.status().is_success() {
         return Err(AppError::Network(response.error_for_status().unwrap_err()));
@@ -49,9 +48,11 @@ pub(crate) async fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), 
     // Wrap it in a BufReader for seeking
     let mut buf_reader = BufReader::new(file);
     // Create the seek::ZipFileReader
-    let mut zip = ZipFileReader::with_tokio(&mut buf_reader).await
-        .map_err(|e| AppError::Extension(format!("Failed to read zip archive {:?}: {}", zip_path, e)))?;
-
+    let mut zip = ZipFileReader::with_tokio(&mut buf_reader)
+        .await
+        .map_err(|e| {
+            AppError::Extension(format!("Failed to read zip archive {:?}: {}", zip_path, e))
+        })?;
 
     // Iterate over entries and extract them
     let entries = zip.file().entries().to_vec();
@@ -59,7 +60,9 @@ pub(crate) async fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), 
         let entry_filename = entry.filename();
 
         // Construct the full path for the extracted file/directory
-        let entry_filename_str = entry_filename.as_str().map_err(|e| AppError::Extension(format!("Invalid filename encoding in zip: {}", e)))?;
+        let entry_filename_str = entry_filename
+            .as_str()
+            .map_err(|e| AppError::Extension(format!("Invalid filename encoding in zip: {}", e)))?;
         // Normalize path separators: convert \ to / before joining on Unix paths
         let normalized_filename = entry_filename_str.replace("\\", "/");
         let safe_filename = normalized_filename.trim_start_matches('/');
@@ -75,8 +78,13 @@ pub(crate) async fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), 
         }
 
         let outpath = dest_dir.join(safe_filename);
-        
-        log::debug!("Extracting entry: Original='{}', Safe='{}', Dest='{:?}'", entry_filename_str, safe_filename, outpath);
+
+        log::debug!(
+            "Extracting entry: Original='{}', Safe='{}', Dest='{:?}'",
+            entry_filename_str,
+            safe_filename,
+            outpath
+        );
 
         // Check if it's a directory using ends_with to overcome entry.dir() failing on backslashes
         let is_dir = safe_filename.ends_with("/");
@@ -96,15 +104,23 @@ pub(crate) async fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), 
             // Use the original mutable zip reader to get the entry reader by index
             let entry_reader_result = zip.reader_with_entry(index).await;
             let entry_reader = match entry_reader_result {
-                 Ok(reader) => reader,
-                 Err(e) => return Err(AppError::Extension(format!("Failed to get reader for zip entry index {}: {}", index, e))),
+                Ok(reader) => reader,
+                Err(e) => {
+                    return Err(AppError::Extension(format!(
+                        "Failed to get reader for zip entry index {}: {}",
+                        index, e
+                    )))
+                }
             };
             // Create the output file using TokioFile for async writing
             let mut outfile = TokioFile::create(&outpath).await?;
 
             // Use tokio::io::copy with the async outfile
-            tokio::io::copy(&mut entry_reader.compat(), &mut outfile).await
-                 .map_err(|e| AppError::Extension(format!("Failed to copy content to {:?}: {}", outpath, e)))?;
+            tokio::io::copy(&mut entry_reader.compat(), &mut outfile)
+                .await
+                .map_err(|e| {
+                    AppError::Extension(format!("Failed to copy content to {:?}: {}", outpath, e))
+                })?;
 
             // On Unix systems, restore permissions if needed
             #[cfg(unix)]
@@ -113,8 +129,10 @@ pub(crate) async fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), 
                 if let Some(mut mode) = entry.unix_permissions() {
                     mode &= 0o777;
                     if mode > 0 {
-                        if let Err(e) = fs::set_permissions(&outpath, fs::Permissions::from_mode(mode as u32)) {
-                             warn!("Failed to set permissions on {:?}: {}", outpath, e);
+                        if let Err(e) =
+                            fs::set_permissions(&outpath, fs::Permissions::from_mode(mode as u32))
+                        {
+                            warn!("Failed to set permissions on {:?}: {}", outpath, e);
                         }
                     }
                 }
@@ -134,13 +152,20 @@ pub(crate) fn validate_theme_json(extension_dir: &Path) -> Result<(), AppError> 
 
     for font in &definition.fonts {
         // Check font family name for CSS injection
-        if forbidden_family_patterns.iter().any(|p| font.family.contains(p)) {
+        if forbidden_family_patterns
+            .iter()
+            .any(|p| font.family.contains(p))
+        {
             return Err(AppError::Validation(format!(
                 "Invalid font family name '{}': contains forbidden characters",
                 font.family
             )));
         }
-        if !font.family.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '-') {
+        if !font
+            .family
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == ' ' || c == '-')
+        {
             return Err(AppError::Validation(format!(
                 "Invalid font family name '{}': only alphanumeric, spaces, and hyphens allowed",
                 font.family
@@ -150,7 +175,8 @@ pub(crate) fn validate_theme_json(extension_dir: &Path) -> Result<(), AppError> 
         // Check font src path for traversal
         if font.src.contains("..") {
             return Err(AppError::Validation(format!(
-                "Font src '{}' contains path traversal", font.src
+                "Font src '{}' contains path traversal",
+                font.src
             )));
         }
 
@@ -170,7 +196,8 @@ pub(crate) fn validate_theme_json(extension_dir: &Path) -> Result<(), AppError> 
         let font_path = extension_dir.join(&font.src);
         if !font_path.exists() {
             return Err(AppError::Validation(format!(
-                "Font file not found: {:?}", font_path
+                "Font file not found: {:?}",
+                font_path
             )));
         }
     }
@@ -184,24 +211,36 @@ pub(crate) fn validate_package_structure(
     manifest: &ExtensionManifest,
 ) -> Result<(), AppError> {
     if manifest.id.trim().is_empty() {
-        return Err(AppError::Validation("Extension manifest missing 'id'".to_string()));
+        return Err(AppError::Validation(
+            "Extension manifest missing 'id'".to_string(),
+        ));
     }
     if manifest.name.trim().is_empty() {
-        return Err(AppError::Validation("Extension manifest missing 'name'".to_string()));
+        return Err(AppError::Validation(
+            "Extension manifest missing 'name'".to_string(),
+        ));
     }
     if manifest.version.trim().is_empty() {
-        return Err(AppError::Validation("Extension manifest missing 'version'".to_string()));
+        return Err(AppError::Validation(
+            "Extension manifest missing 'version'".to_string(),
+        ));
     }
 
     // ID format: alphanumeric, hyphens, dots, underscores. No ".."
     if manifest.id.contains("..") {
         return Err(AppError::Validation(format!(
-            "Extension ID '{}' contains '..' path traversal", manifest.id
+            "Extension ID '{}' contains '..' path traversal",
+            manifest.id
         )));
     }
-    if !manifest.id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '.' || c == '_') {
+    if !manifest
+        .id
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '.' || c == '_')
+    {
         return Err(AppError::Validation(format!(
-            "Extension ID '{}' contains invalid characters", manifest.id
+            "Extension ID '{}' contains invalid characters",
+            manifest.id
         )));
     }
 
@@ -222,15 +261,17 @@ pub(crate) fn validate_package_structure(
             // `dist/` — per-extension Vite configs emit into `dist/`, and the
             // `asyar-extension://` scheme handler already resolves both paths,
             // so the installer validator mirrors that contract.
-            let has_view_commands = manifest.commands.iter().any(|c| {
-                c.mode.as_deref().unwrap_or("view") == "view"
-            });
+            let has_view_commands = manifest
+                .commands
+                .iter()
+                .any(|c| c.mode.as_deref().unwrap_or("view") == "view");
             if has_view_commands
                 && !extracted_dir.join("view.html").exists()
                 && !extracted_dir.join("dist/view.html").exists()
             {
                 return Err(AppError::Validation(
-                    "Extension package must include view.html at the root or dist/ directory".to_string()
+                    "Extension package must include view.html at the root or dist/ directory"
+                        .to_string(),
                 ));
             }
             if manifest.background.is_some()
@@ -246,7 +287,8 @@ pub(crate) fn validate_package_structure(
         other => {
             // validate_manifest rejects this set, so reaching here is a bug.
             return Err(AppError::Validation(format!(
-                "Unknown extension type '{}' (expected: theme or extension)", other
+                "Unknown extension type '{}' (expected: theme or extension)",
+                other
             )));
         }
     }
@@ -273,7 +315,9 @@ pub(crate) fn verify_checksum(file_path: &Path, expected_checksum: &str) -> Resu
     let mut buffer = [0; 8192];
     loop {
         let count = file.read(&mut buffer)?;
-        if count == 0 { break; }
+        if count == 0 {
+            break;
+        }
         hasher.update(&buffer[..count]);
     }
     let calculated = format!("sha256:{:x}", hasher.finalize());
@@ -302,7 +346,10 @@ pub(crate) fn check_version_conflict(
     match existing_version {
         None => VersionAction::FreshInstall,
         Some(existing) => {
-            match (semver::Version::parse(existing), semver::Version::parse(incoming_version)) {
+            match (
+                semver::Version::parse(existing),
+                semver::Version::parse(incoming_version),
+            ) {
                 (Ok(ex), Ok(inc)) if inc > ex => VersionAction::Upgrade,
                 _ => VersionAction::AlreadyInstalled,
             }
@@ -317,7 +364,9 @@ pub(crate) fn validate_file_path(path: &Path) -> Result<(), AppError> {
     }
     match path.extension().and_then(|e| e.to_str()) {
         Some("asyar") => Ok(()),
-        _ => Err(AppError::Validation("File must have .asyar extension".to_string())),
+        _ => Err(AppError::Validation(
+            "File must have .asyar extension".to_string(),
+        )),
     }
 }
 
@@ -338,11 +387,20 @@ pub(crate) async fn install_from_file(
     validate_package_structure(temp_dir.path(), &manifest)?;
 
     let compat = crate::extensions::discovery::validate_compatibility(&manifest);
-    if let crate::extensions::CompatibilityStatus::PlatformNotSupported { platform, supported } = &compat {
+    if let crate::extensions::CompatibilityStatus::PlatformNotSupported {
+        platform,
+        supported,
+    } = &compat
+    {
         return Err(AppError::Validation(format!(
             "Extension '{}' does not support {} (supported: {})",
-            manifest.name, platform,
-            if supported.is_empty() { "none".to_string() } else { supported.join(", ") }
+            manifest.name,
+            platform,
+            if supported.is_empty() {
+                "none".to_string()
+            } else {
+                supported.join(", ")
+            }
         )));
     }
 
@@ -352,7 +410,8 @@ pub(crate) async fn install_from_file(
 
     let existing_version = if install_dir.exists() {
         crate::extensions::discovery::read_manifest(&install_dir.join("manifest.json"))
-            .ok().map(|m| m.version)
+            .ok()
+            .map(|m| m.version)
     } else {
         None
     };
@@ -360,13 +419,17 @@ pub(crate) async fn install_from_file(
     match check_version_conflict(existing_version.as_deref(), &manifest.version) {
         VersionAction::FreshInstall => {}
         VersionAction::Upgrade => {
-            info!("Upgrading extension '{}' to v{}", manifest.id, manifest.version);
+            info!(
+                "Upgrading extension '{}' to v{}",
+                manifest.id, manifest.version
+            );
             fs::remove_dir_all(&install_dir)?;
         }
         VersionAction::AlreadyInstalled => {
             return Err(AppError::Validation(format!(
                 "Extension '{}' v{} is already installed (same or newer version)",
-                manifest.id, existing_version.unwrap_or_default()
+                manifest.id,
+                existing_version.unwrap_or_default()
             )));
         }
     }
@@ -380,7 +443,10 @@ pub(crate) async fn install_from_file(
         warn!("Failed to emit extensions_updated event: {}", e);
     }
 
-    info!("Extension '{}' v{} installed from file", manifest.name, manifest.version);
+    info!(
+        "Extension '{}' v{} installed from file",
+        manifest.name, manifest.version
+    );
     Ok(())
 }
 
@@ -411,13 +477,17 @@ pub(crate) async fn install_from_url(
         "Attempting to install extension '{}' (ID: {}, Version: {}) from URL: {}",
         extension_name, extension_id, version, download_url
     );
-    
+
     // Guard against empty values before doing anything
     if download_url.trim().is_empty() {
-        return Err(AppError::Validation("Download URL is required and cannot be empty".to_string()));
+        return Err(AppError::Validation(
+            "Download URL is required and cannot be empty".to_string(),
+        ));
     }
     if extension_id.trim().is_empty() {
-        return Err(AppError::Validation("Extension ID is required and cannot be empty".to_string()));
+        return Err(AppError::Validation(
+            "Extension ID is required and cannot be empty".to_string(),
+        ));
     }
 
     // Validate URL format
@@ -428,11 +498,16 @@ pub(crate) async fn install_from_url(
 
     // Create the base extensions directory if it doesn't exist
     if !base_extensions_dir.exists() {
-        fs::create_dir_all(&base_extensions_dir).map_err(|e| AppError::Platform(format!(
-            "Failed to create base extensions directory {:?}: {}",
-            base_extensions_dir, e
-        )))?;
-        info!("Created base extensions directory: {:?}", base_extensions_dir);
+        fs::create_dir_all(&base_extensions_dir).map_err(|e| {
+            AppError::Platform(format!(
+                "Failed to create base extensions directory {:?}: {}",
+                base_extensions_dir, e
+            ))
+        })?;
+        info!(
+            "Created base extensions directory: {:?}",
+            base_extensions_dir
+        );
     }
 
     let install_dir = base_extensions_dir.join(extension_id);
@@ -443,10 +518,12 @@ pub(crate) async fn install_from_url(
             "Existing installation directory found for {}. Removing it first: {:?}",
             extension_id, install_dir
         );
-        fs::remove_dir_all(&install_dir).map_err(|e| AppError::Platform(format!(
-            "Failed to remove existing extension directory {:?}: {}",
-            install_dir, e
-        )))?;
+        fs::remove_dir_all(&install_dir).map_err(|e| {
+            AppError::Platform(format!(
+                "Failed to remove existing extension directory {:?}: {}",
+                install_dir, e
+            ))
+        })?;
     }
 
     // --- 2. Download the Extension ---
@@ -481,8 +558,10 @@ pub(crate) async fn install_from_url(
         if manifest_path.exists() {
             match read_manifest(&manifest_path) {
                 Ok(manifest) => {
-                    if let CompatibilityStatus::PlatformNotSupported { platform, supported } =
-                        validate_compatibility(&manifest)
+                    if let CompatibilityStatus::PlatformNotSupported {
+                        platform,
+                        supported,
+                    } = validate_compatibility(&manifest)
                     {
                         let _ = fs::remove_dir_all(&install_dir);
                         return Err(AppError::Validation(format!(
@@ -516,9 +595,9 @@ pub(crate) async fn install_from_url(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use async_zip::tokio::write::ZipFileWriter;
     use async_zip::{Compression, ZipEntryBuilder};
+    use tempfile::TempDir;
 
     /// Helper: build an in-memory zip and write it to a temp file, then extract.
     async fn make_zip_and_extract(entries: &[(&str, &[u8])]) -> Result<TempDir, AppError> {
@@ -529,10 +608,15 @@ mod tests {
             let mut writer = ZipFileWriter::with_tokio(zip_file);
             for (name, content) in entries {
                 let entry = ZipEntryBuilder::new((*name).into(), Compression::Deflate);
-                writer.write_entry_whole(entry, content).await
+                writer
+                    .write_entry_whole(entry, content)
+                    .await
                     .map_err(|e| AppError::Extension(e.to_string()))?;
             }
-            writer.close().await.map_err(|e| AppError::Extension(e.to_string()))?;
+            writer
+                .close()
+                .await
+                .map_err(|e| AppError::Extension(e.to_string()))?;
         }
         extract_zip(zip_tmp.path(), dest.path()).await?;
         Ok(dest)
@@ -543,7 +627,9 @@ mod tests {
         let dest = make_zip_and_extract(&[
             ("index.js", b"console.log('hi')"),
             ("dist/main.css", b"body { margin: 0; }"),
-        ]).await.unwrap();
+        ])
+        .await
+        .unwrap();
         assert!(dest.path().join("index.js").exists());
         assert!(dest.path().join("dist/main.css").exists());
         let content = std::fs::read_to_string(dest.path().join("index.js")).unwrap();
@@ -552,9 +638,7 @@ mod tests {
 
     #[tokio::test]
     async fn zip_slip_with_dotdot_is_rejected() {
-        let result = make_zip_and_extract(&[
-            ("../../evil.js", b"evil"),
-        ]).await;
+        let result = make_zip_and_extract(&[("../../evil.js", b"evil")]).await;
         assert!(result.is_err());
         let msg = format!("{:?}", result.unwrap_err());
         assert!(msg.contains("path traversal"));
@@ -562,26 +646,24 @@ mod tests {
 
     #[tokio::test]
     async fn zip_slip_nested_dotdot_is_rejected() {
-        let result = make_zip_and_extract(&[
-            ("subdir/../../outside.txt", b"evil"),
-        ]).await;
+        let result = make_zip_and_extract(&[("subdir/../../outside.txt", b"evil")]).await;
         assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn absolute_path_stripped_and_extracted_safely() {
         // Leading / is stripped — must land inside dest_dir
-        let dest = make_zip_and_extract(&[
-            ("/index.html", b"<html/>"),
-        ]).await.unwrap();
+        let dest = make_zip_and_extract(&[("/index.html", b"<html/>")])
+            .await
+            .unwrap();
         assert!(dest.path().join("index.html").exists());
     }
 
     #[tokio::test]
     async fn windows_backslash_separator_is_normalised() {
-        let dest = make_zip_and_extract(&[
-            ("dist\\bundle.js", b"var x=1;"),
-        ]).await.unwrap();
+        let dest = make_zip_and_extract(&[("dist\\bundle.js", b"var x=1;")])
+            .await
+            .unwrap();
         // After normalisation the file lives at dist/bundle.js
         assert!(dest.path().join("dist/bundle.js").exists());
     }
@@ -609,18 +691,21 @@ mod tests {
 
     #[tokio::test]
     async fn validate_theme_json_valid_theme() {
-        let dest = make_zip_and_extract(&[
-            ("theme.json", br#"{"variables":{"--bg-primary":"red"},"fonts":[]}"#),
-        ]).await.unwrap();
+        let dest = make_zip_and_extract(&[(
+            "theme.json",
+            br#"{"variables":{"--bg-primary":"red"},"fonts":[]}"#,
+        )])
+        .await
+        .unwrap();
         let result = validate_theme_json(dest.path());
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn validate_theme_json_missing_file_errors() {
-        let dest = make_zip_and_extract(&[
-            ("manifest.json", b"{}"),
-        ]).await.unwrap();
+        let dest = make_zip_and_extract(&[("manifest.json", b"{}")])
+            .await
+            .unwrap();
         let result = validate_theme_json(dest.path());
         assert!(result.is_err());
     }
@@ -628,9 +713,14 @@ mod tests {
     #[tokio::test]
     async fn validate_theme_json_invalid_font_extension() {
         let dest = make_zip_and_extract(&[
-            ("theme.json", br#"{"variables":{},"fonts":[{"family":"Bad","src":"fonts/bad.exe"}]}"#),
+            (
+                "theme.json",
+                br#"{"variables":{},"fonts":[{"family":"Bad","src":"fonts/bad.exe"}]}"#,
+            ),
             ("fonts/bad.exe", b"data"),
-        ]).await.unwrap();
+        ])
+        .await
+        .unwrap();
         let result = validate_theme_json(dest.path());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("font extension"));
@@ -638,9 +728,12 @@ mod tests {
 
     #[tokio::test]
     async fn validate_theme_json_font_file_not_found() {
-        let dest = make_zip_and_extract(&[
-            ("theme.json", br#"{"variables":{},"fonts":[{"family":"Missing","src":"fonts/missing.woff2"}]}"#),
-        ]).await.unwrap();
+        let dest = make_zip_and_extract(&[(
+            "theme.json",
+            br#"{"variables":{},"fonts":[{"family":"Missing","src":"fonts/missing.woff2"}]}"#,
+        )])
+        .await
+        .unwrap();
         let result = validate_theme_json(dest.path());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
@@ -649,9 +742,14 @@ mod tests {
     #[tokio::test]
     async fn validate_theme_json_css_injection_in_family() {
         let dest = make_zip_and_extract(&[
-            ("theme.json", br#"{"variables":{},"fonts":[{"family":"Evil;{}url(","src":"fonts/f.woff2"}]}"#),
+            (
+                "theme.json",
+                br#"{"variables":{},"fonts":[{"family":"Evil;{}url(","src":"fonts/f.woff2"}]}"#,
+            ),
             ("fonts/f.woff2", b"data"),
-        ]).await.unwrap();
+        ])
+        .await
+        .unwrap();
         let result = validate_theme_json(dest.path());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("font family"));
@@ -669,9 +767,12 @@ mod tests {
 
     #[tokio::test]
     async fn validate_theme_json_path_traversal_in_font_src() {
-        let dest = make_zip_and_extract(&[
-            ("theme.json", br#"{"variables":{},"fonts":[{"family":"Evil","src":"../../../etc/passwd"}]}"#),
-        ]).await.unwrap();
+        let dest = make_zip_and_extract(&[(
+            "theme.json",
+            br#"{"variables":{},"fonts":[{"family":"Evil","src":"../../../etc/passwd"}]}"#,
+        )])
+        .await
+        .unwrap();
         let result = validate_theme_json(dest.path());
         assert!(result.is_err());
     }
@@ -683,18 +784,22 @@ mod tests {
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
             ("theme.json", theme.as_bytes()),
-        ]).await.unwrap();
-        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        ])
+        .await
+        .unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"))
+            .unwrap();
         assert!(validate_package_structure(dest.path(), &m).is_ok());
     }
 
     #[tokio::test]
     async fn validate_package_structure_theme_missing_theme_json() {
         let manifest = r#"{"id":"my-theme","name":"My Theme","version":"1.0.0","type":"theme"}"#;
-        let dest = make_zip_and_extract(&[
-            ("manifest.json", manifest.as_bytes()),
-        ]).await.unwrap();
-        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        let dest = make_zip_and_extract(&[("manifest.json", manifest.as_bytes())])
+            .await
+            .unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"))
+            .unwrap();
         let result = validate_package_structure(dest.path(), &m);
         assert!(result.is_err());
     }
@@ -709,8 +814,11 @@ mod tests {
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
             ("view.html", b"<html/>"),
-        ]).await.unwrap();
-        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        ])
+        .await
+        .unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"))
+            .unwrap();
         assert!(validate_package_structure(dest.path(), &m).is_ok());
     }
 
@@ -720,10 +828,11 @@ mod tests {
             "id":"my-ext","name":"My Ext","version":"1.0.0","type":"extension",
             "commands":[{"id":"open","name":"Open","mode":"view","component":"MainView"}]
         }"#;
-        let dest = make_zip_and_extract(&[
-            ("manifest.json", manifest.as_bytes()),
-        ]).await.unwrap();
-        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        let dest = make_zip_and_extract(&[("manifest.json", manifest.as_bytes())])
+            .await
+            .unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"))
+            .unwrap();
         let result = validate_package_structure(dest.path(), &m);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("view.html"));
@@ -740,8 +849,11 @@ mod tests {
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
             // worker.html deliberately absent.
-        ]).await.unwrap();
-        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        ])
+        .await
+        .unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"))
+            .unwrap();
         let result = validate_package_structure(dest.path(), &m);
         assert!(
             result.is_err(),
@@ -766,8 +878,11 @@ mod tests {
             ("manifest.json", manifest.as_bytes()),
             ("view.html", b"<html/>"),
             ("worker.html", b"<html/>"),
-        ]).await.unwrap();
-        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        ])
+        .await
+        .unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"))
+            .unwrap();
         assert!(validate_package_structure(dest.path(), &m).is_ok());
     }
 
@@ -784,8 +899,11 @@ mod tests {
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
             ("dist/view.html", b"<html/>"),
-        ]).await.unwrap();
-        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        ])
+        .await
+        .unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"))
+            .unwrap();
         assert!(
             validate_package_structure(dest.path(), &m).is_ok(),
             "view.html at dist/view.html must satisfy the validator"
@@ -809,8 +927,11 @@ mod tests {
             ("manifest.json", manifest.as_bytes()),
             ("dist/view.html", b"<html/>"),
             ("dist/worker.html", b"<html/>"),
-        ]).await.unwrap();
-        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        ])
+        .await
+        .unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"))
+            .unwrap();
         assert!(
             validate_package_structure(dest.path(), &m).is_ok(),
             "worker.html at dist/worker.html must satisfy the validator"
@@ -828,8 +949,11 @@ mod tests {
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
             ("view.html", b"<html/>"),
-        ]).await.unwrap();
-        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        ])
+        .await
+        .unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"))
+            .unwrap();
         let result = validate_package_structure(dest.path(), &m);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("ID"));
@@ -846,8 +970,11 @@ mod tests {
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
             ("view.html", b"<html/>"),
-        ]).await.unwrap();
-        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json")).unwrap();
+        ])
+        .await
+        .unwrap();
+        let m = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"))
+            .unwrap();
         assert!(validate_package_structure(dest.path(), &m).is_ok());
     }
 
@@ -862,8 +989,11 @@ mod tests {
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest.as_bytes()),
             ("view.html", b"<html/>"),
-        ]).await.unwrap();
-        let result = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"));
+        ])
+        .await
+        .unwrap();
+        let result =
+            crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"));
         let err = result.expect_err("legacy type=view must be rejected at install time");
         assert!(format!("{err}").contains("unsupported type"), "got: {err}");
     }
@@ -875,32 +1005,45 @@ mod tests {
         let manifest = r#"{
             "id":"legacy","name":"Legacy","version":"1.0.0","type":"result"
         }"#;
-        let dest = make_zip_and_extract(&[
-            ("manifest.json", manifest.as_bytes()),
-        ]).await.unwrap();
-        let result = crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"));
+        let dest = make_zip_and_extract(&[("manifest.json", manifest.as_bytes())])
+            .await
+            .unwrap();
+        let result =
+            crate::extensions::discovery::read_manifest(&dest.path().join("manifest.json"));
         let err = result.expect_err("legacy type=result must be rejected at install time");
         assert!(format!("{err}").contains("unsupported type"), "got: {err}");
     }
 
     #[test]
     fn version_conflict_new_id_is_fresh_install() {
-        assert_eq!(check_version_conflict(None, "1.0.0"), VersionAction::FreshInstall);
+        assert_eq!(
+            check_version_conflict(None, "1.0.0"),
+            VersionAction::FreshInstall
+        );
     }
 
     #[test]
     fn version_conflict_higher_version_upgrades() {
-        assert_eq!(check_version_conflict(Some("1.0.0"), "2.0.0"), VersionAction::Upgrade);
+        assert_eq!(
+            check_version_conflict(Some("1.0.0"), "2.0.0"),
+            VersionAction::Upgrade
+        );
     }
 
     #[test]
     fn version_conflict_same_version_errors() {
-        assert_eq!(check_version_conflict(Some("1.0.0"), "1.0.0"), VersionAction::AlreadyInstalled);
+        assert_eq!(
+            check_version_conflict(Some("1.0.0"), "1.0.0"),
+            VersionAction::AlreadyInstalled
+        );
     }
 
     #[test]
     fn version_conflict_lower_version_errors() {
-        assert_eq!(check_version_conflict(Some("2.0.0"), "1.0.0"), VersionAction::AlreadyInstalled);
+        assert_eq!(
+            check_version_conflict(Some("2.0.0"), "1.0.0"),
+            VersionAction::AlreadyInstalled
+        );
     }
 
     #[tokio::test]
@@ -943,7 +1086,9 @@ mod tests {
         let dest = make_zip_and_extract(&[
             ("manifest.json", manifest_json.as_bytes()),
             ("view.html", b"<html/>"),
-        ]).await.unwrap();
+        ])
+        .await
+        .unwrap();
 
         use crate::extensions::discovery::{read_manifest, validate_compatibility};
         use crate::extensions::CompatibilityStatus;
@@ -965,10 +1110,20 @@ mod tests {
         let m = crate::extensions::discovery::read_manifest(&manifest_path)
             .expect("fixture manifest must parse");
         let result = validate_package_structure(&fixture, &m);
-        assert!(result.is_ok(), "fixture must pass  validation: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "fixture must pass  validation: {:?}",
+            result.err()
+        );
         // Confirm both artefacts are present in the fixture directory.
-        assert!(fixture.join("view.html").exists(), "fixture must include view.html");
-        assert!(fixture.join("worker.html").exists(), "fixture must include worker.html");
+        assert!(
+            fixture.join("view.html").exists(),
+            "fixture must include view.html"
+        );
+        assert!(
+            fixture.join("worker.html").exists(),
+            "fixture must include worker.html"
+        );
         // Confirm first_view_component is correctly derived.
         assert_eq!(m.first_view_component(), Some("MainView"));
     }

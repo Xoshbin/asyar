@@ -238,7 +238,12 @@ fn agents_list_impl_returns_all() {
     agents_create_impl(&conn, input2).unwrap();
 
     let all = agents_list_impl(&conn).unwrap();
-    assert_eq!(all.len(), 2, "agents_list must return 2 agents, got {}", all.len());
+    assert_eq!(
+        all.len(),
+        2,
+        "agents_list must return 2 agents, got {}",
+        all.len()
+    );
 }
 
 // ── agents_thread_create ─────────────────────────────────────────────────────

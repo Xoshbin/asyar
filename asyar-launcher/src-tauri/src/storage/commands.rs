@@ -1,9 +1,9 @@
+use super::clipboard_fts::ClipboardFts;
 use super::DataStore;
 use crate::crypto::keystore::KeystoreState;
 use crate::error::AppError;
-use tauri::{AppHandle, Emitter, Manager, State};
 use std::sync::Arc;
-use super::clipboard_fts::ClipboardFts;
+use tauri::{AppHandle, Emitter, Manager, State};
 
 // ── Clipboard ────────────────────────────────────────────────────────────────
 
@@ -37,7 +37,13 @@ pub fn clipboard_search(
     fts: State<'_, Arc<ClipboardFts>>,
 ) -> Result<super::clipboard::SearchResult, AppError> {
     let conn = store.conn()?;
-    super::clipboard::search(&conn, fts.inner(), &query, limit as usize, keystore.master_key())
+    super::clipboard::search(
+        &conn,
+        fts.inner(),
+        &query,
+        limit as usize,
+        keystore.master_key(),
+    )
 }
 
 #[tauri::command]
@@ -58,11 +64,18 @@ pub fn clipboard_export_for_sync(
     keystore: State<'_, KeystoreState>,
 ) -> Result<super::clipboard::ExportPage, AppError> {
     let conn = store.conn()?;
-    super::clipboard::export_for_sync(&conn, cursor.as_ref(), limit as usize, keystore.master_key())
+    super::clipboard::export_for_sync(
+        &conn,
+        cursor.as_ref(),
+        limit as usize,
+        keystore.master_key(),
+    )
 }
 
 #[tauri::command]
-pub fn clipboard_count(store: State<'_, DataStore>) -> Result<super::clipboard::ClipboardCount, AppError> {
+pub fn clipboard_count(
+    store: State<'_, DataStore>,
+) -> Result<super::clipboard::ClipboardCount, AppError> {
     let conn = store.conn()?;
     super::clipboard::count(&conn)
 }
@@ -142,27 +155,19 @@ pub fn snippet_get_all(
 }
 
 #[tauri::command]
-pub fn snippet_remove(
-    id: String,
-    store: State<'_, DataStore>,
-) -> Result<(), AppError> {
+pub fn snippet_remove(id: String, store: State<'_, DataStore>) -> Result<(), AppError> {
     let conn = store.conn()?;
     super::snippets::remove(&conn, &id)
 }
 
 #[tauri::command]
-pub fn snippet_toggle_pin(
-    id: String,
-    store: State<'_, DataStore>,
-) -> Result<bool, AppError> {
+pub fn snippet_toggle_pin(id: String, store: State<'_, DataStore>) -> Result<bool, AppError> {
     let conn = store.conn()?;
     super::snippets::toggle_pin(&conn, &id)
 }
 
 #[tauri::command]
-pub fn snippet_clear_all(
-    store: State<'_, DataStore>,
-) -> Result<(), AppError> {
+pub fn snippet_clear_all(store: State<'_, DataStore>) -> Result<(), AppError> {
     let conn = store.conn()?;
     super::snippets::clear_all(&conn)
 }
@@ -210,10 +215,7 @@ pub fn ext_kv_get_all(
 }
 
 #[tauri::command]
-pub fn ext_kv_clear(
-    extension_id: String,
-    store: State<'_, DataStore>,
-) -> Result<u64, AppError> {
+pub fn ext_kv_clear(extension_id: String, store: State<'_, DataStore>) -> Result<u64, AppError> {
     let conn = store.conn()?;
     super::extension_kv::clear(&conn, &extension_id)
 }

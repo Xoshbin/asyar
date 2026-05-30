@@ -1,5 +1,7 @@
 use crate::error::AppError;
-use crate::onboarding::ai_persistence::{read_ai_onboarding_completed, write_ai_onboarding_completed};
+use crate::onboarding::ai_persistence::{
+    read_ai_onboarding_completed, write_ai_onboarding_completed,
+};
 use tauri::AppHandle;
 
 #[tauri::command]

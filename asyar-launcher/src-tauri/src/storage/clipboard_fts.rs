@@ -123,8 +123,8 @@ pub fn rebuild_from_disk(
 /// Collision rate at 50k entries is negligible (birthday bound ≈ 2^-32 over 50k inserts).
 pub fn rowid_for(id: &str) -> i64 {
     use std::hash::{BuildHasher, BuildHasherDefault, Hasher};
-    let mut hasher = BuildHasherDefault::<std::collections::hash_map::DefaultHasher>::new()
-        .build_hasher();
+    let mut hasher =
+        BuildHasherDefault::<std::collections::hash_map::DefaultHasher>::new().build_hasher();
     hasher.write(id.as_bytes());
     hasher.finish() as i64
 }
@@ -152,7 +152,12 @@ impl ClipboardFts {
     }
 
     /// Insert or replace the FTS row for a clipboard id.
-    pub fn upsert(&self, id: &str, preview: Option<&str>, content: Option<&str>) -> Result<(), AppError> {
+    pub fn upsert(
+        &self,
+        id: &str,
+        preview: Option<&str>,
+        content: Option<&str>,
+    ) -> Result<(), AppError> {
         let rowid = rowid_for(id);
         let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
         conn.execute(
@@ -175,7 +180,8 @@ impl ClipboardFts {
     /// Bulk delete used by cleanup / clear_non_favorites.
     pub fn delete_many(&self, ids: &[String]) -> Result<(), AppError> {
         let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
-        let tx = conn.unchecked_transaction()
+        let tx = conn
+            .unchecked_transaction()
             .map_err(|e| AppError::Database(format!("FTS delete_many tx: {e}")))?;
         {
             let mut stmt = tx
@@ -186,7 +192,8 @@ impl ClipboardFts {
                     .map_err(|e| AppError::Database(format!("FTS delete_many row: {e}")))?;
             }
         }
-        tx.commit().map_err(|e| AppError::Database(format!("FTS delete_many commit: {e}")))?;
+        tx.commit()
+            .map_err(|e| AppError::Database(format!("FTS delete_many commit: {e}")))?;
         Ok(())
     }
 
@@ -207,7 +214,9 @@ impl ClipboardFts {
                   ORDER BY bm25(fts_clipboard) LIMIT ?2",
             )
             .map_err(|e| AppError::Database(format!("FTS search prepare: {e}")))?
-            .query_map(params![sanitized, limit as i64], |row| row.get::<_, String>(0))
+            .query_map(params![sanitized, limit as i64], |row| {
+                row.get::<_, String>(0)
+            })
             .map_err(|e| AppError::Database(format!("FTS search query: {e}")))?
             .filter_map(|r| r.ok())
             .collect();
@@ -257,8 +266,10 @@ mod tests {
     #[test]
     fn upsert_then_search_matches() {
         let fts = ClipboardFts::new_in_memory().unwrap();
-        fts.upsert("id-1", Some("greeting"), Some("hello world this is a test")).unwrap();
-        fts.upsert("id-2", Some("goodbye"), Some("farewell sweet world")).unwrap();
+        fts.upsert("id-1", Some("greeting"), Some("hello world this is a test"))
+            .unwrap();
+        fts.upsert("id-2", Some("goodbye"), Some("farewell sweet world"))
+            .unwrap();
 
         let hits = fts.search("hello", 10).unwrap();
         assert_eq!(hits, vec!["id-1".to_string()]);
@@ -272,7 +283,10 @@ mod tests {
     fn delete_removes_row_from_search() {
         let fts = ClipboardFts::new_in_memory().unwrap();
         fts.upsert("id-1", None, Some("findable text")).unwrap();
-        assert_eq!(fts.search("findable", 10).unwrap(), vec!["id-1".to_string()]);
+        assert_eq!(
+            fts.search("findable", 10).unwrap(),
+            vec!["id-1".to_string()]
+        );
         fts.delete("id-1").unwrap();
         assert!(fts.search("findable", 10).unwrap().is_empty());
     }
@@ -281,9 +295,11 @@ mod tests {
     fn delete_many_removes_all_specified_rows() {
         let fts = ClipboardFts::new_in_memory().unwrap();
         for i in 0..5u32 {
-            fts.upsert(&i.to_string(), None, Some(&format!("findable {i}"))).unwrap();
+            fts.upsert(&i.to_string(), None, Some(&format!("findable {i}")))
+                .unwrap();
         }
-        fts.delete_many(&["1".to_string(), "3".to_string()]).unwrap();
+        fts.delete_many(&["1".to_string(), "3".to_string()])
+            .unwrap();
         let hits = fts.search("findable", 10).unwrap();
         assert_eq!(hits.len(), 3);
         assert!(!hits.contains(&"1".to_string()));
@@ -303,7 +319,10 @@ mod tests {
         let fts = ClipboardFts::new_in_memory().unwrap();
         fts.upsert("id-1", None, Some("apple")).unwrap();
         fts.upsert("id-1", None, Some("banana")).unwrap();
-        assert!(fts.search("apple", 10).unwrap().is_empty(), "old content gone after replace");
+        assert!(
+            fts.search("apple", 10).unwrap().is_empty(),
+            "old content gone after replace"
+        );
         assert_eq!(fts.search("banana", 10).unwrap(), vec!["id-1".to_string()]);
     }
 
@@ -311,7 +330,8 @@ mod tests {
     fn search_matches_partial_prefix_from_first_character() {
         let fts = ClipboardFts::new_in_memory().unwrap();
         fts.upsert("id-1", None, Some("apple pie recipe")).unwrap();
-        fts.upsert("id-2", None, Some("applied physics notes")).unwrap();
+        fts.upsert("id-2", None, Some("applied physics notes"))
+            .unwrap();
         fts.upsert("id-3", None, Some("banana smoothie")).unwrap();
 
         // Single-character query → "a*" → both "apple" and "applied"
@@ -339,8 +359,10 @@ mod tests {
     #[test]
     fn search_multi_token_query_prefix_matches_each_token() {
         let fts = ClipboardFts::new_in_memory().unwrap();
-        fts.upsert("id-1", None, Some("quarterly report summary")).unwrap();
-        fts.upsert("id-2", None, Some("quarterly meeting agenda")).unwrap();
+        fts.upsert("id-1", None, Some("quarterly report summary"))
+            .unwrap();
+        fts.upsert("id-2", None, Some("quarterly meeting agenda"))
+            .unwrap();
         fts.upsert("id-3", None, Some("annual report")).unwrap();
 
         // "quar rep" → "quar* rep*" — implicit AND, only id-1 has both prefixes.
@@ -398,7 +420,12 @@ mod rebuild_tests {
         crate::storage::cloud_sync_state::init_table(&conn).unwrap();
         let key = test_key();
         for i in 0..20u32 {
-            add_item(&conn, &make_item(&i.to_string(), &format!("apple {i}")), &key).unwrap();
+            add_item(
+                &conn,
+                &make_item(&i.to_string(), &format!("apple {i}")),
+                &key,
+            )
+            .unwrap();
         }
         let fts = ClipboardFts::new_in_memory().unwrap();
         rebuild_from_disk(&conn, &fts, &key).unwrap();
@@ -433,7 +460,10 @@ mod rebuild_tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert!(hash.is_some(), "rebuild backfilled content_hash for legacy row");
+        assert!(
+            hash.is_some(),
+            "rebuild backfilled content_hash for legacy row"
+        );
         assert_eq!(hash.unwrap().len(), 32);
     }
 

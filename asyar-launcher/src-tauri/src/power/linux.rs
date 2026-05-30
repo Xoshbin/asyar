@@ -43,10 +43,7 @@ pub enum LinuxInhibitHandle {
     /// ScreenSaver cookie returned from `Inhibit`; passed back to `UnInhibit`
     /// on drop. Connection is kept alive so the UnInhibit call can still
     /// reach the bus.
-    ScreenSaver {
-        conn: Connection,
-        cookie: u32,
-    },
+    ScreenSaver { conn: Connection, cookie: u32 },
 }
 
 impl PowerHandle for LinuxInhibitHandle {}
@@ -90,10 +87,7 @@ fn what_string(opts: ResolvedOptions) -> String {
         .join(":")
 }
 
-fn try_logind(
-    options: ResolvedOptions,
-    reason: &str,
-) -> Result<LinuxInhibitHandle, AppError> {
+fn try_logind(options: ResolvedOptions, reason: &str) -> Result<LinuxInhibitHandle, AppError> {
     let conn = Connection::system().map_err(|e| {
         AppError::Power(format!(
             "PowerUnavailable: logind system bus unreachable: {e}"
@@ -109,22 +103,18 @@ fn try_logind(
             "Inhibit",
             &(what.as_str(), "Asyar", reason, "block"),
         )
-        .map_err(|e| {
-            AppError::Power(format!("PowerUnavailable: Inhibit call failed: {e}"))
-        })?;
-    let fd: ZOwnedFd = reply.body().deserialize::<ZOwnedFd>().map_err(|e| {
-        AppError::Power(format!("Inhibit reply did not contain an fd: {e}"))
-    })?;
+        .map_err(|e| AppError::Power(format!("PowerUnavailable: Inhibit call failed: {e}")))?;
+    let fd: ZOwnedFd = reply
+        .body()
+        .deserialize::<ZOwnedFd>()
+        .map_err(|e| AppError::Power(format!("Inhibit reply did not contain an fd: {e}")))?;
 
     Ok(LinuxInhibitHandle::Logind { _fd: fd.into() })
 }
 
 fn try_screensaver(reason: &str) -> Result<LinuxInhibitHandle, AppError> {
-    let conn = Connection::session().map_err(|e| {
-        AppError::Power(format!(
-            "PowerUnavailable: session bus unreachable: {e}"
-        ))
-    })?;
+    let conn = Connection::session()
+        .map_err(|e| AppError::Power(format!("PowerUnavailable: session bus unreachable: {e}")))?;
 
     let reply = conn
         .call_method(
@@ -160,9 +150,7 @@ impl PowerBackend for LinuxPowerBackend {
         match try_logind(options, reason) {
             Ok(h) => return Ok(Box::new(h)),
             Err(err) => {
-                log::debug!(
-                    "logind inhibit unavailable, falling back to ScreenSaver: {err}"
-                );
+                log::debug!("logind inhibit unavailable, falling back to ScreenSaver: {err}");
             }
         }
 

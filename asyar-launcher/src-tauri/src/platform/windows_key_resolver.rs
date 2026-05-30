@@ -200,9 +200,9 @@ mod tests {
         // any other window/process is not affected.
         with_layout(LAYOUT_US_INTL, || {
             let result = resolve_keypress(Key::Num6, true); // Shift+6 on US-Intl
-            // The exact char depends on layout — we assert only that *something* is
-            // returned and that calling again with an unrelated key does not
-            // compose. The contract is "no kernel-state mutation".
+                                                            // The exact char depends on layout — we assert only that *something* is
+                                                            // returned and that calling again with an unrelated key does not
+                                                            // compose. The contract is "no kernel-state mutation".
             assert!(result.is_some());
             let e = resolve_keypress(Key::KeyE, false);
             assert_eq!(e, Some('e')); // Just 'e' — not 'ê'.
@@ -218,14 +218,11 @@ mod tests {
         use windows::Win32::UI::Input::KeyboardAndMouse::{
             ActivateKeyboardLayout, GetKeyboardLayout, LoadKeyboardLayoutW, KLF_ACTIVATE,
         };
-        let wide: Vec<u16> = layout_id
-            .encode_utf16()
-            .chain(std::iter::once(0))
-            .collect();
+        let wide: Vec<u16> = layout_id.encode_utf16().chain(std::iter::once(0)).collect();
         unsafe {
             let prev = GetKeyboardLayout(0);
-            let hkl = LoadKeyboardLayoutW(PCWSTR(wide.as_ptr()), KLF_ACTIVATE)
-                .expect("layout load");
+            let hkl =
+                LoadKeyboardLayoutW(PCWSTR(wide.as_ptr()), KLF_ACTIVATE).expect("layout load");
             let _ = ActivateKeyboardLayout(hkl, KLF_ACTIVATE);
             f();
             let _ = ActivateKeyboardLayout(prev, KLF_ACTIVATE);

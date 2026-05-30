@@ -262,8 +262,7 @@ mod tests {
             .register_spawn("s1", "ext-a", "/bin/echo", &[], 100)
             .unwrap();
         let perms = empty_permissions();
-        let err =
-            shell_attach_inner(&registry, &perms, "ext-a".into(), "s1".into()).unwrap_err();
+        let err = shell_attach_inner(&registry, &perms, "ext-a".into(), "s1".into()).unwrap_err();
         assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
     }
 
@@ -274,8 +273,7 @@ mod tests {
             .register_spawn("s1", "ext-a", "/bin/echo", &["arg".into()], 100)
             .unwrap();
         let perms = registered_permissions("ext-a");
-        let outcome =
-            shell_attach_inner(&registry, &perms, "ext-a".into(), "s1".into()).unwrap();
+        let outcome = shell_attach_inner(&registry, &perms, "ext-a".into(), "s1".into()).unwrap();
         assert_eq!(outcome.descriptor.spawn_id, "s1");
         assert_eq!(outcome.descriptor.pid, 100);
         assert_eq!(outcome.descriptor.args, vec!["arg".to_string()]);
@@ -290,8 +288,7 @@ mod tests {
             .unwrap();
         registry.mark_finished("s1", Some(7)).unwrap();
         let perms = registered_permissions("ext-a");
-        let outcome =
-            shell_attach_inner(&registry, &perms, "ext-a".into(), "s1".into()).unwrap();
+        let outcome = shell_attach_inner(&registry, &perms, "ext-a".into(), "s1".into()).unwrap();
         match outcome.terminal {
             Some(TerminalEmit::Done {
                 spawn_id,
@@ -311,8 +308,7 @@ mod tests {
             .register_spawn("s1", "ext-a", "/bin/echo", &[], 100)
             .unwrap();
         let perms = registered_permissions("ext-b");
-        let err =
-            shell_attach_inner(&registry, &perms, "ext-b".into(), "s1".into()).unwrap_err();
+        let err = shell_attach_inner(&registry, &perms, "ext-b".into(), "s1".into()).unwrap_err();
         assert!(
             matches!(err, AppError::Permission(_)),
             "cross-extension attach must surface as Permission, got: {err:?}"
@@ -323,8 +319,7 @@ mod tests {
     fn shell_attach_unknown_spawn_id_is_not_found() {
         let registry = seeded_registry();
         let perms = registered_permissions("ext-a");
-        let err =
-            shell_attach_inner(&registry, &perms, "ext-a".into(), "nope".into()).unwrap_err();
+        let err = shell_attach_inner(&registry, &perms, "ext-a".into(), "nope".into()).unwrap_err();
         assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
     }
 }

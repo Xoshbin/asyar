@@ -2,7 +2,7 @@ use crate::error::AppError;
 use crate::storage::agents::{
     backfill_thread_titles, delete_agent, delete_thread, find_run_origin, get_agent, insert_agent,
     insert_message, insert_thread, list_agents, list_messages_for_thread, list_threads_for_agent,
-    update_agent, update_thread_title, AgentRow, MessageRow, MessageRole, RunOrigin,
+    update_agent, update_thread_title, AgentRow, MessageRole, MessageRow, RunOrigin,
     SilentInputSource, SilentOutputAction, ThreadRow,
 };
 use crate::storage::DataStore;
@@ -88,7 +88,10 @@ pub struct MessageInsertInput {
 
 // ── Inner functions (testable without Tauri runtime) ─────────────────────────
 
-pub fn agents_create_impl(conn: &Connection, input: AgentCreateInput) -> Result<AgentRow, AppError> {
+pub fn agents_create_impl(
+    conn: &Connection,
+    input: AgentCreateInput,
+) -> Result<AgentRow, AppError> {
     let name = require_non_empty(&input.name, "name")?;
     let system_prompt = require_non_empty(&input.system_prompt, "system_prompt")?;
     let provider_id = require_non_empty(&input.provider_id, "provider_id")?;
@@ -114,7 +117,10 @@ pub fn agents_create_impl(conn: &Connection, input: AgentCreateInput) -> Result<
     Ok(row)
 }
 
-pub fn agents_update_impl(conn: &Connection, input: AgentUpdateInput) -> Result<AgentRow, AppError> {
+pub fn agents_update_impl(
+    conn: &Connection,
+    input: AgentUpdateInput,
+) -> Result<AgentRow, AppError> {
     let name = require_non_empty(&input.name, "name")?;
     let system_prompt = require_non_empty(&input.system_prompt, "system_prompt")?;
     let provider_id = require_non_empty(&input.provider_id, "provider_id")?;

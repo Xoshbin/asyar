@@ -51,7 +51,10 @@ pub fn validate_alias(input: &str) -> Result<String, AliasError> {
     if lowered.chars().count() > ALIAS_MAX_LEN {
         return Err(AliasError::TooLong);
     }
-    if !lowered.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()) {
+    if !lowered
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+    {
         return Err(AliasError::InvalidChars);
     }
     Ok(lowered)
@@ -120,9 +123,7 @@ mod tests {
     /// at compile time so any divergence fails this test.
     #[test]
     fn ts_alias_validation_mirrors_rust_rules() {
-        let ts_source = include_str!(
-            "../../../src/built-in-features/aliases/aliasValidation.ts"
-        );
+        let ts_source = include_str!("../../../src/built-in-features/aliases/aliasValidation.ts");
         assert!(
             ts_source.contains("/^[a-z0-9]{1,10}$/"),
             "TS ALIAS_REGEX must equal Rust ALIAS_REGEX (`^[a-z0-9]{{1,10}}$`)"

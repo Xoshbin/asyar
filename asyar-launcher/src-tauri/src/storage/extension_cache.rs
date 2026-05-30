@@ -135,7 +135,7 @@ mod tests {
         let conn = setup();
         let ext = "test.ext";
         set(&conn, ext, "k1", "v1", Some(now() + 100)).unwrap();
-        
+
         let val = get(&conn, ext, "k1").unwrap();
         assert_eq!(val, Some("v1".to_string()));
     }
@@ -146,7 +146,7 @@ mod tests {
         let ext = "test.ext";
         // Set with expiry in the past
         set(&conn, ext, "k1", "v1", Some(now() - 10)).unwrap();
-        
+
         let val = get(&conn, ext, "k1").unwrap();
         assert!(val.is_none());
     }
@@ -156,7 +156,7 @@ mod tests {
         let conn = setup();
         let ext = "test.ext";
         set(&conn, ext, "k1", "v1", None).unwrap();
-        
+
         let val = get(&conn, ext, "k1").unwrap();
         assert_eq!(val, Some("v1".to_string()));
     }
@@ -166,9 +166,9 @@ mod tests {
         let conn = setup();
         set(&conn, "ext.a", "k1", "v1", None).unwrap();
         set(&conn, "ext.b", "k1", "v1", None).unwrap();
-        
+
         delete(&conn, "ext.a", "k1").unwrap();
-        
+
         assert!(get(&conn, "ext.a", "k1").unwrap().is_none());
         assert!(get(&conn, "ext.b", "k1").unwrap().is_some());
     }
@@ -193,10 +193,10 @@ mod tests {
         let conn = setup();
         set(&conn, "ext.a", "exp", "v", Some(now() - 10)).unwrap();
         set(&conn, "ext.a", "live", "v", Some(now() + 100)).unwrap();
-        
+
         let pruned = prune_all_expired(&conn).unwrap();
         assert_eq!(pruned, 1);
-        
+
         assert!(get(&conn, "ext.a", "exp").unwrap().is_none());
         assert!(get(&conn, "ext.a", "live").unwrap().is_some());
     }

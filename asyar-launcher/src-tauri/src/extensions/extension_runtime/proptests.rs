@@ -14,8 +14,14 @@ enum Op {
 
 fn op_strategy() -> impl Strategy<Value = Op> {
     prop_oneof![
-        (0u8..3u8, any::<bool>()).prop_map(|(ext, uf)| Op::Enqueue { ext, user_facing: uf }),
-        (0u8..3u8, any::<bool>()).prop_map(|(ext, ok)| Op::ReadyAck { ext, correct_token: ok }),
+        (0u8..3u8, any::<bool>()).prop_map(|(ext, uf)| Op::Enqueue {
+            ext,
+            user_facing: uf
+        }),
+        (0u8..3u8, any::<bool>()).prop_map(|(ext, ok)| Op::ReadyAck {
+            ext,
+            correct_token: ok
+        }),
         (0u8..3u8).prop_map(|ext| Op::Timeout { ext }),
         (0u32..10_000u32).prop_map(|advance_ms| Op::Tick { advance_ms }),
         (0u8..3u8).prop_map(|ext| Op::Remove { ext }),

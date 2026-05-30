@@ -1,11 +1,11 @@
-use std::path::{Path};
+use super::scheduler;
+use super::{CompatibilityStatus, ExtensionManifest, ExtensionRecord, ManifestAction};
+use super::{DropdownOption, PreferenceDeclaration, PreferenceType};
 use crate::error::AppError;
-use super::{ExtensionManifest, ExtensionRecord, CompatibilityStatus, ManifestAction};
 use log::{info, warn};
 use semver::{Version, VersionReq};
-use super::scheduler;
-use super::{DropdownOption, PreferenceDeclaration, PreferenceType};
 use std::collections::HashSet;
+use std::path::Path;
 
 /// Legal values for `manifest.type`.
 const EXTENSION_TYPE_EXTENSION: &str = "extension";
@@ -57,10 +57,7 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
     // command, or `searchable: true` (the built-in calculator pattern), or
     // a reserved `background.main` bundle (for future push-event-only
     // extensions). An otherwise-empty manifest is user error.
-    if m.commands.is_empty()
-        && !m.searchable.unwrap_or(false)
-        && m.background.is_none()
-    {
+    if m.commands.is_empty() && !m.searchable.unwrap_or(false) && m.background.is_none() {
         return Err(AppError::Validation(format!(
             "Extension '{}' (type=\"extension\") has no commands, is not searchable, and declares no background bundle — it contributes nothing.",
             m.id
@@ -183,10 +180,16 @@ pub fn validate_preferences(prefs: &[PreferenceDeclaration]) -> Result<(), Strin
         match p.preference_type {
             PreferenceType::Dropdown => {
                 let data = p.data.as_ref().ok_or_else(|| {
-                    format!("Preference '{}' of type 'dropdown' requires a 'data' field", p.name)
+                    format!(
+                        "Preference '{}' of type 'dropdown' requires a 'data' field",
+                        p.name
+                    )
                 })?;
                 if data.is_empty() {
-                    return Err(format!("Preference '{}' dropdown data cannot be empty", p.name));
+                    return Err(format!(
+                        "Preference '{}' dropdown data cannot be empty",
+                        p.name
+                    ));
                 }
                 if let Some(default) = &p.default {
                     let default_str = default.as_str().ok_or_else(|| {
@@ -203,18 +206,14 @@ pub fn validate_preferences(prefs: &[PreferenceDeclaration]) -> Result<(), Strin
             PreferenceType::Number => {
                 if let Some(d) = &p.default {
                     if !d.is_number() {
-                        return Err(format!(
-                            "Preference '{}' default must be a number", p.name
-                        ));
+                        return Err(format!("Preference '{}' default must be a number", p.name));
                     }
                 }
             }
             PreferenceType::Checkbox => {
                 if let Some(d) = &p.default {
                     if !d.is_boolean() {
-                        return Err(format!(
-                            "Preference '{}' default must be a boolean", p.name
-                        ));
+                        return Err(format!("Preference '{}' default must be a boolean", p.name));
                     }
                 }
             }
@@ -241,7 +240,10 @@ pub fn validate_actions(actions: &[ManifestAction], scope: &str) -> Result<(), S
             return Err(format!("Duplicate action id '{}' in {} scope", a.id, scope));
         }
         if a.title.trim().is_empty() {
-            return Err(format!("Action '{}' in {} scope must have a non-empty title", a.id, scope));
+            return Err(format!(
+                "Action '{}' in {} scope must have a non-empty title",
+                a.id, scope
+            ));
         }
     }
     Ok(())
@@ -271,7 +273,7 @@ const SUPPORTED_SDK_VERSION: &str = env!("ASYAR_SDK_VERSION");
 /// Returns a Vec of (extension_id, manifest, directory_path).
 pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord> {
     let mut records = Vec::new();
-    
+
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(e) => {
@@ -294,7 +296,7 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
         match read_manifest(&manifest_path) {
             Ok(mut manifest) => {
                 let id = manifest.id.clone();
-                
+
                 // Validate schedule declarations — strip invalid ones gracefully
                 for cmd in &mut manifest.commands {
                     if let Some(ref schedule) = cmd.schedule {
@@ -353,7 +355,9 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                 if actions_valid {
                     for cmd in &manifest.commands {
                         if let Some(actions) = &cmd.actions {
-                            if let Err(e) = validate_actions(actions, &format!("command '{}'", cmd.id)) {
+                            if let Err(e) =
+                                validate_actions(actions, &format!("command '{}'", cmd.id))
+                            {
                                 warn!(
                                     "Extension '{}' command '{}' has invalid actions: {}. Skipping extension.",
                                     manifest.id, cmd.id, e
@@ -367,7 +371,9 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                 // Cross-scope uniqueness: extension-level action IDs must not collide with command-level
                 if actions_valid {
                     let ext_actions = manifest.actions.as_deref().unwrap_or(&[]);
-                    let cmd_action_groups: Vec<&[ManifestAction]> = manifest.commands.iter()
+                    let cmd_action_groups: Vec<&[ManifestAction]> = manifest
+                        .commands
+                        .iter()
                         .filter_map(|c| c.actions.as_deref())
                         .collect();
                     if let Err(e) = validate_actions_cross_scope(ext_actions, &cmd_action_groups) {
@@ -407,10 +413,8 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
 
 /// Read and parse a single manifest.json file
 pub fn read_manifest(path: &Path) -> Result<ExtensionManifest, AppError> {
-    let content = std::fs::read_to_string(path)
-        .map_err(AppError::Io)?;
-    let manifest: ExtensionManifest = serde_json::from_str(&content)
-        .map_err(AppError::Json)?;
+    let content = std::fs::read_to_string(path).map_err(AppError::Io)?;
+    let manifest: ExtensionManifest = serde_json::from_str(&content).map_err(AppError::Json)?;
     validate_manifest(&manifest)?;
     crate::extensions::validate_permission_args(&manifest)?;
     Ok(manifest)
@@ -446,7 +450,10 @@ pub fn validate_compatibility(manifest: &ExtensionManifest) -> CompatibilityStat
                     }
                     Err(_) => {
                         // Our own version string is invalid — shouldn't happen, treat as compatible
-                        warn!("Failed to parse SUPPORTED_SDK_VERSION: {}", SUPPORTED_SDK_VERSION);
+                        warn!(
+                            "Failed to parse SUPPORTED_SDK_VERSION: {}",
+                            SUPPORTED_SDK_VERSION
+                        );
                     }
                 }
             }
@@ -492,7 +499,7 @@ pub fn validate_compatibility(manifest: &ExtensionManifest) -> CompatibilityStat
 
 #[cfg(test)]
 mod first_view_component_tests {
-    use crate::extensions::{ExtensionManifest, ExtensionCommand};
+    use crate::extensions::{ExtensionCommand, ExtensionManifest};
 
     fn manifest_with_commands(commands: Vec<ExtensionCommand>) -> ExtensionManifest {
         ExtensionManifest {
@@ -563,10 +570,7 @@ mod first_view_component_tests {
 
     #[test]
     fn skips_background_commands_to_find_first_view() {
-        let m = manifest_with_commands(vec![
-            bg_cmd("tick"),
-            view_cmd("open", "MainView"),
-        ]);
+        let m = manifest_with_commands(vec![bg_cmd("tick"), view_cmd("open", "MainView")]);
         assert_eq!(m.first_view_component(), Some("MainView"));
     }
 
@@ -637,7 +641,7 @@ mod first_view_component_tests {
 #[cfg(test)]
 mod onboarding_validation_tests {
     use super::*;
-    use crate::extensions::{ExtensionManifest, ExtensionCommand};
+    use crate::extensions::{ExtensionCommand, ExtensionManifest};
 
     fn manifest_with_commands(commands: Vec<ExtensionCommand>) -> ExtensionManifest {
         ExtensionManifest {
@@ -717,7 +721,9 @@ mod onboarding_validation_tests {
         // background command requires a background.main bundle
         let mut m = manifest_with_commands(vec![bg]);
         use crate::extensions::BackgroundSpec;
-        m.background = Some(BackgroundSpec { main: "dist/worker.js".into() });
+        m.background = Some(BackgroundSpec {
+            main: "dist/worker.js".into(),
+        });
         m.onboarding = Some(crate::extensions::OnboardingDecl {
             command: "setup".to_string(),
         });
@@ -734,7 +740,7 @@ mod onboarding_validation_tests {
 #[cfg(test)]
 mod compatibility_tests {
     use super::*;
-    use crate::extensions::{ExtensionManifest, CompatibilityStatus};
+    use crate::extensions::{CompatibilityStatus, ExtensionManifest};
 
     fn test_manifest(asyar_sdk: Option<&str>, min_app_version: Option<&str>) -> ExtensionManifest {
         ExtensionManifest {
@@ -787,21 +793,30 @@ mod compatibility_tests {
     #[test]
     fn test_no_version_fields_returns_unknown() {
         let manifest = test_manifest(None, None);
-        assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Unknown);
+        assert_eq!(
+            validate_compatibility(&manifest),
+            CompatibilityStatus::Unknown
+        );
     }
 
     #[test]
     fn test_compatible_sdk_range() {
         let range = compatible_caret_range();
         let manifest = test_manifest(Some(&range), None);
-        assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Compatible);
+        assert_eq!(
+            validate_compatibility(&manifest),
+            CompatibilityStatus::Compatible
+        );
     }
 
     #[test]
     fn test_compatible_exact_sdk() {
         // Exact match against the SDK actually compiled in. Always Compatible.
         let manifest = test_manifest(Some(SUPPORTED_SDK_VERSION), None);
-        assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Compatible);
+        assert_eq!(
+            validate_compatibility(&manifest),
+            CompatibilityStatus::Compatible
+        );
     }
 
     #[test]
@@ -809,7 +824,10 @@ mod compatibility_tests {
         let range = incompatible_major_range();
         let manifest = test_manifest(Some(&range), None);
         match validate_compatibility(&manifest) {
-            CompatibilityStatus::SdkMismatch { required, supported } => {
+            CompatibilityStatus::SdkMismatch {
+                required,
+                supported,
+            } => {
                 assert_eq!(required, range);
                 assert_eq!(supported, SUPPORTED_SDK_VERSION);
             }
@@ -822,7 +840,10 @@ mod compatibility_tests {
         // Use a far-future minor version that will never be the supported SDK version
         let manifest = test_manifest(Some("^999.0.0"), None);
         match validate_compatibility(&manifest) {
-            CompatibilityStatus::SdkMismatch { required, supported: _ } => {
+            CompatibilityStatus::SdkMismatch {
+                required,
+                supported: _,
+            } => {
                 assert_eq!(required, "^999.0.0");
             }
             other => panic!("Expected SdkMismatch, got {:?}", other),
@@ -864,14 +885,20 @@ mod compatibility_tests {
         // Use "0.0.1" which should always be <= current app version
         let manifest = test_manifest(None, Some("0.0.1"));
         // No asyarSdk field, so result is Unknown (minAppVersion passed but doesn't upgrade to Compatible)
-        assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Unknown);
+        assert_eq!(
+            validate_compatibility(&manifest),
+            CompatibilityStatus::Unknown
+        );
     }
 
     #[test]
     fn test_app_version_too_old() {
         let manifest = test_manifest(None, Some("99.0.0"));
         match validate_compatibility(&manifest) {
-            CompatibilityStatus::AppVersionTooOld { required, current: _ } => {
+            CompatibilityStatus::AppVersionTooOld {
+                required,
+                current: _,
+            } => {
                 assert_eq!(required, "99.0.0");
             }
             other => panic!("Expected AppVersionTooOld, got {:?}", other),
@@ -882,27 +909,39 @@ mod compatibility_tests {
     fn test_both_fields_compatible() {
         let range = compatible_caret_range();
         let manifest = test_manifest(Some(&range), Some("0.0.1"));
-        assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Compatible);
+        assert_eq!(
+            validate_compatibility(&manifest),
+            CompatibilityStatus::Compatible
+        );
     }
 
     #[test]
     fn test_invalid_sdk_range_returns_unknown() {
         let manifest = test_manifest(Some("not-semver"), None);
-        assert_eq!(validate_compatibility(&manifest), CompatibilityStatus::Unknown);
+        assert_eq!(
+            validate_compatibility(&manifest),
+            CompatibilityStatus::Unknown
+        );
     }
 
     #[test]
     fn test_platforms_absent_allows_any_os() {
         let manifest = make_manifest_with_platforms(None);
         let result = validate_compatibility(&manifest);
-        assert!(!matches!(result, CompatibilityStatus::PlatformNotSupported { .. }));
+        assert!(!matches!(
+            result,
+            CompatibilityStatus::PlatformNotSupported { .. }
+        ));
     }
 
     #[test]
     fn test_current_os_in_platforms_list_is_allowed() {
         let os = std::env::consts::OS;
         let manifest = make_manifest_with_platforms(Some(vec![os.to_string()]));
-        assert!(!matches!(validate_compatibility(&manifest), CompatibilityStatus::PlatformNotSupported { .. }));
+        assert!(!matches!(
+            validate_compatibility(&manifest),
+            CompatibilityStatus::PlatformNotSupported { .. }
+        ));
     }
 
     #[test]
@@ -912,10 +951,15 @@ mod compatibility_tests {
             .filter(|&&p| p != std::env::consts::OS)
             .map(|s| s.to_string())
             .collect();
-        if others.is_empty() { return; }
+        if others.is_empty() {
+            return;
+        }
         let manifest = make_manifest_with_platforms(Some(others.clone()));
         match validate_compatibility(&manifest) {
-            CompatibilityStatus::PlatformNotSupported { platform, supported } => {
+            CompatibilityStatus::PlatformNotSupported {
+                platform,
+                supported,
+            } => {
                 assert_eq!(platform, std::env::consts::OS);
                 assert_eq!(supported, others);
             }
@@ -926,7 +970,10 @@ mod compatibility_tests {
     #[test]
     fn test_empty_platforms_list_returns_not_supported() {
         let manifest = make_manifest_with_platforms(Some(vec![]));
-        assert!(matches!(validate_compatibility(&manifest), CompatibilityStatus::PlatformNotSupported { .. }));
+        assert!(matches!(
+            validate_compatibility(&manifest),
+            CompatibilityStatus::PlatformNotSupported { .. }
+        ));
     }
 }
 
@@ -945,7 +992,9 @@ mod discovery_tests {
             mode: Some("background".into()),
             component: None,
             icon: None,
-            schedule: Some(ScheduleDeclaration { interval_seconds: 5 }),
+            schedule: Some(ScheduleDeclaration {
+                interval_seconds: 5,
+            }),
             preferences: None,
             actions: None,
             arguments: None,
@@ -970,7 +1019,9 @@ mod discovery_tests {
             mode: Some("background".into()),
             component: None,
             icon: None,
-            schedule: Some(ScheduleDeclaration { interval_seconds: 300 }),
+            schedule: Some(ScheduleDeclaration {
+                interval_seconds: 300,
+            }),
             preferences: None,
             actions: None,
             arguments: None,
@@ -1154,8 +1205,14 @@ mod preference_validation_tests {
     fn accepts_dropdown_with_valid_default() {
         let mut p = pref("d", PreferenceType::Dropdown);
         p.data = Some(vec![
-            DropdownOption { value: "a".into(), title: "A".into() },
-            DropdownOption { value: "b".into(), title: "B".into() },
+            DropdownOption {
+                value: "a".into(),
+                title: "A".into(),
+            },
+            DropdownOption {
+                value: "b".into(),
+                title: "B".into(),
+            },
         ]);
         p.default = Some(serde_json::json!("a"));
         assert!(validate_preferences(&[p]).is_ok());
@@ -1164,9 +1221,10 @@ mod preference_validation_tests {
     #[test]
     fn rejects_dropdown_default_not_in_data() {
         let mut p = pref("d", PreferenceType::Dropdown);
-        p.data = Some(vec![
-            DropdownOption { value: "a".into(), title: "A".into() },
-        ]);
+        p.data = Some(vec![DropdownOption {
+            value: "a".into(),
+            title: "A".into(),
+        }]);
         p.default = Some(serde_json::json!("b"));
         assert!(validate_preferences(&[p]).is_err());
     }
@@ -1231,10 +1289,7 @@ mod action_validation_tests {
 
     #[test]
     fn rejects_duplicate_action_ids_in_scope() {
-        let actions = vec![
-            action("dup", "First"),
-            action("dup", "Second"),
-        ];
+        let actions = vec![action("dup", "First"), action("dup", "Second")];
         assert!(validate_actions(&actions, "extension").is_err());
     }
 
@@ -1279,8 +1334,7 @@ mod manifest_schema_tests {
     /// Parse + validate; returns the full pipeline error whether serde or
     /// validator raises it.
     fn parse(json: &str) -> Result<ExtensionManifest, AppError> {
-        let manifest: ExtensionManifest = serde_json::from_str(json)
-            .map_err(AppError::Json)?;
+        let manifest: ExtensionManifest = serde_json::from_str(json).map_err(AppError::Json)?;
         validate_manifest(&manifest)?;
         Ok(manifest)
     }
@@ -1364,7 +1418,8 @@ mod manifest_schema_tests {
                 { "id": "open", "name": "Open", "mode": "view", "component": "MainView" }
             ]
         }"#;
-        parse(json).expect("background.main without background commands should be legal (warning only)");
+        parse(json)
+            .expect("background.main without background commands should be legal (warning only)");
     }
 
     // ── Rejects legacy fields (deny_unknown_fields) ─────────────────────
@@ -1410,9 +1465,13 @@ mod manifest_schema_tests {
                 { "id": "run", "name": "Run", "resultType": "no-view" }
             ]
         }"#;
-        let err = parse(json).expect_err("legacy command.resultType must be rejected at parse time");
+        let err =
+            parse(json).expect_err("legacy command.resultType must be rejected at parse time");
         let msg = format!("{err}");
-        assert!(msg.contains("resultType") || msg.contains("unknown field"), "got: {msg}");
+        assert!(
+            msg.contains("resultType") || msg.contains("unknown field"),
+            "got: {msg}"
+        );
     }
 
     #[test]
@@ -1428,7 +1487,10 @@ mod manifest_schema_tests {
         }"#;
         let err = parse(json).expect_err("legacy defaultView must be rejected at parse time");
         let msg = format!("{err}");
-        assert!(msg.contains("defaultView") || msg.contains("unknown field"), "got: {msg}");
+        assert!(
+            msg.contains("defaultView") || msg.contains("unknown field"),
+            "got: {msg}"
+        );
     }
 
     #[test]
@@ -1444,7 +1506,10 @@ mod manifest_schema_tests {
         }"#;
         let err = parse(json).expect_err("legacy top-level main must be rejected at parse time");
         let msg = format!("{err}");
-        assert!(msg.contains("main") || msg.contains("unknown field"), "got: {msg}");
+        assert!(
+            msg.contains("main") || msg.contains("unknown field"),
+            "got: {msg}"
+        );
     }
 
     #[test]
@@ -1476,7 +1541,10 @@ mod manifest_schema_tests {
         }"#;
         let err = parse(json).expect_err("legacy command.view must be rejected at parse time");
         let msg = format!("{err}");
-        assert!(msg.contains("view") || msg.contains("unknown field"), "got: {msg}");
+        assert!(
+            msg.contains("view") || msg.contains("unknown field"),
+            "got: {msg}"
+        );
     }
 
     // ── Semantic validator rules ────────────────────────────────────────
@@ -1505,7 +1573,8 @@ mod manifest_schema_tests {
                 { "id": "open", "name": "Open", "mode": "view", "component": "   " }
             ]
         }"#;
-        let err = parse(json).expect_err("mode=view with whitespace-only component must fail validation");
+        let err =
+            parse(json).expect_err("mode=view with whitespace-only component must fail validation");
         assert!(format!("{err}").contains("component"), "got: {err}");
     }
 
@@ -1534,8 +1603,8 @@ mod manifest_schema_tests {
                 { "id": "tick", "name": "Tick", "mode": "background" }
             ]
         }"#;
-        let err = parse(json)
-            .expect_err("mode=background without background.main must fail validation");
+        let err =
+            parse(json).expect_err("mode=background without background.main must fail validation");
         assert!(format!("{err}").contains("background.main"), "got: {err}");
     }
 
@@ -1550,8 +1619,9 @@ mod manifest_schema_tests {
                 { "id": "tick", "name": "Tick", "mode": "background" }
             ]
         }"#;
-        let err = parse(json)
-            .expect_err("mode=background with whitespace-only background.main must fail validation");
+        let err = parse(json).expect_err(
+            "mode=background with whitespace-only background.main must fail validation",
+        );
         assert!(format!("{err}").contains("background.main"), "got: {err}");
     }
 
@@ -1594,7 +1664,10 @@ mod manifest_schema_tests {
             "type": "extension"
         }"#;
         let err = parse(json).expect_err("fully-empty type=extension must fail validation");
-        assert!(format!("{err}").contains("contributes nothing"), "got: {err}");
+        assert!(
+            format!("{err}").contains("contributes nothing"),
+            "got: {err}"
+        );
     }
 
     #[test]
@@ -1620,7 +1693,7 @@ mod manifest_schema_tests {
     #[test]
     fn every_in_repo_manifest_parses_and_validates() {
         let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")  // asyar-launcher/
+            .join("..") // asyar-launcher/
             .join(".."); // workspace root
 
         if !repo_root.exists() {

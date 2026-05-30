@@ -42,9 +42,8 @@ pub fn encode(extension_id: &str, path: &[&str]) -> Result<String, AppError> {
         }
     }
 
-    let mut buf = String::with_capacity(
-        extension_id.len() + path.iter().map(|s| s.len() + 1).sum::<usize>(),
-    );
+    let mut buf =
+        String::with_capacity(extension_id.len() + path.iter().map(|s| s.len() + 1).sum::<usize>());
     buf.push_str(extension_id);
     for segment in path {
         buf.push(SEPARATOR);
@@ -102,10 +101,7 @@ mod tests {
 
     #[test]
     fn encode_four_levels() {
-        assert_eq!(
-            encode("ext", &["a", "b", "c", "d"]).unwrap(),
-            "ext:a:b:c:d"
-        );
+        assert_eq!(encode("ext", &["a", "b", "c", "d"]).unwrap(), "ext:a:b:c:d");
     }
 
     #[test]

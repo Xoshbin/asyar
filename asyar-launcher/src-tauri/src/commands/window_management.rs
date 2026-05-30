@@ -30,7 +30,10 @@ pub async fn window_management_get_bounds(
 
     #[cfg(target_os = "linux")]
     {
-        let wid = *state.linux_prev_window_id.lock().map_err(|_| AppError::Lock)?;
+        let wid = *state
+            .linux_prev_window_id
+            .lock()
+            .map_err(|_| AppError::Lock)?;
         return crate::window_management::linux::get_window_bounds(wid);
     }
 
@@ -54,7 +57,12 @@ pub async fn window_management_set_bounds(
     height: Option<f64>,
 ) -> Result<(), AppError> {
     permissions.check(&extension_id, "window:manage")?;
-    let update = WindowBoundsUpdate { x, y, width, height };
+    let update = WindowBoundsUpdate {
+        x,
+        y,
+        width,
+        height,
+    };
     validate_bounds_update(&update)?;
 
     #[cfg(target_os = "macos")]
@@ -68,7 +76,10 @@ pub async fn window_management_set_bounds(
 
     #[cfg(target_os = "linux")]
     {
-        let wid = *state.linux_prev_window_id.lock().map_err(|_| AppError::Lock)?;
+        let wid = *state
+            .linux_prev_window_id
+            .lock()
+            .map_err(|_| AppError::Lock)?;
         return crate::window_management::linux::set_window_bounds(wid, &update);
     }
 
@@ -101,7 +112,10 @@ pub async fn window_management_set_fullscreen(
 
     #[cfg(target_os = "linux")]
     {
-        let wid = *state.linux_prev_window_id.lock().map_err(|_| AppError::Lock)?;
+        let wid = *state
+            .linux_prev_window_id
+            .lock()
+            .map_err(|_| AppError::Lock)?;
         return crate::window_management::linux::set_window_fullscreen(wid, enable);
     }
 
@@ -138,7 +152,9 @@ mod tests {
     #[test]
     fn permission_check_allows_with_correct_permission() {
         let reg = make_registry_with("ext-1", &["window:manage"]);
-        assert!(reg.check(&Some("ext-1".to_string()), "window:manage").is_ok());
+        assert!(reg
+            .check(&Some("ext-1".to_string()), "window:manage")
+            .is_ok());
     }
 
     #[test]

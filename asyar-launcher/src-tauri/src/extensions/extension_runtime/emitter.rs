@@ -51,7 +51,11 @@ mod tests {
     #[test]
     fn recording_emitter_captures_emits() {
         let e = RecordingEmitter::default();
-        emit_typed(&e, "asyar:iframe:mount", &serde_json::json!({"extensionId": "x"}));
+        emit_typed(
+            &e,
+            "asyar:iframe:mount",
+            &serde_json::json!({"extensionId": "x"}),
+        );
         let events = e.events();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].0, "asyar:iframe:mount");

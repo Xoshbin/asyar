@@ -145,7 +145,10 @@ impl ExtensionStateService {
         }
 
         let target_roles: Vec<ContextRole> = {
-            let subs = self.subscriptions.lock().expect("subscriptions mutex poisoned");
+            let subs = self
+                .subscriptions
+                .lock()
+                .expect("subscriptions mutex poisoned");
             let mut roles: HashSet<ContextRole> = HashSet::new();
             for s in subs.values() {
                 if s.extension_id == extension_id && s.key == key {
@@ -182,7 +185,10 @@ impl ExtensionStateService {
         now_ms: u64,
     ) -> SubscriptionId {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        let mut subs = self.subscriptions.lock().expect("subscriptions mutex poisoned");
+        let mut subs = self
+            .subscriptions
+            .lock()
+            .expect("subscriptions mutex poisoned");
         subs.insert(
             id,
             Subscription {
@@ -209,29 +215,39 @@ impl ExtensionStateService {
     /// distinct subscription ids collapsed into the group; `installed_at`
     /// is the minimum across the group so the UI shows "first seen".
     pub fn list_subscriptions(&self, extension_id: &str) -> Vec<SubscriptionSummary> {
-        let subs = self.subscriptions.lock().expect("subscriptions mutex poisoned");
+        let subs = self
+            .subscriptions
+            .lock()
+            .expect("subscriptions mutex poisoned");
         let mut by_group: HashMap<(String, ContextRole), (u64, usize)> = HashMap::new();
         for s in subs.values() {
             if s.extension_id != extension_id {
                 continue;
             }
-            let entry = by_group.entry((s.key.clone(), s.role)).or_insert((s.installed_at, 0));
+            let entry = by_group
+                .entry((s.key.clone(), s.role))
+                .or_insert((s.installed_at, 0));
             entry.0 = entry.0.min(s.installed_at);
             entry.1 += 1;
         }
         by_group
             .into_iter()
-            .map(|((key, role), (installed_at, listener_count))| SubscriptionSummary {
-                key,
-                role,
-                installed_at,
-                listener_count,
-            })
+            .map(
+                |((key, role), (installed_at, listener_count))| SubscriptionSummary {
+                    key,
+                    role,
+                    installed_at,
+                    listener_count,
+                },
+            )
             .collect()
     }
 
     pub fn unsubscribe(&self, id: SubscriptionId) -> Result<(), AppError> {
-        let mut subs = self.subscriptions.lock().expect("subscriptions mutex poisoned");
+        let mut subs = self
+            .subscriptions
+            .lock()
+            .expect("subscriptions mutex poisoned");
         subs.remove(&id);
         // Returning Ok even if the id was unknown matches the SDK contract:
         // unsubscribe is idempotent so view-side `pagehide` cleanup never
@@ -249,7 +265,10 @@ impl ExtensionStateService {
             let conn = self.data_store.lock().map_err(|_| AppError::Lock)?;
             store::clear(&conn, extension_id)?
         };
-        let mut subs = self.subscriptions.lock().expect("subscriptions mutex poisoned");
+        let mut subs = self
+            .subscriptions
+            .lock()
+            .expect("subscriptions mutex poisoned");
         subs.retain(|_, s| s.extension_id != extension_id);
         Ok(row_count)
     }
@@ -355,7 +374,8 @@ mod tests {
     #[test]
     fn set_then_get_round_trips() {
         let (svc, _) = svc_with_emitter();
-        svc.set("ext.a", "k", serde_json::json!({ "x": 1 }), 0).unwrap();
+        svc.set("ext.a", "k", serde_json::json!({ "x": 1 }), 0)
+            .unwrap();
         assert_eq!(
             svc.get("ext.a", "k").unwrap(),
             Some(serde_json::json!({ "x": 1 }))
@@ -368,7 +388,8 @@ mod tests {
         // connection is shared, the service instance is recreated.
         let conn = fresh_conn();
         let svc1 = ExtensionStateService::new(Arc::clone(&conn));
-        svc1.set("ext.a", "timer", serde_json::json!({ "running": true }), 0).unwrap();
+        svc1.set("ext.a", "timer", serde_json::json!({ "running": true }), 0)
+            .unwrap();
 
         // Drop & recreate the service against the same DB.
         drop(svc1);
@@ -385,7 +406,8 @@ mod tests {
         let (svc, _) = svc_with_emitter();
         svc.set("ext.a", "k1", serde_json::json!(1), 0).unwrap();
         svc.set("ext.a", "k2", serde_json::json!(2), 0).unwrap();
-        svc.set("ext.b", "k1", serde_json::json!("safe"), 0).unwrap();
+        svc.set("ext.b", "k1", serde_json::json!("safe"), 0)
+            .unwrap();
 
         let removed = svc.clear("ext.a").unwrap();
         assert_eq!(removed, 2);
@@ -404,7 +426,10 @@ mod tests {
         let (svc, _) = svc_with_emitter();
         let id1 = svc.subscribe("ext.a".into(), "k".into(), ContextRole::View, 0);
         let id2 = svc.subscribe("ext.a".into(), "k".into(), ContextRole::View, 0);
-        assert_ne!(id1, id2, "subscription ids must be unique even for identical (ext, key, role)");
+        assert_ne!(
+            id1, id2,
+            "subscription ids must be unique even for identical (ext, key, role)"
+        );
     }
 
     #[test]
@@ -478,7 +503,11 @@ mod tests {
         svc.set("ext.a", "k", serde_json::json!(2), 0).unwrap();
 
         let events = emitter.changed();
-        assert_eq!(events.len(), 1, "second set must not fire after unsubscribe");
+        assert_eq!(
+            events.len(),
+            1,
+            "second set must not fire after unsubscribe"
+        );
         assert_eq!(events[0].value, serde_json::json!(1));
     }
 
@@ -499,7 +528,11 @@ mod tests {
         assert_eq!(svc.subscription_count(), 2);
 
         svc.clear("ext.a").unwrap();
-        assert_eq!(svc.subscription_count(), 1, "ext.a subscription must be dropped");
+        assert_eq!(
+            svc.subscription_count(),
+            1,
+            "ext.a subscription must be dropped"
+        );
 
         // Subsequent set on ext.a does not fire.
         svc.set("ext.a", "k", serde_json::json!(1), 0).unwrap();
@@ -556,7 +589,10 @@ mod tests {
         let json = serde_json::to_value(&p).unwrap();
         assert_eq!(json["correlationId"], "c1");
         assert_eq!(json["result"], serde_json::json!({ "v": 1 }));
-        assert!(json.get("error").is_none(), "absent error must not appear in JSON");
+        assert!(
+            json.get("error").is_none(),
+            "absent error must not appear in JSON"
+        );
     }
 
     #[test]
@@ -591,7 +627,11 @@ mod tests {
         svc.set("ext.a", "timer", serde_json::json!({ "secs": 7 }), 0)
             .unwrap();
         // Sanity: the seed `set` fanned out to both roles.
-        assert_eq!(emitter.changed().len(), 2, "seed set fans out to both roles");
+        assert_eq!(
+            emitter.changed().len(),
+            2,
+            "seed set fans out to both roles"
+        );
         emitter.state_changed.lock().unwrap().clear();
 
         // Step 1 — runtime teardown of both contexts. Synchronous; no acks.
@@ -625,7 +665,12 @@ mod tests {
     #[test]
     fn subscribe_records_installed_at_timestamp_on_the_subscription() {
         let (svc, _) = svc_with_emitter();
-        svc.subscribe("ext.a".into(), "k".into(), ContextRole::View, 1_700_000_000_000);
+        svc.subscribe(
+            "ext.a".into(),
+            "k".into(),
+            ContextRole::View,
+            1_700_000_000_000,
+        );
         let subs = svc.subscriptions.lock().unwrap();
         let sub = subs.values().next().unwrap();
         assert_eq!(sub.installed_at, 1_700_000_000_000);
@@ -635,8 +680,10 @@ mod tests {
     fn list_all_returns_every_key_for_the_extension() {
         let (svc, _) = svc_with_emitter();
         svc.set("ext.a", "k1", serde_json::json!(1), 100).unwrap();
-        svc.set("ext.a", "k2", serde_json::json!("two"), 200).unwrap();
-        svc.set("ext.b", "k1", serde_json::json!("other"), 300).unwrap();
+        svc.set("ext.a", "k2", serde_json::json!("two"), 200)
+            .unwrap();
+        svc.set("ext.b", "k1", serde_json::json!("other"), 300)
+            .unwrap();
 
         let mut rows = svc.list_all("ext.a").unwrap();
         rows.sort_by(|a, b| a.key.cmp(&b.key));
@@ -672,7 +719,10 @@ mod tests {
         let view_row = rows.iter().find(|r| r.role == ContextRole::View).unwrap();
         let worker_row = rows.iter().find(|r| r.role == ContextRole::Worker).unwrap();
         assert_eq!(view_row.listener_count, 3);
-        assert_eq!(view_row.installed_at, 100, "earliest of the three view subs");
+        assert_eq!(
+            view_row.installed_at, 100,
+            "earliest of the three view subs"
+        );
         assert_eq!(worker_row.listener_count, 1);
         assert_eq!(worker_row.installed_at, 400);
     }

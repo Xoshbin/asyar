@@ -28,7 +28,13 @@ impl NotificationBackend for LinuxBackend {
             return Ok(());
         }
 
-        let NotificationRequest { notification_id, title, body, actions, .. } = request;
+        let NotificationRequest {
+            notification_id,
+            title,
+            body,
+            actions,
+            ..
+        } = request;
         let sink = self.click_sink.clone();
 
         std::thread::spawn(move || {
@@ -44,14 +50,20 @@ impl NotificationBackend for LinuxBackend {
             let handle = match n.show() {
                 Ok(h) => h,
                 Err(e) => {
-                    warn!("[notifications/linux] show failed for {}: {}", notification_id, e);
+                    warn!(
+                        "[notifications/linux] show failed for {}: {}",
+                        notification_id, e
+                    );
                     return;
                 }
             };
             handle.wait_for_action(|action_id| match action_id {
                 "__closed" => { /* user dismissed / system closed */ }
                 other => {
-                    info!("[notifications/linux] action '{}' clicked on {}", other, notification_id);
+                    info!(
+                        "[notifications/linux] action '{}' clicked on {}",
+                        other, notification_id
+                    );
                     sink(&notification_id, other);
                 }
             });

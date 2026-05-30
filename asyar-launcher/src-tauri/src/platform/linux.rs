@@ -1,5 +1,5 @@
-use std::path::Path;
 use std::io::{BufRead, BufReader};
+use std::path::Path;
 use tauri::{Runtime, WebviewWindow};
 
 /// Configures GTK hints for a Spotlight-style window on Linux.

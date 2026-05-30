@@ -50,10 +50,9 @@ impl BuiltinTool for FsReadTool {
     }
 
     async fn invoke(&self, args: serde_json::Value) -> Result<serde_json::Value, AppError> {
-        let path = args
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| AppError::Validation("missing required 'path' string argument".into()))?;
+        let path = args.get("path").and_then(|v| v.as_str()).ok_or_else(|| {
+            AppError::Validation("missing required 'path' string argument".into())
+        })?;
         let content = std::fs::read_to_string(path)
             .map_err(|e| AppError::Other(format!("failed to read '{}': {}", path, e)))?;
         Ok(json!({ "content": content }))
@@ -82,10 +81,9 @@ impl BuiltinTool for FsWriteTool {
     }
 
     async fn invoke(&self, args: serde_json::Value) -> Result<serde_json::Value, AppError> {
-        let path = args
-            .get("path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| AppError::Validation("missing required 'path' string argument".into()))?;
+        let path = args.get("path").and_then(|v| v.as_str()).ok_or_else(|| {
+            AppError::Validation("missing required 'path' string argument".into())
+        })?;
         let content = args
             .get("content")
             .and_then(|v| v.as_str())

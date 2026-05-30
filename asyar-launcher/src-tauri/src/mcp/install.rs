@@ -65,7 +65,9 @@ pub async fn install_server(
     input: McpServerInstallInput,
 ) -> Result<McpServerSummary, AppError> {
     if input.id.trim().is_empty() {
-        return Err(AppError::Validation("server id must not be empty".to_string()));
+        return Err(AppError::Validation(
+            "server id must not be empty".to_string(),
+        ));
     }
     if input.display_name.trim().is_empty() {
         return Err(AppError::Validation(
@@ -79,10 +81,7 @@ pub async fn install_server(
     let tools = McpSupervisor::connect_and_list_tools(factory, &input.transport)
         .await
         .map_err(|e| {
-            AppError::Other(format!(
-                "MCP server '{}' handshake failed: {}",
-                input.id, e
-            ))
+            AppError::Other(format!("MCP server '{}' handshake failed: {}", input.id, e))
         })?;
 
     let tools_count = tools.len() as u32;
@@ -190,11 +189,7 @@ pub(crate) async fn detect_existing_configs_with_home(
         let servers = match parse_mcp_config_json_lenient(&json) {
             Ok(s) => s,
             Err(e) => {
-                log::warn!(
-                    "[mcp] could not parse config at {}: {}",
-                    path.display(),
-                    e
-                );
+                log::warn!("[mcp] could not parse config at {}: {}", path.display(), e);
                 continue;
             }
         };
@@ -226,18 +221,12 @@ fn config_paths_for_platform(home: &std::path::Path) -> Vec<(String, PathBuf)> {
             "claude_desktop".to_string(),
             home.join("Library/Application Support/Claude/claude_desktop_config.json"),
         ));
-        paths.push((
-            "cursor".to_string(),
-            home.join(".cursor/mcp.json"),
-        ));
+        paths.push(("cursor".to_string(), home.join(".cursor/mcp.json")));
         paths.push((
             "windsurf".to_string(),
             home.join(".codeium/windsurf/mcp_config.json"),
         ));
-        paths.push((
-            "cline".to_string(),
-            home.join(".cline/mcp_settings.json"),
-        ));
+        paths.push(("cline".to_string(), home.join(".cline/mcp_settings.json")));
     }
 
     #[cfg(target_os = "linux")]
@@ -246,18 +235,12 @@ fn config_paths_for_platform(home: &std::path::Path) -> Vec<(String, PathBuf)> {
             "claude_desktop".to_string(),
             home.join(".config/Claude/claude_desktop_config.json"),
         ));
-        paths.push((
-            "cursor".to_string(),
-            home.join(".cursor/mcp.json"),
-        ));
+        paths.push(("cursor".to_string(), home.join(".cursor/mcp.json")));
         paths.push((
             "windsurf".to_string(),
             home.join(".codeium/windsurf/mcp_config.json"),
         ));
-        paths.push((
-            "cline".to_string(),
-            home.join(".cline/mcp_settings.json"),
-        ));
+        paths.push(("cline".to_string(), home.join(".cline/mcp_settings.json")));
     }
 
     #[cfg(target_os = "windows")]
@@ -269,18 +252,12 @@ fn config_paths_for_platform(home: &std::path::Path) -> Vec<(String, PathBuf)> {
                 PathBuf::from(&appdata).join("Claude/claude_desktop_config.json"),
             ));
         }
-        paths.push((
-            "cursor".to_string(),
-            home.join(".cursor/mcp.json"),
-        ));
+        paths.push(("cursor".to_string(), home.join(".cursor/mcp.json")));
         paths.push((
             "windsurf".to_string(),
             home.join(".codeium/windsurf/mcp_config.json"),
         ));
-        paths.push((
-            "cline".to_string(),
-            home.join(".cline/mcp_settings.json"),
-        ));
+        paths.push(("cline".to_string(), home.join(".cline/mcp_settings.json")));
     }
 
     paths
@@ -322,9 +299,9 @@ fn parse_mcp_servers_from_value(
     let mut result = Vec::new();
 
     for (name, entry) in servers_map {
-        let obj = entry.as_object().ok_or_else(|| {
-            AppError::Validation(format!("mcpServers.{name} must be an object"))
-        })?;
+        let obj = entry
+            .as_object()
+            .ok_or_else(|| AppError::Validation(format!("mcpServers.{name} must be an object")))?;
 
         let transport = if let Some(url) = obj.get("url").and_then(|v| v.as_str()) {
             // HTTP variant
@@ -439,9 +416,7 @@ fn now_millis() -> i64 {
 // ── Helper: build McpServerInstallInput from a stored row ────────────────────
 
 /// Reconstruct the transport spec from a stored `McpServerRow`.
-pub(crate) fn transport_from_row(
-    row: &McpServerRow,
-) -> Result<McpTransportSpec, AppError> {
+pub(crate) fn transport_from_row(row: &McpServerRow) -> Result<McpTransportSpec, AppError> {
     match row.transport_kind.as_str() {
         "stdio" => {
             let command = row.command.clone().ok_or_else(|| {
@@ -572,7 +547,7 @@ mod tests {
                     .send_line(r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18","capabilities":{},"serverInfo":{"name":"mock","version":"0"}}}"#)
                     .await;
                 let _ = server.recv_line().await; // notifications/initialized
-                // list_tools
+                                                  // list_tools
                 let _list = server.recv_line().await;
                 let tools_resp = format!(
                     r#"{{"jsonrpc":"2.0","id":2,"result":{{"tools":[{{"name":"{}","description":"test","inputSchema":{{"type":"object"}}}}]}}}}"#,
@@ -626,17 +601,28 @@ mod tests {
         let result = parse_mcp_config_json(json).expect("parse failed");
         assert_eq!(result.len(), 2);
 
-        let fs = result.iter().find(|s| s.id == "filesystem").expect("filesystem missing");
+        let fs = result
+            .iter()
+            .find(|s| s.id == "filesystem")
+            .expect("filesystem missing");
         match &fs.transport {
-            McpTransportSpec::Stdio { command, args, env, .. } => {
+            McpTransportSpec::Stdio {
+                command, args, env, ..
+            } => {
                 assert_eq!(command, "npx");
-                assert_eq!(args, &["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]);
+                assert_eq!(
+                    args,
+                    &["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+                );
                 assert_eq!(env.get("DEBUG").map(|s| s.as_str()), Some("1"));
             }
             _ => panic!("expected Stdio"),
         }
 
-        let brave = result.iter().find(|s| s.id == "brave-search").expect("brave-search missing");
+        let brave = result
+            .iter()
+            .find(|s| s.id == "brave-search")
+            .expect("brave-search missing");
         match &brave.transport {
             McpTransportSpec::Stdio { command, args, .. } => {
                 assert_eq!(command, "/usr/local/bin/brave-mcp");
@@ -782,7 +768,11 @@ mod tests {
             "expected a DetectedConfig with source 'claude_code', got: {result:?}"
         );
         let cfg = found.unwrap();
-        assert_eq!(cfg.servers.len(), 1, "expected 1 server in claude_code config");
+        assert_eq!(
+            cfg.servers.len(),
+            1,
+            "expected 1 server in claude_code config"
+        );
         assert_eq!(cfg.servers[0].id, "context7");
     }
 

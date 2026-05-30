@@ -65,8 +65,9 @@ pub(crate) fn timer_schedule_inner(
     // Core callers (extension_id = None) can't own a timer — a fired event
     // has no iframe to dispatch to. Reject early rather than persist an
     // orphaned row.
-    let ext = extension_id
-        .ok_or_else(|| AppError::Validation("timer_schedule requires an extensionId".to_string()))?;
+    let ext = extension_id.ok_or_else(|| {
+        AppError::Validation("timer_schedule requires an extensionId".to_string())
+    })?;
     registry.schedule(&ext, &command_id, &args_json, fire_at, now_ms)
 }
 
@@ -134,16 +135,8 @@ mod tests {
         let p = grant("ext-a", &[PERM_SCHEDULE]);
         // Core caller (None) is allowed by perms check but rejected with
         // Validation because there's no iframe to dispatch into.
-        let err = timer_schedule_inner(
-            &r,
-            &p,
-            None,
-            "cmd".into(),
-            "{}".into(),
-            2_000,
-            1_000,
-        )
-        .unwrap_err();
+        let err = timer_schedule_inner(&r, &p, None, "cmd".into(), "{}".into(), 2_000, 1_000)
+            .unwrap_err();
         assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
     }
 
@@ -162,8 +155,7 @@ mod tests {
         )
         .unwrap();
         assert!(uuid::Uuid::parse_str(&id).is_ok());
-        let list =
-            timer_list_inner(&r, &p, Some("ext-a".into())).expect("list");
+        let list = timer_list_inner(&r, &p, Some("ext-a".into())).expect("list");
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].timer_id, id);
     }
@@ -212,8 +204,7 @@ mod tests {
     fn list_without_permission_rejected() {
         let r = TimerRegistry::in_memory();
         let p = grant("ext-a", &[]);
-        let err =
-            timer_list_inner(&r, &p, Some("ext-a".into())).unwrap_err();
+        let err = timer_list_inner(&r, &p, Some("ext-a".into())).unwrap_err();
         assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
     }
 

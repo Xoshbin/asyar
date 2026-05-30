@@ -133,7 +133,10 @@ fn build_launched(app: &NSRunningApplication) -> Option<AppEvent> {
         let pid = app.processIdentifier() as u32;
         let bundle_id = ns_opt(app.bundleIdentifier());
         let name = ns_opt(app.localizedName()).unwrap_or_else(|| format!("pid-{pid}"));
-        let path = app.bundleURL().and_then(|url| url.path()).map(|p| p.to_string());
+        let path = app
+            .bundleURL()
+            .and_then(|url| url.path())
+            .map(|p| p.to_string());
         Some(AppEvent::Launched {
             pid,
             bundle_id,

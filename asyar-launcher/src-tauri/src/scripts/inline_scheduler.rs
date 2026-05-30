@@ -140,8 +140,10 @@ pub fn set_inline_scripts(
 
     let mut tasks = state.tasks.lock().map_err(|_| AppError::Lock)?;
 
-    let want_ids: std::collections::HashSet<String> =
-        accepted_specs.iter().map(|s| s.dynamic_id.clone()).collect();
+    let want_ids: std::collections::HashSet<String> = accepted_specs
+        .iter()
+        .map(|s| s.dynamic_id.clone())
+        .collect();
 
     // Abort tasks for scripts no longer in the accepted set
     let mut dropped: Vec<String> = tasks
@@ -170,7 +172,10 @@ pub fn set_inline_scripts(
     }
 
     Ok(SetInlineScriptsOutcome {
-        accepted: accepted_specs.iter().map(|s| s.dynamic_id.clone()).collect(),
+        accepted: accepted_specs
+            .iter()
+            .map(|s| s.dynamic_id.clone())
+            .collect(),
         capped,
         dropped,
     })
@@ -193,8 +198,7 @@ fn spawn_inline_task(app: AppHandle, spec: InlineScriptSpec) -> JoinHandle<()> {
         // Immediate first tick
         run_one_tick(&app, &spec).await;
 
-        let mut interval =
-            tokio::time::interval(Duration::from_secs(spec.refresh_time_seconds));
+        let mut interval = tokio::time::interval(Duration::from_secs(spec.refresh_time_seconds));
         // interval.tick() fires immediately by default; we already fired,
         // so skip the leading tick.
         interval.tick().await;

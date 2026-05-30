@@ -20,9 +20,7 @@ const ENABLE_WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 /// managed. Reads all enabled MCP servers from SQLite, probes each one for its
 /// tool list, registers the tools in the tool registry, then starts the
 /// supervisor watchdog for each.
-pub async fn mcp_seed_enabled_servers_at_startup<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-) {
+pub async fn mcp_seed_enabled_servers_at_startup<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     let supervisor = match app.try_state::<Arc<McpSupervisor>>() {
         Some(s) => Arc::clone(&*s),
         None => {
@@ -88,21 +86,20 @@ pub async fn mcp_seed_enabled_servers_at_startup<R: tauri::Runtime>(
         // Enable the watchdog and wait for the first handshake to complete so
         // tools are available immediately. A single handshake is performed by
         // the watchdog — no separate connect_and_list_tools call is needed.
-        let tools =
-            match supervisor.enable_and_wait_for_tools(config, ENABLE_WAIT_TIMEOUT).await {
-                Ok(t) => t,
-                Err(e) => {
-                    log::warn!("[mcp seed] handshake failed for '{}': {e}", row.id);
-                    continue;
-                }
-            };
+        let tools = match supervisor
+            .enable_and_wait_for_tools(config, ENABLE_WAIT_TIMEOUT)
+            .await
+        {
+            Ok(t) => t,
+            Err(e) => {
+                log::warn!("[mcp seed] handshake failed for '{}': {e}", row.id);
+                continue;
+            }
+        };
 
         let manifest_tools = descriptors_from_mcp_tools(&row.id, tools);
         if let Err(e) = registry.register_mcp(&row.id, manifest_tools) {
-            log::warn!(
-                "[mcp seed] failed to register tools for '{}': {e}",
-                row.id
-            );
+            log::warn!("[mcp seed] failed to register tools for '{}': {e}", row.id);
         }
     }
 }

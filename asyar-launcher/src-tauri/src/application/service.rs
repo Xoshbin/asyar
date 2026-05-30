@@ -1,12 +1,12 @@
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
-use std::fs;
-use std::collections::{HashMap, HashSet};
 use crate::error::AppError;
 use crate::search_engine::models::{Application, SearchableItem};
 use crate::search_engine::SearchState;
-use tauri::{AppHandle, Manager};
 use log::info;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::path::{Path, PathBuf};
+use tauri::{AppHandle, Manager};
 
 #[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -29,7 +29,9 @@ pub struct SyncResult {
 pub fn get_frontmost_application() -> Result<FrontmostApplication, AppError> {
     #[cfg(target_os = "macos")]
     {
-        if let Some((name, id, path, title)) = crate::platform::macos::get_frontmost_application_metadata() {
+        if let Some((name, id, path, title)) =
+            crate::platform::macos::get_frontmost_application_metadata()
+        {
             return Ok(FrontmostApplication {
                 name,
                 bundle_id: Some(id),
@@ -41,7 +43,9 @@ pub fn get_frontmost_application() -> Result<FrontmostApplication, AppError> {
 
     #[cfg(target_os = "windows")]
     {
-        if let Some((name, path, title)) = crate::platform::windows::get_frontmost_application_metadata() {
+        if let Some((name, path, title)) =
+            crate::platform::windows::get_frontmost_application_metadata()
+        {
             return Ok(FrontmostApplication {
                 name,
                 bundle_id: None,
@@ -51,7 +55,9 @@ pub fn get_frontmost_application() -> Result<FrontmostApplication, AppError> {
         }
     }
 
-    Err(AppError::Platform("Failed to retrieve frontmost application metadata".to_string()))
+    Err(AppError::Platform(
+        "Failed to retrieve frontmost application metadata".to_string(),
+    ))
 }
 
 /// Scans for applications in default and extra paths, diffs against the search index,
@@ -80,24 +86,35 @@ pub fn sync_application_index<R: tauri::Runtime>(
         let sanitized_path = path_str.replace([' ', '/'], "_");
         let full_app_id = format!("app_{}_{}", sanitized_name, sanitized_path);
 
-        current_apps.insert(full_app_id.clone(), Application {
-            id: full_app_id,
-            name,
-            path: path_str.clone(),
-            usage_count: 0,
-            icon: extract_app_icon(path_str, &icon_cache_dir),
-            last_used_at: None,
-            bundle_id: extract_bundle_id(Path::new(path_str)),
-        });
+        current_apps.insert(
+            full_app_id.clone(),
+            Application {
+                id: full_app_id,
+                name,
+                path: path_str.clone(),
+                usage_count: 0,
+                icon: extract_app_icon(path_str, &icon_cache_dir),
+                last_used_at: None,
+                bundle_id: extract_bundle_id(Path::new(path_str)),
+            },
+        );
     }
 
     // 3. Get currently indexed app_ IDs
     let indexed_ids: Vec<String> = {
-        let items = search_state.items.read().map_err(|e| AppError::Other(e.to_string()))?;
-        items.iter()
+        let items = search_state
+            .items
+            .read()
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        items
+            .iter()
             .filter_map(|item| {
                 let id = item.id();
-                if id.starts_with("app_") { Some(id.to_string()) } else { None }
+                if id.starts_with("app_") {
+                    Some(id.to_string())
+                } else {
+                    None
+                }
             })
             .collect()
     };
@@ -105,15 +122,24 @@ pub fn sync_application_index<R: tauri::Runtime>(
     let current_set: HashSet<&str> = current_apps.keys().map(|s| s.as_str()).collect();
 
     // 4. Diff
-    let to_add: Vec<String> = current_set.difference(&indexed_set).map(|s| s.to_string()).collect();
-    let to_remove: Vec<String> = indexed_set.difference(&current_set).map(|s| s.to_string()).collect();
+    let to_add: Vec<String> = current_set
+        .difference(&indexed_set)
+        .map(|s| s.to_string())
+        .collect();
+    let to_remove: Vec<String> = indexed_set
+        .difference(&current_set)
+        .map(|s| s.to_string())
+        .collect();
 
     let added = to_add.len() as u32;
     let removed = to_remove.len() as u32;
 
     // 5. Update SearchState
     if !to_add.is_empty() || !to_remove.is_empty() {
-        let mut items = search_state.items.write().map_err(|e| AppError::Other(e.to_string()))?;
+        let mut items = search_state
+            .items
+            .write()
+            .map_err(|e| AppError::Other(e.to_string()))?;
 
         if !to_remove.is_empty() {
             let remove_set: HashSet<String> = to_remove.into_iter().collect();
@@ -128,16 +154,27 @@ pub fn sync_application_index<R: tauri::Runtime>(
     }
 
     // 6. Persist
-    search_state.save_items_to_db()
+    search_state
+        .save_items_to_db()
         .map_err(|e| AppError::Other(format!("Failed to save index: {}", e)))?;
 
     let total = {
-        let items = search_state.items.read().map_err(|e| AppError::Other(e.to_string()))?;
+        let items = search_state
+            .items
+            .read()
+            .map_err(|e| AppError::Other(e.to_string()))?;
         items.iter().filter(|i| i.id().starts_with("app_")).count() as u32
     };
 
-    info!("App sync complete: {} added, {} removed, {} total apps", added, removed, total);
-    Ok(SyncResult { added, removed, total })
+    info!(
+        "App sync complete: {} added, {} removed, {} total apps",
+        added, removed, total
+    );
+    Ok(SyncResult {
+        added,
+        removed,
+        total,
+    })
 }
 
 pub fn list_applications<R: tauri::Runtime>(
@@ -185,7 +222,9 @@ impl AppScanner {
     }
 
     fn scan_directory(&mut self, dir_path: &Path) -> Result<(), AppError> {
-        if !dir_path.is_dir() { return Ok(()); }
+        if !dir_path.is_dir() {
+            return Ok(());
+        }
         for entry in fs::read_dir(dir_path)?.filter_map(Result::ok) {
             let path = entry.path();
             if is_app_bundle(&path) {
@@ -295,13 +334,19 @@ pub fn get_default_app_scan_paths() -> Vec<PathBuf> {
 
 fn is_app_bundle(path: &Path) -> bool {
     #[cfg(target_os = "macos")]
-    { path.extension().map(|e| e == "app").unwrap_or(false) }
+    {
+        path.extension().map(|e| e == "app").unwrap_or(false)
+    }
 
     #[cfg(target_os = "linux")]
-    { path.extension().map(|e| e == "desktop").unwrap_or(false) }
+    {
+        path.extension().map(|e| e == "desktop").unwrap_or(false)
+    }
 
     #[cfg(target_os = "windows")]
-    { path.extension().map(|e| e == "lnk").unwrap_or(false) }
+    {
+        path.extension().map(|e| e == "lnk").unwrap_or(false)
+    }
 }
 
 /// Extract a platform-native bundle / process identifier for an installed app.
@@ -314,12 +359,18 @@ pub(crate) fn extract_bundle_id(path: &Path) -> Option<String> {
     {
         // macOS .app bundles contain Contents/Info.plist with CFBundleIdentifier.
         let plist_path = path.join("Contents/Info.plist");
-        if !plist_path.is_file() { return None; }
+        if !plist_path.is_file() {
+            return None;
+        }
         let value = plist::Value::from_file(&plist_path).ok()?;
         let dict = value.as_dictionary()?;
         let id = dict.get("CFBundleIdentifier")?.as_string()?;
         let trimmed = id.trim();
-        if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
     }
 
     #[cfg(target_os = "linux")]
@@ -337,7 +388,9 @@ pub(crate) fn extract_bundle_id(path: &Path) -> Option<String> {
                 in_desktop_entry = trimmed == "[Desktop Entry]";
                 continue;
             }
-            if !in_desktop_entry { continue; }
+            if !in_desktop_entry {
+                continue;
+            }
             if let Some(rest) = trimmed.strip_prefix("StartupWMClass=") {
                 wm_class = Some(rest.trim().to_string());
             } else if let Some(rest) = trimmed.strip_prefix("Exec=") {
@@ -358,7 +411,9 @@ pub(crate) fn extract_bundle_id(path: &Path) -> Option<String> {
                 }
             }
         }
-        wm_class.filter(|s| !s.is_empty()).or_else(|| exec_cmd.filter(|s| !s.is_empty()))
+        wm_class
+            .filter(|s| !s.is_empty())
+            .or_else(|| exec_cmd.filter(|s| !s.is_empty()))
     }
 
     #[cfg(target_os = "windows")]
@@ -372,13 +427,21 @@ pub(crate) fn extract_bundle_id(path: &Path) -> Option<String> {
 }
 
 fn get_icon_cache_dir<R: tauri::Runtime>(app: &AppHandle<R>) -> PathBuf {
-    app.path().app_data_dir()
+    app.path()
+        .app_data_dir()
         .map(|p| p.join("icon_cache"))
         .unwrap_or_else(|_| {
             #[cfg(target_os = "windows")]
-            { app.path().app_local_data_dir().unwrap_or_default().join("icon_cache") }
+            {
+                app.path()
+                    .app_local_data_dir()
+                    .unwrap_or_default()
+                    .join("icon_cache")
+            }
             #[cfg(not(target_os = "windows"))]
-            { PathBuf::from("/tmp/asyar_icon_cache") }
+            {
+                PathBuf::from("/tmp/asyar_icon_cache")
+            }
         })
 }
 
@@ -388,7 +451,7 @@ pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<Strin
         .replace(".app", "")
         .replace(".desktop", "")
         .replace(".exe", "");
-    
+
     let cache_filename = format!("{}.png", &cache_key[..cache_key.len().min(200)]);
     let cache_file = cache_dir.join(&cache_filename);
 
@@ -485,7 +548,10 @@ mod tests {
 
     #[test]
     fn test_display_path_tildes_home_prefix() {
-        let input = dirs::home_dir().unwrap().join("Applications").join("Foo.app");
+        let input = dirs::home_dir()
+            .unwrap()
+            .join("Applications")
+            .join("Foo.app");
         let expected = format!(
             "~{sep}Applications{sep}Foo.app",
             sep = std::path::MAIN_SEPARATOR
@@ -507,7 +573,10 @@ mod tests {
 
     #[test]
     fn test_display_parent_dir_strips_app_bundle_and_tildes_home() {
-        let input = dirs::home_dir().unwrap().join("Applications").join("Ice.app");
+        let input = dirs::home_dir()
+            .unwrap()
+            .join("Applications")
+            .join("Ice.app");
         let expected = format!("~{sep}Applications", sep = std::path::MAIN_SEPARATOR);
         assert_eq!(display_parent_dir(input.to_str().unwrap()), expected);
     }
@@ -515,7 +584,12 @@ mod tests {
     #[test]
     fn test_display_parent_dir_passes_through_non_home_parent() {
         let outside = outside_home_path();
-        let parent = Path::new(&outside).parent().unwrap().to_str().unwrap().to_string();
+        let parent = Path::new(&outside)
+            .parent()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
         assert_eq!(display_parent_dir(&outside), parent);
     }
 
@@ -523,9 +597,13 @@ mod tests {
     /// platform. Used by tests that need to exercise the non-home branch.
     fn outside_home_path() -> String {
         #[cfg(target_os = "windows")]
-        { "C:\\ProgramData\\Asyar\\Foo.lnk".to_string() }
+        {
+            "C:\\ProgramData\\Asyar\\Foo.lnk".to_string()
+        }
         #[cfg(not(target_os = "windows"))]
-        { "/opt/asyar-test/Foo.app".to_string() }
+        {
+            "/opt/asyar-test/Foo.app".to_string()
+        }
     }
 
     #[test]
@@ -564,19 +642,25 @@ mod tests {
     #[test]
     #[cfg(target_os = "linux")]
     fn test_is_app_bundle_linux_dot_desktop() {
-        assert!(is_app_bundle(Path::new("/usr/share/applications/firefox.desktop")));
+        assert!(is_app_bundle(Path::new(
+            "/usr/share/applications/firefox.desktop"
+        )));
     }
 
     #[test]
     #[cfg(target_os = "windows")]
     fn test_is_app_bundle_windows_dot_lnk() {
-        assert!(is_app_bundle(Path::new("C:\\Users\\Public\\Desktop\\App.lnk")));
+        assert!(is_app_bundle(Path::new(
+            "C:\\Users\\Public\\Desktop\\App.lnk"
+        )));
     }
 
     #[test]
     #[cfg(target_os = "windows")]
     fn test_is_app_bundle_windows_dot_exe_is_false() {
-        assert!(!is_app_bundle(Path::new("C:\\Windows\\System32\\notepad.exe")));
+        assert!(!is_app_bundle(Path::new(
+            "C:\\Windows\\System32\\notepad.exe"
+        )));
     }
 
     #[test]
@@ -645,7 +729,11 @@ mod tests {
 
     #[test]
     fn test_sync_result_serializes() {
-        let result = SyncResult { added: 5, removed: 2, total: 100 };
+        let result = SyncResult {
+            added: 5,
+            removed: 2,
+            total: 100,
+        };
         let json = serde_json::to_string(&result).unwrap();
         assert!(json.contains("\"added\":5"));
         assert!(json.contains("\"removed\":2"));

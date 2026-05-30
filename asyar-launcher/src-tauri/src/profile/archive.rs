@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Component, Path};
 use tokio::fs::File as TokioFile;
-use tokio::io::BufReader;
 use tokio::io::AsyncReadExt;
+use tokio::io::BufReader;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
 /// A single category entry to be packed into the archive.
@@ -35,7 +35,9 @@ pub struct ArchiveContents {
 
 // Security: reject path traversal, absolute paths, and Windows drive prefixes
 fn is_safe_archive_path(filename: &str) -> bool {
-    Path::new(filename).components().all(|c| matches!(c, Component::Normal(_)))
+    Path::new(filename)
+        .components()
+        .all(|c| matches!(c, Component::Normal(_)))
 }
 
 pub async fn pack_archive(
@@ -60,22 +62,20 @@ pub async fn pack_archive(
         writer
             .write_entry_whole(entry, cat.json_content.as_bytes())
             .await
-            .map_err(|e| {
-                AppError::Extension(format!("Failed to write {}: {}", cat.filename, e))
-            })?;
+            .map_err(|e| AppError::Extension(format!("Failed to write {}: {}", cat.filename, e)))?;
     }
 
     // Write binary assets
     for asset in binary_assets {
         let data = tokio::fs::read(&asset.source_path).await.map_err(|e| {
-            AppError::Extension(format!(
-                "Failed to read asset {}: {}",
-                asset.source_path, e
-            ))
+            AppError::Extension(format!("Failed to read asset {}: {}", asset.source_path, e))
         })?;
         let entry = ZipEntryBuilder::new(asset.archive_path.clone().into(), Compression::Deflate);
         writer.write_entry_whole(entry, &data).await.map_err(|e| {
-            AppError::Extension(format!("Failed to write asset {}: {}", asset.archive_path, e))
+            AppError::Extension(format!(
+                "Failed to write asset {}: {}",
+                asset.archive_path, e
+            ))
         })?;
     }
 
@@ -125,10 +125,9 @@ pub async fn unpack_archive(path: &str) -> Result<ArchiveContents, AppError> {
         }
 
         // Read entry content
-        let entry_reader = zip
-            .reader_without_entry(index)
-            .await
-            .map_err(|e| AppError::Extension(format!("Failed to open entry {}: {}", filename, e)))?;
+        let entry_reader = zip.reader_without_entry(index).await.map_err(|e| {
+            AppError::Extension(format!("Failed to open entry {}: {}", filename, e))
+        })?;
 
         let mut buf = Vec::new();
         entry_reader
@@ -137,8 +136,9 @@ pub async fn unpack_archive(path: &str) -> Result<ArchiveContents, AppError> {
             .await
             .map_err(AppError::Io)?;
 
-        let content = String::from_utf8(buf)
-            .map_err(|e| AppError::Extension(format!("Entry {} is not valid UTF-8: {}", filename, e)))?;
+        let content = String::from_utf8(buf).map_err(|e| {
+            AppError::Extension(format!("Entry {} is not valid UTF-8: {}", filename, e))
+        })?;
 
         if filename == "manifest.json" {
             manifest_json = content;
@@ -148,9 +148,7 @@ pub async fn unpack_archive(path: &str) -> Result<ArchiveContents, AppError> {
     }
 
     if manifest_json.is_empty() {
-        return Err(AppError::Validation(
-            "Archive missing manifest.json".into(),
-        ));
+        return Err(AppError::Validation("Archive missing manifest.json".into()));
     }
 
     Ok(ArchiveContents {
@@ -223,7 +221,9 @@ mod tests {
         pack_archive(manifest, &[], &assets, zip_str).await.unwrap();
 
         let contents = unpack_archive(zip_str).await.unwrap();
-        assert!(contents.asset_paths.contains(&"assets/clipboard/img1.png".to_string()));
+        assert!(contents
+            .asset_paths
+            .contains(&"assets/clipboard/img1.png".to_string()));
     }
 
     #[tokio::test]
@@ -238,7 +238,10 @@ mod tests {
 
         // Add a manifest so we pass that check first
         let manifest_entry = ZipEntryBuilder::new("manifest.json".into(), Compression::Deflate);
-        writer.write_entry_whole(manifest_entry, b"{}").await.unwrap();
+        writer
+            .write_entry_whole(manifest_entry, b"{}")
+            .await
+            .unwrap();
 
         // Add the malicious entry
         let evil_entry = ZipEntryBuilder::new("../../../evil.json".into(), Compression::Deflate);
@@ -260,10 +263,7 @@ mod tests {
         let file = TokioFile::create(zip_str).await.unwrap();
         let mut writer = ZipFileWriter::with_tokio(file);
         let entry = ZipEntryBuilder::new("random.json".into(), Compression::Deflate);
-        writer
-            .write_entry_whole(entry, b"{}")
-            .await
-            .unwrap();
+        writer.write_entry_whole(entry, b"{}").await.unwrap();
         writer.close().await.unwrap();
 
         let result = unpack_archive(zip_str).await;

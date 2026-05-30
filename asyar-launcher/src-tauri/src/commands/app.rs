@@ -3,15 +3,15 @@
 //! `show`/`hide` are single-shot; `prepare_show` + `commit_show` is the
 //! flash-free reveal path documented on those functions.
 
-use crate::{AppState, SPOTLIGHT_LABEL};
 use crate::error::AppError;
+use crate::{AppState, SPOTLIGHT_LABEL};
 use std::sync::atomic::Ordering;
 use tauri::AppHandle;
 use tauri::Manager;
-#[cfg(target_os = "macos")]
-use tauri_nspanel::ManagerExt;
 #[cfg(not(target_os = "macos"))]
 use tauri::{LogicalPosition, Position};
+#[cfg(target_os = "macos")]
+use tauri_nspanel::ManagerExt;
 
 /// Off-screen coordinate used on Windows/Linux to make the window invisible
 /// while keeping it mapped, so the webview's render process stays in its
@@ -24,16 +24,21 @@ const OFFSCREEN_COORD: f64 = -30_000.0;
 /// stale cached frame. The JS caller awaits two rAFs after this returns
 /// before calling `commit_show`.
 #[tauri::command]
-pub fn prepare_show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
+pub fn prepare_show(
+    app_handle: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), AppError> {
     // Intentionally NOT setting asyar_visible here: the panel is mapped but
     // imperceptible until commit_show runs. A concurrent caller reading
     // is_visible during this window must still take the two-phase path,
     // not the single-shot `show` that would composite at alpha 1 mid-prepare.
     #[cfg(target_os = "macos")]
     {
-        let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL)
+        let panel = app_handle
+            .get_webview_panel(SPOTLIGHT_LABEL)
             .map_err(|_| AppError::NotFound("launcher panel".to_string()))?;
-        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+        let window = app_handle
+            .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         // Alpha 0 first so the order-in composites nothing visible. panel.show()
         // then makes it visible to the window server; WebKit observes the
@@ -44,7 +49,8 @@ pub fn prepare_show(app_handle: AppHandle, state: tauri::State<'_, AppState>) ->
     #[cfg(not(target_os = "macos"))]
     {
         capture_previous_foreground(&state)?;
-        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+        let window = app_handle
+            .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         // Move off-screen before showing: the window stays in the compositor's
         // visible set (so WebView2/WebKitGTK keep pushing frames) but the user
@@ -64,10 +70,14 @@ pub fn prepare_show(app_handle: AppHandle, state: tauri::State<'_, AppState>) ->
 /// webview has already committed at least one fresh frame while imperceptible,
 /// so the user sees the target UI immediately.
 #[tauri::command]
-pub fn commit_show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
+pub fn commit_show(
+    app_handle: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), AppError> {
     #[cfg(target_os = "macos")]
     {
-        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+        let window = app_handle
+            .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         crate::platform::macos::center_at_cursor_monitor(&window)
             .map_err(|e| AppError::Platform(format!("center_at_cursor_monitor: {e}")))?;
@@ -75,7 +85,8 @@ pub fn commit_show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> 
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+        let window = app_handle
+            .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         center_on_primary_monitor(&window)?;
         let _ = window.set_focus();
@@ -97,9 +108,11 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
     state.asyar_visible.store(true, Ordering::Relaxed);
     #[cfg(target_os = "macos")]
     {
-        let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL)
+        let panel = app_handle
+            .get_webview_panel(SPOTLIGHT_LABEL)
             .map_err(|_| AppError::NotFound("launcher panel".to_string()))?;
-        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+        let window = app_handle
+            .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher panel window".to_string()))?;
         crate::platform::macos::set_window_alpha(&window, 1.0);
         crate::platform::macos::center_at_cursor_monitor(&window)
@@ -114,7 +127,8 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
     #[cfg(not(target_os = "macos"))]
     {
         capture_previous_foreground(&state)?;
-        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+        let window = app_handle
+            .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         center_on_primary_monitor(&window)?;
         let _ = window.show();
@@ -137,7 +151,8 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
     state.asyar_visible.store(false, Ordering::Relaxed);
     #[cfg(target_os = "macos")]
     {
-        let panel = app_handle.get_webview_panel(SPOTLIGHT_LABEL)
+        let panel = app_handle
+            .get_webview_panel(SPOTLIGHT_LABEL)
             .map_err(|_| AppError::NotFound("launcher panel".to_string()))?;
         if panel.is_visible() {
             panel.order_out(None);
@@ -145,7 +160,8 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+        let window = app_handle
+            .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         if window.is_visible().unwrap_or(false) {
             let _ = window.hide();
@@ -172,7 +188,10 @@ fn capture_previous_foreground(state: &tauri::State<'_, AppState>) -> Result<(),
     #[cfg(target_os = "linux")]
     {
         let wid = crate::window_management::linux::capture_active_window_id();
-        let mut prev = state.linux_prev_window_id.lock().map_err(|_| AppError::Lock)?;
+        let mut prev = state
+            .linux_prev_window_id
+            .lock()
+            .map_err(|_| AppError::Lock)?;
         *prev = wid;
     }
     let _ = state;
@@ -198,7 +217,9 @@ fn compute_centered_position(
 /// primary monitor since cursor-monitor lookup is platform-dependent and
 /// not currently wired up outside macOS.
 #[cfg(not(target_os = "macos"))]
-fn center_on_primary_monitor<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) -> Result<(), AppError> {
+fn center_on_primary_monitor<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+) -> Result<(), AppError> {
     let monitor = window
         .primary_monitor()
         .map_err(|e| AppError::Platform(format!("primary_monitor: {e}")))?
@@ -236,7 +257,9 @@ pub fn set_focus_lock(state: tauri::State<'_, AppState>, locked: bool) {
 /// this command is a pure sink.
 #[tauri::command]
 pub fn set_launcher_keep_expanded(state: tauri::State<'_, AppState>, keep_expanded: bool) {
-    state.launcher_keep_expanded.store(keep_expanded, Ordering::Relaxed);
+    state
+        .launcher_keep_expanded
+        .store(keep_expanded, Ordering::Relaxed);
 }
 
 /// Validates a launcher height value before it reaches platform window APIs.
@@ -268,7 +291,8 @@ pub fn set_launcher_height(
     defer_until_next_ca_commit: Option<bool>,
 ) -> Result<(), AppError> {
     validate_launcher_height(height)?;
-    let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+    let window = app_handle
+        .get_webview_window(SPOTLIGHT_LABEL)
         .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
 
     #[cfg(target_os = "macos")]
@@ -287,7 +311,9 @@ pub fn set_launcher_height(
         let _ = expanded;
         let _ = defer_until_next_ca_commit;
         use tauri::LogicalSize;
-        let size = window.inner_size().map_err(|e| AppError::Platform(e.to_string()))?;
+        let size = window
+            .inner_size()
+            .map_err(|e| AppError::Platform(e.to_string()))?;
         let scale = window.scale_factor().unwrap_or(1.0);
         let logical_width = size.width as f64 / scale;
         let _ = window.set_size(tauri::Size::Logical(LogicalSize {
@@ -403,8 +429,18 @@ fn parse_css_color(s: &str) -> Result<(f64, f64, f64, f64), AppError> {
             Ok(v as f64 / 255.0)
         };
         return match hex.len() {
-            6 => Ok((hex_chan(&hex[0..2])?, hex_chan(&hex[2..4])?, hex_chan(&hex[4..6])?, 1.0)),
-            8 => Ok((hex_chan(&hex[0..2])?, hex_chan(&hex[2..4])?, hex_chan(&hex[4..6])?, hex_chan(&hex[6..8])?)),
+            6 => Ok((
+                hex_chan(&hex[0..2])?,
+                hex_chan(&hex[2..4])?,
+                hex_chan(&hex[4..6])?,
+                1.0,
+            )),
+            8 => Ok((
+                hex_chan(&hex[0..2])?,
+                hex_chan(&hex[2..4])?,
+                hex_chan(&hex[4..6])?,
+                hex_chan(&hex[6..8])?,
+            )),
             _ => Err(invalid()),
         };
     }
@@ -419,15 +455,25 @@ fn parse_css_color(s: &str) -> Result<(f64, f64, f64, f64), AppError> {
         .split(|c: char| c == ',' || c == '/' || c.is_whitespace())
         .filter(|p| !p.is_empty())
         .collect();
-    if !(3..=4).contains(&parts.len()) { return Err(invalid()); }
+    if !(3..=4).contains(&parts.len()) {
+        return Err(invalid());
+    }
 
     let chan = |p: &str| -> Result<f64, AppError> {
         let v: u16 = p.parse().map_err(|_| invalid())?;
-        if v > 255 { return Err(invalid()); }
+        if v > 255 {
+            return Err(invalid());
+        }
         Ok(v as f64 / 255.0)
     };
-    let a: f64 = if parts.len() == 4 { parts[3].parse().map_err(|_| invalid())? } else { 1.0 };
-    if !(0.0..=1.0).contains(&a) { return Err(invalid()); }
+    let a: f64 = if parts.len() == 4 {
+        parts[3].parse().map_err(|_| invalid())?
+    } else {
+        1.0
+    };
+    if !(0.0..=1.0).contains(&a) {
+        return Err(invalid());
+    }
     Ok((chan(parts[0])?, chan(parts[1])?, chan(parts[2])?, a))
 }
 
@@ -443,7 +489,8 @@ pub fn set_panel_appearance(app_handle: AppHandle, pref: String) -> Result<(), A
     {
         let theme_pref = crate::parse_theme_preference_str(&pref);
         {
-            if let Some(state) = app_handle.try_state::<std::sync::Mutex<crate::ThemePreference>>() {
+            if let Some(state) = app_handle.try_state::<std::sync::Mutex<crate::ThemePreference>>()
+            {
                 *state.lock().map_err(|_| AppError::Lock)? = theme_pref;
             }
         }
@@ -752,7 +799,8 @@ mod tests {
         fn rejects_negative_counts() {
             // u32 cannot represent negatives — serde must error so a TS bug
             // that produces a sentinel like -1 can't silently render garbage.
-            let json = r#"{"scripts_active":-1,"scripts_done":0,"agents_active":0,"agents_done":0}"#;
+            let json =
+                r#"{"scripts_active":-1,"scripts_done":0,"agents_active":0,"agents_done":0}"#;
             assert!(serde_json::from_str::<ShowMoreBarHuds>(json).is_err());
         }
     }

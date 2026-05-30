@@ -8,17 +8,11 @@
 use crate::crypto::cipher;
 use crate::error::AppError;
 
-pub fn encrypt_payload(
-    plaintext: &str,
-    master_seed: &[u8; 32],
-) -> Result<String, AppError> {
+pub fn encrypt_payload(plaintext: &str, master_seed: &[u8; 32]) -> Result<String, AppError> {
     cipher::encrypt(plaintext, master_seed)
 }
 
-pub fn decrypt_payload(
-    ciphertext: &str,
-    master_seed: &[u8; 32],
-) -> Result<String, AppError> {
+pub fn decrypt_payload(ciphertext: &str, master_seed: &[u8; 32]) -> Result<String, AppError> {
     cipher::decrypt(ciphertext, master_seed)
 }
 
@@ -72,7 +66,13 @@ mod tests {
             b'0' => b'1',
             b'1' => b'0',
             // Fall back: pick any other valid base64 char that's reliably present.
-            c => if c == b'+' { b'/' } else { b'A' },
+            c => {
+                if c == b'+' {
+                    b'/'
+                } else {
+                    b'A'
+                }
+            }
         };
         let tampered = String::from_utf8(bytes).unwrap();
         let err = decrypt_payload(&tampered, &key).unwrap_err();

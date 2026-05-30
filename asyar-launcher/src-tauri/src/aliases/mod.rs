@@ -1,9 +1,9 @@
 pub mod commands;
 pub mod models;
 
-pub use models::{ItemAlias, AliasError, validate_alias};
+pub use models::{validate_alias, AliasError, ItemAlias};
 
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use std::sync::{Arc, Mutex, RwLock};
 
 pub fn init_table(conn: &Connection) -> rusqlite::Result<()> {
@@ -14,7 +14,7 @@ pub fn init_table(conn: &Connection) -> rusqlite::Result<()> {
             item_name   TEXT NOT NULL,
             item_type   TEXT NOT NULL,
             created_at  INTEGER NOT NULL
-        );"
+        );",
     )
 }
 
@@ -60,7 +60,10 @@ impl AliasState {
     }
 
     fn load_from_db(&self) -> Result<(), AliasError> {
-        let conn = self.db.lock().map_err(|_| AliasError::Storage("db mutex poisoned in load_from_db".into()))?;
+        let conn = self
+            .db
+            .lock()
+            .map_err(|_| AliasError::Storage("db mutex poisoned in load_from_db".into()))?;
         let mut stmt = conn
             .prepare("SELECT object_id, alias, item_name, item_type, created_at FROM item_aliases")
             .map_err(|e| AliasError::Storage(e.to_string()))?;
@@ -79,7 +82,10 @@ impl AliasState {
         for row in rows {
             loaded.push(row.map_err(|e| AliasError::Storage(e.to_string()))?);
         }
-        let mut items = self.items.write().map_err(|_| AliasError::Storage("items write lock poisoned in load_from_db".into()))?;
+        let mut items = self
+            .items
+            .write()
+            .map_err(|_| AliasError::Storage("items write lock poisoned in load_from_db".into()))?;
         *items = loaded;
         Ok(())
     }
@@ -96,9 +102,18 @@ impl AliasState {
 
         // Conflict: another object already owns this alias.
         {
-            let items = self.items.read().map_err(|_| AliasError::Storage("items read lock poisoned in set_alias".into()))?;
-            if let Some(existing) = items.iter().find(|a| a.alias == normalized && a.object_id != object_id) {
-                return Err(AliasError::Conflict(normalized.clone(), existing.item_name.clone()));
+            let items = self
+                .items
+                .read()
+                .map_err(|_| AliasError::Storage("items read lock poisoned in set_alias".into()))?;
+            if let Some(existing) = items
+                .iter()
+                .find(|a| a.alias == normalized && a.object_id != object_id)
+            {
+                return Err(AliasError::Conflict(
+                    normalized.clone(),
+                    existing.item_name.clone(),
+                ));
             }
         }
 
@@ -112,7 +127,10 @@ impl AliasState {
 
         // Persist (UPSERT semantics: replace any existing row for this object_id).
         {
-            let conn = self.db.lock().map_err(|_| AliasError::Storage("db mutex poisoned in set_alias".into()))?;
+            let conn = self
+                .db
+                .lock()
+                .map_err(|_| AliasError::Storage("db mutex poisoned in set_alias".into()))?;
             let exec_result = conn.execute(
                 "INSERT INTO item_aliases (object_id, alias, item_name, item_type, created_at)
                  VALUES (?1, ?2, ?3, ?4, ?5)
@@ -121,7 +139,13 @@ impl AliasState {
                     item_name = excluded.item_name,
                     item_type = excluded.item_type,
                     created_at = excluded.created_at",
-                params![entry.object_id, entry.alias, entry.item_name, entry.item_type, entry.created_at],
+                params![
+                    entry.object_id,
+                    entry.alias,
+                    entry.item_name,
+                    entry.item_type,
+                    entry.created_at
+                ],
             );
             if let Err(e) = &exec_result {
                 if is_unique_alias_violation(e) {
@@ -144,7 +168,9 @@ impl AliasState {
 
         // Update cache: remove any existing entry for this object_id, then push.
         {
-            let mut items = self.items.write().map_err(|_| AliasError::Storage("items write lock poisoned in set_alias".into()))?;
+            let mut items = self.items.write().map_err(|_| {
+                AliasError::Storage("items write lock poisoned in set_alias".into())
+            })?;
             items.retain(|a| a.object_id != entry.object_id);
             items.push(entry.clone());
         }
@@ -153,33 +179,52 @@ impl AliasState {
 
     pub fn unset_alias(&self, alias: &str) -> Result<(), AliasError> {
         let normalized = alias.trim().to_lowercase();
-        let conn = self.db.lock().map_err(|_| AliasError::Storage("db mutex poisoned in unset_alias".into()))?;
+        let conn = self
+            .db
+            .lock()
+            .map_err(|_| AliasError::Storage("db mutex poisoned in unset_alias".into()))?;
         let affected = conn
-            .execute("DELETE FROM item_aliases WHERE alias = ?1", params![normalized])
+            .execute(
+                "DELETE FROM item_aliases WHERE alias = ?1",
+                params![normalized],
+            )
             .map_err(|e| AliasError::Storage(e.to_string()))?;
         if affected == 0 {
             return Err(AliasError::NotFound(normalized));
         }
         drop(conn);
-        let mut items = self.items.write().map_err(|_| AliasError::Storage("items write lock poisoned in unset_alias".into()))?;
+        let mut items = self
+            .items
+            .write()
+            .map_err(|_| AliasError::Storage("items write lock poisoned in unset_alias".into()))?;
         items.retain(|a| a.alias != normalized);
         Ok(())
     }
 
     pub fn unset_for_object_id(&self, object_id: &str) -> Result<(), AliasError> {
-        let conn = self.db.lock().map_err(|_| AliasError::Storage("db mutex poisoned in unset_for_object_id".into()))?;
-        conn
-            .execute("DELETE FROM item_aliases WHERE object_id = ?1", params![object_id])
-            .map_err(|e| AliasError::Storage(e.to_string()))?;
+        let conn = self
+            .db
+            .lock()
+            .map_err(|_| AliasError::Storage("db mutex poisoned in unset_for_object_id".into()))?;
+        conn.execute(
+            "DELETE FROM item_aliases WHERE object_id = ?1",
+            params![object_id],
+        )
+        .map_err(|e| AliasError::Storage(e.to_string()))?;
         drop(conn);
-        let mut items = self.items.write().map_err(|_| AliasError::Storage("items write lock poisoned in unset_for_object_id".into()))?;
+        let mut items = self.items.write().map_err(|_| {
+            AliasError::Storage("items write lock poisoned in unset_for_object_id".into())
+        })?;
         items.retain(|a| a.object_id != object_id);
         Ok(())
     }
 
     pub fn find_by_alias(&self, alias: &str) -> Result<Option<ItemAlias>, AliasError> {
         let normalized = alias.trim().to_lowercase();
-        let items = self.items.read().map_err(|_| AliasError::Storage("items read lock poisoned in find_by_alias".into()))?;
+        let items = self
+            .items
+            .read()
+            .map_err(|_| AliasError::Storage("items read lock poisoned in find_by_alias".into()))?;
         Ok(items.iter().find(|a| a.alias == normalized).cloned())
     }
 
@@ -191,7 +236,10 @@ impl AliasState {
         excluding_object_id: Option<&str>,
     ) -> Result<Option<ItemAlias>, AliasError> {
         let normalized = alias.trim().to_lowercase();
-        let items = self.items.read().map_err(|_| AliasError::Storage("items read lock poisoned in find_conflict".into()))?;
+        let items = self
+            .items
+            .read()
+            .map_err(|_| AliasError::Storage("items read lock poisoned in find_conflict".into()))?;
         Ok(items
             .iter()
             .find(|a| a.alias == normalized && Some(a.object_id.as_str()) != excluding_object_id)
@@ -199,22 +247,35 @@ impl AliasState {
     }
 
     pub fn list_all(&self) -> Result<Vec<ItemAlias>, AliasError> {
-        let items = self.items.read().map_err(|_| AliasError::Storage("items read lock poisoned in list_all".into()))?;
+        let items = self
+            .items
+            .read()
+            .map_err(|_| AliasError::Storage("items read lock poisoned in list_all".into()))?;
         let mut out: Vec<ItemAlias> = items.clone();
         out.sort_unstable_by_key(|a| std::cmp::Reverse(a.created_at));
         Ok(out)
     }
 
     pub fn lookup_alias_for(&self, object_id: &str) -> Result<Option<String>, AliasError> {
-        let items = self.items.read().map_err(|_| AliasError::Storage("items read lock poisoned in lookup_alias_for".into()))?;
-        Ok(items.iter().find(|a| a.object_id == object_id).map(|a| a.alias.clone()))
+        let items = self.items.read().map_err(|_| {
+            AliasError::Storage("items read lock poisoned in lookup_alias_for".into())
+        })?;
+        Ok(items
+            .iter()
+            .find(|a| a.object_id == object_id)
+            .map(|a| a.alias.clone()))
     }
 
     /// Removes all aliases whose `object_id` is NOT in `live_ids`.
     /// Returns the count of removed entries.
-    pub fn prune_orphans(&self, live_ids: &std::collections::HashSet<String>) -> Result<usize, AliasError> {
+    pub fn prune_orphans(
+        &self,
+        live_ids: &std::collections::HashSet<String>,
+    ) -> Result<usize, AliasError> {
         let to_remove: Vec<String> = {
-            let items = self.items.read().map_err(|_| AliasError::Storage("items read lock poisoned in prune_orphans".into()))?;
+            let items = self.items.read().map_err(|_| {
+                AliasError::Storage("items read lock poisoned in prune_orphans".into())
+            })?;
             items
                 .iter()
                 .filter(|a| !live_ids.contains(&a.object_id))
@@ -225,13 +286,18 @@ impl AliasState {
             return Ok(0);
         }
         {
-            let conn = self.db.lock().map_err(|_| AliasError::Storage("db mutex poisoned in prune_orphans".into()))?;
+            let conn = self
+                .db
+                .lock()
+                .map_err(|_| AliasError::Storage("db mutex poisoned in prune_orphans".into()))?;
             for id in &to_remove {
                 conn.execute("DELETE FROM item_aliases WHERE object_id = ?1", params![id])
                     .map_err(|e| AliasError::Storage(e.to_string()))?;
             }
         }
-        let mut items = self.items.write().map_err(|_| AliasError::Storage("items write lock poisoned in prune_orphans".into()))?;
+        let mut items = self.items.write().map_err(|_| {
+            AliasError::Storage("items write lock poisoned in prune_orphans".into())
+        })?;
         let before = items.len();
         items.retain(|a| live_ids.contains(&a.object_id));
         Ok(before - items.len())
@@ -242,7 +308,9 @@ impl AliasState {
     pub fn clear_for_extension(&self, extension_id: &str) -> Result<usize, AliasError> {
         let prefix = format!("cmd_{}_", extension_id);
         let to_remove: Vec<String> = {
-            let items = self.items.read().map_err(|_| AliasError::Storage("items read lock poisoned in clear_for_extension".into()))?;
+            let items = self.items.read().map_err(|_| {
+                AliasError::Storage("items read lock poisoned in clear_for_extension".into())
+            })?;
             items
                 .iter()
                 .filter(|a| a.object_id.starts_with(&prefix))
@@ -253,13 +321,17 @@ impl AliasState {
             return Ok(0);
         }
         {
-            let conn = self.db.lock().map_err(|_| AliasError::Storage("db mutex poisoned in clear_for_extension".into()))?;
+            let conn = self.db.lock().map_err(|_| {
+                AliasError::Storage("db mutex poisoned in clear_for_extension".into())
+            })?;
             for id in &to_remove {
                 conn.execute("DELETE FROM item_aliases WHERE object_id = ?1", params![id])
                     .map_err(|e| AliasError::Storage(e.to_string()))?;
             }
         }
-        let mut items = self.items.write().map_err(|_| AliasError::Storage("items write lock poisoned in clear_for_extension".into()))?;
+        let mut items = self.items.write().map_err(|_| {
+            AliasError::Storage("items write lock poisoned in clear_for_extension".into())
+        })?;
         let before = items.len();
         items.retain(|a| !a.object_id.starts_with(&prefix));
         Ok(before - items.len())
@@ -304,7 +376,10 @@ mod state_tests {
             "INSERT INTO item_aliases (object_id, alias, item_name, item_type, created_at) VALUES ('id2','a','Other','command',1)",
             [],
         );
-        assert!(result.is_err(), "duplicate alias should be rejected by UNIQUE constraint");
+        assert!(
+            result.is_err(),
+            "duplicate alias should be rejected by UNIQUE constraint"
+        );
     }
 
     fn now_ms() -> i64 {
@@ -327,7 +402,11 @@ mod state_tests {
         // verify in DB too
         let conn = state.db.lock().unwrap();
         let alias: String = conn
-            .query_row("SELECT alias FROM item_aliases WHERE object_id = ?1", params!["app_finder"], |r| r.get(0))
+            .query_row(
+                "SELECT alias FROM item_aliases WHERE object_id = ?1",
+                params!["app_finder"],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(alias, "f");
     }
@@ -335,19 +414,31 @@ mod state_tests {
     #[test]
     fn set_alias_replaces_existing_for_same_object_id() {
         let state = AliasState::new_in_memory();
-        state.set_alias("app_finder", "f", "Finder", "application", now_ms()).unwrap();
-        state.set_alias("app_finder", "fi", "Finder", "application", now_ms()).unwrap();
+        state
+            .set_alias("app_finder", "f", "Finder", "application", now_ms())
+            .unwrap();
+        state
+            .set_alias("app_finder", "fi", "Finder", "application", now_ms())
+            .unwrap();
         let items = state.items.read().unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].alias, "fi");
         // Confirm UPSERT replaced rather than duplicated in the DB.
         let conn = state.db.lock().unwrap();
         let count: i64 = conn
-            .query_row("SELECT count(*) FROM item_aliases WHERE object_id = 'app_finder'", [], |r| r.get(0))
+            .query_row(
+                "SELECT count(*) FROM item_aliases WHERE object_id = 'app_finder'",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(count, 1);
         let alias: String = conn
-            .query_row("SELECT alias FROM item_aliases WHERE object_id = 'app_finder'", [], |r| r.get(0))
+            .query_row(
+                "SELECT alias FROM item_aliases WHERE object_id = 'app_finder'",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(alias, "fi");
     }
@@ -355,14 +446,18 @@ mod state_tests {
     #[test]
     fn set_alias_validates_input() {
         let state = AliasState::new_in_memory();
-        let err = state.set_alias("app_x", "no spaces", "X", "application", now_ms()).unwrap_err();
+        let err = state
+            .set_alias("app_x", "no spaces", "X", "application", now_ms())
+            .unwrap_err();
         assert_eq!(err, AliasError::InvalidChars);
     }
 
     #[test]
     fn set_alias_rejects_conflict() {
         let state = AliasState::new_in_memory();
-        state.set_alias("app_finder", "f", "Finder", "application", now_ms()).unwrap();
+        state
+            .set_alias("app_finder", "f", "Finder", "application", now_ms())
+            .unwrap();
         let err = state
             .set_alias("app_other", "f", "Other", "application", now_ms())
             .unwrap_err();
@@ -372,7 +467,9 @@ mod state_tests {
     #[test]
     fn unset_alias_removes_from_cache_and_db() {
         let state = AliasState::new_in_memory();
-        state.set_alias("app_finder", "f", "Finder", "application", now_ms()).unwrap();
+        state
+            .set_alias("app_finder", "f", "Finder", "application", now_ms())
+            .unwrap();
         state.unset_alias("f").unwrap();
         let items = state.items.read().unwrap();
         assert!(items.is_empty());
@@ -393,7 +490,9 @@ mod state_tests {
     #[test]
     fn unset_for_object_id_removes_when_present() {
         let state = AliasState::new_in_memory();
-        state.set_alias("app_finder", "f", "Finder", "application", now_ms()).unwrap();
+        state
+            .set_alias("app_finder", "f", "Finder", "application", now_ms())
+            .unwrap();
         state.unset_for_object_id("app_finder").unwrap();
         assert!(state.items.read().unwrap().is_empty());
     }
@@ -424,10 +523,17 @@ mod state_tests {
                 "INSERT INTO item_aliases (object_id, alias, item_name, item_type, created_at)
                  VALUES ('app_smuggled', 'cl', 'Smuggled', 'application', 0)",
                 [],
-            ).unwrap();
+            )
+            .unwrap();
         }
         let err = state
-            .set_alias("cmd_clip_history", "cl", "Clipboard History", "command", now_ms())
+            .set_alias(
+                "cmd_clip_history",
+                "cl",
+                "Clipboard History",
+                "command",
+                now_ms(),
+            )
             .unwrap_err();
         assert!(
             matches!(err, AliasError::Conflict(_, _)),
@@ -439,7 +545,15 @@ mod state_tests {
     #[test]
     fn find_by_alias_returns_match() {
         let state = AliasState::new_in_memory();
-        state.set_alias("cmd_clip_history", "cl", "Clipboard History", "command", now_ms()).unwrap();
+        state
+            .set_alias(
+                "cmd_clip_history",
+                "cl",
+                "Clipboard History",
+                "command",
+                now_ms(),
+            )
+            .unwrap();
         let hit = state.find_by_alias("cl").unwrap();
         assert!(hit.is_some());
         assert_eq!(hit.unwrap().object_id, "cmd_clip_history");
@@ -448,7 +562,15 @@ mod state_tests {
     #[test]
     fn find_by_alias_lowercases_input() {
         let state = AliasState::new_in_memory();
-        state.set_alias("cmd_clip_history", "cl", "Clipboard History", "command", now_ms()).unwrap();
+        state
+            .set_alias(
+                "cmd_clip_history",
+                "cl",
+                "Clipboard History",
+                "command",
+                now_ms(),
+            )
+            .unwrap();
         let hit = state.find_by_alias("CL").unwrap();
         assert!(hit.is_some());
     }
@@ -463,7 +585,9 @@ mod state_tests {
     #[test]
     fn find_conflict_excludes_self() {
         let state = AliasState::new_in_memory();
-        state.set_alias("cmd_x", "x", "X", "command", now_ms()).unwrap();
+        state
+            .set_alias("cmd_x", "x", "X", "command", now_ms())
+            .unwrap();
         // Same object querying its own alias should NOT see a conflict.
         let conflict = state.find_conflict("x", Some("cmd_x")).unwrap();
         assert!(conflict.is_none());
@@ -472,7 +596,9 @@ mod state_tests {
     #[test]
     fn find_conflict_finds_other_owner() {
         let state = AliasState::new_in_memory();
-        state.set_alias("cmd_x", "x", "X", "command", now_ms()).unwrap();
+        state
+            .set_alias("cmd_x", "x", "X", "command", now_ms())
+            .unwrap();
         let conflict = state.find_conflict("x", Some("cmd_y")).unwrap();
         let conflict = conflict.expect("expected conflict");
         assert_eq!(conflict.object_id, "cmd_x");
@@ -483,7 +609,9 @@ mod state_tests {
         // None means "exclude nobody" — any matching alias is reported.
         // Guards against a future refactor that flips the != to == in the predicate.
         let state = AliasState::new_in_memory();
-        state.set_alias("cmd_x", "x", "X", "command", now_ms()).unwrap();
+        state
+            .set_alias("cmd_x", "x", "X", "command", now_ms())
+            .unwrap();
         let conflict = state.find_conflict("x", None).unwrap();
         assert_eq!(conflict.expect("expected conflict").object_id, "cmd_x");
     }
@@ -502,16 +630,31 @@ mod state_tests {
     #[test]
     fn lookup_alias_for_returns_alias_or_none() {
         let state = AliasState::new_in_memory();
-        state.set_alias("cmd_x", "xx", "X", "command", now_ms()).unwrap();
-        assert_eq!(state.lookup_alias_for("cmd_x").unwrap().as_deref(), Some("xx"));
+        state
+            .set_alias("cmd_x", "xx", "X", "command", now_ms())
+            .unwrap();
+        assert_eq!(
+            state.lookup_alias_for("cmd_x").unwrap().as_deref(),
+            Some("xx")
+        );
         assert_eq!(state.lookup_alias_for("cmd_y").unwrap(), None);
     }
 
     #[test]
     fn prune_orphans_drops_aliases_for_unknown_ids() {
         let state = AliasState::new_in_memory();
-        state.set_alias("app_finder", "f", "Finder", "application", now_ms()).unwrap();
-        state.set_alias("cmd_clip_history", "cl", "Clipboard History", "command", now_ms()).unwrap();
+        state
+            .set_alias("app_finder", "f", "Finder", "application", now_ms())
+            .unwrap();
+        state
+            .set_alias(
+                "cmd_clip_history",
+                "cl",
+                "Clipboard History",
+                "command",
+                now_ms(),
+            )
+            .unwrap();
         let live: HashSet<String> = ["app_finder".to_string()].into_iter().collect();
         let removed = state.prune_orphans(&live).unwrap();
         assert_eq!(removed, 1);
@@ -534,7 +677,9 @@ mod state_tests {
     #[test]
     fn prune_orphans_returns_zero_when_all_live() {
         let state = AliasState::new_in_memory();
-        state.set_alias("app_finder", "f", "Finder", "application", now_ms()).unwrap();
+        state
+            .set_alias("app_finder", "f", "Finder", "application", now_ms())
+            .unwrap();
         let live: HashSet<String> = ["app_finder".to_string()].into_iter().collect();
         let removed = state.prune_orphans(&live).unwrap();
         assert_eq!(removed, 0);
@@ -543,9 +688,33 @@ mod state_tests {
     #[test]
     fn clear_for_extension_removes_only_that_extensions_aliases() {
         let state = AliasState::new_in_memory();
-        state.set_alias("cmd_pomodoro_start", "ps", "Start Timer", "command", now_ms()).unwrap();
-        state.set_alias("cmd_pomodoro_stop", "pst", "Stop Timer", "command", now_ms()).unwrap();
-        state.set_alias("cmd_clip_history", "cl", "Clipboard History", "command", now_ms()).unwrap();
+        state
+            .set_alias(
+                "cmd_pomodoro_start",
+                "ps",
+                "Start Timer",
+                "command",
+                now_ms(),
+            )
+            .unwrap();
+        state
+            .set_alias(
+                "cmd_pomodoro_stop",
+                "pst",
+                "Stop Timer",
+                "command",
+                now_ms(),
+            )
+            .unwrap();
+        state
+            .set_alias(
+                "cmd_clip_history",
+                "cl",
+                "Clipboard History",
+                "command",
+                now_ms(),
+            )
+            .unwrap();
         let removed = state.clear_for_extension("pomodoro").unwrap();
         assert_eq!(removed, 2);
         let items = state.items.read().unwrap();

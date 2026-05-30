@@ -2,12 +2,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+#[cfg(target_os = "linux")]
+pub mod linux;
 #[cfg(target_os = "macos")]
 pub mod macos;
 #[cfg(target_os = "windows")]
 pub mod windows;
-#[cfg(target_os = "linux")]
-pub mod linux;
 
 /// Platform dispatcher — reads the current pasteboard's type identifiers.
 /// Linux and unsupported platforms always return empty.
@@ -186,7 +186,10 @@ mod tests {
     #[test]
     fn classify_skips_transient_pasteboard_type() {
         let result = classify(
-            &[s("public.utf8-plain-text"), s("org.nspasteboard.TransientType")],
+            &[
+                s("public.utf8-plain-text"),
+                s("org.nspasteboard.TransientType"),
+            ],
             None,
             &[],
         );

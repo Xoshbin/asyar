@@ -158,9 +158,9 @@ impl KeyStore for OsKeyStore {
                 let mut k = [0u8; 32];
                 rand::rng().fill(&mut k[..]);
                 let encoded = encode_key(&k);
-                entry.set_password(&encoded).map_err(|e| {
-                    AppError::Encryption(format!("keychain write failed: {e}"))
-                })?;
+                entry
+                    .set_password(&encoded)
+                    .map_err(|e| AppError::Encryption(format!("keychain write failed: {e}")))?;
                 Ok(Zeroizing::new(k))
             }
             Err(e) => Err(AppError::Encryption(format!("keychain read failed: {e}"))),
@@ -179,9 +179,7 @@ impl KeyStore for OsKeyStore {
             Ok(b64) => {
                 let bytes = base64::engine::general_purpose::STANDARD
                     .decode(b64.trim())
-                    .map_err(|e| {
-                        AppError::Encryption(format!("keychain base64 decode: {e}"))
-                    })?;
+                    .map_err(|e| AppError::Encryption(format!("keychain base64 decode: {e}")))?;
                 Ok(Some(Zeroizing::new(bytes)))
             }
             Err(keyring::Error::NoEntry) => Ok(None),
@@ -206,9 +204,7 @@ impl KeyStore for OsKeyStore {
         match entry.delete_credential() {
             Ok(()) => Ok(()),
             Err(keyring::Error::NoEntry) => Ok(()), // idempotent
-            Err(e) => Err(AppError::Encryption(format!(
-                "keychain delete failed: {e}"
-            ))),
+            Err(e) => Err(AppError::Encryption(format!("keychain delete failed: {e}"))),
         }
     }
 }
@@ -243,7 +239,13 @@ impl FileKeyStore {
         let parent = self.path.parent().unwrap_or_else(|| Path::new("."));
         let safe_account = account
             .chars()
-            .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect::<String>();
         parent.join(format!("keystore-slot-{safe_account}.dat"))
     }
@@ -398,16 +400,15 @@ pub fn select_keystore(app_data_dir: &Path) -> Box<dyn KeyStore> {
         // fall back. Any other error (e.g. transient I/O) propagates
         // by way of the OS keystore being chosen — startup will
         // surface it through `KeystoreState::from_keystore`.
-        match keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
-            .and_then(|e| match e.get_password() {
+        match keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT).and_then(|e| {
+            match e.get_password() {
                 Ok(_) => Ok(()),
                 Err(keyring::Error::NoEntry) => Ok(()),
                 Err(other) => Err(other),
-            })
-        {
+            }
+        }) {
             Ok(_) => Box::new(os_store),
-            Err(keyring::Error::NoStorageAccess(_))
-            | Err(keyring::Error::PlatformFailure(_)) => {
+            Err(keyring::Error::NoStorageAccess(_)) | Err(keyring::Error::PlatformFailure(_)) => {
                 log::warn!(
                     "Secret Service unavailable; falling back to file-backed keystore. \
                      Install gnome-keyring or KWallet for full at-rest protection."

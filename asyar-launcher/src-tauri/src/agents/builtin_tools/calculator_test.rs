@@ -41,8 +41,7 @@ async fn invoke_evaluates_simple_arithmetic() {
 #[tokio::test]
 async fn invoke_evaluates_floats() {
     let tool = CalculatorTool::new();
-    let result: Result<Value, AppError> =
-        tool.invoke(json!({"expression": "1.5 + 2.5"})).await;
+    let result: Result<Value, AppError> = tool.invoke(json!({"expression": "1.5 + 2.5"})).await;
 
     assert!(result.is_ok(), "expected Ok, got {result:?}");
     assert_eq!(result.unwrap(), json!(4.0), "1.5 + 2.5 must return 4.0");
@@ -69,10 +68,12 @@ async fn invoke_returns_error_for_missing_expression() {
 #[tokio::test]
 async fn invoke_returns_error_for_non_string_expression() {
     let tool = CalculatorTool::new();
-    let result: Result<Value, AppError> =
-        tool.invoke(json!({"expression": 42})).await;
+    let result: Result<Value, AppError> = tool.invoke(json!({"expression": 42})).await;
 
-    assert!(result.is_err(), "numeric expression value must return Err, got Ok");
+    assert!(
+        result.is_err(),
+        "numeric expression value must return Err, got Ok"
+    );
 }
 
 // ── 6. invoke_returns_error_for_invalid_expression ───────────────────────────
@@ -83,7 +84,10 @@ async fn invoke_returns_error_for_invalid_expression() {
     let result: Result<Value, AppError> =
         tool.invoke(json!({"expression": "this is not math"})).await;
 
-    assert!(result.is_err(), "invalid expression must return Err, got Ok");
+    assert!(
+        result.is_err(),
+        "invalid expression must return Err, got Ok"
+    );
 }
 
 // ── 7. invoke_evaluates_with_parens ──────────────────────────────────────────
@@ -91,8 +95,7 @@ async fn invoke_returns_error_for_invalid_expression() {
 #[tokio::test]
 async fn invoke_evaluates_with_parens() {
     let tool = CalculatorTool::new();
-    let result: Result<Value, AppError> =
-        tool.invoke(json!({"expression": "(2 + 3) * 4"})).await;
+    let result: Result<Value, AppError> = tool.invoke(json!({"expression": "(2 + 3) * 4"})).await;
 
     assert!(result.is_ok(), "expected Ok, got {result:?}");
     assert_eq!(result.unwrap(), json!(20), "(2 + 3) * 4 must return 20");

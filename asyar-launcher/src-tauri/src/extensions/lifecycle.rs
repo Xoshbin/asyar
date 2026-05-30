@@ -1,12 +1,12 @@
 //! Extension lifecycle: install/uninstall orchestration, discovery, enable/disable.
 
-use log::{info, warn};
 use crate::error::AppError;
 use crate::extensions::{
-    discovery, ExtensionRegistryState, ExtensionRecord,
-    get_app_data_dir, get_extensions_dir, get_builtin_features_path, get_dev_extension_paths,
+    discovery, get_app_data_dir, get_builtin_features_path, get_dev_extension_paths,
+    get_extensions_dir, ExtensionRecord, ExtensionRegistryState,
 };
 use crate::storage::DataStore;
+use log::{info, warn};
 use std::fs;
 use std::path::Path;
 use tauri::{AppHandle, Emitter, Manager};
@@ -18,10 +18,14 @@ pub(crate) fn uninstall(
 ) -> Result<(), AppError> {
     // Validate
     if extension_id.trim().is_empty() {
-        return Err(AppError::Validation("Extension ID cannot be empty".to_string()));
+        return Err(AppError::Validation(
+            "Extension ID cannot be empty".to_string(),
+        ));
     }
     if extension_id.contains("..") {
-        return Err(AppError::Validation("Extension ID contains invalid characters".to_string()));
+        return Err(AppError::Validation(
+            "Extension ID contains invalid characters".to_string(),
+        ));
     }
 
     // Check not built-in
@@ -29,24 +33,35 @@ pub(crate) fn uninstall(
         let reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
         if let Some(record) = reg.get(extension_id) {
             if record.is_built_in {
-                return Err(AppError::Validation("Cannot uninstall built-in features".to_string()));
+                return Err(AppError::Validation(
+                    "Cannot uninstall built-in features".to_string(),
+                ));
             }
         }
     }
 
     // Remove directory
-    let install_dir = get_app_data_dir(app_handle)?.join("extensions").join(extension_id);
+    let install_dir = get_app_data_dir(app_handle)?
+        .join("extensions")
+        .join(extension_id);
     if install_dir.exists() {
-        info!("Uninstalling extension '{}' at {:?}", extension_id, install_dir);
+        info!(
+            "Uninstalling extension '{}' at {:?}",
+            extension_id, install_dir
+        );
         fs::remove_dir_all(&install_dir)?;
     } else {
-        warn!("Extension directory not found for '{}', cleaning up settings only", extension_id);
+        warn!(
+            "Extension directory not found for '{}', cleaning up settings only",
+            extension_id
+        );
     }
 
     // Clean up settings atomically
     {
         use tauri_plugin_store::StoreExt;
-        let store = app_handle.store("settings.dat")
+        let store = app_handle
+            .store("settings.dat")
             .map_err(|e| AppError::Other(format!("Failed to open settings store: {}", e)))?;
 
         if let Some(mut settings) = store.get("settings") {
@@ -62,7 +77,8 @@ pub(crate) fn uninstall(
             }
             if modified {
                 store.set("settings", settings);
-                store.save()
+                store
+                    .save()
                     .map_err(|e| AppError::Other(format!("Failed to save settings: {}", e)))?;
             }
         }
@@ -81,7 +97,10 @@ pub(crate) fn uninstall(
                 match crate::storage::extension_kv::clear(&conn, extension_id) {
                     Ok(count) => {
                         if count > 0 {
-                            info!("Cleared {} storage entries for extension '{}'", count, extension_id);
+                            info!(
+                                "Cleared {} storage entries for extension '{}'",
+                                count, extension_id
+                            );
                         }
                     }
                     Err(e) => warn!("Failed to clear storage for '{}': {}", extension_id, e),
@@ -90,7 +109,10 @@ pub(crate) fn uninstall(
                 match crate::storage::extension_preferences::clear(&conn, extension_id) {
                     Ok(count) => {
                         if count > 0 {
-                            info!("Cleared {} preference entries for extension '{}'", count, extension_id);
+                            info!(
+                                "Cleared {} preference entries for extension '{}'",
+                                count, extension_id
+                            );
                         }
                     }
                     Err(e) => warn!("Failed to clear preferences for '{}': {}", extension_id, e),
@@ -99,16 +121,17 @@ pub(crate) fn uninstall(
                 match crate::storage::extension_cache::clear(&conn, extension_id) {
                     Ok(count) => {
                         if count > 0 {
-                            info!("Cleared {} cache entries for extension '{}'", count, extension_id);
+                            info!(
+                                "Cleared {} cache entries for extension '{}'",
+                                count, extension_id
+                            );
                         }
                     }
                     Err(e) => warn!("Failed to clear cache for '{}': {}", extension_id, e),
                 }
 
-                match crate::storage::command_arg_defaults::clear_for_extension(
-                    &conn,
-                    extension_id,
-                ) {
+                match crate::storage::command_arg_defaults::clear_for_extension(&conn, extension_id)
+                {
                     Ok(count) => {
                         if count > 0 {
                             info!(
@@ -123,10 +146,8 @@ pub(crate) fn uninstall(
                     ),
                 }
 
-                match crate::storage::searchbar_accessory::clear_for_extension(
-                    &conn,
-                    extension_id,
-                ) {
+                match crate::storage::searchbar_accessory::clear_for_extension(&conn, extension_id)
+                {
                     Ok(count) => {
                         if count > 0 {
                             info!(
@@ -162,7 +183,10 @@ pub(crate) fn uninstall(
                 match crate::oauth::token_store::delete_all_for_extension(&conn, extension_id) {
                     Ok(count) => {
                         if count > 0 {
-                            info!("Cleared {} OAuth tokens for extension '{}'", count, extension_id);
+                            info!(
+                                "Cleared {} OAuth tokens for extension '{}'",
+                                count, extension_id
+                            );
                         }
                     }
                     Err(e) => warn!("Failed to clear OAuth tokens for '{}': {}", extension_id, e),
@@ -175,12 +199,13 @@ pub(crate) fn uninstall(
     // Clean up shell trusted binaries from SQLite
     if let Some(data_store) = app_handle.try_state::<DataStore>() {
         match data_store.conn() {
-            Ok(conn) => {
-                match crate::storage::shell::cleanup_extension(&conn, extension_id) {
-                    Ok(_) => info!("Cleared shell trusted binaries for extension '{}'", extension_id),
-                    Err(e) => warn!("Failed to clear shell trust for '{}': {}", extension_id, e),
-                }
-            }
+            Ok(conn) => match crate::storage::shell::cleanup_extension(&conn, extension_id) {
+                Ok(_) => info!(
+                    "Cleared shell trusted binaries for extension '{}'",
+                    extension_id
+                ),
+                Err(e) => warn!("Failed to clear shell trust for '{}': {}", extension_id, e),
+            },
             Err(e) => warn!("Failed to acquire DB lock for shell cleanup: {}", e),
         }
     }
@@ -189,7 +214,10 @@ pub(crate) fn uninstall(
     if let Some(power_registry) = app_handle.try_state::<crate::power::PowerRegistry>() {
         match power_registry.release_all_for_extension(extension_id) {
             Ok(n) if n > 0 => {
-                info!("Released {} power inhibitors for extension '{}'", n, extension_id)
+                info!(
+                    "Released {} power inhibitors for extension '{}'",
+                    n, extension_id
+                )
             }
             Ok(_) => {}
             Err(e) => warn!(
@@ -245,22 +273,20 @@ pub(crate) fn uninstall(
                 info!("Cleared {} timer(s) for extension '{}'", n, extension_id)
             }
             Ok(_) => {}
-            Err(e) => warn!(
-                "Failed to clear timers for '{}': {}",
-                extension_id, e
-            ),
+            Err(e) => warn!("Failed to clear timers for '{}': {}", extension_id, e),
         }
     }
 
     // Kill any shell processes this extension left running. Mirrors the
     // power-inhibitor sweep above so uninstall doesn't orphan child
     // processes whose parent extension is gone.
-    if let Some(shell_registry) =
-        app_handle.try_state::<crate::shell::ShellProcessRegistry>()
-    {
+    if let Some(shell_registry) = app_handle.try_state::<crate::shell::ShellProcessRegistry>() {
         match shell_registry.kill_all_for_extension(extension_id) {
             Ok(n) if n > 0 => {
-                info!("Killed {} shell process(es) for extension '{}'", n, extension_id)
+                info!(
+                    "Killed {} shell process(es) for extension '{}'",
+                    n, extension_id
+                )
             }
             Ok(_) => {}
             Err(e) => warn!(
@@ -271,10 +297,15 @@ pub(crate) fn uninstall(
     }
 
     // Remove all system-event subscriptions held by this extension.
-    if let Some(hub) = app_handle.try_state::<std::sync::Arc<crate::system_events::SystemEventsHub>>() {
+    if let Some(hub) =
+        app_handle.try_state::<std::sync::Arc<crate::system_events::SystemEventsHub>>()
+    {
         match hub.remove_all_for_extension(extension_id) {
             Ok(n) if n > 0 => {
-                info!("Removed {} system-event subscriptions for extension '{}'", n, extension_id)
+                info!(
+                    "Removed {} system-event subscriptions for extension '{}'",
+                    n, extension_id
+                )
             }
             Ok(_) => {}
             Err(e) => warn!(
@@ -288,7 +319,10 @@ pub(crate) fn uninstall(
     if let Some(hub) = app_handle.try_state::<std::sync::Arc<crate::app_events::AppEventsHub>>() {
         match hub.remove_all_for_extension(extension_id) {
             Ok(n) if n > 0 => {
-                info!("Removed {} app-event subscriptions for extension '{}'", n, extension_id)
+                info!(
+                    "Removed {} app-event subscriptions for extension '{}'",
+                    n, extension_id
+                )
             }
             Ok(_) => {}
             Err(e) => warn!(
@@ -299,8 +333,7 @@ pub(crate) fn uninstall(
     }
 
     // Remove all application-index subscriptions held by this extension.
-    if let Some(hub) =
-        app_handle.try_state::<std::sync::Arc<crate::index_events::IndexEventsHub>>()
+    if let Some(hub) = app_handle.try_state::<std::sync::Arc<crate::index_events::IndexEventsHub>>()
     {
         match hub.remove_all_for_extension(extension_id) {
             Ok(n) if n > 0 => info!(
@@ -373,7 +406,10 @@ pub(crate) fn uninstall(
 
     // Tear down both worker and view context machines so a subsequent
     // reinstall doesn't collide with stale mailbox/strike entries.
-    if let Some(mgr) = app_handle.try_state::<std::sync::Arc<crate::extensions::extension_runtime::ExtensionRuntimeManager>>() {
+    if let Some(mgr) = app_handle
+        .try_state::<std::sync::Arc<crate::extensions::extension_runtime::ExtensionRuntimeManager>>(
+        )
+    {
         crate::commands::extension_runtime::notify_extension_removed(
             &mgr,
             app_handle,
@@ -387,7 +423,9 @@ pub(crate) fn uninstall(
     // mailbox; a late `state:set` from a dying iframe is rejected upstream
     // by the IpcRouter (the registry no longer knows the extension), so
     // this clear cannot race a repopulating write.
-    if let Some(state_svc) = app_handle.try_state::<std::sync::Arc<crate::extensions::extension_state::ExtensionStateService>>() {
+    if let Some(state_svc) = app_handle
+        .try_state::<std::sync::Arc<crate::extensions::extension_state::ExtensionStateService>>()
+    {
         match state_svc.clear(extension_id) {
             Ok(n) if n > 0 => {
                 info!("Cleared {n} extension_state row(s) for extension '{extension_id}'")
@@ -397,31 +435,34 @@ pub(crate) fn uninstall(
         }
     }
 
-    info!("Extension '{}' uninstalled successfully (directory + settings + registry + storage)", extension_id);
+    info!(
+        "Extension '{}' uninstalled successfully (directory + settings + registry + storage)",
+        extension_id
+    );
     Ok(())
 }
 
 pub(crate) fn list_installed(app_handle: &AppHandle) -> Result<Vec<String>, AppError> {
     let extensions_dir = get_app_data_dir(app_handle)?.join("extensions");
-    
+
     if !extensions_dir.exists() {
         return Ok(Vec::new());
     }
-    
+
     let entries = fs::read_dir(&extensions_dir)?;
-    
+
     let mut extension_dirs = Vec::new();
-    
+
     for entry in entries {
         let entry = entry?;
-        
+
         if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
             if let Some(path_str) = entry.path().to_str() {
                 extension_dirs.push(path_str.to_string());
             }
         }
     }
-    
+
     Ok(extension_dirs)
 }
 
@@ -455,7 +496,7 @@ pub(crate) fn discover_all(
             warn!("Dev extension {} has no manifest.json at {:?}", id, path);
             continue;
         };
-        
+
         match discovery::read_manifest(&actual_path) {
             Ok(manifest) => {
                 let compatibility = discovery::validate_compatibility(&manifest);
@@ -482,7 +523,8 @@ pub(crate) fn discover_all(
         reg.insert(record.manifest.id.clone(), record.clone());
     }
 
-    info!("Discovered {} extensions ({} built-in, {} installed/dev)",
+    info!(
+        "Discovered {} extensions ({} built-in, {} installed/dev)",
         all_records.len(),
         all_records.iter().filter(|r| r.is_built_in).count(),
         all_records.iter().filter(|r| !r.is_built_in).count(),
@@ -496,9 +538,10 @@ pub(crate) fn apply_extension_states(
     records: &mut [ExtensionRecord],
 ) -> Result<(), AppError> {
     use tauri_plugin_store::StoreExt;
-    let store = app_handle.store("settings.dat")
+    let store = app_handle
+        .store("settings.dat")
         .map_err(|e| AppError::Other(format!("Failed to open settings store: {}", e)))?;
-    
+
     if let Some(settings_value) = store.get("settings") {
         if let Some(extensions) = settings_value.get("extensions") {
             if let Some(enabled_map) = extensions.get("enabled") {
@@ -512,7 +555,7 @@ pub(crate) fn apply_extension_states(
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -541,9 +584,7 @@ mod tests {
         app_handle: &tauri::AppHandle<R>,
         extension_id: &str,
     ) {
-        if let Some(reg) =
-            app_handle.try_state::<Arc<NotificationActionRegistry>>()
-        {
+        if let Some(reg) = app_handle.try_state::<Arc<NotificationActionRegistry>>() {
             let n = reg.remove_all_for_extension(extension_id);
             if n > 0 {
                 info!("Dropped {n} pending notification actions for extension '{extension_id}'");
@@ -608,7 +649,11 @@ mod tests {
     ) -> usize {
         app_handle
             .try_state::<crate::shell::ShellProcessRegistry>()
-            .map(|reg| reg.remove_all_for_extension(extension_id).unwrap_or_default().len())
+            .map(|reg| {
+                reg.remove_all_for_extension(extension_id)
+                    .unwrap_or_default()
+                    .len()
+            })
             .unwrap_or(0)
     }
 
@@ -732,12 +777,8 @@ mod tests {
     /// extension". The block dispatches to
     /// `searchbar_accessory::clear_for_extension`, so the helper invokes
     /// the same function the production block does.
-    fn run_searchbar_accessory_cleanup(
-        conn: &rusqlite::Connection,
-        extension_id: &str,
-    ) -> u64 {
-        crate::storage::searchbar_accessory::clear_for_extension(conn, extension_id)
-            .unwrap_or(0)
+    fn run_searchbar_accessory_cleanup(conn: &rusqlite::Connection, extension_id: &str) -> u64 {
+        crate::storage::searchbar_accessory::clear_for_extension(conn, extension_id).unwrap_or(0)
     }
 
     #[test]
@@ -745,12 +786,9 @@ mod tests {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         crate::storage::searchbar_accessory::init_table(&conn).unwrap();
 
-        crate::storage::searchbar_accessory::set(&conn, "ext-target", "cmd-1", "images")
-            .unwrap();
-        crate::storage::searchbar_accessory::set(&conn, "ext-target", "cmd-2", "text")
-            .unwrap();
-        crate::storage::searchbar_accessory::set(&conn, "ext-other", "cmd-1", "files")
-            .unwrap();
+        crate::storage::searchbar_accessory::set(&conn, "ext-target", "cmd-1", "images").unwrap();
+        crate::storage::searchbar_accessory::set(&conn, "ext-target", "cmd-2", "text").unwrap();
+        crate::storage::searchbar_accessory::set(&conn, "ext-other", "cmd-1", "files").unwrap();
 
         let removed = run_searchbar_accessory_cleanup(&conn, "ext-target");
         assert_eq!(removed, 2);
@@ -796,7 +834,9 @@ pub(crate) fn set_enabled(
         let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
         if let Some(record) = reg.get_mut(extension_id) {
             if record.is_built_in {
-                return Err(AppError::Validation("Cannot disable built-in extensions".into()));
+                return Err(AppError::Validation(
+                    "Cannot disable built-in extensions".into(),
+                ));
             }
             record.enabled = enabled;
             has_background_main = record
@@ -806,36 +846,42 @@ pub(crate) fn set_enabled(
                 .map(|b| !b.main.trim().is_empty())
                 .unwrap_or(false);
         } else {
-            return Err(AppError::NotFound(format!("Extension not found: {}", extension_id)));
+            return Err(AppError::NotFound(format!(
+                "Extension not found: {}",
+                extension_id
+            )));
         }
     }
 
     // Persist to store
     use tauri_plugin_store::StoreExt;
-    let store = app_handle.store("settings.dat")
+    let store = app_handle
+        .store("settings.dat")
         .map_err(|e| AppError::Other(format!("Failed to open settings store: {}", e)))?;
-    
-    let mut settings = store.get("settings")
-        .unwrap_or(serde_json::json!({}));
-    
+
+    let mut settings = store.get("settings").unwrap_or(serde_json::json!({}));
+
     if settings.get("extensions").is_none() {
         settings["extensions"] = serde_json::json!({"enabled": {}});
     }
-    
+
     let extensions = settings.get_mut("extensions").unwrap();
     if extensions.get("enabled").is_none() {
         extensions["enabled"] = serde_json::json!({});
     }
     extensions["enabled"][extension_id] = serde_json::json!(enabled);
-    
+
     store.set("settings", settings);
-    store.save()
+    store
+        .save()
         .map_err(|e| AppError::Other(format!("Failed to save settings: {}", e)))?;
 
     // Disabling an extension tears down its menu-bar tray icons; they'll be
     // recreated the next time the extension registers them after re-enable.
     if !enabled {
-        if let Some(tray_mgr) = app_handle.try_state::<crate::extension_tray::ExtensionTrayManager>() {
+        if let Some(tray_mgr) =
+            app_handle.try_state::<crate::extension_tray::ExtensionTrayManager>()
+        {
             match tray_mgr.remove_all_for_extension(extension_id) {
                 Ok(removed) if !removed.is_empty() => {
                     info!(
@@ -855,9 +901,7 @@ pub(crate) fn set_enabled(
         // Kill any shell processes this extension left running. On re-enable
         // the extension boots fresh; leaving orphaned children around would
         // leak both PIDs and the outer iframe's stream handles.
-        if let Some(shell_registry) =
-            app_handle.try_state::<crate::shell::ShellProcessRegistry>()
-        {
+        if let Some(shell_registry) = app_handle.try_state::<crate::shell::ShellProcessRegistry>() {
             match shell_registry.kill_all_for_extension(extension_id) {
                 Ok(n) if n > 0 => {
                     info!(
@@ -997,8 +1041,7 @@ pub(crate) fn run_tool_registry_sync_on_enable_change<R: tauri::Runtime>(
     extension_id: &str,
     enabled: bool,
 ) {
-    let Some(tool_registry) =
-        app_handle.try_state::<crate::agents::tools::ToolRegistryState>()
+    let Some(tool_registry) = app_handle.try_state::<crate::agents::tools::ToolRegistryState>()
     else {
         return;
     };
@@ -1006,7 +1049,10 @@ pub(crate) fn run_tool_registry_sync_on_enable_change<R: tauri::Runtime>(
     if enabled {
         let manifest_tools: Vec<crate::agents::tools::ManifestTool> = {
             let Ok(reg) = registry.extensions.lock() else {
-                warn!("Failed to lock extension registry while syncing tools for '{}'", extension_id);
+                warn!(
+                    "Failed to lock extension registry while syncing tools for '{}'",
+                    extension_id
+                );
                 return;
             };
             reg.get(extension_id)
@@ -1017,11 +1063,17 @@ pub(crate) fn run_tool_registry_sync_on_enable_change<R: tauri::Runtime>(
             return;
         }
         if let Err(e) = tool_registry.register_tier2(extension_id, manifest_tools) {
-            warn!("Failed to register tools for enabled '{}': {}", extension_id, e);
+            warn!(
+                "Failed to register tools for enabled '{}': {}",
+                extension_id, e
+            );
         }
     } else {
         if let Err(e) = tool_registry.unregister_tier2(extension_id) {
-            warn!("Failed to unregister tools for disabled '{}': {}", extension_id, e);
+            warn!(
+                "Failed to unregister tools for disabled '{}': {}",
+                extension_id, e
+            );
         }
     }
 }
@@ -1033,13 +1085,15 @@ pub(crate) fn run_tool_registry_cleanup_on_uninstall<R: tauri::Runtime>(
     app_handle: &tauri::AppHandle<R>,
     extension_id: &str,
 ) {
-    let Some(tool_registry) =
-        app_handle.try_state::<crate::agents::tools::ToolRegistryState>()
+    let Some(tool_registry) = app_handle.try_state::<crate::agents::tools::ToolRegistryState>()
     else {
         return;
     };
     if let Err(e) = tool_registry.unregister_tier2(extension_id) {
-        warn!("Failed to unregister tools for uninstalled '{}': {}", extension_id, e);
+        warn!(
+            "Failed to unregister tools for uninstalled '{}': {}",
+            extension_id, e
+        );
     }
 }
 
@@ -1057,8 +1111,7 @@ pub(crate) fn run_tool_registry_seed_for_enabled_extensions<R: tauri::Runtime>(
     app_handle: &tauri::AppHandle<R>,
     registry: &ExtensionRegistryState,
 ) {
-    let Some(tool_registry) =
-        app_handle.try_state::<crate::agents::tools::ToolRegistryState>()
+    let Some(tool_registry) = app_handle.try_state::<crate::agents::tools::ToolRegistryState>()
     else {
         return;
     };
@@ -1104,7 +1157,8 @@ pub(crate) fn set_enabled_with_tools<R: tauri::Runtime>(
 ) -> Result<(), AppError> {
     let manifest_tools: Vec<crate::agents::tools::ManifestTool> = {
         let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
-        let record = reg.get_mut(extension_id)
+        let record = reg
+            .get_mut(extension_id)
             .ok_or_else(|| AppError::NotFound(format!("Extension not found: {}", extension_id)))?;
         record.enabled = enabled;
         record.manifest.tools.clone().unwrap_or_default()

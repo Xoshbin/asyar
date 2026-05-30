@@ -141,10 +141,8 @@ mod tests {
         make_chromium_layout(dir.path(), "chrome", &["Default", "Profile 1", "Profile 2"]);
         let scanner = BrowserScanner::with_home(dir.path().to_path_buf());
         let browsers = scanner.scan();
-        let chrome_profiles: Vec<&BrowserId> = browsers
-            .iter()
-            .filter(|b| b.variant == "chrome")
-            .collect();
+        let chrome_profiles: Vec<&BrowserId> =
+            browsers.iter().filter(|b| b.variant == "chrome").collect();
         assert_eq!(chrome_profiles.len(), 3);
     }
 

@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::error::AppError;
 use super::types::{Run, RunStatus};
+use crate::error::AppError;
 
 /// In-memory registry of active Runs. Singleton via `instance()`; tests
 /// should construct isolated instances with `new_for_test()`.
@@ -32,7 +32,10 @@ impl RunRegistry {
         }
         let mut guard = self.runs.lock().expect("RunRegistry mutex poisoned");
         if guard.contains_key(&run.id) {
-            return Err(AppError::Validation(format!("duplicate run id: {}", run.id)));
+            return Err(AppError::Validation(format!(
+                "duplicate run id: {}",
+                run.id
+            )));
         }
         guard.insert(run.id.clone(), run);
         Ok(())
@@ -163,10 +166,14 @@ mod tests {
         let reg = RunRegistry::new_for_test();
         reg.insert(make_test_run("r1")).unwrap();
 
-        let after_running = reg.transition("r1", RunStatus::Running, None, None).unwrap();
+        let after_running = reg
+            .transition("r1", RunStatus::Running, None, None)
+            .unwrap();
         assert_eq!(after_running.status, RunStatus::Running);
 
-        let after_succeeded = reg.transition("r1", RunStatus::Succeeded, None, None).unwrap();
+        let after_succeeded = reg
+            .transition("r1", RunStatus::Succeeded, None, None)
+            .unwrap();
         assert_eq!(after_succeeded.status, RunStatus::Succeeded);
 
         // get() must also reflect the final status
@@ -201,7 +208,8 @@ mod tests {
     fn transition_succeeded_to_running_rejected() {
         let reg = RunRegistry::new_for_test();
         reg.insert(make_test_run("r3")).unwrap();
-        reg.transition("r3", RunStatus::Succeeded, None, None).unwrap();
+        reg.transition("r3", RunStatus::Succeeded, None, None)
+            .unwrap();
 
         let result = reg.transition("r3", RunStatus::Running, None, None);
         assert!(
@@ -236,18 +244,25 @@ mod tests {
 
         // Insert Succeeded via transition
         reg.insert(make_test_run("succeeded-1")).unwrap();
-        reg.transition("succeeded-1", RunStatus::Succeeded, None, None).unwrap();
+        reg.transition("succeeded-1", RunStatus::Succeeded, None, None)
+            .unwrap();
 
         // Insert Failed via transition
         reg.insert(make_test_run("failed-1")).unwrap();
-        reg.transition("failed-1", RunStatus::Failed, None, None).unwrap();
+        reg.transition("failed-1", RunStatus::Failed, None, None)
+            .unwrap();
 
         // Insert Cancelled via transition
         reg.insert(make_test_run("cancelled-1")).unwrap();
-        reg.transition("cancelled-1", RunStatus::Cancelled, None, None).unwrap();
+        reg.transition("cancelled-1", RunStatus::Cancelled, None, None)
+            .unwrap();
 
         let active = reg.list_active();
-        assert_eq!(active.len(), 2, "expected exactly 2 active runs, got {active:?}");
+        assert_eq!(
+            active.len(),
+            2,
+            "expected exactly 2 active runs, got {active:?}"
+        );
 
         let ids: Vec<&str> = active.iter().map(|r| r.id.as_str()).collect();
         assert!(ids.contains(&"pending-1"), "pending-1 should be active");
@@ -273,7 +288,10 @@ mod tests {
         reg.insert(run).unwrap();
 
         let got = reg.get("can-1").unwrap();
-        assert!(got.cancellable, "cancellable field not preserved after insert+get");
+        assert!(
+            got.cancellable,
+            "cancellable field not preserved after insert+get"
+        );
     }
 
     // ---- ended_at semantics -------------------------------------------------
@@ -282,26 +300,45 @@ mod tests {
     fn pending_to_running_leaves_ended_at_none() {
         let registry = RunRegistry::new_for_test();
         registry.insert(make_test_run("r1")).unwrap();
-        let run = registry.transition("r1", RunStatus::Running, None, None).unwrap();
-        assert!(run.ended_at.is_none(), "Running is non-terminal; ended_at must remain None");
+        let run = registry
+            .transition("r1", RunStatus::Running, None, None)
+            .unwrap();
+        assert!(
+            run.ended_at.is_none(),
+            "Running is non-terminal; ended_at must remain None"
+        );
     }
 
     #[test]
     fn running_to_succeeded_sets_ended_at() {
         let registry = RunRegistry::new_for_test();
         registry.insert(make_test_run("r1")).unwrap();
-        registry.transition("r1", RunStatus::Running, None, None).unwrap();
-        let run = registry.transition("r1", RunStatus::Succeeded, None, None).unwrap();
-        assert!(run.ended_at.is_some(), "Succeeded is terminal; ended_at must be set");
+        registry
+            .transition("r1", RunStatus::Running, None, None)
+            .unwrap();
+        let run = registry
+            .transition("r1", RunStatus::Succeeded, None, None)
+            .unwrap();
+        assert!(
+            run.ended_at.is_some(),
+            "Succeeded is terminal; ended_at must be set"
+        );
     }
 
     #[test]
     fn running_to_cancelled_sets_ended_at() {
         let registry = RunRegistry::new_for_test();
         registry.insert(make_test_run("r1")).unwrap();
-        registry.transition("r1", RunStatus::Running, None, None).unwrap();
-        let run = registry.transition("r1", RunStatus::Cancelled, None, None).unwrap();
-        assert!(run.ended_at.is_some(), "Cancelled is terminal; ended_at must be set");
+        registry
+            .transition("r1", RunStatus::Running, None, None)
+            .unwrap();
+        let run = registry
+            .transition("r1", RunStatus::Cancelled, None, None)
+            .unwrap();
+        assert!(
+            run.ended_at.is_some(),
+            "Cancelled is terminal; ended_at must be set"
+        );
     }
 
     // ---- insert terminal guard ----------------------------------------------
@@ -312,6 +349,9 @@ mod tests {
         let mut run = make_test_run("r1");
         run.status = RunStatus::Succeeded;
         let result = registry.insert(run);
-        assert!(result.is_err(), "registry must reject inserts in terminal status");
+        assert!(
+            result.is_err(),
+            "registry must reject inserts in terminal status"
+        );
     }
 }

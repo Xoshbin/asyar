@@ -93,9 +93,9 @@ pub fn list_recent(conn: &Connection, limit: usize) -> Result<Vec<Run>, AppError
             let kind_str: String = row.get(1)?;
             let status_str: String = row.get(3)?;
             Ok((
-                row.get::<_, String>(0)?,          // id
+                row.get::<_, String>(0)?, // id
                 kind_str,
-                row.get::<_, String>(2)?,          // label
+                row.get::<_, String>(2)?, // label
                 status_str,
                 row.get::<_, Option<String>>(4)?,  // extension_id
                 row.get::<_, i64>(5)?,             // started_at
@@ -110,8 +110,19 @@ pub fn list_recent(conn: &Connection, limit: usize) -> Result<Vec<Run>, AppError
 
     let mut runs = Vec::new();
     for row in rows {
-        let (id, kind_str, label, status_str, extension_id, started_at, ended_at, cancellable_int, error_message, subject_id, tail_output) =
-            row.map_err(|e| AppError::Database(e.to_string()))?;
+        let (
+            id,
+            kind_str,
+            label,
+            status_str,
+            extension_id,
+            started_at,
+            ended_at,
+            cancellable_int,
+            error_message,
+            subject_id,
+            tail_output,
+        ) = row.map_err(|e| AppError::Database(e.to_string()))?;
         let kind = kind_from_db(&kind_str)?;
         let status = status_from_db(&status_str)?;
         runs.push(Run {
@@ -133,11 +144,8 @@ pub fn list_recent(conn: &Connection, limit: usize) -> Result<Vec<Run>, AppError
 
 /// Delete a single run by id. Deleting an unknown id is a no-op (0 rows affected, no error).
 pub fn delete_one(conn: &Connection, id: &str) -> Result<(), AppError> {
-    conn.execute(
-        "DELETE FROM runs_history WHERE id = ?1",
-        params![id],
-    )
-    .map_err(|e| AppError::Database(e.to_string()))?;
+    conn.execute("DELETE FROM runs_history WHERE id = ?1", params![id])
+        .map_err(|e| AppError::Database(e.to_string()))?;
     Ok(())
 }
 

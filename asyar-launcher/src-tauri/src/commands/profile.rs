@@ -87,11 +87,8 @@ pub async fn export_profile(
         .get("encryptionSalt")
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    let salt = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        salt_b64,
-    )
-    .unwrap_or_default();
+    let salt = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, salt_b64)
+        .unwrap_or_default();
 
     // Process each category: encrypt or strip sensitive fields
     let mut processed_categories = Vec::new();
@@ -121,8 +118,13 @@ pub async fn export_profile(
         });
     }
 
-    archive::pack_archive(&manifest_json, &processed_categories, &binary_assets, &destination)
-        .await?;
+    archive::pack_archive(
+        &manifest_json,
+        &processed_categories,
+        &binary_assets,
+        &destination,
+    )
+    .await?;
 
     // password (Zeroizing<String>) is dropped and zeroed here automatically
 
@@ -147,11 +149,8 @@ pub async fn import_profile(
                 .get("encryptionSalt")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            let salt = base64::Engine::decode(
-                &base64::engine::general_purpose::STANDARD,
-                salt_b64,
-            )
-            .unwrap_or_default();
+            let salt = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, salt_b64)
+                .unwrap_or_default();
 
             for (_filename, json_str) in contents.category_files.iter_mut() {
                 let mut value: Value = serde_json::from_str(json_str)?;
@@ -182,9 +181,7 @@ pub async fn show_save_profile_dialog(
 }
 
 #[tauri::command]
-pub async fn show_open_profile_dialog(
-    app_handle: AppHandle,
-) -> Result<Option<String>, AppError> {
+pub async fn show_open_profile_dialog(app_handle: AppHandle) -> Result<Option<String>, AppError> {
     use tauri_plugin_dialog::DialogExt;
     let result = app_handle
         .dialog()
@@ -208,7 +205,10 @@ mod tests {
         let paths = vec!["apiKey".to_string()];
         encrypt_sensitive_fields(&mut value, &paths, "pw", b"salt-1234567890a").unwrap();
 
-        assert!(value["apiKey"].as_str().unwrap().starts_with("enc:aes256gcm:"));
+        assert!(value["apiKey"]
+            .as_str()
+            .unwrap()
+            .starts_with("enc:aes256gcm:"));
         assert_eq!(value["provider"], "openai");
         assert_eq!(value["temperature"], 0.7);
     }

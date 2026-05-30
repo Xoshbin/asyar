@@ -39,7 +39,10 @@ mod tests {
 
     #[test]
     fn ttl_matches_registry_default() {
-        assert_eq!(Duration::from_secs(TTL_SECS), crate::notifications::DEFAULT_TTL);
+        assert_eq!(
+            Duration::from_secs(TTL_SECS),
+            crate::notifications::DEFAULT_TTL
+        );
     }
 
     #[test]

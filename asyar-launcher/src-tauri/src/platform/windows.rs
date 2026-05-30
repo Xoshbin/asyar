@@ -1,30 +1,28 @@
-use std::path::Path;
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
+use std::path::Path;
 use tauri::{Runtime, WebviewWindow};
 use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::HWND;
-use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits,
-    SelectObject, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS,
-};
-use windows::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON};
-use windows::Win32::UI::WindowsAndMessaging::{
-    DestroyIcon, GetIconInfo, GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOOLWINDOW, WS_EX_LAYERED,
-    GetWindowLongW, SetWindowLongW, GWL_STYLE, WS_POPUP, SetWindowPos,
-    SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
-    GetForegroundWindow, SetForegroundWindow, ICONINFO,
-};
 use windows::Win32::Graphics::Dwm::{
     DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+};
+use windows::Win32::Graphics::Gdi::{
+    CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, SelectObject, BITMAPINFO,
+    BITMAPINFOHEADER, DIB_RGB_COLORS,
 };
 use windows::Win32::Storage::FileSystem::FILE_FLAGS_AND_ATTRIBUTES;
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
 };
+use windows::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowTextW, GetWindowThreadProcessId,
+    DestroyIcon, GetForegroundWindow, GetIconInfo, GetWindowLongPtrW, GetWindowLongW,
+    SetForegroundWindow, SetWindowLongPtrW, SetWindowLongW, SetWindowPos, GWL_EXSTYLE, GWL_STYLE,
+    ICONINFO, SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_LAYERED,
+    WS_EX_TOOLWINDOW, WS_POPUP,
 };
+use windows::Win32::UI::WindowsAndMessaging::{GetWindowTextW, GetWindowThreadProcessId};
 
 /// Configures a window with Windows-specific Spotlight styling: DWM polish
 /// (system backdrop + rounded corners) plus taskbar/Alt+Tab exclusion.
@@ -68,7 +66,10 @@ pub fn apply_dwm_polish(hwnd: HWND) {
         let _ = SetWindowPos(
             hwnd,
             None,
-            0, 0, 0, 0,
+            0,
+            0,
+            0,
+            0,
             SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
         );
     }
@@ -94,18 +95,20 @@ pub fn capture_foreground_window() -> isize {
 
 /// Restores focus to a previously captured foreground window.
 pub fn restore_foreground_window(hwnd: isize) {
-    if hwnd == 0 { return; }
+    if hwnd == 0 {
+        return;
+    }
     // SAFETY: hwnd was previously returned by GetForegroundWindow() and has not
     // been destroyed (the launcher was just shown/hidden, not the target window).
-    unsafe { 
-        let _ = SetForegroundWindow(HWND(hwnd as *mut _)); 
+    unsafe {
+        let _ = SetForegroundWindow(HWND(hwnd as *mut _));
     }
 }
 
 /// Extracts a high-resolution PNG icon from a Windows executable or shortcut.
 pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     let exe_path = path.to_str()?;
-    
+
     // Convert path to null-terminated wide string
     let wide_path: Vec<u16> = OsStr::new(exe_path)
         .encode_wide()
@@ -140,7 +143,9 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     let got_info = unsafe { GetIconInfo(hicon, &mut icon_info) };
 
     if got_info.is_err() {
-        unsafe { let _ = DestroyIcon(hicon); }
+        unsafe {
+            let _ = DestroyIcon(hicon);
+        }
         return None;
     }
 
@@ -188,8 +193,12 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     unsafe {
         SelectObject(dc, old_obj);
         let _ = DeleteDC(dc);
-        if !icon_info.hbmColor.is_invalid() { let _ = DeleteObject(icon_info.hbmColor.into()); }
-        if !icon_info.hbmMask.is_invalid()  { let _ = DeleteObject(icon_info.hbmMask.into());  }
+        if !icon_info.hbmColor.is_invalid() {
+            let _ = DeleteObject(icon_info.hbmColor.into());
+        }
+        if !icon_info.hbmMask.is_invalid() {
+            let _ = DeleteObject(icon_info.hbmMask.into());
+        }
         let _ = DestroyIcon(hicon);
     }
 
@@ -215,21 +224,28 @@ pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
     // Encode as PNG
     let mut buf = Vec::new();
     {
-        let mut encoder = png::Encoder::new(std::io::Cursor::new(&mut buf), size as u32, size as u32);
+        let mut encoder =
+            png::Encoder::new(std::io::Cursor::new(&mut buf), size as u32, size as u32);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
         let mut writer = encoder.write_header().ok()?;
         writer.write_image_data(&pixels).ok()?;
     }
 
-    if buf.is_empty() { None } else { Some(buf) }
+    if buf.is_empty() {
+        None
+    } else {
+        Some(buf)
+    }
 }
 
 /// Retrieves metadata about the current foreground window.
 pub fn get_frontmost_application_metadata() -> Option<(String, String, String)> {
     unsafe {
         let hwnd = GetForegroundWindow();
-        if hwnd.is_invalid() { return None; }
+        if hwnd.is_invalid() {
+            return None;
+        }
 
         // 1. Get Window Title
         let mut title_buf = [0u16; 512];

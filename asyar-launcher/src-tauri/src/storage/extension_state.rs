@@ -33,11 +33,7 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
 /// row exists. The stored JSON is parsed on read — rows written by `set` are
 /// guaranteed to be valid JSON, so parse failure here indicates an external
 /// mutation and is surfaced as a `Database` error rather than `None`.
-pub fn get(
-    conn: &Connection,
-    extension_id: &str,
-    key: &str,
-) -> Result<Option<Value>, AppError> {
+pub fn get(conn: &Connection, extension_id: &str, key: &str) -> Result<Option<Value>, AppError> {
     let row = conn.query_row(
         "SELECT value_json FROM extension_state WHERE extension_id = ?1 AND key = ?2",
         params![extension_id, key],
@@ -50,7 +46,9 @@ pub fn get(
             Ok(Some(v))
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(AppError::Database(format!("Failed to get extension_state: {e}"))),
+        Err(e) => Err(AppError::Database(format!(
+            "Failed to get extension_state: {e}"
+        ))),
     }
 }
 
@@ -93,9 +91,8 @@ pub fn get_all(conn: &Connection, extension_id: &str) -> Result<Vec<StateEntry>,
         .map_err(|e| AppError::Database(format!("Failed to query extension_state: {e}")))?;
     let mut out = Vec::new();
     for row in rows {
-        let (key, json, updated_at) = row.map_err(|e| {
-            AppError::Database(format!("Failed to read extension_state row: {e}"))
-        })?;
+        let (key, json, updated_at) = row
+            .map_err(|e| AppError::Database(format!("Failed to read extension_state row: {e}")))?;
         let value: Value = serde_json::from_str(&json).map_err(|e| {
             AppError::Database(format!("Corrupt extension_state JSON for {key}: {e}"))
         })?;
@@ -149,7 +146,10 @@ mod tests {
         let conn = setup();
         set(&conn, "ext.a", "k", &serde_json::json!(1), 10).unwrap();
         set(&conn, "ext.a", "k", &serde_json::json!(2), 20).unwrap();
-        assert_eq!(get(&conn, "ext.a", "k").unwrap(), Some(serde_json::json!(2)));
+        assert_eq!(
+            get(&conn, "ext.a", "k").unwrap(),
+            Some(serde_json::json!(2))
+        );
     }
 
     #[test]
@@ -189,10 +189,16 @@ mod tests {
     fn set_persists_null_and_scalar_values() {
         let conn = setup();
         set(&conn, "ext.a", "null", &serde_json::Value::Null, 0).unwrap();
-        assert_eq!(get(&conn, "ext.a", "null").unwrap(), Some(serde_json::Value::Null));
+        assert_eq!(
+            get(&conn, "ext.a", "null").unwrap(),
+            Some(serde_json::Value::Null)
+        );
 
         set(&conn, "ext.a", "num", &serde_json::json!(2.5), 0).unwrap();
-        assert_eq!(get(&conn, "ext.a", "num").unwrap(), Some(serde_json::json!(2.5)));
+        assert_eq!(
+            get(&conn, "ext.a", "num").unwrap(),
+            Some(serde_json::json!(2.5))
+        );
     }
 
     #[test]

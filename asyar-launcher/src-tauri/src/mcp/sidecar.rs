@@ -42,7 +42,13 @@ pub fn resolve_command(
     bundled_bun: Option<&PathBuf>,
     bundled_uv: Option<&PathBuf>,
 ) -> Result<ResolvedCommand, McpClientError> {
-    resolve_command_with_probe(command, args, bundled_bun, bundled_uv, system_command_exists)
+    resolve_command_with_probe(
+        command,
+        args,
+        bundled_bun,
+        bundled_uv,
+        system_command_exists,
+    )
 }
 
 /// Resolve with an injectable probe function for testability.
@@ -108,11 +114,7 @@ pub fn resolve_command_with_probe<F: Fn(&str) -> bool>(
                     "python not found on PATH and no bundled uv available".into(),
                 )
             })?;
-            let mut new_args = vec![
-                "run".to_string(),
-                "python".to_string(),
-                "--".to_string(),
-            ];
+            let mut new_args = vec!["run".to_string(), "python".to_string(), "--".to_string()];
             new_args.extend(args.iter().cloned());
             Ok(ResolvedCommand {
                 program: uv.clone(),
@@ -208,7 +210,10 @@ mod tests {
             resolve_command_with_probe("npx", &args, Some(&bun), None, |_| false).expect("resolve");
 
         assert_eq!(result.program, bun);
-        assert_eq!(result.args, sv(&["x", "@modelcontextprotocol/server-filesystem", "/tmp"]));
+        assert_eq!(
+            result.args,
+            sv(&["x", "@modelcontextprotocol/server-filesystem", "/tmp"])
+        );
     }
 
     // 3. resolve_command_rewrites_node_to_bun_run_when_bun_available
@@ -217,8 +222,8 @@ mod tests {
         let bun = PathBuf::from("/bundled/bun");
         let args = sv(&["server.js", "--port", "3000"]);
 
-        let result =
-            resolve_command_with_probe("node", &args, Some(&bun), None, |_| false).expect("resolve");
+        let result = resolve_command_with_probe("node", &args, Some(&bun), None, |_| false)
+            .expect("resolve");
 
         assert_eq!(result.program, bun);
         assert_eq!(result.args, sv(&["run", "server.js", "--port", "3000"]));
@@ -234,7 +239,10 @@ mod tests {
             resolve_command_with_probe("uvx", &args, None, Some(&uv), |_| false).expect("resolve");
 
         assert_eq!(result.program, uv);
-        assert_eq!(result.args, sv(&["tool", "run", "mcp-server-git", "--repository", "/repo"]));
+        assert_eq!(
+            result.args,
+            sv(&["tool", "run", "mcp-server-git", "--repository", "/repo"])
+        );
     }
 
     // 5. resolve_command_rewrites_python_to_uv_run_python
@@ -243,17 +251,15 @@ mod tests {
         let uv = PathBuf::from("/bundled/uv");
         let args = sv(&["server.py"]);
 
-        let result =
-            resolve_command_with_probe("python", &args, None, Some(&uv), |_| false)
-                .expect("resolve python");
+        let result = resolve_command_with_probe("python", &args, None, Some(&uv), |_| false)
+            .expect("resolve python");
 
         assert_eq!(result.program, uv);
         assert_eq!(result.args, sv(&["run", "python", "--", "server.py"]));
 
         // Also test python3 alias
-        let result3 =
-            resolve_command_with_probe("python3", &args, None, Some(&uv), |_| false)
-                .expect("resolve python3");
+        let result3 = resolve_command_with_probe("python3", &args, None, Some(&uv), |_| false)
+            .expect("resolve python3");
 
         assert_eq!(result3.program, uv);
         assert_eq!(result3.args, sv(&["run", "python", "--", "server.py"]));
@@ -264,8 +270,7 @@ mod tests {
     fn resolve_command_returns_error_when_no_bun_for_npx_fallback() {
         let args = sv(&["some-package"]);
 
-        let result =
-            resolve_command_with_probe("npx", &args, None, None, |_| false);
+        let result = resolve_command_with_probe("npx", &args, None, None, |_| false);
 
         match result {
             Err(McpClientError::Transport(msg)) => {
@@ -283,9 +288,8 @@ mod tests {
     fn resolve_command_passes_through_unknown_commands() {
         let args = sv(&["--help"]);
 
-        let result =
-            resolve_command_with_probe("my-custom-server", &args, None, None, |_| false)
-                .expect("resolve");
+        let result = resolve_command_with_probe("my-custom-server", &args, None, None, |_| false)
+            .expect("resolve");
 
         assert_eq!(result.program, PathBuf::from("my-custom-server"));
         assert_eq!(result.args, args);

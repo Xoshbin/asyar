@@ -38,7 +38,12 @@ pub(crate) fn build_token_from_response(resp: TokenExchangeResponse, now: i64) -
     let expires_at = resp.expires_in.map(|secs| now + secs);
     let scopes = resp
         .scope
-        .map(|s| s.split(' ').filter(|p| !p.is_empty()).map(String::from).collect())
+        .map(|s| {
+            s.split(' ')
+                .filter(|p| !p.is_empty())
+                .map(String::from)
+                .collect()
+        })
         .unwrap_or_default();
 
     OAuthToken {

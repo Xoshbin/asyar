@@ -51,7 +51,12 @@ pub fn app_is_running(
     extension_id: Option<String>,
     bundle_id: String,
 ) -> Result<bool, AppError> {
-    app_is_running_inner(query.inner().as_ref(), &permissions, extension_id, bundle_id)
+    app_is_running_inner(
+        query.inner().as_ref(),
+        &permissions,
+        extension_id,
+        bundle_id,
+    )
 }
 
 pub(crate) fn app_events_subscribe_inner(
@@ -128,13 +133,9 @@ mod tests {
     fn subscribe_without_permission_is_rejected() {
         let hub = AppEventsHub::new();
         let perms = empty_permissions();
-        let err = app_events_subscribe_inner(
-            &hub,
-            &perms,
-            Some("ext-a".into()),
-            vec!["launched".into()],
-        )
-        .unwrap_err();
+        let err =
+            app_events_subscribe_inner(&hub, &perms, Some("ext-a".into()), vec!["launched".into()])
+                .unwrap_err();
         assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
     }
 
@@ -157,13 +158,9 @@ mod tests {
         let hub = AppEventsHub::new();
         // Holds application:read but NOT app:frontmost-watch.
         let perms = permissions_with("ext-a", APP_IS_RUNNING_PERMISSION);
-        let err = app_events_subscribe_inner(
-            &hub,
-            &perms,
-            Some("ext-a".into()),
-            vec!["launched".into()],
-        )
-        .unwrap_err();
+        let err =
+            app_events_subscribe_inner(&hub, &perms, Some("ext-a".into()), vec!["launched".into()])
+                .unwrap_err();
         assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
     }
 
@@ -228,13 +225,9 @@ mod tests {
     fn unsubscribe_roundtrip() {
         let hub = AppEventsHub::new();
         let perms = permissions_with("ext-a", APP_EVENTS_PERMISSION);
-        let id = app_events_subscribe_inner(
-            &hub,
-            &perms,
-            Some("ext-a".into()),
-            vec!["launched".into()],
-        )
-        .unwrap();
+        let id =
+            app_events_subscribe_inner(&hub, &perms, Some("ext-a".into()), vec!["launched".into()])
+                .unwrap();
         app_events_unsubscribe_inner(&hub, &perms, Some("ext-a".into()), id)
             .expect("unsubscribe ok");
     }
@@ -243,13 +236,8 @@ mod tests {
     fn unsubscribe_without_permission_is_rejected() {
         let hub = AppEventsHub::new();
         let perms = empty_permissions();
-        let err = app_events_unsubscribe_inner(
-            &hub,
-            &perms,
-            Some("ext-a".into()),
-            "bogus".into(),
-        )
-        .unwrap_err();
+        let err = app_events_unsubscribe_inner(&hub, &perms, Some("ext-a".into()), "bogus".into())
+            .unwrap_err();
         assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
     }
 
@@ -257,13 +245,8 @@ mod tests {
     fn unsubscribe_unknown_id_returns_not_found() {
         let hub = AppEventsHub::new();
         let perms = permissions_with("ext-a", APP_EVENTS_PERMISSION);
-        let err = app_events_unsubscribe_inner(
-            &hub,
-            &perms,
-            Some("ext-a".into()),
-            "bogus".into(),
-        )
-        .unwrap_err();
+        let err = app_events_unsubscribe_inner(&hub, &perms, Some("ext-a".into()), "bogus".into())
+            .unwrap_err();
         assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
     }
 
@@ -273,13 +256,8 @@ mod tests {
     fn is_running_without_permission_is_rejected() {
         let q = FakePresenceQuery::default();
         let perms = empty_permissions();
-        let err = app_is_running_inner(
-            &q,
-            &perms,
-            Some("ext-a".into()),
-            "com.apple.Safari".into(),
-        )
-        .unwrap_err();
+        let err = app_is_running_inner(&q, &perms, Some("ext-a".into()), "com.apple.Safari".into())
+            .unwrap_err();
         assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
     }
 
@@ -287,13 +265,9 @@ mod tests {
     fn is_running_reports_true_when_bundle_matches() {
         let q = FakePresenceQuery::with_running(["com.apple.Safari"]);
         let perms = permissions_with("ext-a", APP_IS_RUNNING_PERMISSION);
-        let result = app_is_running_inner(
-            &q,
-            &perms,
-            Some("ext-a".into()),
-            "com.apple.Safari".into(),
-        )
-        .unwrap();
+        let result =
+            app_is_running_inner(&q, &perms, Some("ext-a".into()), "com.apple.Safari".into())
+                .unwrap();
         assert!(result);
     }
 
@@ -301,13 +275,9 @@ mod tests {
     fn is_running_reports_false_when_bundle_missing() {
         let q = FakePresenceQuery::with_running(["com.apple.Safari"]);
         let perms = permissions_with("ext-a", APP_IS_RUNNING_PERMISSION);
-        let result = app_is_running_inner(
-            &q,
-            &perms,
-            Some("ext-a".into()),
-            "com.nope.NotHere".into(),
-        )
-        .unwrap();
+        let result =
+            app_is_running_inner(&q, &perms, Some("ext-a".into()), "com.nope.NotHere".into())
+                .unwrap();
         assert!(!result);
     }
 
@@ -315,8 +285,7 @@ mod tests {
     fn is_running_with_empty_bundle_is_validation_error() {
         let q = FakePresenceQuery::default();
         let perms = permissions_with("ext-a", APP_IS_RUNNING_PERMISSION);
-        let err =
-            app_is_running_inner(&q, &perms, Some("ext-a".into()), "   ".into()).unwrap_err();
+        let err = app_is_running_inner(&q, &perms, Some("ext-a".into()), "   ".into()).unwrap_err();
         assert!(matches!(err, AppError::Validation(_)), "got: {err:?}");
     }
 

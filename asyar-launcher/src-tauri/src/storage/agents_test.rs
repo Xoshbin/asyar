@@ -58,9 +58,7 @@ fn init_table_creates_all_tables() {
 
     let table_names: Vec<String> = {
         let mut stmt = conn
-            .prepare(
-                "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
-            )
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
             .unwrap();
         stmt.query_map([], |r| r.get(0))
             .unwrap()
@@ -165,7 +163,10 @@ fn delete_agent_cascades_to_threads_and_messages() {
     delete_agent(&conn, "a1").unwrap();
 
     let threads = list_threads_for_agent(&conn, "a1").unwrap();
-    assert!(threads.is_empty(), "expected no threads after agent deleted");
+    assert!(
+        threads.is_empty(),
+        "expected no threads after agent deleted"
+    );
 
     let msg_count: i64 = conn
         .query_row("SELECT count(*) FROM messages", [], |r| r.get(0))
@@ -262,7 +263,10 @@ fn init_table_creates_silent_columns() {
         .unwrap()
         .filter_map(Result::ok)
         .collect();
-    assert!(cols.contains(&"silent".to_string()), "missing silent column: {cols:?}");
+    assert!(
+        cols.contains(&"silent".to_string()),
+        "missing silent column: {cols:?}"
+    );
     assert!(
         cols.contains(&"input_source".to_string()),
         "missing input_source column: {cols:?}"
@@ -298,7 +302,10 @@ fn init_table_adds_silent_columns_to_legacy_db() {
         .unwrap()
         .filter_map(Result::ok)
         .collect();
-    assert!(cols.contains(&"silent".to_string()), "legacy upgrade missed silent: {cols:?}");
+    assert!(
+        cols.contains(&"silent".to_string()),
+        "legacy upgrade missed silent: {cols:?}"
+    );
     assert!(
         cols.contains(&"input_source".to_string()),
         "legacy upgrade missed input_source: {cols:?}"
@@ -361,7 +368,9 @@ fn silent_fields_default_when_unspecified_on_legacy_row() {
     .unwrap();
     init_table(&conn).unwrap();
 
-    let got = get_agent(&conn, "legacy").unwrap().expect("legacy row not found");
+    let got = get_agent(&conn, "legacy")
+        .unwrap()
+        .expect("legacy row not found");
     assert!(!got.silent, "legacy row must default silent=false");
     assert_eq!(got.input_source, SilentInputSource::Argument);
     assert_eq!(got.output_action, SilentOutputAction::ReplaceSelection);

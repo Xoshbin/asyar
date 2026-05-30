@@ -132,7 +132,9 @@ pub fn get_token(
             }))
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(AppError::Database(format!("Failed to get oauth token: {e}"))),
+        Err(e) => Err(AppError::Database(format!(
+            "Failed to get oauth token: {e}"
+        ))),
     }
 }
 

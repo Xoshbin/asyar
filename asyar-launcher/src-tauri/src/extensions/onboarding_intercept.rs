@@ -114,7 +114,9 @@ mod decide_tests {
     #[test]
     fn already_onboarded_passes_through() {
         let m = user_command(json!({ "commandId": "brew" }));
-        let d = OnboardingDecl { command: "setup".into() };
+        let d = OnboardingDecl {
+            command: "setup".into(),
+        };
         match decide("ext.coffee", &m, Some(&d), true) {
             InterceptDecision::PassThrough => {}
             _ => panic!(),
@@ -124,9 +126,14 @@ mod decide_tests {
     #[test]
     fn reroutes_user_initiated_command_when_not_onboarded() {
         let m = user_command(json!({ "commandId": "brew" }));
-        let d = OnboardingDecl { command: "setup".into() };
+        let d = OnboardingDecl {
+            command: "setup".into(),
+        };
         match decide("ext.coffee", &m, Some(&d), false) {
-            InterceptDecision::Reroute { onboarding_command, stash } => {
+            InterceptDecision::Reroute {
+                onboarding_command,
+                stash,
+            } => {
                 assert_eq!(onboarding_command, "setup");
                 assert_eq!(stash.extension_id, "ext.coffee");
                 assert_eq!(stash.original_payload, json!({ "commandId": "brew" }));
@@ -138,7 +145,9 @@ mod decide_tests {
     #[test]
     fn schedule_source_passes_through_even_when_not_onboarded() {
         let m = schedule_command(json!({ "commandId": "tick" }));
-        let d = OnboardingDecl { command: "setup".into() };
+        let d = OnboardingDecl {
+            command: "setup".into(),
+        };
         match decide("ext.coffee", &m, Some(&d), false) {
             InterceptDecision::PassThrough => {}
             _ => panic!("expected PassThrough for schedule"),
@@ -149,7 +158,9 @@ mod decide_tests {
     fn search_kind_passes_through() {
         let mut m = user_command(json!({ "query": "x" }));
         m.kind = MessageKind::ViewSearch;
-        let d = OnboardingDecl { command: "setup".into() };
+        let d = OnboardingDecl {
+            command: "setup".into(),
+        };
         match decide("ext.coffee", &m, Some(&d), false) {
             InterceptDecision::PassThrough => {}
             _ => panic!(),
@@ -160,7 +171,9 @@ mod decide_tests {
     fn action_kind_passes_through() {
         let mut m = user_command(json!({ "actionId": "x" }));
         m.kind = MessageKind::Action;
-        let d = OnboardingDecl { command: "setup".into() };
+        let d = OnboardingDecl {
+            command: "setup".into(),
+        };
         match decide("ext.coffee", &m, Some(&d), false) {
             InterceptDecision::PassThrough => {}
             _ => panic!(),

@@ -91,11 +91,7 @@ impl<E: HubEvent> EventHub<E> {
         Ok(id)
     }
 
-    pub fn unsubscribe(
-        &self,
-        extension_id: &str,
-        subscription_id: &str,
-    ) -> Result<(), AppError> {
+    pub fn unsubscribe(&self, extension_id: &str, subscription_id: &str) -> Result<(), AppError> {
         let mut guard = self.subscriptions.lock().map_err(|_| AppError::Lock)?;
         match guard.get(subscription_id) {
             Some(s) if s.extension_id == extension_id => {

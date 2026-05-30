@@ -1,7 +1,7 @@
 use crate::error::AppError;
-use crate::runs::{Run, RunKind, RunStatus};
 use crate::runs::output_buffer::{format_tail_output, OutputBuffer};
 use crate::runs::registry::{now_millis, RunRegistry};
+use crate::runs::{Run, RunKind, RunStatus};
 use crate::storage::{runs_history, DataStore};
 use rusqlite::Connection;
 use tauri::{AppHandle, Emitter, State};
@@ -93,7 +93,15 @@ pub fn runs_done_impl(
     conn: &Connection,
     id: String,
 ) -> Result<(), AppError> {
-    finalize_impl(registry, buffer, conn, emit, &id, RunStatus::Succeeded, None)
+    finalize_impl(
+        registry,
+        buffer,
+        conn,
+        emit,
+        &id,
+        RunStatus::Succeeded,
+        None,
+    )
 }
 
 /// Transition the run to `Failed`, persist to history, drop the buffer,
@@ -108,7 +116,15 @@ pub fn runs_fail_impl(
     id: String,
     error: String,
 ) -> Result<(), AppError> {
-    finalize_impl(registry, buffer, conn, emit, &id, RunStatus::Failed, Some(error))
+    finalize_impl(
+        registry,
+        buffer,
+        conn,
+        emit,
+        &id,
+        RunStatus::Failed,
+        Some(error),
+    )
 }
 
 /// Transition the run to `Cancelled`, persist to history, drop the buffer,
@@ -121,7 +137,15 @@ pub fn runs_cancel_impl(
     conn: &Connection,
     id: String,
 ) -> Result<(), AppError> {
-    finalize_impl(registry, buffer, conn, emit, &id, RunStatus::Cancelled, None)
+    finalize_impl(
+        registry,
+        buffer,
+        conn,
+        emit,
+        &id,
+        RunStatus::Cancelled,
+        None,
+    )
 }
 
 // ── Read-side inner functions ─────────────────────────────────────────────────
@@ -171,15 +195,21 @@ pub async fn runs_start(
     let registry = RunRegistry::instance();
     let buffer = OutputBuffer::instance();
     let emit = |event: &str, payload: &serde_json::Value| app.emit(event, payload);
-    runs_start_impl(registry, buffer, &emit, id, kind, label, extension_id, cancellable, subject_id)
+    runs_start_impl(
+        registry,
+        buffer,
+        &emit,
+        id,
+        kind,
+        label,
+        extension_id,
+        cancellable,
+        subject_id,
+    )
 }
 
 #[tauri::command]
-pub async fn runs_write(
-    app: AppHandle,
-    id: String,
-    line: String,
-) -> Result<(), AppError> {
+pub async fn runs_write(app: AppHandle, id: String, line: String) -> Result<(), AppError> {
     let registry = RunRegistry::instance();
     let buffer = OutputBuffer::instance();
     let emit = |event: &str, payload: &serde_json::Value| app.emit(event, payload);
@@ -307,7 +337,10 @@ mod tests {
         }
 
         fn captured(&self) -> Vec<(String, serde_json::Value)> {
-            self.events.lock().expect("EventCapture mutex poisoned").clone()
+            self.events
+                .lock()
+                .expect("EventCapture mutex poisoned")
+                .clone()
         }
     }
 
@@ -343,11 +376,20 @@ mod tests {
         .unwrap();
 
         assert_eq!(run.id, "r1");
-        assert_eq!(run.status, RunStatus::Running, "initial status must be Running");
+        assert_eq!(
+            run.status,
+            RunStatus::Running,
+            "initial status must be Running"
+        );
         assert!(run.started_at > 0, "started_at must be set");
-        assert!(run.ended_at.is_none(), "ended_at must be None for a live run");
+        assert!(
+            run.ended_at.is_none(),
+            "ended_at must be None for a live run"
+        );
 
-        let stored = registry.get("r1").expect("run must be in registry after start");
+        let stored = registry
+            .get("r1")
+            .expect("run must be in registry after start");
         assert_eq!(stored.status, RunStatus::Running);
     }
 
@@ -381,7 +423,10 @@ mod tests {
         );
         let payload = &captured[0].1;
         assert_eq!(payload["id"], "r1", "payload must contain the run id");
-        assert_eq!(payload["status"], "running", "payload status must be running");
+        assert_eq!(
+            payload["status"], "running",
+            "payload status must be running"
+        );
     }
 
     #[test]
@@ -490,8 +535,22 @@ mod tests {
         )
         .unwrap();
 
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "line one".to_string()).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "line two".to_string()).unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "line one".to_string(),
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "line two".to_string(),
+        )
+        .unwrap();
 
         let snap = buffer.snapshot("r1");
         assert_eq!(
@@ -519,7 +578,14 @@ mod tests {
         )
         .unwrap();
 
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "line one".to_string()).unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "line one".to_string(),
+        )
+        .unwrap();
 
         let captured = events.captured();
         // First event is runs:state-changed from start; second is runs:output
@@ -535,7 +601,10 @@ mod tests {
         );
 
         let payload = &output_events[0].1;
-        assert_eq!(payload["id"], "r1", "output payload must contain the run id");
+        assert_eq!(
+            payload["id"], "r1",
+            "output payload must contain the run id"
+        );
         assert_eq!(
             payload["line"], "line one",
             "output payload must contain the line text"
@@ -586,7 +655,9 @@ mod tests {
 
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
-        let stored = registry.get("r1").expect("run must still be accessible after done");
+        let stored = registry
+            .get("r1")
+            .expect("run must still be accessible after done");
         assert_eq!(stored.status, RunStatus::Succeeded);
         assert!(stored.ended_at.is_some(), "ended_at must be set after done");
     }
@@ -608,7 +679,14 @@ mod tests {
             None,
         )
         .unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "some output".to_string()).unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "some output".to_string(),
+        )
+        .unwrap();
 
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
@@ -687,7 +765,14 @@ mod tests {
         )
         .unwrap();
 
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "some fail output".to_string()).unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "some fail output".to_string(),
+        )
+        .unwrap();
 
         runs_fail_impl(
             &registry,
@@ -699,7 +784,9 @@ mod tests {
         )
         .unwrap();
 
-        let stored = registry.get("r1").expect("run must be accessible after fail");
+        let stored = registry
+            .get("r1")
+            .expect("run must be accessible after fail");
         assert_eq!(stored.status, RunStatus::Failed);
         assert_eq!(
             stored.error_message.as_deref(),
@@ -714,7 +801,10 @@ mod tests {
         assert_eq!(history[0].error_message.as_deref(), Some("boom"));
 
         let snap = buffer.snapshot("r1");
-        assert!(!snap.is_empty(), "buffer must survive finalize for post-mortem reading");
+        assert!(
+            !snap.is_empty(),
+            "buffer must survive finalize for post-mortem reading"
+        );
     }
 
     // ── runs_cancel tests ─────────────────────────────────────────────────────
@@ -737,13 +827,25 @@ mod tests {
         )
         .unwrap();
 
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "partial work".to_string()).unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "partial work".to_string(),
+        )
+        .unwrap();
 
         runs_cancel_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
-        let stored = registry.get("r1").expect("run must be accessible after cancel");
+        let stored = registry
+            .get("r1")
+            .expect("run must be accessible after cancel");
         assert_eq!(stored.status, RunStatus::Cancelled);
-        assert!(stored.ended_at.is_some(), "ended_at must be set after cancel");
+        assert!(
+            stored.ended_at.is_some(),
+            "ended_at must be set after cancel"
+        );
         assert!(
             stored.error_message.is_none(),
             "error_message must be None for a cancelled run"
@@ -754,7 +856,10 @@ mod tests {
         assert_eq!(history[0].status, RunStatus::Cancelled);
 
         let snap = buffer.snapshot("r1");
-        assert!(!snap.is_empty(), "buffer must survive finalize for post-mortem reading");
+        assert!(
+            !snap.is_empty(),
+            "buffer must survive finalize for post-mortem reading"
+        );
     }
 
     // ── terminal-state guard ──────────────────────────────────────────────────
@@ -793,17 +898,46 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script 1".to_string(), None, false, None).unwrap();
-        runs_start_impl(&registry, &buffer, &emit, "r2".to_string(), RunKind::AiChat, "Chat".to_string(), None, false, None).unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::ShellScript,
+            "Script 1".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r2".to_string(),
+            RunKind::AiChat,
+            "Chat".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
 
         let active = runs_list_impl(&registry);
         assert_eq!(active.len(), 2, "expected 2 active runs, got {active:?}");
-        assert!(active.iter().all(|r| r.status == RunStatus::Running), "all listed runs must be Running");
+        assert!(
+            active.iter().all(|r| r.status == RunStatus::Running),
+            "all listed runs must be Running"
+        );
 
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
         let active = runs_list_impl(&registry);
-        assert_eq!(active.len(), 1, "after finalizing r1, expected 1 active run, got {active:?}");
+        assert_eq!(
+            active.len(),
+            1,
+            "after finalizing r1, expected 1 active run, got {active:?}"
+        );
         assert_eq!(active[0].id, "r2", "remaining active run must be r2");
     }
 
@@ -812,7 +946,10 @@ mod tests {
         let (registry, _buffer, _conn, _events) = make_test_env();
 
         let active = runs_list_impl(&registry);
-        assert!(active.is_empty(), "fresh registry must return empty list, got {active:?}");
+        assert!(
+            active.is_empty(),
+            "fresh registry must return empty list, got {active:?}"
+        );
     }
 
     // ── runs_get tests ────────────────────────────────────────────────────────
@@ -822,7 +959,18 @@ mod tests {
         let (registry, buffer, _conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::Custom, "Job".to_string(), None, false, None).unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::Custom,
+            "Job".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
 
         let result = runs_get_impl(&registry, "r1");
         assert!(result.is_some(), "expected Some for known id r1");
@@ -842,12 +990,30 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::ShellScript,
+            "Script".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
         let result = runs_get_impl(&registry, "r1");
-        assert!(result.is_some(), "get must return Some even for a terminal run");
-        assert_eq!(result.unwrap().status, RunStatus::Succeeded, "terminal run must have Succeeded status");
+        assert!(
+            result.is_some(),
+            "get must return Some even for a terminal run"
+        );
+        assert_eq!(
+            result.unwrap().status,
+            RunStatus::Succeeded,
+            "terminal run must have Succeeded status"
+        );
     }
 
     // ── runs_history_list tests ───────────────────────────────────────────────
@@ -857,11 +1023,26 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::ShellScript,
+            "Script".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
         let history = runs_history_list_impl(&conn, 10).unwrap();
-        assert_eq!(history.len(), 1, "expected 1 run in history after done, got {history:?}");
+        assert_eq!(
+            history.len(),
+            1,
+            "expected 1 run in history after done, got {history:?}"
+        );
         assert_eq!(history[0].id, "r1");
     }
 
@@ -872,12 +1053,28 @@ mod tests {
 
         for i in 1..=5 {
             let id = format!("r{i}");
-            runs_start_impl(&registry, &buffer, &emit, id.clone(), RunKind::ShellScript, format!("Script {i}"), None, false, None).unwrap();
+            runs_start_impl(
+                &registry,
+                &buffer,
+                &emit,
+                id.clone(),
+                RunKind::ShellScript,
+                format!("Script {i}"),
+                None,
+                false,
+                None,
+            )
+            .unwrap();
             runs_done_impl(&registry, &buffer, &emit, &conn, id).unwrap();
         }
 
         let history = runs_history_list_impl(&conn, 3).unwrap();
-        assert_eq!(history.len(), 3, "expected 3 most-recent runs with limit=3, got {}", history.len());
+        assert_eq!(
+            history.len(),
+            3,
+            "expected 3 most-recent runs with limit=3, got {}",
+            history.len()
+        );
     }
 
     #[test]
@@ -885,7 +1082,10 @@ mod tests {
         let (_registry, _buffer, conn, _events) = make_test_env();
 
         let history = runs_history_list_impl(&conn, 50).unwrap();
-        assert!(history.is_empty(), "fresh DB must return empty history, got {history:?}");
+        assert!(
+            history.is_empty(),
+            "fresh DB must return empty history, got {history:?}"
+        );
     }
 
     // ── runs_history_clear tests ──────────────────────────────────────────────
@@ -897,14 +1097,28 @@ mod tests {
 
         for i in 1..=3 {
             let id = format!("r{i}");
-            runs_start_impl(&registry, &buffer, &emit, id.clone(), RunKind::Custom, format!("Job {i}"), None, false, None).unwrap();
+            runs_start_impl(
+                &registry,
+                &buffer,
+                &emit,
+                id.clone(),
+                RunKind::Custom,
+                format!("Job {i}"),
+                None,
+                false,
+                None,
+            )
+            .unwrap();
             runs_done_impl(&registry, &buffer, &emit, &conn, id).unwrap();
         }
 
         runs_history_clear_impl(&conn).unwrap();
 
         let history = runs_history_list_impl(&conn, 50).unwrap();
-        assert!(history.is_empty(), "history must be empty after clear, got {history:?}");
+        assert!(
+            history.is_empty(),
+            "history must be empty after clear, got {history:?}"
+        );
     }
 
     // ── runs_get_output tests ─────────────────────────────────────────────────
@@ -914,10 +1128,42 @@ mod tests {
         let (registry, buffer, _conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "line one".to_string()).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "line two".to_string()).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "line three".to_string()).unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::ShellScript,
+            "Script".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "line one".to_string(),
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "line two".to_string(),
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "line three".to_string(),
+        )
+        .unwrap();
 
         let output = runs_get_output_impl(&buffer, "r1");
         assert_eq!(
@@ -932,7 +1178,10 @@ mod tests {
         let (_registry, buffer, _conn, _events) = make_test_env();
 
         let output = runs_get_output_impl(&buffer, "ghost");
-        assert!(output.is_empty(), "expected empty Vec for unknown id 'ghost', got {output:?}");
+        assert!(
+            output.is_empty(),
+            "expected empty Vec for unknown id 'ghost', got {output:?}"
+        );
     }
 
     // ── runs_dismiss tests ────────────────────────────────────────────────────
@@ -942,8 +1191,26 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "alive".to_string()).unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::ShellScript,
+            "Script".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "alive".to_string(),
+        )
+        .unwrap();
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
         assert_eq!(
@@ -974,10 +1241,42 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "first".to_string()).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "middle".to_string()).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "line three".to_string()).unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::ShellScript,
+            "Script".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "first".to_string(),
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "middle".to_string(),
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "line three".to_string(),
+        )
+        .unwrap();
 
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
@@ -994,9 +1293,34 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "hello".to_string()).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "world".to_string()).unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::ShellScript,
+            "Script".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "hello".to_string(),
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "world".to_string(),
+        )
+        .unwrap();
 
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
@@ -1013,8 +1337,26 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "persisted line".to_string()).unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::ShellScript,
+            "Script".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "persisted line".to_string(),
+        )
+        .unwrap();
 
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
@@ -1031,13 +1373,48 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "warning: thing".to_string()).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "Error: explosion".to_string()).unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::ShellScript,
+            "Script".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "warning: thing".to_string(),
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "Error: explosion".to_string(),
+        )
+        .unwrap();
 
-        runs_fail_impl(&registry, &buffer, &emit, &conn, "r1".to_string(), "exit code 1".to_string()).unwrap();
+        runs_fail_impl(
+            &registry,
+            &buffer,
+            &emit,
+            &conn,
+            "r1".to_string(),
+            "exit code 1".to_string(),
+        )
+        .unwrap();
 
-        let run = registry.get("r1").expect("run must be accessible after fail");
+        let run = registry
+            .get("r1")
+            .expect("run must be accessible after fail");
         assert_eq!(
             run.tail_output.as_deref(),
             Some("Error: explosion"),
@@ -1045,7 +1422,10 @@ mod tests {
         );
 
         let output = runs_get_output_impl(&buffer, "r1");
-        assert!(!output.is_empty(), "buffer must survive fail finalize for post-mortem reading");
+        assert!(
+            !output.is_empty(),
+            "buffer must survive fail finalize for post-mortem reading"
+        );
     }
 
     #[test]
@@ -1053,12 +1433,32 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::AiChat, "Chat".to_string(), None, true, None).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "partial work".to_string()).unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::AiChat,
+            "Chat".to_string(),
+            None,
+            true,
+            None,
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "partial work".to_string(),
+        )
+        .unwrap();
 
         runs_cancel_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
-        let run = registry.get("r1").expect("run must be accessible after cancel");
+        let run = registry
+            .get("r1")
+            .expect("run must be accessible after cancel");
         assert_eq!(
             run.tail_output.as_deref(),
             Some("partial work"),
@@ -1066,7 +1466,10 @@ mod tests {
         );
 
         let output = runs_get_output_impl(&buffer, "r1");
-        assert!(!output.is_empty(), "buffer must survive cancel finalize for post-mortem reading");
+        assert!(
+            !output.is_empty(),
+            "buffer must survive cancel finalize for post-mortem reading"
+        );
     }
 
     #[test]
@@ -1074,11 +1477,24 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::ShellScript,
+            "Script".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
 
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
-        let run = registry.get("r1").expect("run must be accessible after done");
+        let run = registry
+            .get("r1")
+            .expect("run must be accessible after done");
         assert!(
             run.tail_output.is_none(),
             "tail_output must be None when no lines were written, got {:?}",
@@ -1091,19 +1507,45 @@ mod tests {
         let (registry, buffer, conn, events) = make_test_env();
         let emit = events.as_emit_fn();
 
-        runs_start_impl(&registry, &buffer, &emit, "r1".to_string(), RunKind::ShellScript, "Script".to_string(), None, false, None).unwrap();
+        runs_start_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            RunKind::ShellScript,
+            "Script".to_string(),
+            None,
+            false,
+            None,
+        )
+        .unwrap();
         runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "".to_string()).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "   ".to_string()).unwrap();
-        runs_write_impl(&registry, &buffer, &emit, "r1".to_string(), "\t".to_string()).unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "   ".to_string(),
+        )
+        .unwrap();
+        runs_write_impl(
+            &registry,
+            &buffer,
+            &emit,
+            "r1".to_string(),
+            "\t".to_string(),
+        )
+        .unwrap();
 
         runs_done_impl(&registry, &buffer, &emit, &conn, "r1".to_string()).unwrap();
 
-        let run = registry.get("r1").expect("run must be accessible after done");
+        let run = registry
+            .get("r1")
+            .expect("run must be accessible after done");
         assert!(
             run.tail_output.is_none(),
             "tail_output must be None when all written lines are whitespace-only, got {:?}",
             run.tail_output
         );
     }
-
 }

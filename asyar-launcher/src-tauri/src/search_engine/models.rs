@@ -137,7 +137,7 @@ impl SearchableItem {
     }
     // Helper to get the type string
     pub fn get_type_str(&self) -> &str {
-         match self {
+        match self {
             SearchableItem::Application(_) => "application",
             SearchableItem::Command(_) => "command",
         }
@@ -211,7 +211,11 @@ mod tests {
     #[test]
     fn test_generate_app_id_starts_with_app_prefix() {
         let id = generate_app_id_from_path("/Applications/Finder.app");
-        assert!(id.starts_with("app_"), "Expected 'app_' prefix, got: {}", id);
+        assert!(
+            id.starts_with("app_"),
+            "Expected 'app_' prefix, got: {}",
+            id
+        );
     }
 
     #[test]
@@ -346,10 +350,7 @@ mod bindings_export {
 
         Typescript::default()
             .bigint(BigIntExportBehavior::Number)
-            .export_to(
-                std::path::PathBuf::from("../src/bindings.ts"),
-                &types,
-            )
+            .export_to(std::path::PathBuf::from("../src/bindings.ts"), &types)
             .expect("Failed to export TypeScript bindings to src/bindings.ts");
     }
 }

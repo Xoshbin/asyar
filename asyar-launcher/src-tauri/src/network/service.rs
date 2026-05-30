@@ -22,8 +22,7 @@ pub fn validate_url_for_ssrf(url: &str) -> Result<(), AppError> {
     use std::net::IpAddr;
     use url::Url;
 
-    let parsed =
-        Url::parse(url).map_err(|_| AppError::Other(format!("Invalid URL: {}", url)))?;
+    let parsed = Url::parse(url).map_err(|_| AppError::Other(format!("Invalid URL: {}", url)))?;
 
     match parsed.scheme() {
         "http" | "https" => {}

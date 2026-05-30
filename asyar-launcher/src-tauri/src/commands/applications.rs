@@ -2,14 +2,14 @@
 //!
 //! Thin Tauri command wrappers delegating to `crate::application::service`.
 
-use crate::search_engine::SearchState;
-use crate::error::AppError;
 use crate::application::service::{self, FrontmostApplication, SyncResult};
-use crate::application::{uninstall, IndexWatcher};
 #[cfg(target_os = "macos")]
 use crate::application::uninstall::UninstallScanResult;
+use crate::application::{uninstall, IndexWatcher};
+use crate::error::AppError;
 use crate::permissions::ExtensionPermissionRegistry;
 use crate::search_engine::models::Application;
+use crate::search_engine::SearchState;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::AppHandle;
@@ -22,11 +22,12 @@ pub async fn sync_application_index(
     search_state: tauri::State<'_, std::sync::Arc<SearchState>>,
     extra_paths: Option<Vec<String>>,
 ) -> Result<SyncResult, AppError> {
-    let paths = extra_paths.unwrap_or_default()
+    let paths = extra_paths
+        .unwrap_or_default()
         .into_iter()
         .map(PathBuf::from)
         .collect();
-        
+
     service::sync_application_index(&app, &search_state, paths)
 }
 
@@ -36,11 +37,12 @@ pub async fn list_applications(
     app: AppHandle,
     extra_paths: Option<Vec<String>>,
 ) -> Result<Vec<Application>, AppError> {
-    let paths = extra_paths.unwrap_or_default()
+    let paths = extra_paths
+        .unwrap_or_default()
         .into_iter()
         .map(PathBuf::from)
         .collect();
-        
+
     service::list_applications(&app, paths)
 }
 
@@ -89,10 +91,7 @@ pub fn set_application_scan_paths(
 
 /// Opens an application at the given file system path.
 #[tauri::command]
-pub fn open_application_path(
-    app_handle: AppHandle,
-    path: String,
-) -> Result<(), AppError> {
+pub fn open_application_path(app_handle: AppHandle, path: String) -> Result<(), AppError> {
     use tauri_plugin_opener::OpenerExt;
     app_handle
         .opener()
@@ -120,7 +119,12 @@ pub fn uninstall_application(
     path: String,
     data_paths: Option<Vec<String>>,
 ) -> Result<(), AppError> {
-    uninstall_application_inner(&permissions, extension_id, path, data_paths.unwrap_or_default())
+    uninstall_application_inner(
+        &permissions,
+        extension_id,
+        path,
+        data_paths.unwrap_or_default(),
+    )
 }
 
 pub(crate) fn uninstall_application_inner(

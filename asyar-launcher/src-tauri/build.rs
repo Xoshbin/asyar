@@ -26,12 +26,14 @@ fn main() {
 
             if manifest_src.exists() {
                 let target_dir = staging_dir.join(feature_name);
-                std::fs::create_dir_all(&target_dir)
-                    .unwrap_or_else(|_| panic!("Failed to create staging dir for {}", feature_name));
+                std::fs::create_dir_all(&target_dir).unwrap_or_else(|_| {
+                    panic!("Failed to create staging dir for {}", feature_name)
+                });
 
                 let manifest_dest = target_dir.join("manifest.json");
-                std::fs::copy(&manifest_src, &manifest_dest)
-                    .unwrap_or_else(|_| panic!("Failed to copy manifest.json for {}", feature_name));
+                std::fs::copy(&manifest_src, &manifest_dest).unwrap_or_else(|_| {
+                    panic!("Failed to copy manifest.json for {}", feature_name)
+                });
 
                 println!("Staged manifest.json for: {}", feature_name);
             }
@@ -62,16 +64,26 @@ fn main() {
     if profile != "release" {
         let target = std::env::var("TARGET").expect("TARGET env var not set");
         let binaries_dir = base_dir.join("binaries");
-        let ext = if target.contains("windows") { ".exe" } else { "" };
+        let ext = if target.contains("windows") {
+            ".exe"
+        } else {
+            ""
+        };
 
         let _ = std::fs::create_dir_all(&binaries_dir);
         for sidecar in &["bun", "uv"] {
             let path = binaries_dir.join(format!("{}-{}{}", sidecar, target, ext));
             if !path.exists() {
                 std::fs::File::create(&path).unwrap_or_else(|_| {
-                    panic!("build.rs failed to create dummy sidecar placeholder at {:?}", path)
+                    panic!(
+                        "build.rs failed to create dummy sidecar placeholder at {:?}",
+                        path
+                    )
                 });
-                println!("cargo:warning=Created dummy sidecar placeholder at {}", path.display());
+                println!(
+                    "cargo:warning=Created dummy sidecar placeholder at {}",
+                    path.display()
+                );
             }
         }
     }
@@ -96,12 +108,7 @@ fn read_sdk_version(path: &std::path::Path) -> String {
                 .map(|rest| rest.trim().trim_end_matches(','))
                 .map(|v| v.trim_matches('"').to_string())
         })
-        .unwrap_or_else(|| {
-            panic!(
-                "build.rs could not find a \"version\" field in {:?}",
-                path
-            )
-        });
+        .unwrap_or_else(|| panic!("build.rs could not find a \"version\" field in {:?}", path));
 
     if semver::Version::parse(&version).is_err() {
         panic!(

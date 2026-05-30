@@ -19,7 +19,9 @@ fn read_descriptor_has_expected_shape() {
         "parameters.properties.path must be present, got {params}"
     );
 
-    let required = params["required"].as_array().expect("required must be array");
+    let required = params["required"]
+        .as_array()
+        .expect("required must be array");
     assert!(
         required.iter().any(|v| v.as_str() == Some("path")),
         "required must include 'path', got {required:?}"
@@ -47,7 +49,9 @@ fn write_descriptor_has_expected_shape() {
         "parameters.properties.content must be present, got {params}"
     );
 
-    let required = params["required"].as_array().expect("required must be array");
+    let required = params["required"]
+        .as_array()
+        .expect("required must be array");
     assert!(
         required.iter().any(|v| v.as_str() == Some("path")),
         "required must include 'path', got {required:?}"
@@ -67,9 +71,7 @@ async fn read_returns_file_content() {
     std::fs::write(&path, "hello world\n").expect("failed to write temp file");
 
     let tool = FsReadTool::new();
-    let result = tool
-        .invoke(json!({ "path": path.to_str().unwrap() }))
-        .await;
+    let result = tool.invoke(json!({ "path": path.to_str().unwrap() })).await;
 
     assert!(result.is_ok(), "expected Ok, got {result:?}");
     assert_eq!(result.unwrap(), json!({"content": "hello world\n"}));
@@ -87,7 +89,9 @@ async fn read_returns_error_when_file_missing() {
     assert!(result.is_err(), "expected Err for missing file, got Ok");
     let err_str = format!("{:?}", result.unwrap_err());
     assert!(
-        err_str.contains("blah_asyar_test_404") || err_str.contains("not found") || err_str.contains("No such file"),
+        err_str.contains("blah_asyar_test_404")
+            || err_str.contains("not found")
+            || err_str.contains("No such file"),
         "error message should mention the path or 'not found', got: {err_str}"
     );
 }
@@ -117,10 +121,7 @@ async fn read_returns_error_for_non_string_path() {
     let tool = FsReadTool::new();
     let result = tool.invoke(json!({ "path": 42 })).await;
 
-    assert!(
-        result.is_err(),
-        "non-string 'path' must return Err, got Ok"
-    );
+    assert!(result.is_err(), "non-string 'path' must return Err, got Ok");
 }
 
 // ── 7. write_creates_file_with_content ───────────────────────────────────────
@@ -158,7 +159,10 @@ async fn write_overwrites_existing_file() {
     assert!(result.is_ok(), "expected Ok, got {result:?}");
 
     let on_disk = std::fs::read_to_string(&path).expect("file must exist after overwrite");
-    assert_eq!(on_disk, "new", "file must contain only 'new' after overwrite");
+    assert_eq!(
+        on_disk, "new",
+        "file must contain only 'new' after overwrite"
+    );
 }
 
 // ── 9. write_returns_error_for_missing_path ──────────────────────────────────
@@ -209,9 +213,7 @@ async fn read_handles_empty_file() {
     std::fs::write(&path, "").expect("failed to create empty temp file");
 
     let tool = FsReadTool::new();
-    let result = tool
-        .invoke(json!({ "path": path.to_str().unwrap() }))
-        .await;
+    let result = tool.invoke(json!({ "path": path.to_str().unwrap() })).await;
 
     assert!(result.is_ok(), "expected Ok for empty file, got {result:?}");
     assert_eq!(result.unwrap(), json!({"content": ""}));

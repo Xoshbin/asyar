@@ -44,7 +44,8 @@ pub fn dbus_name_looks_like_gui_app(name: &str) -> bool {
     if name.starts_with("org.freedesktop.")
         || name.starts_with("org.gnome.SettingsDaemon")
         || name.starts_with("org.a11y.")
-        || name.starts_with(":") // unique names like :1.42
+        || name.starts_with(":")
+    // unique names like :1.42
     {
         return false;
     }
@@ -107,8 +108,7 @@ mod watcher {
         use procfs::process::all_processes;
 
         let mut last_pids: HashSet<u32> = HashSet::new();
-        let mut names: std::collections::HashMap<u32, String> =
-            std::collections::HashMap::new();
+        let mut names: std::collections::HashMap<u32, String> = std::collections::HashMap::new();
 
         loop {
             std::thread::sleep(Duration::from_secs(1));
@@ -150,9 +150,7 @@ mod watcher {
                 });
             }
             for pid in terminated {
-                let name = names
-                    .remove(&pid)
-                    .unwrap_or_else(|| format!("pid-{pid}"));
+                let name = names.remove(&pid).unwrap_or_else(|| format!("pid-{pid}"));
                 hub.dispatch(AppEvent::Terminated {
                     pid,
                     bundle_id: None,
@@ -195,11 +193,10 @@ mod watcher {
                 Err(_) => continue,
             };
             let body = msg.body();
-            let (name, old_owner, new_owner): (String, String, String) =
-                match body.deserialize() {
-                    Ok(t) => t,
-                    Err(_) => continue,
-                };
+            let (name, old_owner, new_owner): (String, String, String) = match body.deserialize() {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
             if !dbus_name_looks_like_gui_app(&name) {
                 continue;
             }
@@ -282,32 +279,21 @@ mod watcher {
                     continue;
                 }
                 // Read _NET_ACTIVE_WINDOW property from the root.
-                let active = match conn.get_property(
-                    false,
-                    root,
-                    net_active,
-                    AtomEnum::WINDOW,
-                    0,
-                    1,
-                ) {
-                    Ok(c) => match c.reply() {
-                        Ok(r) => r,
+                let active =
+                    match conn.get_property(false, root, net_active, AtomEnum::WINDOW, 0, 1) {
+                        Ok(c) => match c.reply() {
+                            Ok(r) => r,
+                            Err(_) => continue,
+                        },
                         Err(_) => continue,
-                    },
-                    Err(_) => continue,
-                };
-                let win = active
-                    .value32()
-                    .and_then(|mut it| it.next())
-                    .unwrap_or(0);
+                    };
+                let win = active.value32().and_then(|mut it| it.next()).unwrap_or(0);
                 if win == 0 || win == last_window {
                     continue;
                 }
                 last_window = win;
                 // Read window name.
-                let name = match conn
-                    .get_property(false, win, net_wm_name, utf8_string, 0, 256)
-                {
+                let name = match conn.get_property(false, win, net_wm_name, utf8_string, 0, 256) {
                     Ok(c) => match c.reply() {
                         Ok(r) => String::from_utf8(r.value).unwrap_or_default(),
                         Err(_) => String::new(),

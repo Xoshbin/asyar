@@ -2,15 +2,17 @@
 //!
 //! Handles registering, unregistering, pausing, and persisting shortcuts.
 
-use crate::AppState;
 use crate::error::AppError;
+use crate::AppState;
+use crate::SPOTLIGHT_LABEL;
 use log::info;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::Ordering;
 use tauri::AppHandle;
 use tauri::{Emitter, Manager};
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutEvent, ShortcutState};
-use std::sync::atomic::Ordering;
-use crate::SPOTLIGHT_LABEL;
+use tauri_plugin_global_shortcut::{
+    Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutEvent, ShortcutState,
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ShortcutConfig {
@@ -44,7 +46,9 @@ pub async fn update_global_shortcut(
     let mut launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
 
     // Try to unregister whatever the user previously configured, ignoring errors since it might not be registered
-    if let Ok(old_shortcut) = canonicalize_shortcut(&launcher_shortcut).and_then(|s| parse_shortcut(&s)) {
+    if let Ok(old_shortcut) =
+        canonicalize_shortcut(&launcher_shortcut).and_then(|s| parse_shortcut(&s))
+    {
         let _ = shortcut_manager.unregister(old_shortcut);
     }
 
@@ -53,12 +57,17 @@ pub async fn update_global_shortcut(
         Ok(_) => {
             *launcher_shortcut = new_shortcut_str;
             Ok(())
-        },
-        Err(e) => Err(AppError::Shortcut(format!("Failed to register shortcut: {}", e))),
+        }
+        Err(e) => Err(AppError::Shortcut(format!(
+            "Failed to register shortcut: {}",
+            e
+        ))),
     }
 }
 
-pub(crate) fn parse_shortcut(shortcut_str: &str) -> Result<tauri_plugin_global_shortcut::Shortcut, AppError> {
+pub(crate) fn parse_shortcut(
+    shortcut_str: &str,
+) -> Result<tauri_plugin_global_shortcut::Shortcut, AppError> {
     let parts: Vec<&str> = shortcut_str.split('+').collect();
     if parts.is_empty() {
         return Err(AppError::Shortcut("Invalid shortcut string".to_string()));
@@ -81,7 +90,10 @@ pub(crate) fn parse_shortcut(shortcut_str: &str) -> Result<tauri_plugin_global_s
     if modifier.is_empty() {
         Ok(tauri_plugin_global_shortcut::Shortcut::new(None, code))
     } else {
-        Ok(tauri_plugin_global_shortcut::Shortcut::new(Some(modifier), code))
+        Ok(tauri_plugin_global_shortcut::Shortcut::new(
+            Some(modifier),
+            code,
+        ))
     }
 }
 
@@ -95,20 +107,24 @@ pub fn register_item_shortcut(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), AppError> {
     let shortcut_str = canonicalize_shortcut(&format!("{}+{}", modifier, key))?;
-    
+
     // Check conflict with launcher shortcut
     let launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
     if *launcher_shortcut == shortcut_str {
-        return Err(AppError::Shortcut("Shortcut conflicts with launcher toggle".to_string()));
+        return Err(AppError::Shortcut(
+            "Shortcut conflicts with launcher toggle".to_string(),
+        ));
     }
     drop(launcher_shortcut);
 
     let new_shortcut = parse_shortcut(&shortcut_str)?;
-    
+
     // Insert into state, removing any existing for this shortcut
     let mut user_shortcuts = state.user_shortcuts.lock().map_err(|_| AppError::Lock)?;
     if user_shortcuts.contains_key(&shortcut_str) {
-        return Err(AppError::Shortcut("Shortcut already in use by another item".to_string()));
+        return Err(AppError::Shortcut(
+            "Shortcut already in use by another item".to_string(),
+        ));
     }
 
     let shortcut_manager = app_handle.global_shortcut();
@@ -116,8 +132,11 @@ pub fn register_item_shortcut(
         Ok(_) => {
             user_shortcuts.insert(shortcut_str, object_id);
             Ok(())
-        },
-        Err(e) => Err(AppError::Shortcut(format!("Failed to register shortcut: {}", e))),
+        }
+        Err(e) => Err(AppError::Shortcut(format!(
+            "Failed to register shortcut: {}",
+            e
+        ))),
     }
 }
 
@@ -130,15 +149,15 @@ pub fn unregister_item_shortcut(
     state: tauri::State<'_, AppState>,
 ) -> Result<(), AppError> {
     let shortcut_str = canonicalize_shortcut(&format!("{}+{}", modifier, key))?;
-    
+
     if let Ok(shortcut) = parse_shortcut(&shortcut_str) {
         let shortcut_manager = app_handle.global_shortcut();
         let _ = shortcut_manager.unregister(shortcut);
     }
-    
+
     let mut user_shortcuts = state.user_shortcuts.lock().map_err(|_| AppError::Lock)?;
     user_shortcuts.remove(&shortcut_str);
-    
+
     Ok(())
 }
 
@@ -186,7 +205,8 @@ pub fn pause_all_shortcuts(
 
     // Pause launcher shortcut
     let launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
-    if let Ok(shortcut) = canonicalize_shortcut(&launcher_shortcut).and_then(|s| parse_shortcut(&s)) {
+    if let Ok(shortcut) = canonicalize_shortcut(&launcher_shortcut).and_then(|s| parse_shortcut(&s))
+    {
         let _ = shortcut_manager.unregister(shortcut);
     }
     drop(launcher_shortcut);
@@ -211,7 +231,8 @@ pub fn resume_all_shortcuts(
 
     // Resume launcher shortcut
     let launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
-    if let Ok(shortcut) = canonicalize_shortcut(&launcher_shortcut).and_then(|s| parse_shortcut(&s)) {
+    if let Ok(shortcut) = canonicalize_shortcut(&launcher_shortcut).and_then(|s| parse_shortcut(&s))
+    {
         let _ = shortcut_manager.register(shortcut);
     }
     drop(launcher_shortcut);
@@ -399,15 +420,23 @@ pub fn handle_shortcut(app: &tauri::AppHandle, shortcut: &Shortcut, event: Short
     }
 
     let state = app.state::<AppState>();
-    
+
     // Build canonical string: "Modifier+Key" (e.g., "Super+K", "Control+Shift+A")
     // Order must match frontend: Control, Alt, Shift, Super (Apple HIG)
     let mut canonical_parts = Vec::new();
     let mods = shortcut.mods;
-    if mods.contains(Modifiers::CONTROL) { canonical_parts.push("Control"); }
-    if mods.contains(Modifiers::ALT) { canonical_parts.push("Alt"); }
-    if mods.contains(Modifiers::SHIFT) { canonical_parts.push("Shift"); }
-    if mods.contains(Modifiers::SUPER) { canonical_parts.push("Super"); }
+    if mods.contains(Modifiers::CONTROL) {
+        canonical_parts.push("Control");
+    }
+    if mods.contains(Modifiers::ALT) {
+        canonical_parts.push("Alt");
+    }
+    if mods.contains(Modifiers::SHIFT) {
+        canonical_parts.push("Shift");
+    }
+    if mods.contains(Modifiers::SUPER) {
+        canonical_parts.push("Super");
+    }
     canonical_parts.push(key_str);
     let canonical = canonical_parts.join("+");
 
@@ -419,7 +448,9 @@ pub fn handle_shortcut(app: &tauri::AppHandle, shortcut: &Shortcut, event: Short
         }
     }
 
-    let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) else { return; };
+    let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) else {
+        return;
+    };
 
     // Launcher-toggle just re-shows the last view — any stale-frame flash is
     // cosmetically X→X. User item hotkeys (which CAN swap views) route through
@@ -427,7 +458,9 @@ pub fn handle_shortcut(app: &tauri::AppHandle, shortcut: &Shortcut, event: Short
     #[cfg(target_os = "macos")]
     {
         use tauri_nspanel::ManagerExt;
-        let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) else { return; };
+        let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) else {
+            return;
+        };
         if panel.is_visible() {
             state.asyar_visible.store(false, Ordering::Relaxed);
             panel.order_out(None);
@@ -478,15 +511,80 @@ pub async fn get_persisted_shortcut() -> Result<ShortcutConfig, AppError> {
 #[tauri::command]
 pub fn get_valid_shortcut_keys() -> Vec<String> {
     vec![
-        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
-        "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
-        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-        "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "J",
+        "K",
+        "L",
+        "M",
+        "N",
+        "O",
+        "P",
+        "Q",
+        "R",
+        "S",
+        "T",
+        "U",
+        "V",
+        "W",
+        "X",
+        "Y",
+        "Z",
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7",
+        "F8",
+        "F9",
+        "F10",
+        "F11",
+        "F12",
         "Space",
-        "-", "=", "[", "]", "\\", ";", "'", "`", ",", ".", "/",
-        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
-        "Home", "End", "PageUp", "PageDown", "Delete", "Insert",
-    ].into_iter().map(String::from).collect()
+        "-",
+        "=",
+        "[",
+        "]",
+        "\\",
+        ";",
+        "'",
+        "`",
+        ",",
+        ".",
+        "/",
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+        "Home",
+        "End",
+        "PageUp",
+        "PageDown",
+        "Delete",
+        "Insert",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
 }
 
 /// Registers the global shortcut from saved settings on app startup.
@@ -508,7 +606,10 @@ pub async fn initialize_shortcut_from_settings(
 pub(crate) fn canonicalize_shortcut(shortcut_str: &str) -> Result<String, AppError> {
     let parts: Vec<&str> = shortcut_str.split('+').collect();
     if parts.is_empty() {
-        return Err(AppError::Shortcut(format!("Empty shortcut: {}", shortcut_str)));
+        return Err(AppError::Shortcut(format!(
+            "Empty shortcut: {}",
+            shortcut_str
+        )));
     }
     let key = *parts.last().unwrap();
     let mut has_control = false;
@@ -525,10 +626,18 @@ pub(crate) fn canonicalize_shortcut(shortcut_str: &str) -> Result<String, AppErr
         }
     }
     let mut out = Vec::new();
-    if has_control { out.push("Control"); }
-    if has_alt { out.push("Alt"); }
-    if has_shift { out.push("Shift"); }
-    if has_super { out.push("Super"); }
+    if has_control {
+        out.push("Control");
+    }
+    if has_alt {
+        out.push("Alt");
+    }
+    if has_shift {
+        out.push("Shift");
+    }
+    if has_super {
+        out.push("Super");
+    }
     out.push(key);
     Ok(out.join("+"))
 }
@@ -668,14 +777,76 @@ mod tests {
     fn test_code_roundtrip() {
         // Every string that get_code_from_string accepts should round-trip through code_to_str
         let keys = vec![
-            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
-            "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
-            "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-            "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "G",
+            "H",
+            "I",
+            "J",
+            "K",
+            "L",
+            "M",
+            "N",
+            "O",
+            "P",
+            "Q",
+            "R",
+            "S",
+            "T",
+            "U",
+            "V",
+            "W",
+            "X",
+            "Y",
+            "Z",
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "F1",
+            "F2",
+            "F3",
+            "F4",
+            "F5",
+            "F6",
+            "F7",
+            "F8",
+            "F9",
+            "F10",
+            "F11",
+            "F12",
             "Space",
-            "-", "=", "[", "]", "\\", ";", "'", "`", ",", ".", "/",
-            "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
-            "Home", "End", "PageUp", "PageDown", "Delete", "Insert",
+            "-",
+            "=",
+            "[",
+            "]",
+            "\\",
+            ";",
+            "'",
+            "`",
+            ",",
+            ".",
+            "/",
+            "ArrowUp",
+            "ArrowDown",
+            "ArrowLeft",
+            "ArrowRight",
+            "Home",
+            "End",
+            "PageUp",
+            "PageDown",
+            "Delete",
+            "Insert",
         ];
         for key in keys {
             let code = get_code_from_string(key).unwrap();
@@ -685,19 +856,31 @@ mod tests {
 
     #[test]
     fn canonicalize_reorders_modifiers_to_hig() {
-        assert_eq!(canonicalize_shortcut("Super+Shift+K").unwrap(), "Shift+Super+K");
-        assert_eq!(canonicalize_shortcut("Shift+Control+Alt+Super+A").unwrap(), "Control+Alt+Shift+Super+A");
+        assert_eq!(
+            canonicalize_shortcut("Super+Shift+K").unwrap(),
+            "Shift+Super+K"
+        );
+        assert_eq!(
+            canonicalize_shortcut("Shift+Control+Alt+Super+A").unwrap(),
+            "Control+Alt+Shift+Super+A"
+        );
     }
 
     #[test]
     fn canonicalize_rewrites_ctrl_to_control() {
         assert_eq!(canonicalize_shortcut("Ctrl+K").unwrap(), "Control+K");
-        assert_eq!(canonicalize_shortcut("Ctrl+Shift+A").unwrap(), "Control+Shift+A");
+        assert_eq!(
+            canonicalize_shortcut("Ctrl+Shift+A").unwrap(),
+            "Control+Shift+A"
+        );
     }
 
     #[test]
     fn canonicalize_preserves_already_canonical() {
-        assert_eq!(canonicalize_shortcut("Control+Alt+Shift+Super+K").unwrap(), "Control+Alt+Shift+Super+K");
+        assert_eq!(
+            canonicalize_shortcut("Control+Alt+Shift+Super+K").unwrap(),
+            "Control+Alt+Shift+Super+K"
+        );
         assert_eq!(canonicalize_shortcut("Shift+K").unwrap(), "Shift+K");
     }
 
@@ -706,4 +889,3 @@ mod tests {
         assert!(canonicalize_shortcut("Option+K").is_err());
     }
 }
-

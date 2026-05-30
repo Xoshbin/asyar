@@ -291,10 +291,7 @@ mod tests {
     impl EnvGuard {
         fn for_vars(names: &[&'static str]) -> Self {
             Self {
-                saved: names
-                    .iter()
-                    .map(|n| (*n, std::env::var_os(n)))
-                    .collect(),
+                saved: names.iter().map(|n| (*n, std::env::var_os(n))).collect(),
             }
         }
     }
@@ -375,10 +372,16 @@ mod tests {
 
         // On AZERTY `q` is in the position of US `a`, so the physical
         // Q-key produces 'q' on US but 'a' on French (canonical AZERTY swap).
-        assert_ne!(us_unshifted, fr_unshifted, "Q-key should differ between us and fr");
+        assert_ne!(
+            us_unshifted, fr_unshifted,
+            "Q-key should differ between us and fr"
+        );
         // Shifted `.` differs across the two layouts (':' on US, something
         // else on French — exact char varies by French variant).
-        assert_ne!(us_shifted, fr_shifted, "Shift+Dot should differ between us and fr");
+        assert_ne!(
+            us_shifted, fr_shifted,
+            "Shift+Dot should differ between us and fr"
+        );
     }
 
     #[test]

@@ -55,9 +55,9 @@ pub fn list(conn: &Connection) -> Result<Vec<String>, AppError> {
         .map_err(|e| AppError::Database(format!("Failed to list script directories: {e}")))?;
     let mut paths = Vec::new();
     for r in rows {
-        paths.push(
-            r.map_err(|e| AppError::Database(format!("Failed to read script directory row: {e}")))?,
-        );
+        paths.push(r.map_err(|e| {
+            AppError::Database(format!("Failed to read script directory row: {e}"))
+        })?);
     }
     Ok(paths)
 }

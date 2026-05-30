@@ -29,10 +29,7 @@ pub fn parse_extension_deeplink(raw: &str) -> Option<ExtensionDeeplinkPayload> {
     }
 
     // Path segments after host: /{extensionId}/{commandId}
-    let segments: Vec<&str> = parsed
-        .path_segments()?
-        .filter(|s| !s.is_empty())
-        .collect();
+    let segments: Vec<&str> = parsed.path_segments()?.filter(|s| !s.is_empty()).collect();
 
     if segments.len() < 2 {
         log::warn!("Deep link missing extensionId or commandId: {}", raw);
@@ -120,12 +117,8 @@ mod tests {
         // Dots in isolation are fine (e.g. "com.example"), but characters like
         // slashes or percent-encoded slashes would be caught by the URL parser
         // or the character allowlist. Test that special chars are rejected:
-        assert!(
-            parse_extension_deeplink("asyar://extensions/ext%2F..%2Fetc/run").is_none()
-        );
-        assert!(
-            parse_extension_deeplink("asyar://extensions/ext%00id/run").is_none()
-        );
+        assert!(parse_extension_deeplink("asyar://extensions/ext%2F..%2Fetc/run").is_none());
+        assert!(parse_extension_deeplink("asyar://extensions/ext%00id/run").is_none());
     }
 
     #[test]
@@ -135,8 +128,7 @@ mod tests {
 
     #[test]
     fn handles_url_encoded_args() {
-        let result =
-            parse_extension_deeplink("asyar://extensions/ext/cmd?q=hello%20world&n=42");
+        let result = parse_extension_deeplink("asyar://extensions/ext/cmd?q=hello%20world&n=42");
         let payload = result.expect("should parse successfully");
         assert_eq!(payload.args.get("q"), Some(&"hello world".to_string()));
         assert_eq!(payload.args.get("n"), Some(&"42".to_string()));
@@ -144,15 +136,12 @@ mod tests {
 
     #[test]
     fn rejects_non_asyar_scheme() {
-        assert!(
-            parse_extension_deeplink("https://extensions/com.example/cmd").is_none()
-        );
+        assert!(parse_extension_deeplink("https://extensions/com.example/cmd").is_none());
     }
 
     #[test]
     fn accepts_hyphenated_and_underscored_ids() {
-        let result =
-            parse_extension_deeplink("asyar://extensions/my-ext_v2/do-thing_now");
+        let result = parse_extension_deeplink("asyar://extensions/my-ext_v2/do-thing_now");
         let payload = result.expect("should parse successfully");
         assert_eq!(payload.extension_id, "my-ext_v2");
         assert_eq!(payload.command_id, "do-thing_now");

@@ -43,11 +43,7 @@ pub async fn clipboard_privacy_classify(
     user_denylist: State<'_, UserDenylist>,
 ) -> Result<ClassificationResult, AppError> {
     let types = crate::clipboard_privacy::read_current_pasteboard_types();
-    let user = user_denylist
-        .0
-        .lock()
-        .map_err(|_| AppError::Lock)?
-        .clone();
+    let user = user_denylist.0.lock().map_err(|_| AppError::Lock)?.clone();
     Ok(classify_inner(
         &types,
         source_bundle_id.as_deref(),
@@ -105,9 +101,7 @@ pub(crate) fn set_user_denylist_inner(
     let mut deduped: Vec<String> = Vec::new();
     for e in entries {
         let trimmed = e.trim().to_string();
-        if !trimmed.is_empty()
-            && !deduped.iter().any(|d| d.eq_ignore_ascii_case(&trimmed))
-        {
+        if !trimmed.is_empty() && !deduped.iter().any(|d| d.eq_ignore_ascii_case(&trimmed)) {
             deduped.push(trimmed);
         }
     }

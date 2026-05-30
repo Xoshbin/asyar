@@ -32,8 +32,16 @@ impl ExtensionRuntimeManager {
         now: Instant,
     ) -> Vec<PendingMessage> {
         match role {
-            ContextRole::Worker => self.worker.lock().unwrap().on_ready_ack(ext, mount_token, now),
-            ContextRole::View => self.view.lock().unwrap().on_ready_ack(ext, mount_token, now),
+            ContextRole::Worker => self
+                .worker
+                .lock()
+                .unwrap()
+                .on_ready_ack(ext, mount_token, now),
+            ContextRole::View => self
+                .view
+                .lock()
+                .unwrap()
+                .on_ready_ack(ext, mount_token, now),
         }
     }
 
@@ -45,8 +53,17 @@ impl ExtensionRuntimeManager {
         now: Instant,
     ) -> TimeoutOutcome {
         match role {
-            ContextRole::Worker => self.worker.lock().unwrap().on_mount_timeout(ext, mount_token, now),
-            ContextRole::View => self.view.lock().unwrap().on_mount_timeout(ext, mount_token, now),
+            ContextRole::Worker => {
+                self.worker
+                    .lock()
+                    .unwrap()
+                    .on_mount_timeout(ext, mount_token, now)
+            }
+            ContextRole::View => self
+                .view
+                .lock()
+                .unwrap()
+                .on_mount_timeout(ext, mount_token, now),
         }
     }
 

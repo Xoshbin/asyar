@@ -246,7 +246,12 @@ mod tests {
         conn
     }
 
-    fn perm(server_id: &str, tool_id: &str, agent_id: &str, decision: PermissionDecision) -> McpPermissionRow {
+    fn perm(
+        server_id: &str,
+        tool_id: &str,
+        agent_id: &str,
+        decision: PermissionDecision,
+    ) -> McpPermissionRow {
         McpPermissionRow {
             server_id: server_id.to_string(),
             tool_id: tool_id.to_string(),
@@ -259,7 +264,12 @@ mod tests {
     #[test]
     fn set_then_get_round_trips() {
         let conn = make_conn();
-        let row = perm("srv-1", "search", "agent-1", PermissionDecision::AllowAlways);
+        let row = perm(
+            "srv-1",
+            "search",
+            "agent-1",
+            PermissionDecision::AllowAlways,
+        );
         set_permission(&conn, &row).unwrap();
 
         let got = get_permission(&conn, "srv-1", "search", "agent-1")
@@ -275,8 +285,16 @@ mod tests {
     #[test]
     fn set_permission_overwrites_existing_decision() {
         let conn = make_conn();
-        set_permission(&conn, &perm("srv-1", "search", "agent-1", PermissionDecision::AllowOnce)).unwrap();
-        set_permission(&conn, &perm("srv-1", "search", "agent-1", PermissionDecision::Never)).unwrap();
+        set_permission(
+            &conn,
+            &perm("srv-1", "search", "agent-1", PermissionDecision::AllowOnce),
+        )
+        .unwrap();
+        set_permission(
+            &conn,
+            &perm("srv-1", "search", "agent-1", PermissionDecision::Never),
+        )
+        .unwrap();
 
         let got = get_permission(&conn, "srv-1", "search", "agent-1")
             .unwrap()
@@ -287,50 +305,105 @@ mod tests {
     #[test]
     fn consume_allow_once_returns_decision_then_deletes_row() {
         let conn = make_conn();
-        set_permission(&conn, &perm("srv-1", "search", "agent-1", PermissionDecision::AllowOnce)).unwrap();
+        set_permission(
+            &conn,
+            &perm("srv-1", "search", "agent-1", PermissionDecision::AllowOnce),
+        )
+        .unwrap();
 
         let decision = consume_allow_once(&conn, "srv-1", "search", "agent-1").unwrap();
         assert_eq!(decision, Some(PermissionDecision::AllowOnce));
 
         // Row must be gone after consume
         let after = get_permission(&conn, "srv-1", "search", "agent-1").unwrap();
-        assert!(after.is_none(), "expected row to be deleted after AllowOnce consume");
+        assert!(
+            after.is_none(),
+            "expected row to be deleted after AllowOnce consume"
+        );
     }
 
     #[test]
     fn consume_allow_always_returns_decision_and_keeps_row() {
         let conn = make_conn();
-        set_permission(&conn, &perm("srv-1", "search", "agent-1", PermissionDecision::AllowAlways)).unwrap();
+        set_permission(
+            &conn,
+            &perm(
+                "srv-1",
+                "search",
+                "agent-1",
+                PermissionDecision::AllowAlways,
+            ),
+        )
+        .unwrap();
 
         let decision = consume_allow_once(&conn, "srv-1", "search", "agent-1").unwrap();
         assert_eq!(decision, Some(PermissionDecision::AllowAlways));
 
         // Row must still exist
         let after = get_permission(&conn, "srv-1", "search", "agent-1").unwrap();
-        assert!(after.is_some(), "expected row to remain after AllowAlways consume");
+        assert!(
+            after.is_some(),
+            "expected row to remain after AllowAlways consume"
+        );
         assert_eq!(after.unwrap().decision, PermissionDecision::AllowAlways);
     }
 
     #[test]
     fn delete_for_server_drops_only_that_server() {
         let conn = make_conn();
-        set_permission(&conn, &perm("srv-1", "tool-a", "agent-1", PermissionDecision::AllowAlways)).unwrap();
-        set_permission(&conn, &perm("srv-1", "tool-b", "agent-1", PermissionDecision::Never)).unwrap();
-        set_permission(&conn, &perm("srv-2", "tool-a", "agent-1", PermissionDecision::AllowOnce)).unwrap();
+        set_permission(
+            &conn,
+            &perm(
+                "srv-1",
+                "tool-a",
+                "agent-1",
+                PermissionDecision::AllowAlways,
+            ),
+        )
+        .unwrap();
+        set_permission(
+            &conn,
+            &perm("srv-1", "tool-b", "agent-1", PermissionDecision::Never),
+        )
+        .unwrap();
+        set_permission(
+            &conn,
+            &perm("srv-2", "tool-a", "agent-1", PermissionDecision::AllowOnce),
+        )
+        .unwrap();
 
         let deleted = delete_for_server(&conn, "srv-1").unwrap();
         assert_eq!(deleted, 2);
 
-        assert!(get_permission(&conn, "srv-1", "tool-a", "agent-1").unwrap().is_none());
-        assert!(get_permission(&conn, "srv-1", "tool-b", "agent-1").unwrap().is_none());
-        assert!(get_permission(&conn, "srv-2", "tool-a", "agent-1").unwrap().is_some());
+        assert!(get_permission(&conn, "srv-1", "tool-a", "agent-1")
+            .unwrap()
+            .is_none());
+        assert!(get_permission(&conn, "srv-1", "tool-b", "agent-1")
+            .unwrap()
+            .is_none());
+        assert!(get_permission(&conn, "srv-2", "tool-a", "agent-1")
+            .unwrap()
+            .is_some());
     }
 
     #[test]
     fn list_permissions_returns_all_rows_unfiltered() {
         let conn = make_conn();
-        set_permission(&conn, &perm("srv-1", "tool-a", "agent-1", PermissionDecision::AllowAlways)).unwrap();
-        set_permission(&conn, &perm("srv-2", "tool-b", "agent-2", PermissionDecision::Never)).unwrap();
+        set_permission(
+            &conn,
+            &perm(
+                "srv-1",
+                "tool-a",
+                "agent-1",
+                PermissionDecision::AllowAlways,
+            ),
+        )
+        .unwrap();
+        set_permission(
+            &conn,
+            &perm("srv-2", "tool-b", "agent-2", PermissionDecision::Never),
+        )
+        .unwrap();
 
         let rows = list_permissions(&conn, None).unwrap();
         assert_eq!(rows.len(), 2, "expected 2 rows when no server_id filter");
@@ -339,9 +412,26 @@ mod tests {
     #[test]
     fn list_permissions_filters_by_server_id() {
         let conn = make_conn();
-        set_permission(&conn, &perm("srv-1", "tool-a", "agent-1", PermissionDecision::AllowAlways)).unwrap();
-        set_permission(&conn, &perm("srv-1", "tool-b", "agent-1", PermissionDecision::Never)).unwrap();
-        set_permission(&conn, &perm("srv-2", "tool-a", "agent-1", PermissionDecision::AllowOnce)).unwrap();
+        set_permission(
+            &conn,
+            &perm(
+                "srv-1",
+                "tool-a",
+                "agent-1",
+                PermissionDecision::AllowAlways,
+            ),
+        )
+        .unwrap();
+        set_permission(
+            &conn,
+            &perm("srv-1", "tool-b", "agent-1", PermissionDecision::Never),
+        )
+        .unwrap();
+        set_permission(
+            &conn,
+            &perm("srv-2", "tool-a", "agent-1", PermissionDecision::AllowOnce),
+        )
+        .unwrap();
 
         let rows = list_permissions(&conn, Some("srv-1")).unwrap();
         assert_eq!(rows.len(), 2, "expected 2 rows for srv-1");
@@ -351,13 +441,30 @@ mod tests {
     #[test]
     fn delete_permission_removes_single_row() {
         let conn = make_conn();
-        set_permission(&conn, &perm("srv-1", "tool-a", "agent-1", PermissionDecision::AllowAlways)).unwrap();
-        set_permission(&conn, &perm("srv-1", "tool-b", "agent-1", PermissionDecision::Never)).unwrap();
+        set_permission(
+            &conn,
+            &perm(
+                "srv-1",
+                "tool-a",
+                "agent-1",
+                PermissionDecision::AllowAlways,
+            ),
+        )
+        .unwrap();
+        set_permission(
+            &conn,
+            &perm("srv-1", "tool-b", "agent-1", PermissionDecision::Never),
+        )
+        .unwrap();
 
         delete_permission(&conn, "srv-1", "tool-a", "agent-1").unwrap();
 
-        assert!(get_permission(&conn, "srv-1", "tool-a", "agent-1").unwrap().is_none());
-        assert!(get_permission(&conn, "srv-1", "tool-b", "agent-1").unwrap().is_some());
+        assert!(get_permission(&conn, "srv-1", "tool-a", "agent-1")
+            .unwrap()
+            .is_none());
+        assert!(get_permission(&conn, "srv-1", "tool-b", "agent-1")
+            .unwrap()
+            .is_some());
     }
 
     #[test]

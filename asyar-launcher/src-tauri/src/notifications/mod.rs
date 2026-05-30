@@ -40,29 +40,31 @@ pub fn build_default_backend<R: tauri::Runtime>(
 
     let registry_for_sink = Arc::clone(&registry);
     let app_for_sink = app.clone();
-    let click_sink: backend::ActionClickSink = Arc::new(move |notification_id: &str, action_id: &str| {
-        match resolve_click(&registry_for_sink, notification_id, action_id) {
-            Some(event) => {
-                if let Err(e) = app_for_sink.emit(NOTIFICATION_ACTION_EVENT, &event) {
-                    log::warn!(
-                        "[notifications] failed to emit {}: {}",
-                        NOTIFICATION_ACTION_EVENT,
-                        e
-                    );
+    let click_sink: backend::ActionClickSink = Arc::new(
+        move |notification_id: &str, action_id: &str| {
+            match resolve_click(&registry_for_sink, notification_id, action_id) {
+                Some(event) => {
+                    if let Err(e) = app_for_sink.emit(NOTIFICATION_ACTION_EVENT, &event) {
+                        log::warn!(
+                            "[notifications] failed to emit {}: {}",
+                            NOTIFICATION_ACTION_EVENT,
+                            e
+                        );
+                    }
+                    // Each notification's actions are one-shot: the OS closes
+                    // the notification on click, so drop the whole group.
+                    registry_for_sink.remove(notification_id);
                 }
-                // Each notification's actions are one-shot: the OS closes
-                // the notification on click, so drop the whole group.
-                registry_for_sink.remove(notification_id);
-            }
-            None => {
-                log::warn!(
+                None => {
+                    log::warn!(
                     "[notifications] received click for unknown ({},{}) — extension likely disabled",
                     notification_id,
                     action_id
                 );
+                }
             }
-        }
-    });
+        },
+    );
 
     #[cfg(target_os = "macos")]
     {

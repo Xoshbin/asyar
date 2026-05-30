@@ -24,9 +24,7 @@ pub fn derive_wrap_key(
     p_cost: u32,
 ) -> Result<Zeroizing<[u8; KEY_LEN]>, AppError> {
     if salt.len() < 8 {
-        return Err(AppError::Validation(
-            "salt must be at least 8 bytes".into(),
-        ));
+        return Err(AppError::Validation("salt must be at least 8 bytes".into()));
     }
     let params = Params::new(m_cost, t_cost, p_cost, Some(KEY_LEN))
         .map_err(|e| AppError::Encryption(format!("argon2 params: {e}")))?;
@@ -45,7 +43,14 @@ mod tests {
     #[test]
     fn derive_wrap_key_returns_32_bytes() {
         let salt = [7u8; 32];
-        let key = derive_wrap_key("hunter2hunter2", &salt, ARGON2_M_COST, ARGON2_T_COST, ARGON2_P_COST).unwrap();
+        let key = derive_wrap_key(
+            "hunter2hunter2",
+            &salt,
+            ARGON2_M_COST,
+            ARGON2_T_COST,
+            ARGON2_P_COST,
+        )
+        .unwrap();
         assert_eq!(key.len(), 32);
     }
 

@@ -1,19 +1,19 @@
 //! Extension background scheduler — manages tokio timers for declarative scheduled commands.
 
-use std::collections::HashMap;
-use std::sync::Mutex;
 use log::warn;
 use serde::Serialize;
+use std::collections::HashMap;
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 use tokio::task::JoinHandle;
 
+use super::ExtensionRegistryState;
 use crate::error::AppError;
+use crate::extensions::extension_runtime::emitter::{emit_typed, EventEmitter};
 use crate::extensions::extension_runtime::{
     ContextRole, DispatchOutcome, ExtensionRuntimeManager, MessageKind, PendingMessage,
     TriggerSource, EVENT_DELIVER, EVENT_MOUNT,
 };
-use crate::extensions::extension_runtime::emitter::{emit_typed, EventEmitter};
-use super::ExtensionRegistryState;
 use std::sync::Arc;
 
 const MIN_INTERVAL_SECS: u64 = 10;
@@ -94,11 +94,13 @@ fn handle_dispatch_outcome(
         DispatchOutcome::ReadyDeliverNow { messages } => {
             let serialized: Vec<serde_json::Value> = messages
                 .iter()
-                .map(|m| serde_json::json!({
-                    "kind": m.kind,
-                    "payload": m.payload,
-                    "source": m.source,
-                }))
+                .map(|m| {
+                    serde_json::json!({
+                        "kind": m.kind,
+                        "payload": m.payload,
+                        "source": m.source,
+                    })
+                })
                 .collect();
             emit_typed(
                 emitter,
@@ -143,9 +145,7 @@ fn spawn_timer(
 ) -> JoinHandle<()> {
     use crate::extensions::extension_runtime::emitter::TauriEventEmitter;
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(
-            tokio::time::Duration::from_secs(interval_secs),
-        );
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(interval_secs));
         // Skip the first tick (fires immediately by default)
         interval.tick().await;
         loop {
@@ -154,7 +154,9 @@ fn spawn_timer(
             let msg = build_scheduled_command_message(&command_id, now);
             if let Some(mgr) = app_handle.try_state::<Arc<ExtensionRuntimeManager>>() {
                 let outcome = mgr.enqueue_worker(&extension_id, msg, now);
-                let emitter = TauriEventEmitter { app: app_handle.clone() };
+                let emitter = TauriEventEmitter {
+                    app: app_handle.clone(),
+                };
                 handle_dispatch_outcome(&emitter, &extension_id, &command_id, &outcome);
             } else {
                 warn!(
@@ -198,7 +200,9 @@ pub fn start_all_tasks(
                     tasks.insert(task_key, handle);
                     log::info!(
                         "Scheduler: started timer for {}::{} (every {}s)",
-                        ext_id, cmd.id, schedule.interval_seconds
+                        ext_id,
+                        cmd.id,
+                        schedule.interval_seconds
                     );
                 }
             }
@@ -237,7 +241,9 @@ pub fn start_tasks_for_extension(
                     tasks.insert(task_key, handle);
                     log::info!(
                         "Scheduler: started timer for {}::{} (every {}s)",
-                        extension_id, cmd.id, schedule.interval_seconds
+                        extension_id,
+                        cmd.id,
+                        schedule.interval_seconds
                     );
                 }
             }
@@ -410,7 +416,10 @@ mod tests {
             "EVENT_DELIVER role must be 'worker' so the TS listener targets the worker iframe (matches ContextRole serialization)"
         );
         let messages = payload.get("messages").and_then(|v| v.as_array());
-        assert!(messages.is_some(), "EVENT_DELIVER payload must include 'messages' array");
+        assert!(
+            messages.is_some(),
+            "EVENT_DELIVER payload must include 'messages' array"
+        );
         assert_eq!(messages.unwrap().len(), 1);
     }
 

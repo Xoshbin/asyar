@@ -127,11 +127,7 @@ pub fn upsert_item(conn: &Connection, entry: &ItemJournalEntry) -> Result<(), Ap
 /// category is preserved — items are immutable in their category once
 /// tracked. Pass the current `category_id` from the caller; mismatches are
 /// silently tolerated.
-pub fn mark_dirty(
-    conn: &Connection,
-    item_id: &str,
-    category_id: &str,
-) -> Result<(), AppError> {
+pub fn mark_dirty(conn: &Connection, item_id: &str, category_id: &str) -> Result<(), AppError> {
     conn.execute(
         "INSERT INTO cloud_sync_items_journal
             (item_id, category_id, last_uploaded_hash, server_version, is_dirty, is_tombstone)
@@ -179,11 +175,7 @@ pub fn mark_all_dirty(conn: &Connection) -> Result<usize, AppError> {
 /// (NULL). Idempotent. If the item is not yet in the journal, inserts a
 /// row pre-marked as a tombstone so the next push knows to send a delete
 /// for this id.
-pub fn mark_tombstone(
-    conn: &Connection,
-    item_id: &str,
-    category_id: &str,
-) -> Result<(), AppError> {
+pub fn mark_tombstone(conn: &Connection, item_id: &str, category_id: &str) -> Result<(), AppError> {
     conn.execute(
         "INSERT INTO cloud_sync_items_journal
             (item_id, category_id, last_uploaded_hash, server_version, is_dirty, is_tombstone)
@@ -218,9 +210,7 @@ pub fn get_all(conn: &Connection) -> Result<Vec<ItemJournalEntry>, AppError> {
 
     let mut out = Vec::new();
     for r in rows {
-        out.push(
-            r.map_err(|e| AppError::Database(format!("Failed to read journal row: {e}")))?,
-        );
+        out.push(r.map_err(|e| AppError::Database(format!("Failed to read journal row: {e}")))?);
     }
     Ok(out)
 }
@@ -244,9 +234,7 @@ pub fn get_dirty(conn: &Connection) -> Result<Vec<ItemJournalEntry>, AppError> {
 
     let mut out = Vec::new();
     for r in rows {
-        out.push(r.map_err(|e| {
-            AppError::Database(format!("Failed to read dirty row: {e}"))
-        })?);
+        out.push(r.map_err(|e| AppError::Database(format!("Failed to read dirty row: {e}")))?);
     }
     Ok(out)
 }
@@ -383,11 +371,7 @@ pub fn get_cursor(conn: &Connection) -> Result<CursorState, AppError> {
 
 /// Updates `cursor` to `max(current, new_cursor)` (never goes backwards) and
 /// sets `last_full_sync_at_ms = now_ms`. `device_id` is left untouched.
-pub fn advance_cursor(
-    conn: &Connection,
-    new_cursor: i64,
-    now_ms: i64,
-) -> Result<(), AppError> {
+pub fn advance_cursor(conn: &Connection, new_cursor: i64, now_ms: i64) -> Result<(), AppError> {
     let updated = conn
         .execute(
             "UPDATE cloud_sync_cursor
@@ -598,7 +582,11 @@ mod tests {
         assert_eq!(get_cursor(&conn).unwrap().cursor, 5);
 
         advance_cursor(&conn, 3, 2_000).unwrap();
-        assert_eq!(get_cursor(&conn).unwrap().cursor, 5, "must not go backwards");
+        assert_eq!(
+            get_cursor(&conn).unwrap().cursor,
+            5,
+            "must not go backwards"
+        );
 
         advance_cursor(&conn, 9, 3_000).unwrap();
         assert_eq!(get_cursor(&conn).unwrap().cursor, 9);
@@ -756,7 +744,15 @@ mod tests {
     #[test]
     fn apply_pull_record_with_hash_sets_clean_row() {
         let conn = setup();
-        apply_pull_record(&conn, "item-1", "snippets", Some(&make_hash(0x77)), 9, false).unwrap();
+        apply_pull_record(
+            &conn,
+            "item-1",
+            "snippets",
+            Some(&make_hash(0x77)),
+            9,
+            false,
+        )
+        .unwrap();
 
         let row = fetch_one(&conn, "item-1").unwrap();
         assert_eq!(row.last_uploaded_hash, Some(make_hash(0x77)));

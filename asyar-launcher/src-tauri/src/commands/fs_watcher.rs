@@ -64,12 +64,11 @@ pub(crate) fn fs_watch_create_inner(
     opts: Option<FsWatcherOptionsWire>,
 ) -> Result<String, AppError> {
     permissions.check(&extension_id, FS_WATCH_PERMISSION)?;
-    let ext = extension_id.ok_or_else(|| {
-        AppError::Validation("extensionId required for fs_watch_create".into())
-    })?;
+    let ext = extension_id
+        .ok_or_else(|| AppError::Validation("extensionId required for fs_watch_create".into()))?;
     let patterns = permissions.fs_watch_patterns(&ext)?;
-    let home = dirs::home_dir()
-        .ok_or_else(|| AppError::Other("could not determine $HOME".into()))?;
+    let home =
+        dirs::home_dir().ok_or_else(|| AppError::Other("could not determine $HOME".into()))?;
     let requested: Vec<PathBuf> = paths.iter().map(|p| expand_tilde(p, &home)).collect();
     // Permission check runs against the manifest-declared (non-canonical)
     // form so glob patterns like `~/Library/...` continue to match user
@@ -107,9 +106,8 @@ pub(crate) fn fs_watch_dispose_inner(
     handle_id: String,
 ) -> Result<(), AppError> {
     permissions.check(&extension_id, FS_WATCH_PERMISSION)?;
-    let ext = extension_id.ok_or_else(|| {
-        AppError::Validation("extensionId required for fs_watch_dispose".into())
-    })?;
+    let ext = extension_id
+        .ok_or_else(|| AppError::Validation("extensionId required for fs_watch_dispose".into()))?;
     registry.dispose(&ext, &handle_id)
 }
 
@@ -118,7 +116,11 @@ mod tests {
     use super::*;
     use std::collections::{HashMap, HashSet};
 
-    fn setup() -> (FsWatcherRegistry, ExtensionPermissionRegistry, tempfile::TempDir) {
+    fn setup() -> (
+        FsWatcherRegistry,
+        ExtensionPermissionRegistry,
+        tempfile::TempDir,
+    ) {
         let reg = FsWatcherRegistry::new();
         let perms = ExtensionPermissionRegistry::default();
         let tmp = tempfile::tempdir().unwrap();
@@ -128,11 +130,7 @@ mod tests {
             "fs:watch".to_string(),
             serde_json::json!([format!("{tmp_str}/**")]),
         );
-        perms.register(
-            "ext.a",
-            HashSet::from(["fs:watch".to_string()]),
-            args,
-        );
+        perms.register("ext.a", HashSet::from(["fs:watch".to_string()]), args);
         (reg, perms, tmp)
     }
 
@@ -185,13 +183,8 @@ mod tests {
     #[test]
     fn dispose_inner_rejects_without_permission() {
         let (reg, perms, _tmp) = setup();
-        let err = fs_watch_dispose_inner(
-            &reg,
-            &perms,
-            Some("ext.b".into()),
-            "any-handle".into(),
-        )
-        .unwrap_err();
+        let err = fs_watch_dispose_inner(&reg, &perms, Some("ext.b".into()), "any-handle".into())
+            .unwrap_err();
         assert!(format!("{err}").to_lowercase().contains("permission"));
     }
 

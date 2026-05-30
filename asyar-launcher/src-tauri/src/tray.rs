@@ -15,13 +15,23 @@ pub const TRAY_ID: &str = "asyar-tray";
 /// visible and stable regardless of which extensions are installed.
 pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
     let quit_i = MenuItem::with_id(app, "quit", "Quit Asyar", true, None::<&str>)?;
-    let check_updates_i = MenuItem::with_id(app, "check-updates", "Check for Updates", true, None::<&str>)?;
+    let check_updates_i = MenuItem::with_id(
+        app,
+        "check-updates",
+        "Check for Updates",
+        true,
+        None::<&str>,
+    )?;
     let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
 
     let menu = Menu::with_items(app, &[&settings_i, &check_updates_i, &quit_i])?;
 
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(app.default_window_icon().ok_or("Default window icon not configured")?.clone())
+        .icon(
+            app.default_window_icon()
+                .ok_or("Default window icon not configured")?
+                .clone(),
+        )
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "quit" => {

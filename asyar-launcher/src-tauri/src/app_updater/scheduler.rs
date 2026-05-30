@@ -1,5 +1,5 @@
 use log::{error, info};
-use tauri::{AppHandle, Emitter, async_runtime};
+use tauri::{async_runtime, AppHandle, Emitter};
 
 const STARTUP_DELAY_SECS: u64 = 60;
 const CHECK_INTERVAL_SECS: u64 = 6 * 3600; // 6 hours
@@ -18,22 +18,33 @@ fn read_update_settings(app: &AppHandle) -> UpdateSettings {
     use tauri_plugin_store::StoreExt;
     let store = match app.store("settings.dat") {
         Ok(s) => s,
-        Err(_) => return UpdateSettings { auto_check: DEFAULT_AUTO_CHECK, channel: DEFAULT_CHANNEL.to_string() },
+        Err(_) => {
+            return UpdateSettings {
+                auto_check: DEFAULT_AUTO_CHECK,
+                channel: DEFAULT_CHANNEL.to_string(),
+            }
+        }
     };
-    let updates_val = store.get("settings")
+    let updates_val = store
+        .get("settings")
         .and_then(|s| s.get("updates").cloned());
 
-    let auto_check = updates_val.as_ref()
+    let auto_check = updates_val
+        .as_ref()
         .and_then(|u| u.get("autoCheck"))
         .and_then(|v| v.as_bool())
         .unwrap_or(DEFAULT_AUTO_CHECK);
 
-    let channel = updates_val.as_ref()
+    let channel = updates_val
+        .as_ref()
         .and_then(|u| u.get("channel"))
         .and_then(|v| v.as_str().map(|s| s.to_owned()))
         .unwrap_or_else(|| DEFAULT_CHANNEL.to_string());
 
-    UpdateSettings { auto_check, channel }
+    UpdateSettings {
+        auto_check,
+        channel,
+    }
 }
 
 /// Spawn a background tokio task that periodically checks for app updates.
@@ -49,7 +60,8 @@ pub fn start(app: AppHandle) {
             if settings.auto_check {
                 info!("app_updater: scheduled check running...");
                 if let Err(e) =
-                    crate::app_updater::service::check_and_maybe_download(&app, &settings.channel).await
+                    crate::app_updater::service::check_and_maybe_download(&app, &settings.channel)
+                        .await
                 {
                     error!("app_updater: scheduled check failed: {}", e);
                     let _ = app.emit(

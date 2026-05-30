@@ -25,7 +25,11 @@ pub(crate) fn init_table(conn: &Connection) -> Result<(), AppError> {
 /// somehow missing (defensive — the seed in `init_table` should prevent it).
 pub fn get_strict_mode(conn: &Connection) -> Result<bool, AppError> {
     let value: Option<i64> = conn
-        .query_row("SELECT strict_mode FROM mcp_settings WHERE id = 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT strict_mode FROM mcp_settings WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|e| AppError::Database(e.to_string()))?;
     Ok(value.unwrap_or(0) != 0)

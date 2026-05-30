@@ -16,9 +16,13 @@ pub fn parse_xdotool_geometry(output: &str) -> Result<WindowBounds, AppError> {
         if let Some((key, val)) = line.split_once('=') {
             let v: f64 = match val.trim().parse() {
                 Ok(n) => n,
-                Err(_) => return Err(AppError::Platform(
-                    format!("xdotool: invalid value for key {:?}: {:?}", key.trim(), val.trim())
-                )),
+                Err(_) => {
+                    return Err(AppError::Platform(format!(
+                        "xdotool: invalid value for key {:?}: {:?}",
+                        key.trim(),
+                        val.trim()
+                    )))
+                }
             };
             match key.trim() {
                 "X" => x = Some(v),
@@ -31,9 +35,12 @@ pub fn parse_xdotool_geometry(output: &str) -> Result<WindowBounds, AppError> {
     }
 
     match (x, y, width, height) {
-        (Some(x), Some(y), Some(width), Some(height)) => {
-            Ok(WindowBounds { x, y, width, height })
-        }
+        (Some(x), Some(y), Some(width), Some(height)) => Ok(WindowBounds {
+            x,
+            y,
+            width,
+            height,
+        }),
         _ => Err(AppError::Platform(format!(
             "Failed to parse xdotool geometry output: {output:?}"
         ))),
@@ -46,12 +53,10 @@ pub fn capture_active_window_id() -> u64 {
         .arg("getactivewindow")
         .output();
     match output {
-        Ok(out) if out.status.success() => {
-            std::str::from_utf8(&out.stdout)
-                .ok()
-                .and_then(|s| s.trim().parse::<u64>().ok())
-                .unwrap_or(0)
-        }
+        Ok(out) if out.status.success() => std::str::from_utf8(&out.stdout)
+            .ok()
+            .and_then(|s| s.trim().parse::<u64>().ok())
+            .unwrap_or(0),
         _ => 0,
     }
 }
@@ -61,13 +66,15 @@ pub fn check_x11(prev_wid: u64) -> Result<(), AppError> {
     if std::env::var("WAYLAND_DISPLAY").is_ok() {
         return Err(AppError::Platform(
             "Window management is not supported on Wayland. \
-             Start Asyar in an X11/XOrg session.".to_string(),
+             Start Asyar in an X11/XOrg session."
+                .to_string(),
         ));
     }
     if prev_wid == 0 {
         return Err(AppError::NotFound(
             "No previous window captured. Ensure xdotool is installed \
-             (e.g. `apt install xdotool`).".to_string(),
+             (e.g. `apt install xdotool`)."
+                .to_string(),
         ));
     }
     Ok(())
@@ -81,9 +88,10 @@ pub fn get_window_bounds(prev_wid: u64) -> Result<WindowBounds, AppError> {
         .output()
         .map_err(|e| AppError::Platform(format!("xdotool failed: {e}")))?;
     if !out.status.success() {
-        return Err(AppError::Platform(
-            format!("xdotool getwindowgeometry failed: {}", String::from_utf8_lossy(&out.stderr))
-        ));
+        return Err(AppError::Platform(format!(
+            "xdotool getwindowgeometry failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        )));
     }
     parse_xdotool_geometry(&String::from_utf8_lossy(&out.stdout))
 }
@@ -102,7 +110,9 @@ pub fn set_window_bounds(prev_wid: u64, update: &WindowBoundsUpdate) -> Result<(
             .status()
             .map_err(|e| AppError::Platform(format!("xdotool windowmove failed: {e}")))?;
         if !status.success() {
-            return Err(AppError::Platform("xdotool windowmove returned non-zero".to_string()));
+            return Err(AppError::Platform(
+                "xdotool windowmove returned non-zero".to_string(),
+            ));
         }
     }
 
@@ -114,7 +124,9 @@ pub fn set_window_bounds(prev_wid: u64, update: &WindowBoundsUpdate) -> Result<(
             .status()
             .map_err(|e| AppError::Platform(format!("xdotool windowsize failed: {e}")))?;
         if !status.success() {
-            return Err(AppError::Platform("xdotool windowsize returned non-zero".to_string()));
+            return Err(AppError::Platform(
+                "xdotool windowsize returned non-zero".to_string(),
+            ));
         }
     }
     Ok(())
@@ -129,7 +141,9 @@ pub fn set_window_fullscreen(prev_wid: u64, enable: bool) -> Result<(), AppError
         .status()
         .map_err(|e| AppError::Platform(format!("xdotool windowstate failed: {e}")))?;
     if !status.success() {
-        return Err(AppError::Platform("xdotool windowstate returned non-zero".to_string()));
+        return Err(AppError::Platform(
+            "xdotool windowstate returned non-zero".to_string(),
+        ));
     }
     Ok(())
 }

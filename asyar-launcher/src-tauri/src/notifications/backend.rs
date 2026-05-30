@@ -91,7 +91,9 @@ mod tests {
 
     impl RecordingBackend {
         fn new() -> Arc<Self> {
-            Arc::new(Self { sent: Mutex::new(Vec::new()) })
+            Arc::new(Self {
+                sent: Mutex::new(Vec::new()),
+            })
         }
     }
 
@@ -128,11 +130,17 @@ mod tests {
         populate_registry_and_send(
             &reg,
             be.as_ref(),
-            req(vec![action("extend", "coffee.extend"), action("stop", "coffee.stop")]),
+            req(vec![
+                action("extend", "coffee.extend"),
+                action("stop", "coffee.stop"),
+            ]),
         )
         .unwrap();
 
-        assert_eq!(reg.lookup("n-1", "extend").unwrap().command_id, "coffee.extend");
+        assert_eq!(
+            reg.lookup("n-1", "extend").unwrap().command_id,
+            "coffee.extend"
+        );
         assert_eq!(reg.lookup("n-1", "stop").unwrap().command_id, "coffee.stop");
         assert_eq!(be.sent.lock().unwrap().len(), 1);
     }

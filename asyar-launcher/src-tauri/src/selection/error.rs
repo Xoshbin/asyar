@@ -13,8 +13,9 @@ pub enum SelectionError {
 impl From<SelectionError> for crate::error::AppError {
     fn from(e: SelectionError) -> Self {
         match e {
-            SelectionError::AccessibilityPermissionRequired
-                => crate::error::AppError::Permission(e.to_string()),
+            SelectionError::AccessibilityPermissionRequired => {
+                crate::error::AppError::Permission(e.to_string())
+            }
             _ => crate::error::AppError::Platform(e.to_string()),
         }
     }

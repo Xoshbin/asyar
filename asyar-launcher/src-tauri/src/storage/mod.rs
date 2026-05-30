@@ -1,18 +1,18 @@
 pub mod agents;
 pub mod clipboard;
 pub mod clipboard_fts;
-pub mod mcp_audit;
-pub mod mcp_permissions;
-pub mod mcp_servers;
-pub mod mcp_settings;
-pub mod cloud_sync_state;
 pub mod cloud_sync_e2ee_local;
+pub mod cloud_sync_state;
 pub mod command_arg_defaults;
 pub mod commands;
 pub mod extension_cache;
 pub mod extension_kv;
 pub mod extension_preferences;
 pub mod extension_state;
+pub mod mcp_audit;
+pub mod mcp_permissions;
+pub mod mcp_servers;
+pub mod mcp_settings;
 pub mod runs_history;
 pub mod script_directories;
 pub mod searchbar_accessory;
@@ -36,9 +36,7 @@ pub struct DataStore {
 }
 
 impl DataStore {
-    pub fn initialize(
-        app_handle: &tauri::AppHandle,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn initialize(app_handle: &tauri::AppHandle) -> Result<Self, Box<dyn std::error::Error>> {
         use tauri::Manager;
         let app_data_dir = app_handle
             .path()

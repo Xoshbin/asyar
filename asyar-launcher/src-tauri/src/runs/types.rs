@@ -14,7 +14,10 @@ pub enum RunStatus {
 impl RunStatus {
     /// Returns `true` for terminal states from which no further transition is allowed.
     pub fn is_terminal(self) -> bool {
-        matches!(self, RunStatus::Succeeded | RunStatus::Failed | RunStatus::Cancelled)
+        matches!(
+            self,
+            RunStatus::Succeeded | RunStatus::Failed | RunStatus::Cancelled
+        )
     }
 }
 
@@ -87,10 +90,22 @@ mod tests {
         let json = serde_json::to_string(&RunStatus::Running).unwrap();
         assert_eq!(json, r#""running""#);
 
-        assert_eq!(serde_json::to_string(&RunStatus::Pending).unwrap(), r#""pending""#);
-        assert_eq!(serde_json::to_string(&RunStatus::Succeeded).unwrap(), r#""succeeded""#);
-        assert_eq!(serde_json::to_string(&RunStatus::Failed).unwrap(), r#""failed""#);
-        assert_eq!(serde_json::to_string(&RunStatus::Cancelled).unwrap(), r#""cancelled""#);
+        assert_eq!(
+            serde_json::to_string(&RunStatus::Pending).unwrap(),
+            r#""pending""#
+        );
+        assert_eq!(
+            serde_json::to_string(&RunStatus::Succeeded).unwrap(),
+            r#""succeeded""#
+        );
+        assert_eq!(
+            serde_json::to_string(&RunStatus::Failed).unwrap(),
+            r#""failed""#
+        );
+        assert_eq!(
+            serde_json::to_string(&RunStatus::Cancelled).unwrap(),
+            r#""cancelled""#
+        );
     }
 
     // ---- RunKind serde ------------------------------------------------------
@@ -100,10 +115,22 @@ mod tests {
     /// This will FAIL until the worker adds kebab-case serde renames on RunKind.
     #[test]
     fn run_kind_serializes_kebab_case() {
-        assert_eq!(serde_json::to_string(&RunKind::AiChat).unwrap(), r#""ai-chat""#);
-        assert_eq!(serde_json::to_string(&RunKind::ShellScript).unwrap(), r#""shell-script""#);
-        assert_eq!(serde_json::to_string(&RunKind::Agent).unwrap(), r#""agent""#);
-        assert_eq!(serde_json::to_string(&RunKind::Custom).unwrap(), r#""custom""#);
+        assert_eq!(
+            serde_json::to_string(&RunKind::AiChat).unwrap(),
+            r#""ai-chat""#
+        );
+        assert_eq!(
+            serde_json::to_string(&RunKind::ShellScript).unwrap(),
+            r#""shell-script""#
+        );
+        assert_eq!(
+            serde_json::to_string(&RunKind::Agent).unwrap(),
+            r#""agent""#
+        );
+        assert_eq!(
+            serde_json::to_string(&RunKind::Custom).unwrap(),
+            r#""custom""#
+        );
     }
 
     // ---- Run serde ----------------------------------------------------------
@@ -123,19 +150,49 @@ mod tests {
         let v: serde_json::Value = serde_json::to_value(&run).unwrap();
 
         // camelCase keys that differ from Rust snake_case
-        assert!(v.get("extensionId").is_some(), "expected extensionId key, got {v}");
-        assert!(v.get("startedAt").is_some(), "expected startedAt key, got {v}");
+        assert!(
+            v.get("extensionId").is_some(),
+            "expected extensionId key, got {v}"
+        );
+        assert!(
+            v.get("startedAt").is_some(),
+            "expected startedAt key, got {v}"
+        );
         assert!(v.get("endedAt").is_some(), "expected endedAt key, got {v}");
-        assert!(v.get("errorMessage").is_some(), "expected errorMessage key, got {v}");
-        assert!(v.get("subjectId").is_some(), "expected subjectId key, got {v}");
-        assert_eq!(v.get("subjectId").and_then(|x| x.as_str()), Some("cmd_scripts_dyn_abc"));
+        assert!(
+            v.get("errorMessage").is_some(),
+            "expected errorMessage key, got {v}"
+        );
+        assert!(
+            v.get("subjectId").is_some(),
+            "expected subjectId key, got {v}"
+        );
+        assert_eq!(
+            v.get("subjectId").and_then(|x| x.as_str()),
+            Some("cmd_scripts_dyn_abc")
+        );
 
         // snake_case keys must NOT appear
-        assert!(v.get("extension_id").is_none(), "snake_case extension_id must not appear");
-        assert!(v.get("started_at").is_none(), "snake_case started_at must not appear");
-        assert!(v.get("ended_at").is_none(), "snake_case ended_at must not appear");
-        assert!(v.get("error_message").is_none(), "snake_case error_message must not appear");
-        assert!(v.get("subject_id").is_none(), "snake_case subject_id must not appear");
+        assert!(
+            v.get("extension_id").is_none(),
+            "snake_case extension_id must not appear"
+        );
+        assert!(
+            v.get("started_at").is_none(),
+            "snake_case started_at must not appear"
+        );
+        assert!(
+            v.get("ended_at").is_none(),
+            "snake_case ended_at must not appear"
+        );
+        assert!(
+            v.get("error_message").is_none(),
+            "snake_case error_message must not appear"
+        );
+        assert!(
+            v.get("subject_id").is_none(),
+            "snake_case subject_id must not appear"
+        );
     }
 
     #[test]

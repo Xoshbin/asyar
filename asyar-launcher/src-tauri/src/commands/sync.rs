@@ -242,7 +242,10 @@ pub async fn sync_mark_tombstone(
     log::info!("[sync] mark_tombstone: id={item_id} category={category_id}");
     let conn = data_store.conn()?;
     let result = cloud_sync_state::mark_tombstone(&conn, &item_id, &category_id);
-    log::info!("[sync] mark_tombstone done: id={item_id} ok={}", result.is_ok());
+    log::info!(
+        "[sync] mark_tombstone done: id={item_id} ok={}",
+        result.is_ok()
+    );
     result
 }
 
@@ -347,9 +350,7 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
             }
         }
 
-        report
-            .lww_warnings
-            .extend(merge_report.lww_warnings);
+        report.lww_warnings.extend(merge_report.lww_warnings);
 
         // Advance cursor after each page. We use `now_ms = 0` if the system
         // clock is unavailable; the journal's `last_full_sync_at_ms` is a UI
@@ -421,7 +422,10 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
                     ),
                 });
             }
-            UploadDecision::PushTombstone { item_id, category_id } => {
+            UploadDecision::PushTombstone {
+                item_id,
+                category_id,
+            } => {
                 log::info!(
                     "[sync] push-phase: emitting PushTombstone for id={item_id} category={category_id}"
                 );
@@ -482,9 +486,7 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
 }
 
 /// Build a [`SyncStatus`] from local-only state.
-pub(crate) async fn sync_get_status_inner(
-    data_store: &DataStore,
-) -> Result<SyncStatus, AppError> {
+pub(crate) async fn sync_get_status_inner(data_store: &DataStore) -> Result<SyncStatus, AppError> {
     let conn = data_store.conn()?;
     let cursor = cloud_sync_state::get_cursor(&conn)?;
     let dirty = cloud_sync_state::get_dirty(&conn)?;
@@ -691,7 +693,10 @@ mod tests {
         assert_eq!(calls.len(), 1, "single chunk for two items");
         let ids: Vec<&str> = calls[0].items.iter().map(|i| i.id.as_str()).collect();
         assert_eq!(ids, vec!["alpha", "beta"]);
-        assert_eq!(report.uploaded, vec!["alpha".to_string(), "beta".to_string()]);
+        assert_eq!(
+            report.uploaded,
+            vec!["alpha".to_string(), "beta".to_string()]
+        );
         assert!(report.failed.is_empty());
     }
 
@@ -735,7 +740,10 @@ mod tests {
         assert_eq!(report.applied_records.len(), 1);
         assert_eq!(report.applied_records[0].item_id, "server-1");
         assert_eq!(report.applied_records[0].category_id, "snippets");
-        assert_eq!(report.applied_records[0].content.as_deref(), Some("from-server"));
+        assert_eq!(
+            report.applied_records[0].content.as_deref(),
+            Some("from-server")
+        );
         assert!(!report.applied_records[0].deleted);
         assert_eq!(report.uploaded, vec!["local-1".to_string()]);
     }
@@ -753,7 +761,9 @@ mod tests {
             has_more: false,
         });
 
-        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off).await.unwrap();
+        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off)
+            .await
+            .unwrap();
 
         assert_eq!(report.server_version, 42);
         let conn = store.conn().unwrap();
@@ -777,11 +787,19 @@ mod tests {
             has_more: false,
         });
 
-        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off).await.unwrap();
+        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off)
+            .await
+            .unwrap();
 
         assert_eq!(report.server_version, 9);
-        assert_eq!(http.pull_calls(), vec![(0, PULL_PAGE_LIMIT), (5, PULL_PAGE_LIMIT)]);
-        assert_eq!(report.applied_from_pull, vec!["a".to_string(), "b".to_string()]);
+        assert_eq!(
+            http.pull_calls(),
+            vec![(0, PULL_PAGE_LIMIT), (5, PULL_PAGE_LIMIT)]
+        );
+        assert_eq!(
+            report.applied_from_pull,
+            vec!["a".to_string(), "b".to_string()]
+        );
     }
 
     // ── required test #5 ─────────────────────────────────────────────────────
@@ -836,8 +854,14 @@ mod tests {
         http1.enqueue_pull(empty_pull_page(0));
         http1.enqueue_push(ItemPushBatchResponse {
             items: vec![
-                ItemPushAssignment { id: "item-1".into(), version: 1 },
-                ItemPushAssignment { id: "item-2".into(), version: 2 },
+                ItemPushAssignment {
+                    id: "item-1".into(),
+                    version: 1,
+                },
+                ItemPushAssignment {
+                    id: "item-2".into(),
+                    version: 2,
+                },
             ],
             server_version: 2,
         });
@@ -924,7 +948,9 @@ mod tests {
         // sources to keep the test focused on the LWW propagation path:
         // decide_uploads against an empty input emits zero decisions, so
         // no push HTTP call is made.
-        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off).await.unwrap();
+        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off)
+            .await
+            .unwrap();
 
         assert_eq!(
             report.lww_warnings,
@@ -984,7 +1010,9 @@ mod tests {
             server_version: 21,
         });
 
-        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off).await.unwrap();
+        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off)
+            .await
+            .unwrap();
         assert_eq!(report.uploaded, vec!["ghost".to_string()]);
 
         // After upload + clear_synced_tombstones is run on the NEXT pull,
@@ -994,7 +1022,9 @@ mod tests {
         // Run a follow-up empty sync to trigger clear_synced_tombstones.
         let http2 = MockSyncHttp::new();
         http2.enqueue_pull(empty_pull_page(21));
-        sync_run_inner(&[], "tok", &http2, &store, &Mode::Off).await.unwrap();
+        sync_run_inner(&[], "tok", &http2, &store, &Mode::Off)
+            .await
+            .unwrap();
 
         // Now the row should be gone.
         let conn = store.conn().unwrap();
@@ -1076,7 +1106,9 @@ mod tests {
             has_more: false,
         });
 
-        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off).await.unwrap();
+        let report = sync_run_inner(&[], "tok", &http, &store, &Mode::Off)
+            .await
+            .unwrap();
 
         // Order matches the server page order.
         assert_eq!(report.applied_records.len(), 2);
@@ -1159,7 +1191,11 @@ mod tests {
         );
 
         // 2. The pushed item's payload is ciphertext (enc:v1: prefix), NOT plaintext.
-        let pushed_item = push_calls[0].items.iter().find(|i| i.id == "push-me").unwrap();
+        let pushed_item = push_calls[0]
+            .items
+            .iter()
+            .find(|i| i.id == "push-me")
+            .unwrap();
         let pushed_payload = pushed_item.payload.as_ref().unwrap();
         assert!(
             pushed_payload.starts_with("enc:v1:"),

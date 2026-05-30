@@ -130,7 +130,10 @@ mod tests {
     fn snapshot_unknown_id_returns_empty() {
         let buf = make_buffer();
         let snap = buf.snapshot("never-seen");
-        assert!(snap.is_empty(), "expected empty snapshot for unknown id, got {snap:?}");
+        assert!(
+            snap.is_empty(),
+            "expected empty snapshot for unknown id, got {snap:?}"
+        );
     }
 
     /// After appending MAX_LINES_PER_RUN + 5 lines, the snapshot length is
@@ -168,7 +171,11 @@ mod tests {
 
         let snap = buf.snapshot("r1");
         assert!(snap.is_empty(), "snapshot must be empty after drop_for_run");
-        assert_eq!(buf.line_count("r1"), 0, "line_count must be 0 after drop_for_run");
+        assert_eq!(
+            buf.line_count("r1"),
+            0,
+            "line_count must be 0 after drop_for_run"
+        );
     }
 
     /// Calling drop_for_run on a nonexistent id must not panic and must not
@@ -181,7 +188,11 @@ mod tests {
         buf.drop_for_run("nonexistent");
 
         let snap = buf.snapshot("r2");
-        assert_eq!(snap, vec!["surviving line"], "r2 must be unaffected by drop of unknown id");
+        assert_eq!(
+            snap,
+            vec!["surviving line"],
+            "r2 must be unaffected by drop of unknown id"
+        );
     }
 
     /// Lines for "r1" and "r2" are independent; each snapshot shows only its
@@ -199,7 +210,11 @@ mod tests {
         buf.drop_for_run("r1");
 
         assert!(buf.snapshot("r1").is_empty(), "r1 must be empty after drop");
-        assert_eq!(buf.snapshot("r2"), vec!["r2-a"], "r2 must be unaffected by drop of r1");
+        assert_eq!(
+            buf.snapshot("r2"),
+            vec!["r2-a"],
+            "r2 must be unaffected by drop of r1"
+        );
     }
 
     /// For any sequence of appends below the cap, line_count equals snapshot len.
@@ -276,17 +291,17 @@ mod tests {
 
     #[test]
     fn format_tail_output_returns_last_non_empty_line() {
-        let lines = vec!["first".to_string(), "middle".to_string(), "last".to_string()];
+        let lines = vec![
+            "first".to_string(),
+            "middle".to_string(),
+            "last".to_string(),
+        ];
         assert_eq!(format_tail_output(&lines).as_deref(), Some("last"));
     }
 
     #[test]
     fn format_tail_output_skips_trailing_blank_lines() {
-        let lines = vec![
-            "real output".to_string(),
-            "".to_string(),
-            "   ".to_string(),
-        ];
+        let lines = vec!["real output".to_string(), "".to_string(), "   ".to_string()];
         assert_eq!(format_tail_output(&lines).as_deref(), Some("real output"));
     }
 
@@ -314,6 +329,9 @@ mod tests {
     #[test]
     fn format_tail_output_preserves_short_unicode_unchanged() {
         let s = "héllo 🚀".to_string();
-        assert_eq!(format_tail_output(std::slice::from_ref(&s)).as_deref(), Some(s.as_str()));
+        assert_eq!(
+            format_tail_output(std::slice::from_ref(&s)).as_deref(),
+            Some(s.as_str())
+        );
     }
 }

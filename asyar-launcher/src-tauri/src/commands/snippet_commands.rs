@@ -3,9 +3,9 @@
 //! Syncs snippet definitions to the Rust listener, enables/disables
 //! expansion, and checks macOS Accessibility permissions.
 
-use crate::AppState;
 use crate::ai::inline_emoji_fallback::CacheEntry;
 use crate::error::AppError;
+use crate::AppState;
 use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter};
 
@@ -150,7 +150,9 @@ pub fn record_inline_emoji_fallback_outcome(
         }
         _ => CacheEntry::Miss,
     };
-    state.inline_emoji_fallback.record_outcome(&shortcode, entry, std::time::Instant::now());
+    state
+        .inline_emoji_fallback
+        .record_outcome(&shortcode, entry, std::time::Instant::now());
     Ok(())
 }
 
@@ -217,10 +219,18 @@ pub(crate) fn promote_learned_to_snippet_inner(
     let (_, emoji) = hits
         .into_iter()
         .find(|(k, _)| k == &shortcode)
-        .ok_or_else(|| AppError::Platform(format!("Shortcode \"{}\" is not in the AI cache", shortcode)))?;
+        .ok_or_else(|| {
+            AppError::Platform(format!(
+                "Shortcode \"{}\" is not in the AI cache",
+                shortcode
+            ))
+        })?;
 
     state.inline_emoji_fallback.forget(&shortcode);
-    Ok(PromotedSnippet { keyword: shortcode, expansion: emoji })
+    Ok(PromotedSnippet {
+        keyword: shortcode,
+        expansion: emoji,
+    })
 }
 
 /// Promotes a learned AI-shortcode to a permanent user snippet.
@@ -251,8 +261,8 @@ mod contribute_tests {
     use super::*;
     use crate::AppState;
     use std::collections::HashMap;
-    use std::sync::Mutex;
     use std::sync::atomic::AtomicBool;
+    use std::sync::Mutex;
 
     fn fresh_state() -> AppState {
         AppState {
@@ -278,8 +288,16 @@ mod contribute_tests {
     fn list_learned_shortcodes_returns_only_hits() {
         let state = fresh_state();
         let now = std::time::Instant::now();
-        state.inline_emoji_fallback.record_outcome(":hit:", crate::ai::inline_emoji_fallback::CacheEntry::Hit("✨".into()), now);
-        state.inline_emoji_fallback.record_outcome(":miss:", crate::ai::inline_emoji_fallback::CacheEntry::Miss, now);
+        state.inline_emoji_fallback.record_outcome(
+            ":hit:",
+            crate::ai::inline_emoji_fallback::CacheEntry::Hit("✨".into()),
+            now,
+        );
+        state.inline_emoji_fallback.record_outcome(
+            ":miss:",
+            crate::ai::inline_emoji_fallback::CacheEntry::Miss,
+            now,
+        );
         let result = list_learned_shortcodes_inner(&state);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], (":hit:".to_string(), "✨".to_string()));
@@ -289,8 +307,16 @@ mod contribute_tests {
     fn forget_learned_shortcode_drops_specific_entry() {
         let state = fresh_state();
         let now = std::time::Instant::now();
-        state.inline_emoji_fallback.record_outcome(":a:", crate::ai::inline_emoji_fallback::CacheEntry::Hit("A".into()), now);
-        state.inline_emoji_fallback.record_outcome(":b:", crate::ai::inline_emoji_fallback::CacheEntry::Hit("B".into()), now);
+        state.inline_emoji_fallback.record_outcome(
+            ":a:",
+            crate::ai::inline_emoji_fallback::CacheEntry::Hit("A".into()),
+            now,
+        );
+        state.inline_emoji_fallback.record_outcome(
+            ":b:",
+            crate::ai::inline_emoji_fallback::CacheEntry::Hit("B".into()),
+            now,
+        );
         forget_learned_shortcode_inner(":a:".to_string(), &state);
         let result = list_learned_shortcodes_inner(&state);
         assert_eq!(result.len(), 1);
@@ -301,8 +327,16 @@ mod contribute_tests {
     fn clear_learned_shortcodes_drops_everything() {
         let state = fresh_state();
         let now = std::time::Instant::now();
-        state.inline_emoji_fallback.record_outcome(":a:", crate::ai::inline_emoji_fallback::CacheEntry::Hit("A".into()), now);
-        state.inline_emoji_fallback.record_outcome(":b:", crate::ai::inline_emoji_fallback::CacheEntry::Hit("B".into()), now);
+        state.inline_emoji_fallback.record_outcome(
+            ":a:",
+            crate::ai::inline_emoji_fallback::CacheEntry::Hit("A".into()),
+            now,
+        );
+        state.inline_emoji_fallback.record_outcome(
+            ":b:",
+            crate::ai::inline_emoji_fallback::CacheEntry::Hit("B".into()),
+            now,
+        );
         clear_learned_shortcodes_inner(&state);
         assert!(list_learned_shortcodes_inner(&state).is_empty());
     }
@@ -317,7 +351,9 @@ mod contribute_tests {
 
         let contributed = state.contributed_snippets.lock().unwrap();
         assert_eq!(
-            contributed.get("org.asyar.emoji").map(|m| m.get(":party:").cloned()),
+            contributed
+                .get("org.asyar.emoji")
+                .map(|m| m.get(":party:").cloned()),
             Some(Some("🎉".to_string())),
         );
     }
@@ -385,10 +421,19 @@ mod contribute_tests {
     #[test]
     fn set_inline_emoji_fallback_enabled_updates_the_atomic() {
         let state = fresh_state();
-        assert!(state.inline_emoji_fallback.enabled.load(std::sync::atomic::Ordering::Relaxed));
+        assert!(state
+            .inline_emoji_fallback
+            .enabled
+            .load(std::sync::atomic::Ordering::Relaxed));
         set_inline_emoji_fallback_enabled_inner(false, &state);
-        assert!(!state.inline_emoji_fallback.enabled.load(std::sync::atomic::Ordering::Relaxed));
+        assert!(!state
+            .inline_emoji_fallback
+            .enabled
+            .load(std::sync::atomic::Ordering::Relaxed));
         set_inline_emoji_fallback_enabled_inner(true, &state);
-        assert!(state.inline_emoji_fallback.enabled.load(std::sync::atomic::Ordering::Relaxed));
+        assert!(state
+            .inline_emoji_fallback
+            .enabled
+            .load(std::sync::atomic::Ordering::Relaxed));
     }
 }

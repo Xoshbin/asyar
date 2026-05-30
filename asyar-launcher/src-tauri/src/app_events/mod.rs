@@ -18,9 +18,9 @@ use crate::event_hub::{EventHub, HubEvent};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+pub mod linux;
 #[cfg(target_os = "macos")]
 pub mod macos;
-pub mod linux;
 pub mod windows;
 
 /// Discriminant used on the wire (kebab-case) and as registry keys.

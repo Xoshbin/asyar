@@ -10,9 +10,15 @@ use crate::error::AppError;
 use crate::window_management::types::{WindowBounds, WindowBoundsUpdate};
 
 #[repr(C)]
-struct CGPoint { x: f64, y: f64 }
+struct CGPoint {
+    x: f64,
+    y: f64,
+}
 #[repr(C)]
-struct CGSize { width: f64, height: f64 }
+struct CGSize {
+    width: f64,
+    height: f64,
+}
 
 const K_AX_VALUE_CG_POINT: u32 = 1;
 const K_AX_VALUE_CG_SIZE: u32 = 2;
@@ -45,7 +51,9 @@ unsafe fn get_focused_window_element() -> Result<*mut c_void, AppError> {
 
     let app_element = AXUIElementCreateApplication(pid);
     if app_element.is_null() {
-        return Err(AppError::Platform("AXUIElementCreateApplication returned null".to_string()));
+        return Err(AppError::Platform(
+            "AXUIElementCreateApplication returned null".to_string(),
+        ));
     }
 
     let focused_attr = NSString::from_str("AXFocusedWindow");
@@ -69,7 +77,8 @@ pub fn check_ax_permission() -> Result<(), AppError> {
     if !crate::platform::macos::is_accessibility_trusted() {
         return Err(AppError::Permission(
             "Accessibility permission required for WindowManagementService. \
-             Enable it in System Settings > Privacy & Security > Accessibility.".to_string(),
+             Enable it in System Settings > Privacy & Security > Accessibility."
+                .to_string(),
         ));
     }
     Ok(())
@@ -92,7 +101,11 @@ pub fn get_window_bounds() -> Result<WindowBounds, AppError> {
             return Err(AppError::Platform(format!("AXPosition error: {err}")));
         }
         let mut point = CGPoint { x: 0.0, y: 0.0 };
-        AXValueGetValue(pos_ref, K_AX_VALUE_CG_POINT, &mut point as *mut _ as *mut c_void);
+        AXValueGetValue(
+            pos_ref,
+            K_AX_VALUE_CG_POINT,
+            &mut point as *mut _ as *mut c_void,
+        );
         CFRelease(pos_ref);
 
         let size_attr = NSString::from_str("AXSize");
@@ -106,12 +119,24 @@ pub fn get_window_bounds() -> Result<WindowBounds, AppError> {
             CFRelease(window_ref);
             return Err(AppError::Platform(format!("AXSize error: {err}")));
         }
-        let mut size = CGSize { width: 0.0, height: 0.0 };
-        AXValueGetValue(size_ref, K_AX_VALUE_CG_SIZE, &mut size as *mut _ as *mut c_void);
+        let mut size = CGSize {
+            width: 0.0,
+            height: 0.0,
+        };
+        AXValueGetValue(
+            size_ref,
+            K_AX_VALUE_CG_SIZE,
+            &mut size as *mut _ as *mut c_void,
+        );
         CFRelease(size_ref);
         CFRelease(window_ref);
 
-        Ok(WindowBounds { x: point.x, y: point.y, width: size.width, height: size.height })
+        Ok(WindowBounds {
+            x: point.x,
+            y: point.y,
+            width: size.width,
+            height: size.height,
+        })
     }
 }
 
@@ -134,7 +159,11 @@ pub fn set_window_bounds(update: &WindowBoundsUpdate) -> Result<(), AppError> {
             return Err(AppError::Platform(format!("AXPosition read error: {err}")));
         }
         let mut current_point = CGPoint { x: 0.0, y: 0.0 };
-        AXValueGetValue(pos_ref, K_AX_VALUE_CG_POINT, &mut current_point as *mut _ as *mut c_void);
+        AXValueGetValue(
+            pos_ref,
+            K_AX_VALUE_CG_POINT,
+            &mut current_point as *mut _ as *mut c_void,
+        );
         CFRelease(pos_ref);
 
         // Read current size
@@ -149,8 +178,15 @@ pub fn set_window_bounds(update: &WindowBoundsUpdate) -> Result<(), AppError> {
             CFRelease(window_ref);
             return Err(AppError::Platform(format!("AXSize read error: {err}")));
         }
-        let mut current_size = CGSize { width: 0.0, height: 0.0 };
-        AXValueGetValue(size_ref, K_AX_VALUE_CG_SIZE, &mut current_size as *mut _ as *mut c_void);
+        let mut current_size = CGSize {
+            width: 0.0,
+            height: 0.0,
+        };
+        AXValueGetValue(
+            size_ref,
+            K_AX_VALUE_CG_SIZE,
+            &mut current_size as *mut _ as *mut c_void,
+        );
         CFRelease(size_ref);
 
         // Write position if x or y was specified
@@ -162,7 +198,9 @@ pub fn set_window_bounds(update: &WindowBoundsUpdate) -> Result<(), AppError> {
             let ax_pos = AXValueCreate(K_AX_VALUE_CG_POINT, &point as *const _ as *const c_void);
             if ax_pos.is_null() {
                 CFRelease(window_ref);
-                return Err(AppError::Platform("AXValueCreate(CGPoint) failed".to_string()));
+                return Err(AppError::Platform(
+                    "AXValueCreate(CGPoint) failed".to_string(),
+                ));
             }
             let write_pos_attr = NSString::from_str("AXPosition");
             AXUIElementSetAttributeValue(
@@ -182,7 +220,9 @@ pub fn set_window_bounds(update: &WindowBoundsUpdate) -> Result<(), AppError> {
             let ax_size = AXValueCreate(K_AX_VALUE_CG_SIZE, &cgsize as *const _ as *const c_void);
             if ax_size.is_null() {
                 CFRelease(window_ref);
-                return Err(AppError::Platform("AXValueCreate(CGSize) failed".to_string()));
+                return Err(AppError::Platform(
+                    "AXValueCreate(CGSize) failed".to_string(),
+                ));
             }
             let write_size_attr = NSString::from_str("AXSize");
             AXUIElementSetAttributeValue(
@@ -202,13 +242,13 @@ pub fn set_window_fullscreen(enable: bool) -> Result<(), AppError> {
     check_ax_permission()?;
     unsafe {
         let window_ref = get_focused_window_element()?;
-        let value = if enable { kCFBooleanTrue } else { kCFBooleanFalse };
+        let value = if enable {
+            kCFBooleanTrue
+        } else {
+            kCFBooleanFalse
+        };
         let full_attr = NSString::from_str("AXFullScreen");
-        AXUIElementSetAttributeValue(
-            window_ref,
-            Retained::as_ptr(&full_attr) as *mut _,
-            value,
-        );
+        AXUIElementSetAttributeValue(window_ref, Retained::as_ptr(&full_attr) as *mut _, value);
         CFRelease(window_ref);
         Ok(())
     }

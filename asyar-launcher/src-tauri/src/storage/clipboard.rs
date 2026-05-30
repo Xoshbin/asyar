@@ -212,11 +212,8 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
         .unwrap_or(false);
 
     if !source_app_exists {
-        conn.execute(
-            "ALTER TABLE clipboard_items ADD COLUMN source_app TEXT",
-            [],
-        )
-        .map_err(|e| AppError::Database(format!("Failed to add source_app column: {e}")))?;
+        conn.execute("ALTER TABLE clipboard_items ADD COLUMN source_app TEXT", [])
+            .map_err(|e| AppError::Database(format!("Failed to add source_app column: {e}")))?;
     }
 
     // Migration: add redacted_kinds column if it doesn't exist yet.
@@ -341,7 +338,9 @@ pub fn get_recent(
         .prepare(&format!(
             "{select_cols} FROM clipboard_items WHERE favorite = 1 ORDER BY created_at DESC"
         ))
-        .map_err(|e| AppError::Database(format!("Failed to prepare get_recent favorites query: {e}")))?;
+        .map_err(|e| {
+            AppError::Database(format!("Failed to prepare get_recent favorites query: {e}"))
+        })?;
     let mut items: Vec<ClipboardItem> = fav_stmt
         .query_map([], row_to_item_factory(master_key))
         .map_err(|e| AppError::Database(format!("Failed to query favorites: {e}")))?
@@ -355,7 +354,10 @@ pub fn get_recent(
         ))
         .map_err(|e| AppError::Database(format!("Failed to prepare get_recent non-favorites query: {e}")))?;
     let non_favs: Vec<ClipboardItem> = non_fav_stmt
-        .query_map(rusqlite::params![limit as i64], row_to_item_factory(master_key))
+        .query_map(
+            rusqlite::params![limit as i64],
+            row_to_item_factory(master_key),
+        )
         .map_err(|e| AppError::Database(format!("Failed to query non-favorites: {e}")))?
         .filter_map(|r| r.ok())
         .collect();
@@ -485,9 +487,7 @@ pub fn search(
     // Per-id PK lookup in ranked order; preserves the bm25 ordering FTS
     // returned. At limit=200 this is ~0.5 ms total.
     let mut items: Vec<ClipboardListItem> = Vec::with_capacity(ids.len());
-    let select_one = format!(
-        "{LIST_SELECT_COLS} FROM clipboard_items WHERE id = ?1"
-    );
+    let select_one = format!("{LIST_SELECT_COLS} FROM clipboard_items WHERE id = ?1");
     let mut stmt = conn
         .prepare(&select_one)
         .map_err(|e| AppError::Database(format!("search lookup prepare: {e}")))?;
@@ -678,12 +678,14 @@ pub fn clear_non_favorites(
     master_key: &[u8; 32],
 ) -> Result<ClearResult, AppError> {
     let rows: Vec<(String, String, Option<String>)> = conn
-        .prepare(
-            "SELECT id, item_type, content FROM clipboard_items WHERE favorite = 0",
-        )
+        .prepare("SELECT id, item_type, content FROM clipboard_items WHERE favorite = 0")
         .map_err(|e| AppError::Database(format!("clear_non_favorites prepare: {e}")))?
         .query_map([], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?))
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, Option<String>>(2)?,
+            ))
         })
         .map_err(|e| AppError::Database(format!("clear_non_favorites query: {e}")))?
         .filter_map(|r| r.ok())
@@ -1292,7 +1294,10 @@ mod tests {
         // The new item is at the top (newest)
         assert_eq!(items[0].id, "2");
         // favorite was inherited from the original
-        assert!(items[0].favorite, "favorite should be preserved from the duplicate");
+        assert!(
+            items[0].favorite,
+            "favorite should be preserved from the duplicate"
+        );
     }
 
     #[test]
@@ -1379,8 +1384,14 @@ mod tests {
         let items = get_all(&conn, &key).unwrap();
         assert_eq!(items.len(), 1, "row still listed");
         assert_eq!(items[0].id, "legacy");
-        assert!(items[0].content.is_none(), "legacy plaintext content surfaces as None");
-        assert!(items[0].preview.is_none(), "legacy plaintext preview surfaces as None");
+        assert!(
+            items[0].content.is_none(),
+            "legacy plaintext content surfaces as None"
+        );
+        assert!(
+            items[0].preview.is_none(),
+            "legacy plaintext preview surfaces as None"
+        );
     }
 
     #[test]
@@ -1389,7 +1400,8 @@ mod tests {
         let key = test_key();
         add_item(&conn, &make_item("1", "duplicate me", true), &key).unwrap();
 
-        let found = find_duplicate(&conn, "text", Some("duplicate me"), "different-id", &key).unwrap();
+        let found =
+            find_duplicate(&conn, "text", Some("duplicate me"), "different-id", &key).unwrap();
         assert!(found.is_some(), "decrypt-compare must find the row");
         let found = found.unwrap();
         assert_eq!(found.id, "1");
@@ -1448,7 +1460,10 @@ mod tests {
 
         // Favorite is NOT tombstoned
         let fav_row = journal_row(&conn, "20");
-        assert!(fav_row.is_none(), "favorite id 20 must not appear in journal");
+        assert!(
+            fav_row.is_none(),
+            "favorite id 20 must not appear in journal"
+        );
 
         // Only the favorite remains in clipboard_items
         let remaining = get_all(&conn, &key).unwrap();
@@ -1489,7 +1504,12 @@ mod tests {
         let key = test_key();
         // Insert 5 items with distinct timestamps (make_item uses 1000 + id as f64)
         for i in 1..=5u32 {
-            add_item(&conn, &make_item(&i.to_string(), &format!("item {i}"), false), &key).unwrap();
+            add_item(
+                &conn,
+                &make_item(&i.to_string(), &format!("item {i}"), false),
+                &key,
+            )
+            .unwrap();
         }
         // Use a large max_age so age cleanup doesn't fire; only max_items=2 matters
         cleanup(&conn, MAX_HISTORY_AGE_MS, 2).unwrap();
@@ -1528,9 +1548,15 @@ mod tests {
 
         // "old" must be tombstoned
         let row = journal_row(&conn, "old");
-        assert!(row.is_some(), "journal row must exist for replaced id 'old'");
+        assert!(
+            row.is_some(),
+            "journal row must exist for replaced id 'old'"
+        );
         let (is_tombstone, is_dirty, _) = row.unwrap();
-        assert!(is_tombstone, "'old' must be tombstoned after dedup replacement");
+        assert!(
+            is_tombstone,
+            "'old' must be tombstoned after dedup replacement"
+        );
         assert!(is_dirty, "'old' must be dirty");
     }
 
@@ -1556,7 +1582,11 @@ mod tests {
 
         let items = get_recent(&conn, 2, &key).unwrap();
         // All 3 favorites + the 2 newest non-favorites = 5
-        assert_eq!(items.len(), 5, "expected 3 favorites + 2 newest non-favorites");
+        assert_eq!(
+            items.len(),
+            5,
+            "expected 3 favorites + 2 newest non-favorites"
+        );
         let fav_count = items.iter().filter(|i| i.favorite).count();
         assert_eq!(fav_count, 3);
         let non_fav: Vec<_> = items.iter().filter(|i| !i.favorite).collect();
@@ -1628,7 +1658,10 @@ mod tests {
 
         let items = get_recent(&conn, 0, &key).unwrap();
         assert_eq!(items.len(), 2, "limit=0 must return only the 2 favorites");
-        assert!(items.iter().all(|i| i.favorite), "all returned items must be favorites");
+        assert!(
+            items.iter().all(|i| i.favorite),
+            "all returned items must be favorites"
+        );
     }
 
     #[test]
@@ -1750,7 +1783,12 @@ mod tests {
         let key = test_key();
         // Insert 50 rows of the same type, all with distinct content.
         for i in 0..50u32 {
-            add_item(&conn, &make_item(&i.to_string(), &format!("content-{i}"), false), &key).unwrap();
+            add_item(
+                &conn,
+                &make_item(&i.to_string(), &format!("content-{i}"), false),
+                &key,
+            )
+            .unwrap();
         }
         // The needle is row 42.
         let found = find_duplicate(&conn, "text", Some("content-42"), "any-id", &key).unwrap();
@@ -1778,8 +1816,10 @@ mod tests {
 
         // Hash-lookup miss is expected — the row exists but has no hash yet.
         let found = find_duplicate(&conn, "text", Some("legacy content"), "any", &key).unwrap();
-        assert!(found.is_none(),
-            "rows with NULL content_hash must not match (rebuild will backfill)");
+        assert!(
+            found.is_none(),
+            "rows with NULL content_hash must not match (rebuild will backfill)"
+        );
     }
 
     #[test]
@@ -1787,22 +1827,32 @@ mod tests {
         let conn = setup();
         // The composite + hash indices must exist after init_table.
         let names: Vec<String> = conn
-            .prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='clipboard_items'")
+            .prepare(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='clipboard_items'",
+            )
             .unwrap()
             .query_map([], |row| row.get::<_, String>(0))
             .unwrap()
             .filter_map(|r| r.ok())
             .collect();
 
-        assert!(names.contains(&"idx_clipboard_fav_created_id".to_string()),
-            "composite index must exist; got {names:?}");
-        assert!(names.contains(&"idx_clipboard_hash".to_string()),
-            "content_hash index must exist; got {names:?}");
+        assert!(
+            names.contains(&"idx_clipboard_fav_created_id".to_string()),
+            "composite index must exist; got {names:?}"
+        );
+        assert!(
+            names.contains(&"idx_clipboard_hash".to_string()),
+            "content_hash index must exist; got {names:?}"
+        );
         // Legacy indices are gone.
-        assert!(!names.contains(&"idx_clipboard_created_at".to_string()),
-            "legacy idx_clipboard_created_at must be removed");
-        assert!(!names.contains(&"idx_clipboard_favorite".to_string()),
-            "legacy idx_clipboard_favorite must be removed");
+        assert!(
+            !names.contains(&"idx_clipboard_created_at".to_string()),
+            "legacy idx_clipboard_created_at must be removed"
+        );
+        assert!(
+            !names.contains(&"idx_clipboard_favorite".to_string()),
+            "legacy idx_clipboard_favorite must be removed"
+        );
     }
 
     #[test]
@@ -1834,8 +1884,10 @@ mod tests {
         let key = test_key();
 
         // 2 favorites at older timestamps.
-        let mut fa = make_item("fa", "fav a", true); fa.created_at = 500.0;
-        let mut fb = make_item("fb", "fav b", true); fb.created_at = 600.0;
+        let mut fa = make_item("fa", "fav a", true);
+        fa.created_at = 500.0;
+        let mut fb = make_item("fb", "fav b", true);
+        fb.created_at = 600.0;
         add_item(&conn, &fa, &key).unwrap();
         add_item(&conn, &fb, &key).unwrap();
         // 5 non-favorites with newer timestamps.
@@ -1849,7 +1901,9 @@ mod tests {
         assert_eq!(page.favorites.len(), 2);
         assert_eq!(page.recent.len(), 3, "limit honoured for non-favorites");
         // Cursor points at the oldest non-favorite in the page (n2 with created_at 3002).
-        let cursor = page.next_cursor.expect("more rows exist, cursor must be set");
+        let cursor = page
+            .next_cursor
+            .expect("more rows exist, cursor must be set");
         assert_eq!(cursor.created_at, 3002.0);
         assert_eq!(cursor.id, "n2");
 
@@ -1879,8 +1933,10 @@ mod tests {
         let first_ids: std::collections::HashSet<&str> =
             first.recent.iter().map(|r| r.id.as_str()).collect();
         for row in &next.items {
-            assert!(!first_ids.contains(row.id.as_str()),
-                "older page must not duplicate first-page rows");
+            assert!(
+                !first_ids.contains(row.id.as_str()),
+                "older page must not duplicate first-page rows"
+            );
         }
     }
 
@@ -1901,10 +1957,16 @@ mod tests {
         let next = list_older(&conn, &cursor, 5, &key).unwrap();
         assert_eq!(next.items.len(), 1, "exactly one row past the cursor");
         // The remaining row must be the one with the smallest id.
-        let seen: std::collections::HashSet<String> = first.recent.iter().map(|r| r.id.clone())
+        let seen: std::collections::HashSet<String> = first
+            .recent
+            .iter()
+            .map(|r| r.id.clone())
             .chain(next.items.iter().map(|r| r.id.clone()))
             .collect();
-        assert_eq!(seen, ["a", "b", "c"].into_iter().map(String::from).collect());
+        assert_eq!(
+            seen,
+            ["a", "b", "c"].into_iter().map(String::from).collect()
+        );
     }
 
     #[test]
@@ -1929,7 +1991,12 @@ mod tests {
         let conn = setup();
         let key = test_key();
         for i in 0..5u32 {
-            add_item(&conn, &make_item(&i.to_string(), &format!("c{i}"), i % 2 == 0), &key).unwrap();
+            add_item(
+                &conn,
+                &make_item(&i.to_string(), &format!("c{i}"), i % 2 == 0),
+                &key,
+            )
+            .unwrap();
         }
         let c = count(&conn).unwrap();
         assert_eq!(c.total, 5);
@@ -1952,7 +2019,9 @@ mod tests {
             let page = export_for_sync(&conn, cursor.as_ref(), 3, &key).unwrap();
             all.extend(page.items);
             cursor = page.next_cursor;
-            if cursor.is_none() { break; }
+            if cursor.is_none() {
+                break;
+            }
         }
         assert_eq!(all.len(), 7);
         // Content must be decrypted — sync needs plaintext.
@@ -1993,14 +2062,15 @@ mod tests {
 
         // No row exists with this id.
         let res = delete_item(&conn, "ghost", &key).unwrap();
-        assert!(res.image_content_path.is_none(),
-            "no row, no image path");
+        assert!(res.image_content_path.is_none(), "no row, no image path");
 
         // A tombstone is still written — current contract, intentional for
         // cloud-sync idempotency on cross-device delete races.
         let row = journal_row(&conn, "ghost");
-        assert!(row.is_some(),
-            "tombstone written even for a never-existing id");
+        assert!(
+            row.is_some(),
+            "tombstone written even for a never-existing id"
+        );
         let (is_tombstone, is_dirty, _) = row.unwrap();
         assert!(is_tombstone);
         assert!(is_dirty);
@@ -2028,14 +2098,22 @@ mod tests {
         let conn = setup();
         let key = test_key();
         for i in 0..5u32 {
-            add_item(&conn, &make_item(&format!("seed{i}"), &format!("body {i}"), false), &key).unwrap();
+            add_item(
+                &conn,
+                &make_item(&format!("seed{i}"), &format!("body {i}"), false),
+                &key,
+            )
+            .unwrap();
         }
 
         let mut new_item = make_item("fresh", "new body", false);
         new_item.created_at = 9999.0;
         let res = record_capture(&conn, &new_item, None, &key).unwrap();
         assert_eq!(res.inserted_id, "fresh");
-        assert!(res.evicted_ids.is_empty(), "no eviction at 6 rows < MAX_HISTORY_ITEMS");
+        assert!(
+            res.evicted_ids.is_empty(),
+            "no eviction at 6 rows < MAX_HISTORY_ITEMS"
+        );
     }
 
     #[test]
@@ -2052,7 +2130,15 @@ mod tests {
         let mut ids: Vec<String> = evicted.into_iter().collect();
         ids.sort();
         // Newest 2 survive (ids "4" and "5"), the other 4 are evicted (ids "0","1","2","3").
-        assert_eq!(ids, vec!["0".to_string(), "1".to_string(), "2".to_string(), "3".to_string()]);
+        assert_eq!(
+            ids,
+            vec![
+                "0".to_string(),
+                "1".to_string(),
+                "2".to_string(),
+                "3".to_string()
+            ]
+        );
     }
 
     fn setup_with_fts() -> (Connection, crate::storage::clipboard_fts::ClipboardFts) {
@@ -2089,7 +2175,14 @@ mod tests {
     fn clear_non_favorites_with_fts_clears_only_non_favorite_fts_rows() {
         let (conn, fts) = setup_with_fts();
         let key = test_key();
-        record_capture_with_fts(&conn, &make_item("nf", "carrot body", false), None, &key, &fts).unwrap();
+        record_capture_with_fts(
+            &conn,
+            &make_item("nf", "carrot body", false),
+            None,
+            &key,
+            &fts,
+        )
+        .unwrap();
         let mut fav = make_item("favid", "carrot favorite", true);
         fav.created_at = 2000.0;
         record_capture_with_fts(&conn, &fav, None, &key, &fts).unwrap();
@@ -2112,8 +2205,11 @@ mod tests {
         record_capture_with_fts(&conn, &new, None, &key, &fts).unwrap();
 
         let hits = fts.search("duplicate", 10).unwrap();
-        assert_eq!(hits, vec!["new".to_string()],
-            "old row removed from FTS, new row inserted");
+        assert_eq!(
+            hits,
+            vec!["new".to_string()],
+            "old row removed from FTS, new row inserted"
+        );
     }
 
     #[test]
@@ -2143,16 +2239,14 @@ mod tests {
         assert_eq!(res.index_state, "ready");
 
         // Clean up for other tests.
-        crate::storage::clipboard_fts::FTS_READY
-            .store(false, std::sync::atomic::Ordering::Release);
+        crate::storage::clipboard_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);
     }
 
     #[test]
     fn search_returns_empty_when_index_not_ready() {
         let (conn, fts) = setup_with_fts();
         let key = test_key();
-        crate::storage::clipboard_fts::FTS_READY
-            .store(false, std::sync::atomic::Ordering::Release);
+        crate::storage::clipboard_fts::FTS_READY.store(false, std::sync::atomic::Ordering::Release);
         let res = search(&conn, &fts, "anything", 20, &key).unwrap();
         assert_eq!(res.index_state, "indexing");
         assert!(res.items.is_empty());

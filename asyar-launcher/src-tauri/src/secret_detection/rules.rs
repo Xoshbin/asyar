@@ -264,7 +264,10 @@ mod tests {
     fn detects_slack_token() {
         assert!(matches(
             "slack_token",
-            &format!("{}-{}", "xoxb", "12345678901-1234567890-AbCdEfGhIjKlMnOpQrStUvWx"),
+            &format!(
+                "{}-{}",
+                "xoxb", "12345678901-1234567890-AbCdEfGhIjKlMnOpQrStUvWx"
+            ),
         ));
     }
 
@@ -292,7 +295,8 @@ mod tests {
 
     #[test]
     fn detects_pem_private_key_rsa() {
-        let pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----";
+        let pem =
+            "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----";
         assert!(matches("pem_private_key", pem));
     }
 

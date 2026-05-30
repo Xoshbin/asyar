@@ -20,10 +20,7 @@ struct SafariNode {
     web_bookmark_type: Option<String>,
 }
 
-pub fn read_bookmarks_file(
-    path: &Path,
-    browser: &BrowserId,
-) -> Result<Vec<Bookmark>, String> {
+pub fn read_bookmarks_file(path: &Path, browser: &BrowserId) -> Result<Vec<Bookmark>, String> {
     if !path.exists() {
         return Ok(Vec::new());
     }
@@ -103,7 +100,8 @@ pub fn read_history_file(
             })
         })
         .map_err(|e| e.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -118,8 +116,7 @@ mod tests {
     }
 
     fn history_fixture() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/browser/fixtures/safari_history.sqlite")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/browser/fixtures/safari_history.sqlite")
     }
 
     fn fake_safari() -> BrowserId {
@@ -184,8 +181,9 @@ mod tests {
             -- Safari visit_time is CFAbsoluteTime: seconds since 2001-01-01 UTC.
             -- 715000000 ≈ 2023-08-30
             INSERT INTO history_visits VALUES (1, 715000000.0, 'Apple');
-            INSERT INTO history_visits VALUES (2, 715000010.0, 'Swift');"
-        ).unwrap();
+            INSERT INTO history_visits VALUES (2, 715000010.0, 'Swift');",
+        )
+        .unwrap();
     }
 
     #[test]
@@ -193,19 +191,28 @@ mod tests {
         let bookmarks = read_bookmarks_file(&bookmarks_fixture(), &fake_safari()).unwrap();
         let swift = bookmarks.iter().find(|b| b.title == "Swift").unwrap();
         assert_eq!(swift.url, "https://swift.org");
-        assert_eq!(swift.folder_path, vec!["BookmarksBar".to_string(), "Dev".to_string()]);
+        assert_eq!(
+            swift.folder_path,
+            vec!["BookmarksBar".to_string(), "Dev".to_string()]
+        );
     }
 
     #[test]
     fn safari_history_filters_and_orders_desc() {
         let entries = read_history_file(&history_fixture(), &fake_safari(), "", None).unwrap();
         assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].title, "Swift");   // higher visit_time, comes first
+        assert_eq!(entries[0].title, "Swift"); // higher visit_time, comes first
     }
 
     #[test]
     fn safari_missing_files_return_empty() {
-        assert!(read_bookmarks_file(Path::new("/none"), &fake_safari()).unwrap().is_empty());
-        assert!(read_history_file(Path::new("/none"), &fake_safari(), "", None).unwrap().is_empty());
+        assert!(read_bookmarks_file(Path::new("/none"), &fake_safari())
+            .unwrap()
+            .is_empty());
+        assert!(
+            read_history_file(Path::new("/none"), &fake_safari(), "", None)
+                .unwrap()
+                .is_empty()
+        );
     }
 }

@@ -10,8 +10,17 @@ use crate::storage::DataStore;
 /// require an explicit user permission decision before being invoked.
 pub fn is_tool_read_only(tool_id: &str) -> bool {
     const READ_PREFIXES: &[&str] = &[
-        "get_", "list_", "read_", "search_", "fetch_", "find_",
-        "query_", "show_", "describe_", "view_", "inspect_",
+        "get_",
+        "list_",
+        "read_",
+        "search_",
+        "fetch_",
+        "find_",
+        "query_",
+        "show_",
+        "describe_",
+        "view_",
+        "inspect_",
     ];
     READ_PREFIXES.iter().any(|p| tool_id.starts_with(p))
 }
@@ -205,14 +214,32 @@ mod tests {
     fn is_tool_read_only_returns_true_for_read_prefixes() {
         assert!(is_tool_read_only("get_user"), "get_ should be read-only");
         assert!(is_tool_read_only("list_files"), "list_ should be read-only");
-        assert!(is_tool_read_only("search_items"), "search_ should be read-only");
-        assert!(is_tool_read_only("fetch_data"), "fetch_ should be read-only");
-        assert!(is_tool_read_only("find_record"), "find_ should be read-only");
+        assert!(
+            is_tool_read_only("search_items"),
+            "search_ should be read-only"
+        );
+        assert!(
+            is_tool_read_only("fetch_data"),
+            "fetch_ should be read-only"
+        );
+        assert!(
+            is_tool_read_only("find_record"),
+            "find_ should be read-only"
+        );
         assert!(is_tool_read_only("query_db"), "query_ should be read-only");
-        assert!(is_tool_read_only("show_dashboard"), "show_ should be read-only");
-        assert!(is_tool_read_only("describe_schema"), "describe_ should be read-only");
+        assert!(
+            is_tool_read_only("show_dashboard"),
+            "show_ should be read-only"
+        );
+        assert!(
+            is_tool_read_only("describe_schema"),
+            "describe_ should be read-only"
+        );
         assert!(is_tool_read_only("view_logs"), "view_ should be read-only");
-        assert!(is_tool_read_only("inspect_container"), "inspect_ should be read-only");
+        assert!(
+            is_tool_read_only("inspect_container"),
+            "inspect_ should be read-only"
+        );
         assert!(is_tool_read_only("read_file"), "read_ should be read-only");
     }
 
@@ -295,13 +322,19 @@ mod tests {
         )
         .await;
 
-        assert!(result.is_ok(), "read-only tool should bypass permission gate, got {:?}", result);
+        assert!(
+            result.is_ok(),
+            "read-only tool should bypass permission gate, got {:?}",
+            result
+        );
         assert_eq!(result.unwrap(), expected_result);
     }
 
     #[tokio::test]
     async fn invoke_mcp_tool_consumes_allow_once_decision() {
-        use crate::storage::mcp_permissions::{set_permission, get_permission, McpPermissionRow, PermissionDecision};
+        use crate::storage::mcp_permissions::{
+            get_permission, set_permission, McpPermissionRow, PermissionDecision,
+        };
 
         let expected_result = serde_json::json!({"created": true});
         let (factory, _, _) = MockSucceedFactory::new("create_user", expected_result.clone());
@@ -317,13 +350,17 @@ mod tests {
         // Set AllowOnce permission
         {
             let conn = store.conn().unwrap();
-            set_permission(&conn, &McpPermissionRow {
-                server_id: "srv-once".to_string(),
-                tool_id: "create_user".to_string(),
-                agent_id: "agent-test".to_string(),
-                decision: PermissionDecision::AllowOnce,
-                set_at: 1000,
-            }).unwrap();
+            set_permission(
+                &conn,
+                &McpPermissionRow {
+                    server_id: "srv-once".to_string(),
+                    tool_id: "create_user".to_string(),
+                    agent_id: "agent-test".to_string(),
+                    decision: PermissionDecision::AllowOnce,
+                    set_at: 1000,
+                },
+            )
+            .unwrap();
         }
 
         let result = invoke_mcp_tool(
@@ -336,18 +373,27 @@ mod tests {
         )
         .await;
 
-        assert!(result.is_ok(), "AllowOnce should allow the call, got {:?}", result);
+        assert!(
+            result.is_ok(),
+            "AllowOnce should allow the call, got {:?}",
+            result
+        );
         assert_eq!(result.unwrap(), expected_result);
 
         // Permission row must be deleted after AllowOnce consume
         let conn = store.conn().unwrap();
         let row = get_permission(&conn, "srv-once", "create_user", "agent-test").unwrap();
-        assert!(row.is_none(), "AllowOnce row must be deleted after being consumed");
+        assert!(
+            row.is_none(),
+            "AllowOnce row must be deleted after being consumed"
+        );
     }
 
     #[tokio::test]
     async fn invoke_mcp_tool_returns_denied_when_decision_is_never() {
-        use crate::storage::mcp_permissions::{set_permission, McpPermissionRow, PermissionDecision};
+        use crate::storage::mcp_permissions::{
+            set_permission, McpPermissionRow, PermissionDecision,
+        };
 
         let expected_result = serde_json::json!({"created": true});
         let (factory, _, _) = MockSucceedFactory::new("delete_record", expected_result);
@@ -363,13 +409,17 @@ mod tests {
         // Set Never permission
         {
             let conn = store.conn().unwrap();
-            set_permission(&conn, &McpPermissionRow {
-                server_id: "srv-never".to_string(),
-                tool_id: "delete_record".to_string(),
-                agent_id: "agent-test".to_string(),
-                decision: PermissionDecision::Never,
-                set_at: 1000,
-            }).unwrap();
+            set_permission(
+                &conn,
+                &McpPermissionRow {
+                    server_id: "srv-never".to_string(),
+                    tool_id: "delete_record".to_string(),
+                    agent_id: "agent-test".to_string(),
+                    decision: PermissionDecision::Never,
+                    set_at: 1000,
+                },
+            )
+            .unwrap();
         }
 
         let result = invoke_mcp_tool(
@@ -602,7 +652,11 @@ mod tests {
         )
         .await;
 
-        assert!(result.is_ok(), "invoke_mcp_tool must return Ok, got {:?}", result);
+        assert!(
+            result.is_ok(),
+            "invoke_mcp_tool must return Ok, got {:?}",
+            result
+        );
         assert_eq!(result.unwrap(), expected_result);
         assert_eq!(
             received_tool.lock().unwrap().as_deref(),

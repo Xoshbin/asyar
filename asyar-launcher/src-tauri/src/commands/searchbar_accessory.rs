@@ -72,13 +72,19 @@ mod tests {
     #[test]
     fn validation_rejects_empty_extension_id() {
         assert!(matches!(validate("", "cmd"), Err(AppError::Validation(_))));
-        assert!(matches!(validate("   ", "cmd"), Err(AppError::Validation(_))));
+        assert!(matches!(
+            validate("   ", "cmd"),
+            Err(AppError::Validation(_))
+        ));
     }
 
     #[test]
     fn validation_rejects_empty_command_id() {
         assert!(matches!(validate("ext", ""), Err(AppError::Validation(_))));
-        assert!(matches!(validate("ext", "  "), Err(AppError::Validation(_))));
+        assert!(matches!(
+            validate("ext", "  "),
+            Err(AppError::Validation(_))
+        ));
     }
 
     #[test]

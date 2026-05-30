@@ -77,9 +77,10 @@ impl BuiltinTool for ShellExecTool {
             cmd.current_dir(dir);
         }
 
-        let output = cmd.output().await.map_err(|e| {
-            AppError::Other(format!("failed to spawn '{}': {}", command, e))
-        })?;
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| AppError::Other(format!("failed to spawn '{}': {}", command, e)))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();

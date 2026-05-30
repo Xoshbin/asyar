@@ -24,20 +24,23 @@ pub fn copy_for_read(src: &Path) -> Result<CopiedSqlite, String> {
     std::fs::copy(src, &dest).map_err(|e| e.to_string())?;
 
     // Copy -wal and -shm sidecars if they exist.
-    let src_str = src.to_str().ok_or_else(|| "non-utf8 source path".to_string())?;
+    let src_str = src
+        .to_str()
+        .ok_or_else(|| "non-utf8 source path".to_string())?;
     for ext in ["-wal", "-shm"] {
         let sidecar_src = PathBuf::from(format!("{}{}", src_str, ext));
         if sidecar_src.exists() {
-            let sidecar_dest = dir.path().join(format!(
-                "{}{}",
-                file_name.to_string_lossy(),
-                ext
-            ));
+            let sidecar_dest = dir
+                .path()
+                .join(format!("{}{}", file_name.to_string_lossy(), ext));
             std::fs::copy(&sidecar_src, &sidecar_dest).map_err(|e| e.to_string())?;
         }
     }
 
-    Ok(CopiedSqlite { _dir: dir, path: dest })
+    Ok(CopiedSqlite {
+        _dir: dir,
+        path: dest,
+    })
 }
 
 #[cfg(test)]
@@ -74,6 +77,9 @@ mod tests {
         let parent = sidecar_path.parent().unwrap();
         let file_name = sidecar_path.file_name().unwrap().to_str().unwrap();
         let sidecar = parent.join(format!("{}-wal", file_name));
-        assert!(sidecar.exists() || wal_copy.exists(), "wal sidecar not copied");
+        assert!(
+            sidecar.exists() || wal_copy.exists(),
+            "wal sidecar not copied"
+        );
     }
 }

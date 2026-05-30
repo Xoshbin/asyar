@@ -1,5 +1,5 @@
 use log::info;
-use tauri::{AppHandle, Emitter, async_runtime};
+use tauri::{async_runtime, AppHandle, Emitter};
 
 const STARTUP_DELAY_SECS: u64 = 60;
 const CHECK_INTERVAL_SECS: u64 = 3600; // 1 hour

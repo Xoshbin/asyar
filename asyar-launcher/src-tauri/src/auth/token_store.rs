@@ -1,6 +1,6 @@
+use crate::auth::state::AuthUser;
 use crate::error::AppError;
 use crate::profile::encryption;
-use crate::auth::state::AuthUser;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
@@ -58,7 +58,9 @@ pub fn save_auth(
     store.set(KEY_USER, serde_json::to_value(user)?);
     store.set(KEY_ENTITLEMENTS, serde_json::to_value(entitlements)?);
     store.set(KEY_CACHED_AT, serde_json::json!(cached_at));
-    store.save().map_err(|e| AppError::Other(format!("Failed to save auth store: {}", e)))?;
+    store
+        .save()
+        .map_err(|e| AppError::Other(format!("Failed to save auth store: {}", e)))?;
 
     Ok(())
 }
@@ -96,7 +98,12 @@ pub fn load_auth(app: &AppHandle) -> Result<Option<StoredAuth>, AppError> {
         .and_then(|v| v.as_i64())
         .unwrap_or(0);
 
-    Ok(Some(StoredAuth { token, user, entitlements, cached_at }))
+    Ok(Some(StoredAuth {
+        token,
+        user,
+        entitlements,
+        cached_at,
+    }))
 }
 
 /// Clear all auth data from auth.dat.
@@ -109,16 +116,15 @@ pub fn clear_auth(app: &AppHandle) -> Result<(), AppError> {
     store.delete(KEY_USER);
     store.delete(KEY_ENTITLEMENTS);
     store.delete(KEY_CACHED_AT);
-    store.save().map_err(|e| AppError::Other(format!("Failed to save auth store: {}", e)))?;
+    store
+        .save()
+        .map_err(|e| AppError::Other(format!("Failed to save auth store: {}", e)))?;
 
     Ok(())
 }
 
 /// Update cached entitlements without touching the token or user.
-pub fn update_entitlements(
-    app: &AppHandle,
-    entitlements: &[String],
-) -> Result<(), AppError> {
+pub fn update_entitlements(app: &AppHandle, entitlements: &[String]) -> Result<(), AppError> {
     let store = app
         .store(AUTH_STORE_FILE)
         .map_err(|e| AppError::Other(format!("Failed to open auth store: {}", e)))?;
@@ -130,7 +136,9 @@ pub fn update_entitlements(
 
     store.set(KEY_ENTITLEMENTS, serde_json::to_value(entitlements)?);
     store.set(KEY_CACHED_AT, serde_json::json!(cached_at));
-    store.save().map_err(|e| AppError::Other(format!("Failed to save auth store: {}", e)))?;
+    store
+        .save()
+        .map_err(|e| AppError::Other(format!("Failed to save auth store: {}", e)))?;
 
     Ok(())
 }

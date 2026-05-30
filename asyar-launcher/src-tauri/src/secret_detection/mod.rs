@@ -77,9 +77,7 @@ pub fn redact(input: &str) -> RedactionResult {
 
     // Sort by (start ASC, length DESC) so overlap resolution prefers the
     // longest match starting at each position.
-    hits.sort_by(|a, b| {
-        a.0.cmp(&b.0).then_with(|| (b.1 - b.0).cmp(&(a.1 - a.0)))
-    });
+    hits.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| (b.1 - b.0).cmp(&(a.1 - a.0))));
 
     // Walk matches in start order, dropping any that overlap with an
     // already-accepted match.
@@ -165,7 +163,10 @@ mod tests {
     #[test]
     fn redact_returns_input_unchanged_when_no_match() {
         let r = redact("Hello world, this is plain text without secrets.");
-        assert_eq!(r.content, "Hello world, this is plain text without secrets.");
+        assert_eq!(
+            r.content,
+            "Hello world, this is plain text without secrets."
+        );
         assert!(r.kinds.is_empty());
         assert!(!r.oversized_unscanned);
     }
@@ -183,7 +184,10 @@ mod tests {
         let r = redact(input);
         assert!(r.content.contains("[redacted: aws_access_key]"));
         assert!(r.content.contains("[redacted: github_pat]"));
-        assert_eq!(r.kinds, vec!["aws_access_key".to_string(), "github_pat".to_string()]);
+        assert_eq!(
+            r.kinds,
+            vec!["aws_access_key".to_string(), "github_pat".to_string()]
+        );
     }
 
     #[test]

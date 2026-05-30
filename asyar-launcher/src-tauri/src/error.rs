@@ -108,7 +108,11 @@ impl HasSeverity for AppError {
     fn severity(&self) -> Severity {
         match self {
             AppError::Lock | AppError::Database(_) | AppError::Encryption(_) => Severity::Fatal,
-            AppError::Permission(_) | AppError::Validation(_) | AppError::NotFound(_) | AppError::RunFailed { .. } | AppError::McpPermissionRequired { .. } => Severity::Warning,
+            AppError::Permission(_)
+            | AppError::Validation(_)
+            | AppError::NotFound(_)
+            | AppError::RunFailed { .. }
+            | AppError::McpPermissionRequired { .. } => Severity::Warning,
             _ => Severity::Error,
         }
     }
@@ -123,14 +127,30 @@ impl HasSeverity for AppError {
     fn context(&self) -> HashMap<&'static str, String> {
         let mut ctx = HashMap::new();
         match self {
-            AppError::Permission(s) => { ctx.insert("permission", s.clone()); }
-            AppError::NotFound(s) => { ctx.insert("target", s.clone()); }
-            AppError::Extension(s) => { ctx.insert("extension", s.clone()); }
-            AppError::Shortcut(s) => { ctx.insert("shortcut", s.clone()); }
-            AppError::Platform(s) => { ctx.insert("platform", s.clone()); }
-            AppError::Validation(s) => { ctx.insert("field", s.clone()); }
-            AppError::Auth(s) | AppError::OAuth(s) => { ctx.insert("provider", s.clone()); }
-            AppError::RunFailed { id, .. } => { ctx.insert("id", id.clone()); }
+            AppError::Permission(s) => {
+                ctx.insert("permission", s.clone());
+            }
+            AppError::NotFound(s) => {
+                ctx.insert("target", s.clone());
+            }
+            AppError::Extension(s) => {
+                ctx.insert("extension", s.clone());
+            }
+            AppError::Shortcut(s) => {
+                ctx.insert("shortcut", s.clone());
+            }
+            AppError::Platform(s) => {
+                ctx.insert("platform", s.clone());
+            }
+            AppError::Validation(s) => {
+                ctx.insert("field", s.clone());
+            }
+            AppError::Auth(s) | AppError::OAuth(s) => {
+                ctx.insert("provider", s.clone());
+            }
+            AppError::RunFailed { id, .. } => {
+                ctx.insert("id", id.clone());
+            }
             AppError::McpPermissionRequired { server_id, tool_id } => {
                 ctx.insert("serverId", server_id.clone());
                 ctx.insert("toolId", tool_id.clone());
@@ -147,7 +167,10 @@ mod tests {
 
     #[test]
     fn test_io_error_display_prefix() {
-        let err = AppError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "file missing"));
+        let err = AppError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "file missing",
+        ));
         assert!(err.to_string().starts_with("IO error:"));
     }
 
@@ -190,7 +213,10 @@ mod tests {
         assert_eq!(v["severity"], "warning");
         assert_eq!(v["retryable"], false);
         assert_eq!(v["context"]["permission"], "clipboard:read");
-        assert!(v["developerDetail"].as_str().unwrap().contains("clipboard:read"));
+        assert!(v["developerDetail"]
+            .as_str()
+            .unwrap()
+            .contains("clipboard:read"));
     }
 
     #[test]
@@ -258,7 +284,10 @@ mod severity_tests {
         assert_eq!(err.severity(), Severity::Warning);
         assert_eq!(err.kind(), "permission_denied");
         assert!(!err.retryable());
-        assert_eq!(err.context().get("permission"), Some(&"clipboard:read".to_string()));
+        assert_eq!(
+            err.context().get("permission"),
+            Some(&"clipboard:read".to_string())
+        );
     }
 
     #[test]

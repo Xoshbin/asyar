@@ -53,7 +53,11 @@ impl IpcPendingMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", rename_all_fields = "camelCase", tag = "kind")]
+#[serde(
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    tag = "kind"
+)]
 pub enum IpcDispatchOutcome {
     ReadyDeliverNow { messages: Vec<IpcPendingMessage> },
     MountingWaitForReady,

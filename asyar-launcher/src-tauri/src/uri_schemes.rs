@@ -23,7 +23,8 @@ pub fn handle_extension_request(
     } else if uri.starts_with("asyar-extension://") {
         uri.strip_prefix("asyar-extension://").unwrap()
     } else if uri.starts_with("http://asyar-extension.localhost/") {
-        uri.strip_prefix("http://asyar-extension.localhost/").unwrap()
+        uri.strip_prefix("http://asyar-extension.localhost/")
+            .unwrap()
     } else {
         &uri
     };
@@ -61,7 +62,9 @@ pub fn handle_extension_request(
             {
                 if let Some(base_path) = dev_extensions.get(extension_id) {
                     let possible_paths = vec![
-                        std::path::PathBuf::from(base_path).join("dist").join(file_path),
+                        std::path::PathBuf::from(base_path)
+                            .join("dist")
+                            .join(file_path),
                         std::path::PathBuf::from(base_path).join(file_path),
                     ];
                     for p in possible_paths {
@@ -387,12 +390,15 @@ fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
     // verbatim prefix (\\?\) that must match the already-canonicalized `path` argument.
     // On macOS/Linux, canonicalization resolves symlinks so both sides are consistent.
     // Falls back to the raw path if the directory does not exist yet.
-    let canonical_dir = |p: std::path::PathBuf| -> std::path::PathBuf {
-        std::fs::canonicalize(&p).unwrap_or(p)
-    };
+    let canonical_dir =
+        |p: std::path::PathBuf| -> std::path::PathBuf { std::fs::canonicalize(&p).unwrap_or(p) };
 
     // Allow 1: Path is inside the app's extensions directory
-    if let Ok(extensions_dir) = app.path().app_data_dir().map(|p| canonical_dir(p.join("extensions"))) {
+    if let Ok(extensions_dir) = app
+        .path()
+        .app_data_dir()
+        .map(|p| canonical_dir(p.join("extensions")))
+    {
         if path.starts_with(&extensions_dir) {
             return true;
         }
@@ -419,7 +425,9 @@ fn is_path_allowed(path: &std::path::Path, app: &tauri::AppHandle) -> bool {
             .unwrap_or_default();
         if dev_registry_file.exists() {
             if let Ok(content) = std::fs::read_to_string(&dev_registry_file) {
-                if let Ok(dev_map) = serde_json::from_str::<std::collections::HashMap<String, String>>(&content) {
+                if let Ok(dev_map) =
+                    serde_json::from_str::<std::collections::HashMap<String, String>>(&content)
+                {
                     for base_path in dev_map.values() {
                         let canonical_base = canonical_dir(std::path::PathBuf::from(base_path));
                         if path.starts_with(&canonical_base) {
@@ -483,7 +491,8 @@ mod role_injection_tests {
         let html = b"<html><head><title>Test</title></head><body></body></html>";
         let result = inject_asyar_role(html, "view");
         let s = String::from_utf8(result).unwrap();
-        let script_pos = s.find("window.__ASYAR_ROLE__")
+        let script_pos = s
+            .find("window.__ASYAR_ROLE__")
             .expect("script must be present");
         let head_end = s.find("</head>").expect("</head> must be present");
         assert!(
@@ -553,7 +562,10 @@ mod role_injection_tests {
         let html = b"<html><head><title>App</title></head><body><p>hello</p></body></html>";
         let result = inject_asyar_role(html, "view");
         let s = String::from_utf8(result).unwrap();
-        assert!(s.contains("<title>App</title>"), "existing head content preserved");
+        assert!(
+            s.contains("<title>App</title>"),
+            "existing head content preserved"
+        );
         assert!(s.contains("<p>hello</p>"), "body content preserved");
     }
 }

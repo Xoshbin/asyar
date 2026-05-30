@@ -1,12 +1,12 @@
 //! Extension updater: check for updates and atomically apply them.
 
-use log::{info, warn, error};
-use serde::{Deserialize, Serialize};
 use crate::error::AppError;
-use crate::extensions::{get_app_data_dir, ExtensionRegistryState};
-use crate::extensions::installer;
 use crate::extensions::discovery::{read_manifest, validate_compatibility};
+use crate::extensions::installer;
 use crate::extensions::CompatibilityStatus;
+use crate::extensions::{get_app_data_dir, ExtensionRegistryState};
+use log::{error, info, warn};
+use serde::{Deserialize, Serialize};
 use std::fs;
 use tauri::{AppHandle, Emitter};
 
@@ -16,17 +16,31 @@ use tauri::{AppHandle, Emitter};
 pub enum UpdateProgress {
     Checking,
     #[serde(rename_all = "camelCase")]
-    Downloading { extension_id: String, extension_name: String },
+    Downloading {
+        extension_id: String,
+        extension_name: String,
+    },
     #[serde(rename_all = "camelCase")]
-    Verifying { extension_id: String },
+    Verifying {
+        extension_id: String,
+    },
     #[serde(rename_all = "camelCase")]
-    Extracting { extension_id: String },
+    Extracting {
+        extension_id: String,
+    },
     #[serde(rename_all = "camelCase")]
-    Swapping { extension_id: String },
+    Swapping {
+        extension_id: String,
+    },
     #[serde(rename_all = "camelCase")]
-    Complete { extension_id: String },
+    Complete {
+        extension_id: String,
+    },
     #[serde(rename_all = "camelCase")]
-    Failed { extension_id: String, error: String },
+    Failed {
+        extension_id: String,
+        error: String,
+    },
 }
 
 /// A single available update returned by the store API.
@@ -82,32 +96,42 @@ pub async fn check_for_updates(
     }
 
     // 2. POST to store API
-    let url = format!("{}/api/extensions/check-updates", store_api_base_url.trim_end_matches('/'));
-    let body = CheckUpdatesRequest { extensions: local_versions };
-    
+    let url = format!(
+        "{}/api/extensions/check-updates",
+        store_api_base_url.trim_end_matches('/')
+    );
+    let body = CheckUpdatesRequest {
+        extensions: local_versions,
+    };
+
     let client = reqwest::Client::new();
-    let response = client.post(&url)
+    let response = client
+        .post(&url)
         .json(&body)
         .send()
         .await
         .map_err(AppError::Network)?;
 
     if !response.status().is_success() {
-        return Err(AppError::Network(
-            response.error_for_status().unwrap_err()
-        ));
+        return Err(AppError::Network(response.error_for_status().unwrap_err()));
     }
 
-    let parsed: CheckUpdatesResponse = response.json().await
-        .map_err(AppError::Network)?;
+    let parsed: CheckUpdatesResponse = response.json().await.map_err(AppError::Network)?;
 
     // 3. Defense-in-depth: local semver post-filter
-    let updates = parsed.updates.into_iter().filter(|u| {
-        match (semver::Version::parse(&u.current_version), semver::Version::parse(&u.latest_version)) {
-            (Ok(current), Ok(latest)) => latest > current,
-            _ => true, // Trust server if local parsing fails
-        }
-    }).collect();
+    let updates = parsed
+        .updates
+        .into_iter()
+        .filter(|u| {
+            match (
+                semver::Version::parse(&u.current_version),
+                semver::Version::parse(&u.latest_version),
+            ) {
+                (Ok(current), Ok(latest)) => latest > current,
+                _ => true, // Trust server if local parsing fails
+            }
+        })
+        .collect();
 
     Ok(updates)
 }
@@ -142,24 +166,37 @@ pub async fn update_extension(
     }
 
     // --- Download ---
-    emit_progress(app_handle, UpdateProgress::Downloading {
-        extension_id: update.extension_id.clone(),
-        extension_name: update.name.clone(),
-    });
+    emit_progress(
+        app_handle,
+        UpdateProgress::Downloading {
+            extension_id: update.extension_id.clone(),
+            extension_name: update.name.clone(),
+        },
+    );
     installer::validate_download_url(&update.download_url)?;
     let temp_file = installer::download_to_temp_file(&update.download_url).await?;
-    info!("Downloaded update for '{}' to {:?}", update.extension_id, temp_file.path());
+    info!(
+        "Downloaded update for '{}' to {:?}",
+        update.extension_id,
+        temp_file.path()
+    );
 
     // --- Verify checksum ---
-    emit_progress(app_handle, UpdateProgress::Verifying {
-        extension_id: update.extension_id.clone(),
-    });
+    emit_progress(
+        app_handle,
+        UpdateProgress::Verifying {
+            extension_id: update.extension_id.clone(),
+        },
+    );
     installer::verify_checksum(temp_file.path(), &update.checksum)?;
 
     // --- Extract to staging ---
-    emit_progress(app_handle, UpdateProgress::Extracting {
-        extension_id: update.extension_id.clone(),
-    });
+    emit_progress(
+        app_handle,
+        UpdateProgress::Extracting {
+            extension_id: update.extension_id.clone(),
+        },
+    );
     if let Err(e) = installer::extract_zip(temp_file.path(), &staging_dir).await {
         let _ = fs::remove_dir_all(&staging_dir);
         return Err(e);
@@ -170,34 +207,47 @@ pub async fn update_extension(
     if manifest_path.exists() {
         match read_manifest(&manifest_path) {
             Ok(manifest) => {
-                if let CompatibilityStatus::PlatformNotSupported { platform, supported } =
-                    validate_compatibility(&manifest)
+                if let CompatibilityStatus::PlatformNotSupported {
+                    platform,
+                    supported,
+                } = validate_compatibility(&manifest)
                 {
                     let _ = fs::remove_dir_all(&staging_dir);
                     return Err(AppError::Validation(format!(
                         "Updated extension '{}' does not support {} (supported: {})",
                         update.name,
                         platform,
-                        if supported.is_empty() { "none".to_string() } else { supported.join(", ") }
+                        if supported.is_empty() {
+                            "none".to_string()
+                        } else {
+                            supported.join(", ")
+                        }
                     )));
                 }
             }
             Err(e) => {
-                warn!("Could not read manifest for compatibility check during update: {}", e);
+                warn!(
+                    "Could not read manifest for compatibility check during update: {}",
+                    e
+                );
             }
         }
     }
 
     // --- Atomic swap ---
-    emit_progress(app_handle, UpdateProgress::Swapping {
-        extension_id: update.extension_id.clone(),
-    });
+    emit_progress(
+        app_handle,
+        UpdateProgress::Swapping {
+            extension_id: update.extension_id.clone(),
+        },
+    );
 
     // Step 1: Move live → backup
     if let Err(e) = fs::rename(&live_dir, &backup_dir) {
         let _ = fs::remove_dir_all(&staging_dir);
         return Err(AppError::Platform(format!(
-            "Failed to move current extension to backup: {}", e
+            "Failed to move current extension to backup: {}",
+            e
         )));
     }
 
@@ -210,19 +260,26 @@ pub async fn update_extension(
         }
         let _ = fs::remove_dir_all(&staging_dir);
         return Err(AppError::Platform(format!(
-            "Failed to promote updated extension: {}", e
+            "Failed to promote updated extension: {}",
+            e
         )));
     }
 
     // Step 3: Clean up backup (non-critical)
     if let Err(e) = fs::remove_dir_all(&backup_dir) {
-        warn!("Failed to remove backup directory for '{}': {}", update.extension_id, e);
+        warn!(
+            "Failed to remove backup directory for '{}': {}",
+            update.extension_id, e
+        );
     }
 
     // --- Done ---
-    emit_progress(app_handle, UpdateProgress::Complete {
-        extension_id: update.extension_id.clone(),
-    });
+    emit_progress(
+        app_handle,
+        UpdateProgress::Complete {
+            extension_id: update.extension_id.clone(),
+        },
+    );
 
     info!(
         "Extension '{}' updated successfully from v{} to v{}",
@@ -246,10 +303,13 @@ pub async fn update_all(
     for update in updates {
         let result = update_extension(app_handle, update).await;
         if let Err(ref e) = result {
-            emit_progress(app_handle, UpdateProgress::Failed {
-                extension_id: update.extension_id.clone(),
-                error: e.to_string(),
-            });
+            emit_progress(
+                app_handle,
+                UpdateProgress::Failed {
+                    extension_id: update.extension_id.clone(),
+                    error: e.to_string(),
+                },
+            );
         }
         results.push((update.extension_id.clone(), result));
     }
@@ -265,8 +325,8 @@ fn emit_progress(app_handle: &AppHandle, progress: UpdateProgress) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::path::Path;
+    use tempfile::TempDir;
 
     /// Helper: create a fake extension directory with a manifest.json
     fn create_fake_extension(dir: &Path, id: &str, version: &str) {
@@ -287,10 +347,10 @@ mod tests {
     fn atomic_swap_success() {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
-        
+
         // Create "live" directory (old version)
         create_fake_extension(base, "test-ext", "1.0.0");
-        
+
         // Create "staging" directory (new version)
         let staging = base.join("test-ext_updating");
         fs::create_dir_all(&staging).unwrap();
@@ -316,10 +376,10 @@ mod tests {
         let content = fs::read_to_string(live.join("manifest.json")).unwrap();
         assert!(content.contains("2.0.0"));
         assert!(content.contains("updated"));
-        
+
         // Verify: backup is gone
         assert!(!backup.exists());
-        
+
         // Verify: staging is gone
         assert!(!staging.exists());
     }
@@ -328,7 +388,7 @@ mod tests {
     fn cleanup_stale_staging_dirs() {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
-        
+
         // Create leftover dirs from a previous failed update
         let stale_staging = base.join("test-ext_updating");
         let stale_backup = base.join("test-ext_old");
@@ -353,8 +413,14 @@ mod tests {
     fn check_updates_request_serialization() {
         let req = CheckUpdatesRequest {
             extensions: vec![
-                LocalExtensionVersion { id: "com.test.a".into(), version: "1.0.0".into() },
-                LocalExtensionVersion { id: "com.test.b".into(), version: "2.3.1".into() },
+                LocalExtensionVersion {
+                    id: "com.test.a".into(),
+                    version: "1.0.0".into(),
+                },
+                LocalExtensionVersion {
+                    id: "com.test.b".into(),
+                    version: "2.3.1".into(),
+                },
             ],
         };
         let json = serde_json::to_value(&req).unwrap();
@@ -408,7 +474,9 @@ mod tests {
         assert_eq!(json["extensionId"], "com.test.ext");
         assert_eq!(json["extensionName"], "Test");
 
-        let complete = UpdateProgress::Complete { extension_id: "x".into() };
+        let complete = UpdateProgress::Complete {
+            extension_id: "x".into(),
+        };
         let json2 = serde_json::to_value(&complete).unwrap();
         assert_eq!(json2["status"], "complete");
     }

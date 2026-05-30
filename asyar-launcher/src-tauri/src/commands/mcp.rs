@@ -75,11 +75,7 @@ pub async fn mcp_list_audit(
     limit: Option<u32>,
 ) -> Result<Vec<McpAuditRow>, AppError> {
     let conn = data_store.conn()?;
-    crate::storage::mcp_audit::list_recent(
-        &conn,
-        server_id.as_deref(),
-        limit.unwrap_or(100),
-    )
+    crate::storage::mcp_audit::list_recent(&conn, server_id.as_deref(), limit.unwrap_or(100))
 }
 
 // ── mcp_invoke_tool ───────────────────────────────────────────────────────────
@@ -192,9 +188,8 @@ pub async fn mcp_get_permission(
     agent_id: String,
 ) -> Result<Option<String>, AppError> {
     let conn = data_store.conn()?;
-    let row = crate::storage::mcp_permissions::get_permission(
-        &conn, &server_id, &tool_id, &agent_id,
-    )?;
+    let row =
+        crate::storage::mcp_permissions::get_permission(&conn, &server_id, &tool_id, &agent_id)?;
     Ok(row.map(|r| {
         match r.decision {
             crate::storage::mcp_permissions::PermissionDecision::AllowOnce => "allow_once",

@@ -8,7 +8,9 @@ pub struct TabSnapshotCache {
 
 impl TabSnapshotCache {
     pub fn new() -> Self {
-        Self { inner: RwLock::new(HashMap::new()) }
+        Self {
+            inner: RwLock::new(HashMap::new()),
+        }
     }
 
     pub fn set(&self, key: &BrowserKey, tabs: Vec<Tab>) {
@@ -54,7 +56,10 @@ mod tests {
     use crate::browser::types::{BrowserFamily, BrowserId};
 
     fn key() -> BrowserKey {
-        BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() }
+        BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        }
     }
 
     fn tab(id: &str, url: &str, title: &str, is_active: bool) -> Tab {
@@ -89,8 +94,14 @@ mod tests {
     #[test]
     fn list_all_aggregates_across_browsers() {
         let cache = TabSnapshotCache::new();
-        let k1 = BrowserKey { family: BrowserFamily::Chromium, variant: "chrome".to_string() };
-        let k2 = BrowserKey { family: BrowserFamily::Firefox, variant: "firefox".to_string() };
+        let k1 = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        let k2 = BrowserKey {
+            family: BrowserFamily::Firefox,
+            variant: "firefox".to_string(),
+        };
         cache.set(&k1, vec![tab("1", "https://a", "A", false)]);
         cache.set(&k2, vec![tab("2", "https://b", "B", true)]);
         let all = cache.list_all();
@@ -100,11 +111,14 @@ mod tests {
     #[test]
     fn active_tab_returns_the_one_with_is_active_true() {
         let cache = TabSnapshotCache::new();
-        cache.set(&key(), vec![
-            tab("1", "https://a", "A", false),
-            tab("2", "https://b", "B", true),
-            tab("3", "https://c", "C", false),
-        ]);
+        cache.set(
+            &key(),
+            vec![
+                tab("1", "https://a", "A", false),
+                tab("2", "https://b", "B", true),
+                tab("3", "https://c", "C", false),
+            ],
+        );
         let active = cache.active_tab(&key()).expect("expected active");
         assert_eq!(active.id, "2");
     }

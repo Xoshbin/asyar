@@ -102,12 +102,7 @@ impl TransportFactory for StdioTransportFactory {
                 }
                 let bun_lock = self.bundled_bun.lock().unwrap();
                 let uv_lock = self.bundled_uv.lock().unwrap();
-                let resolved = resolve_command(
-                    command,
-                    args,
-                    bun_lock.as_ref(),
-                    uv_lock.as_ref(),
-                )?;
+                let resolved = resolve_command(command, args, bun_lock.as_ref(), uv_lock.as_ref())?;
                 drop(bun_lock);
                 drop(uv_lock);
                 use std::process::Stdio;

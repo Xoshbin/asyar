@@ -1,8 +1,10 @@
 //! Extension command handlers — thin wrappers delegating to extension service modules.
 
 use crate::error::AppError;
-use crate::extensions::{self, ExtensionRegistryState, ExtensionRecord, ThemeDefinition, headless::HeadlessRegistry};
-use crate::extensions::scheduler::{self, SchedulerState, ScheduledTaskInfo};
+use crate::extensions::scheduler::{self, ScheduledTaskInfo, SchedulerState};
+use crate::extensions::{
+    self, headless::HeadlessRegistry, ExtensionRecord, ExtensionRegistryState, ThemeDefinition,
+};
 use std::collections::HashMap;
 use tauri::AppHandle;
 
@@ -32,8 +34,14 @@ pub async fn install_extension_from_url(
     checksum: Option<String>,
 ) -> Result<(), AppError> {
     extensions::installer::install_from_url(
-        &app_handle, &download_url, &extension_id, &extension_name, &version, checksum.as_deref()
-    ).await
+        &app_handle,
+        &download_url,
+        &extension_id,
+        &extension_name,
+        &version,
+        checksum.as_deref(),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -57,7 +65,8 @@ pub async fn register_dev_extension(
     extension_id: String,
     path: String,
 ) -> Result<(), AppError> {
-    let dev_extensions_file = extensions::get_app_data_dir(&app_handle)?.join("dev_extensions.json");
+    let dev_extensions_file =
+        extensions::get_app_data_dir(&app_handle)?.join("dev_extensions.json");
     let mut dev_extensions: HashMap<String, String> = if dev_extensions_file.exists() {
         let content = std::fs::read_to_string(&dev_extensions_file)?;
         serde_json::from_str(&content).unwrap_or_default()
@@ -65,12 +74,17 @@ pub async fn register_dev_extension(
         HashMap::new()
     };
     dev_extensions.insert(extension_id, path);
-    std::fs::write(&dev_extensions_file, serde_json::to_string_pretty(&dev_extensions)?)?;
+    std::fs::write(
+        &dev_extensions_file,
+        serde_json::to_string_pretty(&dev_extensions)?,
+    )?;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn get_dev_extension_paths(app_handle: AppHandle) -> Result<HashMap<String, String>, AppError> {
+pub async fn get_dev_extension_paths(
+    app_handle: AppHandle,
+) -> Result<HashMap<String, String>, AppError> {
     extensions::get_dev_extension_paths(&app_handle)
 }
 
@@ -86,10 +100,7 @@ pub async fn discover_extensions(
     // Seed the agent ToolRegistry from every already-enabled Tier 2
     // extension's manifest. Without this, manifest-declared tools are
     // absent until the user toggles enable/disable post-restart.
-    extensions::lifecycle::run_tool_registry_seed_for_enabled_extensions(
-        &app_handle,
-        &registry,
-    );
+    extensions::lifecycle::run_tool_registry_seed_for_enabled_extensions(&app_handle, &registry);
     Ok(result)
 }
 
@@ -115,10 +126,13 @@ pub async fn get_extension(
     registry: tauri::State<'_, ExtensionRegistryState>,
     extension_id: String,
 ) -> Result<ExtensionRecord, AppError> {
-    let reg = registry.extensions.lock().map_err(|_| crate::error::AppError::Lock)?;
-    reg.get(&extension_id)
-        .cloned()
-        .ok_or_else(|| crate::error::AppError::NotFound(format!("Extension not found: {}", extension_id)))
+    let reg = registry
+        .extensions
+        .lock()
+        .map_err(|_| crate::error::AppError::Lock)?;
+    reg.get(&extension_id).cloned().ok_or_else(|| {
+        crate::error::AppError::NotFound(format!("Extension not found: {}", extension_id))
+    })
 }
 
 #[tauri::command]
@@ -168,9 +182,10 @@ pub async fn update_all_extensions(
     updates: Vec<extensions::updater::AvailableUpdate>,
 ) -> Result<Vec<(String, Result<(), String>)>, AppError> {
     let results = extensions::updater::update_all(&app_handle, &updates).await;
-    Ok(results.into_iter().map(|(id, r)| {
-        (id, r.map_err(|e| e.to_string()))
-    }).collect())
+    Ok(results
+        .into_iter()
+        .map(|(id, r)| (id, r.map_err(|e| e.to_string())))
+        .collect())
 }
 
 #[tauri::command]
@@ -183,9 +198,7 @@ pub async fn install_extension_from_file(
 }
 
 #[tauri::command]
-pub async fn show_open_extension_dialog(
-    app_handle: AppHandle,
-) -> Result<Option<String>, AppError> {
+pub async fn show_open_extension_dialog(app_handle: AppHandle) -> Result<Option<String>, AppError> {
     use tauri_plugin_dialog::DialogExt;
     let result = app_handle
         .dialog()
