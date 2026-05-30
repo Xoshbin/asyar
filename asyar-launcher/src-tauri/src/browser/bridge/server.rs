@@ -156,6 +156,11 @@ pub fn token_from_subprotocols(header_value: &str) -> Option<String> {
 pub const WS_CLOSE_AUTH: u16 = 1008; // Policy Violation: bad/missing token or no pairing.
 pub const WS_CLOSE_THROTTLED: u16 = 1013; // Try Again Later: rate limited.
 
+/// Upper bound on the client-supplied `variant`. Real browser variants are short
+/// (`chrome`, `chrome-beta`, `edge`, `brave`, …); anything longer is abusive
+/// input and is rejected before it can key a rate-limiter bucket.
+const MAX_VARIANT_LEN: usize = 64;
+
 /// Sends a single Close frame and drops the socket. Used for the rejection paths
 /// above — no connection is registered and no data is exchanged.
 async fn close_with<S>(mut socket: S, code: u16, reason: &'static str)
@@ -186,6 +191,11 @@ async fn bridge_ws_handler<R: tauri::Runtime>(
         "safari" => crate::browser::types::BrowserFamily::Safari,
         other => return Err((StatusCode::BAD_REQUEST, format!("bad family: {}", other))),
     };
+    // Reject abusive `variant` up front — before it can allocate a rate-limiter
+    // bucket or reach the keychain lookup.
+    if q.variant.len() > MAX_VARIANT_LEN {
+        return Err((StatusCode::BAD_REQUEST, "variant too long".to_string()));
+    }
     let key = crate::browser::types::BrowserKey {
         family,
         variant: q.variant.clone(),
@@ -385,6 +395,34 @@ mod tests {
         // The next one in the same window is throttled.
         let resp = client.post(&url).json(&body).send().await.unwrap();
         assert_eq!(resp.status(), reqwest::StatusCode::TOO_MANY_REQUESTS);
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn bridge_ws_rejects_overlong_variant_before_allocating() {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        use tokio_tungstenite::tungstenite::Error as WsError;
+        let state = build_test_state();
+        let handle = start_server(state.clone()).await.unwrap();
+        // `variant` is client-controlled; an abusive over-long value must be
+        // rejected up front, before it can allocate a rate-limiter bucket or
+        // reach the keychain lookup.
+        let variant = "x".repeat(500);
+        let url = format!(
+            "ws://127.0.0.1:{}/bridge?family=chromium&variant={}",
+            handle.port(),
+            variant
+        );
+        let req = url.into_client_request().unwrap();
+        match tokio_tungstenite::connect_async(req).await {
+            Err(WsError::Http(resp)) => assert_eq!(resp.status().as_u16(), 400),
+            other => panic!("expected a 400 rejection, got {other:?}"),
+        }
+        assert_eq!(
+            state.rate_limiter.bucket_count(),
+            0,
+            "an over-long variant must not create a bucket"
+        );
         handle.shutdown().await;
     }
 

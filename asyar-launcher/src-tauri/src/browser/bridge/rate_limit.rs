@@ -16,6 +16,13 @@ struct Bucket {
     last: Instant,
 }
 
+/// Hard ceiling on the number of live buckets, as a backstop against a flood of
+/// unique `variant`s (which come from client-controlled query input). Pruning
+/// keeps the map far below this in practice; the cap only bites under a genuine
+/// flood of simultaneously-throttled peers — astronomically unlikely on a
+/// loopback bridge, but it guarantees the map can never grow without bound.
+const DEFAULT_MAX_BUCKETS: usize = 1024;
+
 /// Per-peer token-bucket limiter guarding the browser bridge routes. Each
 /// `BrowserKey` (family + variant) gets its own bucket, so one looping or
 /// malicious companion cannot starve the others. A peer may burst up to
@@ -24,6 +31,7 @@ struct Bucket {
 pub struct ConnectionRateLimiter {
     capacity: f64,
     refill_per_sec: f64,
+    max_buckets: usize,
     buckets: Mutex<HashMap<BrowserKey, Bucket>>,
 }
 
@@ -32,8 +40,20 @@ impl ConnectionRateLimiter {
         Self {
             capacity,
             refill_per_sec,
+            max_buckets: DEFAULT_MAX_BUCKETS,
             buckets: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Override the bucket ceiling (mainly for tests).
+    pub fn with_max_buckets(mut self, max_buckets: usize) -> Self {
+        self.max_buckets = max_buckets;
+        self
+    }
+
+    /// Number of live buckets — used by tests to assert memory stays bounded.
+    pub fn bucket_count(&self) -> usize {
+        self.buckets.lock().unwrap().len()
     }
 
     /// Convenience entry point used in production: checks against the current
@@ -44,6 +64,29 @@ impl ConnectionRateLimiter {
 
     pub fn check_at(&self, key: &BrowserKey, now: Instant) -> RateDecision {
         let mut buckets = self.buckets.lock().unwrap();
+
+        // Drop stranger buckets that have refilled to full capacity: such a
+        // bucket is indistinguishable from a never-seen key, so removing it is a
+        // no-op for legitimate peers while bounding memory to currently-throttled
+        // ones. This is what neutralizes a flood of unique client `variant`s
+        // without the permanent lockout a plain hard cap would cause.
+        let capacity = self.capacity;
+        let refill = self.refill_per_sec;
+        buckets.retain(|k, b| {
+            k == key
+                || (b.tokens + now.saturating_duration_since(b.last).as_secs_f64() * refill)
+                    < capacity
+        });
+
+        // Backstop: if even after pruning we are at the ceiling and this is a new
+        // key, shed it before allocating a bucket (and before any auth/keychain
+        // work downstream) rather than grow unbounded.
+        if buckets.len() >= self.max_buckets && !buckets.contains_key(key) {
+            return RateDecision::Deny {
+                retry_after_secs: 60,
+            };
+        }
+
         let bucket = buckets.entry(key.clone()).or_insert(Bucket {
             tokens: self.capacity,
             last: now,
@@ -169,5 +212,64 @@ mod tests {
             limiter.check_at(&key("chrome"), later),
             RateDecision::Deny { .. }
         ));
+    }
+
+    #[test]
+    fn prunes_fully_refilled_buckets_of_other_keys() {
+        let limiter = ConnectionRateLimiter::new(5.0, 1.0);
+        let t0 = Instant::now();
+        // A flood of unique variants (the DoS vector: `variant` is client input).
+        for i in 0..100 {
+            let _ = limiter.check_at(&key(&format!("v{i}")), t0);
+        }
+        assert_eq!(
+            limiter.bucket_count(),
+            100,
+            "each unique key holds a bucket"
+        );
+        // After enough time for every stranger bucket to refill to full, a check
+        // for a NEW key drops them — a fully-refilled bucket carries no state, so
+        // pruning it changes nothing for a real peer but bounds memory.
+        let later = t0 + Duration::from_secs(10);
+        let _ = limiter.check_at(&key("fresh"), later);
+        assert_eq!(
+            limiter.bucket_count(),
+            1,
+            "fully-refilled stranger buckets must be pruned"
+        );
+    }
+
+    #[test]
+    fn enforces_max_buckets_ceiling_for_new_keys() {
+        let limiter = ConnectionRateLimiter::new(5.0, 1.0).with_max_buckets(3);
+        let t0 = Instant::now();
+        for i in 0..3 {
+            assert_eq!(
+                limiter.check_at(&key(&format!("v{i}")), t0),
+                RateDecision::Allow
+            );
+        }
+        // 4th distinct key at the same instant: nothing has refilled, so pruning
+        // keeps all 3 and the ceiling sheds the newcomer before it allocates.
+        assert!(matches!(
+            limiter.check_at(&key("v3"), t0),
+            RateDecision::Deny { .. }
+        ));
+        assert_eq!(limiter.bucket_count(), 3, "ceiling caps the map size");
+    }
+
+    #[test]
+    fn ceiling_never_blocks_an_already_tracked_key() {
+        let limiter = ConnectionRateLimiter::new(5.0, 1.0).with_max_buckets(2);
+        let t0 = Instant::now();
+        let _ = limiter.check_at(&key("a"), t0);
+        let _ = limiter.check_at(&key("b"), t0);
+        // A brand-new key is shed by the ceiling...
+        assert!(matches!(
+            limiter.check_at(&key("c"), t0),
+            RateDecision::Deny { .. }
+        ));
+        // ...but a peer we are already tracking is never locked out.
+        assert_eq!(limiter.check_at(&key("a"), t0), RateDecision::Allow);
     }
 }
