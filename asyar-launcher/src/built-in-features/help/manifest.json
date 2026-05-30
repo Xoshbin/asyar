@@ -1,0 +1,20 @@
+{
+  "id": "help",
+  "name": "Help",
+  "icon": "icon:info",
+  "version": "1.0.0",
+  "description": "Keyboard shortcuts, feature guides, and the Asyar user manual",
+  "type": "extension",
+  "searchable": true,
+  "commands": [
+    {
+      "id": "show-help",
+      "name": "Help",
+      "description": "View keyboard shortcuts and open the user guide",
+      "trigger": "help shortcuts guide",
+      "icon": "icon:info",
+      "mode": "view",
+      "component": "DefaultView"
+    }
+  ]
+}
