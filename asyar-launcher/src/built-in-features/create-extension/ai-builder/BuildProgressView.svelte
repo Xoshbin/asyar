@@ -10,6 +10,7 @@
   import { sidecarClient } from './sidecarClient';
   import { Command } from '@tauri-apps/plugin-shell';
   import { openPath } from '@tauri-apps/plugin-opener';
+  import { publishExtension } from './publishExtension';
 
   // ── local reactive state ──────────────────────────────────────────────────
   let prompt = $state('');
@@ -90,9 +91,22 @@
           buildJobStore.reset();
         },
       });
+      actionService.registerAction({
+        id: 'ai-builder:publish',
+        label: 'Publish to Asyar Store',
+        icon: 'icon:cloud-upload',
+        description: 'Publish this extension to the Asyar Store via asyar publish',
+        category: 'AI Builder',
+        extensionId: 'create-extension',
+        context: ActionContext.EXTENSION_VIEW,
+        execute: async () => {
+          await publishExtension(resultPath);
+        },
+      });
       return () => {
         actionService.unregisterAction('ai-builder:open-editor');
         actionService.unregisterAction('ai-builder:build-another');
+        actionService.unregisterAction('ai-builder:publish');
       };
     }
 
