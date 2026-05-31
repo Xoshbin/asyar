@@ -41,7 +41,7 @@ pub fn scan_created_extensions(base_dir: &Path) -> Vec<CreatedExtensionSummary> 
             });
         }
     }
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out.sort_by_key(|s| s.name.to_lowercase());
     out
 }
 
