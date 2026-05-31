@@ -6,7 +6,26 @@ Asyar is a fast, extensible, **local-first** command launcher for macOS, Windows
 
 Built with [Tauri v2](https://tauri.app/) + Rust and [Svelte 5](https://svelte.dev/) — not Electron.
 
-https://github.com/user-attachments/assets/fc3b0e5e-9af8-49c4-8da8-d87b44338a0e
+![Asyar launcher](docs/images/getting-started-hero.png)
+
+---
+
+## Screenshots
+
+|  |  |
+|:---:|:---:|
+| ![Search results](docs/images/the-basics-results.png) | ![AI agents](docs/images/feature-ai-agents-hero.png) |
+| **Fast fuzzy search** | **AI agents with tool calling** |
+| ![Calculator](docs/images/feature-calculator-hero.png) | ![Clipboard history](docs/images/feature-clipboard-hero.png) |
+| **Instant calculator** | **Clipboard history** |
+| ![MCP servers](docs/images/feature-mcp-hero.png) | ![Window management](docs/images/feature-window-management-hero.png) |
+| **MCP servers** | **Window management** |
+| ![Snippets](docs/images/feature-snippets-hero.png) | ![Scripts](docs/images/feature-scripts-hero.png) |
+| **Snippets** | **Scripts** |
+| ![Extensions](docs/images/feature-extensions-hero.png) | ![Browser integration](docs/images/feature-browser-hero.png) |
+| **Extensions** | **Browser integration** |
+| ![Keyboard shortcuts](docs/images/keyboard-shortcuts-help.png) | ![Settings](docs/images/settings-general.png) |
+| **Keyboard-first** | **Settings** |
 
 ---
 
