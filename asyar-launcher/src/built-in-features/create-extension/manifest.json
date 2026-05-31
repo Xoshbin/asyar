@@ -7,6 +7,7 @@
   "author": "Core",
   "searchable": true,
   "type": "extension",
+  "permissions": ["notifications:send"],
   "commands": [
     {
       "id": "open",
@@ -15,6 +16,14 @@
       "description": "Scaffold a new Asyar extension for development",
       "mode": "view",
       "component": "DefaultView"
+    },
+    {
+      "id": "build-with-ai",
+      "name": "Build Extension with AI",
+      "icon": "icon:sparkles",
+      "description": "Describe an extension in words and let AI build it",
+      "mode": "view",
+      "component": "BuildProgressView"
     }
   ]
 }

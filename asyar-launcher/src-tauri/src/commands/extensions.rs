@@ -59,12 +59,45 @@ pub async fn get_builtin_features_path(app_handle: AppHandle) -> Result<String, 
     extensions::get_builtin_features_path(&app_handle)
 }
 
+/// Defense-in-depth validation for `register_dev_extension`. Rejects an
+/// extension id that is empty, carries a path separator or `..`, or isn't a
+/// plain dot/dash/alnum slug; and rejects any `path` containing `..`. The JS
+/// builder validates the id too, but this command is directly invokable, so the
+/// boundary is re-checked here. Returns `AppError::Validation` on any violation.
+fn validate_dev_extension_inputs(extension_id: &str, path: &str) -> Result<(), AppError> {
+    if extension_id.is_empty() {
+        return Err(AppError::Validation("extension id must not be empty".into()));
+    }
+    if extension_id.contains('/')
+        || extension_id.contains('\\')
+        || extension_id.contains("..")
+        || extension_id.contains(std::path::MAIN_SEPARATOR)
+    {
+        return Err(AppError::Validation(
+            "extension id must not contain path separators or '..'".into(),
+        ));
+    }
+    if !extension_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
+    {
+        return Err(AppError::Validation(
+            "extension id must be a dot/dash/alnum slug".into(),
+        ));
+    }
+    if path.contains("..") {
+        return Err(AppError::Validation("path must not contain '..'".into()));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn register_dev_extension(
     app_handle: AppHandle,
     extension_id: String,
     path: String,
 ) -> Result<(), AppError> {
+    validate_dev_extension_inputs(&extension_id, &path)?;
     let dev_extensions_file =
         extensions::get_app_data_dir(&app_handle)?.join("dev_extensions.json");
     let mut dev_extensions: HashMap<String, String> = if dev_extensions_file.exists() {
@@ -250,4 +283,28 @@ pub async fn get_theme_definition(
     }
 
     extensions::read_theme_definition(&extension_dir)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_dev_extension_inputs_accepts_safe_slugs() {
+        assert!(validate_dev_extension_inputs("com.user.notion", "/tmp/ext").is_ok());
+        assert!(validate_dev_extension_inputs("unit-converter", "/home/u/AsyarExtensions/x").is_ok());
+        assert!(validate_dev_extension_inputs("a.b_c-1", "/abs/path").is_ok());
+    }
+
+    #[test]
+    fn validate_dev_extension_inputs_rejects_traversal_and_separators() {
+        assert!(validate_dev_extension_inputs("", "/tmp/ext").is_err());
+        assert!(validate_dev_extension_inputs("..", "/tmp/ext").is_err());
+        assert!(validate_dev_extension_inputs("../evil", "/tmp/ext").is_err());
+        assert!(validate_dev_extension_inputs("a/b", "/tmp/ext").is_err());
+        assert!(validate_dev_extension_inputs("a\\b", "/tmp/ext").is_err());
+        assert!(validate_dev_extension_inputs("evil id", "/tmp/ext").is_err());
+        // path containing `..`
+        assert!(validate_dev_extension_inputs("com.user.tool", "/tmp/../etc").is_err());
+    }
 }

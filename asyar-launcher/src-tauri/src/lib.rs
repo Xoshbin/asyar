@@ -64,6 +64,7 @@ pub mod deeplink;
 pub mod diagnostics;
 pub mod error;
 pub mod event_hub;
+pub mod ext_builder;
 pub mod extension_tray;
 pub mod extensions;
 pub mod fs_watcher;
@@ -191,6 +192,7 @@ pub fn run() {
             as agents::tools::ToolRegistryState)
         .manage(mcp_supervisor)
         .manage(mcp_sidecar_state)
+        .manage(ext_builder::ExtBuilderState::default())
         .manage(AppState {
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -539,6 +541,10 @@ pub fn run() {
             commands::mcp::mcp_delete_permission,
             commands::mcp::mcp_get_strict_mode,
             commands::mcp::mcp_set_strict_mode,
+            // AI Extension Builder
+            ext_builder::commands::ext_builder_start,
+            ext_builder::commands::ext_builder_answer,
+            ext_builder::commands::ext_builder_cancel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

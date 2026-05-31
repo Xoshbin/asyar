@@ -41,6 +41,16 @@ jobs:
       - name: Download sidecar binaries
         run: node scripts/download-sidecars.mjs --target universal-apple-darwin
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build ext-builder sidecar JS
+        working-directory: asyar-ext-builder
+        run: |
+          bun install
+          bun run build:js
+
       - name: Import Apple certificate
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -119,6 +129,16 @@ jobs:
       - name: Download sidecar binaries
         run: node scripts/download-sidecars.mjs --target ${{ matrix.rust-target }}
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build ext-builder sidecar JS
+        working-directory: asyar-ext-builder
+        run: |
+          bun install
+          bun run build:js
+
       - name: Build Windows ${{ matrix.arch }}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -184,6 +204,16 @@ jobs:
 
       - name: Download sidecar binaries
         run: node scripts/download-sidecars.mjs --target ${{ matrix.rust-target }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build ext-builder sidecar JS
+        working-directory: asyar-ext-builder
+        run: |
+          bun install
+          bun run build:js
 
       # linuxdeploy walks every ELF in AppDir/usr/bin/ and aborts when ldd
       # exits non-zero. The bundled `bun` sidecar trips this — bun is
