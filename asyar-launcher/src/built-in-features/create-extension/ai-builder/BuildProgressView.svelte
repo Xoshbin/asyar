@@ -8,8 +8,7 @@
   import { actionService } from '../../../services/action/actionService.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
   import { sidecarClient } from './sidecarClient';
-  import { Command } from '@tauri-apps/plugin-shell';
-  import { openPath } from '@tauri-apps/plugin-opener';
+  import { openInEditor } from './openInEditor';
   import { publishExtension } from './publishExtension';
 
   // ── local reactive state ──────────────────────────────────────────────────
@@ -27,21 +26,6 @@
       aiBuildUiState.openTrigger = null;
     }
   });
-
-  // ── helper: open built extension folder in the configured code editor ─────
-  const isWindows = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('win');
-  const codeCommand = isWindows ? 'code-cmd' : 'code';
-
-  async function openInEditor(path: string): Promise<void> {
-    try {
-      const cmd = Command.create(codeCommand, ['.'], { cwd: path });
-      await cmd.execute();
-    } catch {
-      try {
-        await openPath(path);
-      } catch { /* best-effort */ }
-    }
-  }
 
   // ── state-appropriate action-panel actions ────────────────────────────────
   $effect(() => {

@@ -545,6 +545,7 @@ pub fn run() {
             ext_builder::commands::ext_builder_start,
             ext_builder::commands::ext_builder_answer,
             ext_builder::commands::ext_builder_cancel,
+            ext_builder::created::list_created_extensions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
