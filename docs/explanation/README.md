@@ -24,3 +24,4 @@ Understanding-oriented background. These pages describe how Asyar works and why 
 - **[Host OS integration & data flow](./host-os-integration.md)** — OS-level hooks and cross-layer data flow diagrams.
 - **[Auth & subscription](./auth-and-subscription.md)** — The entitlement system and cached sessions.
 - **[Data persistence](./data-persistence.md)** — Where things are stored and known limitations.
+- **[AI Extension Builder](./ai-extension-builder.md)** — How "Build Extension with AI" works: the Tier-1 orchestrator ⇄ coding sidecar, the stdio protocol, feasibility gate, security model, and the claude-runtime packaging constraint.
