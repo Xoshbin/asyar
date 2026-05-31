@@ -107,7 +107,7 @@ class CreateExtension implements Extension {
   }
 
   async onViewSearch(query: string): Promise<void> {
-    createdExtensionsViewState.setSearch(query);
+    await createdExtensionsViewState.setSearch(query);
   }
 
   async activate() {}

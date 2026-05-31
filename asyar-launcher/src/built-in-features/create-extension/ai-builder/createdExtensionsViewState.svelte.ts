@@ -1,12 +1,18 @@
-import { listCreatedExtensions, type CreatedExtension } from './createdExtensions';
+import {
+  listCreatedExtensions,
+  searchCreatedExtensions,
+  type CreatedExtension,
+} from './createdExtensions';
 import { useListSelection } from '../../../lib/listSelection.svelte';
 import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
 
 class CreatedExtensionsViewState {
+  // The currently displayed list. Rust owns scanning and filtering; this always
+  // holds whatever the latest list/search command returned.
   items = $state<CreatedExtension[]>([]);
   searchQuery = $state('');
 
-  private selection = useListSelection({ items: () => this.filtered() });
+  private selection = useListSelection({ items: () => this.items });
 
   async load(): Promise<void> {
     try {
@@ -24,14 +30,7 @@ class CreatedExtensionsViewState {
   }
 
   filtered(): CreatedExtension[] {
-    const q = this.searchQuery.trim().toLowerCase();
-    if (!q) return this.items;
-    return this.items.filter(
-      (i) =>
-        i.name.toLowerCase().includes(q) ||
-        i.id.toLowerCase().includes(q) ||
-        i.description.toLowerCase().includes(q),
-    );
+    return this.items;
   }
 
   get selectedIndex(): number {
@@ -42,8 +41,20 @@ class CreatedExtensionsViewState {
     return this.selection.selectedItem;
   }
 
-  setSearch(q: string): void {
+  async setSearch(q: string): Promise<void> {
     this.searchQuery = q;
+    try {
+      this.items = await searchCreatedExtensions(q);
+    } catch (err) {
+      this.items = [];
+      await diagnosticsService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'warning',
+        retryable: false,
+        context: { message: `Could not search created extensions: ${String(err)}` },
+      });
+    }
     this.selection.setIndex(0);
   }
 

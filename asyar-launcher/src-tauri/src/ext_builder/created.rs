@@ -1,11 +1,11 @@
-use std::path::Path;
 use serde::Serialize;
+use std::path::Path;
 use tauri::{AppHandle, Manager, Runtime};
 
 use crate::error::AppError;
 use crate::extensions::discovery::read_manifest;
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatedExtensionSummary {
     pub id: String,
@@ -45,16 +45,50 @@ pub fn scan_created_extensions(base_dir: &Path) -> Vec<CreatedExtensionSummary> 
     out
 }
 
-#[tauri::command]
-pub fn list_created_extensions<R: Runtime>(
-    app: AppHandle<R>,
-) -> Result<Vec<CreatedExtensionSummary>, AppError> {
+/// Case-insensitive substring match over name, id, and description. An empty
+/// (or whitespace-only) query returns every item unchanged.
+pub fn filter_created_extensions(
+    items: Vec<CreatedExtensionSummary>,
+    query: &str,
+) -> Vec<CreatedExtensionSummary> {
+    let q = query.trim().to_lowercase();
+    if q.is_empty() {
+        return items;
+    }
+    items
+        .into_iter()
+        .filter(|s| {
+            s.name.to_lowercase().contains(&q)
+                || s.id.to_lowercase().contains(&q)
+                || s.description.to_lowercase().contains(&q)
+        })
+        .collect()
+}
+
+fn home_extensions_base<R: Runtime>(app: &AppHandle<R>) -> Result<std::path::PathBuf, AppError> {
     let home = app
         .path()
         .home_dir()
         .map_err(|e| AppError::Other(format!("could not resolve home dir: {e}")))?;
-    let base = home.join("AsyarExtensions");
-    Ok(scan_created_extensions(&base))
+    Ok(home.join("AsyarExtensions"))
+}
+
+#[tauri::command]
+pub fn list_created_extensions<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<Vec<CreatedExtensionSummary>, AppError> {
+    Ok(scan_created_extensions(&home_extensions_base(&app)?))
+}
+
+/// Scan `$HOME/AsyarExtensions` and return only the entries matching `query`.
+/// Filtering lives in Rust (rust-first); the view renders the result verbatim.
+#[tauri::command]
+pub fn search_created_extensions<R: Runtime>(
+    app: AppHandle<R>,
+    query: String,
+) -> Result<Vec<CreatedExtensionSummary>, AppError> {
+    let items = scan_created_extensions(&home_extensions_base(&app)?);
+    Ok(filter_created_extensions(items, &query))
 }
 
 #[cfg(test)]
@@ -103,7 +137,10 @@ mod tests {
         assert_eq!(got[0].id, "com.a.alpha");
         assert_eq!(got[0].icon, None);
         assert_eq!(got[1].icon, Some("⚡".to_string()));
-        assert_eq!(got[1].path, tmp.join("bravo").to_string_lossy().into_owned());
+        assert_eq!(
+            got[1].path,
+            tmp.join("bravo").to_string_lossy().into_owned()
+        );
 
         let _ = std::fs::remove_dir_all(&tmp);
     }
@@ -113,5 +150,51 @@ mod tests {
         let missing = std::env::temp_dir().join("asyar-created-does-not-exist-xyz");
         let _ = std::fs::remove_dir_all(&missing);
         assert!(scan_created_extensions(&missing).is_empty());
+    }
+
+    fn summary(id: &str, name: &str, desc: &str) -> CreatedExtensionSummary {
+        CreatedExtensionSummary {
+            id: id.to_string(),
+            name: name.to_string(),
+            version: "1.0.0".to_string(),
+            description: desc.to_string(),
+            icon: None,
+            path: format!("/x/{name}"),
+        }
+    }
+
+    #[test]
+    fn filter_empty_query_returns_all() {
+        let items = vec![summary("com.a.alpha", "Alpha", "first")];
+        assert_eq!(filter_created_extensions(items.clone(), ""), items);
+        assert_eq!(filter_created_extensions(items.clone(), "   "), items);
+    }
+
+    #[test]
+    fn filter_matches_name_id_or_description_case_insensitively() {
+        let items = vec![
+            summary("com.a.alpha", "Alpha", "first"),
+            summary("com.a.bravo", "Bravo", "second tool"),
+        ];
+
+        let by_name = filter_created_extensions(items.clone(), "BRAVO");
+        assert_eq!(
+            by_name.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+            vec!["com.a.bravo"]
+        );
+
+        let by_desc = filter_created_extensions(items.clone(), "second");
+        assert_eq!(
+            by_desc.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+            vec!["com.a.bravo"]
+        );
+
+        let by_id = filter_created_extensions(items.clone(), "com.a.alpha");
+        assert_eq!(
+            by_id.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+            vec!["com.a.alpha"]
+        );
+
+        assert!(filter_created_extensions(items, "nonexistent").is_empty());
     }
 }
