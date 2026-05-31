@@ -62,6 +62,7 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 - **Window Management** — 17 built-in layout presets (halves, quarters, thirds, maximize, center) plus custom saved layouts; undo the last move with "Restore Previous"; works on macOS, Windows, and Linux
 - **Context Modes** — Type prefixes (`ask ai`, a URL, etc.) to switch the launcher into a specialized mode; visual chips indicate the active context
 - **Create Extension** — Scaffold a new extension from a template without leaving the launcher
+- **AI Extension Builder** — Describe an extension in plain language (*"build an extension for Notion"*) and an AI agent scaffolds, codes, builds, and verifies it for you — gating feasibility up front, asking clarifying questions via notifications, and dropping a working extension into `~/AsyarExtensions`. Uses your own Anthropic key (BYOK, no Asyar account). Browse and one-click-publish everything you've built from the **My Extensions** view.
 - **Themes** — Customize the launcher's appearance with built-in themes or create your own
 - **Backup & Restore** — Export and import your data locally; optional password encryption for sensitive fields
 - **Privacy by Default** — Clipboard items the OS or source app marks private (NSPasteboard concealed/transient/auto-generated, Windows clipboard-history opt-out) are never stored; password managers (1Password, Bitwarden, KeePassXC, Dashlane, Enpass, LastPass, Apple Keychain Access) are denylisted by default. Known secret formats (AWS keys, GitHub/GitLab/Stripe/Slack/OpenAI/Anthropic tokens, JWTs, PEM private keys, Luhn-validated credit cards) are redacted in place across clipboard, snippets, and AI conversations — including before the AI provider sees them.
@@ -393,6 +394,16 @@ asyar publish    # package and publish to the store
 ```
 
 See the [developer documentation](docs/) for the full walkthrough — start with the [tutorials](docs/tutorials/).
+
+### …or build it in-app, no CLI
+
+You don't have to leave the launcher to make an extension:
+
+- **Create Extension** — scaffold from a template.
+- **Build Extension with AI** — describe it in plain language and let an AI agent build a working extension for you (BYOK Anthropic key). It uses its own knowledge of Asyar's capabilities and limits, tells you up front if a request isn't possible, and notifies you when the build is done.
+- **My Extensions** — browse everything you've built, open it in your editor, or publish it to the store (`⌘K`).
+
+See [Use the Create Extension tool](docs/how-to/use-create-extension-tool.md) for the in-app flow, and the [AI Extension Builder explanation](docs/explanation/ai-extension-builder.md) for how it works under the hood.
 
 ---
 

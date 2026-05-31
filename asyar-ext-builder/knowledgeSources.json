@@ -1,0 +1,14 @@
+{
+  "examples": [
+    "https://raw.githubusercontent.com/Xoshbin/asyar/main/extensions/asyar-coffee-extension/manifest.json",
+    "https://raw.githubusercontent.com/Xoshbin/asyar/main/extensions/asyar-coffee-extension/src/worker.ts",
+    "https://raw.githubusercontent.com/Xoshbin/asyar/main/extensions/asyar-coffee-extension/src/view.ts",
+    "https://raw.githubusercontent.com/Xoshbin/asyar/main/extensions/asyar-coffee-extension/src/views/CaffeinateWhileView.svelte",
+    "https://raw.githubusercontent.com/Xoshbin/asyar/main/extensions/memory/manifest.json",
+    "https://raw.githubusercontent.com/Xoshbin/asyar/main/extensions/memory/src/worker.ts"
+  ],
+  "docs": [
+    "https://raw.githubusercontent.com/Xoshbin/asyar/main/docs/explanation/extension-runtime.md",
+    "https://raw.githubusercontent.com/Xoshbin/asyar/main/docs/reference/builtin-tools.md"
+  ]
+}

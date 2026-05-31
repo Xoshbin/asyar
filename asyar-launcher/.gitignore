@@ -21,6 +21,8 @@ src/built-in-extensions/*/dist/
 src-tauri/resources/
 src-tauri/binaries/bun-*
 src-tauri/binaries/uv-*
+src-tauri/binaries/asyar-ext-builder-*
+src-tauri/binaries/claude-*
 .roo/
 .roomodes
 .agents/

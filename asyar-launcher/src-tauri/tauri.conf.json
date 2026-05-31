@@ -71,10 +71,13 @@
     ],
     "externalBin": [
       "binaries/bun",
-      "binaries/uv"
+      "binaries/uv",
+      "binaries/claude"
     ],
     "resources": [
-      "built-in-features"
+      "built-in-features",
+      "resources/capabilitySpec",
+      "resources/ext-builder"
     ],
     "macOS": {
       "signingIdentity": "Developer ID Application: Khoshbin Ahmed (877MKJ6983)",
