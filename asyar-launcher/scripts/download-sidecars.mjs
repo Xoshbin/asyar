@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Download bundled bun + uv sidecars for one or more Rust targets.
+ * Download bundled bun + uv + claude sidecars for one or more Rust targets.
  *
  * Places platform-suffixed binaries in:
  *   src-tauri/binaries/
@@ -14,16 +14,23 @@
  *       `universal-apple-darwin` expands into both Apple Silicon and
  *       Intel macOS sidecars (Tauri's universal build needs both).
  *
+ * The `claude` runtime (bundled so the AI extension builder can spawn the
+ * Agent SDK without a system install) is pulled from downloads.claude.ai by
+ * version + per-platform SHA-256 checksum. Pin a specific build with
+ * CLAUDE_CODE_VERSION=<x.y.z>; otherwise the `latest` pointer is used.
+ *
  * Idempotent: skips any destination file that already exists.
  */
 
-import { existsSync, chmodSync, mkdirSync, copyFileSync } from 'node:fs'
+import { existsSync, chmodSync, mkdirSync, copyFileSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 
 import {
+  PROVISIONED_SIDECARS,
   resolvePlatform,
   resolveTargets,
   universalDarwinFromTargets,
@@ -33,6 +40,9 @@ import { download } from './http-download.mjs'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
 const BINARIES_DIR = join(ROOT, 'src-tauri', 'binaries')
+
+// Official native claude distribution (same source as the claude.ai installer).
+const CLAUDE_BASE_URL = 'https://downloads.claude.ai/claude-code-releases'
 
 const isWindowsRunner = process.platform === 'win32'
 
@@ -136,6 +146,69 @@ function lipoUniversal({ universalTriple, sourceTriples }, binaryName) {
   console.log(`  ${binaryName} (${universalTriple}): installed to binaries/${destName}`)
 }
 
+function sha256(filePath) {
+  return createHash('sha256').update(readFileSync(filePath)).digest('hex')
+}
+
+// Download `url` to a temp file and return its text contents (for the version
+// pointer and manifest, which the file-based `download` helper handles with the
+// same redirect/TLS logic as the binaries).
+async function downloadText(url, label) {
+  const tmp = join(tmpdir(), `claude-${label}-${Date.now()}`)
+  await download(url, tmp)
+  return readFileSync(tmp, 'utf8')
+}
+
+// Resolve the claude version to bundle: an explicit CLAUDE_CODE_VERSION pin, or
+// the `latest` pointer. Validated to a bare semver so an HTML error page can't
+// flow into the manifest/binary URLs.
+async function resolveClaudeVersion() {
+  const pinned = process.env.CLAUDE_CODE_VERSION?.trim()
+  const version = pinned || (await downloadText(`${CLAUDE_BASE_URL}/latest`, 'latest')).trim()
+  if (!/^\d+\.\d+\.\d+$/.test(version)) {
+    throw new Error(`Unexpected claude version "${version}" (from ${pinned ? 'CLAUDE_CODE_VERSION' : `${CLAUDE_BASE_URL}/latest`})`)
+  }
+  return version
+}
+
+async function fetchClaudeManifest(version) {
+  const json = await downloadText(`${CLAUDE_BASE_URL}/${version}/manifest.json`, `manifest-${version}`)
+  return JSON.parse(json)
+}
+
+async function ensureClaude(platform, version, manifest) {
+  const isWindowsTarget = platform.platformKey.startsWith('win32-')
+  const exeExt = isWindowsTarget ? '.exe' : ''
+  const destName = `claude-${platform.rustTriple}${exeExt}`
+  const destPath = join(BINARIES_DIR, destName)
+
+  if (existsSync(destPath)) {
+    console.log(`  claude (${platform.platformKey}): already exists at binaries/${destName}, skipping`)
+    return
+  }
+
+  const claudeKey = platform.claudePlatform
+  const expected = manifest.platforms?.[claudeKey]?.checksum
+  if (!expected) {
+    throw new Error(`claude manifest ${version} has no checksum for platform "${claudeKey}"`)
+  }
+
+  const binFile = `claude${exeExt}`
+  const url = `${CLAUDE_BASE_URL}/${version}/${claudeKey}/${binFile}`
+  const tmpBin = join(tmpdir(), `${destName}-dl-${Date.now()}`)
+  console.log(`  claude (${platform.platformKey}): downloading ${version}/${claudeKey}...`)
+  await download(url, tmpBin)
+
+  const actual = sha256(tmpBin)
+  if (actual !== expected) {
+    throw new Error(`claude (${claudeKey}) checksum mismatch: expected ${expected}, got ${actual}`)
+  }
+
+  copyFileSync(tmpBin, destPath)
+  if (!isWindowsTarget) chmodSync(destPath, 0o755)
+  console.log(`  claude (${platform.platformKey}): installed to binaries/${destName} (verified)`)
+}
+
 let cliTargets
 let platforms
 try {
@@ -152,6 +225,11 @@ const keysLabel = platforms.map((p) => p.platformKey).join(', ')
 step(`Downloading sidecars for ${keysLabel}`)
 mkdirSync(BINARIES_DIR, { recursive: true })
 
+step('Resolving claude runtime version')
+const claudeVersion = await resolveClaudeVersion()
+const claudeManifest = await fetchClaudeManifest(claudeVersion)
+console.log(`  claude runtime: ${claudeVersion}`)
+
 for (const platform of platforms) {
   await ensureSidecar(platform, {
     repo: 'oven-sh/bun',
@@ -163,12 +241,15 @@ for (const platform of platforms) {
     archive: platform.uvArchive,
     binaryName: 'uv',
   })
+  await ensureClaude(platform, claudeVersion, claudeManifest)
 }
 
 const universal = universalDarwinFromTargets(cliTargets)
 if (universal) {
+  // claude's compiled JS payload lives in a `__BUN` Mach-O segment, so each arch
+  // slice stays self-contained through lipo — same as the bun/uv runtimes.
   step(`Merging universal-apple-darwin sidecars via lipo`)
-  for (const binaryName of ['bun', 'uv']) {
+  for (const binaryName of PROVISIONED_SIDECARS) {
     lipoUniversal(universal, binaryName)
   }
 }

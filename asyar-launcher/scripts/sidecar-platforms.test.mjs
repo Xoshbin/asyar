@@ -82,6 +82,24 @@ describe('SIDECAR_PLATFORMS', () => {
       expect(entry.rustTriple).toMatch(/^[a-z0-9][a-z0-9_-]+[a-z0-9]$/)
     }
   })
+
+  // The claude runtime is distributed (downloads.claude.ai) keyed by the same
+  // `<os>-<arch>` string we use as the SIDECAR_PLATFORMS map key, so
+  // claudePlatform must equal platformKey and match the manifest's vocabulary.
+  it('maps every platform to its claude distribution key', () => {
+    const VALID_CLAUDE_KEYS = new Set([
+      'darwin-arm64',
+      'darwin-x64',
+      'linux-arm64',
+      'linux-x64',
+      'win32-arm64',
+      'win32-x64',
+    ])
+    for (const [key, entry] of Object.entries(SIDECAR_PLATFORMS)) {
+      expect(entry.claudePlatform).toBe(key)
+      expect(VALID_CLAUDE_KEYS.has(entry.claudePlatform)).toBe(true)
+    }
+  })
 })
 
 describe('resolveTargets', () => {

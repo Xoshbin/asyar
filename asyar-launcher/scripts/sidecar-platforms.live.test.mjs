@@ -53,3 +53,23 @@ describe.skipIf(SKIP)('SIDECAR_PLATFORMS archives are reachable upstream', () =>
     }, 15000)
   }
 })
+
+// The claude runtime is distributed by version + per-platform SHA-256 manifest
+// (not a `latest/download` URL), so verify each claudePlatform key still exists
+// in the live manifest — catches an upstream platform rename/removal before CI.
+const CLAUDE_BASE_URL = 'https://downloads.claude.ai/claude-code-releases'
+
+describe.skipIf(SKIP)('claude manifest covers every claudePlatform', () => {
+  it('lists a checksum for each platform key', async () => {
+    const version = (await (await fetch(`${CLAUDE_BASE_URL}/latest`)).text()).trim()
+    expect(version, 'latest version').toMatch(/^\d+\.\d+\.\d+$/)
+    const manifest = await (await fetch(`${CLAUDE_BASE_URL}/${version}/manifest.json`)).json()
+
+    for (const entry of Object.values(SIDECAR_PLATFORMS)) {
+      const platform = manifest.platforms?.[entry.claudePlatform]
+      expect(platform?.checksum, `claude manifest ${version} missing ${entry.claudePlatform}`).toMatch(
+        /^[a-f0-9]{64}$/,
+      )
+    }
+  }, 20000)
+})

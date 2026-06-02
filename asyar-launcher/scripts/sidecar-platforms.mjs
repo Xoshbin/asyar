@@ -1,37 +1,53 @@
-// Single source of truth for sidecar (bun + uv) per-platform archive names
-// and Rust target triples. CI build matrices in .github/workflows/ MUST stay
-// covered by this table — `sidecar-platforms.test.mjs` enforces the link.
+// Single source of truth for sidecar (bun + uv + claude) per-platform archive
+// names and Rust target triples. CI build matrices in .github/workflows/ MUST
+// stay covered by this table — `sidecar-platforms.test.mjs` enforces the link.
+
+// Canonical list of sidecar binaries Asyar bundles via Tauri `externalBin`.
+// Every name here MUST be downloaded by scripts/download-sidecars.mjs, and
+// every `externalBin` entry in src-tauri/tauri.conf.json MUST appear here.
+// `external-bin-provisioning.test.mjs` enforces both directions so a new
+// sidecar can never reach the build jobs unprovisioned — an unprovisioned
+// externalBin entry fails every platform at bundle time with
+// "resource path 'binaries/<name>-<triple>' doesn't exist".
+export const PROVISIONED_SIDECARS = ['bun', 'uv', 'claude']
 
 export const SIDECAR_PLATFORMS = {
   'darwin-arm64': {
     rustTriple: 'aarch64-apple-darwin',
     bunArchive: 'bun-darwin-aarch64.zip',
     uvArchive:  'uv-aarch64-apple-darwin.tar.gz',
+    claudePlatform: 'darwin-arm64',
   },
   'darwin-x64': {
     rustTriple: 'x86_64-apple-darwin',
     bunArchive: 'bun-darwin-x64.zip',
     uvArchive:  'uv-x86_64-apple-darwin.tar.gz',
+    claudePlatform: 'darwin-x64',
   },
   'linux-x64': {
     rustTriple: 'x86_64-unknown-linux-gnu',
     bunArchive: 'bun-linux-x64.zip',
     uvArchive:  'uv-x86_64-unknown-linux-gnu.tar.gz',
+    // glibc build — Tauri targets *-unknown-linux-gnu, not musl.
+    claudePlatform: 'linux-x64',
   },
   'linux-arm64': {
     rustTriple: 'aarch64-unknown-linux-gnu',
     bunArchive: 'bun-linux-aarch64.zip',
     uvArchive:  'uv-aarch64-unknown-linux-gnu.tar.gz',
+    claudePlatform: 'linux-arm64',
   },
   'win32-x64': {
     rustTriple: 'x86_64-pc-windows-msvc',
     bunArchive: 'bun-windows-x64.zip',
     uvArchive:  'uv-x86_64-pc-windows-msvc.zip',
+    claudePlatform: 'win32-x64',
   },
   'win32-arm64': {
     rustTriple: 'aarch64-pc-windows-msvc',
     bunArchive: 'bun-windows-aarch64.zip',
     uvArchive:  'uv-aarch64-pc-windows-msvc.zip',
+    claudePlatform: 'win32-arm64',
   },
 }
 
