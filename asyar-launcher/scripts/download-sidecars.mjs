@@ -246,8 +246,12 @@ for (const platform of platforms) {
 
 const universal = universalDarwinFromTargets(cliTargets)
 if (universal) {
-  // claude's compiled JS payload lives in a `__BUN` Mach-O segment, so each arch
-  // slice stays self-contained through lipo — same as the bun/uv runtimes.
+  // Dev/local universal builds only. The release pipeline builds macOS per-arch
+  // (aarch64/x86_64) instead, because `claude` embeds a per-slice Info.plist and
+  // codesign corrupts the non-native slice's Info.plist seal when re-signing the
+  // resulting FAT binary — which fails Apple notarization. Single-arch binaries
+  // re-sign cleanly, so a universal merge is fine for unsigned local builds but
+  // must NOT be shipped through notarization.
   step(`Merging universal-apple-darwin sidecars via lipo`)
   for (const binaryName of PROVISIONED_SIDECARS) {
     lipoUniversal(universal, binaryName)

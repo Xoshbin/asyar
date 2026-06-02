@@ -13,6 +13,21 @@ jobs:
     needs: test-and-lint
     runs-on: macos-latest
     timeout-minutes: 40
+    # Per-arch builds (not a universal binary): the bundled `claude` sidecar is a
+    # Bun-compiled binary with an embedded Info.plist, and codesign corrupts the
+    # non-native slice's Info.plist seal when re-signing a *fat* binary — which
+    # fails notarization. Single-arch binaries re-sign cleanly, so we build each
+    # arch separately, mirroring the Windows/Linux matrices.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            rust-target: aarch64-apple-darwin
+            artifact-name: macos-arm64-artifacts
+          - arch: x64
+            rust-target: x86_64-apple-darwin
+            artifact-name: macos-x64-artifacts
     defaults:
       run:
         working-directory: asyar-launcher
@@ -26,10 +41,11 @@ jobs:
           version: 10
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: ${{ matrix.rust-target }}
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: asyar-launcher/src-tauri -> target
+          key: ${{ matrix.rust-target }}
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
@@ -39,7 +55,7 @@ jobs:
         run: pnpm svelte-kit sync
 
       - name: Download sidecar binaries
-        run: node scripts/download-sidecars.mjs --target universal-apple-darwin
+        run: node scripts/download-sidecars.mjs --target ${{ matrix.rust-target }}
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -74,15 +90,27 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm tauri build --target universal-apple-darwin
+        run: pnpm tauri build --target ${{ matrix.rust-target }}
 
-      - name: Upload macOS Artifacts
+      # Tauri names the updater bundle `<product>.app.tar.gz` with no arch suffix,
+      # so both arch builds would collide in the GitHub release. Add the arch so
+      # the two updater bundles (and their .sig) stay distinct.
+      - name: Tag updater bundle with arch
+        run: |
+          cd src-tauri/target/${{ matrix.rust-target }}/release/bundle/macos
+          for f in *.app.tar.gz; do
+            base="${f%.app.tar.gz}"
+            mv "$f" "${base}_${{ matrix.arch }}.app.tar.gz"
+            mv "$f.sig" "${base}_${{ matrix.arch }}.app.tar.gz.sig"
+          done
+
+      - name: Upload macOS ${{ matrix.arch }} Artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: macos-artifacts
+          name: ${{ matrix.artifact-name }}
           path: |
-            asyar-launcher/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
-            asyar-launcher/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz*
+            asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/dmg/*.dmg
+            asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/macos/*.app.tar.gz*
 
   build-windows:
     needs: test-and-lint
@@ -301,37 +329,41 @@ jobs:
           # Locate files using find to handle any directory structure.
           # Scope multi-arch artifacts (Windows, Linux) to their per-arch
           # artifact dirs so different-arch builds don't get cross-picked.
-          MAC_FILE_PATH=$(find artifacts -name "*.app.tar.gz" | head -n 1)
+          MAC_AARCH64_FILE_PATH=$(find artifacts/macos-arm64-artifacts -name "*.app.tar.gz" | head -n 1)
+          MAC_X64_FILE_PATH=$(find artifacts/macos-x64-artifacts -name "*.app.tar.gz" | head -n 1)
           WIN_X64_FILE_PATH=$(find artifacts/windows-artifacts -name "*.msi" | head -n 1)
           WIN_ARM64_FILE_PATH=$(find artifacts/windows-arm64-artifacts -name "*.msi" | head -n 1)
           LINUX_FILE_PATH=$(find artifacts/linux-amd64-artifacts -name "*.AppImage" | head -n 1)
           LINUX_ARM64_FILE_PATH=$(find artifacts/linux-arm64-artifacts -name "*.AppImage" | head -n 1)
 
-          MAC_SIG_PATH=$(find artifacts -name "*.app.tar.gz.sig" | head -n 1)
+          MAC_AARCH64_SIG_PATH=$(find artifacts/macos-arm64-artifacts -name "*.app.tar.gz.sig" | head -n 1)
+          MAC_X64_SIG_PATH=$(find artifacts/macos-x64-artifacts -name "*.app.tar.gz.sig" | head -n 1)
           WIN_X64_SIG_PATH=$(find artifacts/windows-artifacts -name "*.msi.sig" | head -n 1)
           WIN_ARM64_SIG_PATH=$(find artifacts/windows-arm64-artifacts -name "*.msi.sig" | head -n 1)
           LINUX_SIG_PATH=$(find artifacts/linux-amd64-artifacts -name "*.AppImage.sig" | head -n 1)
           LINUX_ARM64_SIG_PATH=$(find artifacts/linux-arm64-artifacts -name "*.AppImage.sig" | head -n 1)
 
-          if [[ -z "$MAC_FILE_PATH" || -z "$WIN_X64_FILE_PATH" || -z "$WIN_ARM64_FILE_PATH" || -z "$LINUX_FILE_PATH" || -z "$LINUX_ARM64_FILE_PATH" ]]; then
-            echo "Error: Binaries missing in artifacts. Note: macOS requires .app.tar.gz"
+          if [[ -z "$MAC_AARCH64_FILE_PATH" || -z "$MAC_X64_FILE_PATH" || -z "$WIN_X64_FILE_PATH" || -z "$WIN_ARM64_FILE_PATH" || -z "$LINUX_FILE_PATH" || -z "$LINUX_ARM64_FILE_PATH" ]]; then
+            echo "Error: Binaries missing in artifacts. Note: macOS requires per-arch .app.tar.gz (arm64 + x64)"
             ls -R artifacts
             exit 1
           fi
 
-          if [[ -z "$MAC_SIG_PATH" || -z "$WIN_X64_SIG_PATH" || -z "$WIN_ARM64_SIG_PATH" || -z "$LINUX_SIG_PATH" || -z "$LINUX_ARM64_SIG_PATH" ]]; then
+          if [[ -z "$MAC_AARCH64_SIG_PATH" || -z "$MAC_X64_SIG_PATH" || -z "$WIN_X64_SIG_PATH" || -z "$WIN_ARM64_SIG_PATH" || -z "$LINUX_SIG_PATH" || -z "$LINUX_ARM64_SIG_PATH" ]]; then
             echo "Error: Signatures (.sig files) missing in artifacts. Check tauri.conf.json bundle configuration."
             ls -R artifacts
             exit 1
           fi
 
-          MAC_SIG=$(cat "$MAC_SIG_PATH")
+          MAC_AARCH64_SIG=$(cat "$MAC_AARCH64_SIG_PATH")
+          MAC_X64_SIG=$(cat "$MAC_X64_SIG_PATH")
           WIN_X64_SIG=$(cat "$WIN_X64_SIG_PATH")
           WIN_ARM64_SIG=$(cat "$WIN_ARM64_SIG_PATH")
           LINUX_SIG=$(cat "$LINUX_SIG_PATH")
           LINUX_ARM64_SIG=$(cat "$LINUX_ARM64_SIG_PATH")
 
-          MAC_FILE=$(basename "$MAC_FILE_PATH")
+          MAC_AARCH64_FILE=$(basename "$MAC_AARCH64_FILE_PATH")
+          MAC_X64_FILE=$(basename "$MAC_X64_FILE_PATH")
           WIN_X64_FILE=$(basename "$WIN_X64_FILE_PATH")
           WIN_ARM64_FILE=$(basename "$WIN_ARM64_FILE_PATH")
           LINUX_FILE=$(basename "$LINUX_FILE_PATH")
@@ -342,8 +374,8 @@ jobs:
 
           PAYLOAD=$(printf '{"version":"%s","type":"%s","notes":"Automated multi-platform release %s","platforms":{"darwin-aarch64":{"url":"%s/%s","signature":"%s"},"darwin-x86_64":{"url":"%s/%s","signature":"%s"},"windows-x86_64":{"url":"%s/%s","signature":"%s"},"windows-aarch64":{"url":"%s/%s","signature":"%s"},"linux-x86_64":{"url":"%s/%s","signature":"%s"},"linux-aarch64":{"url":"%s/%s","signature":"%s"}}}' \
             "$VERSION" "$TYPE" "$VERSION" \
-            "$BASE_URL" "$MAC_FILE" "$MAC_SIG" \
-            "$BASE_URL" "$MAC_FILE" "$MAC_SIG" \
+            "$BASE_URL" "$MAC_AARCH64_FILE" "$MAC_AARCH64_SIG" \
+            "$BASE_URL" "$MAC_X64_FILE" "$MAC_X64_SIG" \
             "$BASE_URL" "$WIN_X64_FILE" "$WIN_X64_SIG" \
             "$BASE_URL" "$WIN_ARM64_FILE" "$WIN_ARM64_SIG" \
             "$BASE_URL" "$LINUX_FILE" "$LINUX_SIG" \
