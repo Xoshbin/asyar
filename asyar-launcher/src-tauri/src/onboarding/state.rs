@@ -4,14 +4,16 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub enum OnboardingStep {
     Welcome,
-    GrantAccessibility,
-    PickHotkey,
-    PickLaunchView,
-    PickTheme,
-    FeaturedExtensions,
+    SummonSearch,
+    Clipboard,
+    Portals,
     AiSetup,
-    PickAiCommandHotkey,
-    Done,
+    HiddenCommands,
+    Emoji,
+    Snippets,
+    FeaturedExtensions,
+    PickTheme,
+    CheatSheet,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -23,21 +25,20 @@ pub struct OnboardingState {
     pub is_macos: bool,
 }
 
-pub fn step_order(is_macos: bool) -> Vec<OnboardingStep> {
-    let mut steps = vec![OnboardingStep::Welcome];
-    if is_macos {
-        steps.push(OnboardingStep::GrantAccessibility);
-    }
-    steps.extend([
-        OnboardingStep::PickHotkey,
-        OnboardingStep::PickLaunchView,
-        OnboardingStep::PickTheme,
-        OnboardingStep::FeaturedExtensions,
+pub fn step_order(_is_macos: bool) -> Vec<OnboardingStep> {
+    vec![
+        OnboardingStep::Welcome,
+        OnboardingStep::SummonSearch,
+        OnboardingStep::Clipboard,
+        OnboardingStep::Portals,
         OnboardingStep::AiSetup,
-        OnboardingStep::PickAiCommandHotkey,
-        OnboardingStep::Done,
-    ]);
-    steps
+        OnboardingStep::HiddenCommands,
+        OnboardingStep::Emoji,
+        OnboardingStep::Snippets,
+        OnboardingStep::FeaturedExtensions,
+        OnboardingStep::PickTheme,
+        OnboardingStep::CheatSheet,
+    ]
 }
 
 pub fn initial(is_macos: bool) -> OnboardingState {
@@ -78,39 +79,45 @@ pub fn go_back(state: OnboardingState) -> OnboardingState {
 mod tests {
     use super::*;
 
+    const EXPECTED: [OnboardingStep; 11] = [
+        OnboardingStep::Welcome,
+        OnboardingStep::SummonSearch,
+        OnboardingStep::Clipboard,
+        OnboardingStep::Portals,
+        OnboardingStep::AiSetup,
+        OnboardingStep::HiddenCommands,
+        OnboardingStep::Emoji,
+        OnboardingStep::Snippets,
+        OnboardingStep::FeaturedExtensions,
+        OnboardingStep::PickTheme,
+        OnboardingStep::CheatSheet,
+    ];
+
     #[test]
-    fn order_on_macos_includes_accessibility() {
-        let order = step_order(true);
-        assert_eq!(
-            order,
-            vec![
-                OnboardingStep::Welcome,
-                OnboardingStep::GrantAccessibility,
-                OnboardingStep::PickHotkey,
-                OnboardingStep::PickLaunchView,
-                OnboardingStep::PickTheme,
-                OnboardingStep::FeaturedExtensions,
-                OnboardingStep::AiSetup,
-                OnboardingStep::PickAiCommandHotkey,
-                OnboardingStep::Done,
-            ]
-        );
+    fn order_is_platform_uniform() {
+        assert_eq!(step_order(true), EXPECTED.to_vec());
+        assert_eq!(step_order(false), EXPECTED.to_vec());
     }
 
     #[test]
-    fn order_off_macos_skips_accessibility() {
-        let order = step_order(false);
-        assert!(!order.contains(&OnboardingStep::GrantAccessibility));
-        assert_eq!(order.len(), 8);
+    fn order_has_eleven_steps() {
+        assert_eq!(step_order(true).len(), 11);
     }
 
     #[test]
-    fn appends_pick_ai_command_hotkey_after_ai_setup_and_before_done() {
+    fn ai_setup_precedes_hidden_commands() {
         let order = step_order(false);
-        let len = order.len();
-        assert_eq!(order[len - 3], OnboardingStep::AiSetup);
-        assert_eq!(order[len - 2], OnboardingStep::PickAiCommandHotkey);
-        assert_eq!(order[len - 1], OnboardingStep::Done);
+        let ai = order.iter().position(|s| *s == OnboardingStep::AiSetup).unwrap();
+        let hidden = order.iter().position(|s| *s == OnboardingStep::HiddenCommands).unwrap();
+        assert!(ai < hidden);
+    }
+
+    #[test]
+    fn text_expansion_cluster_is_contiguous() {
+        let order = step_order(false);
+        let emoji = order.iter().position(|s| *s == OnboardingStep::Emoji).unwrap();
+        let snippets = order.iter().position(|s| *s == OnboardingStep::Snippets).unwrap();
+        assert_eq!(snippets, emoji + 1);
     }
 
     #[test]
@@ -118,24 +125,24 @@ mod tests {
         let s = initial(true);
         assert_eq!(s.current, OnboardingStep::Welcome);
         assert_eq!(s.position, 1);
-        assert_eq!(s.total, 9);
+        assert_eq!(s.total, 11);
         assert!(s.is_macos);
     }
 
     #[test]
     fn advance_moves_one_step() {
         let s = advance(initial(true));
-        assert_eq!(s.current, OnboardingStep::GrantAccessibility);
+        assert_eq!(s.current, OnboardingStep::SummonSearch);
         assert_eq!(s.position, 2);
     }
 
     #[test]
-    fn advance_at_done_stays_done() {
+    fn advance_at_last_stays_last() {
         let mut s = initial(false);
-        for _ in 0..8 {
+        for _ in 0..20 {
             s = advance(s);
         }
-        assert_eq!(s.current, OnboardingStep::Done);
+        assert_eq!(s.current, OnboardingStep::CheatSheet);
         assert_eq!(s.position, s.total);
     }
 

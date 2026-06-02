@@ -76,14 +76,19 @@
      rounded corners shows the desktop. */
   :global(html),
   :global(body) {
+    height: 100%;
     background: transparent;
     overflow: hidden;
   }
   .onboarding-frame {
+    /* Pin to all four window edges so the opaque surface always fills the
+       whole window — a `height: 100vh` + flex chain collapses to content
+       height in this transparent WKWebView, letting the desktop show through
+       the bottom. `fixed; inset: 0` can't collapse. */
+    position: fixed;
+    inset: 0;
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    width: 100vw;
     /* Fully opaque surface — content does NOT show the desktop through it. */
     background: var(--bg-popup);
     color: var(--text-primary);
@@ -104,20 +109,35 @@
   }
 
   .onboarding-frame__header {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 10;
     display: flex;
     justify-content: flex-end;
     padding: var(--space-3);
   }
   .onboarding-frame__close {
-    background: transparent;
-    border: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     color: var(--text-secondary);
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--font-size-sm);
+    width: var(--space-7);
+    height: var(--space-7);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-normal);
   }
+  .onboarding-frame__close:hover { background: var(--bg-hover); color: var(--text-primary); }
   .onboarding-frame__main {
     flex: 1;
-    padding: var(--space-6);
-    overflow: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
   }
 </style>

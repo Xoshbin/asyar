@@ -1,30 +1,104 @@
 <script lang="ts">
-  import { Card, Button } from '../../../components'
-  import { advanceStep } from '../stepLogic'
+  import { emit } from '@tauri-apps/api/event';
+  import { Card, AppearanceThemeSelector, WindowModeSelector } from '../../../components';
+  import { advanceStep } from '../stepLogic';
+  import { settingsService } from '../../../services/settings/settingsService.svelte';
+  import { onboardingNav } from '../onboardingNav.svelte';
+
+  $effect(() => {
+    onboardingNav.set({ showBack: false, primaryLabel: 'Start the tour', onPrimary: advanceStep })
+  })
+
+  const currentTheme = $derived(settingsService.currentSettings.appearance.theme);
+  const currentLaunchView = $derived(settingsService.currentSettings.appearance.launchView);
+
+  async function pickTheme(theme: 'light' | 'dark' | 'system') {
+    await settingsService.updateSettings('appearance', { theme });
+  }
+
+  async function pickLaunchView(launchView: 'default' | 'compact') {
+    await settingsService.updateSettings('appearance', { launchView });
+    await emit('asyar:launch-view-changed', { launchView });
+  }
 </script>
 
 <Card>
-  <h1>Welcome to Asyar <span class="beta">Beta</span></h1>
-  <p>A keyboard-first launcher for everything on your Mac, Linux, or Windows machine.</p>
-  <p>Asyar is still in beta — rough edges are possible, and your feedback shapes what comes next. Thanks for being an early user.</p>
-  <p class="hint">In a moment we'll set up your hotkey and let you pick a few extensions to try.</p>
-  <div class="actions">
-    <Button onclick={advanceStep}>Get started</Button>
+  <div class="welcome">
+    <p class="welcome__kicker">Welcome</p>
+    <h1 class="welcome__title">Meet Asyar — your keyboard-first <span class="onb-hl">command center</span></h1>
+    <p class="welcome__lede">
+      Search apps, do math, ask AI, rewrite text anywhere, expand snippets, and more —
+      all from one box. Let's take a 2-minute tour and set you up.
+    </p>
+
+    <div class="welcome__row">
+      <div class="welcome__row-label">
+        <span class="welcome__row-title">Appearance</span>
+        <span class="welcome__row-hint">Light, dark, or follow your system.</span>
+      </div>
+      <AppearanceThemeSelector value={currentTheme} onchange={pickTheme} />
+    </div>
+    <div class="welcome__row">
+      <div class="welcome__row-label">
+        <span class="welcome__row-title">Window mode</span>
+        <span class="welcome__row-hint">Default shows results panel; Compact is just the search bar.</span>
+      </div>
+      <WindowModeSelector value={currentLaunchView} onchange={pickLaunchView} />
+    </div>
+
   </div>
 </Card>
 
 <style>
-  h1 { font-size: var(--font-size-xl); margin: 0 0 var(--space-2); display: flex; align-items: center; gap: var(--space-2); }
-  .beta {
-    font-size: var(--font-size-xs);
+  .welcome {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .welcome__kicker {
+    margin: 0;
+    font-size: var(--font-size-sm);
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: var(--accent-subtle, rgba(120, 120, 255, 0.15));
-    color: var(--accent, var(--text-primary));
+    letter-spacing: 0.06em;
+    color: var(--asyar-brand);
   }
-  .hint { color: var(--text-secondary); }
-  .actions { display: flex; justify-content: flex-end; margin-top: var(--space-5); }
+  .welcome__title {
+    margin: 0;
+    font-size: var(--font-size-display);
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    color: var(--text-primary);
+  }
+  .welcome__lede {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-xl);
+    line-height: 1.6;
+  }
+  .welcome__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-5);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--separator);
+  }
+  .welcome__row:last-of-type {
+    border-bottom: none;
+  }
+  .welcome__row-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .welcome__row-title {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .welcome__row-hint {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+  }
 </style>

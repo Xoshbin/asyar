@@ -9,20 +9,16 @@
 </ol>
 
 <style>
-  .dots {
-    display: flex;
-    gap: var(--space-2);
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
+  .dots { display: flex; gap: var(--space-2); list-style: none; padding: 0; margin: 0; align-items: center; }
   .dots li {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
+    width: 6px; height: 6px;
+    border-radius: var(--radius-full);
     background: var(--border-color);
+    transition: var(--transition-smooth);
   }
   .dot--active {
+    width: 22px;
     background: var(--asyar-brand);
+    box-shadow: 0 0 12px var(--asyar-brand);
   }
 </style>

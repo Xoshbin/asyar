@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Card, Button, EmptyState, LoadingState } from '../../../components';
-  import { advanceStep, goBackStep, fetchTopExtensions } from '../stepLogic';
+  import { advanceStep, fetchTopExtensions } from '../stepLogic';
   import type { ApiExtension } from '../../../built-in-features/store/state.svelte';
   import storeExtension from '../../../built-in-features/store/index.svelte';
   import { platform } from '@tauri-apps/plugin-os';
+  import { onboardingNav } from '../onboardingNav.svelte';
 
   let extensions = $state<ApiExtension[]>([]);
   let selected = $state<Set<number>>(new Set());
@@ -52,6 +53,16 @@
     await advanceStep();
   }
 
+  $effect(() => {
+    onboardingNav.set({
+      showSkip: true,
+      primaryLabel: `Install ${selected.size} selected`,
+      primaryDisabled: selected.size === 0,
+      onSkip: advanceStep,
+      onPrimary: installSelected,
+    })
+  })
+
   onMount(load);
 </script>
 
@@ -85,13 +96,6 @@
     </ul>
   {/if}
 
-  <div class="actions">
-    <Button class="btn-secondary" onclick={goBackStep}>Back</Button>
-    <Button class="btn-secondary" onclick={advanceStep}>Skip</Button>
-    <Button onclick={installSelected} disabled={selected.size === 0}>
-      Install {selected.size} selected
-    </Button>
-  </div>
 </Card>
 
 <style>
@@ -115,11 +119,5 @@
     margin-left: var(--space-2);
     color: var(--accent-danger);
     font-size: var(--font-size-sm);
-  }
-  .actions {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-2);
-    margin-top: var(--space-5);
   }
 </style>
