@@ -64,8 +64,8 @@ export class AgentsManager {
     }
 
     // Keep the dynamic command registry in sync with agents created or
-    // deleted from ANY webview — onboarding's AI setup, the new
-    // PickAiCommandHotkey step, an external Tauri call. Without this
+    // deleted from ANY webview — onboarding's AI setup, the Hidden AI
+    // commands step, an external Tauri call. Without this
     // listener, agents created outside the edit/delete flow that
     // explicitly call `manager.refresh()` would land in SQLite (and in
     // `service.agents`) but never reach root-search.

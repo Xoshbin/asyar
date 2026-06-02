@@ -1294,13 +1294,16 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
 
   export type OnboardingStepKind =
     | 'welcome'
-    | 'grantAccessibility'
-    | 'pickHotkey'
-    | 'pickLaunchView'
-    | 'pickTheme'
-    | 'featuredExtensions'
+    | 'summonSearch'
+    | 'clipboard'
+    | 'portals'
     | 'aiSetup'
-    | 'done'
+    | 'hiddenCommands'
+    | 'emoji'
+    | 'snippets'
+    | 'featuredExtensions'
+    | 'pickTheme'
+    | 'cheatSheet'
 
   export interface OnboardingState {
     current: OnboardingStepKind

@@ -71,7 +71,12 @@ export { default as ExtensionPreferencesForm } from './settings/ExtensionPrefere
 export { default as FormField } from './form/FormField.svelte';
 
 // Onboarding
+export { default as GuidanceStep } from './onboarding/GuidanceStep.svelte';
+export { default as LauncherHint } from './onboarding/LauncherHint.svelte';
+export { default as OnboardingStage } from './onboarding/OnboardingStage.svelte';
 export { default as StepProgress } from './onboarding/StepProgress.svelte';
+export { default as TestBox } from './onboarding/TestBox.svelte';
+export { default as ExpansionDemo } from './onboarding/ExpansionDemo.svelte';
 
 // Search
 export { default as ArgumentChipRow } from './search/ArgumentChipRow.svelte';

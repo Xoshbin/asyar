@@ -1106,6 +1106,14 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     font-size: var(--font-size-md);
   }
 
+  /* ── Onboarding gradient highlight ──────────────────── */
+  .onb-hl {
+    background: linear-gradient(90deg, var(--asyar-brand), var(--accent-primary));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
   /* ── Pressable feedback ──────────────────────────────── */
   .pressable:active {
     transform: scale(0.97);

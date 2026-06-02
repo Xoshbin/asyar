@@ -93,7 +93,7 @@ describe('shortcutStore', () => {
 
   describe('cross-webview sync via shortcuts:changed event', () => {
     it('reloads from SQLite when Rust fires shortcuts:changed', async () => {
-      // Symptom this pins: onboarding's PickAiCommandHotkey step writes a
+      // Symptom this pins: onboarding's Hidden AI commands step writes a
       // shortcut from a SEPARATE webview. Without this listener, the main
       // launcher's in-memory store stays empty and handleFiredShortcut
       // logs "Received shortcut for unknown objectId" when the user hits

@@ -2,7 +2,8 @@
   import { onMount } from 'svelte';
   import { emit } from '@tauri-apps/api/event';
   import { Card, Button, EmptyState, LoadingState } from '../../../components';
-  import { advanceStep, goBackStep, fetchTopThemes } from '../stepLogic';
+  import { advanceStep, fetchTopThemes } from '../stepLogic';
+  import { onboardingNav } from '../onboardingNav.svelte';
   import type { ApiExtension } from '../../../built-in-features/store/state.svelte';
   import storeExtension from '../../../built-in-features/store/index.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
@@ -112,6 +113,10 @@
     }
   }
 
+  $effect(() => {
+    onboardingNav.set({ showSkip: true, onPrimary: advanceStep, onSkip: advanceStep })
+  })
+
   onMount(load);
 </script>
 
@@ -159,11 +164,6 @@
     </ul>
   {/if}
 
-  <div class="actions">
-    <Button class="btn-secondary" onclick={goBackStep}>Back</Button>
-    <Button class="btn-secondary" onclick={advanceStep}>Skip</Button>
-    <Button onclick={advanceStep}>Continue</Button>
-  </div>
 </Card>
 
 <style>
@@ -208,11 +208,5 @@
   .grid__status--applied {
     color: var(--asyar-brand);
     font-weight: 600;
-  }
-  .actions {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-2);
-    margin-top: var(--space-5);
   }
 </style>
