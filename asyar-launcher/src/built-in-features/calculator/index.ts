@@ -5,6 +5,7 @@ import type {
   ILogService,
   INotificationService,
 } from "asyar-sdk/contracts";
+import { writeText } from "tauri-plugin-clipboard-x-api";
 
 import { evaluateMath } from "./engine/math";
 import { evaluateUnitExpression } from "./engine/units";
@@ -92,7 +93,7 @@ class CalculatorExtension implements Extension {
         priority: "top",
         action: async () => {
           try {
-            await navigator.clipboard.writeText(resolved);
+            await writeText(resolved);
             this.notificationService?.send({
               title: "Calculator",
               body: `Copied: ${resolved}`

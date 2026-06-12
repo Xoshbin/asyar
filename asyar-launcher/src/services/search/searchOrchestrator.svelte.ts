@@ -58,6 +58,10 @@ class SearchOrchestratorClass {
     if (!appInitializer.isAppInitialized() || viewManager.activeView) return;
     const token = ++this.#searchToken;
     this.#resultActions.clear();
+    // Local map for inline action closures (e.g. Calculator's copy-to-clipboard)
+    // that can't survive the Rust serialization round-trip. Scoped to this
+    // invocation to avoid race conditions between concurrent searches.
+    const inlineActions = new Map<string, () => void | Promise<void>>();
     searchStores.isLoading = true;
     logService.debug(`Starting combined search for query: "${query}"`);
     try {
@@ -73,6 +77,11 @@ class SearchOrchestratorClass {
             actionId: extRes.actionId,
             actionPayload: extRes.actionPayload,
           });
+        }
+        // Preserve inline action closures (e.g. Calculator's copy-to-clipboard)
+        // that can't survive Rust serialization. Re-attached after mergedSearch.
+        if (typeof extRes.action === 'function') {
+          inlineActions.set(objectId, extRes.action);
         }
         return {
           objectId,
@@ -91,6 +100,15 @@ class SearchOrchestratorClass {
       const resp = await commands.mergedSearch(query, externalResults, 10);
       let combinedResults: SearchResult[] = resp.results as SearchResult[];
       const aliasMatch = resp.aliasMatch ?? null;
+
+      // Re-attach inline action closures that were stripped for the Rust
+      // round-trip (e.g. Calculator's copy-to-clipboard).
+      for (const r of combinedResults) {
+        const action = inlineActions.get(r.objectId);
+        if (action) {
+          (r as any).action = action;
+        }
+      }
 
       // Auto-execute branch: alias + trailing space on a command runs it
       // immediately and clears the search input. Guard against double-fire
