@@ -441,6 +441,8 @@ pub fn run() {
             commands::window_management_get_bounds,
             commands::window_management_set_bounds,
             commands::window_management_set_fullscreen,
+            commands::window_management_get_monitors,
+            commands::window_management_apply_preset,
             commands::app_updater_check_now,
             commands::app_updater_get_pending,
             commands::app_relaunch,

@@ -5,6 +5,8 @@ export interface IWindowManagementService {
   getWindowBounds(): Promise<WindowBounds>
   setWindowBounds(update: WindowBoundsUpdate): Promise<void>
   setFullscreen(enable: boolean): Promise<void>
+  getMonitors(): Promise<WindowBounds[]>
+  applyPreset(presetId: string): Promise<void>
 }
 
 export class WindowManagementService implements IWindowManagementService {
@@ -18,6 +20,14 @@ export class WindowManagementService implements IWindowManagementService {
 
   async setFullscreen(enable: boolean): Promise<void> {
     return commands.windowSetFullscreen(enable)
+  }
+
+  async getMonitors(): Promise<WindowBounds[]> {
+    return commands.windowGetMonitors()
+  }
+
+  async applyPreset(presetId: string): Promise<void> {
+    return commands.windowApplyPreset(presetId)
   }
 }
 

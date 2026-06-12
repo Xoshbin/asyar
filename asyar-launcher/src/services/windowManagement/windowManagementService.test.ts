@@ -5,6 +5,8 @@ vi.mock('../../lib/ipc/commands', () => ({
   windowGetBounds: vi.fn(),
   windowSetBounds: vi.fn(),
   windowSetFullscreen: vi.fn(),
+  windowGetMonitors: vi.fn(),
+  windowApplyPreset: vi.fn(),
 }))
 
 import * as commands from '../../lib/ipc/commands'
@@ -63,6 +65,28 @@ describe('WindowManagementService', () => {
       await service.setFullscreen(false)
 
       expect(commands.windowSetFullscreen).toHaveBeenCalledWith(false)
+    })
+  })
+
+  describe('getMonitors', () => {
+    it('calls windowGetMonitors and returns result', async () => {
+      const monitors = [{ x: 0, y: 0, width: 1920, height: 1080 }]
+      vi.mocked(commands.windowGetMonitors).mockResolvedValueOnce(monitors)
+
+      const result = await service.getMonitors()
+
+      expect(commands.windowGetMonitors).toHaveBeenCalledOnce()
+      expect(result).toEqual(monitors)
+    })
+  })
+
+  describe('applyPreset', () => {
+    it('calls windowApplyPreset with presetId', async () => {
+      vi.mocked(commands.windowApplyPreset).mockResolvedValueOnce(undefined)
+
+      await service.applyPreset('left-half')
+
+      expect(commands.windowApplyPreset).toHaveBeenCalledWith('left-half')
     })
   })
 })

@@ -43,6 +43,20 @@ export interface IWindowManagementService {
    * Requires `window:manage` permission.
    */
   setFullscreen(enable: boolean): Promise<void>
+
+  /**
+   * Returns a list of all available monitors and their logical bounds.
+   *
+   * Requires `window:manage` permission.
+   */
+  getMonitors(): Promise<WindowBounds[]>
+
+  /**
+   * Applies a preset layout to the frontmost OS application window relative to the monitor it is on.
+   *
+   * Requires `window:manage` permission.
+   */
+  applyPreset(presetId: string): Promise<void>
 }
 
 export class WindowManagementServiceProxy
@@ -64,5 +78,13 @@ export class WindowManagementServiceProxy
 
   async setFullscreen(enable: boolean): Promise<void> {
     return this.broker.invoke('window:setFullscreen', { enable })
+  }
+
+  async getMonitors(): Promise<WindowBounds[]> {
+    return this.broker.invoke('window:getMonitors')
+  }
+
+  async applyPreset(presetId: string): Promise<void> {
+    return this.broker.invoke('window:applyPreset', { presetId })
   }
 }

@@ -60,4 +60,22 @@ describe('WindowManagementServiceProxy', () => {
       { enable: false }
     )
   })
+
+  it('getMonitors calls correct IPC key', async () => {
+    const monitors = [{ x: 0, y: 0, width: 1920, height: 1080 }]
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(monitors)
+
+    const result = await proxy.getMonitors()
+
+    expect(mockBroker.invoke).toHaveBeenCalledWith('window:getMonitors')
+    expect(result).toEqual(monitors)
+  })
+
+  it('applyPreset calls correct IPC key', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(undefined)
+
+    await proxy.applyPreset('left-half')
+
+    expect(mockBroker.invoke).toHaveBeenCalledWith('window:applyPreset', { presetId: 'left-half' })
+  })
 })

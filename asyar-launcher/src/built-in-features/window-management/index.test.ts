@@ -10,6 +10,8 @@ vi.mock('../../services/windowManagement/windowManagementService', () => ({
     getWindowBounds: vi.fn(),
     setWindowBounds: vi.fn(),
     setFullscreen: vi.fn(),
+    getMonitors: vi.fn(),
+    applyPreset: vi.fn(),
   },
 }))
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
@@ -76,22 +78,15 @@ describe('WindowManagementExtension', () => {
       vi.mocked(windowManagementService.getWindowBounds).mockResolvedValue(
         { x: 0, y: 0, width: 1440, height: 900 }
       )
-      vi.mocked(windowManagementService.setWindowBounds).mockResolvedValue()
-      vi.mocked(windowManagementService.setFullscreen).mockResolvedValue()
+      vi.mocked(windowManagementService.applyPreset).mockResolvedValue()
       vi.mocked(feedbackService.showHUD).mockResolvedValue()
     })
 
-    it('left-half saves previous bounds then calls setWindowBounds', async () => {
+    it('left-half saves previous bounds then calls applyPreset', async () => {
       await extension.executeCommand('left-half')
       expect(windowManagementState.savePreviousBounds).toHaveBeenCalled()
-      expect(windowManagementService.setWindowBounds).toHaveBeenCalled()
+      expect(windowManagementService.applyPreset).toHaveBeenCalledWith('left-half')
       expect(feedbackService.showHUD).toHaveBeenCalledWith('Left Half')
-    })
-
-    it('maximize calls setFullscreen(true)', async () => {
-      await extension.executeCommand('maximize')
-      expect(windowManagementService.setFullscreen).toHaveBeenCalledWith(true)
-      expect(windowManagementService.setWindowBounds).not.toHaveBeenCalled()
     })
 
     it('reports error diagnostic when getWindowBounds throws', async () => {
