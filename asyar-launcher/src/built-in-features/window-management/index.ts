@@ -49,22 +49,13 @@ class WindowManagementExtension implements Extension {
   }
 
   private async applyPreset(presetId: string): Promise<void> {
-    const sw = window.screen.availWidth
-    const sh = window.screen.availHeight
-    const preset = getPresetBounds(presetId, sw, sh)
-    if (!preset) return
-
     try {
       const current = await windowManagementService.getWindowBounds()
       if (this.store) {
         await windowManagementState.savePreviousBounds(current, this.store)
       }
 
-      if (preset.fullscreen) {
-        await windowManagementService.setFullscreen(true)
-      } else if (preset.bounds) {
-        await windowManagementService.setWindowBounds(preset.bounds)
-      }
+      await windowManagementService.applyPreset(presetId)
 
       const label = presetId
         .split('-')

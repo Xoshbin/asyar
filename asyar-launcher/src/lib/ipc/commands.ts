@@ -291,6 +291,14 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     return invoke('window_management_set_fullscreen', { enable })
   }
 
+  export async function windowGetMonitors(): Promise<WindowBounds[]> {
+    return invoke<WindowBounds[]>('window_management_get_monitors')
+  }
+
+  export async function windowApplyPreset(presetId: string): Promise<void> {
+    return invoke('window_management_apply_preset', { presetId })
+  }
+
   // ── HUD ───────────────────────────────────────────────────────────────────────
 
   export interface HudContent {
