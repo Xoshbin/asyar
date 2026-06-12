@@ -53,16 +53,15 @@ class SearchOrchestratorClass {
   // on Enter. Populated from ExtensionResult.actionId/actionPayload during each
   // search; consulted by searchResultMapper before the normal command lookup.
   #resultActions = new Map<string, { extensionId: string; actionId: string; actionPayload: unknown }>();
-  // Maps objectId → inline action closure for built-in extension results
-  // (e.g. Calculator) whose action functions can't survive the Rust
-  // serialization round-trip. Re-attached after mergedSearch returns.
-  #inlineActions = new Map<string, () => void | Promise<void>>();
 
   async handleSearch(query: string): Promise<void> {
     if (!appInitializer.isAppInitialized() || viewManager.activeView) return;
     const token = ++this.#searchToken;
     this.#resultActions.clear();
-    this.#inlineActions.clear();
+    // Local map for inline action closures (e.g. Calculator's copy-to-clipboard)
+    // that can't survive the Rust serialization round-trip. Scoped to this
+    // invocation to avoid race conditions between concurrent searches.
+    const inlineActions = new Map<string, () => void | Promise<void>>();
     searchStores.isLoading = true;
     logService.debug(`Starting combined search for query: "${query}"`);
     try {
@@ -82,7 +81,7 @@ class SearchOrchestratorClass {
         // Preserve inline action closures (e.g. Calculator's copy-to-clipboard)
         // that can't survive Rust serialization. Re-attached after mergedSearch.
         if (typeof extRes.action === 'function') {
-          this.#inlineActions.set(objectId, extRes.action);
+          inlineActions.set(objectId, extRes.action);
         }
         return {
           objectId,
@@ -105,7 +104,7 @@ class SearchOrchestratorClass {
       // Re-attach inline action closures that were stripped for the Rust
       // round-trip (e.g. Calculator's copy-to-clipboard).
       for (const r of combinedResults) {
-        const action = this.#inlineActions.get(r.objectId);
+        const action = inlineActions.get(r.objectId);
         if (action) {
           (r as any).action = action;
         }
