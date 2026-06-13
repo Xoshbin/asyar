@@ -664,6 +664,15 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     return invoke('open_accessibility_preferences');
   }
 
+  /**
+   * Returns true when macOS Accessibility permission is granted (always true on
+   * other platforms). Required before simulating a paste keystroke, which the OS
+   * silently drops without this permission.
+   */
+  export async function checkAccessibilityPermission(): Promise<boolean> {
+    return invoke<boolean>('check_accessibility_permission');
+  }
+
   export async function openUrl(url: string): Promise<void> {
     return invoke('plugin:opener|open_url', { url });
   }
