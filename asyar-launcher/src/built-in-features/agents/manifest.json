@@ -4,6 +4,9 @@
   "icon": "icon:sparkles",
   "version": "1.0.0",
   "description": "Run AI agents with tool access",
+  "permissions": [
+    "notifications:send"
+  ],
   "author": "Core",
   "searchable": true,
   "type": "extension",
