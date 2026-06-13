@@ -5,6 +5,24 @@
 use crate::error::AppError;
 use enigo::{Enigo, KeyboardControllable};
 
+/// Returns `true` when the OS-level Accessibility permission needed to simulate a
+/// paste keystroke is granted. Always `true` off macOS, where no such gate exists.
+///
+/// The frontend checks this before writing to the clipboard: on macOS a synthetic
+/// Cmd+V is silently dropped without this permission, and writing-then-failing would
+/// re-add the content as a duplicate clipboard-history entry.
+#[tauri::command]
+pub fn check_accessibility_permission() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        crate::platform::macos::is_accessibility_trusted()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
 /// Simulates a system-level paste keystroke (Cmd+V / Ctrl+V).
 #[tauri::command]
 pub fn simulate_paste() {
@@ -72,4 +90,14 @@ pub fn expand_and_paste(
     crate::platform::input::post_paste_chord();
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn test_check_accessibility_permission_true_off_macos() {
+        // Off macOS there is no Accessibility gate, so paste is always permitted.
+        assert!(super::check_accessibility_permission());
+    }
 }

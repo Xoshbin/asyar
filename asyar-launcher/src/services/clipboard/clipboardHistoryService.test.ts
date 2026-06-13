@@ -81,6 +81,8 @@ vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
 }))
 
 import { ClipboardHistoryService } from './clipboardHistoryService'
+import { invoke } from '@tauri-apps/api/core'
+import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte'
 import { ClipboardItemType, type ClipboardHistoryItem } from 'asyar-sdk/contracts'
 import { clipboardPrivacyService } from '../privacy/clipboardPrivacyService.svelte'
 import { secretRedactionService } from '../privacy/secretRedactionService.svelte'
@@ -774,6 +776,9 @@ describe('pasteItem', () => {
   it('calls hideWindow, writeToClipboard, and simulatePaste in order without delay', async () => {
     const svc = getInstance()
 
+    // Accessibility is granted, so the paste proceeds normally.
+    vi.mocked(invoke).mockResolvedValue(true)
+
     const hideWindowSpy = vi.spyOn(svc, 'hideWindow').mockResolvedValue(undefined)
     const writeToClipboardSpy = vi.spyOn(svc, 'writeToClipboard').mockResolvedValue(undefined)
     const simulatePasteSpy = vi.spyOn(svc, 'simulatePaste').mockResolvedValue(true)
@@ -785,6 +790,43 @@ describe('pasteItem', () => {
     expect(hideWindowSpy).toHaveBeenCalled()
     expect(writeToClipboardSpy).toHaveBeenCalledWith(item)
     expect(simulatePasteSpy).toHaveBeenCalled()
+  })
+
+  it('skips the clipboard write and opens Accessibility settings when permission is denied', async () => {
+    const svc = getInstance()
+
+    // check_accessibility_permission resolves false; open_accessibility_preferences resolves undefined.
+    vi.mocked(invoke).mockImplementation(async (cmd: string) =>
+      cmd === 'check_accessibility_permission' ? false : undefined
+    )
+
+    const hideWindowSpy = vi.spyOn(svc, 'hideWindow').mockResolvedValue(undefined)
+    const writeToClipboardSpy = vi.spyOn(svc, 'writeToClipboard').mockResolvedValue(undefined)
+    const simulatePasteSpy = vi.spyOn(svc, 'simulatePaste').mockResolvedValue(true)
+
+    const item = makeItem(ClipboardItemType.Text, 'pasted content')
+
+    await svc.pasteItem(item)
+
+    // No clipboard mutation => no duplicate history entry, and the window stays
+    // visible so the user can see the guidance.
+    expect(writeToClipboardSpy).not.toHaveBeenCalled()
+    expect(simulatePasteSpy).not.toHaveBeenCalled()
+    expect(hideWindowSpy).not.toHaveBeenCalled()
+
+    // Jumps the user straight to the right System Settings pane.
+    expect(invoke).toHaveBeenCalledWith('open_accessibility_preferences')
+
+    // Surfaces a guiding diagnostic mentioning Accessibility.
+    expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'manual',
+        severity: 'warning',
+        context: expect.objectContaining({
+          message: expect.stringContaining('Accessibility'),
+        }),
+      })
+    )
   })
 })
 

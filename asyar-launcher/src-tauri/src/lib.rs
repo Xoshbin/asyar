@@ -237,6 +237,7 @@ pub fn run() {
             commands::hide_hud,
             commands::get_hud_state,
             commands::simulate_paste,
+            commands::check_accessibility_permission,
             commands::update_global_shortcut,
             commands::get_persisted_shortcut,
             commands::initialize_shortcut_from_settings,

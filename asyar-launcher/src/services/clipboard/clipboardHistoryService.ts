@@ -420,6 +420,26 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async pasteItem(item: ClipboardHistoryItem): Promise<void> {
     try {
+      // macOS silently drops the synthetic Cmd+V unless Accessibility is granted.
+      // Check first, before touching the clipboard: writing then failing to paste
+      // would otherwise re-add the content as a duplicate history entry, and the
+      // window would already be hidden so the user would never see the failure.
+      if (!(await commands.checkAccessibilityPermission())) {
+        await commands.openAccessibilityPreferences();
+        void diagnosticsService.report({
+          source: "frontend",
+          kind: "manual",
+          severity: "warning",
+          retryable: false,
+          context: {
+            message:
+              "Asyar needs macOS Accessibility permission to paste. Enable Asyar under " +
+              "System Settings → Privacy & Security → Accessibility, then try again.",
+          },
+        });
+        return;
+      }
+
       // Hide the app window before writing to clipboard
       await this.hideWindow();
 
