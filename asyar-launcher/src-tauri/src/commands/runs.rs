@@ -1,4 +1,8 @@
 use crate::error::AppError;
+use crate::notifications::backend::populate_registry_and_send;
+use crate::notifications::{
+    BackendAction, NotificationActionRegistry, NotificationBackend, NotificationRequest,
+};
 use crate::runs::output_buffer::{format_tail_output, OutputBuffer};
 use crate::runs::registry::{now_millis, RunRegistry};
 use crate::runs::{Run, RunKind, RunStatus};
@@ -178,6 +182,85 @@ pub fn runs_dismiss_impl(buffer: &OutputBuffer, id: &str) -> Result<(), AppError
     Ok(())
 }
 
+fn truncate(text: &str, max: usize) -> String {
+    if text.chars().count() <= max {
+        return text.to_string();
+    }
+    if let Some((idx, _)) = text.char_indices().nth(max - 1) {
+        let mut truncated = text[..idx].to_string();
+        truncated.push('…');
+        truncated
+    } else {
+        text.to_string()
+    }
+}
+
+pub fn build_run_notification(run: &Run) -> Option<NotificationRequest> {
+    match run.status {
+        RunStatus::Failed => {
+            let body_source = run
+                .tail_output
+                .as_deref()
+                .or(run.error_message.as_deref())
+                .unwrap_or("(no output)");
+            let body = truncate(body_source, 120);
+            let args_json = serde_json::json!({
+                "arguments": {
+                    "id": run.id
+                }
+            })
+            .to_string();
+            Some(NotificationRequest {
+                notification_id: format!("notif_{}", uuid::Uuid::new_v4()),
+                title: "Run failed".to_string(),
+                body,
+                actions: vec![BackendAction {
+                    id: "open".to_string(),
+                    title: "Open".to_string(),
+                    command_id: "open-runs".to_string(),
+                    args_json: Some(args_json),
+                }],
+                extension_id: "runs".to_string(),
+            })
+        }
+        RunStatus::Succeeded if run.kind == RunKind::ShellScript => {
+            let tail = run.tail_output.as_deref().unwrap_or("(no output)");
+            let body_source = format!("{}\n{}", run.label, tail);
+            let body = truncate(&body_source, 120);
+            let args_json = serde_json::json!({
+                "arguments": {
+                    "id": run.id
+                }
+            })
+            .to_string();
+            Some(NotificationRequest {
+                notification_id: format!("notif_{}", uuid::Uuid::new_v4()),
+                title: "Script finished".to_string(),
+                body,
+                actions: vec![BackendAction {
+                    id: "view-output".to_string(),
+                    title: "View output".to_string(),
+                    command_id: "open-runs".to_string(),
+                    args_json: Some(args_json),
+                }],
+                extension_id: "runs".to_string(),
+            })
+        }
+        _ => None,
+    }
+}
+
+pub fn maybe_send_run_notification(
+    registry: &NotificationActionRegistry,
+    backend: &dyn NotificationBackend,
+    run: &Run,
+) -> Result<(), AppError> {
+    if let Some(request) = build_run_notification(run) {
+        populate_registry_and_send(registry, backend, request)?;
+    }
+    Ok(())
+}
+
 // ── Tauri command wrappers ────────────────────────────────────────────────────
 
 /// Start a new run; exposed as a Tauri IPC command.
@@ -220,27 +303,41 @@ pub async fn runs_write(app: AppHandle, id: String, line: String) -> Result<(), 
 pub async fn runs_done(
     app: AppHandle,
     store: State<'_, DataStore>,
+    registry: State<'_, std::sync::Arc<NotificationActionRegistry>>,
+    backend: State<'_, std::sync::Arc<dyn NotificationBackend>>,
     id: String,
 ) -> Result<(), AppError> {
-    let registry = RunRegistry::instance();
+    let run_registry = RunRegistry::instance();
     let buffer = OutputBuffer::instance();
     let conn = store.conn()?;
     let emit = |event: &str, payload: &serde_json::Value| app.emit(event, payload);
-    runs_done_impl(registry, buffer, &emit, &conn, id)
+    runs_done_impl(run_registry, buffer, &emit, &conn, id.clone())?;
+
+    if let Some(run) = run_registry.get(&id) {
+        let _ = maybe_send_run_notification(registry.inner(), backend.inner().as_ref(), &run);
+    }
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn runs_fail(
     app: AppHandle,
     store: State<'_, DataStore>,
+    registry: State<'_, std::sync::Arc<NotificationActionRegistry>>,
+    backend: State<'_, std::sync::Arc<dyn NotificationBackend>>,
     id: String,
     error: String,
 ) -> Result<(), AppError> {
-    let registry = RunRegistry::instance();
+    let run_registry = RunRegistry::instance();
     let buffer = OutputBuffer::instance();
     let conn = store.conn()?;
     let emit = |event: &str, payload: &serde_json::Value| app.emit(event, payload);
-    runs_fail_impl(registry, buffer, &emit, &conn, id, error)
+    runs_fail_impl(run_registry, buffer, &emit, &conn, id.clone(), error)?;
+
+    if let Some(run) = run_registry.get(&id) {
+        let _ = maybe_send_run_notification(registry.inner(), backend.inner().as_ref(), &run);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1547,5 +1644,149 @@ mod tests {
             "tail_output must be None when all written lines are whitespace-only, got {:?}",
             run.tail_output
         );
+    }
+
+    struct TestBackend {
+        sent: std::sync::Mutex<Vec<NotificationRequest>>,
+    }
+    impl NotificationBackend for TestBackend {
+        fn send(&self, request: NotificationRequest) -> Result<(), AppError> {
+            self.sent.lock().unwrap().push(request);
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_truncate() {
+        let long_str = "a".repeat(125);
+        let truncated = truncate(&long_str, 120);
+        assert_eq!(truncated.chars().count(), 120);
+        assert!(truncated.ends_with('…'));
+        assert_eq!(truncated, format!("{}…", "a".repeat(119)));
+
+        let exact_str = "a".repeat(120);
+        assert_eq!(truncate(&exact_str, 120), exact_str);
+
+        let long_mb = "훈".repeat(125);
+        let truncated_mb = truncate(&long_mb, 120);
+        assert_eq!(truncated_mb.chars().count(), 120);
+        assert!(truncated_mb.ends_with('…'));
+        assert_eq!(truncated_mb, format!("{}…", "훈".repeat(119)));
+    }
+
+    #[test]
+    fn test_build_run_notification() {
+        let mut run = Run {
+            id: "run-1".to_string(),
+            kind: RunKind::Agent,
+            label: "My Agent".to_string(),
+            status: RunStatus::Failed,
+            extension_id: Some("my-ext".to_string()),
+            started_at: 0,
+            ended_at: None,
+            cancellable: false,
+            error_message: Some("something went wrong".to_string()),
+            subject_id: None,
+            tail_output: None,
+        };
+
+        // Failed status
+        let req = build_run_notification(&run).expect("should build notification for failed run");
+        assert_eq!(req.title, "Run failed");
+        assert_eq!(req.body, "something went wrong");
+        assert_eq!(req.extension_id, "runs");
+        assert_eq!(req.actions.len(), 1);
+        assert_eq!(req.actions[0].id, "open");
+        assert_eq!(req.actions[0].command_id, "open-runs");
+        assert_eq!(
+            req.actions[0].args_json.as_deref(),
+            Some(r#"{"arguments":{"id":"run-1"}}"#)
+        );
+
+        // Failed status preferring tail_output
+        run.tail_output = Some("captured tail".to_string());
+        let req2 = build_run_notification(&run).expect("should build notification");
+        assert_eq!(req2.body, "captured tail");
+
+        // ShellScript Succeeded status
+        run.status = RunStatus::Succeeded;
+        run.kind = RunKind::ShellScript;
+        run.label = "Script Run".to_string();
+        run.tail_output = Some("script tail output".to_string());
+        let req3 =
+            build_run_notification(&run).expect("should build notification for succeeded script");
+        assert_eq!(req3.title, "Script finished");
+        assert_eq!(req3.body, "Script Run\nscript tail output");
+        assert_eq!(req3.actions.len(), 1);
+        assert_eq!(req3.actions[0].id, "view-output");
+        assert_eq!(req3.actions[0].command_id, "open-runs");
+        assert_eq!(
+            req3.actions[0].args_json.as_deref(),
+            Some(r#"{"arguments":{"id":"run-1"}}"#)
+        );
+
+        // Agent Succeeded status -> None
+        run.kind = RunKind::Agent;
+        assert!(build_run_notification(&run).is_none());
+
+        // Cancelled -> None
+        run.status = RunStatus::Cancelled;
+        assert!(build_run_notification(&run).is_none());
+
+        // Running -> None
+        run.status = RunStatus::Running;
+        assert!(build_run_notification(&run).is_none());
+    }
+
+    #[test]
+    fn test_maybe_send_run_notification() {
+        let registry = NotificationActionRegistry::new();
+        let backend = TestBackend {
+            sent: std::sync::Mutex::new(Vec::new()),
+        };
+
+        let mut run = Run {
+            id: "run-2".to_string(),
+            kind: RunKind::Agent,
+            label: "My Agent".to_string(),
+            status: RunStatus::Failed,
+            extension_id: Some("my-ext".to_string()),
+            started_at: 0,
+            ended_at: None,
+            cancellable: false,
+            error_message: Some("failed agent".to_string()),
+            subject_id: None,
+            tail_output: None,
+        };
+
+        // Failed status should send and register the action
+        maybe_send_run_notification(&registry, &backend, &run).unwrap();
+
+        let sent = backend.sent.lock().unwrap();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].title, "Run failed");
+
+        let notif_id = &sent[0].notification_id;
+        let action = registry
+            .lookup(notif_id, "open")
+            .expect("action should be registered");
+        assert_eq!(action.command_id, "open-runs");
+        assert_eq!(action.extension_id, "runs");
+        assert_eq!(
+            action.args_json.as_deref(),
+            Some(r#"{"arguments":{"id":"run-2"}}"#)
+        );
+
+        // Succeeded Agent run should not send anything
+        run.status = RunStatus::Succeeded;
+        drop(sent);
+        backend.sent.lock().unwrap().clear();
+        maybe_send_run_notification(&registry, &backend, &run).unwrap();
+        assert_eq!(backend.sent.lock().unwrap().len(), 0);
+
+        // Cancelled run should not send anything
+        run.status = RunStatus::Cancelled;
+        maybe_send_run_notification(&registry, &backend, &run).unwrap();
+        assert_eq!(backend.sent.lock().unwrap().len(), 0);
     }
 }

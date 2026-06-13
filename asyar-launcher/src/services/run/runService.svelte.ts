@@ -4,7 +4,6 @@ import type { Run, RunKind } from 'asyar-sdk/contracts';
 
 import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 import { pickExtensionIframe } from '../extension/extensionIframeSelector';
-import { notificationService } from '../notification/notificationService';
 import { shiftIndex } from '../../lib/listSelection.svelte';
 
 export interface LocalRunHandle {
@@ -17,12 +16,6 @@ export interface LocalRunHandle {
 }
 
 const UNACK_FAILED_CAP = 5;
-const NOTIFICATION_BODY_MAX = 120;
-
-function truncate(text: string, max = NOTIFICATION_BODY_MAX): string {
-  if (text.length <= max) return text;
-  return text.slice(0, max - 1) + '…';
-}
 
 export class RunService {
   active = $state<Run[]>([]);
@@ -188,19 +181,6 @@ export class RunService {
           run,
           ...this.unacknowledgedFailures.filter((r) => r.id !== run.id),
         ].slice(0, UNACK_FAILED_CAP);
-
-        void notificationService.send('runs', {
-          title: 'Run failed',
-          body: truncate(run.tailOutput ?? run.errorMessage ?? '(no output)'),
-          actions: [
-            {
-              id: 'open',
-              title: 'Open',
-              commandId: 'open-runs',
-              args: { arguments: { id: run.id } },
-            },
-          ],
-        });
       }
 
       if (run.status === 'succeeded' && run.kind === 'agent' && run.subjectId) {
@@ -220,19 +200,6 @@ export class RunService {
           ? this.unacknowledgedScriptResults.filter((r) => r.subjectId !== run.subjectId)
           : this.unacknowledgedScriptResults.filter((r) => r.id !== run.id);
         this.unacknowledgedScriptResults = [run, ...filtered].slice(0, UNACK_FAILED_CAP);
-
-        void notificationService.send('runs', {
-          title: 'Script finished',
-          body: truncate(`${run.label}\n${run.tailOutput ?? '(no output)'}`),
-          actions: [
-            {
-              id: 'view-output',
-              title: 'View output',
-              commandId: 'open-runs',
-              args: { arguments: { id: run.id } },
-            },
-          ],
-        });
       }
 
       if (run.status === 'cancelled' && run.extensionId) {

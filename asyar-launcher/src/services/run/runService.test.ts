@@ -9,16 +9,12 @@ vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
 vi.mock('../extension/extensionIframeSelector', () => ({
   pickExtensionIframe: vi.fn(),
 }));
-vi.mock('../notification/notificationService', () => ({
-  notificationService: { send: vi.fn() },
-}));
 
 import { runService } from './runService.svelte';
 import { invokeSafe } from '../../lib/ipc/invokeSafe';
 import { listen } from '@tauri-apps/api/event';
 import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 import { pickExtensionIframe } from '../extension/extensionIframeSelector';
-import { notificationService } from '../notification/notificationService';
 import type { Run } from 'asyar-sdk/contracts';
 
 const makeRun = (over: Partial<Run> = {}): Run => ({
@@ -489,97 +485,6 @@ describe('startLocal', () => {
     // Simulate cancel again — internal set deleted, cb must NOT fire again
     runService['onStateChanged'](makeRun({ id: handle.id, status: 'cancelled' }));
     expect(cb).toHaveBeenCalledTimes(1);
-  });
-});
-
-// ── Failure notifications ─────────────────────────────────────────────────────
-
-describe('failure notifications', () => {
-  it('failed_run_fires_notification_with_tail_or_error_in_body', () => {
-    const run = makeRun({ id: 'r1', label: 'My Run', status: 'failed', errorMessage: 'boom' });
-    runService['onStateChanged'](run);
-
-    expect(notificationService.send).toHaveBeenCalledTimes(1);
-
-    const [callerExtId, options] = vi.mocked(notificationService.send).mock.calls[0];
-    expect(callerExtId).toBe('runs');
-    expect(options.title.toLowerCase()).toContain('failed');
-    expect(options.body).toContain('boom');
-    expect(options.actions).toBeDefined();
-    expect(options.actions!.length).toBeGreaterThanOrEqual(1);
-
-    const openAction = options.actions![0];
-    expect(openAction.commandId).toBe('open-runs');
-    expect(openAction.args).toEqual(expect.objectContaining({ arguments: { id: 'r1' } }));
-  });
-
-  it('failed_run_notification_prefers_tailOutput_over_errorMessage', () => {
-    const run = makeRun({
-      id: 'r1', status: 'failed',
-      tailOutput: 'Error: file not found',
-      errorMessage: 'exit code 1',
-    });
-    runService['onStateChanged'](run);
-    const [, options] = vi.mocked(notificationService.send).mock.calls[0];
-    expect(options.body).toBe('Error: file not found');
-  });
-
-  it('failed_run_notification_falls_back_to_no_output_text_when_both_missing', () => {
-    const run = makeRun({
-      id: 'r1', status: 'failed',
-      tailOutput: undefined, errorMessage: undefined,
-    });
-    runService['onStateChanged'](run);
-    const [, options] = vi.mocked(notificationService.send).mock.calls[0];
-    expect(options.body).toBe('(no output)');
-  });
-
-  it('succeeded_shell_script_fires_script_finished_notification_with_tail_preview', () => {
-    const run = makeRun({
-      id: 'r1', label: 'Hosts Update', status: 'succeeded', kind: 'shell-script',
-      tailOutput: 'OK — synced 12 files', endedAt: Date.now(),
-    });
-    runService['onStateChanged'](run);
-
-    expect(notificationService.send).toHaveBeenCalledTimes(1);
-    const [callerExtId, options] = vi.mocked(notificationService.send).mock.calls[0];
-    expect(callerExtId).toBe('runs');
-    expect(options.title).toBe('Script finished');
-    expect(options.body).toContain('Hosts Update');
-    expect(options.body).toContain('OK — synced 12 files');
-
-    const viewAction = options.actions![0];
-    expect(viewAction.commandId).toBe('open-runs');
-    expect(viewAction.args).toEqual(expect.objectContaining({ arguments: { id: 'r1' } }));
-  });
-
-  it('succeeded_agent_run_does_not_fire_notification', () => {
-    const run = makeRun({ id: 'r1', status: 'succeeded', kind: 'agent', endedAt: Date.now() });
-    runService['onStateChanged'](run);
-    expect(notificationService.send).not.toHaveBeenCalled();
-  });
-
-  it('cancelled_run_does_not_fire_notification', () => {
-    const run = makeRun({ id: 'r3', status: 'cancelled' });
-    runService['onStateChanged'](run);
-    expect(notificationService.send).not.toHaveBeenCalled();
-  });
-
-  it('running_state_change_does_not_fire_notification', () => {
-    const run = makeRun({ id: 'r4', status: 'running' });
-    runService['onStateChanged'](run);
-    expect(notificationService.send).not.toHaveBeenCalled();
-  });
-
-  it('failed_run_notification_open_action_includes_run_id', () => {
-    const run = makeRun({ id: 'specific-run-id', label: 'Labeled Run', status: 'failed', extensionId: 'ext.foo' });
-    runService['onStateChanged'](run);
-
-    expect(notificationService.send).toHaveBeenCalledTimes(1);
-    const [, options] = vi.mocked(notificationService.send).mock.calls[0];
-    const openAction = options.actions!.find((a) => a.commandId === 'open-runs');
-    expect(openAction).toBeDefined();
-    expect(openAction!.args?.['arguments']).toEqual(expect.objectContaining({ id: 'specific-run-id' }));
   });
 });
 
