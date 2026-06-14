@@ -1,5 +1,6 @@
 pub mod agents;
 pub mod app;
+pub mod feedback;
 pub mod app_events;
 pub mod app_updater;
 pub mod application_index;
@@ -54,6 +55,7 @@ pub use extension_preferences::*;
 pub use extension_runtime::*;
 pub use extensions::*;
 pub use factory_reset::*;
+pub use feedback::*;
 pub use file_manager::*;
 pub use files::*;
 pub use hud::*;

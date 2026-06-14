@@ -1321,6 +1321,7 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     | 'featuredExtensions'
     | 'pickTheme'
     | 'cheatSheet'
+    | 'privacyConsent'
 
   export interface OnboardingState {
     current: OnboardingStepKind
@@ -1619,4 +1620,37 @@ export async function agentsInvokeBuiltinTool(
   args: unknown,
 ): Promise<unknown> {
   return invoke('agents_invoke_builtin_tool', { id, args });
+}
+
+// ── Feedback submission ───────────────────────────────────────────────────────
+
+export interface FeedbackInput {
+  type: 'feedback' | 'crash';
+  category?: 'idea' | 'bug' | 'other' | null;
+  message?: string | null;
+  email?: string | null;
+}
+
+export async function submitFeedback(input: FeedbackInput): Promise<void> {
+  return invoke('submit_feedback', { input });
+}
+
+// ── Crash report prompt (Ask mode) ───────────────────────────────────────────
+
+export interface CrashPayload {
+  panic: string;
+  backtrace: string;
+  log_tail: string;
+}
+
+export async function getPendingCrash(): Promise<CrashPayload | null> {
+  return invoke<CrashPayload | null>('get_pending_crash');
+}
+
+export async function sendPendingCrash(email: string): Promise<void> {
+  return invoke('send_pending_crash', { email });
+}
+
+export async function dismissPendingCrash(): Promise<void> {
+  return invoke('dismiss_pending_crash');
 }

@@ -60,6 +60,9 @@ const DEFAULT: AppSettings = {
     defaultAgentId: null,
     tabContinuesLastThread: false,
   },
+  privacy: {
+    crashReportMode: 'off' as const,
+  },
 }
 
 const svc = settingsService as any
@@ -343,6 +346,36 @@ describe('rust read_launch_view contract', () => {
 
   it('defaults onboarding.completed to false', () => {
     expect(DEFAULT.onboarding.completed).toBe(false)
+  })
+})
+
+// ── privacy.crashReportMode ───────────────────────────────────────────────────
+
+describe('privacy.crashReportMode', () => {
+  beforeEach(() => {
+    resetState()
+    injectStore()
+  })
+
+  it('defaults crashReportMode to off', () => {
+    expect(settingsService.currentSettings.privacy.crashReportMode).toBe('off')
+  })
+
+  it('persists an updated crashReportMode', async () => {
+    const ok = await settingsService.updateSettings('privacy', { crashReportMode: 'ask' })
+    expect(ok).toBe(true)
+    expect(settingsService.currentSettings.privacy.crashReportMode).toBe('ask')
+  })
+
+  it('mergeWithDefaults fills privacy with defaults when missing from stored settings', () => {
+    const result = (settingsService as any).mergeWithDefaults({})
+    expect(result.privacy).toBeDefined()
+    expect(result.privacy.crashReportMode).toBe('off')
+  })
+
+  it('mergeWithDefaults preserves a stored crashReportMode', () => {
+    const result = (settingsService as any).mergeWithDefaults({ privacy: { crashReportMode: 'auto' } })
+    expect(result.privacy.crashReportMode).toBe('auto')
   })
 })
 

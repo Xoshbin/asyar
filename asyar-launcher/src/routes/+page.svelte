@@ -32,6 +32,9 @@
   import { whatsNewStore } from '../services/update/whatsNewStore.svelte';
   import { developerSettingsService } from '../services/settings/developerSettingsService.svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import CrashReportPrompt from '../components/feedback/CrashReportPrompt.svelte';
+  import { crashPromptState } from '../services/feedback/crashPromptState.svelte';
+  import { authService } from '../services/auth/authService.svelte';
   import '../resources/styles/style.css';
 
   // Instantiate the controller
@@ -154,6 +157,25 @@
 
   onMount(() => {
     compactSync.onMount();
+  });
+
+  onMount(() => {
+    // Load any pending Ask-mode crash report on startup, pre-filling the
+    // user's email if they are already signed in.
+    void crashPromptState.load(authService.user?.email ?? undefined);
+
+    // Re-check when Rust emits 'crash-report-pending' (e.g. if a second
+    // launch triggers a new detection while the app is already running).
+    let unlistenCrash: (() => void) | null = null;
+    listen('crash-report-pending', () => {
+      void crashPromptState.load(authService.user?.email ?? undefined);
+    })
+      .then((fn) => { unlistenCrash = fn; })
+      .catch((e) => logService.debug(`[+page] listen crash-report-pending failed: ${e}`));
+
+    return () => {
+      unlistenCrash?.();
+    };
   });
 
   // Argument-mode derived state. Svelte 5 runes in the service propagate
@@ -299,6 +321,7 @@
   <ToastHost />
   <DialogHost />
   <FatalErrorDialog />
+  <CrashReportPrompt />
 
   {#if import.meta.env.DEV || developerSettingsService.showInspector}
     {#await import('../components/dev/InspectorShell.svelte') then InspectorShellModule}

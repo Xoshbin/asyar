@@ -72,6 +72,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     tracing: false,
     allowSideloading: false,
   },
+  privacy: {
+    crashReportMode: 'off',
+  },
 };
 
 // Settings service implementation
@@ -355,6 +358,10 @@ class SettingsService implements ISettingsService {
         developer: typedStored?.developer
           ? { ...DEFAULT_SETTINGS.developer, ...typedStored.developer }
           : DEFAULT_SETTINGS.developer,
+        privacy: {
+          ...DEFAULT_SETTINGS.privacy,
+          ...(typedStored?.privacy ?? {}),
+        },
       };
     } catch (error) {
       logService.error(`Error merging settings: ${error}`);

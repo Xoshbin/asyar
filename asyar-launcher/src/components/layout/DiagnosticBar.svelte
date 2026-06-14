@@ -28,6 +28,12 @@
       diagnosticsService.dismiss();
     }
   }
+  async function onReport() {
+    if (current?.reportActionId) {
+      await diagnosticsService.triggerReport(current.reportActionId);
+      diagnosticsService.dismiss();
+    }
+  }
   function onDismiss() { diagnosticsService.dismiss(); }
 </script>
 
@@ -39,6 +45,11 @@
     {#if current.retryable && current.retryActionId}
       <button type="button" class="pressable" onclick={onRetry}>
         <KeyboardHint keys={["⌘", "R"]} action="Retry" />
+      </button>
+    {/if}
+    {#if current.reportActionId}
+      <button type="button" class="pressable" onclick={onReport}>
+        <KeyboardHint keys="R" action="Report" />
       </button>
     {/if}
     {#if isSticky}
