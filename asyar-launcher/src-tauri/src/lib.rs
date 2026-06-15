@@ -93,6 +93,7 @@ pub mod system_events;
 pub mod timers;
 pub mod tray;
 pub mod uri_schemes;
+pub mod usage;
 pub mod window_management;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
@@ -366,6 +367,12 @@ pub fn run() {
             commands::submit_feedback,
             commands::get_pending_crash,
             commands::send_pending_crash,
+            commands::usage::record_active_day,
+            commands::usage::get_usage_stats,
+            commands::usage::get_usage_anon_id,
+            commands::usage::reset_usage_anon_id,
+            commands::usage::send_pending_usage,
+            commands::usage::send_usage_now,
             commands::dismiss_pending_crash,
             commands::sync::sync_run,
             commands::sync::sync_get_status,
@@ -1016,6 +1023,60 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(state.clone());
 
     register_builtin_tools(app.handle(), state.clone())?;
+
+    // Local-first usage recording. Manage before any command (record_item_usage,
+    // the usage commands) can run. Recording is always local; egress is gated
+    // behind UsageShareMode (default Off). Log + continue on init failure so a
+    // usage.db problem never blocks app startup.
+    match usage::initialize_usage_state(app.handle()) {
+        Ok(usage_state) => {
+            app.manage(std::sync::Arc::new(usage_state));
+        }
+        Err(e) => log::error!("usage state init failed: {e}"),
+    }
+
+    // Opt-in usage share: once at launch, roll up the most recent unsent prior
+    // day and act on consent. Mirrors the crash-report startup block: read
+    // settings.dat, parse the mode (default Off), then branch. No polling.
+    if let Some(usage_state) = app.try_state::<std::sync::Arc<usage::UsageState>>() {
+        use tauri_plugin_store::StoreExt;
+        let handle = app.handle().clone();
+        let usage_state = usage_state.inner().clone();
+        let mode = handle
+            .store("settings.dat")
+            .ok()
+            .and_then(|s| s.get("settings"))
+            .map(|v| usage::parse_usage_share_mode(&v.to_string()))
+            .unwrap_or(usage::UsageShareMode::Off);
+
+        let today = usage::local_day();
+        if let Ok(Some(day)) = usage::sender::earliest_unsent_day_before(&usage_state, &today) {
+            match usage::sender::decide_send_action(mode) {
+                usage::sender::SendAction::DoNothing => { /* recorded locally only */ }
+                usage::sender::SendAction::SendNow => {
+                    let st = usage_state.clone();
+                    let handle = handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let platform = crate::feedback::platform_string();
+                        let version = handle.package_info().version.to_string();
+                        if let Ok(payload) =
+                            usage::sender::build_payload(&st, &day, &version, &platform)
+                        {
+                            let client = crate::auth::api_client::ApiClient::new();
+                            if client.submit_usage_ping(&payload).await.is_ok() {
+                                let _ = usage::sender::mark_day_sent(&st, &day);
+                            }
+                        }
+                    });
+                }
+                usage::sender::SendAction::Prompt => {
+                    // Hand the day to the frontend; it shows UsageSharePrompt and
+                    // calls send_pending_usage on confirm.
+                    let _ = handle.emit("usage:pending-share", &day);
+                }
+            }
+        }
+    }
 
     // At-rest encryption keystore — must come up before the SQLite store
     // so any storage code path that runs during setup already has access

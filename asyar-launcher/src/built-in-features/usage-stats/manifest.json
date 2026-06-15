@@ -1,0 +1,20 @@
+{
+  "id": "usage-stats",
+  "name": "Usage Stats",
+  "icon": "icon:info",
+  "version": "1.0.0",
+  "description": "See a local-only dashboard of how often you launch and which commands you run most",
+  "type": "extension",
+  "searchable": true,
+  "commands": [
+    {
+      "id": "open-usage-stats",
+      "name": "Usage Stats",
+      "description": "View your local usage dashboard",
+      "trigger": "usage stats dashboard launches insights",
+      "icon": "icon:info",
+      "mode": "view",
+      "component": "DefaultView"
+    }
+  ]
+}

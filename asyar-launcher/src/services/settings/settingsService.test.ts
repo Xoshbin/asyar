@@ -62,6 +62,7 @@ const DEFAULT: AppSettings = {
   },
   privacy: {
     crashReportMode: 'off' as const,
+    usageShareMode: 'off' as const,
   },
 }
 
@@ -376,6 +377,36 @@ describe('privacy.crashReportMode', () => {
   it('mergeWithDefaults preserves a stored crashReportMode', () => {
     const result = (settingsService as any).mergeWithDefaults({ privacy: { crashReportMode: 'auto' } })
     expect(result.privacy.crashReportMode).toBe('auto')
+  })
+})
+
+// ── privacy.usageShareMode ────────────────────────────────────────────────────
+
+describe('privacy.usageShareMode', () => {
+  beforeEach(() => {
+    resetState()
+    injectStore()
+  })
+
+  it('defaults usageShareMode to off', () => {
+    expect(settingsService.currentSettings.privacy.usageShareMode).toBe('off')
+  })
+
+  it('persists an updated usageShareMode', async () => {
+    const ok = await settingsService.updateSettings('privacy', { usageShareMode: 'ask' })
+    expect(ok).toBe(true)
+    expect(settingsService.currentSettings.privacy.usageShareMode).toBe('ask')
+  })
+
+  it('mergeWithDefaults fills usageShareMode with off when missing from stored settings', () => {
+    const result = (settingsService as any).mergeWithDefaults({})
+    expect(result.privacy).toBeDefined()
+    expect(result.privacy.usageShareMode).toBe('off')
+  })
+
+  it('mergeWithDefaults preserves a stored usageShareMode', () => {
+    const result = (settingsService as any).mergeWithDefaults({ privacy: { crashReportMode: 'off', usageShareMode: 'auto' } })
+    expect(result.privacy.usageShareMode).toBe('auto')
   })
 })
 

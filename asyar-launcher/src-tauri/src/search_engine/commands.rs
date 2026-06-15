@@ -53,8 +53,12 @@ pub async fn get_indexed_object_ids(
 pub async fn record_item_usage(
     object_id: String,
     state: State<'_, std::sync::Arc<SearchState>>,
+    usage: State<'_, std::sync::Arc<crate::usage::UsageState>>,
 ) -> Result<(), SearchError> {
-    state.record_usage(&object_id)
+    state.record_usage(&object_id)?;
+    // Best-effort local usage record; never fail the launch on a usage write.
+    let _ = usage.record_launch(&object_id, &crate::usage::local_day());
+    Ok(())
 }
 
 #[tauri::command]

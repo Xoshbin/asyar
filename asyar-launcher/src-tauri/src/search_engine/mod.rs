@@ -506,6 +506,18 @@ impl SearchState {
         Ok(guard.iter().map(|item| item.id().to_string()).collect())
     }
 
+    /// Resolve a searchable item id (application id or `cmd_<extId>_<cmdId>`
+    /// command id) to its human display title. Returns `None` when no indexed
+    /// item carries that id, or when the index lock is poisoned. Used by the
+    /// usage-stats command to label raw ids with friendly names.
+    pub fn display_title(&self, id: &str) -> Option<String> {
+        let guard = self.items.read().ok()?;
+        guard
+            .iter()
+            .find(|item| item.id() == id)
+            .map(|item| item.get_name().to_string())
+    }
+
     /// Build the canonical search-index id for a dynamic command.
     /// Format `cmd_<extensionId>_dyn_<dynamicId>` — the `_dyn_` infix
     /// is what the TS-side resolver pattern-matches to fast-path
@@ -983,6 +995,24 @@ mod service_tests {
             results[0].name, "Arc",
             "Recently used item should rank first or equal among same-name matches"
         );
+    }
+
+    #[test]
+    fn display_title_resolves_app_and_command_returns_none_for_unknown() {
+        let state = make_state();
+        state.index_one(app("app_safari", "Safari", 0)).unwrap();
+        state
+            .index_one(cmd("cmd_org.asyar.clipboard_paste", "Paste", 0))
+            .unwrap();
+
+        assert_eq!(state.display_title("app_safari").as_deref(), Some("Safari"));
+        assert_eq!(
+            state
+                .display_title("cmd_org.asyar.clipboard_paste")
+                .as_deref(),
+            Some("Paste")
+        );
+        assert_eq!(state.display_title("app_unknown"), None);
     }
 
     #[test]

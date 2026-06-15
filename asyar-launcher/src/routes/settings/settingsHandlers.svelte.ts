@@ -87,6 +87,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   privacy: {
     crashReportMode: 'off',
+    usageShareMode: 'off',
   },
 };
 

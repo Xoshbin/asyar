@@ -39,6 +39,7 @@ pub mod sync_e2ee;
 pub mod system;
 pub mod system_events;
 pub mod timers;
+pub mod usage;
 pub mod window_management;
 
 #[cfg(test)]
