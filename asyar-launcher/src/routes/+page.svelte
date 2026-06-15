@@ -166,15 +166,17 @@
 
     // Re-check when Rust emits 'crash-report-pending' (e.g. if a second
     // launch triggers a new detection while the app is already running).
-    let unlistenCrash: (() => void) | null = null;
-    listen('crash-report-pending', () => {
+    // Hold the promise (not the resolved fn) so cleanup still unlistens even
+    // if the component unmounts before `listen` resolves.
+    const unlistenCrash = listen('crash-report-pending', () => {
       void crashPromptState.load(authService.user?.email ?? undefined);
-    })
-      .then((fn) => { unlistenCrash = fn; })
-      .catch((e) => logService.debug(`[+page] listen crash-report-pending failed: ${e}`));
+    });
+    unlistenCrash.catch((e) =>
+      logService.debug(`[+page] listen crash-report-pending failed: ${e}`),
+    );
 
     return () => {
-      unlistenCrash?.();
+      void unlistenCrash.then((unlisten) => unlisten()).catch(() => {});
     };
   });
 

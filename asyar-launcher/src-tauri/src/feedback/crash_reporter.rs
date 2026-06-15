@@ -55,8 +55,25 @@ pub fn install_panic_hook(data_dir: PathBuf) {
 
 /// Read the tail of the app log file.
 pub fn read_log_tail(log_path: &Path, max_bytes: usize) -> String {
-    let content = fs::read_to_string(log_path).unwrap_or_default();
-    super::trim_log_tail(&content, max_bytes)
+    use std::io::{Read, Seek, SeekFrom};
+    // Only read the last `max_bytes` of the file — never slurp the whole log
+    // into memory (it can grow large, and a crash report only needs the tail).
+    let mut file = match fs::File::open(log_path) {
+        Ok(f) => f,
+        Err(_) => return String::new(),
+    };
+    let len = file.metadata().map(|m| m.len()).unwrap_or(0);
+    let seek_pos = len.saturating_sub(max_bytes as u64);
+    if file.seek(SeekFrom::Start(seek_pos)).is_err() {
+        return String::new();
+    }
+    let mut buf = Vec::new();
+    if file.read_to_end(&mut buf).is_err() {
+        return String::new();
+    }
+    // Seeking to a byte offset can land mid-UTF-8-char; lossy-decode, then snap
+    // to a clean char boundary / size cap via the shared helper.
+    super::trim_log_tail(&String::from_utf8_lossy(&buf), max_bytes)
 }
 
 #[cfg(test)]
