@@ -11,6 +11,8 @@ export interface Diagnostic {
   developerDetail?: string;
   extensionId?: string;
   retryActionId?: string;
+  /** When set, the bar shows a "Report this" affordance that submits a crash report. */
+  reportActionId?: string;
 }
 
 export interface IDiagnosticsService {

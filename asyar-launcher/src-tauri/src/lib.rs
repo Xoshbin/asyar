@@ -67,6 +67,7 @@ pub mod event_hub;
 pub mod ext_builder;
 pub mod extension_tray;
 pub mod extensions;
+pub mod feedback;
 pub mod fs_watcher;
 pub mod hud_window;
 pub mod index_events;
@@ -362,6 +363,10 @@ pub fn run() {
             commands::auth_refresh_entitlements,
             commands::auth_check_entitlement,
             commands::auth_logout,
+            commands::submit_feedback,
+            commands::get_pending_crash,
+            commands::send_pending_crash,
+            commands::dismiss_pending_crash,
             commands::sync::sync_run,
             commands::sync::sync_get_status,
             commands::sync::sync_mark_tombstone,
@@ -552,8 +557,17 @@ pub fn run() {
             ext_builder::created::search_created_extensions,
             ext_builder::secret_scan::scan_extension_for_secret,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // Clear the run marker on graceful exit so the next launch does not
+            // mistake a clean shutdown for a crash.
+            if let tauri::RunEvent::Exit = event {
+                if let Ok(data_dir) = app_handle.path().app_data_dir() {
+                    feedback::crash_reporter::remove_marker(&data_dir);
+                }
+            }
+        });
 }
 
 /// Reads `settings.appearance.launchView` from `settings.dat` synchronously,
@@ -722,6 +736,111 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             let _ = tauri::Emitter::emit(&app_handle, "diagnostics:report", payload);
             log::error!("panic: {info}");
         }));
+    }
+
+    // ── Crash-report detection (next launch) ──────────────────────────────
+    // A marker file left behind from the previous run means it crashed. Read
+    // the user's consent from settings.dat and silently send / prompt / ignore.
+    // Detection MUST run before write_marker. `install_panic_hook` is called
+    // AFTER the diagnostics hook above so its `take_hook()` chains onto it
+    // (crash-file write → diagnostics emit → process default).
+    {
+        use tauri_plugin_store::StoreExt;
+        let handle = app.handle().clone();
+        app.manage(feedback::PendingCrash::default());
+
+        if let Ok(data_dir) = app.path().app_data_dir() {
+            let _ = std::fs::create_dir_all(&data_dir);
+            let marker_exists = data_dir
+                .join(feedback::crash_reporter::MARKER_FILE)
+                .exists();
+
+            if feedback::crash_reporter::crashed_last_run(marker_exists) {
+                if let Some((panic_msg, backtrace)) =
+                    feedback::crash_reporter::read_and_clear_crash(&data_dir)
+                {
+                    let log_path = app
+                        .path()
+                        .app_log_dir()
+                        .map(|d| d.join("asyar.log"))
+                        .unwrap_or_default();
+                    let log_tail =
+                        feedback::crash_reporter::read_log_tail(&log_path, 64 * 1024);
+                    let payload = feedback::CrashPayload {
+                        panic: panic_msg,
+                        backtrace,
+                        log_tail,
+                    };
+
+                    let mode = handle
+                        .store("settings.dat")
+                        .ok()
+                        .and_then(|s| s.get("settings"))
+                        .map(|v| feedback::parse_crash_report_mode(&v.to_string()))
+                        .unwrap_or(feedback::CrashReportMode::Off);
+                    let action = feedback::decide_crash_action(mode, true);
+                    log::info!(
+                        "crash-report: previous run crashed; mode={mode:?} action={action:?}"
+                    );
+
+                    match action {
+                        feedback::CrashAction::SendSilently => {
+                            let api =
+                                (*app.state::<auth::api_client::ApiClient>()).clone();
+                            let token = app
+                                .state::<auth::state::AuthState>()
+                                .token
+                                .lock()
+                                .ok()
+                                .and_then(|t| t.clone());
+                            let report = feedback::build_report(
+                                feedback::FeedbackInput {
+                                    kind: "crash".into(),
+                                    category: None,
+                                    message: None,
+                                    email: None,
+                                },
+                                Some(payload),
+                            );
+                            tauri::async_runtime::spawn(async move {
+                                match api.submit_feedback(&report, token.as_deref()).await {
+                                    Ok(()) => {
+                                        log::info!("crash-report: auto-sent crash report")
+                                    }
+                                    Err(e) => {
+                                        log::warn!("crash-report: auto-send failed: {e}")
+                                    }
+                                }
+                            });
+                        }
+                        feedback::CrashAction::Prompt => {
+                            // Only nudge the frontend once the payload is stored,
+                            // so a poisoned lock never emits a phantom prompt.
+                            if let Ok(mut slot) =
+                                app.state::<feedback::PendingCrash>().0.lock()
+                            {
+                                *slot = Some(payload);
+                                let _ = handle.emit("crash-report-pending", true);
+                                log::info!(
+                                    "crash-report: stored pending crash + emitted prompt"
+                                );
+                            }
+                        }
+                        feedback::CrashAction::Ignore => {
+                            log::info!("crash-report: consent is Off — ignoring crash");
+                        }
+                    }
+                } else {
+                    log::info!(
+                        "crash-report: run marker present but no last_crash.json \
+                         (force-quit/kill rather than a panic) — nothing to report"
+                    );
+                }
+            }
+
+            feedback::crash_reporter::write_marker(&data_dir);
+            feedback::crash_reporter::install_panic_hook(data_dir);
+        }
     }
 
     // Notification-action registry. Each `notifications:send` with actions

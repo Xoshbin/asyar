@@ -53,6 +53,7 @@ pub struct TokenRefreshResponse {
 /// Holds the base URL and a shared reqwest::Client (which is Arc-backed
 /// internally and safe to clone/share across threads). Register one instance
 /// as Tauri managed state so every command handler receives the same client.
+#[derive(Clone)]
 pub struct ApiClient {
     base_url: String,
     client: reqwest::Client,
@@ -407,6 +408,36 @@ impl ApiClient {
             .await?)
     }
 
+    /// POST /api/feedback — submit user feedback or a crash report.
+    ///
+    /// The bearer token is attached only when the user is signed in (`token`
+    /// is `Some`); anonymous submissions are accepted by the server too.
+    ///
+    /// # Errors
+    /// - Network / serde failures propagate via `?` as `AppError::Network`.
+    /// - Non-2xx responses return `AppError::Other` with the status code.
+    pub async fn submit_feedback(
+        &self,
+        report: &crate::feedback::FeedbackReport,
+        token: Option<&str>,
+    ) -> Result<(), AppError> {
+        let mut req = self
+            .client
+            .post(format!("{}/api/feedback", self.base_url))
+            .json(report);
+        if let Some(t) = token {
+            req = req.bearer_auth(t);
+        }
+        let response = req.send().await?;
+        if !response.status().is_success() {
+            return Err(AppError::Other(format!(
+                "feedback submit failed: {}",
+                response.status()
+            )));
+        }
+        Ok(())
+    }
+
     /// DELETE /api/sync/e2ee/state — disable E2EE on the server. Idempotent.
     pub async fn delete_e2ee_state(&self, token: &str) -> Result<(), AppError> {
         let url = format!("{}/api/sync/e2ee/state", self.base_url);
@@ -590,6 +621,70 @@ mod tests {
 
         let result = client.push_items_batch("my-token", &request).await;
         assert!(matches!(result, Err(AppError::Validation(_))));
+    }
+
+    // ── submit_feedback ──────────────────────────────────────────────────────
+
+    fn sample_report() -> crate::feedback::FeedbackReport {
+        crate::feedback::FeedbackReport {
+            kind: "feedback".to_string(),
+            category: Some("idea".to_string()),
+            message: Some("great app".to_string()),
+            email: Some("me@example.com".to_string()),
+            payload: None,
+            app_version: "1.2.3".to_string(),
+            platform: "macos-aarch64".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn submit_feedback_attaches_bearer_token_when_present() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/feedback")
+            .match_header("Authorization", "Bearer tok")
+            .with_status(200)
+            .create_async()
+            .await;
+
+        let report = sample_report();
+        let result = client.submit_feedback(&report, Some("tok")).await;
+        assert!(result.is_ok(), "expected Ok, got {result:?}");
+    }
+
+    #[tokio::test]
+    async fn submit_feedback_sends_no_auth_header_when_token_absent() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/feedback")
+            .match_header("Authorization", mockito::Matcher::Missing)
+            .with_status(200)
+            .create_async()
+            .await;
+
+        let report = sample_report();
+        let result = client.submit_feedback(&report, None).await;
+        assert!(result.is_ok(), "expected Ok, got {result:?}");
+    }
+
+    #[tokio::test]
+    async fn submit_feedback_rejects_500_response_as_other_error() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/feedback")
+            .with_status(500)
+            .create_async()
+            .await;
+
+        let report = sample_report();
+        let result = client.submit_feedback(&report, Some("tok")).await;
+        assert!(matches!(result, Err(AppError::Other(_))));
     }
 
     // ── pull_items_since ─────────────────────────────────────────────────────

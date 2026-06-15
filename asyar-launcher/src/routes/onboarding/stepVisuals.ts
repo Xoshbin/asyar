@@ -17,4 +17,5 @@ export const STEP_VISUALS: Record<OnboardingStepKind, StepVisual> = {
   featuredExtensions: { image: '/onboarding/feature-extensions-hero.png',        lean: 'right' },
   pickTheme:          { image: '/onboarding/settings-general.png',               lean: 'left'  },
   cheatSheet:         { image: '/onboarding/keyboard-shortcuts-help.png',        lean: 'right' },
+  privacyConsent:     { image: '/onboarding/getting-started-hero.png',           lean: 'right' },
 }

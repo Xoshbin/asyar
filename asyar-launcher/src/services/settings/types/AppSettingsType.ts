@@ -52,6 +52,13 @@ export interface AppSettings {
   };
   ai: AISettings;
   developer?: DeveloperSettings;
+  privacy: PrivacySettings;
+}
+
+export type CrashReportMode = 'off' | 'ask' | 'auto';
+
+export interface PrivacySettings {
+  crashReportMode: CrashReportMode;
 }
 
 export interface DeveloperSettings {

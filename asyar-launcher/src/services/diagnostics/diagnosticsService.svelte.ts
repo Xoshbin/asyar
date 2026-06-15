@@ -13,6 +13,8 @@ export class DiagnosticsService implements IDiagnosticsService {
   private clearTimer: ReturnType<typeof setTimeout> | null = null;
   private retryRegistry = new Map<string, () => Promise<void>>();
   private retryCounter = 0;
+  private reportHandlers = new Map<string, () => Promise<void>>();
+  private reportSeq = 0;
   private lastKindAt = new Map<string, number>();
   private readonly COALESCE_WINDOW_MS = 1000;
   // Monotonic counter used by the auto-clear timer to detect "is the
@@ -69,12 +71,25 @@ export class DiagnosticsService implements IDiagnosticsService {
     await fn();
   }
 
+  registerReport(fn: () => Promise<void>): string {
+    const id = `report-${++this.reportSeq}`;
+    this.reportHandlers.set(id, fn);
+    return id;
+  }
+
+  async triggerReport(id: string): Promise<void> {
+    const fn = this.reportHandlers.get(id);
+    if (fn) await fn();
+  }
+
   reset(): void {
     this.clearAutoClearTimer();
     this.currentEpoch++;
     this.current = null;
     this.retryRegistry.clear();
     this.retryCounter = 0;
+    this.reportHandlers.clear();
+    this.reportSeq = 0;
     this.lastKindAt.clear();
   }
 

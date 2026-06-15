@@ -57,6 +57,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   extensions: {
     enabled: {}
   },
+  onboarding: {
+    completed: false,
+  },
   updates: {
     channel: "stable" as const,
     autoCheck: true,
@@ -81,6 +84,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     verboseLogging: false,
     tracing: false,
     allowSideloading: false,
+  },
+  privacy: {
+    crashReportMode: 'off',
   },
 };
 

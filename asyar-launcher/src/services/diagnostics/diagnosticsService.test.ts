@@ -62,4 +62,17 @@ describe('diagnosticsService', () => {
     diagnosticsService.report(make({ kind: 'manual', severity: 'info' }));
     expect(diagnosticsService.current?.kind).toBe('manual');
   });
+
+  it('registers a report handler and returns an id', () => {
+    const id = diagnosticsService.registerReport(async () => {});
+    expect(typeof id).toBe('string');
+    expect(id.length).toBeGreaterThan(0);
+  });
+
+  it('triggers the registered report handler', async () => {
+    const fn = vi.fn().mockResolvedValue(undefined);
+    const id = diagnosticsService.registerReport(fn);
+    await diagnosticsService.triggerReport(id);
+    expect(fn).toHaveBeenCalled();
+  });
 });

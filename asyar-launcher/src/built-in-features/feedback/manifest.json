@@ -1,0 +1,20 @@
+{
+  "id": "feedback",
+  "name": "Send Feedback",
+  "icon": "icon:info",
+  "version": "1.0.0",
+  "description": "Send feedback, feature ideas, or report a problem to the Asyar team",
+  "type": "extension",
+  "searchable": true,
+  "commands": [
+    {
+      "id": "send-feedback",
+      "name": "Send Feedback",
+      "description": "Share an idea, praise, or a bug report",
+      "trigger": "feedback idea bug report contact",
+      "icon": "icon:info",
+      "mode": "view",
+      "component": "DefaultView"
+    }
+  ]
+}
