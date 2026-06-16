@@ -15,6 +15,9 @@ importers:
       '@testing-library/svelte':
         specifier: ^5.3.1
         version: 5.3.1(svelte@5.55.9(@typescript-eslint/types@8.59.4))(vite@6.2.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0))(vitest@4.1.7(@types/node@25.9.1)(jsdom@29.1.1)(vite@6.2.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0)))
+      semver:
+        specifier: ^7.6.0
+        version: 7.8.1
 
   asyar-launcher:
     dependencies:

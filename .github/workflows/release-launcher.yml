@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing v* tag to (re-)release (re-runs the full build + publish)'
+        required: true
+
+concurrency:
+  group: release-launcher-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   test-and-lint:
@@ -33,6 +42,8 @@ jobs:
         working-directory: asyar-launcher
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -133,6 +144,8 @@ jobs:
         working-directory: asyar-launcher
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -202,6 +215,8 @@ jobs:
         working-directory: asyar-launcher
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
 
       - name: Install Linux system dependencies
         working-directory: .
@@ -281,6 +296,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8
@@ -300,6 +317,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2.6.1
         with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           files: |
             artifacts/**/*.dmg
             artifacts/**/*.app.tar.gz*
@@ -308,14 +326,14 @@ jobs:
             artifacts/**/*.AppImage
             artifacts/**/*.AppImage.sig
           draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
           generate_release_notes: true
 
       - name: Notify Website
         env:
           ASYAR_UPDATE_TOKEN: ${{ secrets.ASYAR_UPDATE_TOKEN }}
           APP_URL: "https://asyar.org"
-          REF_NAME: ${{ github.ref_name }}
+          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
           VERSION="${REF_NAME#v}"
@@ -381,7 +399,11 @@ jobs:
             "$BASE_URL" "$LINUX_FILE" "$LINUX_SIG" \
             "$BASE_URL" "$LINUX_ARM64_FILE" "$LINUX_ARM64_SIG")
 
-          curl -X POST "$APP_URL/api/releases" \
+          # --fail-with-body: non-2xx → non-zero exit (no more silent failures).
+          # Retries cover transient asyar.org/network blips; the endpoint upserts
+          # by version (Release::updateOrCreate), so retries are safe.
+          curl --fail-with-body --retry 3 --retry-all-errors --retry-delay 5 \
+            -X POST "$APP_URL/api/releases" \
             -H "Content-Type: application/json" \
             -H "X-Asyar-Update-Token: $ASYAR_UPDATE_TOKEN" \
             -d "$PAYLOAD"
