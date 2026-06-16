@@ -30,7 +30,7 @@
     "test:run": "vitest run",
     "lint": "eslint src --ext .ts",
     "watch": "tsc --watch",
-    "release": "node scripts/release.js"
+    "release": "node scripts/release.mjs"
   },
   "keywords": [
     "asyar",

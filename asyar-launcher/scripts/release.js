@@ -1,170 +1,114 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { resolve, dirname } from 'path'
-import { execSync } from 'child_process'
-import { fileURLToPath } from 'url'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import semver from 'semver'
+import {
+  VERSION_KEYWORDS, computeNextVersion, makeExec,
+  assertCleanTree, assertTagNotOnRemote, syncLockfile, releaseViaPr,
+} from '../../scripts/release-lib.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const root = resolve(__dirname, '..')
+const root = resolve(__dirname, '..')              // asyar-launcher/
+const monorepoRoot = resolve(root, '..')           // repo root
 
-// ── Read current version ─────────────────────────────────────────────────────
+const argv = process.argv.slice(2)
+const dryRun = argv.includes('--dry-run')
+const input = argv.find((a) => !a.startsWith('--'))
+if (!input) {
+  console.error(`Usage: pnpm run release <${VERSION_KEYWORDS.join('|')}|x.y.z> [--dry-run]`)
+  process.exit(1)
+}
+
+const exec = makeExec({ dryRun })
+
 const pkgPath = resolve(root, 'package.json')
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
-const currentVersion = pkg.version
 
-// ── Validate argument ────────────────────────────────────────────────────────
-const input = process.argv[2]
-const keywords = ['patch', 'minor', 'major', 'beta']
-
-if (!input) {
-  console.error(`Usage: pnpm run release <${keywords.join('|')}|x.y.z>`)
-  process.exit(1)
-}
-
-let version = input
-
-if (keywords.includes(input)) {
-  if (input === 'beta') {
-    if (currentVersion.includes('-')) {
-      version = semver.inc(currentVersion, 'prerelease')
-    } else {
-      version = semver.inc(currentVersion, 'prepatch')
-    }
-  } else {
-    version = semver.inc(currentVersion, input)
-  }
-  console.log(`Calculating ${input} bump: ${currentVersion} → ${version}`)
-} else {
-  // Manual version input validation
-  // Windows MSI (WiX) requires any pre-release identifier to be numeric-only and <= 65535.
-  if (!/^\d+\.\d+\.\d+(-[0-9]+(\.[0-9]+)*)?$/.test(input)) {
-    console.error(`Invalid version: "${input}"`)
-    console.error('\nError: Windows compatibility requires any pre-release suffix to be numeric-only.')
-    console.error('Use "0.1.0-1" instead of "0.1.0-beta".')
-    process.exit(1)
-  }
-}
-
-// ── Pre-flight checks ───────────────────────────────────────────────────────
-const dirty = execSync('git status --porcelain', { cwd: root }).toString().trim()
-if (dirty) {
-  console.error('Working tree is not clean. Commit or stash changes before releasing.')
-  process.exit(1)
-}
-
-// Abort early if this version was already released (tag exists on remote)
-const remoteTag = execSync(`git ls-remote --tags origin refs/tags/v${version}`, { cwd: root, stdio: 'pipe' }).toString().trim()
-if (remoteTag) {
-  console.error(`\n✖ Tag v${version} already exists on the remote.`)
-  console.error('  This version has already been released. Merge the release PR into main')
-  console.error('  so the next release bumps correctly, or specify a higher version manually:')
-  console.error(`  pnpm run release ${semver.inc(version, 'prerelease')}`)
-  process.exit(1)
-}
-
-// ── Fetch SDK latest version ──────────────────────────────────────────────────
-console.log('Fetching latest asyar-sdk version from NPM...')
-let latestSdk = ''
+let version
 try {
-  latestSdk = execSync('npm view asyar-sdk version', { stdio: 'pipe' }).toString().trim()
-  console.log(`✓ Latest SDK on NPM: ${latestSdk}`)
+  version = computeNextVersion(pkg.version, input)
 } catch (e) {
-  console.error('Failed to fetch asyar-sdk version from NPM. Aborting.')
+  console.error(e.message)
   process.exit(1)
 }
-
-console.log(`\nBumping Launcher version → ${version}\n`)
-
-// ── 1. package.json ──────────────────────────────────────────────────────────
-pkg.version = version
-if (pkg.dependencies && pkg.dependencies['asyar-sdk']) {
-  pkg.dependencies['asyar-sdk'] = `^${latestSdk}`
-}
-if (pkg.devDependencies && pkg.devDependencies['asyar-sdk']) {
-  pkg.devDependencies['asyar-sdk'] = `^${latestSdk}`
-}
-writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
-console.log('✓ package.json')
-
-// ── 2. Update Scaffold Fallback ─────────────────────────────────────────────
-const scaffoldPath = resolve(root, 'src', 'built-in-features', 'create-extension', 'scaffoldService.ts')
-let scaffoldUpdated = false
-if (existsSync(scaffoldPath)) {
-  let scaffold = readFileSync(scaffoldPath, 'utf8')
-  const updated = scaffold.replace(/return '\^[\d.]+';(\s*\/\/ Offline fallback)?/, `return '^${latestSdk}'; // Offline fallback`)
-  if (updated !== scaffold) {
-    writeFileSync(scaffoldPath, updated)
-    scaffoldUpdated = true
-    console.log('✓ scaffoldService.ts')
-  }
-}
-
-// ── 3. Update Discovery SDK Version ─────────────────────────────────────────
-const discoveryPath = resolve(root, 'src-tauri', 'src', 'extensions', 'discovery.rs')
-let discoveryUpdated = false
-if (existsSync(discoveryPath)) {
-  const content = readFileSync(discoveryPath, 'utf8')
-  const updated = content.replace(/const SUPPORTED_SDK_VERSION: &str = "[^"]*";/, `const SUPPORTED_SDK_VERSION: &str = "${latestSdk}";`)
-  if (updated !== content) {
-    writeFileSync(discoveryPath, updated)
-    discoveryUpdated = true
-    console.log('✓ src-tauri/src/extensions/discovery.rs')
-  }
-}
-
-// ── 4. src-tauri/Cargo.toml ──────────────────────────────────────────────────
-// Replace only the first bare `version = "..."` line — always the [package] version.
-const cargoPath = resolve(root, 'src-tauri/Cargo.toml')
-const cargo = readFileSync(cargoPath, 'utf8')
-const updatedCargo = cargo.replace(/^version = ".*"$/m, `version = "${version}"`)
-if (updatedCargo === cargo) {
-  console.error('Could not find version line in Cargo.toml — aborting')
-  process.exit(1)
-}
-writeFileSync(cargoPath, updatedCargo)
-console.log('✓ src-tauri/Cargo.toml')
-
-// ── 5. Update Cargo.lock ─────────────────────────────────────────────────────
-console.log('\nSyncing src-tauri/Cargo.lock...')
-execSync('cargo update -p asyar', { cwd: resolve(root, 'src-tauri'), stdio: 'inherit' })
-console.log('✓ src-tauri/Cargo.lock')
-
-// ── 6. Update workspace lockfile (at the monorepo root) ──────────────────────
-console.log('\nSyncing workspace pnpm-lock.yaml...')
-execSync('pnpm install', { cwd: resolve(root, '..'), stdio: 'inherit' })
-console.log('✓ workspace pnpm-lock.yaml synced')
-
-// ── 7. Git commit + tag + push ───────────────────────────────────────────────
 const tag = `v${version}`
-const releaseBranch = `release/${tag}`
-const filesToAdd = ['package.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', '../pnpm-lock.yaml']
-if (scaffoldUpdated) filesToAdd.push('src/built-in-features/create-extension/scaffoldService.ts')
-if (discoveryUpdated) filesToAdd.push('src-tauri/src/extensions/discovery.rs')
 
-// Clean up local leftovers from a previous failed release (always safe)
-try { execSync(`git branch -D ${releaseBranch}`, { cwd: root, stdio: 'pipe' }) } catch {}
-try { execSync(`git tag -d ${tag}`, { cwd: root, stdio: 'pipe' }) } catch {}
+// Single source of truth for the SDK version: the local SDK package.json.
+// (No `npm view` — the workspace override means the launcher always builds the
+//  local SDK, and src-tauri/build.rs already injects ASYAR_SDK_VERSION from it.)
+const sdkVersion = JSON.parse(
+  readFileSync(resolve(monorepoRoot, 'asyar-sdk', 'package.json'), 'utf8'),
+).version
+console.log(`Launcher release: ${pkg.version} → ${version} (tag ${tag}) · local SDK ${sdkVersion}${dryRun ? '  [dry-run]' : ''}`)
 
-execSync(`git checkout -b ${releaseBranch}`, { cwd: root, stdio: 'inherit' })
-execSync(`git add ${filesToAdd.join(' ')}`, { cwd: root, stdio: 'inherit' })
-execSync(`git commit -m "chore: release ${version} & sync sdk ${latestSdk}"`, { cwd: root, stdio: 'inherit' })
-execSync(`git tag ${tag}`, { cwd: root, stdio: 'inherit' })
-execSync(`git push origin ${releaseBranch} ${tag}`, { cwd: root, stdio: 'inherit' })
-
-// Create PR via GitHub CLI
 try {
-  const prUrl = execSync(
-    `gh pr create --base main --head ${releaseBranch} --title "chore: release ${version}" --body "Release ${version} & sync SDK ${latestSdk}"`,
-    { cwd: root, stdio: 'pipe' }
-  ).toString().trim()
-  console.log(`\n✓ Release PR created: ${prUrl}`)
-  console.log(`  Tag ${tag} pushed — merge the PR to complete the release.\n`)
-} catch (e) {
-  console.log(`\n✓ Branch ${releaseBranch} and tag ${tag} pushed.`)
-  console.log(`  Create a PR manually to merge into main.\n`)
-}
+  assertCleanTree(exec, root)
+  assertTagNotOnRemote(exec, tag, root)
 
-// Switch back to main
-execSync('git checkout main', { cwd: root, stdio: 'inherit' })
+  const filesToAdd = ['package.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', '../pnpm-lock.yaml']
+
+  if (dryRun) {
+    console.log(`[dry-run] would bump package.json → ${version}, pin asyar-sdk → ^${sdkVersion}`)
+    console.log('[dry-run] would update scaffoldService.ts offline fallback, Cargo.toml, Cargo.lock')
+  } else {
+    // 1. package.json: version + declared SDK dep
+    pkg.version = version
+    if (pkg.dependencies?.['asyar-sdk']) pkg.dependencies['asyar-sdk'] = `^${sdkVersion}`
+    if (pkg.devDependencies?.['asyar-sdk']) pkg.devDependencies['asyar-sdk'] = `^${sdkVersion}`
+    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
+    console.log('✓ package.json')
+
+    // 2. scaffoldService.ts offline fallback (live regex target)
+    const scaffoldPath = resolve(root, 'src', 'built-in-features', 'create-extension', 'scaffoldService.ts')
+    if (existsSync(scaffoldPath)) {
+      const before = readFileSync(scaffoldPath, 'utf8')
+      const after = before.replace(/return '\^[\d.]+';(\s*\/\/ Offline fallback)?/, `return '^${sdkVersion}'; // Offline fallback`)
+      if (after !== before) {
+        writeFileSync(scaffoldPath, after)
+        filesToAdd.push('src/built-in-features/create-extension/scaffoldService.ts')
+        console.log('✓ scaffoldService.ts')
+      }
+    }
+
+    // NOTE: discovery.rs / SUPPORTED_SDK_VERSION is handled at compile time by
+    // src-tauri/build.rs (reads node_modules/asyar-sdk/package.json). No patch here.
+
+    // 3. Cargo.toml [package] version (first bare version line only)
+    const cargoPath = resolve(root, 'src-tauri/Cargo.toml')
+    const cargo = readFileSync(cargoPath, 'utf8')
+    const updatedCargo = cargo.replace(/^version = ".*"$/m, `version = "${version}"`)
+    if (updatedCargo === cargo) {
+      console.error('Could not find version line in Cargo.toml — aborting')
+      process.exit(1)
+    }
+    writeFileSync(cargoPath, updatedCargo)
+    console.log('✓ src-tauri/Cargo.toml')
+
+    // 4. Cargo.lock
+    exec.run('cargo update -p asyar', resolve(root, 'src-tauri'))
+    console.log('✓ src-tauri/Cargo.lock')
+  }
+
+  syncLockfile(exec, monorepoRoot)
+
+  const prUrl = releaseViaPr(exec, {
+    cwd: root,
+    tag,
+    branch: `release/${tag}`,
+    files: filesToAdd,
+    commitMessage: `chore: release ${version}`,
+    prTitle: `chore: release ${version}`,
+    prBody: `Launcher release ${version} (SDK ${sdkVersion}). The tag already triggered the build; merge to land the bump on main.`,
+  })
+
+  if (dryRun) {
+    console.log('\n[dry-run] no changes pushed.')
+  } else {
+    console.log(`\n✓ ${tag} pushed.${prUrl ? ` PR: ${prUrl}` : ' Open a PR manually.'}`)
+    console.log('  release-launcher.yml will build all 6 targets, publish, and notify asyar.org.')
+  }
+} catch (e) {
+  console.error(`\n✖ ${e.message}`)
+  process.exit(1)
+}

@@ -83,7 +83,7 @@ After editing SDK source, run `pnpm run build:all` — changes are instantly ava
 
 ### Releasing
 
-SDK releases are tag-based. From inside `asyar-sdk/`, run `pnpm run release <patch|minor|major|beta|x.y.z>` — the script bumps the version, commits, tags as `sdk-v*`, and pushes. The `release-sdk.yml` workflow then builds, publishes to npm, and creates a GitHub Release. Full flow documented at [the monorepo's RELEASING.md](../RELEASING.md#releasing-the-sdk-npm-package).
+SDK releases are tag-based. From inside `asyar-sdk/`, run `pnpm run release <patch|minor|major|beta|x.y.z>` (add `--dry-run` to preview) — the script bumps the version, opens a `release/sdk-v*` PR, and pushes the `sdk-v*` tag. The `release-sdk.yml` workflow then builds, publishes to npm (idempotent — safe to re-run), and creates a GitHub Release. Full flow and failure recovery documented at [the monorepo's RELEASING.md](../RELEASING.md#releasing-the-sdk-npm-package).
 
 ## Usage
 
