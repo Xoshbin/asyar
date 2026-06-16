@@ -34,6 +34,10 @@
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import CrashReportPrompt from '../components/feedback/CrashReportPrompt.svelte';
   import { crashPromptState } from '../services/feedback/crashPromptState.svelte';
+  import UsageSharePrompt from '../components/feedback/UsageSharePrompt.svelte';
+  import { usageSharePromptState } from '../services/feedback/usageSharePromptState.svelte';
+  import { recordActiveDay } from '../lib/ipc/commands';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
   import { authService } from '../services/auth/authService.svelte';
   import '../resources/styles/style.css';
 
@@ -177,6 +181,32 @@
 
     return () => {
       void unlistenCrash.then((unlisten) => unlisten()).catch(() => {});
+    };
+  });
+
+  // Ask-mode usage share: Rust emits 'usage:pending-share' with the day to
+  // confirm. Show the banner; the user decides whether to send.
+  $effect(() => {
+    const unlisten = listen<string>('usage:pending-share', (e) => {
+      usageSharePromptState.show(e.payload);
+    });
+    unlisten.catch((e) =>
+      logService.debug(`[+page] listen usage:pending-share failed: ${e}`),
+    );
+    return () => {
+      void unlisten.then((fn) => fn()).catch(() => {});
+    };
+  });
+
+  // Usage heartbeat: record an active day on startup and whenever the window
+  // regains focus. Rust dedupes to one heartbeat/day, so this is cheap.
+  $effect(() => {
+    void recordActiveDay();
+    const promise = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      if (focused) void recordActiveDay();
+    });
+    return () => {
+      void promise.then((unlisten) => unlisten()).catch(() => {});
     };
   });
 
@@ -324,6 +354,7 @@
   <DialogHost />
   <FatalErrorDialog />
   <CrashReportPrompt />
+  <UsageSharePrompt />
 
   {#if import.meta.env.DEV || developerSettingsService.showInspector}
     {#await import('../components/dev/InspectorShell.svelte') then InspectorShellModule}

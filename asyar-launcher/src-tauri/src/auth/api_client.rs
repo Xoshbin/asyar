@@ -438,6 +438,30 @@ impl ApiClient {
         Ok(())
     }
 
+    /// POST /api/usage — anonymous aggregate usage ping. No bearer token.
+    ///
+    /// # Errors
+    /// - Network / serde failures propagate via `?` as `AppError::Network`.
+    /// - Non-2xx responses return `AppError::Other` with the status code.
+    pub async fn submit_usage_ping(
+        &self,
+        payload: &crate::usage::sender::UsagePingPayload,
+    ) -> Result<(), AppError> {
+        let response = self
+            .client
+            .post(format!("{}/api/usage", self.base_url))
+            .json(payload)
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            return Err(AppError::Other(format!(
+                "usage ping failed: {}",
+                response.status()
+            )));
+        }
+        Ok(())
+    }
+
     /// DELETE /api/sync/e2ee/state — disable E2EE on the server. Idempotent.
     pub async fn delete_e2ee_state(&self, token: &str) -> Result<(), AppError> {
         let url = format!("{}/api/sync/e2ee/state", self.base_url);
@@ -1033,5 +1057,78 @@ mod tests {
             assert!(matches!(result, Err(AppError::Auth(_))));
             mock.assert_async().await;
         }
+    }
+
+    // ── submit_usage_ping ────────────────────────────────────────────────────
+
+    fn sample_usage_payload() -> crate::usage::sender::UsagePingPayload {
+        let mut launches = std::collections::HashMap::new();
+        launches.insert("org.asyar.calculator".to_string(), 12u32);
+        crate::usage::sender::UsagePingPayload {
+            anon_id: "anon-abc".into(),
+            period: "2026-06-15".into(),
+            app_version: "0.1.0".into(),
+            platform: "macos-aarch64".into(),
+            active: true,
+            launches,
+        }
+    }
+
+    #[tokio::test]
+    async fn submit_usage_ping_posts_expected_json() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/usage")
+            .match_header("Content-Type", "application/json")
+            .match_body(mockito::Matcher::Json(serde_json::json!({
+                "anon_id": "anon-abc",
+                "period": "2026-06-15",
+                "app_version": "0.1.0",
+                "platform": "macos-aarch64",
+                "active": true,
+                "launches": { "org.asyar.calculator": 12 }
+            })))
+            .with_status(201)
+            .create_async()
+            .await;
+
+        let result = client.submit_usage_ping(&sample_usage_payload()).await;
+        assert!(result.is_ok(), "expected Ok, got {result:?}");
+    }
+
+    #[tokio::test]
+    async fn submit_usage_ping_rejects_500_response() {
+        let mut server = Server::new_async().await;
+        let client = ApiClient::with_base(server.url());
+
+        let _m = server
+            .mock("POST", "/api/usage")
+            .with_status(500)
+            .create_async()
+            .await;
+
+        let result = client.submit_usage_ping(&sample_usage_payload()).await;
+        assert!(matches!(result, Err(AppError::Other(_))));
+    }
+
+    #[test]
+    fn usage_ping_payload_serializes_expected_shape() {
+        let mut launches = std::collections::HashMap::new();
+        launches.insert("org.asyar.calculator".to_string(), 12u32);
+        let p = crate::usage::sender::UsagePingPayload {
+            anon_id: "abc".into(),
+            period: "2026-06-15".into(),
+            app_version: "0.1.0".into(),
+            platform: "macos-aarch64".into(),
+            active: true,
+            launches,
+        };
+        let json = serde_json::to_value(&p).unwrap();
+        assert_eq!(json["anon_id"], "abc");
+        assert_eq!(json["period"], "2026-06-15");
+        assert_eq!(json["active"], true);
+        assert_eq!(json["launches"]["org.asyar.calculator"], 12);
     }
 }

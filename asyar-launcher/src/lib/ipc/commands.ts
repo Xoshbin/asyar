@@ -1654,3 +1654,15 @@ export async function sendPendingCrash(email: string): Promise<void> {
 export async function dismissPendingCrash(): Promise<void> {
   return invoke('dismiss_pending_crash');
 }
+
+// ── Usage insights ────────────────────────────────────────────────────────────
+
+export interface UsageTopItem { id: string; label?: string | null; count: number }
+export interface UsageStats { activeDays: number; totalLaunches: number; top: UsageTopItem[] }
+export async function getUsageStats(): Promise<UsageStats> { return invoke('get_usage_stats'); }
+export async function recordActiveDay(): Promise<void> { return invoke('record_active_day'); }
+export async function getUsageAnonId(): Promise<string> { return invoke('get_usage_anon_id'); }
+export async function resetUsageAnonId(): Promise<string> { return invoke('reset_usage_anon_id'); }
+export async function sendPendingUsage(day: string): Promise<void> { return invoke('send_pending_usage', { day }); }
+/** Explicit user action: send today's usage snapshot now. Returns the count of distinct launch entries sent. */
+export async function sendUsageNow(): Promise<number> { return invoke('send_usage_now'); }

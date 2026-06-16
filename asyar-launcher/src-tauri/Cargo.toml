@@ -78,6 +78,7 @@ notify = "8"                       # Filesystem watcher — drives auto-rescan o
 notify-debouncer-full = "0.7"      # Coalesces app-install fs-event bursts into one rescan
 globset = "0.4"                    # Glob pattern matching for fs:watch permission patterns
 async-trait = "0.1"
+chrono = "0.4"                     # Local-date formatting for usage rollups (YYYY-MM-DD)
 evalexpr = "12"
 axum = { version = "0.7", features = ["ws"] }
 

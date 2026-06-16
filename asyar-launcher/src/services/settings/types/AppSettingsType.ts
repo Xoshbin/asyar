@@ -56,9 +56,11 @@ export interface AppSettings {
 }
 
 export type CrashReportMode = 'off' | 'ask' | 'auto';
+export type UsageShareMode = 'off' | 'ask' | 'auto';
 
 export interface PrivacySettings {
   crashReportMode: CrashReportMode;
+  usageShareMode: UsageShareMode;
 }
 
 export interface DeveloperSettings {

@@ -4,6 +4,7 @@
   import SecretRedactionSection from '../../../components/settings/SecretRedactionSection.svelte';
   import EncryptionStatusSection from '../../../components/settings/EncryptionStatusSection.svelte';
   import CrashReportSection from '../../../components/settings/CrashReportSection.svelte';
+  import UsageShareSection from '../../../components/settings/UsageShareSection.svelte';
   import { clipboardPrivacyService } from '../../../services/privacy/clipboardPrivacyService.svelte';
   import { secretRedactionService } from '../../../services/privacy/secretRedactionService.svelte';
   import { encryptionService } from '../../../services/privacy/encryptionService.svelte';
@@ -22,6 +23,7 @@
 <div class="privacy-tab">
   <EncryptionStatusSection />
   <CrashReportSection />
+  <UsageShareSection />
   <ClipboardPrivacySection />
   <SecretRedactionSection />
 </div>
