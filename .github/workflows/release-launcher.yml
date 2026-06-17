@@ -349,6 +349,11 @@ jobs:
           # artifact dirs so different-arch builds don't get cross-picked.
           MAC_AARCH64_FILE_PATH=$(find artifacts/macos-arm64-artifacts -name "*.app.tar.gz" | head -n 1)
           MAC_X64_FILE_PATH=$(find artifacts/macos-x64-artifacts -name "*.app.tar.gz" | head -n 1)
+          # The .app.tar.gz above is the updater bundle (fed to the Tauri
+          # updater via `url`). Users clicking "Download" want the installable
+          # .dmg instead, exposed separately as `download_url`.
+          MAC_AARCH64_DMG_PATH=$(find artifacts/macos-arm64-artifacts -name "*.dmg" | head -n 1)
+          MAC_X64_DMG_PATH=$(find artifacts/macos-x64-artifacts -name "*.dmg" | head -n 1)
           WIN_X64_FILE_PATH=$(find artifacts/windows-artifacts -name "*.msi" | head -n 1)
           WIN_ARM64_FILE_PATH=$(find artifacts/windows-arm64-artifacts -name "*.msi" | head -n 1)
           LINUX_FILE_PATH=$(find artifacts/linux-amd64-artifacts -name "*.AppImage" | head -n 1)
@@ -361,8 +366,8 @@ jobs:
           LINUX_SIG_PATH=$(find artifacts/linux-amd64-artifacts -name "*.AppImage.sig" | head -n 1)
           LINUX_ARM64_SIG_PATH=$(find artifacts/linux-arm64-artifacts -name "*.AppImage.sig" | head -n 1)
 
-          if [[ -z "$MAC_AARCH64_FILE_PATH" || -z "$MAC_X64_FILE_PATH" || -z "$WIN_X64_FILE_PATH" || -z "$WIN_ARM64_FILE_PATH" || -z "$LINUX_FILE_PATH" || -z "$LINUX_ARM64_FILE_PATH" ]]; then
-            echo "Error: Binaries missing in artifacts. Note: macOS requires per-arch .app.tar.gz (arm64 + x64)"
+          if [[ -z "$MAC_AARCH64_FILE_PATH" || -z "$MAC_X64_FILE_PATH" || -z "$MAC_AARCH64_DMG_PATH" || -z "$MAC_X64_DMG_PATH" || -z "$WIN_X64_FILE_PATH" || -z "$WIN_ARM64_FILE_PATH" || -z "$LINUX_FILE_PATH" || -z "$LINUX_ARM64_FILE_PATH" ]]; then
+            echo "Error: Binaries missing in artifacts. Note: macOS requires per-arch .app.tar.gz + .dmg (arm64 + x64)"
             ls -R artifacts
             exit 1
           fi
@@ -382,6 +387,8 @@ jobs:
 
           MAC_AARCH64_FILE=$(basename "$MAC_AARCH64_FILE_PATH")
           MAC_X64_FILE=$(basename "$MAC_X64_FILE_PATH")
+          MAC_AARCH64_DMG=$(basename "$MAC_AARCH64_DMG_PATH")
+          MAC_X64_DMG=$(basename "$MAC_X64_DMG_PATH")
           WIN_X64_FILE=$(basename "$WIN_X64_FILE_PATH")
           WIN_ARM64_FILE=$(basename "$WIN_ARM64_FILE_PATH")
           LINUX_FILE=$(basename "$LINUX_FILE_PATH")
@@ -390,10 +397,10 @@ jobs:
           TAG="$REF_NAME"
           BASE_URL="https://github.com/$REPO/releases/download/$TAG"
 
-          PAYLOAD=$(printf '{"version":"%s","type":"%s","notes":"Automated multi-platform release %s","platforms":{"darwin-aarch64":{"url":"%s/%s","signature":"%s"},"darwin-x86_64":{"url":"%s/%s","signature":"%s"},"windows-x86_64":{"url":"%s/%s","signature":"%s"},"windows-aarch64":{"url":"%s/%s","signature":"%s"},"linux-x86_64":{"url":"%s/%s","signature":"%s"},"linux-aarch64":{"url":"%s/%s","signature":"%s"}}}' \
+          PAYLOAD=$(printf '{"version":"%s","type":"%s","notes":"Automated multi-platform release %s","platforms":{"darwin-aarch64":{"url":"%s/%s","download_url":"%s/%s","signature":"%s"},"darwin-x86_64":{"url":"%s/%s","download_url":"%s/%s","signature":"%s"},"windows-x86_64":{"url":"%s/%s","signature":"%s"},"windows-aarch64":{"url":"%s/%s","signature":"%s"},"linux-x86_64":{"url":"%s/%s","signature":"%s"},"linux-aarch64":{"url":"%s/%s","signature":"%s"}}}' \
             "$VERSION" "$TYPE" "$VERSION" \
-            "$BASE_URL" "$MAC_AARCH64_FILE" "$MAC_AARCH64_SIG" \
-            "$BASE_URL" "$MAC_X64_FILE" "$MAC_X64_SIG" \
+            "$BASE_URL" "$MAC_AARCH64_FILE" "$BASE_URL" "$MAC_AARCH64_DMG" "$MAC_AARCH64_SIG" \
+            "$BASE_URL" "$MAC_X64_FILE" "$BASE_URL" "$MAC_X64_DMG" "$MAC_X64_SIG" \
             "$BASE_URL" "$WIN_X64_FILE" "$WIN_X64_SIG" \
             "$BASE_URL" "$WIN_ARM64_FILE" "$WIN_ARM64_SIG" \
             "$BASE_URL" "$LINUX_FILE" "$LINUX_SIG" \
