@@ -102,7 +102,15 @@ pub fn setup_spotlight_window<R: Runtime>(
 
     // Panel levels and behaviors can be set via the Panel wrapper which handles the raw conversion
     panel.set_level(tauri_nspanel::cocoa::appkit::NSMainMenuWindowLevel + 1);
-    panel.set_collection_behaviour(tauri_nspanel::cocoa::appkit::NSWindowCollectionBehavior::NSWindowCollectionBehaviorFullScreenAuxiliary);
+    // `set_collection_behaviour` only accepts a single variant, so OR the bits
+    // straight onto the NSWindow (see `spotlight_collection_behavior_bits`).
+    unsafe {
+        let ns_window = window.ns_window().unwrap() as *mut AnyObject;
+        let _: () = msg_send![
+            ns_window,
+            setCollectionBehavior: spotlight_collection_behavior_bits()
+        ];
+    }
 
     #[allow(non_upper_case_globals)]
     const NSWindowStyleMaskNonActivatingPanel: i32 = 1 << 7;
@@ -139,6 +147,21 @@ pub fn setup_spotlight_window<R: Runtime>(
     apply_panel_appearance(window, theme_pref);
 
     Ok(panel)
+}
+
+/// Collection-behavior bits applied to the launcher (spotlight) NSPanel.
+///
+/// The launcher is a non-activating panel, so `panel.show()` never activates
+/// the app. CanJoinAllSpaces is what tells macOS the panel may appear on
+/// whichever Space is currently active — without it the panel stays pinned to
+/// the Space it was created on and the global shortcut always reopens it on
+/// Desktop 1. FullScreenAuxiliary additionally lets it float over fullscreen
+/// apps. Kept as a raw `u64` so the unit test can assert the exact bits
+/// without AppKit being available (`cargo test` doesn't run inside an NSApp).
+pub fn spotlight_collection_behavior_bits() -> u64 {
+    // 1 << 0: NSWindowCollectionBehaviorCanJoinAllSpaces
+    // 1 << 8: NSWindowCollectionBehaviorFullScreenAuxiliary
+    (1 << 0) | (1 << 8)
 }
 
 /// Bit pattern applied to the HUD NSPanel. Kept as raw integers so the
@@ -2153,6 +2176,29 @@ mod tests {
         assert_eq!(
             flags.style_mask, NON_ACTIVATING_PANEL,
             "HUD style mask must be NSWindowStyleMaskNonActivatingPanel so showing it never steals focus from a fullscreen app",
+        );
+    }
+
+    /// Locks in the launcher panel's collection behavior: both
+    /// CanJoinAllSpaces (follow the active Space) and FullScreenAuxiliary
+    /// (float over fullscreen apps). See `spotlight_collection_behavior_bits`
+    /// for why both are required.
+    #[test]
+    fn spotlight_panel_collection_behavior_joins_all_spaces() {
+        let bits = spotlight_collection_behavior_bits();
+
+        const CAN_JOIN_ALL_SPACES: u64 = 1 << 0;
+        const FULL_SCREEN_AUXILIARY: u64 = 1 << 8;
+
+        assert!(
+            bits & CAN_JOIN_ALL_SPACES != 0,
+            "launcher panel must opt into NSWindowCollectionBehaviorCanJoinAllSpaces so it appears on whichever Space the user is currently on, not just its home Space (got bits={:#x})",
+            bits,
+        );
+        assert!(
+            bits & FULL_SCREEN_AUXILIARY != 0,
+            "launcher panel must keep NSWindowCollectionBehaviorFullScreenAuxiliary so it can float over fullscreen apps (got bits={:#x})",
+            bits,
         );
     }
 
