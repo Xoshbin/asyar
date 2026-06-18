@@ -92,6 +92,18 @@ pub fn set_application_scan_paths(
 /// Opens an application at the given file system path.
 #[tauri::command]
 pub fn open_application_path(app_handle: AppHandle, path: String) -> Result<(), AppError> {
+    #[cfg(target_os = "windows")]
+    {
+        if path.starts_with("shell:AppsFolder\\") {
+            use std::process::Command;
+            Command::new("explorer.exe")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| AppError::Platform(format!("Failed to launch AppX app: {}", e)))?;
+            return Ok(());
+        }
+    }
+
     use tauri_plugin_opener::OpenerExt;
     app_handle
         .opener()

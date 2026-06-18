@@ -2,6 +2,7 @@ use crate::error::AppError;
 use crate::search_engine::models::{Application, SearchableItem};
 use crate::search_engine::SearchState;
 use log::info;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -96,6 +97,27 @@ pub fn sync_application_index<R: tauri::Runtime>(
                 icon: extract_app_icon(path_str, &icon_cache_dir),
                 last_used_at: None,
                 bundle_id: extract_bundle_id(Path::new(path_str)),
+            },
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    for uwp in &scanner.uwp_apps {
+        let sanitized_name = uwp.name.replace([' ', '/'], "_");
+        let sanitized_aumid = uwp.aumid.replace([' ', '/'], "_");
+        let full_app_id = format!("app_{}_{}", sanitized_name, sanitized_aumid);
+        let path = format!("shell:AppsFolder\\{}", uwp.aumid);
+
+        current_apps.insert(
+            full_app_id.clone(),
+            Application {
+                id: full_app_id,
+                name: uwp.name.clone(),
+                path: path.clone(),
+                usage_count: 0,
+                icon: extract_uwp_app_icon(&uwp.aumid, &uwp.install_location, &icon_cache_dir),
+                last_used_at: None,
+                bundle_id: Some(uwp.aumid.clone()),
             },
         );
     }
@@ -209,7 +231,33 @@ pub fn list_applications<R: tauri::Runtime>(
         });
     }
 
+    #[cfg(target_os = "windows")]
+    for uwp in &scanner.uwp_apps {
+        let sanitized_name = uwp.name.replace([' ', '/'], "_");
+        let sanitized_aumid = uwp.aumid.replace([' ', '/'], "_");
+        let full_app_id = format!("app_{}_{}", sanitized_name, sanitized_aumid);
+        let path = format!("shell:AppsFolder\\{}", uwp.aumid);
+
+        applications.push(Application {
+            id: full_app_id,
+            name: uwp.name.clone(),
+            path: path.clone(),
+            usage_count: 0,
+            icon: extract_uwp_app_icon(&uwp.aumid, &uwp.install_location, &icon_cache_dir),
+            last_used_at: None,
+            bundle_id: Some(uwp.aumid.clone()),
+        });
+    }
+
     Ok(applications)
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UwpApp {
+    pub name: String,
+    pub aumid: String,
+    pub install_location: String,
 }
 
 struct AppScanner {
@@ -217,6 +265,8 @@ struct AppScanner {
     /// Paths already recorded, to skip duplicates when scan roots overlap
     /// (e.g. a custom scan path that is an ancestor of a default one — #410).
     seen: HashSet<String>,
+    #[cfg(target_os = "windows")]
+    uwp_apps: Vec<UwpApp>,
 }
 
 impl AppScanner {
@@ -224,6 +274,8 @@ impl AppScanner {
         Self {
             paths: Vec::new(),
             seen: HashSet::new(),
+            #[cfg(target_os = "windows")]
+            uwp_apps: Vec::new(),
         }
     }
 
@@ -253,6 +305,83 @@ impl AppScanner {
         for dir in directories {
             if let Err(e) = self.scan_directory(&dir) {
                 info!("Error scanning {:?}: {}", dir, e);
+            }
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            if let Err(e) = self.scan_uwp_apps() {
+                info!("Error scanning UWP apps: {}", e);
+            }
+        }
+
+        Ok(())
+    }
+
+    #[cfg(target_os = "windows")]
+    fn scan_uwp_apps(&mut self) -> Result<(), AppError> {
+        use std::process::Command;
+
+        let script = r#"
+            $packages = @{}
+            Get-AppxPackage | ForEach-Object {
+                if ($_.InstallLocation) {
+                    $packages[$_.PackageFamilyName] = $_.InstallLocation
+                }
+            }
+            $result = @()
+            Get-StartApps | Where-Object { $_.AppID -like '*!*' } | ForEach-Object {
+                $aumid = $_.AppID
+                $family = $aumid.Split('!')[0]
+                $loc = $packages[$family]
+                if ($loc) {
+                    $result += [PSCustomObject]@{
+                        Name = $_.Name
+                        Aumid = $aumid
+                        InstallLocation = $loc
+                    }
+                }
+            }
+            if ($result.Count -gt 0) {
+                $result | ConvertTo-Json -Compress
+            }
+        "#;
+
+        let output = Command::new("powershell")
+            .args(&["-NoProfile", "-NonInteractive", "-Command", script])
+            .output();
+
+        let output = match output {
+            Ok(out) => out,
+            Err(e) => {
+                info!("Failed to run PowerShell for UWP apps: {}", e);
+                return Ok(());
+            }
+        };
+
+        if !output.status.success() {
+            let err_msg = String::from_utf8_lossy(&output.stderr);
+            info!("PowerShell UWP scan failed: {}", err_msg);
+            return Ok(());
+        }
+
+        let json_str = String::from_utf8_lossy(&output.stdout);
+        let trimmed = json_str.trim();
+        if trimmed.is_empty() {
+            return Ok(());
+        }
+
+        let raw_apps: Vec<UwpApp> = if trimmed.starts_with('[') {
+            serde_json::from_str(trimmed).unwrap_or_default()
+        } else {
+            serde_json::from_str::<UwpApp>(trimmed)
+                .map(|app| vec![app])
+                .unwrap_or_default()
+        };
+
+        for app in raw_apps {
+            if self.seen.insert(app.aumid.clone()) {
+                self.uwp_apps.push(app);
             }
         }
 
@@ -355,6 +484,43 @@ fn is_app_bundle(path: &Path) -> bool {
     {
         path.extension().map(|e| e == "lnk").unwrap_or(false)
     }
+}
+
+fn find_uwp_icon_path_from_manifest_content(content: &str) -> Option<String> {
+    if let Some(caps) = Regex::new(r#"Square44x44Logo\s*=\s*"([^"]+)""#).ok()?.captures(content) {
+        Some(caps.get(1)?.as_str().to_string())
+    } else if let Some(caps) = Regex::new(r#"Square150x150Logo\s*=\s*"([^"]+)""#).ok()?.captures(content) {
+        Some(caps.get(1)?.as_str().to_string())
+    } else if let Some(caps) = Regex::new(r#"Logo\s*=\s*"([^"]+)""#).ok()?.captures(content) {
+        Some(caps.get(1)?.as_str().to_string())
+    } else {
+        None
+    }
+}
+
+fn score_candidate(filename: &str) -> i32 {
+    let mut score = 0;
+    if filename.contains("targetsize-48") {
+        score += 100;
+    } else if filename.contains("targetsize-32") {
+        score += 90;
+    } else if filename.contains("targetsize-256") {
+        score += 85;
+    } else if filename.contains("scale-200") {
+        score += 80;
+    } else if filename.contains("scale-150") {
+        score += 70;
+    } else if filename.contains("scale-100") {
+        score += 60;
+    } else if !filename.contains("scale-") && !filename.contains("targetsize-") {
+        score += 50;
+    }
+
+    if filename.contains("altform-unplated") {
+        score += 10;
+    }
+
+    score
 }
 
 /// Extract a platform-native bundle / process identifier for an installed app.
@@ -480,6 +646,81 @@ pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<Strin
     }
 
     None
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn extract_uwp_app_icon(aumid: &str, install_location: &str, cache_dir: &Path) -> Option<String> {
+    let cache_key = format!("uwp_{}", aumid.replace(['/', '\\', ':', ' ', '!'], "_"));
+    let cache_filename = format!("{}.png", &cache_key[..cache_key.len().min(200)]);
+    let cache_file = cache_dir.join(&cache_filename);
+
+    if cache_file.exists() {
+        return Some(format!("http://asyar-icon.localhost/{}", cache_filename));
+    }
+
+    if let Some(bytes) = find_uwp_icon_bytes(install_location) {
+        let _ = std::fs::create_dir_all(cache_dir);
+        if std::fs::write(&cache_file, bytes).is_ok() {
+            return Some(format!("http://asyar-icon.localhost/{}", cache_filename));
+        }
+    }
+
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn find_uwp_icon_bytes(install_location: &str) -> Option<Vec<u8>> {
+    let manifest_path = Path::new(install_location).join("AppxManifest.xml");
+    if !manifest_path.is_file() {
+        return None;
+    }
+
+    let content = std::fs::read_to_string(&manifest_path).ok()?;
+    let logo_path = find_uwp_icon_path_from_manifest_content(&content)?;
+
+    let logo_path_clean = if logo_path.starts_with("ms-resource:") {
+        logo_path.strip_prefix("ms-resource:").unwrap().to_string()
+    } else {
+        logo_path
+    };
+
+    let logo_path_normalized = logo_path_clean.replace('\\', "/");
+    let full_logo_path = Path::new(install_location).join(&logo_path_normalized);
+
+    let parent_dir = full_logo_path.parent()?;
+    if !parent_dir.is_dir() {
+        return None;
+    }
+
+    let stem = full_logo_path.file_stem()?.to_str()?;
+    let stem_lower = stem.to_lowercase();
+
+    let mut best_candidate: Option<PathBuf> = None;
+    let mut best_score = -1;
+
+    if let Ok(entries) = std::fs::read_dir(parent_dir) {
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(filename) = path.file_name().and_then(|s| s.to_str()) {
+                    let filename_lower = filename.to_lowercase();
+                    if filename_lower.starts_with(&stem_lower) {
+                        let score = score_candidate(&filename_lower);
+                        if score > best_score {
+                            best_score = score;
+                            best_candidate = Some(path);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(cand) = best_candidate {
+        std::fs::read(cand).ok()
+    } else {
+        std::fs::read(full_logo_path).ok()
+    }
 }
 
 #[cfg(test)]
@@ -786,5 +1027,48 @@ mod tests {
         assert!(json.contains("\"added\":5"));
         assert!(json.contains("\"removed\":2"));
         assert!(json.contains("\"total\":100"));
+    }
+
+    #[test]
+    fn test_find_uwp_icon_path_from_manifest_content() {
+        let manifest = r#"
+            <Applications>
+              <Application Id="App" Executable="YourApp.exe" EntryPoint="YourApp.App">
+                <uap:VisualElements 
+                    DisplayName="Your App Name" 
+                    Square150x150Logo="Assets\Square150x150Logo.png" 
+                    Square44x44Logo="Assets\Square44x44Logo.png" 
+                    Description="A brief description" 
+                    BackgroundColor="transparent">
+                </uap:VisualElements>
+              </Application>
+            </Applications>
+        "#;
+        assert_eq!(
+            find_uwp_icon_path_from_manifest_content(manifest),
+            Some("Assets\\Square44x44Logo.png".to_string())
+        );
+
+        let manifest_logo_only = r#"
+            <Applications>
+              <Application Id="App" Executable="YourApp.exe" EntryPoint="YourApp.App">
+                <VisualElements 
+                    Logo="Assets\Logo.png">
+                </VisualElements>
+              </Application>
+            </Applications>
+        "#;
+        assert_eq!(
+            find_uwp_icon_path_from_manifest_content(manifest_logo_only),
+            Some("Assets\\Logo.png".to_string())
+        );
+    }
+
+    #[test]
+    fn test_score_candidate() {
+        assert_eq!(score_candidate("CalculatorSdkLogo.targetsize-48_altform-unplated.png"), 110);
+        assert_eq!(score_candidate("CalculatorSdkLogo.targetsize-48.png"), 100);
+        assert_eq!(score_candidate("CalculatorSdkLogo.scale-200.png"), 80);
+        assert_eq!(score_candidate("CalculatorSdkLogo.png"), 50);
     }
 }
