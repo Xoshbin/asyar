@@ -214,11 +214,17 @@ pub fn list_applications<R: tauri::Runtime>(
 
 struct AppScanner {
     paths: Vec<String>,
+    /// Paths already recorded, to skip duplicates when scan roots overlap
+    /// (e.g. a custom scan path that is an ancestor of a default one — #410).
+    seen: HashSet<String>,
 }
 
 impl AppScanner {
     fn new() -> Self {
-        Self { paths: Vec::new() }
+        Self {
+            paths: Vec::new(),
+            seen: HashSet::new(),
+        }
     }
 
     fn scan_directory(&mut self, dir_path: &Path) -> Result<(), AppError> {
@@ -229,7 +235,9 @@ impl AppScanner {
             let path = entry.path();
             if is_app_bundle(&path) {
                 if let Some(path_str) = path.to_str() {
-                    self.paths.push(path_str.to_string());
+                    if self.seen.insert(path_str.to_string()) {
+                        self.paths.push(path_str.to_string());
+                    }
                 }
             } else if path.is_dir() {
                 let _ = self.scan_directory(&path);
@@ -709,6 +717,46 @@ mod tests {
 
         assert_eq!(scanner.paths.len(), 1);
         assert!(scanner.paths[0].to_lowercase().contains("test"));
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_scanner_dedupes_overlapping_scan_dirs() {
+        // Reproduces #410: a custom scan path that is an ancestor of a default
+        // scan path makes the same app bundle reachable through two scan roots.
+        // The scanner must return each path exactly once — duplicate paths
+        // produce duplicate app IDs downstream, which crashes the keyed list
+        // in the Applications settings tab.
+        let tmp = std::env::temp_dir().join("asyar_test_overlap_scan");
+        let _ = fs::remove_dir_all(&tmp);
+        let child = tmp.join("child");
+        fs::create_dir_all(&child).unwrap();
+
+        #[cfg(target_os = "macos")]
+        let app_path = child.join("Overlap.app");
+        #[cfg(target_os = "linux")]
+        let app_path = child.join("overlap.desktop");
+        #[cfg(target_os = "windows")]
+        let app_path = child.join("Overlap.lnk");
+
+        #[cfg(target_os = "macos")]
+        fs::create_dir_all(&app_path).unwrap();
+        #[cfg(not(target_os = "macos"))]
+        fs::write(&app_path, b"fake").unwrap();
+
+        let mut scanner = AppScanner::new();
+        // Simulate scan_all visiting both an ancestor (custom path) and the
+        // nested default path. The ancestor scan recurses into `child`.
+        scanner.scan_directory(&tmp).unwrap();
+        scanner.scan_directory(&child).unwrap();
+
+        assert_eq!(
+            scanner.paths.len(),
+            1,
+            "overlapping scan roots must not yield duplicate paths, got {:?}",
+            scanner.paths
+        );
 
         let _ = fs::remove_dir_all(&tmp);
     }
