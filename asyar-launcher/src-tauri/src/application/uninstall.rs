@@ -573,6 +573,11 @@ pub(crate) fn ensure_windows_entry_allowed(
 
 #[cfg(target_os = "windows")]
 fn uninstall_windows(path: &str) -> Result<(), AppError> {
+    if path.starts_with("shell:AppsFolder\\") {
+        return Err(AppError::Platform(
+            "Uninstalling Microsoft Store apps is not supported".to_string(),
+        ));
+    }
     let lnk = validate_windows_shortcut_path(path)?;
     let display_name = derive_display_name_from_shortcut(&lnk)?;
     let entries = scan_uninstall_registry()?;
