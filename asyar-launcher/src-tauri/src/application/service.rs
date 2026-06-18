@@ -486,6 +486,7 @@ fn is_app_bundle(path: &Path) -> bool {
     }
 }
 
+#[allow(dead_code)]
 fn find_uwp_icon_path_from_manifest_content(content: &str) -> Option<String> {
     if let Some(caps) = Regex::new(r#"Square44x44Logo\s*=\s*"([^"]+)""#).ok()?.captures(content) {
         Some(caps.get(1)?.as_str().to_string())
@@ -498,6 +499,7 @@ fn find_uwp_icon_path_from_manifest_content(content: &str) -> Option<String> {
     }
 }
 
+#[allow(dead_code)]
 fn score_candidate(filename: &str) -> i32 {
     let mut score = 0;
     if filename.contains("targetsize-48") {
