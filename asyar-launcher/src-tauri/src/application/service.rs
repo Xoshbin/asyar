@@ -384,25 +384,26 @@ impl AppScanner {
 #[cfg(any(target_os = "windows", test))]
 fn uwp_scan_powershell_script() -> &'static str {
     r#"
+            $OutputEncoding = [System.Text.Encoding]::UTF8
+            [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
             $packages = @{}
             Get-AppxPackage | ForEach-Object {
                 if ($_.InstallLocation) {
                     $packages[$_.PackageFamilyName] = $_.InstallLocation
                 }
             }
-            $result = @()
-            Get-StartApps | Where-Object { $_.AppID -like '*!*' } | ForEach-Object {
+            $result = Get-StartApps | Where-Object { $_.AppID -like '*!*' } | ForEach-Object {
                 $aumid = $_.AppID
                 $family = $aumid.Split('!')[0]
                 $loc = $packages[$family]
                 if (-not $loc) { $loc = '' }
-                $result += [PSCustomObject]@{
+                [PSCustomObject]@{
                     Name = $_.Name
                     Aumid = $aumid
                     InstallLocation = $loc
                 }
             }
-            if ($result.Count -gt 0) {
+            if ($result) {
                 $result | ConvertTo-Json -Compress
             }
         "#
@@ -691,6 +692,12 @@ pub(crate) fn extract_uwp_app_icon(aumid: &str, install_location: &str, cache_di
 
 #[cfg(target_os = "windows")]
 fn find_uwp_icon_bytes(install_location: &str) -> Option<Vec<u8>> {
+    // An app indexed without a resolvable install location has no manifest to
+    // read. Bail early so `Path::new("").join(...)` doesn't probe the process
+    // CWD for a stray `AppxManifest.xml`.
+    if install_location.is_empty() {
+        return None;
+    }
     let manifest_path = Path::new(install_location).join("AppxManifest.xml");
     if !manifest_path.is_file() {
         return None;
@@ -770,6 +777,29 @@ mod tests {
         assert!(
             script.contains("if (-not $loc) { $loc = '' }"),
             "script must keep launchable apps even without an InstallLocation"
+        );
+    }
+
+    #[test]
+    fn test_uwp_scan_script_forces_utf8_output() {
+        // Windows PowerShell 5.1 writes redirected stdout in the legacy OEM code
+        // page; without forcing UTF-8, non-ASCII app names are corrupted when
+        // Rust reads the captured bytes as UTF-8.
+        let script = uwp_scan_powershell_script();
+        assert!(
+            script.contains("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8"),
+            "script must force UTF-8 stdout so non-ASCII app names survive"
+        );
+    }
+
+    #[test]
+    fn test_uwp_scan_script_avoids_quadratic_array_growth() {
+        // `$x += ` inside a loop reallocates the whole array every iteration
+        // (O(n^2)); accumulate via direct pipeline assignment instead.
+        let script = uwp_scan_powershell_script();
+        assert!(
+            !script.contains("+="),
+            "accumulate UWP apps via pipeline assignment, not array +="
         );
     }
 
