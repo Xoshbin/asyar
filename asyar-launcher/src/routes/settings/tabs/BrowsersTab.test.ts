@@ -8,6 +8,7 @@ const { invokeMock, listenMock } = vi.hoisted(() => ({
 }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock }));
+vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn() }));
 
 vi.mock('../../../services/browser/browserService', () => ({
   browserService: {
@@ -33,6 +34,17 @@ describe('Settings → Browsers tab', () => {
     invokeMock.mockResolvedValue([]);
     render(BrowsersTab);
     await screen.findByText(/No browsers paired/i);
+  });
+
+  it('opens the Chrome Web Store companion listing when "Install for Chrome" is clicked', async () => {
+    invokeMock.mockResolvedValue([]);
+    const { openUrl } = await import('@tauri-apps/plugin-opener');
+    render(BrowsersTab);
+    const btn = await screen.findByTestId('install-chromium');
+    await fireEvent.click(btn);
+    expect(openUrl).toHaveBeenCalledWith(
+      'https://chromewebstore.google.com/detail/clgmndlecfeilanhmiohfjmgfgilpjic',
+    );
   });
 
   it('renders pending pairing requests and resolves on Allow', async () => {
