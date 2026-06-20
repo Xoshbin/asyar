@@ -320,35 +320,22 @@ impl AppScanner {
 
     #[cfg(target_os = "windows")]
     fn scan_uwp_apps(&mut self) -> Result<(), AppError> {
+        use std::os::windows::process::CommandExt;
         use std::process::Command;
 
-        let script = r#"
-            $packages = @{}
-            Get-AppxPackage | ForEach-Object {
-                if ($_.InstallLocation) {
-                    $packages[$_.PackageFamilyName] = $_.InstallLocation
-                }
-            }
-            $result = @()
-            Get-StartApps | Where-Object { $_.AppID -like '*!*' } | ForEach-Object {
-                $aumid = $_.AppID
-                $family = $aumid.Split('!')[0]
-                $loc = $packages[$family]
-                if ($loc) {
-                    $result += [PSCustomObject]@{
-                        Name = $_.Name
-                        Aumid = $aumid
-                        InstallLocation = $loc
-                    }
-                }
-            }
-            if ($result.Count -gt 0) {
-                $result | ConvertTo-Json -Compress
-            }
-        "#;
+        // CREATE_NO_WINDOW — keep the console-subsystem `powershell` child from
+        // briefly flashing a black console window when our GUI process spawns it
+        // (happens during the startup index, #411).
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
         let output = Command::new("powershell")
-            .args(&["-NoProfile", "-NonInteractive", "-Command", script])
+            .args(&[
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                uwp_scan_powershell_script(),
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
             .output();
 
         let output = match output {
@@ -387,6 +374,38 @@ impl AppScanner {
 
         Ok(())
     }
+}
+
+/// PowerShell that enumerates launchable packaged (UWP/MSIX) apps via
+/// `Get-StartApps` — the authoritative list the Start menu itself uses — and
+/// best-effort resolves each one's on-disk `InstallLocation` (used only to find
+/// an icon). Gated to `windows`/`test` so the regression test can assert its
+/// shape on every platform without a dead-code warning elsewhere.
+#[cfg(any(target_os = "windows", test))]
+fn uwp_scan_powershell_script() -> &'static str {
+    r#"
+            $packages = @{}
+            Get-AppxPackage | ForEach-Object {
+                if ($_.InstallLocation) {
+                    $packages[$_.PackageFamilyName] = $_.InstallLocation
+                }
+            }
+            $result = @()
+            Get-StartApps | Where-Object { $_.AppID -like '*!*' } | ForEach-Object {
+                $aumid = $_.AppID
+                $family = $aumid.Split('!')[0]
+                $loc = $packages[$family]
+                if (-not $loc) { $loc = '' }
+                $result += [PSCustomObject]@{
+                    Name = $_.Name
+                    Aumid = $aumid
+                    InstallLocation = $loc
+                }
+            }
+            if ($result.Count -gt 0) {
+                $result | ConvertTo-Json -Compress
+            }
+        "#
 }
 
 pub fn is_default_app_location(app_path: &str) -> bool {
@@ -729,6 +748,30 @@ fn find_uwp_icon_bytes(install_location: &str) -> Option<Vec<u8>> {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn test_uwp_scan_script_indexes_apps_without_install_location() {
+        // #411: launchable packaged apps (e.g. Codex) were dropped when their
+        // InstallLocation couldn't be resolved from Get-AppxPackage. The script
+        // must emit every Get-StartApps AUMID entry; InstallLocation is only an
+        // icon hint and may be blank.
+        let script = uwp_scan_powershell_script();
+
+        // Still drives off the authoritative launchable list, AUMID-only.
+        assert!(script.contains("Get-StartApps"));
+        assert!(script.contains("$_.AppID -like '*!*'"));
+
+        // Must NOT gate emission on a resolved install location.
+        assert!(
+            !script.contains("if ($loc) {"),
+            "script still drops apps whose InstallLocation is unresolved"
+        );
+        // Must fall back to an empty location instead of dropping the app.
+        assert!(
+            script.contains("if (-not $loc) { $loc = '' }"),
+            "script must keep launchable apps even without an InstallLocation"
+        );
+    }
 
     #[test]
     fn test_get_default_app_scan_paths_is_non_empty() {
