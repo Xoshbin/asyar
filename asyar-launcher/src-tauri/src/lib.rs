@@ -79,6 +79,7 @@ pub mod onboarding;
 pub mod permissions;
 pub mod platform;
 pub mod power;
+pub mod process_manager;
 pub mod profile;
 pub mod runs;
 pub mod scripts;
@@ -464,6 +465,8 @@ pub fn run() {
             commands::power_keep_awake,
             commands::power_release,
             commands::power_list,
+            commands::process::process_list,
+            commands::process::process_kill,
             commands::system_events_subscribe,
             commands::system_events_unsubscribe,
             commands::app_events_subscribe,

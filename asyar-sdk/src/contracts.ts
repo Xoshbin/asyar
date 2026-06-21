@@ -72,6 +72,14 @@ export type {
   KeepAwakeOptions,
   ResolvedKeepAwakeOptions,
   ActiveInhibitor,
+  IProcessService,
+  ProcessSortBy,
+  ProcessInfo,
+  AppGroup,
+  KillFailure,
+  KillResult,
+  ListProcessesOptions,
+  KillProcessesOptions,
   ISystemEventsService,
   SystemEvent,
   SystemEventKind,
@@ -87,6 +95,7 @@ export type {
 
 export { FileSystemWatcherServiceProxy } from './services';
 export { LaunchCommandError } from './services';
+export { ProcessServiceProxy } from './services';
 
 export type { ISearchBarAccessoryService } from './services/ISearchBarAccessoryService';
 export type {

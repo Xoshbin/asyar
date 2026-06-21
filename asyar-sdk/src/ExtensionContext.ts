@@ -24,6 +24,7 @@ import { FileManagerServiceProxy } from './services/FileManagerServiceProxy';
 import { InteropServiceProxy } from './services/InteropServiceProxy';
 import { WindowManagementServiceProxy } from './services/WindowManagementService';
 import { PowerServiceProxy } from './services/PowerServiceProxy';
+import { ProcessServiceProxy } from './services/ProcessServiceProxy';
 import { SystemEventsServiceProxy } from './services/SystemEventsServiceProxy';
 import { TimerServiceProxy } from './services/TimerServiceProxy';
 import { ExtensionStateProxy } from './services/ExtensionStateProxy';
@@ -66,6 +67,7 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     application: new ApplicationServiceProxy(),
     window: new WindowManagementServiceProxy(),
     power: new PowerServiceProxy(),
+    process: new ProcessServiceProxy(),
     systemEvents: new SystemEventsServiceProxy(),
     timers: new TimerServiceProxy(),
     state: new ExtensionStateProxy(),
@@ -139,6 +141,17 @@ export class ExtensionContext extends ExtensionContextCore {
 
   protected override notifyRpcIfAvailable(id: string): void {
     extensionRpc.setExtensionId(id);
+  }
+
+  /**
+   * Hide the Asyar launcher window. Self-scoped UI affordance (no permission
+   * required — same class as dismissing via Esc). Fire-and-forget; safe to
+   * call from a view after completing a user action.
+   */
+  hideLauncher(): void {
+    if (typeof window !== 'undefined' && window.parent !== window) {
+      window.parent.postMessage({ type: 'asyar:window:hide' }, '*');
+    }
   }
 
   protected override notifyBridgeIfAvailable(id: string): void {

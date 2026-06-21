@@ -25,6 +25,8 @@
     "power:inhibit",
     "preferences:read",
     "preferences:write",
+    "process:kill",
+    "process:read",
     "runs:track",
     "selection:read",
     "shell:open-url",

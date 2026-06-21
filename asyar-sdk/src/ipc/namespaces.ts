@@ -20,6 +20,7 @@ export const NAMESPACES = [
   'oauth',
   'opener',
   'power',
+  'process',
   'shell',
   'systemEvents',
   'appEvents',

@@ -375,6 +375,31 @@ describe('checkPermission', () => {
     })
   })
 
+  describe('process:read / process:kill', () => {
+    it('maps list to process:read', () => {
+      expect(PERMISSION_MAP['asyar:api:process:list']).toBe('process:read')
+    })
+    it('maps kill to process:kill', () => {
+      expect(PERMISSION_MAP['asyar:api:process:kill']).toBe('process:kill')
+    })
+    it('denies list without process:read', () => {
+      const r = checkPermission('ext', 'asyar:api:process:list', [])
+      expect(r.allowed).toBe(false)
+      expect(r.requiredPermission).toBe('process:read')
+    })
+    it('allows list with process:read', () => {
+      expect(checkPermission('ext', 'asyar:api:process:list', ['process:read']).allowed).toBe(true)
+    })
+    it('denies kill without process:kill', () => {
+      const r = checkPermission('ext', 'asyar:api:process:kill', ['process:read'])
+      expect(r.allowed).toBe(false)
+      expect(r.requiredPermission).toBe('process:kill')
+    })
+    it('allows kill with process:kill', () => {
+      expect(checkPermission('ext', 'asyar:api:process:kill', ['process:kill']).allowed).toBe(true)
+    })
+  })
+
   describe('systemEvents:read', () => {
     it('allows subscribe when systemEvents:read is declared', () => {
       const r = checkPermission('ext', 'asyar:api:systemEvents:subscribe', ['systemEvents:read'])

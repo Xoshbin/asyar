@@ -43,6 +43,7 @@ tokio = { version = "1.0", features = ["full"] }
 tauri-plugin-clipboard-x = "2"
 window-vibrancy = "0.6"
 fuzzy-matcher = "0.3.7" # Added for better fuzzy search
+sysinfo = "0.31" # cross-platform process enumeration + kill
 sha2 = "0.10"
 hmac = "0.12"
 aes-gcm = "0.10"

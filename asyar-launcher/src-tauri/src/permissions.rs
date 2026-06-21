@@ -179,6 +179,9 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:power:keepAwake" => Some("power:inhibit"),
         "asyar:api:power:release" => Some("power:inhibit"),
         "asyar:api:power:list" => Some("power:inhibit"),
+        // Process service (list/kill)
+        "asyar:api:process:list" => Some("process:read"),
+        "asyar:api:process:kill" => Some("process:kill"),
         // System events (OS sleep/wake/lid/battery push)
         "asyar:api:systemEvents:subscribe" => Some("systemEvents:read"),
         "asyar:api:systemEvents:unsubscribe" => Some("systemEvents:read"),
@@ -353,6 +356,12 @@ mod tests {
     #[test]
     fn test_get_required_permission_unknown_call() {
         assert_eq!(get_required_permission("asyar:api:log:info"), None);
+    }
+
+    #[test]
+    fn test_get_required_permission_process() {
+        assert_eq!(get_required_permission("asyar:api:process:list"), Some("process:read"));
+        assert_eq!(get_required_permission("asyar:api:process:kill"), Some("process:kill"));
     }
 
     #[test]

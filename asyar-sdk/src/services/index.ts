@@ -77,6 +77,18 @@ export type {
 export { PowerServiceProxy } from './PowerServiceProxy';
 
 export type {
+  IProcessService,
+  ProcessSortBy,
+  ProcessInfo,
+  AppGroup,
+  KillFailure,
+  KillResult,
+  ListProcessesOptions,
+  KillProcessesOptions,
+} from './IProcessService';
+export { ProcessServiceProxy } from './ProcessServiceProxy';
+
+export type {
   ISystemEventsService,
   SystemEvent,
   SystemEventKind,

@@ -174,6 +174,7 @@ export const VALID_PERMISSIONS = [
   'browser:bookmarks.read',
   'browser:history.read',
   'browser:page.read', 'browser:page.write',
+  'process:read', 'process:kill',
 ] as const
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const

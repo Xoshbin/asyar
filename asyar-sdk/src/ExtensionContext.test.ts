@@ -177,3 +177,24 @@ describe('ExtensionContext.setExtensionId', () => {
   });
 });
 
+describe('ExtensionContext.hideLauncher', () => {
+  let parentPostMessage: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    parentPostMessage = vi.fn();
+    Object.defineProperty(window, 'parent', {
+      value: { postMessage: parentPostMessage },
+      configurable: true,
+    });
+  });
+
+  it('posts asyar:window:hide to window.parent', () => {
+    const ctx = new ExtensionContext();
+    ctx.hideLauncher();
+    expect(parentPostMessage).toHaveBeenCalledWith(
+      { type: 'asyar:window:hide' },
+      '*',
+    );
+  });
+});
+
