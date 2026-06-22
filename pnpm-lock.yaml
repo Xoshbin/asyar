@@ -459,6 +459,41 @@ importers:
         specifier: '*'
         version: 4.62.0
 
+  extensions/kill-process:
+    dependencies:
+      svelte:
+        specifier: ^5.0.0
+        version: 5.55.9(@typescript-eslint/types@8.59.4)
+    devDependencies:
+      '@sveltejs/vite-plugin-svelte':
+        specifier: ^5.0.0
+        version: 5.1.1(svelte@5.55.9(@typescript-eslint/types@8.59.4))(vite@6.2.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0))
+      '@types/rollup-plugin-css-only':
+        specifier: ^3.1.2
+        version: 3.1.3
+      '@vitest/coverage-v8':
+        specifier: ^2.1.0
+        version: 2.1.9(vitest@2.1.9(@types/node@25.9.1)(jiti@2.7.0)(jsdom@29.1.1)(lightningcss@1.32.0))
+      asyar-sdk:
+        specifier: workspace:*
+        version: link:../../asyar-sdk
+      rollup-plugin-css-only:
+        specifier: ^4.5.2
+        version: 4.5.5(rollup@4.62.0)
+      typescript:
+        specifier: ^5.0.0
+        version: 5.6.3
+      vite:
+        specifier: 6.2.2
+        version: 6.2.2(@types/node@25.9.1)(jiti@2.7.0)(lightningcss@1.32.0)
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@25.9.1)(jiti@2.7.0)(jsdom@29.1.1)(lightningcss@1.32.0)
+    optionalDependencies:
+      '@rollup/rollup-win32-arm64-msvc':
+        specifier: '*'
+        version: 4.62.0
+
   extensions/memory:
     dependencies:
       svelte:
