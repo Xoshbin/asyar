@@ -252,8 +252,12 @@ pub fn list_applications<R: tauri::Runtime>(
     Ok(applications)
 }
 
-#[cfg(target_os = "windows")]
+// `any(windows, test)` so the deserialization-contract test compiles on every
+// platform — the PascalCase mismatch below was a Windows-only runtime failure
+// that a host-platform unit test now guards against.
+#[cfg(any(target_os = "windows", test))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct UwpApp {
     pub name: String,
     pub aumid: String,
@@ -778,6 +782,25 @@ mod tests {
             script.contains("if (-not $loc) { $loc = '' }"),
             "script must keep launchable apps even without an InstallLocation"
         );
+    }
+
+    #[test]
+    fn test_uwp_app_deserializes_pascalcase_powershell_json() {
+        // The scan PowerShell emits PascalCase keys (Name/Aumid/InstallLocation);
+        // UwpApp's fields are snake_case. Without a rename the deserialize fails
+        // and every AppX app is silently dropped (#411). This is the JSON->struct
+        // seam the string-shape tests don't cover.
+        let json = r#"{"Name":"Calculator","Aumid":"Microsoft.WindowsCalculator_8wekyb3d8bbwe!App","InstallLocation":"C:\\Program Files\\WindowsApps\\Calc"}"#;
+        let app: UwpApp = serde_json::from_str(json).expect("PascalCase JSON must deserialize");
+        assert_eq!(app.name, "Calculator");
+        assert_eq!(app.aumid, "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App");
+        assert_eq!(app.install_location, "C:\\Program Files\\WindowsApps\\Calc");
+
+        // Array form (the common multi-app case) must work too.
+        let arr = r#"[{"Name":"A","Aumid":"a!b","InstallLocation":""}]"#;
+        let apps: Vec<UwpApp> = serde_json::from_str(arr).expect("array form must deserialize");
+        assert_eq!(apps.len(), 1);
+        assert_eq!(apps[0].install_location, "");
     }
 
     #[test]
