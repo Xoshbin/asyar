@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { customPlugin } from './custom';
 import type { ChatMessage, ChatParams, ProviderConfig, LoopMessage } from '../IProviderPlugin';
+
+// getModels must route through the Tauri HTTP plugin (Rust/reqwest), not the WebView's
+// global fetch — the WebView path is CORS-bound and fails on Windows (origin
+// `http://tauri.localhost`). Routing through Rust has no Origin/CORS, like the chat engine.
+vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
 
 const baseParams: ChatParams = {
   modelId: 'local-model',
@@ -167,22 +173,23 @@ describe('customPlugin tool calling', () => {
 });
 
 describe('customPlugin.getModels', () => {
-  const originalFetch = globalThis.fetch;
+  const realFetch = globalThis.fetch;
 
   beforeEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    // Sabotage the WebView fetch so any reliance on it surfaces as a failure.
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }) as unknown as typeof fetch;
   });
 
   afterEach(() => {
-    globalThis.fetch = originalFetch;
+    globalThis.fetch = realFetch;
   });
 
-  it('sends Authorization: Bearer <key> when apiKey is set', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
+  it('routes through the Tauri HTTP plugin, never the WebView fetch', async () => {
+    vi.mocked(tauriFetch).mockResolvedValue({
       ok: true,
       json: async () => ({ data: [{ id: 'm-1' }] }),
-    });
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    } as unknown as Response);
 
     const models = await customPlugin.getModels({
       enabled: true,
@@ -191,18 +198,34 @@ describe('customPlugin.getModels', () => {
     });
 
     expect(models).toEqual([{ id: 'm-1', label: 'm-1' }]);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(tauriFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends Authorization: Bearer <key> when apiKey is set', async () => {
+    vi.mocked(tauriFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: 'm-1' }] }),
+    } as unknown as Response);
+
+    const models = await customPlugin.getModels({
+      enabled: true,
+      baseUrl: 'https://my-llm.example/api',
+      apiKey: 'sk-secret',
+    });
+
+    expect(models).toEqual([{ id: 'm-1', label: 'm-1' }]);
+    expect(tauriFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = vi.mocked(tauriFetch).mock.calls[0] as unknown as [string, { headers: Record<string, string> }];
     expect(url).toBe('https://my-llm.example/api/v1/models');
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-secret');
+    expect(init.headers.Authorization).toBe('Bearer sk-secret');
   });
 
   it('does not double-prefix /v1 when the base URL already ends with /v1', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
+    vi.mocked(tauriFetch).mockResolvedValue({
       ok: true,
       json: async () => ({ data: [] }),
-    });
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    } as unknown as Response);
 
     await customPlugin.getModels({
       enabled: true,
@@ -210,23 +233,22 @@ describe('customPlugin.getModels', () => {
       apiKey: 'sk-or-test',
     });
 
-    const [url] = fetchMock.mock.calls[0];
+    const [url] = vi.mocked(tauriFetch).mock.calls[0] as unknown as [string];
     expect(url).toBe('https://openrouter.ai/api/v1/models');
   });
 
   it('omits Authorization header when apiKey is blank', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
+    vi.mocked(tauriFetch).mockResolvedValue({
       ok: true,
       json: async () => ({ data: [] }),
-    });
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    } as unknown as Response);
 
     await customPlugin.getModels({
       enabled: true,
       baseUrl: 'http://localhost:8080',
     });
 
-    const [, init] = fetchMock.mock.calls[0];
-    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+    const [, init] = vi.mocked(tauriFetch).mock.calls[0] as unknown as [string, { headers: Record<string, string> }];
+    expect(init.headers.Authorization).toBeUndefined();
   });
 });

@@ -1,6 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { ollamaPlugin } from './ollama';
 import type { LoopMessage, ChatParams, ProviderConfig } from '../IProviderPlugin';
+
+// getModels must go through the Tauri HTTP plugin (Rust/reqwest), NOT the WebView's
+// global fetch. The WebView path carries an Origin header (`http://tauri.localhost`
+// on Windows) that Ollama's CORS allowlist rejects, so "Test & Fetch Models" silently
+// fails on Windows while macOS (`tauri://localhost`) passes. Routing through Rust has
+// no Origin and no CORS, so it works on every OS — matching how the chat engine already
+// fetches (see aiEngine.ts).
+vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -28,6 +37,34 @@ const fakeTools = [
     parameters: { type: 'object', properties: { x: { type: 'number' } } } as Record<string, unknown>,
   },
 ];
+
+// ─── getModels transport ──────────────────────────────────────────────────────
+
+describe('ollamaPlugin.getModels transport', () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    vi.clearAllMocks();
+  });
+
+  it('ollama_getModels_routes_through_tauri_http_plugin_not_webview_fetch', async () => {
+    // WebView fetch is sabotaged so any reliance on it produces the WRONG result.
+    const webViewFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    globalThis.fetch = webViewFetch as unknown as typeof fetch;
+
+    vi.mocked(tauriFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ models: [{ name: 'llama3.1:latest' }] }),
+    } as unknown as Response);
+
+    const models = await ollamaPlugin.getModels({ enabled: true, baseUrl: 'http://localhost:11434' });
+
+    expect(tauriFetch).toHaveBeenCalledTimes(1);
+    expect(tauriFetch).toHaveBeenCalledWith('http://localhost:11434/api/tags');
+    expect(webViewFetch).not.toHaveBeenCalled();
+    expect(models).toEqual([{ id: 'llama3.1:latest', label: 'llama3.1:latest' }]);
+  });
+});
 
 // ─── buildToolRequest ─────────────────────────────────────────────────────────
 

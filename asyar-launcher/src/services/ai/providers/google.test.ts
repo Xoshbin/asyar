@@ -1,6 +1,39 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { googlePlugin } from './google';
 import type { LoopMessage, ChatParams, ProviderConfig } from '../IProviderPlugin';
+
+// getModels must route through the Tauri HTTP plugin (Rust/reqwest), not the WebView's
+// global fetch — the WebView path is CORS-bound and fails on Windows (origin
+// `http://tauri.localhost`). Routing through Rust has no Origin/CORS, like the chat engine.
+vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
+
+describe('googlePlugin.getModels transport', () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    vi.clearAllMocks();
+  });
+
+  it('google_getModels_routes_through_tauri_http_plugin_not_webview_fetch', async () => {
+    const webViewFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    globalThis.fetch = webViewFetch as unknown as typeof fetch;
+
+    vi.mocked(tauriFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        models: [{ name: 'models/gemini-1.5-pro', displayName: 'Gemini 1.5 Pro', supportedGenerationMethods: ['generateContent'] }],
+      }),
+    } as unknown as Response);
+
+    const models = await googlePlugin.getModels({ enabled: true, apiKey: 'g-key' });
+
+    expect(tauriFetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(tauriFetch).mock.calls[0][0]).toBe('https://generativelanguage.googleapis.com/v1beta/models');
+    expect(webViewFetch).not.toHaveBeenCalled();
+    expect(models).toEqual([{ id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }]);
+  });
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
