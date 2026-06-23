@@ -67,6 +67,15 @@ Within each tier, results are ordered by fuzzy score, then alphabetically by tit
 
 **Empty query:** an empty or whitespace-only query returns every id in input order — no ranking pass runs, so it's safe to call on every keystroke including when the search box is cleared.
 
-**This replaces the old `SearchEngine` class.** Earlier SDK versions shipped a synchronous, client-side fuzzy engine (`@leeoniya/ufuzzy`-backed). It has been removed — the launcher's own search had a second, independently-implemented fuzzy engine in JS that could silently disagree with Rust's ranking, so both were unified behind the one Rust ranker. `SearchService.rank()` is the IPC-backed replacement: same ranking quality the host uses internally, async (one round-trip per call), no separate JS dependency to ship.
+**Scale limits.** `rank()` is stateless — there is no persistent index, and your full `items` array is sent over IPC on every call. Fine for keystroke-by-keystroke filtering of up to a few hundred items. Not a fit for thousands+.
+
+| | `SearchService.rank()` | Indexed search (e.g. clipboard history) |
+|---|---|---|
+| State | Stateless — no index | Persistent index, built once |
+| Per-call cost | Full item list sent every call | Query only; index already in Rust |
+| Good for | A few hundred items (your own snippets, an extension catalog) | Thousands+ items |
+| Available to extensions | Yes — this service | No — internal to the clipboard feature, not exposed via the SDK |
+
+> If your list can grow into the thousands, don't pass a larger payload to `rank()` — that doesn't scale. Build a dedicated indexed-search command instead, the same way clipboard history's full-text search works internally.
 
 ---
