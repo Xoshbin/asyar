@@ -166,6 +166,39 @@ pub fn rank_ids(query: &str, items: &[RankInput]) -> Vec<String> {
         .collect()
 }
 
+/// Per-item tier classification result, returned by `classify_many`.
+#[derive(Clone, Debug, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct TierResult {
+    pub id: String,
+    pub tier: u8,
+}
+
+/// Classify every item against `query`, preserving input order and keeping
+/// every id (no filtering, no sorting) — unlike `rank_ids`. Used where the
+/// caller needs a tier value per item to interleave against data tiered
+/// elsewhere (e.g. Run rows interleaved with already-tiered search results).
+pub fn classify_many(query: &str, items: &[RankInput]) -> Vec<TierResult> {
+    items
+        .iter()
+        .map(|item| {
+            let keyword_refs: Vec<&str> = item.keywords.iter().map(|k| k.as_str()).collect();
+            let key = classify(
+                query,
+                &item.title,
+                item.subtitle.as_deref(),
+                &keyword_refs,
+                0.0,
+                false,
+            );
+            TierResult {
+                id: item.id.clone(),
+                tier: key.tier as u8,
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -304,5 +337,55 @@ mod tests {
     fn name_lower_carried_through() {
         let key = classify("Safari", "Safari", None, &[], 0.0, false);
         assert_eq!(key.name_lower, "safari");
+    }
+
+    #[test]
+    fn classify_many_preserves_input_order_unsorted() {
+        // "fuzzy" would sort after "exact" under rank_ids; classify_many must
+        // not reorder — callers need per-item tiers against their own list order.
+        let items = vec![
+            input("fuzzy", "Snow Safari", None, &[]),
+            input("exact", "Safari", None, &[]),
+        ];
+        let results = classify_many("safari", &items);
+        assert_eq!(
+            results.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(),
+            vec!["fuzzy", "exact"]
+        );
+    }
+
+    #[test]
+    fn classify_many_does_not_filter_non_matches() {
+        // Unlike rank_ids, classify_many must keep every input id — callers
+        // need a tier value for non-matches too (e.g. to sink them below
+        // already-tiered data from elsewhere).
+        let items = vec![
+            input("hit", "Safari", None, &[]),
+            input("miss", "Notes", None, &[]),
+        ];
+        let results = classify_many("safari", &items);
+        assert_eq!(results.len(), 2);
+        assert_eq!(
+            results.iter().find(|r| r.id == "miss").unwrap().tier,
+            Tier::FrecencyOnly as u8
+        );
+    }
+
+    #[test]
+    fn classify_many_tier_values_match_classify() {
+        let items = vec![input("exact", "Safari", None, &[])];
+        let results = classify_many("safari", &items);
+        let expected = classify("safari", "Safari", None, &[], 0.0, false);
+        assert_eq!(results[0].tier, expected.tier as u8);
+    }
+
+    #[test]
+    fn classify_many_empty_query_returns_frecency_only_for_all() {
+        let items = vec![
+            input("a", "Banana", None, &[]),
+            input("b", "Apple", None, &[]),
+        ];
+        let results = classify_many("", &items);
+        assert!(results.iter().all(|r| r.tier == Tier::FrecencyOnly as u8));
     }
 }

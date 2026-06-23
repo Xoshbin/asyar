@@ -394,6 +394,10 @@ impl SearchState {
                     description: description_for(item),
                     style: None,
                     alias: None,
+                    // Untiered: this is the raw frecency/skim search, not the
+                    // classify pass merged_search runs. Frecency-only is the
+                    // honest placeholder for "not tier-ranked".
+                    tier: ranker::Tier::FrecencyOnly as u8,
                 });
             }
         } else {
@@ -438,6 +442,8 @@ impl SearchState {
                         description: description_for(item),
                         style: None,
                         alias: None,
+                        // Untiered: see comment on the empty-query branch above.
+                        tier: ranker::Tier::FrecencyOnly as u8,
                     });
                 }
             }
@@ -655,6 +661,8 @@ impl SearchState {
                     description: ext.description,
                     style: ext.style,
                     alias: None,
+                    // Empty-query short-circuit doesn't classify by tier.
+                    tier: ranker::Tier::FrecencyOnly as u8,
                 });
             }
             let mut seen = std::collections::HashSet::new();
@@ -727,6 +735,7 @@ impl SearchState {
             );
             // Normalize score for display/browser-fallback compatibility.
             ci.result.score = (ci.result.score / skim_max).min(1.0);
+            ci.result.tier = key.tier as u8;
             combined.push((ci.result, key));
         }
 
@@ -752,6 +761,7 @@ impl SearchState {
                 description: ext.description,
                 style: ext.style,
                 alias: None,
+                tier: key.tier as u8,
             };
             combined.push((result, key));
         }
@@ -1710,6 +1720,70 @@ mod service_tests {
             results[0].object_id, "ext_pinned_0",
             "Pinned (tier 0) result must beat app with usage_count 100 at tier 1"
         );
+    }
+
+    // ------------------------------------------------------------------
+    // SearchResult.tier — exposes the tier merged_search already computes
+    // internally, so the frontend can stop re-deriving it with its own
+    // substring-based approximation (rust-first audit #2).
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn merged_search_exact_title_match_has_tier_exact_title() {
+        let state = make_state();
+        state.index_one(app("app_safari", "Safari", 0)).unwrap();
+        let results = state.merged_search("Safari", vec![], 10).unwrap();
+        let hit = results.iter().find(|r| r.object_id == "app_safari").unwrap();
+        assert_eq!(hit.tier, ranker::Tier::ExactTitle as u8);
+    }
+
+    #[test]
+    fn merged_search_pinned_external_result_has_tier_pinned() {
+        let state = make_state();
+        let external = vec![ext_result(
+            "ext_calc_42_0",
+            "42",
+            0.0,
+            Some(models::ResultPriority::Top),
+        )];
+        let results = state.merged_search("anything", external, 10).unwrap();
+        let hit = results.iter().find(|r| r.object_id == "ext_calc_42_0").unwrap();
+        assert_eq!(hit.tier, ranker::Tier::Pinned as u8);
+    }
+
+    #[test]
+    fn merged_search_subtitle_match_has_tier_subtitle_or_keyword() {
+        // Indexed items can't reach this tier through merged_search: the
+        // title-only skim prefilter in `search()` and classify()'s own
+        // title-fuzzy check run the same algorithm on the same title, so they
+        // always agree. Only external results (added unconditionally, no
+        // prefilter) can fall through title-fuzzy and land on subtitle/keyword.
+        let state = make_state();
+        let external = vec![models::ExternalSearchResult {
+            object_id: "ext_slack_0".to_string(),
+            name: "Slack".to_string(), // no 't', 'e', 'a', or 'm' — title-fuzzy can't match "team"
+            description: Some("Team chat".to_string()),
+            result_type: "command".to_string(),
+            score: 0.5,
+            icon: None,
+            extension_id: Some("test-ext".to_string()),
+            category: Some("extension".to_string()),
+            style: None,
+            priority: None,
+        }];
+        let results = state.merged_search("team", external, 10).unwrap();
+        let hit = results.iter().find(|r| r.object_id == "ext_slack_0").unwrap();
+        assert_eq!(hit.tier, ranker::Tier::SubtitleOrKeyword as u8);
+    }
+
+    #[test]
+    fn merged_search_backfill_items_have_tier_frecency_only() {
+        let state = make_state();
+        state.index_one(app("app_unrelated", "Unrelated App", 5)).unwrap();
+        // Query matches nothing, so the only results are frecency backfill.
+        let results = state.merged_search("zzz_no_match_zzz", vec![], 5).unwrap();
+        assert!(!results.is_empty());
+        assert!(results.iter().all(|r| r.tier == ranker::Tier::FrecencyOnly as u8));
     }
 
     // ------------------------------------------------------------------
