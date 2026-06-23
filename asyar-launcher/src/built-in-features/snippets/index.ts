@@ -201,7 +201,7 @@ class SnippetsExtension implements Extension {
   }
 
   async onViewSearch(query: string): Promise<void> {
-    snippetViewState.setSearch(query);
+    await snippetViewState.setSearch(query);
   }
 
   async activate(): Promise<void> {}

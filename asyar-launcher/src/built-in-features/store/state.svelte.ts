@@ -1,6 +1,7 @@
-import { SearchEngine, type ILogService, type IExtensionManager } from 'asyar-sdk/contracts';
+import { type ILogService, type IExtensionManager } from 'asyar-sdk/contracts';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 import { useListSelection } from '../../lib/listSelection.svelte';
+import { rankItems } from '../../lib/rankItems';
 
 // Re-define ApiExtension here or import if possible (avoiding circular deps)
 export interface ExtensionAuthor {
@@ -30,9 +31,9 @@ export interface ApiExtension {
 
 export class StoreViewStateClass {
   searchQuery = $state("");
-  private searchEngine = new SearchEngine<ApiExtension>({
-    getText: (it) => `${it.name} ${it.description} ${it.author.name} ${it.category}`,
-  });
+  // Ids of the current search results, best-match first, as ranked by Rust.
+  // `null` means no active search (show every fetched item).
+  private rankedIds = $state<string[] | null>(null);
   allItems = $state<ApiExtension[]>([]); // All fetched items
   isLoading = $state(true);
   loadError = $state(false);
@@ -48,8 +49,11 @@ export class StoreViewStateClass {
 
   filteredItems = $derived.by(() => {
     const q = this.searchQuery?.trim() ?? '';
-    this.searchEngine.setItems(this.allItems);
-    return q ? this.searchEngine.search(q) : this.allItems;
+    if (!q || this.rankedIds === null) return this.allItems;
+    const byId = new Map(this.allItems.map((it) => [String(it.id), it]));
+    return this.rankedIds
+      .map((id) => byId.get(id))
+      .filter((it): it is ApiExtension => it !== undefined);
   });
 
   private selection = useListSelection({ items: () => this.filteredItems });
@@ -86,11 +90,28 @@ export class StoreViewStateClass {
     this.errorMessage = "";
   }
 
-  setSearch(query: string) {
+  async setSearch(query: string) {
     if (this.searchQuery === query) return;
     this.searchQuery = query;
     // Re-anchor at the top so the strongest match for the new query is selected.
     this.selection.setIndex(0);
+
+    const q = query.trim();
+    if (!q) {
+      this.rankedIds = null;
+      return;
+    }
+
+    const ranked = await rankItems(q, this.allItems, {
+      id: (it) => String(it.id),
+      title: (it) => it.name,
+      subtitle: (it) => it.description,
+      keywords: (it) => [it.author.name, it.category],
+    });
+
+    // Guard against out-of-order responses from rapid typing.
+    if (this.searchQuery.trim() !== q) return;
+    this.rankedIds = ranked.map((it) => String(it.id));
   }
 
   moveSelection(direction: "up" | "down") {

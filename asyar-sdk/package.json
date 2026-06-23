@@ -55,7 +55,6 @@
     "src/styles"
   ],
   "dependencies": {
-    "@leeoniya/ufuzzy": "^1.0.19",
     "adm-zip": "^0.5.16",
     "chalk": "^5.6.2",
     "chokidar": "^3.6.0",

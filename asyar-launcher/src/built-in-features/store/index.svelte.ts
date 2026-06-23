@@ -774,7 +774,7 @@ class StoreExtension implements Extension {
     this.logService?.debug(`Store view search received: "${query}"`);
     // Ensure store is initialized before setting search
     const store = initializeStore();
-    store?.setSearch(query); // Update the state store
+    await store?.setSearch(query); // Update the state store (Rust-ranked)
   }
 }
 

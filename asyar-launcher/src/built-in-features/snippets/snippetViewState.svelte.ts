@@ -1,5 +1,5 @@
 import { snippetStore, type Snippet } from './snippetStore.svelte';
-import { SearchEngine } from 'asyar-sdk/contracts';
+import { rankItems } from '../../lib/rankItems';
 import { useListSelection } from '../../lib/listSelection.svelte';
 
 export type SnippetEditMode = 'view' | 'edit' | 'create';
@@ -10,9 +10,10 @@ class SnippetViewStateClass {
   editingSnippet = $state<Snippet | null>(null);
   pendingDeleteId = $state<string | null>(null); // set by triggerDelete(), watched by DefaultView
 
-  private searchEngine = new SearchEngine<Snippet>({
-    getText: (s) => `${s.name} ${s.keyword ?? ''} ${s.expansion}`,
-  });
+  // Ids of the current search results, best-match first, as ranked by Rust.
+  // `null` means no active search (show the full list). Held as ids — not item
+  // refs — so pin toggles and edits re-derive against the live store.
+  private rankedIds = $state<string[] | null>(null);
 
   private selection = useListSelection({ items: () => this.getFilteredSnippets() });
 
@@ -21,10 +22,18 @@ class SnippetViewStateClass {
   }
 
   getFilteredSnippets(): Snippet[] {
+    const all = snippetStore.snippets || [];
     const q = this.searchQuery.trim();
 
-    this.searchEngine.setItems(snippetStore.snippets || []);
-    const searched = q ? this.searchEngine.search(q) : (snippetStore.snippets || []);
+    let searched: Snippet[];
+    if (!q || this.rankedIds === null) {
+      searched = all;
+    } else {
+      const byId = new Map(all.map(s => [s.id, s]));
+      searched = this.rankedIds
+        .map(id => byId.get(id))
+        .filter((s): s is Snippet => s !== undefined);
+    }
 
     const pinned = searched.filter(s => s.pinned);
     const rest = searched.filter(s => !s.pinned);
@@ -39,10 +48,42 @@ class SnippetViewStateClass {
     return this.selection.selectedItem;
   }
 
-  setSearch(query: string) {
+  async setSearch(query: string) {
     this.searchQuery = query;
     this.selection.setIndex(0);
     if (this.mode !== 'create' && this.mode !== 'edit') this.mode = 'view';
+
+    const q = query.trim();
+    if (!q) {
+      this.rankedIds = null;
+      return;
+    }
+
+    const ranked = await rankItems(q, snippetStore.snippets || [], {
+      id: s => s.id,
+      title: s => s.name,
+      subtitle: s => s.expansion,
+      keywords: s => (s.keyword ? [s.keyword] : []),
+    });
+
+    // Guard against out-of-order responses: a newer keystroke may have
+    // superseded this query while Rust was ranking.
+    if (this.searchQuery.trim() !== q) return;
+    this.rankedIds = ranked.map(s => s.id);
+  }
+
+  /**
+   * Select the snippet with this id, re-ranking against the live store first
+   * if a search is active. `rankedIds` is a snapshot from the last Rust call,
+   * so it predates any item created/duplicated since — without the re-rank,
+   * a brand-new item that matches the active filter would not be found.
+   */
+  async selectAfterMutation(id: string) {
+    if (this.searchQuery.trim()) {
+      await this.setSearch(this.searchQuery);
+    }
+    const idx = this.getFilteredSnippets().findIndex(s => s.id === id);
+    if (idx >= 0) this.selectItem(idx);
   }
 
   selectItem(index: number) {
@@ -76,6 +117,7 @@ class SnippetViewStateClass {
 
   reset() {
     this.searchQuery = '';
+    this.rankedIds = null;
     this.selection.setIndex(0);
     this.mode = 'view';
     this.editingSnippet = null;
