@@ -230,6 +230,11 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // search:rank is intentionally permission-free: the caller supplies its
         // own already-known items and gets back an ordering — no host data is
         // read, nothing is persisted, no cross-extension exposure.
+        // clipboard:stripHtml / clipboard:stripRtf are intentionally
+        // permission-free for the same reason: the caller supplies its own
+        // markup string and gets back plain text — the host clipboard is
+        // never read (that's clipboard:read, gated separately), nothing is
+        // persisted, no cross-extension exposure.
         // Not in map = core call, always allowed
         _ => None,
     }
@@ -363,8 +368,14 @@ mod tests {
 
     #[test]
     fn test_get_required_permission_process() {
-        assert_eq!(get_required_permission("asyar:api:process:list"), Some("process:read"));
-        assert_eq!(get_required_permission("asyar:api:process:kill"), Some("process:kill"));
+        assert_eq!(
+            get_required_permission("asyar:api:process:list"),
+            Some("process:read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:process:kill"),
+            Some("process:kill")
+        );
     }
 
     #[test]
@@ -458,6 +469,21 @@ mod tests {
         // cross-extension exposure. See the comment above get_required_permission's
         // fallthrough arm.
         assert_eq!(get_required_permission("asyar:api:search:rank"), None);
+    }
+
+    #[test]
+    fn clipboard_strip_html_and_strip_rtf_are_intentionally_permission_free() {
+        // The caller supplies its own markup string and gets back plain text
+        // — the host clipboard is never read, nothing is persisted. See the
+        // comment above get_required_permission's fallthrough arm.
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:stripHtml"),
+            None
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:stripRtf"),
+            None
+        );
     }
 
     #[test]

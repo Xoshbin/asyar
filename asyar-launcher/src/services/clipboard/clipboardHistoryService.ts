@@ -480,6 +480,24 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   }
 
   /**
+   * Strip HTML tags/entities, returning plain text. Backed by the same Rust
+   * command used internally for the Android plaintext fallback — also
+   * exposed to Tier 2 extensions via the SDK's `clipboard` proxy.
+   */
+  public async stripHtml(html: string): Promise<string> {
+    return invoke<string>('clipboard_strip_html', { content: html });
+  }
+
+  /**
+   * Strip RTF control words/markup, returning plain text. Backed by the same
+   * Rust command used internally for `writeRtfContent` — also exposed to
+   * Tier 2 extensions via the SDK's `clipboard` proxy.
+   */
+  public async stripRtf(rtf: string): Promise<string> {
+    return invoke<string>('clipboard_strip_rtf', { content: rtf });
+  }
+
+  /**
    * Write item to system clipboard based on type
    */
   public async writeToClipboard(item: ClipboardHistoryItem): Promise<void> {
@@ -490,8 +508,8 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     if (this.isAndroid && (item.type === ClipboardItemType.Html || item.type === ClipboardItemType.Rtf)) {
       // Android: write as plain text fallback
       const plaintext = item.type === ClipboardItemType.Html
-        ? await invoke<string>('clipboard_strip_html', { content: item.content })
-        : (await invoke<string>('clipboard_strip_rtf', { content: item.content })) || item.content;
+        ? await this.stripHtml(item.content)
+        : (await this.stripRtf(item.content)) || item.content;
       await writeText(plaintext);
       return;
     }
@@ -553,7 +571,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * Write RTF content to clipboard
    */
   private async writeRtfContent(rtf: string): Promise<void> {
-    const plainText = await invoke<string>('clipboard_strip_rtf', { content: rtf });
+    const plainText = await this.stripRtf(rtf);
     await writeRTF(plainText || rtf, rtf);
   }
 

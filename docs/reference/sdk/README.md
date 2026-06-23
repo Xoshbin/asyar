@@ -48,7 +48,7 @@ expands the placement guidance.
 |---|---|---|---|---|
 | `LogService` | `ILogService` | both | None | Structured debug/info/warn/error logging |
 | `NotificationService` | `INotificationService` | both (callbacks: worker) | `notifications:send` | System notification center |
-| `ClipboardHistoryService` | `IClipboardHistoryService` | view | `clipboard:read/write` | Full clipboard access and history |
+| `ClipboardHistoryService` | `IClipboardHistoryService` | view | `clipboard:read/write` (stripHtml/stripRtf: none) | Full clipboard access and history |
 | `NetworkService` | `INetworkService` | both | `network` | Outbound HTTP requests |
 | `SettingsService` | `ISettingsService` | view | None | Persistent key-value storage (legacy — prefer `StorageService`) |
 | `StatusBarService` | `IStatusBarService` | both | None | Tray menu live items |

@@ -181,6 +181,30 @@ describe('ClipboardHistoryServiceProxy', () => {
     expect(result).toBe('clipboard text');
   });
 
+  it('stripHtml → "clipboard:stripHtml" with html', async () => {
+    const { proxy, mockInvoke } = makeProxy();
+    mockInvoke.mockResolvedValue('hello');
+    const result = await proxy.stripHtml('<b>hello</b>');
+    const call = mockInvoke.mock.calls.find(
+      (c: unknown[]) => c[0] === 'clipboard:stripHtml',
+    );
+    expect(call).toBeDefined();
+    expect(call![1]).toMatchObject({ html: '<b>hello</b>' });
+    expect(result).toBe('hello');
+  });
+
+  it('stripRtf → "clipboard:stripRtf" with rtf', async () => {
+    const { proxy, mockInvoke } = makeProxy();
+    mockInvoke.mockResolvedValue('hello');
+    const result = await proxy.stripRtf('{\\rtf1 hello}');
+    const call = mockInvoke.mock.calls.find(
+      (c: unknown[]) => c[0] === 'clipboard:stripRtf',
+    );
+    expect(call).toBeDefined();
+    expect(call![1]).toMatchObject({ rtf: '{\\rtf1 hello}' });
+    expect(result).toBe('hello');
+  });
+
   // ── Sync methods (no broker) ────────────────────────────────────────────────
 
   describe('formatClipboardItem', () => {

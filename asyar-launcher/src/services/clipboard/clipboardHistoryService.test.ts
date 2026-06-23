@@ -668,6 +668,26 @@ describe('handleClipboardChange', () => {
     });
   });
 
+  describe('stripHtml / stripRtf — public methods (Tier 2 SDK surface)', () => {
+    beforeEach(() => { vi.clearAllMocks() })
+
+    it('stripHtml calls clipboard_strip_html and returns the result', async () => {
+      vi.mocked(invoke).mockResolvedValue('hello');
+      const svc = getInstance();
+      const result = await svc.stripHtml('<b>hello</b>');
+      expect(invoke).toHaveBeenCalledWith('clipboard_strip_html', { content: '<b>hello</b>' });
+      expect(result).toBe('hello');
+    });
+
+    it('stripRtf calls clipboard_strip_rtf and returns the result', async () => {
+      vi.mocked(invoke).mockResolvedValue('hello');
+      const svc = getInstance();
+      const result = await svc.stripRtf('{\\rtf1 hello}');
+      expect(invoke).toHaveBeenCalledWith('clipboard_strip_rtf', { content: '{\\rtf1 hello}' });
+      expect(result).toBe('hello');
+    });
+  });
+
   describe('formatClipboardItem — RTF and Files', () => {
     it('returns truncated content for RTF items', () => {
       const svc = getInstance();
