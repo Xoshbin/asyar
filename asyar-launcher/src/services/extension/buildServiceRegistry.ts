@@ -1,5 +1,6 @@
+import { invoke } from '@tauri-apps/api/core';
 import { defineServiceRegistry, type ServiceRegistry } from './defineServiceRegistry';
-import type { IExtensionManager } from 'asyar-sdk/contracts';
+import type { IExtensionManager, RankableItem } from 'asyar-sdk/contracts';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { logService } from '../log/logService';
 import { settingsService } from '../settings/settingsService.svelte';
@@ -97,6 +98,12 @@ export function buildServiceRegistry(deps: {
         extensionPreferencesService.reset(extensionId, scope),
     },
     cache: extensionCacheService,
+    // Same Rust ranker the launcher's own search uses (search_engine::ranker).
+    // Stateless passthrough — no permission required (see permissions.rs).
+    search: {
+      rank: (query: string, items: RankableItem[]) =>
+        invoke<string[]>('rank_items', { query, items }),
+    },
     feedback: feedbackService,
     // The IPC dispatcher spreads payload values via `Object.values` (see
     // ExtensionIpcRouter.dispatchApiCall). The SDK proxy wraps the

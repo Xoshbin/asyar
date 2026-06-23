@@ -16,6 +16,7 @@ import {
   SelectionServiceProxy,
   ShellServiceProxy,
   CacheServiceProxy,
+  SearchServiceProxy,
   ApplicationServiceProxy,
 } from "./services";
 import { AIServiceProxy } from './services/AIServiceProxy';
@@ -64,6 +65,7 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     fs: new FileManagerServiceProxy(),
     interop: new InteropServiceProxy(),
     cache: new CacheServiceProxy(),
+    search: new SearchServiceProxy(),
     application: new ApplicationServiceProxy(),
     window: new WindowManagementServiceProxy(),
     power: new PowerServiceProxy(),

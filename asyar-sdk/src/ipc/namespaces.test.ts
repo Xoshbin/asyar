@@ -10,7 +10,7 @@ describe('NAMESPACES', () => {
       'oauth', 'opener', 'power', 'process', 'shell', 'systemEvents', 'appEvents',
       'applicationIndex', 'fs', 'interop', 'application', 'window', 'timers',
       'fsWatcher', 'state', 'onboarding', 'runs', 'tools', 'snippets',
-      'browser',
+      'browser', 'search',
     ])
   })
 
@@ -29,5 +29,9 @@ describe('NAMESPACES', () => {
 
   it('includes browser', () => {
     expect(NAMESPACES).toContain('browser');
+  })
+
+  it('includes search', () => {
+    expect(NAMESPACES).toContain('search');
   })
 })

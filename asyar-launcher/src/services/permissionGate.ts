@@ -8,6 +8,12 @@ export interface PermissionGateResult {
 // absent from PERMISSION_MAP. They are UI capabilities scoped to the calling
 // extension's own active view — no security boundary is crossed. Same status
 // as host→iframe theme variable injection (also unmapped).
+//
+// `asyar:api:search:rank` is also intentionally absent: the caller supplies
+// its own already-known items and gets back an ordering — no host data is
+// read, nothing is persisted, no cross-extension exposure. The real
+// enforcement point is `get_required_permission` in src-tauri/permissions.rs;
+// this map is kept in sync for documentation/audit purposes.
 export const PERMISSION_MAP: Record<string, string> = {
   // Real strings discovered in SDK for existing services
   'asyar:api:clipboard:readCurrentClipboard': 'clipboard:read',

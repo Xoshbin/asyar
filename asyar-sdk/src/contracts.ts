@@ -63,6 +63,8 @@ export type {
   AppPresenceEventKind,
   ICacheService,
   CacheSetOptions,
+  ISearchService,
+  RankableItem,
   IWindowManagementService,
   WindowBounds,
   ShellHandle,

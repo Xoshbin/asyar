@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NAMESPACES } from 'asyar-sdk/contracts';
 
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
+
 // Mock all service dependencies BEFORE importing the module under test
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), custom: vi.fn() },
@@ -151,6 +153,20 @@ describe('buildServiceRegistry', () => {
     });
 
     expect(registry.extensions).toBe(mockExtensionManager);
+  });
+});
+
+describe('buildServiceRegistry search entry', () => {
+  it('search.rank delegates to the rank_items Tauri command with a named-key payload', async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockResolvedValueOnce(['b']);
+
+    const registry = makeRegistry() as any;
+    const items = [{ id: 'a', title: 'Apple' }, { id: 'b', title: 'Banana' }];
+    const result = await registry.search.rank('ban', items);
+
+    expect(invoke).toHaveBeenCalledWith('rank_items', { query: 'ban', items });
+    expect(result).toEqual(['b']);
   });
 });
 

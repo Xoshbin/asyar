@@ -29,6 +29,7 @@ import { LogServiceProxy } from './services/LogServiceProxy';
 import { NotificationServiceProxy } from './services/NotificationServiceProxy';
 import { StorageServiceProxy } from './services/StorageServiceProxy';
 import { CacheServiceProxy } from './services/CacheServiceProxy';
+import { SearchServiceProxy } from './services/SearchServiceProxy';
 import { NetworkServiceProxy } from './services/NetworkServiceProxy';
 import { ShellServiceProxy } from './services/ShellServiceProxy';
 import { AIServiceProxy } from './services/AIServiceProxy';
@@ -60,6 +61,7 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     notifications: new NotificationServiceProxy(),
     storage: new StorageServiceProxy(),
     cache: new CacheServiceProxy(),
+    search: new SearchServiceProxy(),
     network: new NetworkServiceProxy(),
     shell: new ShellServiceProxy(),
     ai: new AIServiceProxy(),
