@@ -645,13 +645,18 @@ describe('handleClipboardChange', () => {
   describe('writeToClipboard — RTF and Files', () => {
     beforeEach(() => { vi.clearAllMocks() })
 
-    it('calls writeRTF with plaintext and RTF for Rtf items', async () => {
+    it('calls writeRTF with plaintext from the Rust stripper and the original RTF', async () => {
       const { writeRTF } = await import('tauri-plugin-clipboard-x-api');
+      vi.mocked(invoke).mockImplementation(async (cmd: string) =>
+        cmd === 'clipboard_strip_rtf' ? 'Hello World' : undefined
+      );
       const svc = getInstance();
       const rtfContent = '{\\rtf1\\ansi Hello World}';
       await svc.writeToClipboard(makeItem(ClipboardItemType.Rtf, rtfContent));
+
+      expect(invoke).toHaveBeenCalledWith('clipboard_strip_rtf', { content: rtfContent });
       // writeRTF takes (plaintext, rtf) — two args
-      expect(writeRTF).toHaveBeenCalledWith(expect.any(String), rtfContent);
+      expect(writeRTF).toHaveBeenCalledWith('Hello World', rtfContent);
     });
 
     it('calls writeFiles with path array for Files items', async () => {
@@ -959,13 +964,17 @@ describe('Android fallback', () => {
     const { platform } = await import('@tauri-apps/plugin-os');
     const { writeText, writeHTML } = await import('tauri-plugin-clipboard-x-api');
     vi.mocked(platform).mockResolvedValue('android' as any);
-    
+    vi.mocked(invoke).mockImplementation(async (cmd: string) =>
+      cmd === 'clipboard_strip_html' ? 'bold' : undefined
+    );
+
     const svc = getInstance();
     await svc.initialize();
-    
+
     const htmlItem = makeItem(ClipboardItemType.Html, '<b>bold</b>');
     await svc.writeToClipboard(htmlItem);
-    
+
+    expect(invoke).toHaveBeenCalledWith('clipboard_strip_html', { content: '<b>bold</b>' });
     expect(writeText).toHaveBeenCalledWith('bold');
     expect(writeHTML).not.toHaveBeenCalled();
   });
@@ -974,13 +983,17 @@ describe('Android fallback', () => {
     const { platform } = await import('@tauri-apps/plugin-os');
     const { writeText, writeRTF } = await import('tauri-plugin-clipboard-x-api');
     vi.mocked(platform).mockResolvedValue('android' as any);
-    
+    vi.mocked(invoke).mockImplementation(async (cmd: string) =>
+      cmd === 'clipboard_strip_rtf' ? 'hello' : undefined
+    );
+
     const svc = getInstance();
     await svc.initialize();
-    
+
     const rtfItem = makeItem(ClipboardItemType.Rtf, '{\\rtf1 hello}');
     await svc.writeToClipboard(rtfItem);
-    
+
+    expect(invoke).toHaveBeenCalledWith('clipboard_strip_rtf', { content: '{\\rtf1 hello}' });
     expect(writeText).toHaveBeenCalledWith('hello');
     expect(writeRTF).not.toHaveBeenCalled();
   });

@@ -57,6 +57,7 @@ pub mod app_updater;
 pub mod application;
 pub mod auth;
 pub mod browser;
+pub mod clipboard_markup;
 pub mod clipboard_privacy;
 pub mod commands;
 pub mod crypto;
@@ -405,6 +406,8 @@ pub fn run() {
             storage::commands::clipboard_toggle_favorite,
             storage::commands::clipboard_delete_item,
             storage::commands::clipboard_clear_non_favorites,
+            commands::clipboard_markup::clipboard_strip_html,
+            commands::clipboard_markup::clipboard_strip_rtf,
             // Storage: snippets
             storage::commands::snippet_upsert,
             storage::commands::snippet_get_all,

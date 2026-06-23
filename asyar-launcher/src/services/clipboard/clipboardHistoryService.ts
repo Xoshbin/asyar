@@ -489,15 +489,9 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
 
     if (this.isAndroid && (item.type === ClipboardItemType.Html || item.type === ClipboardItemType.Rtf)) {
       // Android: write as plain text fallback
-      let plaintext = item.content || '';
-      if (item.type === ClipboardItemType.Html) {
-        plaintext = plaintext.replace(/<[^>]*>/g, '');
-      } else if (item.type === ClipboardItemType.Rtf) {
-        plaintext = plaintext
-          .replace(/\\[a-z]+\d*\s?/gi, '')
-          .replace(/[{}]/g, '')
-          .trim() || plaintext;
-      }
+      const plaintext = item.type === ClipboardItemType.Html
+        ? await invoke<string>('clipboard_strip_html', { content: item.content })
+        : (await invoke<string>('clipboard_strip_rtf', { content: item.content })) || item.content;
       await writeText(plaintext);
       return;
     }
@@ -559,14 +553,8 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * Write RTF content to clipboard
    */
   private async writeRtfContent(rtf: string): Promise<void> {
-    // Extract plain text from RTF by stripping RTF control words
-    // Simple approach: remove commands and then braces
-    const plainText = rtf
-      .replace(/\\[a-z]+\d*\s?/gi, '')
-      .replace(/[{}]/g, '')
-      .trim() || rtf;
-
-    await writeRTF(plainText, rtf);
+    const plainText = await invoke<string>('clipboard_strip_rtf', { content: rtf });
+    await writeRTF(plainText || rtf, rtf);
   }
 
   /**
