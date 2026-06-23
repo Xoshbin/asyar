@@ -77,10 +77,8 @@ pub fn sort_groups(groups: &mut [AppGroup], sort: SortBy) {
                 .partial_cmp(&a.total_cpu)
                 .unwrap_or(std::cmp::Ordering::Equal)
         }),
-        SortBy::Memory => groups.sort_by(|a, b| b.total_memory_bytes.cmp(&a.total_memory_bytes)),
-        SortBy::Name => {
-            groups.sort_by(|a, b| a.app_name.to_lowercase().cmp(&b.app_name.to_lowercase()))
-        }
+        SortBy::Memory => groups.sort_by_key(|b| std::cmp::Reverse(b.total_memory_bytes)),
+        SortBy::Name => groups.sort_by_key(|a| a.app_name.to_lowercase()),
     }
 }
 
