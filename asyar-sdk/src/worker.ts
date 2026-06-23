@@ -36,6 +36,7 @@ import { OAuthServiceProxy } from './services/OAuthServiceProxy';
 import { FileManagerServiceProxy } from './services/FileManagerServiceProxy';
 import { ApplicationServiceProxy } from './services/ApplicationService';
 import { PowerServiceProxy } from './services/PowerServiceProxy';
+import { ProcessServiceProxy } from './services/ProcessServiceProxy';
 import { SystemEventsServiceProxy } from './services/SystemEventsServiceProxy';
 import { TimerServiceProxy } from './services/TimerServiceProxy';
 import { FileSystemWatcherServiceProxy } from './services/FileSystemWatcherService';
@@ -66,6 +67,7 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     fs: new FileManagerServiceProxy(),
     application: new ApplicationServiceProxy(),
     power: new PowerServiceProxy(),
+    process: new ProcessServiceProxy(),
     systemEvents: new SystemEventsServiceProxy(),
     timers: new TimerServiceProxy(),
     fsWatcher: new FileSystemWatcherServiceProxy(),

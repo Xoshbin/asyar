@@ -7,7 +7,7 @@ describe('NAMESPACES', () => {
       'log', 'extensions', 'notifications', 'clipboard', 'commands',
       'actions', 'settings', 'preferences', 'searchBar', 'statusBar', 'entitlements',
       'network', 'storage', 'cache', 'feedback', 'diagnostics', 'selection', 'ai',
-      'oauth', 'opener', 'power', 'shell', 'systemEvents', 'appEvents',
+      'oauth', 'opener', 'power', 'process', 'shell', 'systemEvents', 'appEvents',
       'applicationIndex', 'fs', 'interop', 'application', 'window', 'timers',
       'fsWatcher', 'state', 'onboarding', 'runs', 'tools', 'snippets',
       'browser',

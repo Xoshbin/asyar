@@ -25,6 +25,7 @@ import { windowManagementService } from '../windowManagement/windowManagementSer
 import { openerService } from '../opener/openerService';
 import { networkService } from '../network/networkService';
 import { powerService } from '../power/powerService';
+import { processService } from '../process/processService';
 import { systemEventsService } from '../systemEvents/systemEventsService';
 import { appEventsService } from '../appEvents/appEventsService';
 import { applicationIndexService } from '../applicationIndex/applicationIndexService';
@@ -123,6 +124,7 @@ export function buildServiceRegistry(deps: {
     opener: openerService,
     network: networkService,
     power: powerService,
+    process: processService,
     systemEvents: systemEventsService,
     appEvents: appEventsService,
     applicationIndex: applicationIndexService,

@@ -70,6 +70,7 @@ expands the placement guidance.
 | `WindowManagementService` | `IWindowManagementService` | view | `window:manage` | Read and set the bounds / fullscreen state of the frontmost OS window |
 | `TimerService` | `ITimerService` | both | `timers:schedule`, `timers:cancel`, `timers:list` | Persistent one-shot timers that survive app quit (Pomodoro, reminders) |
 | `PowerService` | `IPowerService` | both | `power:inhibit` | OS-level sleep inhibitors |
+| `ProcessService` | `IProcessService` | both | `process:read`, `process:kill` | List running processes grouped by app (CPU/memory) and terminate them; OS-critical processes are guard-railed |
 | `SystemEventsService` | `ISystemEventsService` | both (subscriptions: worker) | `systemEvents:read` | OS state-change push events (sleep, wake, lid, battery) |
 | `FileSystemWatcherService` | `IFileSystemWatcherService` | view (pending worker redesign) | `fs:watch` (+ `permissionArgs.fs:watch`) | Watch declared directories for changes (Apple Shortcuts, SSH config, dotfiles). Roots-up coalesced `{ type: 'change', paths }` events. |
 | `RunService` | `IRunService` | worker | `runs:track` | Track long-running work in the launcher's runs UI and compact HUD badge |
@@ -109,6 +110,7 @@ expands the placement guidance.
 - **[CacheService](./cache-service.md)**
 - **[ApplicationService](./application-service.md)**
 - **[WindowManagementService](./window-management-service.md)**
+- **[ProcessService](./process-service.md)**
 - **[TimerService](./timers.md)**
 - **[FileSystemWatcherService](./file-system-watcher.md)**
 - **[RunService](./run-service.md)**

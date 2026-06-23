@@ -61,6 +61,9 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:power:keepAwake':                         'power:inhibit',
   'asyar:api:power:release':                           'power:inhibit',
   'asyar:api:power:list':                              'power:inhibit',
+  // Process list/kill
+  'asyar:api:process:list':                            'process:read',
+  'asyar:api:process:kill':                            'process:kill',
   // System events push service
   'asyar:api:systemEvents:subscribe':                  'systemEvents:read',
   'asyar:api:systemEvents:unsubscribe':                'systemEvents:read',

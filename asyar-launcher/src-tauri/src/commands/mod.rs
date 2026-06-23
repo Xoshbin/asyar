@@ -25,6 +25,7 @@ pub mod input;
 pub mod mcp;
 pub mod oauth;
 pub mod power;
+pub mod process;
 pub mod profile;
 pub mod runs;
 pub mod scripts;
