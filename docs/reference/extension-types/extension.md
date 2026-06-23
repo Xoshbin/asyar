@@ -149,6 +149,29 @@ Inside the view component, call worker handlers with `context.request`:
 </script>
 ```
 
+### Dismiss the launcher — `context.hideLauncher()`
+
+From a **view**, `context.hideLauncher()` hides the launcher window — the same
+effect as the user pressing the global toggle. Use it after an action that
+should return the user to whatever they were doing (a kill confirmed, a file
+opened, a command fired) rather than leaving the launcher floating.
+
+```svelte
+<script lang="ts">
+  import type { ExtensionContext } from 'asyar-sdk/view';
+  let { context }: { context: ExtensionContext } = $props();
+
+  async function killAndDismiss(pids: number[]) {
+    await context.getService<IProcessService>('process').kill({ pids, force: false });
+    context.hideLauncher(); // get out of the user's way
+  }
+</script>
+```
+
+It is **synchronous, fire-and-forget, and ungated** — no permission, no
+return value. Under the hood it posts `asyar:window:hide` to the host frame;
+calling it outside a view iframe is a no-op.
+
 ## Searchable extensions
 
 `searchable: true` at the root makes the launcher forward global search
