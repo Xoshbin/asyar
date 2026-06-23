@@ -350,6 +350,35 @@ describe('rust read_launch_view contract', () => {
   })
 })
 
+// ── Rust merged_search disabled-app contract ──────────────────────────────────
+//
+// Rust's `parse_disabled_application_ids` in
+// `src-tauri/src/search_engine/commands.rs` navigates the JSON path
+// `search → applicationEnabled` on the value stored under `"settings"` in
+// `settings.dat`, treating any key whose value is `false` as a disabled
+// application id. That path is hardcoded in Rust — renaming `search` or
+// `applicationEnabled` silently breaks Settings → Applications toggles
+// (the app would stay visible in search despite being "disabled").
+
+describe('rust merged_search disabled-app contract', () => {
+  const serializedDefaults = JSON.parse(JSON.stringify(DEFAULT))
+
+  it('exposes applicationEnabled at search.applicationEnabled', () => {
+    expect(serializedDefaults.search).toBeDefined()
+    expect(typeof serializedDefaults.search.applicationEnabled).toBe('object')
+  })
+
+  it('keeps the search key at the top level (not nested under settings/general/etc.)', () => {
+    expect(Object.keys(serializedDefaults)).toContain('search')
+  })
+
+  it('marks a disabled app with a literal boolean false (not a string or omission)', () => {
+    const settings = { ...DEFAULT, search: { ...DEFAULT.search, applicationEnabled: { app_x: false } } }
+    const serialized = JSON.parse(JSON.stringify(settings))
+    expect(serialized.search.applicationEnabled.app_x).toBe(false)
+  })
+})
+
 // ── privacy.crashReportMode ───────────────────────────────────────────────────
 
 describe('privacy.crashReportMode', () => {

@@ -7,7 +7,6 @@ import type { SearchResult } from './interfaces/SearchResult';
 import type { ExtensionResult } from 'asyar-sdk/contracts';
 import { getCachedTopItems, setCachedTopItems, invalidateTopItemsCache } from './topItemsCache';
 import * as commands from '../../lib/ipc/commands';
-import { settingsService } from '../settings/settingsService.svelte';
 import { dispatch } from '../extension/extensionDispatcher.svelte';
 import { commandService } from '../extension/commandService.svelte';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
@@ -98,7 +97,7 @@ class SearchOrchestratorClass {
       });
 
       const resp = await commands.mergedSearch(query, externalResults, 10);
-      let combinedResults: SearchResult[] = resp.results as SearchResult[];
+      const combinedResults: SearchResult[] = resp.results as SearchResult[];
       const aliasMatch = resp.aliasMatch ?? null;
 
       // Re-attach inline action closures that were stripped for the Rust
@@ -128,28 +127,14 @@ class SearchOrchestratorClass {
         this.#lastAutoExecutedQuery = null;
       }
 
-      // Pin-to-top: trimmed query equals an alias but no auto-execute fired
-      // (application alias, or command alias without trailing space). Move
-      // the matched objectId to position 0 so the user sees it first.
-      if (aliasMatch && !aliasMatch.autoExecute) {
-        const idx = combinedResults.findIndex(r => r.objectId === aliasMatch!.objectId);
-        if (idx > 0) {
-          const [pinned] = combinedResults.splice(idx, 1);
-          combinedResults.unshift(pinned);
-        }
-      }
+      // Pin-to-top and disabled-application filtering are done in Rust
+      // (merged_search/merged_search_with_aliases) — combinedResults already
+      // reflects both.
 
       // Seed top items cache on empty query
       if (query.trim() === '' && getCachedTopItems() === null) {
         setCachedTopItems(combinedResults);
       }
-
-      // Filter disabled applications (Settings → Applications → enabled toggle).
-      // App stays indexed in Rust so toggling is instant — we hide at render.
-      const enabledMap = settingsService.currentSettings.search.applicationEnabled ?? {};
-      combinedResults = combinedResults.filter(
-        r => r.type !== 'application' || enabledMap[r.objectId] !== false
-      );
 
       if (token !== this.#searchToken) return;
       this.items = combinedResults;
