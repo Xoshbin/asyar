@@ -1,3 +1,4 @@
+import { fetch } from '@tauri-apps/plugin-http';
 import type { IProviderPlugin, ModelInfo, ProviderConfig, RequestSpec, ChatParams, ChatMessage, LoopMessage, ToolStreamEvent } from '../IProviderPlugin';
 
 export const anthropicPlugin: IProviderPlugin = {

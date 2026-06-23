@@ -1,6 +1,37 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { openaiPlugin } from './openai';
 import type { LoopMessage, ChatParams, ProviderConfig } from '../IProviderPlugin';
+
+// getModels must route through the Tauri HTTP plugin (Rust/reqwest), not the WebView's
+// global fetch — the WebView path is CORS-bound and fails on Windows (origin
+// `http://tauri.localhost`). Routing through Rust has no Origin/CORS, like the chat engine.
+vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
+
+describe('openaiPlugin.getModels transport', () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    vi.clearAllMocks();
+  });
+
+  it('openai_getModels_routes_through_tauri_http_plugin_not_webview_fetch', async () => {
+    const webViewFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    globalThis.fetch = webViewFetch as unknown as typeof fetch;
+
+    vi.mocked(tauriFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ id: 'gpt-4o' }, { id: 'whisper-1' }] }),
+    } as unknown as Response);
+
+    const models = await openaiPlugin.getModels({ enabled: true, apiKey: 'sk-test' });
+
+    expect(tauriFetch).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(tauriFetch).mock.calls[0][0]).toBe('https://api.openai.com/v1/models');
+    expect(webViewFetch).not.toHaveBeenCalled();
+    expect(models).toEqual([{ id: 'gpt-4o', label: 'gpt-4o' }]);
+  });
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
