@@ -1,11 +1,18 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { snippetViewState } from './snippetViewState.svelte';
-import { snippetStore } from './snippetStore.svelte';
 
 vi.mock('./snippetStore.svelte', () => ({
   snippetStore: { snippets: [] }
 }));
+// Ranking is delegated to the Rust engine via rankItems. The engine's
+// fuzzy/tier behavior is covered by Rust tests (search_engine::ranker); here we
+// only verify that the view state delegates correctly and renders the order
+// Rust returns (with pinned items floated to the top).
+vi.mock('../../lib/rankItems', () => ({ rankItems: vi.fn() }));
+
+import { snippetViewState } from './snippetViewState.svelte';
+import { snippetStore } from './snippetStore.svelte';
+import { rankItems } from '../../lib/rankItems';
 
 const mockSnippets = [
   { id: '1', name: 'Work Email', keyword: ';email', expansion: 'work@example.com', createdAt: Date.now() },
@@ -15,65 +22,129 @@ const mockSnippets = [
 
 describe('snippetViewState', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(rankItems).mockResolvedValue([]); // default; tests override per-call
     snippetViewState.reset();
     snippetStore.snippets = [...mockSnippets];
   });
 
   describe('getFilteredSnippets()', () => {
-    it('returns all when no query', () => {
+    it('returns all when no query (no Rust round-trip)', () => {
       expect(snippetViewState.getFilteredSnippets()).toHaveLength(3);
+      expect(rankItems).not.toHaveBeenCalled();
     });
 
-    it('filters by name', () => {
-      snippetViewState.setSearch('work');
+    it('returns the items Rust ranked, in order', async () => {
+      vi.mocked(rankItems).mockResolvedValueOnce([mockSnippets[0]]);
+      await snippetViewState.setSearch('work');
       const filtered = snippetViewState.getFilteredSnippets();
       expect(filtered).toHaveLength(1);
       expect(filtered[0].name).toBe('Work Email');
     });
 
-    it('filters by keyword', () => {
-      snippetViewState.setSearch(';addr');
-      const filtered = snippetViewState.getFilteredSnippets();
-      expect(filtered).toHaveLength(1);
-      expect(filtered[0].keyword).toBe(';addr');
+    it('passes name/keyword/expansion field accessors to rankItems', async () => {
+      vi.mocked(rankItems).mockResolvedValueOnce([]);
+      await snippetViewState.setSearch('addr');
+      const [query, items, fields] = vi.mocked(rankItems).mock.calls[0];
+      expect(query).toBe('addr');
+      expect(items).toHaveLength(3);
+      const s = mockSnippets[1];
+      expect(fields.id(s)).toBe('2');
+      expect(fields.title(s)).toBe('Home Address');
+      expect(fields.subtitle?.(s)).toBe('123 Main St');
+      expect(fields.keywords?.(s)).toEqual([';addr']);
     });
 
-    it('filters by expansion', () => {
-      snippetViewState.setSearch('Main St');
+    it('keyword accessor yields empty array when keyword is absent', async () => {
+      vi.mocked(rankItems).mockResolvedValueOnce([]);
+      await snippetViewState.setSearch('x');
+      const fields = vi.mocked(rankItems).mock.calls[0][2];
+      expect(fields.keywords?.({ id: 'n', name: 'No KW', expansion: 'e', createdAt: 1 } as any)).toEqual([]);
+    });
+  });
+
+  describe('setSearch(query)', () => {
+    it('updates searchQuery and resets selectedIndex to first match', async () => {
+      vi.mocked(rankItems).mockResolvedValueOnce([mockSnippets[0]]);
+      snippetViewState.selectItem(2);
+      await snippetViewState.setSearch('work');
+      expect(snippetViewState.searchQuery).toBe('work');
+      expect(snippetViewState.selectedIndex).toBe(0);
+    });
+
+    it('drops selection to -1 when the query matches nothing', async () => {
+      vi.mocked(rankItems).mockResolvedValueOnce([]);
+      await snippetViewState.setSearch('zzz no match zzz');
+      expect(snippetViewState.selectedIndex).toBe(-1);
+    });
+
+    it('clears the active search and skips Rust for an empty query', async () => {
+      vi.mocked(rankItems).mockResolvedValueOnce([mockSnippets[0]]);
+      await snippetViewState.setSearch('work');
+      await snippetViewState.setSearch('   ');
+      expect(snippetViewState.getFilteredSnippets()).toHaveLength(3);
+      expect(rankItems).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores a stale result when a newer query has superseded it', async () => {
+      let resolveFirst: (v: any) => void = () => {};
+      vi.mocked(rankItems)
+        .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r; }))
+        .mockResolvedValueOnce([mockSnippets[1]]);
+
+      const first = snippetViewState.setSearch('work');
+      const second = snippetViewState.setSearch('addr');
+      await second;
+      resolveFirst([mockSnippets[0]]); // late result for the abandoned "work" query
+      await first;
+
       const filtered = snippetViewState.getFilteredSnippets();
       expect(filtered).toHaveLength(1);
       expect(filtered[0].name).toBe('Home Address');
     });
 
-    it('is case insensitive', () => {
-      snippetViewState.setSearch('WORK');
-      expect(snippetViewState.getFilteredSnippets()).toHaveLength(1);
-    });
-  });
-
-  describe('setSearch(query)', () => {
-    it('updates searchQuery and resets selectedIndex to first match', () => {
-      snippetViewState.selectItem(2);
-      snippetViewState.setSearch('work');
-      expect(snippetViewState.searchQuery).toBe('work');
-      expect(snippetViewState.selectedIndex).toBe(0);
-    });
-
-    it('drops selection to -1 when the query matches nothing', () => {
-      snippetViewState.setSearch('zzz no match zzz');
-      expect(snippetViewState.selectedIndex).toBe(-1);
-    });
-
-    it('keeps edit mode if already in it', () => {
+    it('keeps edit mode if already in it', async () => {
       snippetViewState.mode = 'edit';
-      snippetViewState.setSearch('test');
+      await snippetViewState.setSearch('test');
       expect(snippetViewState.mode).toBe('edit');
     });
 
-    it('keeps create mode if already in it', () => {
+    it('keeps create mode if already in it', async () => {
       snippetViewState.mode = 'create';
-      snippetViewState.setSearch('test');
+      await snippetViewState.setSearch('test');
       expect(snippetViewState.mode).toBe('create');
+    });
+  });
+
+  describe('selectAfterMutation(id)', () => {
+    it('selects the item directly when no search is active', async () => {
+      await snippetViewState.selectAfterMutation('3');
+      expect(snippetViewState.selectedSnippet?.id).toBe('3');
+      expect(rankItems).not.toHaveBeenCalled();
+    });
+
+    it('re-ranks against the live store before selecting, so a newly created item under an active filter is found', async () => {
+      const created = { id: 'new', name: 'Brand New', keyword: ';bn', expansion: 'x', createdAt: Date.now() };
+      vi.mocked(rankItems).mockResolvedValueOnce([mockSnippets[0]]); // initial search for "work"
+      await snippetViewState.setSearch('work');
+
+      snippetStore.snippets = [...mockSnippets, created];
+      vi.mocked(rankItems).mockResolvedValueOnce([mockSnippets[0], created]); // re-rank includes the new item
+
+      await snippetViewState.selectAfterMutation('new');
+
+      expect(rankItems).toHaveBeenCalledTimes(2);
+      expect(snippetViewState.selectedSnippet?.id).toBe('new');
+    });
+
+    it('leaves selection at -1 when the mutated item does not match the active filter', async () => {
+      vi.mocked(rankItems).mockResolvedValueOnce([mockSnippets[0]]);
+      await snippetViewState.setSearch('work');
+
+      vi.mocked(rankItems).mockResolvedValueOnce([mockSnippets[0]]); // re-rank still excludes 'unrelated'
+      await snippetViewState.selectAfterMutation('unrelated-id');
+
+      expect(snippetViewState.selectedSnippet?.id).not.toBe('unrelated-id');
     });
   });
 
@@ -142,8 +213,9 @@ describe('snippetViewState', () => {
   });
 
   describe('reset()', () => {
-    it('resets everything to initial state', () => {
-      snippetViewState.searchQuery = 'test';
+    it('resets everything to initial state', async () => {
+      vi.mocked(rankItems).mockResolvedValueOnce([mockSnippets[0]]);
+      await snippetViewState.setSearch('work');
       snippetViewState.selectItem(2);
       snippetViewState.mode = 'edit';
       snippetViewState.editingSnippet = mockSnippets[0];
@@ -156,6 +228,8 @@ describe('snippetViewState', () => {
       expect(snippetViewState.mode).toBe('view');
       expect(snippetViewState.editingSnippet).toBe(null);
       expect(snippetViewState.pendingDeleteId).toBe(null);
+      // After reset, the full list is shown again with no active search.
+      expect(snippetViewState.getFilteredSnippets()).toHaveLength(3);
     });
   });
 
@@ -190,7 +264,24 @@ describe('snippetViewState', () => {
       expect(results[2].id).toBe('3');
     });
 
-    it('pinnedCount returns correct count of pinned items in filtered results', () => {
+    it('floats pinned items within the ranked result set', async () => {
+      snippetStore.snippets = [
+        { id: '1', name: 'A', keyword: ';a', expansion: 'a', createdAt: 1, pinned: false },
+        { id: '2', name: 'B', keyword: ';b', expansion: 'b', createdAt: 2, pinned: true },
+        { id: '3', name: 'C', keyword: ';c', expansion: 'c', createdAt: 3, pinned: false },
+      ] as any;
+      // Rust ranks C, B, A; pinned B floats to the front, rest keep Rust order.
+      vi.mocked(rankItems).mockResolvedValueOnce([
+        snippetStore.snippets[2],
+        snippetStore.snippets[1],
+        snippetStore.snippets[0],
+      ]);
+      await snippetViewState.setSearch('x');
+      const results = snippetViewState.getFilteredSnippets();
+      expect(results.map((s) => s.id)).toEqual(['2', '3', '1']);
+    });
+
+    it('pinnedCount counts pinned items in the visible result set', async () => {
       snippetStore.snippets = [
         { id: '1', name: 'A', keyword: ';a', expansion: 'a', createdAt: 1, pinned: true },
         { id: '2', name: 'B', keyword: ';b', expansion: 'b', createdAt: 2, pinned: true },
@@ -198,34 +289,10 @@ describe('snippetViewState', () => {
       ] as any;
 
       expect((snippetViewState as any).pinnedCount).toBe(2);
-      
-      snippetViewState.setSearch('C');
+
+      vi.mocked(rankItems).mockResolvedValueOnce([snippetStore.snippets[2]]); // only C
+      await snippetViewState.setSearch('C');
       expect((snippetViewState as any).pinnedCount).toBe(0);
-    });
-  });
-
-  describe('Smart search with SearchEngine', () => {
-    beforeEach(() => {
-      snippetViewState.reset();
-      snippetStore.snippets = [...mockSnippets];
-    });
-
-    it('matches subsequences: "wrk" finds "Work Email"', () => {
-      snippetViewState.setSearch('wrk');
-      const filtered = snippetViewState.getFilteredSnippets();
-      expect(filtered.some(s => s.name === 'Work Email')).toBe(true);
-    });
-
-    it('tolerates typos: "addrss" finds ";addr"', () => {
-      snippetViewState.setSearch('addrss');
-      const filtered = snippetViewState.getFilteredSnippets();
-      expect(filtered.some(s => s.keyword === ';addr')).toBe(true);
-    });
-
-    it('matches across name and expansion: "email example" finds Work Email', () => {
-      snippetViewState.setSearch('email example');
-      const filtered = snippetViewState.getFilteredSnippets();
-      expect(filtered.some(s => s.name === 'Work Email')).toBe(true);
     });
   });
 });

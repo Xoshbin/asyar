@@ -132,8 +132,7 @@
     } else {
       snippetStore.add(payload);
       // Select new snippet
-      const idx = snippetViewState.getFilteredSnippets().findIndex(s => s.id === formId);
-      if (idx >= 0) snippetViewState.selectItem(idx);
+      await snippetViewState.selectAfterMutation(formId);
     }
     await snippetService.syncToRust();
     prefillExpansion = null;
@@ -188,8 +187,7 @@
     const dup = duplicateSnippet(snippet);
     snippetStore.add(dup);
     await snippetService.syncToRust();
-    const idx = snippetViewState.getFilteredSnippets().findIndex(s => s.id === dup.id);
-    if (idx >= 0) snippetViewState.selectItem(idx);
+    await snippetViewState.selectAfterMutation(dup.id);
   }
 </script>
 

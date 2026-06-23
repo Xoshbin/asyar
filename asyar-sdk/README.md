@@ -95,7 +95,7 @@ Refer to the [Extension Development Guide](https://github.com/Xoshbin/asyar/blob
 
 | Subpath | Asserts | Surface | Use from |
 |---|---|---|---|
-| `asyar-sdk/worker` | `window.__ASYAR_ROLE__ === "worker"` at module load | `ExtensionContext` bound to the **worker proxy bag** (no DOM-dependent helpers) — `log`, `notifications`, `storage`, `cache`, `network`, `shell`, `ai`, `oauth`, `fs`, `application`, `power`, `systemEvents`, `timers`, `statusBar`, `state`, `commands`, `actions` | A Tier 2 extension's `worker.html` (the always-on hidden iframe). |
+| `asyar-sdk/worker` | `window.__ASYAR_ROLE__ === "worker"` at module load | `ExtensionContext` bound to the **worker proxy bag** (no DOM-dependent helpers) — `log`, `notifications`, `storage`, `cache`, `search`, `network`, `shell`, `ai`, `oauth`, `fs`, `application`, `power`, `systemEvents`, `timers`, `statusBar`, `state`, `commands`, `actions` | A Tier 2 extension's `worker.html` (the always-on hidden iframe). |
 | `asyar-sdk/view` | `window.__ASYAR_ROLE__ === "view"` at module load | Re-exports the full SDK surface plus DOM helpers (`registerIconElement`, theme injector). `ExtensionContext` is bound to the **full proxy bag** including view-only services: `clipboard`, `selection`, `interop`, `feedback`, plus the worker-shared services above. | A Tier 2 extension's `view.html` (the on-demand UI iframe). |
 | `asyar-sdk/contracts` | Nothing — neutral, launcher-safe | Types, namespace constants, `MessageBroker`, `ExtensionBridge`, `ExtensionContextCore`. **No role assertion**, no top-level DOM requirement. | Launcher code (Tier 1 host, built-in features), SDK-internal modules, anything that needs types + IPC primitives without committing to an iframe role. |
 
@@ -307,6 +307,36 @@ Valid values: `"macos"`, `"windows"`, `"linux"`. You can list any combination.
 | `["macos"]` | macOS only |
 | `["macos", "linux"]` | macOS and Linux, not Windows |
 | `["windows", "linux"]` | Windows and Linux, not macOS |
+
+## Search & Ranking
+
+`SearchService` ranks an arbitrary list against a query using the same
+tiered fuzzy ranker the launcher's own search uses (exact title → title
+prefix → title fuzzy → subtitle/keyword, with typo tolerance). Use it for
+in-view lists instead of shipping your own fuzzy-match library — it's
+available from both `asyar-sdk/worker` and `asyar-sdk/view`. Full reference:
+[`docs/reference/sdk/search-service.md`](../docs/reference/sdk/search-service.md).
+
+```typescript
+import type { ISearchService, RankableItem } from 'asyar-sdk/contracts';
+
+const search = context.getService<ISearchService>('search');
+
+const items: RankableItem[] = todos.map(t => ({
+  id: t.id,
+  title: t.text,
+  subtitle: t.notes,       // optional — searched after title
+  keywords: t.tags,        // optional — searched after subtitle
+}));
+
+const orderedIds = await search.rank(query, items);
+const ranked = orderedIds.map(id => todos.find(t => t.id === id)!);
+```
+
+- `id` is opaque to the host — it's returned verbatim, best match first, so you map ordered ids back to your own objects.
+- Items with no match in any field are omitted from the result.
+- An empty/whitespace query returns every id in input order (no ranking pass, no IPC round-trip needed on your end either — but it's safe to call either way).
+- **No permission required.** You supply your own already-known data and get back an ordering; no host data is read and nothing is persisted.
 
 ## Available Scripts
 

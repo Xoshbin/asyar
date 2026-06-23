@@ -66,6 +66,7 @@ expands the placement guidance.
 | `ShellService` | `IShellService` | both | `shell:spawn` | Spawn OS processes and stream stdout/stderr — wraps CLI tools like ffmpeg, git, docker |
 | `InteropService` | `IInteropService` | view | `extension:invoke` | Invoke a command in another installed extension |
 | `CacheService` | `ICacheService` | both | `cache:read/write` | General-purpose persistent cache with TTL support |
+| `SearchService` | `ISearchService` | both | None | Rank a list against a query using the launcher's tiered fuzzy ranker |
 | `ApplicationService` | `IApplicationService` | both (subscriptions: worker) | `application:read`, `app:frontmost-watch` | Retrieve metadata (title, name, id) about the currently focused app |
 | `WindowManagementService` | `IWindowManagementService` | view | `window:manage` | Read and set the bounds / fullscreen state of the frontmost OS window |
 | `TimerService` | `ITimerService` | both | `timers:schedule`, `timers:cancel`, `timers:list` | Persistent one-shot timers that survive app quit (Pomodoro, reminders) |
@@ -79,7 +80,6 @@ expands the placement guidance.
 
 | Export | Type | Description |
 |---|---|---|
-| `SearchEngine<T>` | Class | Two-tier fuzzy search (exact + subsequence/typo-tolerant) |
 | `stripHtml(html)` | Function | Strip HTML tags, scripts, styles, decode entities |
 | `stripRtf(rtf)` | Function | Strip RTF control words and formatting |
 
@@ -96,7 +96,7 @@ expands the placement guidance.
 - **[CommandService](./command-service.md)**
 - **[ActionService](./action-service.md)**
 - **[ExtensionManager](./extension-manager.md)**
-- **[SearchEngine](./search-engine.md)**
+- **[SearchService](./search-service.md)**
 - **[EntitlementService](./entitlement-service.md)**
 - **[StorageService](./storage-service.md)**
 - **[FeedbackService](./feedback-service.md)**

@@ -32,6 +32,9 @@ export { PreferencesServiceProxy } from './PreferencesServiceProxy';
 export type { ICacheService, CacheSetOptions } from './ICacheService';
 export { CacheServiceProxy } from './CacheServiceProxy';
 
+export type { ISearchService, RankableItem } from './ISearchService';
+export { SearchServiceProxy } from './SearchServiceProxy';
+
 export type {
   IFeedbackService,
   ShowToastOptions,

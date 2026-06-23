@@ -37,6 +37,7 @@ export const NAMESPACES = [
   'tools',
   'snippets',
   'browser',
+  'search',
 ] as const
 
 export type Namespace = typeof NAMESPACES[number]

@@ -172,9 +172,6 @@ importers:
 
   asyar-sdk:
     dependencies:
-      '@leeoniya/ufuzzy':
-        specifier: ^1.0.19
-        version: 1.0.19
       adm-zip:
         specifier: ^0.5.16
         version: 0.5.17
@@ -1009,9 +1006,6 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
-
-  '@leeoniya/ufuzzy@1.0.19':
-    resolution: {integrity: sha512-0pikDeYt0IHEUPza5RTCDXc/17S1pTrYnReEMp8Aa6k1ovzw5QdZLwicW8TjljwEZRb6oYag0xmALohrcq/yOQ==}
 
   '@mermaid-js/parser@1.1.1':
     resolution: {integrity: sha512-VuHdsYMK1bT6X2JbcAaWAhugTRvRBRyuZgd+c22swUeI9g/ntaxF7CY7dYarhZovofCbUNO0G7JesfmNtjYOCw==}
@@ -4339,8 +4333,6 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
-
-  '@leeoniya/ufuzzy@1.0.19': {}
 
   '@mermaid-js/parser@1.1.1':
     dependencies:

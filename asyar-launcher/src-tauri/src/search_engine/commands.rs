@@ -26,6 +26,18 @@ pub async fn merged_search(
     )
 }
 
+/// Rank an arbitrary frontend-supplied list against a query using the shared
+/// tiered fuzzy ranker. Stateless: items are passed in, ordered ids come back.
+/// Used by built-in views (snippets, store) and available to extensions that
+/// need to rank their own data through the same engine the launcher uses.
+#[tauri::command]
+pub async fn rank_items(
+    query: String,
+    items: Vec<super::ranker::RankInput>,
+) -> Result<Vec<String>, SearchError> {
+    Ok(super::ranker::rank_ids(&query, &items))
+}
+
 #[tauri::command]
 pub async fn index_item(
     item: SearchableItem,

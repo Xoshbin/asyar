@@ -40,6 +40,13 @@ export type Command = {
 	icon: string | null,
 	lastUsedAt?: number | null,
 	subtitle?: string | null,
+	/**
+	 *  `true` for runtime-registered commands from
+	 *  `commandsService.replaceDynamicCommands(...)`. Manifest-declared
+	 *  commands always serialize as `false`. Defaults to `false` so older
+	 *  persisted rows decode without migration.
+	 */
+	isDynamic?: boolean,
 };
 
 /**
@@ -71,6 +78,18 @@ export type ItemAlias = {
 export type MergedSearchResponse = {
 	results: SearchResult[],
 	aliasMatch?: AliasMatch | null,
+};
+
+/**
+ *  A frontend-supplied item to be ranked against a query. The `id` is opaque
+ *  to Rust — it is returned verbatim, best-match first, so the caller can map
+ *  the ordered ids back to its own item objects.
+ */
+export type RankInput = {
+	id: string,
+	title: string,
+	subtitle?: string | null,
+	keywords?: string[],
 };
 
 /**

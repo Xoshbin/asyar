@@ -227,6 +227,9 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:browser:actOnPage" => Some("browser:page.write"),
         // browser:listAvailableBrowsers / isCompanionInstalled are intentionally
         // permission-free (discovery, low blast radius) → fall through to None.
+        // search:rank is intentionally permission-free: the caller supplies its
+        // own already-known items and gets back an ordering — no host data is
+        // read, nothing is persisted, no cross-extension exposure.
         // Not in map = core call, always allowed
         _ => None,
     }
@@ -446,6 +449,15 @@ mod tests {
             get_required_permission("asyar:api:browser:isCompanionInstalled"),
             None
         );
+    }
+
+    #[test]
+    fn search_rank_is_intentionally_permission_free() {
+        // The caller supplies its own already-known items and gets back an
+        // ordering — no host data is read, nothing persisted, no
+        // cross-extension exposure. See the comment above get_required_permission's
+        // fallthrough arm.
+        assert_eq!(get_required_permission("asyar:api:search:rank"), None);
     }
 
     #[test]

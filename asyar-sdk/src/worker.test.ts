@@ -6,6 +6,7 @@ const WORKER_PROXY_NAMESPACES = [
   'notifications',
   'storage',
   'cache',
+  'search',
   'network',
   'shell',
   'ai',

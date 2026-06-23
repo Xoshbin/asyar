@@ -21,6 +21,7 @@ const VIEW_PROXY_NAMESPACES = [
   'fs',
   'interop',
   'cache',
+  'search',
   'application',
   'window',
   'power',

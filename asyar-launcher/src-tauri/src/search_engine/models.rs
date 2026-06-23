@@ -343,6 +343,7 @@ mod bindings_export {
             .register::<ExternalSearchResult>()
             .register::<ResultPriority>()
             .register::<UpdateCommandMetadataInput>()
+            .register::<crate::search_engine::ranker::RankInput>()
             .register::<AliasMatch>()
             .register::<MergedSearchResponse>()
             .register::<crate::aliases::ItemAlias>()

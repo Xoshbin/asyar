@@ -108,9 +108,117 @@ pub fn classify(
     }
 }
 
+/// A frontend-supplied item to be ranked against a query. The `id` is opaque
+/// to Rust — it is returned verbatim, best-match first, so the caller can map
+/// the ordered ids back to its own item objects.
+#[derive(Clone, Debug, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RankInput {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub subtitle: Option<String>,
+    #[serde(default)]
+    pub keywords: Vec<String>,
+}
+
+/// Rank arbitrary frontend items for a query using the shared tiered ranker.
+///
+/// - Empty/whitespace query: returns every id in the input order (no ranking).
+/// - Non-empty query: classifies each item, drops items that match nowhere
+///   (the `FrecencyOnly` tier), and returns the rest best-match first
+///   (tier, then fuzzy score, then title).
+pub fn rank_ids(query: &str, items: &[RankInput]) -> Vec<String> {
+    if query.trim().is_empty() {
+        return items.iter().map(|i| i.id.clone()).collect();
+    }
+
+    let mut ranked: Vec<(RankKey, &RankInput)> = items
+        .iter()
+        .map(|item| {
+            let keyword_refs: Vec<&str> = item.keywords.iter().map(|k| k.as_str()).collect();
+            let key = classify(
+                query,
+                &item.title,
+                item.subtitle.as_deref(),
+                &keyword_refs,
+                0.0,
+                false,
+            );
+            (key, item)
+        })
+        // No match anywhere → exclude from results (mirrors the old JS engine,
+        // which only returned matching items).
+        .filter(|(key, _)| key.tier != Tier::FrecencyOnly)
+        .collect();
+
+    ranked.sort_by(|(a, _), (b, _)| {
+        a.tier
+            .cmp(&b.tier)
+            // Higher fuzzy score is a better match.
+            .then(b.fuzzy_score.cmp(&a.fuzzy_score))
+            .then(a.name_lower.cmp(&b.name_lower))
+    });
+
+    ranked
+        .into_iter()
+        .map(|(_, item)| item.id.clone())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn input(id: &str, title: &str, subtitle: Option<&str>, keywords: &[&str]) -> RankInput {
+        RankInput {
+            id: id.to_string(),
+            title: title.to_string(),
+            subtitle: subtitle.map(|s| s.to_string()),
+            keywords: keywords.iter().map(|k| k.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn rank_empty_query_returns_all_in_order() {
+        let items = vec![
+            input("a", "Banana", None, &[]),
+            input("b", "Apple", None, &[]),
+        ];
+        assert_eq!(rank_ids("", &items), vec!["a", "b"]);
+        assert_eq!(rank_ids("   ", &items), vec!["a", "b"]);
+    }
+
+    #[test]
+    fn rank_drops_non_matches() {
+        let items = vec![
+            input("hit", "Safari", None, &[]),
+            input("miss", "Notes", None, &[]),
+        ];
+        assert_eq!(rank_ids("safari", &items), vec!["hit"]);
+    }
+
+    #[test]
+    fn rank_orders_exact_before_prefix_before_fuzzy() {
+        let items = vec![
+            input("fuzzy", "Snow Safari", None, &[]), // substring, not a prefix
+            input("prefix", "Safari Books", None, &[]), // prefix
+            input("exact", "Safari", None, &[]),      // exact
+        ];
+        assert_eq!(rank_ids("safari", &items), vec!["exact", "prefix", "fuzzy"]);
+    }
+
+    #[test]
+    fn rank_matches_via_subtitle() {
+        let items = vec![input("s", "Address", Some("123 Main Street"), &[])];
+        assert_eq!(rank_ids("main", &items), vec!["s"]);
+    }
+
+    #[test]
+    fn rank_matches_via_keyword() {
+        let items = vec![input("k", "Safari", None, &["com.apple.safari"])];
+        assert_eq!(rank_ids("apple", &items), vec!["k"]);
+    }
 
     #[test]
     fn tier0_pinned_overrides_query() {

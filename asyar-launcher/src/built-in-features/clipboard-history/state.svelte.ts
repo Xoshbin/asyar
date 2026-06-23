@@ -5,7 +5,6 @@ import {
   type INetworkService,
   type ExtensionContext,
   ClipboardItemType,
-  SearchEngine,
   stripHtml,
   stripRtf,
 } from "asyar-sdk/contracts";
@@ -55,33 +54,6 @@ export class ClipboardViewStateClass {
   private clipboardService?: IClipboardHistoryService;
   private logService?: any;
   networkService?: INetworkService;
-
-  private searchEngine = new SearchEngine<ClipboardHistoryItem>({
-    getText: (item) => {
-      const preview = item.preview ?? "";
-      const content = item.content ?? "";
-      let plain: string;
-      switch (item.type) {
-        case ClipboardItemType.Html:
-          plain = stripHtml(content);
-          break;
-        case ClipboardItemType.Rtf:
-          plain = stripRtf(content);
-          break;
-        case ClipboardItemType.Files:
-          try {
-            const paths: string[] = JSON.parse(content);
-            plain = paths.map((p) => p.split("/").pop() ?? p).join(" ");
-          } catch {
-            plain = content;
-          }
-          break;
-        default:
-          plain = content;
-      }
-      return `${preview} ${plain}`;
-    },
-  });
 
   initializeServices(context: ExtensionContext) {
     this.clipboardService = context.getService<IClipboardHistoryService>(

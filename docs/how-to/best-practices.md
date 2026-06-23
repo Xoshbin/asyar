@@ -27,7 +27,7 @@ order: 4
 
 **Small bundles:** Avoid heavy dependencies. Prefer lightweight libraries. Use `vite-bundle-visualizer` to inspect what is contributing to bundle size.
 
-**In-view search:** Use `SearchEngine` from the SDK for filtering lists within your view. It handles subsequence matching and typo tolerance out of the box — no need to implement your own fuzzy search or pull in a separate library. It runs synchronously and is fast enough for keystroke-by-keystroke filtering without debounce.
+**In-view search:** Use `SearchService` (`context.getService<ISearchService>('search')`) for filtering lists within your view. It ranks your items through the same Rust fuzzy ranker the launcher's own search uses — no need to implement your own fuzzy search or pull in a separate library. It's one IPC round-trip per call, no permission required. See [`docs/reference/sdk/search-service.md`](../reference/sdk/search-service.md).
 
 **Background iframes:** Every `searchable: true` extension always has a background iframe running. If your `search()` method does expensive work, cache aggressively and debounce internally.
 
