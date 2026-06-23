@@ -2,6 +2,8 @@ import { searchStores } from '../../services/search/stores/search.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { buildMappedItems } from '../searchResultMapper';
+import { classifyItems } from '../classifyItems';
+import type { Run } from 'asyar-sdk/contracts';
 import type { ItemShortcut } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 import type { LauncherState } from './launcherState.svelte';
 import { commandService } from '../../services/extension/commandService.svelte';
@@ -27,6 +29,33 @@ export function setupSelectionEffects(state: LauncherState) {
     actionService.setContext(currentView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
   });
 
+  // Effect 7b: Classify run rows against the live query via Rust's shared
+  // tiered ranker. Runs aren't in the Rust search index, so they have no
+  // SearchResult.tier — this batches all of them into one classifyItems
+  // round-trip per query change so Effect 8 can interleave them by real tier
+  // instead of a TS-side substring guess. `runTierMap` is a snapshot from the
+  // last resolved round-trip; the staleness guard discards a response if a
+  // newer keystroke has since changed the query (mirrors the rankItems
+  // snapshot pattern used by snippets/store).
+  let runTierMap = $state(new Map<string, number>());
+  $effect(() => {
+    const q = state.localSearchValue.trim();
+    const runs: Run[] = [
+      ...runService.active,
+      ...runService.unacknowledgedFailures,
+      ...runService.keptAgents,
+      ...runService.unacknowledgedScriptResults,
+    ];
+    if (!q || runs.length === 0) {
+      runTierMap = new Map();
+      return;
+    }
+    classifyItems(q, runs, { id: (r) => r.id, title: (r) => r.label }).then((map) => {
+      if (state.localSearchValue.trim() !== q) return;
+      runTierMap = map;
+    });
+  });
+
   // Effect 8: Map search results to display items.
   // Depends on commandService.liveSubtitles so it re-runs every time an
   // extension calls updateCommandMetadata (e.g. the Pomodoro countdown).
@@ -44,6 +73,7 @@ export function setupSelectionEffects(state: LauncherState) {
       failedRuns: runService.unacknowledgedFailures,
       keptAgentRuns: runService.keptAgents,
       scriptResultRuns: runService.unacknowledgedScriptResults,
+      runTiers: runTierMap,
       query: state.localSearchValue,
       onError: (msg) => diagnosticsService.report({
         source: 'frontend', kind: 'action_failed', severity: 'error',

@@ -436,12 +436,20 @@ describe('buildMappedItems run injection', () => {
   })
 
   // ── Tier-based interleaving when query is non-empty ──
+  // Tiers are now precomputed (Rust's ranker::Tier ordinal: 0=Pinned ..
+  // 5=FrecencyOnly/no-match) and consumed directly — mappedItems via
+  // `result.tier`, runs via the `runTiers` id→tier map. Neither is recomputed
+  // from title/label substrings here anymore (that duplication is the bug
+  // rust-first audit #2 flagged). A run/item with no precomputed tier
+  // defaults to 5 (no match).
 
-  // A higher-tier run beats a lower-tier mappedItem.
-  // (Prefix run "sdk-build" tier 2; non-matching mappedItem "ZZZ" tier 4 → run first.)
+  // A higher-tier (better-matching) run beats a lower-tier mappedItem.
+  // Adversarial labels: the run's label/item's title would rank the OPPOSITE
+  // way under substring matching, so this only passes if the explicit
+  // tier/runTiers values are what actually drive the order (not the strings).
   it('non-empty query: higher-tier run is inserted before lower-tier search result', () => {
-    const run = makeRun({ id: 'r-sdk', label: 'sdk-build', kind: 'shell-script' })
-    const searchItem = makeResult({ objectId: 'cmd_zzz', name: 'ZZZ' })
+    const run = makeRun({ id: 'r-sdk', label: 'totally unrelated label', kind: 'shell-script' })
+    const searchItem = makeResult({ objectId: 'cmd_zzz', name: 'sdk', tier: 4 })
 
     const { mappedItems } = buildMappedItems({
       searchItems: [searchItem],
@@ -451,6 +459,7 @@ describe('buildMappedItems run injection', () => {
       selectedIndex: 0,
       onError: vi.fn(),
       activeRuns: [run],
+      runTiers: new Map([['r-sdk', 2]]),
       query: 'sdk',
     })
 
@@ -460,10 +469,12 @@ describe('buildMappedItems run injection', () => {
   })
 
   // Catalog wins ties at the same tier (Rust's within-tier ordering is preserved).
-  // (Both "sdk-cli" mapped and "sdk-build" run are tier 2 prefix matches → catalog first.)
+  // Adversarial labels: substring matching would put the run first (exact
+  // label match) and the item last (no substring relation) — the opposite of
+  // the tie-break this test asserts.
   it('non-empty query: catalog wins ties within the same tier', () => {
-    const run = makeRun({ id: 'r-sdk-build', label: 'sdk-build', kind: 'shell-script' })
-    const searchItem = makeResult({ objectId: 'cmd_sdk_cli', name: 'sdk-cli' })
+    const run = makeRun({ id: 'r-sdk-build', label: 'sdk', kind: 'shell-script' })
+    const searchItem = makeResult({ objectId: 'cmd_sdk_cli', name: 'banana', tier: 2 })
 
     const { mappedItems } = buildMappedItems({
       searchItems: [searchItem],
@@ -473,6 +484,7 @@ describe('buildMappedItems run injection', () => {
       selectedIndex: 0,
       onError: vi.fn(),
       activeRuns: [run],
+      runTiers: new Map([['r-sdk-build', 2]]),
       query: 'sdk',
     })
 
@@ -482,9 +494,11 @@ describe('buildMappedItems run injection', () => {
   })
 
   // Exact-match run (tier 1) beats prefix mappedItem (tier 2).
+  // Adversarial labels: substring matching would rank the item first (exact
+  // title match) and the run last (no substring relation).
   it('non-empty query: exact-match run beats prefix-match search result', () => {
-    const run = makeRun({ id: 'r-sdk-exact', label: 'sdk', kind: 'shell-script' })
-    const searchItem = makeResult({ objectId: 'cmd_sdk_cli', name: 'sdk-cli' })
+    const run = makeRun({ id: 'r-sdk-exact', label: 'unrelated xyz', kind: 'shell-script' })
+    const searchItem = makeResult({ objectId: 'cmd_sdk_cli', name: 'sdk', tier: 2 })
 
     const { mappedItems } = buildMappedItems({
       searchItems: [searchItem],
@@ -494,6 +508,7 @@ describe('buildMappedItems run injection', () => {
       selectedIndex: 0,
       onError: vi.fn(),
       activeRuns: [run],
+      runTiers: new Map([['r-sdk-exact', 1]]),
       query: 'sdk',
     })
 
@@ -502,10 +517,14 @@ describe('buildMappedItems run injection', () => {
     expect(mappedItems[1].object_id).toBe('cmd_sdk_cli')
   })
 
-  // Non-matching runs (tier 4) go to the bottom of the list.
-  it('non-empty query: non-matching run sinks to the bottom', () => {
-    const run = makeRun({ id: 'r-ping', label: 'ping -c 30 127.0.0.1', kind: 'shell-script' })
-    const searchItem = makeResult({ objectId: 'cmd_sdk_play', name: 'SDK Playground' })
+  // A run missing from runTiers (e.g. the async classify round-trip hasn't
+  // resolved yet) defaults to tier 5 (no match) and sinks to the bottom.
+  // Adversarial label: the run's label is an exact substring match (would
+  // rank first under the old algorithm) but it's absent from runTiers, so
+  // the default-to-no-match behavior is what must place it last.
+  it('non-empty query: run absent from runTiers defaults to no-match and sinks to the bottom', () => {
+    const run = makeRun({ id: 'r-ping', label: 'sdk', kind: 'shell-script' })
+    const searchItem = makeResult({ objectId: 'cmd_sdk_play', name: 'zzz', tier: 2 })
 
     const { mappedItems } = buildMappedItems({
       searchItems: [searchItem],
@@ -515,6 +534,7 @@ describe('buildMappedItems run injection', () => {
       selectedIndex: 0,
       onError: vi.fn(),
       activeRuns: [run],
+      runTiers: new Map(),
       query: 'sdk',
     })
 
@@ -523,8 +543,34 @@ describe('buildMappedItems run injection', () => {
     expect(mappedItems[1].object_id).toBe('run_r-ping')
   })
 
+  // A mappedItem missing a `tier` (e.g. an extension result that hasn't been
+  // through Rust's tier pass) also defaults to 5 (no match).
+  // Adversarial title: the item's title is an exact substring match (would
+  // rank first under the old algorithm) but has no `tier` field, so the
+  // default-to-no-match behavior is what must place it last.
+  it('non-empty query: mappedItem missing tier defaults to no-match and sinks to the bottom', () => {
+    const run = makeRun({ id: 'r-sdk', label: 'zzz unrelated', kind: 'shell-script' })
+    const searchItem = makeResult({ objectId: 'cmd_untiered', name: 'sdk' }) // no tier field
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [searchItem],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'sdk',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      activeRuns: [run],
+      runTiers: new Map([['r-sdk', 2]]),
+      query: 'sdk',
+    })
+
+    expect(mappedItems).toHaveLength(2)
+    expect(mappedItems[0].object_id).toBe('run_r-sdk')
+    expect(mappedItems[1].object_id).toBe('cmd_untiered')
+  })
+
   // End-to-end mix: matching runs interleave by tier; non-matching runs go last.
-  // mappedItems: ["sdk-cli" tier2, "weird" tier4]; runs: ["sdk-build" tier2, "ping" tier4].
+  // mappedItems: ["sdk-cli" tier2, "weird" tier4]; runs: ["sdk-build" tier2, "ping" tier5(no match)].
   // Walking mappedItems:
   //   sdk-cli (t2) → no tier<2 runs → push sdk-cli
   //   weird (t4) → sdk-build (t2 < 4) → push sdk-build → push weird
@@ -534,8 +580,8 @@ describe('buildMappedItems run injection', () => {
   it('non-empty query: matching runs interleave, non-matching stay at the bottom', () => {
     const runSdkBuild = makeRun({ id: 'r-sdk-build', label: 'sdk-build', kind: 'shell-script' })
     const runPing    = makeRun({ id: 'r-ping',      label: 'ping',      kind: 'shell-script' })
-    const sdkCli = makeResult({ objectId: 'cmd_sdk_cli', name: 'sdk-cli' })
-    const weird  = makeResult({ objectId: 'cmd_weird',   name: 'weird'   })
+    const sdkCli = makeResult({ objectId: 'cmd_sdk_cli', name: 'sdk-cli', tier: 2 })
+    const weird  = makeResult({ objectId: 'cmd_weird',   name: 'weird',   tier: 4 })
 
     const { mappedItems } = buildMappedItems({
       searchItems: [sdkCli, weird],
@@ -545,6 +591,7 @@ describe('buildMappedItems run injection', () => {
       selectedIndex: 0,
       onError: vi.fn(),
       activeRuns: [runSdkBuild, runPing],
+      runTiers: new Map([['r-sdk-build', 2]]), // runPing absent → defaults to 5
       query: 'sdk',
     })
 
@@ -556,14 +603,14 @@ describe('buildMappedItems run injection', () => {
   })
 
   // Failed and kept-agent runs participate in tier interleaving like active runs.
-  // mappedItem "foo" tier4; failedRun "ping failure" tier4 (no match); keptRun "sdk agent" tier2.
+  // mappedItem "foo" tier4; failedRun "ping failure" tier5 (no match); keptRun "sdk agent" tier2.
   // Walking foo (t4): kept "sdk agent" (t2 < 4) → push kept → push foo.
   // Non-matching at end: failed "ping failure".
   // → [sdk agent (kept), foo (mapped), ping failure (failed)]
   it('non-empty query: failed and kept runs obey the same tier interleaving', () => {
     const failedRun = makeRun({ id: 'r-fail-ping', label: 'ping failure', status: 'failed',    kind: 'shell-script' })
     const keptRun   = makeRun({ id: 'r-kept-sdk',  label: 'sdk agent',    status: 'succeeded', kind: 'agent'        })
-    const foo = makeResult({ objectId: 'cmd_foo', name: 'foo' })
+    const foo = makeResult({ objectId: 'cmd_foo', name: 'foo', tier: 4 })
 
     const { mappedItems } = buildMappedItems({
       searchItems: [foo],
@@ -574,6 +621,7 @@ describe('buildMappedItems run injection', () => {
       onError: vi.fn(),
       failedRuns: [failedRun],
       keptAgentRuns: [keptRun],
+      runTiers: new Map([['r-kept-sdk', 2]]), // failedRun absent → defaults to 5
       query: 'sdk',
     })
 
@@ -587,7 +635,7 @@ describe('buildMappedItems run injection', () => {
   // interleaved mappedItem (i.e., its UI position is no longer == baseItems index).
   it('non-empty query: selectedOriginal resolves the right SearchResult after interleaving', () => {
     const run = makeRun({ id: 'r-sdk', label: 'sdk-build', kind: 'shell-script' })
-    const zzz = makeResult({ objectId: 'cmd_zzz', name: 'ZZZ' })
+    const zzz = makeResult({ objectId: 'cmd_zzz', name: 'ZZZ', tier: 4 })
 
     // Layout: [run, zzz] — selectedIndex=1 points at zzz, which is baseItems[0].
     const { selectedOriginal } = buildMappedItems({
@@ -598,6 +646,7 @@ describe('buildMappedItems run injection', () => {
       selectedIndex: 1,
       onError: vi.fn(),
       activeRuns: [run],
+      runTiers: new Map([['r-sdk', 2]]),
       query: 'sdk',
     })
 
@@ -607,7 +656,7 @@ describe('buildMappedItems run injection', () => {
   // selectedOriginal is null when the user lands on a run row.
   it('non-empty query: selectedOriginal is null when selection is a run', () => {
     const run = makeRun({ id: 'r-sdk', label: 'sdk-build', kind: 'shell-script' })
-    const zzz = makeResult({ objectId: 'cmd_zzz', name: 'ZZZ' })
+    const zzz = makeResult({ objectId: 'cmd_zzz', name: 'ZZZ', tier: 4 })
 
     // Layout: [run, zzz] — selectedIndex=0 points at the run.
     const { selectedOriginal } = buildMappedItems({
@@ -618,6 +667,7 @@ describe('buildMappedItems run injection', () => {
       selectedIndex: 0,
       onError: vi.fn(),
       activeRuns: [run],
+      runTiers: new Map([['r-sdk', 2]]),
       query: 'sdk',
     })
 

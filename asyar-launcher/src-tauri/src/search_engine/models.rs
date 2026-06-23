@@ -77,6 +77,10 @@ pub struct SearchResult {
     pub style: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alias: Option<String>,
+    /// Tier ordinal from `ranker::Tier` (0=Pinned .. 5=FrecencyOnly), computed
+    /// by `merged_search`'s classify pass. Lets the frontend consume Rust's
+    /// tier directly instead of re-deriving it with its own approximation.
+    pub tier: u8,
 }
 
 /// Result-level priority hint. `Top` pins the result above all tier 1–5
@@ -344,6 +348,7 @@ mod bindings_export {
             .register::<ResultPriority>()
             .register::<UpdateCommandMetadataInput>()
             .register::<crate::search_engine::ranker::RankInput>()
+            .register::<crate::search_engine::ranker::TierResult>()
             .register::<AliasMatch>()
             .register::<MergedSearchResponse>()
             .register::<crate::aliases::ItemAlias>()

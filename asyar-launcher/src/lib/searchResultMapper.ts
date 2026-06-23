@@ -85,6 +85,12 @@ export type BuildMappedItemsParams = {
    * as `run-done` rows so script output (captured in `tailOutput`) stays
    * inspectable after the run ends. */
   scriptResultRuns?: Run[];
+  /** Precomputed tier per run id (Rust ranker::Tier ordinal), from a batched
+   * `classifyItems` round-trip. Runs aren't in the Rust search index, so
+   * there's no SearchResult.tier for them — this is how they get one.
+   * A run absent from this map (e.g. the round-trip hasn't resolved yet for
+   * the current query) defaults to NO_MATCH_TIER. */
+  runTiers?: Map<string, number>;
   /** When non-empty, runs are demoted below the mapped search results.
    * When empty, runs are prepended (default-mode browse view). */
   query?: string;
@@ -174,21 +180,11 @@ function buildRunMappedItem(run: Run): MappedSearchItem {
   };
 }
 
-// Mirrors the Rust ranker's tier classification (search_engine/ranker.rs) for
-// the bits we can compute from TS. Used to interleave runs with mappedItems by
-// match quality without re-running the Rust ranker. Note: tier 3 here is plain
-// substring rather than Skim fuzzy — the launcher only has Run.label and the
-// query string in TS, no access to fuzzy_score.
-type MatchTier = 1 | 2 | 3 | 4;
-
-function matchTier(text: string, query: string): MatchTier {
-  const t = text.toLowerCase();
-  const q = query.toLowerCase();
-  if (t === q) return 1;
-  if (t.startsWith(q)) return 2;
-  if (t.includes(q)) return 3;
-  return 4;
-}
+// Tier ordinal used when no precomputed Rust tier is available (e.g. a run
+// missing from `runTiers`, or a mappedItem whose SearchResult lacks `tier`).
+// Mirrors Rust's `Tier::FrecencyOnly` ordinal (search_engine/ranker.rs) — the
+// "no match" tier, so untiered items sink to the bottom rather than guessing.
+const NO_MATCH_TIER = 5;
 
 function getSectionWeight(item: MappedSearchItem): number {
   // Section Order: scripts (0), agents (1), commands (2)
@@ -227,6 +223,7 @@ export function buildMappedItems({
   failedRuns = [],
   keptAgentRuns = [],
   scriptResultRuns = [],
+  runTiers,
   query,
 }: BuildMappedItemsParams): BuildMappedItemsResult {
   // --- Portal injection for url/view-type contexts ---
@@ -238,6 +235,8 @@ export function buildMappedItems({
       name: ctx.provider.display.name,
       type: 'command' as const,
       score: 1.0,
+      // Always surfaces first — Tier::Pinned (0), matching its placement.
+      tier: 0,
       icon: ctx.provider.display.icon,
       extensionId: ctx.provider.type === 'url' ? 'portals' : ctx.provider.id,
     };
@@ -288,7 +287,7 @@ export function buildMappedItems({
       actionFunction = async () => {
         logService.debug(`Calling applicationService.open for ${name} (ID: ${objectId}, Path: ${path})`);
         try {
-          await applicationService.open({ objectId, name, path, score, type });
+          await applicationService.open({ objectId, name, path, score, type, tier: result.tier });
         } catch (err) {
           logService.error(`applicationService.open failed: ${err}`);
           onError(`Failed to open ${name}`);
@@ -340,6 +339,7 @@ export function buildMappedItems({
       typeLabel,
       icon,
       score,
+      tier: result.tier,
       action: actionFunction,
       style: result.style,
       shortcut: shortcutMap.get(objectId)?.shortcut,
@@ -352,8 +352,6 @@ export function buildMappedItems({
   // Definition rows and run rows are orthogonal channels: a def row says
   // "click to invoke", a run row says "this is happening / has happened".
   // Both render unconditionally — neither suppresses the other.
-  const q = (query ?? '').trim();
-
   const activeItems       = activeRuns.map(buildRunMappedItem);
   const failedItems       = failedRuns.map(buildRunMappedItem);
   const keptItems         = keptAgentRuns.map(buildRunMappedItem);
@@ -383,31 +381,37 @@ export function buildMappedItems({
   // with tier T is placed right before the first mappedItem whose tier > T,
   // so a stronger-match run can rise above weaker catalog hits. Within the
   // same tier, mappedItems come first to preserve Rust's within-tier ordering
-  // (fuzzy_score + frecency tiebreakers, which TS can't replicate). Runs
-  // that don't match (tier 4) sink to the bottom in active → failed → kept
-  // order.
+  // (fuzzy_score + frecency tiebreakers, which TS can't replicate). Tiers are
+  // precomputed by Rust — mappedItems carry `result.tier` from merged_search;
+  // runs are looked up in `runTiers` (a batched classifyItems round-trip,
+  // since runs aren't in the Rust search index). Neither is recomputed from
+  // title/label substrings here — that was the rust-first audit #2 bug.
+  // Items/runs with no precomputed tier sink to the bottom in active → failed
+  // → kept order.
   type Tagged =
-    | { kind: 'mapped'; item: MappedSearchItem; baseIdx: number; tier: MatchTier }
-    | { kind: 'run';    item: MappedSearchItem; tier: MatchTier };
+    | { kind: 'mapped'; item: MappedSearchItem; baseIdx: number; tier: number }
+    | { kind: 'run';    item: MappedSearchItem; tier: number };
+
+  const runTier = (runId: string): number => runTiers?.get(runId) ?? NO_MATCH_TIER;
 
   const taggedMapped: Tagged[] = mappedItems.map((item, idx) => ({
     kind: 'mapped',
     item,
     baseIdx: idx,
-    tier: matchTier(item.title ?? '', q),
+    tier: item.tier ?? NO_MATCH_TIER,
   }));
 
   const taggedRuns: Tagged[] = [
-    ...activeItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(activeRuns[i].label, q) })),
-    ...failedItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(failedRuns[i].label, q) })),
-    ...keptItems.map  ((item, i) => ({ kind: 'run' as const, item, tier: matchTier(keptAgentRuns[i].label, q) })),
-    ...scriptResultItems.map((item, i) => ({ kind: 'run' as const, item, tier: matchTier(scriptResultRuns[i].label, q) })),
+    ...activeItems.map((item, i) => ({ kind: 'run' as const, item, tier: runTier(activeRuns[i].id) })),
+    ...failedItems.map((item, i) => ({ kind: 'run' as const, item, tier: runTier(failedRuns[i].id) })),
+    ...keptItems.map  ((item, i) => ({ kind: 'run' as const, item, tier: runTier(keptAgentRuns[i].id) })),
+    ...scriptResultItems.map((item, i) => ({ kind: 'run' as const, item, tier: runTier(scriptResultRuns[i].id) })),
   ];
 
   // Stable-sort by tier ascending; Array.prototype.sort is stable in modern
   // engines, so active → failed → kept ordering is preserved within a tier.
-  const matchingRuns    = taggedRuns.filter(r => r.tier < 4).sort((a, b) => a.tier - b.tier);
-  const nonMatchingRuns = taggedRuns.filter(r => r.tier === 4);
+  const matchingRuns    = taggedRuns.filter(r => r.tier < NO_MATCH_TIER).sort((a, b) => a.tier - b.tier);
+  const nonMatchingRuns = taggedRuns.filter(r => r.tier === NO_MATCH_TIER);
 
   const merged: Tagged[] = [];
   let ri = 0;

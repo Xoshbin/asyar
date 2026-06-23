@@ -109,9 +109,21 @@ export type SearchResult = {
 	description?: string | null,
 	style?: string | null,
 	alias?: string | null,
+	/**
+	 *  Tier ordinal from `ranker::Tier` (0=Pinned .. 5=FrecencyOnly), computed
+	 *  by `merged_search`'s classify pass. Lets the frontend consume Rust's
+	 *  tier directly instead of re-deriving it with its own approximation.
+	 */
+	tier: number,
 };
 
 export type SearchableItem = { category: "application" } & Application | { category: "command" } & Command;
+
+// Per-item tier classification result, returned by `classify_many`.
+export type TierResult = {
+	id: string,
+	tier: number,
+};
 
 // Input for updating a command's runtime metadata (currently: subtitle only).
 export type UpdateCommandMetadataInput = {

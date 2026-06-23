@@ -128,7 +128,8 @@ describe('open', () => {
       name: 'Finder', 
       path: '/Applications/Finder.app', 
       type: 'application' as const, 
-      score: 1 
+      score: 1,
+      tier: 1
     }
 
     await applicationService.open(app)
@@ -143,7 +144,8 @@ describe('open', () => {
       name: 'Finder', 
       path: '/Applications/Finder.app', 
       type: 'application' as const, 
-      score: 1 
+      score: 1,
+      tier: 1
     }
 
     await applicationService.open(app)
@@ -162,7 +164,8 @@ describe('open', () => {
       name: 'Unknown', 
       path: undefined as any, 
       type: 'application' as const, 
-      score: 1 
+      score: 1,
+      tier: 1
     }
 
     await applicationService.open(app)
@@ -177,7 +180,8 @@ describe('open', () => {
       name: 'Finder', 
       path: '/Applications/Finder.app', 
       type: 'application' as const, 
-      score: 1 
+      score: 1,
+      tier: 1
     }
 
     await applicationService.open(app)
@@ -192,7 +196,8 @@ describe('open', () => {
       name: 'Finder', 
       path: '/Applications/Finder.app', 
       type: 'application' as const, 
-      score: 1 
+      score: 1,
+      tier: 1
     }
 
     await applicationService.open(app)
@@ -207,7 +212,8 @@ describe('open', () => {
       name: 'Finder', 
       path: '/Applications/Finder.app', 
       type: 'application' as const, 
-      score: 1 
+      score: 1,
+      tier: 1
     }
 
     await applicationService.open(app)

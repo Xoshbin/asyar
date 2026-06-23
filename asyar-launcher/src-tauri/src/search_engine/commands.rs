@@ -38,6 +38,18 @@ pub async fn rank_items(
     Ok(super::ranker::rank_ids(&query, &items))
 }
 
+/// Classify an arbitrary frontend-supplied list against a query, returning a
+/// tier per id with no filtering or sorting. Used to interleave data that
+/// isn't in the Rust search index (e.g. Run rows) against results that are
+/// already tiered by `merged_search`.
+#[tauri::command]
+pub async fn classify_items(
+    query: String,
+    items: Vec<super::ranker::RankInput>,
+) -> Result<Vec<super::ranker::TierResult>, SearchError> {
+    Ok(super::ranker::classify_many(&query, &items))
+}
+
 #[tauri::command]
 pub async fn index_item(
     item: SearchableItem,
