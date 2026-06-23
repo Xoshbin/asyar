@@ -4,6 +4,7 @@
 and live in the view's proxy bag.
 
 **Permission required:** `clipboard:read` for reads, `clipboard:write` for writes.
+`stripHtml`/`stripRtf` are the exception — see below.
 
 ```typescript
 interface IClipboardHistoryService {
@@ -29,6 +30,10 @@ interface IClipboardHistoryService {
   initialize(): Promise<void>;
   stopMonitoring(): void;
   hideWindow(): Promise<void>;
+
+  // Markup stripping — no permission required (see note below)
+  stripHtml(html: string): Promise<string>;
+  stripRtf(rtf: string): Promise<string>;
 }
 
 // Clipboard item types
@@ -121,6 +126,17 @@ await clip.deleteItem(items[0].id);
 // Check if a content string is valid base64 image data
 if (clip.isValidImageData(someContent)) {
   const normalized = clip.normalizeImageData(someContent);
+}
+
+// Extract plain text from markup you already have (e.g. from
+// readCurrentClipboard() when current.type is 'html' or 'rtf').
+// No permission required — you supply the markup, the host never reads
+// the system clipboard for this call.
+if (current.type === 'html') {
+  const plain = await clip.stripHtml(current.content);
+}
+if (current.type === 'rtf') {
+  const plain = await clip.stripRtf(current.content);
 }
 ```
 

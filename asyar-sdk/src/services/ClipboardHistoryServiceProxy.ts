@@ -78,5 +78,13 @@ export class ClipboardHistoryServiceProxy extends BaseServiceProxy implements IC
   readCurrentText(): Promise<string> {
     return this.broker.invoke<string>('clipboard:readCurrentText');
   }
+
+  stripHtml(html: string): Promise<string> {
+    return this.broker.invoke<string>('clipboard:stripHtml', { html });
+  }
+
+  stripRtf(rtf: string): Promise<string> {
+    return this.broker.invoke<string>('clipboard:stripRtf', { rtf });
+  }
 }
 

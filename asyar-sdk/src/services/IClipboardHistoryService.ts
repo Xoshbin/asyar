@@ -24,4 +24,8 @@ export interface IClipboardHistoryService {
    * if the clipboard has no text representation or cannot be read.
    */
   readCurrentText(): Promise<string>;
+  /** Strip HTML tags/entities, returning plain text. */
+  stripHtml(html: string): Promise<string>;
+  /** Strip RTF control words/markup, returning plain text. */
+  stripRtf(rtf: string): Promise<string>;
 }

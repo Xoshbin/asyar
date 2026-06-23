@@ -7,6 +7,7 @@ pub mod application_index;
 pub mod applications;
 pub mod auth;
 pub mod browser;
+pub mod clipboard_markup;
 pub mod clipboard_privacy;
 pub mod command_arg_defaults;
 pub mod crypto;

@@ -480,6 +480,24 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   }
 
   /**
+   * Strip HTML tags/entities, returning plain text. Backed by the same Rust
+   * command used internally for the Android plaintext fallback — also
+   * exposed to Tier 2 extensions via the SDK's `clipboard` proxy.
+   */
+  public async stripHtml(html: string): Promise<string> {
+    return invoke<string>('clipboard_strip_html', { content: html });
+  }
+
+  /**
+   * Strip RTF control words/markup, returning plain text. Backed by the same
+   * Rust command used internally for `writeRtfContent` — also exposed to
+   * Tier 2 extensions via the SDK's `clipboard` proxy.
+   */
+  public async stripRtf(rtf: string): Promise<string> {
+    return invoke<string>('clipboard_strip_rtf', { content: rtf });
+  }
+
+  /**
    * Write item to system clipboard based on type
    */
   public async writeToClipboard(item: ClipboardHistoryItem): Promise<void> {
@@ -489,15 +507,9 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
 
     if (this.isAndroid && (item.type === ClipboardItemType.Html || item.type === ClipboardItemType.Rtf)) {
       // Android: write as plain text fallback
-      let plaintext = item.content || '';
-      if (item.type === ClipboardItemType.Html) {
-        plaintext = plaintext.replace(/<[^>]*>/g, '');
-      } else if (item.type === ClipboardItemType.Rtf) {
-        plaintext = plaintext
-          .replace(/\\[a-z]+\d*\s?/gi, '')
-          .replace(/[{}]/g, '')
-          .trim() || plaintext;
-      }
+      const plaintext = item.type === ClipboardItemType.Html
+        ? await this.stripHtml(item.content)
+        : (await this.stripRtf(item.content)) || item.content;
       await writeText(plaintext);
       return;
     }
@@ -559,14 +571,8 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * Write RTF content to clipboard
    */
   private async writeRtfContent(rtf: string): Promise<void> {
-    // Extract plain text from RTF by stripping RTF control words
-    // Simple approach: remove commands and then braces
-    const plainText = rtf
-      .replace(/\\[a-z]+\d*\s?/gi, '')
-      .replace(/[{}]/g, '')
-      .trim() || rtf;
-
-    await writeRTF(plainText, rtf);
+    const plainText = await this.stripRtf(rtf);
+    await writeRTF(plainText || rtf, rtf);
   }
 
   /**
