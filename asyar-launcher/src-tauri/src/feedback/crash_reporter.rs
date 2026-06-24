@@ -84,7 +84,10 @@ mod tests {
     #[test]
     fn marker_path_is_under_data_dir() {
         let dir = PathBuf::from("/tmp/asyar");
-        assert_eq!(marker_path(&dir), PathBuf::from("/tmp/asyar/running.marker"));
+        assert_eq!(
+            marker_path(&dir),
+            PathBuf::from("/tmp/asyar/running.marker")
+        );
     }
 
     #[test]

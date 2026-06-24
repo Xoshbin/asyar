@@ -10,11 +10,7 @@ pub async fn submit_feedback(
     api_client: State<'_, ApiClient>,
     auth_state: State<'_, AuthState>,
 ) -> Result<(), AppError> {
-    let token = auth_state
-        .token
-        .lock()
-        .map_err(|_| AppError::Lock)?
-        .clone();
+    let token = auth_state.token.lock().map_err(|_| AppError::Lock)?.clone();
     let report = build_report(input, None);
     api_client.submit_feedback(&report, token.as_deref()).await
 }
@@ -43,11 +39,7 @@ pub async fn send_pending_crash(
     };
 
     if let Some(crash) = payload {
-        let token = auth_state
-            .token
-            .lock()
-            .map_err(|_| AppError::Lock)?
-            .clone();
+        let token = auth_state.token.lock().map_err(|_| AppError::Lock)?.clone();
         let input = FeedbackInput {
             kind: "crash".to_string(),
             category: None,
@@ -55,7 +47,9 @@ pub async fn send_pending_crash(
             email: if email.is_empty() { None } else { Some(email) },
         };
         let report = build_report(input, Some(crash));
-        api_client.submit_feedback(&report, token.as_deref()).await?;
+        api_client
+            .submit_feedback(&report, token.as_deref())
+            .await?;
     }
 
     Ok(())

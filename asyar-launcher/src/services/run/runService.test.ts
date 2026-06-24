@@ -27,9 +27,36 @@ const makeRun = (over: Partial<Run> = {}): Run => ({
   ...over,
 });
 
+/**
+ * Mirrors the Rust `runs_upsert_bucket` command's dedup/cap rules (see
+ * `src-tauri/src/runs/buckets.rs`) so tests asserting bucket outcomes don't
+ * need a real Tauri backend. Drift between this and Rust would only surface
+ * as a test failure here, not silently — same pattern as `aliasValidation.ts`.
+ */
+function mockBucketUpsertDefault() {
+  vi.mocked(invokeSafe).mockImplementation(async (cmd, args) => {
+    if (cmd !== 'runs_upsert_bucket') return null;
+    const { bucket, run, kind, cap } = args as {
+      bucket: Run[];
+      run: Run;
+      kind: 'failure' | 'kept-agent' | 'script-result';
+      cap: number;
+    };
+    const isSameEntry = (existing: Run): boolean => {
+      if (kind === 'failure') return existing.id === run.id;
+      if (kind === 'kept-agent') return existing.subjectId === run.subjectId;
+      return run.subjectId
+        ? existing.subjectId === run.subjectId
+        : existing.id === run.id;
+    };
+    return [run, ...bucket.filter((r) => !isSameEntry(r))].slice(0, cap) as unknown;
+  });
+}
+
 beforeEach(() => {
   runService.reset();
   vi.clearAllMocks();
+  mockBucketUpsertDefault();
 });
 
 // ── IPC-callable methods ───────────────────────────────────────────────────────
@@ -116,17 +143,17 @@ describe('cancel', () => {
 // ── State mirroring via Tauri events ──────────────────────────────────────────
 
 describe('onStateChanged', () => {
-  it('state_changed_running_inserts_into_active', () => {
+  it('state_changed_running_inserts_into_active', async () => {
     const run = makeRun({ id: 'r1', status: 'running' });
-    runService['onStateChanged'](run);
+    await runService['onStateChanged'](run);
     expect(runService.active).toContainEqual(run);
   });
 
-  it('state_changed_running_to_succeeded_moves_to_recent_immediately', () => {
+  it('state_changed_running_to_succeeded_moves_to_recent_immediately', async () => {
     const runRunning = makeRun({ id: 'r1', status: 'running', subjectId: 'cmd_scripts_dyn_abc' });
     const runSucceeded = makeRun({ id: 'r1', status: 'succeeded', endedAt: Date.now(), subjectId: 'cmd_scripts_dyn_abc' });
-    runService['onStateChanged'](runRunning);
-    runService['onStateChanged'](runSucceeded);
+    await runService['onStateChanged'](runRunning);
+    await runService['onStateChanged'](runSucceeded);
     
     // Succeeded shell-script leaves the active slice; the kept row lives in
     // unacknowledgedScriptResults (see separate test).
@@ -137,34 +164,34 @@ describe('onStateChanged', () => {
     expect(inRecent?.status).toBe('succeeded');
   });
 
-  it('anonymous_shell_script_auto_removes_immediately_on_success', () => {
+  it('anonymous_shell_script_auto_removes_immediately_on_success', async () => {
     const runRunning = makeRun({ id: 'r2', status: 'running', subjectId: undefined });
     const runSucceeded = makeRun({ id: 'r2', status: 'succeeded', endedAt: Date.now(), subjectId: undefined });
     
-    runService['onStateChanged'](runRunning);
+    await runService['onStateChanged'](runRunning);
     expect(runService.active.some((r) => r.id === 'r2')).toBe(true);
     
     // Anonymous (no subjectId) shell-script still leaves active on success;
     // it lives in unacknowledgedScriptResults (deduped by id).
-    runService['onStateChanged'](runSucceeded);
+    await runService['onStateChanged'](runSucceeded);
     expect(runService.active.some((r) => r.id === 'r2')).toBe(false);
   });
 
-  it('state_changed_failed_routes_through_diagnostics', () => {
+  it('state_changed_failed_routes_through_diagnostics', async () => {
     const run = makeRun({ id: 'r1', status: 'failed', errorMessage: 'boom' });
-    runService['onStateChanged'](run);
+    await runService['onStateChanged'](run);
     expect(diagnosticsService.report).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'run_failed', severity: 'warning' }),
     );
   });
 
-  it('state_changed_cancelled_with_extension_id_posts_to_iframe', () => {
+  it('state_changed_cancelled_with_extension_id_posts_to_iframe', async () => {
     const postMessage = vi.fn();
     const fakeIframe = { contentWindow: { postMessage } } as unknown as HTMLIFrameElement;
     vi.mocked(pickExtensionIframe).mockReturnValue(fakeIframe);
 
     const run = makeRun({ id: 'r1', status: 'cancelled', extensionId: 'ext.foo' });
-    runService['onStateChanged'](run);
+    await runService['onStateChanged'](run);
 
     expect(pickExtensionIframe).toHaveBeenCalledWith('ext.foo', 'worker');
     expect(postMessage).toHaveBeenCalledWith(
@@ -173,37 +200,37 @@ describe('onStateChanged', () => {
     );
   });
 
-  it('state_changed_cancelled_without_extension_id_does_not_post', () => {
+  it('state_changed_cancelled_without_extension_id_does_not_post', async () => {
     const run = makeRun({ id: 'r1', status: 'cancelled', extensionId: undefined });
-    runService['onStateChanged'](run);
+    await runService['onStateChanged'](run);
     expect(pickExtensionIframe).not.toHaveBeenCalled();
   });
 
   // ── keptAgents: persistent thread rows ──────────────────────────────────────
 
-  it('succeeded_agent_run_with_subjectId_is_added_to_keptAgents', () => {
+  it('succeeded_agent_run_with_subjectId_is_added_to_keptAgents', async () => {
     const run = makeRun({
       id: 'r1', status: 'succeeded', kind: 'agent',
       subjectId: 'cmd_agents_dyn_a1', endedAt: Date.now(),
     });
-    runService['onStateChanged'](run);
+    await runService['onStateChanged'](run);
     expect(runService.keptAgents).toHaveLength(1);
     expect(runService.keptAgents[0].id).toBe('r1');
   });
 
-  it('succeeded_shell_script_does_NOT_populate_keptAgents_but_does_populate_scriptResults', () => {
+  it('succeeded_shell_script_does_NOT_populate_keptAgents_but_does_populate_scriptResults', async () => {
     // Scripts persist in their own slice; the agent kept-slice stays agent-only.
     const run = makeRun({
       id: 'r1', status: 'succeeded', kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_abc', endedAt: Date.now(),
     });
-    runService['onStateChanged'](run);
+    await runService['onStateChanged'](run);
     expect(runService.keptAgents).toHaveLength(0);
     expect(runService.unacknowledgedScriptResults).toHaveLength(1);
     expect(runService.unacknowledgedScriptResults[0].id).toBe('r1');
   });
 
-  it('keptAgents_dedupes_by_subjectId_keeping_newest', () => {
+  it('keptAgents_dedupes_by_subjectId_keeping_newest', async () => {
     const old = makeRun({
       id: 'r1', status: 'succeeded', kind: 'agent',
       subjectId: 'cmd_agents_dyn_a1', endedAt: 1,
@@ -212,36 +239,36 @@ describe('onStateChanged', () => {
       id: 'r2', status: 'succeeded', kind: 'agent',
       subjectId: 'cmd_agents_dyn_a1', endedAt: 2,
     });
-    runService['onStateChanged'](old);
-    runService['onStateChanged'](fresh);
+    await runService['onStateChanged'](old);
+    await runService['onStateChanged'](fresh);
     expect(runService.keptAgents).toHaveLength(1);
     expect(runService.keptAgents[0].id).toBe('r2');
   });
 
-  it('keptAgents_keeps_separate_entries_per_distinct_subjectId', () => {
-    runService['onStateChanged'](makeRun({
+  it('keptAgents_keeps_separate_entries_per_distinct_subjectId', async () => {
+    await runService['onStateChanged'](makeRun({
       id: 'r1', status: 'succeeded', kind: 'agent',
       subjectId: 'cmd_agents_dyn_a1', endedAt: 1,
     }));
-    runService['onStateChanged'](makeRun({
+    await runService['onStateChanged'](makeRun({
       id: 'r2', status: 'succeeded', kind: 'agent',
       subjectId: 'cmd_agents_dyn_a2', endedAt: 2,
     }));
     expect(runService.keptAgents).toHaveLength(2);
   });
 
-  it('succeeded_agent_without_subjectId_is_skipped', () => {
+  it('succeeded_agent_without_subjectId_is_skipped', async () => {
     // Without a subjectId we can't dedupe / re-open the thread, so skip.
     const run = makeRun({
       id: 'r1', status: 'succeeded', kind: 'agent',
       subjectId: undefined, endedAt: Date.now(),
     });
-    runService['onStateChanged'](run);
+    await runService['onStateChanged'](run);
     expect(runService.keptAgents).toHaveLength(0);
   });
 
-  it('dismissKeptAgent_removes_the_entry', () => {
-    runService['onStateChanged'](makeRun({
+  it('dismissKeptAgent_removes_the_entry', async () => {
+    await runService['onStateChanged'](makeRun({
       id: 'r1', status: 'succeeded', kind: 'agent',
       subjectId: 'cmd_agents_dyn_a1', endedAt: 1,
     }));
@@ -251,27 +278,27 @@ describe('onStateChanged', () => {
 
   // ── unacknowledgedScriptResults: persistent script-success rows ─────────────
 
-  it('succeeded_shell_script_with_subjectId_is_added_to_scriptResults', () => {
+  it('succeeded_shell_script_with_subjectId_is_added_to_scriptResults', async () => {
     const run = makeRun({
       id: 'r1', status: 'succeeded', kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_abc', tailOutput: 'OK', endedAt: Date.now(),
     });
-    runService['onStateChanged'](run);
+    await runService['onStateChanged'](run);
     expect(runService.unacknowledgedScriptResults).toHaveLength(1);
     expect(runService.unacknowledgedScriptResults[0].id).toBe('r1');
     expect(runService.unacknowledgedScriptResults[0].tailOutput).toBe('OK');
   });
 
-  it('succeeded_agent_does_NOT_populate_scriptResults', () => {
+  it('succeeded_agent_does_NOT_populate_scriptResults', async () => {
     const run = makeRun({
       id: 'r1', status: 'succeeded', kind: 'agent',
       subjectId: 'cmd_agents_dyn_a1', endedAt: Date.now(),
     });
-    runService['onStateChanged'](run);
+    await runService['onStateChanged'](run);
     expect(runService.unacknowledgedScriptResults).toHaveLength(0);
   });
 
-  it('scriptResults_dedupes_by_subjectId_keeping_newest', () => {
+  it('scriptResults_dedupes_by_subjectId_keeping_newest', async () => {
     const old = makeRun({
       id: 'r1', status: 'succeeded', kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_abc', endedAt: 1,
@@ -280,23 +307,23 @@ describe('onStateChanged', () => {
       id: 'r2', status: 'succeeded', kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_abc', endedAt: 2,
     });
-    runService['onStateChanged'](old);
-    runService['onStateChanged'](fresh);
+    await runService['onStateChanged'](old);
+    await runService['onStateChanged'](fresh);
     expect(runService.unacknowledgedScriptResults).toHaveLength(1);
     expect(runService.unacknowledgedScriptResults[0].id).toBe('r2');
   });
 
-  it('anonymous_succeeded_shell_script_without_subjectId_is_added_dedupes_by_id', () => {
+  it('anonymous_succeeded_shell_script_without_subjectId_is_added_dedupes_by_id', async () => {
     const run = makeRun({
       id: 'r1', status: 'succeeded', kind: 'shell-script',
       subjectId: undefined, endedAt: Date.now(),
     });
-    runService['onStateChanged'](run);
+    await runService['onStateChanged'](run);
     expect(runService.unacknowledgedScriptResults).toHaveLength(1);
   });
 
-  it('dismissScriptResult_filters_slice_and_invokes_runs_dismiss', () => {
-    runService['onStateChanged'](makeRun({
+  it('dismissScriptResult_filters_slice_and_invokes_runs_dismiss', async () => {
+    await runService['onStateChanged'](makeRun({
       id: 'r1', status: 'succeeded', kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_abc', endedAt: 1,
     }));
@@ -306,8 +333,8 @@ describe('onStateChanged', () => {
     expect(invokeSafe).toHaveBeenCalledWith('runs_dismiss', { id: 'r1' });
   });
 
-  it('reset_clears_unacknowledgedScriptResults', () => {
-    runService['onStateChanged'](makeRun({
+  it('reset_clears_unacknowledgedScriptResults', async () => {
+    await runService['onStateChanged'](makeRun({
       id: 'r1', status: 'succeeded', kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_abc', endedAt: 1,
     }));
@@ -361,15 +388,15 @@ describe('cancelById', () => {
 });
 
 describe('activeCount', () => {
-  it('active_count_is_derived_from_active_length', () => {
+  it('active_count_is_derived_from_active_length', async () => {
     expect(runService.activeCount).toBe(0);
     const r1 = makeRun({ id: 'r1', status: 'running', subjectId: 'cmd_scripts_dyn_a' });
     const r2 = makeRun({ id: 'r2', status: 'running', subjectId: 'cmd_scripts_dyn_b' });
-    runService['onStateChanged'](r1);
-    runService['onStateChanged'](r2);
+    await runService['onStateChanged'](r1);
+    await runService['onStateChanged'](r2);
     expect(runService.activeCount).toBe(2);
     const r1Succeeded = makeRun({ id: 'r1', status: 'succeeded', endedAt: Date.now(), subjectId: 'cmd_scripts_dyn_a' });
-    runService['onStateChanged'](r1Succeeded);
+    await runService['onStateChanged'](r1Succeeded);
     
     // Removes immediately from active slice on success
     expect(runService.activeCount).toBe(1);
@@ -475,15 +502,15 @@ describe('startLocal', () => {
     handle.onCancel(cb);
 
     // Simulate cancel for a different id — cb must NOT fire
-    runService['onStateChanged'](makeRun({ id: 'other-id', status: 'cancelled' }));
+    await runService['onStateChanged'](makeRun({ id: 'other-id', status: 'cancelled' }));
     expect(cb).not.toHaveBeenCalled();
 
     // Simulate cancel for the correct id — cb MUST fire
-    runService['onStateChanged'](makeRun({ id: handle.id, status: 'cancelled' }));
+    await runService['onStateChanged'](makeRun({ id: handle.id, status: 'cancelled' }));
     expect(cb).toHaveBeenCalledTimes(1);
 
     // Simulate cancel again — internal set deleted, cb must NOT fire again
-    runService['onStateChanged'](makeRun({ id: handle.id, status: 'cancelled' }));
+    await runService['onStateChanged'](makeRun({ id: handle.id, status: 'cancelled' }));
     expect(cb).toHaveBeenCalledTimes(1);
   });
 });

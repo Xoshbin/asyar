@@ -35,14 +35,3 @@ export function formatRunSubtitle(run: Run): string {
       return 'Cancelled';
   }
 }
-
-/**
- * Combine active and recent run arrays into a single deduplicated list with
- * active runs first, followed by recent runs. If a run id appears in both
- * arrays the active entry wins and the recent entry is dropped.
- */
-export function combineActiveAndRecent(active: Run[], recent: Run[]): Run[] {
-  const activeIds = new Set(active.map((r) => r.id));
-  const filteredRecent = recent.filter((r) => !activeIds.has(r.id));
-  return [...active, ...filteredRecent];
-}

@@ -1,6 +1,5 @@
 pub mod agents;
 pub mod app;
-pub mod feedback;
 pub mod app_events;
 pub mod app_updater;
 pub mod application_index;
@@ -18,6 +17,7 @@ pub mod extension_runtime;
 pub mod extension_state;
 pub mod extensions;
 pub mod factory_reset;
+pub mod feedback;
 pub mod file_manager;
 pub mod files;
 pub mod fs_watcher;

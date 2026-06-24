@@ -16,7 +16,10 @@ use crate::process_manager::types::{AppGroup, KillFailure, KillResult, RawProces
 const CURRENT_OS: Os = Os::Macos;
 #[cfg(target_os = "windows")]
 const CURRENT_OS: Os = Os::Windows;
-#[cfg(any(target_os = "linux", not(any(target_os = "macos", target_os = "windows"))))]
+#[cfg(any(
+    target_os = "linux",
+    not(any(target_os = "macos", target_os = "windows"))
+))]
 const CURRENT_OS: Os = Os::Linux;
 
 /// Pure pipeline: group → filter → sort. Unit-tested without a live system.
@@ -49,7 +52,10 @@ fn raw_processes(sys: &sysinfo::System, users: &sysinfo::Users) -> Vec<RawProces
                 name: p.name().to_string_lossy().to_string(),
                 cpu_percent: p.cpu_usage(),
                 memory_bytes: p.memory(),
-                exe_path: p.exe().map(|e| e.to_string_lossy().to_string()).unwrap_or_default(),
+                exe_path: p
+                    .exe()
+                    .map(|e| e.to_string_lossy().to_string())
+                    .unwrap_or_default(),
                 owner,
             }
         })
@@ -149,7 +155,10 @@ pub fn kill_all(
         }
         match killer.kill(t.pid, force) {
             Ok(()) => killed.push(t.pid),
-            Err(e) => failed.push(KillFailure { pid: t.pid, error: e }),
+            Err(e) => failed.push(KillFailure {
+                pid: t.pid,
+                error: e,
+            }),
         }
     }
     KillResult { killed, failed }
@@ -201,10 +210,20 @@ mod tests {
 
     #[test]
     fn list_from_raw_filters_then_sorts() {
-        let procs = vec![raw(1, "alpha", 2.0), raw(2, "beta", 9.0), raw(3, "alps", 5.0)];
+        let procs = vec![
+            raw(1, "alpha", 2.0),
+            raw(2, "beta", 9.0),
+            raw(3, "alps", 5.0),
+        ];
         let groups = list_from_raw(procs, Os::Linux, "alp", SortBy::Cpu);
         // "beta" filtered out; "alps" (5.0) before "alpha" (2.0)
-        assert_eq!(groups.iter().map(|g| g.app_name.clone()).collect::<Vec<_>>(), ["alps", "alpha"]);
+        assert_eq!(
+            groups
+                .iter()
+                .map(|g| g.app_name.clone())
+                .collect::<Vec<_>>(),
+            ["alps", "alpha"]
+        );
     }
 
     struct FakeKiller {
@@ -212,7 +231,9 @@ mod tests {
     }
     impl FakeKiller {
         fn new() -> Self {
-            Self { calls: RefCell::new(vec![]) }
+            Self {
+                calls: RefCell::new(vec![]),
+            }
         }
     }
     impl ProcessKiller for FakeKiller {
@@ -268,7 +289,10 @@ mod tests {
         let k = FakeKiller::new();
         let res = kill_all(&k, &[], false, false);
         assert!(res.killed.is_empty() && res.failed.is_empty());
-        assert!(k.calls.borrow().is_empty(), "must not touch the OS for an empty target list");
+        assert!(
+            k.calls.borrow().is_empty(),
+            "must not touch the OS for an empty target list"
+        );
     }
 
     // Integration: the live `kill()` path (real `sysinfo` enumerate + signal)
@@ -301,7 +325,10 @@ mod tests {
             "kill() should report the pid killed; failed={:?}",
             res.failed
         );
-        assert!(status.is_some(), "child should have exited after force kill");
+        assert!(
+            status.is_some(),
+            "child should have exited after force kill"
+        );
     }
 
     #[test]

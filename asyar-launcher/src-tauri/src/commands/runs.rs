@@ -3,9 +3,10 @@ use crate::notifications::backend::populate_registry_and_send;
 use crate::notifications::{
     BackendAction, NotificationActionRegistry, NotificationBackend, NotificationRequest,
 };
+use crate::runs::buckets::upsert_run_bucket;
 use crate::runs::output_buffer::{format_tail_output, OutputBuffer};
 use crate::runs::registry::{now_millis, RunRegistry};
-use crate::runs::{Run, RunKind, RunStatus};
+use crate::runs::{Run, RunBucketKind, RunKind, RunStatus};
 use crate::storage::{runs_history, DataStore};
 use rusqlite::Connection;
 use tauri::{AppHandle, Emitter, State};
@@ -395,6 +396,22 @@ pub async fn runs_get_output(id: String) -> Result<Vec<String>, AppError> {
 #[tauri::command]
 pub async fn runs_dismiss(id: String) -> Result<(), AppError> {
     runs_dismiss_impl(OutputBuffer::instance(), &id)
+}
+
+/// Insert `run` into a frontend-held "kept run" bucket (failures, kept
+/// agents, or kept script results), de-duplicating per `kind`'s key policy
+/// and capping the result. Stateless: the launcher owns the bucket array in
+/// memory and round-trips it through this command on every terminal
+/// `runs:state-changed` event instead of re-implementing the dedup/cap rules
+/// in TypeScript.
+#[tauri::command]
+pub async fn runs_upsert_bucket(
+    bucket: Vec<Run>,
+    run: Run,
+    kind: RunBucketKind,
+    cap: usize,
+) -> Result<Vec<Run>, AppError> {
+    Ok(upsert_run_bucket(&bucket, run, kind, cap))
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

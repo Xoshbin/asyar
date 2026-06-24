@@ -528,6 +528,7 @@ pub fn run() {
             commands::runs::runs_history_clear,
             commands::runs::runs_get_output,
             commands::runs::runs_dismiss,
+            commands::runs::runs_upsert_bucket,
             // Agent CRUD
             commands::agents::agents_create,
             commands::agents::agents_update,
@@ -779,8 +780,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         .app_log_dir()
                         .map(|d| d.join("asyar.log"))
                         .unwrap_or_default();
-                    let log_tail =
-                        feedback::crash_reporter::read_log_tail(&log_path, 64 * 1024);
+                    let log_tail = feedback::crash_reporter::read_log_tail(&log_path, 64 * 1024);
                     let payload = feedback::CrashPayload {
                         panic: panic_msg,
                         backtrace,
@@ -800,8 +800,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
                     match action {
                         feedback::CrashAction::SendSilently => {
-                            let api =
-                                (*app.state::<auth::api_client::ApiClient>()).clone();
+                            let api = (*app.state::<auth::api_client::ApiClient>()).clone();
                             let token = app
                                 .state::<auth::state::AuthState>()
                                 .token
@@ -831,14 +830,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         feedback::CrashAction::Prompt => {
                             // Only nudge the frontend once the payload is stored,
                             // so a poisoned lock never emits a phantom prompt.
-                            if let Ok(mut slot) =
-                                app.state::<feedback::PendingCrash>().0.lock()
-                            {
+                            if let Ok(mut slot) = app.state::<feedback::PendingCrash>().0.lock() {
                                 *slot = Some(payload);
                                 let _ = handle.emit("crash-report-pending", true);
-                                log::info!(
-                                    "crash-report: stored pending crash + emitted prompt"
-                                );
+                                log::info!("crash-report: stored pending crash + emitted prompt");
                             }
                         }
                         feedback::CrashAction::Ignore => {
