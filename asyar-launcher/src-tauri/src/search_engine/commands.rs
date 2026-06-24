@@ -15,15 +15,51 @@ pub async fn merged_search(
     query: String,
     external_results: Vec<super::models::ExternalSearchResult>,
     min_results: Option<usize>,
+    app_handle: tauri::AppHandle,
     state: State<'_, std::sync::Arc<SearchState>>,
     alias_state: State<'_, crate::aliases::AliasState>,
 ) -> Result<super::models::MergedSearchResponse, SearchError> {
+    let disabled = read_disabled_application_ids(&app_handle);
     state.merged_search_with_aliases(
         &query,
         external_results,
         min_results.unwrap_or(20),
         &alias_state,
+        &disabled,
     )
+}
+
+/// Pure JSON-navigation helper mirroring `lib.rs::parse_launch_view`. Reads
+/// `search.applicationEnabled` — an object of `{ objectId: boolean }` written
+/// by Settings → Applications — and returns the ids whose value is `false`.
+///
+/// CONTRACT: the JSON path `settings → search → applicationEnabled` must
+/// match what `settingsService.svelte.ts` writes via
+/// `store.set("settings", currentSettings)`. Guarded on the TS side by the
+/// `rust merged_search disabled-app contract` describe block in
+/// `settingsService.test.ts`.
+fn parse_disabled_application_ids(settings_root: Option<&serde_json::Value>) -> Vec<String> {
+    settings_root
+        .and_then(|s| s.get("search"))
+        .and_then(|s| s.get("applicationEnabled"))
+        .and_then(|v| v.as_object())
+        .map(|obj| {
+            obj.iter()
+                .filter(|(_, v)| v.as_bool() == Some(false))
+                .map(|(k, _)| k.clone())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Reads `settings.search.applicationEnabled` from `settings.dat`
+/// synchronously, same error-tolerant pattern as `lib.rs::read_launch_view`.
+fn read_disabled_application_ids(app: &tauri::AppHandle) -> Vec<String> {
+    use tauri_plugin_store::StoreExt;
+    let Ok(store) = app.store("settings.dat") else {
+        return Vec::new();
+    };
+    parse_disabled_application_ids(store.get("settings").as_ref())
 }
 
 /// Rank an arbitrary frontend-supplied list against a query using the shared
@@ -473,6 +509,30 @@ mod tests {
         let ids: Vec<&str> = items.iter().map(|i| i.id()).collect();
         assert!(ids.contains(&"cmd_scripts_dyn_abcdef0123456789"));
         assert!(ids.contains(&"cmd_static_one"));
+    }
+
+    #[test]
+    fn parse_disabled_application_ids_collects_false_entries() {
+        let settings = serde_json::json!({
+            "search": {
+                "applicationEnabled": {
+                    "app_finder": true,
+                    "app_safari": false,
+                    "app_mail": false
+                }
+            }
+        });
+
+        let mut ids = parse_disabled_application_ids(Some(&settings));
+        ids.sort();
+
+        assert_eq!(ids, vec!["app_mail".to_string(), "app_safari".to_string()]);
+    }
+
+    #[test]
+    fn parse_disabled_application_ids_empty_when_missing() {
+        assert!(parse_disabled_application_ids(None).is_empty());
+        assert!(parse_disabled_application_ids(Some(&serde_json::json!({}))).is_empty());
     }
 
     #[tokio::test]

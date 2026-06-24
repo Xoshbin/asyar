@@ -624,8 +624,14 @@ impl SearchState {
     /// externally-provided extension results, classifies every result into a tier
     /// (exact title > prefix > title fuzzy > subtitle/keyword > frecency-only),
     /// sorts lexicographically by (tier, -frecency, -fuzzy_score, name_lower),
-    /// deduplicates, and backfills with top-usage items when fewer than
-    /// `min_results` matched items exist.
+    /// deduplicates, filters out disabled applications, and backfills with
+    /// top-usage items when fewer than `min_results` matched items exist.
+    ///
+    /// `disabled_object_ids` are application object ids the user has toggled
+    /// off in Settings → Applications. They stay indexed (so re-enabling is
+    /// instant) but are hidden here, before backfill/truncate, so a disabled
+    /// app never silently occupies a results slot that an enabled item could
+    /// have filled.
     ///
     /// The `score` field on returned `SearchResult` is for display/browser-fallback
     /// compatibility only. The Tauri path's order is determined by the tier ranker,
@@ -635,9 +641,14 @@ impl SearchState {
         query: &str,
         external_results: Vec<models::ExternalSearchResult>,
         min_results: usize,
+        disabled_object_ids: &[String],
     ) -> Result<Vec<models::SearchResult>, SearchError> {
         let skim_max: f32 = 100_000.0;
         let limit: usize = 20;
+        let is_disabled_app = |r: &models::SearchResult| -> bool {
+            r.result_type == "application"
+                && disabled_object_ids.iter().any(|id| id == &r.object_id)
+        };
 
         // Empty-query short-circuit: pure frecency sort, no tier overhead.
         if query.trim().is_empty() {
@@ -665,6 +676,7 @@ impl SearchState {
                     tier: ranker::Tier::FrecencyOnly as u8,
                 });
             }
+            combined.retain(|r| !is_disabled_app(r));
             let mut seen = std::collections::HashSet::new();
             combined.retain(|r| seen.insert(r.object_id.clone()));
             combined.truncate(limit);
@@ -784,6 +796,9 @@ impl SearchState {
         combined.retain(|(r, _)| seen.insert(r.object_id.clone()));
 
         let mut results: Vec<models::SearchResult> = combined.into_iter().map(|(r, _)| r).collect();
+        // Filter before the min_results check below so a disabled app never
+        // occupies a backfill slot that an enabled item could have filled.
+        results.retain(|r| !is_disabled_app(r));
 
         // Backfill with top frecency items when fewer than min_results matched.
         // Safe: the read lock was already released above.
@@ -802,6 +817,7 @@ impl SearchState {
                 }
                 if !existing_ids.contains(&suggestion.object_id)
                     && !existing_names.contains(&suggestion.name)
+                    && !is_disabled_app(&suggestion)
                 {
                     suggestion.score = -1.0; // backfill marker
                     results.push(suggestion);
@@ -820,8 +836,10 @@ impl SearchState {
         external_results: Vec<models::ExternalSearchResult>,
         min_results: usize,
         aliases: &crate::aliases::AliasState,
+        disabled_object_ids: &[String],
     ) -> Result<models::MergedSearchResponse, SearchError> {
-        let mut results = self.merged_search(query, external_results, min_results)?;
+        let mut results =
+            self.merged_search(query, external_results, min_results, disabled_object_ids)?;
 
         // Decorate every row with its alias (if any).
         for r in results.iter_mut() {
@@ -846,6 +864,22 @@ impl SearchState {
                 _ => None,
             }
         };
+
+        // Pin-to-top: trimmed query equals an alias but no auto-execute
+        // fired (application alias, or command alias without trailing
+        // space). Move the matched object to position 0 so the user sees
+        // it first. No-op if the matched object isn't in `results` (e.g.
+        // an orphaned alias, or the matched app was filtered as disabled).
+        if let Some(ref m) = alias_match {
+            if !m.auto_execute {
+                if let Some(idx) = results.iter().position(|r| r.object_id == m.object_id) {
+                    if idx > 0 {
+                        let pinned = results.remove(idx);
+                        results.insert(0, pinned);
+                    }
+                }
+            }
+        }
 
         Ok(models::MergedSearchResponse {
             results,
@@ -1139,7 +1173,7 @@ mod service_tests {
             priority: None,
         }];
 
-        let results = state.merged_search("", external, 10).unwrap();
+        let results = state.merged_search("", external, 10, &[]).unwrap();
         assert!(
             results.len() >= 2,
             "Should have both indexed and external results"
@@ -1151,7 +1185,7 @@ mod service_tests {
         let state = make_state();
         state.index_one(app("app_safari", "Safari", 0)).unwrap();
 
-        let results = state.merged_search("saf", vec![], 10).unwrap();
+        let results = state.merged_search("saf", vec![], 10, &[]).unwrap();
         assert!(!results.is_empty());
         // Skim scores are normalized to [0, 1] — should not exceed 1.0
         assert!(
@@ -1180,7 +1214,7 @@ mod service_tests {
             priority: None,
         }];
 
-        let results = state.merged_search("", external, 10).unwrap();
+        let results = state.merged_search("", external, 10, &[]).unwrap();
         let safari_count = results
             .iter()
             .filter(|r| r.object_id == "app_safari")
@@ -1199,7 +1233,7 @@ mod service_tests {
         state.index_one(app("app_e", "Echo", 2)).unwrap();
 
         // Search for something that only matches one item
-        let results = state.merged_search("alph", vec![], 5).unwrap();
+        let results = state.merged_search("alph", vec![], 5, &[]).unwrap();
         // Should have Alpha as primary match + backfill items up to min_results
         assert!(
             results.len() >= 2,
@@ -1214,7 +1248,7 @@ mod service_tests {
         state.index_one(app("app_a", "Alpha", 1)).unwrap();
         state.index_one(app("app_b", "Beta", 10)).unwrap();
 
-        let results = state.merged_search("", vec![], 10).unwrap();
+        let results = state.merged_search("", vec![], 10, &[]).unwrap();
         assert_eq!(
             results[0].name, "Beta",
             "Empty query should rank by frecency"
@@ -1333,7 +1367,7 @@ mod service_tests {
             priority: None,
         }];
 
-        let results = state.merged_search("6 * 7", external, 10).unwrap();
+        let results = state.merged_search("6 * 7", external, 10, &[]).unwrap();
         let calc = results
             .iter()
             .find(|r| r.object_id == "ext_calculator_42_0");
@@ -1488,7 +1522,7 @@ mod service_tests {
             .unwrap();
 
         let resp = search_state
-            .merged_search_with_aliases("cl ", vec![], 10, &alias_state)
+            .merged_search_with_aliases("cl ", vec![], 10, &alias_state, &[])
             .unwrap();
 
         let alias_match = resp.alias_match.expect("expected alias match");
@@ -1515,7 +1549,7 @@ mod service_tests {
             .unwrap();
 
         let resp = search_state
-            .merged_search_with_aliases("f ", vec![], 10, &alias_state)
+            .merged_search_with_aliases("f ", vec![], 10, &alias_state, &[])
             .unwrap();
         let alias_match = resp.alias_match.expect("expected alias match");
         assert_eq!(alias_match.item_type, "application");
@@ -1527,7 +1561,7 @@ mod service_tests {
         let search_state = fresh_search_state_with(vec![]);
         let alias_state = AliasState::new_in_memory();
         let resp = search_state
-            .merged_search_with_aliases("nothing", vec![], 10, &alias_state)
+            .merged_search_with_aliases("nothing", vec![], 10, &alias_state, &[])
             .unwrap();
         assert!(resp.alias_match.is_none());
     }
@@ -1550,7 +1584,7 @@ mod service_tests {
             .unwrap();
 
         let resp = search_state
-            .merged_search_with_aliases("Finder", vec![], 10, &alias_state)
+            .merged_search_with_aliases("Finder", vec![], 10, &alias_state, &[])
             .unwrap();
         let finder = resp
             .results
@@ -1600,7 +1634,7 @@ mod service_tests {
             .unwrap();
 
         let external = vec![ext_result("ext_slack_chan_0", "Slack channel", 1.0, None)];
-        let results = state.merged_search("slack", external, 10).unwrap();
+        let results = state.merged_search("slack", external, 10, &[]).unwrap();
         assert!(!results.is_empty());
         assert_eq!(
             results[0].object_id, "app_slack",
@@ -1617,7 +1651,7 @@ mod service_tests {
         state.index_one(app("app_slackhq", "SlackHQ", 0)).unwrap();
 
         let external = vec![ext_result("ext_slack_0", "Slack", 0.0001, None)];
-        let results = state.merged_search("Slack", external, 10).unwrap();
+        let results = state.merged_search("Slack", external, 10, &[]).unwrap();
         assert!(!results.is_empty());
         assert_eq!(
             results[0].object_id, "ext_slack_0",
@@ -1640,7 +1674,7 @@ mod service_tests {
         // the two Mail apps still rank by frecency in current score-sort path too.
         // Note: this test PASSES before the ranker and MUST still pass after.
         // It is included as a non-regression check (required by plan step 3).
-        let results = state.merged_search("Mail", vec![], 10).unwrap();
+        let results = state.merged_search("Mail", vec![], 10, &[]).unwrap();
         assert!(!results.is_empty());
         assert_eq!(
             results[0].object_id, "app_mail_a",
@@ -1675,7 +1709,7 @@ mod service_tests {
             0.0,
             Some(models::ResultPriority::Top),
         )];
-        let results = state.merged_search("Calculator", external, 10).unwrap();
+        let results = state.merged_search("Calculator", external, 10, &[]).unwrap();
         assert!(results.len() >= 2);
         assert_eq!(
             results[0].object_id, "ext_calc_42_0",
@@ -1714,7 +1748,7 @@ mod service_tests {
             0.0,
             Some(models::ResultPriority::Top),
         )];
-        let results = state.merged_search("Safari", external, 10).unwrap();
+        let results = state.merged_search("Safari", external, 10, &[]).unwrap();
         assert!(!results.is_empty());
         assert_eq!(
             results[0].object_id, "ext_pinned_0",
@@ -1732,7 +1766,7 @@ mod service_tests {
     fn merged_search_exact_title_match_has_tier_exact_title() {
         let state = make_state();
         state.index_one(app("app_safari", "Safari", 0)).unwrap();
-        let results = state.merged_search("Safari", vec![], 10).unwrap();
+        let results = state.merged_search("Safari", vec![], 10, &[]).unwrap();
         let hit = results.iter().find(|r| r.object_id == "app_safari").unwrap();
         assert_eq!(hit.tier, ranker::Tier::ExactTitle as u8);
     }
@@ -1746,7 +1780,7 @@ mod service_tests {
             0.0,
             Some(models::ResultPriority::Top),
         )];
-        let results = state.merged_search("anything", external, 10).unwrap();
+        let results = state.merged_search("anything", external, 10, &[]).unwrap();
         let hit = results.iter().find(|r| r.object_id == "ext_calc_42_0").unwrap();
         assert_eq!(hit.tier, ranker::Tier::Pinned as u8);
     }
@@ -1771,7 +1805,7 @@ mod service_tests {
             style: None,
             priority: None,
         }];
-        let results = state.merged_search("team", external, 10).unwrap();
+        let results = state.merged_search("team", external, 10, &[]).unwrap();
         let hit = results.iter().find(|r| r.object_id == "ext_slack_0").unwrap();
         assert_eq!(hit.tier, ranker::Tier::SubtitleOrKeyword as u8);
     }
@@ -1781,9 +1815,108 @@ mod service_tests {
         let state = make_state();
         state.index_one(app("app_unrelated", "Unrelated App", 5)).unwrap();
         // Query matches nothing, so the only results are frecency backfill.
-        let results = state.merged_search("zzz_no_match_zzz", vec![], 5).unwrap();
+        let results = state.merged_search("zzz_no_match_zzz", vec![], 5, &[]).unwrap();
         assert!(!results.is_empty());
         assert!(results.iter().all(|r| r.tier == ranker::Tier::FrecencyOnly as u8));
+    }
+
+    // ------------------------------------------------------------------
+    // Disabled-application filtering (rust-first audit #4) — Settings →
+    // Applications → enabled toggle. App stays indexed so toggling is
+    // instant; merged_search hides it before backfill/truncate so a
+    // disabled app never silently eats a results slot.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn merged_search_filters_out_disabled_applications() {
+        let state = make_state();
+        state.index_one(app("app_finder", "Finder", 0)).unwrap();
+        state.index_one(app("app_finder2", "Finder Two", 0)).unwrap();
+
+        let disabled = vec!["app_finder".to_string()];
+        let results = state
+            .merged_search("Finder", vec![], 10, &disabled)
+            .unwrap();
+
+        assert!(results.iter().all(|r| r.object_id != "app_finder"));
+        assert!(results.iter().any(|r| r.object_id == "app_finder2"));
+    }
+
+    #[test]
+    fn merged_search_disabled_app_filter_does_not_steal_backfill_slot() {
+        let state = make_state();
+        state.index_one(app("app_disabled", "Zeta", 0)).unwrap();
+        state.index_one(app("app_enabled", "Eta", 0)).unwrap();
+
+        let disabled = vec!["app_disabled".to_string()];
+        // Query matches nothing, so both apps would only appear via backfill.
+        let results = state
+            .merged_search("zzz_no_match_zzz", vec![], 2, &disabled)
+            .unwrap();
+
+        assert!(results.iter().any(|r| r.object_id == "app_enabled"));
+        assert!(results.iter().all(|r| r.object_id != "app_disabled"));
+    }
+
+    // ------------------------------------------------------------------
+    // Alias pin-to-top (rust-first audit #4) — previously done in TS via
+    // splice/unshift on the orchestrator after merged_search returned.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn merged_search_with_aliases_pins_alias_match_to_top_when_not_first() {
+        let other = SearchableItem::Application(super::models::Application {
+            id: "app_other".into(),
+            name: "Other".into(),
+            path: "/Applications/Other.app".into(),
+            usage_count: 100,
+            icon: None,
+            last_used_at: None,
+            bundle_id: None,
+        });
+        let clip_cmd = SearchableItem::Command(super::models::Command {
+            id: "cmd_clip_history".into(),
+            name: "Clipboard History".into(),
+            extension: "clipboard".into(),
+            trigger: "clipboard".into(),
+            command_type: "command".into(),
+            usage_count: 0,
+            icon: None,
+            last_used_at: None,
+            subtitle: None,
+            is_dynamic: false,
+        });
+        let search_state = fresh_search_state_with(vec![other, clip_cmd]);
+        let alias_state = AliasState::new_in_memory();
+        alias_state
+            .set_alias("cmd_clip_history", "cl", "Clipboard History", "command", 1)
+            .unwrap();
+
+        let resp = search_state
+            .merged_search_with_aliases("cl", vec![], 10, &alias_state, &[])
+            .unwrap();
+
+        assert_eq!(
+            resp.results[0].object_id, "cmd_clip_history",
+            "alias match without auto-execute must be pinned to position 0"
+        );
+    }
+
+    #[test]
+    fn merged_search_with_aliases_pin_is_noop_when_match_object_missing() {
+        let search_state = fresh_search_state_with(vec![]);
+        let alias_state = AliasState::new_in_memory();
+        // Orphaned alias — its object_id isn't indexed. Pin step must not
+        // panic when the find-by-id comes up empty.
+        alias_state
+            .set_alias("cmd_missing", "mi", "Missing", "command", 1)
+            .unwrap();
+
+        let resp = search_state
+            .merged_search_with_aliases("mi", vec![], 10, &alias_state, &[])
+            .unwrap();
+
+        assert!(resp.results.is_empty());
     }
 
     // ------------------------------------------------------------------

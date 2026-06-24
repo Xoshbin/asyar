@@ -30,10 +30,6 @@ vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock('../settings/settingsService.svelte', () => ({
-  settingsService: { currentSettings: { search: { applicationEnabled: {} } } },
-}));
-
 vi.mock('../extension/extensionDispatcher.svelte', () => ({
   dispatch: vi.fn(),
 }));
@@ -69,16 +65,19 @@ describe('searchOrchestrator alias handling', () => {
     mergedSearchMock.mockReset();
   });
 
-  it('pins aliased item to top when the trimmed query equals the alias (command, no trailing space)', async () => {
+  it('forwards Rust-pinned alias match order verbatim (no re-sort in TS)', async () => {
+    // Pin-to-top for a non-auto-executing alias match happens in Rust
+    // (merged_search_with_aliases) — the mock here returns results already
+    // pinned, and the orchestrator must not reorder them.
     mergedSearchMock.mockResolvedValueOnce({
       results: [
-        { objectId: 'app_other', name: 'Other', type: 'application', score: 0.9 } as any,
         { objectId: 'cmd_clip_history', name: 'Clipboard History', type: 'command', score: 0.5, alias: 'cl' } as any,
+        { objectId: 'app_other', name: 'Other', type: 'application', score: 0.9 } as any,
       ],
       aliasMatch: { objectId: 'cmd_clip_history', itemType: 'command', autoExecute: false },
     });
     await searchOrchestrator.handleSearch('cl');
-    expect(searchOrchestrator.items[0].objectId).toBe('cmd_clip_history');
+    expect(searchOrchestrator.items.map(r => r.objectId)).toEqual(['cmd_clip_history', 'app_other']);
     expect(executeCommand).not.toHaveBeenCalled();
   });
 
@@ -103,7 +102,6 @@ describe('searchOrchestrator alias handling', () => {
     });
     await searchOrchestrator.handleSearch('f ');
     expect(executeCommand).not.toHaveBeenCalled();
-    // Still pinned to top.
     expect(searchOrchestrator.items[0].objectId).toBe('app_finder');
   });
 
@@ -141,6 +139,21 @@ describe('searchOrchestrator alias handling', () => {
     });
     await searchOrchestrator.handleSearch('cl ');
     expect(executeCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not re-sort when aliasMatch is present but the matched item is not first', async () => {
+    // Rust already decided where the alias match belongs (pinned, or not,
+    // e.g. filtered out as a disabled application). The orchestrator must
+    // never re-derive ordering from aliasMatch itself.
+    mergedSearchMock.mockResolvedValueOnce({
+      results: [
+        { objectId: 'app_other', name: 'Other', type: 'application', score: 0.9 } as any,
+        { objectId: 'app_finder', name: 'Finder', type: 'application', score: 0.5 } as any,
+      ],
+      aliasMatch: { objectId: 'app_finder', itemType: 'application', autoExecute: false },
+    });
+    await searchOrchestrator.handleSearch('f');
+    expect(searchOrchestrator.items.map(r => r.objectId)).toEqual(['app_other', 'app_finder']);
   });
 
   it('falls through to normal search ordering when aliasMatch is null', async () => {
