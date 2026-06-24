@@ -209,8 +209,10 @@ pub fn window_management_apply_preset(
             let size = m.size().to_logical::<f64>(scale);
             let pos = m.position().to_logical::<f64>(scale);
 
-            let overlap_x = (current_bounds.x + current_bounds.width).min(pos.x + size.width) - current_bounds.x.max(pos.x);
-            let overlap_y = (current_bounds.y + current_bounds.height).min(pos.y + size.height) - current_bounds.y.max(pos.y);
+            let overlap_x = (current_bounds.x + current_bounds.width).min(pos.x + size.width)
+                - current_bounds.x.max(pos.x);
+            let overlap_y = (current_bounds.y + current_bounds.height).min(pos.y + size.height)
+                - current_bounds.y.max(pos.y);
             let overlap = overlap_x.max(0.0) * overlap_y.max(0.0);
 
             if overlap > max_overlap {
@@ -319,7 +321,11 @@ pub fn window_management_apply_preset(
             "right-two-thirds" => (mx + mw / 3.0, my, (mw / 3.0) * 2.0, mh),
             "center" => (mx + mw * 0.1, my + mh * 0.1, mw * 0.8, mh * 0.8),
             "almost-maximize" => (mx + mw * 0.05, my + mh * 0.05, mw * 0.9, mh * 0.9),
-            _ => return Err(AppError::Validation(format!("Unknown preset ID: {preset_id}"))),
+            _ => {
+                return Err(AppError::Validation(format!(
+                    "Unknown preset ID: {preset_id}"
+                )))
+            }
         };
 
         apply_bounds(&WindowBoundsUpdate {
@@ -332,8 +338,6 @@ pub fn window_management_apply_preset(
 
     Ok(())
 }
-
-
 
 #[cfg(test)]
 mod tests {

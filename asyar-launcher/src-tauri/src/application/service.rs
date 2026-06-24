@@ -512,11 +512,20 @@ fn is_app_bundle(path: &Path) -> bool {
 
 #[allow(dead_code)]
 fn find_uwp_icon_path_from_manifest_content(content: &str) -> Option<String> {
-    if let Some(caps) = Regex::new(r#"Square44x44Logo\s*=\s*"([^"]+)""#).ok()?.captures(content) {
+    if let Some(caps) = Regex::new(r#"Square44x44Logo\s*=\s*"([^"]+)""#)
+        .ok()?
+        .captures(content)
+    {
         Some(caps.get(1)?.as_str().to_string())
-    } else if let Some(caps) = Regex::new(r#"Square150x150Logo\s*=\s*"([^"]+)""#).ok()?.captures(content) {
+    } else if let Some(caps) = Regex::new(r#"Square150x150Logo\s*=\s*"([^"]+)""#)
+        .ok()?
+        .captures(content)
+    {
         Some(caps.get(1)?.as_str().to_string())
-    } else if let Some(caps) = Regex::new(r#"Logo\s*=\s*"([^"]+)""#).ok()?.captures(content) {
+    } else if let Some(caps) = Regex::new(r#"Logo\s*=\s*"([^"]+)""#)
+        .ok()?
+        .captures(content)
+    {
         Some(caps.get(1)?.as_str().to_string())
     } else {
         None
@@ -675,7 +684,11 @@ pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<Strin
 }
 
 #[cfg(target_os = "windows")]
-pub(crate) fn extract_uwp_app_icon(aumid: &str, install_location: &str, cache_dir: &Path) -> Option<String> {
+pub(crate) fn extract_uwp_app_icon(
+    aumid: &str,
+    install_location: &str,
+    cache_dir: &Path,
+) -> Option<String> {
     let cache_key = format!("uwp_{}", aumid.replace(['/', '\\', ':', ' ', '!'], "_"));
     let cache_filename = format!("{}.png", &cache_key[..cache_key.len().min(200)]);
     let cache_file = cache_dir.join(&cache_filename);
@@ -1164,7 +1177,10 @@ mod tests {
 
     #[test]
     fn test_score_candidate() {
-        assert_eq!(score_candidate("CalculatorSdkLogo.targetsize-48_altform-unplated.png"), 110);
+        assert_eq!(
+            score_candidate("CalculatorSdkLogo.targetsize-48_altform-unplated.png"),
+            110
+        );
         assert_eq!(score_candidate("CalculatorSdkLogo.targetsize-48.png"), 100);
         assert_eq!(score_candidate("CalculatorSdkLogo.scale-200.png"), 80);
         assert_eq!(score_candidate("CalculatorSdkLogo.png"), 50);

@@ -1709,7 +1709,9 @@ mod service_tests {
             0.0,
             Some(models::ResultPriority::Top),
         )];
-        let results = state.merged_search("Calculator", external, 10, &[]).unwrap();
+        let results = state
+            .merged_search("Calculator", external, 10, &[])
+            .unwrap();
         assert!(results.len() >= 2);
         assert_eq!(
             results[0].object_id, "ext_calc_42_0",
@@ -1767,7 +1769,10 @@ mod service_tests {
         let state = make_state();
         state.index_one(app("app_safari", "Safari", 0)).unwrap();
         let results = state.merged_search("Safari", vec![], 10, &[]).unwrap();
-        let hit = results.iter().find(|r| r.object_id == "app_safari").unwrap();
+        let hit = results
+            .iter()
+            .find(|r| r.object_id == "app_safari")
+            .unwrap();
         assert_eq!(hit.tier, ranker::Tier::ExactTitle as u8);
     }
 
@@ -1781,7 +1786,10 @@ mod service_tests {
             Some(models::ResultPriority::Top),
         )];
         let results = state.merged_search("anything", external, 10, &[]).unwrap();
-        let hit = results.iter().find(|r| r.object_id == "ext_calc_42_0").unwrap();
+        let hit = results
+            .iter()
+            .find(|r| r.object_id == "ext_calc_42_0")
+            .unwrap();
         assert_eq!(hit.tier, ranker::Tier::Pinned as u8);
     }
 
@@ -1806,18 +1814,27 @@ mod service_tests {
             priority: None,
         }];
         let results = state.merged_search("team", external, 10, &[]).unwrap();
-        let hit = results.iter().find(|r| r.object_id == "ext_slack_0").unwrap();
+        let hit = results
+            .iter()
+            .find(|r| r.object_id == "ext_slack_0")
+            .unwrap();
         assert_eq!(hit.tier, ranker::Tier::SubtitleOrKeyword as u8);
     }
 
     #[test]
     fn merged_search_backfill_items_have_tier_frecency_only() {
         let state = make_state();
-        state.index_one(app("app_unrelated", "Unrelated App", 5)).unwrap();
+        state
+            .index_one(app("app_unrelated", "Unrelated App", 5))
+            .unwrap();
         // Query matches nothing, so the only results are frecency backfill.
-        let results = state.merged_search("zzz_no_match_zzz", vec![], 5, &[]).unwrap();
+        let results = state
+            .merged_search("zzz_no_match_zzz", vec![], 5, &[])
+            .unwrap();
         assert!(!results.is_empty());
-        assert!(results.iter().all(|r| r.tier == ranker::Tier::FrecencyOnly as u8));
+        assert!(results
+            .iter()
+            .all(|r| r.tier == ranker::Tier::FrecencyOnly as u8));
     }
 
     // ------------------------------------------------------------------
@@ -1831,7 +1848,9 @@ mod service_tests {
     fn merged_search_filters_out_disabled_applications() {
         let state = make_state();
         state.index_one(app("app_finder", "Finder", 0)).unwrap();
-        state.index_one(app("app_finder2", "Finder Two", 0)).unwrap();
+        state
+            .index_one(app("app_finder2", "Finder Two", 0))
+            .unwrap();
 
         let disabled = vec!["app_finder".to_string()];
         let results = state

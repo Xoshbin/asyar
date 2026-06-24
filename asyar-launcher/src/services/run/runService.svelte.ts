@@ -53,6 +53,12 @@ export class RunService {
    * Merged list of active runs followed by recent runs, deduped by id
    * (active wins). This is the canonical ordering rendered by RunView's
    * sidebar and the basis for keyboard navigation.
+   *
+   * Rust-first exception: `moveSelection` reads this synchronously inside
+   * the same call stack that sets `active`/`recent` in tests (and keyboard
+   * nav needs an immediate result, not a one-tick-later IPC response), so
+   * this dedup-by-id merge stays in TS rather than round-tripping through
+   * Rust like the bucket upserts below do.
    */
   combined = $derived.by(() => {
     const activeIds = new Set(this.active.map((r) => r.id));
@@ -62,6 +68,12 @@ export class RunService {
   private stateChangedUnlisten: UnlistenFn | null = null;
   private outputUnlisten: UnlistenFn | null = null;
   private localCancelCallbacks: Map<string, Set<() => void>> = new Map();
+  /**
+   * Serializes `onStateChanged` calls so two terminal events arriving in
+   * quick succession can't both read the same pre-mutation bucket snapshot
+   * before either's Rust round-trip resolves.
+   */
+  private stateChangedQueue: Promise<void> = Promise.resolve();
 
   constructor() {
     this.subscribe();
@@ -78,7 +90,7 @@ export class RunService {
     }
 
     this.stateChangedUnlisten = await listen<Run>('runs:state-changed', (ev) => {
-      this.onStateChanged(ev.payload);
+      this.stateChangedQueue = this.stateChangedQueue.then(() => this.onStateChanged(ev.payload));
     });
 
     this.outputUnlisten = await listen<{ id: string; line: string }>('runs:output', (ev) => {
@@ -152,7 +164,7 @@ export class RunService {
     this.selectedRunId = items[next].id;
   }
 
-  private onStateChanged(run: Run): void {
+  private async onStateChanged(run: Run): Promise<void> {
     const existingIdx = this.active.findIndex((r) => r.id === run.id);
     const isTerminal =
       run.status === 'succeeded' || run.status === 'failed' || run.status === 'cancelled';
@@ -176,30 +188,31 @@ export class RunService {
         });
 
         // Keep the failure surfaced in the launcher's main list for inspection.
-        // De-dupe by id in case state-changed fires twice for the same run.
-        this.unacknowledgedFailures = [
+        // De-dupe/cap rules live in Rust's runs_upsert_bucket (shared with the
+        // keptAgents/unacknowledgedScriptResults buckets below).
+        this.unacknowledgedFailures = await this.upsertBucket(
+          this.unacknowledgedFailures,
           run,
-          ...this.unacknowledgedFailures.filter((r) => r.id !== run.id),
-        ].slice(0, UNACK_FAILED_CAP);
+          'failure',
+        );
       }
 
       if (run.status === 'succeeded' && run.kind === 'agent' && run.subjectId) {
-        // Threads persist after success — replace any older kept entry for
-        // the same agent so each agent shows at most one "Done" row.
-        this.keptAgents = [
-          run,
-          ...this.keptAgents.filter((r) => r.subjectId !== run.subjectId),
-        ].slice(0, UNACK_FAILED_CAP);
+        // Threads persist after success — Rust replaces any older kept entry
+        // for the same agent so each agent shows at most one "Done" row.
+        this.keptAgents = await this.upsertBucket(this.keptAgents, run, 'kept-agent');
       }
 
       if (run.status === 'succeeded' && run.kind === 'shell-script') {
         // Scripts persist after success so the user can read the output.
-        // Dedupe by subjectId when present so re-running the same script row
-        // collapses into one entry; anonymous (no subjectId) runs dedupe by id.
-        const filtered = run.subjectId
-          ? this.unacknowledgedScriptResults.filter((r) => r.subjectId !== run.subjectId)
-          : this.unacknowledgedScriptResults.filter((r) => r.id !== run.id);
-        this.unacknowledgedScriptResults = [run, ...filtered].slice(0, UNACK_FAILED_CAP);
+        // Rust dedupes by subjectId when present so re-running the same
+        // script row collapses into one entry; anonymous (no subjectId)
+        // runs dedupe by id.
+        this.unacknowledgedScriptResults = await this.upsertBucket(
+          this.unacknowledgedScriptResults,
+          run,
+          'script-result',
+        );
       }
 
       if (run.status === 'cancelled' && run.extensionId) {
@@ -234,6 +247,25 @@ export class RunService {
 
   private onOutputLine(_payload: { id: string; line: string }): void {
     // No state change; output is consumed by RunView via runs_get_output Tauri command.
+  }
+
+  /**
+   * Insert `run` into `bucket` via the shared Rust dedup/cap rules
+   * (`runs_upsert_bucket`). Falls back to the existing bucket unchanged if
+   * the IPC call fails (e.g. backend error reported by `invokeSafe`).
+   */
+  private async upsertBucket(
+    bucket: Run[],
+    run: Run,
+    kind: 'failure' | 'kept-agent' | 'script-result',
+  ): Promise<Run[]> {
+    const result = await invokeSafe<Run[]>('runs_upsert_bucket', {
+      bucket,
+      run,
+      kind,
+      cap: UNACK_FAILED_CAP,
+    });
+    return result ?? bucket;
   }
 
   /**

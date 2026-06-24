@@ -110,16 +110,28 @@ mod tests {
     #[test]
     fn ai_setup_precedes_hidden_commands() {
         let order = step_order(false);
-        let ai = order.iter().position(|s| *s == OnboardingStep::AiSetup).unwrap();
-        let hidden = order.iter().position(|s| *s == OnboardingStep::HiddenCommands).unwrap();
+        let ai = order
+            .iter()
+            .position(|s| *s == OnboardingStep::AiSetup)
+            .unwrap();
+        let hidden = order
+            .iter()
+            .position(|s| *s == OnboardingStep::HiddenCommands)
+            .unwrap();
         assert!(ai < hidden);
     }
 
     #[test]
     fn text_expansion_cluster_is_contiguous() {
         let order = step_order(false);
-        let emoji = order.iter().position(|s| *s == OnboardingStep::Emoji).unwrap();
-        let snippets = order.iter().position(|s| *s == OnboardingStep::Snippets).unwrap();
+        let emoji = order
+            .iter()
+            .position(|s| *s == OnboardingStep::Emoji)
+            .unwrap();
+        let snippets = order
+            .iter()
+            .position(|s| *s == OnboardingStep::Snippets)
+            .unwrap();
         assert_eq!(snippets, emoji + 1);
     }
 

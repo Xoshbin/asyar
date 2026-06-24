@@ -131,13 +131,31 @@ mod tests {
 
     #[test]
     fn gates_crash_action_by_mode_and_crash_flag() {
-        assert_eq!(decide_crash_action(CrashReportMode::Off, true), CrashAction::Ignore);
-        assert_eq!(decide_crash_action(CrashReportMode::Ask, true), CrashAction::Prompt);
-        assert_eq!(decide_crash_action(CrashReportMode::Auto, true), CrashAction::SendSilently);
-        assert_eq!(decide_crash_action(CrashReportMode::Ask, false), CrashAction::Ignore);
+        assert_eq!(
+            decide_crash_action(CrashReportMode::Off, true),
+            CrashAction::Ignore
+        );
+        assert_eq!(
+            decide_crash_action(CrashReportMode::Ask, true),
+            CrashAction::Prompt
+        );
+        assert_eq!(
+            decide_crash_action(CrashReportMode::Auto, true),
+            CrashAction::SendSilently
+        );
+        assert_eq!(
+            decide_crash_action(CrashReportMode::Ask, false),
+            CrashAction::Ignore
+        );
         // A clean launch never reports, regardless of mode.
-        assert_eq!(decide_crash_action(CrashReportMode::Auto, false), CrashAction::Ignore);
-        assert_eq!(decide_crash_action(CrashReportMode::Off, false), CrashAction::Ignore);
+        assert_eq!(
+            decide_crash_action(CrashReportMode::Auto, false),
+            CrashAction::Ignore
+        );
+        assert_eq!(
+            decide_crash_action(CrashReportMode::Off, false),
+            CrashAction::Ignore
+        );
     }
 
     #[test]
