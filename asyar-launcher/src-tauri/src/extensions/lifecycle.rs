@@ -516,7 +516,10 @@ pub(crate) fn discover_all(
     // 4. Apply enabled/disabled state from store
     apply_extension_states(app_handle, &mut all_records)?;
 
-    // 5. Update registry
+    // 5. Order for display: built-ins first, then each group alphabetically.
+    sort_extension_records(&mut all_records);
+
+    // 6. Update registry
     let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
     reg.clear();
     for record in &all_records {
@@ -531,6 +534,20 @@ pub(crate) fn discover_all(
     );
 
     Ok(all_records)
+}
+
+/// Built-ins first, then each group ordered alphabetically by name
+/// (case-insensitive, matching the `name_lower` tie-break convention used by
+/// `search_engine::mod::merged_search`).
+fn sort_extension_records(records: &mut [ExtensionRecord]) {
+    records.sort_by(|a, b| {
+        b.is_built_in.cmp(&a.is_built_in).then_with(|| {
+            a.manifest
+                .name
+                .to_lowercase()
+                .cmp(&b.manifest.name.to_lowercase())
+        })
+    });
 }
 
 pub(crate) fn apply_extension_states(
@@ -563,8 +580,70 @@ pub(crate) fn apply_extension_states(
 #[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
+    use crate::extensions::{CompatibilityStatus, ExtensionManifest};
     use crate::notifications::{NotificationActionRegistry, PendingAction};
     use std::sync::Arc;
+
+    fn make_record(id: &str, name: &str, is_built_in: bool) -> ExtensionRecord {
+        ExtensionRecord {
+            manifest: ExtensionManifest {
+                id: id.into(),
+                name: name.into(),
+                version: "1.0.0".into(),
+                description: String::new(),
+                author: None,
+                extension_type: None,
+                background: None,
+                searchable: None,
+                icon: None,
+                commands: vec![],
+                permissions: None,
+                permission_args: None,
+                min_app_version: None,
+                asyar_sdk: None,
+                platforms: None,
+                preferences: None,
+                actions: None,
+                onboarding: None,
+                tools: None,
+            },
+            enabled: true,
+            is_built_in,
+            path: format!("/tmp/{id}"),
+            compatibility: CompatibilityStatus::Unknown,
+            first_view_component: None,
+        }
+    }
+
+    #[test]
+    fn sort_extension_records_puts_built_ins_first_then_orders_each_group_by_name() {
+        let mut records = vec![
+            make_record("c", "Charlie", false),
+            make_record("b-builtin", "Bravo", true),
+            make_record("a", "Alpha", false),
+            make_record("a-builtin", "alpha", true),
+        ];
+
+        sort_extension_records(&mut records);
+
+        let ids: Vec<&str> = records.iter().map(|r| r.manifest.id.as_str()).collect();
+        // Built-ins first (case-insensitive name order: alpha, Bravo), then
+        // installed/dev (case-insensitive name order: Alpha, Charlie).
+        assert_eq!(ids, vec!["a-builtin", "b-builtin", "a", "c"]);
+    }
+
+    #[test]
+    fn sort_extension_records_is_case_insensitive() {
+        let mut records = vec![
+            make_record("z", "zebra", false),
+            make_record("a", "Apple", false),
+        ];
+
+        sort_extension_records(&mut records);
+
+        let ids: Vec<&str> = records.iter().map(|r| r.manifest.id.as_str()).collect();
+        assert_eq!(ids, vec!["a", "z"]);
+    }
 
     fn pending(ext: &str, cmd: &str) -> PendingAction {
         PendingAction {

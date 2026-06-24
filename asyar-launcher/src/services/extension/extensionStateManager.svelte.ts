@@ -80,11 +80,8 @@ export class ExtensionStateManager {
           preferences: manifest.preferences ?? [],
         });
       }
-      allExtensionsData.sort((a, b) => {
-        if (a.isBuiltIn && !b.isBuiltIn) return -1;
-        if (!a.isBuiltIn && b.isBuiltIn) return 1;
-        return a.title.localeCompare(b.title);
-      });
+      // Ordering (built-in first, then alphabetical) is computed by Rust's
+      // discover_all — this just renders the order it returns.
       return allExtensionsData;
     } catch (error) {
       logService.error(`Error retrieving all extensions with state: ${error}`);
