@@ -1,6 +1,10 @@
-import type { Extension, ExtensionResult, ExtensionManifest } from "asyar-sdk/contracts";
+import type {
+  Extension,
+  ExtensionResult,
+  ExtensionManifest,
+} from "asyar-sdk/contracts";
 import { logService } from "../log/logService";
-import { extensionIframeManager } from './extensionIframeManager.svelte';
+import { extensionIframeManager } from "./extensionIframeManager.svelte";
 import { settingsService } from "../settings/settingsService.svelte";
 
 /**
@@ -12,7 +16,8 @@ type LoadedExtensionModule = Extension | { default: Extension };
 export class ExtensionSearchAggregator {
   private extensionModulesById: Map<string, LoadedExtensionModule> = new Map();
   private manifestsById: Map<string, ExtensionManifest> = new Map();
-  private firstViewComponentById: Map<string, string | null | undefined> = new Map();
+  private firstViewComponentById: Map<string, string | null | undefined> =
+    new Map();
   private isExtensionEnabled: (id: string) => boolean = () => false;
   private navigateToView: (viewPath: string) => void = () => {};
 
@@ -35,7 +40,7 @@ export class ExtensionSearchAggregator {
    * Extension instances and ES modules where the extension is the default export.
    */
   public resolveExtensionInstance(module: LoadedExtensionModule): Extension {
-    if (module && 'default' in module && module.default != null) {
+    if (module && "default" in module && module.default != null) {
       return module.default;
     }
     return module as Extension;
@@ -49,7 +54,7 @@ export class ExtensionSearchAggregator {
     const searchPromises: Promise<ExtensionResult[]>[] = [];
 
     logService.debug(
-      `Calling search() on loaded extensions for query: "${query}"`
+      `Calling search() on loaded extensions for query: "${query}"`,
     );
 
     const settings = settingsService.getSettings();
@@ -67,12 +72,15 @@ export class ExtensionSearchAggregator {
           Promise.resolve()
             .then(() => extensionInstance.search!(query))
             .then((results) => {
-              return (results || []).map((res: ExtensionResult) => ({ ...res, extensionId: id }));
+              return (results || []).map((res: ExtensionResult) => ({
+                ...res,
+                extensionId: id,
+              }));
             })
             .catch((error) => {
               logService.error(`Error searching in extension ${id}: ${error}`);
               return [];
-            })
+            }),
         );
       }
     });
@@ -84,11 +92,14 @@ export class ExtensionSearchAggregator {
         // Tier 2 extensions (installed) have module: null in our loader,
         // but they are present in manifestsById.
         // Built-in extensions are in extensionModulesById.
-        const isTier2 = !this.extensionModulesById.has(id) || this.extensionModulesById.get(id) === null;
-        
+        const isTier2 =
+          !this.extensionModulesById.has(id) ||
+          this.extensionModulesById.get(id) === null;
+
         if (isTier2 && manifest.searchable && this.isExtensionEnabled(id)) {
           searchPromises.push(
-            extensionIframeManager.sendSearchRequestToExtension(id, query)
+            extensionIframeManager
+              .sendSearchRequestToExtension(id, query)
               .then((results) => {
                 return (results || []).map((r: any) => ({
                   ...r,
@@ -102,16 +113,21 @@ export class ExtensionSearchAggregator {
                     // Prefer the extension-returned viewPath. Otherwise fall
                     // back to the first mode=view command's component (the
                     // new-schema replacement for the old manifest.defaultView).
-                    const firstViewComponent = this.firstViewComponentById.get(id);
-                    const viewPath = r.viewPath || `${id}/${firstViewComponent ?? 'DefaultView'}`;
+                    const firstViewComponent =
+                      this.firstViewComponentById.get(id);
+                    const viewPath =
+                      r.viewPath ||
+                      `${id}/${firstViewComponent ?? "DefaultView"}`;
                     this.navigateToView(viewPath);
-                  }
+                  },
                 }));
               })
               .catch((error) => {
-                logService.error(`Error searching in Tier 2 extension ${id}: ${error}`);
+                logService.error(
+                  `Error searching in Tier 2 extension ${id}: ${error}`,
+                );
                 return [];
-              })
+              }),
           );
         }
       });
@@ -119,46 +135,48 @@ export class ExtensionSearchAggregator {
 
     const SEARCH_TIMEOUT_MS = 200;
 
-    const timeoutPromise = new Promise<'timeout'>(resolve => 
-      setTimeout(() => resolve('timeout'), SEARCH_TIMEOUT_MS)
+    const timeoutPromise = new Promise<"timeout">((resolve) =>
+      setTimeout(() => resolve("timeout"), SEARCH_TIMEOUT_MS),
     );
 
     // Use Promise.allSettled so we get partial results
     const settled = await Promise.race([
       Promise.allSettled(searchPromises),
-      timeoutPromise.then(() => 'timeout' as const)
+      timeoutPromise.then(() => "timeout" as const),
     ]);
 
-    if (settled === 'timeout') {
+    if (settled === "timeout") {
       // Timeout hit — collect whatever resolved so far
       const snapshots = await Promise.allSettled(
-        searchPromises.map(p => Promise.race([p, Promise.resolve('pending' as const)]))
+        searchPromises.map((p) =>
+          Promise.race([p, Promise.resolve("pending" as const)]),
+        ),
       );
       for (const snap of snapshots) {
-        if (snap.status === 'fulfilled' && snap.value !== 'pending') {
+        if (snap.status === "fulfilled" && snap.value !== "pending") {
           allResults.push(...(snap.value as ExtensionResult[]));
         }
       }
       logService.debug(
-        `Extension search timed out after ${SEARCH_TIMEOUT_MS}ms. Returning ${allResults.length} partial results.`
+        `Extension search timed out after ${SEARCH_TIMEOUT_MS}ms. Returning ${allResults.length} partial results.`,
       );
     } else {
       // All settled within timeout
       for (const result of settled) {
-        if (result.status === 'fulfilled') {
+        if (result.status === "fulfilled") {
           allResults.push(...result.value);
         }
       }
       logService.debug(
-        `Aggregated ${allResults.length} results from extension search mechanisms.`
+        `Aggregated ${allResults.length} results from extension search mechanisms.`,
       );
     }
 
-    // Sort results by score (descending)
-    allResults.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    // Final ordering is owned by Rust's merged_search (tier → frecency →
+    // fuzzy_score → name) once searchOrchestrator forwards these as
+    // externalResults — sorting by score here would only be discarded.
     return allResults;
   }
 }
 
 export const extensionSearchAggregator = new ExtensionSearchAggregator();
-
