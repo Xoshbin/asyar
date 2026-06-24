@@ -420,14 +420,44 @@ pub fn read_manifest(path: &Path) -> Result<ExtensionManifest, AppError> {
     Ok(manifest)
 }
 
+/// Whether a declared `platforms` list permits the current OS. `None` means
+/// the extension declared no restriction (compatible everywhere); an empty
+/// list declares support for zero platforms (compatible nowhere).
+pub fn is_platform_compatible(platforms: Option<&[String]>) -> bool {
+    match platforms {
+        None => true,
+        Some(platforms) => {
+            let current_os = std::env::consts::OS;
+            platforms.iter().any(|p| p.as_str() == current_os)
+        }
+    }
+}
+
+/// A `{id, platforms}` pair for batch-checking platform compatibility of
+/// items that don't carry a full `ExtensionManifest` (e.g. store API listings).
+#[derive(Clone, Debug, serde::Deserialize, specta::Type)]
+pub struct PlatformCheckItem {
+    pub id: String,
+    #[serde(default)]
+    pub platforms: Option<Vec<String>>,
+}
+
+/// Ids of items whose declared platforms permit the current OS, in input order.
+pub fn filter_platform_compatible_ids(items: &[PlatformCheckItem]) -> Vec<String> {
+    items
+        .iter()
+        .filter(|it| is_platform_compatible(it.platforms.as_deref()))
+        .map(|it| it.id.clone())
+        .collect()
+}
+
 /// Check if an extension's declared requirements are compatible with this app.
 pub fn validate_compatibility(manifest: &ExtensionManifest) -> CompatibilityStatus {
     // Platform check — most fundamental gate, evaluated first
     if let Some(ref platforms) = manifest.platforms {
-        let current_os = std::env::consts::OS;
-        if !platforms.iter().any(|p| p.as_str() == current_os) {
+        if !is_platform_compatible(Some(platforms)) {
             return CompatibilityStatus::PlatformNotSupported {
-                platform: current_os.to_string(),
+                platform: std::env::consts::OS.to_string(),
                 supported: platforms.clone(),
             };
         }
@@ -974,6 +1004,60 @@ mod compatibility_tests {
             validate_compatibility(&manifest),
             CompatibilityStatus::PlatformNotSupported { .. }
         ));
+    }
+
+    #[test]
+    fn test_is_platform_compatible_none_allows_any_os() {
+        assert!(is_platform_compatible(None));
+    }
+
+    #[test]
+    fn test_is_platform_compatible_current_os_in_list() {
+        let os = std::env::consts::OS;
+        assert!(is_platform_compatible(Some(&[os.to_string()])));
+    }
+
+    #[test]
+    fn test_is_platform_compatible_other_os_only() {
+        let others: Vec<String> = ["macos", "windows", "linux"]
+            .iter()
+            .filter(|&&p| p != std::env::consts::OS)
+            .map(|s| s.to_string())
+            .collect();
+        if others.is_empty() {
+            return;
+        }
+        assert!(!is_platform_compatible(Some(&others)));
+    }
+
+    #[test]
+    fn test_is_platform_compatible_empty_list_is_incompatible() {
+        assert!(!is_platform_compatible(Some(&[])));
+    }
+
+    #[test]
+    fn test_filter_platform_compatible_ids_keeps_compatible_drops_rest() {
+        let os = std::env::consts::OS;
+        let items = vec![
+            PlatformCheckItem {
+                id: "keep-no-restriction".to_string(),
+                platforms: None,
+            },
+            PlatformCheckItem {
+                id: "keep-current-os".to_string(),
+                platforms: Some(vec![os.to_string()]),
+            },
+            PlatformCheckItem {
+                id: "drop-empty-list".to_string(),
+                platforms: Some(vec![]),
+            },
+            PlatformCheckItem {
+                id: "drop-other-os".to_string(),
+                platforms: Some(vec!["nonexistent-os".to_string()]),
+            },
+        ];
+        let kept = filter_platform_compatible_ids(&items);
+        assert_eq!(kept, vec!["keep-no-restriction", "keep-current-os"]);
     }
 }
 

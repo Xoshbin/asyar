@@ -98,10 +98,3 @@ pub async fn fetch_url(
     })
     .await
 }
-
-/// Returns the current operating system identifier ("macos", "windows", or "linux").
-/// Used by the store feature to filter platform-incompatible extensions.
-#[tauri::command]
-pub fn get_current_platform() -> String {
-    std::env::consts::OS.to_string()
-}

@@ -9,13 +9,14 @@ import type {
   ExtensionAction,
 } from "asyar-sdk/contracts";
 // Import the placeholder and the initializer function
-import { storeViewState, initializeStore } from "./state.svelte";
+import { storeViewState, initializeStore, type ApiExtension } from "./state.svelte";
 import { diagnosticsService } from "../../services/diagnostics/diagnosticsService.svelte";
 import * as commands from "../../lib/ipc/commands";
 import DefaultView from './DefaultView.svelte'; // Import component
 import DetailView from './DetailView.svelte'; // Import component
 import { actionService } from "../../services/action/actionService.svelte";
 import { extensionUpdateService } from "../../services/extension/extensionUpdateService.svelte";
+import { filterCompatibleExtensions } from "../../lib/filterCompatibleExtensions";
 
 const EXTENSION_ID = "store";
 const ACTION_ID_INSTALL_DETAIL = "app.asyar.store:install-detail"; // Action ID for detail view
@@ -372,7 +373,7 @@ class StoreExtension implements Extension {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      const fetchedExtensions = Array.isArray(data) ? data : (data.data || []);
+      const fetchedExtensions: ApiExtension[] = Array.isArray(data) ? data : (data.data || []);
       
       // Override status based on local installation state
       try {
@@ -396,13 +397,12 @@ class StoreExtension implements Extension {
       }
       
       this.logService?.info(`Fetched ${fetchedExtensions.length} extensions.`);
-      try {
-        const platform = await commands.getCurrentPlatform();
-        storeViewState.setCurrentPlatform(platform);
-      } catch (err) {
-        this.logService?.warn(`Could not determine current platform: ${err}`);
-      }
-      storeViewState.setItems(fetchedExtensions);
+      const compatibleExtensions = await filterCompatibleExtensions(fetchedExtensions, {
+        id: (ext) => String(ext.id),
+        platforms: (ext) => ext.manifest?.platforms,
+      });
+      this.logService?.debug(`${compatibleExtensions.length} of ${fetchedExtensions.length} extensions are compatible with this platform.`);
+      storeViewState.setItems(compatibleExtensions);
 
       // Apply update status from the update service
       if (extensionUpdateService.hasUpdates) {

@@ -936,10 +936,6 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     return invoke<PermissionCheckResult>('check_extension_permission', { extensionId, callType });
   }
 
-  export async function getCurrentPlatform(): Promise<string> {
-    return invoke<string>('get_current_platform');
-  }
-
   // ── Shell Trust ──────────────────────────────────────────────────────────────
 
   export interface TrustedBinary {

@@ -13,6 +13,17 @@ pub async fn check_path_exists(path: String) -> bool {
     std::path::Path::new(&path).exists()
 }
 
+/// Ids of `items` whose declared platforms are compatible with the current OS,
+/// in input order. Used by the store feature to filter remote listings —
+/// shares platform semantics with `extensions::discovery::validate_compatibility`,
+/// used for locally-installed extensions.
+#[tauri::command]
+pub fn filter_compatible_extensions(
+    items: Vec<extensions::discovery::PlatformCheckItem>,
+) -> Vec<String> {
+    extensions::discovery::filter_platform_compatible_ids(&items)
+}
+
 #[tauri::command]
 pub async fn uninstall_extension(
     app_handle: AppHandle,
@@ -66,7 +77,9 @@ pub async fn get_builtin_features_path(app_handle: AppHandle) -> Result<String, 
 /// boundary is re-checked here. Returns `AppError::Validation` on any violation.
 fn validate_dev_extension_inputs(extension_id: &str, path: &str) -> Result<(), AppError> {
     if extension_id.is_empty() {
-        return Err(AppError::Validation("extension id must not be empty".into()));
+        return Err(AppError::Validation(
+            "extension id must not be empty".into(),
+        ));
     }
     if extension_id.contains('/')
         || extension_id.contains('\\')
@@ -292,7 +305,9 @@ mod tests {
     #[test]
     fn validate_dev_extension_inputs_accepts_safe_slugs() {
         assert!(validate_dev_extension_inputs("com.user.notion", "/tmp/ext").is_ok());
-        assert!(validate_dev_extension_inputs("unit-converter", "/home/u/AsyarExtensions/x").is_ok());
+        assert!(
+            validate_dev_extension_inputs("unit-converter", "/home/u/AsyarExtensions/x").is_ok()
+        );
         assert!(validate_dev_extension_inputs("a.b_c-1", "/abs/path").is_ok());
     }
 
