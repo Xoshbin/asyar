@@ -1,11 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('./invokeSafe', () => ({ invokeSafe: vi.fn() }));
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
-vi.mock('../../services/log/logService', () => ({ logService: { warn: vi.fn() } }));
+vi.mock('./invokeSafe', () => ({ invokeSafe: vi.fn(), invokeSafeVoid: vi.fn() }));
 
-import { invokeSafe } from './invokeSafe';
-import { invoke } from '@tauri-apps/api/core';
+import { invokeSafe, invokeSafeVoid } from './invokeSafe';
 import {
   mcpListServers,
   mcpInstallServer,
@@ -22,7 +19,7 @@ import {
 import type { McpServerInstallInput } from '../../built-in-features/mcp/types';
 
 const mockInvoke = invokeSafe as ReturnType<typeof vi.fn>;
-const mockTauriInvoke = invoke as ReturnType<typeof vi.fn>;
+const mockInvokeVoid = invokeSafeVoid as ReturnType<typeof vi.fn>;
 
 const sampleInput: McpServerInstallInput = {
   id: 'my-server',
@@ -77,17 +74,17 @@ describe('mcpTestServer', () => {
 
 describe('mcpSetServerEnabled', () => {
   it('passes serverId + enabled correctly and returns true on success', async () => {
-    mockTauriInvoke.mockResolvedValue(undefined);
+    mockInvokeVoid.mockResolvedValue(true);
     const result = await mcpSetServerEnabled('my-server', true);
-    expect(mockTauriInvoke).toHaveBeenCalledWith('mcp_set_server_enabled', {
+    expect(mockInvokeVoid).toHaveBeenCalledWith('mcp_set_server_enabled', {
       serverId: 'my-server',
       enabled: true,
     });
     expect(result).toBe(true);
   });
 
-  it('returns false when invoke throws', async () => {
-    mockTauriInvoke.mockRejectedValue(new Error('Rust error'));
+  it('returns false when invokeSafeVoid reports failure', async () => {
+    mockInvokeVoid.mockResolvedValue(false);
     const result = await mcpSetServerEnabled('my-server', true);
     expect(result).toBe(false);
   });
@@ -95,14 +92,14 @@ describe('mcpSetServerEnabled', () => {
 
 describe('mcpUninstallServer', () => {
   it('passes serverId correctly and returns true on success', async () => {
-    mockTauriInvoke.mockResolvedValue(undefined);
+    mockInvokeVoid.mockResolvedValue(true);
     const result = await mcpUninstallServer('my-server');
-    expect(mockTauriInvoke).toHaveBeenCalledWith('mcp_uninstall_server', { serverId: 'my-server' });
+    expect(mockInvokeVoid).toHaveBeenCalledWith('mcp_uninstall_server', { serverId: 'my-server' });
     expect(result).toBe(true);
   });
 
-  it('returns false when invoke throws', async () => {
-    mockTauriInvoke.mockRejectedValue(new Error('Rust error'));
+  it('returns false when invokeSafeVoid reports failure', async () => {
+    mockInvokeVoid.mockResolvedValue(false);
     const result = await mcpUninstallServer('my-server');
     expect(result).toBe(false);
   });
@@ -155,9 +152,9 @@ describe('null returns from wrappers', () => {
 
 describe('mcpSetPermission', () => {
   it('passes correct args and command name', async () => {
-    mockTauriInvoke.mockResolvedValue(undefined);
+    mockInvokeVoid.mockResolvedValue(true);
     const result = await mcpSetPermission('my-server', 'create_user', 'agent-1', 'allow_once');
-    expect(mockTauriInvoke).toHaveBeenCalledWith('mcp_set_permission', {
+    expect(mockInvokeVoid).toHaveBeenCalledWith('mcp_set_permission', {
       serverId: 'my-server',
       toolId: 'create_user',
       agentId: 'agent-1',
@@ -166,8 +163,8 @@ describe('mcpSetPermission', () => {
     expect(result).toBe(true);
   });
 
-  it('returns false when invoke throws', async () => {
-    mockTauriInvoke.mockRejectedValue(new Error('Rust error'));
+  it('returns false when invokeSafeVoid reports failure', async () => {
+    mockInvokeVoid.mockResolvedValue(false);
     const result = await mcpSetPermission('my-server', 'create_user', 'agent-1', 'allow_always');
     expect(result).toBe(false);
   });

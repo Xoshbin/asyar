@@ -40,6 +40,9 @@ class ApplicationsService implements IApplicationsService {
     const extraPaths =
       override?.additionalScanPaths ?? search.additionalScanPaths ?? [];
     const result = await commands.syncApplicationIndex(extraPaths);
+    if (result === null) {
+      throw new Error('sync_application_index failed');
+    }
     logService.info(`App sync: ${result.added} added, ${result.removed} removed, ${result.total} total`);
   }
 

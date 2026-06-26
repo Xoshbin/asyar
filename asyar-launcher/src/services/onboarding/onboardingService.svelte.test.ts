@@ -30,7 +30,7 @@ describe('onboardingService', () => {
   it('loads initial state from Rust', async () => {
     vi.mocked(invoke).mockResolvedValueOnce(initialState)
     await onboardingService.load()
-    expect(invoke).toHaveBeenCalledWith('get_onboarding_state')
+    expect(invoke).toHaveBeenCalledWith('get_onboarding_state', undefined)
     expect(onboardingService.state).toEqual(initialState)
   })
 
@@ -44,7 +44,7 @@ describe('onboardingService', () => {
       })
     await onboardingService.load()
     await onboardingService.advance()
-    expect(invoke).toHaveBeenCalledWith('advance_onboarding_step')
+    expect(invoke).toHaveBeenCalledWith('advance_onboarding_step', undefined)
     expect(onboardingService.state?.current).toBe('grantAccessibility')
   })
 
@@ -54,20 +54,20 @@ describe('onboardingService', () => {
       .mockResolvedValueOnce({ ...initialState, current: 'grantAccessibility', position: 2 })
     await onboardingService.load()
     await onboardingService.goBack()
-    expect(invoke).toHaveBeenCalledWith('go_back_onboarding_step')
+    expect(invoke).toHaveBeenCalledWith('go_back_onboarding_step', undefined)
     expect(onboardingService.state?.current).toBe('grantAccessibility')
   })
 
   it('completes calls Rust', async () => {
     vi.mocked(invoke).mockResolvedValueOnce(undefined)
     await onboardingService.complete()
-    expect(invoke).toHaveBeenCalledWith('complete_onboarding')
+    expect(invoke).toHaveBeenCalledWith('complete_onboarding', undefined)
   })
 
   it('dismiss calls Rust', async () => {
     vi.mocked(invoke).mockResolvedValueOnce(undefined)
     await onboardingService.dismiss()
-    expect(invoke).toHaveBeenCalledWith('dismiss_onboarding')
+    expect(invoke).toHaveBeenCalledWith('dismiss_onboarding', undefined)
   })
 
   it('reports diagnostics on load failure', async () => {
@@ -114,14 +114,14 @@ describe('AI onboarding', () => {
   it('loadAi sets aiCompleted from the IPC reply', async () => {
     mockInvoke.mockResolvedValueOnce(true)
     await onboardingService.loadAi()
-    expect(mockInvoke).toHaveBeenCalledWith('is_ai_onboarding_completed')
+    expect(mockInvoke).toHaveBeenCalledWith('is_ai_onboarding_completed', undefined)
     expect(onboardingService.aiCompleted).toBe(true)
   })
 
   it('completeAi calls the IPC and flips aiCompleted to true', async () => {
     mockInvoke.mockResolvedValueOnce(undefined)
     await onboardingService.completeAi()
-    expect(mockInvoke).toHaveBeenCalledWith('complete_ai_onboarding')
+    expect(mockInvoke).toHaveBeenCalledWith('complete_ai_onboarding', undefined)
     expect(onboardingService.aiCompleted).toBe(true)
   })
 })

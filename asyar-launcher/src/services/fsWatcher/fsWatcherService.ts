@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { fsWatchCreate, fsWatchDispose } from '../../lib/ipc/systemCommands';
 
 /**
  * Host-side thin wrapper over the Rust `fs_watch_*` Tauri commands.
@@ -27,21 +27,14 @@ export class FsWatcherService implements IFsWatcherIpc {
     paths: string[],
     opts?: { recursive?: boolean; debounceMs?: number } | null,
   ): Promise<string> {
-    return invoke<string>('fs_watch_create', {
-      extensionId,
-      paths,
-      opts: opts ?? null,
-    });
+    return (await fsWatchCreate(extensionId, paths, opts ?? null)) ?? '';
   }
 
   async dispose(
     extensionId: string | null,
     handleId: string,
   ): Promise<void> {
-    return invoke<void>('fs_watch_dispose', {
-      extensionId,
-      handleId,
-    });
+    await fsWatchDispose(extensionId, handleId);
   }
 }
 

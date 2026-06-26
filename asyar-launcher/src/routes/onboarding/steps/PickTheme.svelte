@@ -29,6 +29,10 @@
   async function refreshDiscovery() {
     try {
       const records = await discoverExtensions();
+      if (records === null) {
+        logService.warn('[onboarding] discoverExtensions failed');
+        return;
+      }
       const next: Record<string, string> = {};
       for (const r of records) {
         if (r.manifest.type === 'theme') next[r.manifest.name] = r.manifest.id;

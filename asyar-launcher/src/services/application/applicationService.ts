@@ -1,28 +1,15 @@
-import { invoke } from '@tauri-apps/api/core';
 import { settingsService } from '../settings/settingsService.svelte';
 import type { FrontmostApplication } from 'asyar-sdk/contracts';
+import {
+  getFrontmostApplication,
+  appIsRunning,
+  uninstallApplication,
+  scanUninstallTargets,
+  type UninstallScanResult,
+} from '../../lib/ipc/applicationCommands';
+import { syncApplicationIndex, listApplications } from '../../lib/ipc/commands';
 
-/**
- * One row of Library-scope data matched to an installed application by the
- * macOS uninstall scanner. Mirrors the Rust `AppDataPath` struct.
- */
-export interface AppDataPath {
-  path: string;
-  sizeBytes: number;
-  category: string;
-}
-
-/**
- * Result of a macOS uninstall scan — the `.app` path + size plus every
- * `~/Library/*` entry associated with the bundle id. Rendered in the
- * confirm sheet so the user sees exactly what will be trashed.
- */
-export interface UninstallScanResult {
-  appPath: string;
-  appSizeBytes: number;
-  dataPaths: AppDataPath[];
-  totalBytes: number;
-}
+export type { AppDataPath, UninstallScanResult } from '../../lib/ipc/applicationCommands';
 
 /**
  * Host-side service that fulfils the query half of `ApplicationService`
@@ -32,18 +19,18 @@ export interface UninstallScanResult {
  * `appEvents:*` namespace, not through this service.
  */
 export class ApplicationService {
-  async getFrontmostApplication(): Promise<FrontmostApplication> {
-    return await invoke<FrontmostApplication>('get_frontmost_application');
+  async getFrontmostApplication(): Promise<FrontmostApplication | null> {
+    return getFrontmostApplication();
   }
 
   async syncApplicationIndex(extraPaths?: string[]): Promise<{ added: number; removed: number; total: number }> {
     const paths = extraPaths ?? settingsService.currentSettings.search.additionalScanPaths ?? [];
-    return await invoke('sync_application_index', { extraPaths: paths });
+    return (await syncApplicationIndex(paths)) ?? { added: 0, removed: 0, total: 0 };
   }
 
   async listApplications(extraPaths?: string[]): Promise<any[]> {
     const paths = extraPaths ?? settingsService.currentSettings.search.additionalScanPaths ?? [];
-    return await invoke('list_applications', { extraPaths: paths });
+    return (await listApplications(paths)) ?? [];
   }
 
   /**
@@ -56,7 +43,7 @@ export class ApplicationService {
    * defense-in-depth check as a core-context call.
    */
   async isRunning(bundleId: string): Promise<boolean> {
-    return await invoke<boolean>('app_is_running', { bundleId });
+    return (await appIsRunning(bundleId)) ?? false;
   }
 
   /**
@@ -78,7 +65,7 @@ export class ApplicationService {
    * `applications-changed` on its own — no manual sync needed.
    */
   async uninstallApplication(path: string, dataPaths: string[] = []): Promise<void> {
-    await invoke<void>('uninstall_application', { path, dataPaths });
+    await uninstallApplication(path, dataPaths);
   }
 
   /**
@@ -91,8 +78,8 @@ export class ApplicationService {
    * passing their `path` list to `uninstallApplication`. The scan is
    * advisory — Rust re-validates each path before trashing.
    */
-  async scanUninstallTargets(path: string): Promise<UninstallScanResult> {
-    return await invoke<UninstallScanResult>('scan_uninstall_targets', { path });
+  async scanUninstallTargets(path: string): Promise<UninstallScanResult | null> {
+    return scanUninstallTargets(path);
   }
 }
 

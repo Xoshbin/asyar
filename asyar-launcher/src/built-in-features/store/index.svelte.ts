@@ -377,7 +377,7 @@ class StoreExtension implements Extension {
       
       // Override status based on local installation state
       try {
-        const installedPaths: string[] = await commands.listInstalledExtensions();
+        const installedPaths: string[] = (await commands.listInstalledExtensions()) ?? [];
         for (const ext of fetchedExtensions) {
           const extIdStr = String(ext.id);
           const isInstalled = installedPaths.some((p: string) => 

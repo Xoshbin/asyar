@@ -54,8 +54,8 @@ export const VALID_KEYS = new Set<string>();
 
 export async function initValidKeys(): Promise<void> {
   if (VALID_KEYS.size > 0) return; // idempotent
-  const { invoke } = await import('@tauri-apps/api/core');
-  const keys = await invoke<string[]>('get_valid_shortcut_keys');
+  const { getValidShortcutKeys } = await import('../../lib/ipc/commands');
+  const keys = (await getValidShortcutKeys()) ?? [];
   for (const key of keys) VALID_KEYS.add(key);
 }
 

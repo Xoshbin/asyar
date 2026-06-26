@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
 import type { KeepAwakeOptions, ActiveInhibitor } from 'asyar-sdk/contracts';
+import { powerKeepAwake, powerRelease, powerList } from '../../lib/ipc/systemCommands';
 
 /**
  * Host-side thin wrapper over the Rust `power_*` Tauri commands.
@@ -10,12 +10,12 @@ import type { KeepAwakeOptions, ActiveInhibitor } from 'asyar-sdk/contracts';
  */
 export const powerService = {
   async keepAwake(extensionId: string | null, options: KeepAwakeOptions): Promise<string> {
-    return invoke<string>('power_keep_awake', { extensionId, options });
+    return (await powerKeepAwake(extensionId, options)) ?? '';
   },
   async release(extensionId: string | null, token: string): Promise<void> {
-    return invoke<void>('power_release', { extensionId, token });
+    await powerRelease(extensionId, token);
   },
   async list(extensionId: string | null): Promise<ActiveInhibitor[]> {
-    return invoke<ActiveInhibitor[]>('power_list', { extensionId });
+    return (await powerList(extensionId)) ?? [];
   },
 };

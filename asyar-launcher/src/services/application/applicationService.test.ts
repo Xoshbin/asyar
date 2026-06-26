@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
+vi.mock('../log/logService', () => ({
+  logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 vi.mock('../settings/settingsService.svelte', () => ({
   settingsService: {
     currentSettings: {
@@ -29,7 +32,7 @@ describe('ApplicationService', () => {
 
       const result = await service.getFrontmostApplication();
 
-      expect(invoke).toHaveBeenCalledWith('get_frontmost_application');
+      expect(invoke).toHaveBeenCalledWith('get_frontmost_application', undefined);
       expect(result).toEqual(mockApp);
     });
   });
@@ -81,14 +84,14 @@ describe('ApplicationService', () => {
       });
     });
 
-    it('propagates Rust errors to the caller', async () => {
+    it('resolves without throwing when the Rust call fails', async () => {
       vi.mocked(invoke).mockRejectedValueOnce(
         'Permission denied: cannot uninstall system-protected application',
       );
 
       await expect(
         service.uninstallApplication('/System/Applications/Calendar.app'),
-      ).rejects.toMatch(/system-protected/);
+      ).resolves.toBeUndefined();
     });
   });
 
@@ -116,14 +119,14 @@ describe('ApplicationService', () => {
       expect(result).toEqual(scan);
     });
 
-    it('propagates Rust errors (e.g. platform unsupported)', async () => {
+    it('resolves to null when the Rust call fails (e.g. platform unsupported)', async () => {
       vi.mocked(invoke).mockRejectedValueOnce(
         'Platform error: scan_uninstall_targets is only supported on macOS',
       );
 
       await expect(
         service.scanUninstallTargets('/Applications/Foo.app'),
-      ).rejects.toMatch(/only supported on macOS/);
+      ).resolves.toBeNull();
     });
   });
 

@@ -1,4 +1,12 @@
-import { invoke } from '@tauri-apps/api/core';
+import {
+  stateGet,
+  stateSet,
+  stateSubscribe,
+  stateUnsubscribe,
+  stateRpcRequest,
+  stateRpcAbort,
+  stateRpcReply,
+} from '../../lib/ipc/extensionLifecycleCommands';
 import type { IpcDispatchOutcome } from '../../lib/ipc/iframeLifecycleCommands';
 import { post } from '../extension/extensionDelivery';
 import { logService } from '../log/logService';
@@ -21,8 +29,8 @@ import { logService } from '../log/logService';
  * harness listens for; the drain happens on the ready-ack path. This
  * helper centralises both sides of that contract.
  */
-function handleWorkerRpcOutcome(extensionId: string, outcome: IpcDispatchOutcome): void {
-  if (outcome.kind !== 'readyDeliverNow') return;
+function handleWorkerRpcOutcome(extensionId: string, outcome: IpcDispatchOutcome | null): void {
+  if (outcome === null || outcome.kind !== 'readyDeliverNow') return;
   const iframe = document.querySelector(
     `iframe[data-extension-id="${extensionId}"][data-role="worker"]`,
   ) as HTMLIFrameElement | null;
@@ -37,15 +45,15 @@ function handleWorkerRpcOutcome(extensionId: string, outcome: IpcDispatchOutcome
 
 export const extensionStateService = {
   async get(extensionId: string, key: string): Promise<unknown> {
-    return invoke<unknown>('state_get', { extensionId, key });
+    return stateGet(extensionId, key);
   },
 
   async set(extensionId: string, key: string, value: unknown): Promise<void> {
-    return invoke<void>('state_set', { extensionId, key, value });
+    return stateSet(extensionId, key, value);
   },
 
-  async subscribe(extensionId: string, key: string, role: 'worker' | 'view'): Promise<number> {
-    return invoke<number>('state_subscribe', { extensionId, key, role });
+  async subscribe(extensionId: string, key: string, role: 'worker' | 'view'): Promise<number | null> {
+    return stateSubscribe(extensionId, key, role);
   },
 
   async unsubscribe(extensionId: string, subscriptionId: number): Promise<void> {
@@ -55,7 +63,7 @@ export const extensionStateService = {
     // state methods (matches the `storage`/`cache` convention even where
     // Rust would be fine with less).
     void extensionId;
-    return invoke<void>('state_unsubscribe', { subscriptionId });
+    return stateUnsubscribe(subscriptionId);
   },
 
   async rpcRequest(
@@ -64,20 +72,12 @@ export const extensionStateService = {
     correlationId: string,
     payload: unknown,
   ): Promise<void> {
-    const outcome = await invoke<IpcDispatchOutcome>('state_rpc_request', {
-      extensionId,
-      id,
-      correlationId,
-      payload,
-    });
+    const outcome = await stateRpcRequest(extensionId, id, correlationId, payload);
     handleWorkerRpcOutcome(extensionId, outcome);
   },
 
   async rpcAbort(extensionId: string, correlationId: string): Promise<void> {
-    const outcome = await invoke<IpcDispatchOutcome>('state_rpc_abort', {
-      extensionId,
-      correlationId,
-    });
+    const outcome = await stateRpcAbort(extensionId, correlationId);
     handleWorkerRpcOutcome(extensionId, outcome);
   },
 
@@ -87,11 +87,6 @@ export const extensionStateService = {
     result?: unknown,
     error?: string,
   ): Promise<void> {
-    return invoke<void>('state_rpc_reply', {
-      extensionId,
-      correlationId,
-      result: result ?? null,
-      error: error ?? null,
-    });
+    return stateRpcReply(extensionId, correlationId, result, error);
   },
 };

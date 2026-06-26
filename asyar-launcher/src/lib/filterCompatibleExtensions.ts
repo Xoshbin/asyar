@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { filterCompatibleExtensionsCommand } from './ipc/extensionLifecycleCommands';
 
 export interface PlatformCheckFields<T> {
   id: (item: T) => string;
@@ -23,7 +23,8 @@ export async function filterCompatibleExtensions<T>(
     platforms: fields.platforms(item) ?? null,
   }));
 
-  const compatibleIds = await invoke<string[]>('filter_compatible_extensions', { items: payload });
+  const compatibleIds = await filterCompatibleExtensionsCommand(payload);
+  if (compatibleIds === null) return [];
 
   const byId = new Map(items.map((item) => [fields.id(item), item]));
   return compatibleIds

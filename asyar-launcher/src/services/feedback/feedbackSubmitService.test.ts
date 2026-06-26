@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
+vi.mock('../log/logService', () => ({
+  logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 
 import { feedbackSubmitService } from './feedbackSubmitService';
 import { invoke } from '@tauri-apps/api/core';
@@ -28,8 +31,8 @@ describe('feedbackSubmitService', () => {
     });
   });
 
-  it('propagates invoke rejection', async () => {
+  it('throws when submit_feedback fails', async () => {
     vi.mocked(invoke).mockRejectedValueOnce(new Error('network'));
-    await expect(feedbackSubmitService.submit({ type: 'crash' })).rejects.toThrow('network');
+    await expect(feedbackSubmitService.submit({ type: 'crash' })).rejects.toThrow();
   });
 });

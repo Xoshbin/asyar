@@ -21,7 +21,7 @@
   onMount(async () => {
     try {
       const records = await discoverExtensions();
-      themeExtensions = records
+      themeExtensions = (records ?? [])
         .filter((r: any) => r.manifest.type === 'theme' && r.enabled)
         .map((r: any) => ({
           id: r.manifest.id,

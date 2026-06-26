@@ -61,7 +61,7 @@ export class ExtensionStateManager {
       const records = await discoverExtensions();
       const allExtensionsData: Array<any> = [];
 
-      for (const record of records) {
+      for (const record of records ?? []) {
         const manifest = record.manifest;
         allExtensionsData.push({
           title: manifest.name,

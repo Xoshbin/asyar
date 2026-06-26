@@ -1,11 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const mockInvoke = vi.hoisted(() => vi.fn().mockImplementation((cmd) => {
-  if (cmd === 'get_valid_shortcut_keys') {
-    return Promise.resolve(['A', 'B', 'Space']);
-  }
-  return Promise.resolve(undefined);
-}));
+const mockGetValidShortcutKeys = vi.hoisted(() => vi.fn().mockResolvedValue(['A', 'B', 'Space']))
+const mockRegisterItemShortcut = vi.hoisted(() => vi.fn().mockResolvedValue(true))
+const mockUnregisterItemShortcut = vi.hoisted(() => vi.fn().mockResolvedValue(true))
 const mockStoreGetAll = vi.hoisted(() => vi.fn().mockReturnValue([]))
 const mockStoreGetByObjectId = vi.hoisted(() => vi.fn().mockReturnValue(undefined))
 const mockStoreAdd = vi.hoisted(() => vi.fn())
@@ -26,8 +23,6 @@ const mockWithReplacementSemantics = vi.hoisted(() =>
 )
 const mockShowWindow = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const mockSearchStores = vi.hoisted(() => ({ query: '' }))
-
-vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }))
 
 vi.mock('./shortcutStore.svelte', () => ({
   shortcutStore: {
@@ -82,6 +77,9 @@ vi.mock('../../services/log/logService', () => ({
 
 vi.mock('../../lib/ipc/commands', () => ({
   showWindow: mockShowWindow,
+  getValidShortcutKeys: mockGetValidShortcutKeys,
+  registerItemShortcut: mockRegisterItemShortcut,
+  unregisterItemShortcut: mockUnregisterItemShortcut,
 }))
 
 import { shortcutService } from './shortcutService'
@@ -108,6 +106,9 @@ beforeEach(() => {
   mockContextIsActive.mockReturnValue(false)
   mockViewManagerGetStackSize.mockReturnValue(0)
   mockSearchStores.query = ''
+  mockGetValidShortcutKeys.mockResolvedValue(['A', 'B', 'Space'])
+  mockRegisterItemShortcut.mockResolvedValue(true)
+  mockUnregisterItemShortcut.mockResolvedValue(true)
 })
 
 // ── init ──────────────────────────────────────────────────────────────────────
@@ -115,8 +116,8 @@ beforeEach(() => {
 describe('init', () => {
   it('does nothing when the store is empty', async () => {
     await shortcutService.init()
-    expect(mockInvoke).toHaveBeenCalledWith('get_valid_shortcut_keys')
-    expect(mockInvoke).toHaveBeenCalledTimes(1)
+    expect(mockGetValidShortcutKeys).toHaveBeenCalledTimes(1)
+    expect(mockRegisterItemShortcut).not.toHaveBeenCalled()
   })
 
   it('re-registers each shortcut from the store', async () => {
@@ -125,10 +126,9 @@ describe('init', () => {
       makeShortcut({ shortcut: 'Control+B', objectId: 'b' }),
     ])
     await shortcutService.init()
-    expect(mockInvoke).toHaveBeenCalledWith('get_valid_shortcut_keys')
-    expect(mockInvoke).toHaveBeenCalledWith('register_item_shortcut', { modifier: 'Alt', key: 'A', objectId: 'a' })
-    expect(mockInvoke).toHaveBeenCalledWith('register_item_shortcut', { modifier: 'Control', key: 'B', objectId: 'b' })
-    expect(mockInvoke).toHaveBeenCalledTimes(3)
+    expect(mockGetValidShortcutKeys).toHaveBeenCalledTimes(1)
+    expect(mockRegisterItemShortcut).toHaveBeenCalledWith('a', 'Alt', 'A')
+    expect(mockRegisterItemShortcut).toHaveBeenCalledWith('b', 'Control', 'B')
   })
 
   it('continues even when a registration fails', async () => {
@@ -136,12 +136,9 @@ describe('init', () => {
       makeShortcut({ shortcut: 'Alt+A', objectId: 'a' }),
       makeShortcut({ shortcut: 'Alt+B', objectId: 'b' }),
     ])
-    mockInvoke.mockImplementationOnce((cmd) => {
-      if (cmd === 'get_valid_shortcut_keys') return Promise.resolve(['A', 'B']);
-      return Promise.resolve(undefined);
-    }).mockRejectedValueOnce(new Error('conflict')) // Alt+A fails
+    mockRegisterItemShortcut.mockResolvedValueOnce(false) // Alt+A fails
     await expect(shortcutService.init()).resolves.not.toThrow()
-    expect(mockInvoke).toHaveBeenCalledTimes(3) // init + 2 shortcuts
+    expect(mockRegisterItemShortcut).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -204,15 +201,15 @@ describe('register', () => {
     mockStoreGetAll.mockReturnValue([makeShortcut({ shortcut: 'Alt+A', objectId: 'other', itemName: 'Other' })])
     const result = await shortcutService.register('obj-new', 'New App', 'application', 'Alt+A')
     expect(result).toEqual({ ok: false, conflict: { objectId: 'other', itemName: 'Other' } })
-    expect(mockInvoke).not.toHaveBeenCalled()
+    expect(mockRegisterItemShortcut).not.toHaveBeenCalled()
   })
 
   it('unregisters existing shortcut for same item before registering a new one', async () => {
     const existing = makeShortcut({ shortcut: 'Alt+X', objectId: 'obj-1' })
     mockStoreGetByObjectId.mockReturnValue(existing)
     await shortcutService.register('obj-1', 'App', 'application', 'Alt+Y')
-    expect(mockInvoke).toHaveBeenCalledWith('unregister_item_shortcut', { modifier: 'Alt', key: 'X' })
-    expect(mockInvoke).toHaveBeenCalledWith('register_item_shortcut', { modifier: 'Alt', key: 'Y', objectId: 'obj-1' })
+    expect(mockUnregisterItemShortcut).toHaveBeenCalledWith('Alt', 'X')
+    expect(mockRegisterItemShortcut).toHaveBeenCalledWith('obj-1', 'Alt', 'Y')
   })
 
   it('adds the shortcut to the store and returns { ok: true } on success', async () => {
@@ -228,7 +225,7 @@ describe('register', () => {
   })
 
   it('returns { ok: false } when invoke throws', async () => {
-    mockInvoke.mockRejectedValueOnce(new Error('already registered'))
+    mockRegisterItemShortcut.mockResolvedValueOnce(false)
     const result = await shortcutService.register('obj-1', 'App', 'application', 'Alt+A')
     expect(result.ok).toBe(false)
     expect(mockStoreAdd).not.toHaveBeenCalled()
@@ -240,13 +237,13 @@ describe('register', () => {
 describe('unregister', () => {
   it('does nothing when no shortcut exists for the objectId', async () => {
     await shortcutService.unregister('nonexistent')
-    expect(mockInvoke).not.toHaveBeenCalled()
+    expect(mockUnregisterItemShortcut).not.toHaveBeenCalled()
   })
 
   it('invokes unregister_item_shortcut with the parsed modifier and key', async () => {
     mockStoreGetByObjectId.mockReturnValue(makeShortcut({ shortcut: 'Control+J', objectId: 'obj-1' }))
     await shortcutService.unregister('obj-1')
-    expect(mockInvoke).toHaveBeenCalledWith('unregister_item_shortcut', { modifier: 'Control', key: 'J' })
+    expect(mockUnregisterItemShortcut).toHaveBeenCalledWith('Control', 'J')
   })
 
   it('removes the item from the store on success', async () => {
@@ -257,7 +254,7 @@ describe('unregister', () => {
 
   it('does not remove from store when invoke fails', async () => {
     mockStoreGetByObjectId.mockReturnValue(makeShortcut({ objectId: 'obj-1' }))
-    mockInvoke.mockRejectedValueOnce(new Error('not registered'))
+    mockUnregisterItemShortcut.mockResolvedValueOnce(false)
     await shortcutService.unregister('obj-1')
     expect(mockStoreRemove).not.toHaveBeenCalled()
   })
@@ -270,7 +267,6 @@ describe('handleFiredShortcut', () => {
     await shortcutService.handleFiredShortcut('unknown')
     expect(mockAppOpen).not.toHaveBeenCalled()
     expect(mockExecuteCommand).not.toHaveBeenCalled()
-    expect(mockInvoke).not.toHaveBeenCalled()
   })
 
   it('opens an application when itemType is "application"', async () => {

@@ -68,7 +68,7 @@ describe('iframeLifecycleCommands', () => {
     const snap = [{ extensionId: 'ext.a', state: 'ready', mailboxLen: 0, role: 'view' }];
     vi.mocked(invoke).mockResolvedValueOnce(snap);
     const res = await getExtensionRuntimeSnapshot();
-    expect(invoke).toHaveBeenCalledWith('get_extension_runtime_snapshot');
+    expect(invoke).toHaveBeenCalledWith('get_extension_runtime_snapshot', undefined);
     expect(res).toEqual(snap);
   });
 

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { appUpdaterCheckNow } from '../../lib/ipc/updateCommands'
 import { logService } from '../log/logService'
 
 export type UpdateChannel = 'stable' | 'beta'
@@ -25,17 +25,18 @@ export async function runUpdateCheck(): Promise<UpdateResult> {
   logService.info('updateService: checking for updates')
 
   try {
-    const version = await invoke<string | null>('app_updater_check_now')
-    if (!version) {
+    const result = await appUpdaterCheckNow()
+    if (!result.ok) {
+      const message = 'app_updater_check_now failed'
+      logService.error(`updateService: check failed — ${message}`)
+      return { kind: 'error', message }
+    }
+    if (!result.value) {
       logService.info('updateService: no update available')
       return { kind: 'up-to-date' }
     }
-    logService.info(`updateService: update ${version} downloaded`)
-    return { kind: 'installed', version }
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e)
-    logService.error(`updateService: check failed — ${message}`)
-    return { kind: 'error', message }
+    logService.info(`updateService: update ${result.value} downloaded`)
+    return { kind: 'installed', version: result.value }
   } finally {
     inFlight = false
   }

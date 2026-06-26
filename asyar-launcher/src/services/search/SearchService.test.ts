@@ -171,7 +171,7 @@ describe('resetIndex', () => {
   it('calls invoke("reset_search_index")', async () => {
     vi.mocked(invoke).mockResolvedValueOnce(undefined)
     await getInstance().resetIndex()
-    expect(invoke).toHaveBeenCalledWith('reset_search_index')
+    expect(invoke).toHaveBeenCalledWith('reset_search_index', undefined)
   })
 
   it('swallows errors without throwing', async () => {

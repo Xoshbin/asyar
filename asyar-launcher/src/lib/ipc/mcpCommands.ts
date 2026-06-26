@@ -1,6 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
-import { invokeSafe } from './invokeSafe';
-import { logService } from '../../services/log/logService';
+import { invokeSafe, invokeSafeVoid } from './invokeSafe';
 import type {
   McpServerInstallInput,
   McpServerSummary,
@@ -31,23 +29,11 @@ export async function mcpSetServerEnabled(
   serverId: string,
   enabled: boolean,
 ): Promise<boolean> {
-  try {
-    await invoke<void>('mcp_set_server_enabled', { serverId, enabled });
-    return true;
-  } catch (err) {
-    await logService.warn(`mcp_set_server_enabled failed: ${err}`);
-    return false;
-  }
+  return invokeSafeVoid('mcp_set_server_enabled', { serverId, enabled });
 }
 
 export async function mcpUninstallServer(serverId: string): Promise<boolean> {
-  try {
-    await invoke<void>('mcp_uninstall_server', { serverId });
-    return true;
-  } catch (err) {
-    await logService.warn(`mcp_uninstall_server failed: ${err}`);
-    return false;
-  }
+  return invokeSafeVoid('mcp_uninstall_server', { serverId });
 }
 
 export async function mcpListAudit(
@@ -82,13 +68,7 @@ export async function mcpSetPermission(
   agentId: string,
   decision: 'allow_once' | 'allow_always' | 'never',
 ): Promise<boolean> {
-  try {
-    await invoke<void>('mcp_set_permission', { serverId, toolId, agentId, decision });
-    return true;
-  } catch (err) {
-    await logService.warn(`mcp_set_permission failed: ${err}`);
-    return false;
-  }
+  return invokeSafeVoid('mcp_set_permission', { serverId, toolId, agentId, decision });
 }
 
 export async function mcpGetPermission(
@@ -119,13 +99,7 @@ export async function mcpDeletePermission(
   toolId: string,
   agentId: string,
 ): Promise<boolean> {
-  try {
-    await invoke<void>('mcp_delete_permission', { serverId, toolId, agentId });
-    return true;
-  } catch (err) {
-    await logService.warn(`mcp_delete_permission failed: ${err}`);
-    return false;
-  }
+  return invokeSafeVoid('mcp_delete_permission', { serverId, toolId, agentId });
 }
 
 export async function mcpGetStrictMode(): Promise<boolean> {
@@ -133,11 +107,5 @@ export async function mcpGetStrictMode(): Promise<boolean> {
 }
 
 export async function mcpSetStrictMode(enabled: boolean): Promise<boolean> {
-  try {
-    await invoke<void>('mcp_set_strict_mode', { enabled });
-    return true;
-  } catch (err) {
-    await logService.warn(`mcp_set_strict_mode failed: ${err}`);
-    return false;
-  }
+  return invokeSafeVoid('mcp_set_strict_mode', { enabled });
 }

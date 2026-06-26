@@ -1,4 +1,3 @@
-import { invoke } from '@tauri-apps/api/core';
 import { tick } from 'svelte';
 import { shortcutStore, type ItemShortcut } from './shortcutStore.svelte';
 import { applicationService } from '../../services/application/applicationsService';
@@ -9,7 +8,7 @@ import { contextActivationId, contextModeService } from '../../services/context/
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { logService } from '../../services/log/logService';
-import { showWindow } from '../../lib/ipc/commands';
+import { showWindow, registerItemShortcut, unregisterItemShortcut } from '../../lib/ipc/commands';
 
 class ShortcutService {
   async init(): Promise<void> {
@@ -18,10 +17,9 @@ class ShortcutService {
     const shortcuts = shortcutStore.shortcuts;
     await Promise.all(shortcuts.map(async s => {
       const [modifier, key] = parseShortcut(s.shortcut);
-      try {
-        await invoke('register_item_shortcut', { modifier, key, objectId: s.objectId });
-      } catch (e) {
-        logService.warn(`Failed to re-register shortcut ${s.shortcut} for ${s.itemName}: ${e}`);
+      const ok = await registerItemShortcut(s.objectId, modifier, key);
+      if (!ok) {
+        logService.warn(`Failed to re-register shortcut ${s.shortcut} for ${s.itemName}`);
       }
     }));
   }
@@ -48,23 +46,22 @@ class ShortcutService {
     }
     const resolvedIcon = itemIcon ?? existing?.itemIcon;
 
-    try {
-      await invoke('register_item_shortcut', { modifier, key, objectId });
-      shortcutStore.add({
-        id: crypto.randomUUID(),
-        objectId,
-        itemName,
-        itemType,
-        itemPath,
-        itemIcon: resolvedIcon,
-        shortcut,
-        createdAt: Date.now()
-      });
-      return { ok: true };
-    } catch (e) {
-      logService.error(`Failed to register shortcut: ${e}`);
-      return { ok: false, conflict: { objectId: 'error', itemName: String(e) } };
+    const registered = await registerItemShortcut(objectId, modifier, key);
+    if (!registered) {
+      logService.error(`Failed to register shortcut for ${objectId}`);
+      return { ok: false, conflict: { objectId: 'error', itemName: 'Failed to register shortcut' } };
     }
+    shortcutStore.add({
+      id: crypto.randomUUID(),
+      objectId,
+      itemName,
+      itemType,
+      itemPath,
+      itemIcon: resolvedIcon,
+      shortcut,
+      createdAt: Date.now()
+    });
+    return { ok: true };
   }
 
   async unregister(objectId: string): Promise<void> {
@@ -72,11 +69,11 @@ class ShortcutService {
     if (!existing) return;
 
     const [modifier, key] = parseShortcut(existing.shortcut);
-    try {
-      await invoke('unregister_item_shortcut', { modifier, key });
+    const ok = await unregisterItemShortcut(modifier, key);
+    if (ok) {
       shortcutStore.remove(objectId);
-    } catch (e) {
-      logService.error(`Failed to unregister shortcut: ${e}`);
+    } else {
+      logService.error(`Failed to unregister shortcut for ${objectId}`);
     }
   }
 

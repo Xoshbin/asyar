@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
 import { defineServiceRegistry, type ServiceRegistry } from './defineServiceRegistry';
+import { rankItemsCommand } from '../../lib/ipc/searchAccessoryCommands';
 import type { IExtensionManager, RankableItem } from 'asyar-sdk/contracts';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { logService } from '../log/logService';
@@ -38,6 +38,7 @@ import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 import type { Diagnostic } from 'asyar-sdk/contracts';
 import { runService } from '../run/runService.svelte';
 import { agentsToolsRegisterTier2, agentsToolsList } from '../../lib/ipc/commands';
+import { completeExtensionOnboarding } from '../../lib/ipc/extensionLifecycleCommands';
 import type { ManifestTool } from 'asyar-sdk/contracts';
 
 export function buildServiceRegistry(deps: {
@@ -101,8 +102,8 @@ export function buildServiceRegistry(deps: {
     // Same Rust ranker the launcher's own search uses (search_engine::ranker).
     // Stateless passthrough — no permission required (see permissions.rs).
     search: {
-      rank: (query: string, items: RankableItem[]) =>
-        invoke<string[]>('rank_items', { query, items }),
+      rank: async (query: string, items: RankableItem[]) =>
+        (await rankItemsCommand(query, items)) ?? [],
     },
     feedback: feedbackService,
     // The IPC dispatcher spreads payload values via `Object.values` (see
@@ -159,8 +160,7 @@ export function buildServiceRegistry(deps: {
     },
     onboarding: {
       complete: async (extensionId: string) => {
-        const { invoke } = await import('@tauri-apps/api/core');
-        await invoke('complete_extension_onboarding', { extensionId });
+        await completeExtensionOnboarding(extensionId);
       },
     },
   });

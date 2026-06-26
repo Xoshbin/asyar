@@ -68,7 +68,7 @@
       return;
     }
     try {
-      const installedPaths: string[] = await commands.listInstalledExtensions();
+      const installedPaths: string[] = (await commands.listInstalledExtensions()) ?? [];
       isInstalled = installedPaths.some(p => p.endsWith(`/${extensionId}`) || p.endsWith(`\\${extensionId}`) || p === extensionId);
       storeExtension.notifyInstalledStateChanged(isInstalled, extensionId);
     } catch (e) {

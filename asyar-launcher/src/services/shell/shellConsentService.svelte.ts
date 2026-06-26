@@ -1,5 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
-import { logService } from '../log/logService';
+import { shellCheckTrust, shellGrantTrust } from '../../lib/ipc/shellCommands';
 
 interface ConsentRequest {
   extensionId: string;
@@ -23,17 +22,10 @@ class ShellConsentService {
     program: string,
     resolvedPath: string
   ): Promise<boolean> {
-    // 1. Check trust store first (hot path, no UI)
-    try {
-      const isTrusted = await invoke<boolean>('shell_check_trust', {
-        extensionId,
-        binaryPath: resolvedPath
-      });
-      
-      if (isTrusted) return true;
-    } catch (e) {
-      logService.error('[ShellConsentService] Failed to check trust:', e);
-    }
+    // 1. Check trust store first (hot path, no UI). A failed check falls
+    // through to the dialog below rather than blocking the request.
+    const isTrusted = await shellCheckTrust(extensionId, resolvedPath);
+    if (isTrusted) return true;
 
     // 2. Deduplicate concurrent requests for the same (extension, binary) pair
     const key = `${extensionId}:${resolvedPath}`;
@@ -65,13 +57,8 @@ class ShellConsentService {
     if (!this.activeRequest) return;
     
     const { extensionId, resolvedPath, resolve } = this.activeRequest;
-    try {
-      await invoke('shell_grant_trust', { extensionId, binaryPath: resolvedPath });
-      resolve(true);
-    } catch (e) {
-      logService.error('[ShellConsentService] Failed to grant trust:', e);
-      resolve(false);
-    }
+    const ok = await shellGrantTrust(extensionId, resolvedPath);
+    resolve(ok);
   }
 
   /**

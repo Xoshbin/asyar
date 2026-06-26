@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
-  import { invoke } from '@tauri-apps/api/core'
   import { platform } from '@tauri-apps/plugin-os'
   import Button from '../../../components/base/Button.svelte'
+  import { checkSnippetPermission, openAccessibilityPreferences } from '../../../lib/ipc/commands'
 
   let { granted = $bindable(false) }: { granted?: boolean } = $props()
 
@@ -10,20 +10,13 @@
   let loading = $state(false)
 
   async function check() {
-    try {
-      granted = await invoke<boolean>('check_snippet_permission')
-    } catch {
-      granted = false
-    }
+    granted = (await checkSnippetPermission()) ?? false
   }
 
   async function openPrefs() {
     loading = true
-    try {
-      await invoke('open_accessibility_preferences')
-    } finally {
-      loading = false
-    }
+    await openAccessibilityPreferences()
+    loading = false
   }
 
   onMount(async () => {

@@ -90,7 +90,11 @@ class AuthService {
       this.isLoading = true;
       this.loginError = null;
 
-      const { sessionCode, authUrl } = await commands.authInitiate(provider);
+      const initResult = await commands.authInitiate(provider);
+      if (!initResult) {
+        throw new Error('Server did not respond');
+      }
+      const { sessionCode, authUrl } = initResult;
 
       // Open the browser
       await openUrl(authUrl);
@@ -154,6 +158,9 @@ class AuthService {
   async refreshEntitlements(): Promise<void> {
     if (!this.isLoggedIn) return;
     const fresh = await commands.authRefreshEntitlements();
+    if (fresh === null) {
+      throw new Error('Failed to refresh entitlements');
+    }
     this.entitlements = fresh;
   }
 
@@ -191,19 +198,17 @@ class AuthService {
   /** Poll backend until status = complete or expired. Used as fallback when deep link fires. */
   private _startFallbackPolling(sessionCode: string): void {
     this.pollTimer = setInterval(async () => {
-      try {
-        const result = await commands.authPoll(sessionCode);
-        if (result.status === 'complete' || result.status === 'expired') {
-          this.cancelLoginPolling();
-          if (result.status === 'complete') {
-            await this._applyPollResult(result);
-          } else {
-            this.loginError = 'Login session expired. Please try again.';
-            this.isAwaitingOAuth = false;
-          }
+      const result = await commands.authPoll(sessionCode);
+      // null = transient poll failure (already diagnosed by invokeSafe) — try again next tick.
+      if (result === null) return;
+      if (result.status === 'complete' || result.status === 'expired') {
+        this.cancelLoginPolling();
+        if (result.status === 'complete') {
+          await this._applyPollResult(result);
+        } else {
+          this.loginError = 'Login session expired. Please try again.';
+          this.isAwaitingOAuth = false;
         }
-      } catch (err) {
-        logService.warn(`Auth: fallback poll error: ${err}`);
       }
     }, POLL_INTERVAL_MS);
   }
@@ -212,11 +217,11 @@ class AuthService {
   private async _completePoll(sessionCode: string): Promise<void> {
     // The deep link signals completion — do one direct poll for the payload
     const result = await commands.authPoll(sessionCode);
-    if (result.status !== 'complete') {
+    if (result === null || result.status !== 'complete') {
       // Try once more (network race)
       await new Promise(r => setTimeout(r, 500));
       const retry = await commands.authPoll(sessionCode);
-      if (retry.status !== 'complete') {
+      if (retry === null || retry.status !== 'complete') {
         throw new Error('OAuth completed but session data not ready');
       }
       await this._applyPollResult(retry);

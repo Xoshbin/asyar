@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { registerDevExtension } from '../../../lib/ipc/commands';
 import { scanForSecret, type SecretScanResult } from './secretGuard';
 import { buildJobStore } from './buildJobStore.svelte';
 
@@ -8,7 +8,10 @@ export async function finalizeBuild(path: string, extensionId: string): Promise<
     const result = await scanForSecret(path, secret);
     if (result.leaked) return result;
   }
-  await invoke('register_dev_extension', { extensionId, path });
+  const registered = await registerDevExtension(extensionId, path);
+  if (!registered) {
+    throw new Error(`Failed to register dev extension "${extensionId}"`);
+  }
   const { ExtensionManagerProxy } = await import('asyar-sdk/contracts');
   await new ExtensionManagerProxy().reloadExtensions();
   return { leaked: false };

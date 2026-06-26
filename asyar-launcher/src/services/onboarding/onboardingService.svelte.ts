@@ -83,7 +83,11 @@ class OnboardingServiceClass {
 
   async loadAi(): Promise<void> {
     try {
-      this.aiCompleted = await isAiOnboardingCompleted()
+      const result = await isAiOnboardingCompleted()
+      if (result === null) {
+        throw new Error('is_ai_onboarding_completed failed')
+      }
+      this.aiCompleted = result
     } catch (err) {
       logService.warn(`Failed to load AI onboarding state: ${err}`)
       diagnosticsService.report({

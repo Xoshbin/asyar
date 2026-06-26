@@ -35,12 +35,10 @@ export async function dispatch(req: DispatchRequest): Promise<void> {
     `[dispatcher] → ${req.extensionId}/${req.kind} source=${req.source} payload=${JSON.stringify(req.payload)}`,
   );
   const role: 'view' | 'worker' = req.commandMode === 'background' ? 'worker' : 'view';
-  let outcome;
-  try {
-    outcome = await dispatchToExtension(req.extensionId, message, role);
-  } catch (err) {
+  const outcome = await dispatchToExtension(req.extensionId, message, role);
+  if (outcome === null) {
     logService.error(
-      `[dispatcher] ${req.extensionId}/${req.kind} (${req.source}) dispatch failed: ${err}`,
+      `[dispatcher] ${req.extensionId}/${req.kind} (${req.source}) dispatch failed`,
     );
     return;
   }

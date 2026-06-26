@@ -1,6 +1,5 @@
 // asyar-launcher/src/lib/ipc/commands.ts
-import { invoke } from '@tauri-apps/api/core';
-import { invokeSafe } from './invokeSafe';
+import { invokeSafe, invokeSafeVoid } from './invokeSafe';
 import type {
   SearchableItem,
   SearchResult,
@@ -14,6 +13,18 @@ import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 export * from './extensionPreferencesCommands';
 export * from './commandArgDefaultsCommands';
 export * from './iframeLifecycleCommands';
+export * from './browserCommands';
+export * from './extensionLifecycleCommands';
+export * from './shortcodeCommands';
+export * from './shellCommands';
+export * from './applicationCommands';
+export * from './statusBarCommands';
+export * from './extensionBuilderCommands';
+export * from './systemCommands';
+export * from './searchAccessoryCommands';
+export * from './clipboardCommands';
+export * from './settingsUiCommands';
+export * from './updateCommands';
 
 export type ExternalSearchResult = {
   objectId: string;
@@ -29,16 +40,19 @@ export type ExternalSearchResult = {
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
-export async function searchItems(query: string): Promise<SearchResult[]> {
-  return invoke<SearchResult[]>('search_items', { query });
+// Shared with ExtensionIpcRouter's EXTENSION_INVOKE_DISPATCH table (which
+// relies on the default, non-silent report) — SearchService.performSearch
+// passes silent:true since it reports its own, more specific diagnostic.
+export async function searchItems(query: string, opts?: { silent?: boolean }): Promise<SearchResult[] | null> {
+  return invokeSafe<SearchResult[]>('search_items', { query }, opts);
 }
 
 export async function mergedSearch(
   query: string,
   externalResults: ExternalSearchResult[],
   minResults?: number
-): Promise<MergedSearchResponse> {
-  return invoke<MergedSearchResponse>('merged_search', { query, externalResults, minResults });
+): Promise<MergedSearchResponse | null> {
+  return invokeSafe<MergedSearchResponse>('merged_search', { query, externalResults, minResults });
 }
 
 // ── Aliases ───────────────────────────────────────────────────────────────────
@@ -48,55 +62,62 @@ export async function setAlias(
   alias: string,
   itemName: string,
   itemType: 'application' | 'command'
-): Promise<ItemAlias> {
-  return invoke('set_alias', { objectId, alias, itemName, itemType });
+): Promise<ItemAlias | null> {
+  return invokeSafe('set_alias', { objectId, alias, itemName, itemType });
 }
 
 export async function unsetAlias(alias: string): Promise<void> {
-  await invoke('unset_alias', { alias });
+  await invokeSafe('unset_alias', { alias });
 }
 
-export async function listAliases(): Promise<ItemAlias[]> {
-  return invoke('list_aliases');
+export async function listAliases(): Promise<ItemAlias[] | null> {
+  return invokeSafe('list_aliases');
 }
 
 export async function findAliasConflict(
   alias: string,
   excludingObjectId?: string
 ): Promise<AliasConflict | null> {
-  return invoke('find_alias_conflict', { alias, excludingObjectId });
+  return invokeSafe('find_alias_conflict', { alias, excludingObjectId });
 }
 
-export async function getIndexedItems(): Promise<SearchableItem[]> {
-  return invoke('get_indexed_items');
+export async function getIndexedItems(): Promise<SearchableItem[] | null> {
+  return invokeSafe('get_indexed_items');
 }
 
-export async function indexItem(item: SearchableItem): Promise<void> {
-  return invoke('index_item', { item });
+// boolean (not void): SearchService.indexItem needs to know whether indexing
+// actually succeeded to report its own specific diagnostic on failure.
+export async function indexItem(item: SearchableItem): Promise<boolean> {
+  return invokeSafeVoid('index_item', { item }, { silent: true });
 }
 
 export async function batchIndexItems(items: SearchableItem[]): Promise<void> {
-  return invoke('batch_index_items', { items });
+  await invokeSafe('batch_index_items', { items });
 }
 
 export async function deleteItem(objectId: string): Promise<void> {
-  return invoke('delete_item', { objectId });
+  await invokeSafe('delete_item', { objectId });
 }
 
-export async function getIndexedObjectIds(): Promise<Set<string>> {
-  return invoke<string[]>('get_indexed_object_ids').then(arr => new Set(arr));
+export async function getIndexedObjectIds(): Promise<Set<string> | null> {
+  const arr = await invokeSafe<string[]>('get_indexed_object_ids');
+  return arr === null ? null : new Set(arr);
 }
 
 export async function recordItemUsage(objectId: string): Promise<void> {
-  return invoke('record_item_usage', { objectId });
+  await invokeSafe('record_item_usage', { objectId });
 }
 
-export async function resetSearchIndex(): Promise<void> {
-  return invoke('reset_search_index');
+// boolean (not void): SearchService.resetIndex needs to know whether the
+// reset actually succeeded to report its own specific diagnostic on failure.
+export async function resetSearchIndex(): Promise<boolean> {
+  return invokeSafeVoid('reset_search_index', undefined, { silent: true });
 }
 
-export async function saveSearchIndex(): Promise<void> {
-  return invoke('save_search_index');
+// boolean (not void): SearchService.saveIndex needs to know whether the
+// save actually succeeded to report its own specific diagnostic on failure.
+export async function saveSearchIndex(): Promise<boolean> {
+  return invokeSafeVoid('save_search_index', undefined, { silent: true });
 }
 
 // ── Applications ──────────────────────────────────────────────────────────────
@@ -107,24 +128,24 @@ export interface SyncResult {
   total: number;
 }
 
-export async function syncApplicationIndex(extraPaths?: string[]): Promise<SyncResult> {
-  return invoke<SyncResult>('sync_application_index', { extraPaths });
+export async function syncApplicationIndex(extraPaths?: string[]): Promise<SyncResult | null> {
+  return invokeSafe<SyncResult>('sync_application_index', { extraPaths });
 }
 
-export async function listApplications(extraPaths?: string[]): Promise<Application[]> {
-  return invoke<Application[]>('list_applications', { extraPaths });
+export async function listApplications(extraPaths?: string[]): Promise<Application[] | null> {
+  return invokeSafe<Application[]>('list_applications', { extraPaths });
 }
 
 export async function openApplicationPath(path: string): Promise<void> {
-  return invoke('open_application_path', { path });
+  await invokeSafe('open_application_path', { path });
 }
 
-export async function getDefaultAppScanPaths(): Promise<string[]> {
-  return invoke<string[]>('get_default_app_scan_paths');
+export async function getDefaultAppScanPaths(): Promise<string[] | null> {
+  return invokeSafe<string[]>('get_default_app_scan_paths');
 }
 
-export async function normalizeScanPath(path: string): Promise<string> {
-  return invoke<string>('normalize_scan_path', { path });
+export async function normalizeScanPath(path: string): Promise<string | null> {
+  return invokeSafe<string>('normalize_scan_path', { path });
 }
 
 // ── Window ────────────────────────────────────────────────────────────────────
@@ -146,38 +167,37 @@ function twoFrames(): Promise<void> {
  */
 /** Mirrors the `asyar_visible` atomic. The JS side reads this to decide
  * between the two-phase reveal and the single-shot `show` fallback. */
-export async function isVisible(): Promise<boolean> {
-  return invoke<boolean>('is_visible');
+export async function isVisible(): Promise<boolean | null> {
+  return invokeSafe<boolean>('is_visible');
 }
 
 export async function showWindow(): Promise<void> {
   const wasVisible = await isVisible();
   if (wasVisible) {
-    return invoke('show');
+    await invokeSafe('show');
+    return;
   }
-  await invoke('prepare_show');
-  try {
-    await twoFrames();
-    await invoke('commit_show');
-  } catch (e) {
+  await invokeSafe('prepare_show');
+  await twoFrames();
+  const committed = await invokeSafe('commit_show');
+  if (committed === null) {
     // prepare_show left the panel mapped at alpha 0 (or off-screen on
     // win/linux). If commit_show never runs, the launcher is invisible
     // but active. Force the single-shot reveal so the user isn't stuck.
-    await invoke('show').catch(() => {});
-    throw e;
+    await invokeSafe('show');
   }
 }
 
 export async function hideWindow(): Promise<void> {
-  return invoke('hide');
+  await invokeSafe('hide');
 }
 
 export async function setFocusLock(locked: boolean): Promise<void> {
-  return invoke('set_focus_lock', { locked });
+  await invokeSafe('set_focus_lock', { locked });
 }
 
 export async function quitApp(): Promise<void> {
-  return invoke('quit_app');
+  await invokeSafe('quit_app');
 }
 
 
@@ -186,15 +206,15 @@ export async function setLauncherHeight(
   expanded?: boolean,
   deferUntilNextCaCommit?: boolean,
 ): Promise<void> {
-  return invoke('set_launcher_height', { height, expanded, deferUntilNextCaCommit });
+  await invokeSafe('set_launcher_height', { height, expanded, deferUntilNextCaCommit });
 }
 
 export async function markLauncherReady(expanded: boolean): Promise<void> {
-  return invoke('mark_launcher_ready', { expanded });
+  await invokeSafe('mark_launcher_ready', { expanded });
 }
 
 export async function setLauncherKeepExpanded(keepExpanded: boolean): Promise<void> {
-  return invoke('set_launcher_keep_expanded', { keepExpanded });
+  await invokeSafe('set_launcher_keep_expanded', { keepExpanded });
 }
 
 export interface ShowMoreBarStyle {
@@ -205,7 +225,7 @@ export interface ShowMoreBarStyle {
 }
 
 export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<void> {
-  return invoke('update_show_more_bar_style', { style });
+  await invokeSafe('update_show_more_bar_style', { style });
 }
 
 export interface ShowMoreBarHudsPayload {
@@ -216,15 +236,15 @@ export interface ShowMoreBarHudsPayload {
 }
 
 export async function updateShowMoreBarHuds(huds: ShowMoreBarHudsPayload): Promise<void> {
-  return invoke('update_show_more_bar_huds', { huds });
+  await invokeSafe('update_show_more_bar_huds', { huds });
 }
 
 export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Promise<void> {
-  return invoke('set_panel_appearance', { pref });
+  await invokeSafe('set_panel_appearance', { pref });
 }
 
   export async function appRelaunch(): Promise<void> {
-    return invoke('app_relaunch');
+    await invokeSafe('app_relaunch');
   }
 
   /**
@@ -237,14 +257,14 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
    * exits — callers should not depend on a return value.
    */
   export async function factoryReset(): Promise<void> {
-    return invoke('factory_reset');
+    await invokeSafe('factory_reset');
   }
 
   export async function showSettingsWindow(tab?: string): Promise<void> {
     // Direct callers bypass the no-view command hide path, so reset here too.
     // Dynamic import breaks the commands ↔ extensionManager module cycle.
     const { resetLauncherState } = await import('../launcher/launcherReset');
-    await hideWindow().catch(() => {});
+    await hideWindow();
     resetLauncherState();
     const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
     const settingsWindow = await WebviewWindow.getByLabel('settings');
@@ -274,12 +294,12 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     height?: number
   }
 
-  export async function windowGetBounds(): Promise<WindowBounds> {
-    return invoke<WindowBounds>('window_management_get_bounds')
+  export async function windowGetBounds(): Promise<WindowBounds | null> {
+    return invokeSafe<WindowBounds>('window_management_get_bounds')
   }
 
   export async function windowSetBounds(update: WindowBoundsUpdate): Promise<void> {
-    return invoke('window_management_set_bounds', {
+    await invokeSafe('window_management_set_bounds', {
       x: update.x ?? null,
       y: update.y ?? null,
       width: update.width ?? null,
@@ -288,15 +308,15 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   }
 
   export async function windowSetFullscreen(enable: boolean): Promise<void> {
-    return invoke('window_management_set_fullscreen', { enable })
+    await invokeSafe('window_management_set_fullscreen', { enable })
   }
 
-  export async function windowGetMonitors(): Promise<WindowBounds[]> {
-    return invoke<WindowBounds[]>('window_management_get_monitors')
+  export async function windowGetMonitors(): Promise<WindowBounds[] | null> {
+    return invokeSafe<WindowBounds[]>('window_management_get_monitors')
   }
 
   export async function windowApplyPreset(presetId: string): Promise<void> {
-    return invoke('window_management_apply_preset', { presetId })
+    await invokeSafe('window_management_apply_preset', { presetId })
   }
 
   // ── HUD ───────────────────────────────────────────────────────────────────────
@@ -307,11 +327,11 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   }
 
   export async function getHudState(): Promise<HudContent | null> {
-    return invoke<HudContent | null>('get_hud_state');
+    return invokeSafe<HudContent | null>('get_hud_state');
   }
 
   export async function showHud(args: { title: string; durationMs: number; spinning: boolean }): Promise<void> {
-    return invoke('show_hud', {
+    await invokeSafe('show_hud', {
       title: args.title,
       durationMs: args.durationMs,
       spinning: args.spinning,
@@ -319,21 +339,21 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   }
 
   export async function hideHud(): Promise<void> {
-    return invoke('hide_hud');
+    await invokeSafe('hide_hud');
   }
 
   // ── Extensions ────────────────────────────────────────────────────────────────
 
-  export async function getExtensionsDir(): Promise<string> {
-    return invoke<string>('get_extensions_dir');
+  export async function getExtensionsDir(): Promise<string | null> {
+    return invokeSafe<string>('get_extensions_dir');
   }
 
-  export async function listInstalledExtensions(): Promise<string[]> {
-    return invoke<string[]>('list_installed_extensions');
+  export async function listInstalledExtensions(): Promise<string[] | null> {
+    return invokeSafe<string[]>('list_installed_extensions');
   }
 
   export async function uninstallExtension(extensionId: string): Promise<void> {
-    return invoke('uninstall_extension', { extensionId });
+    await invokeSafe('uninstall_extension', { extensionId });
   }
 
   export async function installExtensionFromUrl(params: {
@@ -344,7 +364,7 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     checksum: string | null;
   }): Promise<void> {
     const { url, extensionId, extensionName, version, checksum } = params;
-    return invoke('install_extension_from_url', {
+    await invokeSafe('install_extension_from_url', {
       downloadUrl: url,
       extensionId,
       extensionName,
@@ -353,50 +373,52 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     });
   }
 
-  export async function getBuiltinFeaturesPath(): Promise<string> {
-    return invoke<string>('get_builtin_features_path');
+  export async function getBuiltinFeaturesPath(): Promise<string | null> {
+    return invokeSafe<string>('get_builtin_features_path');
   }
 
-  export async function registerDevExtension(extensionId: string, path: string): Promise<void> {
-    return invoke('register_dev_extension', { extensionId, path });
+  // `register_dev_extension` is `Result<(), AppError>` on the Rust side —
+  // use invokeSafeVoid's boolean signal so callers can fall back on failure.
+  export async function registerDevExtension(extensionId: string, path: string): Promise<boolean> {
+    return invokeSafeVoid('register_dev_extension', { extensionId, path });
   }
 
-  export async function getDevExtensionPaths(): Promise<Record<string, string>> {
-    return invoke<Record<string, string>>('get_dev_extension_paths');
+  export async function getDevExtensionPaths(): Promise<Record<string, string> | null> {
+    return invokeSafe<Record<string, string>>('get_dev_extension_paths');
   }
 
   export async function spawnHeadlessExtension(extensionId: string, scriptPath: string): Promise<void> {
-    return invoke('spawn_headless_extension', { id: extensionId, path: scriptPath });
+    await invokeSafe('spawn_headless_extension', { id: extensionId, path: scriptPath });
   }
 
   export async function killExtension(extensionId: string): Promise<void> {
-    return invoke('kill_extension', { id: extensionId });
+    await invokeSafe('kill_extension', { id: extensionId });
   }
 
-  export async function discoverExtensions(): Promise<ExtensionRecord[]> {
-    return invoke<ExtensionRecord[]>('discover_extensions');
+  export async function discoverExtensions(): Promise<ExtensionRecord[] | null> {
+    return invokeSafe<ExtensionRecord[]>('discover_extensions');
   }
 
   export async function setExtensionEnabled(extensionId: string, enabled: boolean): Promise<void> {
-    return invoke('set_extension_enabled', { extensionId, enabled });
+    await invokeSafe('set_extension_enabled', { extensionId, enabled });
   }
 
-  export async function getExtension(extensionId: string): Promise<ExtensionRecord> {
-    return invoke<ExtensionRecord>('get_extension', { extensionId });
+  export async function getExtension(extensionId: string): Promise<ExtensionRecord | null> {
+    return invokeSafe<ExtensionRecord>('get_extension', { extensionId });
   }
 
   // -- Extension Updates --
 
-  export async function checkExtensionUpdates(storeApiBaseUrl: string): Promise<AvailableUpdate[]> {
-    return invoke<AvailableUpdate[]>('check_extension_updates', { storeApiBaseUrl });
+  export async function checkExtensionUpdates(storeApiBaseUrl: string): Promise<AvailableUpdate[] | null> {
+    return invokeSafe<AvailableUpdate[]>('check_extension_updates', { storeApiBaseUrl });
   }
 
   export async function updateExtension(update: AvailableUpdate): Promise<void> {
-    return invoke('update_extension', { update });
+    await invokeSafe('update_extension', { update });
   }
 
-  export async function updateAllExtensions(updates: AvailableUpdate[]): Promise<[string, { Ok?: null; Err?: string }][]> {
-    return invoke('update_all_extensions', { updates });
+  export async function updateAllExtensions(updates: AvailableUpdate[]): Promise<[string, { Ok?: null; Err?: string }][] | null> {
+    return invokeSafe('update_all_extensions', { updates });
   }
 
   export interface CommandSyncInput {
@@ -414,8 +436,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     total: number;
   }
 
-  export async function syncCommandIndex(commands: CommandSyncInput[]): Promise<CommandSyncResult> {
-    return invoke<CommandSyncResult>('sync_command_index', { commands });
+  export async function syncCommandIndex(commands: CommandSyncInput[]): Promise<CommandSyncResult | null> {
+    return invokeSafe<CommandSyncResult>('sync_command_index', { commands });
   }
 
   export interface UpdateCommandMetadataInput {
@@ -424,7 +446,7 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   }
 
   export async function updateCommandMetadata(input: UpdateCommandMetadataInput): Promise<void> {
-    return invoke('update_command_metadata', { input });
+    await invokeSafe('update_command_metadata', { input });
   }
 
   /**
@@ -458,7 +480,7 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     extensionId: string,
     regs: DynamicCommandRegistrationInput[],
   ): Promise<void> {
-    return invoke('replace_dynamic_commands', { extensionId, regs });
+    await invokeSafe('replace_dynamic_commands', { extensionId, regs });
   }
 
   /**
@@ -482,7 +504,7 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   export async function getDynamicCommandMeta(
     objectId: string,
   ): Promise<DynamicCommandMetaReply | null> {
-    return invoke<DynamicCommandMetaReply | null>('get_dynamic_command_meta', { objectId });
+    return invokeSafe<DynamicCommandMetaReply | null>('get_dynamic_command_meta', { objectId });
   }
 
   export interface ScheduledTaskInfo {
@@ -494,8 +516,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     active: boolean;
   }
 
-  export async function getScheduledTasks(): Promise<ScheduledTaskInfo[]> {
-    return invoke<ScheduledTaskInfo[]>('get_scheduled_tasks');
+  export async function getScheduledTasks(): Promise<ScheduledTaskInfo[] | null> {
+    return invokeSafe<ScheduledTaskInfo[]>('get_scheduled_tasks');
   }
 
   // -- Theme types --
@@ -515,85 +537,104 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   // -- Plugin system commands --
 
   export async function installExtensionFromFile(filePath: string): Promise<void> {
-    return invoke('install_extension_from_file', { filePath });
+    await invokeSafe('install_extension_from_file', { filePath });
   }
 
   export async function showOpenExtensionDialog(): Promise<string | null> {
-    return invoke<string | null>('show_open_extension_dialog');
+    return invokeSafe<string | null>('show_open_extension_dialog');
   }
 
-  export async function getThemeDefinition(extensionId: string): Promise<ThemeDefinition> {
-    return invoke<ThemeDefinition>('get_theme_definition', { extensionId });
+  export async function getThemeDefinition(extensionId: string): Promise<ThemeDefinition | null> {
+    return invokeSafe<ThemeDefinition>('get_theme_definition', { extensionId });
   }
 
   // ── Shortcuts ─────────────────────────────────────────────────────────────────
 
-  export async function registerItemShortcut(objectId: string, modifier: string, key: string): Promise<void> {
-    return invoke('register_item_shortcut', { objectId, modifier, key });
+  // `register_item_shortcut`/`unregister_item_shortcut` are `Result<(), AppError>`
+  // on the Rust side — use invokeSafeVoid's boolean signal so callers can
+  // detect a conflict/failure instead of assuming the shortcut took effect.
+  export async function registerItemShortcut(objectId: string, modifier: string, key: string): Promise<boolean> {
+    return invokeSafeVoid('register_item_shortcut', { objectId, modifier, key });
   }
 
-  export async function unregisterItemShortcut(modifier: string, key: string): Promise<void> {
-    return invoke('unregister_item_shortcut', { modifier, key });
+  export async function unregisterItemShortcut(modifier: string, key: string): Promise<boolean> {
+    return invokeSafeVoid('unregister_item_shortcut', { modifier, key });
   }
 
-  export async function updateGlobalShortcut(modifier: string, key: string): Promise<void> {
-    return invoke('update_global_shortcut', { modifier, key });
+  // `update_global_shortcut` is `Result<(), AppError>` on the Rust side —
+  // use invokeSafeVoid's boolean signal so callers can detect failure.
+  export async function updateGlobalShortcut(modifier: string, key: string): Promise<boolean> {
+    return invokeSafeVoid('update_global_shortcut', { modifier, key });
   }
 
-  export async function getPersistedShortcut(): Promise<{ modifier: string; key: string }> {
-    return invoke<{ modifier: string; key: string }>('get_persisted_shortcut');
+  export async function getPersistedShortcut(): Promise<{ modifier: string; key: string } | null> {
+    return invokeSafe<{ modifier: string; key: string }>('get_persisted_shortcut');
   }
 
   export async function initializeShortcutFromSettings(modifier: string, key: string): Promise<void> {
-    return invoke('initialize_shortcut_from_settings', { modifier, key });
+    await invokeSafe('initialize_shortcut_from_settings', { modifier, key });
   }
 
   export async function pauseUserShortcuts(): Promise<void> {
-    return invoke('pause_user_shortcuts');
+    await invokeSafe('pause_user_shortcuts');
   }
 
   export async function resumeUserShortcuts(): Promise<void> {
-    return invoke('resume_user_shortcuts');
+    await invokeSafe('resume_user_shortcuts');
+  }
+
+  // Distinct from pause/resumeUserShortcuts: these also pause/resume the
+  // launcher's own global shortcut, not just user item shortcuts.
+  export async function pauseAllShortcuts(): Promise<void> {
+    await invokeSafe('pause_all_shortcuts');
+  }
+
+  export async function resumeAllShortcuts(): Promise<void> {
+    await invokeSafe('resume_all_shortcuts');
+  }
+
+  export async function getValidShortcutKeys(): Promise<string[] | null> {
+    return invokeSafe<string[]>('get_valid_shortcut_keys');
   }
 
   // ── Autostart ─────────────────────────────────────────────────────────────────
 
-  export async function getAutostartStatus(): Promise<boolean> {
-    return invoke<boolean>('get_autostart_status');
+  export async function getAutostartStatus(): Promise<boolean | null> {
+    return invokeSafe<boolean>('get_autostart_status');
   }
 
   export async function initializeAutostartFromSettings(enabled: boolean): Promise<void> {
-    return invoke('initialize_autostart_from_settings', { enable: enabled });
+    await invokeSafe('initialize_autostart_from_settings', { enable: enabled });
   }
 
   // ── File I/O ──────────────────────────────────────────────────────────────────
 
-  export async function checkPathExists(path: string): Promise<boolean> {
-    return invoke<boolean>('check_path_exists', { path });
+  export async function checkPathExists(path: string): Promise<boolean | null> {
+    return invokeSafe<boolean>('check_path_exists', { path });
   }
 
-  export async function readTextFileAbsolute(pathStr: string): Promise<string> {
-    return invoke<string>('read_text_file_absolute', { pathStr });
+  export async function readTextFileAbsolute(pathStr: string): Promise<string | null> {
+    return invokeSafe<string>('read_text_file_absolute', { pathStr });
   }
 
   export async function writeTextFileAbsolute(pathStr: string, content: string): Promise<void> {
-    return invoke('write_text_file_absolute', { pathStr, content });
+    await invokeSafe('write_text_file_absolute', { pathStr, content });
   }
 
   export async function writeBinaryFileRecursive(pathStr: string, content: number[]): Promise<void> {
-    return invoke('write_binary_file_recursive', { pathStr, content });
+    await invokeSafe('write_binary_file_recursive', { pathStr, content });
   }
 
   export async function mkdirAbsolute(pathStr: string): Promise<void> {
-    return invoke('mkdir_absolute', { pathStr });
+    await invokeSafe('mkdir_absolute', { pathStr });
   }
 
   export async function showInFileManager(pathStr: string): Promise<void> {
-    return invoke('show_in_file_manager', { pathStr });
+    await invokeSafe('show_in_file_manager', { pathStr });
   }
 
   export async function trashPath(pathStr: string): Promise<void> {
-    return invoke('trash_path', { pathStr });
+    await invokeSafe('trash_path', { pathStr });
   }
 
   // ── System ────────────────────────────────────────────────────────────────────
@@ -605,8 +646,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     body?: string;
     timeoutMs?: number;
     callerExtensionId?: string | null;
-  }): Promise<{ status: number; statusText: string; headers: Record<string, string>; body: string; ok: boolean }> {
-    return invoke('fetch_url', {
+  }): Promise<{ status: number; statusText: string; headers: Record<string, string>; body: string; ok: boolean } | null> {
+    return invokeSafe('fetch_url', {
       url: params.url,
       method: params.method ?? 'GET',
       headers: params.headers,
@@ -633,8 +674,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     body?: string;
     actions?: NotificationActionInput[];
     callerExtensionId?: string | null;
-  }): Promise<string> {
-    return invoke<string>('send_notification', {
+  }): Promise<string | null> {
+    return invokeSafe<string>('send_notification', {
       title: params.title,
       body: params.body ?? '',
       actions: params.actions ?? null,
@@ -646,22 +687,22 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     notificationId: string;
     callerExtensionId?: string | null;
   }): Promise<void> {
-    return invoke('dismiss_notification', {
+    await invokeSafe('dismiss_notification', {
       notificationId: params.notificationId,
       callerExtensionId: params.callerExtensionId ?? null,
     });
   }
 
   export async function simulatePaste(): Promise<void> {
-    return invoke('simulate_paste');
+    await invokeSafe('simulate_paste');
   }
 
   export async function expandAndPaste(keywordLen: number): Promise<void> {
-    return invoke('expand_and_paste', { keywordLen });
+    await invokeSafe('expand_and_paste', { keywordLen });
   }
 
   export async function openAccessibilityPreferences(): Promise<void> {
-    return invoke('open_accessibility_preferences');
+    await invokeSafe('open_accessibility_preferences');
   }
 
   /**
@@ -669,12 +710,12 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
    * other platforms). Required before simulating a paste keystroke, which the OS
    * silently drops without this permission.
    */
-  export async function checkAccessibilityPermission(): Promise<boolean> {
-    return invoke<boolean>('check_accessibility_permission');
+  export async function checkAccessibilityPermission(): Promise<boolean | null> {
+    return invokeSafe<boolean>('check_accessibility_permission');
   }
 
   export async function openUrl(url: string): Promise<void> {
-    return invoke('plugin:opener|open_url', { url });
+    await invokeSafe('plugin:opener|open_url', { url });
   }
 
   // ── Storage: Clipboard ───────────────────────────────────────────────────────
@@ -747,47 +788,47 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     removedImagePaths: string[];
   }
 
-  export async function clipboardListInitial(limit: number): Promise<ClipboardInitialPage> {
-    return invoke<ClipboardInitialPage>('clipboard_list_initial', { limit });
+  export async function clipboardListInitial(limit: number): Promise<ClipboardInitialPage | null> {
+    return invokeSafe<ClipboardInitialPage>('clipboard_list_initial', { limit });
   }
 
-  export async function clipboardListOlder(cursor: ClipboardCursor, limit: number): Promise<ClipboardOlderPage> {
-    return invoke<ClipboardOlderPage>('clipboard_list_older', { cursor, limit });
+  export async function clipboardListOlder(cursor: ClipboardCursor, limit: number): Promise<ClipboardOlderPage | null> {
+    return invokeSafe<ClipboardOlderPage>('clipboard_list_older', { cursor, limit });
   }
 
-  export async function clipboardSearch(query: string, limit: number): Promise<ClipboardSearchResult> {
-    return invoke<ClipboardSearchResult>('clipboard_search', { query, limit });
+  export async function clipboardSearch(query: string, limit: number): Promise<ClipboardSearchResult | null> {
+    return invokeSafe<ClipboardSearchResult>('clipboard_search', { query, limit });
   }
 
   export async function clipboardGetItem(id: string): Promise<StoredClipboardItem | null> {
-    return invoke<StoredClipboardItem | null>('clipboard_get_item', { id });
+    return invokeSafe<StoredClipboardItem | null>('clipboard_get_item', { id });
   }
 
   export async function clipboardExportForSync(
     cursor: ClipboardCursor | undefined,
     limit: number,
-  ): Promise<ClipboardExportPage> {
-    return invoke<ClipboardExportPage>('clipboard_export_for_sync', { cursor, limit });
+  ): Promise<ClipboardExportPage | null> {
+    return invokeSafe<ClipboardExportPage>('clipboard_export_for_sync', { cursor, limit });
   }
 
-  export async function clipboardCount(): Promise<ClipboardCount> {
-    return invoke<ClipboardCount>('clipboard_count');
+  export async function clipboardCount(): Promise<ClipboardCount | null> {
+    return invokeSafe<ClipboardCount>('clipboard_count');
   }
 
-  export async function clipboardRecordCapture(item: StoredClipboardItem): Promise<ClipboardCaptureResult> {
-    return invoke<ClipboardCaptureResult>('clipboard_record_capture', { item });
+  export async function clipboardRecordCapture(item: StoredClipboardItem): Promise<ClipboardCaptureResult | null> {
+    return invokeSafe<ClipboardCaptureResult>('clipboard_record_capture', { item });
   }
 
-  export async function clipboardToggleFavorite(id: string): Promise<boolean> {
-    return invoke<boolean>('clipboard_toggle_favorite', { id });
+  export async function clipboardToggleFavorite(id: string): Promise<boolean | null> {
+    return invokeSafe<boolean>('clipboard_toggle_favorite', { id });
   }
 
-  export async function clipboardDeleteItem(id: string): Promise<ClipboardDeleteResult> {
-    return invoke<ClipboardDeleteResult>('clipboard_delete_item', { id });
+  export async function clipboardDeleteItem(id: string): Promise<ClipboardDeleteResult | null> {
+    return invokeSafe<ClipboardDeleteResult>('clipboard_delete_item', { id });
   }
 
-  export async function clipboardClearNonFavorites(): Promise<ClipboardClearResult> {
-    return invoke<ClipboardClearResult>('clipboard_clear_non_favorites');
+  export async function clipboardClearNonFavorites(): Promise<ClipboardClearResult | null> {
+    return invokeSafe<ClipboardClearResult>('clipboard_clear_non_favorites');
   }
 
   // ── Storage: Snippets ────────────────────────────────────────────────────────
@@ -802,23 +843,23 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   }
 
   export async function snippetUpsert(snippet: StoredSnippet): Promise<void> {
-    return invoke('snippet_upsert', { snippet });
+    await invokeSafe('snippet_upsert', { snippet });
   }
 
-  export async function snippetGetAll(): Promise<StoredSnippet[]> {
-    return invoke<StoredSnippet[]>('snippet_get_all');
+  export async function snippetGetAll(): Promise<StoredSnippet[] | null> {
+    return invokeSafe<StoredSnippet[]>('snippet_get_all');
   }
 
   export async function snippetRemove(id: string): Promise<void> {
-    return invoke('snippet_remove', { id });
+    await invokeSafe('snippet_remove', { id });
   }
 
-  export async function snippetTogglePin(id: string): Promise<boolean> {
-    return invoke<boolean>('snippet_toggle_pin', { id });
+  export async function snippetTogglePin(id: string): Promise<boolean | null> {
+    return invokeSafe<boolean>('snippet_toggle_pin', { id });
   }
 
   export async function snippetClearAll(): Promise<void> {
-    return invoke('snippet_clear_all');
+    await invokeSafe('snippet_clear_all');
   }
 
   // ── Storage: Shortcuts ───────────────────────────────────────────────────────
@@ -834,15 +875,15 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   }
 
   export async function shortcutUpsert(shortcut: StoredItemShortcut): Promise<void> {
-    return invoke('shortcut_upsert', { shortcut });
+    await invokeSafe('shortcut_upsert', { shortcut });
   }
 
-  export async function shortcutGetAll(): Promise<StoredItemShortcut[]> {
-    return invoke<StoredItemShortcut[]>('shortcut_get_all');
+  export async function shortcutGetAll(): Promise<StoredItemShortcut[] | null> {
+    return invokeSafe<StoredItemShortcut[]>('shortcut_get_all');
   }
 
   export async function shortcutRemove(objectId: string): Promise<void> {
-    return invoke('shortcut_remove', { objectId });
+    await invokeSafe('shortcut_remove', { objectId });
   }
 
   // ── Storage: Extension Key-Value ──────────────────────────────────────────────
@@ -853,29 +894,29 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   }
 
   export async function extKvGet(extensionId: string, key: string): Promise<string | null> {
-    return invoke<string | null>('ext_kv_get', { extensionId, key });
+    return invokeSafe<string | null>('ext_kv_get', { extensionId, key });
   }
 
   export async function extKvSet(extensionId: string, key: string, value: string): Promise<void> {
-    return invoke('ext_kv_set', { extensionId, key, value });
+    await invokeSafe('ext_kv_set', { extensionId, key, value });
   }
 
-  export async function extKvDelete(extensionId: string, key: string): Promise<boolean> {
-    return invoke<boolean>('ext_kv_delete', { extensionId, key });
+  export async function extKvDelete(extensionId: string, key: string): Promise<boolean | null> {
+    return invokeSafe<boolean>('ext_kv_delete', { extensionId, key });
   }
 
-  export async function extKvGetAll(extensionId: string): Promise<KvEntry[]> {
-    return invoke<KvEntry[]>('ext_kv_get_all', { extensionId });
+  export async function extKvGetAll(extensionId: string): Promise<KvEntry[] | null> {
+    return invokeSafe<KvEntry[]>('ext_kv_get_all', { extensionId });
   }
 
-  export async function extKvClear(extensionId: string): Promise<number> {
-    return invoke<number>('ext_kv_clear', { extensionId });
+  export async function extKvClear(extensionId: string): Promise<number | null> {
+    return invokeSafe<number>('ext_kv_clear', { extensionId });
   }
 
   // ── Storage: Extension Cache ─────────────────────────────────────────────────
 
   export async function extCacheGet(extensionId: string, key: string): Promise<string | null> {
-    return invoke<string | null>('ext_cache_get', { extensionId, key });
+    return invokeSafe<string | null>('ext_cache_get', { extensionId, key });
   }
 
   export async function extCacheSet(
@@ -884,29 +925,31 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     value: string,
     expiresAt?: number
   ): Promise<void> {
-    return invoke('ext_cache_set', { extensionId, key, value, expiresAt });
+    await invokeSafe('ext_cache_set', { extensionId, key, value, expiresAt });
   }
 
-  export async function extCacheDelete(extensionId: string, key: string): Promise<boolean> {
-    return invoke<boolean>('ext_cache_delete', { extensionId, key });
+  export async function extCacheDelete(extensionId: string, key: string): Promise<boolean | null> {
+    return invokeSafe<boolean>('ext_cache_delete', { extensionId, key });
   }
 
-  export async function extCacheClear(extensionId: string): Promise<number> {
-    return invoke<number>('ext_cache_clear', { extensionId });
+  export async function extCacheClear(extensionId: string): Promise<number | null> {
+    return invokeSafe<number>('ext_cache_clear', { extensionId });
   }
 
   // ── Snippets (legacy — text expansion sync) ──────────────────────────────────
 
   export async function syncSnippetsToRust(snippets: [string, string][]): Promise<void> {
-    return invoke('sync_snippets_to_rust', { snippets });
+    await invokeSafe('sync_snippets_to_rust', { snippets });
   }
 
-  export async function setSnippetsEnabled(enabled: boolean): Promise<void> {
-    return invoke('set_snippets_enabled', { enabled });
+  // boolean (not void): snippetService.setEnabled's { ok, error } contract
+  // needs to distinguish success from failure.
+  export async function setSnippetsEnabled(enabled: boolean): Promise<boolean> {
+    return invokeSafeVoid('set_snippets_enabled', { enabled }, { silent: true });
   }
 
-  export async function checkSnippetPermission(): Promise<boolean> {
-    return invoke<boolean>('check_snippet_permission');
+  export async function checkSnippetPermission(): Promise<boolean | null> {
+    return invokeSafe<boolean>('check_snippet_permission');
   }
 
   // ── Permissions ───────────────────────────────────────────────────────────────
@@ -922,7 +965,7 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     permissions: string[],
     permissionArgs?: Record<string, unknown> | null,
   ): Promise<void> {
-    return invoke('register_extension_permissions', {
+    await invokeSafe('register_extension_permissions', {
       extensionId,
       permissions,
       permissionArgs: permissionArgs ?? null,
@@ -932,8 +975,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   export async function checkExtensionPermission(
     extensionId: string,
     callType: string
-  ): Promise<PermissionCheckResult> {
-    return invoke<PermissionCheckResult>('check_extension_permission', { extensionId, callType });
+  ): Promise<PermissionCheckResult | null> {
+    return invokeSafe<PermissionCheckResult>('check_extension_permission', { extensionId, callType });
   }
 
   // ── Shell Trust ──────────────────────────────────────────────────────────────
@@ -943,12 +986,13 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     trustedAt: number;
   }
 
-  export async function shellListTrusted(extensionId: string): Promise<TrustedBinary[]> {
-    return invoke<TrustedBinary[]>('shell_list_trusted', { extensionId });
+  // Silent: ShellTrustManager.svelte is the sole caller and reports its own diagnostic.
+  export async function shellListTrusted(extensionId: string): Promise<TrustedBinary[] | null> {
+    return invokeSafe<TrustedBinary[]>('shell_list_trusted', { extensionId }, { silent: true });
   }
 
   export async function shellRevokeTrust(extensionId: string, binaryPath: string): Promise<void> {
-    return invoke('shell_revoke_trust', { extensionId, binaryPath });
+    await invokeSafe('shell_revoke_trust', { extensionId, binaryPath });
   }
 
   // ── Profile Import/Export ────────────────────────────────────────────────────
@@ -976,8 +1020,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     binaryAssets: ProfileAssetEntry[],
     password: string | null,
     destination: string,
-  ): Promise<string> {
-    return invoke<string>('export_profile', {
+  ): Promise<string | null> {
+    return invokeSafe<string>('export_profile', {
       manifestJson,
       categories,
       binaryAssets,
@@ -989,8 +1033,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   export async function importProfile(
     filePath: string,
     password: string | null,
-  ): Promise<ProfileArchiveContents> {
-    return invoke<ProfileArchiveContents>('import_profile', {
+  ): Promise<ProfileArchiveContents | null> {
+    return invokeSafe<ProfileArchiveContents>('import_profile', {
       filePath,
       password,
     });
@@ -999,11 +1043,11 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   export async function showSaveProfileDialog(
     defaultFilename: string,
   ): Promise<string | null> {
-    return invoke<string | null>('show_save_profile_dialog', { defaultFilename });
+    return invokeSafe<string | null>('show_save_profile_dialog', { defaultFilename });
   }
 
   export async function showOpenProfileDialog(): Promise<string | null> {
-    return invoke<string | null>('show_open_profile_dialog');
+    return invokeSafe<string | null>('show_open_profile_dialog');
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -1034,32 +1078,32 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     entitlements?: string[];
   }
 
-  export async function authInitiate(provider: string): Promise<AuthInitResponse> {
-    return invoke<AuthInitResponse>('auth_initiate', { provider });
+  export async function authInitiate(provider: string): Promise<AuthInitResponse | null> {
+    return invokeSafe<AuthInitResponse>('auth_initiate', { provider });
   }
 
-  export async function authPoll(sessionCode: string): Promise<PollResponse> {
-    return invoke<PollResponse>('auth_poll', { sessionCode });
+  export async function authPoll(sessionCode: string): Promise<PollResponse | null> {
+    return invokeSafe<PollResponse>('auth_poll', { sessionCode });
   }
 
   export async function authLoadCached(): Promise<AuthStateResponse | null> {
-    return invoke<AuthStateResponse | null>('auth_load_cached');
+    return invokeSafe<AuthStateResponse | null>('auth_load_cached');
   }
 
-  export async function authGetState(): Promise<AuthStateResponse> {
-    return invoke<AuthStateResponse>('auth_get_state');
+  export async function authGetState(): Promise<AuthStateResponse | null> {
+    return invokeSafe<AuthStateResponse>('auth_get_state');
   }
 
-  export async function authRefreshEntitlements(): Promise<string[]> {
-    return invoke<string[]>('auth_refresh_entitlements');
+  export async function authRefreshEntitlements(): Promise<string[] | null> {
+    return invokeSafe<string[]>('auth_refresh_entitlements');
   }
 
-  export async function authCheckEntitlement(entitlement: string): Promise<boolean> {
-    return invoke<boolean>('auth_check_entitlement', { entitlement });
+  export async function authCheckEntitlement(entitlement: string): Promise<boolean | null> {
+    return invokeSafe<boolean>('auth_check_entitlement', { entitlement });
   }
 
   export async function authLogout(): Promise<void> {
-    return invoke('auth_logout');
+    await invokeSafe('auth_logout');
   }
 
   // ── Cloud Sync ────────────────────────────────────────────────────────────────
@@ -1162,8 +1206,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
    * Get the current E2EE state. Cheap — reads local mirror + keychain only.
    * No HTTP. Suitable for polling on dialog mount.
    */
-  export async function syncE2eeGetStatus(): Promise<SyncE2eeStatusReport> {
-    return invoke<SyncE2eeStatusReport>('sync_e2ee_get_status');
+  export async function syncE2eeGetStatus(): Promise<SyncE2eeStatusReport | null> {
+    return invokeSafe<SyncE2eeStatusReport>('sync_e2ee_get_status');
   }
 
   /**
@@ -1175,8 +1219,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
    */
   export async function syncE2eeEnrol(
     passphrase: string,
-  ): Promise<SyncE2eeEnrolmentResult> {
-    return invoke<SyncE2eeEnrolmentResult>('sync_e2ee_enrol', { passphrase });
+  ): Promise<SyncE2eeEnrolmentResult | null> {
+    return invokeSafe<SyncE2eeEnrolmentResult>('sync_e2ee_enrol', { passphrase });
   }
 
   /**
@@ -1185,8 +1229,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
    * AppError::Validation — the service catches this and translates to
    * the `e2ee_passphrase_required` diagnostic kind.
    */
-  export async function syncE2eeUnlock(passphrase: string): Promise<void> {
-    return invoke<void>('sync_e2ee_unlock', { passphrase });
+  export async function syncE2eeUnlock(passphrase: string): Promise<boolean> {
+    return invokeSafeVoid('sync_e2ee_unlock', { passphrase }, { silent: true });
   }
 
   /**
@@ -1197,8 +1241,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   export async function syncE2eeRotate(
     oldPassphrase: string,
     newPassphrase: string,
-  ): Promise<void> {
-    return invoke<void>('sync_e2ee_rotate', { oldPassphrase, newPassphrase });
+  ): Promise<boolean> {
+    return invokeSafeVoid('sync_e2ee_rotate', { oldPassphrase, newPassphrase });
   }
 
   /**
@@ -1211,8 +1255,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     phrase: string,
     newPassphrase: string,
     verifyWithPayload?: string,
-  ): Promise<void> {
-    return invoke<void>('sync_e2ee_recover_with_mnemonic', {
+  ): Promise<boolean> {
+    return invokeSafeVoid('sync_e2ee_recover_with_mnemonic', {
       phrase,
       newPassphrase,
       verifyWithPayload: verifyWithPayload ?? null,
@@ -1225,8 +1269,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
    * existing items are re-uploaded as plaintext on the next mark-all-
    * dirty pass.
    */
-  export async function syncE2eeDisable(): Promise<void> {
-    return invoke<void>('sync_e2ee_disable');
+  export async function syncE2eeDisable(): Promise<boolean> {
+    return invokeSafeVoid('sync_e2ee_disable');
   }
 
   /**
@@ -1236,8 +1280,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
    */
   export async function syncE2eeShowRecoveryPhrase(
     passphrase: string,
-  ): Promise<string> {
-    return invoke<string>('sync_e2ee_show_recovery_phrase', { passphrase });
+  ): Promise<string | null> {
+    return invokeSafe<string>('sync_e2ee_show_recovery_phrase', { passphrase });
   }
 
   // ── OAuth PKCE for Extensions ─────────────────────────────────────────────────
@@ -1270,8 +1314,8 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     tokenUrl: string,
     scopes: string[],
     flowId: string,
-  ): Promise<OAuthStartResponse> {
-    return invoke<OAuthStartResponse>('oauth_start_flow', {
+  ): Promise<OAuthStartResponse | null> {
+    return invokeSafe<OAuthStartResponse>('oauth_start_flow', {
       extensionId,
       providerId,
       clientId,
@@ -1285,22 +1329,22 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   export async function oauthExchangeCode(
     stateParam: string,
     code: string,
-  ): Promise<OAuthExchangeResponse> {
-    return invoke<OAuthExchangeResponse>('oauth_exchange_code', { stateParam, code });
+  ): Promise<OAuthExchangeResponse | null> {
+    return invokeSafe<OAuthExchangeResponse>('oauth_exchange_code', { stateParam, code });
   }
 
   export async function oauthGetStoredToken(
     extensionId: string,
     providerId: string,
   ): Promise<OAuthTokenPayload | null> {
-    return invoke<OAuthTokenPayload | null>('oauth_get_stored_token', { extensionId, providerId });
+    return invokeSafe<OAuthTokenPayload | null>('oauth_get_stored_token', { extensionId, providerId });
   }
 
   export async function oauthRevokeExtensionToken(
     extensionId: string,
     providerId: string,
   ): Promise<void> {
-    return invoke('oauth_revoke_extension_token', { extensionId, providerId });
+    await invokeSafe('oauth_revoke_extension_token', { extensionId, providerId });
   }
 
   // ── Onboarding ────────────────────────────────────────────────────────────────
@@ -1328,37 +1372,38 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
 
   export const onboardingCommands = {
     getState: () =>
-      invoke<OnboardingState>('get_onboarding_state'),
+      invokeSafe<OnboardingState>('get_onboarding_state'),
     advance: () =>
-      invoke<OnboardingState>('advance_onboarding_step'),
+      invokeSafe<OnboardingState>('advance_onboarding_step'),
     goBack: () =>
-      invoke<OnboardingState>('go_back_onboarding_step'),
+      invokeSafe<OnboardingState>('go_back_onboarding_step'),
     complete: () =>
-      invoke<void>('complete_onboarding'),
+      invokeSafe<void>('complete_onboarding'),
     dismiss: () =>
-      invoke<void>('dismiss_onboarding'),
+      invokeSafe<void>('dismiss_onboarding'),
     reset: () =>
-      invoke<void>('reset_onboarding'),
+      invokeSafe<void>('reset_onboarding'),
   }
 
   export async function completeAiOnboarding(): Promise<void> {
-    return invoke<void>('complete_ai_onboarding');
+    await invokeSafe<void>('complete_ai_onboarding');
   }
 
-  export async function isAiOnboardingCompleted(): Promise<boolean> {
-    return invoke<boolean>('is_ai_onboarding_completed');
+  // Silent: onboardingService.svelte.ts is the sole caller and reports its own diagnostic.
+  export async function isAiOnboardingCompleted(): Promise<boolean | null> {
+    return invokeSafe<boolean>('is_ai_onboarding_completed', undefined, { silent: true });
   }
 
-  export function resetExtensionOnboarding(extensionId: string): Promise<void> {
-    return invoke('reset_extension_onboarding', { extensionId })
+  export async function resetExtensionOnboarding(extensionId: string): Promise<void> {
+    await invokeSafe('reset_extension_onboarding', { extensionId })
   }
 
   /** Whether the given extension has completed its onboarding flow. Used by
    *  the launcher's frontend interception for Tier 2 view-mode commands
    *  (which bypass the Rust dispatch path and therefore Plan B's Rust
    *  interception). */
-  export function isExtensionOnboarded(extensionId: string): Promise<boolean> {
-    return invoke<boolean>('is_extension_onboarded', { extensionId })
+  export function isExtensionOnboarded(extensionId: string): Promise<boolean | null> {
+    return invokeSafe<boolean>('is_extension_onboarded', { extensionId })
   }
 
 // ── Clipboard Capture-Time Privacy Filter ─────────────────────────────────────
@@ -1451,23 +1496,23 @@ export async function cryptoDecrypt(value: string): Promise<string | null> {
 // ── Scripts ───────────────────────────────────────────────────────────────────
 
 export async function scriptsAddDirectory(path: string): Promise<void> {
-  return invoke('scripts_add_directory', { path });
+  await invokeSafe('scripts_add_directory', { path });
 }
 
 export async function scriptsRemoveDirectory(path: string): Promise<void> {
-  return invoke('scripts_remove_directory', { path });
+  await invokeSafe('scripts_remove_directory', { path });
 }
 
-export async function scriptsListDirectories(): Promise<string[]> {
-  return invoke<string[]>('scripts_list_directories');
+export async function scriptsListDirectories(): Promise<string[] | null> {
+  return invokeSafe<string[]>('scripts_list_directories');
 }
 
 export async function scriptsPickDirectory(): Promise<string | null> {
-  return invoke<string | null>('scripts_pick_directory');
+  return invokeSafe<string | null>('scripts_pick_directory');
 }
 
-export async function scriptsRescan(): Promise<import('../../built-in-features/scripts/types').ScannedScript[]> {
-  return invoke('scripts_rescan');
+export async function scriptsRescan(): Promise<import('../../built-in-features/scripts/types').ScannedScript[] | null> {
+  return invokeSafe('scripts_rescan');
 }
 
 /**
@@ -1511,58 +1556,63 @@ export interface SetInlineScriptsOutcome {
  */
 export async function scriptsSetInlineScripts(
   specs: InlineScriptSpec[],
-): Promise<SetInlineScriptsOutcome> {
-  return invoke('scripts_set_inline_scripts', { specs });
+): Promise<SetInlineScriptsOutcome | null> {
+  return invokeSafe('scripts_set_inline_scripts', { specs });
 }
 
 export async function replaceDynamicCommandsBuiltin(
   extensionId: string,
   regs: import('asyar-sdk/contracts').DynamicCommandRegistration[],
 ): Promise<void> {
-  return invoke('replace_dynamic_commands_builtin', { extensionId, regs });
+  await invokeSafe('replace_dynamic_commands_builtin', { extensionId, regs });
 }
 
 // ── Agents ────────────────────────────────────────────────────────────────────
 
+// agentsCreate/agentsUpdate/agentsList are silent: agentService.svelte.ts is
+// their sole caller and already reports its own (more specific) diagnostic
+// on a null result — letting invokeSafe also report would double-report.
 export async function agentsCreate(
   input: import('../../built-in-features/agents/types').AgentCreateInput,
-): Promise<import('../../built-in-features/agents/types').AgentDef> {
-  return invoke('agents_create', { input });
+): Promise<import('../../built-in-features/agents/types').AgentDef | null> {
+  return invokeSafe('agents_create', { input }, { silent: true });
 }
 
 export async function agentsUpdate(
   input: import('../../built-in-features/agents/types').AgentUpdateInput,
-): Promise<import('../../built-in-features/agents/types').AgentDef> {
-  return invoke('agents_update', { input });
+): Promise<import('../../built-in-features/agents/types').AgentDef | null> {
+  return invokeSafe('agents_update', { input }, { silent: true });
 }
 
-export async function agentsDelete(id: string): Promise<void> {
-  return invoke('agents_delete', { id });
+// boolean (not void): agentService.svelte.ts gates its optimistic local
+// state update on success, and reports its own diagnostic on failure.
+export async function agentsDelete(id: string): Promise<boolean> {
+  return invokeSafeVoid('agents_delete', { id }, { silent: true });
 }
 
-export async function agentsList(): Promise<import('../../built-in-features/agents/types').AgentDef[]> {
-  return invoke('agents_list');
+export async function agentsList(): Promise<import('../../built-in-features/agents/types').AgentDef[] | null> {
+  return invokeSafe('agents_list', undefined, { silent: true });
 }
 
 export async function agentsGet(
   id: string,
 ): Promise<import('../../built-in-features/agents/types').AgentDef | null> {
-  return invoke('agents_get', { id });
+  return invokeSafe('agents_get', { id });
 }
 
 export async function agentsThreadCreate(
   agentId: string,
   title?: string | null,
-): Promise<import('../../built-in-features/agents/types').ThreadDef> {
-  return invoke('agents_thread_create', { input: { agentId, title: title ?? null } });
+): Promise<import('../../built-in-features/agents/types').ThreadDef | null> {
+  return invokeSafe('agents_thread_create', { input: { agentId, title: title ?? null } });
 }
 
 export async function agentsThreadDelete(id: string): Promise<void> {
-  return invoke('agents_thread_delete', { id });
+  await invokeSafe('agents_thread_delete', { id });
 }
 
 export async function agentsThreadUpdateTitle(id: string, title: string): Promise<void> {
-  return invoke('agents_thread_update_title', { id, title });
+  await invokeSafe('agents_thread_update_title', { id, title });
 }
 
 export interface AgentRunOrigin {
@@ -1571,51 +1621,51 @@ export interface AgentRunOrigin {
 }
 
 export async function agentsFindRunOrigin(runId: string): Promise<AgentRunOrigin | null> {
-  return invoke('agents_find_run_origin', { runId });
+  return invokeSafe('agents_find_run_origin', { runId });
 }
 
-export async function agentsBackfillThreadTitles(): Promise<number> {
-  return invoke('agents_backfill_thread_titles');
+export async function agentsBackfillThreadTitles(): Promise<number | null> {
+  return invokeSafe('agents_backfill_thread_titles');
 }
 
 export async function agentsThreadsList(
   agentId: string,
-): Promise<import('../../built-in-features/agents/types').ThreadDef[]> {
-  return invoke('agents_threads_list', { agentId });
+): Promise<import('../../built-in-features/agents/types').ThreadDef[] | null> {
+  return invokeSafe('agents_threads_list', { agentId });
 }
 
 export async function agentsMessageInsert(
   input: import('../../built-in-features/agents/types').MessageInsertInput,
-): Promise<import('../../built-in-features/agents/types').MessageDef> {
-  return invoke('agents_message_insert', { input });
+): Promise<import('../../built-in-features/agents/types').MessageDef | null> {
+  return invokeSafe('agents_message_insert', { input });
 }
 
 export async function agentsMessagesList(
   threadId: string,
-): Promise<import('../../built-in-features/agents/types').MessageDef[]> {
-  return invoke('agents_messages_list', { threadId });
+): Promise<import('../../built-in-features/agents/types').MessageDef[] | null> {
+  return invokeSafe('agents_messages_list', { threadId });
 }
 
 export async function agentsToolsRegisterTier2(
   extensionId: string,
   tools: import('asyar-sdk/contracts').ManifestTool[],
 ): Promise<void> {
-  return invoke('agents_tools_register_tier2', { extensionId, tools });
+  await invokeSafe('agents_tools_register_tier2', { extensionId, tools });
 }
 
 export async function agentsToolsUnregisterTier2(extensionId: string): Promise<void> {
-  return invoke('agents_tools_unregister_tier2', { extensionId });
+  await invokeSafe('agents_tools_unregister_tier2', { extensionId });
 }
 
-export async function agentsToolsList(): Promise<import('asyar-sdk/contracts').ToolDescriptor[]> {
-  return invoke('agents_tools_list');
+export async function agentsToolsList(): Promise<import('asyar-sdk/contracts').ToolDescriptor[] | null> {
+  return invokeSafe('agents_tools_list');
 }
 
 export async function agentsInvokeBuiltinTool(
   id: string,
   args: unknown,
-): Promise<unknown> {
-  return invoke('agents_invoke_builtin_tool', { id, args });
+): Promise<unknown | null> {
+  return invokeSafe('agents_invoke_builtin_tool', { id, args });
 }
 
 // ── Feedback submission ───────────────────────────────────────────────────────
@@ -1627,8 +1677,10 @@ export interface FeedbackInput {
   email?: string | null;
 }
 
-export async function submitFeedback(input: FeedbackInput): Promise<void> {
-  return invoke('submit_feedback', { input });
+// boolean (not void): feedbackSubmitService needs to know whether submission
+// actually succeeded before showing the "thank you" confirmation.
+export async function submitFeedback(input: FeedbackInput): Promise<boolean> {
+  return invokeSafeVoid('submit_feedback', { input });
 }
 
 // ── Crash report prompt (Ask mode) ───────────────────────────────────────────
@@ -1640,25 +1692,25 @@ export interface CrashPayload {
 }
 
 export async function getPendingCrash(): Promise<CrashPayload | null> {
-  return invoke<CrashPayload | null>('get_pending_crash');
+  return invokeSafe<CrashPayload | null>('get_pending_crash');
 }
 
 export async function sendPendingCrash(email: string): Promise<void> {
-  return invoke('send_pending_crash', { email });
+  await invokeSafe('send_pending_crash', { email });
 }
 
 export async function dismissPendingCrash(): Promise<void> {
-  return invoke('dismiss_pending_crash');
+  await invokeSafe('dismiss_pending_crash');
 }
 
 // ── Usage insights ────────────────────────────────────────────────────────────
 
 export interface UsageTopItem { id: string; label?: string | null; count: number }
 export interface UsageStats { activeDays: number; totalLaunches: number; top: UsageTopItem[] }
-export async function getUsageStats(): Promise<UsageStats> { return invoke('get_usage_stats'); }
-export async function recordActiveDay(): Promise<void> { return invoke('record_active_day'); }
-export async function getUsageAnonId(): Promise<string> { return invoke('get_usage_anon_id'); }
-export async function resetUsageAnonId(): Promise<string> { return invoke('reset_usage_anon_id'); }
-export async function sendPendingUsage(day: string): Promise<void> { return invoke('send_pending_usage', { day }); }
+export async function getUsageStats(): Promise<UsageStats | null> { return invokeSafe('get_usage_stats'); }
+export async function recordActiveDay(): Promise<void> { await invokeSafe('record_active_day'); }
+export async function getUsageAnonId(): Promise<string | null> { return invokeSafe('get_usage_anon_id'); }
+export async function resetUsageAnonId(): Promise<string | null> { return invokeSafe('reset_usage_anon_id'); }
+export async function sendPendingUsage(day: string): Promise<void> { await invokeSafe('send_pending_usage', { day }); }
 /** Explicit user action: send today's usage snapshot now. Returns the count of distinct launch entries sent. */
-export async function sendUsageNow(): Promise<number> { return invoke('send_usage_now'); }
+export async function sendUsageNow(): Promise<number | null> { return invokeSafe('send_usage_now'); }

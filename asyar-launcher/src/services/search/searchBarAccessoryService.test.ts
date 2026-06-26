@@ -55,7 +55,7 @@ describe('searchBarAccessoryService', () => {
       default: 'all',
     });
     expect(diagnosticsService.report).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'searchBarAccessory/persistence-read-failed', severity: 'warning' }),
+      expect.objectContaining({ severity: 'error' }),
     );
     expect(searchBarAccessoryService.active?.value).toBe('all');
   });

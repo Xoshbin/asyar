@@ -1,18 +1,23 @@
-import { invoke } from '@tauri-apps/api/core';
 import { Command } from '@tauri-apps/plugin-shell';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { logService } from '../../services/log/logService';
+import {
+  writeTextFileAbsolute,
+  mkdirAbsolute,
+  checkPathExists,
+  registerDevExtension,
+} from '../../lib/ipc/commands';
 
 async function writeTextFile(path: string, content: string) {
-  await invoke('write_text_file_absolute', { pathStr: path, content });
+  await writeTextFileAbsolute(path, content);
 }
 
 async function mkdir(path: string) {
-  await invoke('mkdir_absolute', { pathStr: path });
+  await mkdirAbsolute(path);
 }
 
 async function exists(path: string): Promise<boolean> {
-  return await invoke('check_path_exists', { path });
+  return (await checkPathExists(path)) ?? false;
 }
 
 const isWindows = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('win');
@@ -209,10 +214,8 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
 
   // ── Register dev extension ────────────────────────────────────────────────
   onProgress("Registering development extension...");
-  try {
-    await invoke('register_dev_extension', { extensionId: id, path: location });
-  } catch (error) {
-    logService.error(`Failed to register dev extension automatically: ${error}`);
+  const registered = await registerDevExtension(id, location);
+  if (!registered) {
     onProgress("Note: Failed to register for auto-loading. You may need to run 'asyar link'.");
   }
 

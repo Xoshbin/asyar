@@ -32,7 +32,7 @@ describe('runUpdateCheck', () => {
   it('returns error kind when invoke rejects', async () => {
     vi.mocked(invoke).mockRejectedValueOnce(new Error('network down'))
     const result = await runUpdateCheck()
-    expect(result).toEqual({ kind: 'error', message: 'network down' })
+    expect(result).toEqual({ kind: 'error', message: 'app_updater_check_now failed' })
     expect(logService.error).toHaveBeenCalled()
   })
 

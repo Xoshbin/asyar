@@ -1,6 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
 import { settingsService } from '../settings/settingsService.svelte';
-import { logService } from '../log/logService';
+import { setApplicationScanPaths } from '../../lib/ipc/applicationCommands';
 
 /**
  * Keeps the Rust `IndexWatcher`'s user-configured scan paths in sync with
@@ -45,11 +44,7 @@ function pathsEqual(a: string[], b: string[]): boolean {
 }
 
 async function pushPaths(paths: string[]): Promise<void> {
-  try {
-    await invoke('set_application_scan_paths', { paths });
-  } catch (err) {
-    logService.warn(`set_application_scan_paths failed: ${err}`);
-  }
+  await setApplicationScanPaths(paths);
 }
 
 export function initScanPathsSync(): () => void {

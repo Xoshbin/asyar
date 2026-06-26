@@ -366,7 +366,7 @@ async function runToolLoopSilent(
   // Resolve selected tool descriptors. Anthropic rejects `:` / `.` in tool
   // names so we wire-encode the FQID and map back when handling tool_use
   // events — same logic as agentLoop.ts.
-  const allDescriptors = await agentsToolsList();
+  const allDescriptors = (await agentsToolsList()) ?? [];
   const selectedDescriptors = allDescriptors.filter((d) =>
     toolSelection.includes(d.fullyQualifiedId),
   );

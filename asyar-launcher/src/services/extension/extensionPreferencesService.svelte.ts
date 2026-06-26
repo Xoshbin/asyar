@@ -52,7 +52,7 @@ class ExtensionPreferencesService {
       return { extension: {}, commands: {} };
     }
 
-    const stored = await extensionPreferencesGetAll(extensionId);
+    const stored = (await extensionPreferencesGetAll(extensionId)) ?? [];
 
     const bundle: PreferenceBundle = {
       extension: {},

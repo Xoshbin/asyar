@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { rankItemsCommand } from './ipc/searchAccessoryCommands';
 
 /**
  * Field accessors that project an arbitrary item onto the shape the Rust
@@ -35,7 +35,7 @@ export async function rankItems<T>(
     keywords: fields.keywords?.(item) ?? [],
   }));
 
-  const orderedIds = await invoke<string[]>('rank_items', { query: trimmed, items: payload });
+  const orderedIds = (await rankItemsCommand(trimmed, payload)) ?? [];
 
   const byId = new Map(items.map((item) => [fields.id(item), item]));
   return orderedIds

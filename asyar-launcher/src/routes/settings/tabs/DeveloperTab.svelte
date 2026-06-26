@@ -8,10 +8,11 @@
     EmptyState,
   } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
-  import { invoke } from '@tauri-apps/api/core';
   import extensionManager from '../../../services/extension/extensionManager.svelte';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { logService } from '../../../services/log/logService';
+  import { getDevExtensionPaths } from '../../../lib/ipc/commands';
+  import { forceRemountWorker } from '../../../lib/ipc/devCommands';
 
   let { handler }: { handler: SettingsHandler } = $props();
 
@@ -29,35 +30,31 @@
   async function loadDevExtensions() {
     isLoadingDevExts = true;
     devExtError = '';
-    try {
-      devExtensions = await invoke<Record<string, string>>('get_dev_extension_paths');
-    } catch (err) {
-      logService.error(`Failed to load dev extensions: ${err}`);
+    const result = await getDevExtensionPaths();
+    if (result === null) {
+      logService.error('Failed to load dev extensions');
       devExtError = 'Failed to load dev extensions.';
       devExtensions = {};
-    } finally {
-      isLoadingDevExts = false;
+    } else {
+      devExtensions = result;
     }
+    isLoadingDevExts = false;
   }
 
   async function hotReload(extensionId: string) {
     if (reloadingExt) return;
     reloadingExt = extensionId;
-    try {
-      const manifest = extensionManager.getManifestById(extensionId) as
-        | { background?: { main?: string } }
-        | undefined;
-      await invoke('force_remount_worker', {
-        extensionId,
-        hasBackgroundMain: !!manifest?.background?.main,
-      });
+    const manifest = extensionManager.getManifestById(extensionId) as
+      | { background?: { main?: string } }
+      | undefined;
+    const ok = await forceRemountWorker(extensionId, !!manifest?.background?.main);
+    if (ok) {
       feedbackService.showToast({ title: `Reloaded ${extensionId}` });
-    } catch (err) {
-      logService.error(`Failed to hot-reload ${extensionId}: ${err}`);
+    } else {
+      logService.error(`Failed to hot-reload ${extensionId}`);
       feedbackService.showToast({ title: 'Reload failed' });
-    } finally {
-      reloadingExt = null;
     }
+    reloadingExt = null;
   }
 
   async function detachDevExtension(extensionId: string) {

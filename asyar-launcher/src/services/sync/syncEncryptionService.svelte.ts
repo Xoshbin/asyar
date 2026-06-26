@@ -49,6 +49,9 @@ export class SyncEncryptionService implements ISyncEncryptionService {
 
   async refreshStatus(): Promise<void> {
     const s = await syncE2eeGetStatus();
+    if (s === null) {
+      throw new Error('sync_e2ee_get_status failed');
+    }
     this.enabled = s.enabled;
     this.locked = s.locked;
     this.keyVersion = s.keyVersion;
@@ -66,11 +69,9 @@ export class SyncEncryptionService implements ISyncEncryptionService {
   // move that classification down here rather than fragmenting it across
   // dialog components.
   async enrol(passphrase: string): Promise<string> {
-    try {
-      const result = await syncE2eeEnrol(passphrase);
-      await this.refreshStatus();
-      return result.recoveryPhrase;
-    } catch (err) {
+    const result = await syncE2eeEnrol(passphrase);
+    if (result === null) {
+      const err = new Error('sync_e2ee_enrol failed');
       logService.warn(`e2ee enrol failed: ${String(err)}`);
       await diagnosticsService.report({
         source: 'frontend',
@@ -81,13 +82,14 @@ export class SyncEncryptionService implements ISyncEncryptionService {
       });
       throw err;
     }
+    await this.refreshStatus();
+    return result.recoveryPhrase;
   }
 
   async unlock(passphrase: string): Promise<void> {
-    try {
-      await syncE2eeUnlock(passphrase);
-      await this.refreshStatus();
-    } catch (err) {
+    const ok = await syncE2eeUnlock(passphrase);
+    if (!ok) {
+      const err = new Error('Incorrect passphrase or unlock failed');
       logService.warn(`e2ee unlock failed: ${String(err)}`);
       await diagnosticsService.report({
         source: 'frontend',
@@ -98,10 +100,14 @@ export class SyncEncryptionService implements ISyncEncryptionService {
       });
       throw err;
     }
+    await this.refreshStatus();
   }
 
   async rotate(oldPassphrase: string, newPassphrase: string): Promise<void> {
-    await syncE2eeRotate(oldPassphrase, newPassphrase);
+    const ok = await syncE2eeRotate(oldPassphrase, newPassphrase);
+    if (!ok) {
+      throw new Error('sync_e2ee_rotate failed');
+    }
     await this.refreshStatus();
   }
 
@@ -110,17 +116,27 @@ export class SyncEncryptionService implements ISyncEncryptionService {
     newPassphrase: string,
     verifyWithPayload?: string,
   ): Promise<void> {
-    await syncE2eeRecoverWithMnemonic(phrase, newPassphrase, verifyWithPayload);
+    const ok = await syncE2eeRecoverWithMnemonic(phrase, newPassphrase, verifyWithPayload);
+    if (!ok) {
+      throw new Error('sync_e2ee_recover_with_mnemonic failed');
+    }
     await this.refreshStatus();
   }
 
   async disable(): Promise<void> {
-    await syncE2eeDisable();
+    const ok = await syncE2eeDisable();
+    if (!ok) {
+      throw new Error('sync_e2ee_disable failed');
+    }
     await this.refreshStatus();
   }
 
   async showRecoveryPhrase(passphrase: string): Promise<string> {
-    return syncE2eeShowRecoveryPhrase(passphrase);
+    const result = await syncE2eeShowRecoveryPhrase(passphrase);
+    if (result === null) {
+      throw new Error('sync_e2ee_show_recovery_phrase failed');
+    }
+    return result;
   }
 }
 

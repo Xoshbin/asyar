@@ -1,7 +1,7 @@
 import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
 import DefaultView from './DefaultView.svelte';
 import { portalStore, type Portal } from './portalStore.svelte';
-import { invoke } from '@tauri-apps/api/core';
+import { openUrl, hideWindow } from '../../lib/ipc/commands';
 import { searchService } from '../../services/search/SearchService';
 import { commandService } from '../../services/extension/commandService.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
@@ -31,7 +31,7 @@ export async function syncPortalToIndex(portal: Portal): Promise<void> {
     execute: async (args?: Record<string, any>) => {
       const query = args?.query ?? '';
       const url = await resolveTemplate(portal.url, { query }, { encodeValues: true });
-      await invoke('plugin:opener|open_url', { url });
+      await openUrl(url);
       return { type: 'no-view' };
     },
   }, 'portals');
@@ -92,9 +92,9 @@ function registerPortalContextProvider(portal: Portal): void {
       }
 
       const url = await resolveTemplate(portal.url, { query }, { encodeValues: true });
-      await invoke('plugin:opener|open_url', { url });
+      await openUrl(url);
       searchService.saveIndex();
-      await invoke('hide');
+      await hideWindow();
     },
   });
 }
@@ -128,7 +128,7 @@ class PortalsExtension implements Extension {
     if (portal) {
       const query = args?.query ?? '';
       const url = await resolveTemplate(portal.url, { query }, { encodeValues: true });
-      await invoke('plugin:opener|open_url', { url });
+      await openUrl(url);
       return { type: 'no-view' };
     }
   }

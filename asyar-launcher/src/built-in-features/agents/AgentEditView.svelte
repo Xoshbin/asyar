@@ -49,7 +49,7 @@
   $effect(() => {
     void (async () => {
       try {
-        descriptors = await agentsToolsList();
+        descriptors = (await agentsToolsList()) ?? [];
       } catch {
         descriptors = [];
       }

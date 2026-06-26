@@ -135,7 +135,7 @@ describe('AgentsManager', () => {
 
     vi.mocked(commands.replaceDynamicCommandsBuiltin).mockClear();
 
-    vi.mocked(commands.agentsDelete).mockResolvedValueOnce(undefined as never);
+    vi.mocked(commands.agentsDelete).mockResolvedValueOnce(true);
     await service.delete('a1');
 
     await manager.refresh();
