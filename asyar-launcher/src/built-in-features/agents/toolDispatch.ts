@@ -8,7 +8,7 @@
  *   iframe, await the `asyar:tools:invoke:response` envelope.
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invokeRaw } from '../../lib/ipc/invokeSafe';
 import { pickExtensionIframe } from '../../services/extension/extensionIframeSelector';
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
 import { mcpService } from '../mcp/mcpService.svelte';
@@ -57,7 +57,7 @@ export async function invokeTool(
   const id = fullyQualifiedId.slice(colonIdx + 1);
 
   if (source === 'builtin') {
-    return invoke('agents_invoke_builtin_tool', { id, args });
+    return invokeRaw('agents_invoke_builtin_tool', { id, args });
   }
 
   if (source === 'mcp') {
@@ -97,7 +97,7 @@ export async function invokeTool(
 }
 
 /**
- * Checks whether an error thrown by `invoke('mcp_invoke_tool')` signals that
+ * Checks whether an error thrown by `invokeRaw('mcp_invoke_tool')` signals that
  * permission is required before the tool can run.
  *
  * Rust serializes `AppError::McpPermissionRequired` to the Diagnostic shape:
@@ -140,7 +140,7 @@ async function invokeMcpTool(
   args: unknown,
 ): Promise<unknown> {
   try {
-    return await invoke('mcp_invoke_tool', { serverId, toolId, agentId, args });
+    return await invokeRaw('mcp_invoke_tool', { serverId, toolId, agentId, args });
   } catch (err) {
     if (!isMcpPermissionRequired(err)) throw err;
     const decision = await mcpService.requestPermission(
@@ -151,6 +151,6 @@ async function invokeMcpTool(
     if (decision === 'never' || decision === 'cancel') {
       throw new Error(`MCP tool ${toolId} blocked by user`);
     }
-    return await invoke('mcp_invoke_tool', { serverId, toolId, agentId, args });
+    return await invokeRaw('mcp_invoke_tool', { serverId, toolId, agentId, args });
   }
 }

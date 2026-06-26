@@ -1,5 +1,4 @@
 import { logService } from "../../log/logService";
-import { diagnosticsService } from "../../diagnostics/diagnosticsService.svelte";
 import type { ClipboardHistoryItem } from "asyar-sdk/contracts";
 import {
   clipboardListInitial,
@@ -22,16 +21,6 @@ export type ClipboardStoreChangeEvent =
   | { type: 'delete'; itemId: string };
 
 type ListItem = StoredClipboardListItem;
-
-function reportFailure(kind: string, err: unknown): void {
-  void diagnosticsService.report({
-    source: 'frontend',
-    kind,
-    severity: 'error',
-    retryable: false,
-    developerDetail: String(err),
-  });
-}
 
 export class ClipboardHistoryStoreClass {
   favorites = $state<ListItem[]>([]);
@@ -65,14 +54,11 @@ export class ClipboardHistoryStoreClass {
   }
 
   async loadInitial(limit = 100): Promise<void> {
-    try {
-      const page = await clipboardListInitial(limit);
-      this.favorites = page.favorites;
-      this.recent = page.recent;
-      this.nextOlderCursor = page.nextCursor;
-    } catch (err) {
-      reportFailure('clipboard/load-failed', err);
-    }
+    const page = await clipboardListInitial(limit);
+    if (page === null) return;
+    this.favorites = page.favorites;
+    this.recent = page.recent;
+    this.nextOlderCursor = page.nextCursor;
   }
 
   // Guards against concurrent loadOlder calls. Without this, fast scrolling
@@ -87,10 +73,9 @@ export class ClipboardHistoryStoreClass {
     try {
       const cursor = this.nextOlderCursor;
       const page = await clipboardListOlder(cursor, limit);
+      if (page === null) return;
       this.recent = [...this.recent, ...page.items];
       this.nextOlderCursor = page.nextCursor;
-    } catch (err) {
-      reportFailure('clipboard/load-older-failed', err);
     } finally {
       this.#loadingOlder = false;
     }
@@ -107,15 +92,12 @@ export class ClipboardHistoryStoreClass {
 
   async search(query: string, limit = 200): Promise<void> {
     const mySeq = ++this.#searchSeq;
-    try {
-      const res = await clipboardSearch(query, limit);
-      // Drop response if a newer search has been issued in the meantime.
-      if (mySeq !== this.#searchSeq) return;
-      this.searchResults = res.items;
-      this.indexState = res.indexState;
-    } catch (err) {
-      reportFailure('clipboard/search-failed', err);
-    }
+    const res = await clipboardSearch(query, limit);
+    if (res === null) return;
+    // Drop response if a newer search has been issued in the meantime.
+    if (mySeq !== this.#searchSeq) return;
+    this.searchResults = res.items;
+    this.indexState = res.indexState;
   }
 
   clearSearch(): void {
@@ -127,106 +109,87 @@ export class ClipboardHistoryStoreClass {
   }
 
   async fetchFullItem(id: string): Promise<StoredClipboardItem | null> {
-    try {
-      return await clipboardGetItem(id);
-    } catch (err) {
-      reportFailure('clipboard/get-item-failed', err);
-      return null;
-    }
+    return await clipboardGetItem(id);
   }
 
   async addHistoryItem(item: ClipboardHistoryItem): Promise<void> {
-    try {
-      const stored = item as unknown as StoredClipboardItem;
-      const res = await clipboardRecordCapture(stored);
-      if (res.evictedIds.length > 0) {
-        const evicted = new Set(res.evictedIds);
-        this.recent = this.recent.filter((i) => !evicted.has(i.id));
-        this.favorites = this.favorites.filter((i) => !evicted.has(i.id));
-      }
-      const newRow: ListItem = {
-        id: stored.id,
-        type: stored.type,
-        preview: stored.preview,
-        createdAt: stored.createdAt,
-        favorite: stored.favorite,
-        metadata: stored.metadata,
-        sourceApp: stored.sourceApp,
-        redactedKinds: stored.redactedKinds,
-      };
-      if (newRow.favorite) {
-        this.favorites = [newRow, ...this.favorites.filter((i) => i.id !== newRow.id)];
-      } else {
-        this.recent = [newRow, ...this.recent.filter((i) => i.id !== newRow.id)];
-      }
-      this.#notify({ type: 'upsert', itemId: stored.id });
-    } catch (err) {
-      reportFailure('clipboard/capture-failed', err);
+    const stored = item as unknown as StoredClipboardItem;
+    const res = await clipboardRecordCapture(stored);
+    if (res === null) return;
+    if (res.evictedIds.length > 0) {
+      const evicted = new Set(res.evictedIds);
+      this.recent = this.recent.filter((i) => !evicted.has(i.id));
+      this.favorites = this.favorites.filter((i) => !evicted.has(i.id));
     }
+    const newRow: ListItem = {
+      id: stored.id,
+      type: stored.type,
+      preview: stored.preview,
+      createdAt: stored.createdAt,
+      favorite: stored.favorite,
+      metadata: stored.metadata,
+      sourceApp: stored.sourceApp,
+      redactedKinds: stored.redactedKinds,
+    };
+    if (newRow.favorite) {
+      this.favorites = [newRow, ...this.favorites.filter((i) => i.id !== newRow.id)];
+    } else {
+      this.recent = [newRow, ...this.recent.filter((i) => i.id !== newRow.id)];
+    }
+    this.#notify({ type: 'upsert', itemId: stored.id });
   }
 
   async toggleFavorite(id: string): Promise<void> {
-    try {
-      const newFavorite = await clipboardToggleFavorite(id);
+    const newFavorite = await clipboardToggleFavorite(id);
+    if (newFavorite === null) return;
 
-      // Find the row anywhere in the loaded windows so we can move it.
-      const source =
-        this.recent.find((i) => i.id === id) ??
-        this.favorites.find((i) => i.id === id) ??
-        this.searchResults?.find((i) => i.id === id);
+    // Find the row anywhere in the loaded windows so we can move it.
+    const source =
+      this.recent.find((i) => i.id === id) ??
+      this.favorites.find((i) => i.id === id) ??
+      this.searchResults?.find((i) => i.id === id);
 
-      if (source) {
-        const updated = { ...source, favorite: newFavorite };
-        if (newFavorite) {
-          this.recent = this.recent.filter((i) => i.id !== id);
-          this.favorites = [updated, ...this.favorites.filter((i) => i.id !== id)];
-        } else {
-          this.favorites = this.favorites.filter((i) => i.id !== id);
-          this.recent = [updated, ...this.recent.filter((i) => i.id !== id)];
-        }
+    if (source) {
+      const updated = { ...source, favorite: newFavorite };
+      if (newFavorite) {
+        this.recent = this.recent.filter((i) => i.id !== id);
+        this.favorites = [updated, ...this.favorites.filter((i) => i.id !== id)];
+      } else {
+        this.favorites = this.favorites.filter((i) => i.id !== id);
+        this.recent = [updated, ...this.recent.filter((i) => i.id !== id)];
       }
-
-      if (this.searchResults) {
-        this.searchResults = this.searchResults.map((i) =>
-          i.id === id ? { ...i, favorite: newFavorite } : i
-        );
-      }
-      this.#notify({ type: 'upsert', itemId: id });
-    } catch (err) {
-      reportFailure('clipboard/favorite-failed', err);
     }
+
+    if (this.searchResults) {
+      this.searchResults = this.searchResults.map((i) =>
+        i.id === id ? { ...i, favorite: newFavorite } : i
+      );
+    }
+    this.#notify({ type: 'upsert', itemId: id });
   }
 
   async deleteHistoryItem(id: string): Promise<ClipboardDeleteResult> {
-    try {
-      const res = await clipboardDeleteItem(id);
-      this.favorites = this.favorites.filter((i) => i.id !== id);
-      this.recent = this.recent.filter((i) => i.id !== id);
-      if (this.searchResults) {
-        this.searchResults = this.searchResults.filter((i) => i.id !== id);
-      }
-      this.#notify({ type: 'delete', itemId: id });
-      return res;
-    } catch (err) {
-      reportFailure('clipboard/delete-failed', err);
-      return { imageContentPath: undefined };
+    const res = await clipboardDeleteItem(id);
+    if (res === null) return { imageContentPath: undefined };
+    this.favorites = this.favorites.filter((i) => i.id !== id);
+    this.recent = this.recent.filter((i) => i.id !== id);
+    if (this.searchResults) {
+      this.searchResults = this.searchResults.filter((i) => i.id !== id);
     }
+    this.#notify({ type: 'delete', itemId: id });
+    return res;
   }
 
   async clearHistory(): Promise<ClipboardClearResult> {
-    try {
-      const res = await clipboardClearNonFavorites();
-      const removed = new Set(res.removedIds);
-      this.recent = this.recent.filter((i) => !removed.has(i.id));
-      if (this.searchResults) {
-        this.searchResults = this.searchResults.filter((i) => !removed.has(i.id));
-      }
-      res.removedIds.forEach((rid) => this.#notify({ type: 'delete', itemId: rid }));
-      return res;
-    } catch (err) {
-      reportFailure('clipboard/clear-failed', err);
-      return { removedIds: [], removedImagePaths: [] };
+    const res = await clipboardClearNonFavorites();
+    if (res === null) return { removedIds: [], removedImagePaths: [] };
+    const removed = new Set(res.removedIds);
+    this.recent = this.recent.filter((i) => !removed.has(i.id));
+    if (this.searchResults) {
+      this.searchResults = this.searchResults.filter((i) => !removed.has(i.id));
     }
+    res.removedIds.forEach((rid) => this.#notify({ type: 'delete', itemId: rid }));
+    return res;
   }
 }
 

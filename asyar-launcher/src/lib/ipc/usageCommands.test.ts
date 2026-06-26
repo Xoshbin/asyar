@@ -22,7 +22,7 @@ describe('getUsageStats', () => {
   it('calls invoke with get_usage_stats', async () => {
     mockInvoke.mockResolvedValue({ activeDays: 3, totalLaunches: 42, top: [] });
     await getUsageStats();
-    expect(mockInvoke).toHaveBeenCalledWith('get_usage_stats');
+    expect(mockInvoke).toHaveBeenCalledWith('get_usage_stats', undefined);
   });
 
   it('returns the UsageStats payload', async () => {
@@ -37,7 +37,7 @@ describe('recordActiveDay', () => {
   it('calls invoke with record_active_day', async () => {
     mockInvoke.mockResolvedValue(undefined);
     await recordActiveDay();
-    expect(mockInvoke).toHaveBeenCalledWith('record_active_day');
+    expect(mockInvoke).toHaveBeenCalledWith('record_active_day', undefined);
   });
 });
 
@@ -45,7 +45,7 @@ describe('getUsageAnonId', () => {
   it('calls invoke with get_usage_anon_id', async () => {
     mockInvoke.mockResolvedValue('some-uuid');
     await getUsageAnonId();
-    expect(mockInvoke).toHaveBeenCalledWith('get_usage_anon_id');
+    expect(mockInvoke).toHaveBeenCalledWith('get_usage_anon_id', undefined);
   });
 
   it('returns the anon id string', async () => {
@@ -59,7 +59,7 @@ describe('resetUsageAnonId', () => {
   it('calls invoke with reset_usage_anon_id', async () => {
     mockInvoke.mockResolvedValue('new-uuid');
     await resetUsageAnonId();
-    expect(mockInvoke).toHaveBeenCalledWith('reset_usage_anon_id');
+    expect(mockInvoke).toHaveBeenCalledWith('reset_usage_anon_id', undefined);
   });
 
   it('returns the new anon id string', async () => {
@@ -81,7 +81,7 @@ describe('sendUsageNow', () => {
   it('calls invoke with send_usage_now', async () => {
     mockInvoke.mockResolvedValue(0);
     await sendUsageNow();
-    expect(mockInvoke).toHaveBeenCalledWith('send_usage_now');
+    expect(mockInvoke).toHaveBeenCalledWith('send_usage_now', undefined);
   });
 
   it('returns the number of events sent', async () => {

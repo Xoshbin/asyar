@@ -1,6 +1,6 @@
-import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { logService } from '../log/logService'
+import { appUpdaterGetPending } from '../../lib/ipc/updateCommands'
 
 export type AppUpdatePhase = 'idle' | 'checking' | 'downloading' | 'ready' | 'error'
 
@@ -22,14 +22,10 @@ export async function initAppUpdateStore(): Promise<void> {
   initialized = true
 
   // Restore state from Rust in case a download completed before the webview loaded
-  try {
-    const pending = await invoke<{ version: string } | null>('app_updater_get_pending')
-    if (pending) {
-      appUpdateState.phase = 'ready'
-      appUpdateState.pendingVersion = pending.version
-    }
-  } catch (e) {
-    logService.warn(`appUpdateStore: failed to get pending update — ${e}`)
+  const pending = await appUpdaterGetPending()
+  if (pending) {
+    appUpdateState.phase = 'ready'
+    appUpdateState.pendingVersion = pending.version
   }
 
   // Listen to Rust-emitted events

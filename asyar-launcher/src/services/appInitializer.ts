@@ -202,14 +202,16 @@ export const appInitializer = {
       // Failure here means every always-on extension is dormant until the
       // user re-enables it, so it surfaces through the diagnostics channel
       // rather than a quiet log.
-      restoreWorkers().catch((err: unknown) => {
-        void diagnosticsService.report({
-          source: 'frontend',
-          kind: 'extension-runtime/restore-workers-failed',
-          severity: 'error',
-          retryable: false,
-          developerDetail: String(err),
-        });
+      restoreWorkers().then((result) => {
+        if (result === null) {
+          void diagnosticsService.report({
+            source: 'frontend',
+            kind: 'extension-runtime/restore-workers-failed',
+            severity: 'error',
+            retryable: false,
+            developerDetail: 'restore_workers failed',
+          });
+        }
       });
 
       // Initialize extension update service for silent auto-updates
@@ -232,7 +234,7 @@ export const appInitializer = {
       // Check whether to show What's New panel (shown once after each update)
       try {
         const { getVersion } = await import('@tauri-apps/api/app')
-        const { invoke } = await import('@tauri-apps/api/core')
+        const { appUpdaterShouldShowWhatsNew } = await import('../lib/ipc/applicationCommands')
         const { whatsNewStore } = await import('./update/whatsNewStore.svelte')
         const currentVersion = await getVersion()
         const lastSeen = settingsService.currentSettings.updates?.lastSeenVersion
@@ -240,10 +242,7 @@ export const appInitializer = {
           // Fresh install — record silently so next update shows the panel
           await settingsService.updateSettings('updates', { lastSeenVersion: currentVersion })
         } else {
-          const shouldShow = await invoke<boolean>('app_updater_should_show_whats_new', {
-            lastSeenVersion: lastSeen,
-            currentVersion,
-          })
+          const shouldShow = await appUpdaterShouldShowWhatsNew(lastSeen, currentVersion)
           if (shouldShow) {
             whatsNewStore.version = currentVersion
           }

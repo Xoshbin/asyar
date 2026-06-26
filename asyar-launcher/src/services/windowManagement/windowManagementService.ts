@@ -11,7 +11,9 @@ export interface IWindowManagementService {
 
 export class WindowManagementService implements IWindowManagementService {
   async getWindowBounds(): Promise<WindowBounds> {
-    return commands.windowGetBounds()
+    const result = await commands.windowGetBounds()
+    if (result === null) throw new Error('window_management_get_bounds failed')
+    return result
   }
 
   async setWindowBounds(update: WindowBoundsUpdate): Promise<void> {
@@ -23,7 +25,9 @@ export class WindowManagementService implements IWindowManagementService {
   }
 
   async getMonitors(): Promise<WindowBounds[]> {
-    return commands.windowGetMonitors()
+    const result = await commands.windowGetMonitors()
+    if (result === null) throw new Error('window_management_get_monitors failed')
+    return result
   }
 
   async applyPreset(presetId: string): Promise<void> {

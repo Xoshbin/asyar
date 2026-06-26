@@ -23,14 +23,18 @@ export const extensionCacheService = {
     value: string,
     expiresAt?: number,
   ): Promise<void> {
-    return extCacheSet(extensionId, key, value, expiresAt);
+    await extCacheSet(extensionId, key, value, expiresAt);
   },
 
   async delete(extensionId: string, key: string): Promise<boolean> {
-    return extCacheDelete(extensionId, key);
+    const result = await extCacheDelete(extensionId, key);
+    if (result === null) throw new Error('ext_cache_delete failed');
+    return result;
   },
 
   async clear(extensionId: string): Promise<number> {
-    return extCacheClear(extensionId);
+    const result = await extCacheClear(extensionId);
+    if (result === null) throw new Error('ext_cache_clear failed');
+    return result;
   },
 };

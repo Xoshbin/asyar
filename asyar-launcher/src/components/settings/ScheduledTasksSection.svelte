@@ -18,7 +18,7 @@
 
   async function loadTasks() {
     try {
-      tasks = await getScheduledTasks();
+      tasks = (await getScheduledTasks()) ?? [];
     } catch (e) {
       logService.error(`Failed to load scheduled tasks: ${e}`);
       diagnosticsService.report({

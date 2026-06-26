@@ -9,11 +9,12 @@
 // runtime snapshot (per `extensionId:role` key), and — added in later
 // steps — state values, subscriptions, event/RPC/IPC ring buffers.
 
-import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
 import extensionManager from '../extension/extensionManager.svelte';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
+import { getExtensionRuntimeSnapshot } from '../../lib/ipc/iframeLifecycleCommands';
+import { forceRemountWorker as forceRemountWorkerCommand, stateGetAll, stateGetSubscriptions } from '../../lib/ipc/devCommands';
 
 /** Runtime-aware dev check — returns true during development OR when the user
  *  has opted into developer mode in production. */
@@ -51,13 +52,6 @@ export interface SubscriptionSummary {
   role: ContextRoleWire;
   installedAt: number;
   listenerCount: number;
-}
-
-interface SnapshotRow {
-  extension_id: string;
-  role: ContextRoleWire;
-  state: string;
-  mailbox_len: number;
 }
 
 const RUNTIME_POLL_MS = 1000;
@@ -290,82 +284,72 @@ class InspectorStore {
 
   async refreshRuntimeSnapshot(): Promise<void> {
     if (!isDevActive()) return;
-    try {
-      const rows = await invoke<SnapshotRow[]>('get_extension_runtime_snapshot');
-      const next: Record<string, RuntimeEntry> = {};
-      const now = Date.now();
-      for (const row of rows) {
-        const key = keyOf(row.extension_id, row.role);
-        const prev = this.runtimeMap[key];
-        next[key] = {
-          extensionId: row.extension_id,
-          role: row.role,
-          state: coerceState(row.state),
-          mailboxLen: row.mailbox_len,
-          mountToken: prev?.mountToken,
-          strikes: prev?.strikes,
-          updatedAt: now,
-        };
-      }
-      this.runtimeMap = next;
-    } catch (err) {
-      logService.debug(`[dev-inspector] snapshot invoke failed: ${err}`);
+    const rows = await getExtensionRuntimeSnapshot();
+    if (rows === null) {
+      logService.debug('[dev-inspector] snapshot invoke failed');
+      return;
     }
+    const next: Record<string, RuntimeEntry> = {};
+    const now = Date.now();
+    for (const row of rows) {
+      const key = keyOf(row.extensionId, row.role as ContextRoleWire);
+      const prev = this.runtimeMap[key];
+      next[key] = {
+        extensionId: row.extensionId,
+        role: row.role as ContextRoleWire,
+        state: coerceState(row.state),
+        mailboxLen: row.mailboxLen,
+        mountToken: prev?.mountToken,
+        strikes: prev?.strikes,
+        updatedAt: now,
+      };
+    }
+    this.runtimeMap = next;
   }
 
   async forceRemountWorker(extensionId: string): Promise<void> {
     if (!isDevActive()) return;
-    try {
-      const manifest = extensionManager.getManifestById(extensionId) as
-        | { background?: { main?: string } }
-        | undefined;
-      const hasBackgroundMain = !!manifest?.background?.main;
-      await invoke('force_remount_worker', {
-        extensionId,
-        hasBackgroundMain,
-      });
-    } catch (err) {
-      logService.debug(`[dev-inspector] force_remount_worker failed: ${err}`);
-    }
+    const manifest = extensionManager.getManifestById(extensionId) as
+      | { background?: { main?: string } }
+      | undefined;
+    const hasBackgroundMain = !!manifest?.background?.main;
+    const ok = await forceRemountWorkerCommand(extensionId, hasBackgroundMain);
+    if (!ok) logService.debug('[dev-inspector] force_remount_worker failed');
   }
 
   async refreshState(extensionId: string): Promise<void> {
     if (!isDevActive()) return;
-    try {
-      const rows = await invoke<
-        Array<{ key: string; value: unknown; updatedAt: number }>
-      >('state_get_all', { extensionId });
-      this.stateByExt = {
-        ...this.stateByExt,
-        [extensionId]: rows.map((r) => ({
-          key: r.key,
-          value: r.value,
-          updatedAt: r.updatedAt,
-        })),
-      };
-    } catch (err) {
-      logService.debug(`[dev-inspector] state_get_all failed: ${err}`);
+    const rows = await stateGetAll(extensionId);
+    if (rows === null) {
+      logService.debug('[dev-inspector] state_get_all failed');
+      return;
     }
+    this.stateByExt = {
+      ...this.stateByExt,
+      [extensionId]: rows.map((r) => ({
+        key: r.key,
+        value: r.value,
+        updatedAt: r.updatedAt,
+      })),
+    };
   }
 
   async refreshSubscriptions(extensionId: string): Promise<void> {
     if (!isDevActive()) return;
-    try {
-      const rows = await invoke<
-        Array<{ key: string; role: ContextRoleWire; installedAt: number; listenerCount: number }>
-      >('state_get_subscriptions', { extensionId });
-      this.subsByExt = {
-        ...this.subsByExt,
-        [extensionId]: rows.map((r) => ({
-          key: r.key,
-          role: r.role,
-          installedAt: r.installedAt,
-          listenerCount: r.listenerCount,
-        })),
-      };
-    } catch (err) {
-      logService.debug(`[dev-inspector] state_get_subscriptions failed: ${err}`);
+    const rows = await stateGetSubscriptions(extensionId);
+    if (rows === null) {
+      logService.debug('[dev-inspector] state_get_subscriptions failed');
+      return;
     }
+    this.subsByExt = {
+      ...this.subsByExt,
+      [extensionId]: rows.map((r) => ({
+        key: r.key,
+        role: r.role as ContextRoleWire,
+        installedAt: r.installedAt,
+        listenerCount: r.listenerCount,
+      })),
+    };
   }
 
   /**

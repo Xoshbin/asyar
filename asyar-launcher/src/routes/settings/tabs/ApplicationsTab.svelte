@@ -69,8 +69,8 @@
         getDefaultAppScanPaths(),
         listApplications(userPaths),
       ]);
-      defaultPaths = paths;
-      apps = withIds(loaded);
+      defaultPaths = paths ?? [];
+      apps = withIds(loaded ?? []);
       void aliasStore.refresh().catch((e) => {
         logService.warn(`Failed to refresh alias store: ${e}`);
       });
@@ -83,7 +83,7 @@
 
   async function reloadApps() {
     try {
-      apps = withIds(await listApplications(userPaths));
+      apps = withIds((await listApplications(userPaths)) ?? []);
     } catch (err) {
       logService.warn(`Failed to reload applications: ${err}`);
     }

@@ -6,23 +6,22 @@ import * as commands from "../../lib/ipc/commands";
 
 export class SearchService {
   async performSearch(query: string): Promise<SearchResult[]> {
-    try {
-      const results = (await commands.searchItems(query)) as SearchResult[];
-      logService.debug(`Search results for "${query}": ${results}`);
-      return results;
-    } catch (error) {
-      logService.error(`Search failed: ${error}`);
+    const results = await commands.searchItems(query, { silent: true });
+    if (results === null) {
+      logService.error('Search failed');
       void diagnosticsService.report({
         source: 'frontend',
         kind: 'search/perform-failed',
         severity: 'error',
         retryable: false,
-        developerDetail: String(error),
+        developerDetail: 'search_items failed',
         // Length only — the raw query may contain pasted secrets.
         context: { queryLength: String(query.length) },
       });
       return [];
     }
+    logService.debug(`Search results for "${query}": ${results}`);
+    return results as SearchResult[];
   }
 
   /**
@@ -30,19 +29,18 @@ export class SearchService {
    * Handles updates automatically (Rust's index_item deletes then adds).
    */
   async indexItem(item: SearchableItem): Promise<void> {
-    try {
-      logService.debug(
-        `Indexing item category: ${item.category}, name: ${item.name}`
-      );
-      await commands.indexItem(item);
-    } catch (error) {
-      logService.error(`Failed indexing item ${item.name}: ${error}`);
+    logService.debug(
+      `Indexing item category: ${item.category}, name: ${item.name}`
+    );
+    const ok = await commands.indexItem(item);
+    if (!ok) {
+      logService.error(`Failed indexing item ${item.name}`);
       void diagnosticsService.report({
         source: 'frontend',
         kind: 'search/index-failed',
         severity: 'warning',
         retryable: false,
-        developerDetail: String(error),
+        developerDetail: 'index_item failed',
         context: { name: item.name, category: String(item.category) },
       });
     }
@@ -102,6 +100,12 @@ export class SearchService {
         }...`
       );
       const allIndexedIds = await commands.getIndexedObjectIds();
+      if (allIndexedIds === null) {
+        // commands.getIndexedObjectIds already reports its own diagnostic
+        // via invokeSafe (also relied on by ExtensionIpcRouter's dispatch
+        // table) — don't report a second time here.
+        return new Set<string>();
+      }
       if (!prefix) {
         return allIndexedIds;
       }
@@ -130,20 +134,20 @@ export class SearchService {
   }
 
   async resetIndex(): Promise<void> {
-    try {
-      logService.info("Requesting search index reset...");
-      await commands.resetSearchIndex();
-      logService.info("Search index reset successful.");
-    } catch (error) {
-      logService.error(`Failed to reset search index: ${error}`);
+    logService.info("Requesting search index reset...");
+    const ok = await commands.resetSearchIndex();
+    if (!ok) {
+      logService.error('Failed to reset search index');
       void diagnosticsService.report({
         source: 'frontend',
         kind: 'search/reset-failed',
         severity: 'error',
         retryable: false,
-        developerDetail: String(error),
+        developerDetail: 'reset_search_index failed',
       });
+      return;
     }
+    logService.info("Search index reset successful.");
   }
 
   /**
@@ -151,16 +155,15 @@ export class SearchService {
    * Currently used before hiding the launcher to persist usage counts.
    */
   async saveIndex(): Promise<void> {
-    try {
-      await commands.saveSearchIndex();
-    } catch (error) {
-      logService.error(`Failed to save search index: ${error}`);
+    const ok = await commands.saveSearchIndex();
+    if (!ok) {
+      logService.error('Failed to save search index');
       void diagnosticsService.report({
         source: 'frontend',
         kind: 'search/save-failed',
         severity: 'warning',
         retryable: false,
-        developerDetail: String(error),
+        developerDetail: 'save_search_index failed',
       });
     }
   }

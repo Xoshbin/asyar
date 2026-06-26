@@ -25,7 +25,10 @@ function queueNativeBarResync(): void {
 export async function applyTheme(themeId: string): Promise<void> {
   removeTheme();
 
-  const definition: ThemeDefinition = await getThemeDefinition(themeId);
+  const definition = await getThemeDefinition(themeId);
+  if (definition === null) {
+    throw new Error(`get_theme_definition failed for ${themeId}`);
+  }
 
   const allowedSet = new Set(THEME_VAR_NAMES);
   for (const [name, value] of Object.entries(definition.variables)) {

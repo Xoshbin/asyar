@@ -19,7 +19,7 @@ describe('browserService', () => {
     ];
     invokeMock.mockResolvedValue(fake);
     const result = await browserService.listAvailableBrowsers();
-    expect(invokeMock).toHaveBeenCalledWith('browser_list_available_browsers');
+    expect(invokeMock).toHaveBeenCalledWith('browser_list_available_browsers', undefined);
     expect(result).toEqual(fake);
   });
 
@@ -101,7 +101,7 @@ describe('browserService — live bridge', () => {
   it('listPairedBrowsers calls the command', async () => {
     invokeMock.mockResolvedValue([]);
     await browserService.listPairedBrowsers();
-    expect(invokeMock).toHaveBeenCalledWith('browser_list_paired_browsers');
+    expect(invokeMock).toHaveBeenCalledWith('browser_list_paired_browsers', undefined);
   });
 
   it('getCurrentPage forwards browser', async () => {
@@ -140,7 +140,7 @@ describe('browserService — command-bar additions', () => {
   it('getMostRecentActiveBrowser calls browser_get_most_recent_active_browser', async () => {
     invokeMock.mockResolvedValue(null);
     await browserService.getMostRecentActiveBrowser();
-    expect(invokeMock).toHaveBeenCalledWith('browser_get_most_recent_active_browser');
+    expect(invokeMock).toHaveBeenCalledWith('browser_get_most_recent_active_browser', undefined);
   });
 });
 

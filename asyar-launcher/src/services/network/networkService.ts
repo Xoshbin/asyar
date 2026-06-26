@@ -6,7 +6,7 @@ export class NetworkService {
     url: string,
     options?: { method?: string; headers?: Record<string, string>; body?: string; timeout?: number },
   ): Promise<{ status: number; statusText: string; headers: Record<string, string>; body: string; ok: boolean }> {
-    return fetchUrl({
+    const result = await fetchUrl({
       url,
       method: options?.method ?? 'GET',
       headers: options?.headers,
@@ -14,6 +14,8 @@ export class NetworkService {
       timeoutMs: options?.timeout ?? 20000,
       callerExtensionId,
     })
+    if (result === null) throw new Error('fetch_url failed')
+    return result
   }
 }
 

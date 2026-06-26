@@ -66,8 +66,8 @@ describe('inspectorStore', () => {
   it('refreshRuntimeSnapshot merges Rust rows into runtimeMap', async () => {
     const { invoke } = await import('@tauri-apps/api/core');
     vi.mocked(invoke).mockResolvedValueOnce([
-      { extension_id: 'ext.a', role: 'worker', state: 'ready', mailbox_len: 2 },
-      { extension_id: 'ext.a', role: 'view', state: 'dormant', mailbox_len: 0 },
+      { extensionId: 'ext.a', role: 'worker', state: 'ready', mailboxLen: 2 },
+      { extensionId: 'ext.a', role: 'view', state: 'dormant', mailboxLen: 0 },
     ]);
     const { inspectorStore } = await import('./inspectorStore.svelte');
     await inspectorStore.refreshRuntimeSnapshot();
@@ -86,7 +86,7 @@ describe('inspectorStore', () => {
   it('refreshRuntimeSnapshot coerces unknown state strings to "unknown"', async () => {
     const { invoke } = await import('@tauri-apps/api/core');
     vi.mocked(invoke).mockResolvedValueOnce([
-      { extension_id: 'ext.a', role: 'worker', state: 'weird-state', mailbox_len: 0 },
+      { extensionId: 'ext.a', role: 'worker', state: 'weird-state', mailboxLen: 0 },
     ]);
     const { inspectorStore } = await import('./inspectorStore.svelte');
     await inspectorStore.refreshRuntimeSnapshot();
@@ -96,8 +96,8 @@ describe('inspectorStore', () => {
   it('entriesForSelected filters to the selected extension id', async () => {
     const { invoke } = await import('@tauri-apps/api/core');
     vi.mocked(invoke).mockResolvedValueOnce([
-      { extension_id: 'ext.a', role: 'worker', state: 'ready', mailbox_len: 0 },
-      { extension_id: 'ext.b', role: 'worker', state: 'ready', mailbox_len: 0 },
+      { extensionId: 'ext.a', role: 'worker', state: 'ready', mailboxLen: 0 },
+      { extensionId: 'ext.b', role: 'worker', state: 'ready', mailboxLen: 0 },
     ]);
     const { inspectorStore } = await import('./inspectorStore.svelte');
     await inspectorStore.refreshRuntimeSnapshot();
@@ -113,10 +113,10 @@ describe('inspectorStore', () => {
     const { invoke } = await import('@tauri-apps/api/core');
     vi.mocked(invoke)
       .mockResolvedValueOnce([
-        { extension_id: 'ext.a', role: 'worker', state: 'mounting', mailbox_len: 0 },
+        { extensionId: 'ext.a', role: 'worker', state: 'mounting', mailboxLen: 0 },
       ])
       .mockResolvedValueOnce([
-        { extension_id: 'ext.a', role: 'worker', state: 'ready', mailbox_len: 0 },
+        { extensionId: 'ext.a', role: 'worker', state: 'ready', mailboxLen: 0 },
       ]);
     const { inspectorStore } = await import('./inspectorStore.svelte');
     await inspectorStore.refreshRuntimeSnapshot();

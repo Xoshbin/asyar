@@ -18,15 +18,18 @@ export const extensionStorageService = {
   },
 
   async set(extensionId: string, key: string, value: string): Promise<void> {
-    return extKvSet(extensionId, key, value);
+    await extKvSet(extensionId, key, value);
   },
 
   async delete(extensionId: string, key: string): Promise<boolean> {
-    return extKvDelete(extensionId, key);
+    const result = await extKvDelete(extensionId, key);
+    if (result === null) throw new Error('ext_kv_delete failed');
+    return result;
   },
 
   async getAll(extensionId: string): Promise<Record<string, string>> {
     const entries = await extKvGetAll(extensionId);
+    if (entries === null) throw new Error('ext_kv_get_all failed');
     const result: Record<string, string> = {};
     for (const entry of entries) {
       result[entry.key] = entry.value;
@@ -35,6 +38,8 @@ export const extensionStorageService = {
   },
 
   async clear(extensionId: string): Promise<number> {
-    return extKvClear(extensionId);
+    const result = await extKvClear(extensionId);
+    if (result === null) throw new Error('ext_kv_clear failed');
+    return result;
   },
 };

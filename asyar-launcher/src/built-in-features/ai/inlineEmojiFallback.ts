@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { recordInlineEmojiFallbackOutcome } from '../../lib/ipc/shortcodeCommands';
 import { dispatchSilentAgentCommand } from '../agents/silentDispatch';
 import { buildEmojiFallbackAgent } from '../agents/defaultAgent';
 import { agentService } from '../agents/agentService.svelte';
@@ -43,17 +43,9 @@ export async function handleEmojiFallback(p: EmojiFallbackPayload): Promise<void
       onFinalText: async (text: string) => {
         const trimmed = text.trim();
         if (isSingleEmoji(trimmed)) {
-          await invoke('record_inline_emoji_fallback_outcome', {
-            shortcode: p.shortcode,
-            outcome: 'hit',
-            emoji: trimmed,
-          });
+          await recordInlineEmojiFallbackOutcome(p.shortcode, 'hit', trimmed);
         } else {
-          await invoke('record_inline_emoji_fallback_outcome', {
-            shortcode: p.shortcode,
-            outcome: 'miss',
-            emoji: undefined,
-          });
+          await recordInlineEmojiFallbackOutcome(p.shortcode, 'miss', undefined);
         }
       },
     });
@@ -66,14 +58,6 @@ export async function handleEmojiFallback(p: EmojiFallbackPayload): Promise<void
       developerDetail: String(e),
       context: { message: 'inline emoji fallback failed', shortcode: p.shortcode } as never,
     });
-    try {
-      await invoke('record_inline_emoji_fallback_outcome', {
-        shortcode: p.shortcode,
-        outcome: 'miss',
-        emoji: undefined,
-      });
-    } catch {
-      // Swallow — already reported via diagnostics.
-    }
+    await recordInlineEmojiFallbackOutcome(p.shortcode, 'miss', undefined);
   }
 }

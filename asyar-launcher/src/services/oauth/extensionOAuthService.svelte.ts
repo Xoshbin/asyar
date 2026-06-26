@@ -49,9 +49,13 @@ export class ExtensionOAuthService {
     }
 
     // 2. Start PKCE flow in Rust (generates verifier/challenge + state, builds URL)
-    const { state, authUrl } = await commands.oauthStartFlow(
+    const startResult = await commands.oauthStartFlow(
       extensionId, providerId, clientId, authorizationUrl, tokenUrl, scopes, flowId,
     );
+    if (!startResult) {
+      throw new Error('Failed to start OAuth flow');
+    }
+    const { state, authUrl } = startResult;
 
     // 3. Track state → {extensionId, flowId} for error routing in _handleCallback
     this._pendingFlows.set(state, { extensionId, flowId });
@@ -89,6 +93,9 @@ export class ExtensionOAuthService {
 
     try {
       const result = await commands.oauthExchangeCode(state, code);
+      if (result === null) {
+        throw new Error('oauth_exchange_code failed');
+      }
       // Clean up local tracking now that exchange succeeded
       this._pendingFlows.delete(state);
       this._postToIframe(result.extensionId, result.flowId, { token: result.token });

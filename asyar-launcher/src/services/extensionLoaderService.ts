@@ -32,7 +32,10 @@ class ExtensionLoaderService {
     try {
       // 1. Get all extension records from Rust (manifests + state + paths)
       const records = await discoverExtensionsIpc();
-      
+      if (records === null) {
+        return extensionsMap;
+      }
+
       // 2. Load built-in JS modules (Vite globs — must stay in TypeScript)
       const builtInFeatureModules = import.meta.glob(['/src/built-in-features/*/index.ts', '/src/built-in-features/*/index.svelte.ts'], { eager: true }) as Record<string, any>;
 
@@ -107,7 +110,10 @@ class ExtensionLoaderService {
     try {
       // 1. Get extension from Rust (checks all sources)
       const record = await getExtensionIpc(extensionId);
-      
+      if (record === null) {
+        return null;
+      }
+
       if (!record.enabled) {
         logService.warn(`Attempted to load disabled extension: ${extensionId}`);
         return null;

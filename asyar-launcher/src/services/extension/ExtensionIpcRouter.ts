@@ -1,6 +1,14 @@
 import { logService } from "../log/logService";
-import { invoke } from '@tauri-apps/api/core';
 import * as commands from "../../lib/ipc/commands";
+import {
+  contributeShortcodes,
+  revokeShortcodes,
+  listLearnedShortcodes,
+  promoteLearnedToSnippet,
+  forgetLearnedShortcode,
+  clearLearnedShortcodes,
+  setInlineEmojiFallbackEnabled,
+} from '../../lib/ipc/shortcodeCommands';
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { streamDispatcher } from './streamDispatcher.svelte';
@@ -25,6 +33,15 @@ const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
 
 // Kept for documentation — actual dispatch uses EXTENSION_INVOKE_DISPATCH
 export const ALLOWED_EXTENSION_INVOKE_COMMANDS = new Set(Object.keys(EXTENSION_INVOKE_DISPATCH));
+
+/**
+ * Every EXTENSION_INVOKE_DISPATCH handler delegates to an invokeSafe-backed
+ * commands.ts wrapper, which returns null on failure instead of throwing —
+ * and has already reported a diagnostic for that failure itself. Thrown to
+ * signal "build the asyar:response error envelope" without making the outer
+ * catch block in setup() report a second, redundant diagnostic.
+ */
+class HandledDispatchError extends Error {}
 
 /**
  * Services whose first parameter is the calling extension's ID.
@@ -147,10 +164,12 @@ export class ExtensionIpcRouter {
         }
 
         // --- Permission Gate ---
+        // Fail closed: a failed permission check (null) must deny, not crash
+        // or silently let the call through.
         const permissionResult = await commands.checkExtensionPermission(extensionId, type);
-        if (!permissionResult.allowed) {
-          logService.warn(`[PermissionGate] BLOCKED: ${permissionResult.reason}`);
-          const permError = `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`;
+        if (!permissionResult?.allowed) {
+          logService.warn(`[PermissionGate] BLOCKED: ${permissionResult?.reason ?? 'permission check failed'}`);
+          const permError = `Permission denied: "${permissionResult?.requiredPermission ?? type}" is required but not declared in manifest.json`;
           (event.source as Window)?.postMessage({
             type: 'asyar:response',
             messageId,
@@ -256,14 +275,16 @@ export class ExtensionIpcRouter {
           messageId,
           error: catchError
         }, '*');
-        void diagnosticsService.report({
-          source: 'extension',
-          kind: classifyProxyError(type, catchError),
-          severity: 'warning',
-          retryable: false,
-          context: { method: type, error: catchError },
-          extensionId: extensionId ?? 'unknown',
-        });
+        if (!(error instanceof HandledDispatchError)) {
+          void diagnosticsService.report({
+            source: 'extension',
+            kind: classifyProxyError(type, catchError),
+            severity: 'warning',
+            retryable: false,
+            context: { method: type, error: catchError },
+            extensionId: extensionId ?? 'unknown',
+          });
+        }
       }
     });
 
@@ -329,39 +350,53 @@ export class ExtensionIpcRouter {
         }
         throw new Error(`Command "${payload?.cmd}" is not available to extensions`);
       }
-      return await handler(payload?.args);
+      const result = await handler(payload?.args);
+      if (result === null) {
+        throw new HandledDispatchError(`Command "${payload?.cmd}" failed`);
+      }
+      return result;
     }
 
     if (type === 'asyar:api:snippets:registerShortcodes') {
       const { map } = payload as { map: Record<string, string> };
-      return invoke('contribute_shortcodes', { extensionId, map });
+      const ok = await contributeShortcodes(extensionId, map);
+      if (!ok) throw new HandledDispatchError('contribute_shortcodes failed');
+      return undefined;
     }
 
     if (type === 'asyar:api:snippets:unregisterShortcodes') {
-      return invoke('revoke_shortcodes', { extensionId });
+      const ok = await revokeShortcodes(extensionId);
+      if (!ok) throw new HandledDispatchError('revoke_shortcodes failed');
+      return undefined;
     }
 
     if (type === 'asyar:api:snippets:listLearnedShortcodes') {
-      return invoke('list_learned_shortcodes');
+      const result = await listLearnedShortcodes();
+      if (result === null) throw new HandledDispatchError('list_learned_shortcodes failed');
+      return result;
     }
 
     if (type === 'asyar:api:snippets:promoteLearnedShortcode') {
       const { shortcode } = payload as { shortcode: string };
-      return invoke('promote_learned_to_snippet', { shortcode });
+      const ok = await promoteLearnedToSnippet(shortcode);
+      if (!ok) throw new HandledDispatchError('promote_learned_to_snippet failed');
+      return undefined;
     }
 
     if (type === 'asyar:api:snippets:forgetLearnedShortcode') {
       const { shortcode } = payload as { shortcode: string };
-      return invoke('forget_learned_shortcode', { shortcode });
+      return forgetLearnedShortcode(shortcode);
     }
 
     if (type === 'asyar:api:snippets:clearLearnedShortcodes') {
-      return invoke('clear_learned_shortcodes');
+      return clearLearnedShortcodes();
     }
 
     if (type === 'asyar:api:snippets:setInlineFallbackEnabled') {
       const { enabled } = payload as { enabled: boolean };
-      return invoke('set_inline_emoji_fallback_enabled', { enabled });
+      const ok = await setInlineEmojiFallbackEnabled(enabled);
+      if (!ok) throw new HandledDispatchError('set_inline_emoji_fallback_enabled failed');
+      return undefined;
     }
 
     const ns = serviceName as Namespace;

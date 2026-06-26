@@ -50,7 +50,7 @@ describe('registerItem', () => {
 
   it('rejects the caller when the Rust command fails', async () => {
     vi.mocked(invoke).mockRejectedValueOnce(new Error('validation: top-level must provide icon'))
-    await expect(statusBarService.registerItem(topItem())).rejects.toThrow(/validation/)
+    await expect(statusBarService.registerItem(topItem())).rejects.toThrow(/tray_register_item/)
   })
 })
 

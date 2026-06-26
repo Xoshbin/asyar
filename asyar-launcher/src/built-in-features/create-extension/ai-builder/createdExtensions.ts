@@ -1,20 +1,17 @@
-import { invoke } from '@tauri-apps/api/core';
+import {
+  listCreatedExtensions as listCreatedExtensionsCommand,
+  searchCreatedExtensions as searchCreatedExtensionsCommand,
+  type CreatedExtension,
+} from '../../../lib/ipc/extensionBuilderCommands';
 
-export interface CreatedExtension {
-  id: string;
-  name: string;
-  version: string;
-  description: string;
-  icon?: string | null;
-  path: string;
-}
+export type { CreatedExtension };
 
-export function listCreatedExtensions(): Promise<CreatedExtension[]> {
-  return invoke('list_created_extensions');
+export async function listCreatedExtensions(): Promise<CreatedExtension[]> {
+  return (await listCreatedExtensionsCommand()) ?? [];
 }
 
 // Filtering lives in Rust (rust-first): the view sends the query and renders the
 // returned subset verbatim. An empty query returns every created extension.
-export function searchCreatedExtensions(query: string): Promise<CreatedExtension[]> {
-  return invoke('search_created_extensions', { query });
+export async function searchCreatedExtensions(query: string): Promise<CreatedExtension[]> {
+  return (await searchCreatedExtensionsCommand(query)) ?? [];
 }

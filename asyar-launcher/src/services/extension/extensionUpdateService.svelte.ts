@@ -73,6 +73,10 @@ class ExtensionUpdateService {
 
     try {
       const results = await commands.updateAllExtensions(safeUpdates);
+      if (results === null) {
+        logService.error('Auto-update batch call failed');
+        return;
+      }
 
       // Remove successful updates from the available list
       const failedIds = new Set(
@@ -112,6 +116,10 @@ class ExtensionUpdateService {
     this.isChecking = true;
     try {
       const updates = await commands.checkExtensionUpdates(envService.storeApiBaseUrl);
+      if (updates === null) {
+        logService.error('Failed to check for extension updates');
+        return [];
+      }
       this.availableUpdates = updates;
       this.lastCheckTime = Date.now();
       if (updates.length > 0) {
@@ -160,6 +168,10 @@ class ExtensionUpdateService {
     this.isUpdatingAll = true;
     try {
       const results = await commands.updateAllExtensions([...this.availableUpdates]);
+      if (results === null) {
+        logService.error('Failed to update all extensions');
+        return;
+      }
       const failedIds = new Set(
         results.filter(([, r]) => r.Err).map(([id]) => id)
       );

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { classifyItemsCommand } from './ipc/extensionLifecycleCommands';
 
 /**
  * Field accessors that project an arbitrary item onto the shape the Rust
@@ -37,10 +37,8 @@ export async function classifyItems<T>(
     keywords: fields.keywords?.(item) ?? [],
   }));
 
-  const results = await invoke<{ id: string; tier: number }[]>('classify_items', {
-    query: trimmed,
-    items: payload,
-  });
+  const results = await classifyItemsCommand(trimmed, payload);
+  if (results === null) return new Map();
 
   return new Map(results.map((r) => [r.id, r.tier]));
 }

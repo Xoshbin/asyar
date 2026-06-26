@@ -127,7 +127,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
       await runTextOnly(input, agent, plugin, config as ProviderConfig, settings, handle, cancelController.signal, isCancelled);
     } else {
       // Fetch all available tool descriptors and filter to selected ones
-      const allDescriptors = await agentsToolsList();
+      const allDescriptors = (await agentsToolsList()) ?? [];
       const selectedDescriptors = allDescriptors.filter((d) =>
         toolSelection.includes(d.fullyQualifiedId),
       );

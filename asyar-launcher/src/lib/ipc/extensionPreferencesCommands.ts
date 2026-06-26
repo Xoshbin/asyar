@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invokeSafe } from './invokeSafe';
 
 export interface PreferenceExportRow {
   extensionId: string;
@@ -11,8 +11,8 @@ export interface PreferenceExportRow {
 
 export async function extensionPreferencesGetAll(
   extensionId: string
-): Promise<PreferenceExportRow[]> {
-  return invoke('extension_preferences_get_all', { extensionId });
+): Promise<PreferenceExportRow[] | null> {
+  return invokeSafe('extension_preferences_get_all', { extensionId });
 }
 
 export async function extensionPreferencesSet(
@@ -22,7 +22,7 @@ export async function extensionPreferencesSet(
   value: string,
   isEncrypted: boolean
 ): Promise<void> {
-  return invoke('extension_preferences_set', {
+  await invokeSafe('extension_preferences_set', {
     extensionId,
     commandId,
     key,
@@ -32,7 +32,7 @@ export async function extensionPreferencesSet(
 }
 
 export async function extensionPreferencesReset(extensionId: string): Promise<void> {
-  return invoke('extension_preferences_reset', { extensionId });
+  await invokeSafe('extension_preferences_reset', { extensionId });
 }
 
 export interface PreferencesExport {
@@ -50,8 +50,8 @@ export interface PreferencesImportResult {
  * Encrypted (password-type) rows are filtered at the Rust SQL layer and
  * never leave the device.
  */
-export async function extensionPreferencesExportAll(): Promise<PreferencesExport> {
-  return invoke('extension_preferences_export_all');
+export async function extensionPreferencesExportAll(): Promise<PreferencesExport | null> {
+  return invokeSafe('extension_preferences_export_all');
 }
 
 /**
@@ -62,6 +62,6 @@ export async function extensionPreferencesExportAll(): Promise<PreferencesExport
 export async function extensionPreferencesImportAll(
   payload: PreferencesExport,
   strategy: 'replace' | 'merge'
-): Promise<PreferencesImportResult> {
-  return invoke('extension_preferences_import_all', { payload, strategy });
+): Promise<PreferencesImportResult | null> {
+  return invokeSafe('extension_preferences_import_all', { payload, strategy });
 }

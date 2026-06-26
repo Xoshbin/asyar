@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { resumeAllShortcuts, pauseAllShortcuts } from './ipc/commands';
 import {
   MODIFIER_KEYS,
   MODIFIER_ORDER,
@@ -127,7 +127,7 @@ export function useShortcutCapture(config: CaptureConfig) {
     window.removeEventListener('keydown', handleKeyDown, true);
     window.removeEventListener('keyup', handleKeyUp, true);
     window.removeEventListener('blur', handleWindowBlur);
-    invoke('resume_all_shortcuts').catch(console.error);
+    void resumeAllShortcuts();
   }
 
   function stopRecording() {
@@ -154,7 +154,7 @@ export function useShortcutCapture(config: CaptureConfig) {
     partialModifiers = [];
     savedWithoutCancel = false;
 
-    invoke('pause_all_shortcuts').catch(console.error);
+    void pauseAllShortcuts();
     window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('keyup', handleKeyUp, true);
     window.addEventListener('blur', handleWindowBlur);

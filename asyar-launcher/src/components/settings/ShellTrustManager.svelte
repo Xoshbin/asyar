@@ -33,7 +33,10 @@
     for (const record of recordsWithShell) {
       try {
         const binaries = await shellListTrusted(record.manifest.id);
-        
+        if (binaries === null) {
+          throw new Error('shell_list_trusted failed');
+        }
+
         if (binaries.length > 0) {
           results.push({
             extensionId: record.manifest.id,

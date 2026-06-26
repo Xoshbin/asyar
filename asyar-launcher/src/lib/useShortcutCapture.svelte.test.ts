@@ -40,7 +40,7 @@ describe('useShortcutCapture', () => {
     const capture = useShortcutCapture({ onCapture: async () => true });
     capture.startRecording();
     expect(capture.state.isRecording).toBe(true);
-    expect(vi.mocked(invoke)).toHaveBeenCalledWith('pause_all_shortcuts');
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('pause_all_shortcuts', undefined);
   });
 
   it('stopRecording resumes OS shortcuts', () => {
@@ -49,7 +49,7 @@ describe('useShortcutCapture', () => {
     vi.mocked(invoke).mockClear();
     capture.stopRecording();
     expect(capture.state.isRecording).toBe(false);
-    expect(vi.mocked(invoke)).toHaveBeenCalledWith('resume_all_shortcuts');
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('resume_all_shortcuts', undefined);
   });
 
   it('Escape cancels recording and calls onCancel', () => {

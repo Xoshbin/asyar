@@ -143,7 +143,7 @@ export class CommandArgumentsService {
     const persistenceKey = persistenceCommandKey(meta.commandId, meta.isDynamic === true);
     let persisted: Record<string, string> = {};
     try {
-      persisted = await commandArgDefaultsGet(meta.extensionId, persistenceKey);
+      persisted = (await commandArgDefaultsGet(meta.extensionId, persistenceKey)) ?? {};
     } catch (err) {
       logService.warn(
         `[CommandArgumentsService] Failed to load defaults for ${meta.extensionId}/${persistenceKey}: ${err}`

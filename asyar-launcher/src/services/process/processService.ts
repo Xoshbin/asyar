@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
 import type { AppGroup, KillResult, ProcessSortBy } from 'asyar-sdk/contracts';
+import { processListCommand, processKillCommand } from '../../lib/ipc/systemCommands';
 
 /**
  * Host-side thin wrapper over the Rust `process_*` Tauri commands.
@@ -19,7 +19,7 @@ export const processService = {
     query: string | undefined,
     sortBy: ProcessSortBy,
   ): Promise<AppGroup[]> {
-    return invoke<AppGroup[]>('process_list', { extensionId, query, sortBy });
+    return (await processListCommand(extensionId, query, sortBy)) ?? [];
   },
   async kill(
     extensionId: string | null,
@@ -27,6 +27,11 @@ export const processService = {
     force: boolean,
     confirmedProtected: boolean,
   ): Promise<KillResult> {
-    return invoke<KillResult>('process_kill', { extensionId, pids, force, confirmedProtected });
+    const result = await processKillCommand(extensionId, pids, force, confirmedProtected);
+    if (result !== null) return result;
+    return {
+      killed: [],
+      failed: pids.map((pid) => ({ pid, error: 'process_kill failed' })),
+    };
   },
 };

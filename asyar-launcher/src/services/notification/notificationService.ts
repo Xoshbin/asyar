@@ -31,12 +31,14 @@ export class NotificationService {
 
   async send(callerExtensionId: string, options: NotificationOptions): Promise<string> {
     const normalisedActions = options.actions?.map(normaliseAction);
-    return commands.sendNotification({
+    const result = await commands.sendNotification({
       title: options.title,
       body: options.body,
       actions: normalisedActions,
       callerExtensionId,
     });
+    if (result === null) throw new Error('send_notification failed');
+    return result;
   }
 
   async dismiss(callerExtensionId: string, notificationId: string): Promise<void> {

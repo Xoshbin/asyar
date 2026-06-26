@@ -1,22 +1,13 @@
-import { invoke } from '@tauri-apps/api/core';
 import { logService } from '../log/logService';
+import {
+  trayRegisterItem,
+  trayUpdateItem,
+  trayUnregisterItem,
+  trayRemoveAllForExtension,
+  type StatusBarItem,
+} from '../../lib/ipc/statusBarCommands';
 
-/**
- * Launcher-side image of the SDK's `IStatusBarItem` plus the
- * `extensionId` the proxy injects before IPC. Mirrors the Rust
- * `StatusBarItem` so we can forward verbatim to the tray manager.
- */
-export interface StatusBarItem {
-  id: string;
-  extensionId: string;
-  icon?: string;
-  iconPath?: string;
-  text: string;
-  checked?: boolean;
-  submenu?: StatusBarItem[];
-  enabled?: boolean;
-  separator?: boolean;
-}
+export type { StatusBarItem };
 
 /**
  * Thin dispatcher between the extension's IPC call and the Rust tray
@@ -34,7 +25,8 @@ class StatusBarServiceClass {
     logService.debug(
       `[StatusBar] registerItem ext='${item.extensionId}' id='${item.id}'`,
     );
-    await invoke('tray_register_item', { item });
+    const ok = await trayRegisterItem(item);
+    if (!ok) throw new Error('tray_register_item failed');
   }
 
   async updateItem(
@@ -52,15 +44,18 @@ class StatusBarServiceClass {
       ...updates,
     };
     logService.debug(`[StatusBar] updateItem ext='${extensionId}' id='${id}'`);
-    await invoke('tray_update_item', { item });
+    const ok = await trayUpdateItem(item);
+    if (!ok) throw new Error('tray_update_item failed');
   }
 
   async unregisterItem(extensionId: string, id: string): Promise<void> {
-    await invoke('tray_unregister_item', { extensionId, id });
+    const ok = await trayUnregisterItem(extensionId, id);
+    if (!ok) throw new Error('tray_unregister_item failed');
   }
 
   async clearItemsForExtension(extensionId: string): Promise<void> {
-    await invoke('tray_remove_all_for_extension', { extensionId });
+    const ok = await trayRemoveAllForExtension(extensionId);
+    if (!ok) throw new Error('tray_remove_all_for_extension failed');
   }
 }
 

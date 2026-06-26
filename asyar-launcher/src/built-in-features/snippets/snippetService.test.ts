@@ -42,7 +42,7 @@ vi.mock('../../lib/persistence/extensionStore', () => ({
 }))
 
 vi.mock('../../services/log/logService', () => ({
-  logService: { warn: mockWarn }
+  logService: { warn: mockWarn, error: vi.fn() }
 }))
 
 const mockRedactIfEnabled = vi.hoisted(() => vi.fn())
@@ -172,7 +172,7 @@ describe('setEnabled', () => {
     mockInvoke.mockRejectedValueOnce(new Error('permission denied'))
     const result = await snippetService.setEnabled(true)
     expect(result.ok).toBe(false)
-    expect(result.error).toContain('permission denied')
+    expect(result.error).toContain('set_snippets_enabled failed')
   })
 })
 
@@ -181,7 +181,7 @@ describe('setEnabled', () => {
 describe('openAccessibilityPreferences', () => {
   it('invokes open_accessibility_preferences', async () => {
     await snippetService.openAccessibilityPreferences()
-    expect(mockInvoke).toHaveBeenCalledWith('open_accessibility_preferences')
+    expect(mockInvoke).toHaveBeenCalledWith('open_accessibility_preferences', undefined)
   })
 })
 

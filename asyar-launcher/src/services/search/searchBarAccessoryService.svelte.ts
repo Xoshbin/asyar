@@ -1,8 +1,7 @@
-import { invoke } from '@tauri-apps/api/core';
 import type { SearchBarAccessoryDropdownOption } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 import { extensionIframeManager } from '../extension/extensionIframeManager.svelte';
+import { searchbarAccessoryGet, searchbarAccessorySet } from '../../lib/ipc/searchAccessoryCommands';
 
 export interface SearchBarAccessoryActiveState {
   extensionId: string;
@@ -55,24 +54,11 @@ export class SearchBarAccessoryServiceClass {
       throw new Error('searchBarAccessory.declare: options cannot be empty');
     }
 
-    let persisted: string | null = null;
-    try {
-      const got = await invoke<string | null>('searchbar_accessory_get', {
-        extensionId: input.extensionId,
-        commandId: input.commandId,
-      });
-      persisted = got ?? null;
-    } catch (e) {
-      logService.warn(`[SearchBarAccessory] get failed: ${e}`);
-      void diagnosticsService.report({
-        source: 'frontend',
-        kind: 'searchBarAccessory/persistence-read-failed',
-        severity: 'warning',
-        retryable: false,
-        developerDetail: String(e),
-        context: { extensionId: input.extensionId, commandId: input.commandId },
-      });
-    }
+    // Failure and "nothing persisted yet" both resolve to null here — both
+    // fall through to the same default-seed logic below, matching the
+    // original try/catch's behavior (a real failure still gets diagnosed
+    // via invokeSafe's default reporting; the seed selection just proceeds).
+    const persisted = await searchbarAccessoryGet(input.extensionId, input.commandId);
 
     const optionValues = new Set(input.options.map((o) => o.value));
     let seed: string;
@@ -114,11 +100,8 @@ export class SearchBarAccessoryServiceClass {
       );
     }
 
-    await invoke('searchbar_accessory_set', {
-      extensionId,
-      commandId,
-      value,
-    });
+    const persisted = await searchbarAccessorySet(extensionId, commandId, value);
+    if (!persisted) return;
     this.active = { ...this.active, value };
     this.broadcast(extensionId, commandId, value, /*toView=*/ true);
   }
@@ -176,11 +159,8 @@ export class SearchBarAccessoryServiceClass {
     // consistent and prevents `declare()` after a failed `set` from
     // silently rolling back the user's intent.
     if (valueChanged) {
-      await invoke('searchbar_accessory_set', {
-        extensionId,
-        commandId,
-        value: nextValue,
-      });
+      const persisted = await searchbarAccessorySet(extensionId, commandId, nextValue);
+      if (!persisted) return;
     }
 
     this.active = {

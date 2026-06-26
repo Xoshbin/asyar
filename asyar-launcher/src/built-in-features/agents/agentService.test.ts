@@ -188,7 +188,7 @@ describe('AgentService', () => {
     vi.mocked(commands.agentsList).mockResolvedValueOnce([a1, a2] as never);
     await service.init();
 
-    vi.mocked(commands.agentsDelete).mockResolvedValueOnce(undefined as never);
+    vi.mocked(commands.agentsDelete).mockResolvedValueOnce(true);
 
     await service.delete('a1');
 
@@ -241,10 +241,9 @@ describe('AgentService', () => {
     vi.mocked(commands.agentsList).mockResolvedValueOnce([] as never);
     await service.init();
 
-    const boom = new Error('boom');
-    vi.mocked(commands.agentsCreate).mockRejectedValueOnce(boom);
+    vi.mocked(commands.agentsCreate).mockResolvedValueOnce(null as never);
 
-    await expect(service.create(makeCreateInput())).rejects.toThrow('boom');
+    await expect(service.create(makeCreateInput())).rejects.toThrow();
     expect(diagnosticsService.report).toHaveBeenCalled();
   });
 
@@ -253,10 +252,9 @@ describe('AgentService', () => {
     vi.mocked(commands.agentsList).mockResolvedValueOnce([a1] as never);
     await service.init();
 
-    const boom = new Error('update-boom');
-    vi.mocked(commands.agentsUpdate).mockRejectedValueOnce(boom);
+    vi.mocked(commands.agentsUpdate).mockResolvedValueOnce(null as never);
 
-    await expect(service.update(makeUpdateInput('a1'))).rejects.toThrow('update-boom');
+    await expect(service.update(makeUpdateInput('a1'))).rejects.toThrow();
     expect(diagnosticsService.report).toHaveBeenCalled();
   });
 
@@ -265,10 +263,9 @@ describe('AgentService', () => {
     vi.mocked(commands.agentsList).mockResolvedValueOnce([a1] as never);
     await service.init();
 
-    const boom = new Error('delete-boom');
-    vi.mocked(commands.agentsDelete).mockRejectedValueOnce(boom);
+    vi.mocked(commands.agentsDelete).mockResolvedValueOnce(false);
 
-    await expect(service.delete('a1')).rejects.toThrow('delete-boom');
+    await expect(service.delete('a1')).rejects.toThrow();
     expect(diagnosticsService.report).toHaveBeenCalled();
   });
 });

@@ -1,4 +1,7 @@
-import { invoke } from '@tauri-apps/api/core';
+import {
+  applicationIndexSubscribe,
+  applicationIndexUnsubscribe,
+} from '../../lib/ipc/applicationCommands';
 
 /**
  * Host-side thin wrapper over the Rust `application_index_*` Tauri
@@ -18,20 +21,14 @@ export const applicationIndexService = {
   async subscribe(
     extensionId: string | null,
     eventTypes: string[],
-  ): Promise<string> {
-    return invoke<string>('application_index_subscribe', {
-      extensionId,
-      eventTypes,
-    });
+  ): Promise<string | null> {
+    return applicationIndexSubscribe(extensionId, eventTypes);
   },
 
   async unsubscribe(
     extensionId: string | null,
     subscriptionId: string,
   ): Promise<void> {
-    return invoke<void>('application_index_unsubscribe', {
-      extensionId,
-      subscriptionId,
-    });
+    await applicationIndexUnsubscribe(extensionId, subscriptionId);
   },
 };

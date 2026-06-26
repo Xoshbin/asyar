@@ -1,6 +1,6 @@
-import { invoke } from '@tauri-apps/api/core';
 import type { ScheduleTimerOptions, TimerDescriptor } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
+import { timerSchedule, timerCancel, timerList } from '../../lib/ipc/systemCommands';
 
 /**
  * Host-side thin wrapper over the Rust `timer_*` Tauri commands.
@@ -14,15 +14,6 @@ import { logService } from '../log/logService';
  * (via the SDK proxy) and the launcher consumers see
  * `Record<string, unknown>`; only the SQLite row carries a string.
  */
-type RawTimerRow = {
-  timerId: string;
-  extensionId: string;
-  commandId: string;
-  argsJson: string;
-  fireAt: number;
-  createdAt: number;
-};
-
 function parseArgs(json: string): Record<string, unknown> {
   try {
     const parsed = JSON.parse(json);
@@ -38,20 +29,15 @@ function parseArgs(json: string): Record<string, unknown> {
 export const timerService = {
   async schedule(extensionId: string | null, opts: ScheduleTimerOptions): Promise<string> {
     const argsJson = JSON.stringify(opts.args ?? {});
-    return invoke<string>('timer_schedule', {
-      extensionId,
-      commandId: opts.commandId,
-      argsJson,
-      fireAt: opts.fireAt,
-    });
+    return (await timerSchedule(extensionId, opts.commandId, argsJson, opts.fireAt)) ?? '';
   },
 
   async cancel(extensionId: string | null, timerId: string): Promise<void> {
-    return invoke<void>('timer_cancel', { extensionId, timerId });
+    await timerCancel(extensionId, timerId);
   },
 
   async list(extensionId: string | null): Promise<TimerDescriptor[]> {
-    const raw = await invoke<RawTimerRow[]>('timer_list', { extensionId });
+    const raw = (await timerList(extensionId)) ?? [];
     return raw.map((r) => ({
       timerId: r.timerId,
       extensionId: r.extensionId,

@@ -8,9 +8,10 @@ import {
 import { copyFile, remove, mkdir } from "@tauri-apps/plugin-fs";
 import { appDataDir } from "@tauri-apps/api/path";
 import { platform } from "@tauri-apps/plugin-os";
-import { invoke } from '@tauri-apps/api/core';
 import * as commands from "../../lib/ipc/commands";
 import type { ClipboardDeleteResult, ClipboardClearResult } from "../../lib/ipc/commands";
+import { getFrontmostApplication } from "../../lib/ipc/applicationCommands";
+import { clipboardStripHtml, clipboardStripRtf } from "../../lib/ipc/clipboardCommands";
 import { v4 as uuidv4 } from "uuid";
 import { diagnosticsService } from "../diagnostics/diagnosticsService.svelte";
 import { clipboardHistoryStore } from "./stores/clipboardHistoryStore.svelte";
@@ -24,7 +25,6 @@ import {
   type ClipboardHistoryItem,
   type IClipboardHistoryService,
   type ClipboardSourceApp,
-  type FrontmostApplication,
 } from "asyar-sdk/contracts";
 
 /**
@@ -151,19 +151,14 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   }
 
   private async captureSourceApp(): Promise<ClipboardSourceApp | undefined> {
-    try {
-      const frontmost = await invoke<FrontmostApplication>('get_frontmost_application');
-      if (!frontmost?.name) return undefined;
-      return {
-        name: frontmost.name,
-        bundleId: frontmost.bundleId ?? undefined,
-        path: frontmost.path ?? undefined,
-        windowTitle: frontmost.windowTitle ?? undefined,
-      };
-    } catch (error) {
-      logService.debug(`Failed to capture source app: ${error}`);
-      return undefined;
-    }
+    const frontmost = await getFrontmostApplication();
+    if (!frontmost?.name) return undefined;
+    return {
+      name: frontmost.name,
+      bundleId: frontmost.bundleId ?? undefined,
+      path: frontmost.path ?? undefined,
+      windowTitle: frontmost.windowTitle ?? undefined,
+    };
   }
 
   /**
@@ -485,7 +480,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * exposed to Tier 2 extensions via the SDK's `clipboard` proxy.
    */
   public async stripHtml(html: string): Promise<string> {
-    return invoke<string>('clipboard_strip_html', { content: html });
+    return clipboardStripHtml(html);
   }
 
   /**
@@ -494,7 +489,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * Tier 2 extensions via the SDK's `clipboard` proxy.
    */
   public async stripRtf(rtf: string): Promise<string> {
-    return invoke<string>('clipboard_strip_rtf', { content: rtf });
+    return clipboardStripRtf(rtf);
   }
 
   /**

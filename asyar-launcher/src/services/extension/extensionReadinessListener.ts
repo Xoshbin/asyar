@@ -1,7 +1,4 @@
-import {
-  iframeReadyAck,
-  type IpcPendingMessage,
-} from '../../lib/ipc/iframeLifecycleCommands';
+import { iframeReadyAck } from '../../lib/ipc/iframeLifecycleCommands';
 import { post } from './extensionDelivery';
 import { logService } from '../log/logService';
 import { extensionPendingState } from './extensionPendingState.svelte';
@@ -56,11 +53,9 @@ class ExtensionReadinessListener {
     }
     const role: 'view' | 'worker' = payloadRole;
 
-    let drained: IpcPendingMessage[];
-    try {
-      drained = await iframeReadyAck(extensionId, mountToken, role);
-    } catch (err) {
-      logService.warn(`[readiness] ack failed for ${extensionId}: ${err}`);
+    const drained = await iframeReadyAck(extensionId, mountToken, role);
+    if (drained === null) {
+      logService.warn(`[readiness] ack failed for ${extensionId}`);
       return;
     }
     for (const m of drained) post(iframe, m);

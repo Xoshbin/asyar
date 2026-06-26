@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { appEventsSubscribe, appEventsUnsubscribe } from '../../lib/ipc/systemCommands';
 
 /**
  * Host-side thin wrapper over the Rust `app_events_*` Tauri commands.
@@ -16,10 +16,10 @@ import { invoke } from '@tauri-apps/api/core';
  */
 export const appEventsService = {
   async subscribe(extensionId: string | null, eventTypes: string[]): Promise<string> {
-    return invoke<string>('app_events_subscribe', { extensionId, eventTypes });
+    return (await appEventsSubscribe(extensionId, eventTypes)) ?? '';
   },
 
   async unsubscribe(extensionId: string | null, subscriptionId: string): Promise<void> {
-    return invoke<void>('app_events_unsubscribe', { extensionId, subscriptionId });
+    await appEventsUnsubscribe(extensionId, subscriptionId);
   },
 };

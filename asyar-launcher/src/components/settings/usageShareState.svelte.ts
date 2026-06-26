@@ -4,11 +4,11 @@ class UsageShareState {
   anonId = $state('');
 
   async load() {
-    this.anonId = await getUsageAnonId();
+    this.anonId = (await getUsageAnonId()) ?? '';
   }
 
   async reset() {
-    this.anonId = await resetUsageAnonId();
+    this.anonId = (await resetUsageAnonId()) ?? '';
   }
 }
 

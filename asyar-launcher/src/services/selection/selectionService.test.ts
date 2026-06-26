@@ -26,7 +26,7 @@ describe('SelectionService', () => {
 
       const result = await service.getSelectedText();
 
-      expect(invoke).toHaveBeenCalledWith('get_selected_text');
+      expect(invoke).toHaveBeenCalledWith('get_selected_text', undefined);
       expect(result).toBe('Hello World');
     });
 
@@ -47,7 +47,7 @@ describe('SelectionService', () => {
 
       const result = await service.getSelectedFinderItems();
 
-      expect(invoke).toHaveBeenCalledWith('get_selected_finder_items');
+      expect(invoke).toHaveBeenCalledWith('get_selected_finder_items', undefined);
       expect(result).toEqual(items);
     });
 

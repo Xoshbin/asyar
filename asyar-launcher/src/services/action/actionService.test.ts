@@ -964,9 +964,7 @@ describe('uninstall_application built-in action', () => {
     const svc = freshService()
     mockSearchOrchestrator.items = [makeAppResult({ name: 'Broken' })]
     mockSearchStores.selectedIndex = 0
-    mockApplicationService.scanUninstallTargets.mockRejectedValueOnce(
-      new Error('disk full or whatever'),
-    )
+    mockApplicationService.scanUninstallTargets.mockResolvedValueOnce(null)
 
     await svc.executeAction('uninstall_application')
 
@@ -1062,7 +1060,7 @@ describe('factory_reset built-in action', () => {
 
     await svc.executeAction('factory_reset')
 
-    expect(invoke).toHaveBeenCalledWith('factory_reset')
+    expect(invoke).toHaveBeenCalledWith('factory_reset', undefined)
   })
 
   it('execute is a no-op when the user cancels the confirm dialog', async () => {

@@ -1,10 +1,16 @@
-import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { streamDispatcher } from '../extension/streamDispatcher.svelte';
 import { shellConsentService } from './shellConsentService.svelte';
 import { logService } from '../log/logService';
 import { runService, type LocalRunHandle } from '../run/runService.svelte';
-import { invokeSafe } from '../../lib/ipc/invokeSafe';
+import {
+  shellResolvePath,
+  shellKill,
+  shellSpawn,
+  shellList,
+  shellAttach,
+  type ShellDescriptor,
+} from '../../lib/ipc/shellCommands';
 
 interface ShellChunkPayload {
   spawnId: string;
@@ -22,13 +28,7 @@ interface ShellErrorPayload {
   message: string;
 }
 
-export interface ShellDescriptor {
-  spawnId: string;
-  program: string;
-  args: string[];
-  pid: number;
-  startedAt: number;
-}
+export type { ShellDescriptor };
 
 class ShellService {
   // Installed once so spawn() and attach() share a single chunk/done/error
@@ -80,7 +80,10 @@ class ShellService {
      */
     label?: string,
   ): Promise<{ streaming: true }> {
-    const resolvedPath = await invoke<string>('shell_resolve_path', { program });
+    const resolvedPath = await shellResolvePath(program);
+    if (resolvedPath === null) {
+      throw { code: 'PATH_RESOLUTION_FAILED', message: `Failed to resolve path for ${program}` };
+    }
 
     const allowed = await shellConsentService.requestConsent(extensionId, program, resolvedPath);
     if (!allowed) {
@@ -91,9 +94,7 @@ class ShellService {
 
     const handle = streamDispatcher.create(extensionId, spawnId, originRole);
     handle.onAbort(() => {
-      invoke('shell_kill', { spawnId }).catch((err) => {
-        logService.error(`[ShellService] Failed to kill process on abort: ${err}`);
-      });
+      void shellKill(spawnId);
     });
 
     const resolvedLabel =
@@ -114,7 +115,7 @@ class ShellService {
 
     if (runHandle) {
       unsubscribeCancel = runHandle.onCancel(() => {
-        void invokeSafe('shell_kill', { spawnId });
+        void shellKill(spawnId);
       });
     }
 
@@ -146,25 +147,14 @@ class ShellService {
       unsubscribeCancel?.();
     });
 
-    invoke('shell_spawn', {
-      extensionId,
-      spawnId,
-      program: resolvedPath,
-      args,
-    }).catch((err) => {
-      const message =
-        err instanceof Error
-          ? err.message
-          : typeof err === 'string'
-            ? err
-            : err && typeof err === 'object' && 'message' in err
-              ? String((err as { message: unknown }).message)
-              : JSON.stringify(err);
+    void shellSpawn(extensionId, spawnId, resolvedPath, args).then((ok) => {
+      if (ok) return;
+      const message = `Failed to spawn ${resolvedPath}`;
       streamDispatcher.forward(spawnId, 'error', {
         error: { code: 'SPAWN_FAILED', message },
       });
       // The asyar:shell:error Tauri event is only emitted by the Rust runtime
-      // for runs that actually started; a synchronous shell_spawn rejection
+      // for runs that actually started; a synchronous shell_spawn failure
       // (consent miss, missing binary, etc.) bypasses that path. Fail the
       // runHandle directly here so the Run transitions out of "running" and
       // tear down the per-spawn listeners we registered above.
@@ -179,7 +169,7 @@ class ShellService {
   }
 
   async list(extensionId: string): Promise<ShellDescriptor[]> {
-    return invoke<ShellDescriptor[]>('shell_list', { extensionId });
+    return (await shellList(extensionId)) ?? [];
   }
 
   async attach(
@@ -195,13 +185,15 @@ class ShellService {
     if (!streamDispatcher.has(spawnId)) {
       const handle = streamDispatcher.create(extensionId, spawnId, originRole);
       handle.onAbort(() => {
-        invoke('shell_kill', { spawnId }).catch((err) => {
-          logService.error(`[ShellService] Failed to kill process on abort: ${err}`);
-        });
+        void shellKill(spawnId);
       });
     }
 
-    return invoke<ShellDescriptor>('shell_attach', { extensionId, spawnId });
+    const descriptor = await shellAttach(extensionId, spawnId);
+    if (descriptor === null) {
+      throw { code: 'ATTACH_FAILED', message: `Failed to attach to spawn ${spawnId}` };
+    }
+    return descriptor;
   }
 }
 

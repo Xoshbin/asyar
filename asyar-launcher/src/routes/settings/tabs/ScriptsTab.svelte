@@ -16,7 +16,7 @@
 
   async function fetchDirectories() {
     try {
-      directories = await scriptsListDirectories();
+      directories = (await scriptsListDirectories()) ?? [];
     } catch (err) {
       logService.warn(`Failed to list script directories: ${err}`);
     }

@@ -752,7 +752,7 @@ describe('handleClipboardChange', () => {
     expect(call.sourceApp).toBeUndefined();
 
     const { logService } = await import('../log/logService');
-    expect(logService.debug).toHaveBeenCalledWith(expect.stringContaining('Failed to capture source app'));
+    expect(logService.error).toHaveBeenCalledWith(expect.stringContaining('get_frontmost_application'));
   });
 });
 
@@ -840,7 +840,7 @@ describe('pasteItem', () => {
     expect(hideWindowSpy).not.toHaveBeenCalled()
 
     // Jumps the user straight to the right System Settings pane.
-    expect(invoke).toHaveBeenCalledWith('open_accessibility_preferences')
+    expect(invoke).toHaveBeenCalledWith('open_accessibility_preferences', undefined)
 
     // Surfaces a guiding diagnostic mentioning Accessibility.
     expect(diagnosticsService.report).toHaveBeenCalledWith(

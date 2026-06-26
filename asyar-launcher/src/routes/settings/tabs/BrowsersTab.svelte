@@ -1,13 +1,17 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { invoke } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { browserService } from '../../../services/browser/browserService';
   import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+  import {
+    browserListPendingPairings,
+    browserResolvePairing,
+    browserRevokePairing,
+    type PendingPairing,
+  } from '../../../lib/ipc/settingsUiCommands';
   import type { BrowserId, BrowserKey, BrowserFamily } from 'asyar-sdk/contracts';
 
-  type PendingPairing = { id: string; family: string; variant: string };
   type PairRequestEvent = { pairing_id: string; family: string; variant: string };
 
   // The Asyar Companion is a separate browser extension that pairs with this
@@ -40,54 +44,44 @@
   }
 
   async function refresh() {
-    try {
-      availableBrowsers = await browserService.listAvailableBrowsers();
-      pairedBrowsers = await browserService.listPairedBrowsers();
-      pendingPairings = await invoke<PendingPairing[]>('browser_list_pending_pairings');
-      const status: Record<string, boolean> = {};
-      for (const fam of ['chromium', 'firefox', 'safari'] as const) {
-        status[fam] = await browserService.isCompanionInstalled(fam as BrowserFamily);
-      }
-      connectionStatus = status;
-    } catch (err) {
-      diagnosticsService.report({
-        source: 'frontend',
-        kind: 'browser:settings.refresh-failed',
-        severity: 'warning',
-        retryable: true,
-        context: { message: err instanceof Error ? err.message : String(err) },
-      });
+    availableBrowsers = await browserService.listAvailableBrowsers();
+    pairedBrowsers = await browserService.listPairedBrowsers();
+    pendingPairings = (await browserListPendingPairings()) ?? [];
+    const status: Record<string, boolean> = {};
+    for (const fam of ['chromium', 'firefox', 'safari'] as const) {
+      status[fam] = await browserService.isCompanionInstalled(fam as BrowserFamily);
     }
+    connectionStatus = status;
   }
 
   async function resolve(id: string, decision: 'allow' | 'deny') {
-    try {
-      await invoke('browser_resolve_pairing', { pairingId: id, decision });
-      await refresh();
-    } catch (err) {
+    const ok = await browserResolvePairing(id, decision);
+    if (!ok) {
       diagnosticsService.report({
         source: 'frontend',
         kind: 'browser:settings.resolve-failed',
         severity: 'error',
         retryable: false,
-        context: { message: err instanceof Error ? err.message : String(err) },
+        context: { message: 'browser_resolve_pairing failed' },
       });
+      return;
     }
+    await refresh();
   }
 
   async function revoke(family: string, variant: string) {
-    try {
-      await invoke('browser_revoke_pairing', { family, variant });
-      await refresh();
-    } catch (err) {
+    const ok = await browserRevokePairing(family, variant);
+    if (!ok) {
       diagnosticsService.report({
         source: 'frontend',
         kind: 'browser:settings.revoke-failed',
         severity: 'error',
         retryable: false,
-        context: { message: err instanceof Error ? err.message : String(err) },
+        context: { message: 'browser_revoke_pairing failed' },
       });
+      return;
     }
+    await refresh();
   }
 
   let unlisteners: Array<() => void> = [];

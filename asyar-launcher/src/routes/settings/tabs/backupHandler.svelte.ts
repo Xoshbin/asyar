@@ -148,6 +148,9 @@ export class BackupHandler {
 
     try {
       const contents = await importProfile(filePath, null);
+      if (contents === null) {
+        throw new Error('Failed to read profile archive');
+      }
       const manifest: ArchiveManifest = JSON.parse(contents.manifest_json);
 
       if (manifest.encryptionScheme) {
@@ -172,6 +175,9 @@ export class BackupHandler {
 
     try {
       const contents = await importProfile(this.importFile, this.importPassword);
+      if (contents === null) {
+        throw new Error('Failed to read profile archive');
+      }
       const manifest: ArchiveManifest = JSON.parse(contents.manifest_json);
       await this._populatePreview(contents, manifest);
       this.importNeedsPassword = false;

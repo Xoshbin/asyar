@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invokeSafe } from './invokeSafe';
 
 /**
  * Load the last-submitted argument values for a command.
@@ -9,8 +9,8 @@ import { invoke } from '@tauri-apps/api/core';
 export async function commandArgDefaultsGet(
   extensionId: string,
   commandId: string
-): Promise<Record<string, string>> {
-  return invoke<Record<string, string>>('command_arg_defaults_get', {
+): Promise<Record<string, string> | null> {
+  return invokeSafe<Record<string, string>>('command_arg_defaults_get', {
     extensionId,
     commandId,
   });
@@ -26,5 +26,5 @@ export async function commandArgDefaultsSet(
   commandId: string,
   values: Record<string, string>
 ): Promise<void> {
-  return invoke('command_arg_defaults_set', { extensionId, commandId, values });
+  await invokeSafe('command_arg_defaults_set', { extensionId, commandId, values });
 }

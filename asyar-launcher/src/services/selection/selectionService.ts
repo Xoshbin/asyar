@@ -1,6 +1,6 @@
-import { invoke } from '@tauri-apps/api/core';
 import type { ISelectionService, SelectionError, SelectionErrorCode } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
+import { getSelectedTextRaw, getSelectedFinderItemsRaw } from '../../lib/ipc/selectionCommands';
 
 export class SelectionService implements ISelectionService {
   /**
@@ -10,7 +10,7 @@ export class SelectionService implements ISelectionService {
   async getSelectedText(): Promise<string | null> {
     try {
       console.log('[SelectionService] Invoking get_selected_text...');
-      const result = await invoke<string | null>('get_selected_text');
+      const result = await getSelectedTextRaw();
       return result;
     } catch (error: any) {
       this.throwSelectionError(error);
@@ -25,7 +25,7 @@ export class SelectionService implements ISelectionService {
   async getSelectedFinderItems(): Promise<string[]> {
     try {
       console.log('[SelectionService] Invoking get_selected_finder_items...');
-      const result = await invoke<string[]>('get_selected_finder_items');
+      const result = await getSelectedFinderItemsRaw();
       return result || [];
     } catch (error: any) {
       this.throwSelectionError(error);
