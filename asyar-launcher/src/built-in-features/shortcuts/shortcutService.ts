@@ -151,7 +151,10 @@ class ShortcutService {
         while (viewManager.getNavigationStackSize() > 0) {
           viewManager.goBack();
         }
-        contextActivationId.set(portalId);
+        // The activation signal is consumed by contextModeService.activate(),
+        // which resolves context PROVIDER ids — portals register theirs as
+        // `portal_<portalId>`. The raw portal id silently activates nothing.
+        contextActivationId.set(`portal_${portalId}`);
         await tick();
         await showWindow();
       } else {

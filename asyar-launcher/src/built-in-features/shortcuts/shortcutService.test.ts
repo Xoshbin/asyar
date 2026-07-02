@@ -362,7 +362,10 @@ describe('handleFiredShortcut', () => {
     )
     await shortcutService.handleFiredShortcut('cmd_portals_google')
     expect(mockShowWindow).toHaveBeenCalled()
-    expect(mockContextSet).toHaveBeenCalledWith('google')
+    // Must be the context PROVIDER id ('portal_' prefix) — providers are
+    // registered as `portal_<portalId>`, and contextModeService.activate()
+    // silently no-ops on an unknown id, so the raw portal id showed no chip.
+    expect(mockContextSet).toHaveBeenCalledWith('portal_google')
     expect(mockExecuteCommand).not.toHaveBeenCalled()
   })
 
