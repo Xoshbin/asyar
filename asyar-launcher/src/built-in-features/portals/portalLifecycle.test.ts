@@ -9,35 +9,67 @@ vi.mock('../../services/search/SearchService', () => ({
 vi.mock('../../services/extension/commandService.svelte', () => ({
   commandService: { registerCommand: vi.fn(), unregisterCommand: vi.fn() },
 }));
-vi.mock('../../services/action/actionService.svelte', () => ({
-  actionService: { registerAction: vi.fn(), unregisterAction: vi.fn() },
-}));
 vi.mock('../../services/context/contextModeService.svelte', () => ({
   contextModeService: { registerProvider: vi.fn(), unregisterProvider: vi.fn(), updateQuery: vi.fn() },
+}));
+vi.mock('./portalStore.svelte', () => ({
+  portalStore: { portals: [], getAll: vi.fn(() => []), getById: vi.fn(), remove: vi.fn() },
+}));
+vi.mock('../shortcuts/shortcutService', () => ({
+  shortcutService: { unregister: vi.fn() },
 }));
 vi.mock('../../lib/placeholders', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../lib/placeholders')>();
   return { ...actual, resolveTemplate: vi.fn() };
 });
-vi.mock('./portalStore.svelte', () => ({
-  portalStore: { portals: [], getAll: vi.fn(() => []), getById: vi.fn() },
-}));
-vi.mock('../../services/action/actionService.svelte', () => ({
-  actionService: {
-    registerAction: vi.fn(),
-    unregisterAction: vi.fn(),
-    setExtensionForwarder: vi.fn(),
-  },
-}));
-vi.mock('../../services/extension/extensionManager.svelte', () => ({ default: {} }));
-vi.mock('../../services/extension/extensionIframeManager.svelte', () => ({
-  extensionIframeManager: { init: vi.fn(), sendAction: vi.fn() },
-}));
 
-import { syncPortalToIndex } from './index.svelte';
+import { deletePortal, removePortalFromIndex, syncPortalToIndex } from './portalLifecycle';
+import { portalStore } from './portalStore.svelte';
+import { searchService } from '../../services/search/SearchService';
+import { commandService } from '../../services/extension/commandService.svelte';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
+import { shortcutService } from '../shortcuts/shortcutService';
 import { invoke } from '@tauri-apps/api/core';
 import { resolveTemplate } from '../../lib/placeholders';
+
+describe('deletePortal', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('removes the portal from the store', async () => {
+    await deletePortal('p1');
+    expect(portalStore.remove).toHaveBeenCalledWith('p1');
+  });
+
+  it('unregisters the item shortcut bound to the portal command', async () => {
+    // Regression for issue #433: deleting a portal left its global hotkey
+    // registered — pressing it kept firing the deleted portal.
+    await deletePortal('p1');
+    expect(shortcutService.unregister).toHaveBeenCalledWith('cmd_portals_p1');
+  });
+
+  it('removes the search-index entry, runtime command, and context provider', async () => {
+    await deletePortal('p1');
+    expect(searchService.deleteItem).toHaveBeenCalledWith('cmd_portals_p1');
+    expect(commandService.unregisterCommand).toHaveBeenCalledWith('cmd_portals_p1');
+    expect(contextModeService.unregisterProvider).toHaveBeenCalledWith('portal_p1');
+  });
+
+  it('still unregisters the shortcut when index removal fails', async () => {
+    vi.mocked(searchService.deleteItem).mockRejectedValueOnce(new Error('index gone'));
+    await expect(deletePortal('p1')).rejects.toThrow('index gone');
+    expect(portalStore.remove).toHaveBeenCalledWith('p1');
+    expect(shortcutService.unregister).toHaveBeenCalledWith('cmd_portals_p1');
+  });
+});
+
+describe('removePortalFromIndex', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('does NOT touch the item shortcut (edit flow re-indexes the same portal id)', async () => {
+    await removePortalFromIndex('p1');
+    expect(shortcutService.unregister).not.toHaveBeenCalled();
+  });
+});
 
 describe('Portal onActivate guard', () => {
   beforeEach(() => vi.clearAllMocks());
