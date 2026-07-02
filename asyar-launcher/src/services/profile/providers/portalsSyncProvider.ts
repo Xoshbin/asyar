@@ -1,4 +1,5 @@
 import { portalStore, type Portal } from '../../../built-in-features/portals/portalStore.svelte';
+import { deletePortal } from '../../../built-in-features/portals/portalLifecycle';
 import type {
   ISyncProvider,
   SyncProviderData,
@@ -107,7 +108,9 @@ export class PortalsSyncProvider implements ISyncProvider {
   }
 
   async applyItemDelete(itemId: string): Promise<void> {
-    portalStore.remove(itemId);
+    // Full teardown, not just store removal — the portal's global hotkey and
+    // search-index entry must go too when the delete arrives from sync.
+    await deletePortal(itemId);
   }
 
   subscribeToChanges(callback: (event: SyncChangeEvent) => void): Unsubscribe {

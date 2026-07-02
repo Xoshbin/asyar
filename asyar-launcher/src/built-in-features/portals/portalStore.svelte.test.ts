@@ -15,6 +15,10 @@ vi.mock('../../lib/persistence/extensionStore', () => ({
   })),
 }));
 
+// PortalsSyncProvider imports portalLifecycle, whose shortcutService import
+// drags in the whole launcher service graph — mock it out at the boundary.
+vi.mock('./portalLifecycle', () => ({ deletePortal: vi.fn() }));
+
 import { portalStore, type Portal } from './portalStore.svelte';
 
 const makePortal = (id: string): Portal => ({

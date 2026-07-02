@@ -7,6 +7,10 @@ const mockPortals = [
   { id: 'p2', name: 'GitHub', url: 'https://github.com/search?q={query}', icon: '🐙', createdAt: 2000 },
 ];
 
+vi.mock('../../../built-in-features/portals/portalLifecycle', () => ({
+  deletePortal: vi.fn(),
+}));
+
 vi.mock('../../../built-in-features/portals/portalStore.svelte', () => {
   type ChangeCb = (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
   const subscribers = new Set<ChangeCb>();
@@ -167,11 +171,13 @@ describe('PortalsSyncProvider', () => {
     });
   });
 
-  describe('applyItemDelete routes to portalStore.remove', () => {
-    it('removes the portal by id', async () => {
-      const { portalStore } = await import('../../../built-in-features/portals/portalStore.svelte');
+  describe('applyItemDelete routes to deletePortal', () => {
+    it('runs the full portal teardown (store + shortcut + index), not just store removal', async () => {
+      // Regression for issue #433: a portal deleted on another device must
+      // also drop its global hotkey and search-index entry on this device.
+      const { deletePortal } = await import('../../../built-in-features/portals/portalLifecycle');
       await provider.applyItemDelete('p1');
-      expect(portalStore.remove).toHaveBeenCalledWith('p1');
+      expect(deletePortal).toHaveBeenCalledWith('p1');
     });
   });
 

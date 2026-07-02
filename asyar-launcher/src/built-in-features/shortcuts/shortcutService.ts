@@ -7,6 +7,7 @@ import { settingsService } from '../../services/settings/settingsService.svelte'
 import { contextActivationId, contextModeService } from '../../services/context/contextModeService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
+import { portalStore } from '../portals/portalStore.svelte';
 import { logService } from '../../services/log/logService';
 import { showWindow, registerItemShortcut, unregisterItemShortcut } from '../../lib/ipc/commands';
 
@@ -135,13 +136,21 @@ class ShortcutService {
       searchStores.query = '';
 
       if (shortcutInfo.objectId.startsWith('cmd_portals_')) {
+        const portalId = shortcutInfo.objectId.replace('cmd_portals_', '');
+        // Self-heal shortcuts orphaned by a portal deletion that predates the
+        // teardown in deletePortal (or synced in from another device): firing
+        // a binding whose portal is gone tears the binding down.
+        if (!portalStore.getById(portalId)) {
+          logService.warn(`Shortcut fired for deleted portal ${portalId} — unregistering`);
+          await this.unregister(shortcutInfo.objectId);
+          return;
+        }
         // Portals activate a chip mode instead of navigating, so there's no
         // navigateToView for replacement semantics to piggyback on — drain
         // the stack explicitly before seeding the chip.
         while (viewManager.getNavigationStackSize() > 0) {
           viewManager.goBack();
         }
-        const portalId = shortcutInfo.objectId.replace('cmd_portals_', '');
         contextActivationId.set(portalId);
         await tick();
         await showWindow();
