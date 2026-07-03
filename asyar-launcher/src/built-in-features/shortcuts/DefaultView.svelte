@@ -1,9 +1,6 @@
 <script lang="ts">
-  import {
-    shortcutStore,
-    groupShortcutsBySection,
-    type ItemShortcut,
-  } from './shortcutStore.svelte';
+  import { shortcutStore, type ItemShortcut } from './shortcutStore.svelte';
+  import { shortcutViewState } from './shortcutViewState.svelte';
   import { shortcutService } from './shortcutService';
   import { toDisplayKeys, normalizeShortcut } from './shortcutFormatter';
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
@@ -20,32 +17,10 @@
   let captureModifier = $state('');
   let captureKey = $state('');
 
-  const filteredShortcuts = $derived.by(() => {
-    const all = shortcutStore.shortcuts;
-    const q = searchStores.query.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter(s =>
-      s.itemName.toLowerCase().includes(q) ||
-      s.itemType.toLowerCase().includes(q) ||
-      (s.itemPath?.toLowerCase().includes(q) ?? false)
-    );
-  });
-
-  const grouped = $derived(groupShortcutsBySection(filteredShortcuts));
-  const orderedItems = $derived([...grouped.applications, ...grouped.commands]);
-
-  let selectedIndex = $state(0);
-  let selectedShortcut = $derived(
-    selectedIndex >= 0 && selectedIndex < orderedItems.length ? orderedItems[selectedIndex] : null
-  );
-
-  $effect(() => {
-    if (orderedItems.length === 0) {
-      selectedIndex = -1;
-    } else if (selectedIndex < 0 || selectedIndex >= orderedItems.length) {
-      selectedIndex = 0;
-    }
-  });
+  const grouped = $derived(shortcutViewState.groups);
+  const orderedItems = $derived(shortcutViewState.orderedItems);
+  const selectedIndex = $derived(shortcutViewState.selectedIndex);
+  const selectedShortcut = $derived(shortcutViewState.selectedShortcut);
 
   $effect(() => {
     const s = selectedShortcut;
@@ -174,7 +149,7 @@
         selected={selectedIndex === index}
         title={s.itemName}
         icon={iconForRow(s)}
-        onclick={() => (selectedIndex = index)}
+        onclick={() => shortcutViewState.setIndex(index)}
         ondblclick={() => startEdit()}
       />
     {/snippet}
