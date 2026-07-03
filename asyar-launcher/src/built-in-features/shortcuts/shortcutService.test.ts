@@ -23,6 +23,7 @@ const mockWithReplacementSemantics = vi.hoisted(() =>
 )
 const mockShowWindow = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const mockSearchStores = vi.hoisted(() => ({ query: '' }))
+const mockPortalGetById = vi.hoisted(() => vi.fn())
 
 vi.mock('./shortcutStore.svelte', () => ({
   shortcutStore: {
@@ -71,6 +72,10 @@ vi.mock('../../services/search/stores/search.svelte', () => ({
   searchStores: mockSearchStores,
 }))
 
+vi.mock('../portals/portalStore.svelte', () => ({
+  portalStore: { getById: mockPortalGetById },
+}))
+
 vi.mock('../../services/log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
@@ -109,6 +114,7 @@ beforeEach(() => {
   mockGetValidShortcutKeys.mockResolvedValue(['A', 'B', 'Space'])
   mockRegisterItemShortcut.mockResolvedValue(true)
   mockUnregisterItemShortcut.mockResolvedValue(true)
+  mockPortalGetById.mockImplementation((id: string) => ({ id, name: 'Portal', url: 'https://x.com/{query}', icon: '🌐', createdAt: 0 }))
 })
 
 // ── init ──────────────────────────────────────────────────────────────────────
@@ -356,7 +362,10 @@ describe('handleFiredShortcut', () => {
     )
     await shortcutService.handleFiredShortcut('cmd_portals_google')
     expect(mockShowWindow).toHaveBeenCalled()
-    expect(mockContextSet).toHaveBeenCalledWith('google')
+    // Must be the context PROVIDER id ('portal_' prefix) — providers are
+    // registered as `portal_<portalId>`, and contextModeService.activate()
+    // silently no-ops on an unknown id, so the raw portal id showed no chip.
+    expect(mockContextSet).toHaveBeenCalledWith('portal_google')
     expect(mockExecuteCommand).not.toHaveBeenCalled()
   })
 
@@ -368,6 +377,21 @@ describe('handleFiredShortcut', () => {
     await shortcutService.handleFiredShortcut('cmd_portals_google')
     expect(mockViewManagerGoBack).toHaveBeenCalledTimes(2)
     expect(mockWithReplacementSemantics).not.toHaveBeenCalled()
+  })
+
+  it('self-heals a shortcut whose portal no longer exists: unregisters it instead of firing', async () => {
+    // Regression for issue #433: shortcuts orphaned before the delete-path fix
+    // (or synced in from a device that hasn't deleted yet) must not activate
+    // a dead portal chip — the binding gets torn down on first fire.
+    mockPortalGetById.mockReturnValue(undefined)
+    mockStoreGetByObjectId.mockReturnValue(
+      makeShortcut({ objectId: 'cmd_portals_gone', itemType: 'command', shortcut: 'Alt+A' })
+    )
+    await shortcutService.handleFiredShortcut('cmd_portals_gone')
+    expect(mockUnregisterItemShortcut).toHaveBeenCalledWith('Alt', 'A')
+    expect(mockStoreRemove).toHaveBeenCalledWith('cmd_portals_gone')
+    expect(mockContextSet).not.toHaveBeenCalled()
+    expect(mockShowWindow).not.toHaveBeenCalled()
   })
 
 })

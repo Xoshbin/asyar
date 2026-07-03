@@ -1,7 +1,8 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { portalStore, type Portal } from './portalStore.svelte';
-  import { syncPortalToIndex, removePortalFromIndex, portalsUiState } from './index.svelte';
+  import { portalsUiState } from './index.svelte';
+  import { syncPortalToIndex, removePortalFromIndex, deletePortal } from './portalLifecycle';
   import { parseUrlPlaceholders } from '../../lib/placeholders';
   import PortalForm from './PortalForm.svelte';
   import {
@@ -133,14 +134,13 @@
       variant: 'danger',
     });
     if (!confirmed) return;
-    portalStore.remove(portal.id);
     try {
-      await removePortalFromIndex(portal.id);
+      await deletePortal(portal.id);
     } catch (err) {
       diagnosticsService.report({
         source: 'frontend', kind: 'manual', severity: 'warning',
         retryable: false,
-        context: { message: `Could not remove portal from search index: ${err}` },
+        context: { message: `Could not fully remove portal: ${err}` },
       });
     }
   }
