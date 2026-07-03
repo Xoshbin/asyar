@@ -13,7 +13,8 @@ can do.
 
 See **[Features](./features/)** for a guide to each built-in: Calculator,
 Clipboard History, Snippets, Window Management, Aliases & Shortcuts, Portals,
-Scripts, AI & Agents, MCP, Browser Integration, and the Extension Store.
+Scripts, AI & Agents, MCP, Browser Integration, the Extension Store, and
+[importing from Raycast](./features/raycast-import.md).
 
 ## Reference & help
 

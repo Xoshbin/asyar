@@ -79,8 +79,24 @@ Asyar can search your browser's open tabs, bookmarks, and history, but it requir
 
 5. **Re-pair if needed.** If the companion and Asyar lose their connection after an update, revoke the old pairing in **Settings → Browsers → (remove)** and pair again.
 
+## Raycast import skipped some hotkeys or aliases
+
+This is expected in a few specific cases — Asyar tells you the count but not always the reason:
+
+- **Bound to a Raycast command or extension.** Hotkeys and aliases on Raycast's own built-in commands (Clipboard History, Dictionary, File Search, and similar) or on third-party Raycast extensions have no Asyar equivalent, so they cannot be imported.
+- **The app isn't installed here.** An app hotkey or alias only imports if Asyar finds that exact application on this computer. If you're setting up a new machine, install the app first, then re-run the import.
+- **The alias has unsupported characters.** Asyar aliases must be 1–10 lowercase letters or digits (see [Aliases & Shortcuts](./features/aliases-and-shortcuts.md)). A Raycast alias with symbols, spaces, or uppercase letters is skipped rather than imported broken.
+
+See [Import from Raycast](./features/raycast-import.md) for the full picture of what does and doesn't carry over.
+
+## Raycast import says my password is wrong
+
+- **Use the export password, not your Raycast account password.** This is the password you set (or left blank) in Raycast's **Export Settings & Data** dialog, specific to that one export file.
+- **Re-export if you're not sure.** If you no longer remember the export password, go back to Raycast and run **Export Settings & Data** again with a new password (or no password).
+
 ## Related
 
 - [Getting Started](./getting-started.md)
 - [Settings](./settings.md)
+- [Import from Raycast](./features/raycast-import.md)
 - [FAQ](./faq.md)

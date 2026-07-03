@@ -37,9 +37,14 @@ You can also install an extension from a local file: open **Settings → Extensi
 
 To remove an extension, find it in **Settings → Extensions**, open its detail panel, and click Uninstall.
 
+## Can I import my data from Raycast?
+
+Yes. Search for **Import from Raycast** in the launcher, or open **Settings → Backup → Import from Raycast…**. It reads a Raycast export file (`.rayconfig`, with or without a password) or the plain JSON files from Raycast's Export Snippets/Export Quicklinks commands, and brings over your snippets, quicklinks (as portals), and app hotkeys. See [Import from Raycast](./features/raycast-import.md) for details on what does and doesn't carry over.
+
 ## Related
 
 - [Getting Started](./getting-started.md)
 - [Settings](./settings.md)
 - [Sync & Backup](./sync-and-backup.md)
+- [Import from Raycast](./features/raycast-import.md)
 - [Troubleshooting](./troubleshooting.md)

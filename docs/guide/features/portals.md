@@ -76,3 +76,4 @@ When building a dynamic portal URL, press `{` or click the `{ }` button to inser
 - [The Basics](../the-basics.md)
 - [Aliases & Shortcuts](./aliases-and-shortcuts.md)
 - [Browser Integration](./browser-integration.md)
+- [Import from Raycast](./raycast-import.md) — turn your existing quicklinks into portals instead of recreating them

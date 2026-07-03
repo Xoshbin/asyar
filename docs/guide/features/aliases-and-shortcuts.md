@@ -85,3 +85,4 @@ The shortcuts and aliases themselves are configured via the action panel on sear
 - [Keyboard Shortcuts](../keyboard-shortcuts.md)
 - [Window Management](./window-management.md)
 - [Snippets](./snippets.md)
+- [Import from Raycast](./raycast-import.md) — bring your existing app hotkeys and aliases over instead of recreating them

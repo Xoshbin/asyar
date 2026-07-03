@@ -21,7 +21,7 @@ Once Asyar starts, a small icon appears in the menu bar (macOS) or system tray (
 
 Asyar walks you through a short onboarding flow the first time you launch it. Here is what each step does:
 
-1. **Welcome** — A quick introduction. Click **Get started** to continue.
+1. **Welcome** — A quick introduction, plus theme and window-mode pickers. If you're switching from Raycast, click **Import from Raycast…** here to bring over your snippets, quicklinks, and app hotkeys — see [Import from Raycast](./features/raycast-import.md). Click **Start the tour** to continue.
 
 2. **Pick your global hotkey** — Press the key combination you want to use to summon Asyar from anywhere on your computer. Click inside the recorder, press your desired keys (for example, a modifier + letter), then click **Continue**. You can change this at any time in Settings.
 
@@ -64,6 +64,7 @@ Once you are comfortable with the basics, explore [The Basics](./the-basics.md) 
 ## Related
 
 - [The Basics](./the-basics.md)
+- [Import from Raycast](./features/raycast-import.md)
 - [Keyboard Shortcuts](./keyboard-shortcuts.md)
 - [Settings](./settings.md)
 - [Troubleshooting](./troubleshooting.md)
