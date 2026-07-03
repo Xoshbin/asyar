@@ -728,6 +728,11 @@ fn register_builtin_tools(
 }
 
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    // Must run before any window/webview is created — WKWebView reads this
+    // default when it builds its NSTextInputContext.
+    #[cfg(target_os = "macos")]
+    crate::platform::macos::disable_press_and_hold();
+
     tray::setup_tray(app)?;
 
     // Install a panic hook that emits a `diagnostics:report` event before
