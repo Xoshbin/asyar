@@ -47,6 +47,11 @@ sysinfo = "0.31" # cross-platform process enumeration + kill
 sha2 = "0.10"
 hmac = "0.12"
 aes-gcm = "0.10"
+aes = "0.8"           # Raycast classic .rayconfig decryption (CBC)
+cbc = { version = "0.1", features = ["alloc"] }
+scrypt = { version = "0.11", default-features = false } # Raycast X .rayconfig key derivation
+hex = "0.4"
+flate2 = "1"          # .rayconfig gzip layers
 argon2 = "0.5"
 bip39 = { version = "2.0", default-features = false, features = ["std"] }
 rand = "0.10"

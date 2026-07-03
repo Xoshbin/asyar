@@ -936,6 +936,15 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
     return invokeSafe<number>('ext_cache_clear', { extensionId });
   }
 
+  // ── Raycast import ───────────────────────────────────────────────────────────
+
+  export async function raycastImportParse(
+    path: string,
+    password?: string
+  ): Promise<import('../../built-in-features/raycast-import/types').ParseOutcome | null> {
+    return invokeSafe('raycast_import_parse', { path, password });
+  }
+
   // ── Snippets (legacy — text expansion sync) ──────────────────────────────────
 
   export async function syncSnippetsToRust(snippets: [string, string][]): Promise<void> {

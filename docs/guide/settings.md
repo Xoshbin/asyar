@@ -103,6 +103,7 @@ This section is split across two related tabs.
 
 - **Export** — Select which data categories to include, optionally set a password, and click Export to save a local backup file.
 - **Import** — Choose a backup file to restore from. You can pick which categories to restore and how to handle conflicts (Merge, Replace, or Skip).
+- **Migrate from Raycast** — Click **Import from Raycast…** to bring in snippets, quicklinks, and app hotkeys from a Raycast export file. See [Import from Raycast](./features/raycast-import.md).
 
 **About** tab:
 
@@ -113,6 +114,7 @@ This section is split across two related tabs.
 ## Related
 
 - [Sync & Backup](./sync-and-backup.md)
+- [Import from Raycast](./features/raycast-import.md)
 - [Getting Started](./getting-started.md)
 - [Keyboard Shortcuts](./keyboard-shortcuts.md)
 - [Troubleshooting](./troubleshooting.md)

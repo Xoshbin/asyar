@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { emit } from '@tauri-apps/api/event';
   import {
     SettingsForm,
     SettingsFormRow,
@@ -19,6 +20,13 @@
   onMount(async () => {
     await backup.init();
   });
+
+  // Settings is a separate webview with no extensionManager of its own, so
+  // opening a Tier 1 view lives in the main launcher window — signal it via
+  // the same asyar:run-command event appInitializer.ts listens for.
+  async function openRaycastImport() {
+    await emit('asyar:run-command', { commandId: 'cmd_raycast-import_import-raycast' });
+  }
 </script>
 
 <!-- Export Backup & Restore -->
@@ -64,6 +72,16 @@
           {backup.exportMessage}
         </span>
       {/if}
+    </div>
+  </SettingsFormRow>
+</SettingsForm>
+
+<!-- Migrate from Raycast -->
+<SettingsForm>
+  <SettingsFormRow label="Migrate from Raycast">
+    <div class="action-row">
+      <Button onclick={openRaycastImport}>Import from Raycast…</Button>
+      <span class="text-caption">Snippets, quicklinks, and app hotkeys</span>
     </div>
   </SettingsFormRow>
 </SettingsForm>

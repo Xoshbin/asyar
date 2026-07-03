@@ -1,6 +1,6 @@
 <script lang="ts">
   import { emit } from '@tauri-apps/api/event';
-  import { Card, AppearanceThemeSelector, WindowModeSelector } from '../../../components';
+  import { Card, Button, AppearanceThemeSelector, WindowModeSelector } from '../../../components';
   import { advanceStep } from '../stepLogic';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { onboardingNav } from '../onboardingNav.svelte';
@@ -19,6 +19,13 @@
   async function pickLaunchView(launchView: 'default' | 'compact') {
     await settingsService.updateSettings('appearance', { launchView });
     await emit('asyar:launch-view-changed', { launchView });
+  }
+
+  // Onboarding is a separate webview from the main launcher, same as
+  // Settings — deep-link into the Tier 1 view via the generic
+  // asyar:run-command signal appInitializer.ts listens for.
+  async function openRaycastImport() {
+    await emit('asyar:run-command', { commandId: 'cmd_raycast-import_import-raycast' });
   }
 </script>
 
@@ -44,6 +51,13 @@
         <span class="welcome__row-hint">Default shows results panel; Compact is just the search bar.</span>
       </div>
       <WindowModeSelector value={currentLaunchView} onchange={pickLaunchView} />
+    </div>
+    <div class="welcome__row">
+      <div class="welcome__row-label">
+        <span class="welcome__row-title">Coming from Raycast?</span>
+        <span class="welcome__row-hint">Bring over your snippets, quicklinks, and app hotkeys.</span>
+      </div>
+      <Button class="btn-secondary" onclick={openRaycastImport}>Import from Raycast…</Button>
     </div>
 
   </div>

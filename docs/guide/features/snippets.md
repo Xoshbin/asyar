@@ -85,3 +85,4 @@ The expansion engine itself is built into Asyar; the emoji dictionary comes from
 - [Clipboard History](./clipboard-history.md)
 - [Aliases & Shortcuts](./aliases-and-shortcuts.md)
 - [Extensions](./extensions.md)
+- [Import from Raycast](./raycast-import.md) — bring your existing snippets over instead of recreating them

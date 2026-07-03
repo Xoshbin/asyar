@@ -28,6 +28,7 @@ pub mod oauth;
 pub mod power;
 pub mod process;
 pub mod profile;
+pub mod raycast_import;
 pub mod runs;
 pub mod scripts;
 pub mod searchbar_accessory;

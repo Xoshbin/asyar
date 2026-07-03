@@ -1,0 +1,11 @@
+[
+  {
+    "name": "Personal Email",
+    "text": "sherlock@example.com",
+    "keyword": "@@"
+  },
+  {
+    "name": "Catchphrase",
+    "text": "Elementary, my dear Watson"
+  }
+]
