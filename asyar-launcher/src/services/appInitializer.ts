@@ -327,6 +327,20 @@ export const appInitializer = {
         settingsService.currentSettings.appearance.launchView = payload.launchView;
       });
 
+      // Generic "run this command in the launcher" signal, used by buttons
+      // in the Settings window (a separate webview with no extensionManager
+      // of its own) that deep-link into a Tier 1 view — e.g. Backup tab's
+      // "Import from Raycast" button. `commandId` is the full
+      // `cmd_<extensionId>_<commandId>` object id.
+      listen<{ commandId: string }>('asyar:run-command', async ({ payload }) => {
+        await commands.showWindow();
+        try {
+          await commandService.executeCommand(payload.commandId);
+        } catch (e) {
+          logService.error(`[AppInitializer] asyar:run-command failed for ${payload.commandId}: ${e}`);
+        }
+      });
+
       // Per-extension onboarding completion: when the extension calls
       // `context.proxies.onboarding.complete()`, Rust marks it onboarded
       // and emits this event. The launcher's TS view-handler interception
