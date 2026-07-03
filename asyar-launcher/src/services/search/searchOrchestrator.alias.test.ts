@@ -23,6 +23,8 @@ vi.mock('../context/contextModeService.svelte', () => ({
     isActive: vi.fn(() => false),
     getHint: vi.fn(() => null),
     contextHint: null,
+    getProviderForCommand: vi.fn(() => null),
+    activate: vi.fn(),
   },
 }));
 
@@ -45,15 +47,20 @@ vi.mock('../../lib/ipc/commands', () => ({
 import * as commands from '../../lib/ipc/commands';
 import { searchStores } from './stores/search.svelte';
 import { commandService } from '../extension/commandService.svelte';
+import { contextModeService } from '../context/contextModeService.svelte';
 import { searchOrchestrator, invalidateTopItemsCache } from './searchOrchestrator.svelte';
 
 const mergedSearchMock = vi.mocked(commands.mergedSearch);
 const executeCommand = vi.mocked(commandService.executeCommand);
+const getProviderForCommand = vi.mocked(contextModeService.getProviderForCommand);
+const activate = vi.mocked(contextModeService.activate);
 
 describe('searchOrchestrator alias handling', () => {
   beforeEach(async () => {
     mergedSearchMock.mockReset();
     executeCommand.mockReset();
+    getProviderForCommand.mockReset().mockReturnValue(null);
+    activate.mockReset();
     searchOrchestrator.items = [];
     invalidateTopItemsCache();
     // Clear the orchestrator's private auto-execute guard so each test starts
@@ -90,6 +97,37 @@ describe('searchOrchestrator alias handling', () => {
     });
     await searchOrchestrator.handleSearch('cl ');
     expect(executeCommand).toHaveBeenCalledWith('cmd_clip_history');
+    expect(searchStores.query).toBe('');
+  });
+
+  it('activates context mode instead of auto-executing when the aliased command needs a typed query', async () => {
+    // Regression for issue #433 follow-up: a portal alias (e.g. "g" -> Search
+    // Google) followed by a trailing space must not fire with an empty query.
+    getProviderForCommand.mockReturnValue({ id: 'portal_1', needsQuery: true } as any);
+    mergedSearchMock.mockResolvedValueOnce({
+      results: [
+        { objectId: 'cmd_portals_1', name: 'Search Google', type: 'command', score: 0.5 } as any,
+      ],
+      aliasMatch: { objectId: 'cmd_portals_1', itemType: 'command', autoExecute: true },
+    });
+    await searchOrchestrator.handleSearch('g ');
+    expect(getProviderForCommand).toHaveBeenCalledWith('cmd_portals_1');
+    expect(activate).toHaveBeenCalledWith('portal_1', '');
+    expect(executeCommand).not.toHaveBeenCalled();
+    expect(searchStores.query).toBe('');
+  });
+
+  it('still auto-executes a portal alias when the portal has no query placeholder', async () => {
+    getProviderForCommand.mockReturnValue({ id: 'portal_2', needsQuery: false } as any);
+    mergedSearchMock.mockResolvedValueOnce({
+      results: [
+        { objectId: 'cmd_portals_2', name: 'Open GitHub', type: 'command', score: 0.5 } as any,
+      ],
+      aliasMatch: { objectId: 'cmd_portals_2', itemType: 'command', autoExecute: true },
+    });
+    await searchOrchestrator.handleSearch('gh ');
+    expect(executeCommand).toHaveBeenCalledWith('cmd_portals_2');
+    expect(activate).not.toHaveBeenCalled();
     expect(searchStores.query).toBe('');
   });
 

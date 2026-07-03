@@ -18,6 +18,19 @@ export interface ContextModeProvider {
   type: 'url' | 'view' | 'stream';
   onActivate?: (initialQuery?: string) => void;
   onDeactivate?: () => void;
+  /**
+   * The runtime command object id this provider is registered alongside
+   * (e.g. `cmd_portals_<id>`), if any. Lets callers that only have an
+   * objectId (e.g. an alias match) find the matching context provider.
+   */
+  commandObjectId?: string;
+  /**
+   * True when activating this provider without a query does nothing but
+   * arm the chip (e.g. a portal URL with a `{query}` placeholder). Callers
+   * that would otherwise fire the command with an empty query should
+   * activate the context mode and wait for input instead.
+   */
+  needsQuery?: boolean;
 }
 
 export interface ActiveContext {
@@ -213,6 +226,14 @@ class ContextModeService {
 
   getActiveContext(): ActiveContext | null {
     return this.activeContext;
+  }
+
+  /** Find the provider registered alongside a given command object id, if any. */
+  getProviderForCommand(commandObjectId: string): ContextModeProvider | null {
+    for (const provider of this.providers.values()) {
+      if (provider.commandObjectId === commandObjectId) return provider;
+    }
+    return null;
   }
 
   isActive(): boolean {

@@ -54,6 +54,24 @@ export async function deletePortal(portalId: string): Promise<void> {
   await removePortalFromIndex(portalId);
 }
 
+/** Extract `{token}` placeholder names from a portal URL. */
+function getPortalTokens(portalUrl: string): string[] {
+  const TOKEN_RE = /\{([^{}]+)\}/g;
+  return [...portalUrl.matchAll(TOKEN_RE)].map(m => m[1]);
+}
+
+/**
+ * True when the portal URL contains a user-query token ({query}/{Argument}).
+ * These portals can't be resolved without the user typing something, so
+ * activating them (via Tab or an alias) must wait for input rather than
+ * firing immediately.
+ */
+function portalNeedsQuery(portalUrl: string): boolean {
+  return getPortalTokens(portalUrl).some(t =>
+    PLACEHOLDERS.some(p => p.id === 'query' && (p.token === t || p.aliases?.includes(t)))
+  );
+}
+
 /**
  * Resolve a pre-fill value for the query bar when the chip is first set (Tab).
  *
@@ -63,17 +81,10 @@ export async function deletePortal(portalId: string): Promise<void> {
  * user sees the value that will be used and can edit it before pressing Enter.
  */
 async function resolveChipPrefill(portalUrl: string): Promise<string> {
-  const TOKEN_RE = /\{([^{}]+)\}/g;
-  const tokens = [...portalUrl.matchAll(TOKEN_RE)].map(m => m[1]);
-
-  // If the URL has a user-query token the user will type their own input — no pre-fill.
-  const hasQueryToken = tokens.some(t =>
-    PLACEHOLDERS.some(p => p.id === 'query' && (p.token === t || p.aliases?.includes(t)))
-  );
-  if (hasQueryToken) return '';
+  if (portalNeedsQuery(portalUrl)) return '';
 
   // Resolve and return the first known placeholder's value.
-  for (const tokenText of tokens) {
+  for (const tokenText of getPortalTokens(portalUrl)) {
     const def = PLACEHOLDERS.find(p => p.token === tokenText || p.aliases?.includes(tokenText));
     if (def) return def.resolve({});
   }
@@ -83,6 +94,8 @@ async function resolveChipPrefill(portalUrl: string): Promise<string> {
 function registerPortalContextProvider(portal: Portal): void {
   contextModeService.registerProvider({
     id: `portal_${portal.id}`,
+    commandObjectId: `cmd_portals_${portal.id}`,
+    needsQuery: portalNeedsQuery(portal.url),
     triggers: [portal.name],
     display: {
       name: portal.name,

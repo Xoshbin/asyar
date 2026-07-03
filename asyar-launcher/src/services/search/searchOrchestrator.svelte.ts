@@ -11,6 +11,7 @@ import { dispatch } from '../extension/extensionDispatcher.svelte';
 import { commandService } from '../extension/commandService.svelte';
 import { isBuiltInFeature } from '../extension/extensionDiscovery';
 import { actionService } from '../action/actionService.svelte';
+import { contextModeService } from '../context/contextModeService.svelte';
 
 export { invalidateTopItemsCache };
 
@@ -118,8 +119,18 @@ class SearchOrchestratorClass {
       if (aliasMatch && aliasMatch.autoExecute && aliasMatch.itemType === 'command') {
         if (this.#lastAutoExecutedQuery !== query) {
           this.#lastAutoExecutedQuery = query;
-          void commandService.executeCommand(aliasMatch.objectId);
-          searchStores.query = '';
+          // If the aliased command needs a typed query (e.g. a portal with a
+          // {query} placeholder), firing it now would resolve with an empty
+          // value. Arm its context mode instead — same as pressing Tab — so
+          // the user types the parameter before it runs (issue #433 follow-up).
+          const provider = contextModeService.getProviderForCommand(aliasMatch.objectId);
+          if (provider?.needsQuery) {
+            searchStores.query = '';
+            contextModeService.activate(provider.id, '');
+          } else {
+            void commandService.executeCommand(aliasMatch.objectId);
+            searchStores.query = '';
+          }
           this.items = [];
           this.lastCompletedQuery = '';
           if (token === this.#searchToken) searchStores.isLoading = false;
