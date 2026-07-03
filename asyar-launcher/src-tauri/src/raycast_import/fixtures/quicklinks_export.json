@@ -1,0 +1,12 @@
+[
+  {
+    "link": "https://duckduckgo.com/?q={argument}",
+    "name": "Search DuckDuckGo"
+  },
+  {
+    "openWith": "Finder",
+    "iconName": "folder-16",
+    "link": "~/Downloads",
+    "name": "Downloads"
+  }
+]

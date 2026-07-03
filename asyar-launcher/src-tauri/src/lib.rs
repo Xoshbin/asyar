@@ -82,6 +82,7 @@ pub mod platform;
 pub mod power;
 pub mod process_manager;
 pub mod profile;
+pub mod raycast_import;
 pub mod runs;
 pub mod scripts;
 mod search_engine;
@@ -415,6 +416,8 @@ pub fn run() {
             storage::commands::snippet_remove,
             storage::commands::snippet_toggle_pin,
             storage::commands::snippet_clear_all,
+            // Raycast import
+            commands::raycast_import::raycast_import_parse,
             // Storage: shortcuts
             storage::commands::shortcut_upsert,
             storage::commands::shortcut_get_all,
