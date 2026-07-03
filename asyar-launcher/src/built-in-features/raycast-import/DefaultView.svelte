@@ -2,16 +2,29 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import { Button, Input, Toggle, EmptyState, LoadingState, Card, Icon } from '../../components';
   import { raycastImportState as state } from './raycastImportState.svelte';
+  import { setFocusLock } from '../../lib/ipc/commands';
+  import { logService } from '../../services/log/logService';
 
   async function pickFile() {
-    const selected = await open({
-      multiple: false,
-      filters: [
-        { name: 'Raycast export', extensions: ['rayconfig', 'json'] },
-      ],
-    });
-    if (typeof selected === 'string') {
-      await state.chooseFile(selected);
+    // The native file dialog steals window focus; without a lock the
+    // launcher's hide-on-blur (panel resign-key on macOS, window blur
+    // elsewhere) closes it right under the dialog. Same pattern as
+    // CreateExtensionView's handleBrowse.
+    await setFocusLock(true);
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: [
+          { name: 'Raycast export', extensions: ['rayconfig', 'json'] },
+        ],
+      });
+      if (typeof selected === 'string') {
+        await state.chooseFile(selected);
+      }
+    } catch (e) {
+      logService.error(`Raycast import: file dialog error: ${e}`);
+    } finally {
+      await setFocusLock(false);
     }
   }
 
@@ -135,6 +148,15 @@
       </div>
     {:else if state.phase === 'importing'}
       <LoadingState message="Importing…" />
+    {:else if state.phase === 'error'}
+      <div class="import-step">
+        <p class="text-title">Import failed</p>
+        <p class="text-caption password-error">{state.errorMessage}</p>
+        <div class="import-actions">
+          <Button onclick={() => state.reset()}>Start over</Button>
+          <Button class="btn-primary" onclick={() => state.backToPreview()}>Back to preview</Button>
+        </div>
+      </div>
     {:else if state.phase === 'done' && state.summary}
       <EmptyState message="Import complete" description="Duplicates already in Asyar were skipped.">
         {#snippet icon()}

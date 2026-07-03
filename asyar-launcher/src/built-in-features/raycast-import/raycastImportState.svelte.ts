@@ -2,14 +2,15 @@ import { raycastImportParse } from '../../lib/ipc/commands';
 import { applyBundle } from './importApplier';
 import type { ImportBundle, ImportSelection, ImportSummary } from './types';
 
-export type ImportPhase = 'pick' | 'password' | 'preview' | 'importing' | 'done';
+export type ImportPhase = 'pick' | 'password' | 'preview' | 'importing' | 'done' | 'error';
 
 /**
  * Wizard state for the Import from Raycast view:
  *
  *   pick ──parse──▶ preview ──runImport──▶ importing ──▶ done
- *     │                ▲
- *     └─▶ password ────┘  (encrypted .rayconfig)
+ *     │                ▲  ▲                      │
+ *     │                │  └──── backToPreview ───┤
+ *     └─▶ password ────┘                    (throws) ──▶ error
  */
 export class RaycastImportState {
   phase = $state<ImportPhase>('pick');
@@ -20,6 +21,7 @@ export class RaycastImportState {
   bundle = $state<ImportBundle | null>(null);
   selection = $state<ImportSelection>({ snippets: true, portals: true, shortcuts: true, aliases: true });
   summary = $state<ImportSummary | null>(null);
+  errorMessage = $state<string | null>(null);
 
   reset(): void {
     this.phase = 'pick';
@@ -30,6 +32,7 @@ export class RaycastImportState {
     this.bundle = null;
     this.selection = { snippets: true, portals: true, shortcuts: true, aliases: true };
     this.summary = null;
+    this.errorMessage = null;
   }
 
   async chooseFile(path: string): Promise<void> {
@@ -77,8 +80,23 @@ export class RaycastImportState {
   async runImport(): Promise<void> {
     if (!this.bundle) return;
     this.phase = 'importing';
-    this.summary = await applyBundle(this.bundle, { ...this.selection });
-    this.phase = 'done';
+    try {
+      this.summary = await applyBundle(this.bundle, { ...this.selection });
+      this.phase = 'done';
+    } catch (e) {
+      // Without this, a thrown/rejected write (e.g. a shortcut/alias IPC
+      // call failing) left the wizard stuck on the loading spinner forever
+      // with no way back — the launcher appeared "frozen" from the user's
+      // perspective even though the rest of the app was fine.
+      this.errorMessage = String(e);
+      this.phase = 'error';
+    }
+  }
+
+  /** Recover from an import failure without re-parsing the file. */
+  backToPreview(): void {
+    this.errorMessage = null;
+    this.phase = 'preview';
   }
 }
 

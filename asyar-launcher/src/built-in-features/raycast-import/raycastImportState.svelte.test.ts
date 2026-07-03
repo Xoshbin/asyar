@@ -109,5 +109,31 @@ describe('RaycastImportState', () => {
     expect(state.filePath).toBeNull();
     expect(state.password).toBe('');
     expect(state.summary).toBeNull();
+    expect(state.errorMessage).toBeNull();
+  });
+
+  it('moves to the error phase instead of hanging when applyBundle throws', async () => {
+    vi.mocked(raycastImportParse).mockResolvedValue({ status: 'ok', bundle: BUNDLE });
+    vi.mocked(applyBundle).mockRejectedValue(new Error('registerItemShortcut failed'));
+
+    await state.chooseFile('/tmp/export.rayconfig');
+    await state.runImport();
+
+    expect(state.phase).toBe('error');
+    expect(state.errorMessage).toBe('Error: registerItemShortcut failed');
+    expect(state.summary).toBeNull();
+  });
+
+  it('backToPreview clears the error and returns to the preview phase', async () => {
+    vi.mocked(raycastImportParse).mockResolvedValue({ status: 'ok', bundle: BUNDLE });
+    vi.mocked(applyBundle).mockRejectedValue(new Error('boom'));
+    await state.chooseFile('/tmp/export.rayconfig');
+    await state.runImport();
+
+    state.backToPreview();
+
+    expect(state.phase).toBe('preview');
+    expect(state.errorMessage).toBeNull();
+    expect(state.bundle).toEqual(BUNDLE);
   });
 });
