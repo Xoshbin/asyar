@@ -814,6 +814,33 @@ pub fn install_appearance_observer<R: Runtime + 'static>(app: &AppHandle<R>) {
     }
 }
 
+/// Disables macOS's "hold key for accented characters" popup for Asyar's
+/// own process (issue #433, item 3). WKWebView shows this popup on any
+/// focused editable element when a key is held, driven by AppKit's
+/// `NSTextInputContext` — a layer below WebKit's DOM event dispatch, so
+/// the shortcut recorder's capture-phase `preventDefault()` in
+/// `useShortcutCapture.svelte.ts` never reaches it. `NSUserDefaults` is
+/// scoped to the calling process's own bundle id, so this does not affect
+/// any other app or a system-wide setting.
+pub fn disable_press_and_hold() {
+    unsafe {
+        let defaults_cls = match AnyClass::get("NSUserDefaults") {
+            Some(c) => c,
+            None => {
+                log::warn!("[disable_press_and_hold] NSUserDefaults class not found");
+                return;
+            }
+        };
+        let defaults: *mut AnyObject = msg_send![defaults_cls, standardUserDefaults];
+        if defaults.is_null() {
+            log::warn!("[disable_press_and_hold] standardUserDefaults returned null");
+            return;
+        }
+        let key = NSString::from_str("ApplePressAndHoldEnabled");
+        let _: () = msg_send![defaults, setBool: Bool::NO forKey: Retained::as_ptr(&key)];
+    }
+}
+
 pub fn register_cmdq_monitor(app_handle: AppHandle) {
     use block2::StackBlock;
     const KEY_DOWN_MASK: u64 = 1u64 << 10;
