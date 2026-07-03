@@ -45,7 +45,7 @@ pub struct ImportPortal {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ShortcutTarget {
     /// An application hotkey. `object_id`/`item_name`/`item_icon` are filled
-    /// by [`resolve_app_shortcuts`] when the app exists in Asyar's index.
+    /// by [`resolve_app_targets`] when the app exists in Asyar's index.
     #[serde(rename_all = "camelCase")]
     App {
         path: String,
@@ -70,6 +70,18 @@ pub struct ImportShortcut {
     pub shortcut: String,
 }
 
+/// An alias candidate. Asyar's alias system (see
+/// `built-in-features/aliases`) binds a short typed string to an app or
+/// command object_id, same as Raycast's command aliases — so unlike
+/// hotkeys, this always has a real Asyar destination as long as the alias
+/// text itself is valid and the target resolves.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportAlias {
+    pub target: ShortcutTarget,
+    pub alias: String,
+}
+
 /// Counts of items present in the export that cannot be represented in Asyar.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -78,7 +90,10 @@ pub struct SkippedCounts {
     /// plus hotkeys whose key/modifiers could not be mapped, plus app
     /// hotkeys whose application is not present in Asyar's index.
     pub hotkeys: u32,
-    /// Command aliases (Asyar has no alias concept).
+    /// Aliases bound to a Raycast command/extension with no Asyar
+    /// equivalent, aliases with characters Asyar's alias validator rejects
+    /// (must be 1-10 lowercase letters/digits), plus app aliases whose
+    /// application is not present in Asyar's index.
     pub aliases: u32,
 }
 
@@ -99,6 +114,7 @@ pub struct ImportBundle {
     pub snippets: Vec<ImportSnippet>,
     pub portals: Vec<ImportPortal>,
     pub shortcuts: Vec<ImportShortcut>,
+    pub aliases: Vec<ImportAlias>,
     pub skipped: SkippedCounts,
 }
 
@@ -145,30 +161,48 @@ pub fn parse_export(bytes: &[u8], password: Option<&str>) -> Result<ParseOutcome
 }
 
 /// Attach Asyar index identity (`object_id`, display name, icon) to app
-/// hotkeys by matching the exported app path against the installed-app list.
-/// App hotkeys with no matching installed app are dropped and counted in
-/// `skipped.hotkeys`.
-pub fn resolve_app_shortcuts(bundle: &mut ImportBundle, apps: &[Application]) {
-    let mut kept = Vec::with_capacity(bundle.shortcuts.len());
+/// hotkeys and app aliases by matching the exported app path against the
+/// installed-app list. Entries with no matching installed app are dropped
+/// and counted in `skipped.hotkeys`/`skipped.aliases` respectively. Portal
+/// targets pass through untouched — they carry their own identity already.
+pub fn resolve_app_targets(bundle: &mut ImportBundle, apps: &[Application]) {
+    let mut kept_shortcuts = Vec::with_capacity(bundle.shortcuts.len());
     for mut shortcut in bundle.shortcuts.drain(..) {
-        if let ShortcutTarget::App { path, object_id, item_name, item_icon } =
-            &mut shortcut.target
-        {
-            match apps.iter().find(|a| &a.path == path) {
-                Some(app) => {
-                    *object_id = Some(app.id.clone());
-                    *item_name = Some(app.name.clone());
-                    *item_icon = app.icon.clone();
-                }
-                None => {
-                    bundle.skipped.hotkeys += 1;
-                    continue;
-                }
-            }
+        if resolve_app_target(&mut shortcut.target, apps) {
+            kept_shortcuts.push(shortcut);
+        } else {
+            bundle.skipped.hotkeys += 1;
         }
-        kept.push(shortcut);
     }
-    bundle.shortcuts = kept;
+    bundle.shortcuts = kept_shortcuts;
+
+    let mut kept_aliases = Vec::with_capacity(bundle.aliases.len());
+    for mut alias in bundle.aliases.drain(..) {
+        if resolve_app_target(&mut alias.target, apps) {
+            kept_aliases.push(alias);
+        } else {
+            bundle.skipped.aliases += 1;
+        }
+    }
+    bundle.aliases = kept_aliases;
+}
+
+/// Returns `false` when the target is an `App` whose path has no match in
+/// `apps` (the caller drops the entry); `true` otherwise, having filled in
+/// index identity for `App` targets.
+fn resolve_app_target(target: &mut ShortcutTarget, apps: &[Application]) -> bool {
+    let ShortcutTarget::App { path, object_id, item_name, item_icon } = target else {
+        return true;
+    };
+    match apps.iter().find(|a| &a.path == path) {
+        Some(app) => {
+            *object_id = Some(app.id.clone());
+            *item_name = Some(app.name.clone());
+            *item_icon = app.icon.clone();
+            true
+        }
+        None => false,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -303,6 +337,7 @@ fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBund
         snippets: Vec::new(),
         portals: Vec::new(),
         shortcuts: Vec::new(),
+        aliases: Vec::new(),
         skipped: SkippedCounts::default(),
     };
 
@@ -350,33 +385,28 @@ fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBund
         .and_then(|v| v.as_array())
     {
         for command in commands {
-            if command.get("alias").and_then(|v| v.as_str()).is_some() {
-                bundle.skipped.aliases += 1;
-            }
-            let hotkey = command
-                .get("macosHotkey")
-                .or_else(|| command.get("windowsHotkey"));
-            let Some(hotkey) = hotkey else { continue };
             let id = command.get("id").and_then(|v| v.as_str()).unwrap_or("");
 
-            let target = if let Some(path) = id.strip_prefix(X_APP_COMMAND_PREFIX) {
-                ShortcutTarget::App {
-                    path: path.to_string(),
-                    object_id: None,
-                    item_name: None,
-                    item_icon: None,
+            if let Some(hotkey) = command
+                .get("macosHotkey")
+                .or_else(|| command.get("windowsHotkey"))
+            {
+                match (shortcut_target_from_command_id(id), translate_hotkey(hotkey)) {
+                    (Some(target), Some(shortcut)) => {
+                        bundle.shortcuts.push(ImportShortcut { target, shortcut })
+                    }
+                    _ => bundle.skipped.hotkeys += 1,
                 }
-            } else if let Some(ql_id) = id.strip_prefix(X_QUICKLINK_COMMAND_PREFIX) {
-                ShortcutTarget::Portal { raycast_quicklink_id: ql_id.to_string() }
-            } else {
-                // Hotkeys on Raycast commands/extensions have no Asyar target.
-                bundle.skipped.hotkeys += 1;
-                continue;
-            };
+            }
 
-            match translate_hotkey(hotkey) {
-                Some(shortcut) => bundle.shortcuts.push(ImportShortcut { target, shortcut }),
-                None => bundle.skipped.hotkeys += 1,
+            if let Some(alias_raw) = command.get("alias").and_then(|v| v.as_str()) {
+                match (
+                    shortcut_target_from_command_id(id),
+                    normalize_and_validate_alias(alias_raw),
+                ) {
+                    (Some(target), Some(alias)) => bundle.aliases.push(ImportAlias { target, alias }),
+                    _ => bundle.skipped.aliases += 1,
+                }
             }
         }
     }
@@ -386,6 +416,34 @@ fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBund
 
 const X_APP_COMMAND_PREFIX: &str = "c:r:applications::*::application::=::";
 const X_QUICKLINK_COMMAND_PREFIX: &str = "c:r:quicklinks::*::quicklink::=::";
+
+/// Hotkeys and aliases in Raycast X commands share the same addressing
+/// scheme; only app and quicklink commands have an Asyar equivalent target.
+fn shortcut_target_from_command_id(id: &str) -> Option<ShortcutTarget> {
+    if let Some(path) = id.strip_prefix(X_APP_COMMAND_PREFIX) {
+        return Some(ShortcutTarget::App {
+            path: path.to_string(),
+            object_id: None,
+            item_name: None,
+            item_icon: None,
+        });
+    }
+    id.strip_prefix(X_QUICKLINK_COMMAND_PREFIX)
+        .map(|ql_id| ShortcutTarget::Portal { raycast_quicklink_id: ql_id.to_string() })
+}
+
+/// Mirrors Asyar's alias validator (`aliasValidation.ts::ALIAS_REGEX`):
+/// 1-10 lowercase letters/digits after trimming and lowercasing.
+fn normalize_and_validate_alias(raw: &str) -> Option<String> {
+    let lowered = raw.trim().to_ascii_lowercase();
+    if lowered.is_empty() || lowered.len() > 10 {
+        return None;
+    }
+    lowered
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        .then_some(lowered)
+}
 
 /// Raycast X serializes `pinned` as an integer (0/1) in some categories and
 /// a boolean in classic exports.
@@ -459,6 +517,7 @@ fn parse_classic(value: &serde_json::Value) -> Result<ImportBundle, AppError> {
         snippets: Vec::new(),
         portals: Vec::new(),
         shortcuts: Vec::new(),
+        aliases: Vec::new(),
         skipped: SkippedCounts::default(),
     };
 
@@ -536,6 +595,7 @@ fn parse_plain_json(items: &[serde_json::Value]) -> Result<ImportBundle, AppErro
             snippets,
             portals: Vec::new(),
             shortcuts: Vec::new(),
+            aliases: Vec::new(),
             skipped: SkippedCounts::default(),
         });
     }
@@ -559,6 +619,7 @@ fn parse_plain_json(items: &[serde_json::Value]) -> Result<ImportBundle, AppErro
             snippets: Vec::new(),
             portals,
             shortcuts: Vec::new(),
+            aliases: Vec::new(),
             skipped: SkippedCounts::default(),
         });
     }
@@ -831,9 +892,37 @@ mod tests {
         );
         assert_eq!(ql.shortcut, "Shift+Super+T");
 
-        // system-command hotkey skipped; one alias skipped
+        // system-command hotkey (no Asyar target) skipped
         assert_eq!(b.skipped.hotkeys, 1);
-        assert_eq!(b.skipped.aliases, 1);
+    }
+
+    #[test]
+    fn x_plain_parses_aliases_and_skips_unresolvable_or_invalid() {
+        let b = bundle(parse_export(X_PLAIN, None).unwrap());
+        assert_eq!(b.aliases.len(), 2);
+
+        let app_alias = &b.aliases[0];
+        assert_eq!(
+            app_alias.target,
+            ShortcutTarget::App {
+                path: "/Applications/iTerm.app".into(),
+                object_id: None,
+                item_name: None,
+                item_icon: None,
+            }
+        );
+        assert_eq!(app_alias.alias, "it");
+
+        let portal_alias = &b.aliases[1];
+        assert_eq!(
+            portal_alias.target,
+            ShortcutTarget::Portal { raycast_quicklink_id: "02A".into() }
+        );
+        assert_eq!(portal_alias.alias, "gg");
+
+        // Foo.app's alias "?" fails Asyar's validator; xxxx's "tr" is bound
+        // to a Raycast extension command with no Asyar target.
+        assert_eq!(b.skipped.aliases, 2);
     }
 
     #[test]
@@ -934,12 +1023,12 @@ mod tests {
     }
 
     #[test]
-    fn resolve_app_shortcuts_fills_index_identity_and_drops_missing_apps() {
+    fn resolve_app_targets_fills_index_identity_and_drops_missing_apps() {
         let mut b = bundle(parse_export(X_PLAIN, None).unwrap());
         let apps = vec![make_app("app_123", "iTerm", "/Applications/iTerm.app")];
-        let skipped_before = b.skipped.hotkeys;
+        let skipped_hotkeys_before = b.skipped.hotkeys;
 
-        resolve_app_shortcuts(&mut b, &apps);
+        resolve_app_targets(&mut b, &apps);
 
         // iTerm matched: identity attached
         assert_eq!(b.shortcuts.len(), 2);
@@ -954,8 +1043,40 @@ mod tests {
 
         // Now resolve against an empty index: app hotkey dropped and counted
         let mut b2 = bundle(parse_export(X_PLAIN, None).unwrap());
-        resolve_app_shortcuts(&mut b2, &[]);
+        resolve_app_targets(&mut b2, &[]);
         assert_eq!(b2.shortcuts.len(), 1); // only the portal hotkey remains
-        assert_eq!(b2.skipped.hotkeys, skipped_before + 1);
+        assert_eq!(b2.skipped.hotkeys, skipped_hotkeys_before + 1);
+    }
+
+    #[test]
+    fn resolve_app_targets_fills_alias_identity_and_drops_missing_apps() {
+        let mut b = bundle(parse_export(X_PLAIN, None).unwrap());
+        let apps = vec![make_app("app_123", "iTerm", "/Applications/iTerm.app")];
+        let skipped_aliases_before = b.skipped.aliases;
+
+        resolve_app_targets(&mut b, &apps);
+
+        // iTerm's alias resolved: identity attached
+        assert_eq!(b.aliases.len(), 2);
+        match &b.aliases[0].target {
+            ShortcutTarget::App { object_id, item_name, item_icon, .. } => {
+                assert_eq!(object_id.as_deref(), Some("app_123"));
+                assert_eq!(item_name.as_deref(), Some("iTerm"));
+                assert_eq!(item_icon.as_deref(), Some("icon-data"));
+            }
+            other => panic!("expected app target, got {other:?}"),
+        }
+        // Portal alias passes through untouched
+        assert_eq!(
+            b.aliases[1].target,
+            ShortcutTarget::Portal { raycast_quicklink_id: "02A".into() }
+        );
+
+        // Against an empty index: iTerm's alias dropped and counted, portal
+        // alias (no app resolution needed) survives.
+        let mut b2 = bundle(parse_export(X_PLAIN, None).unwrap());
+        resolve_app_targets(&mut b2, &[]);
+        assert_eq!(b2.aliases.len(), 1);
+        assert_eq!(b2.skipped.aliases, skipped_aliases_before + 1);
     }
 }

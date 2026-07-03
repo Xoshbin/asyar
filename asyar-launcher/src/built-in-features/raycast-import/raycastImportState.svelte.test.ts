@@ -17,6 +17,7 @@ const BUNDLE: ImportBundle = {
   snippets: [{ name: 'S', expansion: 'x', pinned: false }],
   portals: [],
   shortcuts: [],
+  aliases: [],
   skipped: { hotkeys: 2, aliases: 1 },
 };
 
@@ -79,6 +80,7 @@ describe('RaycastImportState', () => {
       snippets: { added: 1, skipped: 0 },
       portals: { added: 0, skipped: 0 },
       shortcuts: { added: 0, skipped: 0 },
+      aliases: { added: 0, skipped: 0 },
     };
     vi.mocked(applyBundle).mockResolvedValue(summary);
 
@@ -90,6 +92,7 @@ describe('RaycastImportState', () => {
       snippets: true,
       portals: false,
       shortcuts: true,
+      aliases: true,
     });
     expect(state.phase).toBe('done');
     expect(state.summary).toEqual(summary);

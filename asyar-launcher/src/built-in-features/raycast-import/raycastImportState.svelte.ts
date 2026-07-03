@@ -18,7 +18,7 @@ export class RaycastImportState {
   passwordError = $state(false);
   parsing = $state(false);
   bundle = $state<ImportBundle | null>(null);
-  selection = $state<ImportSelection>({ snippets: true, portals: true, shortcuts: true });
+  selection = $state<ImportSelection>({ snippets: true, portals: true, shortcuts: true, aliases: true });
   summary = $state<ImportSummary | null>(null);
 
   reset(): void {
@@ -28,7 +28,7 @@ export class RaycastImportState {
     this.passwordError = false;
     this.parsing = false;
     this.bundle = null;
-    this.selection = { snippets: true, portals: true, shortcuts: true };
+    this.selection = { snippets: true, portals: true, shortcuts: true, aliases: true };
     this.summary = null;
   }
 

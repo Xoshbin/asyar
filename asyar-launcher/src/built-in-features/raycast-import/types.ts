@@ -37,6 +37,11 @@ export interface ImportShortcut {
   shortcut: string;
 }
 
+export interface ImportAlias {
+  target: ShortcutTarget;
+  alias: string;
+}
+
 export interface SkippedCounts {
   hotkeys: number;
   aliases: number;
@@ -47,6 +52,7 @@ export interface ImportBundle {
   snippets: ImportSnippet[];
   portals: ImportPortal[];
   shortcuts: ImportShortcut[];
+  aliases: ImportAlias[];
   skipped: SkippedCounts;
 }
 
@@ -59,6 +65,7 @@ export interface ImportSelection {
   snippets: boolean;
   portals: boolean;
   shortcuts: boolean;
+  aliases: boolean;
 }
 
 export interface CategorySummary {
@@ -70,4 +77,5 @@ export interface ImportSummary {
   snippets: CategorySummary;
   portals: CategorySummary;
   shortcuts: CategorySummary;
+  aliases: CategorySummary;
 }

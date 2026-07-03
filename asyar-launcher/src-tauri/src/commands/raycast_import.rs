@@ -31,7 +31,7 @@ pub async fn raycast_import_parse(
                 _ => None,
             })
             .collect();
-        raycast_import::resolve_app_shortcuts(bundle, &apps);
+        raycast_import::resolve_app_targets(bundle, &apps);
     }
 
     Ok(outcome)

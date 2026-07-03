@@ -38,6 +38,12 @@
       count: state.bundle?.shortcuts.length ?? 0,
       hint: 'App and quicklink hotkeys',
     },
+    {
+      key: 'aliases' as const,
+      label: 'Aliases',
+      count: state.bundle?.aliases.length ?? 0,
+      hint: 'App and quicklink aliases',
+    },
   ]);
 </script>
 
@@ -112,7 +118,8 @@
               bound to Raycast commands or missing apps{/if}{#if state.bundle.skipped.hotkeys > 0 && state.bundle.skipped.aliases > 0},
             {/if}
             {#if state.bundle.skipped.aliases > 0}
-              {state.bundle.skipped.aliases} command alias{state.bundle.skipped.aliases === 1 ? '' : 'es'}{/if}.
+              {state.bundle.skipped.aliases} alias{state.bundle.skipped.aliases === 1 ? '' : 'es'}
+              bound to Raycast commands, missing apps, or with characters Asyar can't use{/if}.
           </p>
         {/if}
         <div class="import-actions">
@@ -120,7 +127,7 @@
           <Button
             class="btn-primary"
             onclick={() => state.runImport()}
-            disabled={!state.selection.snippets && !state.selection.portals && !state.selection.shortcuts}
+            disabled={!state.selection.snippets && !state.selection.portals && !state.selection.shortcuts && !state.selection.aliases}
           >
             Import
           </Button>
@@ -137,6 +144,7 @@
           <span class="text-body">Snippets: {state.summary.snippets.added} added, {state.summary.snippets.skipped} skipped</span>
           <span class="text-body">Portals: {state.summary.portals.added} added, {state.summary.portals.skipped} skipped</span>
           <span class="text-body">Shortcuts: {state.summary.shortcuts.added} added, {state.summary.shortcuts.skipped} skipped</span>
+          <span class="text-body">Aliases: {state.summary.aliases.added} added, {state.summary.aliases.skipped} skipped</span>
         </div>
         <Button class="btn-primary" onclick={() => state.reset()}>Import another file</Button>
       </EmptyState>
