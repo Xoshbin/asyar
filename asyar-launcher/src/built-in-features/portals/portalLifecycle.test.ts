@@ -71,11 +71,44 @@ describe('removePortalFromIndex', () => {
   });
 });
 
+describe('Portal context provider metadata', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function getRegisteredProvider(portalId: string) {
+    return vi.mocked(contextModeService.registerProvider).mock.calls
+      .find(c => c[0].id === `portal_${portalId}`)![0];
+  }
+
+  it('links the provider to its command object id', async () => {
+    const portal = { id: '20', name: 'Google', url: 'https://google.com/?q={query}', icon: '🔍' };
+    await syncPortalToIndex(portal as any);
+    expect(getRegisteredProvider('20').commandObjectId).toBe('cmd_portals_20');
+  });
+
+  it('marks needsQuery true for a {query} portal', async () => {
+    const portal = { id: '21', name: 'Google', url: 'https://google.com/?q={query}', icon: '🔍' };
+    await syncPortalToIndex(portal as any);
+    expect(getRegisteredProvider('21').needsQuery).toBe(true);
+  });
+
+  it('marks needsQuery true for an {Argument} portal (query alias)', async () => {
+    const portal = { id: '22', name: 'Wiki', url: 'https://wiki.com/?q={Argument}', icon: '📖' };
+    await syncPortalToIndex(portal as any);
+    expect(getRegisteredProvider('22').needsQuery).toBe(true);
+  });
+
+  it('marks needsQuery false for a portal with no query placeholder', async () => {
+    const portal = { id: '23', name: 'GitHub', url: 'https://github.com', icon: '🐙' };
+    await syncPortalToIndex(portal as any);
+    expect(getRegisteredProvider('23').needsQuery).toBe(false);
+  });
+});
+
 describe('Portal onActivate guard', () => {
   beforeEach(() => vi.clearAllMocks());
 
   async function getOnActivate(portal: any) {
-    await syncPortalToIndex(portal);
+    await syncPortalToIndex(portal as any);
     const call = vi.mocked(contextModeService.registerProvider).mock.calls
       .find(c => c[0].id === `portal_${portal.id}`);
     return call![0].onActivate!;
@@ -117,7 +150,7 @@ describe('Portal chip pre-fill (onActivate with empty query)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   async function getOnActivate(portal: any) {
-    await syncPortalToIndex(portal);
+    await syncPortalToIndex(portal as any);
     const call = vi.mocked(contextModeService.registerProvider).mock.calls
       .find(c => c[0].id === `portal_${portal.id}`);
     return call![0].onActivate!;
