@@ -1349,6 +1349,72 @@ describe('launcherKeyboard characterization tests', () => {
 
   });
 
+  describe('restoreSearchFocus', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('select mode does not steal focus back once a real modal input has claimed it by the time the frame fires', () => {
+      // Regression for: opening "Assign Alias" from the action panel closed
+      // the popup (scheduling this select-mode restore) before the alias
+      // modal had set its own state — the modal's input then grabbed focus
+      // via its own microtask, but this deferred restore used to steal it
+      // right back on the next animation frame.
+      const deps = createMockDeps();
+      const searchInput = deps.getSearchInput() as any;
+      const { restoreSearchFocus } = createKeyboardHandlers(deps);
+
+      restoreSearchFocus({ select: true });
+
+      // Simulate the alias/shortcut capture modal's own input grabbing focus
+      // before the scheduled animation frame runs.
+      (document as any)._activeElement = { tagName: 'INPUT', type: 'text' };
+
+      vi.runAllTimers();
+
+      expect(searchInput.focus).not.toHaveBeenCalled();
+
+      (document as any)._activeElement = null;
+    });
+
+    it('select mode restores focus to search when nothing else claimed it', () => {
+      const deps = createMockDeps();
+      const searchInput = deps.getSearchInput() as any;
+      const { restoreSearchFocus } = createKeyboardHandlers(deps);
+
+      restoreSearchFocus({ select: true });
+      vi.runAllTimers();
+
+      expect(searchInput.focus).toHaveBeenCalledWith({ preventScroll: true });
+    });
+
+    it('non-select mode always restores focus, even if a modal input is still focused mid-outro-transition', () => {
+      // AliasCapture/ShortcutCapture close via onsave/oncancel using the
+      // plain (no-select) restore. Svelte keeps their out-transitioning
+      // component (and its focused input, or the shortcut capture's
+      // hasInputFocus flag) alive past this call's 80ms delay, so this path
+      // must NOT bail out — it's a deliberate final close, not a race with
+      // another modal opening.
+      const deps = createMockDeps();
+      const searchInput = deps.getSearchInput() as any;
+      const { restoreSearchFocus } = createKeyboardHandlers(deps);
+
+      restoreSearchFocus();
+
+      (document as any)._activeElement = { tagName: 'INPUT', type: 'text' };
+
+      vi.advanceTimersByTime(80);
+
+      expect(searchInput.focus).toHaveBeenCalledWith({ preventScroll: true });
+
+      (document as any)._activeElement = null;
+    });
+  });
+
   describe('Tab — AI chip default behavior', () => {
     const aiHint = {
       type: 'ai',
