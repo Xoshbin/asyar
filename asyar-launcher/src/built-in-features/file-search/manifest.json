@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Search files across your home folder",
   "type": "extension",
-  "searchable": false,
+  "searchable": true,
   "icon": "icon:folder-search",
   "actions": [
     {
