@@ -9,6 +9,8 @@ pub mod extension_cache;
 pub mod extension_kv;
 pub mod extension_preferences;
 pub mod extension_state;
+pub mod file_search_pinned;
+pub mod file_search_selections;
 pub mod mcp_audit;
 pub mod mcp_permissions;
 pub mod mcp_servers;
@@ -67,6 +69,8 @@ impl DataStore {
         cloud_sync_e2ee_local::init_table(&conn)?;
         runs_history::init_table(&conn)?;
         script_directories::init_table(&conn)?;
+        file_search_selections::init_table(&conn)?;
+        file_search_pinned::init_table(&conn)?;
         agents::init_table(&conn)?;
         mcp_servers::init_table(&conn)?;
         mcp_audit::init_table(&conn)?;
@@ -114,6 +118,8 @@ pub fn create_test_store() -> DataStore {
     cloud_sync_state::init_table(&conn).unwrap();
     cloud_sync_e2ee_local::init_table(&conn).unwrap();
     script_directories::init_table(&conn).unwrap();
+    file_search_selections::init_table(&conn).unwrap();
+    file_search_pinned::init_table(&conn).unwrap();
     crate::aliases::init_table(&conn).unwrap();
     crate::oauth::token_store::init_table(&conn).unwrap();
     agents::init_table(&conn).unwrap();

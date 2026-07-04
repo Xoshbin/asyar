@@ -69,6 +69,7 @@ pub mod ext_builder;
 pub mod extension_tray;
 pub mod extensions;
 pub mod feedback;
+pub mod file_index;
 pub mod fs_watcher;
 pub mod hud_window;
 pub mod index_events;
@@ -472,6 +473,19 @@ pub fn run() {
             commands::shell_list_trusted,
             commands::show_in_file_manager,
             commands::trash_path,
+            commands::open_in_terminal,
+            commands::quick_look_path,
+            file_index::commands::file_search,
+            file_index::commands::file_index_status,
+            file_index::commands::file_index_rebuild,
+            file_index::commands::file_index_set_config,
+            file_index::commands::file_search_record_selection,
+            file_index::commands::file_search_pin,
+            file_index::commands::file_search_unpin,
+            file_index::commands::file_search_list_pinned,
+            file_index::commands::file_search_clear_history,
+            file_index::commands::deep_search_availability,
+            file_index::commands::deep_search,
             commands::extension_preferences_get_all,
             commands::extension_preferences_set,
             commands::extension_preferences_reset,
@@ -1174,6 +1188,47 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
     app.manage(std::sync::Arc::clone(&extension_state_service));
 
+    // File index: reads settings.dat directly for the same one-shot,
+    // deliberate-exception reason `parse_launch_view` does (see its doc
+    // comment) — mirroring the full settings schema on the Rust side would
+    // duplicate load-bearing shape logic, but this one field is needed
+    // before any command can run.
+    let file_index_config = {
+        use tauri_plugin_store::StoreExt;
+        app.handle()
+            .store("settings.dat")
+            .ok()
+            .and_then(|s| s.get("settings"))
+            .and_then(|v| v.get("fileSearch").cloned())
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default()
+    };
+    let file_index_state = std::sync::Arc::new(file_index::service::FileIndexState::new(
+        file_index_config,
+    ));
+    {
+        let conn = data_store.conn()?;
+        let rows: Vec<(String, u64, u32, i64)> =
+            storage::file_search_selections::load_all(&conn)
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|r| {
+                    file_index::file_id::from_hex(&r.file_id)
+                        .map(|id| (r.query_prefix, id, r.count as u32, r.last_used))
+                })
+                .collect();
+        let pinned: Vec<u64> = storage::file_search_pinned::list(&conn)
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|r| file_index::file_id::from_hex(&r.file_id))
+            .collect();
+        file_index_state.seed_learning(rows, pinned);
+    }
+    app.manage(file_index_state.clone());
+    app.manage(std::sync::Arc::new(
+        file_index::watcher::FileIndexWatcherHandle::new(),
+    ));
+
     app.manage(data_store);
 
     // Clipboard FTS: build the in-memory index and spawn a background task
@@ -1602,6 +1657,69 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     log::warn!("[index_watcher] start failed: {e}");
                 }
             }
+        });
+    }
+
+    // File index startup — same detached-thread rationale as IndexWatcher
+    // above: loading a snapshot is fast, but a cold full scan of $HOME can
+    // take seconds, and nothing in the launcher's first paint depends on
+    // the file index being ready (the Files view and the root-search
+    // fallback row both tolerate `Building` state).
+    {
+        let app_handle_for_file_index = app.handle().clone();
+        let file_index_state = file_index_state.clone();
+        std::thread::spawn(move || {
+            let cfg = file_index_state.config();
+            if !cfg.enabled {
+                return;
+            }
+            let snapshot_path = app_handle_for_file_index
+                .path()
+                .app_data_dir()
+                .ok()
+                .map(|d| d.join(file_index::snapshot::SNAPSHOT_FILE_NAME));
+
+            if let Some(path) = &snapshot_path {
+                file_index_state.load_snapshot_or_empty(path);
+            }
+            if file_index_state.status().state != file_index::types::IndexStateKind::Ready {
+                let roots = if cfg.include_roots.is_empty() {
+                    app_handle_for_file_index
+                        .path()
+                        .home_dir()
+                        .map(|h| vec![h])
+                        .unwrap_or_default()
+                } else {
+                    cfg.include_roots.iter().map(std::path::PathBuf::from).collect()
+                };
+                file_index_state.run_full_scan(
+                    roots,
+                    cfg.exclude_patterns.clone(),
+                    file_index::walker::HARD_CAP,
+                    file_index::ranking::now_seconds(),
+                );
+                if let Some(path) = &snapshot_path {
+                    let _ = file_index_state.save_snapshot(path);
+                }
+            }
+
+            let roots = if cfg.include_roots.is_empty() {
+                app_handle_for_file_index
+                    .path()
+                    .home_dir()
+                    .map(|h| vec![h])
+                    .unwrap_or_default()
+            } else {
+                cfg.include_roots.iter().map(std::path::PathBuf::from).collect()
+            };
+            if let Some(handle) =
+                app_handle_for_file_index.try_state::<std::sync::Arc<file_index::watcher::FileIndexWatcherHandle>>()
+            {
+                let exclusions = file_index::watcher::build_exclusion_set(&cfg.exclude_patterns);
+                handle.rearm(roots, exclusions, file_index_state.clone());
+            }
+
+            let _ = app_handle_for_file_index.emit("asyar:file-index-status", file_index_state.status());
         });
     }
 
