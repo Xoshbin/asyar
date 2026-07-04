@@ -61,11 +61,21 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     };
     if (opts?.select) {
       // Restoring text: do it on the next frame so the user sees focus + selection
-      // land together with the view tearing down, no visible delay.
-      requestAnimationFrame(focusAndMaybeSelect);
+      // land together with the view tearing down, no visible delay. Re-check
+      // focus state at fire time (not schedule time): a modal opened by the
+      // same action that triggered this call (e.g. alias/shortcut capture
+      // from an action-panel selection) may have already claimed focus for
+      // its own real input by the time this frame runs — don't steal it.
+      requestAnimationFrame(() => {
+        if (isInputFocused() && document.activeElement !== deps.getSearchInput()) return;
+        focusAndMaybeSelect();
+      });
     } else {
       // Use a slightly longer delay after goBack() to ensure the view has fully
-      // unmounted and the DOM has settled before stealing focus back.
+      // unmounted and the DOM has settled before stealing focus back. This is
+      // a deliberate final close (not racing a modal open), so always steal
+      // focus back — modals like AliasCapture/ShortcutCapture still hold
+      // focus at 80ms during their outro transition and that's expected.
       setTimeout(focusAndMaybeSelect, 80);
     }
   }

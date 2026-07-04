@@ -103,7 +103,9 @@
 
   function handleActionPanelClose() {
     isActionPanelOpen = false;
-    if (!controller.assignShortcutTarget) keyboard.restoreSearchFocus({ select: true });
+    if (!controller.assignShortcutTarget && !controller.assignAliasTarget) {
+      keyboard.restoreSearchFocus({ select: true });
+    }
   }
 
   // Run controller effects
