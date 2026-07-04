@@ -33,6 +33,7 @@ import { applicationIndexService } from '../applicationIndex/applicationIndexSer
 import { timerService } from '../timers/timerService';
 import { fsWatcherService } from '../fsWatcher/fsWatcherService';
 import { browserService } from '../browser/browserService';
+import { filesService } from '../files/filesService';
 import { extensionStateService } from '../extensionState/extensionStateService';
 import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 import type { Diagnostic } from 'asyar-sdk/contracts';
@@ -139,6 +140,7 @@ export function buildServiceRegistry(deps: {
     timers: timerService,
     fsWatcher: fsWatcherService,
     browser: browserService,
+    files: filesService,
     state: extensionStateService,
     runs: runService,
     tools: {

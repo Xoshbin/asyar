@@ -40,6 +40,7 @@ import { fsWatcherBridge } from './fsWatcher/fsWatcherBridge.svelte';
 import { stateChangedBridge } from './extensionState/stateChangedBridge.svelte';
 import { rpcReplyBridge } from './extensionState/rpcReplyBridge.svelte';
 import { initScanPathsSync } from './application/scanPathsSync.svelte';
+import { initFileIndexConfigSync } from './fileIndex/fileIndexConfigSync.svelte';
 import { trayClickBridge } from './statusBar/trayClickBridge.svelte';
 import { viewRegistry } from './extension/viewRegistry.svelte';
 import { workerRegistry } from './extension/workerRegistry.svelte';
@@ -141,6 +142,11 @@ export const appInitializer = {
       // fired — the watcher only needs to know about extras going
       // forward.
       initScanPathsSync();
+
+      // Push settings.fileSearch down to Rust's FileIndexState the same
+      // way — the initial scan already fired at startup (lib.rs's
+      // detached-thread block), this only needs to catch config edits.
+      initFileIndexConfigSync();
 
       // Initialize stores before extensionManager so extensions see real persisted data in initialize()
       await shortcutStore.init();

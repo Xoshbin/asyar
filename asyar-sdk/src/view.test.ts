@@ -32,6 +32,7 @@ const VIEW_PROXY_NAMESPACES = [
   'diagnostics',
   'onboarding',
   'browser',
+  'files',
 ] as const;
 
 function setRole(role: string | undefined) {

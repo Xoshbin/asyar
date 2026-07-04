@@ -28,6 +28,7 @@ const WORKER_PROXY_NAMESPACES = [
   'tools',
   'snippets',
   'browser',
+  'files',
 ] as const;
 
 const VIEW_ONLY_NAMESPACES = [

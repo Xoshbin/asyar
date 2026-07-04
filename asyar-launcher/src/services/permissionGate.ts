@@ -144,6 +144,11 @@ export const PERMISSION_MAP: Record<string, string> = {
   // getMostRecentActiveBrowser exposes browser identity (tabs.read, like listPairedBrowsers).
   'asyar:api:browser:searchWeb':                       'browser:tabs.write',
   'asyar:api:browser:getMostRecentActiveBrowser':      'browser:tabs.read',
+  // File search — the local index is a filesystem-derived enumeration of
+  // the user's files; both read methods share one permission (no separate
+  // write surface, the file index itself is read-only).
+  'asyar:api:files:search':                            'files:search',
+  'asyar:api:files:status':                            'files:search',
 }
 
 /**

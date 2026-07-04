@@ -225,6 +225,10 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:browser:subscribePageChanged" => Some("browser:page.read"),
         "asyar:api:browser:unsubscribePageChanged" => Some("browser:page.read"),
         "asyar:api:browser:actOnPage" => Some("browser:page.write"),
+        // File search — one permission covers both read methods; the local
+        // index is read-only, no separate write surface.
+        "asyar:api:files:search" => Some("files:search"),
+        "asyar:api:files:status" => Some("files:search"),
         // browser:listAvailableBrowsers / isCompanionInstalled are intentionally
         // permission-free (discovery, low blast radius) → fall through to None.
         // search:rank is intentionally permission-free: the caller supplies its
@@ -364,6 +368,18 @@ mod tests {
     #[test]
     fn test_get_required_permission_unknown_call() {
         assert_eq!(get_required_permission("asyar:api:log:info"), None);
+    }
+
+    #[test]
+    fn test_get_required_permission_files() {
+        assert_eq!(
+            get_required_permission("asyar:api:files:search"),
+            Some("files:search")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:files:status"),
+            Some("files:search")
+        );
     }
 
     #[test]

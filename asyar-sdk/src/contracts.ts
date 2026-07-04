@@ -135,6 +135,18 @@ export type {
   PageChangedEvent,
 } from './services/IBrowserService';
 
+export type {
+  IFilesService,
+  FileType,
+  HitSource,
+  FileHit,
+  WorkMeter,
+  FileSearchResponse,
+  IndexStateKind,
+  IndexStatus,
+  FileSearchOptions,
+} from './services/IFilesService';
+
 // Launcher-brokered extension state store + RPC primitive.
 // Re-exported so launcher-side wiring can reference them in type positions.
 export { ExtensionStateProxy, extensionStateProxy } from './services/ExtensionStateProxy';

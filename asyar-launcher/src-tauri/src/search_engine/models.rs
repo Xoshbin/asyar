@@ -352,7 +352,15 @@ mod bindings_export {
             .register::<AliasMatch>()
             .register::<MergedSearchResponse>()
             .register::<crate::aliases::ItemAlias>()
-            .register::<crate::aliases::commands::AliasConflict>();
+            .register::<crate::aliases::commands::AliasConflict>()
+            .register::<crate::file_index::types::FileHit>()
+            .register::<crate::file_index::types::FileSearchResponse>()
+            .register::<crate::file_index::types::IndexStatus>()
+            .register::<crate::file_index::types::FileIndexConfig>()
+            .register::<crate::file_index::types::FileType>()
+            .register::<crate::file_index::types::HitSource>()
+            .register::<crate::file_index::types::IndexStateKind>()
+            .register::<crate::file_index::types::WorkMeter>();
 
         Typescript::default()
             .bigint(BigIntExportBehavior::Number)

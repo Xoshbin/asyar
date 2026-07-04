@@ -89,6 +89,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
     crashReportMode: 'off',
     usageShareMode: 'off',
   },
+  fileSearch: {
+    enabled: true,
+    includeRoots: [],
+    excludePatterns: [],
+    indexHidden: false,
+  },
 };
 
 export class SettingsHandler {
