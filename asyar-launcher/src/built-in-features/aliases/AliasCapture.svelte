@@ -106,6 +106,11 @@
   }
 
   function handleBackdropKey(event: KeyboardEvent): void {
+    // Keydown bubbles from the form's input up to this backdrop div — only
+    // treat it as "activate the backdrop" when the backdrop itself is the
+    // actual target, mirroring handleBackdropClick's guard. Without this,
+    // pressing Enter to save bubbles up and cancels the modal instead.
+    if (event.target !== event.currentTarget) return;
     if (event.key === 'Enter' || event.key === ' ') oncancel();
   }
 
