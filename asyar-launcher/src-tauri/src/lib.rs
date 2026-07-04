@@ -101,6 +101,27 @@ pub mod window_management;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
 
+/// Pure decision logic for the Linux WebKitGTK DMA-BUF workaround (issue
+/// #435): returns the (key, value) env var to set when `is_linux`, or
+/// `None` otherwise. Takes `is_linux` as a parameter rather than branching
+/// on `cfg!` internally so both branches are unit-testable from any host.
+fn linux_webkit_dmabuf_env_var(is_linux: bool) -> Option<(&'static str, &'static str)> {
+    if is_linux {
+        Some(("WEBKIT_DISABLE_DMABUF_RENDERER", "1"))
+    } else {
+        None
+    }
+}
+
+/// Applies the Linux WebKitGTK DMA-BUF workaround, if applicable to the
+/// current build target. Must run before the webview is created, so callers
+/// invoke this first thing in `main()`.
+pub fn apply_linux_webkit_dmabuf_workaround() {
+    if let Some((key, value)) = linux_webkit_dmabuf_env_var(cfg!(target_os = "linux")) {
+        std::env::set_var(key, value);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Build the MCP transport factory and extract the shared sidecar path
@@ -1994,5 +2015,28 @@ mod link_audit_tests {
              so vendored xz sources are compiled into the binary instead of \
              dynamic-linking against /opt/homebrew/.../liblzma.5.dylib. See issue #345."
         );
+    }
+}
+
+#[cfg(test)]
+mod linux_webkit_dmabuf_workaround_tests {
+    use super::linux_webkit_dmabuf_env_var;
+
+    // Issue #435: WebKitGTK's DMA-BUF renderer aborts the WebProcess with
+    // "Could not create default EGL display: EGL_BAD_PARAMETER" on some
+    // Mesa/GPU driver combos. `is_linux` is taken as a parameter (rather than
+    // branching on `cfg!` inside the function) so both branches are
+    // unit-testable from any host platform, not just on Linux CI.
+    #[test]
+    fn requests_dmabuf_disable_on_linux() {
+        assert_eq!(
+            linux_webkit_dmabuf_env_var(true),
+            Some(("WEBKIT_DISABLE_DMABUF_RENDERER", "1"))
+        );
+    }
+
+    #[test]
+    fn does_nothing_on_non_linux() {
+        assert_eq!(linux_webkit_dmabuf_env_var(false), None);
     }
 }
