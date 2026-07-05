@@ -103,8 +103,15 @@
     await persistFileSearch({ excludePatterns: excludePatterns.filter((p) => p !== pattern) });
   }
 
+  // The command itself resolves as soon as the background scan is
+  // *spawned*, not when it's done — the actual duration is reflected by
+  // `status.state` transitioning through `rescanning` (set synchronously,
+  // before the command returns) back to `ready`. `rebuilding` only guards
+  // the brief window between the click and that first status event landing.
+  let isRebuilding = $derived(rebuilding || status?.state === 'rescanning');
+
   async function handleRebuild() {
-    if (rebuilding) return;
+    if (isRebuilding) return;
     rebuilding = true;
     try {
       await fileIndexRebuild();
@@ -140,8 +147,8 @@
         {#if status.snapshotLoaded}
           <span class="text-caption opacity-70">restored from snapshot</span>
         {/if}
-        <Button onclick={handleRebuild} disabled={rebuilding}>
-          {rebuilding ? 'Rebuilding…' : 'Rebuild Index'}
+        <Button onclick={handleRebuild} disabled={isRebuilding}>
+          {isRebuilding ? 'Rebuilding…' : 'Rebuild Index'}
         </Button>
       </div>
       {#if status.capReached}

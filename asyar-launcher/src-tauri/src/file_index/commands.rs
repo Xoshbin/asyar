@@ -74,6 +74,12 @@ fn snapshot_path(app: &AppHandle) -> Option<PathBuf> {
 /// `file_index_set_config`) returns immediately — a full-`$HOME` walk can
 /// take seconds, and the caller (Settings UI, app startup) must not block
 /// on it.
+///
+/// The status flip to `Rescanning` + its status event happen synchronously
+/// in the caller (`file_index_rebuild`/`file_index_set_config`), *before*
+/// this spawn — otherwise the UI is left showing stale `Ready` data with
+/// no indication anything is happening until the scan silently finishes,
+/// possibly many seconds later.
 fn spawn_rebuild(app: AppHandle, state: Arc<FileIndexState>) {
     tauri::async_runtime::spawn(async move {
         let cfg = state.config();
@@ -112,6 +118,8 @@ pub async fn file_index_rebuild(
     app: AppHandle,
     state: State<'_, Arc<FileIndexState>>,
 ) -> Result<(), String> {
+    state.mark_rescanning();
+    let _ = app.emit("asyar:file-index-status", state.status());
     spawn_rebuild(app, state.inner().clone());
     Ok(())
 }
@@ -133,6 +141,8 @@ pub async fn file_index_set_config(
     state.set_enabled(config.enabled);
 
     if config.enabled && (roots_changed || !was_enabled) {
+        state.mark_rescanning();
+        let _ = app.emit("asyar:file-index-status", state.status());
         spawn_rebuild(app, state.inner().clone());
     } else if !config.enabled {
         if let Some(handle) = app.try_state::<Arc<FileIndexWatcherHandle>>() {

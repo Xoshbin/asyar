@@ -204,6 +204,15 @@ impl FileIndexState {
         snapshot::save(&self.index.read().expect("index lock"), path)
     }
 
+    /// Flips status to `Rescanning` immediately — call this synchronously
+    /// before spawning the (possibly many-second) background scan, so a
+    /// status event fired right after returns "in progress" rather than
+    /// leaving the UI showing stale `Ready` data with no indication a
+    /// rebuild is even happening until it silently finishes.
+    pub fn mark_rescanning(&self) {
+        self.status.lock().expect("status lock").state = IndexStateKind::Rescanning;
+    }
+
     /// Walks `roots`, rebuilds the index from scratch, and updates status
     /// (`CapReached` if the walker's hard cap tripped, `Ready` otherwise).
     /// Callers run this off the calling thread — it's a full scan, not a
@@ -215,6 +224,7 @@ impl FileIndexState {
         cap: usize,
         now: i64,
     ) -> WalkOutcome {
+        self.mark_rescanning();
         let start = std::time::Instant::now();
         let mut entries = Vec::new();
         let mut cap_reached = false;
@@ -343,6 +353,24 @@ mod tests {
         state.set_enabled(true);
         assert_eq!(state.status().state, IndexStateKind::Building);
         assert!(state.config().enabled);
+    }
+
+    #[test]
+    fn mark_rescanning_flips_status_immediately_without_touching_index_or_config() {
+        let state = FileIndexState::with_index(FileIndexConfig::default(), built_index(&["/r/a.txt"]));
+        assert_eq!(state.status().state, IndexStateKind::Ready);
+
+        state.mark_rescanning();
+
+        assert_eq!(
+            state.status().state,
+            IndexStateKind::Rescanning,
+            "must be visible before any scan work runs — this is what the UI \
+             polls/listens for to show \"Rescanning…\" instead of stale data"
+        );
+        // Nothing else about the snapshot changes yet — the caller hasn't
+        // walked anything.
+        assert_eq!(state.status().entry_count, 1);
     }
 
     #[test]
