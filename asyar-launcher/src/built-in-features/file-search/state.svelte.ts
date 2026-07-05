@@ -29,8 +29,15 @@ class FileSearchViewState {
     this.typeFilter = v;
   }
 
-  /** Every visible row, real matches first, deep-search results appended. */
+  /** Every visible row. With no active query, shows pinned files (there's
+   * nothing else to show and pinning would otherwise be invisible outside
+   * of the tiny badge on a matching search row). Once searching, real
+   * matches take over — pinned matches already rank first via the
+   * backend's pin bonus. */
   get allItems(): FileHit[] {
+    if (!this.searchQuery.trim()) {
+      return this.pinnedFiles;
+    }
     return [...this.results, ...this.deepResults];
   }
 

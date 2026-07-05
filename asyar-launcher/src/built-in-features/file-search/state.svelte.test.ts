@@ -91,8 +91,33 @@ describe('runSearch', () => {
   });
 });
 
+describe('allItems', () => {
+  it('shows pinned files when there is no active query', () => {
+    fileSearchViewState.searchQuery = '';
+    fileSearchViewState.results = [];
+    fileSearchViewState.deepResults = [];
+    fileSearchViewState.pinnedFiles = [hit('pinned-a'), hit('pinned-b')];
+    expect(fileSearchViewState.allItems.map((i) => i.fileId)).toEqual(['pinned-a', 'pinned-b']);
+  });
+
+  it('shows real + deep results (not pinned) once there is an active query', () => {
+    fileSearchViewState.searchQuery = 'report';
+    fileSearchViewState.results = [hit('a')];
+    fileSearchViewState.deepResults = [hit('b')];
+    fileSearchViewState.pinnedFiles = [hit('pinned-only')];
+    expect(fileSearchViewState.allItems.map((i) => i.fileId)).toEqual(['a', 'b']);
+  });
+
+  it('is empty when there is no query and nothing is pinned', () => {
+    fileSearchViewState.searchQuery = '';
+    fileSearchViewState.pinnedFiles = [];
+    expect(fileSearchViewState.allItems).toEqual([]);
+  });
+});
+
 describe('getSelectedFile / moveSelection', () => {
   it('finds the selected file among combined local + deep results', () => {
+    fileSearchViewState.searchQuery = 'x';
     fileSearchViewState.results = [hit('a')];
     fileSearchViewState.deepResults = [hit('b')];
     fileSearchViewState.selectedFileId = 'b';
@@ -106,6 +131,7 @@ describe('getSelectedFile / moveSelection', () => {
   });
 
   it('moveSelection wraps and steps through the combined list', () => {
+    fileSearchViewState.searchQuery = 'x';
     fileSearchViewState.results = [hit('a'), hit('b')];
     fileSearchViewState.deepResults = [hit('c')];
     fileSearchViewState.selectedFileId = null;
