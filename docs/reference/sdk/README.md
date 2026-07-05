@@ -75,6 +75,7 @@ expands the placement guidance.
 | `SystemEventsService` | `ISystemEventsService` | both (subscriptions: worker) | `systemEvents:read` | OS state-change push events (sleep, wake, lid, battery) |
 | `FileSystemWatcherService` | `IFileSystemWatcherService` | view (pending worker redesign) | `fs:watch` (+ `permissionArgs.fs:watch`) | Watch declared directories for changes (Apple Shortcuts, SSH config, dotfiles). Roots-up coalesced `{ type: 'change', paths }` events. |
 | `RunService` | `IRunService` | worker | `runs:track` | Track long-running work in the launcher's runs UI and compact HUD badge |
+| `FilesService` | `IFilesService` | both | `files:search` | Search the same bounded, cached local file index that backs the host's "Search Files" view |
 
 **Utilities (direct import, no `getService()`):**
 
@@ -114,5 +115,6 @@ expands the placement guidance.
 - **[TimerService](./timers.md)**
 - **[FileSystemWatcherService](./file-system-watcher.md)**
 - **[RunService](./run-service.md)**
+- **[FilesService](./files-service.md)**
 - **[Preferences (declarative settings)](./preferences.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**

@@ -64,6 +64,20 @@ A few built-in features add extra shortcuts while their view is active.
 |----------|-------------|
 | `⌘N` | Create a new portal |
 
+**File Search**
+
+| Shortcut | What it does |
+|----------|-------------|
+| `Space` | Quick Look preview of the selected file |
+| `⌘R` | Reveal in Finder |
+| `⌘⇧C` | Copy Path |
+| `⌘⌥C` | Copy Name |
+| `⌘T` | Open in Terminal |
+| `⌘P` | Toggle Pin |
+| `⌘⌫` | Move to Trash |
+| `Tab` / `⌘I` | Send to Asyar AI |
+| `⌘⇧F` | Search Everywhere (deep OS-native search) |
+
 For all other features, use `⌘K` to open the action panel — every available action for the selected item is listed there.
 
 ## Related

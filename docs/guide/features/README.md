@@ -5,6 +5,7 @@ does, how to use it, shortcuts, tips, and related pages.
 
 - [Calculator](./calculator.md) — Math, unit & currency conversion, date math, inline.
 - [Clipboard History](./clipboard-history.md) — Browse, filter, favorite, and paste past copies.
+- [File Search](./file-search.md) — Find any file by name, instantly, with a rich preview.
 - [Snippets](./snippets.md) — Text expansion: type a keyword, paste the full text.
 - [Window Management](./window-management.md) — Resize and arrange windows with layout presets.
 - [Aliases & Shortcuts](./aliases-and-shortcuts.md) — Custom triggers and global hotkeys for any command.

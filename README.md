@@ -75,6 +75,7 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 - **Run Tracking** — Long-running work — agents and scripts — shows live status dots in the launcher. Failed runs stay until dismissed; succeeded agent threads stay until you close them, so you can pick a conversation back up at any time.
 - **Calculator** — Instant math evaluation with currency conversion, directly in the search bar
 - **Clipboard History** — Search and reuse anything you've copied, with rich markdown, syntax highlighting, and LaTeX rendering for text items
+- **File Search** — Find any file across your home folder instantly; a Rust-native index keeps per-keystroke search fast regardless of how much is indexed, with real image thumbnails and (on macOS) Quick Look-style previews for documents, videos, and archives
 - **Snippets** — Text snippet expansion, including background text expansion without opening the launcher
 - **Shortcuts** — Define and run custom keyboard-triggered commands
 - **Portals** — Open URLs and web tools directly from the launcher
@@ -189,6 +190,7 @@ See [`docs/explanation/clipboard-privacy.md`](docs/explanation/clipboard-privacy
 | Scripts | ✅ | ✅ | ✅ |
 | Calculator | ✅ | ✅ | ✅ |
 | Clipboard History | ✅ | ✅ | ✅ |
+| File Search | ✅ | ✅ | ✅ |
 | Context Modes | ✅ | ✅ | ✅ |
 | Create Extension | ✅ | ✅ | ✅ |
 | Portals | ✅ | ✅ | ✅ |
@@ -325,6 +327,20 @@ Define reusable text snippets and expand them anywhere:
 
 - **In-launcher** — search for a snippet and paste it into the focused app
 - **Background expansion** — type a snippet keyword in any app and it expands automatically, without opening the launcher (requires Accessibility permissions on macOS)
+
+---
+
+## File Search
+
+A dedicated file search, not a thin wrapper around the OS's own tool — file lookups get the same speed guarantees as the rest of the launcher.
+
+- **Bounded per-keystroke cost** — a Rust-native index (arena-based, not a hash map) answers every keystroke in low single-digit milliseconds regardless of how many files are indexed; the query engine's work is capped by construction, not by index size.
+- **Smart defaults** — indexes your whole home folder out of the box, automatically skipping caches, `node_modules`, build output, and VM disk images. Narrow to specific folders or add your own exclude patterns in **Settings → File Search**.
+- **Real previews** — images get real thumbnails, text/code files show their content, and (macOS) other file types get a Quick Look-style preview — all served from a Rust-generated cache, never by loading a whole file into the UI.
+- **Pin favorites, ask AI about a file** — pin frequently-used files to the top, or send a selected file straight into AI chat with its content pre-filled.
+- **Deep Search escalation** — press `⌘⇧F` to fall back to your OS's native search (Spotlight, Everything, `plocate`) for anything outside your indexed folders — on demand, never running in the background.
+
+See the [File Search guide](docs/guide/features/file-search.md) for the full walkthrough.
 
 ---
 

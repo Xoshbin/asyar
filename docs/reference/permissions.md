@@ -41,6 +41,7 @@ Declare every permission your extension needs in `manifest.json`:
 | `runs:track` | Track long-running work via `RunService`. Lets your extension start, write to, complete, fail, and cancel runs that surface in the launcher's runs UI and tray badge. | `RunService.start()`, `RunHandle.write()`, `.done()`, `.fail()`, `.cancel()` |
 | `tools:register` | Register tools your extension exports to the agent runtime. Tools appear in the agent tool-picker and can be invoked during a tool-calling round. | `ToolsService.registerTool()`, `.unregisterTool()`, `.listTools()` |
 | `snippets:contribute` | Contribute a `{ :shortcode: → expansion }` dictionary to the launcher's global keystroke matcher. Typed shortcodes are replaced in-place in any text input on any app. User-created snippets shadow extension contributions on key collision. Keys must match `^:[a-z0-9_+-]{1,32}:$`. See [`SnippetsService`](./sdk/snippets-service.md). | `SnippetsService.registerShortcodes()`, `.unregisterShortcodes()` |
+| `files:search` | Search the same bounded, cached local file index that backs the host's "Search Files" view. Does not grant file content read/write — see `fs:read`/`fs:write` for that. | `FilesService.search()`, `.status()` |
 
 ### What happens if a permission is missing
 
