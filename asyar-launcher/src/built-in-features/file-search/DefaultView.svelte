@@ -82,17 +82,33 @@
   let pinnedIds = $derived(new Set(fileSearchViewState.pinnedFiles.map((p) => p.fileId)));
 
   // Row-list thumbnails: fileId -> url (present+truthy), or null (requested,
-  // none available). Absence of a key means "not yet requested". Populated
-  // lazily as `items` changes; never re-requested for a fileId already
-  // resolved. Generation is Rust-side (cached + concurrency-bounded), so
-  // firing one request per visible row costs nothing extra here.
+  // none available). Absence of a key means "not yet requested".
+  //
+  // Images only, deliberately. Anything else falls through to `qlmanage`
+  // on macOS — a real subprocess spawn that loads Quick Look generator
+  // plugins, not a cheap call. `document`/`code` are usually the majority
+  // of a $HOME result set and already have a fast text preview, so
+  // blanket-requesting thumbnails for every row (as an earlier version of
+  // this did) meant a `qlmanage` spawn per newly-visible non-image file on
+  // every keystroke — the actual source of the CPU/heat this was causing.
+  // The detail pane still gets the richer qlmanage-backed preview, but
+  // only for the one currently-selected file, not up to 50 rows at once.
   let rowThumbnails = $state<Record<string, string | null>>({});
+  let rowThumbTimer: ReturnType<typeof setTimeout> | undefined;
 
   $effect(() => {
-    for (const item of items) {
-      if (item.type === 'folder' || item.fileId in rowThumbnails) continue;
-      void requestRowThumbnail(item.fileId, item.path);
-    }
+    const current = items;
+    clearTimeout(rowThumbTimer);
+    // Debounced: typing quickly (or a fast-narrowing query) replaces the
+    // visible set many times a second — no reason to request a thumbnail
+    // for a row that's about to be replaced before the request even lands.
+    rowThumbTimer = setTimeout(() => {
+      for (const item of current) {
+        if (item.type !== 'image' || item.fileId in rowThumbnails) continue;
+        void requestRowThumbnail(item.fileId, item.path);
+      }
+    }, 120);
+    return () => clearTimeout(rowThumbTimer);
   });
 
   async function requestRowThumbnail(fileId: string, path: string) {
@@ -112,12 +128,18 @@
   let selectedSize = $state<number | null>(null);
 
   const MAX_TEXT_PREVIEW = 50_000;
+  let detailThumbTimer: ReturnType<typeof setTimeout> | undefined;
 
   $effect(() => {
     const item = selected;
     const wantsThumbnail = item && THUMBNAILABLE_TYPES.has(item.type);
+    clearTimeout(detailThumbTimer);
     if (wantsThumbnail && item.path !== currentThumbnailPath) {
-      void loadDetailThumbnail(item.path);
+      // Debounced: holding an arrow key steps through many rows a second.
+      // Non-image thumbnails here go through `qlmanage` — without this,
+      // scrolling through 20 archive/video files fires 20 subprocess spawns
+      // for files the user only glanced at for a few milliseconds each.
+      detailThumbTimer = setTimeout(() => void loadDetailThumbnail(item.path), 150);
     } else if (!wantsThumbnail) {
       detailThumbnailUrl = null;
       currentThumbnailPath = '';
@@ -136,6 +158,8 @@
     } else {
       selectedSize = null;
     }
+
+    return () => clearTimeout(detailThumbTimer);
   });
 
   async function loadDetailThumbnail(path: string) {
