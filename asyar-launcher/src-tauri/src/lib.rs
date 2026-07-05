@@ -354,6 +354,7 @@ pub fn run() {
             commands::write_binary_file_recursive,
             commands::write_text_file_absolute,
             commands::read_text_file_absolute,
+            commands::read_text_preview,
             commands::mkdir_absolute,
             commands::spawn_headless_extension,
             commands::kill_extension,

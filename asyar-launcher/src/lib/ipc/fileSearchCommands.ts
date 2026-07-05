@@ -60,3 +60,12 @@ export async function openInTerminal(pathStr: string): Promise<boolean> {
 export async function quickLookPath(pathStr: string): Promise<boolean> {
   return invokeSafeVoid('quick_look_path', { pathStr }, { silent: true });
 }
+
+/** Bounded text-content read for the preview pane — goes through Rust
+ * (`std::fs`) rather than `@tauri-apps/plugin-fs`, so it isn't subject to
+ * the webview's fs capability scope (which never covered arbitrary
+ * `$HOME` paths, only `$APPDATA/extensions/**` and
+ * `$APPDATA/clipboard_cache/**`). */
+export async function readTextPreview(pathStr: string, maxBytes?: number): Promise<string | null> {
+  return invokeSafe<string>('read_text_preview', { pathStr, maxBytes });
+}

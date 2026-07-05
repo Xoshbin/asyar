@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { readFile, stat } from '@tauri-apps/plugin-fs';
+  import { stat } from '@tauri-apps/plugin-fs';
   import { openPath } from '@tauri-apps/plugin-opener';
   import {
     SplitListDetail,
@@ -20,6 +20,7 @@
   import type { FileHit } from 'asyar-sdk/contracts';
   import { primeAiChipForFile } from './aiChipBridge';
   import { getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
+  import { readTextPreview } from '../../lib/ipc/fileSearchCommands';
 
   const ROW_THUMB_DIM = 56; // 2x a 28px row icon, for retina
   const DETAIL_THUMB_DIM = 800;
@@ -151,10 +152,10 @@
     textPreviewLoading = true;
     currentTextPath = path;
     try {
-      const data = await readFile(path);
-      const decoder = new TextDecoder('utf-8', { fatal: false });
-      const text = decoder.decode(data.slice(0, MAX_TEXT_PREVIEW));
-      textPreview = text;
+      // Rust-side read (bounded, via std::fs) — not subject to the
+      // webview's fs capability scope, which never covered arbitrary
+      // $HOME paths in the first place.
+      textPreview = (await readTextPreview(path, MAX_TEXT_PREVIEW)) ?? '';
     } catch (err) {
       logService.warn(`[FileSearch] text load failed: ${err}`);
       textPreview = '';

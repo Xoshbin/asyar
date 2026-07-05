@@ -23,6 +23,7 @@ import {
   deepSearch,
   openInTerminal,
   quickLookPath,
+  readTextPreview,
 } from './fileSearchCommands';
 
 const mockInvoke = invoke as ReturnType<typeof vi.fn>;
@@ -159,5 +160,32 @@ describe('quickLookPath', () => {
     const result = await quickLookPath('/tmp/a.pdf');
     expect(mockInvoke).toHaveBeenCalledWith('quick_look_path', { pathStr: '/tmp/a.pdf' });
     expect(result).toBe(true);
+  });
+});
+
+describe('readTextPreview', () => {
+  it('calls invoke with pathStr and maxBytes', async () => {
+    mockInvoke.mockResolvedValue('hello world');
+    const result = await readTextPreview('/tmp/a.txt', 50_000);
+    expect(mockInvoke).toHaveBeenCalledWith('read_text_preview', {
+      pathStr: '/tmp/a.txt',
+      maxBytes: 50_000,
+    });
+    expect(result).toBe('hello world');
+  });
+
+  it('omits maxBytes when not provided', async () => {
+    mockInvoke.mockResolvedValue('x');
+    await readTextPreview('/tmp/a.txt');
+    expect(mockInvoke).toHaveBeenCalledWith('read_text_preview', {
+      pathStr: '/tmp/a.txt',
+      maxBytes: undefined,
+    });
+  });
+
+  it('returns null (not throw) on invoke failure', async () => {
+    mockInvoke.mockRejectedValue(new Error('boom'));
+    const result = await readTextPreview('/tmp/a.txt');
+    expect(result).toBeNull();
   });
 });
