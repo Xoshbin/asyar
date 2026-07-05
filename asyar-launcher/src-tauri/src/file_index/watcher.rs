@@ -208,6 +208,19 @@ mod tests {
     }
 
     #[test]
+    fn exclusion_set_drops_vm_disk_churn_so_a_running_vm_cannot_wake_the_watcher() {
+        let set = build_exclusion_set(&[]);
+        assert!(is_excluded(
+            &set,
+            Path::new("/home/u/Virtual Machines.localized/Ubuntu.pvm/Ubuntu.hdd/disk-s001.hds")
+        ));
+        assert!(is_excluded(
+            &set,
+            Path::new("/home/u/VirtualBox VMs/Ubuntu/Ubuntu-disk001.vdi")
+        ));
+    }
+
+    #[test]
     fn excluded_path_events_are_dropped_before_reaching_callback() {
         let id = std::process::id();
         let root = std::env::temp_dir().join(format!("fi_watcher_e2e_{id}"));

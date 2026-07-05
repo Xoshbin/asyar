@@ -43,11 +43,28 @@ pub const DEFAULT_IGNORE_PATTERNS: &[&str] = &[
     "DerivedData",
     "coverage",
     ".pytest_cache",
+    // VM disk images are internally structured as many small files (e.g.
+    // Parallels' "expanding disk" format) and are rewritten continuously
+    // while a VM is running — indexing them balloons entry count for no
+    // search value, and *watching* them means a running VM's guest-OS
+    // disk writes translate into a constant stream of host-side fs
+    // events that never stop for the life of the VM.
+    "Virtual Machines.localized",
+    "VirtualBox VMs",
 ];
 
 /// Directory extensions treated as opaque leaf "bundles" — indexed as one
-/// entry, never descended into (app bundles, frameworks, photo libraries).
-const BUNDLE_EXTENSIONS: &[&str] = &["app", "framework", "photoslibrary", "bundle"];
+/// entry, never descended into (app bundles, frameworks, photo libraries,
+/// VM disk images).
+const BUNDLE_EXTENSIONS: &[&str] = &[
+    "app",
+    "framework",
+    "photoslibrary",
+    "bundle",
+    "pvm",
+    "vmwarevm",
+    "vbox",
+];
 
 pub struct WalkOutcome {
     pub entries: Vec<ScannedEntry>,
@@ -277,6 +294,40 @@ mod tests {
             !n.iter().any(|x| x == "Info.plist"),
             "bundle contents must not be indexed, got {n:?}"
         );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn vm_storage_folder_is_entirely_excluded() {
+        let root = fixture_root();
+        touch(&root, "a.txt");
+        // Parallels' expanding-disk format nests many small band files —
+        // simulate that shape to prove the whole folder is dropped, not
+        // just the top-level VM bundle.
+        touch(
+            &root,
+            "Virtual Machines.localized/Ubuntu.pvm/Ubuntu.hdd/disk-s001.hds",
+        );
+        touch(&root, "VirtualBox VMs/Ubuntu/Ubuntu-disk001.vdi");
+        let out = walk(&root);
+        let n = names(&out);
+        assert!(n.contains(&"a.txt".to_string()));
+        assert!(!n.iter().any(|x| x == "Ubuntu.pvm"));
+        assert!(!n.iter().any(|x| x.ends_with(".hds")));
+        assert!(!n.iter().any(|x| x.ends_with(".vdi")));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn vm_bundle_extension_is_a_leaf_even_outside_the_default_vm_folder() {
+        let root = fixture_root();
+        // A VM stored somewhere other than the conventional folder (e.g. a
+        // custom location) must still not be descended into.
+        touch(&root, "my-vms/Ubuntu.vmwarevm/Virtual Disk.vmdk");
+        let out = walk(&root);
+        let n = names(&out);
+        assert!(n.contains(&"Ubuntu.vmwarevm".to_string()));
+        assert!(!n.iter().any(|x| x.contains("Virtual Disk")));
         let _ = fs::remove_dir_all(&root);
     }
 
