@@ -6,6 +6,7 @@ import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 import { actionService } from '../../services/action/actionService.svelte';
 import { fileManagerService } from '../../services/fileManager/fileManagerService';
+import { searchStores } from '../../services/search/stores/search.svelte';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 import { logService } from '../../services/log/logService';
 import { openInTerminal, quickLookPath, fileSearchClearHistory } from '../../lib/ipc/fileSearchCommands';
@@ -53,6 +54,11 @@ class FileSearchExtension implements Extension {
       const seedQuery = typeof args?.query === 'string' ? args.query : '';
       if (seedQuery) {
         await tick();
+        // Also push into the shared search bar (not just the view's own
+        // internal query) — otherwise the visible bar keeps showing
+        // whatever the user typed in root search while the view silently
+        // searches a different query underneath it.
+        searchStores.query = seedQuery;
         fileSearchViewState.searchQuery = seedQuery;
         await runSearch();
       }

@@ -29,6 +29,10 @@ vi.mock('./aiChipBridge', () => ({
 
 vi.mock('../../services/run/runService.svelte', () => ({ runService: {} }));
 
+vi.mock('../../services/search/stores/search.svelte', () => ({
+  searchStores: { query: '' },
+}));
+
 vi.mock('./state.svelte', () => ({
   fileSearchViewState: { searchQuery: '', allItems: [], results: [], deepResults: [] },
   loadPinnedFiles: vi.fn().mockResolvedValue(undefined),
@@ -48,6 +52,7 @@ import extension from './index';
 import { actionService } from '../../services/action/actionService.svelte';
 import { fileSearchClearHistory } from '../../lib/ipc/fileSearchCommands';
 import { fileSearchViewState, runSearch, checkDeepSearchAvailability } from './state.svelte';
+import { searchStores } from '../../services/search/stores/search.svelte';
 import { tick } from 'svelte';
 
 function makeContext(manager: object) {
@@ -108,7 +113,10 @@ describe('FileSearchExtension class contract', () => {
 });
 
 describe('executeCommand("show-files") with query seed', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    searchStores.query = '';
+  });
 
   it('seeds searchQuery and calls runSearch after tick when query is provided', async () => {
     const navigateToView = vi.fn();
@@ -120,6 +128,16 @@ describe('executeCommand("show-files") with query seed', () => {
     expect(tick).toHaveBeenCalled();
     expect(fileSearchViewState.searchQuery).toBe('report');
     expect(runSearch).toHaveBeenCalled();
+  });
+
+  it('also seeds the shared search bar (searchStores.query) so it stays visible', async () => {
+    const navigateToView = vi.fn();
+    const ctx = makeContext({ navigateToView });
+    await extension.initialize(ctx as never);
+
+    await extension.executeCommand('show-files', { query: 'invoice' });
+
+    expect(searchStores.query).toBe('invoice');
   });
 
   it('does not call runSearch when no query is provided', async () => {
