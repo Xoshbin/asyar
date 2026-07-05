@@ -87,6 +87,12 @@ async-trait = "0.1"
 chrono = "0.4"                     # Local-date formatting for usage rollups (YYYY-MM-DD)
 evalexpr = "12"
 axum = { version = "0.7", features = ["ws"] }
+memchr = "2"                       # SIMD substring scan over the file-index name arena
+nucleo = "0.5"                     # Fuzzy matcher for file-index fuzzy fallback (Helix's)
+ignore = "0.4"                     # .gitignore-honoring parallel walker for the file index
+fnv = "1"                          # Stable file_id hash (dev,inode) for the file index
+bincode = "1"                      # Versioned file-index snapshot serialization
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] } # Cross-platform thumbnail downscaling
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"

@@ -20,13 +20,36 @@ pub async fn merged_search(
     alias_state: State<'_, crate::aliases::AliasState>,
 ) -> Result<super::models::MergedSearchResponse, SearchError> {
     let disabled = read_disabled_application_ids(&app_handle);
-    state.merged_search_with_aliases(
+    let mut response = state.merged_search_with_aliases(
         &query,
         external_results,
         min_results.unwrap_or(20),
         &alias_state,
         &disabled,
-    )
+    )?;
+
+    // The only file-search touch point on the root-search hot path: an O(1)
+    // check (one Arc + one RwLock read, no file-index data touched) plus a
+    // bounded Vec insert. See `file_search_fallback` for the full contract.
+    let file_search_available = app_handle
+        .try_state::<std::sync::Arc<crate::file_index::service::FileIndexState>>()
+        .map(|s| s.config().enabled)
+        .unwrap_or(false);
+    // Backfilled suggestions are marked `score == -1.0` by
+    // `SearchState::merged_search`; everything else is a real match.
+    let matched_count = response
+        .results
+        .iter()
+        .filter(|r| r.score != -1.0)
+        .count();
+    super::file_search_fallback::append_file_search_fallback(
+        &mut response.results,
+        &query,
+        matched_count,
+        file_search_available,
+    );
+
+    Ok(response)
 }
 
 /// Pure JSON-navigation helper mirroring `lib.rs::parse_launch_view`. Reads

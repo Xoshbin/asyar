@@ -9,6 +9,7 @@
   import GeneralTab from './tabs/GeneralTab.svelte';
   import AiTab from './tabs/AiTab.svelte';
   import ApplicationsTab from './tabs/ApplicationsTab.svelte';
+  import FileSearchTab from './tabs/FileSearchTab.svelte';
   import ScriptsTab from './tabs/ScriptsTab.svelte';
   import ExtensionsTab from './tabs/ExtensionsTab.svelte';
   import AboutTab from './tabs/AboutTab.svelte';
@@ -39,6 +40,7 @@
     { id: 'extensions', label: 'Extensions', icon: 'puzzle' },
     { id: 'browsers', label: 'Browsers', icon: 'globe' },
     { id: 'applications', label: 'Applications', icon: 'layers' },
+    { id: 'file-search', label: 'File Search', icon: 'folder-search' },
     { id: 'scripts', label: 'Scripts', icon: 'dev-tools' },
     { id: 'ai', label: 'AI', icon: 'ai-chat' },
     { id: 'backup', label: 'Backup', icon: 'cloud-upload' },
@@ -102,6 +104,8 @@
           <BrowsersTab />
         {:else if handler.activeTab === 'applications'}
           <ApplicationsTab />
+        {:else if handler.activeTab === 'file-search'}
+          <FileSearchTab />
         {:else if handler.activeTab === 'scripts'}
           <ScriptsTab />
         {:else if handler.activeTab === 'backup'}

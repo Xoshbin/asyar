@@ -1,0 +1,42 @@
+{
+  "name": "File Search",
+  "id": "file-search",
+  "version": "1.0.0",
+  "description": "Search files across your home folder",
+  "type": "extension",
+  "searchable": true,
+  "icon": "icon:folder-search",
+  "actions": [
+    {
+      "id": "clear-history",
+      "title": "Clear Search History",
+      "description": "Remove all per-query learning data",
+      "icon": "icon:trash",
+      "category": "System"
+    }
+  ],
+  "commands": [
+    {
+      "id": "show-files",
+      "name": "Search Files",
+      "description": "Search files by name",
+      "trigger": "files",
+      "icon": "icon:folder-search",
+      "mode": "view",
+      "component": "DefaultView",
+      "searchBarAccessory": {
+        "type": "dropdown",
+        "default": "all",
+        "options": [
+          { "value": "all", "title": "All Files" },
+          { "value": "document", "title": "Documents" },
+          { "value": "image", "title": "Images" },
+          { "value": "code", "title": "Code" },
+          { "value": "audio-video", "title": "Audio & Video" },
+          { "value": "archive", "title": "Archives" },
+          { "value": "folder", "title": "Folders" }
+        ]
+      }
+    }
+  ]
+}

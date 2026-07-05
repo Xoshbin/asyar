@@ -129,6 +129,30 @@ pub async fn read_text_file_absolute<R: tauri::Runtime>(
     Ok(fs::read_to_string(path)?)
 }
 
+/// Reads at most `max_bytes` of a file as UTF-8 (lossy), for preview
+/// purposes — never loads the whole file into memory first, unlike
+/// `read_text_file_absolute`. Truncation lands mid-codepoint only for
+/// pathological inputs; `from_utf8_lossy` degrades those to `U+FFFD`
+/// rather than erroring.
+#[tauri::command]
+pub async fn read_text_preview<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    path_str: String,
+    max_bytes: Option<u32>,
+) -> Result<String, AppError> {
+    use std::io::Read;
+
+    validate_path_allowed(&path_str, &app_handle)?;
+    let path = std::path::Path::new(&path_str);
+    let cap = max_bytes.unwrap_or(50_000) as u64;
+
+    let file = fs::File::open(path)?;
+    let mut buf = Vec::with_capacity(cap.min(64 * 1024) as usize);
+    file.take(cap).read_to_end(&mut buf)?;
+
+    Ok(String::from_utf8_lossy(&buf).into_owned())
+}
+
 /// Creates a directory and all required parent directories at an absolute path.
 #[tauri::command]
 pub async fn mkdir_absolute<R: tauri::Runtime>(
@@ -241,5 +265,80 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(content, "second");
+    }
+
+    #[tokio::test]
+    async fn test_read_text_preview_returns_full_content_under_cap() {
+        let app = tauri::test::mock_app();
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("small.txt");
+        std::fs::write(&path, "hello world").unwrap();
+
+        let content = read_text_preview(
+            app.handle().clone(),
+            path.to_str().unwrap().to_string(),
+            Some(50_000),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(content, "hello world");
+    }
+
+    #[tokio::test]
+    async fn test_read_text_preview_truncates_to_max_bytes() {
+        let app = tauri::test::mock_app();
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("big.txt");
+        std::fs::write(&path, "a".repeat(10_000)).unwrap();
+
+        let content = read_text_preview(
+            app.handle().clone(),
+            path.to_str().unwrap().to_string(),
+            Some(100),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(content.len(), 100);
+    }
+
+    #[tokio::test]
+    async fn test_read_text_preview_defaults_max_bytes_when_none() {
+        let app = tauri::test::mock_app();
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("default_cap.txt");
+        std::fs::write(&path, "a".repeat(60_000)).unwrap();
+
+        let content = read_text_preview(app.handle().clone(), path.to_str().unwrap().to_string(), None)
+            .await
+            .unwrap();
+
+        assert_eq!(content.len(), 50_000, "default cap must be 50,000 bytes");
+    }
+
+    #[tokio::test]
+    async fn test_read_text_preview_nonexistent_file_returns_err() {
+        let app = tauri::test::mock_app();
+        let temp_file = std::env::temp_dir().join("__does_not_exist_asyar_preview_test__");
+        let result = read_text_preview(
+            app.handle().clone(),
+            temp_file.to_str().unwrap().to_string(),
+            None,
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_read_text_preview_rejects_disallowed_path() {
+        let app = tauri::test::mock_app();
+        let result = read_text_preview(
+            app.handle().clone(),
+            "/etc/hosts".to_string(),
+            None,
+        )
+        .await;
+        assert!(result.is_err());
     }
 }

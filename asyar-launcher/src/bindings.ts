@@ -66,6 +66,71 @@ export type ExternalSearchResult = {
 	priority?: ResultPriority | null,
 };
 
+// Wire shape for one search hit.
+export type FileHit = {
+	// 16-char lowercase hex of the stable u64 file id.
+	fileId: string,
+	name: string,
+	path: string,
+	type: FileType,
+	isDir: boolean,
+	// Unix mtime seconds. Widened to i64 on the wire.
+	modifiedAt: number,
+	score: number,
+	pinned: boolean,
+	source: HitSource,
+};
+
+/**
+ *  User-configurable index settings, pushed from TS via
+ *  `file_index_set_config` (mirror of the applications scan-paths bridge).
+ */
+export type FileIndexConfig = {
+	enabled: boolean,
+	// Absolute paths to index. Empty ⇒ `$HOME`.
+	includeRoots: string[],
+	// Extra exclude patterns layered on top of the built-in defaults.
+	excludePatterns: string[],
+	indexHidden: boolean,
+};
+
+export type FileSearchResponse = {
+	hits: FileHit[],
+	/**
+	 *  Candidate collection hit the cap — results are best-effort from the
+	 *  static-rank-ordered prefix of the arena.
+	 */
+	truncated: boolean,
+	// The whole arena was scanned (i.e. `!truncated`, plus tail).
+	scannedAll: boolean,
+	indexGeneration: number,
+	work: WorkMeter,
+};
+
+/**
+ *  File classification derived from the extension (dirs use `Folder`).
+ *  Stored as one byte in `EntryMeta.ext_class`; the kebab-case string form
+ *  is the wire contract with the view's type-filter dropdown.
+ */
+export type FileType = "document" | "image" | "code" | "audio-video" | "archive" | "folder" | "other";
+
+/**
+ *  Where a hit came from: the local index or an on-demand deep-search
+ *  provider (mdfind / Everything / plocate).
+ */
+export type HitSource = "local" | "deep";
+
+// Index lifecycle state, kebab-case on the wire.
+export type IndexStateKind = "disabled" | "building" | "ready" | "rescanning" | "cap-reached";
+
+export type IndexStatus = {
+	state: IndexStateKind,
+	entryCount: number,
+	lastScanMs: number,
+	snapshotLoaded: boolean,
+	capReached: boolean,
+};
+
 // A user-defined alias bound to a single search-index item (application or command).
 export type ItemAlias = {
 	objectId: string,
@@ -129,4 +194,21 @@ export type TierResult = {
 export type UpdateCommandMetadataInput = {
 	commandObjectId: string,
 	subtitle: string | null,
+};
+
+/**
+ *  Per-query work accounting. Surfaced on the wire for the status card's
+ *  debug view and asserted on by the perf regression tests — the budget is
+ *  enforced as operation counts, not wall-clock, so CI stays deterministic.
+ */
+export type WorkMeter = {
+	bytesScanned: number,
+	candidatesCollected: number,
+	candidatesScored: number,
+	fuzzyChecks: number,
+	/**
+	 *  True when the query was answered by narrowing the previous query's
+	 *  candidate set instead of a fresh arena scan.
+	 */
+	narrowed: boolean,
 };

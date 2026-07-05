@@ -378,6 +378,74 @@ pub fn handle_icon_request(
     }
 }
 
+// ── asyar-thumb:// ────────────────────────────────────────────────────────────
+
+/// Serves cached file-preview thumbnails from `$APPDATA/thumbnail_cache/`
+/// under the `asyar-thumb://` scheme. Verbatim mirror of
+/// `handle_icon_request` — same lookup/security shape, different cache
+/// dir (thumbnails are content-addressed by path+mtime+size, unlike app
+/// icons which are keyed by install path alone).
+pub fn handle_thumbnail_request(
+    app: &tauri::AppHandle,
+    request: tauri::http::Request<Vec<u8>>,
+) -> tauri::http::Response<Vec<u8>> {
+    let uri = request.uri().to_string();
+    let uri_lower = uri.to_lowercase();
+
+    let mut path = if uri_lower.starts_with("asyar-thumb://localhost/") {
+        &uri["asyar-thumb://localhost/".len()..]
+    } else if uri_lower.starts_with("asyar-thumb://") {
+        &uri["asyar-thumb://".len()..]
+    } else if uri_lower.starts_with("http://asyar-thumb.localhost/") {
+        &uri["http://asyar-thumb.localhost/".len()..]
+    } else {
+        &uri
+    };
+
+    if path.ends_with('/') {
+        path = &path[..path.len() - 1];
+    }
+
+    let decoded_path = percent_encoding::percent_decode_str(path).decode_utf8_lossy();
+    let path = &decoded_path;
+
+    let thumbnail_cache_dir = crate::thumbnail::cache::get_thumbnail_cache_dir(app);
+
+    let filename = path
+        .split('?')
+        .next()
+        .unwrap_or(path)
+        .split('#')
+        .next()
+        .unwrap_or(path);
+
+    // [SECURITY]: Prevent path traversal
+    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+        log::warn!("Thumbnail security violation (traversal): {}", filename);
+        return tauri::http::Response::builder()
+            .status(403)
+            .body(Vec::new())
+            .unwrap();
+    }
+
+    let file_path = thumbnail_cache_dir.join(filename);
+
+    match std::fs::read(&file_path) {
+        Ok(bytes) => tauri::http::Response::builder()
+            .header("Content-Type", "image/png")
+            .header("Access-Control-Allow-Origin", "*")
+            .body(bytes)
+            .unwrap(),
+        Err(e) => {
+            log::debug!("Thumbnail not found in cache: {:?} ({})", file_path, e);
+            tauri::http::Response::builder()
+                .status(404)
+                .body(Vec::new())
+                .unwrap()
+        }
+    }
+}
+
 // ── Path allow-list ───────────────────────────────────────────────────────────
 
 /// Returns `true` if `path` is within an approved location for extension file serving.

@@ -76,6 +76,12 @@ const DEFAULT_SETTINGS: AppSettings = {
     crashReportMode: 'off',
     usageShareMode: 'off',
   },
+  fileSearch: {
+    enabled: true,
+    includeRoots: [],
+    excludePatterns: [],
+    indexHidden: false,
+  },
 };
 
 // Settings service implementation
@@ -362,6 +368,10 @@ class SettingsService implements ISettingsService {
         privacy: {
           ...DEFAULT_SETTINGS.privacy,
           ...(typedStored?.privacy ?? {}),
+        },
+        fileSearch: {
+          ...DEFAULT_SETTINGS.fileSearch,
+          ...(typedStored?.fileSearch ?? {}),
         },
       };
     } catch (error) {

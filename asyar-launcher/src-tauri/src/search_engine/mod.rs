@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod file_search_fallback;
 pub mod models;
 pub mod ranker;
 

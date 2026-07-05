@@ -50,6 +50,15 @@ This tab has two sub-sections that share a tab.
 - Install an extension from a file using the "Install from file" button.
 - Update available extensions from this view. Auto-update behaviour is controlled in Advanced.
 
+## File Search
+
+- **Enable/disable** — Turn the whole feature off if you don't want your files indexed. Turning it back on rebuilds the index.
+- **Index Status** — Shows whether the index is Building, Ready, Rescanning, or has hit its size cap, plus how many files are indexed and whether it was restored from a snapshot on this launch. Click **Rebuild Index** to force a fresh scan.
+- **Search Roots** — Empty means your entire home folder. Click **Add Root** to narrow the scope to specific directories instead.
+- **Exclude Patterns** — Add glob patterns (like `*.tmp`) on top of the built-in exclusions (caches, `node_modules`, `.git`, VM disk images, and other system directories).
+
+See [File Search](./features/file-search.md) for how to use the feature itself.
+
 ## AI, MCP & Browsers
 
 This section is split across two related tabs.

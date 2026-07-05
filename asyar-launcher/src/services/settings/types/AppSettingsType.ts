@@ -53,6 +53,16 @@ export interface AppSettings {
   ai: AISettings;
   developer?: DeveloperSettings;
   privacy: PrivacySettings;
+  fileSearch: FileSearchSettings;
+}
+
+export interface FileSearchSettings {
+  enabled: boolean;
+  /** Absolute paths to index. Empty ⇒ Rust defaults to $HOME. */
+  includeRoots: string[];
+  /** Extra exclude patterns layered on top of the built-in defaults. */
+  excludePatterns: string[];
+  indexHidden: boolean;
 }
 
 export type CrashReportMode = 'off' | 'ask' | 'auto';
