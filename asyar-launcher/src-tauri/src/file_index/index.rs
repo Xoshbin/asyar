@@ -486,7 +486,7 @@ impl FileIndex {
         }
         for e in &snapshot.entries {
             // The lc region must fit AND leave room for its separator byte.
-            if e.lc_off as usize + e.lc_len as usize >= snapshot.lc_arena.len() + 1 {
+            if e.lc_off as usize + e.lc_len as usize > snapshot.lc_arena.len() {
                 return None;
             }
             if e.disp_off as usize + e.name_len as usize > snapshot.disp_arena.len() {
