@@ -94,6 +94,7 @@ mod snippets;
 pub mod storage;
 pub mod sync;
 pub mod system_events;
+pub mod thumbnail;
 pub mod timers;
 pub mod tray;
 pub mod uri_schemes;
@@ -178,6 +179,9 @@ pub fn run() {
         })
         .register_uri_scheme_protocol("asyar-icon", |ctx, req| {
             uri_schemes::handle_icon_request(ctx.app_handle(), req)
+        })
+        .register_uri_scheme_protocol("asyar-thumb", |ctx, req| {
+            uri_schemes::handle_thumbnail_request(ctx.app_handle(), req)
         })
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -486,6 +490,7 @@ pub fn run() {
             file_index::commands::file_search_clear_history,
             file_index::commands::deep_search_availability,
             file_index::commands::deep_search,
+            thumbnail::commands::get_file_thumbnail,
             commands::extension_preferences_get_all,
             commands::extension_preferences_set,
             commands::extension_preferences_reset,
@@ -1228,6 +1233,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(std::sync::Arc::new(
         file_index::watcher::FileIndexWatcherHandle::new(),
     ));
+    app.manage(std::sync::Arc::new(thumbnail::ThumbnailState::default()));
 
     app.manage(data_store);
 

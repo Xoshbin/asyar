@@ -92,6 +92,7 @@ nucleo = "0.5"                     # Fuzzy matcher for file-index fuzzy fallback
 ignore = "0.4"                     # .gitignore-honoring parallel walker for the file index
 fnv = "1"                          # Stable file_id hash (dev,inode) for the file index
 bincode = "1"                      # Versioned file-index snapshot serialization
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] } # Cross-platform thumbnail downscaling
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"

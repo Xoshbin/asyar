@@ -19,6 +19,14 @@
   } from './state.svelte';
   import type { FileHit } from 'asyar-sdk/contracts';
   import { primeAiChipForFile } from './aiChipBridge';
+  import { getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
+
+  const ROW_THUMB_DIM = 56; // 2x a 28px row icon, for retina
+  const DETAIL_THUMB_DIM = 800;
+  // Types with a Rust thumbnail strategy (image: cross-platform; the rest:
+  // macOS qlmanage only today — `null` comes back everywhere else, and the
+  // existing metadata/text fallback is used).
+  const THUMBNAILABLE_TYPES = new Set(['image', 'audio-video', 'archive', 'other']);
 
   function handleWindowKeydown(event: KeyboardEvent) {
     if (event.key !== 'Tab') return;
@@ -72,10 +80,29 @@
   let selected = $derived(items.find((i) => i.fileId === selectedId));
   let pinnedIds = $derived(new Set(fileSearchViewState.pinnedFiles.map((p) => p.fileId)));
 
-  // Preview pane state
-  let imageBlobUrl = $state('');
-  let imageLoading = $state(false);
-  let currentImagePath = $state('');
+  // Row-list thumbnails: fileId -> url (present+truthy), or null (requested,
+  // none available). Absence of a key means "not yet requested". Populated
+  // lazily as `items` changes; never re-requested for a fileId already
+  // resolved. Generation is Rust-side (cached + concurrency-bounded), so
+  // firing one request per visible row costs nothing extra here.
+  let rowThumbnails = $state<Record<string, string | null>>({});
+
+  $effect(() => {
+    for (const item of items) {
+      if (item.type === 'folder' || item.fileId in rowThumbnails) continue;
+      void requestRowThumbnail(item.fileId, item.path);
+    }
+  });
+
+  async function requestRowThumbnail(fileId: string, path: string) {
+    const url = await getFileThumbnail(path, ROW_THUMB_DIM);
+    rowThumbnails[fileId] = url;
+  }
+
+  // Detail pane state
+  let detailThumbnailUrl = $state<string | null>(null);
+  let detailThumbnailLoading = $state(false);
+  let currentThumbnailPath = $state('');
   let textPreview = $state('');
   let textPreviewLoading = $state(false);
   let currentTextPath = $state('');
@@ -87,14 +114,12 @@
 
   $effect(() => {
     const item = selected;
-    if (item?.type === 'image' && item.path !== currentImagePath) {
-      void loadImage(item.path);
-    } else if (!item || item.type !== 'image') {
-      if (imageBlobUrl) {
-        URL.revokeObjectURL(imageBlobUrl);
-        imageBlobUrl = '';
-      }
-      currentImagePath = '';
+    const wantsThumbnail = item && THUMBNAILABLE_TYPES.has(item.type);
+    if (wantsThumbnail && item.path !== currentThumbnailPath) {
+      void loadDetailThumbnail(item.path);
+    } else if (!wantsThumbnail) {
+      detailThumbnailUrl = null;
+      currentThumbnailPath = '';
     }
 
     const isText = item && (item.type === 'document' || item.type === 'code');
@@ -112,19 +137,13 @@
     }
   });
 
-  async function loadImage(path: string) {
-    imageLoading = true;
-    currentImagePath = path;
+  async function loadDetailThumbnail(path: string) {
+    detailThumbnailLoading = true;
+    currentThumbnailPath = path;
     try {
-      const data = await readFile(path);
-      if (imageBlobUrl) URL.revokeObjectURL(imageBlobUrl);
-      const blob = new Blob([data]);
-      imageBlobUrl = URL.createObjectURL(blob);
-    } catch (err) {
-      logService.warn(`[FileSearch] image load failed: ${err}`);
-      imageBlobUrl = '';
+      detailThumbnailUrl = await getFileThumbnail(path, DETAIL_THUMB_DIM);
     } finally {
-      imageLoading = false;
+      detailThumbnailLoading = false;
     }
   }
 
@@ -206,7 +225,9 @@
       >
         {#snippet leading()}
           <div class="row-icon-wrap">
-            {#if item.type === 'image'}
+            {#if rowThumbnails[item.fileId]}
+              <img src={rowThumbnails[item.fileId]} alt="" class="row-thumb" />
+            {:else if item.type === 'image'}
               <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             {:else if item.type === 'code'}
               <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
@@ -238,17 +259,7 @@
     {#snippet detail()}
       {#if selected}
         <div class="preview-pane custom-scrollbar">
-          {#if selected.type === 'image'}
-            <div class="image-pane">
-              {#if imageLoading}
-                <div class="text-caption opacity-50">Loading image…</div>
-              {:else if imageBlobUrl}
-                <img src={imageBlobUrl} alt="" class="preview-image" />
-              {:else}
-                <div class="text-caption opacity-50">Failed to load image</div>
-              {/if}
-            </div>
-          {:else if selected.type === 'document' || selected.type === 'code'}
+          {#if selected.type === 'document' || selected.type === 'code'}
             <div class="text-pane">
               {#if textPreviewLoading}
                 <div class="text-caption opacity-50">Loading…</div>
@@ -260,6 +271,18 @@
             </div>
           {:else if selected.type === 'folder'}
             <div class="text-caption opacity-70 p-4">Folder — {selected.path}</div>
+          {:else if THUMBNAILABLE_TYPES.has(selected.type)}
+            <div class="image-pane">
+              {#if detailThumbnailLoading}
+                <div class="text-caption opacity-50">Loading preview…</div>
+              {:else if detailThumbnailUrl}
+                <img src={detailThumbnailUrl} alt="" class="preview-image" />
+              {:else}
+                <div class="text-caption opacity-70 p-4">
+                  {selected.type}{selectedSize !== null ? ` · ${formatBytes(selectedSize)}` : ''}
+                </div>
+              {/if}
+            </div>
           {:else}
             <div class="text-caption opacity-70 p-4">
               {selected.type}{selectedSize !== null ? ` · ${formatBytes(selectedSize)}` : ''}
@@ -310,6 +333,13 @@
     justify-content: center;
     flex-shrink: 0;
     opacity: 0.6;
+  }
+
+  .row-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: var(--radius-sm, 4px);
   }
 
   .row-icon {
