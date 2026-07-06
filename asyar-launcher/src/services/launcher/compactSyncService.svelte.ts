@@ -11,6 +11,8 @@
 
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
+  cancelLauncherResize,
+  confirmLauncherPaint,
   setLauncherHeight,
   markLauncherReady,
   setLauncherKeepExpanded,
@@ -40,6 +42,8 @@ export class CompactSyncService {
   searchExpandSticky = $state(false);
 
   #lastApplied = -1;
+  #pendingTarget = -1;
+  #confirmPending = false;
   #pendingRaf1 = 0;
   #pendingRaf2 = 0;
   #lastKeepExpanded: boolean | null = null;
@@ -101,19 +105,28 @@ export class CompactSyncService {
   }
 
   /**
-   * Schedules setLauncherHeight via double-rAF — lets WebKit composite
-   * newly-arrived results into the cropped-away region before AppKit
-   * grows the window, and gives Svelte a frame to finish first-mount
-   * hydration before we touch NSWindow.
+   * Schedules setLauncherHeight, routed by transition kind (an active-view
+   * toggle is the signal that chrome swaps together with the resize):
+   * - extension-view GROW: sent at effect time so Rust's presentation hook
+   *   arms ahead of the swap's paint; a rAF in the same rendering update
+   *   then confirms the paint and the hook commits the window grow and the
+   *   new view's pixels in one CATransaction;
+   * - extension-view SHRINK: single rAF + CA pre-commit gate; resize ASAP,
+   *   the crop merely hides the results region;
+   * - everything else: double rAF (Svelte first-mount hydration) + direct.
    *
    * Shrink-while-query-present is deferred: `viewManager.goBack()` can
    * restore a prior query before the search has re-settled, so
    * `isCompactIdle` transiently flips true and shrinking here would
    * flicker 96 → (settle) → 480.
    *
-   * Extension-view transitions route the resize through a CA pre-commit
-   * gate so the NSWindow setFrame: lands in the same transaction as
-   * WebKit's chrome swap (back button, placeholder).
+   * The armed resize is tracked in #pendingTarget and every fire re-derives
+   * the target, so stale schedules from transient idle blips drop out
+   * instead of committing an obsolete height (visible position bounce). A
+   * gated grow that's already in Rust when the schedule resets is withdrawn
+   * outright (`cancelLauncherResize`) and #lastApplied forgets it, so the
+   * settled state re-derives the geometry instead of the Rust watchdog
+   * landing it unsynchronized.
    */
   applyLauncherHeight(): void {
     const compactIdle = this.isCompactIdle;
@@ -122,22 +135,59 @@ export class CompactSyncService {
     // height is unchanged or shrink-blocked still informs the next resize.
     const hadActiveView = this.#hadActiveView;
     this.#hadActiveView = !!this.#deps.getActiveView();
-    const previous = this.#lastApplied;
+    // #lastApplied only advances once a resize is actually handed to Rust,
+    // so compare against the armed-but-unsent target when one exists.
+    const previous = this.#pendingTarget !== -1 ? this.#pendingTarget : this.#lastApplied;
     if (height === previous) return;
     const shrinking = previous !== -1 && height < previous;
-    if (shrinking && this.#deps.getLocalSearchValue()) return;
-    this.#lastApplied = height;
+    if (shrinking && this.#deps.getLocalSearchValue()) {
+      // Still disarm any pending grow: left armed, it would fire against
+      // this already-settled state (the visible position bounce).
+      this.#cancelPendingResize();
+      return;
+    }
     this.#cancelPendingResize();
+    this.#pendingTarget = height;
+    // Re-derives the target at fire time (a stale send would fight the pass
+    // that moved the state on) and forces layout so the Rust-side gates
+    // attach to the transaction carrying this frame's DOM state.
+    const send = (viaCaGate: boolean, viaPresentationGate: boolean) => {
+      this.#pendingTarget = -1;
+      const idleNow = this.isCompactIdle;
+      const target = targetHeight(idleNow);
+      if (target !== height) return;
+      this.#lastApplied = height;
+      void document.documentElement.offsetHeight;
+      setLauncherHeight(height, !idleNow, viaCaGate, viaPresentationGate).catch((e) =>
+        logService.debug(`[compact] setLauncherHeight failed: ${e}`),
+      );
+    };
     const activeViewToggled = hadActiveView !== this.#hadActiveView;
     if (activeViewToggled && previous !== -1) {
-      // Single rAF for Svelte's DOM swap, then force a synchronous WebKit
-      // layout so the new chrome is pending in the current CA transaction
-      // before the Rust pre-commit gate attaches the NSWindow resize.
+      if (shrinking) {
+        // goBack to compact root: resize ASAP. One rAF for Svelte's DOM
+        // swap, then the CA pre-commit gate. The crop only hides the
+        // results region, so there is no paint worth waiting for.
+        this.#pendingRaf1 = requestAnimationFrame(() => {
+          this.#pendingRaf1 = 0;
+          send(true, false);
+        });
+        return;
+      }
+      // Extension view entered: request the resize now, before this
+      // rendering update builds the swap's paint, so Rust's presentation
+      // hook is armed ahead of the swap's layer-tree commit and can't miss
+      // it. The rAF then stamps the confirm mark from the same rendering
+      // update as the swap, and the hook commits the grow on exactly that
+      // paint's presentation.
+      send(false, true);
+      this.#confirmPending = true;
       this.#pendingRaf1 = requestAnimationFrame(() => {
         this.#pendingRaf1 = 0;
+        this.#confirmPending = false;
         void document.documentElement.offsetHeight;
-        setLauncherHeight(height, !compactIdle, true).catch((e) =>
-          logService.debug(`[compact] setLauncherHeight failed: ${e}`),
+        confirmLauncherPaint().catch((e) =>
+          logService.debug(`[compact] confirmLauncherPaint failed: ${e}`),
         );
       });
       return;
@@ -145,9 +195,7 @@ export class CompactSyncService {
     this.#pendingRaf1 = requestAnimationFrame(() => {
       this.#pendingRaf2 = requestAnimationFrame(() => {
         this.#pendingRaf2 = 0;
-        setLauncherHeight(height, !compactIdle).catch((e) =>
-          logService.debug(`[compact] setLauncherHeight failed: ${e}`),
-        );
+        send(false, false);
       });
       this.#pendingRaf1 = 0;
     });
@@ -165,8 +213,10 @@ export class CompactSyncService {
   }
 
   #shrinkToCompactNow(tag: string): void {
-    if (this.#lastApplied === LAUNCHER_HEIGHT_COMPACT) return;
+    // Cancel BEFORE the no-op check: even when already compact, a pending
+    // grow must be disarmed or it fires against the hidden window.
     this.#cancelPendingResize();
+    if (this.#lastApplied === LAUNCHER_HEIGHT_COMPACT) return;
     this.#lastApplied = LAUNCHER_HEIGHT_COMPACT;
     // Mirror applyLauncherHeight's tracking write so a side-channel shrink
     // (resign-key, reset-to-compact) doesn't leave #hadActiveView stale —
@@ -179,6 +229,7 @@ export class CompactSyncService {
   }
 
   #cancelPendingResize(): void {
+    this.#pendingTarget = -1;
     if (this.#pendingRaf1) {
       cancelAnimationFrame(this.#pendingRaf1);
       this.#pendingRaf1 = 0;
@@ -186,6 +237,17 @@ export class CompactSyncService {
     if (this.#pendingRaf2) {
       cancelAnimationFrame(this.#pendingRaf2);
       this.#pendingRaf2 = 0;
+    }
+    if (this.#confirmPending) {
+      // A presentation-gated grow is already in Rust and the confirm that
+      // was just cancelled will never arrive. Withdraw the request —
+      // otherwise its watchdog force-applies the stale geometry — and
+      // forget the applied height so the next pass re-derives from scratch.
+      this.#confirmPending = false;
+      this.#lastApplied = -1;
+      cancelLauncherResize().catch((e) =>
+        logService.debug(`[compact] cancelLauncherResize failed: ${e}`),
+      );
     }
   }
 

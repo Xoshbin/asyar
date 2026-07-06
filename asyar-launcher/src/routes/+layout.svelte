@@ -11,7 +11,13 @@
   import { mcpService } from '../built-in-features/mcp/mcpService.svelte';
   import { extractErrorMessage } from '../lib/errors';
   import PermissionPromptDialog from '../built-in-features/mcp/PermissionPromptDialog.svelte';
+  import { installIdleCallbackPolyfill } from '../lib/idle';
   let { children } = $props();
+
+  // Idle scheduling must exist before any service defers work through
+  // runWhenIdle. WebKit gates requestIdleCallback behind a feature flag the
+  // Rust side flips best-effort; this makes the API's presence a guarantee.
+  installIdleCallbackPolyfill();
 
   onMount(async () => {
     try {

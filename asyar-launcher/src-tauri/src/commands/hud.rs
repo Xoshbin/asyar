@@ -25,6 +25,14 @@ pub fn hide_hud(app_handle: AppHandle) -> Result<(), AppError> {
     service::hide(&app_handle)
 }
 
+/// Invoked by the HUD route two rAFs after painting the content of
+/// `reveal_gen` — completes the flash-free reveal `show_hud` started at
+/// alpha 0. Safe to call redundantly; stale generations are dropped.
+#[tauri::command]
+pub fn hud_mark_shown(app_handle: AppHandle, reveal_gen: u64) -> Result<(), AppError> {
+    service::mark_shown(&app_handle, reveal_gen)
+}
+
 /// Returns the most recently set HUD content (or `null` if none).
 ///
 /// The HUD's Svelte route calls this on mount to recover the state that

@@ -249,6 +249,8 @@ pub fn run() {
             commands::set_focus_lock,
             commands::set_launcher_keep_expanded,
             commands::set_launcher_height,
+            commands::confirm_launcher_paint,
+            commands::cancel_launcher_resize,
             commands::mark_launcher_ready,
             commands::update_show_more_bar_style,
             commands::update_show_more_bar_huds,
@@ -267,6 +269,7 @@ pub fn run() {
             commands::show_hud,
             commands::hide_hud,
             commands::get_hud_state,
+            commands::hud_mark_shown,
             commands::simulate_paste,
             commands::check_accessibility_permission,
             commands::update_global_shortcut,
@@ -1013,6 +1016,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     {
         use crate::platform::macos::{LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT};
         crate::platform::macos::pin_launcher_webview(&window);
+        // Runtime WebKit feature flags (requestIdleCallback). As early as
+        // possible after the webview exists; flags may not apply to an
+        // already-parsed document, and the JS polyfill covers that gap.
+        crate::platform::macos::configure_launcher_webkit_features(&window);
         crate::platform::macos::create_show_more_bar(&window, handle.clone());
         let height = if compact {
             LAUNCHER_COMPACT_HEIGHT
@@ -1029,6 +1036,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             None,
             crate::platform::macos::ResizeMode::Immediate,
         );
+
+        // Must come after the geometry seeding above so the first composited
+        // frames already have the persisted compact/expanded shape.
+        crate::platform::macos::prewarm_launcher_panel(&window, &panel);
     }
 
     // Non-macOS: plain resize while still hidden — the hotkey handler shows it.
@@ -1393,29 +1404,39 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 }
                 state.asyar_visible.store(false, Ordering::Relaxed);
 
+                // Every hide converges here: programmatic dismissals arrive
+                // nested inside park's order-out, click-aways directly. Park
+                // first: the hide is then perceptually instant, and the
+                // collapse below composites invisibly on a webview that
+                // keeps rendering.
+                //
                 // If the user pressed Show More and then hid without typing,
-                // collapse to compact geometry before the window goes away —
-                // otherwise the next panel.show() paints the stale 480 frame
-                // before JS can shrink it. `launcher_keep_expanded` mirrors
-                // `!isCompactIdle` from TS, so any committed expanded state
-                // (typed query, extension view, context chip, Show More)
-                // keeps the 480 geometry across hides.
+                // collapse to compact geometry while parked, otherwise the
+                // next reveal would flip alpha on the stale 480 frame.
+                // `launcher_keep_expanded` mirrors `!isCompactIdle` from TS,
+                // so any committed expanded state (typed query, extension
+                // view, context chip, Show More) keeps the 480 geometry
+                // across hides.
                 let compact_mode = read_launch_view(&handle_clone) == "compact";
                 let keep_expanded = state.launcher_keep_expanded.load(Ordering::Relaxed);
                 let handle_for_main = handle_clone.clone();
                 let panel = panel.clone();
                 let _ = handle_clone.run_on_main_thread(move || {
+                    let Some(window) = handle_for_main.get_webview_window(SPOTLIGHT_LABEL) else {
+                        // Launcher window unreachable: order out like the
+                        // pre-parked lifecycle so the hide still happens.
+                        panel.order_out(None);
+                        return;
+                    };
+                    crate::platform::macos::park_launcher_panel(&window, &panel);
                     if should_collapse_on_resign(compact_mode, keep_expanded) {
-                        if let Some(window) = handle_for_main.get_webview_window(SPOTLIGHT_LABEL) {
-                            crate::platform::macos::set_launcher_window_height(
-                                &window,
-                                crate::platform::macos::LAUNCHER_COMPACT_HEIGHT,
-                                Some(false),
-                                crate::platform::macos::ResizeMode::Immediate,
-                            );
-                        }
+                        crate::platform::macos::set_launcher_window_height(
+                            &window,
+                            crate::platform::macos::LAUNCHER_COMPACT_HEIGHT,
+                            Some(false),
+                            crate::platform::macos::ResizeMode::Immediate,
+                        );
                     }
-                    panel.order_out(None);
                 });
             },
         );

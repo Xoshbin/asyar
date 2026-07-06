@@ -452,8 +452,9 @@ pub fn handle_shortcut(app: &tauri::AppHandle, shortcut: &Shortcut, event: Short
         return;
     };
 
-    // Launcher-toggle just re-shows the last view — any stale-frame flash is
-    // cosmetically X→X. User item hotkeys (which CAN swap views) route through
+    // Launcher-toggle just re-shows the last view, which the parked webview
+    // kept rendering, so the reveal is an alpha flip of an already-fresh
+    // surface. User item hotkeys (which CAN swap views) route through
     // `user-shortcut-fired` and use prepare_show/commit_show.
     #[cfg(target_os = "macos")]
     {
@@ -461,16 +462,15 @@ pub fn handle_shortcut(app: &tauri::AppHandle, shortcut: &Shortcut, event: Short
         let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) else {
             return;
         };
-        if panel.is_visible() {
+        // Branch on the logical flag, NOT panel.is_visible(): a parked panel
+        // is ordered in (isVisible == true) even though the user perceives it
+        // as hidden, so the NSWindow check would make the toggle hide-only.
+        if state.asyar_visible.load(Ordering::Relaxed) {
             state.asyar_visible.store(false, Ordering::Relaxed);
-            panel.order_out(None);
+            crate::platform::macos::park_launcher_panel(&window, &panel);
         } else {
             state.asyar_visible.store(true, Ordering::Relaxed);
-            // Recover alpha in case the previous session left it at 0 (e.g. the
-            // JS two-phase reveal failed between prepare and commit).
-            crate::platform::macos::set_window_alpha(&window, 1.0);
-            let _ = crate::platform::macos::center_at_cursor_monitor(&window);
-            panel.show();
+            crate::platform::macos::reveal_launcher_panel(&window, &panel);
         }
     }
 

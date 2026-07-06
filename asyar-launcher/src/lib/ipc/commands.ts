@@ -205,8 +205,22 @@ export async function setLauncherHeight(
   height: number,
   expanded?: boolean,
   deferUntilNextCaCommit?: boolean,
+  afterNextPresentationUpdate?: boolean,
 ): Promise<void> {
-  await invokeSafe('set_launcher_height', { height, expanded, deferUntilNextCaCommit });
+  await invokeSafe('set_launcher_height', {
+    height,
+    expanded,
+    deferUntilNextCaCommit,
+    afterNextPresentationUpdate,
+  });
+}
+
+export async function confirmLauncherPaint(): Promise<void> {
+  await invokeSafe('confirm_launcher_paint');
+}
+
+export async function cancelLauncherResize(): Promise<void> {
+  await invokeSafe('cancel_launcher_resize');
 }
 
 export async function markLauncherReady(expanded: boolean): Promise<void> {
@@ -324,10 +338,21 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   export interface HudContent {
     title: string;
     spinning: boolean;
+    /** Monotonic reveal generation; echo back via hudMarkShown after the
+     * content has painted to complete the flash-free reveal (macOS shows
+     * the HUD window at alpha 0 until then). */
+    revealGen: number;
   }
 
   export async function getHudState(): Promise<HudContent | null> {
     return invokeSafe<HudContent | null>('get_hud_state');
+  }
+
+  /** Tells Rust the HUD content for `revealGen` is painted, so the window's
+   * alpha can flip to 1. Safe to call redundantly; stale generations are
+   * dropped Rust-side. No-op on non-macOS. */
+  export async function hudMarkShown(revealGen: number): Promise<void> {
+    await invokeSafe('hud_mark_shown', { revealGen });
   }
 
   export async function showHud(args: { title: string; durationMs: number; spinning: boolean }): Promise<void> {
