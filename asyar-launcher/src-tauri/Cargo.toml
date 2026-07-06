@@ -91,6 +91,7 @@ memchr = "2"                       # SIMD substring scan over the file-index nam
 nucleo = "0.5"                     # Fuzzy matcher for file-index fuzzy fallback (Helix's)
 ignore = "0.4"                     # .gitignore-honoring parallel walker for the file index
 fnv = "1"                          # Stable file_id hash (dev,inode) for the file index
+file-id = "0.2"                    # Cross-platform (dev,inode)/(volume,file_index) lookup on stable Rust — MetadataExt's Windows methods are nightly-only
 bincode = "1"                      # Versioned file-index snapshot serialization
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] } # Cross-platform thumbnail downscaling
 

@@ -213,6 +213,7 @@ dependencies = [
  "dirs 5.0.1",
  "enigo",
  "evalexpr",
+ "file-id",
  "flate2",
  "fnv",
  "futures-util",

@@ -44,21 +44,32 @@ pub(crate) fn hash_path(path: &Path) -> u64 {
     h.finish()
 }
 
-#[cfg(unix)]
-fn inode_for(path: &Path) -> Option<(u64, u64)> {
-    use std::os::unix::fs::MetadataExt;
-    let m = std::fs::metadata(path).ok()?;
-    Some((m.dev(), m.ino()))
+/// Folds a 128-bit value into 64 bits by XORing both halves, preserving
+/// entropy from both instead of truncating to the low bits.
+fn fold_u128(x: u128) -> u64 {
+    (x as u64) ^ ((x >> 64) as u64)
 }
 
-#[cfg(windows)]
+/// Cross-platform (volume/device, file) identity via the `file-id` crate —
+/// `std::os::windows::fs::MetadataExt`'s `volume_serial_number`/`file_index`
+/// are nightly-only (`windows_by_handle`, rust-lang/rust#63010) and can
+/// never compile on stable Rust, which this replaces uniformly for both
+/// platforms.
 fn inode_for(path: &Path) -> Option<(u64, u64)> {
-    use std::os::windows::fs::MetadataExt;
-    let m = std::fs::metadata(path).ok()?;
-    Some((
-        m.volume_serial_number().unwrap_or(0) as u64,
-        m.file_index().unwrap_or(0),
-    ))
+    match file_id::get_file_id(path).ok()? {
+        file_id::FileId::Inode {
+            device_id,
+            inode_number,
+        } => Some((device_id, inode_number)),
+        file_id::FileId::LowRes {
+            volume_serial_number,
+            file_index,
+        } => Some((volume_serial_number as u64, file_index)),
+        file_id::FileId::HighRes {
+            volume_serial_number,
+            file_id,
+        } => Some((volume_serial_number, fold_u128(file_id))),
+    }
 }
 
 #[cfg(test)]
@@ -95,6 +106,14 @@ mod tests {
         let b = derive_u64(&p);
         assert_eq!(a, b);
         assert_ne!(a, 0);
+    }
+
+    #[test]
+    fn fold_u128_combines_both_64bit_halves() {
+        assert_eq!(fold_u128(0x1), 1, "low half only");
+        assert_eq!(fold_u128(1u128 << 64), 1, "high half only");
+        assert_eq!(fold_u128((5u128 << 64) | 3), 5 ^ 3, "both halves XORed");
+        assert_eq!(fold_u128(0), 0);
     }
 
     #[test]
