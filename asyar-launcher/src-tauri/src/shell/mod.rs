@@ -277,6 +277,17 @@ pub fn spawn(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
+    // CREATE_NO_WINDOW — keep a console-subsystem child (e.g. powershell.exe)
+    // from briefly flashing a black console window when an extension spawns it,
+    // matching the launcher's own PowerShell calls (application/service.rs, #411).
+    // Stdio is piped, so suppressing the console doesn't affect output capture.
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        child_process.creation_flags(CREATE_NO_WINDOW);
+    }
+
     let mut child = Command::from(child_process).spawn()?;
 
     let pid = child
@@ -374,7 +385,16 @@ pub fn kill(shell_registry: &ShellProcessRegistry, spawn_id: &str) -> Result<(),
 
 pub async fn resolve_path(program: &str) -> Result<String, AppError> {
     let cmd = if cfg!(windows) { "where" } else { "which" };
-    let output = Command::new(cmd).arg(program).output().await?;
+    let mut command = Command::new(cmd);
+
+    // `where` is a console-subsystem binary too — suppress its window flash.
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = command.arg(program).output().await?;
 
     if output.status.success() {
         let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
