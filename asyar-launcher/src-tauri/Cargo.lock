@@ -193,7 +193,7 @@ dependencies = [
 
 [[package]]
 name = "asyar"
-version = "0.1.1-33"
+version = "0.1.1-34"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -213,6 +213,7 @@ dependencies = [
  "dirs 5.0.1",
  "enigo",
  "evalexpr",
+ "file-id",
  "flate2",
  "fnv",
  "futures-util",
