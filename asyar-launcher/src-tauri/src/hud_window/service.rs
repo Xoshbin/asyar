@@ -35,6 +35,7 @@ const HUD_BOTTOM_MARGIN: f64 = 80.0;
 /// (webview wedged, event lost), reveal anyway. Two rAFs is the expected
 /// path (~33ms); this is the generous upper bound. Worst case equals the
 /// pre-dance behavior: a possibly-stale frame, this many ms late.
+#[cfg(target_os = "macos")]
 const REVEAL_FALLBACK_MS: u64 = 250;
 
 /// Show the HUD with the given title.
