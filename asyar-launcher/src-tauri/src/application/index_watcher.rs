@@ -43,7 +43,7 @@ use crate::index_events::{IndexEvent, IndexEventsHub};
 use crate::search_engine::managed_search_state;
 use log::{debug, warn};
 use notify::RecursiveMode;
-use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, RecommendedCache};
+use notify_debouncer_full::{new_debouncer_opt, DebounceEventResult, Debouncer, NoCache};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -116,12 +116,12 @@ fn build_extras_state(initial: Vec<PathBuf>) -> (ExtrasState, ExtrasState) {
 /// Long-lived watcher handle. Drop drops the debouncer which unwatches all
 /// paths, so this must be stored in managed state for the app's lifetime.
 pub struct IndexWatcher {
-    // Holding the debouncer keeps the watcher thread alive. The concrete
-    // type is the debouncer-full recommended bundle (RecommendedWatcher +
-    // FileIdMap cache); we don't name it directly because the crate's
-    // public type alias `Debouncer<RecommendedWatcher, RecommendedCache>`
-    // is the stable surface.
-    debouncer: Mutex<Debouncer<notify::RecommendedWatcher, RecommendedCache>>,
+    // Holding the debouncer keeps the watcher thread alive. `NoCache` is
+    // deliberate: the default `FileIdMap` cache walks and stats every file
+    // under each watched root (and re-walks on kernel rescan flags) purely
+    // for rename stitching — this watcher only counts "something changed"
+    // and rescans, so the cache would be pure overhead.
+    debouncer: Mutex<Debouncer<notify::RecommendedWatcher, NoCache>>,
     // Shared with the debouncer closure so set_extra_paths writes are
     // visible to FS-event rescans.
     extras: ExtrasState,
@@ -146,7 +146,7 @@ impl IndexWatcher {
         let handler_app = app_handle.clone();
         let handler_hub = hub.clone();
 
-        let mut debouncer = new_debouncer(
+        let mut debouncer = new_debouncer_opt(
             DEBOUNCE_WINDOW,
             None,
             move |result: DebounceEventResult| match result {
@@ -164,6 +164,8 @@ impl IndexWatcher {
                     }
                 }
             },
+            NoCache::new(),
+            notify::Config::default(),
         )
         .map_err(|e| AppError::Other(format!("failed to create debouncer: {e}")))?;
 
@@ -541,7 +543,7 @@ mod tests {
 
         let (tx, rx) = mpsc::channel::<()>();
         let hub_cb = hub.clone();
-        let mut debouncer = new_debouncer(
+        let mut debouncer = new_debouncer_opt::<_, notify::RecommendedWatcher, NoCache>(
             Duration::from_millis(150),
             None,
             move |result: DebounceEventResult| {
@@ -563,6 +565,8 @@ mod tests {
                     }
                 }
             },
+            NoCache::new(),
+            notify::Config::default(),
         )
         .expect("debouncer starts");
 

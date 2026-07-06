@@ -10,7 +10,7 @@ pub mod matcher;
 
 use crate::error::AppError;
 use notify::RecursiveMode;
-use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, RecommendedCache};
+use notify_debouncer_full::{new_debouncer_opt, DebounceEventResult, Debouncer, NoCache};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -59,8 +59,12 @@ struct WatcherEntry {
     extension_id: String,
     paths: Vec<PathBuf>,
     /// Dropping this entry stops the watcher thread. Underscore-prefixed
-    /// because we never access it directly after construction.
-    _debouncer: Debouncer<notify::RecommendedWatcher, RecommendedCache>,
+    /// because we never access it directly after construction. `NoCache`
+    /// is deliberate: the default `FileIdMap` stats every file under each
+    /// watched root purely for rename stitching, and this registry only
+    /// forwards which roots saw activity — an extension watching a large
+    /// tree must not make the host walk it.
+    _debouncer: Debouncer<notify::RecommendedWatcher, NoCache>,
 }
 
 /// Per-handle registry. Stored as managed Tauri state (`Arc<Self>`).
@@ -140,7 +144,7 @@ impl FsWatcherRegistry {
         let emit_for_cb = self.emit.clone();
         let roots_for_cb = paths.clone();
 
-        let mut debouncer = new_debouncer(debounce, None, move |result: DebounceEventResult| {
+        let mut debouncer = new_debouncer_opt(debounce, None, move |result: DebounceEventResult| {
             let events = match result {
                 Ok(e) if !e.is_empty() => e,
                 _ => return,
@@ -160,7 +164,7 @@ impl FsWatcherRegistry {
                     );
                 }
             }
-        })
+        }, NoCache::new(), notify::Config::default())
         .map_err(|e| AppError::Other(format!("failed to create debouncer: {e}")))?;
 
         for p in &paths {

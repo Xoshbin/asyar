@@ -81,7 +81,7 @@ trash = "5"
 regex = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 notify = "8"                       # Filesystem watcher — drives auto-rescan of the app index
-notify-debouncer-full = "0.7"      # Coalesces app-install fs-event bursts into one rescan
+notify-debouncer-full = "0.7"      # Debounce for app-index/fs-watch. ALWAYS NoCache: default FileIdMap stat-walks whole watched roots
 globset = "0.4"                    # Glob pattern matching for fs:watch permission patterns
 async-trait = "0.1"
 chrono = "0.4"                     # Local-date formatting for usage rollups (YYYY-MM-DD)

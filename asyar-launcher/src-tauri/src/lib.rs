@@ -1723,7 +1723,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 app_handle_for_file_index.try_state::<std::sync::Arc<file_index::watcher::FileIndexWatcherHandle>>()
             {
                 let exclusions = file_index::watcher::build_exclusion_set(&cfg.exclude_patterns);
-                handle.rearm(roots, exclusions, file_index_state.clone());
+                let on_rescan = file_index::commands::make_on_rescan(
+                    app_handle_for_file_index.clone(),
+                    file_index_state.clone(),
+                );
+                handle.rearm(roots, exclusions, file_index_state.clone(), on_rescan);
             }
 
             let _ = app_handle_for_file_index.emit("asyar:file-index-status", file_index_state.status());
