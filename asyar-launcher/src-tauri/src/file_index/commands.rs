@@ -16,7 +16,9 @@ use super::query::QueryOptions;
 use super::ranking::now_seconds;
 use super::service::FileIndexState;
 use super::snapshot::SNAPSHOT_FILE_NAME;
-use super::types::{FileHit, FileIndexConfig, FileSearchResponse, FileType, HitSource, IndexStatus};
+use super::types::{
+    FileHit, FileIndexConfig, FileSearchResponse, FileType, HitSource, IndexStateKind, IndexStatus,
+};
 use super::walker::HARD_CAP;
 use super::watcher::{self, FileIndexWatcherHandle};
 
@@ -68,6 +70,35 @@ fn snapshot_path(app: &AppHandle) -> Option<PathBuf> {
         .map(|d| d.join(SNAPSHOT_FILE_NAME))
 }
 
+/// Full walker scan + snapshot persist, both off the async thread. Returns
+/// the roots and excludes it scanned so `spawn_rebuild` can re-arm the
+/// watcher over the same set. Callers check `config().enabled` first.
+async fn run_scan_and_snapshot(
+    app: &AppHandle,
+    state: &Arc<FileIndexState>,
+) -> (Vec<PathBuf>, Vec<String>) {
+    let cfg = state.config();
+    let roots = resolve_roots(app, &cfg);
+    let excludes = cfg.exclude_patterns.clone();
+    let now = now_seconds();
+
+    let scan_state = state.clone();
+    let scan_roots = roots.clone();
+    let scan_excludes = excludes.clone();
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        scan_state.run_full_scan(scan_roots, scan_excludes, HARD_CAP, now)
+    })
+    .await;
+
+    if let Some(path) = snapshot_path(app) {
+        let save_state = state.clone();
+        let _ = tauri::async_runtime::spawn_blocking(move || save_state.save_snapshot(&path))
+            .await;
+    }
+
+    (roots, excludes)
+}
+
 /// Runs a full rescan off the calling task, saves a snapshot, re-arms the
 /// watcher over the new roots, and emits the resulting status. Spawned
 /// so the triggering command (`file_index_rebuild` /
@@ -82,35 +113,57 @@ fn snapshot_path(app: &AppHandle) -> Option<PathBuf> {
 /// possibly many seconds later.
 fn spawn_rebuild(app: AppHandle, state: Arc<FileIndexState>) {
     tauri::async_runtime::spawn(async move {
-        let cfg = state.config();
-        if !cfg.enabled {
+        if !state.config().enabled {
             return;
         }
-        let roots = resolve_roots(&app, &cfg);
-        let excludes = cfg.exclude_patterns.clone();
-        let now = now_seconds();
-
-        let scan_state = state.clone();
-        let scan_roots = roots.clone();
-        let scan_excludes = excludes.clone();
-        let _ = tauri::async_runtime::spawn_blocking(move || {
-            scan_state.run_full_scan(scan_roots, scan_excludes, HARD_CAP, now)
-        })
-        .await;
-
-        if let Some(path) = snapshot_path(&app) {
-            let save_state = state.clone();
-            let _ = tauri::async_runtime::spawn_blocking(move || save_state.save_snapshot(&path))
-                .await;
-        }
+        let (roots, excludes) = run_scan_and_snapshot(&app, &state).await;
 
         if let Some(handle) = app.try_state::<Arc<FileIndexWatcherHandle>>() {
             let exclusions = watcher::build_exclusion_set(&excludes);
-            handle.rearm(roots, exclusions, state.clone());
+            let on_rescan = make_on_rescan(app.clone(), state.clone());
+            handle.rearm(roots, exclusions, state.clone(), on_rescan);
         }
 
         let _ = app.emit("asyar:file-index-status", state.status());
     });
+}
+
+/// Rescan without re-arming: the watcher stays on its current roots. Used
+/// to answer the watcher's degraded-window signal, where the roots didn't
+/// change — only the index's freshness is in doubt.
+fn spawn_rescan(app: AppHandle, state: Arc<FileIndexState>) {
+    tauri::async_runtime::spawn(async move {
+        if !state.config().enabled {
+            return;
+        }
+        run_scan_and_snapshot(&app, &state).await;
+        let _ = app.emit("asyar:file-index-status", state.status());
+    });
+}
+
+/// `true` when a watcher rescan signal should start a scan now. `Building`
+/// and `Rescanning` mean one is already running (stacking a second wastes
+/// a full walk); `Disabled` means never.
+fn should_start_rescan(state: IndexStateKind) -> bool {
+    matches!(state, IndexStateKind::Ready | IndexStateKind::CapReached)
+}
+
+/// Handler for the watcher's rescan signal (kernel dropped events, or the
+/// coalescer's overflow valve tripped): the index may have missed changes,
+/// so answer with the same bounded, exclusion-aware scan a manual rebuild
+/// runs — never the watcher-library's unbounded cache walk this replaced.
+pub(crate) fn make_on_rescan(
+    app: AppHandle,
+    state: Arc<FileIndexState>,
+) -> impl Fn() + Send + 'static {
+    move || {
+        if !should_start_rescan(state.status().state) {
+            return;
+        }
+        state.mark_rescanning();
+        let _ = app.emit("asyar:file-index-status", state.status());
+        spawn_rescan(app.clone(), state.clone());
+    }
 }
 
 #[tauri::command]
@@ -146,7 +199,12 @@ pub async fn file_index_set_config(
         spawn_rebuild(app, state.inner().clone());
     } else if !config.enabled {
         if let Some(handle) = app.try_state::<Arc<FileIndexWatcherHandle>>() {
-            handle.rearm(Vec::new(), watcher::build_exclusion_set(&[]), state.inner().clone());
+            handle.rearm(
+                Vec::new(),
+                watcher::build_exclusion_set(&[]),
+                state.inner().clone(),
+                || {},
+            );
         }
     }
     Ok(())
@@ -445,6 +503,21 @@ mod tests {
         drop(conn);
         let id = file_id::from_hex(&file_id_hex).unwrap();
         assert_eq!(state.learning_boost("report", id, NOW), 0.0);
+    }
+
+    #[test]
+    fn rescan_signal_only_fires_from_stable_states() {
+        assert!(should_start_rescan(IndexStateKind::Ready));
+        assert!(should_start_rescan(IndexStateKind::CapReached));
+        assert!(
+            !should_start_rescan(IndexStateKind::Building),
+            "startup scan already running"
+        );
+        assert!(
+            !should_start_rescan(IndexStateKind::Rescanning),
+            "never stack a second scan on a running one"
+        );
+        assert!(!should_start_rescan(IndexStateKind::Disabled));
     }
 
     #[tokio::test]

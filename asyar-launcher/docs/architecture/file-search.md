@@ -22,7 +22,7 @@ All of it lives under `asyar-launcher/src-tauri/src/file_index/`:
 | `ranking.rs` | Pure scoring functions (match quality, frecency, depth, type prior) |
 | `file_id.rs` | Stable file id: FNV hash of `(dev, inode)` (Unix) / `(volume, file_index)` (Windows) — survives renames |
 | `walker.rs` | Parallel initial scan (`ignore` crate), exclusion patterns, hard entry cap, bundle-as-leaf handling |
-| `watcher.rs` | `notify-debouncer-full` live updates, same exclusion set as the walker, `FileIndexWatcherHandle` |
+| `watcher.rs` | Raw `notify` watcher + Asyar-owned coalescer (exclusion check first, flush every 500 ms), `FileIndexWatcherHandle` |
 | `snapshot.rs` | Versioned bincode snapshot — instant restart without a full rescan |
 | `learning.rs` | In-memory per-query selection/pin boosts, loaded once at startup (never queried on the keystroke path) |
 | `service.rs` | `FileIndexState` — the lifecycle/state machine tying everything together, Tauri-agnostic by design |
@@ -30,7 +30,7 @@ All of it lives under `asyar-launcher/src-tauri/src/file_index/`:
 | `commands.rs` | Thin `#[tauri::command]` wrappers — no logic beyond extract/delegate/map-error |
 
 `asyar-launcher/src-tauri/src/thumbnail/` is a separate, related subsystem
-(§6).
+(§7).
 
 Two SQLite tables back learning/pins: `storage/file_search_selections.rs`,
 `storage/file_search_pinned.rs`.
@@ -125,12 +125,50 @@ walker and `watcher.rs`'s exclusion set (the same pattern list).
 
 `walker::BUNDLE_EXTENSIONS` treats `.app`, `.framework`, `.photoslibrary`,
 `.pvm`, `.vmwarevm` directories as opaque leaves — indexed as one entry,
-never descended into, regardless of what folder they live in.
+never descended into, regardless of what folder they live in. The
+watcher's exclusion set mirrors this with `**/*.<ext>/**` globs so events
+from *inside* a bundle (Photos doing library maintenance, an app updating
+itself) can't append tail entries the walker would never emit.
+
+## 6. Watcher internals: why not `notify-debouncer-full`
+
+`watcher.rs` uses a **raw `notify` watcher** plus a small Asyar-owned
+coalescer, not `notify-debouncer-full`. The debouncer's default
+`FileIdMap` cache walks and `stat`s **every file under each watched
+root** into a `HashMap<PathBuf, FileId>` — no exclusions, symlinks
+followed — and re-walks the entire tree on every kernel "events dropped"
+flag. Watching `$HOME` that way kept a core pinned in a self-feeding
+rescan loop (the walk blocks the event thread → the kernel drops events →
+another rescan flag → another walk) and held gigabytes of path strings,
+all to power rename stitching the index never consumed.
+
+The replacement pipeline:
+
+```
+notify event callback (FSEvents/inotify thread)
+  → Coalescer.ingest: exclusion glob check FIRST — no stat, no queueing
+    for excluded paths; survivors de-dup into a HashSet
+flush thread, every 500 ms
+  → drain → resolve(path): one symlink_metadata per survivor —
+    exists ⇒ Upserted, gone ⇒ Removed (renames tombstone the old name)
+  → FileIndexState::apply_watcher_batch
+```
+
+Two valves degrade a window to a **bounded** walker rescan
+(`commands::make_on_rescan` → `spawn_rescan`, which never re-arms the
+watcher and never stacks on a running scan): the kernel's rescan flag,
+and a >50k pending-path overflow. Both replace the library's answer
+(unbounded cache walk) with ours (exclusion-aware, hard-capped scan).
+
+The other two debouncer users (`application/index_watcher.rs`,
+`fs_watcher/mod.rs`) keep `notify-debouncer-full` for its debouncing but
+pass `NoCache` explicitly — neither consumes rename stitching, and an
+extension watching a large tree must not make the host stat-walk it.
 
 A hard cap (`walker::HARD_CAP` = 1,000,000 entries) stops the walk and
 flips status to `CapReached` rather than growing unbounded.
 
-## 6. Thumbnails — a separate, related subsystem
+## 7. Thumbnails — a separate, related subsystem
 
 `asyar-launcher/src-tauri/src/thumbnail/` generates and caches file preview
 thumbnails, served the same way application icons already are:
@@ -177,7 +215,7 @@ Cache: `$APPDATA/thumbnail_cache/`, size-capped at 300 MB
 (`thumbnail::cache::CACHE_CAP_BYTES`), oldest-by-mtime eviction sweep on
 every write once over budget.
 
-## 7. IPC contract
+## 8. IPC contract
 
 | Command | Args (camelCase) | Returns |
 |---|---|---|
@@ -211,7 +249,7 @@ milestones are the synchronous `Rescanning` flip and the final
 TS wrappers: `src/lib/ipc/fileSearchCommands.ts`,
 `src/lib/ipc/thumbnailCommands.ts`.
 
-## 8. Root-search fallback row
+## 9. Root-search fallback row
 
 `search_engine/file_search_fallback.rs::append_file_search_fallback` is the
 **only** touch point on the root-search hot path — everything else about
@@ -240,7 +278,7 @@ independent reactive stores, so seeding only the internal query state
 leaves the visible search bar showing whatever the user had typed in
 root search even though results have already updated underneath it.
 
-## 9. Settings
+## 10. Settings
 
 ```ts
 AppSettings.fileSearch: {
@@ -256,7 +294,7 @@ AppSettings.fileSearch: {
 current settings value to Rust on init, diff-and-repush on every change.
 UI: `src/routes/settings/tabs/FileSearchTab.svelte`.
 
-## 10. Known follow-ups
+## 11. Known follow-ups
 
 - Windows/Linux native thumbnail providers for non-image types
   (`thumbnail::windows`/`thumbnail::linux` are stubs today, always

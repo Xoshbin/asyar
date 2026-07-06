@@ -55,8 +55,9 @@ pub const DEFAULT_IGNORE_PATTERNS: &[&str] = &[
 
 /// Directory extensions treated as opaque leaf "bundles" — indexed as one
 /// entry, never descended into (app bundles, frameworks, photo libraries,
-/// VM disk images).
-const BUNDLE_EXTENSIONS: &[&str] = &[
+/// VM disk images). The watcher's exclusion set mirrors this so events
+/// from inside a bundle can't append entries the walker would never emit.
+pub(crate) const BUNDLE_EXTENSIONS: &[&str] = &[
     "app",
     "framework",
     "photoslibrary",
