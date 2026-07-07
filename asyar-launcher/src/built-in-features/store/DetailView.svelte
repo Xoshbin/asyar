@@ -72,7 +72,7 @@
   // The detail API doesn't include the manifest, but the store listing does —
   // surface the declared permissions from the list item for this slug.
   let listedManifest = $derived(
-    currentSlug ? store.allItems.find((item) => item.slug === currentSlug)?.manifest : undefined,
+    currentSlug ? store?.allItems.find((item) => item.slug === currentSlug)?.manifest : undefined,
   );
   let listedPermissions = $derived(listedManifest?.permissions ?? []);
 

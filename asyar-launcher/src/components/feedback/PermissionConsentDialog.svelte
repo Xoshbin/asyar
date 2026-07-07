@@ -30,6 +30,15 @@
       event.stopImmediatePropagation();
       onDecline();
     } else if (event.key === 'Enter') {
+      // Let a keyboard-focused control's own activation win — otherwise
+      // Enter on a Tab-focused Cancel would accept the permissions.
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLButtonElement ||
+        (active instanceof HTMLElement && active.getAttribute('role') === 'button')
+      ) {
+        return;
+      }
       event.preventDefault();
       event.stopImmediatePropagation();
       onAccept();

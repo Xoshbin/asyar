@@ -142,6 +142,35 @@ pub fn get_consent(
     }
 }
 
+/// Get (creating if absent) the object at `parent[key]`. Errors — rather than
+/// panicking or silently replacing — when an existing value is not a JSON
+/// object: a corrupt settings.dat should fail the consent write, not be
+/// clobbered by it. Consent stays unrecorded and the registration backstop
+/// keeps the permissions withheld, so failing here fails closed.
+fn child_object_mut<'a>(
+    parent: &'a mut serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Result<&'a mut serde_json::Map<String, serde_json::Value>, AppError> {
+    parent
+        .entry(key)
+        .or_insert_with(|| serde_json::Value::Object(Default::default()))
+        .as_object_mut()
+        .ok_or_else(|| {
+            AppError::Other(format!(
+                "settings.dat is corrupt: '{}' is not a JSON object",
+                key
+            ))
+        })
+}
+
+fn settings_root_mut(
+    settings: &mut serde_json::Value,
+) -> Result<&mut serde_json::Map<String, serde_json::Value>, AppError> {
+    settings.as_object_mut().ok_or_else(|| {
+        AppError::Other("settings.dat is corrupt: 'settings' is not a JSON object".into())
+    })
+}
+
 /// Persist a consent record under `settings.extensions.consent.<id>`.
 pub fn set_consent(
     app_handle: &AppHandle,
@@ -153,15 +182,17 @@ pub fn set_consent(
         .map_err(|e| AppError::Other(format!("Failed to open settings store: {}", e)))?;
 
     let mut settings = store.get("settings").unwrap_or(serde_json::json!({}));
-    if settings.get("extensions").is_none() {
-        settings["extensions"] = serde_json::json!({});
+    {
+        let root = settings_root_mut(&mut settings)?;
+        let extensions = child_object_mut(root, "extensions")?;
+        let consent = child_object_mut(extensions, "consent")?;
+        consent.insert(
+            extension_id.to_string(),
+            serde_json::to_value(record).map_err(|e| {
+                AppError::Other(format!("Failed to serialize consent record: {}", e))
+            })?,
+        );
     }
-    let extensions = settings.get_mut("extensions").unwrap();
-    if extensions.get("consent").is_none() {
-        extensions["consent"] = serde_json::json!({});
-    }
-    extensions["consent"][extension_id] = serde_json::to_value(record)
-        .map_err(|e| AppError::Other(format!("Failed to serialize consent record: {}", e)))?;
 
     store.set("settings", settings);
     store
@@ -217,32 +248,33 @@ pub fn run_grandfather_migration(
         return Ok(());
     }
 
-    if settings.get("extensions").is_none() {
-        settings["extensions"] = serde_json::json!({});
-    }
-    let extensions = settings.get_mut("extensions").unwrap();
-    if extensions.get("consent").is_none() {
-        extensions["consent"] = serde_json::json!({});
-    }
-
     let now = now_ms();
     let mut grandfathered = 0usize;
-    for record in records_to_grandfather(records) {
-        let id = record.manifest.id.as_str();
-        if extensions["consent"].get(id).is_some() {
-            continue;
+    {
+        let root = settings_root_mut(&mut settings)?;
+        let extensions = child_object_mut(root, "extensions")?;
+        let consent = child_object_mut(extensions, "consent")?;
+        for record in records_to_grandfather(records) {
+            let id = record.manifest.id.as_str();
+            if consent.contains_key(id) {
+                continue;
+            }
+            let consent_record = ConsentRecord {
+                permissions: record.manifest.permissions.clone().unwrap_or_default(),
+                permission_args: record.manifest.permission_args.clone().unwrap_or_default(),
+                consented_at: now,
+                grandfathered: true,
+            };
+            consent.insert(
+                id.to_string(),
+                serde_json::to_value(&consent_record).map_err(|e| {
+                    AppError::Other(format!("Failed to serialize consent record: {}", e))
+                })?,
+            );
+            grandfathered += 1;
         }
-        let consent = ConsentRecord {
-            permissions: record.manifest.permissions.clone().unwrap_or_default(),
-            permission_args: record.manifest.permission_args.clone().unwrap_or_default(),
-            consented_at: now,
-            grandfathered: true,
-        };
-        extensions["consent"][id] = serde_json::to_value(&consent)
-            .map_err(|e| AppError::Other(format!("Failed to serialize consent record: {}", e)))?;
-        grandfathered += 1;
+        extensions.insert(GRANDFATHER_FLAG.to_string(), serde_json::json!(true));
     }
-    extensions[GRANDFATHER_FLAG] = serde_json::json!(true);
 
     store.set("settings", settings);
     store
@@ -555,6 +587,33 @@ mod tests {
         let selected = records_to_grandfather(&records);
         let ids: Vec<&str> = selected.iter().map(|r| r.manifest.id.as_str()).collect();
         assert_eq!(ids, vec!["ext.keeper"]);
+    }
+
+    #[test]
+    fn child_object_mut_creates_missing_and_returns_existing() {
+        let mut value = serde_json::json!({ "existing": { "a": 1 } });
+        let root = value.as_object_mut().unwrap();
+        assert!(child_object_mut(root, "created").is_ok());
+        let existing = child_object_mut(root, "existing").unwrap();
+        assert_eq!(existing.get("a"), Some(&serde_json::json!(1)));
+    }
+
+    #[test]
+    fn child_object_mut_errors_on_non_object_instead_of_clobbering() {
+        let mut value = serde_json::json!({ "consent": "corrupt-string" });
+        let root = value.as_object_mut().unwrap();
+        assert!(child_object_mut(root, "consent").is_err());
+        // The corrupt value must survive untouched.
+        assert_eq!(
+            value.get("consent"),
+            Some(&serde_json::json!("corrupt-string"))
+        );
+    }
+
+    #[test]
+    fn settings_root_mut_errors_on_non_object_settings() {
+        let mut value = serde_json::json!("corrupt");
+        assert!(settings_root_mut(&mut value).is_err());
     }
 
     #[test]
