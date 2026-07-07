@@ -11,6 +11,8 @@
       <span class="symbol">✓</span>
     {:else if toast.style === 'failure'}
       <span class="symbol">✕</span>
+    {:else if toast.style === 'warning'}
+      <span class="symbol">!</span>
     {/if}
   </span>
   <div class="toast-text">
@@ -133,6 +135,9 @@
   .toast-host[data-style='failure'] .toast-icon {
     color: var(--accent-danger);
   }
+  .toast-host[data-style='warning'] .toast-icon {
+    color: var(--accent-warning);
+  }
 
   .toast-text {
     display: flex;
@@ -156,6 +161,9 @@
   }
   .toast-host[data-style='failure'] .toast-title {
     color: var(--accent-danger);
+  }
+  .toast-host[data-style='warning'] .toast-title {
+    color: var(--accent-warning);
   }
 
   .toast-message {

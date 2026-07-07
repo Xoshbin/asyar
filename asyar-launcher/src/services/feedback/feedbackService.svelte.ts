@@ -5,7 +5,7 @@ interface ActiveToast {
   id: string;
   title: string;
   message?: string;
-  style: 'animated' | 'success' | 'failure';
+  style: 'animated' | 'success' | 'failure' | 'warning';
   /** When set, the toast renders as a button; clicking runs this and dismisses. */
   onClick?: () => void;
 }
@@ -13,7 +13,11 @@ interface ActiveToast {
 export interface NoticeOptions {
   title: string;
   message?: string;
-  style: 'success' | 'failure';
+  /**
+   * `success`/`failure` report an operation's outcome; `warning` flags an
+   * attention-required state (e.g. permissions awaiting review).
+   */
+  style: 'success' | 'failure' | 'warning';
   /** Auto-dismiss delay. Defaults to 6000ms. Ignored when `onClick` is set. */
   durationMs?: number;
   /**

@@ -170,7 +170,7 @@ export class ExtensionLoader {
               feedbackService.notice({
                 title: `${extensionName} needs a permission review`,
                 message: 'Click to review and allow its permissions in Settings.',
-                style: 'failure',
+                style: 'warning',
                 onClick: () => void commands.showSettingsWindow('extensions', extensionId),
               }),
             );

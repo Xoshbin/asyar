@@ -77,9 +77,10 @@ describe('notice', () => {
   it('actionable notices are sticky — no auto-dismiss', () => {
     vi.useFakeTimers();
     try {
-      feedbackService.notice({ title: 'Clickable', style: 'failure', onClick: vi.fn() });
+      feedbackService.notice({ title: 'Clickable', style: 'warning', onClick: vi.fn() });
       vi.advanceTimersByTime(60_000);
       expect(feedbackService.activeToast?.title).toBe('Clickable');
+      expect(feedbackService.activeToast?.style).toBe('warning');
     } finally {
       vi.useRealTimers();
     }
