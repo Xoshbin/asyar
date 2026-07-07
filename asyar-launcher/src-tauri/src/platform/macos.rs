@@ -2,7 +2,7 @@
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewWindow};
 use tauri_nspanel::{panel_delegate, Panel, WebviewWindowExt as PanelWebviewWindowExt};
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
@@ -10,7 +10,7 @@ use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 // Use objc2 and its foundation for everything
 use objc2::rc::Retained;
 use objc2::runtime::{AnyClass, AnyObject, Bool};
-use objc2::{msg_send, msg_send_id};
+use objc2::{msg_send, msg_send_id, sel};
 use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
 
 /// The resolved (OS-actual) appearance at window creation time.
@@ -116,6 +116,11 @@ pub fn setup_spotlight_window<R: Runtime>(
     const NSWindowStyleMaskNonActivatingPanel: i32 = 1 << 7;
     panel.set_style_mask(NSWindowStyleMaskNonActivatingPanel);
 
+    // Stops a stray app activation (`open -a Asyar`, Spotlight) from keying
+    // the parked, invisible panel and swallowing keystrokes. The explicit
+    // makeKeyWindow inside `panel.show()` is unaffected.
+    panel.set_becomes_key_only_if_needed(true);
+
     let panel_delegate = panel_delegate!(SpotlightPanelDelegate {
         window_did_resign_key,
         window_did_become_key
@@ -146,6 +151,12 @@ pub fn setup_spotlight_window<R: Runtime>(
     // material if it was just set by apply_vibrancy above.
     apply_panel_appearance(window, theme_pref);
 
+    // Persistent window/webview property; once per window lifetime is
+    // enough. Pairs with the alpha-0 reveal in `prepare_show` (see the doc
+    // comment on `disable_occlusion_detection` for why the two are halves
+    // of the same anti-throttle strategy).
+    disable_occlusion_detection(window);
+
     Ok(panel)
 }
 
@@ -158,6 +169,9 @@ pub fn setup_spotlight_window<R: Runtime>(
 /// Desktop 1. FullScreenAuxiliary additionally lets it float over fullscreen
 /// apps. Kept as a raw `u64` so the unit test can assert the exact bits
 /// without AppKit being available (`cargo test` doesn't run inside an NSApp).
+///
+/// Under the parked lifecycle CanJoinAllSpaces is load-bearing: a parked
+/// panel never re-orders in, so nothing else refreshes its Space assignment.
 pub fn spotlight_collection_behavior_bits() -> u64 {
     // 1 << 0: NSWindowCollectionBehaviorCanJoinAllSpaces
     // 1 << 8: NSWindowCollectionBehaviorFullScreenAuxiliary
@@ -259,6 +273,359 @@ pub fn set_window_alpha<R: Runtime>(window: &WebviewWindow<R>, alpha: f64) {
     let ns_window = window.ns_window().unwrap() as *mut AnyObject;
     unsafe {
         let _: () = msg_send![ns_window, setAlphaValue: alpha];
+    }
+}
+
+/// `setIgnoresMouseEvents:` (public AppKit). A parked (alpha-0, ordered-in)
+/// launcher must be click-transparent or it would invisibly swallow every
+/// click landing inside its frame.
+pub fn set_ignores_mouse_events<R: Runtime>(window: &WebviewWindow<R>, ignores: bool) {
+    let ns_window = window.ns_window().unwrap() as *mut AnyObject;
+    unsafe { let _: () = msg_send![ns_window, setIgnoresMouseEvents: ignores]; }
+}
+
+/// Whether the launcher panel currently owns key focus. Decides the
+/// focus-return branch in `park_launcher_panel`.
+pub fn is_key_window<R: Runtime>(window: &WebviewWindow<R>) -> bool {
+    let ns_window = match window.ns_window() {
+        Ok(ptr) => ptr as *mut AnyObject,
+        Err(_) => return false,
+    };
+    unsafe {
+        let key: Bool = msg_send![ns_window, isKeyWindow];
+        key.as_bool()
+    }
+}
+
+/// Park the launcher into its "hidden" state: ordered in, alpha 0,
+/// mouse-transparent, never key. The window stays on the screen list with
+/// occlusion detection off (`disable_occlusion_detection`), so WebKit keeps
+/// the WebContent process in the visible activity state the whole time:
+/// timers tick at true cadence, post-hide state resets composite while
+/// imperceptible, and the next reveal is an alpha flip of an already-fresh
+/// surface with no stale frame and no cold WebContent wake-up.
+///
+/// Focus return: a programmatic hide (Escape, hotkey toggle) leaves the
+/// nonactivating panel key, and the only way to hand focus back to the
+/// previous app is `orderOut:`, so order out and immediately re-order in.
+/// `orderFrontRegardless` is the one ordering call that works without
+/// activating this (Accessory) app; front-of-level is imperceptible at
+/// alpha 0. Click-away hides skip the dance: key focus already moved.
+///
+/// Reentrant: `orderOut:` fires the resign-key delegate synchronously and
+/// that listener parks too; the nested call sees `is_key_window == false`
+/// and only re-asserts alpha and mouse transparency. Main-thread only.
+pub fn park_launcher_panel<R: Runtime>(window: &WebviewWindow<R>, panel: &Panel) {
+    set_window_alpha(window, 0.0);
+    set_ignores_mouse_events(window, true);
+    if is_key_window(window) {
+        panel.order_out(None);
+        panel.order_front_regardless();
+    }
+}
+
+/// Reveal a parked launcher. The order is load-bearing now that the window
+/// is always mapped: accept mouse events; center *while still invisible*
+/// (repositioning at alpha 1 would visibly jump); `panel.show()` to raise
+/// and take key focus so a fast typist's keystrokes land in the DOM before
+/// any pixels appear; alpha 0→1; then reseat the WKWebView as first
+/// responder, since `panel.show()` on an already-visible panel doesn't
+/// rebuild the responder chain and under this lifecycle every show is one.
+pub fn reveal_launcher_panel<R: Runtime>(window: &WebviewWindow<R>, panel: &Panel) {
+    set_ignores_mouse_events(window, false);
+    if let Err(e) = center_at_cursor_monitor(window) {
+        log::warn!("[launcher-reveal] center_at_cursor_monitor failed: {e}; revealing at previous position");
+    }
+    panel.show();
+    set_window_alpha(window, 1.0);
+    reseat_first_responder(window);
+}
+
+/// Parks the launcher at boot (it was created `visible: false`), so WebKit
+/// pays the cold-start cost (first load, first paint, font fallback) while
+/// the panel is imperceptible, and the first summon takes the same
+/// alpha-flip path as every later one. `orderFrontRegardless` neither takes
+/// key focus nor activates the app: no pixels, no clicks, no focus.
+pub fn prewarm_launcher_panel<R: Runtime>(window: &WebviewWindow<R>, panel: &Panel) {
+    set_window_alpha(window, 0.0);
+    set_ignores_mouse_events(window, true);
+    panel.order_front_regardless();
+    log::info!("[launcher-park] prewarmed at boot (ordered in, alpha 0, mouse-transparent)");
+}
+
+/// True if `obj` responds to `selector`. Every semi-private AppKit/WebKit
+/// selector below must be gated through this: an unrecognized selector
+/// raises an ObjC exception (it is NOT a silent no-op), and these SPIs can
+/// disappear or be renamed in any macOS release.
+unsafe fn responds_to(obj: *mut AnyObject, selector: objc2::runtime::Sel) -> bool {
+    if obj.is_null() {
+        return false;
+    }
+    let ok: Bool = msg_send![obj, respondsToSelector: selector];
+    ok.as_bool()
+}
+
+/// Disable occlusion-based render throttling for the launcher.
+///
+/// WebKit throttles rAF/CSS animations/timers when it decides the view isn't
+/// visible, and an alpha-0 window reports itself as occluded. Disabling
+/// occlusion detection keeps the webview unthrottled whenever the panel is
+/// *ordered in*, which under the parked lifecycle (`park_launcher_panel`) is
+/// the entire time the launcher is "hidden". It does not help an ordered-out
+/// window (WebKit checks `window.isVisible` before occlusion), which is why
+/// parking keeps the panel on the screen list.
+///
+/// Two flavors exist in the wild and both are semi-private, so each is
+/// respondsToSelector-gated:
+/// - `-[WKWebView _setWindowOcclusionDetectionEnabled:]` (WebKit SPI;
+///   controls whether the web view folds the host window's occlusion
+///   state into its view state)
+/// - `-[NSWindow setWindowOcclusionDetectionEnabled:]` (AppKit-level toggle
+///   present on some releases)
+///
+/// Scope strictly to the launcher panel: the HUD and settings windows are
+/// transient/ordinary windows where default throttling-when-hidden is
+/// desirable (saves power).
+pub fn disable_occlusion_detection<R: Runtime>(window: &WebviewWindow<R>) {
+    let ns_window = match window.ns_window() {
+        Ok(ptr) => ptr as *mut AnyObject,
+        Err(_) => {
+            log::warn!("[occlusion] ns_window() failed; occlusion detection left enabled");
+            return;
+        }
+    };
+    unsafe {
+        let mut applied: Vec<&str> = Vec::new();
+
+        let content_view: *mut AnyObject = msg_send![ns_window, contentView];
+        let webview = find_webview(content_view);
+        if responds_to(webview, sel!(_setWindowOcclusionDetectionEnabled:)) {
+            let _: () = msg_send![webview, _setWindowOcclusionDetectionEnabled: false];
+            applied.push("WKWebView._setWindowOcclusionDetectionEnabled");
+        }
+
+        if responds_to(ns_window, sel!(setWindowOcclusionDetectionEnabled:)) {
+            let _: () = msg_send![ns_window, setWindowOcclusionDetectionEnabled: false];
+            applied.push("NSWindow.setWindowOcclusionDetectionEnabled");
+        }
+
+        if applied.is_empty() {
+            log::warn!(
+                "[occlusion] no occlusion-detection SPI responded; launcher webview \
+                 stays subject to occlusion throttling"
+            );
+        } else {
+            log::info!("[occlusion] disabled via {}", applied.join(" + "));
+        }
+    }
+}
+
+/// WebKit feature flags to set on the launcher's WKPreferences, keyed by
+/// `_WKFeature.key` (as spelled in WebKit's UnifiedWebPreferences).
+///
+/// - `RequestIdleCallbackEnabled` on (the suffixless spelling covers
+///   releases that renamed it): lets the launcher schedule non-critical
+///   startup work (What's New check, telemetry, font prewarm) off the
+///   critical path natively. `src/lib/idle.ts` ships a setTimeout
+///   polyfill, so nothing *depends* on the flag landing; it only upgrades
+///   the scheduling quality.
+/// - `PreferPageRenderingUpdatesNear60FPSEnabled` off: WebKit otherwise
+///   caps rendering updates near 60Hz even on ProMotion displays; lifting
+///   the cap lets rAF-driven UI (scrolling, reveals, animations) track the
+///   display's native cadence. Rendering stays demand-driven — a static
+///   launcher produces no extra frames, so there is no idle power cost.
+const WEBKIT_FEATURES_TO_SET: &[(&str, bool)] = &[
+    ("RequestIdleCallbackEnabled", true),
+    ("RequestIdleCallback", true),
+    ("PreferPageRenderingUpdatesNear60FPSEnabled", false),
+];
+
+/// Flip WebKit runtime feature flags on the launcher webview (the same
+/// flags Safari exposes in its Develop → Feature Flags menu).
+///
+/// Everything here is private SPI and version-fragile, so the whole walk is
+/// defensive: enumerate whichever of `+[WKPreferences _features]` /
+/// `_experimentalFeatures` / `_internalDebugFeatures` exists, match by key
+/// string, no-op when absent, and log exactly what was flipped. Correctness
+/// must never depend on a flag landing; JS guards + polyfills own that.
+///
+/// Call as early as possible after the webview exists (flags may only be
+/// read at document setup, so late flips can silently not apply until the
+/// next navigation).
+pub fn configure_launcher_webkit_features<R: Runtime>(window: &WebviewWindow<R>) {
+    let ns_window = match window.ns_window() {
+        Ok(ptr) => ptr as *mut AnyObject,
+        Err(_) => {
+            log::warn!("[webkit-flags] ns_window() failed; feature flags left at defaults");
+            return;
+        }
+    };
+    unsafe {
+        let content_view: *mut AnyObject = msg_send![ns_window, contentView];
+        let webview = find_webview(content_view);
+        if webview.is_null() {
+            log::warn!("[webkit-flags] WKWebView not found in contentView subviews");
+            return;
+        }
+        let config: *mut AnyObject = msg_send![webview, configuration];
+        if config.is_null() {
+            return;
+        }
+        let prefs: *mut AnyObject = msg_send![config, preferences];
+        if !responds_to(prefs, sel!(_setEnabled:forFeature:)) {
+            log::info!("[webkit-flags] _setEnabled:forFeature: SPI absent; skipping");
+            return;
+        }
+
+        let Some(prefs_cls) = AnyClass::get("WKPreferences") else { return };
+        let cls_obj = prefs_cls as *const AnyClass as *mut AnyObject;
+
+        let mut flipped: Vec<(String, bool)> = Vec::new();
+        // The unified `_features` list superseded the experimental/internal
+        // split; older releases only answer the latter two.
+        for list_sel in [
+            sel!(_features),
+            sel!(_experimentalFeatures),
+            sel!(_internalDebugFeatures),
+        ] {
+            if !responds_to(cls_obj, list_sel) {
+                continue;
+            }
+            let list: *mut AnyObject = msg_send![cls_obj, performSelector: list_sel];
+            if list.is_null() {
+                continue;
+            }
+            let count: usize = msg_send![list, count];
+            for i in 0..count {
+                let feature: *mut AnyObject = msg_send![list, objectAtIndex: i];
+                if !responds_to(feature, sel!(key)) {
+                    continue;
+                }
+                let key_obj: Option<Retained<NSString>> = msg_send_id![feature, key];
+                let Some(key) = key_obj.map(|k| k.to_string()) else {
+                    continue;
+                };
+                let Some(&(_, enable)) =
+                    WEBKIT_FEATURES_TO_SET.iter().find(|(k, _)| *k == key)
+                else {
+                    continue;
+                };
+                if flipped.iter().any(|(k, _)| *k == key) {
+                    continue;
+                }
+                let _: () = msg_send![prefs, _setEnabled: enable forFeature: feature];
+                flipped.push((key, enable));
+            }
+        }
+
+        if flipped.is_empty() {
+            log::info!(
+                "[webkit-flags] no matching feature flags found ({}); defaults stay",
+                WEBKIT_FEATURES_TO_SET
+                    .iter()
+                    .map(|(k, _)| *k)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        } else {
+            log::info!(
+                "[webkit-flags] set: {}",
+                flipped
+                    .iter()
+                    .map(|(k, e)| format!("{k} {}", if *e { "on" } else { "off" }))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
+    }
+}
+
+/// Order `window` in imperceptibly (alpha 0) and reveal it only once WebKit
+/// has actually presented a frame: `-[WKWebView _doAfterNextPresentationUpdate:]`
+/// is WebKit's own "content is on glass" synchronization hook. Ordering in
+/// at alpha 0 first is load-bearing: a hidden window's WebContent process is
+/// throttled and may never present, so the callback would never fire.
+///
+/// Used for windows created cold at runtime (onboarding), where showing at
+/// build time paints an empty/unstyled frame before the first WebKit commit,
+/// and for re-showing long-hidden windows (settings), where the last
+/// composite predates the hidden spell and paints stale for a frame or two.
+/// The launcher keeps its own two-phase `prepare_show`/`commit_show` dance:
+/// its reveal is gated on *content freshness* (JS-side rAFs), not merely
+/// first paint, so don't swap that path onto this helper.
+///
+/// A `fallback_ms` watchdog guarantees the window can never get stuck
+/// invisible if the SPI is absent or WebKit never presents (wedged
+/// WebContent process): worst case is the pre-existing behavior, one
+/// `fallback_ms` later.
+pub fn reveal_window_after_first_paint<R: Runtime + 'static>(
+    window: &WebviewWindow<R>,
+    fallback_ms: u64,
+) {
+    let ns_window = match window.ns_window() {
+        Ok(ptr) => ptr as *mut AnyObject,
+        Err(_) => {
+            let _ = window.show();
+            let _ = window.set_focus();
+            return;
+        }
+    };
+
+    let hooked = unsafe {
+        let content_view: *mut AnyObject = msg_send![ns_window, contentView];
+        let webview = find_webview(content_view);
+        if responds_to(webview, sel!(_doAfterNextPresentationUpdate:)) {
+            set_window_alpha(window, 0.0);
+            let w = window.clone();
+            let block = block2::RcBlock::new(move || {
+                // Runs on the main thread (WebKit dispatches presentation
+                // callbacks there). Idempotent with the watchdog below.
+                set_window_alpha(&w, 1.0);
+                let _ = w.set_focus();
+            });
+            // Register before ordering in, so the first present after the
+            // show can't slip between the two and leave only the watchdog.
+            let _: () = msg_send![webview, _doAfterNextPresentationUpdate: &*block];
+            let _ = window.show();
+            true
+        } else {
+            false
+        }
+    };
+
+    if !hooked {
+        // SPI absent: fall back to the plain visible-at-open behavior.
+        log::info!("[first-paint] _doAfterNextPresentationUpdate absent; showing immediately");
+        let _ = window.show();
+        let _ = window.set_focus();
+        return;
+    }
+
+    let w = window.clone();
+    let app = window.app_handle().clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(fallback_ms)).await;
+        let _ = app.run_on_main_thread(move || {
+            if window_alpha(&w) < 1.0 {
+                log::warn!(
+                    "[first-paint] presentation update never fired within {fallback_ms}ms; \
+                     revealing '{}' via watchdog",
+                    w.label()
+                );
+                set_window_alpha(&w, 1.0);
+                let _ = w.set_focus();
+            }
+        });
+    });
+}
+
+/// Current alphaValue of the window (1.0 on handle failure, i.e. "treat as
+/// already revealed"; every caller uses this to decide whether a reveal
+/// watchdog still needs to run).
+pub fn window_alpha<R: Runtime>(window: &WebviewWindow<R>) -> f64 {
+    match window.ns_window() {
+        Ok(ptr) => unsafe { msg_send![ptr as *mut AnyObject, alphaValue] },
+        Err(_) => 1.0,
     }
 }
 
@@ -365,19 +732,94 @@ pub fn pin_launcher_webview<R: Runtime>(window: &WebviewWindow<R>) {
 pub enum ResizeMode {
     Immediate,
     DeferToNextCaCommit,
+    AfterNextPresentationUpdate,
+}
+
+/// Monotonic resize-request generation. Every `set_launcher_window_height`
+/// call claims a new generation, and a commit whose generation has been
+/// superseded by the time it fires (late CA pre-commit, late presentation
+/// block, watchdog) is dropped: the newest request owns the window. This
+/// turns Escape-then-instant-reopen into "no visible resize at all" instead
+/// of a 480→96→480 bounce. `cancel_pending_resize` claims a generation with
+/// no successor, which withdraws an armed request outright.
+static RESIZE_GEN: AtomicU64 = AtomicU64::new(0);
+
+/// Highest generation whose content paint the webview has confirmed
+/// (`confirm_launcher_paint`). A presentation-gated resize only commits on a
+/// present at-or-after this mark; earlier presents (a caret blink already in
+/// flight) re-arm the hook instead of resizing against stale content.
+static CONFIRMED_GEN: AtomicU64 = AtomicU64::new(0);
+
+/// Re-arms a presentation hook tolerates before giving up (the watchdog
+/// owns recovery). At one present per frame this comfortably exceeds the
+/// watchdog horizon.
+const GROW_HOOK_MAX_REARMS: u8 = 20;
+
+/// How long a presentation-gated resize waits for WebKit before the watchdog
+/// force-applies the geometry. Sized for "WebContent is wedged", not "slow
+/// frame": a heavy first mount can take >100ms to produce the paint the
+/// resize must land with, and waiting for it is the point.
+const GROW_WATCHDOG_MS: u64 = 250;
+
+/// Marks the current generation's content as painted. The webview calls this
+/// from a rAF in the same rendering update as the DOM swap: the IPC message
+/// and the swap's layer-tree commit leave the WebContent process in that
+/// order, so the mark is set before the swap's presentation callback fires.
+pub fn confirm_launcher_paint() {
+    CONFIRMED_GEN.store(RESIZE_GEN.load(Ordering::Acquire), Ordering::Release);
+}
+
+/// Withdraws the in-flight presentation-gated resize, if any: claims a new
+/// generation with no successor, so an armed hook and its watchdog drop via
+/// the generation check instead of eventually committing geometry the
+/// frontend has moved past. Called when the frontend cancels a sent grow
+/// whose confirm will never arrive (a shrink got deferred mid-transition).
+pub fn cancel_pending_resize() {
+    RESIZE_GEN.fetch_add(1, Ordering::AcqRel);
+}
+
+/// Arms `_doAfterNextPresentationUpdate:` for a presentation-gated resize:
+/// fires `commit` only on a confirmed present (see [`CONFIRMED_GEN`]);
+/// unconfirmed presents re-arm, bounded by `remaining` so a dead page can't
+/// chain forever (the watchdog owns that case). Main-thread only.
+unsafe fn arm_grow_presentation_hook<C: Fn() + Copy + 'static>(
+    webview: usize,
+    gen: u64,
+    commit: C,
+    remaining: u8,
+) {
+    let block = block2::RcBlock::new(move || {
+        if RESIZE_GEN.load(Ordering::Acquire) != gen {
+            return;
+        }
+        if CONFIRMED_GEN.load(Ordering::Acquire) >= gen {
+            commit();
+        } else if remaining > 0 {
+            unsafe { arm_grow_presentation_hook(webview, gen, commit, remaining - 1) };
+        } else {
+            log::warn!("[launcher-resize] presentation hook exhausted re-arms (gen {gen})");
+        }
+    });
+    let _: () = msg_send![webview as *mut AnyObject, _doAfterNextPresentationUpdate: &*block];
 }
 
 /// Atomically resize the NSWindow (top edge pinned), reposition the pinned
-/// webview + vibrancy layer, and toggle the native Show More bar — one
+/// webview + vibrancy layer, and toggle the native Show More bar: one
 /// main-thread turn, one CATransaction. `expanded: None` leaves bar visibility
 /// alone; `Some(true)` hides it, `Some(false)` shows it.
 ///
 /// `DeferToNextCaCommit` attaches the resize to the current CA transaction's
 /// pre-commit phase so it lands in the same render-server commit as WebKit's
-/// pending paint. Used for extension-transition resizes (goBack shrink,
-/// hotkey-entry grow) where the SearchHeader chrome is swapping one frame
-/// away from the window resize.
-pub fn set_launcher_window_height<R: Runtime>(
+/// pending paint. Used for the goBack shrink, where resizing ASAP is right:
+/// the crop only hides the results region.
+///
+/// `AfterNextPresentationUpdate` gates the resize on WebKit applying the
+/// webview's next *confirmed* paint (`_doAfterNextPresentationUpdate:`), so
+/// the window grow and the new view's pixels land in one CATransaction. Used
+/// for the hotkey-entry grow, where an ungated resize shows the new view's
+/// header through the compact crop for a frame or two. A watchdog applies
+/// the resize anyway if WebKit never presents.
+pub fn set_launcher_window_height<R: Runtime + 'static>(
     window: &WebviewWindow<R>,
     height: f64,
     expanded: Option<bool>,
@@ -386,8 +828,14 @@ pub fn set_launcher_window_height<R: Runtime>(
     // Cast through `usize` so the closure stays `Send` (raw pointers aren't);
     // the block only ever fires on the main thread.
     let nsw = window.ns_window().unwrap() as *mut AnyObject as usize;
+    let gen = RESIZE_GEN.fetch_add(1, Ordering::AcqRel) + 1;
 
     let commit = move || unsafe {
+        let current = RESIZE_GEN.load(Ordering::Acquire);
+        if current != gen {
+            log::info!("[launcher-resize] gen {gen} superseded by {current}; dropping resize to {height}");
+            return;
+        }
         let nsw = nsw as *mut AnyObject;
         let frame: NSRect = msg_send![nsw, frame];
         let new_y = frame.origin.y + frame.size.height - height;
@@ -431,6 +879,61 @@ pub fn set_launcher_window_height<R: Runtime>(
     match mode {
         ResizeMode::Immediate => commit(),
         ResizeMode::DeferToNextCaCommit => schedule_on_next_pre_commit(commit),
+        ResizeMode::AfterNextPresentationUpdate => {
+            // A parked (alpha-0) window has no interstitial to prevent, and
+            // presentation callbacks starve while it stays invisible. Commit
+            // immediately; the reveal alpha-flips onto finished geometry.
+            if window_alpha(window) < 1.0 {
+                commit();
+                return;
+            }
+            // The caller requests the resize before its rendering update
+            // builds the swap's paint and confirms from a rAF inside that
+            // update. A confirm mark already set here means this dispatch
+            // arrived late and the swap is already applied, so a hook would
+            // wait on a present that static content never produces. Join the
+            // current transaction instead: a truly late arrival costs one
+            // frame instead of a watchdog timeout.
+            if CONFIRMED_GEN.load(Ordering::Acquire) >= gen {
+                log::info!("[launcher-resize] gen {gen} confirmed before dispatch; committing via CA pre-commit");
+                schedule_on_next_pre_commit(commit);
+                return;
+            }
+            let hooked = unsafe {
+                let content_view: *mut AnyObject = msg_send![nsw as *mut AnyObject, contentView];
+                let webview = find_webview(content_view);
+                if !webview.is_null() && responds_to(webview, sel!(_doAfterNextPresentationUpdate:)) {
+                    arm_grow_presentation_hook(webview as usize, gen, commit, GROW_HOOK_MAX_REARMS);
+                    true
+                } else {
+                    false
+                }
+            };
+            if !hooked {
+                log::info!("[launcher-resize] presentation SPI absent; falling back to CA pre-commit");
+                schedule_on_next_pre_commit(commit);
+                return;
+            }
+            // The watchdog advances the generation after a forced apply so
+            // the real presentation block drops if it fires late.
+            let w = window.clone();
+            let app = window.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(GROW_WATCHDOG_MS)).await;
+                let _ = app.run_on_main_thread(move || {
+                    if RESIZE_GEN.load(Ordering::Acquire) != gen {
+                        return;
+                    }
+                    let Ok(ptr) = w.ns_window() else { return };
+                    let frame: NSRect = unsafe { msg_send![ptr as *mut AnyObject, frame] };
+                    if (frame.size.height - height).abs() > 0.5 {
+                        log::warn!("[launcher-resize] gen {gen} never presented; watchdog applying -> {height}");
+                        commit();
+                        RESIZE_GEN.fetch_add(1, Ordering::AcqRel);
+                    }
+                });
+            });
+        }
     }
 }
 

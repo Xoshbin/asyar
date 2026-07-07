@@ -39,6 +39,8 @@
   import { recordActiveDay } from '../lib/ipc/commands';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { authService } from '../services/auth/authService.svelte';
+  import { runWhenIdle } from '../lib/idle';
+  import { prewarmEmojiFont } from '../lib/emojiPrewarm';
   import '../resources/styles/style.css';
 
   // Instantiate the controller
@@ -162,7 +164,11 @@
   });
 
   onMount(() => {
-    compactSync.onMount();
+    // Warm the emoji font off the critical path — first paint and the
+    // compactSync reveal own the first frames; the prewarm only needs to
+    // happen before the user first sees emoji-bearing content.
+    runWhenIdle(() => prewarmEmojiFont(), { timeout: 3000 });
+    return compactSync.onMount();
   });
 
   onMount(() => {

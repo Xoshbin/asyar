@@ -14,6 +14,7 @@
 
 pub mod service;
 
+use std::sync::atomic::AtomicU64;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
@@ -30,6 +31,12 @@ pub struct HudContent {
     /// no auto-hide is scheduled — the HUD stays visible until an explicit
     /// `hide_hud` or a follow-up `show_hud` call with `spinning=false`.
     pub spinning: bool,
+    /// Monotonic reveal generation this content was emitted under. The HUD
+    /// route echoes it back through `hud_mark_shown` after the content has
+    /// painted; a mismatch there means a newer `show_hud` superseded this
+    /// one and the echo must not touch the window. See the flash-free
+    /// reveal notes on `service::show`.
+    pub reveal_gen: u64,
 }
 
 /// Tauri-managed state for the HUD window.
@@ -39,8 +46,11 @@ pub struct HudContent {
 ///   its own.
 /// - `current` holds the most recent {title, spinning} pair so the HUD's
 ///   Svelte route can recover it on mount.
+/// - `reveal_gen` pairs each `service::show` with its `hud_mark_shown`
+///   echo so a stale echo from a superseded show can't reveal mid-dance.
 #[derive(Default)]
 pub struct HudState {
     pub auto_hide_task: Mutex<Option<JoinHandle<()>>>,
     pub current: Mutex<Option<HudContent>>,
+    pub reveal_gen: AtomicU64,
 }

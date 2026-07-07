@@ -6,6 +6,29 @@ use tauri::{
 
 pub const TRAY_ID: &str = "asyar-tray";
 
+/// Watchdog for the macOS flash-free settings reveal. The webview is warm
+/// (predeclared window, close hides it), so this matches the HUD's bound.
+#[cfg(target_os = "macos")]
+const SETTINGS_REVEAL_FALLBACK_MS: u64 = 250;
+
+/// Show + focus the settings window. On macOS a hidden window's webview is
+/// throttled, so its last composite predates the hidden spell; a plain
+/// `show()` paints that stale frame before WebKit catches up. Reveal on the
+/// next presented frame instead (same treatment as onboarding; see
+/// `reveal_window_after_first_paint`). Already-visible windows just refocus.
+fn show_settings_window(window: &tauri::WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    if !window.is_visible().unwrap_or(false) {
+        crate::platform::macos::reveal_window_after_first_paint(
+            window,
+            SETTINGS_REVEAL_FALLBACK_MS,
+        );
+        return;
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
 /// Sets up Asyar's own menu-bar tray.
 ///
 /// This tray is **never** touched by extensions — each top-level
@@ -39,14 +62,12 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
             }
             "settings" => {
                 if let Some(settings_window) = app.get_webview_window("settings") {
-                    let _ = settings_window.show();
-                    let _ = settings_window.set_focus();
+                    show_settings_window(&settings_window);
                 }
             }
             "check-updates" => {
                 if let Some(settings_window) = app.get_webview_window("settings") {
-                    let _ = settings_window.show();
-                    let _ = settings_window.set_focus();
+                    show_settings_window(&settings_window);
                 }
                 let _ = app.emit("check-for-updates", ());
             }

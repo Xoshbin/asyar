@@ -1,12 +1,36 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import { getHudState, type HudContent } from '../../lib/ipc/commands';
+  import { getHudState, hudMarkShown, type HudContent } from '../../lib/ipc/commands';
   import '../../resources/styles/style.css';
 
   let title = $state<string | null>(null);
   let spinning = $state<boolean>(false);
   let unlisten: UnlistenFn | null = null;
+
+  /**
+   * Completes the flash-free reveal: `show_hud` orders this window in at
+   * alpha 0 (macOS) so the previous HUD's stale composite can't paint;
+   * two rAFs after applying the new content, WebKit has committed a fresh
+   * frame and Rust may flip alpha to 1. Mirrors the launcher's
+   * twoFrames()-then-commit_show gate. Rust drops stale generations, so
+   * firing this once per received payload needs no cancellation logic.
+   */
+  function markShownAfterPaint(content: HudContent): void {
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        hudMarkShown(content.revealGen).catch((err) =>
+          console.error('[hud] hud_mark_shown failed:', err),
+        );
+      }),
+    );
+  }
+
+  function applyContent(content: HudContent): void {
+    title = content.title;
+    spinning = content.spinning;
+    markShownAfterPaint(content);
+  }
 
   onMount(async () => {
     // Belt: recover the most recently set state from Rust in case the
@@ -17,8 +41,7 @@
     try {
       const initial = await getHudState();
       if (initial) {
-        title = initial.title;
-        spinning = initial.spinning;
+        applyContent(initial);
       }
     } catch (err) {
       console.error('[hud] get_hud_state failed:', err);
@@ -26,8 +49,7 @@
 
     try {
       unlisten = await listen<HudContent>('hud:show', (event) => {
-        title = event.payload.title;
-        spinning = event.payload.spinning;
+        applyContent(event.payload);
       });
     } catch (err) {
       console.error('[hud] listen hud:show failed:', err);

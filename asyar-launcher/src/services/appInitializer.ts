@@ -16,6 +16,7 @@ import { searchStores } from './search/stores/search.svelte'; // Import searchSt
 import { settingsService } from './settings/settingsService.svelte';
 import { type Event, listen } from '@tauri-apps/api/event';
 import * as commands from '../lib/ipc/commands';
+import { runWhenIdle } from '../lib/idle';
 import { shortcutService } from '../built-in-features/shortcuts/shortcutService';
 import { shortcutStore } from '../built-in-features/shortcuts/shortcutStore.svelte';
 import { snippetStore } from '../built-in-features/snippets/snippetStore.svelte';
@@ -237,26 +238,34 @@ export const appInitializer = {
       await initAppUpdateStore()
       logService.info('App update store initialized.')
 
-      // Check whether to show What's New panel (shown once after each update)
-      try {
-        const { getVersion } = await import('@tauri-apps/api/app')
-        const { appUpdaterShouldShowWhatsNew } = await import('../lib/ipc/applicationCommands')
-        const { whatsNewStore } = await import('./update/whatsNewStore.svelte')
-        const currentVersion = await getVersion()
-        const lastSeen = settingsService.currentSettings.updates?.lastSeenVersion
-        if (lastSeen == null) {
-          // Fresh install — record silently so next update shows the panel
-          await settingsService.updateSettings('updates', { lastSeenVersion: currentVersion })
-        } else {
-          const shouldShow = await appUpdaterShouldShowWhatsNew(lastSeen, currentVersion)
-          if (shouldShow) {
-            whatsNewStore.version = currentVersion
+      // Check whether to show What's New panel (shown once after each update).
+      // Idle-deferred: purely cosmetic and independent of the remaining init
+      // chain, so it must not compete with first paint (native
+      // requestIdleCallback when the WebKit flag landed, deadline-gated
+      // setTimeout otherwise; see src/lib/idle.ts).
+      runWhenIdle(() => {
+        void (async () => {
+          try {
+            const { getVersion } = await import('@tauri-apps/api/app')
+            const { appUpdaterShouldShowWhatsNew } = await import('../lib/ipc/applicationCommands')
+            const { whatsNewStore } = await import('./update/whatsNewStore.svelte')
+            const currentVersion = await getVersion()
+            const lastSeen = settingsService.currentSettings.updates?.lastSeenVersion
+            if (lastSeen == null) {
+              // Fresh install — record silently so next update shows the panel
+              await settingsService.updateSettings('updates', { lastSeenVersion: currentVersion })
+            } else {
+              const shouldShow = await appUpdaterShouldShowWhatsNew(lastSeen, currentVersion)
+              if (shouldShow) {
+                whatsNewStore.version = currentVersion
+              }
+            }
+            logService.info("What's New check complete.")
+          } catch (e) {
+            logService.warn(`What's New check failed: ${e}`)
           }
-        }
-        logService.info("What's New check complete.")
-      } catch (e) {
-        logService.warn(`What's New check failed: ${e}`)
-      }
+        })()
+      }, { timeout: 4000 })
 
       // Initialize extension deeplink service (asyar://extensions/{extId}/{cmdId})
       const { createDeeplinkService } = await import('./deeplink/deeplinkService.svelte');
@@ -391,8 +400,9 @@ export const appInitializer = {
       const initMetrics = performanceService.stopTiming("app-initialization");
       logService.custom(`⚡ App initialized in ${initMetrics.duration?.toFixed(2)}ms`, "PERF", "green", "bgGreen");
 
-      // Log performance report after a short delay
-      setTimeout(() => performanceService.logPerformanceReport(), 1000);
+      // Log performance report once startup work has drained (idle-time,
+      // deadline-capped; diagnostics only, never worth competing for a frame)
+      runWhenIdle(() => performanceService.logPerformanceReport(), { timeout: 2500 });
 
       logService.info(`Application initialization complete.`);
       return true;

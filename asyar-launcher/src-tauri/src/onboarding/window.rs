@@ -13,6 +13,11 @@ const WINDOW_URL: &str = "/onboarding";
 // other — so it needs space to breathe.
 const WINDOW_WIDTH: f64 = 1000.0;
 const WINDOW_HEIGHT: f64 = 700.0;
+// Watchdog for the macOS flash-free reveal. Generous compared to the HUD's
+// 250ms: this window is created cold (webview process spawn + first commit),
+// not merely repainted.
+#[cfg(target_os = "macos")]
+const REVEAL_FALLBACK_MS: u64 = 400;
 
 /// Open the onboarding window (creates if it doesn't exist; focuses if it does).
 pub fn open(app: &AppHandle) -> Result<(), AppError> {
@@ -50,10 +55,19 @@ pub fn open(app: &AppHandle) -> Result<(), AppError> {
     // the content behind the floating window. The rounded card reads as a
     // window without it.
     .shadow(false)
-    .visible(true)
-    .focused(true)
+    // macOS: build hidden and reveal on WebKit's first presented frame;
+    // showing at build time composites an empty transparent rectangle for
+    // the frames before the first WebKit commit (cold-open flash). Focus is
+    // granted by the reveal helper instead. Windows/Linux keep the
+    // visible-at-build behavior (their flash is masked by the DWM backdrop
+    // applied right below).
+    .visible(cfg!(not(target_os = "macos")))
+    .focused(cfg!(not(target_os = "macos")))
     .build()
     .map_err(|e| AppError::Other(format!("create onboarding: {e}")))?;
+
+    #[cfg(target_os = "macos")]
+    crate::platform::macos::reveal_window_after_first_paint(&_window, REVEAL_FALLBACK_MS);
 
     #[cfg(target_os = "windows")]
     {

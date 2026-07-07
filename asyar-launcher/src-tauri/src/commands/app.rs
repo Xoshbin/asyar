@@ -23,6 +23,11 @@ const OFFSCREEN_COORD: f64 = -30_000.0;
 /// mapped, so the webview resumes rendering without the user seeing the
 /// stale cached frame. The JS caller awaits two rAFs after this returns
 /// before calling `commit_show`.
+///
+/// Under the parked-panel lifecycle (see `park_launcher_panel`) the panel is
+/// normally already mapped at alpha 0 and rendering; callers that swap the
+/// view before revealing (user-item hotkeys) still need the two-rAF wait so
+/// the *new* view has painted before the alpha flip.
 #[tauri::command]
 pub fn prepare_show(
     app_handle: AppHandle,
@@ -40,10 +45,12 @@ pub fn prepare_show(
         let window = app_handle
             .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
-        // Alpha 0 first so the order-in composites nothing visible. panel.show()
-        // then makes it visible to the window server; WebKit observes the
-        // activity-state change and resumes layer-tree commits.
+        // Alpha 0 first so nothing composites visibly; panel.show() takes
+        // key focus while still invisible so keys typed during the two-rAF
+        // window land in the DOM. Mouse events come back on here, not at
+        // commit.
         crate::platform::macos::set_window_alpha(&window, 0.0);
+        crate::platform::macos::set_ignores_mouse_events(&window, false);
         panel.show();
     }
     #[cfg(not(target_os = "macos"))]
@@ -82,6 +89,10 @@ pub fn commit_show(
         crate::platform::macos::center_at_cursor_monitor(&window)
             .map_err(|e| AppError::Platform(format!("center_at_cursor_monitor: {e}")))?;
         crate::platform::macos::set_window_alpha(&window, 1.0);
+        // prepare_show's panel.show() ran on an already-visible (parked)
+        // panel, which doesn't rebuild the responder chain; without this,
+        // typed keys can dead-end at wry's parent view.
+        crate::platform::macos::reseat_first_responder(&window);
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -114,15 +125,7 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
         let window = app_handle
             .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher panel window".to_string()))?;
-        crate::platform::macos::set_window_alpha(&window, 1.0);
-        crate::platform::macos::center_at_cursor_monitor(&window)
-            .map_err(|e| AppError::Platform(format!("center_at_cursor_monitor: {e}")))?;
-        panel.show();
-        // Hotkey-initiated extension swaps call `show` while the panel is
-        // already visible; `panel.show()` then doesn't touch the first
-        // responder, so AppKit can leave the WKWebView off the responder
-        // chain and typed keys never reach the DOM. Reseat it explicitly.
-        crate::platform::macos::reseat_first_responder(&window);
+        crate::platform::macos::reveal_launcher_panel(&window, &panel);
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -145,7 +148,11 @@ pub fn is_visible(state: tauri::State<'_, AppState>) -> bool {
     state.asyar_visible.load(Ordering::Relaxed)
 }
 
-/// Hides the launcher window.
+/// Hides the launcher window. On macOS "hidden" means parked (ordered in at
+/// alpha 0, mouse-transparent; see `park_launcher_panel`), so the webview
+/// keeps rendering and the post-hide state reset the frontend performs is
+/// composited before the next reveal. Focus returns to the previous app via
+/// park's order-out/order-in pair when the panel still owns key.
 #[tauri::command]
 pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
     state.asyar_visible.store(false, Ordering::Relaxed);
@@ -154,9 +161,9 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
         let panel = app_handle
             .get_webview_panel(SPOTLIGHT_LABEL)
             .map_err(|_| AppError::NotFound("launcher panel".to_string()))?;
-        if panel.is_visible() {
-            panel.order_out(None);
-        }
+        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+            .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
+        crate::platform::macos::park_launcher_panel(&window, &panel);
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -262,6 +269,25 @@ pub fn set_launcher_keep_expanded(state: tauri::State<'_, AppState>, keep_expand
         .store(keep_expanded, Ordering::Relaxed);
 }
 
+/// Marks the in-flight presentation-gated resize's content as painted.
+/// Called from a rAF in the same webview rendering update that builds the
+/// new view's paint, so the gated grow commits on exactly that paint's
+/// presentation (see `platform::macos::confirm_launcher_paint`).
+#[tauri::command]
+pub fn confirm_launcher_paint() {
+    #[cfg(target_os = "macos")]
+    crate::platform::macos::confirm_launcher_paint();
+}
+
+/// Withdraws an in-flight presentation-gated resize whose confirm will
+/// never arrive (the frontend deferred a reversal mid-transition instead).
+/// The armed hook and its watchdog drop via the generation check.
+#[tauri::command]
+pub fn cancel_launcher_resize() {
+    #[cfg(target_os = "macos")]
+    crate::platform::macos::cancel_pending_resize();
+}
+
 /// Validates a launcher height value before it reaches platform window APIs.
 /// Rejects NaN, Infinity, and values outside the allowed range.
 fn validate_launcher_height(height: f64) -> Result<(), AppError> {
@@ -282,13 +308,16 @@ fn validate_launcher_height(height: f64) -> Result<(), AppError> {
 /// `expanded: Some(bool)` also toggles the native Show More bar in the same
 /// CATransaction as the window resize; `None` leaves its visibility alone.
 /// `defer_until_next_ca_commit: Some(true)` gates the resize on the current
-/// CA transaction's pre-commit phase (extension-transition paths only).
+/// CA transaction's pre-commit phase (goBack shrink);
+/// `after_next_presentation_update: Some(true)` gates it on WebKit's next
+/// applied WebContent paint (hotkey-entry grow) and wins over the CA gate.
 #[tauri::command]
 pub fn set_launcher_height(
     app_handle: AppHandle,
     height: f64,
     expanded: Option<bool>,
     defer_until_next_ca_commit: Option<bool>,
+    after_next_presentation_update: Option<bool>,
 ) -> Result<(), AppError> {
     validate_launcher_height(height)?;
     let window = app_handle
@@ -298,7 +327,9 @@ pub fn set_launcher_height(
     #[cfg(target_os = "macos")]
     {
         use crate::platform::macos::ResizeMode;
-        let mode = if defer_until_next_ca_commit.unwrap_or(false) {
+        let mode = if after_next_presentation_update.unwrap_or(false) {
+            ResizeMode::AfterNextPresentationUpdate
+        } else if defer_until_next_ca_commit.unwrap_or(false) {
             ResizeMode::DeferToNextCaCommit
         } else {
             ResizeMode::Immediate
@@ -310,6 +341,7 @@ pub fn set_launcher_height(
     {
         let _ = expanded;
         let _ = defer_until_next_ca_commit;
+        let _ = after_next_presentation_update;
         use tauri::LogicalSize;
         let size = window
             .inner_size()
@@ -524,11 +556,7 @@ pub fn show_launcher(app: &AppHandle) -> Result<(), AppError> {
         let window = app
             .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher panel window".to_string()))?;
-        crate::platform::macos::set_window_alpha(&window, 1.0);
-        crate::platform::macos::center_at_cursor_monitor(&window)
-            .map_err(|e| AppError::Platform(format!("center_at_cursor_monitor: {e}")))?;
-        panel.show();
-        crate::platform::macos::reseat_first_responder(&window);
+        crate::platform::macos::reveal_launcher_panel(&window, &panel);
     }
     #[cfg(not(target_os = "macos"))]
     {
