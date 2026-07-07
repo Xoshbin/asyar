@@ -96,19 +96,31 @@
       <div class="p-6">
         <h2 id="passphrase-title" class="dialog-title">{title}</h2>
         <p class="dialog-body">{description}</p>
-        <Input type="password" placeholder="Passphrase" bind:value={passphrase} bind:ref={passphraseInput} maxlength={256} />
+        <Input
+          type="password"
+          placeholder="Passphrase"
+          bind:value={passphrase}
+          bind:ref={passphraseInput}
+          maxlength={256}
+        />
         {#if errorMessage}
           <p class="text-caption error mt-2">{errorMessage}</p>
         {/if}
         <div class="dialog-footer">
           {#if onForgot}
-            <button type="button" class="text-link" onclick={forgot}>Use recovery phrase instead</button>
+            <button type="button" class="text-link" onclick={forgot}
+              >Use recovery phrase instead</button
+            >
           {:else}
             <span></span>
           {/if}
           <div class="flex gap-2">
             <Button onclick={cancel}>Cancel</Button>
-            <Button class="btn-primary" disabled={submitting || passphrase.length === 0} onclick={submit}>
+            <Button
+              class="btn-primary"
+              disabled={submitting || passphrase.length === 0}
+              onclick={submit}
+            >
               {submitting ? 'Unlocking…' : 'Unlock'}
             </Button>
           </div>
@@ -124,7 +136,7 @@
     backdrop-filter: blur(8px);
   }
 
-  :global(html[data-platform="linux"]) .dialog-backdrop {
+  :global(html[data-platform='linux']) .dialog-backdrop {
     backdrop-filter: none;
     background: rgba(0, 0, 0, 0.6);
   }
@@ -186,6 +198,4 @@
   .text-link:hover {
     color: var(--text-primary);
   }
-
-
 </style>

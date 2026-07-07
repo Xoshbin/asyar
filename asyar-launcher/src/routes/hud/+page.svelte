@@ -137,8 +137,9 @@
       as Raycast's HUD, which also has no visible drop shadow.
     */
     color: rgba(255, 255, 255, 0.97);
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
-      'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family:
+      -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto,
+      'Helvetica Neue', Arial, sans-serif;
     font-size: 15px;
     font-weight: 600;
     line-height: 1.3;
@@ -181,6 +182,8 @@
   }
 
   @keyframes hud-spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

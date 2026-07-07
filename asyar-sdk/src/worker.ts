@@ -16,9 +16,9 @@ if (
 ) {
   throw new Error(
     '[asyar-sdk/worker] Imported outside a worker context. ' +
-    'This entry point is intended for code running in worker.html ' +
-    '(a Tier 2 extension\'s headless iframe). ' +
-    'Did you mean to import from "asyar-sdk/view"?',
+      'This entry point is intended for code running in worker.html ' +
+      "(a Tier 2 extension's headless iframe). " +
+      'Did you mean to import from "asyar-sdk/view"?',
   );
 }
 
@@ -146,10 +146,7 @@ function installToolsInvokeInterceptor(): void {
     if (!_workerToolsProxy) return;
     try {
       const result = await _workerToolsProxy.invokeHandler(toolId, args);
-      window.parent.postMessage(
-        { type: 'asyar:tools:invoke:response', messageId, result },
-        '*',
-      );
+      window.parent.postMessage({ type: 'asyar:tools:invoke:response', messageId, result }, '*');
     } catch (err) {
       window.parent.postMessage(
         {
@@ -166,22 +163,28 @@ function installToolsInvokeInterceptor(): void {
 // Auto-report uncaught errors / rejections to host parent (Task 24).
 if (typeof window !== 'undefined' && window.parent !== window) {
   window.addEventListener('error', (e: ErrorEvent) => {
-    window.parent.postMessage({
-      type: 'asyar:diagnostics:uncaught',
-      payload: {
-        kind: 'iframe_uncaught',
-        developerDetail: e.error?.stack ?? String(e.message),
+    window.parent.postMessage(
+      {
+        type: 'asyar:diagnostics:uncaught',
+        payload: {
+          kind: 'iframe_uncaught',
+          developerDetail: e.error?.stack ?? String(e.message),
+        },
       },
-    }, '*');
+      '*',
+    );
   });
   window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
-    window.parent.postMessage({
-      type: 'asyar:diagnostics:uncaught',
-      payload: {
-        kind: 'iframe_unhandled_rejection',
-        developerDetail: String(e.reason),
+    window.parent.postMessage(
+      {
+        type: 'asyar:diagnostics:uncaught',
+        payload: {
+          kind: 'iframe_unhandled_rejection',
+          developerDetail: String(e.reason),
+        },
       },
-    }, '*');
+      '*',
+    );
   });
 }
 

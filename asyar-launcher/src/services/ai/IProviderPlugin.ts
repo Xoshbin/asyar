@@ -52,9 +52,7 @@ export interface ToolCall {
  * Events emitted by `parseToolStream` during a tool-capable streaming response.
  */
 export type ToolStreamEvent =
-  | { type: 'text'; text: string }
-  | ({ type: 'tool_use' } & ToolCall)
-  | { type: 'message_stop' };
+  { type: 'text'; text: string } | ({ type: 'tool_use' } & ToolCall) | { type: 'message_stop' };
 
 /**
  * A message in the multi-turn agent loop conversation.
@@ -101,7 +99,12 @@ export interface IProviderPlugin {
     messages: LoopMessage[],
     config: ProviderConfig,
     params: ChatParams,
-    tools: Array<{ id: string; name: string; description: string; parameters: Record<string, unknown> }>,
+    tools: Array<{
+      id: string;
+      name: string;
+      description: string;
+      parameters: Record<string, unknown>;
+    }>,
   ): RequestSpec;
 
   /**

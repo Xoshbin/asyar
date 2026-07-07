@@ -18,6 +18,7 @@ interface IStorageService {
 ```
 
 **Usage:**
+
 ```typescript
 const storage = context.getService<IStorageService>('storage');
 
@@ -49,12 +50,12 @@ All extensions share one `extension_storage` table in `asyar_data.db` (SQLite, W
 
 **When to use what:**
 
-| Need | Use |
-|---|---|
-| Persist data across sessions (user preferences, notes, stable state) | `StorageService` |
-| Transient data with an expiration (API responses, search indexes) | `CacheService` |
-| Transient state within a single session | `localStorage` (iframe-scoped, survives view navigation) |
-| App-wide settings with reactive change subscriptions | `SettingsService` |
+| Need                                                                 | Use                                                      |
+| -------------------------------------------------------------------- | -------------------------------------------------------- |
+| Persist data across sessions (user preferences, notes, stable state) | `StorageService`                                         |
+| Transient data with an expiration (API responses, search indexes)    | `CacheService`                                           |
+| Transient state within a single session                              | `localStorage` (iframe-scoped, survives view navigation) |
+| App-wide settings with reactive change subscriptions                 | `SettingsService`                                        |
 
 > **Pro Tip:** Values are plain strings. For objects and arrays, use `JSON.stringify`/`JSON.parse`. Keep keys short and descriptive — there's no size limit, but the entire table is shared across all extensions.
 

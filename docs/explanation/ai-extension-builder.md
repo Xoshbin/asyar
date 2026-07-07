@@ -1,12 +1,13 @@
 ---
 order: 18
 ---
+
 # AI Extension Builder — How a Prompt Becomes a Working Extension
 
 This page explains the **"Build Extension with AI"** feature for contributors:
 how the launcher-side orchestration and the bundled coding sidecar fit together,
 the stdio protocol between them, the feasibility gate, the security model, and the
-packaging constraint that shapes the whole design. For the *user-facing* how-to,
+packaging constraint that shapes the whole design. For the _user-facing_ how-to,
 see [Use the Create Extension tool](../how-to/use-create-extension-tool.md).
 
 It builds on the [two-tier model](./two-tier-model.md): the orchestration is a
@@ -18,10 +19,10 @@ sidecar process**.
 The feature is split across a process boundary because the two halves live in
 different worlds:
 
-| Half | Where it runs | Responsibility |
-|---|---|---|
-| **Orchestrator** (Tier 1) | The launcher WebView ([`src/built-in-features/create-extension/ai-builder/`](../../asyar-launcher/src/built-in-features/create-extension/ai-builder/)) | UI, job state, notifications, deep-links, secret-scan, register + activate |
-| **Sidecar** (`asyar-ext-builder`) | Its own OS process ([`asyar-ext-builder/`](../../asyar-ext-builder/)) | Runs the Claude Agent SDK: feasibility gate, scaffold, code, `pnpm` build loop, smoke test |
+| Half                              | Where it runs                                                                                                                                          | Responsibility                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| **Orchestrator** (Tier 1)         | The launcher WebView ([`src/built-in-features/create-extension/ai-builder/`](../../asyar-launcher/src/built-in-features/create-extension/ai-builder/)) | UI, job state, notifications, deep-links, secret-scan, register + activate                 |
+| **Sidecar** (`asyar-ext-builder`) | Its own OS process ([`asyar-ext-builder/`](../../asyar-ext-builder/))                                                                                  | Runs the Claude Agent SDK: feasibility gate, scaffold, code, `pnpm` build loop, smoke test |
 
 The WebView cannot spawn native processes, run `pnpm`, or do raw filesystem/shell
 work — so the coding muscle has to be a child process. This mirrors how MCP ships
@@ -59,15 +60,15 @@ Communication is newline-delimited JSON, defined identically on both sides
 ([`buildProtocol.ts`](../../asyar-launcher/src/built-in-features/create-extension/ai-builder/buildProtocol.ts)
 ↔ sidecar `protocol.ts`).
 
-| Direction | Event | Meaning |
-|---|---|---|
-| sidecar → launcher | `verdict` | feasibility result, emitted **before any file is written** |
-| | `step` | progress label for the live view |
-| | `ask` | a question — pauses the job, fires a notification deep-link |
-| | `done` | extension built + verified (carries id, path, smoke summary) |
-| | `fail` | a step failed (carries step, error, log) |
-| launcher → sidecar | `answer` | the user's reply to an `ask` (written to stdin) |
-| | `cancel` | abort the build |
+| Direction          | Event     | Meaning                                                      |
+| ------------------ | --------- | ------------------------------------------------------------ |
+| sidecar → launcher | `verdict` | feasibility result, emitted **before any file is written**   |
+|                    | `step`    | progress label for the live view                             |
+|                    | `ask`     | a question — pauses the job, fires a notification deep-link  |
+|                    | `done`    | extension built + verified (carries id, path, smoke summary) |
+|                    | `fail`    | a step failed (carries step, error, log)                     |
+| launcher → sidecar | `answer`  | the user's reply to an `ask` (written to stdin)              |
+|                    | `cancel`  | abort the build                                              |
 
 **Questions are events, not a phase.** Whether the agent needs a clarification
 early or deep in the build, it emits `ask`; the job goes to `waiting`, a
@@ -87,7 +88,7 @@ fetch).
 
 ## Knowledge from live URLs
 
-The agent's *example* knowledge is **not** bundled. `knowledgeSources.json` (inlined
+The agent's _example_ knowledge is **not** bundled. `knowledgeSources.json` (inlined
 into `sidecar.js` at build) lists canonical raw-GitHub URLs of real example
 extensions + docs; the agent `WebFetch`es them on demand for patterns (non-fatal if
 unreachable). The rule: **live-fetch only what already exists elsewhere; keep local
@@ -135,8 +136,9 @@ subprocess — it is not a pure HTTP client. Two consequences shaped the design:
 **Build-order requirement:** the release pipeline must run `bun run build:js` in
 `asyar-ext-builder/` **before** `tauri build`, or an empty placeholder ships and the
 feature is dead. `tauri dev` resolution falls back to `CARGO_MANIFEST_DIR/binaries`
-+ `resources` so a local run works once `build:js` has run and real `bun`/`claude`
-binaries exist under `src-tauri/binaries/`.
+
+- `resources` so a local run works once `build:js` has run and real `bun`/`claude`
+  binaries exist under `src-tauri/binaries/`.
 
 ## After the build: My Extensions & Publish
 
@@ -151,16 +153,16 @@ binaries exist under `src-tauri/binaries/`.
 
 ## Source map
 
-| Concern | File |
-|---|---|
-| Job state machine | `ai-builder/buildJobStore.svelte.ts` |
-| Event routing | `ai-builder/orchestrator.ts` |
-| Question ⇄ notification ⇄ stdin | `ai-builder/questionBridge.ts` |
-| Progress view | `ai-builder/BuildProgressView.svelte` |
-| Protocol types | `ai-builder/buildProtocol.ts` |
-| Sidecar spawn / stream / stdin | `src-tauri/src/ext_builder/process.rs` |
-| Tauri commands | `src-tauri/src/ext_builder/commands.rs` |
-| Enumerate / search built extensions | `src-tauri/src/ext_builder/created.rs` |
-| Secret scan (Rust) | `src-tauri/src/ext_builder/secret_scan.rs` |
-| Sidecar entry + Agent SDK | `asyar-ext-builder/src/main.ts`, `builder.ts` |
-| Bash allowlist | `asyar-ext-builder/src/utils.ts` |
+| Concern                             | File                                          |
+| ----------------------------------- | --------------------------------------------- |
+| Job state machine                   | `ai-builder/buildJobStore.svelte.ts`          |
+| Event routing                       | `ai-builder/orchestrator.ts`                  |
+| Question ⇄ notification ⇄ stdin     | `ai-builder/questionBridge.ts`                |
+| Progress view                       | `ai-builder/BuildProgressView.svelte`         |
+| Protocol types                      | `ai-builder/buildProtocol.ts`                 |
+| Sidecar spawn / stream / stdin      | `src-tauri/src/ext_builder/process.rs`        |
+| Tauri commands                      | `src-tauri/src/ext_builder/commands.rs`       |
+| Enumerate / search built extensions | `src-tauri/src/ext_builder/created.rs`        |
+| Secret scan (Rust)                  | `src-tauri/src/ext_builder/secret_scan.rs`    |
+| Sidecar entry + Agent SDK           | `asyar-ext-builder/src/main.ts`, `builder.ts` |
+| Bash allowlist                      | `asyar-ext-builder/src/utils.ts`              |

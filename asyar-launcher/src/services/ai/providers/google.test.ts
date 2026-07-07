@@ -22,14 +22,22 @@ describe('googlePlugin.getModels transport', () => {
     vi.mocked(tauriFetch).mockResolvedValue({
       ok: true,
       json: async () => ({
-        models: [{ name: 'models/gemini-1.5-pro', displayName: 'Gemini 1.5 Pro', supportedGenerationMethods: ['generateContent'] }],
+        models: [
+          {
+            name: 'models/gemini-1.5-pro',
+            displayName: 'Gemini 1.5 Pro',
+            supportedGenerationMethods: ['generateContent'],
+          },
+        ],
       }),
     } as unknown as Response);
 
     const models = await googlePlugin.getModels({ enabled: true, apiKey: 'g-key' });
 
     expect(tauriFetch).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(tauriFetch).mock.calls[0][0]).toBe('https://generativelanguage.googleapis.com/v1beta/models');
+    expect(vi.mocked(tauriFetch).mock.calls[0][0]).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models',
+    );
     expect(webViewFetch).not.toHaveBeenCalled();
     expect(models).toEqual([{ id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }]);
   });

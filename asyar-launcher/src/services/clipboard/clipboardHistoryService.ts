@@ -1,31 +1,45 @@
 import {
-  readText, readHTML, readImage, readFiles, readRTF,
-  writeText, writeHTML, writeImage, writeRTF, writeFiles,
-  hasText, hasHTML, hasImage, hasRTF, hasFiles,
-  startListening, stopListening, onClipboardChange,
+  readText,
+  readHTML,
+  readImage,
+  readFiles,
+  readRTF,
+  writeText,
+  writeHTML,
+  writeImage,
+  writeRTF,
+  writeFiles,
+  hasText,
+  hasHTML,
+  hasImage,
+  hasRTF,
+  hasFiles,
+  startListening,
+  stopListening,
+  onClipboardChange,
   type ReadClipboard,
-} from "tauri-plugin-clipboard-x-api";
-import { copyFile, remove, mkdir } from "@tauri-apps/plugin-fs";
-import { appDataDir } from "@tauri-apps/api/path";
-import { platform } from "@tauri-apps/plugin-os";
-import * as commands from "../../lib/ipc/commands";
-import type { ClipboardDeleteResult, ClipboardClearResult } from "../../lib/ipc/commands";
-import { getFrontmostApplication } from "../../lib/ipc/applicationCommands";
-import { clipboardStripHtml, clipboardStripRtf } from "../../lib/ipc/clipboardCommands";
-import { v4 as uuidv4 } from "uuid";
-import { diagnosticsService } from "../diagnostics/diagnosticsService.svelte";
-import { clipboardHistoryStore } from "./stores/clipboardHistoryStore.svelte";
-import { clipboardPrivacyService } from "../privacy/clipboardPrivacyService.svelte";
-import { secretRedactionService } from "../privacy/secretRedactionService.svelte";
-import { logService } from "../log/logService";
-import { searchService } from "../search/SearchService";
+} from 'tauri-plugin-clipboard-x-api';
+import { copyFile, remove, mkdir } from '@tauri-apps/plugin-fs';
+import { appDataDir } from '@tauri-apps/api/path';
+import { platform } from '@tauri-apps/plugin-os';
+import * as commands from '../../lib/ipc/commands';
+import type { ClipboardDeleteResult, ClipboardClearResult } from '../../lib/ipc/commands';
+import { getFrontmostApplication } from '../../lib/ipc/applicationCommands';
+import { clipboardStripHtml, clipboardStripRtf } from '../../lib/ipc/clipboardCommands';
+import { v4 as uuidv4 } from 'uuid';
+import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { clipboardHistoryStore } from './stores/clipboardHistoryStore.svelte';
+import { clipboardPrivacyService } from '../privacy/clipboardPrivacyService.svelte';
+import { secretRedactionService } from '../privacy/secretRedactionService.svelte';
+import { logService } from '../log/logService';
+import { searchService } from '../search/SearchService';
 import {
   ClipboardItemType,
   stripRtf,
   type ClipboardHistoryItem,
   type IClipboardHistoryService,
   type ClipboardSourceApp,
-} from "asyar-sdk/contracts";
+} from 'asyar-sdk/contracts';
 
 /**
  * Service for managing clipboard history
@@ -35,7 +49,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private isAndroid: boolean = false;
   private pollingInterval: number | null = null;
 
-  private static readonly CLIPBOARD_CACHE_DIR = "clipboard_cache";
+  private static readonly CLIPBOARD_CACHE_DIR = 'clipboard_cache';
   private cacheDirPath: string | null = null;
 
   private async getCacheDirPath(): Promise<string> {
@@ -71,7 +85,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * Initialize the clipboard history service
    */
   public async initialize(): Promise<void> {
-    logService.debug("Initializing ClipboardHistoryService");
+    logService.debug('Initializing ClipboardHistoryService');
     await clipboardHistoryStore.loadInitial(100);
 
     try {
@@ -85,7 +99,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     }
 
     await this.startMonitoring();
-    logService.debug("ClipboardHistoryService initialized");
+    logService.debug('ClipboardHistoryService initialized');
   }
 
   /**
@@ -93,13 +107,13 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   private async startMonitoring(): Promise<void> {
     if (this.unlistenClipboard || this.pollingInterval) return;
-    
+
     if (this.isAndroid) {
       // Android: fall back to polling with text-only capture
       this.pollingInterval = setInterval(async () => {
         await this.captureCurrentClipboardForAndroid();
       }, 1000) as unknown as number;
-      logService.debug("Started clipboard monitoring (Android polling)");
+      logService.debug('Started clipboard monitoring (Android polling)');
       return;
     }
 
@@ -108,8 +122,8 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     this.unlistenClipboard = await onClipboardChange(async (result: ReadClipboard) => {
       await this.handleClipboardChange(result);
     });
-    
-    logService.debug("Started clipboard monitoring (event-driven)");
+
+    logService.debug('Started clipboard monitoring (event-driven)');
   }
 
   /**
@@ -139,7 +153,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     }
     this.unlistenClipboard?.();
     this.unlistenClipboard = null;
-    
+
     if (!this.isAndroid) {
       try {
         await stopListening();
@@ -147,7 +161,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         /* may not be listening */
       }
     }
-    logService.debug("Stopped clipboard monitoring");
+    logService.debug('Stopped clipboard monitoring');
   }
 
   private async captureSourceApp(): Promise<ClipboardSourceApp | undefined> {
@@ -175,13 +189,9 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     // a temporary host error does not break clipboard capture entirely —
     // the OS-flag protection still applies on the next correctly-classified
     // copy.
-    const classification = await clipboardPrivacyService.classify(
-      sourceApp?.bundleId ?? null,
-    );
+    const classification = await clipboardPrivacyService.classify(sourceApp?.bundleId ?? null);
     if (classification?.skip) {
-      logService.debug(
-        `Clipboard capture skipped: ${classification.reason.kind}`,
-      );
+      logService.debug(`Clipboard capture skipped: ${classification.reason.kind}`);
       return;
     }
 
@@ -337,7 +347,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
 
       const contentStr = JSON.stringify(fileData.value);
 
-      const fileNames = fileData.value.map(p => {
+      const fileNames = fileData.value.map((p) => {
         const parts = p.replace(/\\/g, '/').split('/');
         return parts[parts.length - 1] || p;
       });
@@ -366,27 +376,25 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * Create a preview of clipboard content
    */
   private createPreview(content: string, type: ClipboardItemType): string {
-    if (!content) return "No preview available";
+    if (!content) return 'No preview available';
 
     if (type === ClipboardItemType.Html) {
-      const div = document.createElement("div");
+      const div = document.createElement('div');
       div.innerHTML = content;
-      const text = div.textContent || div.innerText || "";
+      const text = div.textContent || div.innerText || '';
       return this.truncateText(text);
     } else if (type === ClipboardItemType.Text) {
       return this.truncateText(content);
     }
 
-    return "No preview available";
+    return 'No preview available';
   }
 
   /**
    * Truncate text for preview
    */
   private truncateText(text: string, maxLength = 100): string {
-    return text.length > maxLength
-      ? text.substring(0, maxLength) + "..."
-      : text;
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   }
 
   /**
@@ -406,7 +414,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       }
     }
 
-    if (!item.content) return "";
+    if (!item.content) return '';
     return this.truncateText(item.content);
   }
 
@@ -422,14 +430,14 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       if (!(await commands.checkAccessibilityPermission())) {
         await commands.openAccessibilityPreferences();
         void diagnosticsService.report({
-          source: "frontend",
-          kind: "manual",
-          severity: "warning",
+          source: 'frontend',
+          kind: 'manual',
+          severity: 'warning',
           retryable: false,
           context: {
             message:
-              "Asyar needs macOS Accessibility permission to paste. Enable Asyar under " +
-              "System Settings → Privacy & Security → Accessibility, then try again.",
+              'Asyar needs macOS Accessibility permission to paste. Enable Asyar under ' +
+              'System Settings → Privacy & Security → Accessibility, then try again.',
           },
         });
         return;
@@ -497,14 +505,18 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public async writeToClipboard(item: ClipboardHistoryItem): Promise<void> {
     if (!item.content) {
-      throw new Error("Cannot paste item with empty content");
+      throw new Error('Cannot paste item with empty content');
     }
 
-    if (this.isAndroid && (item.type === ClipboardItemType.Html || item.type === ClipboardItemType.Rtf)) {
+    if (
+      this.isAndroid &&
+      (item.type === ClipboardItemType.Html || item.type === ClipboardItemType.Rtf)
+    ) {
       // Android: write as plain text fallback
-      const plaintext = item.type === ClipboardItemType.Html
-        ? await this.stripHtml(item.content)
-        : (await this.stripRtf(item.content)) || item.content;
+      const plaintext =
+        item.type === ClipboardItemType.Html
+          ? await this.stripHtml(item.content)
+          : (await this.stripRtf(item.content)) || item.content;
       await writeText(plaintext);
       return;
     }
@@ -539,9 +551,9 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    * Write HTML content to clipboard with fallback
    */
   private async writeHtmlContent(html: string): Promise<void> {
-    const div = document.createElement("div");
+    const div = document.createElement('div');
     div.innerHTML = html;
-    const plainText = div.textContent || div.innerText || "";
+    const plainText = div.textContent || div.innerText || '';
 
     await writeHTML(plainText, html);
   }
@@ -665,13 +677,10 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
    */
   public normalizeImageData(content: string): string {
     // Clean up the data URI if needed (some images have "data:image/png;base64, " with an extra space)
-    let normalizedContent = content.replace(
-      "data:image/png;base64, ",
-      "data:image/png;base64,"
-    );
+    let normalizedContent = content.replace('data:image/png;base64, ', 'data:image/png;base64,');
 
     // Ensure proper data URI format
-    if (!normalizedContent.startsWith("data:")) {
+    if (!normalizedContent.startsWith('data:')) {
       normalizedContent = `data:image/png;base64,${normalizedContent}`;
     }
 
@@ -685,7 +694,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
     if (!content) return false;
 
     // Basic checks for valid content
-    if (content.includes("AAAAAAAA")) {
+    if (content.includes('AAAAAAAA')) {
       return false; // Placeholder data
     }
 
@@ -706,7 +715,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
           return { type: ClipboardItemType.Image, content: img.path };
         }
       }
-      
+
       if (await hasHTML()) {
         const html = await readHTML();
         if (html) {
@@ -733,10 +742,10 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         return { type: ClipboardItemType.Text, content: text };
       }
 
-      return { type: ClipboardItemType.Text, content: "" };
+      return { type: ClipboardItemType.Text, content: '' };
     } catch (error) {
       logService.error(`Failed to read from clipboard: ${error}`);
-      return { type: ClipboardItemType.Text, content: "" };
+      return { type: ClipboardItemType.Text, content: '' };
     }
   }
 
@@ -751,10 +760,10 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   public async readCurrentText(): Promise<string> {
     try {
       const text = await readText();
-      return text ?? "";
+      return text ?? '';
     } catch (error) {
       logService.error(`Failed to read text from clipboard: ${error}`);
-      return "";
+      return '';
     }
   }
 }

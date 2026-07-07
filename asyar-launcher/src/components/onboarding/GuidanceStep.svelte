@@ -1,16 +1,16 @@
 <script lang="ts">
-  import Card from '../layout/Card.svelte'
-  import type { Snippet } from 'svelte'
+  import Card from '../layout/Card.svelte';
+  import type { Snippet } from 'svelte';
 
   let {
     kicker = '',
     title,
     body,
   }: {
-    kicker?: string
-    title: string
-    body?: Snippet
-  } = $props()
+    kicker?: string;
+    title: string;
+    body?: Snippet;
+  } = $props();
 </script>
 
 <Card>
@@ -22,7 +22,11 @@
 </Card>
 
 <style>
-  .guidance { display: flex; flex-direction: column; gap: var(--space-3); }
+  .guidance {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
   .guidance__kicker {
     font-size: var(--font-size-sm);
     font-weight: 600;
@@ -38,5 +42,9 @@
     color: var(--text-primary);
     margin: 0;
   }
-  .guidance__body { color: var(--text-secondary); font-size: var(--font-size-xl); line-height: 1.6; }
+  .guidance__body {
+    color: var(--text-secondary);
+    font-size: var(--font-size-xl);
+    line-height: 1.6;
+  }
 </style>

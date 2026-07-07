@@ -1,4 +1,4 @@
 packages:
-  - "."
-  - "src/built-in-features/*"
-  - "../asyar-sdk"
+  - '.'
+  - 'src/built-in-features/*'
+  - '../asyar-sdk'

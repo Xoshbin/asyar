@@ -30,14 +30,14 @@ export interface ApiExtension {
 // Search Engine handled in StoreViewStateClass
 
 export class StoreViewStateClass {
-  searchQuery = $state("");
+  searchQuery = $state('');
   // Ids of the current search results, best-match first, as ranked by Rust.
   // `null` means no active search (show every fetched item).
   private rankedIds = $state<string[] | null>(null);
   allItems = $state<ApiExtension[]>([]); // All fetched items
   isLoading = $state(true);
   loadError = $state(false);
-  errorMessage = $state("");
+  errorMessage = $state('');
   selectedExtensionSlug = $state<string | null>(null); // Keep track of slug for detail view
   extensionManager = $state<IExtensionManager | null>(null); // Store the extension manager instance
   logService = $state<ILogService | null>(null); // Store the log service instance
@@ -67,12 +67,12 @@ export class StoreViewStateClass {
 
   setLogService(service: ILogService) {
     this.logService = service;
-    this.logService?.debug("[Store State] LogService set.");
+    this.logService?.debug('[Store State] LogService set.');
   }
 
   setExtensionManager(manager: IExtensionManager) {
     this.extensionManager = manager;
-    this.logService?.debug("[Store State] ExtensionManager set.");
+    this.logService?.debug('[Store State] ExtensionManager set.');
   }
 
   setItems(items: ApiExtension[]) {
@@ -80,7 +80,7 @@ export class StoreViewStateClass {
     this.allItems = items;
     this.isLoading = false;
     this.loadError = false;
-    this.errorMessage = "";
+    this.errorMessage = '';
   }
 
   async setSearch(query: string) {
@@ -107,7 +107,7 @@ export class StoreViewStateClass {
     this.rankedIds = ranked.map((it) => String(it.id));
   }
 
-  moveSelection(direction: "up" | "down") {
+  moveSelection(direction: 'up' | 'down') {
     this.selection.moveSelection(direction);
   }
 
@@ -139,14 +139,12 @@ export class StoreViewStateClass {
   }
 
   updateItemStatus(slug: string, status: string) {
-    this.allItems = this.allItems.map(it =>
-      it.slug === slug ? { ...it, status } : it
-    );
+    this.allItems = this.allItems.map((it) => (it.slug === slug ? { ...it, status } : it));
   }
 
   applyUpdateStatus(updates: AvailableUpdate[]): void {
-    const updateMap = new Map(updates.map(u => [u.extensionId, u]));
-    this.allItems = this.allItems.map(item => {
+    const updateMap = new Map(updates.map((u) => [u.extensionId, u]));
+    this.allItems = this.allItems.map((item) => {
       if (item.status === 'INSTALLED' && updateMap.has(String(item.id))) {
         return { ...item, status: 'UPDATE_AVAILABLE' };
       }

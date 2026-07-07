@@ -52,7 +52,10 @@ class SearchOrchestratorClass {
   // Maps a search-result objectId to the worker-side action it should trigger
   // on Enter. Populated from ExtensionResult.actionId/actionPayload during each
   // search; consulted by searchResultMapper before the normal command lookup.
-  #resultActions = new Map<string, { extensionId: string; actionId: string; actionPayload: unknown }>();
+  #resultActions = new Map<
+    string,
+    { extensionId: string; actionId: string; actionPayload: unknown }
+  >();
 
   async handleSearch(query: string): Promise<void> {
     if (!appInitializer.isAppInitialized() || viewManager.activeView) return;
@@ -69,33 +72,38 @@ class SearchOrchestratorClass {
       const resultsFromExtensions = await extensionManager.searchAll(query);
 
       // Map extension results to serializable format for Rust
-      const externalResults = resultsFromExtensions.map((extRes: ExtensionResult & { extensionId?: string }, index: number) => {
-        const objectId = `ext_${extRes.extensionId || 'unknown'}_${extRes.title.replace(/\s+/g, '_')}_${index}`;
-        if (extRes.actionId && extRes.extensionId) {
-          this.#resultActions.set(objectId, {
+      const externalResults = resultsFromExtensions.map(
+        (extRes: ExtensionResult & { extensionId?: string }, index: number) => {
+          const objectId = `ext_${extRes.extensionId || 'unknown'}_${extRes.title.replace(/\s+/g, '_')}_${index}`;
+          if (extRes.actionId && extRes.extensionId) {
+            this.#resultActions.set(objectId, {
+              extensionId: extRes.extensionId,
+              actionId: extRes.actionId,
+              actionPayload: extRes.actionPayload,
+            });
+          }
+          // Preserve inline action closures (e.g. Calculator's copy-to-clipboard)
+          // that can't survive Rust serialization. Re-attached after mergedSearch.
+          if (typeof extRes.action === 'function') {
+            inlineActions.set(objectId, extRes.action);
+          }
+          return {
+            objectId,
+            name: extRes.title,
+            description: extRes.subtitle,
+            type: 'command',
+            score: extRes.score ?? 0.5,
+            icon: extRes.icon,
             extensionId: extRes.extensionId,
-            actionId: extRes.actionId,
-            actionPayload: extRes.actionPayload,
-          });
-        }
-        // Preserve inline action closures (e.g. Calculator's copy-to-clipboard)
-        // that can't survive Rust serialization. Re-attached after mergedSearch.
-        if (typeof extRes.action === 'function') {
-          inlineActions.set(objectId, extRes.action);
-        }
-        return {
-          objectId,
-          name: extRes.title,
-          description: extRes.subtitle,
-          type: 'command',
-          score: extRes.score ?? 0.5,
-          icon: extRes.icon,
-          extensionId: extRes.extensionId,
-          category: 'extension',
-          style: extRes.style,
-          priority: extRes.extensionId && isBuiltInFeature(extRes.extensionId) ? extRes.priority : undefined,
-        };
-      });
+            category: 'extension',
+            style: extRes.style,
+            priority:
+              extRes.extensionId && isBuiltInFeature(extRes.extensionId)
+                ? extRes.priority
+                : undefined,
+          };
+        },
+      );
 
       const resp = await commands.mergedSearch(query, externalResults, 10);
       if (resp === null) {

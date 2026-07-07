@@ -24,11 +24,7 @@ function resolveImport(fromFile: string, spec: string): string | null {
   if (!spec.startsWith('./') && !spec.startsWith('../')) return null;
   const baseDir = dirname(fromFile);
   const noExt = resolve(baseDir, spec);
-  const candidates = [
-    noExt + '.ts',
-    join(noExt, 'index.ts'),
-    noExt,
-  ];
+  const candidates = [noExt + '.ts', join(noExt, 'index.ts'), noExt];
   for (const c of candidates) {
     if (existsSync(c) && !c.endsWith('.test.ts')) return c;
   }

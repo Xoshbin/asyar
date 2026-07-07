@@ -22,9 +22,12 @@ type FireHandler = (event: {
   };
 }) => Promise<void> | void;
 
-async function captureFireHandler(bridge: TimerBridge, deps: {
-  isExtensionEnabled: (id: string) => boolean;
-}): Promise<FireHandler> {
+async function captureFireHandler(
+  bridge: TimerBridge,
+  deps: {
+    isExtensionEnabled: (id: string) => boolean;
+  },
+): Promise<FireHandler> {
   let captured: FireHandler | undefined;
   vi.mocked(listen).mockImplementationOnce(async (_event, handler) => {
     captured = handler as unknown as FireHandler;

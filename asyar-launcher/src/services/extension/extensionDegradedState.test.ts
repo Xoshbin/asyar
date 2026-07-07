@@ -17,11 +17,13 @@ describe('extensionDegradedState', () => {
   it('first user-facing notice reports an error diagnostic', () => {
     extensionDegradedState.noticeForUser('ext.a', 'Ext A', 3);
     expect(diagnosticsService.report).toHaveBeenCalledTimes(1);
-    expect(diagnosticsService.report).toHaveBeenCalledWith(expect.objectContaining({
-      kind: 'manual',
-      severity: 'error',
-      context: expect.objectContaining({ message: expect.stringContaining("Ext A") }),
-    }));
+    expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'manual',
+        severity: 'error',
+        context: expect.objectContaining({ message: expect.stringContaining('Ext A') }),
+      }),
+    );
   });
 
   it('subsequent notices within a session are deduped', () => {

@@ -74,10 +74,7 @@ export class ExtensionPreferencesSyncProvider implements ISyncProvider {
     };
   }
 
-  async applyImport(
-    incoming: SyncProviderData,
-    strategy: ConflictStrategy
-  ): Promise<ImportResult> {
+  async applyImport(incoming: SyncProviderData, strategy: ConflictStrategy): Promise<ImportResult> {
     if (strategy === 'skip') {
       return {
         success: true,
@@ -88,10 +85,7 @@ export class ExtensionPreferencesSyncProvider implements ISyncProvider {
       };
     }
     const payload = (incoming.data as PreferencesExport) ?? { rows: [] };
-    const result = await extensionPreferencesImportAll(
-      payload,
-      strategy as 'replace' | 'merge'
-    );
+    const result = await extensionPreferencesImportAll(payload, strategy as 'replace' | 'merge');
     if (result === null) throw new Error('extension_preferences_import_all failed');
     return {
       success: true,

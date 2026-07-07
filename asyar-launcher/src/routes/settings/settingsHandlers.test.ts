@@ -6,9 +6,16 @@ const { mockGetAll } = vi.hoisted(() => ({ mockGetAll: vi.fn() }));
 vi.mock('../../services/extension/extensionManager.svelte', () => ({
   default: { getAllExtensionsWithState: mockGetAll },
 }));
-const { mockUpdateSettings } = vi.hoisted(() => ({ mockUpdateSettings: vi.fn().mockResolvedValue(true) }));
+const { mockUpdateSettings } = vi.hoisted(() => ({
+  mockUpdateSettings: vi.fn().mockResolvedValue(true),
+}));
 vi.mock('../../services/settings/settingsService.svelte', () => ({
-  settingsService: { init: vi.fn().mockResolvedValue(true), currentSettings: {}, updateSettings: mockUpdateSettings, getSettings: vi.fn().mockReturnValue({}) },
+  settingsService: {
+    init: vi.fn().mockResolvedValue(true),
+    currentSettings: {},
+    updateSettings: mockUpdateSettings,
+    getSettings: vi.fn().mockReturnValue({}),
+  },
   settings: { subscribe: vi.fn() },
 }));
 vi.mock('../../services/extension/extensionStateManager.svelte', () => ({
@@ -33,7 +40,12 @@ describe('SettingsHandler.loadExtensions', () => {
         enabled: true,
         type: 'extension',
         commands: [
-          { id: 'cmd1', name: 'Start Timer', description: 'Starts the timer', trigger: 'pomo start' },
+          {
+            id: 'cmd1',
+            name: 'Start Timer',
+            description: 'Starts the timer',
+            trigger: 'pomo start',
+          },
         ],
       },
     ]);
@@ -93,29 +105,33 @@ describe('SettingsHandler — AI settings handlers', () => {
 
   it('handleSetDefaultAgentId calls updateSettings with defaultAgentId', async () => {
     const handler = new SettingsHandler();
-    await (handler as unknown as { handleSetDefaultAgentId(id: string | null): Promise<void> })
-      .handleSetDefaultAgentId('agent-abc');
+    await (
+      handler as unknown as { handleSetDefaultAgentId(id: string | null): Promise<void> }
+    ).handleSetDefaultAgentId('agent-abc');
     expect(mockUpdateSettings).toHaveBeenCalledWith('ai', { defaultAgentId: 'agent-abc' });
   });
 
   it('handleSetDefaultAgentId accepts null to clear the default agent', async () => {
     const handler = new SettingsHandler();
-    await (handler as unknown as { handleSetDefaultAgentId(id: string | null): Promise<void> })
-      .handleSetDefaultAgentId(null);
+    await (
+      handler as unknown as { handleSetDefaultAgentId(id: string | null): Promise<void> }
+    ).handleSetDefaultAgentId(null);
     expect(mockUpdateSettings).toHaveBeenCalledWith('ai', { defaultAgentId: null });
   });
 
   it('handleToggleTabContinuesLastThread calls updateSettings with tabContinuesLastThread true', async () => {
     const handler = new SettingsHandler();
-    await (handler as unknown as { handleToggleTabContinuesLastThread(v: boolean): Promise<void> })
-      .handleToggleTabContinuesLastThread(true);
+    await (
+      handler as unknown as { handleToggleTabContinuesLastThread(v: boolean): Promise<void> }
+    ).handleToggleTabContinuesLastThread(true);
     expect(mockUpdateSettings).toHaveBeenCalledWith('ai', { tabContinuesLastThread: true });
   });
 
   it('handleToggleTabContinuesLastThread calls updateSettings with tabContinuesLastThread false', async () => {
     const handler = new SettingsHandler();
-    await (handler as unknown as { handleToggleTabContinuesLastThread(v: boolean): Promise<void> })
-      .handleToggleTabContinuesLastThread(false);
+    await (
+      handler as unknown as { handleToggleTabContinuesLastThread(v: boolean): Promise<void> }
+    ).handleToggleTabContinuesLastThread(false);
     expect(mockUpdateSettings).toHaveBeenCalledWith('ai', { tabContinuesLastThread: false });
   });
 

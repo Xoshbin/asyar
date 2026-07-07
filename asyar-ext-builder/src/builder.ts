@@ -1,16 +1,17 @@
 import { readdirSync, statSync, mkdirSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { z } from 'zod';
-import {
-  query,
-  tool,
-  createSdkMcpServer,
-  type Options,
-} from '@anthropic-ai/claude-agent-sdk';
+import { query, tool, createSdkMcpServer, type Options } from '@anthropic-ai/claude-agent-sdk';
 import { emit } from './protocol';
 import { knowledgePromptSection } from './knowledge';
 import { runSmoke, type SmokeResult } from './smokeTest';
-import { type BuilderError, isBuilderError, errMessage, isAllowedBashCommand, claudeExecutablePath } from './utils';
+import {
+  type BuilderError,
+  isBuilderError,
+  errMessage,
+  isAllowedBashCommand,
+  claudeExecutablePath,
+} from './utils';
 
 export type { BuilderError } from './utils';
 
@@ -69,7 +70,11 @@ function assertSafeExtensionId(id: string, baseDir: string): string {
  * Falls back to the single newest directory under baseDir. Whatever id is
  * chosen is validated against path traversal before being returned.
  */
-export function resolveExtensionId(resultText: string, baseDir: string, before: Set<string>): string {
+export function resolveExtensionId(
+  resultText: string,
+  baseDir: string,
+  before: Set<string>,
+): string {
   const m = resultText.match(/EXTENSION_ID=([A-Za-z0-9._-]+)/);
   if (m) return assertSafeExtensionId(m[1], baseDir);
   // Fall back: the single directory that appeared under baseDir during the build.
@@ -92,7 +97,11 @@ export function resolveExtensionId(resultText: string, baseDir: string, before: 
     dirs.sort((a, b) => statSync(join(baseDir, b)).mtimeMs - statSync(join(baseDir, a)).mtimeMs);
     return assertSafeExtensionId(dirs[0], baseDir);
   }
-  throw { step: 'build', message: 'Could not determine the generated extension id.', log: resultText } as BuilderError;
+  throw {
+    step: 'build',
+    message: 'Could not determine the generated extension id.',
+    log: resultText,
+  } as BuilderError;
 }
 
 /** Ensures baseDir exists before the agent build spawns a subprocess with it as cwd. */
@@ -193,16 +202,7 @@ export async function runBuilder(input: BuilderInput): Promise<BuilderOutput> {
     // NOTE: `Bash` is deliberately NOT in allowedTools. Tools in allowedTools
     // are auto-approved and skip canUseTool, so listing Bash here would defeat
     // the command gate. Leaving it out makes every Bash call hit canUseTool.
-    allowedTools: [
-      'Read',
-      'Write',
-      'Edit',
-      'Glob',
-      'Grep',
-      'WebFetch',
-      'WebSearch',
-      askToolName,
-    ],
+    allowedTools: ['Read', 'Write', 'Edit', 'Glob', 'Grep', 'WebFetch', 'WebSearch', askToolName],
     // Command gate: prompt-injection (e.g. from fetched API docs) must not be
     // able to run arbitrary host commands. Bash is allowlist-gated; every other
     // tool is permitted (Write/Edit are also covered by acceptEdits).
@@ -221,7 +221,9 @@ export async function runBuilder(input: BuilderInput): Promise<BuilderOutput> {
     },
     additionalDirectories: [input.capabilitySpecDir],
     ...(input.abortController ? { abortController: input.abortController } : {}),
-    ...(claudeExecutablePath() !== undefined ? { pathToClaudeCodeExecutable: claudeExecutablePath() } : {}),
+    ...(claudeExecutablePath() !== undefined
+      ? { pathToClaudeCodeExecutable: claudeExecutablePath() }
+      : {}),
   };
 
   let log = '';
@@ -381,12 +383,16 @@ function truncate(s: string, n: number): string {
  * header name plus an optional service label. Returns null when no live
  * authenticated call is determinable.
  */
-export function parseSmokeHint(text: string): { url: string; headerName: string; service: string } | null {
+export function parseSmokeHint(
+  text: string,
+): { url: string; headerName: string; service: string } | null {
   const urlMatch = text.match(/https?:\/\/[^\s"'<>)]+/);
   if (!urlMatch) return null;
   // Only smoke when the agent indicated a key/header is required.
   const headerMatch = text.match(/header(?:\s+name)?[:=\s]+["'`]?([A-Za-z][A-Za-z0-9-]*)/i);
-  const needsKey = /requires?\s+an?\s+api\s+key|api\s+key.*required|GET\s+request.*verif/i.test(text);
+  const needsKey = /requires?\s+an?\s+api\s+key|api\s+key.*required|GET\s+request.*verif/i.test(
+    text,
+  );
   if (!needsKey || !headerMatch) return null;
   const headerName = headerMatch[1];
   let service = 'service';

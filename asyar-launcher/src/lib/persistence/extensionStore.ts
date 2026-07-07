@@ -17,7 +17,7 @@ async function getTauriStore(filePath: string): Promise<Store> {
 /**
  * Creates a persistence adapter for a given storage key.
  * Uses Tauri plugin-store when available, falls back to localStorage.
- * 
+ *
  * @param storageKey The localStorage key (e.g. 'asyar:snippets')
  * @param storeFile  The Tauri store filename (e.g. 'snippets.dat')
  */
@@ -58,7 +58,14 @@ function loadFromLocalStorage<T>(key: string, fallback: T): T {
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
     // Merge objects (for settings-like data), return arrays/primitives directly
-    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) && typeof fallback === 'object' && fallback !== null && !Array.isArray(fallback)) {
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      !Array.isArray(parsed) &&
+      typeof fallback === 'object' &&
+      fallback !== null &&
+      !Array.isArray(fallback)
+    ) {
       return { ...fallback, ...parsed };
     }
     return parsed as T;
@@ -75,7 +82,11 @@ function saveToLocalStorage(key: string, data: unknown): void {
   }
 }
 
-async function migrateFromLocalStorage<T>(storageKey: string, storeFile: string, fallback: T): Promise<T> {
+async function migrateFromLocalStorage<T>(
+  storageKey: string,
+  storeFile: string,
+  fallback: T,
+): Promise<T> {
   const data = loadFromLocalStorage(storageKey, fallback);
   // If there was data in localStorage, migrate it to Tauri store
   if (data !== fallback) {

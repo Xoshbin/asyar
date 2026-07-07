@@ -44,9 +44,9 @@ describe('timerService.schedule', () => {
     vi.mocked(invoke).mockRejectedValueOnce(
       new Error('Validation error: fire_at (100) must be strictly greater than now (2000)'),
     );
-    await expect(
-      timerService.schedule('my.ext', { commandId: 'bell', fireAt: 100 }),
-    ).resolves.toBe('');
+    await expect(timerService.schedule('my.ext', { commandId: 'bell', fireAt: 100 })).resolves.toBe(
+      '',
+    );
   });
 });
 

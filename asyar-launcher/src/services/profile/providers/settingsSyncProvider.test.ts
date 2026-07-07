@@ -4,7 +4,12 @@ import type { SyncProviderData } from '../types';
 
 const mockSettings = {
   general: { startAtLogin: false, showDockIcon: true },
-  search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true, enableExtensionSearch: false },
+  search: {
+    searchApplications: true,
+    searchSystemPreferences: true,
+    fuzzySearch: true,
+    enableExtensionSearch: false,
+  },
   shortcut: { modifier: 'Alt', key: 'Space' },
   appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
   extensions: { enabled: {} },
@@ -14,7 +19,12 @@ const mockSettings = {
 vi.mock('../../../services/settings/settingsService.svelte', () => {
   const settings = {
     general: { startAtLogin: false, showDockIcon: true },
-    search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true, enableExtensionSearch: false },
+    search: {
+      searchApplications: true,
+      searchSystemPreferences: true,
+      fuzzySearch: true,
+      enableExtensionSearch: false,
+    },
     shortcut: { modifier: 'Alt', key: 'Space' },
     appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
     extensions: { enabled: {} },
@@ -100,8 +110,14 @@ describe('SettingsSyncProvider', () => {
       };
 
       const result = await provider.applyImport(incoming, 'replace');
-      expect(settingsService.updateSettings).toHaveBeenCalledWith('general', { startAtLogin: true, showDockIcon: false });
-      expect(settingsService.updateSettings).toHaveBeenCalledWith('shortcut', { modifier: 'Cmd', key: 'Space' });
+      expect(settingsService.updateSettings).toHaveBeenCalledWith('general', {
+        startAtLogin: true,
+        showDockIcon: false,
+      });
+      expect(settingsService.updateSettings).toHaveBeenCalledWith('shortcut', {
+        modifier: 'Cmd',
+        key: 'Space',
+      });
       expect(settingsService.updateSettings).toHaveBeenCalledTimes(2);
       expect(result.success).toBe(true);
       expect(result.itemsUpdated).toBe(1);
@@ -119,7 +135,11 @@ describe('SettingsSyncProvider', () => {
       };
 
       const result = await provider.applyImport(incoming, 'merge');
-      expect(settingsService.updateSettings).toHaveBeenCalledWith('appearance', { theme: 'dark', windowWidth: 1000, windowHeight: 700 });
+      expect(settingsService.updateSettings).toHaveBeenCalledWith('appearance', {
+        theme: 'dark',
+        windowWidth: 1000,
+        windowHeight: 700,
+      });
       expect(settingsService.updateSettings).toHaveBeenCalledTimes(1);
       expect(result.success).toBe(true);
       expect(result.itemsUpdated).toBe(1);
@@ -170,14 +190,22 @@ describe('SettingsSyncProvider', () => {
           shortcut: { modifier: 'Cmd', key: 'Space' },
         },
       });
-      expect(settingsService.updateSettings).toHaveBeenCalledWith('general', { startAtLogin: true, showDockIcon: false });
-      expect(settingsService.updateSettings).toHaveBeenCalledWith('shortcut', { modifier: 'Cmd', key: 'Space' });
+      expect(settingsService.updateSettings).toHaveBeenCalledWith('general', {
+        startAtLogin: true,
+        showDockIcon: false,
+      });
+      expect(settingsService.updateSettings).toHaveBeenCalledWith('shortcut', {
+        modifier: 'Cmd',
+        key: 'Space',
+      });
     });
   });
 
   describe('applyItemDelete_resets_to_default_or_throws_unsupported', () => {
     it('throws an error since the settings singleton cannot be deleted', async () => {
-      await expect(provider.applyItemDelete('settings')).rejects.toThrow(/cannot delete singleton/i);
+      await expect(provider.applyItemDelete('settings')).rejects.toThrow(
+        /cannot delete singleton/i,
+      );
     });
   });
 

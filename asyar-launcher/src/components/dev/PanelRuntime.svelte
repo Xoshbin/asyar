@@ -30,12 +30,23 @@
         <StatusBadge state={worker?.state ?? 'dormant'} />
       </header>
       <dl>
-        <div><dt>Mount token</dt><dd>{worker?.mountToken ?? '—'}</dd></div>
-        <div><dt>Mailbox</dt><dd>{worker?.mailboxLen ?? 0}</dd></div>
-        <div><dt>Strikes</dt><dd>{worker?.strikes ?? 0}</dd></div>
+        <div>
+          <dt>Mount token</dt>
+          <dd>{worker?.mountToken ?? '—'}</dd>
+        </div>
+        <div>
+          <dt>Mailbox</dt>
+          <dd>{worker?.mailboxLen ?? 0}</dd>
+        </div>
+        <div>
+          <dt>Strikes</dt>
+          <dd>{worker?.strikes ?? 0}</dd>
+        </div>
         <div>
           <dt>Last update</dt>
-          <dd>{#if worker}<TimestampRelative timestamp={worker.updatedAt} />{:else}—{/if}</dd>
+          <dd>
+            {#if worker}<TimestampRelative timestamp={worker.updatedAt} />{:else}—{/if}
+          </dd>
         </div>
       </dl>
       <div class="actions">
@@ -49,12 +60,23 @@
         <StatusBadge state={view?.state ?? 'dormant'} />
       </header>
       <dl>
-        <div><dt>Mount token</dt><dd>{view?.mountToken ?? '—'}</dd></div>
-        <div><dt>Mailbox</dt><dd>{view?.mailboxLen ?? 0}</dd></div>
-        <div><dt>Strikes</dt><dd>{view?.strikes ?? 0}</dd></div>
+        <div>
+          <dt>Mount token</dt>
+          <dd>{view?.mountToken ?? '—'}</dd>
+        </div>
+        <div>
+          <dt>Mailbox</dt>
+          <dd>{view?.mailboxLen ?? 0}</dd>
+        </div>
+        <div>
+          <dt>Strikes</dt>
+          <dd>{view?.strikes ?? 0}</dd>
+        </div>
         <div>
           <dt>Last update</dt>
-          <dd>{#if view}<TimestampRelative timestamp={view.updatedAt} />{:else}—{/if}</dd>
+          <dd>
+            {#if view}<TimestampRelative timestamp={view.updatedAt} />{:else}—{/if}
+          </dd>
         </div>
       </dl>
     </section>

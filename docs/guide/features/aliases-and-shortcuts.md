@@ -3,7 +3,7 @@
 > Custom triggers and global hotkeys for any command.
 
 ![Applications tab assigning a shortcut/alias](../../images/feature-aliases-shortcuts-hero.png)
-*Figure: the Applications tab assigning a shortcut or alias.*
+_Figure: the Applications tab assigning a shortcut or alias._
 
 ## What it does
 
@@ -66,8 +66,8 @@ The shortcuts and aliases themselves are configured via the action panel on sear
 
 **Inside the Shortcuts view (search for `shortcuts`):**
 
-| Action | How |
-|--------|-----|
+| Action          | How               |
+| --------------- | ----------------- |
 | Change shortcut | `⌘K` → **Change** |
 | Remove shortcut | `⌘K` → **Remove** |
 

@@ -60,8 +60,8 @@
       primaryDisabled: selected.size === 0,
       onSkip: advanceStep,
       onPrimary: installSelected,
-    })
-  })
+    });
+  });
 
   onMount(load);
 </script>
@@ -95,7 +95,6 @@
       {/each}
     </ul>
   {/if}
-
 </Card>
 
 <style>

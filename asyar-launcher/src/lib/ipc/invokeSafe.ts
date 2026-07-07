@@ -10,8 +10,7 @@ interface InvokeSafeOpts {
 
 function isDiagnosticShape(raw: unknown): raw is Diagnostic {
   return (
-    typeof raw === 'object' && raw !== null
-    && 'kind' in raw && 'severity' in raw && 'source' in raw
+    typeof raw === 'object' && raw !== null && 'kind' in raw && 'severity' in raw && 'source' in raw
   );
 }
 

@@ -5,7 +5,7 @@
  *   call `hideToast` once the underlying operation finishes, or report the
  *   outcome via `diagnosticsService.report({ severity: 'success' | 'error', kind: 'manual', ... })`.
  */
-export type ToastStyle = "animated";
+export type ToastStyle = 'animated';
 
 export interface ShowToastOptions {
   /** Primary message. Required. */
@@ -34,7 +34,7 @@ export interface ConfirmAlertOptions {
    * Visual variant. `'danger'` shows ⚠️ + red confirm button.
    * Defaults to `'default'`.
    */
-  variant?: "default" | "danger";
+  variant?: 'default' | 'danger';
 }
 
 /**
@@ -62,10 +62,7 @@ export interface IFeedbackService {
    * Update an existing toast in place (e.g. change the title while still
    * loading). No-op if the toast id no longer matches the active toast.
    */
-  updateToast(
-    toastId: string,
-    options: Partial<ShowToastOptions>,
-  ): Promise<void>;
+  updateToast(toastId: string, options: Partial<ShowToastOptions>): Promise<void>;
 
   /**
    * Dismiss a toast immediately. No-op if not the active toast.

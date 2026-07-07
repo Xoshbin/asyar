@@ -31,8 +31,7 @@ describe('computeBackgroundIframeSet', () => {
   it('drops the active-view extension', () => {
     const entries = [{ extensionId: 'ext.a', mountToken: 7 }];
     const extensions = [ext('ext.a')];
-    expect(computeBackgroundIframeSet(entries, extensions, 'ext.a/DefaultView'))
-      .toEqual([]);
+    expect(computeBackgroundIframeSet(entries, extensions, 'ext.a/DefaultView')).toEqual([]);
   });
 
   it('drops registry entries without a matching enabled extension', () => {

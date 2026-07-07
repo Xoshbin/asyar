@@ -11,7 +11,7 @@ describe('AsyarIconElement', () => {
     const el = document.createElement('asyar-icon-test') as AsyarIconElement;
     el.setAttribute('name', 'calculator');
     document.body.appendChild(el);
-    
+
     expect(el.innerHTML).toContain('<svg');
     expect(el.innerHTML).toContain('width="20"');
     expect(el.style.display).toBe('inline-flex');
@@ -22,9 +22,9 @@ describe('AsyarIconElement', () => {
     el.setAttribute('name', 'calculator');
     el.setAttribute('size', '16');
     document.body.appendChild(el);
-    
+
     expect(el.innerHTML).toContain('width="16"');
-    
+
     el.setAttribute('size', '32');
     expect(el.innerHTML).toContain('width="32"');
   });
@@ -33,7 +33,7 @@ describe('AsyarIconElement', () => {
     const el = document.createElement('asyar-icon-test') as AsyarIconElement;
     el.setAttribute('name', 'calculator');
     document.body.appendChild(el);
-    
+
     expect(el.innerHTML).toContain('width="20"');
   });
 });

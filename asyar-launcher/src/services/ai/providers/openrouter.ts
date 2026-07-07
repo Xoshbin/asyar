@@ -1,5 +1,14 @@
 import { fetch } from '@tauri-apps/plugin-http';
-import type { IProviderPlugin, ModelInfo, ProviderConfig, RequestSpec, ChatParams, ChatMessage, LoopMessage, ToolStreamEvent } from '../IProviderPlugin';
+import type {
+  IProviderPlugin,
+  ModelInfo,
+  ProviderConfig,
+  RequestSpec,
+  ChatParams,
+  ChatMessage,
+  LoopMessage,
+  ToolStreamEvent,
+} from '../IProviderPlugin';
 import { buildOpenAIToolsBody, parseOpenAIToolStream } from './_openaiCompat';
 import type { OpenAIToolDescriptor } from './_openaiCompat';
 
@@ -19,7 +28,7 @@ export const openrouterPlugin: IProviderPlugin = {
       },
     });
     if (!res.ok) return [];
-    const json = await res.json() as { data?: Array<{ id: string; name?: string }> };
+    const json = (await res.json()) as { data?: Array<{ id: string; name?: string }> };
     return (json.data ?? []).map((m) => ({
       id: m.id,
       label: m.name ?? m.id,
@@ -29,9 +38,7 @@ export const openrouterPlugin: IProviderPlugin = {
   buildRequest(messages: ChatMessage[], config: ProviderConfig, params: ChatParams): RequestSpec {
     const systemPrompt = params.systemPrompt?.trim() ?? '';
     const filtered = messages.filter((m) => m.role !== 'system');
-    const msgs = systemPrompt
-      ? [{ role: 'system', content: systemPrompt }, ...filtered]
-      : filtered;
+    const msgs = systemPrompt ? [{ role: 'system', content: systemPrompt }, ...filtered] : filtered;
     return {
       url: 'https://openrouter.ai/api/v1/chat/completions',
       headers: {
@@ -68,7 +75,9 @@ export const openrouterPlugin: IProviderPlugin = {
           const json = JSON.parse(data);
           const token = json.choices?.[0]?.delta?.content;
           if (token) yield token;
-        } catch { /* skip malformed */ }
+        } catch {
+          /* skip malformed */
+        }
       }
     }
   },
@@ -92,7 +101,9 @@ export const openrouterPlugin: IProviderPlugin = {
     };
   },
 
-  parseToolStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<ToolStreamEvent> {
+  parseToolStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+  ): AsyncGenerator<ToolStreamEvent> {
     return parseOpenAIToolStream(reader);
   },
 };

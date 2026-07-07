@@ -33,7 +33,10 @@ function installMatchMedia(initialDark: boolean): FakeMediaQuery {
       for (const cb of listeners) cb({ matches } as MediaQueryListEvent);
     },
   };
-  vi.stubGlobal('matchMedia', vi.fn(() => mq));
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => mq),
+  );
   return mq;
 }
 

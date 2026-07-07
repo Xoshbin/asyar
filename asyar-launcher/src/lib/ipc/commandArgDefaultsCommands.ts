@@ -8,7 +8,7 @@ import { invokeSafe } from './invokeSafe';
  */
 export async function commandArgDefaultsGet(
   extensionId: string,
-  commandId: string
+  commandId: string,
 ): Promise<Record<string, string> | null> {
   return invokeSafe<Record<string, string>>('command_arg_defaults_get', {
     extensionId,
@@ -24,7 +24,7 @@ export async function commandArgDefaultsGet(
 export async function commandArgDefaultsSet(
   extensionId: string,
   commandId: string,
-  values: Record<string, string>
+  values: Record<string, string>,
 ): Promise<void> {
   await invokeSafe('command_arg_defaults_set', { extensionId, commandId, values });
 }

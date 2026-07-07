@@ -6,7 +6,11 @@
 
   const options: { value: string; label: string; description?: string }[] = [
     { value: 'off', label: 'Off', description: 'Never send anything.' },
-    { value: 'ask', label: 'Ask me each time', description: 'Preview the exact report before sending.' },
+    {
+      value: 'ask',
+      label: 'Ask me each time',
+      description: 'Preview the exact report before sending.',
+    },
     { value: 'auto', label: 'Send automatically', description: 'Send crash reports silently.' },
   ];
 
@@ -21,11 +25,5 @@
   title="Crash & Error Reports"
   description="Asyar sends no telemetry by default. Opt in to help fix crashes — you choose how."
 >
-  <SettingsRadioGroup
-    name="crash-report-mode"
-    {options}
-    value={mode}
-    onchange={choose}
-    noBorder
-  />
+  <SettingsRadioGroup name="crash-report-mode" {options} value={mode} onchange={choose} noBorder />
 </SettingsSection>

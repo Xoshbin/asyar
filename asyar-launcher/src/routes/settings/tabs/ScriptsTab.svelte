@@ -68,8 +68,8 @@
   <section class="section">
     <h2 class="section-title">Script Directories</h2>
     <p class="section-description">
-      Directories added here will be watched for executable scripts. Scripts are
-      discovered automatically — no restart required.
+      Directories added here will be watched for executable scripts. Scripts are discovered
+      automatically — no restart required.
     </p>
 
     <div class="add-row">

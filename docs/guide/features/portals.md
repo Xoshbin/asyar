@@ -3,7 +3,7 @@
 > Save URLs as named launchers you can find by name.
 
 ![A portal result in search](../../images/feature-portals-hero.png)
-*Figure: a portal result appearing in search.*
+_Figure: a portal result appearing in search._
 
 ## What it does
 
@@ -35,12 +35,12 @@ Type `portals` and press `Enter` to open the Portals view. Use `↑` / `↓` to 
 
 ## Shortcuts & actions
 
-| Action | How |
-|--------|-----|
-| New portal (in view) | `⌘N` |
-| Save form | `⌘S` |
-| Cancel form | `Esc` |
-| Open action panel | `⌘K` |
+| Action               | How   |
+| -------------------- | ----- |
+| New portal (in view) | `⌘N`  |
+| Save form            | `⌘S`  |
+| Cancel form          | `Esc` |
+| Open action panel    | `⌘K`  |
 
 **Action panel (⌘K) entries inside the Portals view:**
 
@@ -53,16 +53,16 @@ Type `portals` and press `Enter` to open the Portals view. Use `↑` / `↓` to 
 
 When building a dynamic portal URL, press `{` or click the `{ }` button to insert any of these:
 
-| Placeholder | What it inserts |
-|-------------|----------------|
-| `{query}` | The text you type after pressing `Tab` on the portal chip |
-| `{Selected Text}` | Text currently selected in the frontmost app |
-| `{Clipboard Text}` | Current text content of the clipboard |
-| `{UUID}` | A randomly generated UUID v4 |
-| `{Date}` | Today's date |
-| `{Time}` | Current time |
-| `{Date & Time}` | Today's date and current time |
-| `{Weekday}` | Current day name (e.g. Tuesday) |
+| Placeholder        | What it inserts                                           |
+| ------------------ | --------------------------------------------------------- |
+| `{query}`          | The text you type after pressing `Tab` on the portal chip |
+| `{Selected Text}`  | Text currently selected in the frontmost app              |
+| `{Clipboard Text}` | Current text content of the clipboard                     |
+| `{UUID}`           | A randomly generated UUID v4                              |
+| `{Date}`           | Today's date                                              |
+| `{Time}`           | Current time                                              |
+| `{Date & Time}`    | Today's date and current time                             |
+| `{Weekday}`        | Current day name (e.g. Tuesday)                           |
 
 ## Tips
 

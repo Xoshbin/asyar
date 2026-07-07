@@ -19,10 +19,7 @@
 
 <div class="manage-view">
   {#if strictMode}
-    <span
-      class="strict-mode-badge"
-      title="Strict mode on — every tool call asks for permission"
-    >
+    <span class="strict-mode-badge" title="Strict mode on — every tool call asks for permission">
       <Badge text="Strict" variant="warning" />
     </span>
   {/if}
@@ -33,7 +30,9 @@
     {#if detectedConfigs.length > 0}
       <EmptyState
         message="No MCP servers installed"
-        description="We found configs from {detectedConfigs.map((c) => c.source).join(', ')}. Use the Import action to bring them in."
+        description="We found configs from {detectedConfigs
+          .map((c) => c.source)
+          .join(', ')}. Use the Import action to bring them in."
       />
     {:else}
       <EmptyState

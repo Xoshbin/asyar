@@ -12,5 +12,5 @@ export async function fetchAllStoreItems(): Promise<ApiExtension[]> {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
   const data = await response.json();
-  return Array.isArray(data) ? data : (data.data || []);
+  return Array.isArray(data) ? data : data.data || [];
 }

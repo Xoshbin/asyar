@@ -1,9 +1,4 @@
-import {
-  extCacheGet,
-  extCacheSet,
-  extCacheDelete,
-  extCacheClear,
-} from '../../lib/ipc/commands';
+import { extCacheGet, extCacheSet, extCacheDelete, extCacheClear } from '../../lib/ipc/commands';
 
 /**
  * Extension cache service — dispatched by the IPC router when extensions
@@ -17,12 +12,7 @@ export const extensionCacheService = {
     return val ?? undefined;
   },
 
-  async set(
-    extensionId: string,
-    key: string,
-    value: string,
-    expiresAt?: number,
-  ): Promise<void> {
+  async set(extensionId: string, key: string, value: string, expiresAt?: number): Promise<void> {
     await extCacheSet(extensionId, key, value, expiresAt);
   },
 

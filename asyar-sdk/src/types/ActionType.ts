@@ -5,32 +5,32 @@ export enum ActionContext {
   /**
    * Action available globally
    */
-  GLOBAL = "global",
+  GLOBAL = 'global',
 
   /**
    * Action available only within extension views
    */
-  EXTENSION_VIEW = "extension_view",
+  EXTENSION_VIEW = 'extension_view',
 
   /**
    * Action available in search results context
    */
-  SEARCH_VIEW = "search_view",
+  SEARCH_VIEW = 'search_view',
 
   /**
    * Action available in result display context
    */
-  RESULT = "result",
+  RESULT = 'result',
 
   /**
    * Action available in the core application
    */
-  CORE = "core",
+  CORE = 'core',
 
   /**
    * Action available for a specific command result
    */
-  COMMAND_RESULT = "command_result",
+  COMMAND_RESULT = 'command_result',
 }
 
 export interface ExtensionAction {
@@ -57,7 +57,10 @@ export interface IActionService {
   setContext(context: ActionContext, data?: { commandId?: string }): void;
   getContext(): ActionContext; // Return the enum type
   /** Register a handler for a manifest-declared action. Local-only — no IPC. */
-  registerActionHandler(actionId: string, handler: (payload?: unknown) => Promise<void> | void): void;
+  registerActionHandler(
+    actionId: string,
+    handler: (payload?: unknown) => Promise<void> | void,
+  ): void;
 }
 
 /**
@@ -66,12 +69,12 @@ export interface IActionService {
  * You may also use any custom string — these are recommendations, not restrictions.
  */
 export const ActionCategory = {
-  PRIMARY:     'Primary',
-  NAVIGATION:  'Navigation',
-  EDIT:        'Edit',
-  SHARE:       'Share',
+  PRIMARY: 'Primary',
+  NAVIGATION: 'Navigation',
+  EDIT: 'Edit',
+  SHARE: 'Share',
   DESTRUCTIVE: 'Destructive',
-  SYSTEM:      'System',
-} as const
+  SYSTEM: 'System',
+} as const;
 
-export type ActionCategoryValue = typeof ActionCategory[keyof typeof ActionCategory]
+export type ActionCategoryValue = (typeof ActionCategory)[keyof typeof ActionCategory];

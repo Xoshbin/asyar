@@ -1,4 +1,4 @@
-import type { SearchResult } from "../../search/interfaces/SearchResult";
+import type { SearchResult } from '../../search/interfaces/SearchResult';
 
 export interface ApplicationScanOverride {
   additionalScanPaths?: string[];

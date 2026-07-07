@@ -1,6 +1,7 @@
 ---
 order: 13
 ---
+
 # Run Tracking — Lifecycle, Sections, and Status Dots
 
 The run-tracking system gives the launcher a durable record of long-running work. A run persists through view eviction and panel close, remains visible in the runs UI and compact HUD, drives the tray badge count, and triggers a system notification on failure. This page explains how the system is structured and why it behaves the way it does. For the SDK surface that extensions call into, see [RunService — SDK reference](../reference/sdk/run-service.md).
@@ -56,12 +57,12 @@ The `subjectId` travels the full stack: `Run.subject_id` as `Option<String>` in 
 
 `categorizeItem` in `src/components/list/sectionedListLogic.ts` assigns each item to a section key:
 
-| Item characteristics | Section |
-|---|---|
-| `type === 'run' \| 'run-failed' \| 'run-done'` and `typeLabel === 'Script'` | Scripts |
-| `type === 'run' \| 'run-failed' \| 'run-done'` and `typeLabel === 'Agent'` | Agents |
-| `object_id.startsWith('cmd_scripts_dyn_')` | Scripts |
-| everything else (including `cmd_agents_dyn_*`) | Commands |
+| Item characteristics                                                        | Section  |
+| --------------------------------------------------------------------------- | -------- |
+| `type === 'run' \| 'run-failed' \| 'run-done'` and `typeLabel === 'Script'` | Scripts  |
+| `type === 'run' \| 'run-failed' \| 'run-done'` and `typeLabel === 'Agent'`  | Agents   |
+| `object_id.startsWith('cmd_scripts_dyn_')`                                  | Scripts  |
+| everything else (including `cmd_agents_dyn_*`)                              | Commands |
 
 The asymmetry between scripts and agents is intentional. Script definition rows (`cmd_scripts_dyn_*`) belong alongside the live run rows they can carry dots for, so they land in Scripts. Agent definition rows (`cmd_agents_dyn_*`) are launchers for new threads, not records of running threads, so they land in Commands. Only live or recently finished threads — the actual `run` / `run-done` rows — appear in the Agents section.
 
@@ -96,7 +97,7 @@ The three kept slices (`unacknowledgedFailures`, `keptAgents`, `unacknowledgedSc
 ## Cross-references
 
 - [RunService — SDK reference](../reference/sdk/run-service.md) — the public API that Tier 2 extensions call to start, write, and finish runs.
-- [Script Headers](../reference/script-headers.md) — `# @asyar.*` directives for user scripts, including `mode: inline` (which deliberately *bypasses* the Run Tracker so live-ticking subtitles don't pollute the kept-Done slice).
+- [Script Headers](../reference/script-headers.md) — `# @asyar.*` directives for user scripts, including `mode: inline` (which deliberately _bypasses_ the Run Tracker so live-ticking subtitles don't pollute the kept-Done slice).
 - [Silent AI Commands](../reference/silent-agents.md) — silent agents bypass the Run Tracker for the same reason: a hotkey-driven grammar fix shouldn't pin a kept-Done row every keystroke.
 - [Extension Runtime](./extension-runtime.md) — worker-survives-Dormant context; why long-running work must be anchored to the worker iframe, not the view.
 - [Two-Tier Model](./two-tier-model.md) — Tier 1 (built-in features, direct host access) vs Tier 2 (sandbox iframe); why `subjectId` is only settable from built-in dispatch sites.

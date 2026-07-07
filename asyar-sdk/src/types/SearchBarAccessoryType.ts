@@ -14,7 +14,7 @@ export interface SearchBarAccessoryDropdownOption {
  * for future types without breaking the schema shape.
  */
 export interface SearchBarAccessoryManifestDeclaration {
-  type: "dropdown";
+  type: 'dropdown';
   default?: string;
   options: SearchBarAccessoryDropdownOption[];
 }

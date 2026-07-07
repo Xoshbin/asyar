@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  validateInstallForm,
-  buildInstallInput,
-} from './installServerView.helpers';
+import { validateInstallForm, buildInstallInput } from './installServerView.helpers';
 import type { InstallFormState } from './installServerView.helpers';
 
 function makeStdioForm(over: Partial<InstallFormState> = {}): InstallFormState {
@@ -73,7 +70,10 @@ describe('validateInstallForm', () => {
 describe('buildInstallInput', () => {
   it('from stdio form drops blank env rows', () => {
     const form = makeStdioForm({
-      env: [{ key: '', value: 'orphan' }, { key: 'KEY', value: 'val' }],
+      env: [
+        { key: '', value: 'orphan' },
+        { key: 'KEY', value: 'val' },
+      ],
     });
     const input = buildInstallInput(form);
     if (input.transport.kind !== 'stdio') throw new Error('expected stdio');

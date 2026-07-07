@@ -8,8 +8,8 @@
 
 ```typescript
 export interface ManifestTool {
-  id: string;          // Short identifier, no colons allowed (e.g. "lookup-contact")
-  name: string;        // Human-readable label shown to the agent
+  id: string; // Short identifier, no colons allowed (e.g. "lookup-contact")
+  name: string; // Human-readable label shown to the agent
   description: string; // What the tool does — the agent uses this for selection
   parameters: Record<string, unknown>; // JSON Schema describing the tool's input
 }
@@ -20,10 +20,7 @@ export interface ManifestTool {
  * { extensionId }     — contributed by a Tier 2 extension via ToolsService.
  * { mcpServerId }     — contributed by an MCP server.
  */
-export type ToolSource =
-  | 'builtin'
-  | { extensionId: string }
-  | { mcpServerId: string };
+export type ToolSource = 'builtin' | { extensionId: string } | { mcpServerId: string };
 
 export interface ToolDescriptor extends ManifestTool {
   source: ToolSource;

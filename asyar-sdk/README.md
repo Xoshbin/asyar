@@ -24,21 +24,22 @@ pnpm add asyar-sdk
 
 The `asyar` CLI drives the full extension development workflow:
 
-| Command | Description |
-|---------|-------------|
-| `asyar dev` | Start development mode with hot reload |
-| `asyar build` | Production build of your extension |
-| `asyar validate` | Check manifest and project structure |
-| `asyar link` | Symlink your extension into the app's extensions directory |
-| `asyar attach` | Register an extension directory for dev loading in the launcher |
-| `asyar detach` | Unregister a dev extension from the launcher |
-| `asyar publish` | Build, package, and publish to the Asyar Store |
-| `asyar doctor` | Diagnose environment issues |
-| `asyar --version` | Show CLI version |
+| Command           | Description                                                     |
+| ----------------- | --------------------------------------------------------------- |
+| `asyar dev`       | Start development mode with hot reload                          |
+| `asyar build`     | Production build of your extension                              |
+| `asyar validate`  | Check manifest and project structure                            |
+| `asyar link`      | Symlink your extension into the app's extensions directory      |
+| `asyar attach`    | Register an extension directory for dev loading in the launcher |
+| `asyar detach`    | Unregister a dev extension from the launcher                    |
+| `asyar publish`   | Build, package, and publish to the Asyar Store                  |
+| `asyar doctor`    | Diagnose environment issues                                     |
+| `asyar --version` | Show CLI version                                                |
 
 ### Pre-Publish Safety
 
 The `publish` command includes automatic guards:
+
 - **Stale build detection** — blocks publishing if source files are newer than the build output
 - **Duplicate version check** — blocks publishing if the version is already live in the store
 
@@ -93,11 +94,11 @@ Refer to the [Extension Development Guide](https://github.com/Xoshbin/asyar/blob
 
 ### Subpath exports
 
-| Subpath | Asserts | Surface | Use from |
-|---|---|---|---|
-| `asyar-sdk/worker` | `window.__ASYAR_ROLE__ === "worker"` at module load | `ExtensionContext` bound to the **worker proxy bag** (no DOM-dependent helpers) — `log`, `notifications`, `storage`, `cache`, `search`, `network`, `shell`, `ai`, `oauth`, `fs`, `application`, `power`, `systemEvents`, `timers`, `statusBar`, `state`, `commands`, `actions` | A Tier 2 extension's `worker.html` (the always-on hidden iframe). |
-| `asyar-sdk/view` | `window.__ASYAR_ROLE__ === "view"` at module load | Re-exports the full SDK surface plus DOM helpers (`registerIconElement`, theme injector). `ExtensionContext` is bound to the **full proxy bag** including view-only services: `clipboard`, `selection`, `interop`, `feedback`, plus the worker-shared services above. | A Tier 2 extension's `view.html` (the on-demand UI iframe). |
-| `asyar-sdk/contracts` | Nothing — neutral, launcher-safe | Types, namespace constants, `MessageBroker`, `ExtensionBridge`, `ExtensionContextCore`. **No role assertion**, no top-level DOM requirement. | Launcher code (Tier 1 host, built-in features), SDK-internal modules, anything that needs types + IPC primitives without committing to an iframe role. |
+| Subpath               | Asserts                                             | Surface                                                                                                                                                                                                                                                                        | Use from                                                                                                                                               |
+| --------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `asyar-sdk/worker`    | `window.__ASYAR_ROLE__ === "worker"` at module load | `ExtensionContext` bound to the **worker proxy bag** (no DOM-dependent helpers) — `log`, `notifications`, `storage`, `cache`, `search`, `network`, `shell`, `ai`, `oauth`, `fs`, `application`, `power`, `systemEvents`, `timers`, `statusBar`, `state`, `commands`, `actions` | A Tier 2 extension's `worker.html` (the always-on hidden iframe).                                                                                      |
+| `asyar-sdk/view`      | `window.__ASYAR_ROLE__ === "view"` at module load   | Re-exports the full SDK surface plus DOM helpers (`registerIconElement`, theme injector). `ExtensionContext` is bound to the **full proxy bag** including view-only services: `clipboard`, `selection`, `interop`, `feedback`, plus the worker-shared services above.          | A Tier 2 extension's `view.html` (the on-demand UI iframe).                                                                                            |
+| `asyar-sdk/contracts` | Nothing — neutral, launcher-safe                    | Types, namespace constants, `MessageBroker`, `ExtensionBridge`, `ExtensionContextCore`. **No role assertion**, no top-level DOM requirement.                                                                                                                                   | Launcher code (Tier 1 host, built-in features), SDK-internal modules, anything that needs types + IPC primitives without committing to an iframe role. |
 
 The role assertion fires at module load. If a worker bundle imports
 `asyar-sdk/view` (or vice-versa), execution stops with a clear error
@@ -194,12 +195,12 @@ Add an `icon` field to your manifest to show a branded icon next to your command
 
 #### Supported icon formats
 
-| Format | Example | Where rendered |
-|--------|---------|----------------|
-| Built-in icon | `"icon:calculator"` | Manifests, commands, search results, actions — rendered by the host |
-| Emoji | `"👋"` | Manifests, commands, search results, actions — rendered by the host |
-| Web URL | `"https://example.com/icon.png"` | Commands and search results — rendered by the host |
-| Local path | `"assets/icon.png"` | Commands and search results — rendered by the host |
+| Format        | Example                          | Where rendered                                                      |
+| ------------- | -------------------------------- | ------------------------------------------------------------------- |
+| Built-in icon | `"icon:calculator"`              | Manifests, commands, search results, actions — rendered by the host |
+| Emoji         | `"👋"`                           | Manifests, commands, search results, actions — rendered by the host |
+| Web URL       | `"https://example.com/icon.png"` | Commands and search results — rendered by the host                  |
+| Local path    | `"assets/icon.png"`              | Commands and search results — rendered by the host                  |
 
 #### Rendering built-in icons in extension iframes
 
@@ -214,13 +215,14 @@ Use the `<asyar-icon>` custom element to render built-in icons inside your exten
 <asyar-icon name="calculator" size="20" stroke="2"></asyar-icon>
 ```
 
-| Attribute | Default | Description |
-|-----------|---------|-------------|
-| `name` | (required) | The name of the built-in icon (e.g., `calculator`, `settings`) |
-| `size` | `24` | The width and height of the SVG in pixels |
-| `stroke` | `1.5` | The `stroke-width` of the icon paths |
+| Attribute | Default    | Description                                                    |
+| --------- | ---------- | -------------------------------------------------------------- |
+| `name`    | (required) | The name of the built-in icon (e.g., `calculator`, `settings`) |
+| `size`    | `24`       | The width and height of the SVG in pixels                      |
+| `stroke`  | `1.5`      | The `stroke-width` of the icon paths                           |
 
 **Extension-level icon** (applies to all commands as default):
+
 ```json
 {
   "id": "com.example.my-extension",
@@ -230,6 +232,7 @@ Use the `<asyar-icon>` custom element to render built-in icons inside your exten
 ```
 
 **Command-level icon** (overrides the extension icon for a specific command):
+
 ```json
 {
   "commands": [
@@ -269,19 +272,19 @@ import 'asyar-sdk/tokens.css';
 
 Available token categories
 
-| Category | Variables |
-|---|---|
-| Backgrounds | --bg-primary, --bg-secondary, --bg-tertiary, --bg-hover, --bg-selected, --bg-popup |
-| Text | --text-primary, --text-secondary, --text-tertiary |
-| Borders | --border-color, --separator |
-| Accent | --accent-primary, --accent-success, --accent-warning, --accent-danger |
-| Brand | --asyar-brand, --asyar-brand-hover, --asyar-brand-muted, --asyar-brand-subtle |
-| Shadows | --shadow-xs → --shadow-xl, --shadow-popup, --shadow-focus |
-| Radius | --radius-xs → --radius-full |
-| Spacing | --space-1 (4px) → --space-11 (48px) |
-| Font sizes | --font-size-2xs (10px) → --font-size-display (2.25rem) |
-| Font families | --font-ui (Satoshi), --font-mono (JetBrains Mono) |
-| Transitions | --transition-fast, --transition-normal, --transition-smooth, --transition-slow |
+| Category      | Variables                                                                          |
+| ------------- | ---------------------------------------------------------------------------------- |
+| Backgrounds   | --bg-primary, --bg-secondary, --bg-tertiary, --bg-hover, --bg-selected, --bg-popup |
+| Text          | --text-primary, --text-secondary, --text-tertiary                                  |
+| Borders       | --border-color, --separator                                                        |
+| Accent        | --accent-primary, --accent-success, --accent-warning, --accent-danger              |
+| Brand         | --asyar-brand, --asyar-brand-hover, --asyar-brand-muted, --asyar-brand-subtle      |
+| Shadows       | --shadow-xs → --shadow-xl, --shadow-popup, --shadow-focus                          |
+| Radius        | --radius-xs → --radius-full                                                        |
+| Spacing       | --space-1 (4px) → --space-11 (48px)                                                |
+| Font sizes    | --font-size-2xs (10px) → --font-size-display (2.25rem)                             |
+| Font families | --font-ui (Satoshi), --font-mono (JetBrains Mono)                                  |
+| Transitions   | --transition-fast, --transition-normal, --transition-smooth, --transition-slow     |
 
 See tokens.css for the full list with fallback values.
 
@@ -301,12 +304,12 @@ Valid values: `"macos"`, `"windows"`, `"linux"`. You can list any combination.
 
 **Omit the field entirely for a universal extension** — that is the default. The `asyar validate` command enforces the allowed values and rejects anything outside the list.
 
-| Manifest value | Behaviour |
-|---|---|
-| Field absent | Works on all platforms (universal) |
-| `["macos"]` | macOS only |
-| `["macos", "linux"]` | macOS and Linux, not Windows |
-| `["windows", "linux"]` | Windows and Linux, not macOS |
+| Manifest value         | Behaviour                          |
+| ---------------------- | ---------------------------------- |
+| Field absent           | Works on all platforms (universal) |
+| `["macos"]`            | macOS only                         |
+| `["macos", "linux"]`   | macOS and Linux, not Windows       |
+| `["windows", "linux"]` | Windows and Linux, not macOS       |
 
 ## Search & Ranking
 
@@ -322,15 +325,15 @@ import type { ISearchService, RankableItem } from 'asyar-sdk/contracts';
 
 const search = context.getService<ISearchService>('search');
 
-const items: RankableItem[] = todos.map(t => ({
+const items: RankableItem[] = todos.map((t) => ({
   id: t.id,
   title: t.text,
-  subtitle: t.notes,       // optional — searched after title
-  keywords: t.tags,        // optional — searched after subtitle
+  subtitle: t.notes, // optional — searched after title
+  keywords: t.tags, // optional — searched after subtitle
 }));
 
 const orderedIds = await search.rank(query, items);
-const ranked = orderedIds.map(id => todos.find(t => t.id === id)!);
+const ranked = orderedIds.map((id) => todos.find((t) => t.id === id)!);
 ```
 
 - `id` is opaque to the host — it's returned verbatim, best match first, so you map ordered ids back to your own objects.
@@ -340,13 +343,13 @@ const ranked = orderedIds.map(id => todos.find(t => t.id === id)!);
 
 ## Available Scripts
 
-| Script | Description |
-|--------|-------------|
-| `build` | Compiles the SDK library (types, interfaces, proxies) |
-| `build:cli` | Compiles the CLI tool |
-| `build:all` | Compiles both SDK library and CLI |
-| `prepare` | Runs `build:all` automatically on install |
-| `watch` | Compiles the SDK library in watch mode |
+| Script      | Description                                           |
+| ----------- | ----------------------------------------------------- |
+| `build`     | Compiles the SDK library (types, interfaces, proxies) |
+| `build:cli` | Compiles the CLI tool                                 |
+| `build:all` | Compiles both SDK library and CLI                     |
+| `prepare`   | Runs `build:all` automatically on install             |
+| `watch`     | Compiles the SDK library in watch mode                |
 
 ## License
 
@@ -361,6 +364,7 @@ There are two ways to contribute actions to Asyar's ⌘K panel:
 Declare actions directly in `manifest.json`. These appear in the ⌘K drawer while the user has your command highlighted in the **main search results** — before opening any view.
 
 **`manifest.json`:**
+
 ```json
 {
   "id": "com.example.github",
@@ -419,6 +423,7 @@ class GitHubView implements Extension {
 The `actionId` you pass to `registerActionHandler` is the short local ID from `manifest.json`, not the full internal ID (`act_{extensionId}_{actionId}`).
 
 **Visibility rules:**
+
 - Root-level `actions[]` — visible when **any** command from your extension is highlighted
 - Command-level `actions[]` — visible only when **that specific command** is highlighted
 
@@ -439,22 +444,21 @@ actionService.registerAction({
   context: ActionContext.EXTENSION_VIEW,
   execute: async () => {
     // your action logic
-  }
-})
+  },
+});
 ```
 
 Always unregister in `onDestroy` to prevent stale actions persisting across views.
 
 ### Standard categories (`ActionCategory`)
 
-| Constant | Display name | Use for |
-|----------|-------------|---------|
-| `ActionCategory.PRIMARY` | Primary | Main actions for the extension |
-| `ActionCategory.NAVIGATION` | Navigation | Opening views, going back |
-| `ActionCategory.EDIT` | Edit | Create, update, delete operations |
-| `ActionCategory.SHARE` | Share | Export, copy, send |
-| `ActionCategory.DESTRUCTIVE` | Destructive | Irreversible actions (delete, reset) |
-| `ActionCategory.SYSTEM` | System | Reserved for built-in host actions |
+| Constant                     | Display name | Use for                              |
+| ---------------------------- | ------------ | ------------------------------------ |
+| `ActionCategory.PRIMARY`     | Primary      | Main actions for the extension       |
+| `ActionCategory.NAVIGATION`  | Navigation   | Opening views, going back            |
+| `ActionCategory.EDIT`        | Edit         | Create, update, delete operations    |
+| `ActionCategory.SHARE`       | Share        | Export, copy, send                   |
+| `ActionCategory.DESTRUCTIVE` | Destructive  | Irreversible actions (delete, reset) |
+| `ActionCategory.SYSTEM`      | System       | Reserved for built-in host actions   |
 
 Custom strings are always allowed. `ActionCategory` provides recommended names for consistency across extensions. If no `category` is set, the ⌘K panel automatically groups the action under the extension's display name.
-

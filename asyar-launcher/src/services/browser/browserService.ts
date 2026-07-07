@@ -46,10 +46,7 @@ export class BrowserService {
     return (await browserListBookmarks(filter)) ?? [];
   }
 
-  async searchHistory(
-    query: string,
-    opts?: SearchHistoryOptions,
-  ): Promise<HistoryEntry[]> {
+  async searchHistory(query: string, opts?: SearchHistoryOptions): Promise<HistoryEntry[]> {
     return (await browserSearchHistory(query, opts)) ?? [];
   }
 

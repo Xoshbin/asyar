@@ -191,10 +191,6 @@ describe('ExtensionContext.hideLauncher', () => {
   it('posts asyar:window:hide to window.parent', () => {
     const ctx = new ExtensionContext();
     ctx.hideLauncher();
-    expect(parentPostMessage).toHaveBeenCalledWith(
-      { type: 'asyar:window:hide' },
-      '*',
-    );
+    expect(parentPostMessage).toHaveBeenCalledWith({ type: 'asyar:window:hide' }, '*');
   });
 });
-

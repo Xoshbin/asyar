@@ -1,10 +1,4 @@
-import {
-  extKvGet,
-  extKvSet,
-  extKvDelete,
-  extKvGetAll,
-  extKvClear,
-} from '../../lib/ipc/commands';
+import { extKvGet, extKvSet, extKvDelete, extKvGetAll, extKvClear } from '../../lib/ipc/commands';
 
 /**
  * Extension storage service — dispatched by the IPC router when extensions

@@ -138,7 +138,10 @@ mod tests {
         let long_query = "a".repeat(80);
         append_file_search_fallback(&mut results, &long_query, 0, true);
         assert_eq!(results.len(), 1);
-        assert!(results[0].name.contains('…'), "long label must be truncated with an ellipsis");
+        assert!(
+            results[0].name.contains('…'),
+            "long label must be truncated with an ellipsis"
+        );
         assert!(results[0].name.len() < long_query.len() + 20);
     }
 }

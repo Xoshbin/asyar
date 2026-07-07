@@ -49,6 +49,7 @@ interface IFilesService {
 ```
 
 **Usage:**
+
 ```typescript
 const files = context.getService<IFilesService>('files');
 
@@ -68,7 +69,7 @@ for (const hit of hits) {
 Note the surface is deliberately small: `search`/`status` only. There is
 no read/write/delete here — for reading file content use the OS-level
 file APIs your extension already has access to (subject to the platform's
-own file-access permissions), and for file *operations* (reveal in file
+own file-access permissions), and for file _operations_ (reveal in file
 manager, trash) see [`FileManagerService`](./file-manager-service.md).
 
 ---

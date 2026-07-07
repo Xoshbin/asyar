@@ -50,7 +50,13 @@ export class ExtensionOAuthService {
 
     // 2. Start PKCE flow in Rust (generates verifier/challenge + state, builds URL)
     const startResult = await commands.oauthStartFlow(
-      extensionId, providerId, clientId, authorizationUrl, tokenUrl, scopes, flowId,
+      extensionId,
+      providerId,
+      clientId,
+      authorizationUrl,
+      tokenUrl,
+      scopes,
+      flowId,
     );
     if (!startResult) {
       throw new Error('Failed to start OAuth flow');
@@ -118,17 +124,12 @@ export class ExtensionOAuthService {
     // and view share origin (asyar-extension://<id>), so the token payload
     // crossing between them is within the extension's trust boundary.
     const iframes = Array.from(
-      document.querySelectorAll<HTMLIFrameElement>(
-        `iframe[data-extension-id="${extensionId}"]`,
-      ),
+      document.querySelectorAll<HTMLIFrameElement>(`iframe[data-extension-id="${extensionId}"]`),
     );
     const origin = getExtensionFrameOrigin(extensionId);
     for (const iframe of iframes) {
       if (!iframe.contentWindow) continue;
-      iframe.contentWindow.postMessage(
-        { type: 'asyar:oauth:result', flowId, ...payload },
-        origin,
-      );
+      iframe.contentWindow.postMessage({ type: 'asyar:oauth:result', flowId, ...payload }, origin);
     }
   }
 }

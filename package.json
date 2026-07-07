@@ -8,7 +8,10 @@
     "build": "node scripts/build.mjs",
     "build:all": "node scripts/build-all.mjs",
     "check": "node scripts/check.mjs",
-    "release:sdk": "pnpm --filter asyar-sdk run release"
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "release:sdk": "pnpm --filter asyar-sdk run release",
+    "prepare": "husky"
   },
   "engines": {
     "node": ">=20",
@@ -36,6 +39,10 @@
   },
   "devDependencies": {
     "@testing-library/svelte": "^5.3.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
+    "prettier": "^3.9.4",
+    "prettier-plugin-svelte": "^4.1.1",
     "semver": "^7.6.0"
   }
 }

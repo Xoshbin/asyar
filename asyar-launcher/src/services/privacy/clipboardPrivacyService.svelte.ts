@@ -107,9 +107,7 @@ export class ClipboardPrivacyService {
   }
 
   async removeFromDenylist(bundleId: string): Promise<void> {
-    const next = this.userDenylist.filter(
-      (d) => d.toLowerCase() !== bundleId.toLowerCase(),
-    );
+    const next = this.userDenylist.filter((d) => d.toLowerCase() !== bundleId.toLowerCase());
     if (next.length === this.userDenylist.length) return;
     await clipboardPrivacySetUserDenylist(next);
     await this.persistDenylist(next);

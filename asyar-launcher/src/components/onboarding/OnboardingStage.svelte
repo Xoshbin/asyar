@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { image, lean = 'right' }: { image: string; lean?: 'left' | 'right' } = $props()
+  let { image, lean = 'right' }: { image: string; lean?: 'left' | 'right' } = $props();
 </script>
 
 <div class="stage" class:stage--left={lean === 'left'}>
@@ -8,7 +8,11 @@
 </div>
 
 <style>
-  .stage { position: relative; height: 100%; overflow: hidden; }
+  .stage {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+  }
   .stage__bloom,
   .stage__hero {
     position: absolute;
@@ -27,8 +31,14 @@
     box-shadow: var(--shadow-xl);
     border: 1px solid var(--border-color);
   }
-  .stage--left .stage__hero { left: 48%; transform: translate(-74%, -50%) rotate(-6deg); }
-  .stage--left .stage__bloom { left: 48%; transform: translate(-74%, -50%) rotate(-6deg) scale(1.12); }
+  .stage--left .stage__hero {
+    left: 48%;
+    transform: translate(-74%, -50%) rotate(-6deg);
+  }
+  .stage--left .stage__bloom {
+    left: 48%;
+    transform: translate(-74%, -50%) rotate(-6deg) scale(1.12);
+  }
   /* fade the INNER edge so the image melts into the content side */
   .stage::after {
     content: '';
@@ -37,5 +47,7 @@
     pointer-events: none;
     background: linear-gradient(90deg, var(--bg-popup), transparent 24%);
   }
-  .stage--left::after { background: linear-gradient(270deg, var(--bg-popup), transparent 24%); }
+  .stage--left::after {
+    background: linear-gradient(270deg, var(--bg-popup), transparent 24%);
+  }
 </style>

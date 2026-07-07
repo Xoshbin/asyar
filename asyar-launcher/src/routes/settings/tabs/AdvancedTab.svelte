@@ -1,14 +1,12 @@
 <script lang="ts">
-  import {
-    SettingsForm,
-    SettingsFormRow,
-    Toggle,
-    SegmentedControl,
-  } from '../../../components';
+  import { SettingsForm, SettingsFormRow, Toggle, SegmentedControl } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import ScheduledTasksSection from '../../../components/settings/ScheduledTasksSection.svelte';
-  import { snippetService, enabledPersistence } from '../../../built-in-features/snippets/snippetService';
+  import {
+    snippetService,
+    enabledPersistence,
+  } from '../../../built-in-features/snippets/snippetService';
 
   let {
     handler,
@@ -31,9 +29,7 @@
     }
   }
 
-  let autoUpdate = $derived(
-    settingsService.currentSettings.extensions?.autoUpdate !== false,
-  );
+  let autoUpdate = $derived(settingsService.currentSettings.extensions?.autoUpdate !== false);
 
   async function toggleAutoUpdate() {
     const newValue = !autoUpdate;
@@ -78,10 +74,7 @@
     />
   </SettingsFormRow>
 
-  <SettingsFormRow
-    label="Escape Key"
-    separator
-  >
+  <SettingsFormRow label="Escape Key" separator>
     <SegmentedControl
       options={[
         { value: 'hide-and-reset', label: 'Reset Launcher' },

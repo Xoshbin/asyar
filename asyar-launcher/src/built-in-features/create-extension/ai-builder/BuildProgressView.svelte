@@ -4,7 +4,14 @@
   import { submitAnswer } from './questionBridge';
   import { aiBuildUiState } from './aiBuildUiState.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
-  import { Button, FormField, Input, ActionFooter, KeyboardHint, WarningBanner } from '../../../components';
+  import {
+    Button,
+    FormField,
+    Input,
+    ActionFooter,
+    KeyboardHint,
+    WarningBanner,
+  } from '../../../components';
   import { actionService } from '../../../services/action/actionService.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
   import { sidecarClient } from './sidecarClient';
@@ -137,14 +144,14 @@
   function handleFocus() {
     window.parent?.postMessage(
       { type: 'asyar:extension:input-focus', focused: true },
-      window.location.origin
+      window.location.origin,
     );
   }
 
   function handleBlur() {
     window.parent?.postMessage(
       { type: 'asyar:extension:input-focus', focused: false },
-      window.location.origin
+      window.location.origin,
     );
   }
 
@@ -155,8 +162,7 @@
     startError = null;
     isStarting = true;
     try {
-      const anthropicKey =
-        settingsService.currentSettings.ai.providers['anthropic']?.apiKey ?? '';
+      const anthropicKey = settingsService.currentSettings.ai.providers['anthropic']?.apiKey ?? '';
       const result = await startBuild(trimmed, { anthropicKey });
       if (!result.ok) {
         startError = result.reason ?? 'Build could not start.';
@@ -197,7 +203,6 @@
 
 <div class="view-container">
   <div class="form-body custom-scrollbar">
-
     <!-- ── IDLE (no job) ──────────────────────────────────────────────── -->
     {#if !job}
       <div class="header">
@@ -208,11 +213,13 @@
       </div>
 
       <WarningBanner>
-        The AI builds and runs generated code on your machine (like building any project). Only build extensions you understand.
+        The AI builds and runs generated code on your machine (like building any project). Only
+        build extensions you understand.
       </WarningBanner>
 
       <p class="text-caption">
-        For best results, use Anthropic Opus or a newer model — it produces the most reliable Asyar extensions.
+        For best results, use Anthropic Opus or a newer model — it produces the most reliable Asyar
+        extensions.
       </p>
 
       <div class="fields">
@@ -230,8 +237,7 @@
             onfocus={handleFocus}
             onblur={handleBlur}
             onkeydown={handlePromptKeydown}
-            class="field-textarea"
-          ></textarea>
+            class="field-textarea"></textarea>
         </FormField>
 
         {#if startError}
@@ -239,7 +245,7 @@
         {/if}
       </div>
 
-    <!-- ── WORKING ────────────────────────────────────────────────────── -->
+      <!-- ── WORKING ────────────────────────────────────────────────────── -->
     {:else if job.status === 'working'}
       <div class="header">
         <h1 class="text-page-title">Building…</h1>
@@ -263,7 +269,7 @@
         <p class="text-caption">Starting up…</p>
       {/if}
 
-    <!-- ── WAITING (question) ─────────────────────────────────────────── -->
+      <!-- ── WAITING (question) ─────────────────────────────────────────── -->
     {:else if job.status === 'waiting' && job.pendingQuestion}
       <div class="header">
         <h1 class="text-page-title">Input needed</h1>
@@ -300,7 +306,7 @@
         </div>
       {/if}
 
-    <!-- ── DONE ───────────────────────────────────────────────────────── -->
+      <!-- ── DONE ───────────────────────────────────────────────────────── -->
     {:else if job.status === 'done' && job.result}
       <div class="header">
         <h1 class="text-page-title">✅ Ready</h1>
@@ -320,10 +326,11 @@
       </div>
 
       <p class="text-caption">
-        Press <KeyboardHint keys="⌘K" /> to open the action panel — you can open in editor, load the extension, or start a new build from there.
+        Press <KeyboardHint keys="⌘K" /> to open the action panel — you can open in editor, load the extension,
+        or start a new build from there.
       </p>
 
-    <!-- ── FAILED ─────────────────────────────────────────────────────── -->
+      <!-- ── FAILED ─────────────────────────────────────────────────────── -->
     {:else if job.status === 'failed' && job.failure}
       <div class="header">
         <h1 class="text-page-title">❌ Build failed</h1>
@@ -340,10 +347,10 @@
       {/if}
 
       <p class="text-caption">
-        Open the action panel (<KeyboardHint keys="⌘K" />) to refine your prompt, retry, or start over.
+        Open the action panel (<KeyboardHint keys="⌘K" />) to refine your prompt, retry, or start
+        over.
       </p>
     {/if}
-
   </div>
 
   <!-- footer: primary affordance per state. Build/Cancel/retry/etc. for the
@@ -354,7 +361,9 @@
       {#if !job}
         {#if isStarting}<span class="text-caption animate-pulse">Starting…</span>{/if}
       {:else if job.status === 'working'}
-        <span class="text-caption">{job.steps.length} step{job.steps.length === 1 ? '' : 's'} completed</span>
+        <span class="text-caption"
+          >{job.steps.length} step{job.steps.length === 1 ? '' : 's'} completed</span
+        >
       {:else if job.status === 'waiting' && job.pendingQuestion}
         {#if job.pendingQuestion.inputKind === 'confirm'}
           <span class="text-caption">Choose an answer</span>
@@ -384,11 +393,7 @@
             <Button class="btn-primary" onclick={() => void onConfirm('yes')}>Yes</Button>
           </div>
         {:else}
-          <Button
-            class="btn-primary"
-            disabled={!answer.trim()}
-            onclick={() => void onAnswer()}
-          >
+          <Button class="btn-primary" disabled={!answer.trim()} onclick={() => void onAnswer()}>
             Send answer
           </Button>
         {/if}
@@ -547,5 +552,4 @@
     white-space: pre-wrap;
     word-break: break-all;
   }
-
 </style>

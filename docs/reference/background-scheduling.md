@@ -1,6 +1,7 @@
 ---
 order: 7
 ---
+
 # Background Scheduling
 
 **No permission required.** The manifest declaration is the authorization.
@@ -37,9 +38,9 @@ Add `schedule` to any command that should run on a timer:
 
 ### `schedule` fields
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `intervalSeconds` | `integer` | ✅ | How often to call the command. Must be between **10** seconds and **86400** (24 hours). |
+| Field             | Type      | Required | Description                                                                             |
+| ----------------- | --------- | -------- | --------------------------------------------------------------------------------------- |
+| `intervalSeconds` | `integer` | ✅       | How often to call the command. Must be between **10** seconds and **86400** (24 hours). |
 
 ### Constraints
 
@@ -50,7 +51,7 @@ Add `schedule` to any command that should run on a timer:
 
 ### Why 10 seconds?
 
-The floor is a semantic guard-rail, not a technical one. A tokio interval can fire far faster — the question is what `schedule` is *for*.
+The floor is a semantic guard-rail, not a technical one. A tokio interval can fire far faster — the question is what `schedule` is _for_.
 
 - **`schedule` is for recurring background work, not real-time streams.** If a command needs updates faster than every ~10s to feel correct (cursor tracking, live video, continuous telemetry), polling is the wrong primitive — it should be a subscription, an OS event source, or a push channel. The floor forces that architectural choice instead of letting it degrade into a busy loop labelled "schedule".
 - **Every tick has non-trivial pipeline cost.** One tick traverses Rust `tokio::interval` → `AppHandle::emit` → TS host listener → (for Tier 2) iframe `postMessage` → extension `executeCommand`. Each hop is cheap in isolation, but the cost scales with `extensions × 1/interval`. A 10s floor caps the per-extension contribution at 0.1 Hz, leaving comfortable headroom for dozens of concurrently-scheduled extensions before the tick channel starts competing with user input.
@@ -96,7 +97,7 @@ class DeployMonitor implements Extension {
   private lastSeenDeployId: string | null = null;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.network      = context.getService<INetworkService>('network');
+    this.network = context.getService<INetworkService>('network');
     this.notifications = context.getService<INotificationService>('notifications');
   }
 
@@ -136,14 +137,14 @@ The `lastSeenDeployId` field persists in memory between ticks. To persist it acr
 
 ## Timer lifecycle
 
-| Event | Timer behavior |
-|---|---|
-| Extension installed | Timer starts immediately after first `discover_extensions` scan. |
-| Extension enabled | Timer starts. |
-| Extension disabled | Timer stops. |
-| Extension uninstalled | Timer stops and is removed permanently. |
-| Asyar quits | All timers stop — tokio runtime shuts down. |
-| Asyar restarts | `discover_extensions` runs on startup, restarting timers for all enabled extensions with scheduled commands. |
+| Event                 | Timer behavior                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Extension installed   | Timer starts immediately after first `discover_extensions` scan.                                             |
+| Extension enabled     | Timer starts.                                                                                                |
+| Extension disabled    | Timer stops.                                                                                                 |
+| Extension uninstalled | Timer stops and is removed permanently.                                                                      |
+| Asyar quits           | All timers stop — tokio runtime shuts down.                                                                  |
+| Asyar restarts        | `discover_extensions` runs on startup, restarting timers for all enabled extensions with scheduled commands. |
 
 The platform skips the first tokio tick (fires immediately by default) — your command is first called one full interval after load, not instantly.
 

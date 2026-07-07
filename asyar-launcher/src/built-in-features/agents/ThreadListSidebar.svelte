@@ -3,7 +3,11 @@
   import ListItem from '../../components/list/ListItem.svelte';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
 
-  let { threads, selectedThreadId, onSelectThread }: {
+  let {
+    threads,
+    selectedThreadId,
+    onSelectThread,
+  }: {
     threads: ThreadDef[];
     selectedThreadId: string | null;
     onSelectThread: (id: string) => void | Promise<void>;
@@ -40,5 +44,9 @@
     border-right: 1px solid var(--border-color);
     flex-shrink: 0;
   }
-  .thread-list { flex: 1; overflow-y: auto; padding: var(--space-3) 0; }
+  .thread-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-3) 0;
+  }
 </style>

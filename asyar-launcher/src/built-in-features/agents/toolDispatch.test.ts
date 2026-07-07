@@ -176,7 +176,11 @@ describe('invokeTool mcp routing', () => {
 
     const result = await invokeTool('mcp:my-server:create_user', { name: 'bob' }, 'agent-1');
 
-    expect(mcpService.requestPermission).toHaveBeenCalledWith('my-server', 'create_user', 'agent-1');
+    expect(mcpService.requestPermission).toHaveBeenCalledWith(
+      'my-server',
+      'create_user',
+      'agent-1',
+    );
     expect(invoke).toHaveBeenCalledTimes(2);
     expect(result).toEqual({ created: true });
   });
@@ -211,7 +215,11 @@ describe('invokeTool mcp routing', () => {
 
     const result = await invokeTool('mcp:my-server:create_user', { name: 'carol' }, 'agent-2');
 
-    expect(mcpService.requestPermission).toHaveBeenCalledWith('my-server', 'create_user', 'agent-2');
+    expect(mcpService.requestPermission).toHaveBeenCalledWith(
+      'my-server',
+      'create_user',
+      'agent-2',
+    );
     expect(result).toEqual({ created: true });
   });
 });

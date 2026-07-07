@@ -86,18 +86,26 @@ impl FileIndexState {
     }
 
     pub fn learning_boost(&self, query: &str, file_id: u64, now: i64) -> f32 {
-        self.learning.read().expect("learning lock").boost(query, file_id, now)
+        self.learning
+            .read()
+            .expect("learning lock")
+            .boost(query, file_id, now)
     }
 
     pub fn is_pinned(&self, file_id: u64) -> bool {
-        self.learning.read().expect("learning lock").is_pinned(file_id)
+        self.learning
+            .read()
+            .expect("learning lock")
+            .is_pinned(file_id)
     }
 
     /// Registers a token for one query invocation and a callback that
     /// reports "abort" once a *later* call to `begin_query` has happened.
     fn begin_query(&self) -> (u64, impl Fn() -> bool + '_) {
         let token = self.query_epoch.fetch_add(1, Ordering::SeqCst) + 1;
-        (token, move || self.query_epoch.load(Ordering::SeqCst) != token)
+        (token, move || {
+            self.query_epoch.load(Ordering::SeqCst) != token
+        })
     }
 
     /// Runs one query through the bounded engine, reusing the persistent
@@ -154,7 +162,8 @@ impl FileIndexState {
         exclude_patterns: Vec<String>,
     ) -> bool {
         let mut cfg = self.config.write().expect("config lock");
-        let changed = cfg.include_roots != include_roots || cfg.exclude_patterns != exclude_patterns;
+        let changed =
+            cfg.include_roots != include_roots || cfg.exclude_patterns != exclude_patterns;
         cfg.include_roots = include_roots;
         cfg.exclude_patterns = exclude_patterns;
         changed
@@ -176,11 +185,17 @@ impl FileIndexState {
     }
 
     pub fn set_pinned_in_memory(&self, file_id: u64, pinned: bool) {
-        self.learning.write().expect("learning lock").set_pinned(file_id, pinned);
+        self.learning
+            .write()
+            .expect("learning lock")
+            .set_pinned(file_id, pinned);
     }
 
     pub fn clear_learning_in_memory(&self) {
-        self.learning.write().expect("learning lock").clear_selections();
+        self.learning
+            .write()
+            .expect("learning lock")
+            .clear_selections();
     }
 
     /// Loads a persisted snapshot if present and structurally valid. `Ok`
@@ -265,7 +280,10 @@ impl FileIndexState {
 
     /// Applies a debounced batch of watcher updates to the live index.
     pub fn apply_watcher_batch(&self, updates: Vec<IndexUpdate>, now: i64) {
-        self.index.write().expect("index lock").apply_batch(updates, now);
+        self.index
+            .write()
+            .expect("index lock")
+            .apply_batch(updates, now);
         let live = self.index.read().expect("index lock").live_count() as u64;
         self.status.lock().expect("status lock").entry_count = live;
     }
@@ -327,7 +345,10 @@ mod tests {
         let first = state.search("ma", &QueryOptions::default(), NOW);
         assert!(first.truncated);
         let second = state.search("ma-0", &QueryOptions::default(), NOW);
-        assert!(second.work.narrowed, "second call must reuse the session cache");
+        assert!(
+            second.work.narrowed,
+            "second call must reuse the session cache"
+        );
     }
 
     #[test]
@@ -336,13 +357,20 @@ mod tests {
         let (_, older_should_abort) = state.begin_query();
         assert!(!older_should_abort(), "no newer call yet");
         let (_, newer_should_abort) = state.begin_query();
-        assert!(older_should_abort(), "a newer call must cancel the older one");
-        assert!(!newer_should_abort(), "the newest call is never self-cancelled");
+        assert!(
+            older_should_abort(),
+            "a newer call must cancel the older one"
+        );
+        assert!(
+            !newer_should_abort(),
+            "the newest call is never self-cancelled"
+        );
     }
 
     #[test]
     fn set_enabled_false_drops_index_and_true_reopens_for_building() {
-        let state = FileIndexState::with_index(FileIndexConfig::default(), built_index(&["/r/a.txt"]));
+        let state =
+            FileIndexState::with_index(FileIndexConfig::default(), built_index(&["/r/a.txt"]));
         assert_eq!(state.status().entry_count, 1);
 
         state.set_enabled(false);
@@ -357,7 +385,8 @@ mod tests {
 
     #[test]
     fn mark_rescanning_flips_status_immediately_without_touching_index_or_config() {
-        let state = FileIndexState::with_index(FileIndexConfig::default(), built_index(&["/r/a.txt"]));
+        let state =
+            FileIndexState::with_index(FileIndexConfig::default(), built_index(&["/r/a.txt"]));
         assert_eq!(state.status().state, IndexStateKind::Ready);
 
         state.mark_rescanning();
@@ -376,18 +405,18 @@ mod tests {
     #[test]
     fn update_roots_and_excludes_reports_change_and_persists() {
         let state = FileIndexState::new(FileIndexConfig::default());
-        assert!(!state.update_roots_and_excludes(vec![], vec![]), "no-op change");
-        let changed = state.update_roots_and_excludes(
-            vec!["/x".to_string()],
-            vec!["skip-me".to_string()],
+        assert!(
+            !state.update_roots_and_excludes(vec![], vec![]),
+            "no-op change"
         );
+        let changed =
+            state.update_roots_and_excludes(vec!["/x".to_string()], vec!["skip-me".to_string()]);
         assert!(changed);
         assert_eq!(state.config().include_roots, vec!["/x".to_string()]);
         assert_eq!(state.config().exclude_patterns, vec!["skip-me".to_string()]);
-        assert!(!state.update_roots_and_excludes(
-            vec!["/x".to_string()],
-            vec!["skip-me".to_string()]
-        ));
+        assert!(
+            !state.update_roots_and_excludes(vec!["/x".to_string()], vec!["skip-me".to_string()])
+        );
     }
 
     #[test]
@@ -422,7 +451,8 @@ mod tests {
             "fi_service_snapshot_test_{}.bin",
             std::process::id()
         ));
-        let source = FileIndexState::with_index(FileIndexConfig::default(), built_index(&["/r/x.txt"]));
+        let source =
+            FileIndexState::with_index(FileIndexConfig::default(), built_index(&["/r/x.txt"]));
         source.save_snapshot(&tmp).unwrap();
 
         let state = FileIndexState::new(FileIndexConfig::default());
@@ -434,14 +464,19 @@ mod tests {
 
         let missing = FileIndexState::new(FileIndexConfig::default());
         missing.load_snapshot_or_empty(Path::new("/definitely/missing.bin"));
-        assert_eq!(missing.status().state, IndexStateKind::Building, "no-op on missing");
+        assert_eq!(
+            missing.status().state,
+            IndexStateKind::Building,
+            "no-op on missing"
+        );
 
         let _ = std::fs::remove_file(&tmp);
     }
 
     #[test]
     fn run_full_scan_rebuilds_index_and_updates_status() {
-        let root = std::env::temp_dir().join(format!("fi_service_scan_test_{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("fi_service_scan_test_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("hello.txt"), "hi").unwrap();
@@ -478,7 +513,8 @@ mod tests {
 
     #[test]
     fn seed_learning_replaces_cache_with_persisted_rows() {
-        let state = FileIndexState::with_index(FileIndexConfig::default(), built_index(&["/r/aaa.txt"]));
+        let state =
+            FileIndexState::with_index(FileIndexConfig::default(), built_index(&["/r/aaa.txt"]));
         state.seed_learning(vec![("txt".to_string(), 7, 10, NOW)], vec![9]);
         assert!(state.learning_boost("txt", 7, NOW) > 0.0);
         assert!(state.is_pinned(9));
@@ -486,7 +522,8 @@ mod tests {
 
     #[test]
     fn apply_watcher_batch_updates_entry_count() {
-        let state = FileIndexState::with_index(FileIndexConfig::default(), built_index(&["/r/a.txt"]));
+        let state =
+            FileIndexState::with_index(FileIndexConfig::default(), built_index(&["/r/a.txt"]));
         assert_eq!(state.status().entry_count, 1);
         state.apply_watcher_batch(
             vec![IndexUpdate::Upserted(entry("/r/b.txt", NOW as u32))],

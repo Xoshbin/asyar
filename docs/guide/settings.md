@@ -3,7 +3,7 @@
 > A tour of every settings tab.
 
 ![The General settings tab](../images/settings-general.png)
-*Figure: the General settings tab.*
+_Figure: the General settings tab._
 
 Open Settings with `⌘,` from anywhere inside the launcher, or search for "Settings" and press `Enter`. The window is divided into tabs along the top.
 

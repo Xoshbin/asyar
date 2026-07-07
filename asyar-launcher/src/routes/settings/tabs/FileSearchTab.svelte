@@ -44,12 +44,14 @@
     };
   });
 
-  async function persistFileSearch(patch: Partial<{
-    enabled: boolean;
-    includeRoots: string[];
-    excludePatterns: string[];
-    indexHidden: boolean;
-  }>) {
+  async function persistFileSearch(
+    patch: Partial<{
+      enabled: boolean;
+      includeRoots: string[];
+      excludePatterns: string[];
+      indexHidden: boolean;
+    }>,
+  ) {
     const ok = await settingsService.updateSettings('fileSearch', patch);
     if (!ok) {
       errorMessage = 'Failed to save file search settings';
@@ -127,8 +129,8 @@
       <div>
         <h2 class="section-title">File Search</h2>
         <p class="section-description">
-          Search files across your home folder. Indexing runs in the background and
-          excludes caches, dependency folders, and system directories by default.
+          Search files across your home folder. Indexing runs in the background and excludes caches,
+          dependency folders, and system directories by default.
         </p>
       </div>
       <Toggle checked={enabled} onchange={handleToggleEnabled} />
@@ -153,8 +155,8 @@
       </div>
       {#if status.capReached}
         <div class="warning" role="alert">
-          The index hit its size cap — some files may not be searchable. Add exclude
-          patterns to narrow the scan, or reduce your search roots.
+          The index hit its size cap — some files may not be searchable. Add exclude patterns to
+          narrow the scan, or reduce your search roots.
         </div>
       {/if}
     {/if}
@@ -342,7 +344,9 @@
     padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--separator);
   }
-  .path-row:last-child { border-bottom: none; }
+  .path-row:last-child {
+    border-bottom: none;
+  }
 
   :global(.path-icon) {
     color: var(--text-tertiary);

@@ -1,16 +1,17 @@
 ---
 order: 12
 ---
+
 # Data Persistence & Known Limitations
 
 ## 13. Data Persistence Architecture
 
 Asyar uses two SQLite databases managed by the Rust backend:
 
-| Database | Module | Tables | Purpose |
-|---|---|---|---|
-| `search_index.db` | `search_engine/mod.rs` | `search_items` | Application and command search index with frecency scoring |
-| `asyar_data.db` | `storage/mod.rs` | `clipboard_items`, `snippets`, `shortcuts`, `extension_storage` | User data persistence with row-level CRUD |
+| Database          | Module                 | Tables                                                          | Purpose                                                    |
+| ----------------- | ---------------------- | --------------------------------------------------------------- | ---------------------------------------------------------- |
+| `search_index.db` | `search_engine/mod.rs` | `search_items`                                                  | Application and command search index with frecency scoring |
+| `asyar_data.db`   | `storage/mod.rs`       | `clipboard_items`, `snippets`, `shortcuts`, `extension_storage` | User data persistence with row-level CRUD                  |
 
 Both databases use WAL mode for concurrent read performance and are stored in the platform-specific app data directory.
 

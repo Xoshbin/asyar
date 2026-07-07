@@ -1,4 +1,8 @@
-import type { ExtensionManifest, ExtensionResult, ExtensionWithState } from "../types/ExtensionType";
+import type {
+  ExtensionManifest,
+  ExtensionResult,
+  ExtensionWithState,
+} from '../types/ExtensionType';
 
 /**
  * Interface for Extension Manager
@@ -8,10 +12,7 @@ export interface IExtensionManager {
   loadExtensions(): Promise<void>;
   reloadExtensions(): Promise<void>;
   isExtensionEnabled(extensionName: string): boolean;
-  toggleExtensionState(
-    extensionName: string,
-    enabled: boolean
-  ): Promise<boolean>;
+  toggleExtensionState(extensionName: string, enabled: boolean): Promise<boolean>;
   getAllExtensionsWithState(): Promise<ExtensionWithState[]>;
   searchAll(query: string): Promise<ExtensionResult[]>;
   handleViewSearch(query: string): Promise<void>;
@@ -27,10 +28,7 @@ export interface IExtensionManager {
   }): void;
   isReady: boolean;
   getAllExtensions(): Promise<ExtensionManifest[]>;
-  uninstallExtension(
-    extensionId: string,
-    extensionName: string
-  ): Promise<boolean>;
+  uninstallExtension(extensionId: string, extensionName: string): Promise<boolean>;
   currentExtension: ExtensionManifest | null;
   /**
    * Allows an active view extension to suggest a primary action label

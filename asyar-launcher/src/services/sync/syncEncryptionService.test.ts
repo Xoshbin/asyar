@@ -30,7 +30,9 @@ describe('syncEncryptionService', () => {
   describe('refreshStatus', () => {
     it('writes the backend response into reactive state', async () => {
       vi.mocked(cmd.syncE2eeGetStatus).mockResolvedValueOnce({
-        enabled: true, locked: false, keyVersion: 1,
+        enabled: true,
+        locked: false,
+        keyVersion: 1,
       });
       await syncEncryptionService.refreshStatus();
       expect(syncEncryptionService.enabled).toBe(true);
@@ -40,7 +42,9 @@ describe('syncEncryptionService', () => {
 
     it('represents locked second-device state', async () => {
       vi.mocked(cmd.syncE2eeGetStatus).mockResolvedValueOnce({
-        enabled: true, locked: true, keyVersion: 1,
+        enabled: true,
+        locked: true,
+        keyVersion: 1,
       });
       await syncEncryptionService.refreshStatus();
       expect(syncEncryptionService.enabled).toBe(true);
@@ -49,7 +53,9 @@ describe('syncEncryptionService', () => {
 
     it('represents disabled state', async () => {
       vi.mocked(cmd.syncE2eeGetStatus).mockResolvedValueOnce({
-        enabled: false, locked: false, keyVersion: null,
+        enabled: false,
+        locked: false,
+        keyVersion: null,
       });
       await syncEncryptionService.refreshStatus();
       expect(syncEncryptionService.enabled).toBe(false);
@@ -63,7 +69,9 @@ describe('syncEncryptionService', () => {
         recoveryPhrase: 'a b c d e f g h i j k l m n o p q r s t u v w x',
       });
       vi.mocked(cmd.syncE2eeGetStatus).mockResolvedValueOnce({
-        enabled: true, locked: false, keyVersion: 1,
+        enabled: true,
+        locked: false,
+        keyVersion: 1,
       });
       const phrase = await syncEncryptionService.enrol('correct horse battery staple');
       expect(phrase.split(' ')).toHaveLength(24);
@@ -73,9 +81,7 @@ describe('syncEncryptionService', () => {
 
     it('emits e2ee_enrollment_failed on backend error and re-throws', async () => {
       vi.mocked(cmd.syncE2eeEnrol).mockResolvedValueOnce(null);
-      await expect(
-        syncEncryptionService.enrol('correct horse battery staple'),
-      ).rejects.toThrow();
+      await expect(syncEncryptionService.enrol('correct horse battery staple')).rejects.toThrow();
       expect(diagnosticsService.report).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: 'e2ee_enrollment_failed',
@@ -90,7 +96,9 @@ describe('syncEncryptionService', () => {
     it('refreshes status on success', async () => {
       vi.mocked(cmd.syncE2eeUnlock).mockResolvedValueOnce(true);
       vi.mocked(cmd.syncE2eeGetStatus).mockResolvedValueOnce({
-        enabled: true, locked: false, keyVersion: 1,
+        enabled: true,
+        locked: false,
+        keyVersion: 1,
       });
       await syncEncryptionService.unlock('correct horse battery staple');
       expect(syncEncryptionService.locked).toBe(false);
@@ -113,7 +121,9 @@ describe('syncEncryptionService', () => {
     it('refreshes status after success', async () => {
       vi.mocked(cmd.syncE2eeRotate).mockResolvedValueOnce(true);
       vi.mocked(cmd.syncE2eeGetStatus).mockResolvedValueOnce({
-        enabled: true, locked: false, keyVersion: 1,
+        enabled: true,
+        locked: false,
+        keyVersion: 1,
       });
       await syncEncryptionService.rotate('old-passphrase', 'new-passphrase');
       expect(cmd.syncE2eeRotate).toHaveBeenCalledWith('old-passphrase', 'new-passphrase');
@@ -125,13 +135,19 @@ describe('syncEncryptionService', () => {
     it('passes verifyWithPayload through and refreshes', async () => {
       vi.mocked(cmd.syncE2eeRecoverWithMnemonic).mockResolvedValueOnce(true);
       vi.mocked(cmd.syncE2eeGetStatus).mockResolvedValueOnce({
-        enabled: true, locked: false, keyVersion: 1,
+        enabled: true,
+        locked: false,
+        keyVersion: 1,
       });
       await syncEncryptionService.recoverWithMnemonic(
-        'twenty-four words here', 'new', 'enc:v1:abc',
+        'twenty-four words here',
+        'new',
+        'enc:v1:abc',
       );
       expect(cmd.syncE2eeRecoverWithMnemonic).toHaveBeenCalledWith(
-        'twenty-four words here', 'new', 'enc:v1:abc',
+        'twenty-four words here',
+        'new',
+        'enc:v1:abc',
       );
     });
   });
@@ -140,7 +156,9 @@ describe('syncEncryptionService', () => {
     it('refreshes status to disabled', async () => {
       vi.mocked(cmd.syncE2eeDisable).mockResolvedValueOnce(true);
       vi.mocked(cmd.syncE2eeGetStatus).mockResolvedValueOnce({
-        enabled: false, locked: false, keyVersion: null,
+        enabled: false,
+        locked: false,
+        keyVersion: null,
       });
       await syncEncryptionService.disable();
       expect(syncEncryptionService.enabled).toBe(false);

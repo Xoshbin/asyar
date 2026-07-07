@@ -97,7 +97,9 @@ function parseArgs(argsJson?: string): Record<string, unknown> | undefined {
   if (!argsJson) return undefined;
   try {
     const parsed = JSON.parse(argsJson);
-    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : undefined;
+    return typeof parsed === 'object' && parsed !== null
+      ? (parsed as Record<string, unknown>)
+      : undefined;
   } catch {
     return undefined;
   }

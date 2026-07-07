@@ -1,9 +1,9 @@
 <script lang="ts">
   let {
-    value = $bindable(""),
-    placeholder = "",
+    value = $bindable(''),
+    placeholder = '',
     disabled = false,
-    type = "text",
+    type = 'text',
     ref = $bindable(null as HTMLInputElement | null),
     ...rest
   }: {
@@ -16,12 +16,4 @@
   } = $props();
 </script>
 
-<input
-  bind:this={ref}
-  {type}
-  {placeholder}
-  {disabled}
-  bind:value
-  class="input"
-  {...rest}
-/>
+<input bind:this={ref} {type} {placeholder} {disabled} bind:value class="input" {...rest} />

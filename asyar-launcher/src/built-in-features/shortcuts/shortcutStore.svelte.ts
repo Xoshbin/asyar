@@ -1,16 +1,14 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import {
-  shortcutUpsert,
-  shortcutGetAll,
-  shortcutRemove,
-} from '../../lib/ipc/commands';
+import { shortcutUpsert, shortcutGetAll, shortcutRemove } from '../../lib/ipc/commands';
 import { logService } from '../../services/log/logService';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 
 function reportPersistenceFailure(action: string, err: unknown): void {
   logService.error(`[ShortcutStore] ${action}: ${err}`);
   diagnosticsService.report({
-    source: 'frontend', kind: 'manual', severity: 'warning',
+    source: 'frontend',
+    kind: 'manual',
+    severity: 'warning',
     retryable: false,
     context: { message: `Shortcut ${action.toLowerCase()} — change may not survive restart` },
   });
@@ -34,8 +32,7 @@ export interface ItemShortcut {
  * key for shortcuts (not the surrogate `id`).
  */
 export type ShortcutStoreChangeEvent =
-  | { type: 'upsert'; itemId: string }
-  | { type: 'delete'; itemId: string };
+  { type: 'upsert'; itemId: string } | { type: 'delete'; itemId: string };
 
 class ShortcutStoreClass {
   shortcuts = $state<ItemShortcut[]>([]);
@@ -92,25 +89,30 @@ class ShortcutStoreClass {
   }
 
   getByObjectId(objectId: string): ItemShortcut | undefined {
-    return this.shortcuts.find(s => s.objectId === objectId);
+    return this.shortcuts.find((s) => s.objectId === objectId);
   }
 
   add(shortcut: ItemShortcut) {
-    this.shortcuts = [...this.shortcuts.filter(s => s.objectId !== shortcut.objectId), shortcut];
-    shortcutUpsert(shortcut as any).catch(err => reportPersistenceFailure('Failed to save', err));
+    this.shortcuts = [...this.shortcuts.filter((s) => s.objectId !== shortcut.objectId), shortcut];
+    shortcutUpsert(shortcut as any).catch((err) => reportPersistenceFailure('Failed to save', err));
     this.#notify({ type: 'upsert', itemId: shortcut.objectId });
   }
 
   update(objectId: string, changes: Partial<ItemShortcut>) {
-    this.shortcuts = this.shortcuts.map(s => s.objectId === objectId ? { ...s, ...changes } : s);
-    const updated = this.shortcuts.find(s => s.objectId === objectId);
-    if (updated) shortcutUpsert(updated as any).catch(err => reportPersistenceFailure('Failed to update', err));
+    this.shortcuts = this.shortcuts.map((s) =>
+      s.objectId === objectId ? { ...s, ...changes } : s,
+    );
+    const updated = this.shortcuts.find((s) => s.objectId === objectId);
+    if (updated)
+      shortcutUpsert(updated as any).catch((err) =>
+        reportPersistenceFailure('Failed to update', err),
+      );
     this.#notify({ type: 'upsert', itemId: objectId });
   }
 
   remove(objectId: string) {
-    this.shortcuts = this.shortcuts.filter(s => s.objectId !== objectId);
-    shortcutRemove(objectId).catch(err => reportPersistenceFailure('Failed to delete', err));
+    this.shortcuts = this.shortcuts.filter((s) => s.objectId !== objectId);
+    shortcutRemove(objectId).catch((err) => reportPersistenceFailure('Failed to delete', err));
     this.#notify({ type: 'delete', itemId: objectId });
   }
 
@@ -130,9 +132,10 @@ export const shortcutStore = new ShortcutStoreClass();
  * an unexpected value is bucketed as a command (catch-all) so a future
  * union expansion does not silently drop rows from the view.
  */
-export function groupShortcutsBySection(
-  items: ItemShortcut[]
-): { applications: ItemShortcut[]; commands: ItemShortcut[] } {
+export function groupShortcutsBySection(items: ItemShortcut[]): {
+  applications: ItemShortcut[];
+  commands: ItemShortcut[];
+} {
   const applications: ItemShortcut[] = [];
   const commands: ItemShortcut[] = [];
   for (const item of items) {

@@ -69,12 +69,12 @@
   }
 
   function updateEnvRow(i: number, field: keyof EnvRow, value: string): void {
-    const next = form.env.map((r, idx) => idx === i ? { ...r, [field]: value } : r);
+    const next = form.env.map((r, idx) => (idx === i ? { ...r, [field]: value } : r));
     form.env = next;
   }
 
   function updateHeader(i: number, field: keyof EnvRow, value: string): void {
-    const next = form.headers.map((r, idx) => idx === i ? { ...r, [field]: value } : r);
+    const next = form.headers.map((r, idx) => (idx === i ? { ...r, [field]: value } : r));
     form.headers = next;
   }
 
@@ -152,8 +152,7 @@
         class="field-input"
         placeholder="Optional description"
         rows={2}
-        bind:value={form.description}
-      ></textarea>
+        bind:value={form.description}></textarea>
     </div>
 
     <!-- Transport Kind -->
@@ -187,7 +186,12 @@
               value={arg}
               oninput={(e) => updateArg(i, (e.target as HTMLInputElement).value)}
             />
-            <IconButton variant="danger" size="sm" onclick={() => removeArg(i)} ariaLabel="Remove argument">−</IconButton>
+            <IconButton
+              variant="danger"
+              size="sm"
+              onclick={() => removeArg(i)}
+              ariaLabel="Remove argument">−</IconButton
+            >
           </div>
         {/each}
         <button type="button" class="add-btn" onclick={addArg}>+ Add Argument</button>
@@ -212,7 +216,12 @@
               value={row.value}
               oninput={(e) => updateEnvRow(i, 'value', (e.target as HTMLInputElement).value)}
             />
-            <IconButton variant="danger" size="sm" onclick={() => removeEnvRow(i)} ariaLabel="Remove variable">−</IconButton>
+            <IconButton
+              variant="danger"
+              size="sm"
+              onclick={() => removeEnvRow(i)}
+              ariaLabel="Remove variable">−</IconButton
+            >
           </div>
         {/each}
         <button type="button" class="add-btn" onclick={addEnvRow}>+ Add Variable</button>
@@ -261,7 +270,12 @@
               value={row.value}
               oninput={(e) => updateHeader(i, 'value', (e.target as HTMLInputElement).value)}
             />
-            <IconButton variant="danger" size="sm" onclick={() => removeHeader(i)} ariaLabel="Remove header">−</IconButton>
+            <IconButton
+              variant="danger"
+              size="sm"
+              onclick={() => removeHeader(i)}
+              ariaLabel="Remove header">−</IconButton
+            >
           </div>
         {/each}
         <button type="button" class="add-btn" onclick={addHeader}>+ Add Header</button>
@@ -273,7 +287,11 @@
     {/if}
 
     {#if testResult !== null}
-      <div class="test-result" class:test-ok={testResult.error === null} class:test-fail={testResult.error !== null}>
+      <div
+        class="test-result"
+        class:test-ok={testResult.error === null}
+        class:test-fail={testResult.error !== null}
+      >
         {#if testResult.error === null}
           Tools found: {testResult.toolsCount}
         {:else}
@@ -289,9 +307,7 @@
       <Button class="btn-primary" onclick={handleInstall} disabled={installing}>
         {installing ? 'Installing…' : 'Install'}
       </Button>
-      <Button onclick={() => viewManager.goBack()}>
-        Cancel
-      </Button>
+      <Button onclick={() => viewManager.goBack()}>Cancel</Button>
     </div>
   </form>
 </div>

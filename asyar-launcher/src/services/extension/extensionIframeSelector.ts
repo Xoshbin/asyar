@@ -21,8 +21,6 @@ export function pickExtensionIframe(
     document.querySelector<HTMLIFrameElement>(
       `iframe[data-extension-id="${extensionId}"][data-role="${fallback}"]`,
     ) ??
-    document.querySelector<HTMLIFrameElement>(
-      `iframe[data-extension-id="${extensionId}"]`,
-    )
+    document.querySelector<HTMLIFrameElement>(`iframe[data-extension-id="${extensionId}"]`)
   );
 }

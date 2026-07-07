@@ -129,9 +129,7 @@ describe('devInspectorBridge — flag-gated diagnostic emitters', () => {
     // flag in a host (launcher) context is harmless — extensions run as
     // iframes, but tests / the launcher itself loading the SDK would
     // otherwise loop-back onto themselves.
-    expect(() =>
-      emitRpcLog({ phase: 'request', correlationId: 'c', timestamp: 0 }),
-    ).not.toThrow();
+    expect(() => emitRpcLog({ phase: 'request', correlationId: 'c', timestamp: 0 })).not.toThrow();
   });
 
   it('emit functions swallow postMessage errors', () => {

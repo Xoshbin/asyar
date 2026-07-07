@@ -5,7 +5,7 @@ export class InteropServiceProxy extends BaseServiceProxy implements IInteropSer
   async launchCommand(
     extensionId: string,
     commandId: string,
-    args?: Record<string, unknown>
+    args?: Record<string, unknown>,
   ): Promise<void> {
     await this.broker.invoke<void>('interop:launchCommand', {
       extensionId,

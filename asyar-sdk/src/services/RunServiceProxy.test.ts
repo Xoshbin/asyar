@@ -183,10 +183,7 @@ describe('RunServiceProxy', () => {
 
       await expect(handle!.cancel()).rejects.toThrow('run not found');
 
-      expect(offSpy).toHaveBeenCalledWith(
-        'asyar:event:runs:cancel',
-        capturedOnHandler,
-      );
+      expect(offSpy).toHaveBeenCalledWith('asyar:event:runs:cancel', capturedOnHandler);
       offSpy.mockRestore();
     });
   });
@@ -215,7 +212,10 @@ describe('RunServiceProxy with setExtensionId', () => {
 
     await handle.write('line');
 
-    expect(instanceInvokeSpy).toHaveBeenCalledWith('runs:write', expect.objectContaining({ id: handle.id, line: 'line' }));
+    expect(instanceInvokeSpy).toHaveBeenCalledWith(
+      'runs:write',
+      expect.objectContaining({ id: handle.id, line: 'line' }),
+    );
     expect(globalInvokeSpy).not.toHaveBeenCalled();
 
     instanceInvokeSpy.mockRestore();

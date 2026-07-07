@@ -27,7 +27,5 @@ export async function filterCompatibleExtensions<T>(
   if (compatibleIds === null) return [];
 
   const byId = new Map(items.map((item) => [fields.id(item), item]));
-  return compatibleIds
-    .map((id) => byId.get(id))
-    .filter((item): item is T => item !== undefined);
+  return compatibleIds.map((id) => byId.get(id)).filter((item): item is T => item !== undefined);
 }

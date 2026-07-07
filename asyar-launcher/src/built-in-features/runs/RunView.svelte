@@ -12,7 +12,9 @@
   let combinedRuns = $derived(runService.combined);
   let selectedRun = $derived(combinedRuns.find((r) => r.id === runService.selectedRunId) ?? null);
   let selectedIndex = $derived(
-    runService.selectedRunId ? combinedRuns.findIndex((r) => r.id === runService.selectedRunId) : -1,
+    runService.selectedRunId
+      ? combinedRuns.findIndex((r) => r.id === runService.selectedRunId)
+      : -1,
   );
   let outputLines = $state<string[]>([]);
   let outputUnlisten: UnlistenFn | null = null;
@@ -132,7 +134,11 @@
               <span class="text-title">AI Chat Thread</span>
             </div>
             <div class="run-status-content">
-              <div class="text-caption">This run was managed inside an AI conversation thread. Output response streams and state are persisted directly within the agent chat interface. Use the command menu (Cmd+K) to View Conversation.</div>
+              <div class="text-caption">
+                This run was managed inside an AI conversation thread. Output response streams and
+                state are persisted directly within the agent chat interface. Use the command menu
+                (Cmd+K) to View Conversation.
+              </div>
             </div>
           </div>
         {:else if outputLines.length > 0}
@@ -158,15 +164,23 @@
           <div class="run-status-panel run-status-success">
             <div class="run-status-header">
               <span>✅</span>
-              <span class="text-title" style="color: var(--accent-success);">Finished Successfully</span>
+              <span class="text-title" style="color: var(--accent-success);"
+                >Finished Successfully</span
+              >
             </div>
             <div class="run-status-content">
               {#if selectedRun.endedAt && selectedRun.startedAt}
                 <div class="text-caption">
-                  Process successfully completed in {((selectedRun.endedAt - selectedRun.startedAt) / 1000).toFixed(2)} seconds.
+                  Process successfully completed in {(
+                    (selectedRun.endedAt - selectedRun.startedAt) /
+                    1000
+                  ).toFixed(2)} seconds.
                 </div>
               {:else}
-                <div class="text-caption">Execution successful. The script terminated without printing any output to standard out.</div>
+                <div class="text-caption">
+                  Execution successful. The script terminated without printing any output to
+                  standard out.
+                </div>
               {/if}
             </div>
           </div>

@@ -8,7 +8,9 @@ vi.mock('../ipc/MessageBroker', () => ({
 function makeInvoke() {
   const mockInvoke = vi.fn().mockResolvedValue(undefined);
   Object.assign(messageBroker, {
-    invoke: mockInvoke, on: vi.fn(), off: vi.fn(),
+    invoke: mockInvoke,
+    on: vi.fn(),
+    off: vi.fn(),
   });
   return mockInvoke;
 }

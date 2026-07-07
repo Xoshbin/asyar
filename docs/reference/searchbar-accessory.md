@@ -1,6 +1,7 @@
 ---
 order: 10
 ---
+
 # Search Bar Accessory
 
 A search bar accessory is a dropdown the launcher renders in the
@@ -21,7 +22,7 @@ will switch between repeatedly:
 
 Prefer **preferences** for per-install configuration (API keys, defaults)
 — they persist and apply to every invocation. Prefer **command
-arguments** when the input must be collected *before* the view opens, or
+arguments** when the input must be collected _before_ the view opens, or
 when you need free-form text or numeric input. Use the accessory when
 the view is already on screen and the user is switching between a small,
 known set of options.
@@ -51,10 +52,10 @@ Add a `searchBarAccessory` object to a view-mode command in
     "type": "dropdown",
     "default": "all",
     "options": [
-      { "value": "all",    "title": "All Types" },
-      { "value": "text",   "title": "Text" },
+      { "value": "all", "title": "All Types" },
+      { "value": "text", "title": "Text" },
       { "value": "images", "title": "Images" },
-      { "value": "files",  "title": "Files" }
+      { "value": "files", "title": "Files" }
     ]
   }
 }
@@ -62,11 +63,11 @@ Add a `searchBarAccessory` object to a view-mode command in
 
 ### Per-field reference
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `type` | `"dropdown"` | ✅ | Discriminator. Only `"dropdown"` in v1; reserves room for future types. |
-| `options` | `{ value, title }[]` | ✅ | Non-empty list. `value` is what the extension receives; `title` is what the user sees. Both must be strings. |
-| `default` | `string` | ❌ | Pre-selected value on first invocation. Must be one of `options[].value`. If omitted, the first option is the default. |
+| Field     | Type                 | Required | Description                                                                                                            |
+| --------- | -------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `type`    | `"dropdown"`         | ✅       | Discriminator. Only `"dropdown"` in v1; reserves room for future types.                                                |
+| `options` | `{ value, title }[]` | ✅       | Non-empty list. `value` is what the extension receives; `title` is what the user sees. Both must be strings.           |
+| `default` | `string`             | ❌       | Pre-selected value on first invocation. Must be one of `options[].value`. If omitted, the first option is the default. |
 
 ### Schema constraints
 
@@ -104,7 +105,7 @@ Fires once on view mount with the seed value (persisted, then manifest
 `set({ value })`.
 
 ```typescript
-import { searchBarAccessory } from "asyar-sdk/view";
+import { searchBarAccessory } from 'asyar-sdk/view';
 
 const off = searchBarAccessory.onChange((value) => {
   // re-filter or re-fetch your view's content
@@ -124,9 +125,9 @@ Two use cases:
    ```typescript
    await searchBarAccessory.set({
      options: [
-       { value: "front",    title: "Front Page" },
-       { value: "best",     title: "Best" },
-       { value: "comments", title: "Best Comments" },
+       { value: 'front', title: 'Front Page' },
+       { value: 'best', title: 'Best' },
+       { value: 'comments', title: 'Best Comments' },
      ],
    });
    ```
@@ -135,7 +136,7 @@ Two use cases:
    handlers:
 
    ```typescript
-   await searchBarAccessory.set({ value: "best" });
+   await searchBarAccessory.set({ value: 'best' });
    ```
 
 Both fields are optional; you can pass either, both, or call `set({})`
@@ -188,14 +189,14 @@ slot once the view is up.
 
 ## Relationship to other features
 
-| | Search bar accessory | Arguments | Preferences |
-|---|---|---|---|
-| Scope | Per view session | Per invocation | Per install |
-| UI | Top-right dropdown in search bar | Inline chip row in search bar | Settings panel |
-| When shown | After view-mode command activates | Before any command runs (Tab) | Settings tab |
-| Persistence | Last value per `(ext, cmd)` | Last value per `(ext, cmd, arg)` | All values |
-| Max count | 1 per command | 3 per command | No limit |
-| Reached via | `searchBarAccessory.onChange` | `args.arguments.<name>` | `context.preferences` |
+|             | Search bar accessory              | Arguments                        | Preferences           |
+| ----------- | --------------------------------- | -------------------------------- | --------------------- |
+| Scope       | Per view session                  | Per invocation                   | Per install           |
+| UI          | Top-right dropdown in search bar  | Inline chip row in search bar    | Settings panel        |
+| When shown  | After view-mode command activates | Before any command runs (Tab)    | Settings tab          |
+| Persistence | Last value per `(ext, cmd)`       | Last value per `(ext, cmd, arg)` | All values            |
+| Max count   | 1 per command                     | 3 per command                    | No limit              |
+| Reached via | `searchBarAccessory.onChange`     | `args.arguments.<name>`          | `context.preferences` |
 
 ## Delivery guarantees
 

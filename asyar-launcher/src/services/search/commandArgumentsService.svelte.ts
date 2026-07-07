@@ -73,7 +73,10 @@ export interface CommandArgumentsServiceDeps {
    * Invoke a Tier 1 (built-in) command directly — same entry point as
    * Enter-on-command. Only called when the resolved meta reports `isBuiltIn`.
    */
-  executeBuiltInCommand: (commandObjectId: string, args?: Record<string, unknown>) => Promise<unknown>;
+  executeBuiltInCommand: (
+    commandObjectId: string,
+    args?: Record<string, unknown>,
+  ) => Promise<unknown>;
   /**
    * Deliver a Tier 2 argument-mode submission through the extension
    * dispatcher so telemetry and UX affordances (pending glyph, degraded
@@ -131,9 +134,7 @@ export class CommandArgumentsService {
   async enter(commandObjectId: string): Promise<boolean> {
     const meta = await this.deps.getManifestByCommandObjectId(commandObjectId);
     if (!meta) {
-      logService.debug(
-        `[CommandArgumentsService] enter(${commandObjectId}) — manifest not found`
-      );
+      logService.debug(`[CommandArgumentsService] enter(${commandObjectId}) — manifest not found`);
       return false;
     }
     if (!meta.args.length) {
@@ -146,7 +147,7 @@ export class CommandArgumentsService {
       persisted = (await commandArgDefaultsGet(meta.extensionId, persistenceKey)) ?? {};
     } catch (err) {
       logService.warn(
-        `[CommandArgumentsService] Failed to load defaults for ${meta.extensionId}/${persistenceKey}: ${err}`
+        `[CommandArgumentsService] Failed to load defaults for ${meta.extensionId}/${persistenceKey}: ${err}`,
       );
     }
 
@@ -258,7 +259,7 @@ export class CommandArgumentsService {
       await commandArgDefaultsSet(active.extensionId, persistKey, persist);
     } catch (err) {
       logService.warn(
-        `[CommandArgumentsService] Failed to persist defaults for ${active.extensionId}/${persistKey}: ${err}`
+        `[CommandArgumentsService] Failed to persist defaults for ${active.extensionId}/${persistKey}: ${err}`,
       );
     }
 

@@ -19,16 +19,11 @@ export async function mcpInstallServer(
   return invokeSafe<McpServerSummary>('mcp_install_server', { input });
 }
 
-export async function mcpTestServer(
-  input: McpServerInstallInput,
-): Promise<McpTestResult | null> {
+export async function mcpTestServer(input: McpServerInstallInput): Promise<McpTestResult | null> {
   return invokeSafe<McpTestResult>('mcp_test_server', { input });
 }
 
-export async function mcpSetServerEnabled(
-  serverId: string,
-  enabled: boolean,
-): Promise<boolean> {
+export async function mcpSetServerEnabled(serverId: string, enabled: boolean): Promise<boolean> {
   return invokeSafeVoid('mcp_set_server_enabled', { serverId, enabled });
 }
 
@@ -47,9 +42,7 @@ export async function mcpDetectExistingConfigs(): Promise<DetectedConfig[] | nul
   return invokeSafe<DetectedConfig[]>('mcp_detect_existing_configs');
 }
 
-export async function mcpParseConfigJson(
-  json: string,
-): Promise<McpServerInstallInput[] | null> {
+export async function mcpParseConfigJson(json: string): Promise<McpServerInstallInput[] | null> {
   return invokeSafe<McpServerInstallInput[]>('mcp_parse_config_json', { json });
 }
 
@@ -76,15 +69,14 @@ export async function mcpGetPermission(
   toolId: string,
   agentId: string,
 ): Promise<'allow_once' | 'allow_always' | 'never' | null> {
-  return invokeSafe<'allow_once' | 'allow_always' | 'never' | null>(
-    'mcp_get_permission',
-    { serverId, toolId, agentId },
-  );
+  return invokeSafe<'allow_once' | 'allow_always' | 'never' | null>('mcp_get_permission', {
+    serverId,
+    toolId,
+    agentId,
+  });
 }
 
-export async function mcpListServerTools(
-  serverId: string,
-): Promise<McpToolDescriptor[] | null> {
+export async function mcpListServerTools(serverId: string): Promise<McpToolDescriptor[] | null> {
   return invokeSafe<McpToolDescriptor[]>('mcp_list_server_tools', { serverId });
 }
 

@@ -9,7 +9,7 @@ function makeExt(
   return {
     title,
     type,
-    commands: commands.map(c => ({ ...c, description: '' })),
+    commands: commands.map((c) => ({ ...c, description: '' })),
   };
 }
 
@@ -22,9 +22,7 @@ const extensions: ExtensionItem[] = [
     { id: 'c1', name: 'Start Timer', trigger: 'pomo start' },
     { id: 'c2', name: 'Stop Timer', trigger: 'pomo stop' },
   ]),
-  makeExt('GitHub', 'extension', [
-    { id: 'c3', name: 'Search Repos', trigger: 'gh repos' },
-  ]),
+  makeExt('GitHub', 'extension', [{ id: 'c3', name: 'Search Repos', trigger: 'gh repos' }]),
 ];
 
 describe('filterExtensions', () => {

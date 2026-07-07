@@ -80,8 +80,8 @@ const response = await network.fetch('https://api.github.com/user', {
 ```typescript
 import type { IOAuthService, INetworkService, IFeedbackService } from 'asyar-sdk';
 
-const oauth    = context.getService<IOAuthService>('oauth');
-const network  = context.getService<INetworkService>('network');
+const oauth = context.getService<IOAuthService>('oauth');
+const network = context.getService<INetworkService>('network');
 const feedback = context.getService<IFeedbackService>('feedback');
 
 async function fetchGitHubUser() {
@@ -169,11 +169,11 @@ There is currently no automatic refresh of expired tokens. When a token expires,
 
 Errors from `authorize()` reject the returned Promise with a structured message:
 
-| Scenario | What happens | Rejection message |
-|---|---|---|
-| User clicks "Deny" in browser | Provider redirects with `?error=access_denied` | `"OAuth error [access_denied]: …"` |
-| Token exchange HTTP failure | Provider returns non-2xx on the token endpoint | `"OAuth error [exchange_failed]: Token exchange failed (403): …"` |
-| `broker.invoke()` itself fails (e.g. missing `oauth:use` permission) | IPC layer rejects before host is reached | `"Permission denied: oauth:use"` |
+| Scenario                                                             | What happens                                   | Rejection message                                                 |
+| -------------------------------------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------- |
+| User clicks "Deny" in browser                                        | Provider redirects with `?error=access_denied` | `"OAuth error [access_denied]: …"`                                |
+| Token exchange HTTP failure                                          | Provider returns non-2xx on the token endpoint | `"OAuth error [exchange_failed]: Token exchange failed (403): …"` |
+| `broker.invoke()` itself fails (e.g. missing `oauth:use` permission) | IPC layer rejects before host is reached       | `"Permission denied: oauth:use"`                                  |
 
 `revokeToken()` resolves normally even if no token was stored — it is idempotent.
 

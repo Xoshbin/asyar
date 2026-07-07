@@ -1,8 +1,4 @@
-import type {
-  IStatusBarService,
-  IStatusBarItem,
-  StatusBarClickContext,
-} from './IStatusBarService';
+import type { IStatusBarService, IStatusBarItem, StatusBarClickContext } from './IStatusBarService';
 import { BaseServiceProxy } from './BaseServiceProxy';
 import {
   collectHandlers,
@@ -25,15 +21,9 @@ interface TrayClickPushPayload {
  * The proxy validates the tree up-front so malformed input fails before the
  * IPC round-trip.
  */
-export class StatusBarServiceProxy
-  extends BaseServiceProxy
-  implements IStatusBarService
-{
+export class StatusBarServiceProxy extends BaseServiceProxy implements IStatusBarService {
   /** Top-level id → flat map of `'topId[:...]' -> onClick handler`. */
-  private handlersByTop = new Map<
-    string,
-    Map<string, (ctx: StatusBarClickContext) => void>
-  >();
+  private handlersByTop = new Map<string, Map<string, (ctx: StatusBarClickContext) => void>>();
 
   private clickListenerBound = false;
 
@@ -46,9 +36,7 @@ export class StatusBarServiceProxy
     const fullItem = { ...stripHandlers(item), extensionId: this.extensionId };
     this.broker
       .invoke('statusBar:registerItem', { item: fullItem })
-      .catch((err) =>
-        console.warn('[StatusBarServiceProxy] registerItem failed:', err),
-      );
+      .catch((err) => console.warn('[StatusBarServiceProxy] registerItem failed:', err));
   }
 
   updateItem(id: string, updates: Partial<IStatusBarItem>): void {
@@ -70,18 +58,14 @@ export class StatusBarServiceProxy
         id,
         item: fullItem,
       })
-      .catch((err) =>
-        console.warn('[StatusBarServiceProxy] updateItem failed:', err),
-      );
+      .catch((err) => console.warn('[StatusBarServiceProxy] updateItem failed:', err));
   }
 
   unregisterItem(id: string): void {
     this.handlersByTop.delete(id);
     this.broker
       .invoke('statusBar:unregisterItem', { extensionId: this.extensionId, id })
-      .catch((err) =>
-        console.warn('[StatusBarServiceProxy] unregisterItem failed:', err),
-      );
+      .catch((err) => console.warn('[StatusBarServiceProxy] unregisterItem failed:', err));
   }
 
   private ensureClickListener(): void {
@@ -104,10 +88,9 @@ export class StatusBarServiceProxy
       // a registration the proxy never saw. Log once so we surface it in
       // devtools but stay silent for no-handler leaves (below) since those
       // are a legitimate design case for parent submenu rows.
-      console.warn(
-        `[StatusBarServiceProxy] no handler map for top-level id '${topId}'`,
-        { known: [...this.handlersByTop.keys()] },
-      );
+      console.warn(`[StatusBarServiceProxy] no handler map for top-level id '${topId}'`, {
+        known: [...this.handlersByTop.keys()],
+      });
       return;
     }
     const key = payload.itemPath.join(':');

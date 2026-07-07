@@ -75,10 +75,14 @@ export function setupSelectionEffects(state: LauncherState) {
       scriptResultRuns: runService.unacknowledgedScriptResults,
       runTiers: runTierMap,
       query: state.localSearchValue,
-      onError: (msg) => diagnosticsService.report({
-        source: 'frontend', kind: 'action_failed', severity: 'error',
-        retryable: false, context: { message: msg },
-      }),
+      onError: (msg) =>
+        diagnosticsService.report({
+          source: 'frontend',
+          kind: 'action_failed',
+          severity: 'error',
+          retryable: false,
+          context: { message: msg },
+        }),
     });
     state.searchResultItemsMapped = mappedItems;
     state.currentSelectedItemOriginal = selectedOriginal;
@@ -89,7 +93,10 @@ export function setupSelectionEffects(state: LauncherState) {
   // with the user deciding to press Enter. warmIfTier2 is a no-op for
   // non-Tier-2 items, so this is safe to call on every selection change.
   $effect(() => {
-    warmIfTier2(state.currentSelectedItemOriginal as unknown as { type?: string; extensionId?: string } | undefined);
+    warmIfTier2(
+      state.currentSelectedItemOriginal as unknown as
+        { type?: string; extensionId?: string } | undefined,
+    );
   });
 
   // Effect 9: Shortcut action registration for selected item
@@ -98,7 +105,9 @@ export function setupSelectionEffects(state: LauncherState) {
       const item = state.currentSelectedItemOriginal;
       actionService.registerAction({
         id: 'shortcuts:assign',
-        label: state.shortcuts.some((s: ItemShortcut) => s.objectId === item.objectId) ? 'Change Shortcut' : 'Assign Shortcut',
+        label: state.shortcuts.some((s: ItemShortcut) => s.objectId === item.objectId)
+          ? 'Change Shortcut'
+          : 'Assign Shortcut',
         icon: 'icon:keyboard',
         description: 'Assign global shortcut',
         category: 'Shortcuts',
@@ -107,7 +116,7 @@ export function setupSelectionEffects(state: LauncherState) {
         execute: async () => {
           state.assignShortcutTarget = item;
           state.getBottomBar()?.closeActionList();
-        }
+        },
       });
     } else {
       actionService.unregisterAction('shortcuts:assign');

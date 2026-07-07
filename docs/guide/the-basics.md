@@ -3,7 +3,7 @@
 > How search, results, navigation, and the action panel fit together.
 
 ![Results list with the action panel visible](../images/the-basics-results.png)
-*Figure: results list with the action panel visible.*
+_Figure: results list with the action panel visible._
 
 ## The search bar
 
@@ -33,16 +33,16 @@ Results from multiple sources — apps, commands, AI agents, browser bookmarks, 
 
 Asyar is designed to be used entirely with the keyboard:
 
-| Key | What it does |
-|-----|-------------|
-| `↑` / `↓` | Move up and down through the results list |
-| `Enter` | Run the selected result (launch app, execute command, open URL, etc.) |
-| `⌘K` | Open the action panel for the selected result |
-| `Tab` | Fill command arguments, or switch to AI / context mode |
-| `⌘P` | Toggle the search-bar dropdown (when one is shown) |
-| `⌘,` | Open Settings |
-| `Esc` | Clear the search → go back from a view → hide Asyar |
-| `⌫` | Go back from an open view, or exit AI mode when the search bar is empty |
+| Key       | What it does                                                            |
+| --------- | ----------------------------------------------------------------------- |
+| `↑` / `↓` | Move up and down through the results list                               |
+| `Enter`   | Run the selected result (launch app, execute command, open URL, etc.)   |
+| `⌘K`      | Open the action panel for the selected result                           |
+| `Tab`     | Fill command arguments, or switch to AI / context mode                  |
+| `⌘P`      | Toggle the search-bar dropdown (when one is shown)                      |
+| `⌘,`      | Open Settings                                                           |
+| `Esc`     | Clear the search → go back from a view → hide Asyar                     |
+| `⌫`       | Go back from an open view, or exit AI mode when the search bar is empty |
 
 Asyar keeps focus in the search bar automatically. You can click a result to select it, but you do not have to.
 

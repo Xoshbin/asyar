@@ -1,12 +1,5 @@
 <script lang="ts">
-  import {
-    SettingsSection,
-    SettingsRow,
-    Input,
-    Button,
-    Badge,
-    EmptyState,
-  } from '../index';
+  import { SettingsSection, SettingsRow, Input, Button, Badge, EmptyState } from '../index';
   import { clipboardPrivacyService } from '../../services/privacy/clipboardPrivacyService.svelte';
 
   let newEntry = $state('');
@@ -16,8 +9,7 @@
   );
 
   let isLinux = $derived(
-    typeof document !== 'undefined' &&
-      document.documentElement.dataset.platform === 'linux',
+    typeof document !== 'undefined' && document.documentElement.dataset.platform === 'linux',
   );
 
   async function handleAdd() {
@@ -76,18 +68,12 @@
     {#snippet children()}
       <div class="add-row">
         <Input bind:value={newEntry} placeholder="com.example.YourVault" />
-        <Button onclick={handleAdd} disabled={newEntry.trim().length === 0}>
-          Add
-        </Button>
+        <Button onclick={handleAdd} disabled={newEntry.trim().length === 0}>Add</Button>
       </div>
     {/snippet}
   </SettingsRow>
 
-  <SettingsRow
-    label="Your additions"
-    description="Apps you have added to the denylist."
-    noBorder
-  >
+  <SettingsRow label="Your additions" description="Apps you have added to the denylist." noBorder>
     {#snippet children()}
       {#if clipboardPrivacyService.userDenylist.length === 0}
         <EmptyState message="No custom entries yet" />
@@ -96,9 +82,7 @@
           {#each clipboardPrivacyService.userDenylist as bundleId}
             <li class="denylist-row user-row">
               <span class="text-body">{bundleId}</span>
-              <Button
-                onclick={() => clipboardPrivacyService.removeFromDenylist(bundleId)}
-              >
+              <Button onclick={() => clipboardPrivacyService.removeFromDenylist(bundleId)}>
                 Remove
               </Button>
             </li>

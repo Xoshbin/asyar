@@ -1,8 +1,4 @@
-import type {
-  ITimerService,
-  ScheduleTimerOptions,
-  TimerDescriptor,
-} from './ITimerService';
+import type { ITimerService, ScheduleTimerOptions, TimerDescriptor } from './ITimerService';
 import { BaseServiceProxy } from './BaseServiceProxy';
 
 /**

@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ProfileService } from './profileService';
-import type { ISyncProvider, SyncProviderData, ImportPreview, ImportResult, DataSummary } from './types';
+import type {
+  ISyncProvider,
+  SyncProviderData,
+  ImportPreview,
+  ImportResult,
+  DataSummary,
+} from './types';
 
 function createMockProvider(overrides: Partial<ISyncProvider> = {}): ISyncProvider {
   return {

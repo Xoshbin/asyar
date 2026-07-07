@@ -1,26 +1,30 @@
 <script lang="ts">
-  import AiTab from '../../settings/tabs/AiTab.svelte'
-  import { onboardingService } from '../../../services/onboarding/onboardingService.svelte'
-  import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte'
-  import { onboardingNav } from '../onboardingNav.svelte'
+  import AiTab from '../../settings/tabs/AiTab.svelte';
+  import { onboardingService } from '../../../services/onboarding/onboardingService.svelte';
+  import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+  import { onboardingNav } from '../onboardingNav.svelte';
 
   async function handleAiSetupDone() {
     try {
-      await onboardingService.completeAi()
+      await onboardingService.completeAi();
     } catch {
       // completeAi already reports via diagnosticsService
     }
-    await onboardingService.advance()
+    await onboardingService.advance();
   }
 
   async function handleAiSkip() {
     try {
-      await onboardingService.skipAiSetup()
+      await onboardingService.skipAiSetup();
     } catch (err) {
       diagnosticsService.report({
-        source: 'frontend', kind: 'manual', severity: 'warning', retryable: false,
-        context: { message: 'Could not skip AI setup.' }, developerDetail: String(err),
-      })
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'warning',
+        retryable: false,
+        context: { message: 'Could not skip AI setup.' },
+        developerDetail: String(err),
+      });
     }
   }
 
@@ -30,17 +34,17 @@
       skipLabel: 'Skip for now',
       onSkip: handleAiSkip,
       onPrimary: handleAiSetupDone,
-    })
-  })
+    });
+  });
 </script>
 
 <div class="ai-step">
   <p class="ai-step__kicker">Built-in AI</p>
   <h1 class="ai-step__title">Ask AI, right from <span class="onb-hl">the search bar</span></h1>
   <p class="ai-step__lede">
-    Press <kbd>Tab</kbd> in the launcher and ask anything — answers stream right in.
-    Your agents can use built-in tools (calculator, files, web search) and connect to
-    external <strong>MCP</strong> servers for even more. Connect a provider below to switch it on.
+    Press <kbd>Tab</kbd> in the launcher and ask anything — answers stream right in. Your agents can
+    use built-in tools (calculator, files, web search) and connect to external <strong>MCP</strong> servers
+    for even more. Connect a provider below to switch it on.
   </p>
   <AiTab mode="providers-only" />
 </div>

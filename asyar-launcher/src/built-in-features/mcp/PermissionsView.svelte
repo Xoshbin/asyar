@@ -16,11 +16,7 @@
     }
   }
 
-  async function handleRevoke(
-    serverId: string,
-    toolId: string,
-    agentId: string,
-  ): Promise<void> {
+  async function handleRevoke(serverId: string, toolId: string, agentId: string): Promise<void> {
     await mcpService.deletePermission(serverId, toolId, agentId);
   }
 
@@ -61,7 +57,10 @@
             <td class="cell-mono">{row.toolId}</td>
             <td class="cell-secondary">{row.agentId || '—'}</td>
             <td>
-              <Badge text={row.decision.replace('_', ' ')} variant={decisionVariant(row.decision)} />
+              <Badge
+                text={row.decision.replace('_', ' ')}
+                variant={decisionVariant(row.decision)}
+              />
             </td>
             <td>
               <Button onclick={() => handleRevoke(row.serverId, row.toolId, row.agentId)}>

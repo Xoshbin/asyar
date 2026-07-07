@@ -38,15 +38,17 @@ export function buildTerminalCommand(plat: string, dir: string, command: string)
     case 'linux': {
       const inner = `cd ${shq(dir)} && ${command}; exec bash`;
       const q = shq(inner);
-      const script =
-        `gnome-terminal -- bash -c ${q} || x-terminal-emulator -e bash -c ${q} || xterm -e bash -c ${q}`;
+      const script = `gnome-terminal -- bash -c ${q} || x-terminal-emulator -e bash -c ${q} || xterm -e bash -c ${q}`;
       return { program: '/bin/sh', args: ['-c', script] };
     }
     case 'windows': {
       // cmd.exe quoting is unreliable for metacharacters; fail closed if the path
       // contains any (not valid in real Windows paths anyway) and fall back.
       if (/[\r\n&|<>^"%]/.test(dir)) return { fallback: true };
-      return { program: 'cmd.exe', args: ['/c', 'start', 'cmd', '/k', `cd /d "${dir}" && ${command}`] };
+      return {
+        program: 'cmd.exe',
+        args: ['/c', 'start', 'cmd', '/k', `cd /d "${dir}" && ${command}`],
+      };
     }
     default:
       return { fallback: true };

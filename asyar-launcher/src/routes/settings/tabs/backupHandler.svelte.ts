@@ -35,7 +35,9 @@ export class BackupHandler {
   importFile = $state('');
   importManifest = $state<ArchiveManifest | null>(null);
   importPreviewData = $state<Map<string, ImportPreview>>(new Map());
-  importCategories = $state<Map<string, { enabled: boolean; strategy: ConflictStrategy }>>(new Map());
+  importCategories = $state<Map<string, { enabled: boolean; strategy: ConflictStrategy }>>(
+    new Map(),
+  );
   importNeedsPassword = $state(false);
   importPassword = $state('');
   importStatus = $state<'idle' | 'importing' | 'success' | 'error'>('idle');
@@ -46,8 +48,8 @@ export class BackupHandler {
 
   get hasSensitiveData(): boolean {
     return this.providers
-      .filter(p => this.enabledCategories.has(p.id))
-      .some(p => p.sensitiveFields.length > 0);
+      .filter((p) => this.enabledCategories.has(p.id))
+      .some((p) => p.sensitiveFields.length > 0);
   }
 
   async init(): Promise<void> {
@@ -62,7 +64,7 @@ export class BackupHandler {
 
     const summaries = new Map<string, DataSummary>();
     await Promise.all(
-      this.providers.map(async p => {
+      this.providers.map(async (p) => {
         try {
           const s = await p.getLocalSummary();
           summaries.set(p.id, s);
@@ -237,7 +239,7 @@ export class BackupHandler {
           continue;
         }
 
-        const archiveCat = this.importManifest.categories.find(c => c.id === catId);
+        const archiveCat = this.importManifest.categories.find((c) => c.id === catId);
         if (!archiveCat) continue;
 
         const rawJson = this._importContents.category_files[archiveCat.file];

@@ -48,8 +48,10 @@ export interface IpcLogPayload {
  */
 export function isInspectorActive(): boolean {
   if (typeof window === 'undefined') return false;
-  return (window as unknown as { __ASYAR_DEV_INSPECTOR_ACTIVE__?: unknown })
-    .__ASYAR_DEV_INSPECTOR_ACTIVE__ === true;
+  return (
+    (window as unknown as { __ASYAR_DEV_INSPECTOR_ACTIVE__?: unknown })
+      .__ASYAR_DEV_INSPECTOR_ACTIVE__ === true
+  );
 }
 
 /**
@@ -63,7 +65,7 @@ export function emitRpcLog(payload: RpcLogPayload): void {
   // constants below. In npm consumers that don't define `import.meta.env`,
   // the optional chain evaluates to undefined → `!undefined` is `true` →
   // the emitter also bails.
-  if (!((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV)) return;
+  if (!(import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV) return;
   if (!isInspectorActive()) return;
   postToParent('asyar:dev:rpc-log', payload);
 }
@@ -74,7 +76,7 @@ export function emitRpcLog(payload: RpcLogPayload): void {
  * is absent.
  */
 export function emitIpcLog(payload: IpcLogPayload): void {
-  if (!((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV)) return;
+  if (!(import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV) return;
   if (!isInspectorActive()) return;
   postToParent('asyar:dev:ipc-log', payload);
 }

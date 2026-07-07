@@ -1,11 +1,7 @@
-import type {
-  Extension,
-  ExtensionResult,
-  ExtensionManifest,
-} from "asyar-sdk/contracts";
-import { logService } from "../log/logService";
-import { extensionIframeManager } from "./extensionIframeManager.svelte";
-import { settingsService } from "../settings/settingsService.svelte";
+import type { Extension, ExtensionResult, ExtensionManifest } from 'asyar-sdk/contracts';
+import { logService } from '../log/logService';
+import { extensionIframeManager } from './extensionIframeManager.svelte';
+import { settingsService } from '../settings/settingsService.svelte';
 
 /**
  * Shape of a loaded extension module. Can be either a direct Extension instance
@@ -16,8 +12,7 @@ type LoadedExtensionModule = Extension | { default: Extension };
 export class ExtensionSearchAggregator {
   private extensionModulesById: Map<string, LoadedExtensionModule> = new Map();
   private manifestsById: Map<string, ExtensionManifest> = new Map();
-  private firstViewComponentById: Map<string, string | null | undefined> =
-    new Map();
+  private firstViewComponentById: Map<string, string | null | undefined> = new Map();
   private isExtensionEnabled: (id: string) => boolean = () => false;
   private navigateToView: (viewPath: string) => void = () => {};
 
@@ -40,7 +35,7 @@ export class ExtensionSearchAggregator {
    * Extension instances and ES modules where the extension is the default export.
    */
   public resolveExtensionInstance(module: LoadedExtensionModule): Extension {
-    if (module && "default" in module && module.default != null) {
+    if (module && 'default' in module && module.default != null) {
       return module.default;
     }
     return module as Extension;
@@ -53,9 +48,7 @@ export class ExtensionSearchAggregator {
     const allResults: ExtensionResult[] = [];
     const searchPromises: Promise<ExtensionResult[]>[] = [];
 
-    logService.debug(
-      `Calling search() on loaded extensions for query: "${query}"`,
-    );
+    logService.debug(`Calling search() on loaded extensions for query: "${query}"`);
 
     const settings = settingsService.getSettings();
     const enableExtensionSearch = settings.search.enableExtensionSearch;
@@ -66,7 +59,7 @@ export class ExtensionSearchAggregator {
       if (
         this.isExtensionEnabled(id) &&
         extensionInstance &&
-        typeof extensionInstance.search === "function"
+        typeof extensionInstance.search === 'function'
       ) {
         searchPromises.push(
           Promise.resolve()
@@ -93,8 +86,7 @@ export class ExtensionSearchAggregator {
         // but they are present in manifestsById.
         // Built-in extensions are in extensionModulesById.
         const isTier2 =
-          !this.extensionModulesById.has(id) ||
-          this.extensionModulesById.get(id) === null;
+          !this.extensionModulesById.has(id) || this.extensionModulesById.get(id) === null;
 
         if (isTier2 && manifest.searchable && this.isExtensionEnabled(id)) {
           searchPromises.push(
@@ -113,19 +105,14 @@ export class ExtensionSearchAggregator {
                     // Prefer the extension-returned viewPath. Otherwise fall
                     // back to the first mode=view command's component (the
                     // new-schema replacement for the old manifest.defaultView).
-                    const firstViewComponent =
-                      this.firstViewComponentById.get(id);
-                    const viewPath =
-                      r.viewPath ||
-                      `${id}/${firstViewComponent ?? "DefaultView"}`;
+                    const firstViewComponent = this.firstViewComponentById.get(id);
+                    const viewPath = r.viewPath || `${id}/${firstViewComponent ?? 'DefaultView'}`;
                     this.navigateToView(viewPath);
                   },
                 }));
               })
               .catch((error) => {
-                logService.error(
-                  `Error searching in Tier 2 extension ${id}: ${error}`,
-                );
+                logService.error(`Error searching in Tier 2 extension ${id}: ${error}`);
                 return [];
               }),
           );
@@ -135,25 +122,23 @@ export class ExtensionSearchAggregator {
 
     const SEARCH_TIMEOUT_MS = 200;
 
-    const timeoutPromise = new Promise<"timeout">((resolve) =>
-      setTimeout(() => resolve("timeout"), SEARCH_TIMEOUT_MS),
+    const timeoutPromise = new Promise<'timeout'>((resolve) =>
+      setTimeout(() => resolve('timeout'), SEARCH_TIMEOUT_MS),
     );
 
     // Use Promise.allSettled so we get partial results
     const settled = await Promise.race([
       Promise.allSettled(searchPromises),
-      timeoutPromise.then(() => "timeout" as const),
+      timeoutPromise.then(() => 'timeout' as const),
     ]);
 
-    if (settled === "timeout") {
+    if (settled === 'timeout') {
       // Timeout hit — collect whatever resolved so far
       const snapshots = await Promise.allSettled(
-        searchPromises.map((p) =>
-          Promise.race([p, Promise.resolve("pending" as const)]),
-        ),
+        searchPromises.map((p) => Promise.race([p, Promise.resolve('pending' as const)])),
       );
       for (const snap of snapshots) {
-        if (snap.status === "fulfilled" && snap.value !== "pending") {
+        if (snap.status === 'fulfilled' && snap.value !== 'pending') {
           allResults.push(...(snap.value as ExtensionResult[]));
         }
       }
@@ -163,13 +148,11 @@ export class ExtensionSearchAggregator {
     } else {
       // All settled within timeout
       for (const result of settled) {
-        if (result.status === "fulfilled") {
+        if (result.status === 'fulfilled') {
           allResults.push(...result.value);
         }
       }
-      logService.debug(
-        `Aggregated ${allResults.length} results from extension search mechanisms.`,
-      );
+      logService.debug(`Aggregated ${allResults.length} results from extension search mechanisms.`);
     }
 
     // Final ordering is owned by Rust's merged_search (tier → frecency →

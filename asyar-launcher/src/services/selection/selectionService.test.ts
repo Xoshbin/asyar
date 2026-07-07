@@ -35,7 +35,7 @@ describe('SelectionService', () => {
       vi.mocked(invoke).mockRejectedValue(error);
 
       await expect(service.getSelectedText()).rejects.toMatchObject({
-        code: 'ACCESSIBILITY_PERMISSION_REQUIRED'
+        code: 'ACCESSIBILITY_PERMISSION_REQUIRED',
       });
     });
   });
@@ -56,7 +56,7 @@ describe('SelectionService', () => {
       vi.mocked(invoke).mockRejectedValue(error);
 
       await expect(service.getSelectedFinderItems()).rejects.toMatchObject({
-        code: 'OPERATION_FAILED'
+        code: 'OPERATION_FAILED',
       });
     });
   });

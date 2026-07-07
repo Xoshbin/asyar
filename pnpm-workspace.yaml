@@ -3,4 +3,3 @@ packages:
   - 'asyar-sdk'
   - 'extensions/*'
   - 'asyar-launcher/src/extensions/*'
-

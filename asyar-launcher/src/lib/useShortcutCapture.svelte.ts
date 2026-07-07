@@ -83,7 +83,7 @@ export function useShortcutCapture(config: CaptureConfig) {
         errorType = 'conflict';
         conflictInfo = conflict.name;
         failedChips = [
-          ...capturedModifier.split('+').map(m => modifierSymbol(m)),
+          ...capturedModifier.split('+').map((m) => modifierSymbol(m)),
           displayKey(capturedKey),
         ];
         startRejectedTimeout();
@@ -102,20 +102,28 @@ export function useShortcutCapture(config: CaptureConfig) {
     if (result === true) {
       saveState = 'success';
       setTimeout(() => {
-        saveState = 'idle'; errorType = ''; errorMessage = ''; failedChips = [];
+        saveState = 'idle';
+        errorType = '';
+        errorMessage = '';
+        failedChips = [];
         config.onDone?.();
       }, 1500);
     } else {
       saveState = 'error';
       errorType = 'generic';
       failedChips = [
-        ...capturedModifier.split('+').map(m => modifierSymbol(m)),
+        ...capturedModifier.split('+').map((m) => modifierSymbol(m)),
         displayKey(capturedKey),
       ];
       errorMessage = result || 'Failed to save shortcut';
       savedModifier = '';
       savedKey = '';
-      setTimeout(() => { saveState = 'idle'; errorType = ''; errorMessage = ''; failedChips = []; }, 3000);
+      setTimeout(() => {
+        saveState = 'idle';
+        errorType = '';
+        errorMessage = '';
+        failedChips = [];
+      }, 3000);
     }
   }
 
@@ -182,7 +190,7 @@ export function useShortcutCapture(config: CaptureConfig) {
         partialModifiers.length >= 1
       ) {
         clearRejectedTimer();
-        const capturedModifier = partialModifiers.map(m => DOM_TO_MODIFIER[m] ?? m).join('+');
+        const capturedModifier = partialModifiers.map((m) => DOM_TO_MODIFIER[m] ?? m).join('+');
         const capturedKey = rejectedKeys[0];
 
         rejectedKeys = [];
@@ -249,7 +257,7 @@ export function useShortcutCapture(config: CaptureConfig) {
 
   function handleKeyUp(event: KeyboardEvent) {
     if (MODIFIER_KEYS.includes(event.key)) {
-      partialModifiers = partialModifiers.filter(m => m !== event.key);
+      partialModifiers = partialModifiers.filter((m) => m !== event.key);
     } else if (rejectedKeys.length > 0) {
       const releasedKey = CODE_TO_KEY[event.code] ?? event.key;
       if (rejectedKeysHeld.has(releasedKey)) {
@@ -257,18 +265,18 @@ export function useShortcutCapture(config: CaptureConfig) {
         newHeld.delete(releasedKey);
         rejectedKeysHeld = newHeld;
 
-        rejectedKeys = rejectedKeys.filter(k => k !== releasedKey);
+        rejectedKeys = rejectedKeys.filter((k) => k !== releasedKey);
         const newInvalid = new Set(invalidKeys);
         newInvalid.delete(releasedKey);
         invalidKeys = newInvalid;
 
         if (invalidKeys.size === 0) {
-          const validHeld = rejectedKeys.filter(k => VALID_KEYS.has(k));
+          const validHeld = rejectedKeys.filter((k) => VALID_KEYS.has(k));
           if (validHeld.length === 1 && partialModifiers.length >= 1) {
             clearRejectedTimer();
             const capturedModifier = [...partialModifiers]
               .sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))
-              .map(m => DOM_TO_MODIFIER[m] ?? m)
+              .map((m) => DOM_TO_MODIFIER[m] ?? m)
               .join('+');
 
             rejectedKeys = [];
@@ -298,22 +306,23 @@ export function useShortcutCapture(config: CaptureConfig) {
   let partialChips = $derived.by(() => {
     return [...partialModifiers]
       .sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))
-      .map(m => modifierSymbol(DOM_TO_MODIFIER[m] ?? m));
+      .map((m) => modifierSymbol(DOM_TO_MODIFIER[m] ?? m));
   });
 
   let rejectedModifierChips = $derived(
-    partialModifiers.map(m => modifierSymbol(DOM_TO_MODIFIER[m] ?? m))
+    partialModifiers.map((m) => modifierSymbol(DOM_TO_MODIFIER[m] ?? m)),
   );
 
-  let hasValidRejectedKeys = $derived(rejectedKeys.some(k => !invalidKeys.has(k)));
+  let hasValidRejectedKeys = $derived(rejectedKeys.some((k) => !invalidKeys.has(k)));
 
   let displayChips = $derived.by(() => {
     const mod = savedModifier || '';
     const k = savedKey || '';
     if (mod && k) {
-      const mods = mod.split('+')
+      const mods = mod
+        .split('+')
         .sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))
-        .map(m => modifierSymbol(m));
+        .map((m) => modifierSymbol(m));
       return [...mods, displayKey(k)];
     }
     return [];
@@ -334,12 +343,24 @@ export function useShortcutCapture(config: CaptureConfig) {
         conflictInfo,
       };
     },
-    get partialChips() { return partialChips; },
-    get rejectedModifierChips() { return rejectedModifierChips; },
-    get hasValidRejectedKeys() { return hasValidRejectedKeys; },
-    get displayChips() { return displayChips; },
-    get savedModifier() { return savedModifier; },
-    get savedKey() { return savedKey; },
+    get partialChips() {
+      return partialChips;
+    },
+    get rejectedModifierChips() {
+      return rejectedModifierChips;
+    },
+    get hasValidRejectedKeys() {
+      return hasValidRejectedKeys;
+    },
+    get displayChips() {
+      return displayChips;
+    },
+    get savedModifier() {
+      return savedModifier;
+    },
+    get savedKey() {
+      return savedKey;
+    },
     displayKey,
     modifierSymbol,
     startRecording,

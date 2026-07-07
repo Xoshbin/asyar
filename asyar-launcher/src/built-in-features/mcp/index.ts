@@ -9,13 +9,7 @@ import InstallServerView from './InstallServerView.svelte';
 import PermissionsView from './PermissionsView.svelte';
 import ActivityView from './ActivityView.svelte';
 
-export {
-  ManageServersView,
-  ImportServersView,
-  InstallServerView,
-  PermissionsView,
-  ActivityView,
-};
+export { ManageServersView, ImportServersView, InstallServerView, PermissionsView, ActivityView };
 
 const ACTION_REFRESH = 'mcp:refresh-servers';
 const ACTION_INSTALL = 'mcp:install-server';
@@ -121,8 +115,7 @@ class McpExtension implements Extension {
         id: ACTION_TOGGLE_STRICT,
         label: 'Toggle Strict Mode',
         icon: '🛡️',
-        description:
-          'Always ask before any MCP tool call (recommended for untrusted servers)',
+        description: 'Always ask before any MCP tool call (recommended for untrusted servers)',
         category: 'MCP',
         extensionId: 'mcp',
         context: ActionContext.EXTENSION_VIEW,

@@ -6,8 +6,16 @@
 
   const options: { value: string; label: string; description?: string }[] = [
     { value: 'off', label: 'Off', description: 'Nothing leaves your device.' },
-    { value: 'ask', label: 'Ask me each time', description: 'Review the exact data before it is sent.' },
-    { value: 'auto', label: 'Share automatically', description: 'Send anonymous daily counts in the background.' },
+    {
+      value: 'ask',
+      label: 'Ask me each time',
+      description: 'Review the exact data before it is sent.',
+    },
+    {
+      value: 'auto',
+      label: 'Share automatically',
+      description: 'Send anonymous daily counts in the background.',
+    },
   ];
 
   let mode = $derived(settingsService.currentSettings.privacy.usageShareMode);

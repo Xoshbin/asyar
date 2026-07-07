@@ -3,7 +3,7 @@
 > Ask AI, build agents, choose providers, and manage threads.
 
 ![Agent chat view streaming a reply](../../images/feature-ai-agents-hero.png)
-*Figure: the agent chat view streaming a reply.*
+_Figure: the agent chat view streaming a reply._
 
 ## What it does
 
@@ -55,7 +55,7 @@ Each agent keeps its conversation history in threads. Inside the chat view:
 A **silent agent** runs in the background with no chat window. You trigger it with a global hotkey, it grabs some input, does its work, and puts the result right back — all without you needing to open the launcher or read a chat thread.
 
 ![A silent AI command fixing selected text in place](../../images/feature-ai-agents-silent-command.png)
-*Figure: select text in any app, press the hotkey, and a silent agent replaces it with the result.*
+_Figure: select text in any app, press the hotkey, and a silent agent replaces it with the result._
 <!-- image-todo: feature-ai-agents-silent-command.png — Grammar Fix replacing selected text in an app after the hotkey is pressed -->
 
 ### The built-in Grammar Fix command
@@ -89,28 +89,28 @@ So the workflow is: select some text → press the hotkey → done. No windows, 
 
 ### Example ideas
 
-| What you want | Input source | Output action |
-|---|---|---|
-| Fix grammar in an email | Selected text | Replace selection |
-| Translate a paragraph | Selected text | Replace selection |
-| Summarise a copied article | Clipboard | Show as HUD |
-| Rewrite in a formal tone | Selected text | Replace selection |
-| Explain a term you typed | Argument | Show as HUD |
+| What you want              | Input source  | Output action     |
+| -------------------------- | ------------- | ----------------- |
+| Fix grammar in an email    | Selected text | Replace selection |
+| Translate a paragraph      | Selected text | Replace selection |
+| Summarise a copied article | Clipboard     | Show as HUD       |
+| Rewrite in a formal tone   | Selected text | Replace selection |
+| Explain a term you typed   | Argument      | Show as HUD       |
 
 ## Shortcuts & actions
 
-| Action | How |
-|---|---|
-| Enter AI mode | `Tab` from the search bar |
-| Send a message | `Enter` (while in AI mode or inside the chat view) |
-| Open Manage Agents | Search "Manage Agents" → `Enter` |
-| New Agent | `⌘K` → **New Agent** (in Manage Agents view) |
-| Edit Agent | `⌘K` → **Edit Agent** |
-| Delete Agent | `⌘K` → **Delete Agent** |
-| New Thread | `⌘K` → **New Thread** (in chat view) |
-| Delete Current Thread | `⌘K` → **Delete Current Thread** |
-| Cancel a running response | `⌘K` → **Cancel Run** |
-| Navigate threads | `↑` / `↓` |
+| Action                    | How                                                |
+| ------------------------- | -------------------------------------------------- |
+| Enter AI mode             | `Tab` from the search bar                          |
+| Send a message            | `Enter` (while in AI mode or inside the chat view) |
+| Open Manage Agents        | Search "Manage Agents" → `Enter`                   |
+| New Agent                 | `⌘K` → **New Agent** (in Manage Agents view)       |
+| Edit Agent                | `⌘K` → **Edit Agent**                              |
+| Delete Agent              | `⌘K` → **Delete Agent**                            |
+| New Thread                | `⌘K` → **New Thread** (in chat view)               |
+| Delete Current Thread     | `⌘K` → **Delete Current Thread**                   |
+| Cancel a running response | `⌘K` → **Cancel Run**                              |
+| Navigate threads          | `↑` / `↓`                                          |
 
 ## Tips
 

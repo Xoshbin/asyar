@@ -56,7 +56,10 @@ const fakeTools = [
     id: 'calc',
     name: 'calc',
     description: 'A calculator',
-    parameters: { type: 'object', properties: { x: { type: 'number' } } } as Record<string, unknown>,
+    parameters: { type: 'object', properties: { x: { type: 'number' } } } as Record<
+      string,
+      unknown
+    >,
   },
 ];
 
@@ -97,7 +100,12 @@ describe('openrouterPlugin.parseToolStream', () => {
       events.push(event);
     }
 
-    expect(events).toContainEqual({ type: 'tool_use', id: 'call_1', name: 'calc', input: { x: 1 } });
+    expect(events).toContainEqual({
+      type: 'tool_use',
+      id: 'call_1',
+      name: 'calc',
+      input: { x: 1 },
+    });
     expect(events[events.length - 1]).toEqual({ type: 'message_stop' });
   });
 });

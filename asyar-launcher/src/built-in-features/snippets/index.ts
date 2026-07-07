@@ -64,14 +64,16 @@ class SnippetsExtension implements Extension {
     const result = await snippetService.onViewOpen();
     this.extensionManager?.setActiveViewActionLabel('Paste');
     actionService.registerAction({
-        id: 'snippets:add',
-        label: 'Add Snippet',
-        icon: 'icon:plus',
-        description: 'Create a new text expansion snippet',
-        category: 'Snippets',
-        extensionId: 'snippets',
-        context: ActionContext.EXTENSION_VIEW,
-        execute: async () => { snippetViewState.startCreate(); },
+      id: 'snippets:add',
+      label: 'Add Snippet',
+      icon: 'icon:plus',
+      description: 'Create a new text expansion snippet',
+      category: 'Snippets',
+      extensionId: 'snippets',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        snippetViewState.startCreate();
+      },
     });
     actionService.registerAction({
       id: 'snippets:paste',
@@ -144,10 +146,19 @@ class SnippetsExtension implements Extension {
         if (!s) return;
         const newId = crypto.randomUUID();
         let newKeyword = s.keyword + '-copy';
-        const existing = snippetStore.getAll().map(x => x.keyword);
+        const existing = snippetStore.getAll().map((x) => x.keyword);
         let i = 2;
-        while (existing.includes(newKeyword)) { newKeyword = s.keyword + `-copy${i}`; i++; }
-        const dup = { id: newId, name: s.name + ' Copy', keyword: newKeyword, expansion: s.expansion, createdAt: Date.now() };
+        while (existing.includes(newKeyword)) {
+          newKeyword = s.keyword + `-copy${i}`;
+          i++;
+        }
+        const dup = {
+          id: newId,
+          name: s.name + ' Copy',
+          keyword: newKeyword,
+          expansion: s.expansion,
+          createdAt: Date.now(),
+        };
         snippetStore.add(dup);
         await snippetService.syncToRust();
       },

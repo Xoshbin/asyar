@@ -1,19 +1,19 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { platform } from '@tauri-apps/plugin-os'
-  import { onboardingService } from '../../services/onboarding/onboardingService.svelte'
-  import { settingsService } from '../../services/settings/settingsService.svelte'
-  import { applyTheme } from '../../services/theme/themeService'
-  import { logService } from '../../services/log/logService'
-  import { initProviders } from '../../services/ai/initProviders'
-  import '../../resources/styles/style.css'
+  import { onMount } from 'svelte';
+  import { platform } from '@tauri-apps/plugin-os';
+  import { onboardingService } from '../../services/onboarding/onboardingService.svelte';
+  import { settingsService } from '../../services/settings/settingsService.svelte';
+  import { applyTheme } from '../../services/theme/themeService';
+  import { logService } from '../../services/log/logService';
+  import { initProviders } from '../../services/ai/initProviders';
+  import '../../resources/styles/style.css';
 
   // The onboarding window is a separate Tauri webview and does not run the
   // launcher's appInitializer, so AI provider plugins must be registered
   // locally before any AI step calls listProviders().
-  initProviders()
+  initProviders();
 
-  let { children } = $props()
+  let { children } = $props();
 
   onMount(async () => {
     // The launcher webview sets data-platform in its own +layout. The
@@ -21,10 +21,10 @@
     // (transparent .onboarding-frame on Windows so Acrylic shows through)
     // needs the attribute set here too.
     try {
-      const p = await platform()
-      document.documentElement.dataset.platform = p
+      const p = await platform();
+      document.documentElement.dataset.platform = p;
     } catch (err) {
-      logService.warn(`[onboarding] platform detection failed: ${err}`)
+      logService.warn(`[onboarding] platform detection failed: ${err}`);
     }
 
     // The launcher webview owns its own settingsService instance; the
@@ -32,36 +32,31 @@
     // copy before any step reads currentSettings (otherwise reads return
     // DEFAULT_SETTINGS regardless of what's on disk).
     try {
-      await settingsService.init()
+      await settingsService.init();
     } catch (err) {
-      logService.warn(`[onboarding] settingsService.init failed: ${err}`)
+      logService.warn(`[onboarding] settingsService.init failed: ${err}`);
     }
 
     // If a theme is already active per persisted settings, apply it to this
     // window so the onboarding visually matches the launcher.
-    const activeTheme = settingsService.currentSettings.appearance.activeTheme
+    const activeTheme = settingsService.currentSettings.appearance.activeTheme;
     if (activeTheme) {
       applyTheme(activeTheme).catch((err) => {
-        logService.warn(`[onboarding] applyTheme failed for ${activeTheme}: ${err}`)
-      })
+        logService.warn(`[onboarding] applyTheme failed for ${activeTheme}: ${err}`);
+      });
     }
 
-    void onboardingService.load()
-  })
+    void onboardingService.load();
+  });
 
   function handleClose() {
-    void onboardingService.dismiss()
+    void onboardingService.dismiss();
   }
 </script>
 
 <div class="onboarding-frame">
   <header class="onboarding-frame__header">
-    <button
-      type="button"
-      class="onboarding-frame__close"
-      aria-label="Close"
-      onclick={handleClose}
-    >
+    <button type="button" class="onboarding-frame__close" aria-label="Close" onclick={handleClose}>
       ✕
     </button>
   </header>
@@ -102,8 +97,8 @@
      so the theme reads cleanly over Acrylic regardless of the desktop
      wallpaper behind, and CSS rounding is dropped so it can't disagree with
      the DWM corner radius and leave a halo at the edge. */
-  :global(html[data-platform="windows"]) .onboarding-frame,
-  :global(html[data-platform="win32"]) .onboarding-frame {
+  :global(html[data-platform='windows']) .onboarding-frame,
+  :global(html[data-platform='win32']) .onboarding-frame {
     background: var(--win-acrylic-tint);
     border-radius: 0;
   }
@@ -131,7 +126,10 @@
     justify-content: center;
     transition: var(--transition-normal);
   }
-  .onboarding-frame__close:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .onboarding-frame__close:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
   .onboarding-frame__main {
     flex: 1;
     min-height: 0;

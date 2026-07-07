@@ -4,10 +4,10 @@ import { messageBroker } from '../ipc/MessageBroker';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
-      invoke: vi.fn(),
-      on: vi.fn(),
-      off: vi.fn(),
-    },
+    invoke: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
 }));
 
 function makeProxy() {
@@ -68,8 +68,18 @@ describe('ShellServiceProxy', () => {
 
       await vi.waitFor(() => capturedId !== undefined);
 
-      fireStreamMessage({ type: 'asyar:stream', streamId: capturedId!, phase: 'chunk', data: { stream: 'stdout', data: 'hi' } });
-      fireStreamMessage({ type: 'asyar:stream', streamId: capturedId!, phase: 'chunk', data: { stream: 'stderr', data: 'warn' } });
+      fireStreamMessage({
+        type: 'asyar:stream',
+        streamId: capturedId!,
+        phase: 'chunk',
+        data: { stream: 'stdout', data: 'hi' },
+      });
+      fireStreamMessage({
+        type: 'asyar:stream',
+        streamId: capturedId!,
+        phase: 'chunk',
+        data: { stream: 'stderr', data: 'warn' },
+      });
 
       expect(onChunk).toHaveBeenCalledTimes(2);
       expect(onChunk).toHaveBeenNthCalledWith(1, { stream: 'stdout', data: 'hi' });
@@ -90,7 +100,12 @@ describe('ShellServiceProxy', () => {
 
       await vi.waitFor(() => capturedId !== undefined);
 
-      fireStreamMessage({ type: 'asyar:stream', streamId: capturedId!, phase: 'done', data: { exitCode: 0 } });
+      fireStreamMessage({
+        type: 'asyar:stream',
+        streamId: capturedId!,
+        phase: 'done',
+        data: { exitCode: 0 },
+      });
 
       expect(onDone).toHaveBeenCalledWith(0);
     });
@@ -133,7 +148,12 @@ describe('ShellServiceProxy', () => {
 
       await vi.waitFor(() => capturedId !== undefined);
 
-      fireStreamMessage({ type: 'asyar:stream', streamId: 'wrong-id', phase: 'chunk', data: { stream: 'stdout', data: 'nope' } });
+      fireStreamMessage({
+        type: 'asyar:stream',
+        streamId: 'wrong-id',
+        phase: 'chunk',
+        data: { stream: 'stdout', data: 'nope' },
+      });
 
       expect(onChunk).not.toHaveBeenCalled();
     });
@@ -154,9 +174,7 @@ describe('ShellServiceProxy', () => {
 
       await vi.waitFor(() => onError.mock.calls.length > 0);
 
-      expect(onError).toHaveBeenCalledWith(
-        expect.objectContaining({ code: 'SPAWN_FAILED' }),
-      );
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'SPAWN_FAILED' }));
       expect(onDone).not.toHaveBeenCalled();
     });
   });
@@ -180,7 +198,10 @@ describe('ShellServiceProxy', () => {
       await vi.waitFor(() => capturedId !== undefined);
       handle.abort();
 
-      expect(onError).toHaveBeenCalledWith({ code: 'ABORTED', message: 'Process was aborted by the extension' });
+      expect(onError).toHaveBeenCalledWith({
+        code: 'ABORTED',
+        message: 'Process was aborted by the extension',
+      });
       expect(spy).toHaveBeenCalledWith({ type: 'asyar:stream:abort', streamId: capturedId! }, '*');
     });
 
@@ -197,7 +218,12 @@ describe('ShellServiceProxy', () => {
       handle.onError(onError);
 
       await vi.waitFor(() => capturedId !== undefined);
-      fireStreamMessage({ type: 'asyar:stream', streamId: capturedId!, phase: 'done', data: { exitCode: 0 } });
+      fireStreamMessage({
+        type: 'asyar:stream',
+        streamId: capturedId!,
+        phase: 'done',
+        data: { exitCode: 0 },
+      });
 
       handle.abort(); // should be no-op since already settled
 
@@ -304,9 +330,7 @@ describe('ShellServiceProxy', () => {
 
       await vi.waitFor(() => onError.mock.calls.length > 0);
 
-      expect(onError).toHaveBeenCalledWith(
-        expect.objectContaining({ code: 'ATTACH_FAILED' }),
-      );
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ code: 'ATTACH_FAILED' }));
     });
 
     it('ignores stream messages for other spawnIds', async () => {
@@ -337,10 +361,7 @@ describe('ShellServiceProxy', () => {
       handle.onError(onError);
       handle.abort();
 
-      expect(spy).toHaveBeenCalledWith(
-        { type: 'asyar:stream:abort', streamId: 'abort-me' },
-        '*',
-      );
+      expect(spy).toHaveBeenCalledWith({ type: 'asyar:stream:abort', streamId: 'abort-me' }, '*');
       expect(onError).toHaveBeenCalledWith({
         code: 'ABORTED',
         message: 'Process was aborted by the extension',

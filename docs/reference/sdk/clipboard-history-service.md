@@ -38,18 +38,18 @@ interface IClipboardHistoryService {
 
 // Clipboard item types
 enum ClipboardItemType {
-  Text  = 'text',
-  Html  = 'html',
-  Rtf   = 'rtf',
+  Text = 'text',
+  Html = 'html',
+  Rtf = 'rtf',
   Image = 'image',
   Files = 'files',
 }
 
 // Optional metadata captured with the item (shape depends on type)
 interface ClipboardItemMetadata {
-  width?: number;       // Image items
-  height?: number;      // Image items
-  fileCount?: number;   // Files items
+  width?: number; // Image items
+  height?: number; // Image items
+  fileCount?: number; // Files items
   fileNames?: string[]; // Files items
   sizeBytes?: number;
   mimeType?: string;
@@ -79,6 +79,7 @@ interface ClipboardHistoryItem {
 ```
 
 **Usage:**
+
 ```typescript
 const clip = context.getService<IClipboardHistoryService>('clipboard');
 

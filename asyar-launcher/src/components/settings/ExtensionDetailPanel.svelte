@@ -43,15 +43,18 @@
     const id = command?.parent.id ?? extension?.id;
     if (id) {
       isLoadingPrefs = true;
-      extensionPreferencesService.getEffectivePreferences(id).then(bundle => {
-        if (command) {
-          preferenceValues = bundle.commands[command.cmd.id] ?? {};
-        } else {
-          preferenceValues = bundle.extension ?? {};
-        }
-      }).finally(() => {
-        isLoadingPrefs = false;
-      });
+      extensionPreferencesService
+        .getEffectivePreferences(id)
+        .then((bundle) => {
+          if (command) {
+            preferenceValues = bundle.commands[command.cmd.id] ?? {};
+          } else {
+            preferenceValues = bundle.extension ?? {};
+          }
+        })
+        .finally(() => {
+          isLoadingPrefs = false;
+        });
     } else {
       preferenceValues = {};
     }
@@ -67,16 +70,13 @@
     preferenceValues = { ...preferenceValues, [name]: value };
 
     try {
-      await extensionPreferencesService.set(
-        id,
-        command?.cmd.id ?? null,
-        name,
-        value
-      );
+      await extensionPreferencesService.set(id, command?.cmd.id ?? null, name, value);
     } catch (err) {
       logService.error(`Failed to save preference ${name} for ${id}: ${err}`);
       diagnosticsService.report({
-        source: 'frontend', kind: 'manual', severity: 'error',
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
         retryable: false,
         context: { message: `Could not save preference "${name}"` },
       });
@@ -130,7 +130,6 @@
       </div>
     {/if}
   </div>
-
 {:else if extension}
   <div class="panel-header">
     <div class="panel-icon">
@@ -206,9 +205,7 @@
         />
       </div>
     {/if}
-
   </div>
-
 {:else}
   <div class="empty-panel">
     <p class="empty-panel-text">Select an extension or command</p>

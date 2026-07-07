@@ -4,18 +4,25 @@
  * the viewport edge. */
 export function scrollSelectedIntoView(listContainer: HTMLElement, selectedIndex: number): void {
   if (selectedIndex < 0) return;
-  const selectedElement = listContainer.querySelector<HTMLElement>(`[data-index="${selectedIndex}"]`);
+  const selectedElement = listContainer.querySelector<HTMLElement>(
+    `[data-index="${selectedIndex}"]`,
+  );
   if (!selectedElement) return;
 
   const isFirst = selectedIndex === 0;
   const lastIndex = Math.max(
-    ...Array.from(listContainer.querySelectorAll<HTMLElement>('[data-index]'))
-      .map((el) => Number(el.getAttribute('data-index')) || 0),
+    ...Array.from(listContainer.querySelectorAll<HTMLElement>('[data-index]')).map(
+      (el) => Number(el.getAttribute('data-index')) || 0,
+    ),
   );
   const isLast = selectedIndex === lastIndex;
 
   let scroller: HTMLElement | null = selectedElement;
-  while (scroller && getComputedStyle(scroller).overflowY !== 'auto' && getComputedStyle(scroller).overflowY !== 'scroll') {
+  while (
+    scroller &&
+    getComputedStyle(scroller).overflowY !== 'auto' &&
+    getComputedStyle(scroller).overflowY !== 'scroll'
+  ) {
     scroller = scroller.parentElement;
   }
   if (!scroller) {

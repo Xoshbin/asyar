@@ -1,11 +1,11 @@
-import { Store, load } from "@tauri-apps/plugin-store";
-import { logService } from "../log/logService";
-import { appDataDir, join } from "@tauri-apps/api/path";
-import { getVersion } from "@tauri-apps/api/app";
-import * as commands from "../../lib/ipc/commands";
-import type { ISettingsService } from "./interfaces/ISettingsService";
-import type { AppSettings, AISettings } from "./types/AppSettingsType";
-import { createPersistence } from "../../lib/persistence/extensionStore";
+import { Store, load } from '@tauri-apps/plugin-store';
+import { logService } from '../log/logService';
+import { appDataDir, join } from '@tauri-apps/api/path';
+import { getVersion } from '@tauri-apps/api/app';
+import * as commands from '../../lib/ipc/commands';
+import type { ISettingsService } from './interfaces/ISettingsService';
+import type { AppSettings, AISettings } from './types/AppSettingsType';
+import { createPersistence } from '../../lib/persistence/extensionStore';
 
 // Default settings.
 //
@@ -19,7 +19,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   general: {
     startAtLogin: false,
     showDockIcon: true,
-    escapeInViewBehavior: "go-back",
+    escapeInViewBehavior: 'go-back',
   },
   search: {
     searchApplications: true,
@@ -31,12 +31,12 @@ const DEFAULT_SETTINGS: AppSettings = {
     applicationEnabled: {},
   },
   shortcut: {
-    modifier: "Alt",
-    key: "Space",
+    modifier: 'Alt',
+    key: 'Space',
   },
   appearance: {
-    theme: "system",
-    launchView: "default",
+    theme: 'system',
+    launchView: 'default',
     windowWidth: 800,
     windowHeight: 600,
   },
@@ -48,7 +48,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     completed: false,
   },
   updates: {
-    channel: "stable" as const,
+    channel: 'stable' as const,
     autoCheck: true,
   },
   ai: {
@@ -87,7 +87,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 // Settings service implementation
 class SettingsService implements ISettingsService {
   private store: Store | null = null;
-  private storeFilePath = "settings.dat";
+  private storeFilePath = 'settings.dat';
 
   // Svelte 5 reactive state
   public currentSettings = $state<AppSettings>(DEFAULT_SETTINGS);
@@ -112,17 +112,17 @@ class SettingsService implements ISettingsService {
       // canonical `<appDir>/settings.dat` — two sides, two files.
       try {
         const appDirPath = await appDataDir();
-        this.storeFilePath = await join(appDirPath, "settings.dat");
+        this.storeFilePath = await join(appDirPath, 'settings.dat');
         this.store = await load(this.storeFilePath);
       } catch (storeError) {
         logService.error(`Failed to create store: ${storeError}`);
         // Try fallback with simple path
-        this.store = await load("settings.dat");
-        logService.info("Using fallback store path");
+        this.store = await load('settings.dat');
+        logService.info('Using fallback store path');
       }
 
       // Load settings from persistent storage
-      const storedRaw = await this.store.get<AppSettings>("settings");
+      const storedRaw = await this.store.get<AppSettings>('settings');
       await this.load();
 
       // Propagate settings changes made in other windows (e.g. the settings window)
@@ -142,7 +142,7 @@ class SettingsService implements ISettingsService {
         try {
           const version = await getVersion();
           if (/-/.test(version)) {
-            this.currentSettings.updates = { ...DEFAULT_SETTINGS.updates, channel: "beta" };
+            this.currentSettings.updates = { ...DEFAULT_SETTINGS.updates, channel: 'beta' };
             await this.save();
           }
         } catch {
@@ -178,10 +178,10 @@ class SettingsService implements ISettingsService {
   async load() {
     try {
       if (!this.store) {
-        throw new Error("Store is not initialized");
+        throw new Error('Store is not initialized');
       }
 
-      const storedSettings = await this.store.get<AppSettings>("settings");
+      const storedSettings = await this.store.get<AppSettings>('settings');
       if (storedSettings) {
         // ── Migration: wipe old flat AI settings ──────────────────────────────
         // If the stored ai section has the old string 'provider' key, it's the
@@ -192,7 +192,10 @@ class SettingsService implements ISettingsService {
           (storedSettings as any).ai = DEFAULT_SETTINGS.ai;
           // Clear conversation history dat file
           try {
-            const historyPersistence = createPersistence<unknown[]>('asyar:ai-history', 'ai-history.dat');
+            const historyPersistence = createPersistence<unknown[]>(
+              'asyar:ai-history',
+              'ai-history.dat',
+            );
             await historyPersistence.save([]);
           } catch (histErr) {
             logService.warn(`Failed to clear AI history during migration: ${histErr}`);
@@ -216,10 +219,10 @@ class SettingsService implements ISettingsService {
     this.isSaving = true;
     try {
       if (!this.store) {
-        throw new Error("Store is not initialized");
+        throw new Error('Store is not initialized');
       }
 
-      await this.store.set("settings", $state.snapshot(this.currentSettings));
+      await this.store.set('settings', $state.snapshot(this.currentSettings));
       await this.store.save();
       return true;
     } catch (error) {
@@ -242,7 +245,7 @@ class SettingsService implements ISettingsService {
    */
   async updateSettings<K extends keyof AppSettings>(
     section: K,
-    values: Partial<AppSettings[K]>
+    values: Partial<AppSettings[K]>,
   ): Promise<boolean> {
     try {
       // Update reactive state
@@ -252,7 +255,7 @@ class SettingsService implements ISettingsService {
       } as AppSettings[K];
 
       // Special handling for certain settings
-      if (section === "general" && "startAtLogin" in values) {
+      if (section === 'general' && 'startAtLogin' in values) {
         try {
           await this.syncAutostart();
         } catch (error) {
@@ -263,9 +266,7 @@ class SettingsService implements ISettingsService {
       // Save updated settings
       return await this.save();
     } catch (error) {
-      logService.error(
-        `Failed to update ${String(section)} settings: ${error}`
-      );
+      logService.error(`Failed to update ${String(section)} settings: ${error}`);
       return false;
     }
   }
@@ -323,7 +324,7 @@ class SettingsService implements ISettingsService {
 
   private mergeWithDefaults(stored: unknown): AppSettings {
     try {
-      if (!stored || typeof stored !== "object") {
+      if (!stored || typeof stored !== 'object') {
         return { ...DEFAULT_SETTINGS };
       }
 
@@ -334,8 +335,10 @@ class SettingsService implements ISettingsService {
         search: {
           ...DEFAULT_SETTINGS.search,
           ...typedStored?.search,
-          additionalScanPaths: typedStored?.search?.additionalScanPaths ?? DEFAULT_SETTINGS.search.additionalScanPaths,
-          applicationEnabled: typedStored?.search?.applicationEnabled ?? DEFAULT_SETTINGS.search.applicationEnabled,
+          additionalScanPaths:
+            typedStored?.search?.additionalScanPaths ?? DEFAULT_SETTINGS.search.additionalScanPaths,
+          applicationEnabled:
+            typedStored?.search?.applicationEnabled ?? DEFAULT_SETTINGS.search.applicationEnabled,
         },
         shortcut: { ...DEFAULT_SETTINGS.shortcut, ...typedStored?.shortcut },
         appearance: {
@@ -383,10 +386,7 @@ class SettingsService implements ISettingsService {
   /**
    * Update extension enabled state
    */
-  async updateExtensionState(
-    extensionName: string,
-    enabled: boolean
-  ): Promise<boolean> {
+  async updateExtensionState(extensionName: string, enabled: boolean): Promise<boolean> {
     try {
       if (!this.currentSettings.extensions) {
         this.currentSettings.extensions = { enabled: {} };
@@ -453,7 +453,7 @@ export const settings = {
       });
       return unsub;
     };
-  }
+  },
 };
 
 export default settingsService;

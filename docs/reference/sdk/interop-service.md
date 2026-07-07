@@ -22,8 +22,8 @@ export interface IInteropService {
   launchCommand(
     extensionId: string,
     commandId: string,
-    args?: Record<string, unknown>
-  ): Promise<void>
+    args?: Record<string, unknown>,
+  ): Promise<void>;
 }
 ```
 
@@ -48,9 +48,7 @@ Both values come from the target extension's `manifest.json`:
 ```json
 {
   "id": "com.example.calc",
-  "commands": [
-    { "id": "run", "name": "Calculate", "description": "…" }
-  ]
+  "commands": [{ "id": "run", "name": "Calculate", "description": "…" }]
 }
 ```
 
@@ -101,11 +99,11 @@ try {
 }
 ```
 
-| Error message pattern | Cause |
-|---|---|
-| `Extension "..." is not installed` | No extension with that `extensionId` is installed |
+| Error message pattern                        | Cause                                                           |
+| -------------------------------------------- | --------------------------------------------------------------- |
+| `Extension "..." is not installed`           | No extension with that `extensionId` is installed               |
 | `Command "..." not found in extension "..."` | Extension is installed but has no command with that `commandId` |
-| `Permission denied: "extension:invoke"...` | `extension:invoke` missing from caller's manifest |
+| `Permission denied: "extension:invoke"...`   | `extension:invoke` missing from caller's manifest               |
 
 #### Availability
 

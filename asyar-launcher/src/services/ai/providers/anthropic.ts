@@ -1,5 +1,14 @@
 import { fetch } from '@tauri-apps/plugin-http';
-import type { IProviderPlugin, ModelInfo, ProviderConfig, RequestSpec, ChatParams, ChatMessage, LoopMessage, ToolStreamEvent } from '../IProviderPlugin';
+import type {
+  IProviderPlugin,
+  ModelInfo,
+  ProviderConfig,
+  RequestSpec,
+  ChatParams,
+  ChatMessage,
+  LoopMessage,
+  ToolStreamEvent,
+} from '../IProviderPlugin';
 
 export const anthropicPlugin: IProviderPlugin = {
   id: 'anthropic',
@@ -17,7 +26,7 @@ export const anthropicPlugin: IProviderPlugin = {
       },
     });
     if (!res.ok) return [];
-    const json = await res.json() as { data?: Array<{ id: string; display_name?: string }> };
+    const json = (await res.json()) as { data?: Array<{ id: string; display_name?: string }> };
     return (json.data ?? []).map((m) => ({ id: m.id, label: m.display_name ?? m.id }));
   },
 
@@ -64,7 +73,9 @@ export const anthropicPlugin: IProviderPlugin = {
             const token = json.delta?.text;
             if (token) yield token;
           }
-        } catch { /* skip malformed */ }
+        } catch {
+          /* skip malformed */
+        }
       }
     }
   },
@@ -73,7 +84,12 @@ export const anthropicPlugin: IProviderPlugin = {
     messages: LoopMessage[],
     config: ProviderConfig,
     params: ChatParams,
-    tools: Array<{ id: string; name: string; description: string; parameters: Record<string, unknown> }>,
+    tools: Array<{
+      id: string;
+      name: string;
+      description: string;
+      parameters: Record<string, unknown>;
+    }>,
   ): RequestSpec {
     // Extract system message from loop messages (if any)
     const systemMsg = messages.find((m) => m.role === 'system');
@@ -139,7 +155,9 @@ export const anthropicPlugin: IProviderPlugin = {
     };
   },
 
-  async *parseToolStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<ToolStreamEvent> {
+  async *parseToolStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+  ): AsyncGenerator<ToolStreamEvent> {
     const decoder = new TextDecoder();
     let buffer = '';
 
@@ -177,7 +195,10 @@ export const anthropicPlugin: IProviderPlugin = {
             const delta = json.delta as Record<string, unknown> | undefined;
             if (delta?.type === 'text_delta' && typeof delta.text === 'string') {
               yield { type: 'text', text: delta.text };
-            } else if (delta?.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
+            } else if (
+              delta?.type === 'input_json_delta' &&
+              typeof delta.partial_json === 'string'
+            ) {
               currentToolJsonAccum += delta.partial_json;
             }
           } else if (json.type === 'content_block_stop') {
@@ -185,14 +206,18 @@ export const anthropicPlugin: IProviderPlugin = {
               let input: unknown = {};
               try {
                 input = JSON.parse(currentToolJsonAccum || '{}');
-              } catch { /* use empty object on parse failure */ }
+              } catch {
+                /* use empty object on parse failure */
+              }
               yield { type: 'tool_use', id: currentToolId, name: currentToolName, input };
             }
             currentBlockType = null;
           } else if (json.type === 'message_stop') {
             yield { type: 'message_stop' };
           }
-        } catch { /* skip malformed SSE lines */ }
+        } catch {
+          /* skip malformed SSE lines */
+        }
       }
     }
   },

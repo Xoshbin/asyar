@@ -20,7 +20,9 @@
       aria-checked={value === option.value}
       class="segment"
       class:active={value === option.value}
-      onclick={() => { value = option.value; }}
+      onclick={() => {
+        value = option.value;
+      }}
       {onfocus}
       {onblur}
     >

@@ -71,6 +71,9 @@ describe('classifyItems', () => {
   it('trims the query before sending', async () => {
     vi.mocked(invoke).mockResolvedValueOnce([]);
     await classifyItems('  saf  ', items, { id: (i) => i.id, title: (i) => i.name });
-    expect(invoke).toHaveBeenCalledWith('classify_items', expect.objectContaining({ query: 'saf' }));
+    expect(invoke).toHaveBeenCalledWith(
+      'classify_items',
+      expect.objectContaining({ query: 'saf' }),
+    );
   });
 });

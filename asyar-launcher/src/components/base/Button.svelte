@@ -2,7 +2,7 @@
   import type { Snippet } from 'svelte';
 
   let {
-    type = "button",
+    type = 'button',
     disabled = false,
     fullWidth = false,
     class: className = '',
@@ -10,7 +10,7 @@
     children,
     ...rest
   }: {
-    type?: "button" | "submit";
+    type?: 'button' | 'submit';
     disabled?: boolean;
     fullWidth?: boolean;
     class?: string;
@@ -20,14 +20,7 @@
   } = $props();
 </script>
 
-<button
-  {type}
-  {disabled}
-  {onclick}
-  class="btn {className}"
-  class:btn-full={fullWidth}
-  {...rest}
->
+<button {type} {disabled} {onclick} class="btn {className}" class:btn-full={fullWidth} {...rest}>
   <span class="result-title">
     {@render children?.()}
   </span>

@@ -1,0 +1,23 @@
+node_modules/
+dist/
+build/
+.svelte-kit/
+target/
+extensions/
+browser-companions/
+pnpm-lock.yaml
+*.log
+
+# Rust is formatted by rustfmt, not Prettier
+*.rs
+
+# Generated files — reformatting them just fights the generator's own output
+# style on the next regen, and some are byte-matched by Rust contract tests
+# (e.g. diagnostics.rs's kinds_contract asserts exact `"kind"` quoting).
+asyar-launcher/src/bindings.ts
+asyar-launcher/src/services/search/types/Application.ts
+asyar-launcher/src/services/search/types/Command.ts
+asyar-launcher/src/services/search/types/SearchableItem.ts
+asyar-launcher/src/services/diagnostics/kinds.ts
+asyar-launcher/src-tauri/resources/ext-builder/sidecar.js
+asyar-launcher/src-tauri/gen/

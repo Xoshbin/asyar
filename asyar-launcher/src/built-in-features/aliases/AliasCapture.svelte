@@ -17,14 +17,7 @@
     oncancel: () => void;
   };
 
-  let {
-    objectId,
-    itemName,
-    itemType,
-    currentAlias,
-    onsave,
-    oncancel,
-  }: Props = $props();
+  let { objectId, itemName, itemType, currentAlias, onsave, oncancel }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let value = $state(currentAlias ?? '');
@@ -171,9 +164,7 @@
 <ConfirmDialog
   bind:isOpen={confirmOpen}
   title="Reassign alias"
-  message={conflictName
-    ? `'${conflictName}' already uses '${pendingAlias}'. Reassign?`
-    : ''}
+  message={conflictName ? `'${conflictName}' already uses '${pendingAlias}'. Reassign?` : ''}
   confirmButtonText="Reassign"
   cancelButtonText="Cancel"
   onconfirm={handleConfirmReassign}
@@ -186,7 +177,7 @@
     backdrop-filter: blur(8px);
   }
 
-  :global(html[data-platform="linux"]) .dialog-backdrop {
+  :global(html[data-platform='linux']) .dialog-backdrop {
     backdrop-filter: none;
     background: rgba(0, 0, 0, 0.6);
   }

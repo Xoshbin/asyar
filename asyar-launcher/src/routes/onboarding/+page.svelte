@@ -1,26 +1,26 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { onboardingService } from '../../services/onboarding/onboardingService.svelte'
-  import StepProgress from '../../components/onboarding/StepProgress.svelte'
-  import Welcome from './steps/Welcome.svelte'
-  import SummonSearch from './steps/SummonSearch.svelte'
-  import Clipboard from './steps/Clipboard.svelte'
-  import Portals from './steps/Portals.svelte'
-  import HiddenCommands from './steps/HiddenCommands.svelte'
-  import Emoji from './steps/Emoji.svelte'
-  import Snippets from './steps/Snippets.svelte'
-  import FeaturedExtensions from './steps/FeaturedExtensions.svelte'
-  import PickTheme from './steps/PickTheme.svelte'
-  import CheatSheet from './steps/CheatSheet.svelte'
-  import AiSetupStep from './steps/AiSetupStep.svelte'
-  import PrivacyConsent from './steps/PrivacyConsent.svelte'
-  import { Button, OnboardingStage } from '../../components'
-  import { STEP_VISUALS } from './stepVisuals'
-  import { onboardingNav } from './onboardingNav.svelte'
-  import { initValidKeys } from '../../built-in-features/shortcuts/shortcutFormatter'
+  import { onMount } from 'svelte';
+  import { onboardingService } from '../../services/onboarding/onboardingService.svelte';
+  import StepProgress from '../../components/onboarding/StepProgress.svelte';
+  import Welcome from './steps/Welcome.svelte';
+  import SummonSearch from './steps/SummonSearch.svelte';
+  import Clipboard from './steps/Clipboard.svelte';
+  import Portals from './steps/Portals.svelte';
+  import HiddenCommands from './steps/HiddenCommands.svelte';
+  import Emoji from './steps/Emoji.svelte';
+  import Snippets from './steps/Snippets.svelte';
+  import FeaturedExtensions from './steps/FeaturedExtensions.svelte';
+  import PickTheme from './steps/PickTheme.svelte';
+  import CheatSheet from './steps/CheatSheet.svelte';
+  import AiSetupStep from './steps/AiSetupStep.svelte';
+  import PrivacyConsent from './steps/PrivacyConsent.svelte';
+  import { Button, OnboardingStage } from '../../components';
+  import { STEP_VISUALS } from './stepVisuals';
+  import { onboardingNav } from './onboardingNav.svelte';
+  import { initValidKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
 
-  const state = $derived(onboardingService.state)
-  const nav = $derived(onboardingNav.current)
+  const state = $derived(onboardingService.state);
+  const nav = $derived(onboardingNav.current);
 
   // The onboarding window is a separate Tauri webview from the main launcher,
   // so the `VALID_KEYS` module-level set that `ShortcutRecorder` consults
@@ -29,9 +29,8 @@
   // against. The main launcher and the settings window each init this set
   // themselves; onboarding has to too.
   onMount(() => {
-    void initValidKeys()
-  })
-
+    void initValidKeys();
+  });
 </script>
 
 {#if state}
@@ -120,5 +119,8 @@
     padding-top: var(--space-4);
     border-top: 1px solid var(--separator);
   }
-  .onboarding-stage__footer-right { display: flex; gap: var(--space-2); }
+  .onboarding-stage__footer-right {
+    display: flex;
+    gap: var(--space-2);
+  }
 </style>

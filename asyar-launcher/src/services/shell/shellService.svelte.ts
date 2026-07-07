@@ -110,7 +110,9 @@ class ShellService {
         subjectId,
       });
     } catch (err) {
-      logService.warn(`runService.startLocal failed for spawn: ${err instanceof Error ? err.message : String(err)}`);
+      logService.warn(
+        `runService.startLocal failed for spawn: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
 
     if (runHandle) {

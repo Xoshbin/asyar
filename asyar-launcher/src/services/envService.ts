@@ -12,7 +12,7 @@ class EnvService {
    * Detects if the application is running in development mode.
    */
   get isDev(): boolean {
-    return import.meta.env.MODE === "development";
+    return import.meta.env.MODE === 'development';
   }
 
   get storeApiBaseUrl(): string {

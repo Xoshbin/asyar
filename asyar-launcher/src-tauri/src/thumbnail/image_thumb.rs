@@ -79,7 +79,10 @@ mod tests {
         assert!(out.width() <= 100 && out.height() <= 100);
         // Aspect ratio preserved (2:1 source).
         assert_eq!(out.width(), out.height() * 2);
-        assert!(!dest.with_extension("tmp").exists(), "tmp file must be renamed away");
+        assert!(
+            !dest.with_extension("tmp").exists(),
+            "tmp file must be renamed away"
+        );
 
         let _ = std::fs::remove_file(&src);
         let _ = std::fs::remove_file(&dest);

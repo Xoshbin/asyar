@@ -5,8 +5,14 @@
   import { snippetUiState } from './snippetUiState.svelte';
   import { snippetViewState } from './snippetViewState.svelte';
   import {
-    SplitListDetail, LauncherListRow, Badge,
-    ActionFooter, EmptyState, WarningBanner, FormField, Button
+    SplitListDetail,
+    LauncherListRow,
+    Badge,
+    ActionFooter,
+    EmptyState,
+    WarningBanner,
+    FormField,
+    Button,
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import PlaceholderPicker from '../portals/PlaceholderPicker.svelte';
@@ -28,7 +34,7 @@
   $effect(() => {
     if (snippetViewState.pendingDeleteId) {
       const id = snippetViewState.pendingDeleteId;
-      const s = snippetStore.snippets.find(s => s.id === id);
+      const s = snippetStore.snippets.find((s) => s.id === id);
       // Reset eagerly so the effect doesn't re-trigger if the user dismisses then re-presses.
       snippetViewState.pendingDeleteId = null;
       void confirmDeleteSnippet(id, s?.name ?? null);
@@ -100,7 +106,9 @@
   let selectedSnippet = $derived(snippetViewState.selectedSnippet);
 
   const dateFormat = new Intl.DateTimeFormat('en-US', {
-    month: 'long', day: 'numeric', year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
   });
 
   onMount(async () => {
@@ -111,13 +119,28 @@
   });
 
   async function handleSave() {
-    if (!formName.trim()) { formError = 'Name is required.'; return; }
-    if (!formExpansion.trim()) { formError = 'Expansion is required.'; return; }
-    if (formKeyword.trim() && /[A-Z]/.test(formKeyword)) { formError = 'Keyword must be lowercase.'; return; }
-    const isDuplicate = formKeyword.trim() && snippetStore.getAll().some(s => s.keyword === formKeyword.trim() && s.id !== formId);
-    if (isDuplicate) { formError = 'Keyword is already in use.'; return; }
+    if (!formName.trim()) {
+      formError = 'Name is required.';
+      return;
+    }
+    if (!formExpansion.trim()) {
+      formError = 'Expansion is required.';
+      return;
+    }
+    if (formKeyword.trim() && /[A-Z]/.test(formKeyword)) {
+      formError = 'Keyword must be lowercase.';
+      return;
+    }
+    const isDuplicate =
+      formKeyword.trim() &&
+      snippetStore.getAll().some((s) => s.keyword === formKeyword.trim() && s.id !== formId);
+    if (isDuplicate) {
+      formError = 'Keyword is already in use.';
+      return;
+    }
 
-    const { expansion: redactedExpansion, redactedKinds } = await redactSnippetExpansion(formExpansion);
+    const { expansion: redactedExpansion, redactedKinds } =
+      await redactSnippetExpansion(formExpansion);
     const payload: Snippet = {
       id: formId,
       name: formName.trim(),
@@ -141,8 +164,14 @@
 
   function handleFormKeydown(e: KeyboardEvent) {
     if (pickerOpen) return;
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSave(); }
-    else if (e.key === 'Escape') { e.preventDefault(); snippetViewState.cancelEdit(); prefillExpansion = null; }
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      snippetViewState.cancelEdit();
+      prefillExpansion = null;
+    }
   }
 
   async function confirmDeleteSnippet(id: string, name: string | null) {
@@ -168,7 +197,7 @@
     const newId = crypto.randomUUID();
     // Make keyword unique: append -copy, then -copy2, -copy3, etc.
     let newKeyword = snippet.keyword + '-copy';
-    const existing = snippetStore.getAll().map(s => s.keyword);
+    const existing = snippetStore.getAll().map((s) => s.keyword);
     let i = 2;
     while (existing.includes(newKeyword)) {
       newKeyword = snippet.keyword + `-copy${i}`;
@@ -198,10 +227,16 @@
     <div class="permission-banner-wrapper">
       <WarningBanner>
         {#snippet children()}
-          <p>Background expansion requires Accessibility permission. Open System Settings → Privacy & Security → Accessibility and add Asyar. If running in development, add the binary at: src-tauri/target/debug/asyar</p>
+          <p>
+            Background expansion requires Accessibility permission. Open System Settings → Privacy &
+            Security → Accessibility and add Asyar. If running in development, add the binary at:
+            src-tauri/target/debug/asyar
+          </p>
         {/snippet}
         {#snippet actions()}
-          <Button onclick={() => snippetService.openAccessibilityPreferences()}>Open System Settings</Button>
+          <Button onclick={() => snippetService.openAccessibilityPreferences()}
+            >Open System Settings</Button
+          >
           <Button onclick={recheckPermission}>Re-check Permission</Button>
         {/snippet}
       </WarningBanner>
@@ -234,8 +269,12 @@
         {#snippet leading()}
           <div class="leading-icon">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"
+              />
             </svg>
           </div>
         {/snippet}
@@ -247,14 +286,32 @@
         <!-- Inline form — no modal -->
         <div class="form-panel">
           <div class="form-header">
-            <h2 class="form-title">{snippetViewState.mode === 'edit' ? 'Edit Snippet' : 'New Snippet'}</h2>
+            <h2 class="form-title">
+              {snippetViewState.mode === 'edit' ? 'Edit Snippet' : 'New Snippet'}
+            </h2>
           </div>
           <div class="form-body custom-scrollbar">
             <FormField label="Name" id="form-name">
-              <input id="form-name" class="field-input" type="text" bind:value={formName} placeholder="e.g. My Email" />
+              <input
+                id="form-name"
+                class="field-input"
+                type="text"
+                bind:value={formName}
+                placeholder="e.g. My Email"
+              />
             </FormField>
-            <FormField label="Keyword (optional)" id="form-keyword" hint="Use a prefix like ; or /. Lowercase letters and symbols only.">
-              <input id="form-keyword" class="field-input" type="text" bind:value={formKeyword} placeholder="e.g. ;email" />
+            <FormField
+              label="Keyword (optional)"
+              id="form-keyword"
+              hint="Use a prefix like ; or /. Lowercase letters and symbols only."
+            >
+              <input
+                id="form-keyword"
+                class="field-input"
+                type="text"
+                bind:value={formKeyword}
+                placeholder="e.g. ;email"
+              />
             </FormField>
             <FormField label="Expansion" id="form-expansion">
               <div style="position: relative">
@@ -266,16 +323,20 @@
                     bind:this={formExpansionEl}
                     oninput={handleExpansionInput}
                     placeholder="e.g. hello@example.com"
-                    rows="5"
-                  ></textarea>
-                  <Button class="picker-toggle" title="Insert placeholder" onclick={openPickerViaButton}>{'{ }'}</Button>
+                    rows="5"></textarea>
+                  <Button
+                    class="picker-toggle"
+                    title="Insert placeholder"
+                    onclick={openPickerViaButton}>{'{ }'}</Button
+                  >
                 </div>
                 {#if pickerOpen}
-                  <PlaceholderPicker onInsert={handleInsert} onClose={() => pickerOpen = false} />
+                  <PlaceholderPicker onInsert={handleInsert} onClose={() => (pickerOpen = false)} />
                 {/if}
               </div>
               <p class="text-caption mt-2">
-                Supported: {`{Selected Text}, {Clipboard Text}, {UUID}, {Date}, {Time}, {Weekday}`}.<br />
+                Supported: {`{Selected Text}, {Clipboard Text}, {UUID}, {Date}, {Time}, {Weekday}`}.<br
+                />
                 Press <code class="code-inline">{'{'}</code> to browse.
               </p>
             </FormField>
@@ -284,19 +345,27 @@
             {/if}
           </div>
           <div class="form-footer">
-            <Button onclick={() => { snippetViewState.cancelEdit(); prefillExpansion = null; }}>Cancel</Button>
+            <Button
+              onclick={() => {
+                snippetViewState.cancelEdit();
+                prefillExpansion = null;
+              }}>Cancel</Button
+            >
             <Button class="btn-primary" onclick={handleSave}>Save</Button>
           </div>
         </div>
-
       {:else if selectedSnippet}
         <!-- Detail view -->
         <div class="snippet-detail-content custom-scrollbar">
           <div class="detail-header">
             <h2 class="snippet-name">{selectedSnippet.name}</h2>
             <div class="flex items-center gap-2">
-              <Button class="edit-btn" onclick={() => handleDuplicate(selectedSnippet)}>Duplicate</Button>
-              <Button class="edit-btn" onclick={() => snippetViewState.startEdit(selectedSnippet)}>Edit</Button>
+              <Button class="edit-btn" onclick={() => handleDuplicate(selectedSnippet)}
+                >Duplicate</Button
+              >
+              <Button class="edit-btn" onclick={() => snippetViewState.startEdit(selectedSnippet)}
+                >Edit</Button
+              >
             </div>
           </div>
           {#if selectedSnippet.keyword}
@@ -312,29 +381,43 @@
               <Badge text="snippet" variant="default" mono />
               <span class="flex items-center gap-1 text-caption">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
                 {dateFormat.format(selectedSnippet.createdAt)}
               </span>
-              <span class="text-caption" style="color: var(--text-tertiary)">{selectedSnippet.expansion.length} chars</span>
+              <span class="text-caption" style="color: var(--text-tertiary)"
+                >{selectedSnippet.expansion.length} chars</span
+              >
             </div>
           {/snippet}
         </ActionFooter>
-
       {:else}
         <!-- Nothing selected -->
         <EmptyState
           message={filteredSnippets.length === 0 ? 'No snippets yet' : 'Select a snippet'}
-          description={filteredSnippets.length === 0 ? 'Create your first snippet to expand text automatically.' : 'Choose a snippet from the list to view its details.'}
+          description={filteredSnippets.length === 0
+            ? 'Create your first snippet to expand text automatically.'
+            : 'Choose a snippet from the list to view its details.'}
         >
           {#snippet icon()}
             <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"
+              />
             </svg>
           {/snippet}
           {#if filteredSnippets.length === 0}
-            <Button class="btn-primary mt-4" onclick={() => snippetViewState.startCreate()}>Add your first snippet</Button>
+            <Button class="btn-primary mt-4" onclick={() => snippetViewState.startCreate()}
+              >Add your first snippet</Button
+            >
           {/if}
         </EmptyState>
       {/if}
@@ -343,27 +426,122 @@
 </div>
 
 <style>
-  .permission-banner-wrapper { margin: var(--space-5) var(--space-6) 0; }
-  .leading-icon { opacity: 0.6; display: flex; align-items: center; justify-content: center; margin-right: var(--space-1); }
+  .permission-banner-wrapper {
+    margin: var(--space-5) var(--space-6) 0;
+  }
+  .leading-icon {
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: var(--space-1);
+  }
 
   /* Detail view */
-  .snippet-detail-content { flex: 1; overflow-y: auto; padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-6); }
-  .detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-5); }
-  .snippet-name { font-size: var(--font-size-lg); font-weight: 600; color: var(--text-primary); margin: 0; }
-  .keyword-row { display: flex; align-items: center; gap: var(--space-3); }
-  .snippet-expansion { font-family: var(--font-mono); font-size: var(--font-size-md); line-height: 1.6; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; background: var(--bg-secondary); border-radius: var(--radius-sm); padding: var(--space-6); margin: 0; }
-  :global(.edit-btn) { font-size: var(--font-size-xs); padding: var(--space-1) var(--space-4); flex-shrink: 0; }
+  .snippet-detail-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+  .detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-5);
+  }
+  .snippet-name {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+  .keyword-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .snippet-expansion {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-md);
+    line-height: 1.6;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    padding: var(--space-6);
+    margin: 0;
+  }
+  :global(.edit-btn) {
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-4);
+    flex-shrink: 0;
+  }
 
   /* Inline form */
-  .form-panel { display: flex; flex-direction: column; height: 100%; }
-  .form-header { padding: var(--space-7) var(--space-8) 0; flex-shrink: 0; }
-  .form-title { font-size: var(--font-size-lg); font-weight: 600; color: var(--text-primary); margin: 0 0 var(--space-6); }
-  .form-body { flex: 1; overflow-y: auto; padding: 0 var(--space-8); display: flex; flex-direction: column; gap: var(--space-6); padding-bottom: var(--space-6); }
-  .form-footer { display: flex; justify-content: flex-end; gap: var(--space-3); padding: var(--space-5) var(--space-8); border-top: 1px solid var(--separator); flex-shrink: 0; }
-  .form-error { font-size: var(--font-size-sm); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); color: var(--accent-danger); background: color-mix(in srgb, var(--accent-danger) 10%, transparent); }
+  .form-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .form-header {
+    padding: var(--space-7) var(--space-8) 0;
+    flex-shrink: 0;
+  }
+  .form-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 var(--space-6);
+  }
+  .form-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 var(--space-8);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    padding-bottom: var(--space-6);
+  }
+  .form-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-5) var(--space-8);
+    border-top: 1px solid var(--separator);
+    flex-shrink: 0;
+  }
+  .form-error {
+    font-size: var(--font-size-sm);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-sm);
+    color: var(--accent-danger);
+    background: color-mix(in srgb, var(--accent-danger) 10%, transparent);
+  }
 
-  .textarea-wrapper { display: flex; gap: var(--space-3); align-items: flex-start; }
-  .textarea-wrapper .field-textarea { flex: 1; font-family: var(--font-mono); line-height: 1.5; }
-  :global(.picker-toggle) { flex-shrink: 0; font-family: var(--font-mono); font-size: var(--font-size-sm); }
-  .code-inline { background: var(--bg-hover); padding: 1px var(--space-1); border-radius: var(--radius-xs); font-family: var(--font-mono); font-size: 0.9em; }
+  .textarea-wrapper {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+  }
+  .textarea-wrapper .field-textarea {
+    flex: 1;
+    font-family: var(--font-mono);
+    line-height: 1.5;
+  }
+  :global(.picker-toggle) {
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+  }
+  .code-inline {
+    background: var(--bg-hover);
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-xs);
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+  }
 </style>

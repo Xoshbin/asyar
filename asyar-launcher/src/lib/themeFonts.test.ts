@@ -9,7 +9,7 @@ describe('themeFonts', () => {
   it('buildFontFaceCSS fetches fonts and returns CSS string', async () => {
     const mockBuffer = new TextEncoder().encode('mock font data').buffer;
     vi.mocked(fetch).mockResolvedValue({
-        arrayBuffer: () => Promise.resolve(mockBuffer)
+      arrayBuffer: () => Promise.resolve(mockBuffer),
     } as Response);
 
     const { buildFontFaceCSS } = await import('./themeFonts');
@@ -25,7 +25,7 @@ describe('themeFonts', () => {
   it('buildFontFaceCSS caches the result', async () => {
     const mockBuffer = new TextEncoder().encode('mock font data').buffer;
     vi.mocked(fetch).mockResolvedValue({
-        arrayBuffer: () => Promise.resolve(mockBuffer)
+      arrayBuffer: () => Promise.resolve(mockBuffer),
     } as Response);
 
     const { buildFontFaceCSS } = await import('./themeFonts');

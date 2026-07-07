@@ -5,7 +5,10 @@ import extensionManager from '../../services/extension/extensionManager.svelte';
 import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
 import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
-import { contextModeService, contextActivationId } from '../../services/context/contextModeService.svelte';
+import {
+  contextModeService,
+  contextActivationId,
+} from '../../services/context/contextModeService.svelte';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
 import type { ActiveContext, ContextHint } from '../../services/context/contextModeService.svelte';
@@ -24,11 +27,10 @@ export interface AccessoryRefHandle {
   togglePopover: () => void;
 }
 
-
 export interface KeyboardDeps {
   getSearchInput: () => HTMLInputElement | null;
   getLocalSearchValue: () => string;
-  setLocalSearchValue: (v: string) => void;  // must also call searchStores.query = v;
+  setLocalSearchValue: (v: string) => void; // must also call searchStores.query = v;
   getContextQuery: () => string;
   setContextQuery: (v: string) => void;
   getContextHint: () => ContextHint | null;
@@ -37,7 +39,8 @@ export interface KeyboardDeps {
   /** The currently selected search item (if any). Needed so Tab can enter
    *  command argument mode when the selection is a command with arguments. */
   getSelectedItem?: () => MappedSearchItem | null;
-  getBottomBar: () => { isOpen(): boolean; closeActionList(): void; toggleActionList(): void } | undefined;
+  getBottomBar: () =>
+    { isOpen(): boolean; closeActionList(): void; toggleActionList(): void } | undefined;
   /** Returns the searchbar accessory dropdown's ref when one is rendered.
    *  Used by the global ⌘P handler to open the popover from anywhere in
    *  the launcher window. Returns null when no accessory is currently
@@ -91,7 +94,20 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (tag === 'input') {
       const type = (el as HTMLInputElement).type?.toLowerCase() ?? 'text';
       // These input types accept keyboard text — backspace/escape must not be stolen
-      const textTypes = ['text', 'search', 'email', 'password', 'number', 'tel', 'url', 'date', 'time', 'datetime-local', 'month', 'week'];
+      const textTypes = [
+        'text',
+        'search',
+        'email',
+        'password',
+        'number',
+        'tel',
+        'url',
+        'date',
+        'time',
+        'datetime-local',
+        'month',
+        'week',
+      ];
       return textTypes.includes(type);
     }
     // contenteditable
@@ -122,7 +138,9 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     commandArgumentsService.enter(item.object_id).catch((err) => {
       logService.error(`Failed to enter argument mode: ${err}`);
       diagnosticsService.report({
-        source: 'frontend', kind: 'action_failed', severity: 'error',
+        source: 'frontend',
+        kind: 'action_failed',
+        severity: 'error',
         retryable: false,
         context: { message: 'Could not open command arguments — please try again' },
       });
@@ -132,7 +150,13 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Tab: commit the pending context hint into full context mode
   function tryCommitContextHint(event: KeyboardEvent): boolean {
-    if (!(event.key === 'Tab' && deps.getContextHint() !== null && !deps.getActiveContext() && !viewManager.activeView)) return false;
+    if (!(
+      event.key === 'Tab' &&
+      deps.getContextHint() !== null &&
+      !deps.getActiveContext() &&
+      !viewManager.activeView
+    ))
+      return false;
     // Argument mode owns Tab — don't let the AI default steal it.
     if (commandArgumentsService.active) return false;
     event.preventDefault();
@@ -153,7 +177,12 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Backspace with empty context query: exit context mode (and view if open)
   function tryExitContextMode(event: KeyboardEvent): boolean {
-    if (!(event.key === 'Backspace' && deps.getActiveContext() !== null && deps.getActiveContext()?.query === '')) return false;
+    if (!(
+      event.key === 'Backspace' &&
+      deps.getActiveContext() !== null &&
+      deps.getActiveContext()?.query === ''
+    ))
+      return false;
     event.preventDefault();
     if (viewManager.activeView) {
       deps.handleContextDismiss(true);
@@ -167,7 +196,8 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Cmd/Ctrl+Q: block quit — users quit via the "Quit Asyar" command
   function tryBlockQuit(event: KeyboardEvent): boolean {
-    if (!((event.key === 'q' || event.key === 'Q') && (event.metaKey || event.ctrlKey))) return false;
+    if (!((event.key === 'q' || event.key === 'Q') && (event.metaKey || event.ctrlKey)))
+      return false;
     event.preventDefault();
     event.stopPropagation();
     return true;
@@ -190,7 +220,13 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   // future ⇧⌘P / ⌥⌘P bindings don't collide. Toggle semantics match
   // ⌘K: a second press dismisses the popover.
   function tryToggleAccessoryPopover(event: KeyboardEvent): boolean {
-    if (!((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'p' && !event.shiftKey && !event.altKey)) return false;
+    if (!(
+      (event.metaKey || event.ctrlKey) &&
+      event.key.toLowerCase() === 'p' &&
+      !event.shiftKey &&
+      !event.altKey
+    ))
+      return false;
     if (!searchBarAccessoryService.active) return false;
     const ref = deps.getAccessoryRef?.();
     if (!ref) return false;
@@ -202,7 +238,8 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Cmd/Ctrl+K: toggle the action panel
   function tryToggleActionPanel(event: KeyboardEvent): boolean {
-    if (!((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey))) return false;
+    if (!((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)))
+      return false;
     event.preventDefault();
     event.stopPropagation();
     if (deps.isCompactIdle?.()) return true; // no action panel in compact idle
@@ -254,7 +291,11 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
           const active = document.activeElement;
           if (active && active !== deps.getSearchInput()) {
             const tag = active.tagName.toLowerCase();
-            if (tag === 'input' || tag === 'textarea' || (active as HTMLElement).isContentEditable) {
+            if (
+              tag === 'input' ||
+              tag === 'textarea' ||
+              (active as HTMLElement).isContentEditable
+            ) {
               return true; // Let the host-DOM input handle the keypress
             }
           }
@@ -320,28 +361,42 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Maintain focus function
   function maintainSearchFocus(e: MouseEvent) {
-     if (shortcutStore.isCapturing || feedbackService.activeDialog) return;
+    if (shortcutStore.isCapturing || feedbackService.activeDialog) return;
 
-     const target = e.target as HTMLElement;
+    const target = e.target as HTMLElement;
 
-     // NEVER steal focus from these elements
-     if (isInputFocused() && document.activeElement !== deps.getSearchInput()) return;
-     
-     const tag = target.tagName.toLowerCase();
-     const inputTypes = ['text', 'search', 'email', 'password', 'number', 'tel', 'url', 'date', 'time', 'datetime-local', 'month', 'week'];
-     
-     if (tag === 'textarea') return;
-     if (tag === 'select') return;
-     if (tag === 'input' && inputTypes.includes((target as HTMLInputElement).type?.toLowerCase())) return;
-     if ((target as HTMLElement).isContentEditable) return;
-     if (target.closest('.action-popup, .bottom-action-bar, [data-no-focus-steal]')) return;
-     
-     // For everything else, return focus to search after a tick
-     requestAnimationFrame(() => {
-       if (!isInputFocused() && deps.getSearchInput()) {
-         deps.getSearchInput()?.focus({ preventScroll: true });
-       }
-     });
+    // NEVER steal focus from these elements
+    if (isInputFocused() && document.activeElement !== deps.getSearchInput()) return;
+
+    const tag = target.tagName.toLowerCase();
+    const inputTypes = [
+      'text',
+      'search',
+      'email',
+      'password',
+      'number',
+      'tel',
+      'url',
+      'date',
+      'time',
+      'datetime-local',
+      'month',
+      'week',
+    ];
+
+    if (tag === 'textarea') return;
+    if (tag === 'select') return;
+    if (tag === 'input' && inputTypes.includes((target as HTMLInputElement).type?.toLowerCase()))
+      return;
+    if ((target as HTMLElement).isContentEditable) return;
+    if (target.closest('.action-popup, .bottom-action-bar, [data-no-focus-steal]')) return;
+
+    // For everything else, return focus to search after a tick
+    requestAnimationFrame(() => {
+      if (!isInputFocused() && deps.getSearchInput()) {
+        deps.getSearchInput()?.focus({ preventScroll: true });
+      }
+    });
   }
 
   // Escape: focus-trap exit, navigate back, or hide window
@@ -352,7 +407,11 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     // go stale for Tier 2 extensions that auto-focus on mount and never
     // release — hotkey-entering a non-searchable view would otherwise just
     // blur the iframe forever instead of going back).
-    if (!viewManager.activeView && isInputFocused() && document.activeElement !== deps.getSearchInput()) {
+    if (
+      !viewManager.activeView &&
+      isInputFocused() &&
+      document.activeElement !== deps.getSearchInput()
+    ) {
       (document.activeElement as HTMLElement)?.blur();
       deps.getSearchInput()?.focus({ preventScroll: true });
       event.preventDefault();
@@ -363,10 +422,13 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       if (deps.onBeforeHide) await deps.onBeforeHide();
       await commands.hideWindow();
     };
-    const escapeBehavior = settingsService.getSettings()?.general?.escapeInViewBehavior || 'go-back';
+    const escapeBehavior =
+      settingsService.getSettings()?.general?.escapeInViewBehavior || 'go-back';
 
     if (viewManager.activeView) {
-      if (deps.getActiveContext()) { deps.handleContextDismiss(true); }
+      if (deps.getActiveContext()) {
+        deps.handleContextDismiss(true);
+      }
       if (escapeBehavior === 'go-back') {
         // Raycast-style chain: clear search → pop view → (hide handled at root branch on next press)
         const lsv = deps.getLocalSearchValue();
@@ -399,7 +461,12 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Backspace/Delete with empty input while a view is open: go back
   function tryHandleBackspaceInView(event: KeyboardEvent): boolean {
-    if (!(viewManager.activeView && (event.key === 'Backspace' || event.key === 'Delete') && deps.getSearchInput()?.value === '')) return false;
+    if (!(
+      viewManager.activeView &&
+      (event.key === 'Backspace' || event.key === 'Delete') &&
+      deps.getSearchInput()?.value === ''
+    ))
+      return false;
     // Defer to actual host-DOM text inputs only — don't consult the iframe's
     // hasInputFocus flag, which can go stale for Tier 2 extensions. If the
     // iframe truly has input focus, its keydown handler runs inside the
@@ -407,7 +474,8 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     const active = document.activeElement;
     if (active && active !== deps.getSearchInput()) {
       const tag = active.tagName.toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || (active as HTMLElement).isContentEditable) return true;
+      if (tag === 'input' || tag === 'textarea' || (active as HTMLElement).isContentEditable)
+        return true;
     }
     if (deps.getBottomBar()?.isOpen()) {
       deps.getBottomBar()?.closeActionList();
@@ -439,13 +507,13 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       event.preventDefault();
       const totalItems = deps.getSearchResultsLength();
       if (totalItems === 0) return true;
-      
+
       const current = searchStores.selectedIndex;
       searchStores.selectedIndex =
         event.key === 'ArrowDown'
           ? (current + 1) % totalItems
           : (current - 1 + totalItems) % totalItems;
-      
+
       return true;
     }
     if (event.key === 'Enter') {
@@ -514,10 +582,19 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (tryHandleSearchNavigation(event)) return;
     tryHandleViewEnter(event);
     // Prevent default browser scroll for arrows when search input is focused
-    if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && document.activeElement === deps.getSearchInput()) {
+    if (
+      (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
+      document.activeElement === deps.getSearchInput()
+    ) {
       event.preventDefault();
     }
   }
 
-  return { handleKeydown, handleGlobalKeydown, maintainSearchFocus, restoreSearchFocus, isInputFocused };
+  return {
+    handleKeydown,
+    handleGlobalKeydown,
+    maintainSearchFocus,
+    restoreSearchFocus,
+    isInputFocused,
+  };
 }

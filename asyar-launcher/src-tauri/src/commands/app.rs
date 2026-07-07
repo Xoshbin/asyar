@@ -161,7 +161,8 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
         let panel = app_handle
             .get_webview_panel(SPOTLIGHT_LABEL)
             .map_err(|_| AppError::NotFound("launcher panel".to_string()))?;
-        let window = app_handle.get_webview_window(SPOTLIGHT_LABEL)
+        let window = app_handle
+            .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         crate::platform::macos::park_launcher_panel(&window, &panel);
     }

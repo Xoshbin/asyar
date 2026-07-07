@@ -20,13 +20,13 @@ interface IEntitlementService {
 
 **Known entitlement strings:**
 
-| String | Feature |
-|--------|---------|
-| `sync:settings` | Cloud settings sync |
+| String                  | Feature                      |
+| ----------------------- | ---------------------------- |
+| `sync:settings`         | Cloud settings sync          |
 | `sync:ai-conversations` | AI conversation history sync |
-| `ai:chat` | AI chat access |
-| `ai:advanced-models` | Premium AI models |
-| `extensions:premium` | Install premium extensions |
+| `ai:chat`               | AI chat access               |
+| `ai:advanced-models`    | Premium AI models            |
+| `extensions:premium`    | Install premium extensions   |
 
 **Usage:**
 

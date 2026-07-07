@@ -105,7 +105,11 @@ mod tests {
         let base = cache_key(p, 1000, 2000, 28);
         assert_ne!(base, cache_key(p, 1001, 2000, 28), "mtime change");
         assert_ne!(base, cache_key(p, 1000, 2001, 28), "size change (edit)");
-        assert_ne!(base, cache_key(p, 1000, 2000, 800), "different requested size");
+        assert_ne!(
+            base,
+            cache_key(p, 1000, 2000, 800),
+            "different requested size"
+        );
     }
 
     #[test]
@@ -133,7 +137,10 @@ mod tests {
 
         evict_if_over_cap(&dir, 150);
 
-        assert!(!dir.join("old.png").exists(), "oldest entry must be evicted first");
+        assert!(
+            !dir.join("old.png").exists(),
+            "oldest entry must be evicted first"
+        );
         assert!(dir.join("new.png").exists(), "newest entry must survive");
         let _ = fs::remove_dir_all(&dir);
     }

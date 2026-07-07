@@ -1,6 +1,7 @@
 ---
 order: 60
 ---
+
 # Silent AI Commands
 
 A **silent AI command** is an agent that runs headlessly: the user
@@ -19,11 +20,11 @@ multi-turn back-and-forth, keep the normal chat-view flow.
 
 Agents now carry three extra fields:
 
-| Field | Type | Default | Meaning when `silent === false` |
-| --- | --- | --- | --- |
-| `silent` | `boolean` | `false` | Default chat-view flow. |
-| `inputSource` | `'selection' \| 'clipboard' \| 'argument' \| 'none'` | `'argument'` | Stored but unused. |
-| `outputAction` | `'replaceSelection' \| 'paste' \| 'copy' \| 'hud'` | `'replaceSelection'` | Stored but unused. |
+| Field          | Type                                                 | Default              | Meaning when `silent === false` |
+| -------------- | ---------------------------------------------------- | -------------------- | ------------------------------- |
+| `silent`       | `boolean`                                            | `false`              | Default chat-view flow.         |
+| `inputSource`  | `'selection' \| 'clipboard' \| 'argument' \| 'none'` | `'argument'`         | Stored but unused.              |
+| `outputAction` | `'replaceSelection' \| 'paste' \| 'copy' \| 'hud'`   | `'replaceSelection'` | Stored but unused.              |
 
 When `silent === true`, dispatching the agent (via the launcher row
 Enter or a bound item shortcut) routes to the **silent dispatcher**
@@ -86,17 +87,17 @@ the user's choice, not the agent author's.
 
 The canonical silent-AI command:
 
-| Field | Value |
-| --- | --- |
-| Name | `Grammar Fix` |
-| Description | `Silent agent: replace selected text with the grammar-corrected version.` |
-| System prompt | (see below) |
-| Provider | Your preferred LLM provider |
-| Model | A fast model — `gpt-4o-mini`, `claude-3-5-haiku-20241022`, etc. |
-| Silent | `true` |
-| Input from | `Selected text in the active app` |
-| Then | `Replace the selection with the result` |
-| Tools | (none) |
+| Field         | Value                                                                     |
+| ------------- | ------------------------------------------------------------------------- |
+| Name          | `Grammar Fix`                                                             |
+| Description   | `Silent agent: replace selected text with the grammar-corrected version.` |
+| System prompt | (see below)                                                               |
+| Provider      | Your preferred LLM provider                                               |
+| Model         | A fast model — `gpt-4o-mini`, `claude-3-5-haiku-20241022`, etc.           |
+| Silent        | `true`                                                                    |
+| Input from    | `Selected text in the active app`                                         |
+| Then          | `Replace the selection with the result`                                   |
+| Tools         | (none)                                                                    |
 
 System prompt:
 
@@ -112,9 +113,7 @@ To create it programmatically:
 import { buildGrammarFixAgentInput } from 'asyar-launcher/.../defaultAgent';
 import { agentService } from 'asyar-launcher/.../agentService.svelte';
 
-await agentService.create(
-  buildGrammarFixAgentInput('openai', 'gpt-4o-mini'),
-);
+await agentService.create(buildGrammarFixAgentInput('openai', 'gpt-4o-mini'));
 ```
 
 After it appears in the launcher, bind a hotkey to its row through
@@ -129,7 +128,7 @@ never opens.
   lowercase strings stored as `TEXT`. Adding new variants is purely
   additive — the parser falls back to defaults for unknown values.
 - The `init_table` migration uses the same idempotent `ALTER TABLE
-  IF NOT EXISTS` guard pattern as `runs_history.subject_id` and
+IF NOT EXISTS` guard pattern as `runs_history.subject_id` and
   `tail_output` — upgraded installs gain the columns in place
   without dropping data.
 - The TS contract mirrors the Rust enums (camelCase string unions)

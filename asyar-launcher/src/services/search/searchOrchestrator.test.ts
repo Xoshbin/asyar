@@ -78,7 +78,7 @@ describe('searchOrchestrator characterization tests', () => {
     viewManager.activeView = null;
     searchStores.isLoading = false;
     invalidateTopItemsCache();
-    
+
     // Default mock behaviors
     vi.mocked(appInitializer.isAppInitialized).mockReturnValue(true);
     vi.mocked(extensionManager.searchAll).mockResolvedValue([]);
@@ -87,18 +87,18 @@ describe('searchOrchestrator characterization tests', () => {
 
   it('returns empty and DOES NOT set loading states when app not initialized', async () => {
     vi.mocked(appInitializer.isAppInitialized).mockReturnValue(false);
-    
+
     await searchOrchestrator.handleSearch('test');
-    
+
     expect(searchOrchestrator.items).toEqual([]);
     expect(searchStores.isLoading).toBe(false);
   });
 
   it('returns empty when activeView is set', async () => {
     viewManager.activeView = 'some-extension/View';
-    
+
     await searchOrchestrator.handleSearch('test');
-    
+
     expect(searchOrchestrator.items).toEqual([]);
     expect(searchStores.isLoading).toBe(false);
   });
@@ -106,13 +106,24 @@ describe('searchOrchestrator characterization tests', () => {
   it('combines Rust and extension results sorted by score', async () => {
     const rustResults = [
       { objectId: 'app_chrome', name: 'Chrome', type: 'application', score: 0.9 } as any,
-      { objectId: 'ext_portals_Search_Google_0', name: 'Search Google', type: 'command', score: 0.8 } as any,
+      {
+        objectId: 'ext_portals_Search_Google_0',
+        name: 'Search Google',
+        type: 'command',
+        score: 0.8,
+      } as any,
       { objectId: 'app_finder', name: 'Finder', type: 'application', score: 0.4 } as any,
     ];
 
     vi.mocked(commands.mergedSearch).mockResolvedValue({ results: rustResults, aliasMatch: null });
     vi.mocked(extensionManager.searchAll).mockResolvedValue([
-      { title: 'Search Google', subtitle: 'Search...', score: 0.8, extensionId: 'portals', icon: '🔍' } as any
+      {
+        title: 'Search Google',
+        subtitle: 'Search...',
+        score: 0.8,
+        extensionId: 'portals',
+        icon: '🔍',
+      } as any,
     ]);
 
     await searchOrchestrator.handleSearch('test');
@@ -126,33 +137,36 @@ describe('searchOrchestrator characterization tests', () => {
 
   it('maps extension results to SearchResult format', async () => {
     const extResults = [
-        { title: 'Test Ext', subtitle: 'Sub', score: 0.8, extensionId: 'test-id', icon: '⭐' } as any
+      { title: 'Test Ext', subtitle: 'Sub', score: 0.8, extensionId: 'test-id', icon: '⭐' } as any,
     ];
     vi.mocked(extensionManager.searchAll).mockResolvedValue(extResults);
     vi.mocked(commands.mergedSearch).mockImplementation(async (query, extensions) => {
-        const results = extensions.map((e: any) => ({
+      const results = extensions.map(
+        (e: any) =>
+          ({
             objectId: `ext_${e.extensionId}_${e.name.replace(/\s+/g, '_')}_0`,
             name: e.name,
             type: 'command',
             category: 'extension',
             description: e.description,
             icon: e.icon,
-            score: e.score
-        } as any));
-        return { results, aliasMatch: null };
+            score: e.score,
+          }) as any,
+      );
+      return { results, aliasMatch: null };
     });
 
     await searchOrchestrator.handleSearch('test');
 
     const results = searchOrchestrator.items;
-    const mapped = results.find(r => r.name === 'Test Ext');
+    const mapped = results.find((r) => r.name === 'Test Ext');
     expect(mapped).toBeDefined();
   });
 
   it('empty query returns usage-sorted results without suggestion backfill', async () => {
     const items = [
-        { objectId: '1', name: 'App 1', score: 0.9 } as any,
-        { objectId: '2', name: 'App 2', score: 0.8 } as any,
+      { objectId: '1', name: 'App 1', score: 0.9 } as any,
+      { objectId: '2', name: 'App 2', score: 0.8 } as any,
     ];
     vi.mocked(commands.mergedSearch).mockResolvedValue({ results: items, aliasMatch: null });
 
@@ -169,27 +183,32 @@ describe('searchOrchestrator characterization tests', () => {
     const searchResults = Array.from({ length: 10 }, (_, i) => ({
       objectId: `s${i}`,
       name: `Result ${i}`,
-      score: 0.9 - i * 0.1
+      score: 0.9 - i * 0.1,
     })) as any[];
 
     vi.mocked(extensionManager.searchAll).mockResolvedValue([
-      { title: 'Ext', score: 0.5, extensionId: 'e1' } as any
+      { title: 'Ext', score: 0.5, extensionId: 'e1' } as any,
     ]);
-    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: searchResults, aliasMatch: null });
+    vi.mocked(commands.mergedSearch).mockResolvedValue({
+      results: searchResults,
+      aliasMatch: null,
+    });
 
     await searchOrchestrator.handleSearch('x');
 
-    expect(commands.mergedSearch).toHaveBeenCalledWith('x', [
-      expect.objectContaining({ name: 'Ext', score: 0.5, extensionId: 'e1' })
-    ], 10);
-    
+    expect(commands.mergedSearch).toHaveBeenCalledWith(
+      'x',
+      [expect.objectContaining({ name: 'Ext', score: 0.5, extensionId: 'e1' })],
+      10,
+    );
+
     const results = searchOrchestrator.items;
     expect(results).toHaveLength(10);
   });
 
   it('handles search errors gracefully', async () => {
     vi.mocked(commands.mergedSearch).mockRejectedValue(new Error('search failed'));
-    
+
     await searchOrchestrator.handleSearch('test');
 
     expect(searchOrchestrator.items).toEqual([]);
@@ -198,8 +217,8 @@ describe('searchOrchestrator characterization tests', () => {
 
   it('sets isSearchLoading to true during search and false after', async () => {
     let resolveSearch: (value: any) => void;
-    const searchPromise = new Promise(resolve => {
-        resolveSearch = resolve;
+    const searchPromise = new Promise((resolve) => {
+      resolveSearch = resolve;
     });
     vi.mocked(commands.mergedSearch).mockReturnValue(searchPromise as Promise<any>);
 
@@ -239,7 +258,14 @@ describe('searchOrchestrator characterization tests', () => {
   it('priority is preserved for built-in extension results', async () => {
     vi.mocked(isBuiltInFeature).mockReturnValue(true);
     vi.mocked(extensionManager.searchAll).mockResolvedValue([
-      { extensionId: 'calculator', title: '42', score: 1.0, priority: 'top', type: 'result', action: () => {} } as any,
+      {
+        extensionId: 'calculator',
+        title: '42',
+        score: 1.0,
+        priority: 'top',
+        type: 'result',
+        action: () => {},
+      } as any,
     ]);
 
     await searchOrchestrator.handleSearch('6 * 7');
@@ -247,14 +273,21 @@ describe('searchOrchestrator characterization tests', () => {
     const callArgs = vi.mocked(commands.mergedSearch).mock.calls[0];
     const externalResults: any[] = callArgs[1];
     expect(externalResults).toEqual(
-      expect.arrayContaining([expect.objectContaining({ priority: 'top' })])
+      expect.arrayContaining([expect.objectContaining({ priority: 'top' })]),
     );
   });
 
   it('priority is stripped for third-party extension results', async () => {
     vi.mocked(isBuiltInFeature).mockReturnValue(false);
     vi.mocked(extensionManager.searchAll).mockResolvedValue([
-      { extensionId: 'evil-app-pin', title: 'Always pin me', score: 0.9, priority: 'top', type: 'result', action: () => {} } as any,
+      {
+        extensionId: 'evil-app-pin',
+        title: 'Always pin me',
+        score: 0.9,
+        priority: 'top',
+        type: 'result',
+        action: () => {},
+      } as any,
     ]);
 
     await searchOrchestrator.handleSearch('something');
@@ -270,7 +303,10 @@ describe('searchOrchestrator characterization tests', () => {
     // The orchestrator must NOT inject the synthetic cmd_agents_ask row
     // regardless of whether the hint is present.
     const searchResults = [{ objectId: 'r1', name: 'Result 1', score: 0.96 }] as any;
-    vi.mocked(commands.mergedSearch).mockResolvedValue({ results: searchResults, aliasMatch: null });
+    vi.mocked(commands.mergedSearch).mockResolvedValue({
+      results: searchResults,
+      aliasMatch: null,
+    });
 
     await searchOrchestrator.handleSearch('settings');
 

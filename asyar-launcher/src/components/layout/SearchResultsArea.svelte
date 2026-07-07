@@ -6,11 +6,7 @@
   import { logService } from '../../services/log/logService';
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 
-  const SEARCH_FATAL_KINDS = new Set([
-    'search_lock_poisoned',
-    'search_io_failure',
-    'search_other',
-  ]);
+  const SEARCH_FATAL_KINDS = new Set(['search_lock_poisoned', 'search_io_failure', 'search_other']);
 
   interface Props {
     items: any[];
@@ -43,11 +39,15 @@
           {items}
           {selectedIndex}
           onselect={(detail) => {
-            const clickedIndex = items.findIndex(item => item.object_id === detail.item.object_id);
+            const clickedIndex = items.findIndex(
+              (item) => item.object_id === detail.item.object_id,
+            );
             if (clickedIndex !== -1) {
               onselect({ item: detail.item });
             } else {
-              logService.warn(`Clicked item not found in current results: ${detail.item?.object_id ?? 'Unknown'}`);
+              logService.warn(
+                `Clicked item not found in current results: ${detail.item?.object_id ?? 'Unknown'}`,
+              );
             }
           }}
         />
@@ -56,11 +56,15 @@
           {items}
           {selectedIndex}
           onselect={(detail) => {
-            const clickedIndex = items.findIndex(item => item.object_id === detail.item.object_id);
+            const clickedIndex = items.findIndex(
+              (item) => item.object_id === detail.item.object_id,
+            );
             if (clickedIndex !== -1) {
               onselect({ item: detail.item });
             } else {
-              logService.warn(`Clicked item not found in current results: ${detail.item?.object_id ?? 'Unknown'}`);
+              logService.warn(
+                `Clicked item not found in current results: ${detail.item?.object_id ?? 'Unknown'}`,
+              );
             }
           }}
         />

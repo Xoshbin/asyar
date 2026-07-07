@@ -11,15 +11,17 @@ describe('parseUrlPlaceholders', () => {
   });
 
   it('extracts multiple placeholders in first-occurrence order', () => {
-    expect(
-      parseUrlPlaceholders('https://example.com/?q={Query}&from={Clipboard Text}')
-    ).toEqual(['Query', 'Clipboard Text']);
+    expect(parseUrlPlaceholders('https://example.com/?q={Query}&from={Clipboard Text}')).toEqual([
+      'Query',
+      'Clipboard Text',
+    ]);
   });
 
   it('dedupes repeated placeholders', () => {
-    expect(
-      parseUrlPlaceholders('https://example.com/?a={Query}&b={Query}&c={Other}')
-    ).toEqual(['Query', 'Other']);
+    expect(parseUrlPlaceholders('https://example.com/?a={Query}&b={Query}&c={Other}')).toEqual([
+      'Query',
+      'Other',
+    ]);
   });
 
   it('ignores empty braces', () => {
@@ -39,9 +41,17 @@ describe('parseUrlPlaceholders', () => {
   });
 
   it('extracts all known placeholder token names', () => {
-    const url = 'https://x.com/?a={query}&b={Selected Text}&c={Clipboard Text}&d={UUID}&e={Date}&f={Time}&g={Date & Time}&h={Weekday}';
+    const url =
+      'https://x.com/?a={query}&b={Selected Text}&c={Clipboard Text}&d={UUID}&e={Date}&f={Time}&g={Date & Time}&h={Weekday}';
     expect(parseUrlPlaceholders(url)).toEqual([
-      'query', 'Selected Text', 'Clipboard Text', 'UUID', 'Date', 'Time', 'Date & Time', 'Weekday',
+      'query',
+      'Selected Text',
+      'Clipboard Text',
+      'UUID',
+      'Date',
+      'Time',
+      'Date & Time',
+      'Weekday',
     ]);
   });
 });

@@ -7,7 +7,7 @@ function parseDate(input: string): Date | null {
 function formatDate(date: Date): string {
   // Returns YYYY-MM-DD local time adjusted
   const offset = date.getTimezoneOffset();
-  const adjustedDate = new Date(date.getTime() - (offset * 60 * 1000));
+  const adjustedDate = new Date(date.getTime() - offset * 60 * 1000);
   return adjustedDate.toISOString().split('T')[0];
 }
 
@@ -48,7 +48,7 @@ export function evaluateDatetime(expression: string): string | null {
 
   // Pattern 4: days until {date}
   m = norm.match(/^days\s+until\s+(.+)$/);
-  if (m) return daysBetween("today", m[1]);
+  if (m) return daysBetween('today', m[1]);
 
   return null;
 }

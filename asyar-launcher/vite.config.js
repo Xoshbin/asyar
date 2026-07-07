@@ -1,25 +1,23 @@
-import { defineConfig } from "vite";
-import { sveltekit } from "@sveltejs/kit/vite";
-import tailwindcss from "@tailwindcss/vite";
-import { fileURLToPath, URL } from "url";
-import { existsSync } from "fs";
-import { resolve } from "path";
+import { defineConfig } from 'vite';
+import { sveltekit } from '@sveltejs/kit/vite';
+import tailwindcss from '@tailwindcss/vite';
+import { fileURLToPath, URL } from 'url';
+import { existsSync } from 'fs';
+import { resolve } from 'path';
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
-const __dirname = fileURLToPath(new URL(".", import.meta.url));
-const sdkSrcDir = resolve(__dirname, "../asyar-sdk/src");
-const sdkSubpaths = /** @type {const} */ (["contracts", "worker", "view"]);
-const useLocalSdk = sdkSubpaths.every((sub) =>
-  existsSync(resolve(sdkSrcDir, `${sub}.ts`))
-);
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const sdkSrcDir = resolve(__dirname, '../asyar-sdk/src');
+const sdkSubpaths = /** @type {const} */ (['contracts', 'worker', 'view']);
+const useLocalSdk = sdkSubpaths.every((sub) => existsSync(resolve(sdkSrcDir, `${sub}.ts`)));
 
 export default defineConfig(({ mode }) => {
   console.log(
     `\x1b[36m[Vite]\x1b[0m Asyar-SDK resolution: \x1b[33m${
-      useLocalSdk ? `Local Source (${sdkSrcDir})` : "node_modules (NPM)"
-    }\x1b[0m`
+      useLocalSdk ? `Local Source (${sdkSrcDir})` : 'node_modules (NPM)'
+    }\x1b[0m`,
   );
 
   // Map each asyar-sdk subpath (./contracts, ./worker, ./view) at alias level
@@ -29,10 +27,7 @@ export default defineConfig(({ mode }) => {
   // exports, so the alias object is empty.
   const sdkAliases = useLocalSdk
     ? Object.fromEntries(
-        sdkSubpaths.map((sub) => [
-          `asyar-sdk/${sub}`,
-          resolve(sdkSrcDir, `${sub}.ts`),
-        ])
+        sdkSubpaths.map((sub) => [`asyar-sdk/${sub}`, resolve(sdkSrcDir, `${sub}.ts`)]),
       )
     : {};
 
@@ -56,25 +51,25 @@ export default defineConfig(({ mode }) => {
       : { include: sdkSubpaths.map((sub) => `asyar-sdk/${sub}`) },
 
     clearScreen: false,
-  server: {
-    port: 1420,
-    strictPort: true,
-    host: host || false,
-    hmr: host
-      ? {
-          protocol: "ws",
-          host,
-          port: 1421,
-        }
-      : undefined,
-    watch: {
-      ignored: ["**/src-tauri/**"],
+    server: {
+      port: 1420,
+      strictPort: true,
+      host: host || false,
+      hmr: host
+        ? {
+            protocol: 'ws',
+            host,
+            port: 1421,
+          }
+        : undefined,
+      watch: {
+        ignored: ['**/src-tauri/**'],
+      },
+      fs: {
+        allow: [
+          resolve(__dirname, '..'), // workspace root (for hoisted node_modules/.pnpm)
+        ],
+      },
     },
-    fs: {
-      allow: [
-        resolve(__dirname, ".."), // workspace root (for hoisted node_modules/.pnpm)
-      ],
-    },
-  },
   };
 });

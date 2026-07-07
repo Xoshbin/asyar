@@ -7,6 +7,7 @@ from the worker — the view is Dormant-eligible and would silently miss
 events while the panel is closed.
 
 **Permissions required:**
+
 - `application:read` — for the query surface (`getFrontmostApplication`, `listApplications`, `syncApplicationIndex`, `isRunning`) **and** the `onApplicationsChanged` index-watch subscription (same data class — index events carry the same information `listApplications` returns)
 - `app:frontmost-watch` — for the three app-presence `on*` push subscriptions (`onApplicationLaunched`, `onApplicationTerminated`, `onFrontmostApplicationChanged`)
 
@@ -20,29 +21,35 @@ events while the panel is closed.
 interface IApplicationService {
   // ── query surface (permission: application:read) ──
   getFrontmostApplication(): Promise<FrontmostApplication>;
-  syncApplicationIndex(extraPaths?: string[]): Promise<{ added: number; removed: number; total: number }>;
+  syncApplicationIndex(
+    extraPaths?: string[],
+  ): Promise<{ added: number; removed: number; total: number }>;
   listApplications(extraPaths?: string[]): Promise<InstalledApplication[]>;
   isRunning(bundleId: string): Promise<boolean>;
 
   // ── presence push surface (permission: app:frontmost-watch) ──
-  onApplicationLaunched(cb: (e: Extract<AppPresenceEvent, {type: 'launched'}>) => void): Disposer;
-  onApplicationTerminated(cb: (e: Extract<AppPresenceEvent, {type: 'terminated'}>) => void): Disposer;
-  onFrontmostApplicationChanged(cb: (e: Extract<AppPresenceEvent, {type: 'frontmost-changed'}>) => void): Disposer;
+  onApplicationLaunched(cb: (e: Extract<AppPresenceEvent, { type: 'launched' }>) => void): Disposer;
+  onApplicationTerminated(
+    cb: (e: Extract<AppPresenceEvent, { type: 'terminated' }>) => void,
+  ): Disposer;
+  onFrontmostApplicationChanged(
+    cb: (e: Extract<AppPresenceEvent, { type: 'frontmost-changed' }>) => void,
+  ): Disposer;
 
   // ── index push surface (permission: application:read) ──
   onApplicationsChanged(cb: (e: ApplicationIndexEvent) => void): Disposer;
 }
 
 type AppPresenceEvent =
-  | { type: 'launched';          pid: number; bundleId?: string; name: string; path?: string }
-  | { type: 'terminated';        pid: number; bundleId?: string; name: string }
+  | { type: 'launched'; pid: number; bundleId?: string; name: string; path?: string }
+  | { type: 'terminated'; pid: number; bundleId?: string; name: string }
   | { type: 'frontmost-changed'; pid: number; bundleId?: string; name: string };
 
 type ApplicationIndexEvent = {
   type: 'applications-changed';
-  added: number;    // apps newly added since last scan
-  removed: number;  // apps removed since last scan
-  total: number;    // current absolute count
+  added: number; // apps newly added since last scan
+  removed: number; // apps removed since last scan
+  total: number; // current absolute count
 };
 
 type Disposer = () => void;
@@ -57,7 +64,7 @@ interface FrontmostApplication {
 
 ### Capability note — what Raycast doesn't have
 
-Raycast's `getFrontmostApplication` is strictly pull-based; there is no way to subscribe to launch, terminate, or frontmost-changed events without polling. Asyar exposes those three events through `ApplicationService.on*`. Extensions that want to react *when* the user switches apps (rather than asking Asyar every second) should use the push surface; those that just need the current state can keep using `getFrontmostApplication()` or `isRunning()`.
+Raycast's `getFrontmostApplication` is strictly pull-based; there is no way to subscribe to launch, terminate, or frontmost-changed events without polling. Asyar exposes those three events through `ApplicationService.on*`. Extensions that want to react _when_ the user switches apps (rather than asking Asyar every second) should use the push surface; those that just need the current state can keep using `getFrontmostApplication()` or `isRunning()`.
 
 ### Usage — query surface
 
@@ -114,24 +121,24 @@ The event is driven by a `notify` filesystem watcher that arms on `/Applications
 
 ### Platform coverage matrix
 
-| Event                   | macOS                                                | Windows                                                                | Linux (X11)                                               | Linux (Wayland) |
-|------------------------ |------------------------------------------------------|------------------------------------------------------------------------|-----------------------------------------------------------|-----------------|
-| `launched`              | `NSWorkspaceDidLaunchApplicationNotification`        | WMI `__InstanceCreationEvent` on `Win32_Process`                       | `/proc` 1s poll + DBus `NameOwnerChanged` (GUI heuristic) | same as X11     |
-| `terminated`            | `NSWorkspaceDidTerminateApplicationNotification`     | WMI `__InstanceDeletionEvent` on `Win32_Process`                       | `/proc` 1s poll + DBus `NameOwnerChanged`                 | same as X11     |
-| `frontmost-changed`     | `NSWorkspaceDidActivateApplicationNotification`      | `SetWinEventHook(EVENT_SYSTEM_FOREGROUND)` on a message-pump thread    | `_NET_ACTIVE_WINDOW` property changes via `x11rb`         | **not emitted** — no Wayland equivalent; one warning logged at startup |
+| Event               | macOS                                            | Windows                                                             | Linux (X11)                                               | Linux (Wayland)                                                        |
+| ------------------- | ------------------------------------------------ | ------------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `launched`          | `NSWorkspaceDidLaunchApplicationNotification`    | WMI `__InstanceCreationEvent` on `Win32_Process`                    | `/proc` 1s poll + DBus `NameOwnerChanged` (GUI heuristic) | same as X11                                                            |
+| `terminated`        | `NSWorkspaceDidTerminateApplicationNotification` | WMI `__InstanceDeletionEvent` on `Win32_Process`                    | `/proc` 1s poll + DBus `NameOwnerChanged`                 | same as X11                                                            |
+| `frontmost-changed` | `NSWorkspaceDidActivateApplicationNotification`  | `SetWinEventHook(EVENT_SYSTEM_FOREGROUND)` on a message-pump thread | `_NET_ACTIVE_WINDOW` property changes via `x11rb`         | **not emitted** — no Wayland equivalent; one warning logged at startup |
 
 #### Linux limitations
 
-The procfs poller sees *every* process transition, not just GUI apps — the Linux `launched`/`terminated` stream is therefore noisier than macOS/Windows. The DBus `NameOwnerChanged` path augments it with explicit GUI-app registrations (e.g. `com.spotify.Client`, `com.slack.Slack`) filtered by the `dbus_name_looks_like_gui_app` heuristic.
+The procfs poller sees _every_ process transition, not just GUI apps — the Linux `launched`/`terminated` stream is therefore noisier than macOS/Windows. The DBus `NameOwnerChanged` path augments it with explicit GUI-app registrations (e.g. `com.spotify.Client`, `com.slack.Slack`) filtered by the `dbus_name_looks_like_gui_app` heuristic.
 
 On Wayland there is no portable equivalent of `_NET_ACTIVE_WINDOW`, so `onFrontmostApplicationChanged` never fires. The watcher logs a single warning at startup and continues — the other two events still work.
 
 ### isRunning semantics per platform
 
-| Platform | Interpretation of `bundleId` argument                                          |
-|----------|--------------------------------------------------------------------------------|
-| macOS    | Real bundle identifier; matched via `NSWorkspace.runningApplications`          |
-| Windows  | Process name (with or without `.exe`); scanned via `CreateToolhelp32Snapshot`  |
+| Platform | Interpretation of `bundleId` argument                                                |
+| -------- | ------------------------------------------------------------------------------------ |
+| macOS    | Real bundle identifier; matched via `NSWorkspace.runningApplications`                |
+| Windows  | Process name (with or without `.exe`); scanned via `CreateToolhelp32Snapshot`        |
 | Linux    | `/proc/<pid>/status` `Name` or a DBus well-known name (falls back to `NameHasOwner`) |
 
 ### Platform notes — query surface
@@ -156,11 +163,11 @@ Extensions that need to react to uninstalls — for example to invalidate cached
 
 **Platform behaviour:**
 
-| Platform | Action visibility | Behaviour on confirm |
-|----------|-------------------|----------------------|
+| Platform | Action visibility                                                                   | Behaviour on confirm                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | macOS    | Shown for `type: 'application'` results whose `path` does not start with `/System/` | Before the confirm sheet, Asyar scans `~/Library/*` for user data keyed by the app's `CFBundleIdentifier` (Application Support, Caches, Logs, Containers, HTTPStorages, WebKit, Application Scripts, Preferences/*.plist, ByHost preferences, Saved Application State, LaunchAgents, Cookies) plus two name-keyed fallbacks. The confirm sheet shows the total size. On confirm, the `.app` bundle is moved to Trash via the `trash` crate, followed by each user-data path. All items remain reversible from Finder's Trash. |
-| Windows  | Shown for `type: 'application'` results with a `.lnk` path | The shortcut's display-name is matched case-insensitively against `HKLM/HKCU\…\CurrentVersion\Uninstall\*`; the discovered `UninstallString` is launched via `cmd /C`. The vendor's own uninstaller UI takes over (including any UAC prompt). Asyar does not scan user data — the vendor uninstaller is responsible for that cleanup. |
-| Linux    | Hidden | Not supported — package-manager fragmentation (apt/dnf/pacman/flatpak/snap/AppImage) makes a single first-party implementation impractical. |
+| Windows  | Shown for `type: 'application'` results with a `.lnk` path                          | The shortcut's display-name is matched case-insensitively against `HKLM/HKCU\…\CurrentVersion\Uninstall\*`; the discovered `UninstallString` is launched via `cmd /C`. The vendor's own uninstaller UI takes over (including any UAC prompt). Asyar does not scan user data — the vendor uninstaller is responsible for that cleanup.                                                                                                                                                                                         |
+| Linux    | Hidden                                                                              | Not supported — package-manager fragmentation (apt/dnf/pacman/flatpak/snap/AppImage) makes a single first-party implementation impractical.                                                                                                                                                                                                                                                                                                                                                                                   |
 
 **macOS data-scan scope** — the scanner is intentionally conservative:
 

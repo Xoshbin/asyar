@@ -1,9 +1,11 @@
 ---
 order: 4
 ---
+
 ## 17. Complete Example — Bookmarks Extension
 
 A complete production-ready extension demonstrating:
+
 - A **view command** (open the bookmarks list).
 - A **no-view command** (save today's date as a bookmark).
 - **In-view search** (filter bookmarks as the user types).
@@ -49,11 +51,7 @@ A complete production-ready extension demonstrating:
 ```typescript
 import { mount } from 'svelte';
 import BookmarksView from './BookmarksView.svelte';
-import {
-  ExtensionContext,
-  type IActionService,
-  type INotificationService,
-} from 'asyar-sdk';
+import { ExtensionContext, type IActionService, type INotificationService } from 'asyar-sdk';
 
 const extensionId = window.location.hostname || 'com.yourname.bookmarks';
 
@@ -68,22 +66,25 @@ window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId }, '*');
 window.addEventListener('keydown', (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
     event.preventDefault();
-    window.parent.postMessage({
-      type: 'asyar:extension:keydown',
-      payload: {
-        key: event.key,
-        metaKey: event.metaKey,
-        ctrlKey: event.ctrlKey,
-        shiftKey: event.shiftKey,
-        altKey: event.altKey,
+    window.parent.postMessage(
+      {
+        type: 'asyar:extension:keydown',
+        payload: {
+          key: event.key,
+          metaKey: event.metaKey,
+          ctrlKey: event.ctrlKey,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+        },
       },
-    }, '*');
+      '*',
+    );
   }
 });
 
 // 4. Resolve services once.
-const notifService   = context.getService<INotificationService>('notifications');
-const actionService  = context.getService<IActionService>('actions');
+const notifService = context.getService<INotificationService>('notifications');
+const actionService = context.getService<IActionService>('actions');
 
 // 5. Handle no-view command (add-today) invoked by the host.
 window.addEventListener('message', async (event) => {
@@ -92,7 +93,10 @@ window.addEventListener('message', async (event) => {
 
   if (commandId === 'add-today') {
     const entry = new Date().toLocaleDateString('en-US', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
     });
     const stored: string[] = JSON.parse(localStorage.getItem('bookmarks') ?? '[]');
     stored.unshift(entry);
@@ -122,7 +126,7 @@ if (viewName === 'BookmarksView') {
 
   interface Props {
     actionService: IActionService;
-    notifService:  INotificationService;
+    notifService: INotificationService;
   }
   let { actionService, notifService }: Props = $props();
 
@@ -131,8 +135,8 @@ if (viewName === 'BookmarksView') {
 
   const filtered = $derived(
     query.trim()
-      ? bookmarks.filter(b => b.toLowerCase().includes(query.toLowerCase()))
-      : bookmarks
+      ? bookmarks.filter((b) => b.toLowerCase().includes(query.toLowerCase()))
+      : bookmarks,
   );
 
   const ACTION_ID = 'com.yourname.bookmarks:clear-all';
@@ -240,9 +244,22 @@ if (viewName === 'BookmarksView') {
     padding: 1rem 1.25rem 0.5rem;
     border-bottom: 1px solid var(--separator);
   }
-  h1 { font-size: 1rem; font-weight: 600; margin: 0; }
-  .count { font-size: 0.75rem; opacity: 0.5; }
-  ul { list-style: none; margin: 0; padding: 0.5rem 0; flex: 1; overflow-y: auto; }
+  h1 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+  }
+  .count {
+    font-size: 0.75rem;
+    opacity: 0.5;
+  }
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0.5rem 0;
+    flex: 1;
+    overflow-y: auto;
+  }
   li {
     display: flex;
     align-items: center;
@@ -251,7 +268,9 @@ if (viewName === 'BookmarksView') {
     border-radius: 6px;
     margin: 0 0.5rem;
   }
-  li:hover { background: var(--bg-secondary); }
+  li:hover {
+    background: var(--bg-secondary);
+  }
   li button {
     background: none;
     border: none;
@@ -260,9 +279,18 @@ if (viewName === 'BookmarksView') {
     font-size: 0.75rem;
     color: var(--text-primary);
   }
-  li button:hover { opacity: 1; }
-  .empty { padding: 2rem 1.25rem; opacity: 0.5; font-size: 0.875rem; }
-  footer { padding: 0.75rem 1rem; border-top: 1px solid var(--separator); }
+  li button:hover {
+    opacity: 1;
+  }
+  .empty {
+    padding: 2rem 1.25rem;
+    opacity: 0.5;
+    font-size: 0.875rem;
+  }
+  footer {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--separator);
+  }
   input {
     width: 100%;
     padding: 0.5rem 0.75rem;
@@ -274,7 +302,9 @@ if (viewName === 'BookmarksView') {
     outline: none;
     box-sizing: border-box;
   }
-  input:focus { border-color: var(--accent-primary); }
+  input:focus {
+    border-color: var(--accent-primary);
+  }
 </style>
 ```
 

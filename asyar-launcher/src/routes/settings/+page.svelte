@@ -1,10 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import {
-    LoadingState,
-    DialogHost,
-    SettingsTopBar
-  } from '../../components';
+  import { LoadingState, DialogHost, SettingsTopBar } from '../../components';
   import { SettingsHandler } from './settingsHandlers.svelte';
   import GeneralTab from './tabs/GeneralTab.svelte';
   import AiTab from './tabs/AiTab.svelte';
@@ -85,15 +81,24 @@
   <div class="settings-page">
     <header class="settings-header">
       {#if handler.initError}
-        <div class="p-2 text-center" style="background: color-mix(in srgb, var(--accent-warning) 15%, var(--bg-primary)); color: var(--text-primary);">
+        <div
+          class="p-2 text-center"
+          style="background: color-mix(in srgb, var(--accent-warning) 15%, var(--bg-primary)); color: var(--text-primary);"
+        >
           ⚠️ {handler.initError}
         </div>
       {/if}
       <SettingsTopBar tabs={settingsTabs} bind:activeTab={handler.activeTab} />
     </header>
 
-    <main class="settings-content custom-scrollbar" class:full-bleed={handler.activeTab === 'extensions'}>
-      <div class="settings-content-inner" class:full-bleed-inner={handler.activeTab === 'extensions'}>
+    <main
+      class="settings-content custom-scrollbar"
+      class:full-bleed={handler.activeTab === 'extensions'}
+    >
+      <div
+        class="settings-content-inner"
+        class:full-bleed-inner={handler.activeTab === 'extensions'}
+      >
         {#if handler.activeTab === 'general'}
           <GeneralTab {handler} />
         {:else if handler.activeTab === 'ai'}

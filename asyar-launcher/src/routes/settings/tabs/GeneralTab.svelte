@@ -26,7 +26,9 @@
     handler: SettingsHandler;
   } = $props();
 
-  let themeExtensions = $state<Array<{ id: string; name: string; author?: string; version: string }>>([]);
+  let themeExtensions = $state<
+    Array<{ id: string; name: string; author?: string; version: string }>
+  >([]);
   let activeThemeId = $state<string | null>(null);
 
   onMount(async () => {
@@ -44,7 +46,9 @@
     } catch (e) {
       logService.error(`Failed to load theme extensions: ${e}`);
       diagnosticsService.report({
-        source: 'frontend', kind: 'manual', severity: 'warning',
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'warning',
         retryable: false,
         context: { message: 'Could not load theme extensions list' },
       });
@@ -87,7 +91,9 @@
     } catch (e) {
       logService.error(`Failed to re-run onboarding: ${e}`);
       diagnosticsService.report({
-        source: 'frontend', kind: 'manual', severity: 'error',
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
         retryable: false,
         context: { message: 'Could not re-run onboarding' },
       });
@@ -107,9 +113,13 @@
     } catch (error) {
       logService.error(`Failed to apply theme ${themeId}: ${error}`);
       diagnosticsService.report({
-        source: 'frontend', kind: 'manual', severity: 'error',
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
         retryable: false,
-        context: { message: themeId ? `Could not apply theme "${themeId}"` : 'Could not remove active theme' },
+        context: {
+          message: themeId ? `Could not apply theme "${themeId}"` : 'Could not remove active theme',
+        },
       });
     }
   }
@@ -145,10 +155,7 @@
   </SettingsFormRow>
 
   <SettingsFormRow label="Window Mode">
-    <WindowModeSelector
-      value={handler.selectedLaunchView}
-      onchange={selectLaunchView}
-    />
+    <WindowModeSelector value={handler.selectedLaunchView} onchange={selectLaunchView} />
   </SettingsFormRow>
 
   <SettingsFormRow label="Onboarding" separator>
@@ -160,30 +167,43 @@
 </SettingsForm>
 
 {#if themeExtensions.length > 0}
-<div class="themes-section">
-  <div class="themes-section-header">Custom Themes</div>
-  <div class="themes-list">
-    <label class="theme-item" class:theme-active={activeThemeId === null}>
-      <input type="radio" name="custom-theme" checked={activeThemeId === null} onchange={() => selectTheme(null)} class="sr-only">
-      <div class="theme-item-body">
-        <div class="theme-item-name">Default</div>
-        <div class="theme-item-meta">Built-in Asyar theme</div>
-      </div>
-    </label>
-
-    {#each themeExtensions as theme}
-      <label class="theme-item" class:theme-active={activeThemeId === theme.id}>
-        <input type="radio" name="custom-theme" checked={activeThemeId === theme.id} onchange={() => selectTheme(theme.id)} class="sr-only">
+  <div class="themes-section">
+    <div class="themes-section-header">Custom Themes</div>
+    <div class="themes-list">
+      <label class="theme-item" class:theme-active={activeThemeId === null}>
+        <input
+          type="radio"
+          name="custom-theme"
+          checked={activeThemeId === null}
+          onchange={() => selectTheme(null)}
+          class="sr-only"
+        />
         <div class="theme-item-body">
-          <div class="theme-item-name">{theme.name}</div>
-          <div class="theme-item-meta">
-            {#if theme.author}{theme.author} &middot; {/if}v{theme.version}
-          </div>
+          <div class="theme-item-name">Default</div>
+          <div class="theme-item-meta">Built-in Asyar theme</div>
         </div>
       </label>
-    {/each}
+
+      {#each themeExtensions as theme}
+        <label class="theme-item" class:theme-active={activeThemeId === theme.id}>
+          <input
+            type="radio"
+            name="custom-theme"
+            checked={activeThemeId === theme.id}
+            onchange={() => selectTheme(theme.id)}
+            class="sr-only"
+          />
+          <div class="theme-item-body">
+            <div class="theme-item-name">{theme.name}</div>
+            <div class="theme-item-meta">
+              {#if theme.author}{theme.author} &middot;
+              {/if}v{theme.version}
+            </div>
+          </div>
+        </label>
+      {/each}
+    </div>
   </div>
-</div>
 {/if}
 
 <style>
@@ -208,7 +228,8 @@
   }
 
   .themes-section-header {
-    padding: var(--space-4) var(--space-6) var(--space-2) calc(var(--space-6) + 9rem + var(--space-6));
+    padding: var(--space-4) var(--space-6) var(--space-2)
+      calc(var(--space-6) + 9rem + var(--space-6));
     font-size: var(--font-size-xs);
     font-weight: 600;
     font-family: var(--font-ui);
@@ -225,7 +246,8 @@
   .theme-item {
     display: flex;
     align-items: center;
-    padding: var(--space-3) var(--space-6) var(--space-3) calc(var(--space-6) + 9rem + var(--space-6));
+    padding: var(--space-3) var(--space-6) var(--space-3)
+      calc(var(--space-6) + 9rem + var(--space-6));
     border-bottom: 1px solid var(--separator);
     cursor: pointer;
     transition: background var(--transition-fast);

@@ -357,7 +357,10 @@ mod tests {
             source: HitSource::Local,
         };
         let json = serde_json::to_string(&hit).unwrap();
-        assert!(json.contains("\"fileId\":\"00ab00ab00ab00ab\""), "got {json}");
+        assert!(
+            json.contains("\"fileId\":\"00ab00ab00ab00ab\""),
+            "got {json}"
+        );
         assert!(json.contains("\"modifiedAt\":1234567890"), "got {json}");
         assert!(json.contains("\"isDir\":false"), "got {json}");
         assert!(json.contains("\"type\":\"document\""), "got {json}");

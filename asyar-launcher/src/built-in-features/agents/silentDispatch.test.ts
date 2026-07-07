@@ -105,10 +105,7 @@ vi.mock('../../services/log/logService', () => ({
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
 
-import {
-  dispatchSilentAgentCommand,
-  lastNonEmptyLine,
-} from './silentDispatch';
+import { dispatchSilentAgentCommand, lastNonEmptyLine } from './silentDispatch';
 import { getProvider } from '../../services/ai/providerRegistry';
 import { streamChat } from '../../services/ai/aiEngine';
 import { settingsService } from '../../services/settings/settingsService.svelte';
@@ -315,10 +312,7 @@ describe('dispatchSilentAgentCommand — outputAction: hud', () => {
   });
 
   it('replaces_the_spinning_HUD_with_the_last_non_empty_line', async () => {
-    wireHappyPath(
-      makeAgent({ outputAction: 'hud' }),
-      'first line\nsecond line\n',
-    );
+    wireHappyPath(makeAgent({ outputAction: 'hud' }), 'first line\nsecond line\n');
 
     await dispatchSilentAgentCommand({ agentId: 'agent-1', userText: 'x' });
 
@@ -549,10 +543,7 @@ describe('dispatchSilentAgentCommand — onFinalText callback', () => {
     expect(onFinalText).toHaveBeenCalledTimes(1);
     expect(onFinalText).toHaveBeenCalledWith('');
     // No warning toast was shown — caller owns UX.
-    expect(mockSpinnerReplace).not.toHaveBeenCalledWith(
-      '⚠️ Empty response',
-      expect.anything(),
-    );
+    expect(mockSpinnerReplace).not.toHaveBeenCalledWith('⚠️ Empty response', expect.anything());
     // No failure was reported — empty is legitimate when caller is wired.
     expect(diagnosticsService.report).not.toHaveBeenCalled();
     expect(notificationService.send).not.toHaveBeenCalled();

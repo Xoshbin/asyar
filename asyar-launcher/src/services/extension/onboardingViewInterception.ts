@@ -74,9 +74,7 @@ export function installOnboardingCompletionListener(
         },
       );
     } catch (err) {
-      logService.warn(
-        `[onboarding] failed to install asyar:extension-onboarded listener: ${err}`,
-      );
+      logService.warn(`[onboarding] failed to install asyar:extension-onboarded listener: ${err}`);
     }
   })();
   return () => {

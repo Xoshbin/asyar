@@ -1,6 +1,7 @@
 ---
 order: 14
 ---
+
 # AI Provider Plugins — How Tool Calling Stays Provider-Agnostic
 
 This page is for launcher contributors and forkers. Extension authors interact with the AI surface through a different surface — see [AI Service — SDK reference](../reference/sdk/ai-service.md) for that. You only need this page if you are adding a new provider, modifying an existing one, or trying to understand why the agent loop does not contain any provider-specific branching.
@@ -32,7 +33,12 @@ export interface IProviderPlugin {
     messages: LoopMessage[],
     config: ProviderConfig,
     params: ChatParams,
-    tools: Array<{ id: string; name: string; description: string; parameters: Record<string, unknown> }>,
+    tools: Array<{
+      id: string;
+      name: string;
+      description: string;
+      parameters: Record<string, unknown>;
+    }>,
   ): RequestSpec;
 
   parseToolStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<ToolStreamEvent>;
@@ -59,9 +65,7 @@ Field by field:
 
 ```typescript
 export type ToolStreamEvent =
-  | { type: 'text'; text: string }
-  | ({ type: 'tool_use' } & ToolCall)
-  | { type: 'message_stop' };
+  { type: 'text'; text: string } | ({ type: 'tool_use' } & ToolCall) | { type: 'message_stop' };
 ```
 
 Where `ToolCall` is:
@@ -93,10 +97,14 @@ A provider plugin has three responsibilities.
 ```typescript
 export function registerProvider(plugin: IProviderPlugin): void {
   if (typeof plugin.buildToolRequest !== 'function') {
-    throw new Error(`registerProvider: plugin "${plugin.id}" is missing required method buildToolRequest`);
+    throw new Error(
+      `registerProvider: plugin "${plugin.id}" is missing required method buildToolRequest`,
+    );
   }
   if (typeof plugin.parseToolStream !== 'function') {
-    throw new Error(`registerProvider: plugin "${plugin.id}" is missing required method parseToolStream`);
+    throw new Error(
+      `registerProvider: plugin "${plugin.id}" is missing required method parseToolStream`,
+    );
   }
   if (plugin.supportsTools !== true) {
     throw new Error(`registerProvider: plugin "${plugin.id}" must declare supportsTools: true`);
@@ -123,12 +131,12 @@ The helper exports three things:
 
 Providers that delegate to the helper:
 
-| Provider | `buildToolRequest` | `parseToolStream` |
-|---|---|---|
-| `openai` | delegates via `buildOpenAIToolsBody` | delegates via `parseOpenAIToolStream` |
+| Provider     | `buildToolRequest`                   | `parseToolStream`                     |
+| ------------ | ------------------------------------ | ------------------------------------- |
+| `openai`     | delegates via `buildOpenAIToolsBody` | delegates via `parseOpenAIToolStream` |
 | `openrouter` | delegates via `buildOpenAIToolsBody` | delegates via `parseOpenAIToolStream` |
-| `custom` | delegates via `buildOpenAIToolsBody` | delegates via `parseOpenAIToolStream` |
-| `ollama` | delegates via `buildOpenAIToolsBody` | **implements its own** |
+| `custom`     | delegates via `buildOpenAIToolsBody` | delegates via `parseOpenAIToolStream` |
+| `ollama`     | delegates via `buildOpenAIToolsBody` | **implements its own**                |
 
 Ollama's `buildToolRequest` uses the OpenAI body format because Ollama's `/api/chat` endpoint accepts OpenAI-shaped tool declarations. However, Ollama's `parseToolStream` is implemented directly in `ollama.ts` rather than delegating to the helper. Ollama emits tool calls as already-parsed JSON objects in the response body, not as stringified JSON fragments spread across delta chunks — the accumulation logic in `parseOpenAIToolStream` does not apply, and delegating to it would silently produce empty `input` objects.
 

@@ -12,7 +12,11 @@ vi.mock('./ipc/MessageBroker', () => ({
   },
 }));
 
-import { PreferencesFacade, buildFrozenSnapshot, type PreferencesSnapshot } from './PreferencesFacade';
+import {
+  PreferencesFacade,
+  buildFrozenSnapshot,
+  type PreferencesSnapshot,
+} from './PreferencesFacade';
 
 beforeEach(() => {
   mockInvoke.mockReset();
@@ -36,7 +40,10 @@ describe('buildFrozenSnapshot', () => {
   });
 
   it('spreads extension-level keys onto the top-level snapshot', () => {
-    const snap = buildFrozenSnapshot({ extension: { apiKey: 'abc', units: 'metric' }, commands: {} });
+    const snap = buildFrozenSnapshot({
+      extension: { apiKey: 'abc', units: 'metric' },
+      commands: {},
+    });
     expect(snap.apiKey).toBe('abc');
     expect(snap.units).toBe('metric');
   });

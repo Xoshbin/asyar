@@ -1,47 +1,48 @@
 <script lang="ts">
-  import { open } from "@tauri-apps/plugin-dialog";
-  import { generateExtension, type ExtensionType } from "./scaffoldService";
-  import { logService } from "../../services/log/logService";
-  import { FormField, Icon } from "../../components";
-  import { setFocusLock } from "../../lib/ipc/commands";
+  import { open } from '@tauri-apps/plugin-dialog';
+  import { generateExtension, type ExtensionType } from './scaffoldService';
+  import { logService } from '../../services/log/logService';
+  import { FormField, Icon } from '../../components';
+  import { setFocusLock } from '../../lib/ipc/commands';
 
-  const typeOptions: { value: ExtensionType; label: string; icon: string; description: string }[] = [
-    {
-      value: "view",
-      icon: "image",
-      label: "UI View",
-      description: "Full-page Svelte interface opened directly by a command.",
-    },
-    {
-      value: "result",
-      icon: "filter",
-      label: "Search + View",
-      description: "Returns filterable results; clicking one opens a detail view.",
-    },
-    {
-      value: "logic",
-      icon: "snippets",
-      label: "Action Only",
-      description: "Runs logic directly with no UI — appears in search as actionable items.",
-    },
-    {
-      value: "theme",
-      icon: "layers",
-      label: "Theme",
-      description: "Customizes Asyar's appearance with CSS variables. No JavaScript required.",
-    },
-  ];
+  const typeOptions: { value: ExtensionType; label: string; icon: string; description: string }[] =
+    [
+      {
+        value: 'view',
+        icon: 'image',
+        label: 'UI View',
+        description: 'Full-page Svelte interface opened directly by a command.',
+      },
+      {
+        value: 'result',
+        icon: 'filter',
+        label: 'Search + View',
+        description: 'Returns filterable results; clicking one opens a detail view.',
+      },
+      {
+        value: 'logic',
+        icon: 'snippets',
+        label: 'Action Only',
+        description: 'Runs logic directly with no UI — appears in search as actionable items.',
+      },
+      {
+        value: 'theme',
+        icon: 'layers',
+        label: 'Theme',
+        description: "Customizes Asyar's appearance with CSS variables. No JavaScript required.",
+      },
+    ];
 
-  let extType = $state<ExtensionType>("view");
-  let extName = $state("");
-  let extId = $state("");
-  let extDesc = $state("");
-  let saveLocation = $state("");
-  let finalSaveLocation = $derived(saveLocation && extId ? `${saveLocation}/${extId}` : "");
+  let extType = $state<ExtensionType>('view');
+  let extName = $state('');
+  let extId = $state('');
+  let extDesc = $state('');
+  let saveLocation = $state('');
+  let finalSaveLocation = $derived(saveLocation && extId ? `${saveLocation}/${extId}` : '');
 
   let isBrowsing = $state(false);
   let isGenerating = $state(false);
-  let generateStatus = $state("");
+  let generateStatus = $state('');
 
   async function handleBrowse() {
     isBrowsing = true;
@@ -50,7 +51,7 @@
       const selectedPath = await open({
         directory: true,
         multiple: false,
-        title: "Select Extension Save Location"
+        title: 'Select Extension Save Location',
       });
       if (selectedPath && typeof selectedPath === 'string') {
         saveLocation = selectedPath;
@@ -67,25 +68,27 @@
     if (!extName || !extId || !saveLocation) return;
 
     isGenerating = true;
-    generateStatus = "Initializing scaffold...";
+    generateStatus = 'Initializing scaffold...';
 
     try {
       await generateExtension({
         name: extName,
         id: extId,
-        description: extDesc || "An Asyar extension.",
+        description: extDesc || 'An Asyar extension.',
         location: finalSaveLocation,
         extensionType: extType,
-        onProgress: (status) => { generateStatus = status; }
+        onProgress: (status) => {
+          generateStatus = status;
+        },
       });
 
       setTimeout(() => {
         isGenerating = false;
-        generateStatus = "Generated successfully!";
+        generateStatus = 'Generated successfully!';
       }, 1500);
 
       try {
-        const { ExtensionManagerProxy } = await import("asyar-sdk/contracts");
+        const { ExtensionManagerProxy } = await import('asyar-sdk/contracts');
         await new ExtensionManagerProxy().reloadExtensions();
       } catch (err) {
         logService.error(`Failed to trigger reload: ${err}`);
@@ -96,25 +99,44 @@
     }
   }
 
-  let idError = $derived(extId && !/^[a-z][a-z0-9\-]*(\.[a-z][a-z0-9\-]*)+$/.test(extId)
-    ? "Must use dot-notation format (e.g., com.author.my-tool)" : "");
-  let nameError = $derived(extName && (extName.length < 2 || extName.length > 50)
-    ? "Must be between 2 and 50 characters" : "");
-  let descError = $derived(extDesc && (extDesc.length < 10 || extDesc.length > 200)
-    ? "Must be between 10 and 200 characters" : "");
+  let idError = $derived(
+    extId && !/^[a-z][a-z0-9\-]*(\.[a-z][a-z0-9\-]*)+$/.test(extId)
+      ? 'Must use dot-notation format (e.g., com.author.my-tool)'
+      : '',
+  );
+  let nameError = $derived(
+    extName && (extName.length < 2 || extName.length > 50)
+      ? 'Must be between 2 and 50 characters'
+      : '',
+  );
+  let descError = $derived(
+    extDesc && (extDesc.length < 10 || extDesc.length > 200)
+      ? 'Must be between 10 and 200 characters'
+      : '',
+  );
 
   let isValidForm = $derived(
-    !idError && !nameError && !descError &&
-    extName && extId && finalSaveLocation &&
-    (!extDesc || extDesc.length >= 10)
+    !idError &&
+      !nameError &&
+      !descError &&
+      extName &&
+      extId &&
+      finalSaveLocation &&
+      (!extDesc || extDesc.length >= 10),
   );
 
   function handleFocus() {
-    window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: true }, window.location.origin);
+    window.parent?.postMessage(
+      { type: 'asyar:extension:input-focus', focused: true },
+      window.location.origin,
+    );
   }
 
   function handleBlur() {
-    window.parent?.postMessage({ type: 'asyar:extension:input-focus', focused: false }, window.location.origin);
+    window.parent?.postMessage(
+      { type: 'asyar:extension:input-focus', focused: false },
+      window.location.origin,
+    );
   }
 </script>
 
@@ -135,7 +157,9 @@
                 name="ext-type"
                 value={opt.value}
                 checked={extType === opt.value}
-                onchange={() => { extType = opt.value; }}
+                onchange={() => {
+                  extType = opt.value;
+                }}
                 onfocus={handleFocus}
                 onblur={handleBlur}
                 class="sr-only"
@@ -155,7 +179,10 @@
           type="text"
           bind:value={extName}
           placeholder="My Awesome Tool"
-          autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"
+          autocapitalize="none"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
           onfocus={handleFocus}
           onblur={handleBlur}
           class="field-input"
@@ -163,12 +190,19 @@
         />
       </FormField>
 
-      <FormField label="Extension ID" hint="Unique dot-notation identifier — e.g. com.author.my-tool" error={idError}>
+      <FormField
+        label="Extension ID"
+        hint="Unique dot-notation identifier — e.g. com.author.my-tool"
+        error={idError}
+      >
         <input
           type="text"
           bind:value={extId}
           placeholder="com.myname.awesome-tool"
-          autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"
+          autocapitalize="none"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
           onfocus={handleFocus}
           onblur={handleBlur}
           class="field-input text-mono"
@@ -176,12 +210,19 @@
         />
       </FormField>
 
-      <FormField label="Description" hint="Optional — shown in search results (10–200 chars)" error={descError}>
+      <FormField
+        label="Description"
+        hint="Optional — shown in search results (10–200 chars)"
+        error={descError}
+      >
         <input
           type="text"
           bind:value={extDesc}
           placeholder="What does your extension do?"
-          autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"
+          autocapitalize="none"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
           onfocus={handleFocus}
           onblur={handleBlur}
           class="field-input"
@@ -267,7 +308,9 @@
     border-radius: var(--radius-md);
     border: 2px solid var(--border-color);
     cursor: pointer;
-    transition: border-color var(--transition-fast), background var(--transition-fast);
+    transition:
+      border-color var(--transition-fast),
+      background var(--transition-fast);
   }
 
   .type-card:hover {

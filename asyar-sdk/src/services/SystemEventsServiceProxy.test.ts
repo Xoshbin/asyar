@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
-      invoke: vi.fn(),
-      on: vi.fn(),
-      off: vi.fn(),
+    invoke: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
   },
 }));
 
@@ -15,9 +15,7 @@ let mockInvoke: ReturnType<typeof vi.fn>;
 let mockOn: ReturnType<typeof vi.fn>;
 
 function getPushHandler(): (payload: unknown) => void {
-  const call = mockOn.mock.calls.find(
-    (c) => c[0] === 'asyar:event:system-event:push',
-  );
+  const call = mockOn.mock.calls.find((c) => c[0] === 'asyar:event:system-event:push');
   if (!call) throw new Error('push listener not registered');
   return call[1] as (payload: unknown) => void;
 }

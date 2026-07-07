@@ -18,7 +18,10 @@
   import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte';
   import extensionManager from '../services/extension/extensionManager.svelte';
   import { settingsService } from '../services/settings/settingsService.svelte';
-  import { CompactSyncService, registerCompactSyncService } from '../services/launcher/compactSyncService.svelte';
+  import {
+    CompactSyncService,
+    registerCompactSyncService,
+  } from '../services/launcher/compactSyncService.svelte';
   import { pushShowMoreBarHuds } from '../services/launcher/compactHudBridge';
   import { aggregateKindCounts } from '../services/launcher/itemStatusLogic';
   import { runService } from '../services/run/runService.svelte';
@@ -54,7 +57,11 @@
   // Bound by SearchHeader when the accessory dropdown is rendered. Task 15
   // (⌘P) reads this through getAccessoryRef in the keyboard chain so the
   // shortcut works regardless of which element currently has focus.
-  let accessoryRef = $state<{ focus: () => void; openPopover: () => void; togglePopover: () => void } | null>(null);
+  let accessoryRef = $state<{
+    focus: () => void;
+    openPopover: () => void;
+    togglePopover: () => void;
+  } | null>(null);
 
   // Compact launch-view synchronization — owns compactExpanded, sticky gate,
   // query-mirror and setLauncherHeight scheduling. See compactSyncService.
@@ -72,17 +79,28 @@
   const isCompactIdle = $derived(compactSync.isCompactIdle);
 
   // Link DOM refs to controller
-  $effect(() => { controller.setSearchInput(searchInput); });
-  $effect(() => { controller.setListContainer(listContainer); });
-  $effect(() => { if (bottomActionBarInstance) controller.setBottomBar(bottomActionBarInstance); });
+  $effect(() => {
+    controller.setSearchInput(searchInput);
+  });
+  $effect(() => {
+    controller.setListContainer(listContainer);
+  });
+  $effect(() => {
+    if (bottomActionBarInstance) controller.setBottomBar(bottomActionBarInstance);
+  });
 
   // Keyboard orchestration
   const keyboard = createKeyboardHandlers({
     getSearchInput: () => controller.getSearchInput(),
     getLocalSearchValue: () => controller.localSearchValue,
-    setLocalSearchValue: (v) => { controller.localSearchValue = v; searchStores.query = v; },
+    setLocalSearchValue: (v) => {
+      controller.localSearchValue = v;
+      searchStores.query = v;
+    },
     getContextQuery: () => controller.contextQuery,
-    setContextQuery: (v) => { controller.contextQuery = v; },
+    setContextQuery: (v) => {
+      controller.contextQuery = v;
+    },
     getContextHint: () => controller.contextHint,
     getActiveContext: () => controller.activeContext,
     getSearchResultsLength: () => controller.searchResultItemsMapped.length,
@@ -100,7 +118,9 @@
       await searchService.saveIndex();
     },
     isCompactIdle: () => isCompactIdle,
-    onCompactExpand: () => { compactSync.compactExpanded = true; },
+    onCompactExpand: () => {
+      compactSync.compactExpanded = true;
+    },
   });
 
   function handleActionPanelClose() {
@@ -117,7 +137,9 @@
 
   // Global event listeners
   $effect(() => {
-    const handleBlur = () => { compactSync.compactExpanded = false; };
+    const handleBlur = () => {
+      compactSync.compactExpanded = false;
+    };
     document.addEventListener('click', keyboard.maintainSearchFocus, true);
     window.addEventListener('keydown', keyboard.handleGlobalKeydown, true);
     window.addEventListener('blur', handleBlur);
@@ -132,7 +154,9 @@
         keyboard.restoreSearchFocus();
       }
     })
-      .then((fn) => { unlistenResignKey = fn; })
+      .then((fn) => {
+        unlistenResignKey = fn;
+      })
       .catch((e) => logService.debug(`[+page] listen resign-key failed: ${e}`));
 
     return () => {
@@ -146,9 +170,15 @@
   // Compact-sync reactive drivers — each effect is a thin call into the
   // service so the dependencies (controller.*, searchOrchestrator.*,
   // settingsService.*) are tracked by Svelte's reactivity graph.
-  $effect(() => { compactSync.updateSearchExpandSticky(); });
-  $effect(() => { compactSync.syncKeepExpanded(); });
-  $effect(() => { compactSync.applyLauncherHeight(); });
+  $effect(() => {
+    compactSync.updateSearchExpandSticky();
+  });
+  $effect(() => {
+    compactSync.syncKeepExpanded();
+  });
+  $effect(() => {
+    compactSync.applyLauncherHeight();
+  });
 
   // Mirror Scripts/Agents run counts to the native macOS Show More bar HUD
   // chips. Reads runService directly so the $derived in compactHudBridge's
@@ -198,9 +228,7 @@
     const unlisten = listen<string>('usage:pending-share', (e) => {
       usageSharePromptState.show(e.payload);
     });
-    unlisten.catch((e) =>
-      logService.debug(`[+page] listen usage:pending-share failed: ${e}`),
-    );
+    unlisten.catch((e) => logService.debug(`[+page] listen usage:pending-share failed: ${e}`));
     return () => {
       void unlisten.then((fn) => fn()).catch(() => {});
     };
@@ -243,7 +271,9 @@
       // the user can retry or Esc out.
       logService.error(`[argumentMode] submit failed: ${err}`);
       diagnosticsService.report({
-        source: 'frontend', kind: 'action_failed', severity: 'error',
+        source: 'frontend',
+        kind: 'action_failed',
+        severity: 'error',
         retryable: false,
         context: { message: 'Could not run command with the provided arguments' },
       });
@@ -266,13 +296,17 @@
       bind:value={controller.localSearchValue}
       showBack={!!controller.activeViewVal}
       searchable={!(controller.activeViewVal && !controller.activeViewSearchableVal)}
-      placeholder={controller.activeViewVal ? (controller.activeViewSearchableVal ? "Search..." : "Press Escape to go back") : "Search or type a command..."}
+      placeholder={controller.activeViewVal
+        ? controller.activeViewSearchableVal
+          ? 'Search...'
+          : 'Press Escape to go back'
+        : 'Search or type a command...'}
       activeContext={controller.activeContextChip}
       activeViewId={controller.activeViewVal}
       bind:contextQuery={controller.contextQuery}
       contextHint={controller.contextHintChip}
-      argumentMode={argumentMode}
-      argumentCanSubmit={argumentCanSubmit}
+      {argumentMode}
+      {argumentCanSubmit}
       oninput={(e) => controller.handleSearchInput(e)}
       onkeydown={keyboard.handleKeydown}
       onclick={() => controller.handleBackClick()}
@@ -289,10 +323,7 @@
 
   <div class="fixed left-0 right-0 overflow-y-auto" style="top: 56px; bottom: 40px;">
     {#if controller.activeViewVal}
-      <ExtensionViewContainer
-        activeView={controller.activeViewVal}
-        {extensionManager}
-      />
+      <ExtensionViewContainer activeView={controller.activeViewVal} {extensionManager} />
     {:else if !isCompactIdle}
       <SearchResultsArea
         items={controller.searchResultItemsMapped}
@@ -303,7 +334,9 @@
         bind:listContainer
         onselect={(detail) => {
           if (isCompactIdle) return;
-          const clickedIndex = controller.searchResultItemsMapped.findIndex(item => item.object_id === detail.item.object_id);
+          const clickedIndex = controller.searchResultItemsMapped.findIndex(
+            (item) => item.object_id === detail.item.object_id,
+          );
           if (clickedIndex !== -1) {
             searchStores.selectedIndex = clickedIndex;
             controller.handleEnterKey();
@@ -336,14 +369,22 @@
       }
     }}
     onactionListClosed={handleActionPanelClose}
-    onexpand={() => { compactSync.compactExpanded = true; }}
+    onexpand={() => {
+      compactSync.compactExpanded = true;
+    }}
   />
-  
+
   {#if controller.assignShortcutTarget}
     <ShortcutCaptureOverlay
       target={controller.assignShortcutTarget}
-      oncapture={() => { controller.assignShortcutTarget = null; keyboard.restoreSearchFocus(); }}
-      oncancel={() => { controller.assignShortcutTarget = null; keyboard.restoreSearchFocus(); }}
+      oncapture={() => {
+        controller.assignShortcutTarget = null;
+        keyboard.restoreSearchFocus();
+      }}
+      oncancel={() => {
+        controller.assignShortcutTarget = null;
+        keyboard.restoreSearchFocus();
+      }}
     />
   {/if}
 
@@ -353,8 +394,14 @@
       itemName={controller.assignAliasTarget.name ?? ''}
       itemType={controller.assignAliasTarget.type === 'application' ? 'application' : 'command'}
       currentAlias={controller.assignAliasTarget.alias ?? undefined}
-      onsave={() => { controller.assignAliasTarget = null; keyboard.restoreSearchFocus(); }}
-      oncancel={() => { controller.assignAliasTarget = null; keyboard.restoreSearchFocus(); }}
+      onsave={() => {
+        controller.assignAliasTarget = null;
+        keyboard.restoreSearchFocus();
+      }}
+      oncancel={() => {
+        controller.assignAliasTarget = null;
+        keyboard.restoreSearchFocus();
+      }}
     />
   {/if}
 
@@ -386,7 +433,9 @@
     {@const manifest = extensionManager.getManifestById(request.extensionId)}
     <ShellConsentDialog
       extensionName={manifest?.name ?? request.extensionId}
-      extensionIcon={manifest?.icon ? `asyar-icon://${request.extensionId}/${manifest.icon}` : undefined}
+      extensionIcon={manifest?.icon
+        ? `asyar-icon://${request.extensionId}/${manifest.icon}`
+        : undefined}
       program={request.program}
       resolvedPath={request.resolvedPath}
       onAllow={() => shellConsentService.approveCurrent()}
@@ -406,7 +455,15 @@
    * default keeps the real macOS overlay scrollbar that fades in
    * on scroll, controlled by System Settings → "Show scroll bars".
    */
-  html:not([data-platform="macos"]) ::-webkit-scrollbar { width: 8px; height: 8px; }
-  html:not([data-platform="macos"]) ::-webkit-scrollbar-track { background: transparent; }
-  html:not([data-platform="macos"]) ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb, rgba(155, 155, 155, 0.5)); border-radius: var(--radius-md); }
+  html:not([data-platform='macos']) ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  html:not([data-platform='macos']) ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  html:not([data-platform='macos']) ::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb, rgba(155, 155, 155, 0.5));
+    border-radius: var(--radius-md);
+  }
 </style>

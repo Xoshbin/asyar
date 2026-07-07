@@ -1,6 +1,7 @@
 ---
 order: 1
 ---
+
 ## 11. The "Create Extension" Built-in Tool
 
 The fastest and most reliable way to scaffold a new extension is the **Create Extension** feature built into Asyar itself. It is available as a command in the launcher.
@@ -11,11 +12,11 @@ Open Asyar → type **"Create Extension"** → press Enter.
 
 ### The three scaffolded types
 
-| Type | Template produces | Best for |
-|---|---|---|
-| **View** | `main.ts` + `DefaultView.svelte` + view manifest | Rich UI panels, forms, browsers, editors |
+| Type                       | Template produces                                              | Best for                                          |
+| -------------------------- | -------------------------------------------------------------- | ------------------------------------------------- |
+| **View**                   | `main.ts` + `DefaultView.svelte` + view manifest               | Rich UI panels, forms, browsers, editors          |
 | **Result** (Search + View) | `main.ts` + `index.ts` (with `search()`) + `DetailView.svelte` | Documentation search, contact lookup, file search |
-| **Logic** | `main.ts` only (no Svelte component) | Background actions, clipboard tools, webhooks |
+| **Logic**                  | `main.ts` only (no Svelte component)                           | Background actions, clipboard tools, webhooks     |
 
 ### What the scaffolder does
 
@@ -33,18 +34,18 @@ After generation, your extension is **immediately active** in Asyar. Open the la
 
 Every scaffolded project includes these files:
 
-| File | Purpose |
-|---|---|
-| `manifest.json` | Extension manifest (type-specific template) |
-| `package.json` | npm/pnpm project with build scripts |
-| `vite.config.ts` | Vite build config with SDK alias for dev mode |
-| `tsconfig.json` | TypeScript config |
-| `index.html` | Vite entry point HTML |
-| `.gitignore` | Ignores `node_modules/`, `dist/`, `.env`, `*.zip` |
-| `src/main.ts` | iframe bootstrap — creates `ExtensionContext`, signals readiness, mounts component |
-| `src/index.ts` | Extension class (view and result types) |
-| `src/DefaultView.svelte` | View component (view type) |
-| `src/DetailView.svelte` | Detail view component (result type) |
+| File                     | Purpose                                                                            |
+| ------------------------ | ---------------------------------------------------------------------------------- |
+| `manifest.json`          | Extension manifest (type-specific template)                                        |
+| `package.json`           | npm/pnpm project with build scripts                                                |
+| `vite.config.ts`         | Vite build config with SDK alias for dev mode                                      |
+| `tsconfig.json`          | TypeScript config                                                                  |
+| `index.html`             | Vite entry point HTML                                                              |
+| `.gitignore`             | Ignores `node_modules/`, `dist/`, `.env`, `*.zip`                                  |
+| `src/main.ts`            | iframe bootstrap — creates `ExtensionContext`, signals readiness, mounts component |
+| `src/index.ts`           | Extension class (view and result types)                                            |
+| `src/DefaultView.svelte` | View component (view type)                                                         |
+| `src/DetailView.svelte`  | Detail view component (result type)                                                |
 
 ### Build an extension with AI
 
@@ -52,7 +53,7 @@ The same built-in feature also offers an AI path that turns a plain-language
 prompt into a working extension.
 
 Open Asyar → type **"Build Extension with AI"** → describe what you want
-(e.g. *"create an extension for Notion"*).
+(e.g. _"create an extension for Notion"_).
 
 **Prerequisites**
 
@@ -64,7 +65,7 @@ Open Asyar → type **"Build Extension with AI"** → describe what you want
 
 1. **Feasibility gate.** Before writing anything, the agent checks the request
    against Asyar's capability list and tells you plainly if it's impossible
-   (and suggests the nearest thing it *can* build) — so you never wait on a build
+   (and suggests the nearest thing it _can_ build) — so you never wait on a build
    that can't work.
 2. **Async build.** For feasible requests it builds in the background. You can
    leave the view and keep working; it notifies you when it's done.
@@ -91,7 +92,7 @@ Open Asyar → type **"My Extensions"** → browse everything in `~/AsyarExtensi
 
 ### Publish to the Asyar Store
 
-From the AI builder's done screen *or* from **My Extensions**, the action panel
+From the AI builder's done screen _or_ from **My Extensions**, the action panel
 (**⌘K**) has **Publish to Asyar Store**. It confirms first (publishing creates a
 **public GitHub repo** under your account and submits for review), then opens a
 terminal running [`asyar publish`](./publishing.md) in the extension's directory.

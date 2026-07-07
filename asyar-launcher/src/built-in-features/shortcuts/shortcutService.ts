@@ -4,7 +4,10 @@ import { applicationService } from '../../services/application/applicationsServi
 import extensionManager from '../../services/extension/extensionManager.svelte';
 import { parseShortcut, normalizeShortcut, VALID_KEYS, initValidKeys } from './shortcutFormatter';
 import { settingsService } from '../../services/settings/settingsService.svelte';
-import { contextActivationId, contextModeService } from '../../services/context/contextModeService.svelte';
+import {
+  contextActivationId,
+  contextModeService,
+} from '../../services/context/contextModeService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { portalStore } from '../portals/portalStore.svelte';
@@ -16,13 +19,15 @@ class ShortcutService {
     await initValidKeys();
 
     const shortcuts = shortcutStore.shortcuts;
-    await Promise.all(shortcuts.map(async s => {
-      const [modifier, key] = parseShortcut(s.shortcut);
-      const ok = await registerItemShortcut(s.objectId, modifier, key);
-      if (!ok) {
-        logService.warn(`Failed to re-register shortcut ${s.shortcut} for ${s.itemName}`);
-      }
-    }));
+    await Promise.all(
+      shortcuts.map(async (s) => {
+        const [modifier, key] = parseShortcut(s.shortcut);
+        const ok = await registerItemShortcut(s.objectId, modifier, key);
+        if (!ok) {
+          logService.warn(`Failed to re-register shortcut ${s.shortcut} for ${s.itemName}`);
+        }
+      }),
+    );
   }
 
   async register(
@@ -31,8 +36,8 @@ class ShortcutService {
     itemType: 'application' | 'command',
     shortcut: string,
     itemPath?: string,
-    itemIcon?: string
-  ): Promise<{ok: boolean; conflict?: {objectId: string, itemName: string}}> {
+    itemIcon?: string,
+  ): Promise<{ ok: boolean; conflict?: { objectId: string; itemName: string } }> {
     const conflict = await this.isConflict(shortcut, objectId);
     if (conflict) {
       return { ok: false, conflict };
@@ -50,7 +55,10 @@ class ShortcutService {
     const registered = await registerItemShortcut(objectId, modifier, key);
     if (!registered) {
       logService.error(`Failed to register shortcut for ${objectId}`);
-      return { ok: false, conflict: { objectId: 'error', itemName: 'Failed to register shortcut' } };
+      return {
+        ok: false,
+        conflict: { objectId: 'error', itemName: 'Failed to register shortcut' },
+      };
     }
     shortcutStore.add({
       id: crypto.randomUUID(),
@@ -60,7 +68,7 @@ class ShortcutService {
       itemPath,
       itemIcon: resolvedIcon,
       shortcut,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     });
     return { ok: true };
   }
@@ -86,10 +94,15 @@ class ShortcutService {
     return shortcutStore.getAll();
   }
 
-  async isConflict(shortcut: string, excludeObjectId?: string): Promise<{objectId: string, itemName: string} | null> {
+  async isConflict(
+    shortcut: string,
+    excludeObjectId?: string,
+  ): Promise<{ objectId: string; itemName: string } | null> {
     const normalized = normalizeShortcut(shortcut);
     const all = shortcutStore.getAll();
-    const existing = all.find(s => normalizeShortcut(s.shortcut) === normalized && s.objectId !== excludeObjectId);
+    const existing = all.find(
+      (s) => normalizeShortcut(s.shortcut) === normalized && s.objectId !== excludeObjectId,
+    );
     if (existing) {
       return { objectId: existing.objectId, itemName: existing.itemName };
     }
@@ -125,7 +138,7 @@ class ShortcutService {
           type: 'application',
           score: 1,
           tier: 5, // untiered: opened directly from a shortcut binding, not search results
-          icon: '' // Not used by opening logic
+          icon: '', // Not used by opening logic
         });
       } catch (e) {
         logService.error(`Failed to open app: ${e}`);
@@ -165,8 +178,8 @@ class ShortcutService {
           // instead of failing in the static-only commandService.commands map.
           // Replacement semantics so escape returns to main, not to whatever
           // stack the user had built before.
-          const result = await viewManager.withReplacementSemantics(
-            () => extensionManager.handleCommandAction(shortcutInfo.objectId),
+          const result = await viewManager.withReplacementSemantics(() =>
+            extensionManager.handleCommandAction(shortcutInfo.objectId),
           );
           await tick();
           // Headless dispatchers (silent agents, background scripts) hide

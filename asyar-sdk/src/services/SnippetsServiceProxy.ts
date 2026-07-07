@@ -1,9 +1,5 @@
 import { BaseServiceProxy } from './BaseServiceProxy';
-import {
-  isValidShortcode,
-  type ISnippetsService,
-  type ShortcodeMap,
-} from '../contracts/snippets';
+import { isValidShortcode, type ISnippetsService, type ShortcodeMap } from '../contracts/snippets';
 
 /** SDK-side proxy for the host snippets contribution service. */
 export class SnippetsServiceProxy extends BaseServiceProxy implements ISnippetsService {
@@ -12,7 +8,7 @@ export class SnippetsServiceProxy extends BaseServiceProxy implements ISnippetsS
       if (!isValidShortcode(key)) {
         throw new Error(
           `[asyar-sdk/snippets:contract] invalid shortcode key "${key}" — ` +
-          `must match /^:[a-z0-9_+-]{1,32}:$/`,
+            `must match /^:[a-z0-9_+-]{1,32}:$/`,
         );
       }
       if (typeof value !== 'string' || value.length === 0) {

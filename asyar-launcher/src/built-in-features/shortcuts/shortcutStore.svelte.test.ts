@@ -133,35 +133,35 @@ describe('groupShortcutsBySection', () => {
       makeShortcut('2', { itemType: 'application', itemName: 'Notes' }),
     ];
     const result = groupShortcutsBySection(items);
-    expect(result.applications.map(s => s.itemName)).toEqual(['Safari', 'Notes']);
+    expect(result.applications.map((s) => s.itemName)).toEqual(['Safari', 'Notes']);
     expect(result.commands).toEqual([]);
   });
 
   it('groups all-command input into the commands bucket', () => {
-    const items = [
-      makeShortcut('1', { itemType: 'command', itemName: 'Toggle Theme' }),
-    ];
+    const items = [makeShortcut('1', { itemType: 'command', itemName: 'Toggle Theme' })];
     const result = groupShortcutsBySection(items);
-    expect(result.commands.map(s => s.itemName)).toEqual(['Toggle Theme']);
+    expect(result.commands.map((s) => s.itemName)).toEqual(['Toggle Theme']);
     expect(result.applications).toEqual([]);
   });
 
   it('preserves input order within each bucket', () => {
     const items = [
-      makeShortcut('1', { itemType: 'application', itemName: 'A'  }),
-      makeShortcut('2', { itemType: 'command',     itemName: 'C1' }),
-      makeShortcut('3', { itemType: 'application', itemName: 'B'  }),
-      makeShortcut('4', { itemType: 'command',     itemName: 'C2' }),
+      makeShortcut('1', { itemType: 'application', itemName: 'A' }),
+      makeShortcut('2', { itemType: 'command', itemName: 'C1' }),
+      makeShortcut('3', { itemType: 'application', itemName: 'B' }),
+      makeShortcut('4', { itemType: 'command', itemName: 'C2' }),
     ];
     const result = groupShortcutsBySection(items);
-    expect(result.applications.map(s => s.itemName)).toEqual(['A', 'B']);
-    expect(result.commands.map(s => s.itemName)).toEqual(['C1', 'C2']);
+    expect(result.applications.map((s) => s.itemName)).toEqual(['A', 'B']);
+    expect(result.commands.map((s) => s.itemName)).toEqual(['C1', 'C2']);
   });
 
   it('buckets an unknown itemType into commands (catch-all)', () => {
-    const items = [makeShortcut('1', { itemType: 'other' as ItemShortcut['itemType'], itemName: 'X' })];
+    const items = [
+      makeShortcut('1', { itemType: 'other' as ItemShortcut['itemType'], itemName: 'X' }),
+    ];
     const result = groupShortcutsBySection(items);
-    expect(result.commands.map(s => s.itemName)).toEqual(['X']);
+    expect(result.commands.map((s) => s.itemName)).toEqual(['X']);
     expect(result.applications).toEqual([]);
   });
 });

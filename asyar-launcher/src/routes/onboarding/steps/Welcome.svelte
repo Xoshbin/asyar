@@ -6,8 +6,8 @@
   import { onboardingNav } from '../onboardingNav.svelte';
 
   $effect(() => {
-    onboardingNav.set({ showBack: false, primaryLabel: 'Start the tour', onPrimary: advanceStep })
-  })
+    onboardingNav.set({ showBack: false, primaryLabel: 'Start the tour', onPrimary: advanceStep });
+  });
 
   const currentTheme = $derived(settingsService.currentSettings.appearance.theme);
   const currentLaunchView = $derived(settingsService.currentSettings.appearance.launchView);
@@ -32,10 +32,12 @@
 <Card>
   <div class="welcome">
     <p class="welcome__kicker">Welcome</p>
-    <h1 class="welcome__title">Meet Asyar — your keyboard-first <span class="onb-hl">command center</span></h1>
+    <h1 class="welcome__title">
+      Meet Asyar — your keyboard-first <span class="onb-hl">command center</span>
+    </h1>
     <p class="welcome__lede">
-      Search apps, do math, ask AI, rewrite text anywhere, expand snippets, and more —
-      all from one box. Let's take a 2-minute tour and set you up.
+      Search apps, do math, ask AI, rewrite text anywhere, expand snippets, and more — all from one
+      box. Let's take a 2-minute tour and set you up.
     </p>
 
     <div class="welcome__row">
@@ -48,18 +50,20 @@
     <div class="welcome__row">
       <div class="welcome__row-label">
         <span class="welcome__row-title">Window mode</span>
-        <span class="welcome__row-hint">Default shows results panel; Compact is just the search bar.</span>
+        <span class="welcome__row-hint"
+          >Default shows results panel; Compact is just the search bar.</span
+        >
       </div>
       <WindowModeSelector value={currentLaunchView} onchange={pickLaunchView} />
     </div>
     <div class="welcome__row">
       <div class="welcome__row-label">
         <span class="welcome__row-title">Coming from Raycast?</span>
-        <span class="welcome__row-hint">Bring over your snippets, quicklinks, and app hotkeys.</span>
+        <span class="welcome__row-hint">Bring over your snippets, quicklinks, and app hotkeys.</span
+        >
       </div>
       <Button class="btn-secondary" onclick={openRaycastImport}>Import from Raycast…</Button>
     </div>
-
   </div>
 </Card>
 

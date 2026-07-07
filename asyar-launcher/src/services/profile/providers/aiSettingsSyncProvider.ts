@@ -39,7 +39,7 @@ export class AISettingsSyncProvider implements ISyncProvider {
         const copy = { ...config };
         delete (copy as Record<string, unknown>)['apiKey'];
         return [id, copy];
-      })
+      }),
     );
     return {
       providerId: this.id,
@@ -89,8 +89,13 @@ export class AISettingsSyncProvider implements ISyncProvider {
   }
 
   async getLocalSummary(): Promise<DataSummary> {
-    const enabledCount = Object.values(settingsService.currentSettings.ai.providers).filter(p => p.enabled).length;
-    return { itemCount: 1, label: `AI settings (${enabledCount} provider${enabledCount !== 1 ? 's' : ''} enabled)` };
+    const enabledCount = Object.values(settingsService.currentSettings.ai.providers).filter(
+      (p) => p.enabled,
+    ).length;
+    return {
+      itemCount: 1,
+      label: `AI settings (${enabledCount} provider${enabledCount !== 1 ? 's' : ''} enabled)`,
+    };
   }
 
   // ── Delta sync surface ──────────────────────────────────────────────────

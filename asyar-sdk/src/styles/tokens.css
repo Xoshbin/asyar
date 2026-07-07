@@ -38,8 +38,8 @@
   --accent-danger: rgb(255, 59, 48);
 
   /* Brand */
-  --asyar-brand: #2EC4B6;
-  --asyar-brand-hover: #28B0A3;
+  --asyar-brand: #2ec4b6;
+  --asyar-brand-hover: #28b0a3;
   --asyar-brand-muted: rgba(46, 196, 182, 0.15);
   --asyar-brand-subtle: rgba(46, 196, 182, 0.08);
 
@@ -50,7 +50,7 @@
   --shadow-md: 0 4px 8px var(--shadow-color);
   --shadow-lg: 0 8px 16px var(--shadow-color);
   --shadow-xl: 0 12px 24px var(--shadow-color);
-  --shadow-popup: 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1);
+  --shadow-popup: 0 8px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.1);
   --shadow-focus: 0 0 0 2px var(--asyar-brand-muted);
 
   /* Scrollbar */
@@ -90,8 +90,10 @@
   --font-size-display: 2.25rem;
 
   /* Font Families */
-  --font-ui: "Satoshi", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "Helvetica Neue", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", "Consolas", monospace;
+  --font-ui:
+    'Satoshi', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable', 'Segoe UI',
+    'Helvetica Neue', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
 
   /* Transitions */
   --transition-fast: 100ms ease;

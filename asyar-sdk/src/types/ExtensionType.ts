@@ -1,4 +1,4 @@
-import type { ExtensionContext } from "../ExtensionContext";
+import type { ExtensionContext } from '../ExtensionContext';
 import type { ManifestTool } from '../contracts/tools';
 
 /**
@@ -14,14 +14,14 @@ import type { ManifestTool } from '../contracts/tools';
  * key and are excluded from cloud sync.
  */
 export type PreferenceType =
-  | "textfield"
-  | "password"
-  | "number"
-  | "checkbox"
-  | "dropdown"
-  | "appPicker"
-  | "file"
-  | "directory";
+  | 'textfield'
+  | 'password'
+  | 'number'
+  | 'checkbox'
+  | 'dropdown'
+  | 'appPicker'
+  | 'file'
+  | 'directory';
 
 export interface DropdownOption {
   value: string;
@@ -95,7 +95,7 @@ export interface ExtensionManifest {
    * rejected by the Rust parser. Per-command `mode` now carries the
    * view/background distinction.
    */
-  type?: "extension" | "theme";
+  type?: 'extension' | 'theme';
   /**
    * Worker bundle declaration. Present iff the extension declares at least
    * one `mode: "background"` command (or reserves a push-event subscription
@@ -130,7 +130,7 @@ export interface ExtensionCommand {
    * execute in the always-on worker context. Replaces the legacy
    * `resultType` field.
    */
-  mode?: "view" | "background";
+  mode?: 'view' | 'background';
   icon?: string;
   /**
    * Name of the Svelte component exported by the extension's `view.ts`
@@ -151,7 +151,7 @@ export interface ExtensionCommand {
    * `args.arguments.<name>` in the command handler. Max 3, required args
    * must precede optional ones.
    */
-  arguments?: import("./CommandType").CommandArgument[];
+  arguments?: import('./CommandType').CommandArgument[];
   /**
    * Optional per-command searchbar accessory declaration. When present
    * AND `mode === "view"`, the launcher renders a dropdown in the
@@ -160,18 +160,18 @@ export interface ExtensionCommand {
    * manifest parser at install time — must have non-empty `options[]`,
    * and `default` (when present) must be one of those options' values.
    */
-  searchBarAccessory?: import("./SearchBarAccessoryType").SearchBarAccessoryManifestDeclaration;
+  searchBarAccessory?: import('./SearchBarAccessoryType').SearchBarAccessoryManifestDeclaration;
 }
 
 export interface ExtensionResult {
   score: number;
   title: string;
   subtitle?: string;
-  type: "result" | "view";
+  type: 'result' | 'view';
   action: () => void | Promise<void>;
   viewPath?: string;
   icon?: string;
-  style?: "default" | "large";
+  style?: 'default' | 'large';
   /**
    * Optional: when set, pressing Enter on this result dispatches a registered
    * action handler in the extension (instead of opening a view). Register the
@@ -187,7 +187,7 @@ export interface ExtensionResult {
    * may set this field, but the launcher silently strips it before ranking.
    * Pin-to-top is not part of the public extension API.
    */
-  priority?: "top";
+  priority?: 'top';
 }
 
 /**
@@ -239,8 +239,5 @@ export interface Extension {
   }) => Promise<void>;
 
   // Required command handling method
-  executeCommand: (
-    commandId: string,
-    args?: Record<string, unknown>
-  ) => Promise<unknown>;
+  executeCommand: (commandId: string, args?: Record<string, unknown>) => Promise<unknown>;
 }

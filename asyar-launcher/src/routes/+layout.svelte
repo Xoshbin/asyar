@@ -37,7 +37,9 @@
     const errorHandler = (e: ErrorEvent) => {
       const detail = e.error?.stack ?? extractErrorMessage(e.message);
       diagnosticsService.report({
-        source: 'frontend', kind: 'uncaught_exception', severity: 'error',
+        source: 'frontend',
+        kind: 'uncaught_exception',
+        severity: 'error',
         retryable: false,
         developerDetail: detail,
         // Also stash in context so the message template can surface the
@@ -48,8 +50,11 @@
     const rejectHandler = (e: PromiseRejectionEvent) => {
       const detail = extractErrorMessage(e.reason);
       diagnosticsService.report({
-        source: 'frontend', kind: 'unhandled_rejection', severity: 'error',
-        retryable: false, developerDetail: detail,
+        source: 'frontend',
+        kind: 'unhandled_rejection',
+        severity: 'error',
+        retryable: false,
+        developerDetail: detail,
         context: { message: detail },
       });
     };
@@ -66,12 +71,16 @@
   });
 </script>
 
-
-
-<svelte:boundary onerror={(err: unknown) => diagnosticsService.report({
-  source: 'frontend', kind: 'render_error', severity: 'error',
-  retryable: false, developerDetail: String(err),
-})}>
+<svelte:boundary
+  onerror={(err: unknown) =>
+    diagnosticsService.report({
+      source: 'frontend',
+      kind: 'render_error',
+      severity: 'error',
+      retryable: false,
+      developerDetail: String(err),
+    })}
+>
   {@render children()}
 </svelte:boundary>
 <PreferencesPromptHost />

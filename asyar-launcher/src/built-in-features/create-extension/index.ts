@@ -1,41 +1,41 @@
-import type { Extension, ExtensionContext, IExtensionManager } from "asyar-sdk/contracts";
-import { ActionContext } from "asyar-sdk/contracts";
-import DefaultView from "./CreateExtensionView.svelte";
-import BuildProgressView from "./ai-builder/BuildProgressView.svelte";
-import CreatedExtensionsView from "./ai-builder/CreatedExtensionsView.svelte";
-import { aiBuildUiState } from "./ai-builder/aiBuildUiState.svelte";
-import { ensureListening } from "./ai-builder/orchestrator";
-import { createdExtensionsViewState } from "./ai-builder/createdExtensionsViewState.svelte";
-import { openInEditor } from "./ai-builder/openInEditor";
-import { publishExtension } from "./ai-builder/publishExtension";
-import { actionService } from "../../services/action/actionService.svelte";
+import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
+import { ActionContext } from 'asyar-sdk/contracts';
+import DefaultView from './CreateExtensionView.svelte';
+import BuildProgressView from './ai-builder/BuildProgressView.svelte';
+import CreatedExtensionsView from './ai-builder/CreatedExtensionsView.svelte';
+import { aiBuildUiState } from './ai-builder/aiBuildUiState.svelte';
+import { ensureListening } from './ai-builder/orchestrator';
+import { createdExtensionsViewState } from './ai-builder/createdExtensionsViewState.svelte';
+import { openInEditor } from './ai-builder/openInEditor';
+import { publishExtension } from './ai-builder/publishExtension';
+import { actionService } from '../../services/action/actionService.svelte';
 
 class CreateExtension implements Extension {
   private extensionManager?: IExtensionManager;
   private myExtKeydownBound = (e: KeyboardEvent) => this.handleMyExtKeydown(e);
 
   async initialize(context: ExtensionContext) {
-    this.extensionManager = context.getService<IExtensionManager>("extensions");
+    this.extensionManager = context.getService<IExtensionManager>('extensions');
 
     await ensureListening();
 
-    context.registerCommand("open", {
+    context.registerCommand('open', {
       execute: async () => {
-        this.extensionManager?.navigateToView("create-extension/DefaultView");
-      }
+        this.extensionManager?.navigateToView('create-extension/DefaultView');
+      },
     });
 
-    context.registerCommand("build-with-ai", {
+    context.registerCommand('build-with-ai', {
       execute: async (args?: Record<string, any>) => {
         if (args?.buildId) aiBuildUiState.openTrigger = String(args.buildId);
-        this.extensionManager?.navigateToView("create-extension/BuildProgressView");
-      }
+        this.extensionManager?.navigateToView('create-extension/BuildProgressView');
+      },
     });
 
-    context.registerCommand("my-extensions", {
+    context.registerCommand('my-extensions', {
       execute: async () => {
-        this.extensionManager?.navigateToView("create-extension/CreatedExtensionsView");
-      }
+        this.extensionManager?.navigateToView('create-extension/CreatedExtensionsView');
+      },
     });
   }
 
@@ -47,18 +47,21 @@ class CreateExtension implements Extension {
     }
     if (e.key === 'Enter') {
       const sel = createdExtensionsViewState.selectedItem;
-      if (sel) { e.preventDefault(); await openInEditor(sel.path); }
+      if (sel) {
+        e.preventDefault();
+        await openInEditor(sel.path);
+      }
     }
   }
 
   async executeCommand(commandId: string, args?: Record<string, any>) {
-    if (commandId === "open") {
-      this.extensionManager?.navigateToView("create-extension/DefaultView");
-    } else if (commandId === "build-with-ai") {
+    if (commandId === 'open') {
+      this.extensionManager?.navigateToView('create-extension/DefaultView');
+    } else if (commandId === 'build-with-ai') {
       if (args?.buildId) aiBuildUiState.openTrigger = String(args.buildId);
-      this.extensionManager?.navigateToView("create-extension/BuildProgressView");
-    } else if (commandId === "my-extensions") {
-      this.extensionManager?.navigateToView("create-extension/CreatedExtensionsView");
+      this.extensionManager?.navigateToView('create-extension/BuildProgressView');
+    } else if (commandId === 'my-extensions') {
+      this.extensionManager?.navigateToView('create-extension/CreatedExtensionsView');
     }
   }
 

@@ -1,22 +1,26 @@
-import type { ICommandService } from "./ICommandService";
-import type { CommandHandler, DynamicCommandRegistration, ExtensionAction } from "../types";
-import { BaseServiceProxy } from "./BaseServiceProxy";
-import { extensionBridge } from "../ExtensionBridge";
+import type { ICommandService } from './ICommandService';
+import type { CommandHandler, DynamicCommandRegistration, ExtensionAction } from '../types';
+import { BaseServiceProxy } from './BaseServiceProxy';
+import { extensionBridge } from '../ExtensionBridge';
 
 export class CommandServiceProxy extends BaseServiceProxy implements ICommandService {
   registerCommand(
     commandId: string,
     handler: CommandHandler,
     extensionId: string,
-    actions?: Omit<ExtensionAction, 'extensionId'>[]
+    actions?: Omit<ExtensionAction, 'extensionId'>[],
   ): void {
     extensionBridge.registerCommand(commandId, handler, extensionId);
-    this.broker.invoke('commands:registerCommand', { commandId, extensionId, actions }).catch(err => console.warn('[CommandServiceProxy] registerCommand failed:', err));
+    this.broker
+      .invoke('commands:registerCommand', { commandId, extensionId, actions })
+      .catch((err) => console.warn('[CommandServiceProxy] registerCommand failed:', err));
   }
 
   unregisterCommand(commandId: string): void {
     extensionBridge.unregisterCommand(commandId);
-    this.broker.invoke('commands:unregisterCommand', { commandId }).catch(err => console.warn('[CommandServiceProxy] unregisterCommand failed:', err));
+    this.broker
+      .invoke('commands:unregisterCommand', { commandId })
+      .catch((err) => console.warn('[CommandServiceProxy] unregisterCommand failed:', err));
   }
 
   executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
@@ -34,13 +38,12 @@ export class CommandServiceProxy extends BaseServiceProxy implements ICommandSer
   }
 
   clearCommandsForExtension(extensionId: string): void {
-    this.broker.invoke('commands:clearCommandsForExtension', { extensionId }).catch(err => console.warn('[CommandServiceProxy] clearCommandsForExtension failed:', err));
+    this.broker
+      .invoke('commands:clearCommandsForExtension', { extensionId })
+      .catch((err) => console.warn('[CommandServiceProxy] clearCommandsForExtension failed:', err));
   }
 
-  updateCommandMetadata(
-    commandId: string,
-    metadata: { subtitle?: string }
-  ): Promise<void> {
+  updateCommandMetadata(commandId: string, metadata: { subtitle?: string }): Promise<void> {
     return this.broker.invoke('commands:updateCommandMetadata', {
       extensionId: this.extensionId,
       commandId,
@@ -67,10 +70,10 @@ export class CommandServiceProxy extends BaseServiceProxy implements ICommandSer
       return Promise.reject(
         new Error(
           '[CommandServiceProxy] replaceDynamicCommands is worker-only. ' +
-          'Call this from your extension\'s worker.ts, not view.ts. ' +
-          'Dynamic command lists must survive view eviction (Dormant), ' +
-          'so registration must live with the always-on worker context.'
-        )
+            "Call this from your extension's worker.ts, not view.ts. " +
+            'Dynamic command lists must survive view eviction (Dormant), ' +
+            'so registration must live with the always-on worker context.',
+        ),
       );
     }
     return this.broker.invoke('commands:replaceDynamicCommands', {
@@ -79,4 +82,3 @@ export class CommandServiceProxy extends BaseServiceProxy implements ICommandSer
     });
   }
 }
-

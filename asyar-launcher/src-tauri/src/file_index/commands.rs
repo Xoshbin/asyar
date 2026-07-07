@@ -57,10 +57,7 @@ fn resolve_roots<R: tauri::Runtime>(app: &AppHandle<R>, config: &FileIndexConfig
     if !config.include_roots.is_empty() {
         return config.include_roots.iter().map(PathBuf::from).collect();
     }
-    app.path()
-        .home_dir()
-        .map(|h| vec![h])
-        .unwrap_or_default()
+    app.path().home_dir().map(|h| vec![h]).unwrap_or_default()
 }
 
 fn snapshot_path(app: &AppHandle) -> Option<PathBuf> {
@@ -92,8 +89,7 @@ async fn run_scan_and_snapshot(
 
     if let Some(path) = snapshot_path(app) {
         let save_state = state.clone();
-        let _ = tauri::async_runtime::spawn_blocking(move || save_state.save_snapshot(&path))
-            .await;
+        let _ = tauri::async_runtime::spawn_blocking(move || save_state.save_snapshot(&path)).await;
     }
 
     (roots, excludes)
@@ -257,9 +253,7 @@ pub async fn file_search_unpin(
 }
 
 #[tauri::command]
-pub async fn file_search_list_pinned(
-    store: State<'_, DataStore>,
-) -> Result<Vec<FileHit>, String> {
+pub async fn file_search_list_pinned(store: State<'_, DataStore>) -> Result<Vec<FileHit>, String> {
     let conn = store.conn().map_err(|e| e.to_string())?;
     let rows = file_search_pinned::list(&conn).map_err(|e| e.to_string())?;
     Ok(rows
@@ -492,11 +486,18 @@ mod tests {
                 .unwrap();
             r.hits[0].file_id.clone()
         };
-        file_search_record_selection("report".to_string(), file_id_hex.clone(), state.clone(), store.clone())
+        file_search_record_selection(
+            "report".to_string(),
+            file_id_hex.clone(),
+            state.clone(),
+            store.clone(),
+        )
+        .await
+        .unwrap();
+
+        file_search_clear_history(state.clone(), store.clone())
             .await
             .unwrap();
-
-        file_search_clear_history(state.clone(), store.clone()).await.unwrap();
 
         let conn = store.conn().unwrap();
         assert!(file_search_selections::load_all(&conn).unwrap().is_empty());

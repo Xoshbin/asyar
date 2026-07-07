@@ -1,17 +1,17 @@
-import { logService } from "../log/logService";
-import type { ExtensionAction, IActionService } from "asyar-sdk/contracts";
-import { ActionContext } from "asyar-sdk/contracts";
-import * as commands from "../../lib/ipc/commands";
-import { searchService } from "../search/SearchService";
-import { searchOrchestrator } from "../search/searchOrchestrator.svelte";
-import { searchStores } from "../search/stores/search.svelte";
-import { feedbackService } from "../feedback/feedbackService.svelte";
-import { applicationService } from "../application/applicationService";
-import type { UninstallScanResult } from "../application/applicationService";
-import { writeText } from "tauri-plugin-clipboard-x-api";
-import { platform } from "@tauri-apps/plugin-os";
-import { developerSettingsService } from "../settings/developerSettingsService.svelte";
-import { performanceService } from "../performance/performanceService.svelte";
+import { logService } from '../log/logService';
+import type { ExtensionAction, IActionService } from 'asyar-sdk/contracts';
+import { ActionContext } from 'asyar-sdk/contracts';
+import * as commands from '../../lib/ipc/commands';
+import { searchService } from '../search/SearchService';
+import { searchOrchestrator } from '../search/searchOrchestrator.svelte';
+import { searchStores } from '../search/stores/search.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
+import { applicationService } from '../application/applicationService';
+import type { UninstallScanResult } from '../application/applicationService';
+import { writeText } from 'tauri-plugin-clipboard-x-api';
+import { platform } from '@tauri-apps/plugin-os';
+import { developerSettingsService } from '../settings/developerSettingsService.svelte';
+import { performanceService } from '../performance/performanceService.svelte';
 
 // Module-level platform detection for the Uninstall action. macOS moves the
 // .app bundle to Trash via `trash::delete`; Windows resolves the .lnk
@@ -19,24 +19,24 @@ import { performanceService } from "../performance/performanceService.svelte";
 // the vendor UninstallString. Linux is unsupported — packaging is too
 // fragmented (apt/dnf/pacman/flatpak/snap/AppImage) for a single first-party
 // path — and the action stays hidden there.
-const HOST_PLATFORM: "macos" | "windows" | "other" = (() => {
+const HOST_PLATFORM: 'macos' | 'windows' | 'other' = (() => {
   try {
     const p = platform();
-    if (p === "macos") return "macos";
-    if (p === "windows") return "windows";
-    return "other";
+    if (p === 'macos') return 'macos';
+    if (p === 'windows') return 'windows';
+    return 'other';
   } catch {
-    return "other";
+    return 'other';
   }
 })();
-const IS_MACOS = HOST_PLATFORM === "macos";
-const IS_WINDOWS = HOST_PLATFORM === "windows";
+const IS_MACOS = HOST_PLATFORM === 'macos';
+const IS_WINDOWS = HOST_PLATFORM === 'windows';
 const UNINSTALL_SUPPORTED = IS_MACOS || IS_WINDOWS;
 
 /** Human-readable byte size. Matches Finder-style rounding (1 KB = 1000 B). */
 function formatBytes(bytes: number): string {
   if (bytes < 1000) return `${bytes} B`;
-  const units = ["KB", "MB", "GB", "TB"];
+  const units = ['KB', 'MB', 'GB', 'TB'];
   let value = bytes / 1000;
   let unitIdx = 0;
   while (value >= 1000 && unitIdx < units.length - 1) {
@@ -57,11 +57,11 @@ function buildMacosConfirmMessage(appName: string, scan: UninstallScanResult): s
   } else {
     lines.push(
       `This will move ${appName} and ${scan.dataPaths.length} associated ${
-        scan.dataPaths.length === 1 ? "file" : "files"
+        scan.dataPaths.length === 1 ? 'file' : 'files'
       } to the Trash — ${total} total. You can restore from Trash if needed.`,
     );
   }
-  return lines.join(" ");
+  return lines.join(' ');
 }
 
 // This interface might need adjustment if ApplicationAction should also use the enum
@@ -88,7 +88,12 @@ export interface ApplicationAction {
 export class ActionService implements IActionService {
   private allActions: Map<string, ApplicationAction> = new Map();
   private currentContext: ActionContext = ActionContext.CORE;
-  private sendToExtension?: (extensionId: string, actionId: string, role?: 'view' | 'worker', payload?: unknown) => void;
+  private sendToExtension?: (
+    extensionId: string,
+    actionId: string,
+    role?: 'view' | 'worker',
+    payload?: unknown,
+  ) => void;
   // Which iframe role registered the handler for a given full actionId
   // (`act_<extensionId>_<shortId>`). Populated by the IPC router from the
   // calling iframe's data-role attribute when the SDK calls
@@ -105,7 +110,14 @@ export class ActionService implements IActionService {
     this.updateState();
   }
 
-  setExtensionForwarder(fn: (extensionId: string, actionId: string, role?: 'view' | 'worker', payload?: unknown) => void): void {
+  setExtensionForwarder(
+    fn: (
+      extensionId: string,
+      actionId: string,
+      role?: 'view' | 'worker',
+      payload?: unknown,
+    ) => void,
+  ): void {
     this.sendToExtension = fn;
   }
 
@@ -150,26 +162,26 @@ export class ActionService implements IActionService {
     // Ensure it conforms to ApplicationAction structure internally
     const appAction: ApplicationAction = {
       id: action.id,
-      label: "title" in action ? action.title : action.label, // Handle both interfaces
+      label: 'title' in action ? action.title : action.label, // Handle both interfaces
       icon: action.icon,
       description: action.description,
-      extensionId: "extensionId" in action ? action.extensionId : undefined,
+      extensionId: 'extensionId' in action ? action.extensionId : undefined,
       category: action.category,
       // Use the context provided, default if necessary, ensure it's the enum type
       context: action.context || ActionContext.EXTENSION_VIEW,
-      confirm: "confirm" in action ? action.confirm : undefined,
-      destructive: "destructive" in action ? action.destructive : undefined,
-      shortcut: "shortcut" in action ? action.shortcut : undefined,
+      confirm: 'confirm' in action ? action.confirm : undefined,
+      destructive: 'destructive' in action ? action.destructive : undefined,
+      shortcut: 'shortcut' in action ? action.shortcut : undefined,
       execute: action.execute,
-      disabled: "disabled" in action ? action.disabled : undefined,
-      visible: "visible" in action ? (action as any).visible : undefined,
+      disabled: 'disabled' in action ? action.disabled : undefined,
+      visible: 'visible' in action ? (action as any).visible : undefined,
     };
 
     this.allActions.set(appAction.id, appAction); // Store in the master list
     logService.debug(
       `Registered action: ${appAction.id} from ${
-        appAction.extensionId || "core"
-      }, context: ${appAction.context || "default"}`
+        appAction.extensionId || 'core'
+      }, context: ${appAction.context || 'default'}`,
     );
 
     // Update the state if the action matches the current context
@@ -186,9 +198,7 @@ export class ActionService implements IActionService {
       logService.debug(`Unregistered action: ${actionId}`);
       this.updateState();
     } else if (!hadRole) {
-      logService.warn(
-        `Attempted to unregister non-existent action: ${actionId}`
-      );
+      logService.warn(`Attempted to unregister non-existent action: ${actionId}`);
     }
   }
 
@@ -232,12 +242,12 @@ export class ActionService implements IActionService {
    */
   private getFilteredActions(): ApplicationAction[] {
     const filtered = Array.from(this.allActions.values()).filter(
-      this.filterActionsByContext.bind(this)
+      this.filterActionsByContext.bind(this),
     );
 
     // Log details about filtered actions
     logService.debug(
-      `Filtering actions for context: ${this.currentContext}. Found ${filtered.length} actions.`
+      `Filtering actions for context: ${this.currentContext}. Found ${filtered.length} actions.`,
     );
 
     return filtered;
@@ -250,7 +260,7 @@ export class ActionService implements IActionService {
     const targetContext = context || this.currentContext;
     if (targetContext === ActionContext.COMMAND_RESULT) {
       logService.warn(
-        "getActions(COMMAND_RESULT) called directly; may not return correct results."
+        'getActions(COMMAND_RESULT) called directly; may not return correct results.',
       );
     }
     return Array.from(this.allActions.values())
@@ -262,7 +272,7 @@ export class ActionService implements IActionService {
         description: action.description,
         icon: action.icon,
         // Ensure extensionId is a string, default to 'core' if undefined
-        extensionId: action.extensionId || "core",
+        extensionId: action.extensionId || 'core',
         category: action.category,
         context: action.context, // Pass context through
         execute: action.execute,
@@ -293,15 +303,12 @@ export class ActionService implements IActionService {
     }
 
     // Fallback: If context is CORE, show CORE actions only if no context-specific actions are available
-    if (
-      this.currentContext === ActionContext.CORE &&
-      action.context === ActionContext.CORE
-    ) {
+    if (this.currentContext === ActionContext.CORE && action.context === ActionContext.CORE) {
       const specificActionCount = Array.from(this.allActions.values()).filter(
         (a) =>
           a.context === this.currentContext &&
           a.context !== ActionContext.CORE &&
-          a.context !== ActionContext.GLOBAL
+          a.context !== ActionContext.GLOBAL,
       ).length;
       return specificActionCount === 0;
     }
@@ -318,9 +325,7 @@ export class ActionService implements IActionService {
       throw new Error(`Action not found: ${actionId}`);
     }
 
-    logService.info(
-      `Executing action: ${actionId} from ${action.extensionId || "core"}`
-    );
+    logService.info(`Executing action: ${actionId} from ${action.extensionId || 'core'}`);
 
     try {
       if (typeof action.execute === 'function') {
@@ -360,14 +365,14 @@ export class ActionService implements IActionService {
    */
   private registerBuiltInActions() {
     this.registerAction({
-      id: "settings",
-      label: "Settings",
-      icon: "icon:settings",
-      description: "Configure application settings",
-      category: "System",
+      id: 'settings',
+      label: 'Settings',
+      icon: 'icon:settings',
+      description: 'Configure application settings',
+      category: 'System',
       context: ActionContext.CORE,
       execute: async () => {
-        logService.info("Executing built-in action: Open Settings");
+        logService.info('Executing built-in action: Open Settings');
         try {
           await commands.showSettingsWindow();
         } catch (err) {
@@ -377,38 +382,38 @@ export class ActionService implements IActionService {
     });
 
     this.registerAction({
-      id: "reset_search",
-      label: "Reset Search Index",
-      icon: "icon:refresh",
-      description: "Reset the search index",
-      category: "System",
+      id: 'reset_search',
+      label: 'Reset Search Index',
+      icon: 'icon:refresh',
+      description: 'Reset the search index',
+      category: 'System',
       context: ActionContext.CORE,
       visible: () => developerSettingsService.isDeveloperMode,
       execute: async () => {
-        logService.info("Executing built-in action: Reset Search Index");
+        logService.info('Executing built-in action: Reset Search Index');
         await searchService.resetIndex();
       },
     });
 
     this.registerAction({
-      id: "factory_reset",
-      label: "Reset Asyar to Factory Default",
-      icon: "icon:trash",
+      id: 'factory_reset',
+      label: 'Reset Asyar to Factory Default',
+      icon: 'icon:trash',
       description:
-        "Erase all Asyar data — settings, history, snippets, shortcuts, installed extensions — and quit",
-      category: "Danger",
+        'Erase all Asyar data — settings, history, snippets, shortcuts, installed extensions — and quit',
+      category: 'Danger',
       context: ActionContext.CORE,
       confirm: true,
       visible: () => developerSettingsService.isDeveloperMode,
       execute: async () => {
-        logService.info("Executing built-in action: Factory Reset");
+        logService.info('Executing built-in action: Factory Reset');
         const confirmed = await feedbackService.confirmAlert({
-          title: "Reset Asyar to Factory Default?",
+          title: 'Reset Asyar to Factory Default?',
           message:
-            "Asyar will quit. The next time you launch it, every setting, clipboard entry, snippet, shortcut, alias, OAuth token, and installed extension will be erased. This cannot be undone.",
-          confirmText: "Reset & Quit",
-          cancelText: "Cancel",
-          variant: "danger",
+            'Asyar will quit. The next time you launch it, every setting, clipboard entry, snippet, shortcut, alias, OAuth token, and installed extension will be erased. This cannot be undone.',
+          confirmText: 'Reset & Quit',
+          cancelText: 'Cancel',
+          variant: 'danger',
         });
         if (!confirmed) return;
         // Rust writes a sentinel and calls app.exit(0); the wipe runs at the
@@ -419,11 +424,11 @@ export class ActionService implements IActionService {
     });
 
     this.registerAction({
-      id: "log_performance",
-      label: "Log Performance Report",
-      icon: "icon:activity",
-      description: "Generate a detailed performance report in the console",
-      category: "System",
+      id: 'log_performance',
+      label: 'Log Performance Report',
+      icon: 'icon:activity',
+      description: 'Generate a detailed performance report in the console',
+      category: 'System',
       context: ActionContext.CORE,
       visible: () => developerSettingsService.isDeveloperMode,
       execute: () => {
@@ -432,15 +437,15 @@ export class ActionService implements IActionService {
     });
 
     this.registerAction({
-      id: "uninstall_application",
-      label: "Uninstall Application",
-      icon: "icon:trash",
+      id: 'uninstall_application',
+      label: 'Uninstall Application',
+      icon: 'icon:trash',
       description: IS_MACOS
-        ? "Move this application to the Trash"
-        : "Launch the installer to remove this application",
-      category: "Danger",
+        ? 'Move this application to the Trash'
+        : 'Launch the installer to remove this application',
+      category: 'Danger',
       context: ActionContext.CORE,
-      shortcut: "Super+Backspace",
+      shortcut: 'Super+Backspace',
       confirm: true,
       destructive: true,
       visible: () => {
@@ -448,21 +453,21 @@ export class ActionService implements IActionService {
         const idx = searchStores.selectedIndex;
         if (idx < 0) return false;
         const item = searchOrchestrator.items[idx];
-        if (!item || item.type !== "application") return false;
+        if (!item || item.type !== 'application') return false;
         if (!item.path) return false;
         // macOS-only: hard block system-protected apps from even showing the
         // action. Rust repeats the check as defense-in-depth, but this keeps
         // the UI honest. Windows has no equivalent single-prefix system
         // boundary — the registry SystemComponent flag is the backstop
         // instead, enforced by ensure_windows_entry_allowed in Rust.
-        if (IS_MACOS && item.path.startsWith("/System/")) return false;
+        if (IS_MACOS && item.path.startsWith('/System/')) return false;
         return true;
       },
       execute: async () => {
         const idx = searchStores.selectedIndex;
         if (idx < 0) return;
         const item = searchOrchestrator.items[idx];
-        if (!item || item.type !== "application" || !item.path) return;
+        if (!item || item.type !== 'application' || !item.path) return;
 
         const appName = item.name;
         const appPath = item.path;
@@ -491,14 +496,14 @@ export class ActionService implements IActionService {
           confirmMessage = `This will launch the uninstaller for ${appName}. The vendor's uninstaller will take over from there.`;
         }
 
-        const confirmButton = IS_MACOS ? "Move to Trash" : "Open Uninstaller";
-        const successHud = IS_MACOS ? "Moved to Trash" : "Uninstaller launched";
+        const confirmButton = IS_MACOS ? 'Move to Trash' : 'Open Uninstaller';
+        const successHud = IS_MACOS ? 'Moved to Trash' : 'Uninstaller launched';
 
         const confirmed = await feedbackService.confirmAlert({
           title: `Uninstall ${appName}?`,
           message: confirmMessage,
           confirmText: confirmButton,
-          variant: "danger",
+          variant: 'danger',
         });
         if (!confirmed) return;
 
@@ -514,33 +519,31 @@ export class ActionService implements IActionService {
     });
 
     this.registerAction({
-      id: "copy_deeplink",
-      label: "Copy Deeplink",
-      icon: "icon:link",
-      description: "Copy a deep link URL for this command",
-      category: "Share",
+      id: 'copy_deeplink',
+      label: 'Copy Deeplink',
+      icon: 'icon:link',
+      description: 'Copy a deep link URL for this command',
+      category: 'Share',
       context: ActionContext.CORE,
-      shortcut: "Super+Shift+C",
+      shortcut: 'Super+Shift+C',
       visible: () => {
         const idx = searchStores.selectedIndex;
         if (idx < 0) return false;
         const item = searchOrchestrator.items[idx];
-        return item?.type === "command";
+        return item?.type === 'command';
       },
       execute: async () => {
         const idx = searchStores.selectedIndex;
         if (idx < 0) return;
         const item = searchOrchestrator.items[idx];
-        if (!item || item.type !== "command" || !item.extensionId) return;
+        if (!item || item.type !== 'command' || !item.extensionId) return;
 
         const extensionId = item.extensionId;
-        const commandId = item.objectId.slice(
-          "cmd_".length + extensionId.length + 1,
-        );
+        const commandId = item.objectId.slice('cmd_'.length + extensionId.length + 1);
         const url = `asyar://extensions/${encodeURIComponent(extensionId)}/${encodeURIComponent(commandId)}`;
 
         await writeText(url);
-        await feedbackService.showHUD("Deeplink Copied to Clipboard");
+        await feedbackService.showHUD('Deeplink Copied to Clipboard');
       },
     });
   }
@@ -597,5 +600,5 @@ export const actionStore = {
       fn(actionService.filteredActions);
       return () => {};
     };
-  }
+  },
 };

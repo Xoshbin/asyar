@@ -14,16 +14,16 @@ Example: `builtin:calculator` is sent to Anthropic as `builtin__calculator`.
 
 ## Master table
 
-| Fully-qualified ID | Display name | Required args | Optional args | Return shape |
-|---|---|---|---|---|
-| `builtin:calculator` | Calculator | `expression` | — | scalar (number, string, or boolean) |
-| `builtin:clipboard-read` | Clipboard Read | — | — | `{ text }` |
-| `builtin:clipboard-write` | Clipboard Write | `text` | — | `{ ok }` |
-| `builtin:fs-read` | Read File | `path` | — | `{ content }` |
-| `builtin:fs-write` | Write File | `path`, `content` | — | `{ ok, bytesWritten }` |
-| `builtin:shell-exec` | Run Shell Command | `command` | `args`, `cwd` | `{ stdout, stderr, exitCode }` |
-| `builtin:web-fetch` | Fetch URL | `url` | `method`, `headers`, `body`, `timeoutMs` | `{ status, statusText, headers, body, ok }` |
-| `builtin:search` | Search Launcher Index | `query` | `limit` | `{ results[] }` |
+| Fully-qualified ID        | Display name          | Required args     | Optional args                            | Return shape                                |
+| ------------------------- | --------------------- | ----------------- | ---------------------------------------- | ------------------------------------------- |
+| `builtin:calculator`      | Calculator            | `expression`      | —                                        | scalar (number, string, or boolean)         |
+| `builtin:clipboard-read`  | Clipboard Read        | —                 | —                                        | `{ text }`                                  |
+| `builtin:clipboard-write` | Clipboard Write       | `text`            | —                                        | `{ ok }`                                    |
+| `builtin:fs-read`         | Read File             | `path`            | —                                        | `{ content }`                               |
+| `builtin:fs-write`        | Write File            | `path`, `content` | —                                        | `{ ok, bytesWritten }`                      |
+| `builtin:shell-exec`      | Run Shell Command     | `command`         | `args`, `cwd`                            | `{ stdout, stderr, exitCode }`              |
+| `builtin:web-fetch`       | Fetch URL             | `url`             | `method`, `headers`, `body`, `timeoutMs` | `{ status, statusText, headers, body, ok }` |
+| `builtin:search`          | Search Launcher Index | `query`           | `limit`                                  | `{ results[] }`                             |
 
 ---
 
@@ -197,8 +197,8 @@ Spawns an OS process via Tokio's `Command` and returns its stdio output and exit
   "type": "object",
   "properties": {
     "command": { "type": "string", "description": "Executable to run." },
-    "args":    { "type": "array", "items": {"type": "string"}, "description": "Arguments." },
-    "cwd":     { "type": "string", "description": "Working directory (optional)." }
+    "args": { "type": "array", "items": { "type": "string" }, "description": "Arguments." },
+    "cwd": { "type": "string", "description": "Working directory (optional)." }
   },
   "required": ["command"]
 }
@@ -235,10 +235,10 @@ Performs an HTTP request using `reqwest` and returns the response envelope.
 {
   "type": "object",
   "properties": {
-    "url":       { "type": "string", "description": "Absolute http(s) URL." },
-    "method":    { "type": "string", "description": "HTTP method (default GET)." },
-    "headers":   { "type": "object", "description": "String-string headers." },
-    "body":      { "type": "string", "description": "Request body." },
+    "url": { "type": "string", "description": "Absolute http(s) URL." },
+    "method": { "type": "string", "description": "HTTP method (default GET)." },
+    "headers": { "type": "object", "description": "String-string headers." },
+    "body": { "type": "string", "description": "Request body." },
     "timeoutMs": { "type": "number", "description": "Timeout in milliseconds." }
   },
   "required": ["url"]
@@ -328,6 +328,7 @@ pub trait BuiltinTool: Send + Sync {
 ```
 
 `descriptor()` must return a `ToolDescriptor` with:
+
 - `id`: bare id, no colons (e.g. `"my-tool"`).
 - `fully_qualified_id`: `"builtin:my-tool"`.
 - `source`: `ToolSource::Builtin`.

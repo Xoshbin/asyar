@@ -181,7 +181,7 @@ class ContextModeService {
     }
 
     // AI default — always offer the first registered stream provider.
-    const aiProvider = [...this.providers.values()].find(p => p.type === 'stream');
+    const aiProvider = [...this.providers.values()].find((p) => p.type === 'stream');
     if (!aiProvider) return null;
     return { provider: aiProvider, type: 'ai' };
   }
@@ -192,10 +192,10 @@ class ContextModeService {
   private activatingProviderId: string | null = null;
   activate(providerId: string, initialQuery?: string): void {
     if (this.activatingProviderId === providerId) return;
-    
+
     const provider = this.providers.get(providerId);
     if (!provider) return;
-    
+
     this.activatingProviderId = providerId;
     try {
       this.pinnedHintProviderId = null;
@@ -261,7 +261,7 @@ export const contextActivationId = {
   },
   set(v: string | null) {
     contextModeService.contextActivationId = v;
-  }
+  },
 };
 
 export default contextModeService;

@@ -38,20 +38,17 @@ export class OAuthServiceProxy extends BaseServiceProxy implements IOAuthService
       window.addEventListener('message', handler);
 
       this.broker
-        .invoke<OAuthToken | { pending: true }>(
-          'oauth:authorize',
-          {
-            // Key insertion order must match Object.values() dispatch in IpcRouter,
-            // which maps to host service parameter order after extensionId injection:
-            // authorize(extensionId, providerId, clientId, authorizationUrl, tokenUrl, scopes, flowId)
-            providerId: config.providerId,
-            clientId: config.clientId,
-            authorizationUrl: config.authorizationUrl,
-            tokenUrl: config.tokenUrl,
-            scopes: config.scopes,
-            flowId,
-          },
-        )
+        .invoke<OAuthToken | { pending: true }>('oauth:authorize', {
+          // Key insertion order must match Object.values() dispatch in IpcRouter,
+          // which maps to host service parameter order after extensionId injection:
+          // authorize(extensionId, providerId, clientId, authorizationUrl, tokenUrl, scopes, flowId)
+          providerId: config.providerId,
+          clientId: config.clientId,
+          authorizationUrl: config.authorizationUrl,
+          tokenUrl: config.tokenUrl,
+          scopes: config.scopes,
+          flowId,
+        })
         .then((result) => {
           if ('accessToken' in result) {
             // Host returned a cached token directly — no postMessage needed

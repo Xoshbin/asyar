@@ -60,8 +60,8 @@ renderer.code = function (token) {
 
   return (
     `<div class="md-code-block">` +
-      `<div class="md-code-header">${langLabel}<button class="md-copy-btn btn btn-secondary" data-code="${encodeURIComponent(code)}">Copy</button></div>` +
-      `<pre><code class="language-${lang}">${highlightedCode}</code></pre>` +
+    `<div class="md-code-header">${langLabel}<button class="md-copy-btn btn btn-secondary" data-code="${encodeURIComponent(code)}">Copy</button></div>` +
+    `<pre><code class="language-${lang}">${highlightedCode}</code></pre>` +
     `</div>`
   );
 };
@@ -97,15 +97,10 @@ export interface RenderMarkdownOptions {
  * const html = renderMarkdown(text);
  * ```
  */
-export function renderMarkdown(
-  text: string,
-  options: RenderMarkdownOptions = {},
-): string {
+export function renderMarkdown(text: string, options: RenderMarkdownOptions = {}): string {
   const { maxChars = 50_000, breaks = true } = options;
 
-  const input = text.length > maxChars
-    ? text.substring(0, maxChars)
-    : text;
+  const input = text.length > maxChars ? text.substring(0, maxChars) : text;
 
   // 1. Extract LaTeX before marked can strip backslashes from \[ \( etc.
   const hasLatex = containsLatex(input);
@@ -140,15 +135,13 @@ export function renderMarkdown(
  * ```
  */
 export function handleMarkdownCopyClick(e: MouseEvent): void {
-  const btn = (e.target as HTMLElement).closest(
-    'button.md-copy-btn',
-  ) as HTMLButtonElement | null;
+  const btn = (e.target as HTMLElement).closest('button.md-copy-btn') as HTMLButtonElement | null;
   if (!btn) return;
 
   const code = decodeURIComponent(btn.dataset.code ?? '');
-  navigator.clipboard.writeText(code).catch((err) =>
-    console.warn('[markdown] Copy to clipboard failed:', err),
-  );
+  navigator.clipboard
+    .writeText(code)
+    .catch((err) => console.warn('[markdown] Copy to clipboard failed:', err));
   btn.textContent = 'Copied!';
   setTimeout(() => {
     btn.textContent = 'Copy';

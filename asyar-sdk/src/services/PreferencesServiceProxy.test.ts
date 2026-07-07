@@ -4,10 +4,10 @@ import { messageBroker } from '../ipc/MessageBroker';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
-      invoke: vi.fn().mockResolvedValue(undefined),
-      on: vi.fn(),
-      off: vi.fn(),
-    },
+    invoke: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
 }));
 
 function makeProxy() {

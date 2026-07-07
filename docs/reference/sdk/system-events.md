@@ -8,8 +8,8 @@ worker so events fire even while the view is Dormant.
 Subscribe to OS-level system events — sleep, wake, lid open/close, battery
 level changes, and AC-vs-battery power-source transitions. Paired
 conceptually with [`PowerService`](./power-service.md) as its opposite
-direction: `PowerService` *instructs* the OS (prevent sleep);
-`SystemEventsService` *observes* it (the OS just slept / woke / changed
+direction: `PowerService` _instructs_ the OS (prevent sleep);
+`SystemEventsService` _observes_ it (the OS just slept / woke / changed
 power source).
 
 ```typescript
@@ -83,12 +83,12 @@ each get their own host subscription.
 
 ### Platform coverage
 
-| Event                    | macOS                                                  | Linux | Windows |
-|--------------------------|--------------------------------------------------------|-------|---------|
-| `sleep` / `wake`         | `IORegisterForSystemPower` on a CFRunLoop thread       | logind `org.freedesktop.login1.Manager.PrepareForSleep(bool)` signal | `WM_POWERBROADCAST` — `PBT_APMSUSPEND` / `PBT_APMRESUME*` |
-| `lid-open` / `lid-close` | Poll `AppleClamshellState` from IORegistry every 2s    | UPower `LidIsClosed` property via DBus `PropertiesChanged` | `GUID_LIDSWITCH_STATE_CHANGE` via `RegisterPowerSettingNotification` |
+| Event                    | macOS                                                         | Linux                                                                                                       | Windows                                                                                                     |
+| ------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `sleep` / `wake`         | `IORegisterForSystemPower` on a CFRunLoop thread              | logind `org.freedesktop.login1.Manager.PrepareForSleep(bool)` signal                                        | `WM_POWERBROADCAST` — `PBT_APMSUSPEND` / `PBT_APMRESUME*`                                                   |
+| `lid-open` / `lid-close` | Poll `AppleClamshellState` from IORegistry every 2s           | UPower `LidIsClosed` property via DBus `PropertiesChanged`                                                  | `GUID_LIDSWITCH_STATE_CHANGE` via `RegisterPowerSettingNotification`                                        |
 | `battery-level-changed`  | Poll `IOPSCopyPowerSourcesInfo` every 30s, dispatch on change | UPower `Percentage` property on the Battery device via `PropertiesChanged` (deduped at integer granularity) | `GUID_BATTERY_PERCENTAGE_REMAINING` via `RegisterPowerSettingNotification` (deduped at integer granularity) |
-| `power-source-changed`   | Poll `IOPSCopyPowerSourcesInfo` every 30s, dispatch on change | UPower `OnBattery` property via `PropertiesChanged` | `GUID_ACDC_POWER_SOURCE` via `RegisterPowerSettingNotification` |
+| `power-source-changed`   | Poll `IOPSCopyPowerSourcesInfo` every 30s, dispatch on change | UPower `OnBattery` property via `PropertiesChanged`                                                         | `GUID_ACDC_POWER_SOURCE` via `RegisterPowerSettingNotification`                                             |
 
 All three platforms dispatch into the same `SystemEventsHub` from a dedicated
 watcher thread so the Tauri runtime stays free of blocking system calls.
@@ -144,12 +144,12 @@ when no events arrive.
 
 ### Lifecycle
 
-| Event                  | What happens to your subscriptions |
-|------------------------|------------------------------------|
-| Extension uninstall    | All subscriptions for this extension are removed automatically. |
-| Extension disable      | All subscriptions for this extension are removed via the uninstall cleanup path. |
-| Iframe reload          | In-flight subscriptions are dropped; the SDK proxy re-subscribes on the next `on*` call after reload. |
-| Launcher process exit  | OS reclaims all watcher resources.                                |
+| Event                 | What happens to your subscriptions                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| Extension uninstall   | All subscriptions for this extension are removed automatically.                                       |
+| Extension disable     | All subscriptions for this extension are removed via the uninstall cleanup path.                      |
+| Iframe reload         | In-flight subscriptions are dropped; the SDK proxy re-subscribes on the next `on*` call after reload. |
+| Launcher process exit | OS reclaims all watcher resources.                                                                    |
 
 ### Wire contract
 

@@ -6,7 +6,11 @@ import { logService } from '../log/logService';
 // — the Svelte fallback bar inherits CSS vars naturally.
 
 const IS_MACOS = (() => {
-  try { return platform() === 'macos'; } catch { return false; }
+  try {
+    return platform() === 'macos';
+  } catch {
+    return false;
+  }
 })();
 
 function readVar(name: string): string {

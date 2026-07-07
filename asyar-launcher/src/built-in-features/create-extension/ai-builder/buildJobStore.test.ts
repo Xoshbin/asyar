@@ -10,7 +10,12 @@ describe('buildJobStore', () => {
 
   it('start() creates a WORKING job with the prompt and empty steps', () => {
     buildJobStore.start('build a notion extension', '/tmp/ext');
-    expect(buildJobStore.job).toMatchObject({ status: 'working', prompt: 'build a notion extension', dir: '/tmp/ext', steps: [] });
+    expect(buildJobStore.job).toMatchObject({
+      status: 'working',
+      prompt: 'build a notion extension',
+      dir: '/tmp/ext',
+      steps: [],
+    });
   });
 
   it('appendStep() adds to the step log while WORKING', () => {
@@ -36,7 +41,11 @@ describe('buildJobStore', () => {
   it('finishDone() moves to DONE with result and wipes the build-time secret', () => {
     buildJobStore.start('p', '/tmp/ext');
     buildJobStore.setBuildSecret('secret-ABC-123');
-    buildJobStore.finishDone({ extensionId: 'com.x.notion', path: '/tmp/ext', smokeSummary: '200 OK' });
+    buildJobStore.finishDone({
+      extensionId: 'com.x.notion',
+      path: '/tmp/ext',
+      smokeSummary: '200 OK',
+    });
     expect(buildJobStore.job!.status).toBe('done');
     expect(buildJobStore.job!.result).toMatchObject({ extensionId: 'com.x.notion' });
     expect(buildJobStore.buildSecret).toBeNull();

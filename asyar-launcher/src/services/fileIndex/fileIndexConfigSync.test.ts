@@ -38,7 +38,10 @@ vi.mock('../settings/settingsService.svelte', () => ({
 }));
 
 import { invoke } from '@tauri-apps/api/core';
-import { initFileIndexConfigSync, __resetFileIndexConfigSyncForTest } from './fileIndexConfigSync.svelte';
+import {
+  initFileIndexConfigSync,
+  __resetFileIndexConfigSyncForTest,
+} from './fileIndexConfigSync.svelte';
 
 async function flush(): Promise<void> {
   await Promise.resolve();

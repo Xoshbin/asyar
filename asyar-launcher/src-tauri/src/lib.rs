@@ -1220,20 +1220,18 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             .and_then(|v| serde_json::from_value(v).ok())
             .unwrap_or_default()
     };
-    let file_index_state = std::sync::Arc::new(file_index::service::FileIndexState::new(
-        file_index_config,
-    ));
+    let file_index_state =
+        std::sync::Arc::new(file_index::service::FileIndexState::new(file_index_config));
     {
         let conn = data_store.conn()?;
-        let rows: Vec<(String, u64, u32, i64)> =
-            storage::file_search_selections::load_all(&conn)
-                .unwrap_or_default()
-                .into_iter()
-                .filter_map(|r| {
-                    file_index::file_id::from_hex(&r.file_id)
-                        .map(|id| (r.query_prefix, id, r.count as u32, r.last_used))
-                })
-                .collect();
+        let rows: Vec<(String, u64, u32, i64)> = storage::file_search_selections::load_all(&conn)
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|r| {
+                file_index::file_id::from_hex(&r.file_id)
+                    .map(|id| (r.query_prefix, id, r.count as u32, r.last_used))
+            })
+            .collect();
         let pinned: Vec<u64> = storage::file_search_pinned::list(&conn)
             .unwrap_or_default()
             .into_iter()
@@ -1718,7 +1716,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         .map(|h| vec![h])
                         .unwrap_or_default()
                 } else {
-                    cfg.include_roots.iter().map(std::path::PathBuf::from).collect()
+                    cfg.include_roots
+                        .iter()
+                        .map(std::path::PathBuf::from)
+                        .collect()
                 };
                 file_index_state.run_full_scan(
                     roots,
@@ -1738,10 +1739,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     .map(|h| vec![h])
                     .unwrap_or_default()
             } else {
-                cfg.include_roots.iter().map(std::path::PathBuf::from).collect()
+                cfg.include_roots
+                    .iter()
+                    .map(std::path::PathBuf::from)
+                    .collect()
             };
-            if let Some(handle) =
-                app_handle_for_file_index.try_state::<std::sync::Arc<file_index::watcher::FileIndexWatcherHandle>>()
+            if let Some(handle) = app_handle_for_file_index
+                .try_state::<std::sync::Arc<file_index::watcher::FileIndexWatcherHandle>>()
             {
                 let exclusions = file_index::watcher::build_exclusion_set(&cfg.exclude_patterns);
                 let on_rescan = file_index::commands::make_on_rescan(
@@ -1751,7 +1755,8 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 handle.rearm(roots, exclusions, file_index_state.clone(), on_rescan);
             }
 
-            let _ = app_handle_for_file_index.emit("asyar:file-index-status", file_index_state.status());
+            let _ = app_handle_for_file_index
+                .emit("asyar:file-index-status", file_index_state.status());
         });
     }
 

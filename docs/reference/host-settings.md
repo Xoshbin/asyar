@@ -1,6 +1,7 @@
 ---
 order: 11
 ---
+
 ## 11. Host Settings Reference
 
 Asyar provides several system-level settings to customize behavior and application discovery.
@@ -11,11 +12,11 @@ Asyar automatically indexes applications from standard OS locations. If you have
 
 #### Default Scan Paths
 
-| Platform | Locations |
-|---|---|
-| **macOS** | `/Applications`, `/System/Applications`, `~/Applications` |
+| Platform    | Locations                                                                                                                      |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **macOS**   | `/Applications`, `/System/Applications`, `~/Applications`                                                                      |
 | **Windows** | Start Menu (`C:\ProgramData\Microsoft\Windows\Start Menu\Programs`, `~\AppData\Roaming\Microsoft\Windows\Start Menu\Programs`) |
-| **Linux** | `/usr/share/applications`, `~/.local/share/applications` |
+| **Linux**   | `/usr/share/applications`, `~/.local/share/applications`                                                                       |
 
 #### Additional Scan Paths
 

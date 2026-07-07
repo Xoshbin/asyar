@@ -16,8 +16,19 @@ import { isAllowedBashCommand, isBuilderError, errMessage } from './utils';
 
 describe('parseArgs', () => {
   it('extracts all three flags', () => {
-    const a = parseArgs(['--prompt', 'make a weather ext', '--target-dir', '/tmp/ext', '--capability-spec', '/spec']);
-    expect(a).toEqual({ prompt: 'make a weather ext', targetDir: '/tmp/ext', capabilitySpec: '/spec' });
+    const a = parseArgs([
+      '--prompt',
+      'make a weather ext',
+      '--target-dir',
+      '/tmp/ext',
+      '--capability-spec',
+      '/spec',
+    ]);
+    expect(a).toEqual({
+      prompt: 'make a weather ext',
+      targetDir: '/tmp/ext',
+      capabilitySpec: '/spec',
+    });
   });
   it('returns empty strings for missing flags', () => {
     const a = parseArgs([]);
@@ -88,10 +99,14 @@ describe('describeToolUse', () => {
     expect(describeToolUse('Bash', { command: 'pnpm run build' })).toBe('Building the extension');
   });
   it('labels file writes by basename', () => {
-    expect(describeToolUse('Write', { file_path: '/x/y/manifest.json' })).toBe('Writing manifest.json');
+    expect(describeToolUse('Write', { file_path: '/x/y/manifest.json' })).toBe(
+      'Writing manifest.json',
+    );
   });
   it('labels web fetches', () => {
-    expect(describeToolUse('WebFetch', { url: 'https://api.example.com' })).toBe('Fetching live API docs');
+    expect(describeToolUse('WebFetch', { url: 'https://api.example.com' })).toBe(
+      'Fetching live API docs',
+    );
   });
   it('skips the ask_user tool (it emits its own event)', () => {
     expect(describeToolUse('mcp__asyar-builder__ask_user', {})).toBeNull();
@@ -174,9 +189,7 @@ describe('appendLog', () => {
 
 describe('extractToolResultText', () => {
   it('pulls string content from tool_result blocks', () => {
-    const text = extractToolResultText([
-      { type: 'tool_result', content: 'build failed: TS2304' },
-    ]);
+    const text = extractToolResultText([{ type: 'tool_result', content: 'build failed: TS2304' }]);
     expect(text).toContain('TS2304');
   });
   it('pulls nested text blocks from tool_result content arrays', () => {
@@ -195,7 +208,9 @@ describe('isAllowedBashCommand (security gate)', () => {
   it('allows only build-necessary commands', () => {
     expect(isAllowedBashCommand('pnpm install')).toBe(true);
     expect(isAllowedBashCommand('pnpm run build')).toBe(true);
-    expect(isAllowedBashCommand('cd /home/u/AsyarExtensions/com.x.tool && pnpm install')).toBe(true);
+    expect(isAllowedBashCommand('cd /home/u/AsyarExtensions/com.x.tool && pnpm install')).toBe(
+      true,
+    );
     expect(isAllowedBashCommand('mkdir -p src')).toBe(true);
     expect(isAllowedBashCommand('ls')).toBe(true);
   });
@@ -236,9 +251,7 @@ describe('isAllowedBashCommand (security gate)', () => {
     // carriage-return-separated second command
     expect(isAllowedBashCommand('pnpm install\rnode evil.js')).toBe(false);
     // the require-execSync one-liner is denied (node not allowlisted)
-    expect(
-      isAllowedBashCommand('node -e "require(\'child_process\').execSync(\'id\')"'),
-    ).toBe(false);
+    expect(isAllowedBashCommand("node -e \"require('child_process').execSync('id')\"")).toBe(false);
   });
 
   it('verifies the pipe splitter produces independent segments', () => {
@@ -272,7 +285,9 @@ describe('isAllowedBashCommand (security gate)', () => {
     expect(isAllowedBashCommand('pnpm run test')).toBe(true);
     expect(isAllowedBashCommand('pnpm build')).toBe(true);
     expect(isAllowedBashCommand('npm run build')).toBe(true);
-    expect(isAllowedBashCommand('cd /home/u/AsyarExtensions/com.x.tool && pnpm install')).toBe(true);
+    expect(isAllowedBashCommand('cd /home/u/AsyarExtensions/com.x.tool && pnpm install')).toBe(
+      true,
+    );
   });
 
   it('denies dangerous pnpm/npm subcommands and package specs (fail-closed)', () => {

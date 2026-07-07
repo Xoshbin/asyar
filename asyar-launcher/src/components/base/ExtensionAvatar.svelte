@@ -21,7 +21,7 @@
 
 {#if src && !imageError}
   <div class="ext-avatar {sizeClass} image-container">
-    <img {src} alt={name} onerror={() => imageError = true} />
+    <img {src} alt={name} onerror={() => (imageError = true)} />
   </div>
 {:else}
   <div class="ext-avatar {sizeClass}" style="background: {bg};">
@@ -54,8 +54,28 @@
     object-fit: cover;
   }
 
-  .size-sm { width: 36px; height: 36px; font-size: var(--font-size-sm); border-radius: var(--radius-md); }
-  .size-md { width: 48px; height: 48px; font-size: var(--font-size-base); border-radius: var(--radius-lg); }
-  .size-lg { width: 64px; height: 64px; font-size: var(--font-size-2xl); border-radius: var(--radius-xl); }
-  .size-xl { width: 88px; height: 88px; font-size: 28px; border-radius: 16px; }
+  .size-sm {
+    width: 36px;
+    height: 36px;
+    font-size: var(--font-size-sm);
+    border-radius: var(--radius-md);
+  }
+  .size-md {
+    width: 48px;
+    height: 48px;
+    font-size: var(--font-size-base);
+    border-radius: var(--radius-lg);
+  }
+  .size-lg {
+    width: 64px;
+    height: 64px;
+    font-size: var(--font-size-2xl);
+    border-radius: var(--radius-xl);
+  }
+  .size-xl {
+    width: 88px;
+    height: 88px;
+    font-size: 28px;
+    border-radius: 16px;
+  }
 </style>

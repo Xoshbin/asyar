@@ -53,9 +53,7 @@ vi.mock('./defaultAgent', () => ({
   DEFAULT_GRAMMAR_FIX_HOTKEY: { modifier: 'Cmd+Shift', key: 'L' },
 }));
 
-const mockShortcutRegister = vi.hoisted(() =>
-  vi.fn().mockResolvedValue({ ok: true }),
-);
+const mockShortcutRegister = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true }));
 vi.mock('../shortcuts/shortcutService', () => ({
   shortcutService: { register: mockShortcutRegister },
 }));
@@ -368,7 +366,9 @@ describe('default agent helpers', () => {
 
     expect(result).toEqual(newRow);
     expect(buildDefaultAgentInput).toHaveBeenCalledWith('openai', 'gpt-4o-mini');
-    expect(vi.mocked(settingsService.updateSettings)).toHaveBeenCalledWith('ai', { defaultAgentId: 'new-id' });
+    expect(vi.mocked(settingsService.updateSettings)).toHaveBeenCalledWith('ai', {
+      defaultAgentId: 'new-id',
+    });
   });
 
   it('getOrCreateDefaultAgent returns existing default without mutating settings', async () => {
@@ -389,8 +389,18 @@ describe('upsertDefaultAgent', () => {
   let service: AgentService;
   const svcSettings = settingsService as any;
 
-  const agentA = makeAgent({ id: 'a', name: 'Asyar Assistant', providerId: 'openai', modelId: 'gpt-4' });
-  const agentB = makeAgent({ id: 'b', name: 'Other Agent', providerId: 'anthropic', modelId: 'claude-3' });
+  const agentA = makeAgent({
+    id: 'a',
+    name: 'Asyar Assistant',
+    providerId: 'openai',
+    modelId: 'gpt-4',
+  });
+  const agentB = makeAgent({
+    id: 'b',
+    name: 'Other Agent',
+    providerId: 'anthropic',
+    modelId: 'claude-3',
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -402,28 +412,40 @@ describe('upsertDefaultAgent', () => {
     svcSettings.currentSettings.ai.defaultAgentId = null;
     service.agents = [];
 
-    const newRow = makeAgent({ id: 'new-id', name: 'Asyar Assistant', providerId: 'anthropic', modelId: 'claude-3-5-sonnet' });
+    const newRow = makeAgent({
+      id: 'new-id',
+      name: 'Asyar Assistant',
+      providerId: 'anthropic',
+      modelId: 'claude-3-5-sonnet',
+    });
     vi.mocked(commands.agentsCreate).mockResolvedValueOnce(newRow as never);
 
     const result = await service.upsertDefaultAgent('anthropic', 'claude-3-5-sonnet');
 
     expect(result).toEqual(newRow);
     expect(commands.agentsCreate).toHaveBeenCalled();
-    expect(vi.mocked(settingsService.updateSettings)).toHaveBeenCalledWith('ai', { defaultAgentId: 'new-id' });
+    expect(vi.mocked(settingsService.updateSettings)).toHaveBeenCalledWith('ai', {
+      defaultAgentId: 'new-id',
+    });
   });
 
   it('updates existing default agent providerId and modelId', async () => {
     svcSettings.currentSettings.ai.defaultAgentId = 'a';
     service.agents = [agentA, agentB] as any;
 
-    const updatedRow = makeAgent({ id: 'a', name: 'Asyar Assistant', providerId: 'anthropic', modelId: 'claude-3-5-sonnet' });
+    const updatedRow = makeAgent({
+      id: 'a',
+      name: 'Asyar Assistant',
+      providerId: 'anthropic',
+      modelId: 'claude-3-5-sonnet',
+    });
     vi.mocked(commands.agentsUpdate).mockResolvedValueOnce(updatedRow as never);
 
     const result = await service.upsertDefaultAgent('anthropic', 'claude-3-5-sonnet');
 
     expect(result).toEqual(updatedRow);
     expect(commands.agentsUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'a', providerId: 'anthropic', modelId: 'claude-3-5-sonnet' })
+      expect.objectContaining({ id: 'a', providerId: 'anthropic', modelId: 'claude-3-5-sonnet' }),
     );
     expect(commands.agentsCreate).not.toHaveBeenCalled();
     expect(settingsService.updateSettings).not.toHaveBeenCalled();
@@ -433,7 +455,12 @@ describe('upsertDefaultAgent', () => {
     svcSettings.currentSettings.ai.defaultAgentId = 'a';
     service.agents = [agentA, agentB] as any;
 
-    const updatedRow = makeAgent({ id: 'a', name: 'Asyar Assistant', providerId: 'openai', modelId: 'gpt-4o' });
+    const updatedRow = makeAgent({
+      id: 'a',
+      name: 'Asyar Assistant',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+    });
     vi.mocked(commands.agentsUpdate).mockResolvedValueOnce(updatedRow as never);
 
     await service.upsertDefaultAgent('openai', 'gpt-4o');
@@ -446,7 +473,9 @@ describe('upsertDefaultAgent', () => {
 
 describe('seedGrammarFixAgent', () => {
   let service: AgentService;
-  const svcSettings = settingsService as unknown as { currentSettings: { ai: { defaultAgentId: string | null } } };
+  const svcSettings = settingsService as unknown as {
+    currentSettings: { ai: { defaultAgentId: string | null } };
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();

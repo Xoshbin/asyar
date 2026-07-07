@@ -1,8 +1,4 @@
-import type {
-  Extension,
-  ExtensionContext,
-  IExtensionManager,
-} from 'asyar-sdk/contracts';
+import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
 import { raycastImportState } from './raycastImportState.svelte';
 import DefaultView from './DefaultView.svelte';
 

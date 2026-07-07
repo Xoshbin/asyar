@@ -46,7 +46,11 @@ const PENDING_OVERFLOW: usize = 50_000;
 /// path (as a path segment or as a segment's subtree).
 pub fn build_exclusion_set(custom_patterns: &[String]) -> GlobSet {
     let mut builder = GlobSetBuilder::new();
-    for pat in DEFAULT_IGNORE_PATTERNS.iter().map(|s| s.to_string()).chain(custom_patterns.iter().cloned()) {
+    for pat in DEFAULT_IGNORE_PATTERNS
+        .iter()
+        .map(|s| s.to_string())
+        .chain(custom_patterns.iter().cloned())
+    {
         if let Ok(g) = Glob::new(&format!("**/{pat}")) {
             builder.add(g);
         }
@@ -65,9 +69,11 @@ pub fn build_exclusion_set(custom_patterns: &[String]) -> GlobSet {
             builder.add(g);
         }
     }
-    builder
-        .build()
-        .unwrap_or_else(|_| GlobSetBuilder::new().build().expect("empty GlobSet always builds"))
+    builder.build().unwrap_or_else(|_| {
+        GlobSetBuilder::new()
+            .build()
+            .expect("empty GlobSet always builds")
+    })
 }
 
 pub fn is_excluded(set: &GlobSet, path: &Path) -> bool {
@@ -325,10 +331,19 @@ mod tests {
     #[test]
     fn exclusion_set_matches_default_and_custom_patterns() {
         let set = build_exclusion_set(&["my-custom-skip".to_string()]);
-        assert!(is_excluded(&set, Path::new("/home/u/proj/node_modules/react/index.js")));
-        assert!(is_excluded(&set, Path::new("/home/u/proj/target/debug/foo")));
+        assert!(is_excluded(
+            &set,
+            Path::new("/home/u/proj/node_modules/react/index.js")
+        ));
+        assert!(is_excluded(
+            &set,
+            Path::new("/home/u/proj/target/debug/foo")
+        ));
         assert!(is_excluded(&set, Path::new("/home/u/Library/Caches/x")));
-        assert!(is_excluded(&set, Path::new("/home/u/proj/my-custom-skip/x.txt")));
+        assert!(is_excluded(
+            &set,
+            Path::new("/home/u/proj/my-custom-skip/x.txt")
+        ));
         assert!(!is_excluded(&set, Path::new("/home/u/proj/src/main.rs")));
     }
 
@@ -357,7 +372,10 @@ mod tests {
         ));
         // The bundle itself is a real indexed leaf — events on it (e.g. an
         // app update bumping the bundle mtime) must still pass through.
-        assert!(!is_excluded(&set, Path::new("/Users/u/Applications/Foo.app")));
+        assert!(!is_excluded(
+            &set,
+            Path::new("/Users/u/Applications/Foo.app")
+        ));
         assert!(!is_excluded(
             &set,
             Path::new("/Users/u/Pictures/Photos Library.photoslibrary")
@@ -380,10 +398,15 @@ mod tests {
     #[test]
     fn coalescer_drops_excluded_paths_at_ingest() {
         let mut c = Coalescer::new(build_exclusion_set(&[]));
-        c.ingest(&create_ev(Path::new("/home/u/proj/node_modules/react/index.js")));
+        c.ingest(&create_ev(Path::new(
+            "/home/u/proj/node_modules/react/index.js",
+        )));
         c.ingest(&create_ev(Path::new("/home/u/Library/Caches/noise.db")));
         let d = c.drain();
-        assert!(d.paths.is_empty(), "excluded paths must never survive ingest");
+        assert!(
+            d.paths.is_empty(),
+            "excluded paths must never survive ingest"
+        );
         assert!(!d.rescan);
     }
 
@@ -538,7 +561,10 @@ mod tests {
             IndexUpdate::Upserted(e) => e.path.ends_with("keep.txt"),
             IndexUpdate::Removed(p) => p.ends_with("keep.txt"),
         });
-        assert!(!has_excluded, "node_modules event must be dropped, got {updates:?}");
+        assert!(
+            !has_excluded,
+            "node_modules event must be dropped, got {updates:?}"
+        );
         assert!(has_kept, "non-excluded event must surface, got {updates:?}");
         assert_eq!(rescans.load(std::sync::atomic::Ordering::SeqCst), 0);
 
@@ -571,13 +597,20 @@ mod tests {
         drop(watcher);
 
         let updates = received.lock().unwrap();
-        let old_removed = updates.iter().any(|u| matches!(u, IndexUpdate::Removed(p) if p.ends_with("old-name.txt")));
-        let new_upserted = updates.iter().any(|u| matches!(u, IndexUpdate::Upserted(e) if e.path.ends_with("new-name.txt")));
+        let old_removed = updates
+            .iter()
+            .any(|u| matches!(u, IndexUpdate::Removed(p) if p.ends_with("old-name.txt")));
+        let new_upserted = updates
+            .iter()
+            .any(|u| matches!(u, IndexUpdate::Upserted(e) if e.path.ends_with("new-name.txt")));
         assert!(
             old_removed,
             "rename must tombstone the old path (stat fails at flush), got {updates:?}"
         );
-        assert!(new_upserted, "rename must upsert the new path, got {updates:?}");
+        assert!(
+            new_upserted,
+            "rename must upsert the new path, got {updates:?}"
+        );
 
         let _ = fs::remove_dir_all(&root);
     }

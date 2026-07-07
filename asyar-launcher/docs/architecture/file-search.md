@@ -13,21 +13,21 @@ work is bounded by construction, not by how many files exist on disk.
 
 All of it lives under `asyar-launcher/src-tauri/src/file_index/`:
 
-| File | Responsibility |
-|---|---|
-| `types.rs` | Wire types (`FileHit`, `FileSearchResponse`, `IndexStatus`, `FileIndexConfig`, `FileType`, `WorkMeter`) |
-| `index.rs` | `FileIndex` — the arena (struct-of-arrays), `apply_batch` for incremental updates, snapshot (de)serialization |
-| `query.rs` | The bounded query engine — memmem prefiltering, incremental narrowing, bounded fuzzy fallback, top-N heap |
-| `matcher.rs` | Reused `nucleo` fuzzy matcher (never allocated per query) |
-| `ranking.rs` | Pure scoring functions (match quality, frecency, depth, type prior) |
-| `file_id.rs` | Stable file id: FNV hash of `(dev, inode)` (Unix) / `(volume, file_index)` (Windows) — survives renames |
-| `walker.rs` | Parallel initial scan (`ignore` crate), exclusion patterns, hard entry cap, bundle-as-leaf handling |
-| `watcher.rs` | Raw `notify` watcher + Asyar-owned coalescer (exclusion check first, flush every 500 ms), `FileIndexWatcherHandle` |
-| `snapshot.rs` | Versioned bincode snapshot — instant restart without a full rescan |
-| `learning.rs` | In-memory per-query selection/pin boosts, loaded once at startup (never queried on the keystroke path) |
-| `service.rs` | `FileIndexState` — the lifecycle/state machine tying everything together, Tauri-agnostic by design |
-| `provider.rs` + `deep/{mdfind,everything,plocate}.rs` | On-demand "Deep Search" escalation to the OS-native search tool |
-| `commands.rs` | Thin `#[tauri::command]` wrappers — no logic beyond extract/delegate/map-error |
+| File                                                  | Responsibility                                                                                                     |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `types.rs`                                            | Wire types (`FileHit`, `FileSearchResponse`, `IndexStatus`, `FileIndexConfig`, `FileType`, `WorkMeter`)            |
+| `index.rs`                                            | `FileIndex` — the arena (struct-of-arrays), `apply_batch` for incremental updates, snapshot (de)serialization      |
+| `query.rs`                                            | The bounded query engine — memmem prefiltering, incremental narrowing, bounded fuzzy fallback, top-N heap          |
+| `matcher.rs`                                          | Reused `nucleo` fuzzy matcher (never allocated per query)                                                          |
+| `ranking.rs`                                          | Pure scoring functions (match quality, frecency, depth, type prior)                                                |
+| `file_id.rs`                                          | Stable file id: FNV hash of `(dev, inode)` (Unix) / `(volume, file_index)` (Windows) — survives renames            |
+| `walker.rs`                                           | Parallel initial scan (`ignore` crate), exclusion patterns, hard entry cap, bundle-as-leaf handling                |
+| `watcher.rs`                                          | Raw `notify` watcher + Asyar-owned coalescer (exclusion check first, flush every 500 ms), `FileIndexWatcherHandle` |
+| `snapshot.rs`                                         | Versioned bincode snapshot — instant restart without a full rescan                                                 |
+| `learning.rs`                                         | In-memory per-query selection/pin boosts, loaded once at startup (never queried on the keystroke path)             |
+| `service.rs`                                          | `FileIndexState` — the lifecycle/state machine tying everything together, Tauri-agnostic by design                 |
+| `provider.rs` + `deep/{mdfind,everything,plocate}.rs` | On-demand "Deep Search" escalation to the OS-native search tool                                                    |
+| `commands.rs`                                         | Thin `#[tauri::command]` wrappers — no logic beyond extract/delegate/map-error                                     |
 
 `asyar-launcher/src-tauri/src/thumbnail/` is a separate, related subsystem
 (§7).
@@ -64,12 +64,12 @@ typical `$HOME` (300k entries) is ≈22 MB.
 
 1. **Collection** — `memchr::memmem` scans `lc_arena` for the longest query
    token, capped at 2048 candidates. Because entries are static-rank
-   sorted, truncating at the cap keeps the *best* candidates, not an
+   sorted, truncating at the cap keeps the _best_ candidates, not an
    arbitrary prefix.
 2. **Incremental narrowing** — if the new query extends the previous one
    (same index generation), only the previous candidate set is
    re-verified — no fresh arena scan. If the previous scan was truncated,
-   the scan *resumes* from where it stopped with the new, rarer needle, so
+   the scan _resumes_ from where it stopped with the new, rarer needle, so
    narrowing never silently loses matches.
 3. **Bounded fuzzy fallback** — only runs when substring matching is
    sparse (<48 candidates) and the query is ≥3 chars. Hard op budget
@@ -110,7 +110,7 @@ silently finished.
 ## 5. Coverage: what gets indexed, and what must never be watched
 
 Default root is `$HOME`. `walker::DEFAULT_IGNORE_PATTERNS` (shared by both
-the walker *and* the watcher's exclusion set — one source of truth) drops:
+the walker _and_ the watcher's exclusion set — one source of truth) drops:
 `node_modules`, `.git`, `Library` (macOS app support/caches — this alone
 avoids ~500k+ entries), build/dependency directories (`target`, `dist`,
 `DerivedData`, …), and VM storage folders (`Virtual Machines.localized`,
@@ -127,7 +127,7 @@ walker and `watcher.rs`'s exclusion set (the same pattern list).
 `.pvm`, `.vmwarevm` directories as opaque leaves — indexed as one entry,
 never descended into, regardless of what folder they live in. The
 watcher's exclusion set mirrors this with `**/*.<ext>/**` globs so events
-from *inside* a bundle (Photos doing library maintenance, an app updating
+from _inside_ a bundle (Photos doing library maintenance, an app updating
 itself) can't append tail entries the walker would never emit.
 
 ## 6. Watcher internals: why not `notify-debouncer-full`
@@ -217,21 +217,21 @@ every write once over budget.
 
 ## 8. IPC contract
 
-| Command | Args (camelCase) | Returns |
-|---|---|---|
-| `file_search` | `{query, typeFilter?, limit?}` | `FileSearchResponse` |
-| `file_index_status` | `{}` | `IndexStatus` |
-| `file_index_rebuild` | `{}` | `()` — see §4 for the synchronous status flip |
-| `file_index_set_config` | `{config: FileIndexConfig}` | `()` |
-| `file_search_record_selection` | `{query, fileId}` | `()` |
-| `file_search_pin` / `file_search_unpin` | `{fileId, path?}` | `()` |
-| `file_search_list_pinned` | `{}` | `FileHit[]` |
-| `file_search_clear_history` | `{}` | `()` |
-| `deep_search_availability` | `{}` | `string \| null` (provider id) |
-| `deep_search` | `{query, limit?}` | `FileHit[]` |
-| `get_file_thumbnail` | `{path, maxDim?}` | `string \| null` (an `asyar-thumb://` URL) |
-| `read_text_preview` | `{pathStr, maxBytes?}` | `string` (bounded, lossy-UTF8) |
-| `open_in_terminal` / `quick_look_path` | `{pathStr}` | `()` |
+| Command                                 | Args (camelCase)               | Returns                                       |
+| --------------------------------------- | ------------------------------ | --------------------------------------------- |
+| `file_search`                           | `{query, typeFilter?, limit?}` | `FileSearchResponse`                          |
+| `file_index_status`                     | `{}`                           | `IndexStatus`                                 |
+| `file_index_rebuild`                    | `{}`                           | `()` — see §4 for the synchronous status flip |
+| `file_index_set_config`                 | `{config: FileIndexConfig}`    | `()`                                          |
+| `file_search_record_selection`          | `{query, fileId}`              | `()`                                          |
+| `file_search_pin` / `file_search_unpin` | `{fileId, path?}`              | `()`                                          |
+| `file_search_list_pinned`               | `{}`                           | `FileHit[]`                                   |
+| `file_search_clear_history`             | `{}`                           | `()`                                          |
+| `deep_search_availability`              | `{}`                           | `string \| null` (provider id)                |
+| `deep_search`                           | `{query, limit?}`              | `FileHit[]`                                   |
+| `get_file_thumbnail`                    | `{path, maxDim?}`              | `string \| null` (an `asyar-thumb://` URL)    |
+| `read_text_preview`                     | `{pathStr, maxBytes?}`         | `string` (bounded, lossy-UTF8)                |
+| `open_in_terminal` / `quick_look_path`  | `{pathStr}`                    | `()`                                          |
 
 `read_text_preview` exists because `@tauri-apps/plugin-fs`'s `readFile` is
 gated by the webview's fs capability scope, which only ever covered
@@ -302,7 +302,7 @@ UI: `src/routes/settings/tabs/FileSearchTab.svelte`.
 - No debug override for `HARD_CAP` — testing the `CapReached` state
   requires actually pointing the index at ~1M real files.
 - Cloud-sync churn (iCloud Desktop/Documents, Dropbox, Google Drive) is
-  *not* excluded — those files are legitimately useful to search, unlike
+  _not_ excluded — those files are legitimately useful to search, unlike
   VM disk images, so exclusion isn't a valid mitigation if their sync
   activity turns out to be a meaningful CPU contributor. Would need
   separate profiling and a different approach.

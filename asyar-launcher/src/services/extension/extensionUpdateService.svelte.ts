@@ -37,7 +37,7 @@ class ExtensionUpdateService {
       'extension_update_progress',
       (event) => {
         this.updateProgress = event.payload;
-      }
+      },
     );
     this.unlistenTick = await listen<void>('asyar:extension-update:tick', () => {
       this.checkAndAutoApply();
@@ -54,14 +54,16 @@ class ExtensionUpdateService {
 
     const autoUpdate = settingsService.currentSettings.extensions?.autoUpdate !== false;
     if (!autoUpdate) {
-      logService.info(`Auto-update disabled. ${updates.length} update(s) available for manual install.`);
+      logService.info(
+        `Auto-update disabled. ${updates.length} update(s) available for manual install.`,
+      );
       return;
     }
 
     // Filter out the extension whose view is currently active to avoid mid-use disruption
     const activeExtId = this.getActiveExtensionId?.() ?? null;
     const safeUpdates = activeExtId
-      ? updates.filter(u => u.extensionId !== activeExtId)
+      ? updates.filter((u) => u.extensionId !== activeExtId)
       : updates;
 
     if (safeUpdates.length === 0) {
@@ -79,12 +81,8 @@ class ExtensionUpdateService {
       }
 
       // Remove successful updates from the available list
-      const failedIds = new Set(
-        results.filter(([, r]) => r.Err).map(([id]) => id)
-      );
-      this.availableUpdates = this.availableUpdates.filter(
-        u => failedIds.has(u.extensionId)
-      );
+      const failedIds = new Set(results.filter(([, r]) => r.Err).map(([id]) => id));
+      this.availableUpdates = this.availableUpdates.filter((u) => failedIds.has(u.extensionId));
 
       // Log results
       const successCount = results.filter(([, r]) => !r.Err).length;
@@ -147,7 +145,7 @@ class ExtensionUpdateService {
     try {
       await commands.updateExtension(update);
       this.availableUpdates = this.availableUpdates.filter(
-        u => u.extensionId !== update.extensionId
+        (u) => u.extensionId !== update.extensionId,
       );
       await reloadCallback();
       return true;
@@ -172,12 +170,8 @@ class ExtensionUpdateService {
         logService.error('Failed to update all extensions');
         return;
       }
-      const failedIds = new Set(
-        results.filter(([, r]) => r.Err).map(([id]) => id)
-      );
-      this.availableUpdates = this.availableUpdates.filter(
-        u => failedIds.has(u.extensionId)
-      );
+      const failedIds = new Set(results.filter(([, r]) => r.Err).map(([id]) => id));
+      this.availableUpdates = this.availableUpdates.filter((u) => failedIds.has(u.extensionId));
       await reloadCallback();
     } catch (e: any) {
       logService.error(`Failed to update all extensions: ${e}`);
@@ -188,7 +182,7 @@ class ExtensionUpdateService {
 
   /** Look up an available update for a specific extension. */
   getUpdateForExtension(extensionId: string): AvailableUpdate | undefined {
-    return this.availableUpdates.find(u => u.extensionId === extensionId);
+    return this.availableUpdates.find((u) => u.extensionId === extensionId);
   }
 
   /** Check if a specific extension is currently being updated. */

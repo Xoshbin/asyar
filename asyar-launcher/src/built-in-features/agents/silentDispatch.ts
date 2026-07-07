@@ -22,7 +22,10 @@ import { getProvider } from '../../services/ai/providerRegistry';
 import { streamChat } from '../../services/ai/aiEngine';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
-import { feedbackService, type HudSpinnerHandle } from '../../services/feedback/feedbackService.svelte';
+import {
+  feedbackService,
+  type HudSpinnerHandle,
+} from '../../services/feedback/feedbackService.svelte';
 import { notificationService } from '../../services/notification/notificationService';
 import { windowService } from '../../services/window/windowService';
 import { selectionService } from '../../services/selection/selectionService';
@@ -31,11 +34,7 @@ import { extractErrorMessage } from '../../lib/errors';
 import { agentService } from './agentService.svelte';
 import { invokeTool } from './toolDispatch';
 import { encodeToolIdForWire } from './agentLoop';
-import type {
-  AgentDef,
-  SilentInputSource,
-  SilentOutputAction,
-} from './types';
+import type { AgentDef, SilentInputSource, SilentOutputAction } from './types';
 import type {
   IProviderPlugin,
   ChatMessage,
@@ -84,9 +83,7 @@ export interface SilentDispatchInput {
  * and a system notification but do not propagate to the caller — the
  * silent UX has no way to display a thrown error to the user.
  */
-export async function dispatchSilentAgentCommand(
-  input: SilentDispatchInput,
-): Promise<void> {
+export async function dispatchSilentAgentCommand(input: SilentDispatchInput): Promise<void> {
   let resolvedAgent: AgentDef | null = null;
   let spinner: HudSpinnerHandle | null = null;
   try {
@@ -95,12 +92,10 @@ export async function dispatchSilentAgentCommand(
         `[silentDispatch] agentId mismatch: input.agentId="${input.agentId}" but agentDef.id="${input.agentDef.id}". Using agentDef.`,
       );
     }
-    const agent: AgentDef = input.agentDef ?? await loadAgent(input.agentId);
+    const agent: AgentDef = input.agentDef ?? (await loadAgent(input.agentId));
     resolvedAgent = agent;
     if (!agent.silent) {
-      throw new Error(
-        `dispatchSilentAgentCommand called for non-silent agent '${agent.id}'`,
-      );
+      throw new Error(`dispatchSilentAgentCommand called for non-silent agent '${agent.id}'`);
     }
 
     // Spinner up immediately so the user knows their hotkey was captured —
@@ -254,9 +249,7 @@ async function runSilentAgentTurn(
   }
 
   const settings = settingsService.getSettings();
-  const config = settings.ai.providers[
-    agent.providerId as keyof typeof settings.ai.providers
-  ];
+  const config = settings.ai.providers[agent.providerId as keyof typeof settings.ai.providers];
   if (!config?.apiKey) {
     throw new Error(`API key for provider '${agent.providerId}' is not set`);
   }
@@ -561,10 +554,7 @@ async function loadAgent(agentId: string): Promise<AgentDef> {
   return fetched;
 }
 
-async function reportFailure(
-  agent: Pick<AgentDef, 'id' | 'name'>,
-  detail: string,
-): Promise<void> {
+async function reportFailure(agent: Pick<AgentDef, 'id' | 'name'>, detail: string): Promise<void> {
   try {
     await diagnosticsService.report({
       source: 'frontend',

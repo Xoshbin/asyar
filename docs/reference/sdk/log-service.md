@@ -15,6 +15,7 @@ interface ILogService {
 ```
 
 **Usage:**
+
 ```typescript
 const log = context.getService<ILogService>('log');
 
@@ -28,6 +29,7 @@ log.custom('User selected item #3', 'UI', 'cyan', 'MyExtension');
 Log messages appear in Asyar's developer log panel (accessible from the tray menu).
 
 **Guidelines:**
+
 - Use `debug` freely during development for trace-level output.
 - Use `info` for lifecycle events (initialize, activate, first data load).
 - Use `warn` for recoverable edge cases (fallback values, deprecated usage).

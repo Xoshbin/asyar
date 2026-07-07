@@ -1,6 +1,7 @@
 ---
 order: 5
 ---
+
 ## 18. Troubleshooting & FAQ
 
 ### FAQ
@@ -18,10 +19,13 @@ Yes, `localStorage` is scoped to the `asyar-extension://` origin within your ext
 Yes, declare `"shell:open-url"` in your permissions and send a raw postMessage:
 
 ```typescript
-window.parent.postMessage({
-  type: 'asyar:api:opener:open',
-  url: 'https://example.com',
-}, '*');
+window.parent.postMessage(
+  {
+    type: 'asyar:api:opener:open',
+    url: 'https://example.com',
+  },
+  '*',
+);
 ```
 
 **Q: How do I pass data between views within my extension?**
@@ -52,6 +56,7 @@ This is expected for Tier 2 (installed) extensions. The `action` closure cannot 
 **Q: What happens when my extension is uninstalled?**
 
 The Rust backend:
+
 1. Validates the extension is not a built-in (built-in extensions cannot be uninstalled).
 2. Deletes the extension's directory from `$APP_DATA/extensions/`.
 3. Removes the entry from the app's settings store.
@@ -63,6 +68,7 @@ Any registered status bar items from the extension are cleared automatically. An
 **Q: How do I open VS Code for my extension after generating it?**
 
 The Create Extension scaffolder opens VS Code automatically. For subsequent sessions:
+
 ```bash
 code .   # from within your extension directory
 ```
@@ -108,4 +114,4 @@ Check the Asyar developer log for these messages.
 
 ---
 
-*This document is maintained alongside the `asyar-sdk` package. For bug reports, feature requests, or corrections, open an issue in the Asyar project repository.*
+_This document is maintained alongside the `asyar-sdk` package. For bug reports, feature requests, or corrections, open an issue in the Asyar project repository._

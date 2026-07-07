@@ -64,7 +64,13 @@ export class PortalsSyncProvider implements ISyncProvider {
       for (const item of incomingItems) {
         portalStore.add(item);
       }
-      return { success: true, itemsAdded: incomingItems.length, itemsUpdated: 0, itemsRemoved: existing.length, warnings: [] };
+      return {
+        success: true,
+        itemsAdded: incomingItems.length,
+        itemsUpdated: 0,
+        itemsRemoved: existing.length,
+        warnings: [],
+      };
     }
 
     // merge — dedup by id
@@ -84,12 +90,21 @@ export class PortalsSyncProvider implements ISyncProvider {
       }
     }
 
-    return { success: true, itemsAdded: added, itemsUpdated: updated, itemsRemoved: 0, warnings: [] };
+    return {
+      success: true,
+      itemsAdded: added,
+      itemsUpdated: updated,
+      itemsRemoved: 0,
+      warnings: [],
+    };
   }
 
   async getLocalSummary(): Promise<DataSummary> {
     const items = portalStore.getAll();
-    return { itemCount: items.length, label: `${items.length} portal${items.length !== 1 ? 's' : ''}` };
+    return {
+      itemCount: items.length,
+      label: `${items.length} portal${items.length !== 1 ? 's' : ''}`,
+    };
   }
 
   // ── Delta sync surface ──────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock browser globals for Node environment at the very top
 if (typeof window === 'undefined') {
@@ -17,7 +17,7 @@ if (typeof window === 'undefined') {
     },
     location: { origin: 'http://localhost' },
     postMessage: vi.fn(),
-    _messageHandlers: messageHandlers
+    _messageHandlers: messageHandlers,
   };
 }
 if (typeof document === 'undefined') {
@@ -28,7 +28,10 @@ if (typeof document === 'undefined') {
 }
 if (typeof MessageEvent === 'undefined') {
   (global as any).MessageEvent = class {
-    constructor(public type: string, init: any) {
+    constructor(
+      public type: string,
+      init: any,
+    ) {
       Object.assign(this, init);
     }
   };
@@ -36,12 +39,16 @@ if (typeof MessageEvent === 'undefined') {
 
 // Mock all external dependencies
 vi.mock('../log/logService', () => ({
-  logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), custom: vi.fn() }
-}))
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
-vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }))
-vi.mock('@tauri-apps/plugin-fs', () => ({ exists: vi.fn(), readDir: vi.fn(), remove: vi.fn() }))
-vi.mock('@tauri-apps/api/path', () => ({ join: vi.fn(), resourceDir: vi.fn(), appDataDir: vi.fn() }))
+  logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), custom: vi.fn() },
+}));
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
+vi.mock('@tauri-apps/plugin-fs', () => ({ exists: vi.fn(), readDir: vi.fn(), remove: vi.fn() }));
+vi.mock('@tauri-apps/api/path', () => ({
+  join: vi.fn(),
+  resourceDir: vi.fn(),
+  appDataDir: vi.fn(),
+}));
 vi.mock('asyar-sdk/contracts', () => ({
   extensionBridge: {
     registerManifest: vi.fn(),
@@ -51,8 +58,8 @@ vi.mock('asyar-sdk/contracts', () => ({
     deactivateExtensions: vi.fn().mockResolvedValue(true),
   },
   messageBroker: { setHostDispatcher: vi.fn() },
-}))
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
+}));
+vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }));
 vi.mock('../settings/settingsService.svelte', () => ({
   settingsService: {
     isInitialized: vi.fn().mockReturnValue(true),
@@ -60,13 +67,13 @@ vi.mock('../settings/settingsService.svelte', () => ({
     subscribe: vi.fn().mockReturnValue(() => {}),
     isExtensionEnabled: vi.fn().mockReturnValue(true),
     getSettings: vi.fn().mockReturnValue({
-      search: { enableExtensionSearch: false, allowExtensionActions: true }
+      search: { enableExtensionSearch: false, allowExtensionActions: true },
     }),
     updateSettings: vi.fn(),
     updateExtensionState: vi.fn(),
     removeExtensionState: vi.fn(),
-  }
-}))
+  },
+}));
 vi.mock('../performance/performanceService.svelte', () => ({
   performanceService: {
     init: vi.fn(),
@@ -74,29 +81,29 @@ vi.mock('../performance/performanceService.svelte', () => ({
     stopTiming: vi.fn().mockReturnValue({ duration: 0 }),
     trackExtensionLoadStart: vi.fn(),
     trackExtensionLoadEnd: vi.fn(),
-  }
-}))
+  },
+}));
 vi.mock('../extensionLoaderService', () => ({
   extensionLoaderService: {
     loadAllExtensions: vi.fn().mockResolvedValue(new Map()),
     loadSingleExtension: vi.fn().mockResolvedValue(null),
-  }
-}))
+  },
+}));
 vi.mock('./extensionDiscovery', () => ({
   discoverExtensions: vi.fn().mockResolvedValue([]),
   isBuiltInFeature: vi.fn().mockReturnValue(false),
-}))
+}));
 vi.mock('./commandService.svelte', () => ({
   commandService: {
     registerCommand: vi.fn(),
     executeCommand: vi.fn().mockResolvedValue(undefined),
     clearCommandsForExtension: vi.fn(),
     getCommands: vi.fn().mockReturnValue([]),
-  }
-}))
+  },
+}));
 vi.mock('./extensionDispatcher.svelte', () => ({
   dispatch: vi.fn().mockResolvedValue(undefined),
-}))
+}));
 vi.mock('./viewManager.svelte', () => ({
   viewManager: {
     init: vi.fn(),
@@ -112,23 +119,23 @@ vi.mock('./viewManager.svelte', () => ({
     activeViewSearchable: false,
     activeViewPrimaryActionLabel: null,
     activeViewSubtitle: null,
-  }
-}))
+  },
+}));
 vi.mock('../search/SearchService', () => ({
   searchService: {
     getIndexedObjectIds: vi.fn().mockResolvedValue(new Set()),
     batchIndexItems: vi.fn().mockResolvedValue(undefined),
     deleteItem: vi.fn().mockResolvedValue(undefined),
     saveIndex: vi.fn().mockResolvedValue(undefined),
-  }
-}))
-vi.mock('../search/topItemsCache', () => ({ invalidateTopItemsCache: vi.fn() }))
+  },
+}));
+vi.mock('../search/topItemsCache', () => ({ invalidateTopItemsCache: vi.fn() }));
 vi.mock('../action/actionService.svelte', () => ({
-  actionService: { setExtensionForwarder: vi.fn() }
-}))
+  actionService: { setExtensionForwarder: vi.fn() },
+}));
 vi.mock('../statusBar/statusBarService.svelte', () => ({
-  statusBarService: { clearItemsForExtension: vi.fn() }
-}))
+  statusBarService: { clearItemsForExtension: vi.fn() },
+}));
 vi.mock('./extensionIframeManager.svelte', () => ({
   extensionIframeManager: {
     init: vi.fn(),
@@ -140,22 +147,22 @@ vi.mock('./extensionIframeManager.svelte', () => ({
     broadcastSettingsToIframes: vi.fn(),
     forwardKeyToActiveView: vi.fn(),
     handleSearchResponse: vi.fn(),
-  }
-}))
+  },
+}));
 vi.mock('../permissionGate', () => ({
-  checkPermission: vi.fn().mockReturnValue({ allowed: true })
-}))
+  checkPermission: vi.fn().mockReturnValue({ allowed: true }),
+}));
 vi.mock('../../lib/ipc/extensionOrigin', () => ({
-  getExtensionFrameOrigin: vi.fn((id: string) => `asyar-extension://${id}`)
-}))
+  getExtensionFrameOrigin: vi.fn((id: string) => `asyar-extension://${id}`),
+}));
 vi.mock('../notification/notificationService', () => ({
   notificationService: { notify: vi.fn() },
-}))
+}));
 vi.mock('../clipboard/clipboardHistoryService', () => ({
   clipboardHistoryService: { getHistory: vi.fn() },
-}))
+}));
 vi.mock('../../lib/ipc/commands', async () => {
-  const { invoke } = await import('@tauri-apps/api/core')
+  const { invoke } = await import('@tauri-apps/api/core');
   return {
     syncCommandIndex: vi.fn().mockResolvedValue({ added: 0, removed: 0, total: 0 }),
     hideWindow: vi.fn().mockResolvedValue(undefined),
@@ -165,30 +172,29 @@ vi.mock('../../lib/ipc/commands', async () => {
     checkExtensionPermission: vi.fn().mockResolvedValue({ allowed: true }),
     // Real-shape passthrough so tests can drive `invoke` directly to
     // assert the wire contract.
-    getDynamicCommandMeta: (objectId: string) =>
-      invoke('get_dynamic_command_meta', { objectId }),
+    getDynamicCommandMeta: (objectId: string) => invoke('get_dynamic_command_meta', { objectId }),
     replaceDynamicCommands: (extensionId: string, regs: unknown[]) =>
       invoke('replace_dynamic_commands', { extensionId, regs }),
-  }
-})
+  };
+});
 // aiService.svelte removed with AI Chat feature; no mock needed.
 vi.mock('../../built-in-features/agents/dispatch', () => ({
   dispatchAgentCommand: vi.fn(async () => {}),
-}))
+}));
 
 // Import dependencies that we need to use vi.mocked on
-import { isBuiltInFeature } from './extensionDiscovery'
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
-import { extensionLoaderService } from '../extensionLoaderService'
-import { commandService } from './commandService.svelte'
-import { dispatch } from './extensionDispatcher.svelte'
-import { viewManager } from './viewManager.svelte'
-import { settingsService } from '../settings/settingsService.svelte'
-import { actionService } from '../action/actionService.svelte'
-import { logService } from '../log/logService'
-import { performanceService } from '../performance/performanceService.svelte'
-import * as commands from '../../lib/ipc/commands'
+import { isBuiltInFeature } from './extensionDiscovery';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { extensionLoaderService } from '../extensionLoaderService';
+import { commandService } from './commandService.svelte';
+import { dispatch } from './extensionDispatcher.svelte';
+import { viewManager } from './viewManager.svelte';
+import { settingsService } from '../settings/settingsService.svelte';
+import { actionService } from '../action/actionService.svelte';
+import { logService } from '../log/logService';
+import { performanceService } from '../performance/performanceService.svelte';
+import * as commands from '../../lib/ipc/commands';
 
 // We will import the extensionManager dynamically to ensure globals are set
 let extensionManager: any;
@@ -210,466 +216,515 @@ describe('ExtensionManager Characterization Tests', () => {
       actionForwarderCalledCount = vi.mocked(actionService.setExtensionForwarder).mock.calls.length;
     }
 
-    vi.clearAllMocks()
+    vi.clearAllMocks();
 
     // Reset internal state
-    extensionManager.initialized = false
-    extensionManager.manifestsById.clear()
-    extensionManager.extensionModulesById.clear()
-    extensionManager.allLoadedCommands = []
-    
+    extensionManager.initialized = false;
+    extensionManager.manifestsById.clear();
+    extensionManager.extensionModulesById.clear();
+    extensionManager.allLoadedCommands = [];
+
     // Reset usage stats
-    extensionStateManager.extensionUsageStats = {}
+    extensionStateManager.extensionUsageStats = {};
 
     // Spy on methods
-    vi.spyOn(extensionManager, 'getManifestById')
-    vi.spyOn(extensionManager, 'navigateToView')
-  })
+    vi.spyOn(extensionManager, 'getManifestById');
+    vi.spyOn(extensionManager, 'navigateToView');
+  });
 
   describe('constructor', () => {
     it('does not throw', () => {
-      expect(extensionManager).toBeDefined()
-    })
+      expect(extensionManager).toBeDefined();
+    });
 
     it('registers the action forwarder', () => {
       // The ctor wires the iframe-action forwarder into actionService. With
       // the lazy Proxy singleton, the ctor fires on first property access
       // (see beforeEach above) — hence the count captured there must be
       // non-zero.
-      expect(actionForwarderCalledCount).toBeGreaterThan(0)
-    })
-  })
+      expect(actionForwarderCalledCount).toBeGreaterThan(0);
+    });
+  });
 
   describe('init()', () => {
     it('returns true on successful initialization', async () => {
-      const result = await extensionManager.init()
-      expect(result).toBe(true)
-    })
+      const result = await extensionManager.init();
+      expect(result).toBe(true);
+    });
 
     it('returns false on error', async () => {
       (extensionManager as any).initialized = false;
       const error = new Error('Init failed');
-      vi.mocked(performanceService.init).mockRejectedValueOnce(error)
-      
-      const result = await extensionManager.init()
-      
-      expect(result).toBe(false)
-      expect(logService.error).toHaveBeenCalledWith(expect.stringContaining(`Failed to initialize extension manager: ${error}`))
-      
+      vi.mocked(performanceService.init).mockRejectedValueOnce(error);
+
+      const result = await extensionManager.init();
+
+      expect(result).toBe(false);
+      expect(logService.error).toHaveBeenCalledWith(
+        expect.stringContaining(`Failed to initialize extension manager: ${error}`),
+      );
+
       // Reset for subsequent tests (performanceService.init is a spy returning Promise<void> usually)
-      vi.mocked(performanceService.init).mockResolvedValue(undefined as any)
-    })
+      vi.mocked(performanceService.init).mockResolvedValue(undefined as any);
+    });
 
     it('marks initialized = true after first call', async () => {
-      await extensionManager.init()
+      await extensionManager.init();
       // @ts-ignore
-      expect(extensionManager.initialized).toBe(true)
-    })
+      expect(extensionManager.initialized).toBe(true);
+    });
 
     it('skips re-initialization if called twice', async () => {
-      await extensionManager.init()
-      vi.clearAllMocks()
-      await extensionManager.init()
-      expect(extensionLoaderService.loadAllExtensions).not.toHaveBeenCalled()
-    })
+      await extensionManager.init();
+      vi.clearAllMocks();
+      await extensionManager.init();
+      expect(extensionLoaderService.loadAllExtensions).not.toHaveBeenCalled();
+    });
 
     it('calls extensionLoaderService.loadAllExtensions()', async () => {
-      await extensionManager.init()
-      expect(extensionLoaderService.loadAllExtensions).toHaveBeenCalled()
-    })
+      await extensionManager.init();
+      expect(extensionLoaderService.loadAllExtensions).toHaveBeenCalled();
+    });
 
     it('calls viewManager.init() with manifestsById', async () => {
-      await extensionManager.init()
-      expect(viewManager.init).toHaveBeenCalled()
-    })
+      await extensionManager.init();
+      expect(viewManager.init).toHaveBeenCalled();
+    });
 
     it('calls syncCommandIndex after loading', async () => {
-      const spy = vi.spyOn(extensionManager as any, 'syncCommandIndex')
-      await extensionManager.init()
-      expect(spy).toHaveBeenCalled()
-    })
+      const spy = vi.spyOn(extensionManager as any, 'syncCommandIndex');
+      await extensionManager.init();
+      expect(spy).toHaveBeenCalled();
+    });
 
     it('loadExtensions() processes loaded extensions from extensionLoaderService', async () => {
-      const mockManifest = { id: 'test-ext', name: 'Test', commands: [{ id: 'cmd1', name: 'Cmd 1' }] }
-      const mockModule = { default: { executeCommand: vi.fn(), search: vi.fn() } }
-      const loadedMap = new Map([['test-ext', { module: mockModule, manifest: mockManifest, isBuiltIn: false }]])
-      vi.mocked(extensionLoaderService.loadAllExtensions).mockResolvedValue(loadedMap as any)
-      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true)
+      const mockManifest = {
+        id: 'test-ext',
+        name: 'Test',
+        commands: [{ id: 'cmd1', name: 'Cmd 1' }],
+      };
+      const mockModule = { default: { executeCommand: vi.fn(), search: vi.fn() } };
+      const loadedMap = new Map([
+        ['test-ext', { module: mockModule, manifest: mockManifest, isBuiltIn: false }],
+      ]);
+      vi.mocked(extensionLoaderService.loadAllExtensions).mockResolvedValue(loadedMap as any);
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
 
-      await extensionManager.init()
+      await extensionManager.init();
 
       // @ts-ignore - accessing private field for characterization
-      expect(extensionManager.manifestsById.has('test-ext')).toBe(true)
+      expect(extensionManager.manifestsById.has('test-ext')).toBe(true);
       // @ts-ignore
-      expect(extensionManager.extensionModulesById.has('test-ext')).toBe(true)
-    })
+      expect(extensionManager.extensionModulesById.has('test-ext')).toBe(true);
+    });
 
     it('syncCommandIndex() calls commands.syncCommandIndex with loaded commands', async () => {
-      const mockManifest = { id: 'test-ext', name: 'Test', commands: [{ id: 'cmd1', name: 'Cmd 1', trigger: 'test' }] }
-      const mockModule = { default: { executeCommand: vi.fn() } }
-      const loadedMap = new Map([['test-ext', { module: mockModule, manifest: mockManifest, isBuiltIn: false }]])
-      vi.mocked(extensionLoaderService.loadAllExtensions).mockResolvedValue(loadedMap as any)
-      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true)
+      const mockManifest = {
+        id: 'test-ext',
+        name: 'Test',
+        commands: [{ id: 'cmd1', name: 'Cmd 1', trigger: 'test' }],
+      };
+      const mockModule = { default: { executeCommand: vi.fn() } };
+      const loadedMap = new Map([
+        ['test-ext', { module: mockModule, manifest: mockManifest, isBuiltIn: false }],
+      ]);
+      vi.mocked(extensionLoaderService.loadAllExtensions).mockResolvedValue(loadedMap as any);
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
 
-      await extensionManager.init()
+      await extensionManager.init();
 
-      expect(commands.syncCommandIndex).toHaveBeenCalled()
-      const call = vi.mocked(commands.syncCommandIndex).mock.calls[0]
-      expect(call[0].length).toBeGreaterThan(0)
-      expect(call[0][0].id).toBe('cmd_test-ext_cmd1')
-    })
+      expect(commands.syncCommandIndex).toHaveBeenCalled();
+      const call = vi.mocked(commands.syncCommandIndex).mock.calls[0];
+      expect(call[0].length).toBeGreaterThan(0);
+      expect(call[0][0].id).toBe('cmd_test-ext_cmd1');
+    });
 
     it('syncCommandIndex() delegates stale command cleanup to the Rust command', async () => {
-      // In the new architecture, we pass all current commands to syncCommandIndex 
+      // In the new architecture, we pass all current commands to syncCommandIndex
       // and Rust handles the diff/deletion, so we just verify the call.
-      vi.mocked(extensionLoaderService.loadAllExtensions).mockResolvedValue(new Map() as any)
+      vi.mocked(extensionLoaderService.loadAllExtensions).mockResolvedValue(new Map() as any);
 
-      await extensionManager.init()
+      await extensionManager.init();
 
-      expect(commands.syncCommandIndex).toHaveBeenCalled()
-    })
-  })
+      expect(commands.syncCommandIndex).toHaveBeenCalled();
+    });
+  });
 
   describe('handleCommandAction()', () => {
     it('calls commandService.executeCommand with the objectId', async () => {
-      await extensionManager.handleCommandAction('test_cmd')
-      expect(commandService.executeCommand).toHaveBeenCalledWith('test_cmd', undefined)
-    })
+      await extensionManager.handleCommandAction('test_cmd');
+      expect(commandService.executeCommand).toHaveBeenCalledWith('test_cmd', undefined);
+    });
 
     it('throws on executeCommand failure', async () => {
-      vi.mocked(commandService.executeCommand).mockRejectedValueOnce(new Error('Execute failed'))
-      await expect(extensionManager.handleCommandAction('test_cmd')).rejects.toThrow('Execute failed')
-    })
+      vi.mocked(commandService.executeCommand).mockRejectedValueOnce(new Error('Execute failed'));
+      await expect(extensionManager.handleCommandAction('test_cmd')).rejects.toThrow(
+        'Execute failed',
+      );
+    });
 
     it('returns the result from executeCommand', async () => {
-      vi.mocked(commandService.executeCommand).mockResolvedValueOnce({ type: 'no-view' })
-      const result = await extensionManager.handleCommandAction('test_cmd')
-      expect(result).toEqual({ type: 'no-view' })
-    })
+      vi.mocked(commandService.executeCommand).mockResolvedValueOnce({ type: 'no-view' });
+      const result = await extensionManager.handleCommandAction('test_cmd');
+      expect(result).toEqual({ type: 'no-view' });
+    });
 
     it('returns undefined when executeCommand returns undefined', async () => {
-      vi.mocked(commandService.executeCommand).mockResolvedValueOnce(undefined)
-      const result = await extensionManager.handleCommandAction('test_cmd')
-      expect(result).toBeUndefined()
-    })
+      vi.mocked(commandService.executeCommand).mockResolvedValueOnce(undefined);
+      const result = await extensionManager.handleCommandAction('test_cmd');
+      expect(result).toBeUndefined();
+    });
 
     it('navigates to view when executeCommand returns a view envelope', async () => {
       vi.mocked(commandService.executeCommand).mockResolvedValueOnce({
         type: 'view',
         viewPath: 'agents/AgentListView',
-      })
-      await extensionManager.handleCommandAction('cmd_agents_manage-agents')
-      expect(viewManager.navigateToView).toHaveBeenCalledWith('agents/AgentListView')
-    })
+      });
+      await extensionManager.handleCommandAction('cmd_agents_manage-agents');
+      expect(viewManager.navigateToView).toHaveBeenCalledWith('agents/AgentListView');
+    });
 
     describe('dynamic command dispatch', () => {
-      let agentDispatchMock: ReturnType<typeof vi.fn>
+      let agentDispatchMock: ReturnType<typeof vi.fn>;
 
       beforeEach(async () => {
-        vi.mocked(dispatch).mockReset()
-        vi.mocked(dispatch).mockResolvedValue(undefined)
-        vi.mocked(commandService.executeCommand).mockReset()
-        const agentsMod = await vi.importMock<{ dispatchAgentCommand: () => Promise<void> }>('../../built-in-features/agents/dispatch')
-        agentDispatchMock = agentsMod.dispatchAgentCommand as ReturnType<typeof vi.fn>
-        agentDispatchMock.mockReset()
-        agentDispatchMock.mockResolvedValue(undefined)
+        vi.mocked(dispatch).mockReset();
+        vi.mocked(dispatch).mockResolvedValue(undefined);
+        vi.mocked(commandService.executeCommand).mockReset();
+        const agentsMod = await vi.importMock<{ dispatchAgentCommand: () => Promise<void> }>(
+          '../../built-in-features/agents/dispatch',
+        );
+        agentDispatchMock = agentsMod.dispatchAgentCommand as ReturnType<typeof vi.fn>;
+        agentDispatchMock.mockReset();
+        agentDispatchMock.mockResolvedValue(undefined);
         // Register dispatchers under the new registry (production wires these
         // at module load via each built-in's index.ts; the test environment
         // does not import those side-effecting modules, so we mirror the
         // registration explicitly here).
-        const { registerBuiltinDynamicDispatcher } = await import('./builtinDynamicDispatchers')
-        registerBuiltinDynamicDispatcher('agents', agentDispatchMock as unknown as (id: string, args?: Record<string, unknown>) => Promise<void>)
-        registerBuiltinDynamicDispatcher('scripts', vi.fn(async () => {}))
-      })
+        const { registerBuiltinDynamicDispatcher } = await import('./builtinDynamicDispatchers');
+        registerBuiltinDynamicDispatcher(
+          'agents',
+          agentDispatchMock as unknown as (
+            id: string,
+            args?: Record<string, unknown>,
+          ) => Promise<void>,
+        );
+        registerBuiltinDynamicDispatcher(
+          'scripts',
+          vi.fn(async () => {}),
+        );
+      });
 
       it('routes cmd_<ext>_dyn_<id> through the Tier 2 dispatcher', async () => {
-        await extensionManager.handleCommandAction('cmd_org.asyar.shortcuts_dyn_uuid-1')
+        await extensionManager.handleCommandAction('cmd_org.asyar.shortcuts_dyn_uuid-1');
 
-        expect(dispatch).toHaveBeenCalledTimes(1)
-        const call = vi.mocked(dispatch).mock.calls[0][0]
-        expect(call.extensionId).toBe('org.asyar.shortcuts')
-        expect(call.kind).toBe('command')
-        expect(call.payload).toEqual({ commandId: 'uuid-1', args: {} })
-        expect(call.source).toBe('search')
-        expect(call.commandMode).toBe('background')
-      })
+        expect(dispatch).toHaveBeenCalledTimes(1);
+        const call = vi.mocked(dispatch).mock.calls[0][0];
+        expect(call.extensionId).toBe('org.asyar.shortcuts');
+        expect(call.kind).toBe('command');
+        expect(call.payload).toEqual({ commandId: 'uuid-1', args: {} });
+        expect(call.source).toBe('search');
+        expect(call.commandMode).toBe('background');
+      });
 
       it('passes through args.arguments to the dispatcher payload', async () => {
-        const args = { arguments: { input: 'hello' } }
-        await extensionManager.handleCommandAction('cmd_org.asyar.shortcuts_dyn_uuid-1', args)
+        const args = { arguments: { input: 'hello' } };
+        await extensionManager.handleCommandAction('cmd_org.asyar.shortcuts_dyn_uuid-1', args);
 
-        const call = vi.mocked(dispatch).mock.calls[0][0]
-        expect(call.payload).toEqual({ commandId: 'uuid-1', args })
-      })
+        const call = vi.mocked(dispatch).mock.calls[0][0];
+        expect(call.payload).toEqual({ commandId: 'uuid-1', args });
+      });
 
       it('does not call commandService.executeCommand for dynamic ids', async () => {
-        await extensionManager.handleCommandAction('cmd_org.asyar.shortcuts_dyn_uuid-1')
+        await extensionManager.handleCommandAction('cmd_org.asyar.shortcuts_dyn_uuid-1');
 
-        expect(commandService.executeCommand).not.toHaveBeenCalled()
-      })
+        expect(commandService.executeCommand).not.toHaveBeenCalled();
+      });
 
       it('returns { type: "no-view" } so the launcher hides after dispatch', async () => {
-        const result = await extensionManager.handleCommandAction('cmd_ext_dyn_x')
-        expect(result).toEqual({ type: 'no-view' })
-      })
+        const result = await extensionManager.handleCommandAction('cmd_ext_dyn_x');
+        expect(result).toEqual({ type: 'no-view' });
+      });
 
       it('propagates dispatch errors with a contextual message', async () => {
-        vi.mocked(dispatch).mockRejectedValueOnce(new Error('dispatch boom'))
-        await expect(
-          extensionManager.handleCommandAction('cmd_ext_dyn_x'),
-        ).rejects.toThrow('dispatch boom')
-      })
+        vi.mocked(dispatch).mockRejectedValueOnce(new Error('dispatch boom'));
+        await expect(extensionManager.handleCommandAction('cmd_ext_dyn_x')).rejects.toThrow(
+          'dispatch boom',
+        );
+      });
 
       it('manifest commands (no _dyn_ infix) still go through commandService.executeCommand', async () => {
-        await extensionManager.handleCommandAction('cmd_some.ext_open')
+        await extensionManager.handleCommandAction('cmd_some.ext_open');
 
-        expect(commandService.executeCommand).toHaveBeenCalledWith('cmd_some.ext_open', undefined)
-        expect(dispatch).not.toHaveBeenCalled()
-      })
+        expect(commandService.executeCommand).toHaveBeenCalledWith('cmd_some.ext_open', undefined);
+        expect(dispatch).not.toHaveBeenCalled();
+      });
 
       it('handles extension ids containing dots in the dynamic format', async () => {
-        await extensionManager.handleCommandAction('cmd_org.author.name_dyn_my-id')
+        await extensionManager.handleCommandAction('cmd_org.author.name_dyn_my-id');
 
-        const call = vi.mocked(dispatch).mock.calls[0][0]
-        expect(call.extensionId).toBe('org.author.name')
-        expect(call.payload).toEqual({ commandId: 'my-id', args: {} })
-      })
+        const call = vi.mocked(dispatch).mock.calls[0][0];
+        expect(call.extensionId).toBe('org.author.name');
+        expect(call.payload).toEqual({ commandId: 'my-id', args: {} });
+      });
 
       it('routes cmd_agents_dyn_* to dispatchAgentCommand, not the Tier 2 dispatcher', async () => {
-        await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-1')
+        await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-1');
 
-        expect(agentDispatchMock).toHaveBeenCalledTimes(1)
-        expect(agentDispatchMock).toHaveBeenCalledWith('uuid-1', undefined)
-        expect(dispatch).not.toHaveBeenCalled()
-        expect(commandService.executeCommand).not.toHaveBeenCalled()
-      })
+        expect(agentDispatchMock).toHaveBeenCalledTimes(1);
+        expect(agentDispatchMock).toHaveBeenCalledWith('uuid-1', undefined);
+        expect(dispatch).not.toHaveBeenCalled();
+        expect(commandService.executeCommand).not.toHaveBeenCalled();
+      });
 
       it('passes args to dispatchAgentCommand for cmd_agents_dyn_* ids', async () => {
-        const args = { arguments: { query: 'hello' } }
-        await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-2', args)
+        const args = { arguments: { query: 'hello' } };
+        await extensionManager.handleCommandAction('cmd_agents_dyn_uuid-2', args);
 
-        expect(agentDispatchMock).toHaveBeenCalledWith('uuid-2', args)
-      })
+        expect(agentDispatchMock).toHaveBeenCalledWith('uuid-2', args);
+      });
 
       it('routes any built-in dynamic extension via the registered dispatcher (no hardcoded id list)', async () => {
-        const {
-          registerBuiltinDynamicDispatcher,
-          unregisterBuiltinDynamicDispatcher,
-        } = await import('./builtinDynamicDispatchers')
-        const customDispatch = vi.fn(async () => {})
-        registerBuiltinDynamicDispatcher('my-builtin', customDispatch)
+        const { registerBuiltinDynamicDispatcher, unregisterBuiltinDynamicDispatcher } =
+          await import('./builtinDynamicDispatchers');
+        const customDispatch = vi.fn(async () => {});
+        registerBuiltinDynamicDispatcher('my-builtin', customDispatch);
 
         try {
-          const result = await extensionManager.handleCommandAction(
-            'cmd_my-builtin_dyn_xyz',
-            { arguments: { foo: 1 } },
-          )
-          expect(customDispatch).toHaveBeenCalledTimes(1)
-          expect(customDispatch).toHaveBeenCalledWith('xyz', { arguments: { foo: 1 } })
-          expect(dispatch).not.toHaveBeenCalled()
-          expect(commandService.executeCommand).not.toHaveBeenCalled()
-          expect(result).toEqual({ type: 'no-view' })
+          const result = await extensionManager.handleCommandAction('cmd_my-builtin_dyn_xyz', {
+            arguments: { foo: 1 },
+          });
+          expect(customDispatch).toHaveBeenCalledTimes(1);
+          expect(customDispatch).toHaveBeenCalledWith('xyz', { arguments: { foo: 1 } });
+          expect(dispatch).not.toHaveBeenCalled();
+          expect(commandService.executeCommand).not.toHaveBeenCalled();
+          expect(result).toEqual({ type: 'no-view' });
         } finally {
-          unregisterBuiltinDynamicDispatcher('my-builtin')
+          unregisterBuiltinDynamicDispatcher('my-builtin');
         }
-      })
-    })
-  })
+      });
+    });
+  });
 
   describe('searchAll()', () => {
     it('returns empty array when no extensions are loaded', async () => {
-      const results = await extensionManager.searchAll('query')
-      expect(results).toEqual([])
-    })
+      const results = await extensionManager.searchAll('query');
+      expect(results).toEqual([]);
+    });
 
     it('calls search() on loaded extension instances that have it', async () => {
-      const mockExt = { search: vi.fn().mockResolvedValue([{ title: 'Result' }]) }
+      const mockExt = { search: vi.fn().mockResolvedValue([{ title: 'Result' }]) };
       // @ts-ignore
-      extensionManager.extensionModulesById.set('test-ext', mockExt)
+      extensionManager.extensionModulesById.set('test-ext', mockExt);
       // @ts-ignore
-      extensionManager.manifestsById.set('test-ext', { id: 'test-ext' })
-      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true)
+      extensionManager.manifestsById.set('test-ext', { id: 'test-ext' });
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
 
-      const results = await extensionManager.searchAll('query')
-      expect(mockExt.search).toHaveBeenCalledWith('query')
-      expect(results).toHaveLength(1)
-      expect(results[0].title).toBe('Result')
-    })
+      const results = await extensionManager.searchAll('query');
+      expect(mockExt.search).toHaveBeenCalledWith('query');
+      expect(results).toHaveLength(1);
+      expect(results[0].title).toBe('Result');
+    });
 
     it('skips extension instances that do not have search()', async () => {
-      const mockExt = { noSearch: vi.fn() }
+      const mockExt = { noSearch: vi.fn() };
       // @ts-ignore
-      extensionManager.extensionModulesById.set('test-ext', mockExt)
-      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true)
+      extensionManager.extensionModulesById.set('test-ext', mockExt);
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
 
-      const results = await extensionManager.searchAll('query')
-      expect(results).toEqual([])
-    })
+      const results = await extensionManager.searchAll('query');
+      expect(results).toEqual([]);
+    });
 
     it('returns [] and logs error if one extension throws', async () => {
-      const mockExt = { search: vi.fn().mockRejectedValue(new Error('Search failed')) }
+      const mockExt = { search: vi.fn().mockRejectedValue(new Error('Search failed')) };
       // @ts-ignore
-      extensionManager.extensionModulesById.set('test-ext', mockExt)
-      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true)
+      extensionManager.extensionModulesById.set('test-ext', mockExt);
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
 
-      const results = await extensionManager.searchAll('query')
-      expect(results).toEqual([])
-    })
+      const results = await extensionManager.searchAll('query');
+      expect(results).toEqual([]);
+    });
 
     it('returns partial results when an extension search exceeds 200ms timeout', async () => {
       // Fast extension resolves immediately
-      const fastExt = { search: vi.fn().mockResolvedValue([{ title: 'Fast Result', score: 0.9 }]) }
+      const fastExt = { search: vi.fn().mockResolvedValue([{ title: 'Fast Result', score: 0.9 }]) };
       // Slow extension takes 500ms — will exceed the 200ms timeout
-      const slowExt = { search: vi.fn().mockImplementation(() => new Promise(resolve => setTimeout(() => resolve([{ title: 'Slow Result', score: 0.5 }]), 500))) }
-      
-      // @ts-ignore
-      extensionManager.extensionModulesById.set('fast-ext', fastExt)
-      // @ts-ignore
-      extensionManager.extensionModulesById.set('slow-ext', slowExt)
-      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true)
+      const slowExt = {
+        search: vi
+          .fn()
+          .mockImplementation(
+            () =>
+              new Promise((resolve) =>
+                setTimeout(() => resolve([{ title: 'Slow Result', score: 0.5 }]), 500),
+              ),
+          ),
+      };
 
-      const results = await extensionManager.searchAll('query')
-      
+      // @ts-ignore
+      extensionManager.extensionModulesById.set('fast-ext', fastExt);
+      // @ts-ignore
+      extensionManager.extensionModulesById.set('slow-ext', slowExt);
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
+
+      const results = await extensionManager.searchAll('query');
+
       // Fast extension's results should be present
-      expect(results.some((r: any) => r.title === 'Fast Result')).toBe(true)
+      expect(results.some((r: any) => r.title === 'Fast Result')).toBe(true);
       // Slow extension's results should NOT be present (timed out)
-      expect(results.some((r: any) => r.title === 'Slow Result')).toBe(false)
-    })
-  })
+      expect(results.some((r: any) => r.title === 'Slow Result')).toBe(false);
+    });
+  });
 
   describe('navigateToView()', () => {
     it('delegates to viewManager.navigateToView', () => {
-      extensionManager.navigateToView('test/View')
-      expect(viewManager.navigateToView).toHaveBeenCalledWith('test/View')
-    })
+      extensionManager.navigateToView('test/View');
+      expect(viewManager.navigateToView).toHaveBeenCalledWith('test/View');
+    });
 
     it('updates extensionUsageStats for the extension', () => {
       // @ts-ignore
-      extensionManager.manifestsById.set('test', { id: 'test', name: 'Test' })
-      extensionManager.navigateToView('test/View')
-      const stats = extensionStateManager.extensionUsageStats as Record<string, number>
-      expect(stats['test']).toBe(1)
-    })
-  })
+      extensionManager.manifestsById.set('test', { id: 'test', name: 'Test' });
+      extensionManager.navigateToView('test/View');
+      const stats = extensionStateManager.extensionUsageStats as Record<string, number>;
+      expect(stats['test']).toBe(1);
+    });
+  });
 
   describe('goBack()', () => {
     it('delegates to viewManager.goBack', () => {
-      extensionManager.goBack()
-      expect(viewManager.goBack).toHaveBeenCalled()
-    })
-  })
+      extensionManager.goBack();
+      expect(viewManager.goBack).toHaveBeenCalled();
+    });
+  });
 
   describe('getManifestById()', () => {
     it('returns undefined for unknown id', () => {
-      expect(extensionManager.getManifestById('unknown')).toBeUndefined()
-    })
+      expect(extensionManager.getManifestById('unknown')).toBeUndefined();
+    });
 
     it('returns the manifest after init with a loaded extension', () => {
       // @ts-ignore
-      extensionManager.manifestsById.set('test', { id: 'test' })
-      expect(extensionManager.getManifestById('test')).toEqual({ id: 'test' })
-    })
-  })
+      extensionManager.manifestsById.set('test', { id: 'test' });
+      expect(extensionManager.getManifestById('test')).toEqual({ id: 'test' });
+    });
+  });
 
   describe('toggleExtensionState()', () => {
     it('returns false and logs when trying to disable a built-in extension', async () => {
-      vi.mocked(isBuiltInFeature).mockReturnValue(true)
-      const result = await extensionManager.toggleExtensionState('builtin', false)
-      expect(result).toBe(false)
-    })
+      vi.mocked(isBuiltInFeature).mockReturnValue(true);
+      const result = await extensionManager.toggleExtensionState('builtin', false);
+      expect(result).toBe(false);
+    });
 
     it('calls setExtensionEnabled with correct args', async () => {
-      vi.mocked(isBuiltInFeature).mockReturnValue(false)
+      vi.mocked(isBuiltInFeature).mockReturnValue(false);
       const setExtensionEnabledMock = vi.mocked(commands.setExtensionEnabled);
-      await extensionManager.toggleExtensionState('installed', true)
-      expect(setExtensionEnabledMock).toHaveBeenCalledWith('installed', true)
-    })
-  })
+      await extensionManager.toggleExtensionState('installed', true);
+      expect(setExtensionEnabledMock).toHaveBeenCalledWith('installed', true);
+    });
+  });
 
   describe('isExtensionEnabled()', () => {
     it('returns true for built-in extensions regardless of settings', () => {
-      vi.mocked(isBuiltInFeature).mockReturnValue(true)
-      expect(extensionManager.isExtensionEnabled('builtin')).toBe(true)
-    })
+      vi.mocked(isBuiltInFeature).mockReturnValue(true);
+      expect(extensionManager.isExtensionEnabled('builtin')).toBe(true);
+    });
 
     it('delegates to settingsService for installed extensions', () => {
-      vi.mocked(isBuiltInFeature).mockReturnValue(false)
-      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false)
-      expect(extensionManager.isExtensionEnabled('installed')).toBe(false)
-      expect(settingsService.isExtensionEnabled).toHaveBeenCalledWith('installed')
-    })
-  })
+      vi.mocked(isBuiltInFeature).mockReturnValue(false);
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false);
+      expect(extensionManager.isExtensionEnabled('installed')).toBe(false);
+      expect(settingsService.isExtensionEnabled).toHaveBeenCalledWith('installed');
+    });
+  });
 
   describe('IPC handler — setupIpcHandler()', () => {
     // These tests dispatch postMessage events to window and check outcomes.
 
     it('ignores messages that do not start with asyar:', async () => {
-      window.dispatchEvent({ type: 'message', data: { type: 'other:msg' }, source: window } as any)
+      window.dispatchEvent({ type: 'message', data: { type: 'other:msg' }, source: window } as any);
       // Should not call any permission check
-      expect(vi.mocked(commands.checkExtensionPermission)).not.toHaveBeenCalled()
-    })
+      expect(vi.mocked(commands.checkExtensionPermission)).not.toHaveBeenCalled();
+    });
 
     it('ignores asyar:response messages (prevents loops)', async () => {
-      window.dispatchEvent({ type: 'message', data: { type: 'asyar:response' }, source: window } as any)
-      expect(vi.mocked(commands.checkExtensionPermission)).not.toHaveBeenCalled()
-    })
+      window.dispatchEvent({
+        type: 'message',
+        data: { type: 'asyar:response' },
+        source: window,
+      } as any);
+      expect(vi.mocked(commands.checkExtensionPermission)).not.toHaveBeenCalled();
+    });
 
     it('rejects messages from iframes without extensionId', async () => {
-      const mockIframeWindow = { postMessage: vi.fn() } as any
-      window.dispatchEvent({ type: 'message',
+      const mockIframeWindow = { postMessage: vi.fn() } as any;
+      window.dispatchEvent({
+        type: 'message',
         data: { type: 'asyar:api:test' },
-        source: mockIframeWindow
-      } as any)
+        source: mockIframeWindow,
+      } as any);
       // It should log error and return
-      expect(vi.mocked(commands.checkExtensionPermission)).not.toHaveBeenCalled()
-    })
+      expect(vi.mocked(commands.checkExtensionPermission)).not.toHaveBeenCalled();
+    });
 
     it('rejects messages from unregistered iframe extensionId', async () => {
-      const mockIframeWindow = { postMessage: vi.fn() } as any
-      window.dispatchEvent({ type: 'message', 
-        data: { type: 'asyar:api:test', extensionId: 'unknown' }, 
-        source: mockIframeWindow 
-      } as any)
-      
+      const mockIframeWindow = { postMessage: vi.fn() } as any;
+      window.dispatchEvent({
+        type: 'message',
+        data: { type: 'asyar:api:test', extensionId: 'unknown' },
+        source: mockIframeWindow,
+      } as any);
+
       // Wait for async handler
-      await new Promise(resolve => setTimeout(resolve, 0))
-      
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
       expect(mockIframeWindow.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'asyar:response', error: 'Unknown extension: unknown' }),
-        expect.any(String)
-      )
-    })
+        expect.any(String),
+      );
+    });
 
     it('allows messages from window itself (privileged host context)', async () => {
       // @ts-ignore
-      extensionManager.serviceRegistry['log'].info = vi.fn()
-      window.dispatchEvent({ type: 'message', 
-        data: { type: 'asyar:api:log:info', payload: ['Hello'] }, 
-        source: window 
-      } as any)
-      
-      await new Promise(resolve => setTimeout(resolve, 10))
-      expect(extensionManager.getManifestById).not.toHaveBeenCalled() // Bypassed for host
-    })
+      extensionManager.serviceRegistry['log'].info = vi.fn();
+      window.dispatchEvent({
+        type: 'message',
+        data: { type: 'asyar:api:log:info', payload: ['Hello'] },
+        source: window,
+      } as any);
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(extensionManager.getManifestById).not.toHaveBeenCalled(); // Bypassed for host
+    });
 
     it('blocks commands not in ALLOWED_EXTENSION_INVOKE_COMMANDS for iframe extensions', async () => {
-      const mockIframeWindow = { postMessage: vi.fn() } as any
+      const mockIframeWindow = { postMessage: vi.fn() } as any;
       // @ts-ignore
-      extensionManager.manifestsById.set('ext1', { id: 'ext1', permissions: ['native-api'] })
-      vi.mocked(commands.checkExtensionPermission).mockResolvedValue({ allowed: true } as any)
+      extensionManager.manifestsById.set('ext1', { id: 'ext1', permissions: ['native-api'] });
+      vi.mocked(commands.checkExtensionPermission).mockResolvedValue({ allowed: true } as any);
 
-      window.dispatchEvent({ type: 'message',
-        data: { type: 'asyar:api:invoke', extensionId: 'ext1', payload: { cmd: 'uninstall_extension' }, messageId: '1' },
-        source: mockIframeWindow
-      } as any)
+      window.dispatchEvent({
+        type: 'message',
+        data: {
+          type: 'asyar:api:invoke',
+          extensionId: 'ext1',
+          payload: { cmd: 'uninstall_extension' },
+          messageId: '1',
+        },
+        source: mockIframeWindow,
+      } as any);
 
-      await new Promise(resolve => setTimeout(resolve, 10))
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(mockIframeWindow.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'asyar:response', error: expect.stringContaining('not available to extensions') }),
-        expect.any(String)
-      )
-    })
+        expect.objectContaining({
+          type: 'asyar:response',
+          error: expect.stringContaining('not available to extensions'),
+        }),
+        expect.any(String),
+      );
+    });
 
     it('allows commands not in ALLOWED_EXTENSION_INVOKE_COMMANDS for privileged host context', async () => {
       vi.mocked(window.postMessage).mockClear();
@@ -683,46 +738,58 @@ describe('ExtensionManager Characterization Tests', () => {
         source: window,
       } as any);
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       expect(window.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'asyar:response', error: expect.stringContaining('not available to extensions') }),
-        expect.anything()
+        expect.objectContaining({
+          type: 'asyar:response',
+          error: expect.stringContaining('not available to extensions'),
+        }),
+        expect.anything(),
       );
-    })
+    });
 
     it('calls checkExtensionPermission for iframe messages', async () => {
-      const mockIframeWindow = { postMessage: vi.fn() } as any
+      const mockIframeWindow = { postMessage: vi.fn() } as any;
       // @ts-ignore
-      extensionManager.manifestsById.set('ext1', { id: 'ext1', permissions: [] })
-      vi.mocked(commands.checkExtensionPermission).mockResolvedValue({ allowed: true } as any)
+      extensionManager.manifestsById.set('ext1', { id: 'ext1', permissions: [] });
+      vi.mocked(commands.checkExtensionPermission).mockResolvedValue({ allowed: true } as any);
 
-      window.dispatchEvent({ type: 'message',
+      window.dispatchEvent({
+        type: 'message',
         data: { type: 'asyar:api:log:info', extensionId: 'ext1' },
-        source: mockIframeWindow
-      } as any)
+        source: mockIframeWindow,
+      } as any);
 
-      await new Promise(resolve => setTimeout(resolve, 10))
-      expect(commands.checkExtensionPermission).toHaveBeenCalled()
-    })
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(commands.checkExtensionPermission).toHaveBeenCalled();
+    });
 
     it('posts asyar:response with success: false when checkExtensionPermission returns not allowed', async () => {
-      const mockIframeWindow = { postMessage: vi.fn() } as any
+      const mockIframeWindow = { postMessage: vi.fn() } as any;
       // @ts-ignore
-      extensionManager.manifestsById.set('ext1', { id: 'ext1', permissions: [] })
-      vi.mocked(commands.checkExtensionPermission).mockResolvedValueOnce({ allowed: false, reason: 'No permission', requiredPermission: 'log' } as any)
+      extensionManager.manifestsById.set('ext1', { id: 'ext1', permissions: [] });
+      vi.mocked(commands.checkExtensionPermission).mockResolvedValueOnce({
+        allowed: false,
+        reason: 'No permission',
+        requiredPermission: 'log',
+      } as any);
 
-      window.dispatchEvent({ type: 'message',
+      window.dispatchEvent({
+        type: 'message',
         data: { type: 'asyar:api:log:info', extensionId: 'ext1', messageId: '1' },
-        source: mockIframeWindow
-      } as any)
+        source: mockIframeWindow,
+      } as any);
 
-      await new Promise(resolve => setTimeout(resolve, 10))
+      await new Promise((resolve) => setTimeout(resolve, 10));
       expect(mockIframeWindow.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'asyar:response', error: expect.stringContaining('Permission denied') }),
-        expect.any(String)
-      )
-    })
-  })
+        expect.objectContaining({
+          type: 'asyar:response',
+          error: expect.stringContaining('Permission denied'),
+        }),
+        expect.any(String),
+      );
+    });
+  });
 
   describe('scheduler event wiring', () => {
     it('sets up scheduler listener during init', async () => {
@@ -750,41 +817,45 @@ describe('ExtensionManager Characterization Tests', () => {
 
   describe('getCommandArgMeta — dynamic command fallback', () => {
     beforeEach(async () => {
-      extensionManager.manifestsById.clear()
-      vi.mocked(invoke).mockReset()
+      extensionManager.manifestsById.clear();
+      vi.mocked(invoke).mockReset();
       // Built-in dynamic dispatchers must be registered for isBuiltIn=true.
       // Production wires these at module load; the test does not import the
       // side-effecting index.ts files, so we mirror the registration here.
-      const { registerBuiltinDynamicDispatcher } = await import('./builtinDynamicDispatchers')
-      registerBuiltinDynamicDispatcher('scripts', vi.fn(async () => {}))
-      registerBuiltinDynamicDispatcher('agents', vi.fn(async () => {}))
-    })
+      const { registerBuiltinDynamicDispatcher } = await import('./builtinDynamicDispatchers');
+      registerBuiltinDynamicDispatcher(
+        'scripts',
+        vi.fn(async () => {}),
+      );
+      registerBuiltinDynamicDispatcher(
+        'agents',
+        vi.fn(async () => {}),
+      );
+    });
 
     it('returns manifest meta synchronously without IPC for manifest commands', async () => {
       extensionManager.manifestsById.set('ext.foo', {
         id: 'ext.foo',
-        commands: [
-          { id: 'open', name: 'Open', arguments: [{ name: 'q', type: 'text' }] },
-        ],
-      } as any)
+        commands: [{ id: 'open', name: 'Open', arguments: [{ name: 'q', type: 'text' }] }],
+      } as any);
 
-      const meta = await extensionManager.getCommandArgMeta('cmd_ext.foo_open')
-      expect(meta).not.toBeNull()
-      expect(meta?.commandId).toBe('open')
-      expect(meta?.args).toHaveLength(1)
-      expect(invoke).not.toHaveBeenCalled()
-    })
+      const meta = await extensionManager.getCommandArgMeta('cmd_ext.foo_open');
+      expect(meta).not.toBeNull();
+      expect(meta?.commandId).toBe('open');
+      expect(meta?.args).toHaveLength(1);
+      expect(invoke).not.toHaveBeenCalled();
+    });
 
     it('returns null for unknown manifest command without falling back', async () => {
       extensionManager.manifestsById.set('ext.foo', {
         id: 'ext.foo',
         commands: [{ id: 'open', name: 'Open' }],
-      } as any)
+      } as any);
 
-      const meta = await extensionManager.getCommandArgMeta('cmd_ext.foo_nonexistent')
-      expect(meta).toBeNull()
-      expect(invoke).not.toHaveBeenCalled()
-    })
+      const meta = await extensionManager.getCommandArgMeta('cmd_ext.foo_nonexistent');
+      expect(meta).toBeNull();
+      expect(invoke).not.toHaveBeenCalled();
+    });
 
     it('falls back to IPC for dynamic-format object ids when manifest scan misses', async () => {
       vi.mocked(invoke).mockResolvedValueOnce({
@@ -793,20 +864,20 @@ describe('ExtensionManager Characterization Tests', () => {
         commandName: 'Run Lights',
         icon: undefined,
         args: [{ name: 'value', type: 'text' }],
-      } as any)
+      } as any);
 
-      const meta = await extensionManager.getCommandArgMeta('cmd_ext.shortcuts_dyn_uuid-1')
+      const meta = await extensionManager.getCommandArgMeta('cmd_ext.shortcuts_dyn_uuid-1');
 
       expect(invoke).toHaveBeenCalledWith('get_dynamic_command_meta', {
         objectId: 'cmd_ext.shortcuts_dyn_uuid-1',
-      })
-      expect(meta).not.toBeNull()
-      expect(meta?.extensionId).toBe('ext.shortcuts')
-      expect(meta?.commandId).toBe('uuid-1')
-      expect(meta?.commandName).toBe('Run Lights')
-      expect(meta?.args).toHaveLength(1)
-      expect(meta?.isBuiltIn).toBe(false)
-    })
+      });
+      expect(meta).not.toBeNull();
+      expect(meta?.extensionId).toBe('ext.shortcuts');
+      expect(meta?.commandId).toBe('uuid-1');
+      expect(meta?.commandName).toBe('Run Lights');
+      expect(meta?.args).toHaveLength(1);
+      expect(meta?.isBuiltIn).toBe(false);
+    });
 
     it('marks dynamic commands from built-in feature extensions as built-in', async () => {
       // Built-in dynamic extensions (e.g. `scripts`) register their dynamic
@@ -820,67 +891,67 @@ describe('ExtensionManager Characterization Tests', () => {
         commandName: 'Hello Script',
         icon: undefined,
         args: [{ name: 'name', type: 'text' }],
-      } as any)
+      } as any);
 
-      const meta = await extensionManager.getCommandArgMeta('cmd_scripts_dyn_abcdef0123456789')
+      const meta = await extensionManager.getCommandArgMeta('cmd_scripts_dyn_abcdef0123456789');
 
-      expect(meta).not.toBeNull()
-      expect(meta?.extensionId).toBe('scripts')
-      expect(meta?.isBuiltIn).toBe(true)
-    })
+      expect(meta).not.toBeNull();
+      expect(meta?.extensionId).toBe('scripts');
+      expect(meta?.isBuiltIn).toBe(true);
+    });
 
     it('returns null when dynamic IPC returns null', async () => {
-      vi.mocked(invoke).mockResolvedValueOnce(null)
-      const meta = await extensionManager.getCommandArgMeta('cmd_ext.shortcuts_dyn_unknown')
-      expect(meta).toBeNull()
-    })
+      vi.mocked(invoke).mockResolvedValueOnce(null);
+      const meta = await extensionManager.getCommandArgMeta('cmd_ext.shortcuts_dyn_unknown');
+      expect(meta).toBeNull();
+    });
 
     it('does not call IPC for ids missing the cmd_ prefix', async () => {
-      const meta = await extensionManager.getCommandArgMeta('app_safari')
-      expect(meta).toBeNull()
-      expect(invoke).not.toHaveBeenCalled()
-    })
+      const meta = await extensionManager.getCommandArgMeta('app_safari');
+      expect(meta).toBeNull();
+      expect(invoke).not.toHaveBeenCalled();
+    });
 
     it('does not call IPC for manifest-format ids with no _dyn_ infix', async () => {
       // Empty manifest registry, but still no IPC call — only dynamic-format
       // ids fall back. Manifest-format misses return null synchronously.
-      const meta = await extensionManager.getCommandArgMeta('cmd_some.ext_open')
-      expect(meta).toBeNull()
-      expect(invoke).not.toHaveBeenCalled()
-    })
-  })
+      const meta = await extensionManager.getCommandArgMeta('cmd_some.ext_open');
+      expect(meta).toBeNull();
+      expect(invoke).not.toHaveBeenCalled();
+    });
+  });
 
   describe('couldHaveArguments — sync gate for keypress decisions', () => {
     beforeEach(() => {
-      extensionManager.manifestsById.clear()
-    })
+      extensionManager.manifestsById.clear();
+    });
 
     it('returns true for manifest commands with declared args', () => {
       extensionManager.manifestsById.set('ext', {
         id: 'ext',
         commands: [{ id: 'open', name: 'Open', arguments: [{ name: 'q', type: 'text' }] }],
-      } as any)
-      expect(extensionManager.couldHaveArguments('cmd_ext_open')).toBe(true)
-    })
+      } as any);
+      expect(extensionManager.couldHaveArguments('cmd_ext_open')).toBe(true);
+    });
 
     it('returns false for manifest commands without declared args', () => {
       extensionManager.manifestsById.set('ext', {
         id: 'ext',
         commands: [{ id: 'open', name: 'Open' }],
-      } as any)
-      expect(extensionManager.couldHaveArguments('cmd_ext_open')).toBe(false)
-    })
+      } as any);
+      expect(extensionManager.couldHaveArguments('cmd_ext_open')).toBe(false);
+    });
 
     it('returns true optimistically for any dynamic-format object id', () => {
       // No registry lookup — optimistic. The sync keypress gate cannot
       // afford to await an IPC call.
-      expect(extensionManager.couldHaveArguments('cmd_ext_dyn_uuid-1')).toBe(true)
-    })
+      expect(extensionManager.couldHaveArguments('cmd_ext_dyn_uuid-1')).toBe(true);
+    });
 
     it('returns false for non-cmd ids', () => {
-      expect(extensionManager.couldHaveArguments('app_safari')).toBe(false)
-      expect(extensionManager.couldHaveArguments('action_thing')).toBe(false)
-      expect(extensionManager.couldHaveArguments('')).toBe(false)
-    })
-  })
+      expect(extensionManager.couldHaveArguments('app_safari')).toBe(false);
+      expect(extensionManager.couldHaveArguments('action_thing')).toBe(false);
+      expect(extensionManager.couldHaveArguments('')).toBe(false);
+    });
+  });
 });

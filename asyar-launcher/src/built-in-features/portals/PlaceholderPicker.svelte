@@ -53,7 +53,9 @@
         class:highlighted={i === highlightedIndex}
         role="option"
         aria-selected={i === highlightedIndex}
-        onmouseenter={() => { highlightedIndex = i; }}
+        onmouseenter={() => {
+          highlightedIndex = i;
+        }}
         onclick={() => handleItemClick(placeholder.token)}
       >
         <span class="picker-label">{placeholder.label}</span>

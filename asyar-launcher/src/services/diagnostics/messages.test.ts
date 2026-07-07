@@ -18,7 +18,8 @@ describe('DIAGNOSTIC_MESSAGES', () => {
   });
 
   it('renders permission_denied with context', () => {
-    expect(DIAGNOSTIC_MESSAGES.permission_denied({ permission: 'clipboard:read' }))
-      .toBe('Access to clipboard:read was denied');
+    expect(DIAGNOSTIC_MESSAGES.permission_denied({ permission: 'clipboard:read' })).toBe(
+      'Access to clipboard:read was denied',
+    );
   });
 });

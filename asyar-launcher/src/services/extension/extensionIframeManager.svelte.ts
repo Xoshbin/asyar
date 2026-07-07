@@ -1,5 +1,5 @@
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
-import { logService } from "../log/logService";
+import { logService } from '../log/logService';
 import { pickExtensionIframe } from './extensionIframeSelector';
 import type { viewManager } from './viewManager.svelte';
 
@@ -42,7 +42,7 @@ export class ExtensionIframeManager {
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
         { type: 'asyar:view:keydown', payload: keyEvent },
-        getExtensionFrameOrigin(extensionId)
+        getExtensionFrameOrigin(extensionId),
       );
     }
   }
@@ -54,15 +54,22 @@ export class ExtensionIframeManager {
    * trips registerActionHandler), target that role's iframe directly. Fall
    * back to view, then worker, then an unscoped selector.
    */
-  sendActionExecuteToExtension(extensionId: string, actionId: string, role?: 'view' | 'worker', payload?: unknown): void {
+  sendActionExecuteToExtension(
+    extensionId: string,
+    actionId: string,
+    role?: 'view' | 'worker',
+    payload?: unknown,
+  ): void {
     const iframe = pickExtensionIframe(extensionId, role ?? 'view');
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
         { type: 'asyar:action:execute', payload: { actionId, actionPayload: payload } },
-        getExtensionFrameOrigin(extensionId)
+        getExtensionFrameOrigin(extensionId),
       );
     } else {
-      logService.warn(`[ExtensionIframeManager] Could not find iframe for extension ${extensionId} to execute action ${actionId}`);
+      logService.warn(
+        `[ExtensionIframeManager] Could not find iframe for extension ${extensionId} to execute action ${actionId}`,
+      );
     }
   }
 
@@ -82,7 +89,10 @@ export class ExtensionIframeManager {
    */
   sendPreferencesToExtension(
     extensionId: string,
-    bundle: { extension: Record<string, unknown>; commands: Record<string, Record<string, unknown>> }
+    bundle: {
+      extension: Record<string, unknown>;
+      commands: Record<string, Record<string, unknown>>;
+    },
   ): void {
     const iframe = pickExtensionIframe(extensionId, 'view');
     if (iframe?.contentWindow) {
@@ -96,7 +106,7 @@ export class ExtensionIframeManager {
             commands: bundle.commands,
           },
         },
-        getExtensionFrameOrigin(extensionId)
+        getExtensionFrameOrigin(extensionId),
       );
     }
   }
@@ -106,7 +116,7 @@ export class ExtensionIframeManager {
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
         { type: 'asyar:view:search', payload: { query } },
-        getExtensionFrameOrigin(extensionId)
+        getExtensionFrameOrigin(extensionId),
       );
     }
   }
@@ -121,15 +131,12 @@ export class ExtensionIframeManager {
    * before the launcher fired), this is a no-op — the seed value will
    * be re-pushed on the next mount via `searchBarAccessoryService.declare`.
    */
-  sendFilterChangeToView(
-    extensionId: string,
-    payload: { commandId: string; value: string },
-  ): void {
+  sendFilterChangeToView(extensionId: string, payload: { commandId: string; value: string }): void {
     const iframe = pickExtensionIframe(extensionId, 'view');
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
         { type: 'asyar:event:searchBar:filterChange', payload },
-        getExtensionFrameOrigin(extensionId)
+        getExtensionFrameOrigin(extensionId),
       );
     }
   }
@@ -139,7 +146,7 @@ export class ExtensionIframeManager {
     if (iframe?.contentWindow) {
       iframe.contentWindow.postMessage(
         { type: 'asyar:view:submit', payload: { query } },
-        getExtensionFrameOrigin(extensionId)
+        getExtensionFrameOrigin(extensionId),
       );
     }
   }
@@ -148,10 +155,7 @@ export class ExtensionIframeManager {
    * Send a search request to a Tier 2 extension's iframe.
    * Returns a Promise that resolves with the extension's search results.
    */
-  public sendSearchRequestToExtension(
-    extensionId: string,
-    query: string
-  ): Promise<any[]> {
+  public sendSearchRequestToExtension(extensionId: string, query: string): Promise<any[]> {
     return new Promise((resolve, reject) => {
       const iframe = pickExtensionIframe(extensionId, 'view');
 
@@ -176,9 +180,9 @@ export class ExtensionIframeManager {
         {
           type: 'asyar:search:request',
           messageId,
-          payload: { query }
+          payload: { query },
         },
-        getExtensionFrameOrigin(extensionId)
+        getExtensionFrameOrigin(extensionId),
       );
     });
   }

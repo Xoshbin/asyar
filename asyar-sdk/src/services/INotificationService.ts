@@ -1,4 +1,4 @@
-import type { NotificationOptions } from "../types/NotificationType";
+import type { NotificationOptions } from '../types/NotificationType';
 
 /**
  * Desktop notification service.

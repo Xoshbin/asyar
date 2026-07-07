@@ -22,7 +22,11 @@ const QLMANAGE_TIMEOUT: Duration = Duration::from_secs(5);
 /// output `<basename>.png` inside the `-o` directory, so the scratch dir
 /// is per-call (a fresh `tempfile` tempdir) to avoid collisions between
 /// concurrent generations.
-pub fn generate_via_quicklook(path: &Path, dest: &std::path::Path, max_dim: u32) -> Result<(), String> {
+pub fn generate_via_quicklook(
+    path: &Path,
+    dest: &std::path::Path,
+    max_dim: u32,
+) -> Result<(), String> {
     let scratch = tempfile::tempdir().map_err(|e| e.to_string())?;
     let mut cmd = Command::new("qlmanage");
     cmd.arg("-t")
@@ -33,7 +37,9 @@ pub fn generate_via_quicklook(path: &Path, dest: &std::path::Path, max_dim: u32)
         .arg(path);
 
     if run_with_timeout(cmd, QLMANAGE_TIMEOUT).is_none() {
-        return Err(format!("qlmanage timed out or produced no output for {path:?}"));
+        return Err(format!(
+            "qlmanage timed out or produced no output for {path:?}"
+        ));
     }
 
     let file_name = path
@@ -41,7 +47,9 @@ pub fn generate_via_quicklook(path: &Path, dest: &std::path::Path, max_dim: u32)
         .ok_or_else(|| "path has no file name".to_string())?;
     // qlmanage's naming is `<original-filename>.png` (extension appended,
     // not replaced) — e.g. `photo.jpg` → `photo.jpg.png`.
-    let produced = scratch.path().join(format!("{}.png", file_name.to_string_lossy()));
+    let produced = scratch
+        .path()
+        .join(format!("{}.png", file_name.to_string_lossy()));
 
     if !produced.exists() {
         return Err(format!("qlmanage produced no thumbnail for {path:?}"));

@@ -45,12 +45,22 @@ import { nextContextHint } from './searchController.svelte';
 import type { ContextHint } from '../../services/context/contextModeService.svelte';
 
 const aiHint: ContextHint = {
-  provider: { id: 'agents:default', triggers: ['ask ai'], display: { name: 'AI', icon: '🤖' }, type: 'stream' },
+  provider: {
+    id: 'agents:default',
+    triggers: ['ask ai'],
+    display: { name: 'AI', icon: '🤖' },
+    type: 'stream',
+  },
   type: 'ai',
 };
 
 const portalHint: ContextHint = {
-  provider: { id: 'portal-goo', triggers: ['google'], display: { name: 'Google', icon: '🔍' }, type: 'view' },
+  provider: {
+    id: 'portal-goo',
+    triggers: ['google'],
+    display: { name: 'Google', icon: '🔍' },
+    type: 'view',
+  },
   type: 'prefix',
 };
 

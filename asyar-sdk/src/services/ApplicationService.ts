@@ -72,7 +72,9 @@ export interface IApplicationService {
    * Only useful for extensions that manage application indexing.
    * Requires 'application:read' permission.
    */
-  syncApplicationIndex(extraPaths?: string[]): Promise<{ added: number; removed: number; total: number }>;
+  syncApplicationIndex(
+    extraPaths?: string[],
+  ): Promise<{ added: number; removed: number; total: number }>;
 
   /**
    * Lists all installed applications.
@@ -92,9 +94,7 @@ export interface IApplicationService {
    * Returns a [`Disposer`] — invoke it to unsubscribe.
    * Requires 'app:frontmost-watch' permission.
    */
-  onApplicationLaunched(
-    cb: (e: Extract<AppPresenceEvent, { type: 'launched' }>) => void,
-  ): Disposer;
+  onApplicationLaunched(cb: (e: Extract<AppPresenceEvent, { type: 'launched' }>) => void): Disposer;
 
   /**
    * Register a callback fired every time a GUI application terminates.
@@ -130,9 +130,7 @@ export interface IApplicationService {
    * Requires 'application:read' permission (same as `listApplications` —
    * this event carries the same data class).
    */
-  onApplicationsChanged(
-    cb: (e: ApplicationIndexEvent) => void,
-  ): Disposer;
+  onApplicationsChanged(cb: (e: ApplicationIndexEvent) => void): Disposer;
 }
 
 interface PerKindState {
@@ -178,12 +176,16 @@ export class ApplicationServiceProxy extends BaseServiceProxy implements IApplic
     return await this.broker.invoke('application:getFrontmostApplication');
   }
 
-  async syncApplicationIndex(extraPaths?: string[]): Promise<{ added: number; removed: number; total: number }> {
+  async syncApplicationIndex(
+    extraPaths?: string[],
+  ): Promise<{ added: number; removed: number; total: number }> {
     return await this.broker.invoke('application:syncApplicationIndex', { extraPaths });
   }
 
   async listApplications(extraPaths?: string[]): Promise<InstalledApplication[]> {
-    return await this.broker.invoke<InstalledApplication[]>('application:listApplications', { extraPaths });
+    return await this.broker.invoke<InstalledApplication[]>('application:listApplications', {
+      extraPaths,
+    });
   }
 
   async isRunning(bundleId: string): Promise<boolean> {
@@ -199,10 +201,7 @@ export class ApplicationServiceProxy extends BaseServiceProxy implements IApplic
   onApplicationTerminated(
     cb: (e: Extract<AppPresenceEvent, { type: 'terminated' }>) => void,
   ): Disposer {
-    return this.listen<Extract<AppPresenceEvent, { type: 'terminated' }>>(
-      'terminated',
-      cb,
-    );
+    return this.listen<Extract<AppPresenceEvent, { type: 'terminated' }>>('terminated', cb);
   }
 
   onFrontmostApplicationChanged(
@@ -243,10 +242,9 @@ export class ApplicationServiceProxy extends BaseServiceProxy implements IApplic
     this.ensurePushListener();
     let state = this.states.get(kind);
     if (!state) {
-      const subscriptionIdPromise = this.broker.invoke<string>(
-        'appEvents:subscribe',
-        { eventTypes: [kind] },
-      );
+      const subscriptionIdPromise = this.broker.invoke<string>('appEvents:subscribe', {
+        eventTypes: [kind],
+      });
       state = { subscriptionIdPromise, callbacks: new Set() };
       this.states.set(kind, state);
     }
@@ -310,10 +308,9 @@ export class ApplicationServiceProxy extends BaseServiceProxy implements IApplic
     this.ensureIndexPushListener();
     let state = this.indexStates.get(kind);
     if (!state) {
-      const subscriptionIdPromise = this.broker.invoke<string>(
-        'applicationIndex:subscribe',
-        { eventTypes: [kind] },
-      );
+      const subscriptionIdPromise = this.broker.invoke<string>('applicationIndex:subscribe', {
+        eventTypes: [kind],
+      });
       state = { subscriptionIdPromise, callbacks: new Set() };
       this.indexStates.set(kind, state);
     }

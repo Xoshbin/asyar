@@ -57,9 +57,13 @@ vi.mock('@tauri-apps/api/path', () => ({
   join: vi.fn(async (...p: string[]) => p.join('/')),
 }));
 vi.mock('@tauri-apps/plugin-os', () => ({ platform: vi.fn().mockReturnValue('macos') }));
-vi.mock('@tauri-apps/plugin-shell', () => ({ Command: { create: vi.fn(() => ({ execute: vi.fn().mockResolvedValue(undefined) })) } }));
+vi.mock('@tauri-apps/plugin-shell', () => ({
+  Command: { create: vi.fn(() => ({ execute: vi.fn().mockResolvedValue(undefined) })) },
+}));
 vi.mock('@tauri-apps/plugin-opener', () => ({ openPath: vi.fn().mockResolvedValue(undefined) }));
-vi.mock('tauri-plugin-clipboard-x-api', () => ({ writeText: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('tauri-plugin-clipboard-x-api', () => ({
+  writeText: vi.fn().mockResolvedValue(undefined),
+}));
 
 // asyar-sdk/contracts
 vi.mock('asyar-sdk/contracts', () => ({
@@ -84,7 +88,10 @@ vi.mock('../../services/search/stores/search.svelte', () => ({
   searchStores: { query: '', setQuery: vi.fn() },
 }));
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
-  feedbackService: { confirmAlert: vi.fn().mockResolvedValue(false), alert: vi.fn().mockResolvedValue(undefined) },
+  feedbackService: {
+    confirmAlert: vi.fn().mockResolvedValue(false),
+    alert: vi.fn().mockResolvedValue(undefined),
+  },
 }));
 vi.mock('../../services/application/applicationService', () => ({
   applicationService: { scan: vi.fn().mockResolvedValue({ apps: [] }) },
@@ -110,9 +117,13 @@ vi.mock('./ai-builder/createdExtensionsViewState.svelte', () => ({
     setSearch: mockSetSearch,
     moveSelection: mockMoveSelection,
     reset: mockReset,
-    get selectedItem() { return _selectedItem; },
+    get selectedItem() {
+      return _selectedItem;
+    },
     filtered: vi.fn().mockReturnValue([]),
-    get selectedIndex() { return 0; },
+    get selectedIndex() {
+      return 0;
+    },
     items: [],
   },
 }));
@@ -123,7 +134,9 @@ vi.mock('./ai-builder/publishExtension', () => ({
 }));
 
 // orchestrator mock (ensureListening is called in initialize)
-vi.mock('./ai-builder/orchestrator', () => ({ ensureListening: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('./ai-builder/orchestrator', () => ({
+  ensureListening: vi.fn().mockResolvedValue(undefined),
+}));
 
 // aiBuildUiState mock
 vi.mock('./ai-builder/aiBuildUiState.svelte', () => ({
@@ -199,7 +212,11 @@ describe('my-extensions command lifecycle', () => {
       await createExtensionDefault.initialize(makeContext() as any);
       await createExtensionDefault.viewActivated(MY_EXT_VIEW_ID);
 
-      const evt = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+      const evt = new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        bubbles: true,
+        cancelable: true,
+      });
       const preventDefaultSpy = vi.spyOn(evt, 'preventDefault');
       window.dispatchEvent(evt);
       await Promise.resolve();
@@ -237,7 +254,11 @@ describe('my-extensions command lifecycle', () => {
       await createExtensionDefault.viewDeactivated(MY_EXT_VIEW_ID);
       vi.clearAllMocks();
 
-      const evt = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+      const evt = new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        bubbles: true,
+        cancelable: true,
+      });
       window.dispatchEvent(evt);
       await Promise.resolve();
 

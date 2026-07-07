@@ -21,13 +21,15 @@
   import { runService } from '../../services/run/runService.svelte';
   import { aggregateKindCounts } from '../../services/launcher/itemStatusLogic';
 
-  const counts = $derived(aggregateKindCounts(
-    runService.active,
-    runService.keptAgents,
-    runService.unacknowledgedScriptResults,
-  ));
+  const counts = $derived(
+    aggregateKindCounts(
+      runService.active,
+      runService.keptAgents,
+      runService.unacknowledgedScriptResults,
+    ),
+  );
   const scriptsVisible = $derived(counts.scripts.active > 0 || counts.scripts.done > 0);
-  const agentsVisible  = $derived(counts.agents.active  > 0 || counts.agents.done  > 0);
+  const agentsVisible = $derived(counts.agents.active > 0 || counts.agents.done > 0);
 </script>
 
 <div class="show-more-bar-huds" role="group" aria-label="Active runs summary">

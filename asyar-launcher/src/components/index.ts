@@ -28,7 +28,6 @@ export { default as ToastHost } from './feedback/ToastHost.svelte';
 export { default as DialogHost } from './feedback/DialogHost.svelte';
 export { default as WhatsNewPanel } from './feedback/WhatsNewPanel.svelte';
 
-
 // Layout
 export { default as ActionFooter } from './layout/ActionFooter.svelte';
 export { default as ActionListPopup } from './layout/ActionListPopup.svelte';

@@ -16,14 +16,14 @@ interface TimerDescriptor {
   extensionId: string;
   commandId: string;
   args: Record<string, unknown>;
-  fireAt: number;     // Unix millis
-  createdAt: number;  // Unix millis
+  fireAt: number; // Unix millis
+  createdAt: number; // Unix millis
 }
 
 interface ScheduleTimerOptions {
-  commandId: string;                   // manifest command id
-  fireAt: number;                      // Unix millis — must be > now
-  args?: Record<string, unknown>;      // JSON-object only, defaults to {}
+  commandId: string; // manifest command id
+  fireAt: number; // Unix millis — must be > now
+  args?: Record<string, unknown>; // JSON-object only, defaults to {}
 }
 
 interface ITimerService {
@@ -60,9 +60,7 @@ export async function pomodoroEnd(args: Record<string, unknown>): Promise<void> 
   await notifications.send({
     title: 'Pomodoro done',
     body: 'Take a break.',
-    actions: [
-      { id: 'snooze', title: 'Snooze 5 min', commandId: 'pomodoro.start-snooze' },
-    ],
+    actions: [{ id: 'snooze', title: 'Snooze 5 min', commandId: 'pomodoro.start-snooze' }],
   });
 }
 
@@ -109,38 +107,38 @@ const pending = await timers.list();
 
 #### Persistence and catch-up semantics
 
-* Rows are written to `extension_timers` in the launcher's `asyar_data.db` at schedule time, before `schedule` resolves.
-* The scheduler polls once per second and emits the Tauri `asyar:timer:fire` event for each row whose `fire_at <= now`.
-* Ordering is persist-first-emit-second: the row is marked `fired = 1` *before* the event is emitted, so a crash mid-emit cannot cause a duplicate fire on the next tick.
-* At app launch any timer whose `fire_at` elapsed while the launcher was quit is caught up, staggered at 100 ms intervals (first 10 fire immediately), so 50 overdue timers don't slam the extension bridge in one tick.
+- Rows are written to `extension_timers` in the launcher's `asyar_data.db` at schedule time, before `schedule` resolves.
+- The scheduler polls once per second and emits the Tauri `asyar:timer:fire` event for each row whose `fire_at <= now`.
+- Ordering is persist-first-emit-second: the row is marked `fired = 1` _before_ the event is emitted, so a crash mid-emit cannot cause a duplicate fire on the next tick.
+- At app launch any timer whose `fire_at` elapsed while the launcher was quit is caught up, staggered at 100 ms intervals (first 10 fire immediately), so 50 overdue timers don't slam the extension bridge in one tick.
 
 #### Limitations
 
-* **Granularity:** 1 second. Timers aren't meant for high-frequency work — use an in-process interval for that.
-* **OS sleep:** if the machine was asleep past `fireAt`, the fire lands at wake rather than on-time. No wake-to-fire support.
-* **Retention window:** fired rows are kept for 24 h and then pruned. A `cancel` of a long-fired id returns the same error shape as an unknown id.
-* **Disable / uninstall clears timers:** disabling or uninstalling an extension drops all its scheduled timers. On re-enable, the user reschedules manually — otherwise fires into a torn-down iframe would be silent misfires.
-* **Iframe mount dependency** *(important)***:** the fire event dispatches the command into the extension's iframe via `postMessage`. If the iframe is not currently mounted at fire time, the dispatch is dropped (though the row is still marked `fired`, so the next launch doesn't replay it).
-  * **Always mounted:** extensions whose manifest declares `searchable: true` or any `commands[*].schedule` field — the launcher keeps their iframe loaded in the background so timers fire regardless of whether the launcher window is open.
-  * **Only when launcher has been open:** extensions without either of the above get their iframe mounted lazily when the launcher is shown. Timers for these extensions fire reliably only after the user has opened the launcher since boot. If you rely on background firing, declare a (no-op) recurring `schedule` on any command to keep the iframe warm.
+- **Granularity:** 1 second. Timers aren't meant for high-frequency work — use an in-process interval for that.
+- **OS sleep:** if the machine was asleep past `fireAt`, the fire lands at wake rather than on-time. No wake-to-fire support.
+- **Retention window:** fired rows are kept for 24 h and then pruned. A `cancel` of a long-fired id returns the same error shape as an unknown id.
+- **Disable / uninstall clears timers:** disabling or uninstalling an extension drops all its scheduled timers. On re-enable, the user reschedules manually — otherwise fires into a torn-down iframe would be silent misfires.
+- **Iframe mount dependency** _(important)_**:** the fire event dispatches the command into the extension's iframe via `postMessage`. If the iframe is not currently mounted at fire time, the dispatch is dropped (though the row is still marked `fired`, so the next launch doesn't replay it).
+  - **Always mounted:** extensions whose manifest declares `searchable: true` or any `commands[*].schedule` field — the launcher keeps their iframe loaded in the background so timers fire regardless of whether the launcher window is open.
+  - **Only when launcher has been open:** extensions without either of the above get their iframe mounted lazily when the launcher is shown. Timers for these extensions fire reliably only after the user has opened the launcher since boot. If you rely on background firing, declare a (no-op) recurring `schedule` on any command to keep the iframe warm.
 
 #### Comparison with the manifest-declared scheduler
 
-|                          | `timers:*` API                        | manifest `commands[*].schedule`           |
-|--------------------------|---------------------------------------|-------------------------------------------|
-| Shape                    | One-shot, programmatic                | Recurring, declarative                    |
-| Typical use              | Reminder, snooze, deadline            | "Sync every hour", "index every 10 min"   |
-| Persistence              | SQLite row per timer; survives restart| Declared in manifest; no per-fire state   |
-| Cancellation             | `timers.cancel(timerId)`              | Disable the extension                     |
-| Runtime scheduling       | yes                                   | no                                        |
-| Requires `searchable`?   | Effectively, for dormant dispatch     | Auto-mounts the iframe at boot            |
+|                        | `timers:*` API                         | manifest `commands[*].schedule`         |
+| ---------------------- | -------------------------------------- | --------------------------------------- |
+| Shape                  | One-shot, programmatic                 | Recurring, declarative                  |
+| Typical use            | Reminder, snooze, deadline             | "Sync every hour", "index every 10 min" |
+| Persistence            | SQLite row per timer; survives restart | Declared in manifest; no per-fire state |
+| Cancellation           | `timers.cancel(timerId)`               | Disable the extension                   |
+| Runtime scheduling     | yes                                    | no                                      |
+| Requires `searchable`? | Effectively, for dormant dispatch      | Auto-mounts the iframe at boot          |
 
 #### Error shapes
 
-| Condition                                   | Error thrown by       |
-|---------------------------------------------|-----------------------|
-| `fireAt <= now`                             | `schedule`            |
-| `args` is not a plain object                | `schedule`            |
-| `timerId` unknown                           | `cancel`              |
-| `timerId` owned by a different extension    | `cancel`              |
-| Missing manifest permission                 | any                   |
+| Condition                                | Error thrown by |
+| ---------------------------------------- | --------------- |
+| `fireAt <= now`                          | `schedule`      |
+| `args` is not a plain object             | `schedule`      |
+| `timerId` unknown                        | `cancel`        |
+| `timerId` owned by a different extension | `cancel`        |
+| Missing manifest permission              | any             |

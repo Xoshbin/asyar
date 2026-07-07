@@ -21,8 +21,12 @@
 ```typescript
 import type { IClipboardHistoryService, ISelectionService } from 'asyar-sdk';
 
-interface ResolveContext { query?: string; }
-interface ResolveOptions { encodeValues?: boolean; }
+interface ResolveContext {
+  query?: string;
+}
+interface ResolveOptions {
+  encodeValues?: boolean;
+}
 type TokenResolver = (ctx: ResolveContext) => string | Promise<string>;
 
 export function createTemplateResolver(
@@ -33,17 +37,17 @@ export function createTemplateResolver(
   // The canonical spellings below match Asyar's built-in Portals/Snippets
   // so your users get consistent muscle memory.
   const tokens: Record<string, TokenResolver> = {
-    query:            (ctx) => ctx.query ?? '',
-    Argument:         (ctx) => ctx.query ?? '',
-    'Selected Text':  async () => (await selection.getSelectedText()) ?? '',
-    selection:        async () => (await selection.getSelectedText()) ?? '',
+    query: (ctx) => ctx.query ?? '',
+    Argument: (ctx) => ctx.query ?? '',
+    'Selected Text': async () => (await selection.getSelectedText()) ?? '',
+    selection: async () => (await selection.getSelectedText()) ?? '',
     'Clipboard Text': () => clipboard.readCurrentText(),
-    clipboard:        () => clipboard.readCurrentText(),
-    UUID:             () => crypto.randomUUID(),
-    Date:             () => new Date().toLocaleDateString(),
-    Time:             () => new Date().toLocaleTimeString(),
-    'Date & Time':    () => new Date().toLocaleString(),
-    Weekday:          () => new Date().toLocaleDateString(undefined, { weekday: 'long' }),
+    clipboard: () => clipboard.readCurrentText(),
+    UUID: () => crypto.randomUUID(),
+    Date: () => new Date().toLocaleDateString(),
+    Time: () => new Date().toLocaleTimeString(),
+    'Date & Time': () => new Date().toLocaleString(),
+    Weekday: () => new Date().toLocaleDateString(undefined, { weekday: 'long' }),
   };
 
   async function resolveTemplate(
@@ -89,11 +93,7 @@ export function createTemplateResolver(
 **Usage from a command handler:**
 
 ```typescript
-import type {
-  ExtensionContext,
-  IClipboardHistoryService,
-  ISelectionService,
-} from 'asyar-sdk';
+import type { ExtensionContext, IClipboardHistoryService, ISelectionService } from 'asyar-sdk';
 import { createTemplateResolver } from './lib/templates';
 
 let resolver: ReturnType<typeof createTemplateResolver>;
@@ -107,11 +107,7 @@ export async function initialize(context: ExtensionContext) {
 export async function openTemplatedUrl(template: string, query: string) {
   // For URL contexts, pass encodeValues: true so {clipboard}, {Selected Text},
   // etc. are percent-encoded safely into query strings.
-  const url = await resolver.resolveTemplate(
-    template,
-    { query },
-    { encodeValues: true },
-  );
+  const url = await resolver.resolveTemplate(template, { query }, { encodeValues: true });
   window.open(url, '_blank');
 }
 

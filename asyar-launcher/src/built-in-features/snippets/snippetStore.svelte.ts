@@ -11,7 +11,9 @@ import { diagnosticsService } from '../../services/diagnostics/diagnosticsServic
 function reportPersistenceFailure(action: string, err: unknown): void {
   logService.error(`[SnippetStore] ${action}: ${err}`);
   diagnosticsService.report({
-    source: 'frontend', kind: 'manual', severity: 'warning',
+    source: 'frontend',
+    kind: 'manual',
+    severity: 'warning',
     retryable: false,
     context: { message: `Snippet ${action.toLowerCase()} — change may not survive restart` },
   });
@@ -19,9 +21,9 @@ function reportPersistenceFailure(action: string, err: unknown): void {
 
 export interface Snippet {
   id: string;
-  keyword?: string;   // e.g. ";addr" — what the user types (lowercase + symbols); optional
-  expansion: string;  // e.g. "123 Main St, Springfield"
-  name: string;       // display label
+  keyword?: string; // e.g. ";addr" — what the user types (lowercase + symbols); optional
+  expansion: string; // e.g. "123 Main St, Springfield"
+  name: string; // display label
   createdAt: number;
   pinned?: boolean;
   /**
@@ -37,8 +39,7 @@ export interface Snippet {
  * the cloud sync delta provider to mark items dirty for the next push.
  */
 export type SnippetStoreChangeEvent =
-  | { type: 'upsert'; itemId: string }
-  | { type: 'delete'; itemId: string };
+  { type: 'upsert'; itemId: string } | { type: 'delete'; itemId: string };
 
 class SnippetStoreClass {
   snippets = $state<Snippet[]>([]);
@@ -79,34 +80,37 @@ class SnippetStoreClass {
   }
 
   add(snippet: Snippet) {
-    this.snippets = [...this.snippets.filter(s => s.id !== snippet.id), snippet];
-    snippetUpsert(snippet as any).catch(err => reportPersistenceFailure('Failed to save', err));
+    this.snippets = [...this.snippets.filter((s) => s.id !== snippet.id), snippet];
+    snippetUpsert(snippet as any).catch((err) => reportPersistenceFailure('Failed to save', err));
     this.#notify({ type: 'upsert', itemId: snippet.id });
   }
 
   update(id: string, changes: Partial<Snippet>) {
-    this.snippets = this.snippets.map(s => s.id === id ? { ...s, ...changes } : s);
-    const updated = this.snippets.find(s => s.id === id);
-    if (updated) snippetUpsert(updated as any).catch(err => reportPersistenceFailure('Failed to update', err));
+    this.snippets = this.snippets.map((s) => (s.id === id ? { ...s, ...changes } : s));
+    const updated = this.snippets.find((s) => s.id === id);
+    if (updated)
+      snippetUpsert(updated as any).catch((err) =>
+        reportPersistenceFailure('Failed to update', err),
+      );
     this.#notify({ type: 'upsert', itemId: id });
   }
 
   remove(id: string) {
-    this.snippets = this.snippets.filter(s => s.id !== id);
-    snippetRemove(id).catch(err => reportPersistenceFailure('Failed to delete', err));
+    this.snippets = this.snippets.filter((s) => s.id !== id);
+    snippetRemove(id).catch((err) => reportPersistenceFailure('Failed to delete', err));
     this.#notify({ type: 'delete', itemId: id });
   }
 
   togglePin(id: string) {
-    this.snippets = this.snippets.map(s => s.id === id ? { ...s, pinned: !s.pinned } : s);
-    snippetTogglePin(id).catch(err => reportPersistenceFailure('Failed to toggle pin', err));
+    this.snippets = this.snippets.map((s) => (s.id === id ? { ...s, pinned: !s.pinned } : s));
+    snippetTogglePin(id).catch((err) => reportPersistenceFailure('Failed to toggle pin', err));
     this.#notify({ type: 'upsert', itemId: id });
   }
 
   clearAll() {
-    const removedIds = this.snippets.map(s => s.id);
+    const removedIds = this.snippets.map((s) => s.id);
     this.snippets = [];
-    snippetClearAll().catch(err => reportPersistenceFailure('Failed to clear all', err));
+    snippetClearAll().catch((err) => reportPersistenceFailure('Failed to clear all', err));
     removedIds.forEach((id) => this.#notify({ type: 'delete', itemId: id }));
   }
 

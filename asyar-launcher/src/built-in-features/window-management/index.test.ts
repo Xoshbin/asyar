@@ -1,10 +1,10 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('../../services/log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}))
+}));
 vi.mock('../../services/windowManagement/windowManagementService', () => ({
   windowManagementService: {
     getWindowBounds: vi.fn(),
@@ -13,24 +13,24 @@ vi.mock('../../services/windowManagement/windowManagementService', () => ({
     getMonitors: vi.fn(),
     applyPreset: vi.fn(),
   },
-}))
+}));
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: {
     showHUD: vi.fn(),
     showToast: vi.fn(),
   },
-}))
+}));
 vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
   diagnosticsService: {
     report: vi.fn(),
   },
-}))
+}));
 vi.mock('../../services/action/actionService.svelte', () => ({
   actionService: {
     registerAction: vi.fn(),
     unregisterAction: vi.fn(),
   },
-}))
+}));
 vi.mock('./state.svelte', () => ({
   windowManagementState: {
     customLayouts: [],
@@ -40,113 +40,148 @@ vi.mock('./state.svelte', () => ({
     addCustomLayout: vi.fn(),
     deleteCustomLayout: vi.fn(),
   },
-}))
-vi.mock('./ManageView.svelte', () => ({ default: {} }))
+}));
+vi.mock('./ManageView.svelte', () => ({ default: {} }));
 
-import extension from './index'
-import { windowManagementService } from '../../services/windowManagement/windowManagementService'
-import { feedbackService } from '../../services/feedback/feedbackService.svelte'
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte'
-import { windowManagementState } from './state.svelte'
-import type { ExtensionContext } from 'asyar-sdk/contracts'
+import extension from './index';
+import { windowManagementService } from '../../services/windowManagement/windowManagementService';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { windowManagementState } from './state.svelte';
+import type { ExtensionContext } from 'asyar-sdk/contracts';
 
 function makeContext(): ExtensionContext {
   return {
     getService: vi.fn().mockImplementation((name: string) => {
-      if (name === 'storage') return { get: vi.fn(async () => null), set: vi.fn(), delete: vi.fn() }
-      if (name === 'extensions') return { navigateToView: vi.fn(), setActiveViewActionLabel: vi.fn() }
-      return null
+      if (name === 'storage')
+        return { get: vi.fn(async () => null), set: vi.fn(), delete: vi.fn() };
+      if (name === 'extensions')
+        return { navigateToView: vi.fn(), setActiveViewActionLabel: vi.fn() };
+      return null;
     }),
-  } as unknown as ExtensionContext
+  } as unknown as ExtensionContext;
 }
 
 describe('WindowManagementExtension', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => vi.clearAllMocks());
 
   describe('initialize', () => {
     it('resolves StorageService and loads state', async () => {
-      const ctx = makeContext()
-      await extension.initialize(ctx)
-      expect(ctx.getService).toHaveBeenCalledWith('storage')
-      expect(windowManagementState.loadFromStorage).toHaveBeenCalled()
-    })
-  })
+      const ctx = makeContext();
+      await extension.initialize(ctx);
+      expect(ctx.getService).toHaveBeenCalledWith('storage');
+      expect(windowManagementState.loadFromStorage).toHaveBeenCalled();
+    });
+  });
 
   describe('executeCommand — layout presets', () => {
     beforeEach(async () => {
-      await extension.initialize(makeContext())
-      vi.mocked(windowManagementService.getWindowBounds).mockResolvedValue(
-        { x: 0, y: 0, width: 1440, height: 900 }
-      )
-      vi.mocked(windowManagementService.applyPreset).mockResolvedValue()
-      vi.mocked(feedbackService.showHUD).mockResolvedValue()
-    })
+      await extension.initialize(makeContext());
+      vi.mocked(windowManagementService.getWindowBounds).mockResolvedValue({
+        x: 0,
+        y: 0,
+        width: 1440,
+        height: 900,
+      });
+      vi.mocked(windowManagementService.applyPreset).mockResolvedValue();
+      vi.mocked(feedbackService.showHUD).mockResolvedValue();
+    });
 
     it('left-half saves previous bounds then calls applyPreset', async () => {
-      await extension.executeCommand('left-half')
-      expect(windowManagementState.savePreviousBounds).toHaveBeenCalled()
-      expect(windowManagementService.applyPreset).toHaveBeenCalledWith('left-half')
-      expect(feedbackService.showHUD).toHaveBeenCalledWith('Left Half')
-    })
+      await extension.executeCommand('left-half');
+      expect(windowManagementState.savePreviousBounds).toHaveBeenCalled();
+      expect(windowManagementService.applyPreset).toHaveBeenCalledWith('left-half');
+      expect(feedbackService.showHUD).toHaveBeenCalledWith('Left Half');
+    });
 
     it('reports error diagnostic when getWindowBounds throws', async () => {
       vi.mocked(windowManagementService.getWindowBounds).mockRejectedValue(
-        new Error('Accessibility permission required')
-      )
-      vi.mocked(diagnosticsService.report).mockResolvedValue()
-      await extension.executeCommand('left-half')
+        new Error('Accessibility permission required'),
+      );
+      vi.mocked(diagnosticsService.report).mockResolvedValue();
+      await extension.executeCommand('left-half');
       expect(diagnosticsService.report).toHaveBeenCalledWith(
-        expect.objectContaining({ kind: 'manual', severity: 'error', context: expect.objectContaining({ message: expect.stringContaining('Could not apply layout') }) })
-      )
-    })
-  })
+        expect.objectContaining({
+          kind: 'manual',
+          severity: 'error',
+          context: expect.objectContaining({
+            message: expect.stringContaining('Could not apply layout'),
+          }),
+        }),
+      );
+    });
+  });
 
   describe('executeCommand — restore', () => {
-    beforeEach(async () => { await extension.initialize(makeContext()) })
+    beforeEach(async () => {
+      await extension.initialize(makeContext());
+    });
 
     it('calls setWindowBounds with previousBounds when available', async () => {
-      const prev = { x: 100, y: 100, width: 800, height: 600 }
-      Object.defineProperty(windowManagementState, 'previousBounds', { value: prev, configurable: true })
-      vi.mocked(windowManagementService.setWindowBounds).mockResolvedValue()
-      vi.mocked(feedbackService.showHUD).mockResolvedValue()
-      await extension.executeCommand('restore')
-      expect(windowManagementService.setWindowBounds).toHaveBeenCalledWith(prev)
-    })
+      const prev = { x: 100, y: 100, width: 800, height: 600 };
+      Object.defineProperty(windowManagementState, 'previousBounds', {
+        value: prev,
+        configurable: true,
+      });
+      vi.mocked(windowManagementService.setWindowBounds).mockResolvedValue();
+      vi.mocked(feedbackService.showHUD).mockResolvedValue();
+      await extension.executeCommand('restore');
+      expect(windowManagementService.setWindowBounds).toHaveBeenCalledWith(prev);
+    });
 
     it('reports error diagnostic when nothing to restore', async () => {
-      Object.defineProperty(windowManagementState, 'previousBounds', { value: null, configurable: true })
-      vi.mocked(diagnosticsService.report).mockResolvedValue()
-      await extension.executeCommand('restore')
+      Object.defineProperty(windowManagementState, 'previousBounds', {
+        value: null,
+        configurable: true,
+      });
+      vi.mocked(diagnosticsService.report).mockResolvedValue();
+      await extension.executeCommand('restore');
       expect(diagnosticsService.report).toHaveBeenCalledWith(
-        expect.objectContaining({ kind: 'manual', severity: 'error', context: expect.objectContaining({ message: expect.stringContaining('Nothing to restore') }) })
-      )
-    })
-  })
+        expect.objectContaining({
+          kind: 'manual',
+          severity: 'error',
+          context: expect.objectContaining({
+            message: expect.stringContaining('Nothing to restore'),
+          }),
+        }),
+      );
+    });
+  });
 
   describe('executeCommand — manage-layouts', () => {
     it('navigates to ManageView and returns view type', async () => {
-      const ctx = makeContext()
-      await extension.initialize(ctx)
-      const result = await extension.executeCommand('manage-layouts')
-      expect(result).toMatchObject({ type: 'view', viewPath: 'window-management/ManageView' })
-    })
-  })
+      const ctx = makeContext();
+      await extension.initialize(ctx);
+      const result = await extension.executeCommand('manage-layouts');
+      expect(result).toMatchObject({ type: 'view', viewPath: 'window-management/ManageView' });
+    });
+  });
 
   describe('search', () => {
     it('returns custom layouts as ExtensionResult entries', async () => {
-      const layout = { id: '1', name: 'My Layout', bounds: { x: 0, y: 0, width: 800, height: 600 } }
-      Object.defineProperty(windowManagementState, 'customLayouts', { value: [layout], configurable: true })
-      await extension.initialize(makeContext())
-      const results = await extension.search('my')
-      expect(results.length).toBeGreaterThan(0)
-      expect(results[0].title).toContain('My Layout')
-    })
+      const layout = {
+        id: '1',
+        name: 'My Layout',
+        bounds: { x: 0, y: 0, width: 800, height: 600 },
+      };
+      Object.defineProperty(windowManagementState, 'customLayouts', {
+        value: [layout],
+        configurable: true,
+      });
+      await extension.initialize(makeContext());
+      const results = await extension.search('my');
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].title).toContain('My Layout');
+    });
 
     it('returns empty array when no custom layouts match', async () => {
-      Object.defineProperty(windowManagementState, 'customLayouts', { value: [], configurable: true })
-      await extension.initialize(makeContext())
-      const results = await extension.search('anything')
-      expect(results).toEqual([])
-    })
-  })
-})
+      Object.defineProperty(windowManagementState, 'customLayouts', {
+        value: [],
+        configurable: true,
+      });
+      await extension.initialize(makeContext());
+      const results = await extension.search('anything');
+      expect(results).toEqual([]);
+    });
+  });
+});

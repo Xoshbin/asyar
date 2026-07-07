@@ -100,10 +100,9 @@ describe('ExtensionEventSubscriptions', () => {
 
       await capturedHandler!({ payload: { extensionId: 'com.test', commandId: 'refresh' } });
 
-      expect(deps.executeCommand).toHaveBeenCalledWith(
-        'cmd_com.test_refresh',
-        { scheduledTick: true },
-      );
+      expect(deps.executeCommand).toHaveBeenCalledWith('cmd_com.test_refresh', {
+        scheduledTick: true,
+      });
     });
 
     it('skips disabled extensions', async () => {
@@ -129,7 +128,9 @@ describe('ExtensionEventSubscriptions', () => {
       deps.executeCommand.mockRejectedValueOnce(new Error('fail'));
 
       await subs.subscribe(deps);
-      await expect(capturedHandler!({ payload: { extensionId: 'x', commandId: 'c' } })).resolves.not.toThrow();
+      await expect(
+        capturedHandler!({ payload: { extensionId: 'x', commandId: 'c' } }),
+      ).resolves.not.toThrow();
     });
   });
 
@@ -161,10 +162,10 @@ describe('ExtensionEventSubscriptions', () => {
       await capturedHandler!({ payload: { extensionId: 'tier2-ext' } });
 
       expect(extensionPreferencesService.invalidateCache).toHaveBeenCalledWith('tier2-ext');
-      expect(extensionIframeManager.sendPreferencesToExtension).toHaveBeenCalledWith(
-        'tier2-ext',
-        { extension: {}, commands: {} },
-      );
+      expect(extensionIframeManager.sendPreferencesToExtension).toHaveBeenCalledWith('tier2-ext', {
+        extension: {},
+        commands: {},
+      });
       expect(deps.reloadExtensions).not.toHaveBeenCalled();
     });
 

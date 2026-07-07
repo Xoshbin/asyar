@@ -44,7 +44,7 @@ describe('{UUID} placeholder', () => {
   it('produces a valid UUID v4 string', async () => {
     const result = await resolveTemplate('{UUID}', {});
     expect(result).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
   });
 
@@ -56,9 +56,7 @@ describe('{UUID} placeholder', () => {
 
   it('generates a new UUID when ctx.query is not a UUID', async () => {
     const result = await resolveTemplate('{UUID}', { query: 'hello' });
-    expect(result).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    );
+    expect(result).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     expect(result).not.toBe('hello');
   });
 });
@@ -97,7 +95,9 @@ describe('{Selected Text} placeholder', () => {
   });
 
   it('returns empty string when selectionService throws', async () => {
-    vi.mocked(selectionService.getSelectedText).mockRejectedValueOnce(new Error('permission denied'));
+    vi.mocked(selectionService.getSelectedText).mockRejectedValueOnce(
+      new Error('permission denied'),
+    );
     const result = await resolveTemplate('{Selected Text}', {});
     expect(result).toBe('');
   });
@@ -164,12 +164,20 @@ describe('unknown tokens', () => {
 
 describe('encodeValues option', () => {
   it('encodes resolved value when encodeValues is true (space → %20)', async () => {
-    const result = await resolveTemplate('{query}', { query: 'hello world' }, { encodeValues: true });
+    const result = await resolveTemplate(
+      '{query}',
+      { query: 'hello world' },
+      { encodeValues: true },
+    );
     expect(result).toBe('hello%20world');
   });
 
   it('does not encode when encodeValues is false', async () => {
-    const result = await resolveTemplate('{query}', { query: 'hello world' }, { encodeValues: false });
+    const result = await resolveTemplate(
+      '{query}',
+      { query: 'hello world' },
+      { encodeValues: false },
+    );
     expect(result).toBe('hello world');
   });
 
@@ -199,7 +207,9 @@ describe('multiple tokens in one template', () => {
   });
 
   it('handles URL with query and date', async () => {
-    const result = await resolveTemplate('https://example.com/search?q={query}&v=1', { query: 'test' });
+    const result = await resolveTemplate('https://example.com/search?q={query}&v=1', {
+      query: 'test',
+    });
     expect(result).toBe('https://example.com/search?q=test&v=1');
   });
 });

@@ -99,7 +99,7 @@ handle.onError(({ message }) => console.warn('[Shell] spawn failed:', message));
 ```typescript
 import type { IShellService, IFeedbackService } from 'asyar-sdk';
 
-const shell    = context.getService<IShellService>('shell');
+const shell = context.getService<IShellService>('shell');
 const feedback = context.getService<IFeedbackService>('feedback');
 
 async function convertVideo(inputPath: string, outputPath: string) {
@@ -156,7 +156,9 @@ const containers: DockerContainer[] = [];
 handle.onChunk(({ data }) => {
   try {
     containers.push(JSON.parse(data));
-  } catch { /* skip malformed lines */ }
+  } catch {
+    /* skip malformed lines */
+  }
 });
 
 handle.onDone(() => {
@@ -284,14 +286,14 @@ reattachPomodoroTimer();
 
 #### Error handling
 
-| Scenario | Callback | `.code` |
-|---|---|---|
-| Binary not found (`which` returns nothing) | `onError` | `'NOT_FOUND'` |
-| User denies the consent dialog | `onError` | `'PERMISSION_DENIED'` |
-| `shell:spawn` not in manifest | IPC call rejects (Promise) | — |
-| Process exits non-zero | `onDone` with non-zero `exitCode` | — |
-| Process crashes / OS-level error | `onError` | `'SHELL_ERROR'` |
-| Extension calls `abort()` | `onError` | `'ABORTED'` |
+| Scenario                                   | Callback                          | `.code`               |
+| ------------------------------------------ | --------------------------------- | --------------------- |
+| Binary not found (`which` returns nothing) | `onError`                         | `'NOT_FOUND'`         |
+| User denies the consent dialog             | `onError`                         | `'PERMISSION_DENIED'` |
+| `shell:spawn` not in manifest              | IPC call rejects (Promise)        | —                     |
+| Process exits non-zero                     | `onDone` with non-zero `exitCode` | —                     |
+| Process crashes / OS-level error           | `onError`                         | `'SHELL_ERROR'`       |
+| Extension calls `abort()`                  | `onError`                         | `'ABORTED'`           |
 
 A non-zero exit code is delivered via `onDone`, not `onError` — the process completed from Asyar's perspective. Treat exit codes the same way a shell script would.
 
@@ -337,10 +339,10 @@ The list shows every extension that has declared `shell:spawn`, grouped with the
 
 `ShellService` works on macOS, Windows, and Linux. The binary resolution strategy differs:
 
-| Platform | Resolution command | Binary name example |
-|---|---|---|
-| macOS / Linux | `which` | `ffmpeg` → `/opt/homebrew/bin/ffmpeg` |
-| Windows | `where` | `ffmpeg` → `C:\tools\ffmpeg\bin\ffmpeg.exe` |
+| Platform      | Resolution command | Binary name example                         |
+| ------------- | ------------------ | ------------------------------------------- |
+| macOS / Linux | `which`            | `ffmpeg` → `/opt/homebrew/bin/ffmpeg`       |
+| Windows       | `where`            | `ffmpeg` → `C:\tools\ffmpeg\bin\ffmpeg.exe` |
 
 Extensions that wrap macOS-only tools (like `osascript` or `brew`) should declare `"platforms": ["mac"]` in their manifest to prevent install on unsupported platforms.
 

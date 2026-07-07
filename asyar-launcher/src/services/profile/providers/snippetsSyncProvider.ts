@@ -1,4 +1,7 @@
-import { snippetStore, type Snippet } from '../../../built-in-features/snippets/snippetStore.svelte';
+import {
+  snippetStore,
+  type Snippet,
+} from '../../../built-in-features/snippets/snippetStore.svelte';
 import type {
   ISyncProvider,
   SyncProviderData,
@@ -60,7 +63,13 @@ export class SnippetsSyncProvider implements ISyncProvider {
       for (const item of incomingItems) {
         snippetStore.add(item);
       }
-      return { success: true, itemsAdded: incomingItems.length, itemsUpdated: 0, itemsRemoved: 0, warnings: [] };
+      return {
+        success: true,
+        itemsAdded: incomingItems.length,
+        itemsUpdated: 0,
+        itemsRemoved: 0,
+        warnings: [],
+      };
     }
 
     // merge
@@ -80,12 +89,21 @@ export class SnippetsSyncProvider implements ISyncProvider {
       }
     }
 
-    return { success: true, itemsAdded: added, itemsUpdated: updated, itemsRemoved: 0, warnings: [] };
+    return {
+      success: true,
+      itemsAdded: added,
+      itemsUpdated: updated,
+      itemsRemoved: 0,
+      warnings: [],
+    };
   }
 
   async getLocalSummary(): Promise<DataSummary> {
     const items = snippetStore.getAll();
-    return { itemCount: items.length, label: `${items.length} snippet${items.length !== 1 ? 's' : ''}` };
+    return {
+      itemCount: items.length,
+      label: `${items.length} snippet${items.length !== 1 ? 's' : ''}`,
+    };
   }
 
   // ── Delta sync surface ──────────────────────────────────────────────────

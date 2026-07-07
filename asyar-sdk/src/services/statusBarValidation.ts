@@ -13,9 +13,7 @@ export function validateTopLevelStatusBarItem(item: IStatusBarItem): void {
     throw new StatusBarValidationError('Status-bar item must be an object');
   }
   if (typeof item.id !== 'string' || item.id.trim() === '') {
-    throw new StatusBarValidationError(
-      'Top-level status-bar item id must be a non-empty string',
-    );
+    throw new StatusBarValidationError('Top-level status-bar item id must be a non-empty string');
   }
   if (typeof item.text !== 'string') {
     throw new StatusBarValidationError(
@@ -89,9 +87,7 @@ function validateSiblings(items: IStatusBarItem[], depth: number): void {
       );
     }
     if (seenIds.has(child.id)) {
-      throw new StatusBarValidationError(
-        `Duplicate sibling id '${child.id}' inside submenu`,
-      );
+      throw new StatusBarValidationError(`Duplicate sibling id '${child.id}' inside submenu`);
     }
     seenIds.add(child.id);
 
@@ -133,10 +129,7 @@ export function stripHandlers(item: IStatusBarItem): IStatusBarItem {
 export function collectHandlers(
   item: IStatusBarItem,
 ): Map<string, (ctx: { itemPath: string[]; checked?: boolean }) => void> {
-  const out = new Map<
-    string,
-    (ctx: { itemPath: string[]; checked?: boolean }) => void
-  >();
+  const out = new Map<string, (ctx: { itemPath: string[]; checked?: boolean }) => void>();
   walk(item, [], out);
   return out;
 }

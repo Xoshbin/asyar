@@ -3,8 +3,20 @@ import { PortalsSyncProvider } from './portalsSyncProvider';
 import type { SyncProviderData } from '../types';
 
 const mockPortals = [
-  { id: 'p1', name: 'Google', url: 'https://google.com/search?q={query}', icon: '🌐', createdAt: 1000 },
-  { id: 'p2', name: 'GitHub', url: 'https://github.com/search?q={query}', icon: '🐙', createdAt: 2000 },
+  {
+    id: 'p1',
+    name: 'Google',
+    url: 'https://google.com/search?q={query}',
+    icon: '🌐',
+    createdAt: 1000,
+  },
+  {
+    id: 'p2',
+    name: 'GitHub',
+    url: 'https://github.com/search?q={query}',
+    icon: '🐙',
+    createdAt: 2000,
+  },
 ];
 
 vi.mock('../../../built-in-features/portals/portalLifecycle', () => ({
@@ -72,8 +84,20 @@ describe('PortalsSyncProvider', () => {
         version: 1,
         exportedAt: Date.now(),
         data: [
-          { id: 'p1', name: 'Google', url: 'https://google.com/search?q={query}', icon: '🌐', createdAt: 3000 }, // conflict
-          { id: 'p3', name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q={query}', icon: '🦆', createdAt: 3000 }, // new
+          {
+            id: 'p1',
+            name: 'Google',
+            url: 'https://google.com/search?q={query}',
+            icon: '🌐',
+            createdAt: 3000,
+          }, // conflict
+          {
+            id: 'p3',
+            name: 'DuckDuckGo',
+            url: 'https://duckduckgo.com/?q={query}',
+            icon: '🦆',
+            createdAt: 3000,
+          }, // new
         ],
       };
 
@@ -81,7 +105,7 @@ describe('PortalsSyncProvider', () => {
       expect(preview.localCount).toBe(2);
       expect(preview.incomingCount).toBe(2);
       expect(preview.conflicts).toBe(1); // p1 exists in both
-      expect(preview.newItems).toBe(1);  // p3 is new
+      expect(preview.newItems).toBe(1); // p3 is new
       expect(preview.removedItems).toBe(1); // p2 only in local
     });
   });
@@ -94,13 +118,19 @@ describe('PortalsSyncProvider', () => {
         version: 1,
         exportedAt: Date.now(),
         data: [
-          { id: 'p10', name: 'Bing', url: 'https://bing.com/search?q={query}', icon: '🔎', createdAt: 5000 },
+          {
+            id: 'p10',
+            name: 'Bing',
+            url: 'https://bing.com/search?q={query}',
+            icon: '🔎',
+            createdAt: 5000,
+          },
         ],
       };
 
       const result = await provider.applyImport(incoming, 'replace');
       expect(portalStore.remove).toHaveBeenCalledTimes(2); // removes existing 2
-      expect(portalStore.add).toHaveBeenCalledTimes(1);    // adds 1 incoming
+      expect(portalStore.add).toHaveBeenCalledTimes(1); // adds 1 incoming
       expect(result.success).toBe(true);
       expect(result.itemsAdded).toBe(1);
       expect(result.itemsRemoved).toBe(2);
@@ -113,14 +143,32 @@ describe('PortalsSyncProvider', () => {
         version: 1,
         exportedAt: Date.now(),
         data: [
-          { id: 'p1', name: 'Google Updated', url: 'https://google.com/search?q={query}', icon: '🌐', createdAt: 9999 }, // newer → update
-          { id: 'p2', name: 'GitHub', url: 'https://github.com/search?q={query}', icon: '🐙', createdAt: 500 },          // older → skip
-          { id: 'p3', name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q={query}', icon: '🦆', createdAt: 5000 },        // new → add
+          {
+            id: 'p1',
+            name: 'Google Updated',
+            url: 'https://google.com/search?q={query}',
+            icon: '🌐',
+            createdAt: 9999,
+          }, // newer → update
+          {
+            id: 'p2',
+            name: 'GitHub',
+            url: 'https://github.com/search?q={query}',
+            icon: '🐙',
+            createdAt: 500,
+          }, // older → skip
+          {
+            id: 'p3',
+            name: 'DuckDuckGo',
+            url: 'https://duckduckgo.com/?q={query}',
+            icon: '🦆',
+            createdAt: 5000,
+          }, // new → add
         ],
       };
 
       const result = await provider.applyImport(incoming, 'merge');
-      expect(portalStore.add).toHaveBeenCalledTimes(1);    // p3
+      expect(portalStore.add).toHaveBeenCalledTimes(1); // p3
       expect(portalStore.update).toHaveBeenCalledTimes(1); // p1 (newer)
       expect(result.itemsAdded).toBe(1);
       expect(result.itemsUpdated).toBe(1);
@@ -132,7 +180,9 @@ describe('PortalsSyncProvider', () => {
         providerId: 'portals',
         version: 1,
         exportedAt: Date.now(),
-        data: [{ id: 'p99', name: 'Test', url: 'https://test.com/?q={query}', icon: '🧪', createdAt: 1 }],
+        data: [
+          { id: 'p99', name: 'Test', url: 'https://test.com/?q={query}', icon: '🧪', createdAt: 1 },
+        ],
       };
 
       const result = await provider.applyImport(incoming, 'skip');
@@ -165,7 +215,13 @@ describe('PortalsSyncProvider', () => {
   describe('applyItemUpsert routes to portalStore.add', () => {
     it('adds the portal content', async () => {
       const { portalStore } = await import('../../../built-in-features/portals/portalStore.svelte');
-      const content = { id: 'pX', name: 'X', url: 'https://x.com/?q={query}', icon: '🧪', createdAt: 9000 };
+      const content = {
+        id: 'pX',
+        name: 'X',
+        url: 'https://x.com/?q={query}',
+        icon: '🧪',
+        createdAt: 9000,
+      };
       await provider.applyItemUpsert({ id: 'pX', categoryId: 'portals', content });
       expect(portalStore.add).toHaveBeenCalledWith(content);
     });
@@ -186,9 +242,11 @@ describe('PortalsSyncProvider', () => {
       const events: Array<{ type: string; itemId: string; categoryId: string }> = [];
       const unsub = provider.subscribeToChanges((ev) => events.push(ev));
       const { portalStore } = await import('../../../built-in-features/portals/portalStore.svelte');
-      const emit = (portalStore as unknown as {
-        __emit: (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
-      }).__emit;
+      const emit = (
+        portalStore as unknown as {
+          __emit: (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
+        }
+      ).__emit;
       emit({ type: 'upsert', itemId: 'p1' });
       emit({ type: 'delete', itemId: 'p2' });
 

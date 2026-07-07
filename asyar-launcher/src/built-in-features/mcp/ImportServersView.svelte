@@ -114,7 +114,9 @@
               <label class="server-checkbox">
                 <Checkbox
                   checked={!!detectedSelected[`${config.source}:${srv.id}`]}
-                  onchange={(v) => { detectedSelected[`${config.source}:${srv.id}`] = v; }}
+                  onchange={(v) => {
+                    detectedSelected[`${config.source}:${srv.id}`] = v;
+                  }}
                 />
                 <span class="srv-name">{srv.displayName}</span>
                 {#if srv.description}
@@ -139,12 +141,9 @@
           class="field-textarea paste-area"
           placeholder="Paste MCP config JSON here"
           bind:value={pasteJson}
-          rows={8}
-        ></textarea>
+          rows={8}></textarea>
         <div>
-          <Button onclick={handleParse} disabled={!pasteJson.trim()}>
-            Parse
-          </Button>
+          <Button onclick={handleParse} disabled={!pasteJson.trim()}>Parse</Button>
         </div>
         {#if parseError}
           <p class="parse-error">{parseError}</p>
@@ -157,7 +156,9 @@
               <label class="server-checkbox">
                 <Checkbox
                   checked={!!parsedSelected[srv.id]}
-                  onchange={(v) => { parsedSelected[srv.id] = v; }}
+                  onchange={(v) => {
+                    parsedSelected[srv.id] = v;
+                  }}
                 />
                 <span class="srv-name">{srv.displayName}</span>
                 {#if srv.description}

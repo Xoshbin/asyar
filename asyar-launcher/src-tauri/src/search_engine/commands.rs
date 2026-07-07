@@ -37,11 +37,7 @@ pub async fn merged_search(
         .unwrap_or(false);
     // Backfilled suggestions are marked `score == -1.0` by
     // `SearchState::merged_search`; everything else is a real match.
-    let matched_count = response
-        .results
-        .iter()
-        .filter(|r| r.score != -1.0)
-        .count();
+    let matched_count = response.results.iter().filter(|r| r.score != -1.0).count();
     super::file_search_fallback::append_file_search_fallback(
         &mut response.results,
         &query,

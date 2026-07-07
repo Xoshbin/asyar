@@ -52,7 +52,11 @@ export const extensionStateService = {
     return stateSet(extensionId, key, value);
   },
 
-  async subscribe(extensionId: string, key: string, role: 'worker' | 'view'): Promise<number | null> {
+  async subscribe(
+    extensionId: string,
+    key: string,
+    role: 'worker' | 'view',
+  ): Promise<number | null> {
     return stateSubscribe(extensionId, key, role);
   },
 

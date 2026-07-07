@@ -61,7 +61,11 @@ const fakeTools = [
     id: 'calc',
     name: 'calc',
     description: 'A calculator',
-    parameters: { type: 'object', properties: { x: { type: 'number' } }, required: ['x'] } as Record<string, unknown>,
+    parameters: {
+      type: 'object',
+      properties: { x: { type: 'number' } },
+      required: ['x'],
+    } as Record<string, unknown>,
   },
 ];
 
@@ -103,6 +107,11 @@ describe('openaiPlugin.parseToolStream', () => {
       events.push(event);
     }
 
-    expect(events).toContainEqual({ type: 'tool_use', id: 'call_1', name: 'calc', input: { x: 1 } });
+    expect(events).toContainEqual({
+      type: 'tool_use',
+      id: 'call_1',
+      name: 'calc',
+      input: { x: 1 },
+    });
   });
 });

@@ -10,7 +10,9 @@ vi.mock('@tauri-apps/api/event', () => ({
 
 import { NotificationActionBridge } from './notificationActionBridge.svelte';
 
-function makeBridge(overrides: Partial<Parameters<typeof NotificationActionBridge.prototype.handle>[0]> = {}) {
+function makeBridge(
+  overrides: Partial<Parameters<typeof NotificationActionBridge.prototype.handle>[0]> = {},
+) {
   const deps = {
     getManifestById: vi.fn().mockReturnValue({ id: 'coffee' }),
     isExtensionEnabled: vi.fn().mockReturnValue(true),

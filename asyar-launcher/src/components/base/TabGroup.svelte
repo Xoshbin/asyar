@@ -20,7 +20,7 @@
     <button
       class="tab-item"
       class:active={activeTab === tab.id}
-      onclick={() => activeTab = tab.id}
+      onclick={() => (activeTab = tab.id)}
     >
       {tab.label}
     </button>
@@ -85,7 +85,9 @@
     background: transparent;
     color: var(--text-secondary);
     font-family: var(--font-ui);
-    transition: background-color var(--transition-fast), color var(--transition-fast);
+    transition:
+      background-color var(--transition-fast),
+      color var(--transition-fast);
   }
 
   .tab-group--sidebar .tab-item:hover {
@@ -112,7 +114,9 @@
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
     font-family: var(--font-ui);
-    transition: color var(--transition-fast), border-color var(--transition-fast);
+    transition:
+      color var(--transition-fast),
+      border-color var(--transition-fast);
   }
 
   .tab-group--underline .tab-item:hover {

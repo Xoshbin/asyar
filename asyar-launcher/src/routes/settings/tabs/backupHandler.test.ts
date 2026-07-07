@@ -48,10 +48,26 @@ function makeProvider(overrides: Record<string, unknown> = {}) {
     defaultEnabled: true,
     defaultConflictStrategy: 'merge' as const,
     sensitiveFields: [] as string[],
-    exportFull: vi.fn().mockResolvedValue({ providerId: 'snippets', version: 1, exportedAt: 0, data: [] }),
-    exportForSync: vi.fn().mockResolvedValue({ providerId: 'snippets', version: 1, exportedAt: 0, data: [] }),
-    preview: vi.fn().mockResolvedValue({ localCount: 3, incomingCount: 2, conflicts: 0, newItems: 2, removedItems: 1 }),
-    applyImport: vi.fn().mockResolvedValue({ success: true, itemsAdded: 0, itemsUpdated: 0, itemsRemoved: 0, warnings: [] }),
+    exportFull: vi
+      .fn()
+      .mockResolvedValue({ providerId: 'snippets', version: 1, exportedAt: 0, data: [] }),
+    exportForSync: vi
+      .fn()
+      .mockResolvedValue({ providerId: 'snippets', version: 1, exportedAt: 0, data: [] }),
+    preview: vi.fn().mockResolvedValue({
+      localCount: 3,
+      incomingCount: 2,
+      conflicts: 0,
+      newItems: 2,
+      removedItems: 1,
+    }),
+    applyImport: vi.fn().mockResolvedValue({
+      success: true,
+      itemsAdded: 0,
+      itemsUpdated: 0,
+      itemsRemoved: 0,
+      warnings: [],
+    }),
     getLocalSummary: vi.fn().mockResolvedValue({ itemCount: 5, label: '5 snippets' }),
     ...overrides,
   };
@@ -133,17 +149,26 @@ describe('BackupHandler', () => {
         encryptionScheme: null,
         encryptionSalt: null,
         hasSensitiveData: false,
-        categories: [{
-          id: 'snippets',
-          displayName: 'Snippets',
-          file: 'snippets.json',
-          providerVersion: 1,
-          itemCount: 3,
-          syncTier: 'core',
-          hasSensitiveFields: false,
-        }],
+        categories: [
+          {
+            id: 'snippets',
+            displayName: 'Snippets',
+            file: 'snippets.json',
+            providerVersion: 1,
+            itemCount: 3,
+            syncTier: 'core',
+            hasSensitiveFields: false,
+          },
+        ],
       }),
-      category_files: { 'snippets.json': JSON.stringify({ providerId: 'snippets', version: 1, exportedAt: 0, data: [] }) },
+      category_files: {
+        'snippets.json': JSON.stringify({
+          providerId: 'snippets',
+          version: 1,
+          exportedAt: 0,
+          data: [],
+        }),
+      },
       asset_paths: [],
     };
 
@@ -206,13 +231,39 @@ describe('BackupHandler', () => {
         encryptionSalt: null,
         hasSensitiveData: false,
         categories: [
-          { id: 'snippets', displayName: 'Snippets', file: 'snippets.json', providerVersion: 1, itemCount: 3, syncTier: 'core', hasSensitiveFields: false },
-          { id: 'settings', displayName: 'Settings', file: 'settings.json', providerVersion: 1, itemCount: 1, syncTier: 'core', hasSensitiveFields: false },
+          {
+            id: 'snippets',
+            displayName: 'Snippets',
+            file: 'snippets.json',
+            providerVersion: 1,
+            itemCount: 3,
+            syncTier: 'core',
+            hasSensitiveFields: false,
+          },
+          {
+            id: 'settings',
+            displayName: 'Settings',
+            file: 'settings.json',
+            providerVersion: 1,
+            itemCount: 1,
+            syncTier: 'core',
+            hasSensitiveFields: false,
+          },
         ],
       }),
       category_files: {
-        'snippets.json': JSON.stringify({ providerId: 'snippets', version: 1, exportedAt: 0, data: [] }),
-        'settings.json': JSON.stringify({ providerId: 'settings', version: 1, exportedAt: 0, data: {} }),
+        'snippets.json': JSON.stringify({
+          providerId: 'snippets',
+          version: 1,
+          exportedAt: 0,
+          data: [],
+        }),
+        'settings.json': JSON.stringify({
+          providerId: 'settings',
+          version: 1,
+          exportedAt: 0,
+          data: {},
+        }),
       },
       asset_paths: [],
     };
@@ -254,7 +305,13 @@ describe('BackupHandler', () => {
     });
 
     it('emits asyar:stores-restored after successful import', async () => {
-      provider.applyImport.mockResolvedValue({ success: true, itemsAdded: 0, itemsUpdated: 0, itemsRemoved: 0, warnings: [] });
+      provider.applyImport.mockResolvedValue({
+        success: true,
+        itemsAdded: 0,
+        itemsUpdated: 0,
+        itemsRemoved: 0,
+        warnings: [],
+      });
       await handler.handleImport();
       expect(emit).toHaveBeenCalledWith('asyar:stores-restored');
     });
@@ -277,17 +334,26 @@ describe('BackupHandler', () => {
         encryptionScheme: null,
         encryptionSalt: null,
         hasSensitiveData: false,
-        categories: [{
-          id: 'snippets',
-          displayName: 'Snippets',
-          file: 'snippets.json',
-          providerVersion: 1,
-          itemCount: 3,
-          syncTier: 'core',
-          hasSensitiveFields: false,
-        }],
+        categories: [
+          {
+            id: 'snippets',
+            displayName: 'Snippets',
+            file: 'snippets.json',
+            providerVersion: 1,
+            itemCount: 3,
+            syncTier: 'core',
+            hasSensitiveFields: false,
+          },
+        ],
       }),
-      category_files: { 'snippets.json': JSON.stringify({ providerId: 'snippets', version: 1, exportedAt: 0, data: [] }) },
+      category_files: {
+        'snippets.json': JSON.stringify({
+          providerId: 'snippets',
+          version: 1,
+          exportedAt: 0,
+          data: [],
+        }),
+      },
       asset_paths: [],
     };
 
@@ -353,15 +419,17 @@ describe('BackupHandler', () => {
       encryptionScheme: null,
       encryptionSalt: null,
       hasSensitiveData: false,
-      categories: [{
-        id: 'snippets',
-        displayName: 'Snippets',
-        file: 'snippets.json',
-        providerVersion: 1,
-        itemCount: 0,
-        syncTier: 'core',
-        hasSensitiveFields: false,
-      }],
+      categories: [
+        {
+          id: 'snippets',
+          displayName: 'Snippets',
+          file: 'snippets.json',
+          providerVersion: 1,
+          itemCount: 0,
+          syncTier: 'core',
+          hasSensitiveFields: false,
+        },
+      ],
     };
 
     beforeEach(() => {

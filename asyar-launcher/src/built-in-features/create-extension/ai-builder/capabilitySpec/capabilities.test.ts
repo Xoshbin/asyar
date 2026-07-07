@@ -23,21 +23,50 @@ import capabilities from './capabilities.json';
 // Their union is exactly the master VALID_PERMISSIONS list (42 entries) — the
 // definitive set of permissions an extension may legally declare in manifest.json.
 const GET_REQUIRED_PERMISSIONS = [
-  'ai:use', 'app:frontmost-watch', 'application:read',
-  'browser:bookmarks.read', 'browser:history.read', 'browser:page.read',
-  'browser:page.write', 'browser:tabs.read', 'browser:tabs.write',
-  'cache:read', 'cache:write', 'clipboard:read', 'clipboard:write',
-  'entitlements:read', 'extension:invoke', 'fs:read', 'fs:watch', 'fs:write',
-  'network', 'notifications:send', 'oauth:use', 'power:inhibit',
-  'preferences:read', 'preferences:write', 'process:kill', 'process:read',
-  'selection:read', 'shell:open-url',
-  'shell:spawn', 'snippets:contribute', 'storage:read', 'storage:write',
-  'systemEvents:read', 'timers:cancel', 'timers:list', 'timers:schedule',
+  'ai:use',
+  'app:frontmost-watch',
+  'application:read',
+  'browser:bookmarks.read',
+  'browser:history.read',
+  'browser:page.read',
+  'browser:page.write',
+  'browser:tabs.read',
+  'browser:tabs.write',
+  'cache:read',
+  'cache:write',
+  'clipboard:read',
+  'clipboard:write',
+  'entitlements:read',
+  'extension:invoke',
+  'fs:read',
+  'fs:watch',
+  'fs:write',
+  'network',
+  'notifications:send',
+  'oauth:use',
+  'power:inhibit',
+  'preferences:read',
+  'preferences:write',
+  'process:kill',
+  'process:read',
+  'selection:read',
+  'shell:open-url',
+  'shell:spawn',
+  'snippets:contribute',
+  'storage:read',
+  'storage:write',
+  'systemEvents:read',
+  'timers:cancel',
+  'timers:list',
+  'timers:schedule',
   'window:manage',
 ];
 
 const LAUNCHER_GATED_PERMISSIONS = [
-  'diagnostics:report', 'runs:track', 'store:read', 'store:write',
+  'diagnostics:report',
+  'runs:track',
+  'store:read',
+  'store:write',
   'tools:register',
 ];
 
@@ -59,7 +88,16 @@ describe('capabilities.json sync guard', () => {
   });
 
   it('only allows the eight valid preference types', () => {
-    const valid = ['textfield', 'password', 'number', 'checkbox', 'dropdown', 'appPicker', 'file', 'directory'];
+    const valid = [
+      'textfield',
+      'password',
+      'number',
+      'checkbox',
+      'dropdown',
+      'appPicker',
+      'file',
+      'directory',
+    ];
     expect(capabilities.preferenceTypes.sort()).toEqual([...valid].sort());
   });
 

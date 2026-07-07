@@ -46,7 +46,9 @@
     cursor: pointer;
     color: var(--text-tertiary);
     border-radius: var(--radius-sm);
-    transition: background var(--transition-fast), color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      color var(--transition-fast);
     font-family: var(--font-ui);
     line-height: 1;
   }

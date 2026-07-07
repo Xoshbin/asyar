@@ -1,13 +1,14 @@
 ---
 order: 9
 ---
+
 # Host Startup, Installation & View Rendering
 
 ## 3. Application Startup Sequence
 
 When the user launches Asyar, the startup process follows a strict sequence to guarantee that OS hooks, system services, and extensions are securely bolted together before the UI is presented:
 
-1. **Rust Initialization (`main.rs` -> `lib.rs:run()`):** 
+1. **Rust Initialization (`main.rs` -> `lib.rs:run()`):**
    - Tauri builder starts.
    - Core plugins are initialized (`fs`, `http`, `global_shortcut`, `clipboard_manager`, `opener`).
 2. **Custom Protocol Registration:**
@@ -88,6 +89,7 @@ Users can also install from a local `.asyar` file (a renamed ZIP) via Settings â
 This flow details exactly how Asyar transitions from a user pressing `Enter` on a search result to rendering an extension view.
 
 ### For Tier 1 (Built-in)
+
 1. User highlights a command in `<ResultsList>` and hits `Enter` (`handleEnterKey` / `handleCommandAction`).
 2. The Action object invokes `extensionManager.handleCommandAction(commandObjectId)`.
 3. The command handler matches the internal route and executes `this.navigateToView('clipboard-history/DefaultView')`.
@@ -99,6 +101,7 @@ This flow details exactly how Asyar transitions from a user pressing `Enter` on 
 8. `<svelte:component this={component} />` mounts cleanly inside the main DOM.
 
 ### For Tier 2 (Installed)
+
 1. User highlights a command for `xyz-plugin` and hits `Enter`.
 2. `extensionManager.handleCommandAction()` invokes the generic command handler hook.
 3. Because evaluating `isBuiltInExtension('xyz-plugin')` yields `false`, the fallback generic handler issues `this.navigateToView('xyz-plugin/DefaultView')`.
@@ -108,7 +111,7 @@ This flow details exactly how Asyar transitions from a user pressing `Enter` on 
    `asyar-extension://xyz-plugin/index.html?view=DefaultView`
 7. The `<iframe sandbox="allow-scripts allow-same-origin allow-forms allow-popups">` DOM node is attached.
 8. **Protocol Interception (`lib.rs`):** The network request for `asyar-extension://` is intercepted by the Tauri Rust core.
-9. **Path Resolution:** 
+9. **Path Resolution:**
    - Rust strips query parameters (`?view=DefaultView`) using `.split('?').next().unwrap()`.
    - It iterates through paths in a strict, security-focused priority order: it checks Host bundle resources (Priority 2) **first**, and only if not found does it check the user AppData directory (Priority 3). Priority 1 is reserved exclusively for a localized development source directory and is only evaluated in debug builds.
 10. **Delivery:** Rust reads `index.html` from disk, attaches Content-Security-Policy headers, and sets the mime type (`text/html`), serving it as bytes directly to the iframe webview.

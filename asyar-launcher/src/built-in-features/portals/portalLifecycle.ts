@@ -18,14 +18,18 @@ export async function syncPortalToIndex(portal: Portal): Promise<void> {
   });
 
   // Register runtime command handler
-  commandService.registerCommand(`cmd_portals_${portal.id}`, {
-    execute: async (args?: Record<string, any>) => {
-      const query = args?.query ?? '';
-      const url = await resolveTemplate(portal.url, { query }, { encodeValues: true });
-      await openUrl(url);
-      return { type: 'no-view' };
+  commandService.registerCommand(
+    `cmd_portals_${portal.id}`,
+    {
+      execute: async (args?: Record<string, any>) => {
+        const query = args?.query ?? '';
+        const url = await resolveTemplate(portal.url, { query }, { encodeValues: true });
+        await openUrl(url);
+        return { type: 'no-view' };
+      },
     },
-  }, 'portals');
+    'portals',
+  );
 
   // Register with context mode service so it participates in the chip/hint system
   registerPortalContextProvider(portal);
@@ -57,7 +61,7 @@ export async function deletePortal(portalId: string): Promise<void> {
 /** Extract `{token}` placeholder names from a portal URL. */
 function getPortalTokens(portalUrl: string): string[] {
   const TOKEN_RE = /\{([^{}]+)\}/g;
-  return [...portalUrl.matchAll(TOKEN_RE)].map(m => m[1]);
+  return [...portalUrl.matchAll(TOKEN_RE)].map((m) => m[1]);
 }
 
 /**
@@ -67,8 +71,8 @@ function getPortalTokens(portalUrl: string): string[] {
  * firing immediately.
  */
 function portalNeedsQuery(portalUrl: string): boolean {
-  return getPortalTokens(portalUrl).some(t =>
-    PLACEHOLDERS.some(p => p.id === 'query' && (p.token === t || p.aliases?.includes(t)))
+  return getPortalTokens(portalUrl).some((t) =>
+    PLACEHOLDERS.some((p) => p.id === 'query' && (p.token === t || p.aliases?.includes(t))),
   );
 }
 
@@ -85,7 +89,7 @@ async function resolveChipPrefill(portalUrl: string): Promise<string> {
 
   // Resolve and return the first known placeholder's value.
   for (const tokenText of getPortalTokens(portalUrl)) {
-    const def = PLACEHOLDERS.find(p => p.token === tokenText || p.aliases?.includes(tokenText));
+    const def = PLACEHOLDERS.find((p) => p.token === tokenText || p.aliases?.includes(tokenText));
     if (def) return def.resolve({});
   }
   return '';

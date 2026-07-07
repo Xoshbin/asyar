@@ -59,14 +59,17 @@ await winService.setFullscreen(true);
 ### Platform Notes
 
 #### macOS
+
 Uses the **Accessibility API** (`AXUIElement`) to read and write the focused window's `AXPosition`, `AXSize`, and `AXFullScreen` attributes. This requires **Accessibility permission** granted to Asyar in **System Settings → Privacy & Security → Accessibility**. If the permission is missing, all three methods throw with a descriptive error pointing to the settings panel.
 
 Coordinates use a top-left origin and may be negative for windows on a monitor to the left of the primary display — this is correct behaviour.
 
 #### Windows
+
 Targets the window that was foreground when Asyar was last opened (captured via `GetForegroundWindow` at show time). `setWindowBounds` calls `MoveWindow`; `setFullscreen(true)` maximizes the window and `setFullscreen(false)` restores it. True borderless fullscreen for external windows is not supported.
 
 #### Linux (X11)
+
 Requires [`xdotool`](https://github.com/jordansissel/xdotool) to be installed (`apt install xdotool`, `pacman -S xdotool`, etc.). Asyar captures the active window ID via `xdotool getactivewindow` before showing itself.
 
 **Wayland is not supported.** Calling any method under a Wayland session returns an error with a message directing the user to use an X11/XOrg session.

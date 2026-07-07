@@ -6,10 +6,10 @@ import type { ClipboardHistoryItem } from '../types';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
-      invoke: vi.fn(),
-      on: vi.fn(),
-      off: vi.fn(),
-    },
+    invoke: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
 }));
 
 function makeProxy() {
@@ -43,9 +43,7 @@ describe('ClipboardHistoryServiceProxy', () => {
   it('initialize → "clipboard:initialize"', async () => {
     const { proxy, mockInvoke } = makeProxy();
     await proxy.initialize();
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'clipboard:initialize',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'clipboard:initialize');
     expect(call).toBeDefined();
   });
 
@@ -53,9 +51,7 @@ describe('ClipboardHistoryServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     proxy.stopMonitoring();
     await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'clipboard:stopMonitoring',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'clipboard:stopMonitoring');
     expect(call).toBeDefined();
   });
 
@@ -63,9 +59,7 @@ describe('ClipboardHistoryServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     const item = makeItem();
     await proxy.pasteItem(item);
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'clipboard:pasteItem',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'clipboard:pasteItem');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ item });
   });
@@ -73,9 +67,7 @@ describe('ClipboardHistoryServiceProxy', () => {
   it('hideWindow → "clipboard:hideWindow"', async () => {
     const { proxy, mockInvoke } = makeProxy();
     await proxy.hideWindow();
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'clipboard:hideWindow',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'clipboard:hideWindow');
     expect(call).toBeDefined();
   });
 
@@ -83,9 +75,7 @@ describe('ClipboardHistoryServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue(true);
     const result = await proxy.simulatePaste();
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'clipboard:simulatePaste',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'clipboard:simulatePaste');
     expect(call).toBeDefined();
     expect(result).toBe(true);
   });
@@ -105,9 +95,7 @@ describe('ClipboardHistoryServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue([]);
     await proxy.getRecentItems(10);
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'clipboard:getRecentItems',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'clipboard:getRecentItems');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ limit: 10 });
   });
@@ -116,9 +104,7 @@ describe('ClipboardHistoryServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue([]);
     await proxy.getRecentItems();
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'clipboard:getRecentItems',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'clipboard:getRecentItems');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ limit: undefined });
   });
@@ -139,9 +125,7 @@ describe('ClipboardHistoryServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue(true);
     const result = await proxy.deleteItem('item-1');
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'clipboard:deleteItem',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'clipboard:deleteItem');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ itemId: 'item-1' });
     expect(result).toBe(true);
@@ -174,9 +158,7 @@ describe('ClipboardHistoryServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue('clipboard text');
     const result = await proxy.readCurrentText();
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'clipboard:readCurrentText',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'clipboard:readCurrentText');
     expect(call).toBeDefined();
     expect(result).toBe('clipboard text');
   });
@@ -185,9 +167,7 @@ describe('ClipboardHistoryServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue('hello');
     const result = await proxy.stripHtml('<b>hello</b>');
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'clipboard:stripHtml',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'clipboard:stripHtml');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ html: '<b>hello</b>' });
     expect(result).toBe('hello');
@@ -197,9 +177,7 @@ describe('ClipboardHistoryServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue('hello');
     const result = await proxy.stripRtf('{\\rtf1 hello}');
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'clipboard:stripRtf',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'clipboard:stripRtf');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ rtf: '{\\rtf1 hello}' });
     expect(result).toBe('hello');
@@ -279,9 +257,7 @@ describe('ClipboardHistoryServiceProxy', () => {
 
     it('prepends data URL prefix for raw base64', () => {
       const proxy = new ClipboardHistoryServiceProxy();
-      expect(proxy.normalizeImageData('abc123')).toBe(
-        'data:image/png;base64,abc123',
-      );
+      expect(proxy.normalizeImageData('abc123')).toBe('data:image/png;base64,abc123');
     });
   });
 

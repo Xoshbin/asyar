@@ -2055,4 +2055,3 @@ export const BIP39_WORDLIST: readonly string[] = Object.freeze([
   'zone',
   'zoo',
 ]);
-

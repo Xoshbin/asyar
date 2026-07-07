@@ -36,12 +36,9 @@ export class ScriptsManager {
         logService.warn(`[scripts] refresh on event failed: ${err}`);
       });
     });
-    this.unlistenInlineTick = await listen<InlineTickPayload>(
-      'scripts:inline:tick',
-      (event) => {
-        this.applyInlineTick(event.payload);
-      },
-    );
+    this.unlistenInlineTick = await listen<InlineTickPayload>('scripts:inline:tick', (event) => {
+      this.applyInlineTick(event.payload);
+    });
     try {
       await this.refresh();
     } catch (err) {
@@ -188,9 +185,7 @@ export class ScriptsManager {
   /** Pure helper: route a tick payload into commandService.liveSubtitles. */
   private applyInlineTick(payload: InlineTickPayload): void {
     const objectId = SCRIPT_COMMAND_OBJECT_PREFIX + payload.dynamicId;
-    const subtitle = payload.error
-      ? `error: ${payload.error}`
-      : (payload.subtitle ?? null);
+    const subtitle = payload.error ? `error: ${payload.error}` : (payload.subtitle ?? null);
     commandService.liveSubtitles = {
       ...commandService.liveSubtitles,
       [objectId]: subtitle,

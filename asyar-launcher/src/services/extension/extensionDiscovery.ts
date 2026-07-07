@@ -1,12 +1,9 @@
-import { logService } from "../log/logService";
-import type { ExtensionManifest } from "asyar-sdk/contracts";
+import { logService } from '../log/logService';
+import type { ExtensionManifest } from 'asyar-sdk/contracts';
 
 // Import both regular and built-in features
-export const extensionContext = import.meta.glob("../../extensions/*/manifest.json");
-export const builtInFeatureContext = import.meta.glob(
-  "../../built-in-features/*/manifest.json"
-);
-
+export const extensionContext = import.meta.glob('../../extensions/*/manifest.json');
+export const builtInFeatureContext = import.meta.glob('../../built-in-features/*/manifest.json');
 
 export async function discoverExtensions(): Promise<string[]> {
   try {
@@ -16,7 +13,7 @@ export async function discoverExtensions(): Promise<string[]> {
 
     // Log the discovered paths for debugging
     logService.debug(
-      `Found ${extensionPaths.length} regular extensions and ${builtInFeaturePaths.length} built-in features`
+      `Found ${extensionPaths.length} regular extensions and ${builtInFeaturePaths.length} built-in features`,
     );
 
     // Extract just the extension IDs (names) from the paths
@@ -29,21 +26,16 @@ export async function discoverExtensions(): Promise<string[]> {
 
     const builtInFeatureIds = builtInFeaturePaths
       .map((path) => {
-        const matches = path.match(
-          /\/built-in-features\/([^\/]+)\/manifest\.json/
-        );
+        const matches = path.match(/\/built-in-features\/([^\/]+)\/manifest\.json/);
         return matches ? matches[1] : null;
       })
       .filter((id) => id !== null);
 
     // Combine and return just the ids
-    const allExtensionIds = [
-      ...regularExtensionIds,
-      ...builtInFeatureIds,
-    ] as string[];
+    const allExtensionIds = [...regularExtensionIds, ...builtInFeatureIds] as string[];
 
     logService.info(
-      `Discovered ${allExtensionIds.length} extensions (${builtInFeatureIds.length} built-in features)`
+      `Discovered ${allExtensionIds.length} extensions (${builtInFeatureIds.length} built-in features)`,
     );
 
     return allExtensionIds;
@@ -56,9 +48,7 @@ export async function discoverExtensions(): Promise<string[]> {
 // Helper to determine if an ID is from built-in directory
 export function isBuiltInFeature(extensionId: string): boolean {
   const builtInPaths = Object.keys(builtInFeatureContext);
-  const matchingPath = builtInPaths.find((path) =>
-    path.includes(`/${extensionId}/`)
-  );
+  const matchingPath = builtInPaths.find((path) => path.includes(`/${extensionId}/`));
   return !!matchingPath;
 }
 
@@ -70,5 +60,3 @@ export function getExtensionPath(extensionId: string): string {
     return `../../extensions/${extensionId}`;
   }
 }
-
-

@@ -10,7 +10,7 @@ export interface PreferenceExportRow {
 }
 
 export async function extensionPreferencesGetAll(
-  extensionId: string
+  extensionId: string,
 ): Promise<PreferenceExportRow[] | null> {
   return invokeSafe('extension_preferences_get_all', { extensionId });
 }
@@ -20,7 +20,7 @@ export async function extensionPreferencesSet(
   commandId: string | null,
   key: string,
   value: string,
-  isEncrypted: boolean
+  isEncrypted: boolean,
 ): Promise<void> {
   await invokeSafe('extension_preferences_set', {
     extensionId,
@@ -61,7 +61,7 @@ export async function extensionPreferencesExportAll(): Promise<PreferencesExport
  */
 export async function extensionPreferencesImportAll(
   payload: PreferencesExport,
-  strategy: 'replace' | 'merge'
+  strategy: 'replace' | 'merge',
 ): Promise<PreferencesImportResult | null> {
   return invokeSafe('extension_preferences_import_all', { payload, strategy });
 }

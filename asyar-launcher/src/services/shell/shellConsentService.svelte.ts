@@ -20,7 +20,7 @@ class ShellConsentService {
   async requestConsent(
     extensionId: string,
     program: string,
-    resolvedPath: string
+    resolvedPath: string,
   ): Promise<boolean> {
     // 1. Check trust store first (hot path, no UI). A failed check falls
     // through to the dialog below rather than blocking the request.
@@ -42,7 +42,7 @@ class ShellConsentService {
           this.activeRequest = null;
           this.pendingRequests.delete(key);
           resolve(allowed);
-        }
+        },
       };
     });
 
@@ -55,7 +55,7 @@ class ShellConsentService {
    */
   async approveCurrent() {
     if (!this.activeRequest) return;
-    
+
     const { extensionId, resolvedPath, resolve } = this.activeRequest;
     const ok = await shellGrantTrust(extensionId, resolvedPath);
     resolve(ok);

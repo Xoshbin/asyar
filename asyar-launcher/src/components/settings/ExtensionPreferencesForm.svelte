@@ -13,13 +13,7 @@
     onChange: (name: string, value: any) => void;
   }
 
-  let {
-    preferences,
-    values = {},
-    errors = {},
-    disabled = false,
-    onChange,
-  }: Props = $props();
+  let { preferences, values = {}, errors = {}, disabled = false, onChange }: Props = $props();
 
   function handleValueChange(name: string, value: any) {
     if (disabled) return;
@@ -98,8 +92,8 @@
             placeholder={pref.type === 'appPicker'
               ? 'Application path'
               : pref.type === 'directory'
-              ? 'Directory path'
-              : 'File path'}
+                ? 'Directory path'
+                : 'File path'}
             {disabled}
             oninput={(e: Event) => handleText(pref, e)}
           />
@@ -134,5 +128,4 @@
     font-size: 0.75rem;
     font-family: var(--font-ui);
   }
-
 </style>

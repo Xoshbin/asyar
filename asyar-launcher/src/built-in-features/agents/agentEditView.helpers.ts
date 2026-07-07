@@ -6,7 +6,12 @@ import type {
   SilentOutputAction,
 } from './types';
 import type { ToolDescriptor } from 'asyar-sdk/contracts';
-import type { IProviderPlugin, ProviderConfig, ProviderId, ModelInfo } from '../../services/ai/IProviderPlugin';
+import type {
+  IProviderPlugin,
+  ProviderConfig,
+  ProviderId,
+  ModelInfo,
+} from '../../services/ai/IProviderPlugin';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

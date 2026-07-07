@@ -1,24 +1,24 @@
-import { logService } from "../log/logService";
-import * as commands from "../../lib/ipc/commands";
+import { logService } from '../log/logService';
+import * as commands from '../../lib/ipc/commands';
 import type {
   ApplicationScanOverride,
   IApplicationsService,
-} from "./interfaces/IApplicationsService";
-import type { SearchResult } from "../search/interfaces/SearchResult";
-import { invalidateTopItemsCache } from "../search/topItemsCache";
-import { searchService } from "../search/SearchService";
-import { settingsService } from "../settings/settingsService.svelte";
-import { resetLauncherState } from "../../lib/launcher/launcherReset";
+} from './interfaces/IApplicationsService';
+import type { SearchResult } from '../search/interfaces/SearchResult';
+import { invalidateTopItemsCache } from '../search/topItemsCache';
+import { searchService } from '../search/SearchService';
+import { settingsService } from '../settings/settingsService.svelte';
+import { resetLauncherState } from '../../lib/launcher/launcherReset';
 
 class ApplicationsService implements IApplicationsService {
   private initialized = false;
 
   async init(): Promise<void> {
     if (this.initialized) {
-      logService.debug("ApplicationsService already initialized.");
+      logService.debug('ApplicationsService already initialized.');
       return;
     }
-    logService.info("Initializing ApplicationsService...");
+    logService.info('Initializing ApplicationsService...');
     try {
       await this.sync();
       this.initialized = true;
@@ -37,13 +37,14 @@ class ApplicationsService implements IApplicationsService {
 
   private async sync(override?: ApplicationScanOverride): Promise<void> {
     const search = settingsService.currentSettings.search;
-    const extraPaths =
-      override?.additionalScanPaths ?? search.additionalScanPaths ?? [];
+    const extraPaths = override?.additionalScanPaths ?? search.additionalScanPaths ?? [];
     const result = await commands.syncApplicationIndex(extraPaths);
     if (result === null) {
       throw new Error('sync_application_index failed');
     }
-    logService.info(`App sync: ${result.added} added, ${result.removed} removed, ${result.total} total`);
+    logService.info(
+      `App sync: ${result.added} added, ${result.removed} removed, ${result.total} total`,
+    );
   }
 
   async open(app: SearchResult): Promise<void> {
@@ -57,18 +58,19 @@ class ApplicationsService implements IApplicationsService {
         logService.error(`Failed to open ${app.name}: path is undefined`);
         return;
       }
-      if (app.objectId && !app.objectId.startsWith("missing_id_")) {
+      if (app.objectId && !app.objectId.startsWith('missing_id_')) {
         logService.debug(`Recording usage for item: ${app.name} (ID: ${app.objectId})`);
-        commands.recordItemUsage(app.objectId)
+        commands
+          .recordItemUsage(app.objectId)
           .then(() => {
             logService.debug(`Usage recorded for ${app.objectId}`);
             invalidateTopItemsCache();
           })
-          .catch((err) =>
-            logService.error(`Failed to record usage for ${app.objectId}: ${err}`)
-          );
+          .catch((err) => logService.error(`Failed to record usage for ${app.objectId}: ${err}`));
       } else {
-        logService.warn(`Cannot record usage: valid objectId missing for selected item ${app.name}`);
+        logService.warn(
+          `Cannot record usage: valid objectId missing for selected item ${app.name}`,
+        );
       }
     } catch (error) {
       logService.error(`Failed to open ${app.name}: ${error}`);

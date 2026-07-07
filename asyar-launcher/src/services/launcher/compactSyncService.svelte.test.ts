@@ -20,7 +20,10 @@ vi.mock('../log/logService', () => ({
 
 import { CompactSyncService, type CompactSyncDeps } from './compactSyncService.svelte';
 import { invoke } from '@tauri-apps/api/core';
-import { LAUNCHER_HEIGHT_COMPACT, LAUNCHER_HEIGHT_DEFAULT } from '../../lib/launcher/launcherGeometry';
+import {
+  LAUNCHER_HEIGHT_COMPACT,
+  LAUNCHER_HEIGHT_DEFAULT,
+} from '../../lib/launcher/launcherGeometry';
 
 interface MutableDeps {
   initialized: boolean;
@@ -33,7 +36,10 @@ interface MutableDeps {
   lastCompletedQuery: string | null;
 }
 
-function makeDeps(overrides: Partial<MutableDeps> = {}): { state: MutableDeps; deps: CompactSyncDeps } {
+function makeDeps(overrides: Partial<MutableDeps> = {}): {
+  state: MutableDeps;
+  deps: CompactSyncDeps;
+} {
   const state: MutableDeps = {
     initialized: true,
     launchView: 'compact',
@@ -110,7 +116,9 @@ describe('CompactSyncService.syncKeepExpanded', () => {
     svc.syncKeepExpanded();
 
     expect(invoke).toHaveBeenNthCalledWith(1, 'set_launcher_keep_expanded', { keepExpanded: true });
-    expect(invoke).toHaveBeenNthCalledWith(2, 'set_launcher_keep_expanded', { keepExpanded: false });
+    expect(invoke).toHaveBeenNthCalledWith(2, 'set_launcher_keep_expanded', {
+      keepExpanded: false,
+    });
   });
 });
 
@@ -136,12 +144,17 @@ describe('CompactSyncService.resetToCompactIfConfigured', () => {
     svc.resetToCompactIfConfigured();
 
     // The shrink itself fires the immediate (non-deferred) path.
-    expect(invoke).toHaveBeenCalledWith('set_launcher_height', expect.objectContaining({
-      height: LAUNCHER_HEIGHT_COMPACT,
-      expanded: false,
-    }));
+    expect(invoke).toHaveBeenCalledWith(
+      'set_launcher_height',
+      expect.objectContaining({
+        height: LAUNCHER_HEIGHT_COMPACT,
+        expanded: false,
+      }),
+    );
     const shrinkCall = vi.mocked(invoke).mock.calls.find((c) => c[0] === 'set_launcher_height');
-    expect((shrinkCall?.[1] as { deferUntilNextCaCommit?: boolean }).deferUntilNextCaCommit).toBeUndefined();
+    expect(
+      (shrinkCall?.[1] as { deferUntilNextCaCommit?: boolean }).deferUntilNextCaCommit,
+    ).toBeUndefined();
     vi.mocked(invoke).mockClear();
 
     // Activate a context chip (not a view) to trigger a grow without bringing
@@ -170,9 +183,12 @@ describe('CompactSyncService.applyLauncherHeight', () => {
   beforeEach(() => vi.clearAllMocks());
 
   const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
-  const heightCalls = () => vi.mocked(invoke).mock.calls.filter((c) => c[0] === 'set_launcher_height');
-  const confirmCalls = () => vi.mocked(invoke).mock.calls.filter((c) => c[0] === 'confirm_launcher_paint');
-  const cancelCalls = () => vi.mocked(invoke).mock.calls.filter((c) => c[0] === 'cancel_launcher_resize');
+  const heightCalls = () =>
+    vi.mocked(invoke).mock.calls.filter((c) => c[0] === 'set_launcher_height');
+  const confirmCalls = () =>
+    vi.mocked(invoke).mock.calls.filter((c) => c[0] === 'confirm_launcher_paint');
+  const cancelCalls = () =>
+    vi.mocked(invoke).mock.calls.filter((c) => c[0] === 'cancel_launcher_resize');
 
   /** Runs the seed pass (previous = -1 takes the ungated default path). */
   async function seedCompact(svc: CompactSyncService) {

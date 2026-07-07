@@ -102,9 +102,7 @@ export class ExtensionRpc extends BaseServiceProxy {
           extensionId: this.extensionId || undefined,
         });
         // Best-effort abort notification to the worker.
-        this.broker
-          .invoke<void>('state:rpcAbort', { correlationId })
-          .catch(() => {});
+        this.broker.invoke<void>('state:rpcAbort', { correlationId }).catch(() => {});
         reject(new Error(`RPC timeout after ${timeoutMs}ms for id=${id}`));
       }, timeoutMs);
 
@@ -222,10 +220,7 @@ export class ExtensionRpc extends BaseServiceProxy {
     // Correlation ids only need to be unique within one extension's view
     // iframe for the lifetime of one pending request. Math.random twice
     // concatenated gives ~15 bytes of entropy which is more than enough.
-    return (
-      Math.random().toString(36).slice(2, 15) +
-      Math.random().toString(36).slice(2, 15)
-    );
+    return Math.random().toString(36).slice(2, 15) + Math.random().toString(36).slice(2, 15);
   }
 
   // ── worker-side: onRequest / delivery / abort ──────────────────────────
@@ -298,9 +293,7 @@ export class ExtensionRpc extends BaseServiceProxy {
       try {
         const result = await handler(payload, controller.signal);
         this.inFlight.delete(correlationId);
-        await this.broker
-          .invoke<void>('state:rpcReply', { correlationId, result })
-          .catch(() => {});
+        await this.broker.invoke<void>('state:rpcReply', { correlationId, result }).catch(() => {});
       } catch (err) {
         this.inFlight.delete(correlationId);
         const msg = err instanceof Error ? err.message : String(err);

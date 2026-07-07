@@ -57,23 +57,24 @@ never sees the raw secret either.
 **Bundled detectors** (false-positive rate near zero on plain-English
 text):
 
-| Kind | Source |
-|---|---|
-| `aws_access_key` | AKIA / ASIA prefixes |
-| `github_pat` / `github_oauth` / `github_user_to_server` / `github_server_to_server` / `github_refresh` | GitHub token prefixes |
-| `gitlab_pat` | `glpat-` prefix |
-| `stripe_live_secret` / `stripe_restricted` | Stripe live + restricted prefixes |
-| `slack_token` | `xox[baprs]-` prefix |
-| `openai_key` | `sk-` prefix with length floor |
-| `anthropic_key` | `sk-ant-` prefix |
-| `pem_private_key` | PEM `-----BEGIN ... PRIVATE KEY-----` block |
-| `jwt` | three base64url segments separated by `.` |
-| `credit_card` | 13–19 digit candidate, Luhn-validated |
+| Kind                                                                                                   | Source                                      |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| `aws_access_key`                                                                                       | AKIA / ASIA prefixes                        |
+| `github_pat` / `github_oauth` / `github_user_to_server` / `github_server_to_server` / `github_refresh` | GitHub token prefixes                       |
+| `gitlab_pat`                                                                                           | `glpat-` prefix                             |
+| `stripe_live_secret` / `stripe_restricted`                                                             | Stripe live + restricted prefixes           |
+| `slack_token`                                                                                          | `xox[baprs]-` prefix                        |
+| `openai_key`                                                                                           | `sk-` prefix with length floor              |
+| `anthropic_key`                                                                                        | `sk-ant-` prefix                            |
+| `pem_private_key`                                                                                      | PEM `-----BEGIN ... PRIVATE KEY-----` block |
+| `jwt`                                                                                                  | three base64url segments separated by `.`   |
+| `credit_card`                                                                                          | 13–19 digit candidate, Luhn-validated       |
 
 The user can disable redaction globally or per-category in
 **Settings → Privacy → Secret Redaction**.
 
 **What this does NOT catch:**
+
 - Secrets in formats not in the bundled catalog (custom internal token
   formats, hashed passwords, raw private keys without PEM headers).
 - Generic high-entropy strings (false-positive rate too high to ship by
@@ -144,7 +145,7 @@ Server-side: drops `cloud_snapshots` LONGTEXT and the per-category
 `cloud_sync_categories` shape entirely. Adds:
 
 - `cloud_sync_items(user_id, id, category_id, payload, content_hash,
-  version, deleted, deleted_at, …)` with a composite primary key on
+version, deleted, deleted_at, …)` with a composite primary key on
   `(user_id, id)` so each syncable item — clipboard entry, snippet,
   shortcut, settings singleton — gets exactly one row.
 - `cloud_sync_user_state(user_id, next_version)` — per-user monotonic
@@ -190,7 +191,7 @@ Passphrase-based E2EE on top of the per-item shape from 4a.
 **Default OFF** — most users don't want a passphrase prompt; users
 who care explicitly enable it in **Settings → Account → Encrypted Sync**.
 
-Once enabled: user passphrase → Argon2id → 32-byte sync key → AES-256-GCM. 
+Once enabled: user passphrase → Argon2id → 32-byte sync key → AES-256-GCM.
 Multi-device coordination uses `content_hash` computed locally over plaintext —
 different devices with the same passphrase produce the same hash
 without ever sharing the passphrase.
@@ -206,7 +207,6 @@ Recovery is honest: passphrase loss = data loss. Users get a one-time
 write it down. Asyar.org cannot reset a passphrase.
 
 Addresses threat 2 directly. A server breach reveals only ciphertext.
-
 
 Code paths: [`src-tauri/src/sync/e2ee/`](../../asyar-launcher/src-tauri/src/sync/e2ee/),
 [`src-tauri/src/crypto/`](../../asyar-launcher/src-tauri/src/crypto/) (`kdf.rs`, `mnemonic.rs`, `sync_envelope.rs`),

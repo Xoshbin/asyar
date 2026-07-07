@@ -9,7 +9,9 @@
 
   let open = $state(depth < maxDepth);
 
-  function typeOf(v: unknown): 'null' | 'object' | 'array' | 'string' | 'number' | 'boolean' | 'other' {
+  function typeOf(
+    v: unknown,
+  ): 'null' | 'object' | 'array' | 'string' | 'number' | 'boolean' | 'other' {
     if (v === null) return 'null';
     if (Array.isArray(v)) return 'array';
     if (typeof v === 'object') return 'object';
@@ -42,7 +44,9 @@
 </script>
 
 {#if !isComposite}
-  <span class="json-{t}">{#if t === 'string'}"{value}"{:else if t === 'null'}null{:else}{String(value)}{/if}</span>
+  <span class="json-{t}"
+    >{#if t === 'string'}"{value}"{:else if t === 'null'}null{:else}{String(value)}{/if}</span
+  >
 {:else}
   <span class="tree">
     <button

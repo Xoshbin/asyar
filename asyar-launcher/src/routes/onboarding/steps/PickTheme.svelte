@@ -22,9 +22,7 @@
   // Reactive: re-reads whenever settingsService finishes loading or another
   // window writes the setting via store.onChange. The layout calls init()
   // on mount, but children may render briefly before that completes.
-  const activeThemeId = $derived(
-    settingsService.currentSettings.appearance.activeTheme ?? null,
-  );
+  const activeThemeId = $derived(settingsService.currentSettings.appearance.activeTheme ?? null);
 
   async function refreshDiscovery() {
     try {
@@ -61,7 +59,9 @@
 
       const themeId = nameToManifestId[theme.name];
       if (!themeId) {
-        logService.warn(`[onboarding] installed theme not found in registry after install: ${theme.name}`);
+        logService.warn(
+          `[onboarding] installed theme not found in registry after install: ${theme.name}`,
+        );
         diagnosticsService.report({
           source: 'frontend',
           kind: 'manual',
@@ -118,8 +118,8 @@
   }
 
   $effect(() => {
-    onboardingNav.set({ showSkip: true, onPrimary: advanceStep, onSkip: advanceStep })
-  })
+    onboardingNav.set({ showSkip: true, onPrimary: advanceStep, onSkip: advanceStep });
+  });
 
   onMount(load);
 </script>
@@ -167,7 +167,6 @@
       {/each}
     </ul>
   {/if}
-
 </Card>
 
 <style>

@@ -1,11 +1,7 @@
 import { invokeSafe } from './invokeSafe';
 
 export type DispatchMessageKind =
-  | 'command'
-  | 'action'
-  | 'viewSubmit'
-  | 'viewSearch'
-  | 'predictiveWarm';
+  'command' | 'action' | 'viewSubmit' | 'viewSearch' | 'predictiveWarm';
 
 export type DispatchTriggerSource =
   | 'search'
@@ -52,7 +48,10 @@ export function iframeReadyAck(
   return invokeSafe('iframe_ready_ack', { extensionId, mountToken, role });
 }
 
-export async function iframeUnmountAck(extensionId: string, role: 'view' | 'worker'): Promise<void> {
+export async function iframeUnmountAck(
+  extensionId: string,
+  role: 'view' | 'worker',
+): Promise<void> {
   await invokeSafe('iframe_unmount_ack', { extensionId, role });
 }
 

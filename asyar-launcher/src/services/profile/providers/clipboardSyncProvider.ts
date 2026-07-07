@@ -116,7 +116,13 @@ export class ClipboardSyncProvider implements ISyncProvider {
       for (const item of incomingItems) {
         await clipboardHistoryStore.addHistoryItem(item);
       }
-      return { success: true, itemsAdded: incomingItems.length, itemsUpdated: 0, itemsRemoved: 0, warnings: [] };
+      return {
+        success: true,
+        itemsAdded: incomingItems.length,
+        itemsUpdated: 0,
+        itemsRemoved: 0,
+        warnings: [],
+      };
     }
 
     const local = await collectAllItems();
@@ -143,7 +149,11 @@ export class ClipboardSyncProvider implements ISyncProvider {
     const items = await collectAllItems();
     return items
       .filter((i) => i.type !== 'image')
-      .map((i) => ({ id: i.id, categoryId: this.id, content: i as unknown as ClipboardHistoryItem }));
+      .map((i) => ({
+        id: i.id,
+        categoryId: this.id,
+        content: i as unknown as ClipboardHistoryItem,
+      }));
   }
 
   async applyItemUpsert(item: SyncItem): Promise<void> {

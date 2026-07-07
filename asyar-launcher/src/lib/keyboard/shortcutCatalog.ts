@@ -24,10 +24,22 @@ export interface ShortcutEntry {
 export const LAUNCHER_SHORTCUTS: readonly ShortcutEntry[] = [
   { keys: ['⌘', ','], label: 'Open Settings', scope: 'global' },
   { keys: ['⌘', 'K'], label: 'Toggle the action panel', scope: 'global' },
-  { keys: ['⌘', 'P'], label: 'Toggle the search-bar dropdown (when one is shown)', scope: 'global' },
-  { keys: ['Tab'], label: 'Fill command arguments, or switch to AI / context mode', scope: 'global' },
+  {
+    keys: ['⌘', 'P'],
+    label: 'Toggle the search-bar dropdown (when one is shown)',
+    scope: 'global',
+  },
+  {
+    keys: ['Tab'],
+    label: 'Fill command arguments, or switch to AI / context mode',
+    scope: 'global',
+  },
   { keys: ['↑', '↓'], label: 'Move between results', scope: 'global' },
   { keys: ['Enter'], label: 'Run the selected result', scope: 'global' },
   { keys: ['Esc'], label: 'Clear the search, go back, then hide Asyar', scope: 'global' },
-  { keys: ['⌫'], label: 'Go back from a view, or exit AI mode when the search is empty', scope: 'view' },
+  {
+    keys: ['⌫'],
+    label: 'Go back from a view, or exit AI mode when the search is empty',
+    scope: 'view',
+  },
 ] as const;

@@ -15,7 +15,8 @@ const manifestModules = import.meta.glob<ManifestShape>('./*/manifest.json', {
 
 function collectIconRefs(manifest: ManifestShape, file: string) {
   const refs: Array<{ name: string; where: string }> = [];
-  if (manifest.icon) refs.push({ name: manifest.icon, where: `${manifest.id ?? file} (extension icon)` });
+  if (manifest.icon)
+    refs.push({ name: manifest.icon, where: `${manifest.id ?? file} (extension icon)` });
   for (const cmd of manifest.commands ?? []) {
     if (cmd.icon) refs.push({ name: cmd.icon, where: `${manifest.id}/${cmd.id} (command)` });
   }

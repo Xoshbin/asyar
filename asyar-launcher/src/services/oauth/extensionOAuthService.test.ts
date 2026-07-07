@@ -90,10 +90,13 @@ describe('ExtensionOAuthService', () => {
       vi.mocked(commands.oauthGetStoredToken).mockResolvedValue(token);
 
       const result = await service.authorize(
-        'ext.foo', 'github', 'clientid',
+        'ext.foo',
+        'github',
+        'clientid',
         'https://github.com/login/oauth/authorize',
         'https://github.com/login/oauth/access_token',
-        ['repo'], 'flow-1',
+        ['repo'],
+        'flow-1',
       );
 
       expect(result).toEqual(token);
@@ -109,10 +112,13 @@ describe('ExtensionOAuthService', () => {
       });
 
       const result = await service.authorize(
-        'ext.foo', 'github', 'clientid',
+        'ext.foo',
+        'github',
+        'clientid',
         'https://github.com/login/oauth/authorize',
         'https://github.com/login/oauth/access_token',
-        ['repo'], 'flow-2',
+        ['repo'],
+        'flow-2',
       );
 
       expect(result).toEqual({ pending: true });
@@ -146,9 +152,13 @@ describe('ExtensionOAuthService', () => {
         authUrl: 'https://example.com/auth',
       });
       await service.authorize(
-        'ext.foo', 'github', 'cid',
-        'https://example.com/auth', 'https://example.com/token',
-        [], 'flow-42',
+        'ext.foo',
+        'github',
+        'cid',
+        'https://example.com/auth',
+        'https://example.com/token',
+        [],
+        'flow-42',
       );
 
       vi.mocked(commands.oauthExchangeCode).mockResolvedValue({
@@ -158,9 +168,7 @@ describe('ExtensionOAuthService', () => {
       });
 
       // Simulate callback
-      await (service as any)._handleCallback(
-        'asyar://oauth/callback?code=mycode&state=state-abc'
-      );
+      await (service as any)._handleCallback('asyar://oauth/callback?code=mycode&state=state-abc');
 
       expect(commands.oauthExchangeCode).toHaveBeenCalledWith('state-abc', 'mycode');
       // document.querySelector is mocked — the postMessage on the returned iframe fires
@@ -179,15 +187,19 @@ describe('ExtensionOAuthService', () => {
         authUrl: 'https://example.com/auth',
       });
       await service.authorize(
-        'ext.foo', 'github', 'cid',
-        'https://example.com/auth', 'https://example.com/token',
-        [], 'flow-err',
+        'ext.foo',
+        'github',
+        'cid',
+        'https://example.com/auth',
+        'https://example.com/token',
+        [],
+        'flow-err',
       );
 
       vi.clearAllMocks(); // reset mockPostMessage call count
 
       await (service as any)._handleCallback(
-        'asyar://oauth/callback?error=access_denied&state=state-err'
+        'asyar://oauth/callback?error=access_denied&state=state-err',
       );
 
       expect(mockPostMessage).toHaveBeenCalledWith(
@@ -221,9 +233,13 @@ describe('ExtensionOAuthService', () => {
         authUrl: 'https://example.com/auth',
       });
       await service.authorize(
-        'ext.foo', 'github', 'cid',
-        'https://example.com/auth', 'https://example.com/token',
-        [], 'flow-broadcast',
+        'ext.foo',
+        'github',
+        'cid',
+        'https://example.com/auth',
+        'https://example.com/token',
+        [],
+        'flow-broadcast',
       );
 
       vi.mocked(commands.oauthExchangeCode).mockResolvedValue({
@@ -232,9 +248,7 @@ describe('ExtensionOAuthService', () => {
         token,
       });
 
-      await (service as any)._handleCallback(
-        'asyar://oauth/callback?code=c&state=state-broadcast'
-      );
+      await (service as any)._handleCallback('asyar://oauth/callback?code=c&state=state-broadcast');
 
       // Both iframes received the broadcast. The non-initiator's SDK proxy
       // drops the message because its flowId does not match the registered

@@ -10,7 +10,11 @@ vi.mock('../../services/extension/commandService.svelte', () => ({
   commandService: { registerCommand: vi.fn(), unregisterCommand: vi.fn() },
 }));
 vi.mock('../../services/context/contextModeService.svelte', () => ({
-  contextModeService: { registerProvider: vi.fn(), unregisterProvider: vi.fn(), updateQuery: vi.fn() },
+  contextModeService: {
+    registerProvider: vi.fn(),
+    unregisterProvider: vi.fn(),
+    updateQuery: vi.fn(),
+  },
 }));
 vi.mock('./portalStore.svelte', () => ({
   portalStore: { portals: [], getAll: vi.fn(() => []), getById: vi.fn(), remove: vi.fn() },
@@ -75,8 +79,9 @@ describe('Portal context provider metadata', () => {
   beforeEach(() => vi.clearAllMocks());
 
   function getRegisteredProvider(portalId: string) {
-    return vi.mocked(contextModeService.registerProvider).mock.calls
-      .find(c => c[0].id === `portal_${portalId}`)![0];
+    return vi
+      .mocked(contextModeService.registerProvider)
+      .mock.calls.find((c) => c[0].id === `portal_${portalId}`)![0];
   }
 
   it('links the provider to its command object id', async () => {
@@ -109,8 +114,9 @@ describe('Portal onActivate guard', () => {
 
   async function getOnActivate(portal: any) {
     await syncPortalToIndex(portal as any);
-    const call = vi.mocked(contextModeService.registerProvider).mock.calls
-      .find(c => c[0].id === `portal_${portal.id}`);
+    const call = vi
+      .mocked(contextModeService.registerProvider)
+      .mock.calls.find((c) => c[0].id === `portal_${portal.id}`);
     return call![0].onActivate!;
   }
 
@@ -133,16 +139,29 @@ describe('Portal onActivate guard', () => {
     vi.mocked(resolveTemplate).mockResolvedValue('https://google.com/?q=hello');
     const onActivate = await getOnActivate(portal);
     await onActivate('hello');
-    expect(resolveTemplate).toHaveBeenCalledWith(portal.url, { query: 'hello' }, { encodeValues: true });
-    expect(invoke).toHaveBeenCalledWith('plugin:opener|open_url', { url: 'https://google.com/?q=hello' });
+    expect(resolveTemplate).toHaveBeenCalledWith(
+      portal.url,
+      { query: 'hello' },
+      { encodeValues: true },
+    );
+    expect(invoke).toHaveBeenCalledWith('plugin:opener|open_url', {
+      url: 'https://google.com/?q=hello',
+    });
   });
 
   it('{Selected Text} portal with non-empty query → opens browser', async () => {
-    const portal = { id: '4', name: 'Translate', url: 'https://translate.google.com/?text={Selected Text}', icon: '🌐' };
+    const portal = {
+      id: '4',
+      name: 'Translate',
+      url: 'https://translate.google.com/?text={Selected Text}',
+      icon: '🌐',
+    };
     vi.mocked(resolveTemplate).mockResolvedValue('https://translate.google.com/?text=hello+world');
     const onActivate = await getOnActivate(portal);
     await onActivate('hello world');
-    expect(invoke).toHaveBeenCalledWith('plugin:opener|open_url', { url: 'https://translate.google.com/?text=hello+world' });
+    expect(invoke).toHaveBeenCalledWith('plugin:opener|open_url', {
+      url: 'https://translate.google.com/?text=hello+world',
+    });
   });
 });
 
@@ -151,8 +170,9 @@ describe('Portal chip pre-fill (onActivate with empty query)', () => {
 
   async function getOnActivate(portal: any) {
     await syncPortalToIndex(portal as any);
-    const call = vi.mocked(contextModeService.registerProvider).mock.calls
-      .find(c => c[0].id === `portal_${portal.id}`);
+    const call = vi
+      .mocked(contextModeService.registerProvider)
+      .mock.calls.find((c) => c[0].id === `portal_${portal.id}`);
     return call![0].onActivate!;
   }
 
@@ -180,7 +200,9 @@ describe('Portal chip pre-fill (onActivate with empty query)', () => {
     vi.mocked(resolveTemplate).mockResolvedValue('https://google.com/?q=hello');
     const onActivate = await getOnActivate(portal);
     await onActivate('hello');
-    expect(invoke).toHaveBeenCalledWith('plugin:opener|open_url', { url: 'https://google.com/?q=hello' });
+    expect(invoke).toHaveBeenCalledWith('plugin:opener|open_url', {
+      url: 'https://google.com/?q=hello',
+    });
     expect(vi.mocked(contextModeService.updateQuery)).not.toHaveBeenCalled();
   });
 });

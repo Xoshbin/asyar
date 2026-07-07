@@ -1,7 +1,10 @@
 import { onMount } from 'svelte';
 import { updateShortcut } from '../../utils/shortcutManager';
 import { goto } from '$app/navigation';
-import { settingsService, settings as settingsStore } from '../../services/settings/settingsService.svelte';
+import {
+  settingsService,
+  settings as settingsStore,
+} from '../../services/settings/settingsService.svelte';
 import extensionManager from '../../services/extension/extensionManager.svelte';
 import { extensionStateManager } from '../../services/extension/extensionStateManager.svelte';
 import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
@@ -44,24 +47,24 @@ export const DEFAULT_SETTINGS: AppSettings = {
     applicationEnabled: {},
   },
   shortcut: {
-    modifier: "Super",
-    key: "K",
+    modifier: 'Super',
+    key: 'K',
   },
   appearance: {
-    theme: "system" as const,
-    launchView: "default" as const,
+    theme: 'system' as const,
+    launchView: 'default' as const,
     windowWidth: 800,
     windowHeight: 600,
     activeTheme: null,
   },
   extensions: {
-    enabled: {}
+    enabled: {},
   },
   onboarding: {
     completed: false,
   },
   updates: {
-    channel: "stable" as const,
+    channel: 'stable' as const,
     autoCheck: true,
   },
   ai: {
@@ -110,13 +113,12 @@ export class SettingsHandler {
   selectedLaunchView = $state<'default' | 'compact'>('default');
   isLoading = $state(true);
   initError = $state('');
-  
+
   // Extensions state
   extensions = $state<ExtensionItem[]>([]);
   isLoadingExtensions = $state(false);
   extensionError = $state('');
   togglingExtension = $state<string | null>(null);
-
 
   private unsubscribe: (() => void) | null = null;
   private unlistenPreferencesChanged: (() => void) | null = null;
@@ -140,17 +142,17 @@ export class SettingsHandler {
       this.selectedKey = this.settings.shortcut.key;
       this.selectedTheme = this.settings.appearance.theme;
       this.selectedLaunchView = this.settings.appearance.launchView;
-      
+
       // Initialize settings service
       const success = await settingsService.init();
-      
+
       if (!success) {
-        logService.error("Settings initialization failed");
-        this.initError = "Settings initialization failed. Using defaults.";
+        logService.error('Settings initialization failed');
+        this.initError = 'Settings initialization failed. Using defaults.';
       } else {
         // Get the initialized settings
         this.settings = settingsService.getSettings();
-        
+
         // Set local state from settings
         this.selectedModifier = this.settings.shortcut.modifier;
         this.selectedKey = this.settings.shortcut.key;
@@ -186,7 +188,7 @@ export class SettingsHandler {
             if (!extensionId) return;
             extensionPreferencesService.invalidateCache(extensionId);
             this.preferencesVersion += 1;
-          }
+          },
         );
       } catch (err) {
         logService.warn(`Failed to subscribe to asyar:preferences-changed: ${err}`);
@@ -243,11 +245,16 @@ export class SettingsHandler {
       // and the detail panel renders blank values.
       for (const ext of this.extensions) {
         if (!ext.id) continue;
-        const extPrefs: PreferenceDeclaration[] = (ext.preferences ?? []) as PreferenceDeclaration[];
+        const extPrefs: PreferenceDeclaration[] = (ext.preferences ??
+          []) as PreferenceDeclaration[];
         const cmdPrefs: Record<string, PreferenceDeclaration[]> = {};
         for (const cmd of ext.commands ?? []) {
           const cmdAny = cmd as any;
-          if (cmdAny.preferences && Array.isArray(cmdAny.preferences) && cmdAny.preferences.length > 0) {
+          if (
+            cmdAny.preferences &&
+            Array.isArray(cmdAny.preferences) &&
+            cmdAny.preferences.length > 0
+          ) {
             cmdPrefs[cmd.id] = cmdAny.preferences as PreferenceDeclaration[];
           }
         }
@@ -267,18 +274,18 @@ export class SettingsHandler {
 
   async toggleExtension(extension: ExtensionItem) {
     if (this.togglingExtension === extension.title) return;
-    
+
     this.togglingExtension = extension.title;
     const newState = !extension.enabled;
-    
+
     try {
       const success = await extensionManager.toggleExtensionState(extension.title, newState);
-      
+
       if (success) {
         extension.enabled = newState;
         this.saveMessage = 'Extension settings updated. Restart Asyar to apply changes.';
         this.saveError = false;
-        
+
         setTimeout(() => {
           this.saveMessage = '';
         }, 5000);
@@ -289,10 +296,10 @@ export class SettingsHandler {
       logService.error(`Failed to toggle extension ${extension.title}: ${error}`);
       this.saveMessage = 'Failed to update extension settings.';
       this.saveError = true;
-      
+
       setTimeout(() => {
         this.saveMessage = '';
-        this.saveError = false; 
+        this.saveError = false;
       }, 3000);
     } finally {
       this.togglingExtension = null;
@@ -313,17 +320,17 @@ export class SettingsHandler {
       const extensionId = extension.id;
 
       if (!extensionId) {
-        throw new Error("Extension ID not available");
+        throw new Error('Extension ID not available');
       }
 
       const success = await extensionManager.uninstallExtension(extensionId);
 
       if (success) {
-        this.extensions = this.extensions.filter(ext => ext.title !== extensionName);
+        this.extensions = this.extensions.filter((ext) => ext.title !== extensionName);
         this.saveMessage = `Extension "${extensionName}" uninstalled successfully.`;
         this.saveError = false;
       } else {
-        throw new Error("Failed to uninstall extension");
+        throw new Error('Failed to uninstall extension');
       }
     } catch (error) {
       logService.error(`Error uninstalling extension: ${error}`);
@@ -344,7 +351,7 @@ export class SettingsHandler {
 
     try {
       const success = await updateShortcut(this.selectedModifier, this.selectedKey);
-      
+
       if (success) {
         this.saveMessage = 'Shortcut saved successfully';
       } else {
@@ -365,9 +372,9 @@ export class SettingsHandler {
   async handleAutostartToggle() {
     try {
       const success = await settingsService.updateSettings('general', {
-        startAtLogin: !this.settings.general.startAtLogin
+        startAtLogin: !this.settings.general.startAtLogin,
       });
-      
+
       if (!success) {
         throw new Error('Failed to update autostart setting');
       }
@@ -375,7 +382,7 @@ export class SettingsHandler {
       logService.error(`Failed to update autostart setting: ${error}`);
       this.saveError = true;
       this.saveMessage = 'Failed to update startup setting';
-      
+
       setTimeout(() => {
         this.saveMessage = '';
         this.saveError = false;
@@ -386,10 +393,11 @@ export class SettingsHandler {
   async handleExtensionSearchToggle() {
     try {
       const success = await settingsService.updateSettings('search', {
-        enableExtensionSearch: !this.settings.search.enableExtensionSearch
+        enableExtensionSearch: !this.settings.search.enableExtensionSearch,
       });
       if (success) {
-        this.saveMessage = 'Search settings updated. Please restart Asyar for these changes to take effect.';
+        this.saveMessage =
+          'Search settings updated. Please restart Asyar for these changes to take effect.';
         this.saveError = false;
       } else {
         throw new Error('Failed to update extension search setting');
@@ -416,16 +424,19 @@ export class SettingsHandler {
       logService.error(`Failed to update extension actions setting: ${error}`);
       this.saveError = true;
       this.saveMessage = 'Failed to update extension actions setting';
-      setTimeout(() => { this.saveMessage = ''; this.saveError = false; }, 3000);
+      setTimeout(() => {
+        this.saveMessage = '';
+        this.saveError = false;
+      }, 3000);
     }
   }
 
   async updateEscapeBehavior(behavior: 'go-back' | 'close-window' | 'hide-and-reset') {
     try {
       const success = await settingsService.updateSettings('general', {
-        escapeInViewBehavior: behavior
+        escapeInViewBehavior: behavior,
       });
-      
+
       if (!success) {
         throw new Error('Failed to update escape behavior setting');
       }
@@ -433,7 +444,7 @@ export class SettingsHandler {
       logService.error(`Failed to update escape behavior setting: ${error}`);
       this.saveError = true;
       this.saveMessage = 'Failed to update setting';
-      
+
       setTimeout(() => {
         this.saveMessage = '';
         this.saveError = false;
@@ -449,7 +460,7 @@ export class SettingsHandler {
       logService.error(`Failed to update theme: `);
       this.saveError = true;
       this.saveMessage = 'Failed to update theme';
-      
+
       setTimeout(() => {
         this.saveMessage = '';
         this.saveError = false;
@@ -489,7 +500,7 @@ export class SettingsHandler {
     }
   }
 
-  async updateChannel(channel: "stable" | "beta") {
+  async updateChannel(channel: 'stable' | 'beta') {
     await settingsService.updateSettings('updates', { channel });
   }
 
@@ -512,11 +523,16 @@ export class SettingsHandler {
       logService.error(`Failed to toggle developer mode: ${error}`);
       this.saveError = true;
       this.saveMessage = 'Failed to update developer mode';
-      setTimeout(() => { this.saveMessage = ''; this.saveError = false; }, 3000);
+      setTimeout(() => {
+        this.saveMessage = '';
+        this.saveError = false;
+      }, 3000);
     }
   }
 
-  async handleDeveloperSettingToggle(key: 'showInspector' | 'verboseLogging' | 'tracing' | 'allowSideloading') {
+  async handleDeveloperSettingToggle(
+    key: 'showInspector' | 'verboseLogging' | 'tracing' | 'allowSideloading',
+  ) {
     try {
       const current = this.settings.developer ?? DEFAULT_SETTINGS.developer!;
       await settingsService.updateSettings('developer', {
@@ -527,7 +543,10 @@ export class SettingsHandler {
       logService.error(`Failed to toggle developer setting ${key}: ${error}`);
       this.saveError = true;
       this.saveMessage = 'Failed to update developer setting';
-      setTimeout(() => { this.saveMessage = ''; this.saveError = false; }, 3000);
+      setTimeout(() => {
+        this.saveMessage = '';
+        this.saveError = false;
+      }, 3000);
     }
   }
 }

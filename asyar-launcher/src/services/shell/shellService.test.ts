@@ -13,7 +13,12 @@ const mockLocalHandle = vi.hoisted(() => ({
 
 const mockRunService = vi.hoisted(() => ({
   startLocal: vi.fn<
-    (input: { label: string; kind: string; cancellable?: boolean; extensionId?: string | null }) => Promise<typeof mockLocalHandle>
+    (input: {
+      label: string;
+      kind: string;
+      cancellable?: boolean;
+      extensionId?: string | null;
+    }) => Promise<typeof mockLocalHandle>
   >(async () => mockLocalHandle),
 }));
 
@@ -115,12 +120,15 @@ describe('ShellService', () => {
 
       await shellService.spawn('org.asyar.sdk-playground', 'git', ['status'], 'spawn-2');
 
-      expect(invoke).toHaveBeenCalledWith('shell_spawn', expect.objectContaining({
-        program: '/opt/homebrew/bin/git',
-        args: ['status'],
-        spawnId: 'spawn-2',
-        extensionId: 'org.asyar.sdk-playground',
-      }));
+      expect(invoke).toHaveBeenCalledWith(
+        'shell_spawn',
+        expect.objectContaining({
+          program: '/opt/homebrew/bin/git',
+          args: ['status'],
+          spawnId: 'spawn-2',
+          extensionId: 'org.asyar.sdk-playground',
+        }),
+      );
     });
   });
 

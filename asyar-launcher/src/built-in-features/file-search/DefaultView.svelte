@@ -73,9 +73,7 @@
     void runSearch();
   });
 
-  let items = $derived(
-    fileSearchViewState.allItems.map((r) => ({ ...r, id: r.fileId })),
-  );
+  let items = $derived(fileSearchViewState.allItems.map((r) => ({ ...r, id: r.fileId })));
   let selectedId = $derived(fileSearchViewState.selectedFileId);
   let selectedIndex = $derived(items.findIndex((i) => i.fileId === selectedId));
   let selected = $derived(items.find((i) => i.fileId === selectedId));
@@ -231,7 +229,7 @@
 
 <div class="view-container">
   <SplitListDetail
-    items={items}
+    {items}
     {selectedIndex}
     leftWidth={320}
     minLeftWidth={240}
@@ -253,19 +251,57 @@
             {#if rowThumbnails[item.fileId]}
               <img src={rowThumbnails[item.fileId]} alt="" class="row-thumb" />
             {:else if item.type === 'image'}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                ><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle
+                  cx="8.5"
+                  cy="8.5"
+                  r="1.5"
+                /><polyline points="21 15 16 10 5 21" /></svg
+              >
             {:else if item.type === 'code'}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                ><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg
+              >
             {:else if item.type === 'audio-video'}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                ><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle
+                  cx="18"
+                  cy="16"
+                  r="3"
+                /></svg
+              >
             {:else if item.type === 'archive'}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                ><polyline points="21 8 21 21 3 21 3 8" /><rect
+                  x="1"
+                  y="3"
+                  width="22"
+                  height="5"
+                /><line x1="10" y1="12" x2="14" y2="12" /></svg
+              >
             {:else if item.type === 'folder'}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                ><path
+                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                /></svg
+              >
             {:else if item.type === 'document'}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                ><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline
+                  points="14 2 14 8 20 8"
+                /><line x1="16" y1="13" x2="8" y2="13" /><line
+                  x1="16"
+                  y1="17"
+                  x2="8"
+                  y2="17"
+                /></svg
+              >
             {:else}
-              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <svg class="row-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                ><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline
+                  points="14 2 14 8 20 8"
+                /></svg
+              >
             {/if}
           </div>
         {/snippet}
@@ -274,7 +310,9 @@
             <Badge text="deep" variant="default" mono />
           {:else if pinnedIds.has(item.fileId)}
             <svg class="pin-badge" fill="currentColor" viewBox="0 0 24 24" aria-label="Pinned">
-              <path d="M16 2v5l2 2-4 4v4l-2-2-2 2v-4L6 9l2-2V2h8zm0-2H8v6.17L4.83 9.34a1 1 0 000 1.41L8 13.92V18a1 1 0 00.55.89l2 1a1 1 0 00.9 0l2-1A1 1 0 0014 18v-4.08l3.17-3.17a1 1 0 000-1.41L16 6.17V0z"/>
+              <path
+                d="M16 2v5l2 2-4 4v4l-2-2-2 2v-4L6 9l2-2V2h8zm0-2H8v6.17L4.83 9.34a1 1 0 000 1.41L8 13.92V18a1 1 0 00.55.89l2 1a1 1 0 00.9 0l2-1A1 1 0 0014 18v-4.08l3.17-3.17a1 1 0 000-1.41L16 6.17V0z"
+              />
             </svg>
           {/if}
         {/snippet}
@@ -323,17 +361,28 @@
                 <span class="text-caption">{formatBytes(selectedSize)}</span>
               {/if}
               <span class="text-caption opacity-70">{formatRelativeTime(selected.modifiedAt)}</span>
-              <span class="text-caption opacity-50 truncate" style="max-width:300px;">{selected.path}</span>
+              <span class="text-caption opacity-50 truncate" style="max-width:300px;"
+                >{selected.path}</span
+              >
             </div>
           {/snippet}
         </ActionFooter>
       {:else}
-        <EmptyState message={fileSearchViewState.searchQuery ? 'Select a file to preview' : 'Start typing to find files'}>
+        <EmptyState
+          message={fileSearchViewState.searchQuery
+            ? 'Select a file to preview'
+            : 'Start typing to find files'}
+        >
           {#snippet icon()}
             <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
-              <circle cx="11" cy="13" r="3"/>
-              <line x1="13.5" y1="15.5" x2="16" y2="18"/>
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+              />
+              <circle cx="11" cy="13" r="3" />
+              <line x1="13.5" y1="15.5" x2="16" y2="18" />
             </svg>
           {/snippet}
         </EmptyState>

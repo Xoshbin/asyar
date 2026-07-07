@@ -1,6 +1,7 @@
 ---
 order: 4
 ---
+
 # Extension Runtime — How Worker and View Iframes Are Mounted, Driven, and Talked Between
 
 This page documents the **`extension_runtime`** Rust module
@@ -14,10 +15,10 @@ calls travel.
 
 Every enabled Tier 2 extension is mounted as **two independent iframes**:
 
-| Role | HTML | Lifecycle | Hosts |
-|---|---|---|---|
-| **Worker** | `worker.html` | Always-on (mounted when the extension is enabled, unmounted only on disable / uninstall) | Push subscriptions, scheduled ticks, `timers:*`, tray writes (`statusBar`), notification-action handlers, RPC handlers, `search()` |
-| **View** | `view.html` | On-demand (mounted when a `mode: "view"` command opens, evicted ~120 s after last interaction) | UI only — Svelte components, DOM helpers, theme injection, view-search input |
+| Role       | HTML          | Lifecycle                                                                                      | Hosts                                                                                                                              |
+| ---------- | ------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Worker** | `worker.html` | Always-on (mounted when the extension is enabled, unmounted only on disable / uninstall)       | Push subscriptions, scheduled ticks, `timers:*`, tray writes (`statusBar`), notification-action handlers, RPC handlers, `search()` |
+| **View**   | `view.html`   | On-demand (mounted when a `mode: "view"` command opens, evicted ~120 s after last interaction) | UI only — Svelte components, DOM helpers, theme injection, view-search input                                                       |
 
 Both iframes are sandboxed at the same origin
 (`asyar-extension://<id>/` on macOS/Linux, `http://asyar-extension.localhost/<id>/`
@@ -71,15 +72,15 @@ State alphabet:
 
 `RuntimeConfig::default()` pins the timers:
 
-| Field | Value | Notes |
-|---|---|---|
-| `worker.keep_alive` | `None` | Worker never evicts on idle. |
-| `view.keep_alive` | `Some(120 s)` | View evicts after 120 s of inactivity. |
-| `mount_timeout` | `3 s` | Same for both roles. |
-| `strike_window` | `300 s` | Sliding window for strike accumulation. |
-| `strike_threshold` | `3` | Mounts before a context is Degraded. |
-| `degraded_cooldown` | `3600 s` | Recovery wait. |
-| `tick_interval` | `1 s` | Tick driver cadence. |
+| Field               | Value         | Notes                                   |
+| ------------------- | ------------- | --------------------------------------- |
+| `worker.keep_alive` | `None`        | Worker never evicts on idle.            |
+| `view.keep_alive`   | `Some(120 s)` | View evicts after 120 s of inactivity.  |
+| `mount_timeout`     | `3 s`         | Same for both roles.                    |
+| `strike_window`     | `300 s`       | Sliding window for strike accumulation. |
+| `strike_threshold`  | `3`           | Mounts before a context is Degraded.    |
+| `degraded_cooldown` | `3600 s`      | Recovery wait.                          |
+| `tick_interval`     | `1 s`         | Tick driver cadence.                    |
 
 ## Mailbox + mount tokens
 
@@ -102,7 +103,7 @@ mount event, the iframe echoes it back in `asyar:extension:loaded`, and the
 launcher's `on_ready_ack(extension_id, mount_token, role, now)` only
 drains the mailbox if the token matches the current `Mounting` state. Tokens
 solve a TOCTOU class of bugs: an iframe that crashes mid-mount and its
-late `loaded` event cannot promote a *new* mount attempt to Ready.
+late `loaded` event cannot promote a _new_ mount attempt to Ready.
 
 When `on_ready_ack` runs successfully, the state machine transitions to
 `Ready` and returns `Vec<PendingMessage>` to the launcher, which inline-delivers
@@ -159,22 +160,24 @@ on top of the state broker. The view-side public API:
 
 ```ts
 // View context (asyar-sdk/view)
-const stats = await context.request<{}, { rounds: number }>('getStats', {}, {
-  timeoutMs: 5_000,        // default
-  signal: abortController.signal,  // optional, cooperative abort
-});
+const stats = await context.request<{}, { rounds: number }>(
+  'getStats',
+  {},
+  {
+    timeoutMs: 5_000, // default
+    signal: abortController.signal, // optional, cooperative abort
+  },
+);
 ```
 
 The worker-side public API:
 
 ```ts
 // Worker context (asyar-sdk/worker)
-const dispose = context.onRequest<{}, { rounds: number }>('getStats',
-  async (_payload, signal) => {
-    if (signal.aborted) throw new Error('aborted');
-    return { rounds: await readRounds() };
-  },
-);
+const dispose = context.onRequest<{}, { rounds: number }>('getStats', async (_payload, signal) => {
+  if (signal.aborted) throw new Error('aborted');
+  return { rounds: await readRounds() };
+});
 // later: dispose(); // unregister
 ```
 
@@ -255,15 +258,15 @@ These rules follow from the lifecycle model. They are enforced by code
 review (see the `architectural-integrity` and `review-ipc` skills under
 [`asyar-launcher/.claude/skills/`](../../.claude/skills/)).
 
-| Belongs in worker | Belongs in view |
-|---|---|
-| Push subscriptions (`appEvents`, `applicationIndex`, `systemEvents`, `state:*`) | Svelte components |
-| `commands.onCommand(id, handler)` registrations | `commands.onCommand(...)` for handlers that need DOM (rare) |
-| `timers:*` schedules and callbacks | Anything reading the document, focus, selection |
-| `statusBar:*` writes (tray icons) | `feedback`, `interop`, `clipboard-history`, `selection` calls |
-| Notification action callbacks (declared via `actions.registerActionHandler` from the worker) | UI-bound action handlers |
-| `search()` for `searchable: true` extensions | View-search keystroke handling (`asyar:view:search` / `asyar:view:submit`) |
-| RPC handlers (`context.onRequest`) | RPC callers (`context.request`) |
+| Belongs in worker                                                                            | Belongs in view                                                            |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Push subscriptions (`appEvents`, `applicationIndex`, `systemEvents`, `state:*`)              | Svelte components                                                          |
+| `commands.onCommand(id, handler)` registrations                                              | `commands.onCommand(...)` for handlers that need DOM (rare)                |
+| `timers:*` schedules and callbacks                                                           | Anything reading the document, focus, selection                            |
+| `statusBar:*` writes (tray icons)                                                            | `feedback`, `interop`, `clipboard-history`, `selection` calls              |
+| Notification action callbacks (declared via `actions.registerActionHandler` from the worker) | UI-bound action handlers                                                   |
+| `search()` for `searchable: true` extensions                                                 | View-search keystroke handling (`asyar:view:search` / `asyar:view:submit`) |
+| RPC handlers (`context.onRequest`)                                                           | RPC callers (`context.request`)                                            |
 
 If something needs to keep working while the launcher is closed (the user
 hit Escape), it must live in the worker. The view iframe is gone within

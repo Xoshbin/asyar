@@ -5,11 +5,7 @@
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 
   let toMount = $derived(
-    computeBackgroundIframeSet(
-      workerRegistry.entries,
-      extensionManager.extensionRecords,
-      null,
-    ),
+    computeBackgroundIframeSet(workerRegistry.entries, extensionManager.extensionRecords, null),
   );
 
   const isWindows =
@@ -35,7 +31,7 @@
     data-extension-id={entry.extensionId}
     data-mount-token={String(entry.mountToken)}
     data-role="worker"
-    src={src}
+    {src}
     style="display: none; width: 0; height: 0; border: 0;"
     sandbox="allow-scripts allow-same-origin"
     title="Worker: {entry.extensionId}"

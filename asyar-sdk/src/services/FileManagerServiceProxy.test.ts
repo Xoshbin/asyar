@@ -4,10 +4,10 @@ import { messageBroker } from '../ipc/MessageBroker';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
-      invoke: vi.fn(),
-      on: vi.fn(),
-      off: vi.fn(),
-    },
+    invoke: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
 }));
 
 function makeProxy() {
@@ -33,7 +33,7 @@ describe('FileManagerServiceProxy', () => {
 
     await proxy.showInFileManager('/some/path');
 
-    const call = mockInvoke.mock.calls.find(c => c[0] === 'fs:showInFileManager');
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'fs:showInFileManager');
     expect(call).toBeDefined();
     expect(call?.[1]).toEqual({ path: '/some/path' });
   });
@@ -44,7 +44,7 @@ describe('FileManagerServiceProxy', () => {
 
     await proxy.trash('/some/path');
 
-    const call = mockInvoke.mock.calls.find(c => c[0] === 'fs:trash');
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'fs:trash');
     expect(call).toBeDefined();
     expect(call?.[1]).toEqual({ path: '/some/path' });
   });

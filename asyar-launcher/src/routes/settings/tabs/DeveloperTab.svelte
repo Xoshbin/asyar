@@ -45,8 +45,7 @@
     if (reloadingExt) return;
     reloadingExt = extensionId;
     const manifest = extensionManager.getManifestById(extensionId) as
-      | { background?: { main?: string } }
-      | undefined;
+      { background?: { main?: string } } | undefined;
     const ok = await forceRemountWorker(extensionId, !!manifest?.background?.main);
     if (ok) {
       feedbackService.showToast({ title: `Reloaded ${extensionId}` });

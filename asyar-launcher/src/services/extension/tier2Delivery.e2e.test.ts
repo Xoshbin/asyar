@@ -32,13 +32,13 @@ describe('Tier 2 delivery — end-to-end per trigger', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it.each([
-    ['search',       { kind: 'command', payload: { commandId: 'run' } }],
-    ['argument',     { kind: 'command', payload: { commandId: 'run', args: { q: 1 } } }],
-    ['timer',        { kind: 'command', payload: { commandId: 'fire', args: {} } }],
-    ['schedule',     { kind: 'command', payload: { commandId: 'tick', args: {} } }],
-    ['deeplink',     { kind: 'command', payload: { commandId: 'open', args: { id: 'x' } } }],
-    ['notification', { kind: 'action',  payload: { actionId: 'snooze' } }],
-    ['invoke',       { kind: 'command', payload: { commandId: 'cross', args: {} } }],
+    ['search', { kind: 'command', payload: { commandId: 'run' } }],
+    ['argument', { kind: 'command', payload: { commandId: 'run', args: { q: 1 } } }],
+    ['timer', { kind: 'command', payload: { commandId: 'fire', args: {} } }],
+    ['schedule', { kind: 'command', payload: { commandId: 'tick', args: {} } }],
+    ['deeplink', { kind: 'command', payload: { commandId: 'open', args: { id: 'x' } } }],
+    ['notification', { kind: 'action', payload: { actionId: 'snooze' } }],
+    ['invoke', { kind: 'command', payload: { commandId: 'cross', args: {} } }],
   ] as const)('source=%s → posts to iframe on Ready outcome', async (source, base) => {
     const postMessage = makeIframe('ext.a', '1');
     vi.mocked(invoke).mockResolvedValueOnce({

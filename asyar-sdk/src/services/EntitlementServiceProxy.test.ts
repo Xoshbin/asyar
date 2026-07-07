@@ -9,7 +9,9 @@ vi.mock('../ipc/MessageBroker', () => ({
 function makeProxy() {
   const mockInvoke = vi.fn().mockResolvedValue(undefined);
   Object.assign(messageBroker, {
-    invoke: mockInvoke, on: vi.fn(), off: vi.fn(),
+    invoke: mockInvoke,
+    on: vi.fn(),
+    off: vi.fn(),
   });
   const proxy = new EntitlementServiceProxy();
   proxy.setExtensionId('ext.test');

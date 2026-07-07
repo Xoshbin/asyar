@@ -8,7 +8,12 @@ describe('parseSidecarEvent', () => {
   });
 
   it('parses an ask event', () => {
-    const line = JSON.stringify({ kind: 'ask', questionId: 'q1', prompt: 'Which DB?', inputKind: 'text' });
+    const line = JSON.stringify({
+      kind: 'ask',
+      questionId: 'q1',
+      prompt: 'Which DB?',
+      inputKind: 'text',
+    });
     const ev = parseSidecarEvent(line) as Extract<SidecarEvent, { kind: 'ask' }>;
     expect(ev.questionId).toBe('q1');
     expect(ev.inputKind).toBe('text');
@@ -45,7 +50,12 @@ describe('parseSidecarEvent', () => {
 
   it('parses a valid verdict event with an extra unknown field (passthrough)', () => {
     const line = JSON.stringify({ kind: 'verdict', possible: true, reason: 'ok', extra: 123 });
-    expect(parseSidecarEvent(line)).toEqual({ kind: 'verdict', possible: true, reason: 'ok', extra: 123 });
+    expect(parseSidecarEvent(line)).toEqual({
+      kind: 'verdict',
+      possible: true,
+      reason: 'ok',
+      extra: 123,
+    });
   });
 });
 

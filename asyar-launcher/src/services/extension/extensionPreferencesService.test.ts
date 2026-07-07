@@ -13,7 +13,7 @@ const ipcState = { rows: [] as IpcRow[] };
 
 vi.mock('../../lib/ipc/commands', () => ({
   extensionPreferencesGetAll: vi.fn(async (extensionId: string) =>
-    ipcState.rows.filter((r) => r.extensionId === extensionId)
+    ipcState.rows.filter((r) => r.extensionId === extensionId),
   ),
   extensionPreferencesSet: vi.fn(
     async (
@@ -21,15 +21,10 @@ vi.mock('../../lib/ipc/commands', () => ({
       commandId: string | null,
       key: string,
       value: string,
-      isEncrypted: boolean
+      isEncrypted: boolean,
     ) => {
       ipcState.rows = ipcState.rows.filter(
-        (r) =>
-          !(
-            r.extensionId === extensionId &&
-            r.commandId === commandId &&
-            r.key === key
-          )
+        (r) => !(r.extensionId === extensionId && r.commandId === commandId && r.key === key),
       );
       ipcState.rows.push({
         extensionId,
@@ -39,7 +34,7 @@ vi.mock('../../lib/ipc/commands', () => ({
         isEncrypted,
         updatedAt: 0,
       });
-    }
+    },
   ),
   extensionPreferencesReset: vi.fn(async (extensionId: string) => {
     ipcState.rows = ipcState.rows.filter((r) => r.extensionId !== extensionId);
@@ -103,9 +98,9 @@ describe('extensionPreferencesService.reset(scope)', () => {
 
   it('rejects unknown scope with a helpful error', async () => {
     registerDeclarations();
-    await expect(
-      extensionPreferencesService.reset('ext.test', 'no-such-scope')
-    ).rejects.toThrow(/unknown scope/i);
+    await expect(extensionPreferencesService.reset('ext.test', 'no-such-scope')).rejects.toThrow(
+      /unknown scope/i,
+    );
   });
 
   it('wipes everything via Rust when no scope is provided', async () => {

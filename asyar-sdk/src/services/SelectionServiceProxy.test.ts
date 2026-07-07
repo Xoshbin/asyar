@@ -4,10 +4,10 @@ import { messageBroker } from '../ipc/MessageBroker';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
-      invoke: vi.fn(),
-      on: vi.fn(),
-      off: vi.fn(),
-    },
+    invoke: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
 }));
 
 function makeProxy() {
@@ -29,9 +29,7 @@ describe('SelectionServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue('hello world');
     const result = await proxy.getSelectedText();
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'selection:getSelectedText',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'selection:getSelectedText');
     expect(call).toBeDefined();
     expect(result).toBe('hello world');
   });

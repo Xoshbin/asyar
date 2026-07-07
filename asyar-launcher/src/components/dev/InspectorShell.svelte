@@ -108,38 +108,38 @@
           <button
             type="button"
             class:active={inspectorStore.activeTab === 'runtime'}
-            onclick={() => inspectorStore.setActiveTab('runtime')}
-          >Runtime</button>
+            onclick={() => inspectorStore.setActiveTab('runtime')}>Runtime</button
+          >
           <button
             type="button"
             class:active={inspectorStore.activeTab === 'state'}
-            onclick={() => inspectorStore.setActiveTab('state')}
-          >State</button>
+            onclick={() => inspectorStore.setActiveTab('state')}>State</button
+          >
           <button
             type="button"
             class:active={inspectorStore.activeTab === 'subscriptions'}
-            onclick={() => inspectorStore.setActiveTab('subscriptions')}
-          >Subs</button>
+            onclick={() => inspectorStore.setActiveTab('subscriptions')}>Subs</button
+          >
           <button
             type="button"
             class:active={inspectorStore.activeTab === 'events'}
-            onclick={() => inspectorStore.setActiveTab('events')}
-          >Events</button>
+            onclick={() => inspectorStore.setActiveTab('events')}>Events</button
+          >
           <button
             type="button"
             class:active={inspectorStore.activeTab === 'rpc'}
-            onclick={() => inspectorStore.setActiveTab('rpc')}
-          >RPCs</button>
+            onclick={() => inspectorStore.setActiveTab('rpc')}>RPCs</button
+          >
           <button
             type="button"
             class:active={inspectorStore.activeTab === 'ipc'}
-            onclick={() => inspectorStore.setActiveTab('ipc')}
-          >IPC</button>
+            onclick={() => inspectorStore.setActiveTab('ipc')}>IPC</button
+          >
           <button
             type="button"
             class:active={inspectorStore.activeTab === 'help'}
-            onclick={() => inspectorStore.setActiveTab('help')}
-          >Help</button>
+            onclick={() => inspectorStore.setActiveTab('help')}>Help</button
+          >
         </nav>
 
         <div class="panel-body">

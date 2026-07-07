@@ -1,11 +1,6 @@
 <script lang="ts">
-  import { 
-    ModalOverlay, 
-    Button, 
-    ExtensionAvatar, 
-    WarningBanner 
-  } from '../index';
-  
+  import { ModalOverlay, Button, ExtensionAvatar, WarningBanner } from '../index';
+
   interface Props {
     extensionName: string;
     extensionIcon?: string;
@@ -14,9 +9,9 @@
     onAllow: () => void;
     onDeny: () => void;
   }
-  
+
   let { extensionName, extensionIcon, program, resolvedPath, onAllow, onDeny }: Props = $props();
-  
+
   const safePaths = [
     '/usr/bin',
     '/bin',
@@ -25,21 +20,21 @@
     'C:\\Windows\\System32',
     'C:\\Program Files',
   ];
-  
-  const isSafe = $derived(safePaths.some(safe => resolvedPath.startsWith(safe)));
-  
+
+  const isSafe = $derived(safePaths.some((safe) => resolvedPath.startsWith(safe)));
+
   // Format program beautifully
   const baseName = $derived(resolvedPath.split(/[\\/]/).pop() || resolvedPath);
   const isAliasDiff = $derived(
-    program !== resolvedPath && 
-    program !== baseName && 
-    program.toLowerCase() !== baseName.toLowerCase()
+    program !== resolvedPath &&
+      program !== baseName &&
+      program.toLowerCase() !== baseName.toLowerCase(),
   );
 
   function handleDeny() {
     onDeny();
   }
-  
+
   function handleAllow() {
     onAllow();
   }
@@ -47,14 +42,9 @@
 
 <ModalOverlay width="420px">
   <div class="dialog-container">
-    
     <!-- Component-Driven Horizontal Header -->
     <div class="dialog-header">
-      <ExtensionAvatar 
-        name={extensionName} 
-        src={extensionIcon} 
-        size="md" 
-      />
+      <ExtensionAvatar name={extensionName} src={extensionIcon} size="md" />
 
       <div class="header-texts">
         <span class="app-name">{extensionName}</span>
@@ -107,22 +97,9 @@
 
     <!-- Actions using Button Component -->
     <div class="button-actions">
-      <Button 
-        class="btn-secondary"
-        onclick={handleDeny}
-        fullWidth={true}
-      >
-        Deny
-      </Button>
-      <Button 
-        class="btn-primary"
-        onclick={handleAllow}
-        fullWidth={true}
-      >
-        Allow Always
-      </Button>
+      <Button class="btn-secondary" onclick={handleDeny} fullWidth={true}>Deny</Button>
+      <Button class="btn-primary" onclick={handleAllow} fullWidth={true}>Allow Always</Button>
     </div>
-
   </div>
 </ModalOverlay>
 
@@ -200,10 +177,19 @@
     height: 8px;
     border-radius: var(--radius-full);
   }
-  
-  .control.close { background-color: var(--accent-danger); opacity: 0.8; }
-  .control.minimize { background-color: var(--accent-warning); opacity: 0.8; }
-  .control.maximize { background-color: var(--accent-success); opacity: 0.8; }
+
+  .control.close {
+    background-color: var(--accent-danger);
+    opacity: 0.8;
+  }
+  .control.minimize {
+    background-color: var(--accent-warning);
+    opacity: 0.8;
+  }
+  .control.maximize {
+    background-color: var(--accent-success);
+    opacity: 0.8;
+  }
 
   .terminal-title {
     font-family: var(--font-mono);

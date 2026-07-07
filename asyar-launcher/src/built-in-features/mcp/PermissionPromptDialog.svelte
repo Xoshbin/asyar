@@ -56,8 +56,7 @@
   onclick={(e) => e.target === e.currentTarget && onDecide('cancel')}
   role="button"
   tabindex="0"
-  onkeydown={(event) =>
-    event.key === 'Enter' || event.key === ' ' ? onDecide('cancel') : null}
+  onkeydown={(event) => (event.key === 'Enter' || event.key === ' ' ? onDecide('cancel') : null)}
   transition:fadeIn={{ duration: 150 }}
 >
   <div
@@ -68,10 +67,7 @@
     transition:popupScale={{ duration: 120 }}
   >
     <div class="p-6">
-      <h2
-        id="mcp-permission-title"
-        class="text-xl font-semibold mb-4 text-[var(--text-primary)]"
-      >
+      <h2 id="mcp-permission-title" class="text-xl font-semibold mb-4 text-[var(--text-primary)]">
         Allow MCP tool call?
       </h2>
       <p class="text-[var(--text-secondary)] mb-3">
@@ -93,10 +89,7 @@
         <Button onclick={() => onDecide('cancel')}>Cancel</Button>
         <Button onclick={() => onDecide('never')}>Never</Button>
         <Button onclick={() => onDecide('allow_always')}>Always allow</Button>
-        <Button
-          onclick={() => onDecide('allow_once')}
-          class="btn-confirm-primary"
-        >
+        <Button onclick={() => onDecide('allow_once')} class="btn-confirm-primary">
           Allow once
         </Button>
       </div>

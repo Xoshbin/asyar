@@ -236,7 +236,10 @@ mod tests {
         let n = names(&out);
         assert!(n.contains(&"a.txt".to_string()));
         assert!(n.contains(&"b.pdf".to_string()));
-        assert!(n.contains(&"sub".to_string()), "directories are entries too");
+        assert!(
+            n.contains(&"sub".to_string()),
+            "directories are entries too"
+        );
         assert!(!out.cap_reached);
         let _ = fs::remove_dir_all(&root);
     }

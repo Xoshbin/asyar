@@ -8,18 +8,14 @@
     <div class="usage-share-prompt-header">
       <span class="usage-share-prompt-title">Share anonymous usage?</span>
       <span class="usage-share-prompt-subtitle">
-        Share anonymous usage for {usageSharePromptState.pendingDay}? Only command
-        counts and your anonymous id are sent.
+        Share anonymous usage for {usageSharePromptState.pendingDay}? Only command counts and your
+        anonymous id are sent.
       </span>
     </div>
 
     <div class="usage-share-prompt-actions">
-      <Button onclick={() => usageSharePromptState.confirm()} class="btn-primary">
-        Send
-      </Button>
-      <Button onclick={() => usageSharePromptState.dismiss()} class="btn-secondary">
-        Not now
-      </Button>
+      <Button onclick={() => usageSharePromptState.confirm()} class="btn-primary">Send</Button>
+      <Button onclick={() => usageSharePromptState.dismiss()} class="btn-secondary">Not now</Button>
     </div>
   </div>
 {/if}

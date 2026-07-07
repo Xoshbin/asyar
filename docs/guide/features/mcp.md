@@ -3,7 +3,7 @@
 > Connect external tools to your agents.
 
 ![Manage MCP Servers view](../../images/feature-mcp-hero.png)
-*Figure: the Manage MCP Servers view.*
+_Figure: the Manage MCP Servers view._
 
 ## What it does
 
@@ -53,12 +53,12 @@ When strict mode is on, every MCP tool call asks for your permission — even fo
 
 ## Shortcuts & actions
 
-| Action | How |
-|---|---|
-| Open server list | Search "Manage MCP Servers" → `Enter` |
-| Install a new server | Search "Install MCP Server" → `Enter` |
+| Action                       | How                                   |
+| ---------------------------- | ------------------------------------- |
+| Open server list             | Search "Manage MCP Servers" → `Enter` |
+| Install a new server         | Search "Install MCP Server" → `Enter` |
 | Import from existing configs | Search "Import MCP Servers" → `Enter` |
-| Go back | `Esc` |
+| Go back                      | `Esc`                                 |
 
 ## Tips
 

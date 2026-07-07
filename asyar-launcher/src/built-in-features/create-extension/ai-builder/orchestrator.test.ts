@@ -53,16 +53,29 @@ describe('handleEvent', () => {
 
   it('step event appends to the log', async () => {
     await handleEvent({ kind: 'step', label: 'Fetching Notion docs' });
-    expect(buildJobStore.job!.steps).toContainEqual({ label: 'Fetching Notion docs', detail: undefined });
+    expect(buildJobStore.job!.steps).toContainEqual({
+      label: 'Fetching Notion docs',
+      detail: undefined,
+    });
   });
 
   it('ask event delegates to presentQuestion', async () => {
     await handleEvent({ kind: 'ask', questionId: 'q1', prompt: 'Which DB?', inputKind: 'text' });
-    expect(mockPresentQuestion).toHaveBeenCalledWith({ questionId: 'q1', prompt: 'Which DB?', inputKind: 'text', placeholder: undefined });
+    expect(mockPresentQuestion).toHaveBeenCalledWith({
+      questionId: 'q1',
+      prompt: 'Which DB?',
+      inputKind: 'text',
+      placeholder: undefined,
+    });
   });
 
   it('done event finalizes (secret scan + register/activate) and notifies success', async () => {
-    await handleEvent({ kind: 'done', extensionId: 'com.x.notion', path: '/tmp/ext', smokeSummary: '200 OK' });
+    await handleEvent({
+      kind: 'done',
+      extensionId: 'com.x.notion',
+      path: '/tmp/ext',
+      smokeSummary: '200 OK',
+    });
     expect(mockFinalize).toHaveBeenCalled();
     expect(buildJobStore.job!.status).toBe('done');
     expect(mockNotify).toHaveBeenCalled();
@@ -73,7 +86,12 @@ describe('handleEvent', () => {
 
   it('done event fails the job if finalize throws (no silent hang)', async () => {
     mockFinalize.mockRejectedValueOnce(new Error('register failed'));
-    await handleEvent({ kind: 'done', extensionId: 'com.x.notion', path: '/tmp/ext', smokeSummary: '200 OK' });
+    await handleEvent({
+      kind: 'done',
+      extensionId: 'com.x.notion',
+      path: '/tmp/ext',
+      smokeSummary: '200 OK',
+    });
     expect(buildJobStore.job!.status).toBe('failed');
     expect(buildJobStore.job!.failure!.step).toBe('finalize');
     expect(mockNotify).toHaveBeenCalled();
@@ -81,7 +99,12 @@ describe('handleEvent', () => {
 
   it('done event fails closed if the secret guard reports a leak', async () => {
     mockFinalize.mockResolvedValueOnce({ leaked: true, path: 'src/config.ts' });
-    await handleEvent({ kind: 'done', extensionId: 'com.x.notion', path: '/tmp/ext', smokeSummary: '200 OK' });
+    await handleEvent({
+      kind: 'done',
+      extensionId: 'com.x.notion',
+      path: '/tmp/ext',
+      smokeSummary: '200 OK',
+    });
     expect(buildJobStore.job!.status).toBe('failed');
     expect(buildJobStore.job!.failure!.error).toContain('hardcoded secret');
   });
@@ -94,7 +117,10 @@ describe('handleEvent', () => {
 });
 
 describe('startBuild', () => {
-  beforeEach(() => { buildJobStore.reset(); mockSidecarStart.mockClear(); });
+  beforeEach(() => {
+    buildJobStore.reset();
+    mockSidecarStart.mockClear();
+  });
 
   it('refuses when no Anthropic key is configured', async () => {
     const res = await startBuild('build a notion ext', { anthropicKey: '' });
@@ -130,7 +156,11 @@ describe('startBuild', () => {
 });
 
 describe('ensureListening', () => {
-  beforeEach(async () => { await stopListening(); mockListen.mockClear(); mockLogWarn.mockClear(); });
+  beforeEach(async () => {
+    await stopListening();
+    mockListen.mockClear();
+    mockLogWarn.mockClear();
+  });
 
   it('subscribes once and is idempotent', async () => {
     await ensureListening();
@@ -148,7 +178,7 @@ describe('ensureListening', () => {
     handler({ payload: JSON.stringify({ kind: 'step', label: 'hello' }) });
     // allow the void handleEvent microtask to flush
     await Promise.resolve();
-    expect(buildJobStore.job!.steps.some(s => s.label === 'hello')).toBe(true);
+    expect(buildJobStore.job!.steps.some((s) => s.label === 'hello')).toBe(true);
   });
 
   it('drops an unparseable event without throwing', async () => {

@@ -1,6 +1,7 @@
 ---
 order: 1
 ---
+
 ### Type 1: Extension (`type: "extension"`)
 
 Asyar has a single Tier 2 extension type. The pre-split distinction between
@@ -51,15 +52,22 @@ A pomodoro-style extension that exercises both contexts:
   "background": { "main": "dist/worker.js" },
   "permissions": ["notifications:send", "timers:schedule", "timers:cancel"],
   "commands": [
-    { "id": "open",  "name": "Open Pomodoro", "mode": "view", "component": "PomodoroView", "icon": "🍅" },
-    { "id": "start", "name": "Start Focus",   "mode": "background", "icon": "▶️" },
-    { "id": "stop",  "name": "Stop Focus",    "mode": "background" },
-    { "id": "tick",  "name": "Tick",          "mode": "background", "schedule": { "intervalSeconds": 60 } }
+    {
+      "id": "open",
+      "name": "Open Pomodoro",
+      "mode": "view",
+      "component": "PomodoroView",
+      "icon": "🍅"
+    },
+    { "id": "start", "name": "Start Focus", "mode": "background", "icon": "▶️" },
+    { "id": "stop", "name": "Stop Focus", "mode": "background" },
+    { "id": "tick", "name": "Tick", "mode": "background", "schedule": { "intervalSeconds": 60 } }
   ]
 }
 ```
 
 Per-command rules:
+
 - `mode: "view"` requires a non-empty `component` string. The value is the
   Svelte component your `view.ts` exports under that name.
 - `mode: "background"` forbids `component`. The host dispatches the command
@@ -125,7 +133,7 @@ const extensionId = window.location.hostname || 'com.yourname.pomodoro';
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
 extensionBridge.registerManifest(manifest);
-extensionBridge.registerExtensionImplementation(extensionId, { /* … */ });
+extensionBridge.registerExtensionImplementation(extensionId, {/* … */});
 
 mount(PomodoroView, {
   target: document.getElementById('app')!,

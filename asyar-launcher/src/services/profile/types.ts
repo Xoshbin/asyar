@@ -42,18 +42,18 @@ export interface BinaryAsset {
 
 export interface SyncProviderData {
   providerId: string;
-  version: number;           // Schema version for forward/backward compat
-  exportedAt: number;        // Timestamp
-  data: unknown;             // The actual payload — provider-specific
+  version: number; // Schema version for forward/backward compat
+  exportedAt: number; // Timestamp
+  data: unknown; // The actual payload — provider-specific
   binaryAssets?: BinaryAsset[]; // Images, files — only present in exportFull()
 }
 
 export interface ImportPreview {
   localCount: number;
   incomingCount: number;
-  conflicts: number;         // Items that exist in both with different content
-  newItems: number;          // Items only in incoming
-  removedItems: number;      // Items only in local (would be lost on 'replace')
+  conflicts: number; // Items that exist in both with different content
+  newItems: number; // Items only in incoming
+  removedItems: number; // Items only in local (would be lost on 'replace')
 }
 
 export interface ImportResult {
@@ -61,12 +61,12 @@ export interface ImportResult {
   itemsAdded: number;
   itemsUpdated: number;
   itemsRemoved: number;
-  warnings: string[];        // e.g., "2 sensitive fields were stripped"
+  warnings: string[]; // e.g., "2 sensitive fields were stripped"
 }
 
 export interface DataSummary {
   itemCount: number;
-  label: string;             // e.g., "20 snippets", "3 portals"
+  label: string; // e.g., "20 snippets", "3 portals"
 }
 
 export interface ISyncProvider {

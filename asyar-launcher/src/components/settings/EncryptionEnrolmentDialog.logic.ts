@@ -33,8 +33,7 @@ export function evaluatePassphraseStrength(p: string): {
 // (or unless) the implementer decides to add the dep — the spec allows either.
 function quickScore(p: string): number {
   const len = [...p].length;
-  const classes = [/[a-z]/, /[A-Z]/, /\d/, /[^a-zA-Z\d]/]
-    .filter((re) => re.test(p)).length;
+  const classes = [/[a-z]/, /[A-Z]/, /\d/, /[^a-zA-Z\d]/].filter((re) => re.test(p)).length;
   const wordish = p.split(/[\s_-]+/).filter((w) => w.length >= 3).length;
   let score = 0;
   if (len >= 12) score += 1;

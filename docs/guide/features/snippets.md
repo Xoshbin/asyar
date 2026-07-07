@@ -3,7 +3,7 @@
 > Text expansion: type a keyword, paste the full text.
 
 ![Snippets list view](../../images/feature-snippets-hero.png)
-*Figure: the snippets list view.*
+_Figure: the snippets list view._
 
 ## What it does
 
@@ -37,14 +37,14 @@ Snippets also support dynamic placeholders inside the expansion text: `{Selected
 
 ## Shortcuts & actions
 
-| Action | How |
-|--------|-----|
-| Add snippet | `⌘N` |
-| Paste selected snippet | `Enter` |
+| Action                  | How                      |
+| ----------------------- | ------------------------ |
+| Add snippet             | `⌘N`                     |
+| Paste selected snippet  | `Enter`                  |
 | Delete selected snippet | `⌘⌫` (with confirmation) |
-| Save form | `⌘S` |
-| Cancel form | `Esc` |
-| Open action panel | `⌘K` |
+| Save form               | `⌘S`                     |
+| Cancel form             | `Esc`                    |
+| Open action panel       | `⌘K`                     |
 
 **Action panel (⌘K) entries while the view is open:**
 

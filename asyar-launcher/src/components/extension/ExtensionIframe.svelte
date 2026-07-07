@@ -10,7 +10,7 @@
   let {
     extensionId,
     manifest,
-    view = null
+    view = null,
   }: {
     extensionId: string;
     manifest: ExtensionManifest | null;
@@ -22,9 +22,11 @@
 
   const isWindows = navigator.userAgent.toLowerCase().includes('windows');
 
-  let iframeSrc = $derived(isWindows
-    ? `http://asyar-extension.localhost/${extensionId}/view.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`
-    : `asyar-extension://${extensionId}/view.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`);
+  let iframeSrc = $derived(
+    isWindows
+      ? `http://asyar-extension.localhost/${extensionId}/view.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`
+      : `asyar-extension://${extensionId}/view.html${view ? `?view=${view.split('/')[1] || 'DefaultView'}` : ''}`,
+  );
 
   let mountToken = $derived(viewRegistry.getEntry(extensionId)?.mountToken);
 
@@ -45,7 +47,10 @@
     if (type === 'asyar:diagnostics:uncaught') {
       diagnosticsService.report({
         source: 'extension',
-        kind: payload?.kind === 'iframe_unhandled_rejection' ? 'iframe_unhandled_rejection' : 'iframe_uncaught',
+        kind:
+          payload?.kind === 'iframe_unhandled_rejection'
+            ? 'iframe_unhandled_rejection'
+            : 'iframe_uncaught',
         severity: 'error',
         retryable: false,
         context: { extensionId, role: 'view' },
@@ -61,8 +66,13 @@
     if (type === 'asyar:extension:keydown') {
       const { key, metaKey, ctrlKey, shiftKey, altKey } = payload || {};
       const syntheticEvent = new KeyboardEvent('keydown', {
-        key, metaKey, ctrlKey, shiftKey, altKey,
-        bubbles: true, cancelable: true,
+        key,
+        metaKey,
+        ctrlKey,
+        shiftKey,
+        altKey,
+        bubbles: true,
+        cancelable: true,
       });
       window.dispatchEvent(syntheticEvent);
       return;
@@ -86,7 +96,10 @@
     const observer = new MutationObserver(() => {
       sendMessage('asyar:theme:variables', collectThemeVariables(document.documentElement));
     });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
 
     return () => {
       window.removeEventListener('message', handleMessage);
@@ -102,7 +115,7 @@
     if (iframeElement && iframeElement.contentWindow) {
       iframeElement.contentWindow.postMessage(
         { type, payload },
-        getExtensionFrameOrigin(extensionId)
+        getExtensionFrameOrigin(extensionId),
       );
     }
   }
@@ -120,5 +133,3 @@
   onload={handleIframeLoad}
   onerror={handleIframeError}
 ></iframe>
-
-

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
-      invoke: vi.fn(),
+    invoke: vi.fn(),
   },
 }));
 
@@ -50,9 +50,7 @@ describe('TimerServiceProxy', () => {
     vi.mocked(mockBroker.invoke).mockRejectedValueOnce(
       new Error('Validation error: fire_at (100) must be strictly greater than now (2000)'),
     );
-    await expect(
-      proxy.schedule({ commandId: 'bell', fireAt: 100 }),
-    ).rejects.toThrow(/fire_at/);
+    await expect(proxy.schedule({ commandId: 'bell', fireAt: 100 })).rejects.toThrow(/fire_at/);
   });
 
   it('cancel invokes timers:cancel with the timer id', async () => {
@@ -64,7 +62,9 @@ describe('TimerServiceProxy', () => {
   });
 
   it('cancel propagates host-side errors', async () => {
-    vi.mocked(mockBroker.invoke).mockRejectedValueOnce(new Error('Not found: Timer "xyz" not found'));
+    vi.mocked(mockBroker.invoke).mockRejectedValueOnce(
+      new Error('Not found: Timer "xyz" not found'),
+    );
     await expect(proxy.cancel('xyz')).rejects.toThrow(/Not found/);
   });
 

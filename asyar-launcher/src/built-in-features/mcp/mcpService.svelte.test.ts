@@ -34,7 +34,12 @@ vi.mock('../../services/log/logService', () => ({
 
 import * as cmds from '../../lib/ipc/mcpCommands';
 import { McpService } from './mcpService.svelte';
-import type { McpServerSummary, McpServerInstallInput, McpPermissionRow, McpToolDescriptor } from './types';
+import type {
+  McpServerSummary,
+  McpServerInstallInput,
+  McpPermissionRow,
+  McpToolDescriptor,
+} from './types';
 
 const makeSummary = (over: Partial<McpServerSummary> = {}): McpServerSummary => ({
   id: 'srv-1',
@@ -189,7 +194,10 @@ describe('mcpService.handlePermissionDecision', () => {
     svc.handlePermissionDecision('allow_always');
     await promise;
     expect(cmds.mcpSetPermission).toHaveBeenCalledWith(
-      'srv-1', 'create_user', 'agent-1', 'allow_always',
+      'srv-1',
+      'create_user',
+      'agent-1',
+      'allow_always',
     );
   });
 
@@ -219,7 +227,13 @@ describe('mcpService.listServerTools', () => {
 describe('mcpService.refreshPermissions', () => {
   it('populates permissions from mcpListPermissions', async () => {
     const rows: McpPermissionRow[] = [
-      { serverId: 'srv-1', toolId: 'tool-a', agentId: 'agent-1', decision: 'allow_always', setAt: 1000 },
+      {
+        serverId: 'srv-1',
+        toolId: 'tool-a',
+        agentId: 'agent-1',
+        decision: 'allow_always',
+        setAt: 1000,
+      },
     ];
     (cmds.mcpListPermissions as ReturnType<typeof vi.fn>).mockResolvedValue(rows);
     const svc = new McpService();
@@ -254,7 +268,9 @@ describe('mcpService.deletePermission', () => {
 describe('mcpService status event listener', () => {
   it('updates the matching server row when an mcp:status_changed event fires', async () => {
     const { listen } = await import('@tauri-apps/api/event');
-    let handler: ((e: { payload: { serverId: string; status: string; toolsCount: number } }) => void) | null = null;
+    let handler:
+      ((e: { payload: { serverId: string; status: string; toolsCount: number } }) => void) | null =
+      null;
     (listen as ReturnType<typeof vi.fn>).mockImplementationOnce(
       async (_name: string, cb: typeof handler) => {
         handler = cb;
@@ -283,7 +299,9 @@ describe('mcpService status event listener', () => {
 
   it('ignores events for unknown server ids', async () => {
     const { listen } = await import('@tauri-apps/api/event');
-    let handler: ((e: { payload: { serverId: string; status: string; toolsCount: number } }) => void) | null = null;
+    let handler:
+      ((e: { payload: { serverId: string; status: string; toolsCount: number } }) => void) | null =
+      null;
     (listen as ReturnType<typeof vi.fn>).mockImplementationOnce(
       async (_name: string, cb: typeof handler) => {
         handler = cb;

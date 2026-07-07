@@ -16,7 +16,7 @@ interface ProcessInfo {
   memoryBytes: number;
   path: string;
   owner: string;
-  protected: boolean;   // OS-critical — kill refused unless confirmedProtected
+  protected: boolean; // OS-critical — kill refused unless confirmedProtected
 }
 
 interface AppGroup {
@@ -26,7 +26,7 @@ interface AppGroup {
   totalCpu: number;
   totalMemoryBytes: number;
   processCount: number;
-  protected: boolean;   // true if ANY child is protected
+  protected: boolean; // true if ANY child is protected
   children: ProcessInfo[];
 }
 
@@ -36,18 +36,18 @@ interface KillFailure {
 }
 
 interface KillResult {
-  killed: number[];      // pids the OS confirmed terminated
+  killed: number[]; // pids the OS confirmed terminated
   failed: KillFailure[]; // pids refused or that errored, each with a reason
 }
 
 interface ListProcessesOptions {
-  query?: string;        // case-insensitive filter on app / process name
+  query?: string; // case-insensitive filter on app / process name
   sortBy: ProcessSortBy; // required
 }
 
 interface KillProcessesOptions {
-  pids: number[];               // app-group kill = pass all child pids
-  force: boolean;               // true → SIGKILL / hard TerminateProcess; false → graceful (SIGTERM)
+  pids: number[]; // app-group kill = pass all child pids
+  force: boolean; // true → SIGKILL / hard TerminateProcess; false → graceful (SIGTERM)
   confirmedProtected?: boolean; // must be true to kill a process the host flagged `protected`
 }
 
@@ -86,7 +86,7 @@ const matches = await proc.list({ query: 'chrome', sortBy: 'memory' });
 const app = matches[0];
 const result = await proc.kill({
   pids: app.children.map((c) => c.pid), // a group kill is just all its child pids
-  force: false,                          // SIGTERM first; let the app clean up
+  force: false, // SIGTERM first; let the app clean up
 });
 
 if (result.failed.length > 0) {
@@ -113,17 +113,17 @@ await proc.kill({ pids: [criticalPid], force: true, confirmedProtected: true });
 
 **How `list()` works under the hood:**
 
-| Platform | Enumeration | Grouping |
-|---------|-------------|----------|
+| Platform                | Enumeration                                                                                                       | Grouping                                                                                               |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | macOS / Linux / Windows | `sysinfo` full process scan with a short CPU-delta sample, run on a blocking thread pool so the UI never freezes. | Processes are coalesced into `AppGroup`s by application; group totals sum each child's CPU and memory. |
 
 **How the `protected` classifier works** (`process_manager::protected`):
 
-| Platform | What's flagged protected |
-|---------|--------------------------|
-| macOS   | Core names (`kernel_task`, `launchd`, `WindowServer`, `loginwindow`, `Dock`, `Finder`) **or** root-owned binaries under `/System/`, `/usr/libexec/`, `/sbin/`, `/usr/sbin/`. |
-| Windows | Core names (`System`, `smss.exe`, `csrss.exe`, `wininit.exe`, `services.exe`, `lsass.exe`, `winlogon.exe`) **or** `SYSTEM`-owned binaries under `\Windows\System32`. |
-| Linux   | pid 1 (init / systemd), kernel threads (pid 2 `kthreadd` or its children), **or** root-owned binaries under `/sbin/` and `/usr/sbin/`. |
+| Platform | What's flagged protected                                                                                                                                                     |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| macOS    | Core names (`kernel_task`, `launchd`, `WindowServer`, `loginwindow`, `Dock`, `Finder`) **or** root-owned binaries under `/System/`, `/usr/libexec/`, `/sbin/`, `/usr/sbin/`. |
+| Windows  | Core names (`System`, `smss.exe`, `csrss.exe`, `wininit.exe`, `services.exe`, `lsass.exe`, `winlogon.exe`) **or** `SYSTEM`-owned binaries under `\Windows\System32`.         |
+| Linux    | pid 1 (init / systemd), kernel threads (pid 2 `kthreadd` or its children), **or** root-owned binaries under `/sbin/` and `/usr/sbin/`.                                       |
 
 **Permission gate:** `process:read` and `process:kill` are enforced in the Rust host (`commands/process.rs` → `ExtensionPermissionRegistry`), not in JS. An extension with `process:read` but not `process:kill` can list but every `kill()` is rejected at the host.
 

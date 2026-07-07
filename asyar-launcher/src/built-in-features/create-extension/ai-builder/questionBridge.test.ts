@@ -31,7 +31,19 @@ describe('presentQuestion', () => {
     expect(mockNotify).toHaveBeenCalledTimes(1);
 
     // First arg is callerExtensionId
-    const [callerExtId, options] = mockNotify.mock.calls[0] as [string, { title: string; body?: string; actions?: Array<{ id: string; title: string; commandId: string; args?: Record<string, unknown> }> }];
+    const [callerExtId, options] = mockNotify.mock.calls[0] as [
+      string,
+      {
+        title: string;
+        body?: string;
+        actions?: Array<{
+          id: string;
+          title: string;
+          commandId: string;
+          args?: Record<string, unknown>;
+        }>;
+      },
+    ];
     expect(callerExtId).toBe('create-extension');
 
     // Must have an action that deep-links to the build view command

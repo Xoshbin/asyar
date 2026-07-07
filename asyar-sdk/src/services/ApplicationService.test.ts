@@ -4,9 +4,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../ipc/MessageBroker', () => {
   return {
     messageBroker: {
-        invoke: vi.fn(),
-        on: vi.fn(),
-        off: vi.fn(),
+      invoke: vi.fn(),
+      on: vi.fn(),
+      off: vi.fn(),
     },
   };
 });
@@ -49,10 +49,9 @@ describe('ApplicationServiceProxy (query surface)', () => {
 
     const result = await proxy.syncApplicationIndex(['/extra/path']);
 
-    expect(mockBroker.invoke).toHaveBeenCalledWith(
-      'application:syncApplicationIndex',
-      { extraPaths: ['/extra/path'] },
-    );
+    expect(mockBroker.invoke).toHaveBeenCalledWith('application:syncApplicationIndex', {
+      extraPaths: ['/extra/path'],
+    });
     expect(result).toEqual(mockResult);
   });
 
@@ -61,10 +60,9 @@ describe('ApplicationServiceProxy (query surface)', () => {
 
     await proxy.syncApplicationIndex();
 
-    expect(mockBroker.invoke).toHaveBeenCalledWith(
-      'application:syncApplicationIndex',
-      { extraPaths: undefined },
-    );
+    expect(mockBroker.invoke).toHaveBeenCalledWith('application:syncApplicationIndex', {
+      extraPaths: undefined,
+    });
   });
 
   it('listApplications() calls broker with correct type string and payload', async () => {
@@ -73,10 +71,9 @@ describe('ApplicationServiceProxy (query surface)', () => {
 
     const result = await proxy.listApplications(['/custom/path']);
 
-    expect(mockBroker.invoke).toHaveBeenCalledWith(
-      'application:listApplications',
-      { extraPaths: ['/custom/path'] },
-    );
+    expect(mockBroker.invoke).toHaveBeenCalledWith('application:listApplications', {
+      extraPaths: ['/custom/path'],
+    });
     expect(result).toEqual(mockApps);
   });
 
@@ -85,10 +82,9 @@ describe('ApplicationServiceProxy (query surface)', () => {
 
     await proxy.listApplications();
 
-    expect(mockBroker.invoke).toHaveBeenCalledWith(
-      'application:listApplications',
-      { extraPaths: undefined },
-    );
+    expect(mockBroker.invoke).toHaveBeenCalledWith('application:listApplications', {
+      extraPaths: undefined,
+    });
   });
 
   it('type strings do NOT include asyar:service: prefix (MessageBroker adds asyar:api:)', async () => {
@@ -323,12 +319,8 @@ describe('ApplicationServiceProxy (push-event surface)', () => {
   });
 });
 
-function getIndexPushHandler(
-  mockOn: ReturnType<typeof vi.fn>,
-): (payload: unknown) => void {
-  const call = mockOn.mock.calls.find(
-    (c) => c[0] === 'asyar:event:application-index:push',
-  );
+function getIndexPushHandler(mockOn: ReturnType<typeof vi.fn>): (payload: unknown) => void {
+  const call = mockOn.mock.calls.find((c) => c[0] === 'asyar:event:application-index:push');
   if (!call) throw new Error('index push listener not registered');
   return call[1] as (payload: unknown) => void;
 }
@@ -375,9 +367,7 @@ describe('ApplicationServiceProxy (application-index push surface)', () => {
   });
 
   it('disposing all listeners fires unsubscribe exactly once on applicationIndex namespace', async () => {
-    mockInvoke
-      .mockResolvedValueOnce('idx-1')
-      .mockResolvedValueOnce(undefined);
+    mockInvoke.mockResolvedValueOnce('idx-1').mockResolvedValueOnce(undefined);
     const d1 = proxy.onApplicationsChanged(() => {});
     const d2 = proxy.onApplicationsChanged(() => {});
     await Promise.resolve();
@@ -433,9 +423,7 @@ describe('ApplicationServiceProxy (application-index push surface)', () => {
   });
 
   it('disposer is idempotent for index subscriptions', async () => {
-    mockInvoke
-      .mockResolvedValueOnce('idx-1')
-      .mockResolvedValueOnce(undefined);
+    mockInvoke.mockResolvedValueOnce('idx-1').mockResolvedValueOnce(undefined);
     const d = proxy.onApplicationsChanged(() => {});
     await Promise.resolve();
     await Promise.resolve();

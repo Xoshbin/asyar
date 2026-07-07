@@ -44,10 +44,10 @@ export function buildDefaultAgentInput(providerId: string, modelId: string): Age
  */
 export const GRAMMAR_FIX_SYSTEM_PROMPT = [
   'You rewrite English text with corrected grammar, spelling, and phrasing.',
-  "Preserve the original tone, voice, language, register, and formatting.",
+  'Preserve the original tone, voice, language, register, and formatting.',
   '',
   'Output rules:',
-  '- Output the corrected text only. Match the input\'s length — a short',
+  "- Output the corrected text only. Match the input's length — a short",
   '  input gets a short output, a long input gets a long output.',
   '- No preamble. No explanation. No alternatives. No quotation marks',
   '  around the output. No "Here is..." or "Sure, ...".',
@@ -58,7 +58,7 @@ export const GRAMMAR_FIX_SYSTEM_PROMPT = [
   'Input: the cat sit on mat',
   'Output: The cat sits on the mat.',
   '',
-  'Input: i recieved you\'re message yesterday and ill respond asap',
+  "Input: i recieved you're message yesterday and ill respond asap",
   "Output: I received your message yesterday and I'll respond ASAP.",
   '',
   'Input: We was going too the store wen it started raining',
@@ -70,10 +70,7 @@ export const GRAMMAR_FIX_SYSTEM_PROMPT = [
   "Now correct the user's next message the same way.",
 ].join('\n');
 
-export function buildGrammarFixAgentInput(
-  providerId: string,
-  modelId: string,
-): AgentCreateInput {
+export function buildGrammarFixAgentInput(providerId: string, modelId: string): AgentCreateInput {
   return {
     name: 'Grammar Fix',
     description: 'Silent agent: replace selected text with the grammar-corrected version.',
@@ -116,10 +113,7 @@ export const DEFAULT_GRAMMAR_FIX_HOTKEY: { modifier: string; key: string } = {
   key: 'L',
 };
 
-export function buildEmojiFallbackAgent(
-  providerId: string,
-  modelId: string,
-): AgentDef {
+export function buildEmojiFallbackAgent(providerId: string, modelId: string): AgentDef {
   return {
     id: 'emoji-fallback',
     name: 'Inline emoji fallback',

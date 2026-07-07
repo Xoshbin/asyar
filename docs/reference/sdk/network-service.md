@@ -20,12 +20,13 @@ interface NetworkResponse {
   status: number;
   statusText: string;
   headers: Record<string, string>;
-  body: string;  // Always a string. Binary responses are base64-encoded.
-  ok: boolean;   // true when status is 200-299
+  body: string; // Always a string. Binary responses are base64-encoded.
+  ok: boolean; // true when status is 200-299
 }
 ```
 
 **Usage:**
+
 ```typescript
 const network = context.getService<INetworkService>('network');
 
@@ -40,7 +41,7 @@ const created = await network.fetch('https://api.example.com/items', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
+    Authorization: `Bearer ${token}`,
   },
   body: JSON.stringify({ name: 'My Item', value: 42 }),
   timeout: 10_000,

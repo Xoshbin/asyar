@@ -25,14 +25,7 @@
 </script>
 
 <div class="settings-range-slider">
-  <input
-    type="range"
-    {min}
-    {max}
-    {step}
-    {value}
-    oninput={handleInput}
-  />
+  <input type="range" {min} {max} {step} {value} oninput={handleInput} />
   <span class="value-display">
     {value}{suffix}
   </span>

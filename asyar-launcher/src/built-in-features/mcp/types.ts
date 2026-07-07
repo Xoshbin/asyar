@@ -1,5 +1,11 @@
 export type McpTransportSpec =
-  | { kind: 'stdio'; command: string; args: string[]; env: Record<string, string>; cwd: string | null }
+  | {
+      kind: 'stdio';
+      command: string;
+      args: string[];
+      env: Record<string, string>;
+      cwd: string | null;
+    }
   | { kind: 'http'; url: string; headers: Record<string, string> };
 
 export interface McpServerInstallInput {
@@ -19,7 +25,10 @@ export interface McpServerSummary {
   toolsCount: number;
 }
 
-export interface McpTestResult { toolsCount: number; error: string | null; }
+export interface McpTestResult {
+  toolsCount: number;
+  error: string | null;
+}
 
 export interface DetectedConfig {
   source: string;

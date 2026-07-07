@@ -1,29 +1,29 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte'
-  import { ListItem, EmptyState, ActionFooter } from '../../components'
-  import { windowManagementState } from './state.svelte'
-  import { windowManagementService } from '../../services/windowManagement/windowManagementService'
-  import { feedbackService } from '../../services/feedback/feedbackService.svelte'
-  import { actionService } from '../../services/action/actionService.svelte'
-  import type { IStorageService } from 'asyar-sdk/contracts'
-  import { ActionContext } from 'asyar-sdk/contracts'
+  import { onDestroy } from 'svelte';
+  import { ListItem, EmptyState, ActionFooter } from '../../components';
+  import { windowManagementState } from './state.svelte';
+  import { windowManagementService } from '../../services/windowManagement/windowManagementService';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { actionService } from '../../services/action/actionService.svelte';
+  import type { IStorageService } from 'asyar-sdk/contracts';
+  import { ActionContext } from 'asyar-sdk/contracts';
 
   interface Props {
-    store?: IStorageService
+    store?: IStorageService;
   }
-  let { store }: Props = $props()
+  let { store }: Props = $props();
 
-  let selectedId = $state<string | null>(null)
-  let layouts = $derived(windowManagementState.customLayouts)
+  let selectedId = $state<string | null>(null);
+  let layouts = $derived(windowManagementState.customLayouts);
 
   $effect(() => {
     if (!selectedId) {
-      actionService.unregisterAction('window-management:delete-layout')
-      return
+      actionService.unregisterAction('window-management:delete-layout');
+      return;
     }
-    const id = selectedId
-    const layout = layouts.find(l => l.id === id)
-    if (!layout) return
+    const id = selectedId;
+    const layout = layouts.find((l) => l.id === id);
+    if (!layout) return;
 
     actionService.registerAction({
       id: 'window-management:delete-layout',
@@ -33,22 +33,22 @@
       category: 'window-management',
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
-        if (!store) return
-        const name = layout.name
-        await windowManagementState.deleteCustomLayout(id, store)
-        selectedId = null
-        await feedbackService.showHUD(`Deleted "${name}"`)
+        if (!store) return;
+        const name = layout.name;
+        await windowManagementState.deleteCustomLayout(id, store);
+        selectedId = null;
+        await feedbackService.showHUD(`Deleted "${name}"`);
       },
-    })
+    });
 
     return () => {
-      actionService.unregisterAction('window-management:delete-layout')
-    }
-  })
+      actionService.unregisterAction('window-management:delete-layout');
+    };
+  });
 
   onDestroy(() => {
-    actionService.unregisterAction('window-management:delete-layout')
-  })
+    actionService.unregisterAction('window-management:delete-layout');
+  });
 </script>
 
 <div class="view-container">
@@ -65,7 +65,9 @@
           title={layout.name}
           subtitle={`${Math.round(layout.bounds.width)}x${Math.round(layout.bounds.height)} at (${Math.round(layout.bounds.x)}, ${Math.round(layout.bounds.y)})`}
           selected={selectedId === layout.id}
-          onclick={() => { selectedId = layout.id }}
+          onclick={() => {
+            selectedId = layout.id;
+          }}
         >
           {#snippet leading()}
             <div class="layout-icon">⊞</div>

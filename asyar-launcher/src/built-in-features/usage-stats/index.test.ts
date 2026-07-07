@@ -36,7 +36,8 @@ function mockContext() {
   return {
     getService: vi.fn((name: string) => {
       if (name === 'log') return { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-      if (name === 'extensions') return { navigateToView: vi.fn(), setActiveViewActionLabel: vi.fn() };
+      if (name === 'extensions')
+        return { navigateToView: vi.fn(), setActiveViewActionLabel: vi.fn() };
       return null;
     }),
   };

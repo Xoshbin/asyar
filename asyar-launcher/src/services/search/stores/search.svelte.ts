@@ -1,5 +1,5 @@
 class SearchStores {
-  query = $state("");
+  query = $state('');
   selectedIndex = $state(-1);
   isLoading = $state(false);
 }

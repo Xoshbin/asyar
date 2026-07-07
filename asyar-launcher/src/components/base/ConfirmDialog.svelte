@@ -4,10 +4,10 @@
   import { fadeIn, popupScale } from '$lib/transitions';
 
   let {
-    title = "Confirm Action",
-    message = "Are you sure you want to continue?",
-    confirmButtonText = "Confirm",
-    cancelButtonText = "Cancel",
+    title = 'Confirm Action',
+    message = 'Are you sure you want to continue?',
+    confirmButtonText = 'Confirm',
+    cancelButtonText = 'Cancel',
     isOpen = $bindable(false),
     onconfirm,
     oncancel,
@@ -65,7 +65,7 @@
     onclick={(e) => e.target === e.currentTarget && cancel()}
     role="button"
     tabindex="0"
-    onkeydown={(event) => event.key === 'Enter' || event.key === ' ' ? cancel() : null}
+    onkeydown={(event) => (event.key === 'Enter' || event.key === ' ' ? cancel() : null)}
     transition:fadeIn={{ duration: 150 }}
   >
     <div
@@ -103,7 +103,7 @@
     backdrop-filter: blur(8px);
   }
 
-  :global(html[data-platform="linux"]) .dialog-backdrop {
+  :global(html[data-platform='linux']) .dialog-backdrop {
     backdrop-filter: none;
     background: rgba(0, 0, 0, 0.6);
   }
@@ -113,7 +113,7 @@
     color: white !important;
     border: none !important;
   }
-  
+
   :global(.btn-confirm-danger:hover) {
     opacity: 0.9;
   }

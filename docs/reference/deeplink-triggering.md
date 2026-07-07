@@ -1,6 +1,7 @@
 ---
 order: 8
 ---
+
 # Deeplink Triggering
 
 **No permission or manifest flag required.** Every command in an enabled extension is automatically reachable via deep links.
@@ -32,11 +33,11 @@ const url = context.createDeeplink('convert', { from: 'USD', to: 'EUR', amount: 
 asyar://extensions/{extensionId}/{commandId}?key=value&key2=value2
 ```
 
-| Segment | Description |
-|---|---|
-| `extensionId` | The extension's `id` as declared in `manifest.json`. |
-| `commandId` | The command's `id` as declared in `manifest.json`. |
-| Query params | Passed to `executeCommand` as `args`. All values are strings. URL-encoding is handled automatically. |
+| Segment       | Description                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| `extensionId` | The extension's `id` as declared in `manifest.json`.                                                 |
+| `commandId`   | The command's `id` as declared in `manifest.json`.                                                   |
+| Query params  | Passed to `executeCommand` as `args`. All values are strings. URL-encoding is handled automatically. |
 
 ### Character constraints
 
@@ -55,8 +56,8 @@ class MyCurrencyExtension implements Extension {
   async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
     if (commandId === 'convert') {
       const isDeeplink = args?.deeplinkTrigger === true;
-      const from   = args?.from   ?? 'USD';
-      const to     = args?.to     ?? 'EUR';
+      const from = args?.from ?? 'USD';
+      const to = args?.to ?? 'EUR';
       const amount = Number(args?.amount ?? 1);
       await this.convert(from, to, amount);
     }
@@ -71,8 +72,8 @@ The `args` object includes `{ deeplinkTrigger: true }` alongside any query param
 All query parameter values arrive as strings. Parse them explicitly:
 
 ```typescript
-const amount = Number(args?.amount);   // "100" → 100
-const enabled = args?.enabled === 'true';  // "true" → true
+const amount = Number(args?.amount); // "100" → 100
+const enabled = args?.enabled === 'true'; // "true" → true
 ```
 
 ---
@@ -117,10 +118,10 @@ class TaskManager implements Extension {
 
 ## Window behavior
 
-| Command `mode` | Window behavior |
-|---|---|
+| Command `mode` | Window behavior                                                                |
+| -------------- | ------------------------------------------------------------------------------ |
 | `"background"` | Launcher stays hidden. Command dispatches to the worker and executes silently. |
-| `"view"` | Launcher opens and navigates to the extension's view component. |
+| `"view"`       | Launcher opens and navigates to the extension's view component.                |
 
 ---
 
@@ -137,7 +138,9 @@ Deeplink invocations bypass the required-preferences prompt — there is no user
 A bookmarklet or browser extension passes the current page URL:
 
 ```javascript
-window.open(`asyar://extensions/com.example.bookmarks/save?url=${encodeURIComponent(location.href)}&title=${encodeURIComponent(document.title)}`);
+window.open(
+  `asyar://extensions/com.example.bookmarks/save?url=${encodeURIComponent(location.href)}&title=${encodeURIComponent(document.title)}`,
+);
 ```
 
 ### Terminal shortcut
@@ -184,13 +187,13 @@ await navigator.clipboard.writeText(link);
 
 All validation happens before `executeCommand` is called. Invalid deep links are silently dropped with a log entry — they never reach your extension code.
 
-| Condition | Behavior |
-|---|---|
+| Condition                           | Behavior                            |
+| ----------------------------------- | ----------------------------------- |
 | Malformed URL or invalid characters | Dropped in Rust. Logged as warning. |
-| Extension not installed | Dropped in TS. Logged as error. |
-| Extension disabled | Dropped in TS. Logged as error. |
-| Command not found in manifest | Dropped in TS. Logged as error. |
-| Command handler throws | Error logged. Usage not recorded. |
+| Extension not installed             | Dropped in TS. Logged as error.     |
+| Extension disabled                  | Dropped in TS. Logged as error.     |
+| Command not found in manifest       | Dropped in TS. Logged as error.     |
+| Command handler throws              | Error logged. Usage not recorded.   |
 
 ---
 

@@ -3,7 +3,7 @@ import { BaseServiceProxy } from './BaseServiceProxy';
 
 /**
  * SDK-side proxy for the Cache Service.
- * 
+ *
  * Communicates with the Launcher Host via asyar:api:cache:* IPC messages.
  * Each extension has an isolated namespace in the backend.
  */
@@ -22,8 +22,8 @@ export class CacheServiceProxy extends BaseServiceProxy implements ICacheService
    * Sets a value in the cache with an optional expiration date.
    */
   async set(key: string, value: string, options?: CacheSetOptions): Promise<void> {
-    const expiresAt = options?.expirationDate 
-      ? Math.floor(options.expirationDate.getTime() / 1000) 
+    const expiresAt = options?.expirationDate
+      ? Math.floor(options.expirationDate.getTime() / 1000)
       : undefined;
 
     return this.broker.invoke('cache:set', {

@@ -62,8 +62,10 @@ The token may be supplied two ways:
    subprotocols: the marker `asyar.v1` and `bearer.<token>`:
 
    ```js
-   new WebSocket(`ws://127.0.0.1:${port}/bridge?family=chromium&variant=chrome`,
-                 ['asyar.v1', `bearer.${token}`]);
+   new WebSocket(`ws://127.0.0.1:${port}/bridge?family=chromium&variant=chrome`, [
+     'asyar.v1',
+     `bearer.${token}`,
+   ]);
    ```
 
    The launcher extracts the token from the `bearer.` entry and echoes back
@@ -73,7 +75,11 @@ The token may be supplied two ways:
 Send `hello` as the first message:
 
 ```json
-{"type":"hello","version":1,"browser":{"family":"chromium","variant":"chrome","profiles":["Default","Profile 1"]}}
+{
+  "type": "hello",
+  "version": 1,
+  "browser": { "family": "chromium", "variant": "chrome", "profiles": ["Default", "Profile 1"] }
+}
 ```
 
 ## 4. Message envelopes
@@ -118,6 +124,7 @@ Send `hello` as the first message:
 ```
 
 The companion is responsible for:
+
 - Sending an initial `tabs.snapshot` after `hello`
 - Sending `tabs.changed` whenever any tab is created, removed, navigated, activated,
   or moved between windows
@@ -169,15 +176,15 @@ These three states are distinct and the companion must honor them.
 
 ## 7. Server-initiated methods
 
-| Method            | Params                            | Result                   |
-|-------------------|-----------------------------------|--------------------------|
-| `tabs.activate`   | `{ tabId: string }`               | `{ activated: true }`    |
-| `tabs.close`      | `{ tabId: string }`               | `{ closed: true }`       |
-| `tabs.open`       | `{ url: string, newWindow: bool }`| `{ tabId: string }`      |
-| `page.snapshot`   | `{ tabId: string }`               | `PageSnapshot`           |
-| `page.query`      | `{ tabId, selector, attrs? }`     | `PageMatch[]`            |
-| `page.action`     | `{ tabId, action: { kind } }`     | `null`                   |
-| `search.web`      | `{ text: string }`                | `{ searched: true }`     |
+| Method          | Params                             | Result                |
+| --------------- | ---------------------------------- | --------------------- |
+| `tabs.activate` | `{ tabId: string }`                | `{ activated: true }` |
+| `tabs.close`    | `{ tabId: string }`                | `{ closed: true }`    |
+| `tabs.open`     | `{ url: string, newWindow: bool }` | `{ tabId: string }`   |
+| `page.snapshot` | `{ tabId: string }`                | `PageSnapshot`        |
+| `page.query`    | `{ tabId, selector, attrs? }`      | `PageMatch[]`         |
+| `page.action`   | `{ tabId, action: { kind } }`      | `null`                |
+| `search.web`    | `{ text: string }`                 | `{ searched: true }`  |
 
 The companion is expected to respond within 5 seconds for tab methods and `search.web`, and 10 seconds for page methods. The launcher times out RPCs after these durations and returns an error to the calling extension.
 
@@ -188,7 +195,7 @@ The companion is expected to respond within 5 seconds for tab methods and `searc
 **Window focus (required for `tabs.activate` / `tabs.open`):** the companion MUST
 also focus the tab's window — `chrome.windows.update(windowId, { focused: true })`
 (or the browser's equivalent) — so the browser comes to the foreground.
-`tabs.update(..., { active: true })` only changes the active tab *within* the
+`tabs.update(..., { active: true })` only changes the active tab _within_ the
 browser; without focusing the window the switch happens invisibly in a
 background window. The launcher dismisses itself after dispatching the
 activation, leaving the focused browser window unobstructed.

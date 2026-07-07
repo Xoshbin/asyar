@@ -16,9 +16,9 @@ deep link would take — the extension receives the fire via its normal
 
 ```ts
 interface NotificationAction {
-  id: string;                     // action-local id (unique within the notification)
-  title: string;                  // button label shown in the OS notification
-  commandId: string;              // extension's command to fire (must be in manifest.json)
+  id: string; // action-local id (unique within the notification)
+  title: string; // button label shown in the OS notification
+  commandId: string; // extension's command to fire (must be in manifest.json)
   args?: Record<string, unknown>; // JSON-serialisable args forwarded to the command
 }
 
@@ -32,8 +32,8 @@ interface NotificationOptions {
 interface INotificationService {
   checkPermission(): Promise<boolean>;
   requestPermission(): Promise<boolean>;
-  send(options: NotificationOptions): Promise<string>;   // returns notification id
-  dismiss(notificationId: string): Promise<void>;        // drops pending actions + closes OS banner
+  send(options: NotificationOptions): Promise<string>; // returns notification id
+  dismiss(notificationId: string): Promise<void>; // drops pending actions + closes OS banner
 }
 ```
 
@@ -49,7 +49,7 @@ const notificationId = await notifications.send({
   body: 'Extend or stop before the timer runs out.',
   actions: [
     { id: 'extend', title: 'Extend 30m', commandId: 'coffee.extend', args: { minutes: 30 } },
-    { id: 'stop',   title: 'Stop now',  commandId: 'coffee.stop' },
+    { id: 'stop', title: 'Stop now', commandId: 'coffee.stop' },
   ],
 });
 
@@ -63,7 +63,7 @@ await notifications.dismiss(notificationId);
 {
   "commands": [
     { "id": "coffee.extend", "name": "Extend coffee", "mode": "background" },
-    { "id": "coffee.stop",   "name": "Stop coffee",   "mode": "background" }
+    { "id": "coffee.stop", "name": "Stop coffee", "mode": "background" }
   ]
 }
 ```
@@ -85,11 +85,11 @@ When the user clicks **Extend 30m**, the extension's `executeCommand('coffee.ext
 
 ## Platform matrix
 
-| OS | How it renders | Reliable action count | Notes |
-|----|----------------|-----------------------|-------|
-| macOS | `mac-notification-sys` → NSUserNotification | 1 primary + dropdown for 2+ | One action renders as a single button; multiple actions appear under an "Actions" dropdown menu. A "Close" button is always present. |
-| Linux (GNOME, KDE, dunst) | `notify-rust` → xdg freedesktop | 2–4 typically | Depends on the notification daemon. KDE Plasma surfaces all actions inline; GNOME collapses them. |
-| Windows | `tauri-plugin-notification` → toast | 0 | Action buttons are **dropped with a warning**; the notification still fires with title + body. |
+| OS                        | How it renders                              | Reliable action count       | Notes                                                                                                                                |
+| ------------------------- | ------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| macOS                     | `mac-notification-sys` → NSUserNotification | 1 primary + dropdown for 2+ | One action renders as a single button; multiple actions appear under an "Actions" dropdown menu. A "Close" button is always present. |
+| Linux (GNOME, KDE, dunst) | `notify-rust` → xdg freedesktop             | 2–4 typically               | Depends on the notification daemon. KDE Plasma surfaces all actions inline; GNOME collapses them.                                    |
+| Windows                   | `tauri-plugin-notification` → toast         | 0                           | Action buttons are **dropped with a warning**; the notification still fires with title + body.                                       |
 
 When a platform can't render actions, the notification still delivers — the buttons are silently stripped from the UI and a warning is logged. Extensions should not crash or behave differently based on action support.
 
@@ -106,23 +106,23 @@ If a user clicks a button on a notification whose extension has since been disab
 
 ## Error surfaces
 
-| Condition | Where | Surfaced as |
-|-----------|-------|-------------|
-| `NotificationAction.id` empty | SDK proxy | rejected before IPC with `"NotificationAction requires a non-empty id"` |
-| `NotificationAction.title` empty | SDK proxy | rejected with `"NotificationAction \"<id>\" requires a non-empty title"` |
-| `NotificationAction.commandId` empty | SDK proxy + Rust validator | rejected with `"...requires a non-empty commandId"` |
-| `args` not JSON-serialisable | SDK proxy | rejected with `"args are not JSON-serialisable"` |
-| Extension missing `notifications:send` permission | Permission gate | IPC response `error: "Permission denied: notifications:send is required..."` |
-| `commandId` unknown at click time | `NotificationActionBridge` | logged + swallowed |
-| Extension disabled at click time | `NotificationActionBridge` | logged + swallowed |
+| Condition                                         | Where                      | Surfaced as                                                                  |
+| ------------------------------------------------- | -------------------------- | ---------------------------------------------------------------------------- |
+| `NotificationAction.id` empty                     | SDK proxy                  | rejected before IPC with `"NotificationAction requires a non-empty id"`      |
+| `NotificationAction.title` empty                  | SDK proxy                  | rejected with `"NotificationAction \"<id>\" requires a non-empty title"`     |
+| `NotificationAction.commandId` empty              | SDK proxy + Rust validator | rejected with `"...requires a non-empty commandId"`                          |
+| `args` not JSON-serialisable                      | SDK proxy                  | rejected with `"args are not JSON-serialisable"`                             |
+| Extension missing `notifications:send` permission | Permission gate            | IPC response `error: "Permission denied: notifications:send is required..."` |
+| `commandId` unknown at click time                 | `NotificationActionBridge` | logged + swallowed                                                           |
+| Extension disabled at click time                  | `NotificationActionBridge` | logged + swallowed                                                           |
 
 ## Wire format
 
-| TS call | IPC type string | Permission |
-|---------|-----------------|------------|
-| `send({ title, actions })` | `asyar:api:notifications:send` | `notifications:send` |
-| `dismiss(id)` | `asyar:api:notifications:dismiss` | `notifications:send` |
-| `checkPermission()` | `asyar:api:notifications:checkPermission` | — (core) |
-| `requestPermission()` | `asyar:api:notifications:requestPermission` | — (core) |
+| TS call                    | IPC type string                             | Permission           |
+| -------------------------- | ------------------------------------------- | -------------------- |
+| `send({ title, actions })` | `asyar:api:notifications:send`              | `notifications:send` |
+| `dismiss(id)`              | `asyar:api:notifications:dismiss`           | `notifications:send` |
+| `checkPermission()`        | `asyar:api:notifications:checkPermission`   | — (core)             |
+| `requestPermission()`      | `asyar:api:notifications:requestPermission` | — (core)             |
 
 The Rust side emits `asyar:notification-action` on action click; this is an internal launcher event — extensions never subscribe to it directly.

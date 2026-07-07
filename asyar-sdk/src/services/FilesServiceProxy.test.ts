@@ -44,7 +44,13 @@ describe('FilesServiceProxy', () => {
   });
 
   it('status() calls broker.invoke with files:status', async () => {
-    const status = { state: 'ready', entryCount: 10, lastScanMs: 5, snapshotLoaded: true, capReached: false };
+    const status = {
+      state: 'ready',
+      entryCount: 10,
+      lastScanMs: 5,
+      snapshotLoaded: true,
+      capReached: false,
+    };
     vi.mocked(mockBroker.invoke).mockResolvedValueOnce(status);
     const result = await proxy.status();
     expect(mockBroker.invoke).toHaveBeenCalledWith('files:status', {});

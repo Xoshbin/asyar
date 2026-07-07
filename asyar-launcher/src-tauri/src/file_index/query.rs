@@ -22,14 +22,12 @@ use std::collections::BinaryHeap;
 
 use memchr::memmem;
 
+use super::file_id;
 use super::index::FileIndex;
 use super::learning::LearningCache;
 use super::matcher::Matcher;
 use super::ranking::{self, MatchKind};
-use super::types::{
-    flags_hidden, FileHit, FileSearchResponse, FileType, HitSource, WorkMeter,
-};
-use super::file_id;
+use super::types::{flags_hidden, FileHit, FileSearchResponse, FileType, HitSource, WorkMeter};
 
 pub const CANDIDATE_CAP: usize = 2048;
 pub const DEFAULT_LIMIT: usize = 50;
@@ -188,8 +186,7 @@ pub fn execute(
     // ---- scoring: top-N heap, zero allocation until materialization ----
     // Scores are non-negative, so `f32::to_bits` is order-preserving and a
     // `(bits, idx)` min-heap keeps the top `limit`.
-    let mut heap: BinaryHeap<std::cmp::Reverse<(u32, u32)>> =
-        BinaryHeap::with_capacity(limit + 1);
+    let mut heap: BinaryHeap<std::cmp::Reverse<(u32, u32)>> = BinaryHeap::with_capacity(limit + 1);
     for &idx in &candidates {
         let kind = classify_substring_match(index.lc_name(idx), primary.as_bytes());
         let s = score_entry(index, learning, idx, kind, &normalized, now);
@@ -201,7 +198,14 @@ pub fn execute(
         let Some(fuzzy) = matcher.score(&primary, name) else {
             continue;
         };
-        let s = score_entry(index, learning, idx, MatchKind::Fuzzy(fuzzy), &normalized, now);
+        let s = score_entry(
+            index,
+            learning,
+            idx,
+            MatchKind::Fuzzy(fuzzy),
+            &normalized,
+            now,
+        );
         work.candidates_scored += 1;
         push_top(&mut heap, s, idx, limit);
     }
@@ -629,7 +633,11 @@ mod tests {
 
     #[test]
     fn multi_token_query_requires_all_tokens_in_name() {
-        let idx = build(&["/r/report-2025.txt", "/r/report-2026.txt", "/r/notes-2026.txt"]);
+        let idx = build(&[
+            "/r/report-2025.txt",
+            "/r/report-2026.txt",
+            "/r/notes-2026.txt",
+        ]);
         let r = run(&idx, &mut None, "report 2026");
         assert_eq!(hit_names(&r), vec!["report-2026.txt"]);
     }
@@ -876,7 +884,9 @@ mod tests {
         // common (truncates) and its 3-char extension is rarer.
         let mut lcg: u64 = 0x243F6A8885A308D3;
         let mut next = || {
-            lcg = lcg.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            lcg = lcg
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             lcg
         };
         const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
@@ -892,11 +902,7 @@ mod tests {
         let mut items: Vec<ScannedEntry> = (0..200)
             .map(|d| entry(&format!("/r/d{d}"), EntryKind::Dir, NOW as u32))
             .collect();
-        items.extend(
-            paths
-                .iter()
-                .map(|p| entry(p, EntryKind::File, NOW as u32)),
-        );
+        items.extend(paths.iter().map(|p| entry(p, EntryKind::File, NOW as u32)));
         let idx = FileIndex::build(vec![PathBuf::from("/r")], items, NOW);
 
         let learning = LearningCache::new();
@@ -953,7 +959,9 @@ mod tests {
     fn perf_bench_wall_clock_1m_entries() {
         let mut lcg: u64 = 0x9E3779B97F4A7C15;
         let mut next = || {
-            lcg = lcg.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            lcg = lcg
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             lcg
         };
         const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789-_";

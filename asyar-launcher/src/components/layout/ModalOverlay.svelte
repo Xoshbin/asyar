@@ -17,7 +17,7 @@
 </script>
 
 <div class="modal-overlay" role="dialog">
-  <div class="modal-box" style:width={width}>
+  <div class="modal-box" style:width>
     {#if title}
       <h3>{title}</h3>
     {/if}
@@ -49,7 +49,9 @@
     background: var(--bg-popup);
     padding: 24px;
     border-radius: var(--radius-lg);
-    box-shadow: 0 8px 32px var(--shadow-color), 0 0 0 1px var(--border-color);
+    box-shadow:
+      0 8px 32px var(--shadow-color),
+      0 0 0 1px var(--border-color);
     color: var(--text-primary);
   }
 

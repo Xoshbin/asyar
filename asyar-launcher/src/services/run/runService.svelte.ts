@@ -106,7 +106,14 @@ export class RunService {
     cancellable: boolean,
     subjectId: string | null = null,
   ): Promise<Run> {
-    const run = await invokeSafe<Run>('runs_start', { id, kind, label, extensionId, cancellable, subjectId });
+    const run = await invokeSafe<Run>('runs_start', {
+      id,
+      kind,
+      label,
+      extensionId,
+      cancellable,
+      subjectId,
+    });
     if (!run) {
       throw new Error('runs_start failed');
     }
@@ -171,10 +178,7 @@ export class RunService {
 
     if (isTerminal) {
       if (existingIdx >= 0) {
-        this.active = [
-          ...this.active.slice(0, existingIdx),
-          ...this.active.slice(existingIdx + 1),
-        ];
+        this.active = [...this.active.slice(0, existingIdx), ...this.active.slice(existingIdx + 1)];
       }
       this.recent = [run, ...this.recent].slice(0, 50);
 
@@ -323,7 +327,9 @@ export class RunService {
 
   private buildLocalHandle(id: string): LocalRunHandle {
     return {
-      get id() { return id; },
+      get id() {
+        return id;
+      },
       write: (line: string) => this.write(null, id, line),
       done: () => this.done(null, id),
       fail: (error: string) => this.fail(null, id, error),

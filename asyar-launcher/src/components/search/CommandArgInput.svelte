@@ -75,7 +75,8 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     padding: 3px var(--space-2);
-    transition: border-color var(--transition-normal),
+    transition:
+      border-color var(--transition-normal),
       box-shadow var(--transition-normal);
     min-width: 0;
   }

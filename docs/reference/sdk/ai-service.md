@@ -18,17 +18,17 @@ interface AIMessage {
 
 interface AIStreamParams {
   messages: AIMessage[];
-  temperature?: number;  // 0–2, provider default if omitted
-  maxTokens?: number;    // capped to the user's configured max
+  temperature?: number; // 0–2, provider default if omitted
+  maxTokens?: number; // capped to the user's configured max
 }
 
 type AIErrorCode =
-  | 'ai_not_configured'   // user has no provider set up
+  | 'ai_not_configured' // user has no provider set up
   | 'ai_disabled_by_user' // master toggle is off
-  | 'provider_error'      // upstream API returned an error
-  | 'invalid_request'     // bad messages array or params
-  | 'internal_error'      // unexpected host-side failure
-  | 'aborted';            // extension called handle.abort()
+  | 'provider_error' // upstream API returned an error
+  | 'invalid_request' // bad messages array or params
+  | 'internal_error' // unexpected host-side failure
+  | 'aborted'; // extension called handle.abort()
 
 interface AIError {
   code: AIErrorCode;
@@ -59,14 +59,18 @@ const ai = context.getService<IAIService>('ai');
 
 const handle = ai.stream(
   {
-    messages: [
-      { role: 'user', content: 'Summarise this in one sentence: ' + selectedText },
-    ],
+    messages: [{ role: 'user', content: 'Summarise this in one sentence: ' + selectedText }],
   },
   {
-    onToken(token) { output += token; },
-    onDone()       { console.log('Done'); },
-    onError(err)   { console.warn('[AI] stream error:', err.code, err.message); },
+    onToken(token) {
+      output += token;
+    },
+    onDone() {
+      console.log('Done');
+    },
+    onError(err) {
+      console.warn('[AI] stream error:', err.code, err.message);
+    },
   },
 );
 
@@ -79,13 +83,16 @@ handle.abort();
 ```typescript
 import type { IAIService, ISelectionService, IFeedbackService } from 'asyar-sdk';
 
-const ai        = context.getService<IAIService>('ai');
+const ai = context.getService<IAIService>('ai');
 const selection = context.getService<ISelectionService>('selection');
-const feedback  = context.getService<IFeedbackService>('feedback');
+const feedback = context.getService<IFeedbackService>('feedback');
 
 async function summarise() {
   const text = await selection.getSelectedText();
-  if (!text) { await feedback.showHUD('Nothing selected'); return; }
+  if (!text) {
+    await feedback.showHUD('Nothing selected');
+    return;
+  }
 
   let summary = '';
   let toastId: string | undefined;
@@ -96,15 +103,19 @@ async function summarise() {
   ai.stream(
     { messages: [{ role: 'user', content: `Summarise in one sentence:\n\n${text}` }] },
     {
-      onToken(token) { summary += token; },
+      onToken(token) {
+        summary += token;
+      },
       async onDone() {
         await feedback.updateToast(toastId!, { title: summary, style: 'success' });
       },
       async onError(err) {
         const msg =
-          err.code === 'ai_not_configured' ? 'No AI provider configured' :
-          err.code === 'ai_disabled_by_user' ? 'AI disabled for extensions' :
-          `AI error: ${err.message}`;
+          err.code === 'ai_not_configured'
+            ? 'No AI provider configured'
+            : err.code === 'ai_disabled_by_user'
+              ? 'AI disabled for extensions'
+              : `AI error: ${err.message}`;
         await feedback.updateToast(toastId!, { title: msg, style: 'failure' });
       },
     },
@@ -117,9 +128,9 @@ async function summarise() {
 ```typescript
 const messages: AIMessage[] = [
   { role: 'system', content: 'You are a concise assistant. Reply in plain text only.' },
-  { role: 'user',   content: 'What is the capital of France?' },
+  { role: 'user', content: 'What is the capital of France?' },
   { role: 'assistant', content: 'Paris.' },
-  { role: 'user',   content: 'And of Germany?' },
+  { role: 'user', content: 'And of Germany?' },
 ];
 
 ai.stream({ messages }, handlers);
@@ -150,21 +161,21 @@ Multiple streams can be active simultaneously (e.g. two extensions running in pa
 
 #### Parameters and constraints
 
-| Param | Default | Constraint |
-|---|---|---|
-| `temperature` | Provider default | 0–2 |
-| `maxTokens` | User's configured max | Silently capped to the user's configured maximum — you cannot exceed it |
+| Param         | Default               | Constraint                                                              |
+| ------------- | --------------------- | ----------------------------------------------------------------------- |
+| `temperature` | Provider default      | 0–2                                                                     |
+| `maxTokens`   | User's configured max | Silently capped to the user's configured maximum — you cannot exceed it |
 
 #### Error handling
 
-| `AIErrorCode` | When it fires | What to do |
-|---|---|---|
-| `ai_not_configured` | No API key or provider is set up in Asyar settings | Prompt the user to configure AI in Asyar settings before using your extension |
-| `ai_disabled_by_user` | The "Allow extensions to use AI" master toggle is off | Surface this clearly; respect the user's choice |
-| `provider_error` | The upstream API returned an HTTP error (rate limit, invalid key, quota exceeded, etc.) | Show the message to the user; usually transient |
-| `invalid_request` | Empty messages array, unsupported role, or other malformed input | Fix the request shape; this is a developer error |
-| `internal_error` | Unexpected host-side failure | Log; consider retrying once |
-| `aborted` | Your code called `handle.abort()` | Expected; no user-visible error needed unless you want one |
+| `AIErrorCode`         | When it fires                                                                           | What to do                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `ai_not_configured`   | No API key or provider is set up in Asyar settings                                      | Prompt the user to configure AI in Asyar settings before using your extension |
+| `ai_disabled_by_user` | The "Allow extensions to use AI" master toggle is off                                   | Surface this clearly; respect the user's choice                               |
+| `provider_error`      | The upstream API returned an HTTP error (rate limit, invalid key, quota exceeded, etc.) | Show the message to the user; usually transient                               |
+| `invalid_request`     | Empty messages array, unsupported role, or other malformed input                        | Fix the request shape; this is a developer error                              |
+| `internal_error`      | Unexpected host-side failure                                                            | Log; consider retrying once                                                   |
+| `aborted`             | Your code called `handle.abort()`                                                       | Expected; no user-visible error needed unless you want one                    |
 
 #### Privacy & security
 

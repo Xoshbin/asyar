@@ -16,10 +16,7 @@ import { dispatchSilentAgentCommand } from './silentDispatch';
  *    `viewManager` are not touched. See `silentDispatch.ts` for the
  *    Run-tracker suppression contract.
  */
-export async function dispatchAgentCommand(
-  dynamicId: string,
-  _args?: unknown,
-): Promise<void> {
+export async function dispatchAgentCommand(dynamicId: string, _args?: unknown): Promise<void> {
   const service = getCurrentAgentService();
   const agent = service.getById(dynamicId);
   if (!agent) {

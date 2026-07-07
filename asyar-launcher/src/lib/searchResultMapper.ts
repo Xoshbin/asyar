@@ -26,7 +26,7 @@ export type ResolvedItemMeta = {
  */
 export function resolveItemMeta(
   result: SearchResult,
-  getManifestById: (extensionId: string) => { name: string } | undefined | null
+  getManifestById: (extensionId: string) => { name: string } | undefined | null,
 ): ResolvedItemMeta {
   const type = result.type || 'unknown';
 
@@ -240,21 +240,21 @@ export function buildMappedItems({
       icon: ctx.provider.display.icon,
       extensionId: ctx.provider.type === 'url' ? 'portals' : ctx.provider.id,
     };
-    baseItems = [portalResult, ...searchItems.filter(r => r.objectId !== portalResult.objectId)];
+    baseItems = [portalResult, ...searchItems.filter((r) => r.objectId !== portalResult.objectId)];
   }
 
   const hasQuery = (query ?? '').trim().length > 0;
 
   // --- Shortcut lookup map ---
   const shortcutMap = new Map<string, ItemShortcut>(
-    shortcutStore.map((s: ItemShortcut) => [s.objectId, s])
+    shortcutStore.map((s: ItemShortcut) => [s.objectId, s]),
   );
 
   // --- Map each result to a display item ---
-  const mappedItems: MappedSearchItem[] = baseItems.map(result => {
+  const mappedItems: MappedSearchItem[] = baseItems.map((result) => {
     const { objectId, icon, typeLabel } = resolveItemMeta(
       result,
-      (id) => extensionManager.getManifestById?.(id) ?? null
+      (id) => extensionManager.getManifestById?.(id) ?? null,
     );
 
     const name = result.name || 'Unknown Item';
@@ -285,7 +285,9 @@ export function buildMappedItems({
       };
     } else if (type === 'application' && path) {
       actionFunction = async () => {
-        logService.debug(`Calling applicationService.open for ${name} (ID: ${objectId}, Path: ${path})`);
+        logService.debug(
+          `Calling applicationService.open for ${name} (ID: ${objectId}, Path: ${path})`,
+        );
         try {
           await applicationService.open({ objectId, name, path, score, type, tier: result.tier });
         } catch (err) {
@@ -296,7 +298,9 @@ export function buildMappedItems({
       };
     } else if (type === 'command' && objectId) {
       const commandObjectId = objectId;
-      const isPortalCommand = activeContext !== null && objectId === `cmd_portals_${activeContext.provider.id.replace('portal_', '')}`;
+      const isPortalCommand =
+        activeContext !== null &&
+        objectId === `cmd_portals_${activeContext.provider.id.replace('portal_', '')}`;
       const capturedQuery = isPortalCommand ? activeContext!.query : localSearchValue;
       actionFunction = async () => {
         if (searchOrchestrator.tryExecuteResultAction(commandObjectId)) {
@@ -309,7 +313,9 @@ export function buildMappedItems({
         }
         logService.debug(`[searchResultMapper] Executing command: ${commandObjectId}`);
         try {
-          return await extensionManager.handleCommandAction(commandObjectId, { query: capturedQuery });
+          return await extensionManager.handleCommandAction(commandObjectId, {
+            query: capturedQuery,
+          });
         } catch (err) {
           logService.error(`extensionManager.handleCommandAction failed: ${err}`);
           onError(`Failed to run command ${name}`);
@@ -327,9 +333,7 @@ export function buildMappedItems({
     // Use live override when present (set by updateCommandMetadata); fall back
     // to the Rust-stored description from the search index otherwise.
     const liveSub = liveSubtitles?.[objectId];
-    subtitle = liveSub !== undefined
-      ? (liveSub ?? undefined)
-      : (result.description || undefined);
+    subtitle = liveSub !== undefined ? (liveSub ?? undefined) : result.description || undefined;
 
     return {
       object_id: objectId,
@@ -352,9 +356,9 @@ export function buildMappedItems({
   // Definition rows and run rows are orthogonal channels: a def row says
   // "click to invoke", a run row says "this is happening / has happened".
   // Both render unconditionally — neither suppresses the other.
-  const activeItems       = activeRuns.map(buildRunMappedItem);
-  const failedItems       = failedRuns.map(buildRunMappedItem);
-  const keptItems         = keptAgentRuns.map(buildRunMappedItem);
+  const activeItems = activeRuns.map(buildRunMappedItem);
+  const failedItems = failedRuns.map(buildRunMappedItem);
+  const keptItems = keptAgentRuns.map(buildRunMappedItem);
   const scriptResultItems = scriptResultRuns.map(buildRunMappedItem);
 
   if (!hasQuery) {
@@ -366,13 +370,14 @@ export function buildMappedItems({
     // JS Array.prototype.sort is guaranteed stable since ES2019, so within
     // the same weight, the original [runs -> catalog] order is preserved.
     const allMappedItems = [...runItems, ...mappedItems].sort(
-      (a, b) => getSectionWeight(a) - getSectionWeight(b)
+      (a, b) => getSectionWeight(a) - getSectionWeight(b),
     );
-    const selectedEntry = selectedIndex >= 0 && selectedIndex < allMappedItems.length
-      ? allMappedItems[selectedIndex]
-      : null;
+    const selectedEntry =
+      selectedIndex >= 0 && selectedIndex < allMappedItems.length
+        ? allMappedItems[selectedIndex]
+        : null;
     const selectedOriginal = selectedEntry
-      ? baseItems.find(r => r.objectId === selectedEntry.object_id) ?? null
+      ? (baseItems.find((r) => r.objectId === selectedEntry.object_id) ?? null)
       : null;
     return { mappedItems: allMappedItems, selectedOriginal };
   }
@@ -390,7 +395,7 @@ export function buildMappedItems({
   // → kept order.
   type Tagged =
     | { kind: 'mapped'; item: MappedSearchItem; baseIdx: number; tier: number }
-    | { kind: 'run';    item: MappedSearchItem; tier: number };
+    | { kind: 'run'; item: MappedSearchItem; tier: number };
 
   const runTier = (runId: string): number => runTiers?.get(runId) ?? NO_MATCH_TIER;
 
@@ -402,16 +407,34 @@ export function buildMappedItems({
   }));
 
   const taggedRuns: Tagged[] = [
-    ...activeItems.map((item, i) => ({ kind: 'run' as const, item, tier: runTier(activeRuns[i].id) })),
-    ...failedItems.map((item, i) => ({ kind: 'run' as const, item, tier: runTier(failedRuns[i].id) })),
-    ...keptItems.map  ((item, i) => ({ kind: 'run' as const, item, tier: runTier(keptAgentRuns[i].id) })),
-    ...scriptResultItems.map((item, i) => ({ kind: 'run' as const, item, tier: runTier(scriptResultRuns[i].id) })),
+    ...activeItems.map((item, i) => ({
+      kind: 'run' as const,
+      item,
+      tier: runTier(activeRuns[i].id),
+    })),
+    ...failedItems.map((item, i) => ({
+      kind: 'run' as const,
+      item,
+      tier: runTier(failedRuns[i].id),
+    })),
+    ...keptItems.map((item, i) => ({
+      kind: 'run' as const,
+      item,
+      tier: runTier(keptAgentRuns[i].id),
+    })),
+    ...scriptResultItems.map((item, i) => ({
+      kind: 'run' as const,
+      item,
+      tier: runTier(scriptResultRuns[i].id),
+    })),
   ];
 
   // Stable-sort by tier ascending; Array.prototype.sort is stable in modern
   // engines, so active → failed → kept ordering is preserved within a tier.
-  const matchingRuns    = taggedRuns.filter(r => r.tier < NO_MATCH_TIER).sort((a, b) => a.tier - b.tier);
-  const nonMatchingRuns = taggedRuns.filter(r => r.tier === NO_MATCH_TIER);
+  const matchingRuns = taggedRuns
+    .filter((r) => r.tier < NO_MATCH_TIER)
+    .sort((a, b) => a.tier - b.tier);
+  const nonMatchingRuns = taggedRuns.filter((r) => r.tier === NO_MATCH_TIER);
 
   const merged: Tagged[] = [];
   let ri = 0;
@@ -426,11 +449,10 @@ export function buildMappedItems({
   }
   merged.push(...nonMatchingRuns);
 
-  const allMappedItems = merged.map(e => e.item);
+  const allMappedItems = merged.map((e) => e.item);
   const selectedEntry = merged[selectedIndex];
-  const selectedOriginal = selectedEntry?.kind === 'mapped'
-    ? baseItems[selectedEntry.baseIdx]
-    : null;
+  const selectedOriginal =
+    selectedEntry?.kind === 'mapped' ? baseItems[selectedEntry.baseIdx] : null;
 
   return { mappedItems: allMappedItems, selectedOriginal };
 }

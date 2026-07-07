@@ -37,8 +37,12 @@ export class RunServiceProxy extends BaseServiceProxy implements IRunService {
     };
 
     return {
-      get id() { return id; },
-      get cancelled() { return cancelled; },
+      get id() {
+        return id;
+      },
+      get cancelled() {
+        return cancelled;
+      },
 
       /** Write a line of output to this run. */
       async write(line: string) {

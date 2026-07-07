@@ -6,11 +6,7 @@
   "type": "extension",
   "searchable": true,
   "icon": "icon:store",
-  "permissions": [
-    "window:manage",
-    "storage:read",
-    "storage:write"
-  ],
+  "permissions": ["window:manage", "storage:read", "storage:write"],
   "commands": [
     {
       "id": "left-half",

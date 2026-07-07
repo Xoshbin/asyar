@@ -45,10 +45,7 @@ export class SearchBarAccessoryServiceProxy
       try {
         handler(p.value);
       } catch (err) {
-        console.warn(
-          '[SearchBarAccessoryServiceProxy] onChange handler threw:',
-          err,
-        );
+        console.warn('[SearchBarAccessoryServiceProxy] onChange handler threw:', err);
       }
     };
     this.broker.on(FILTER_CHANGE_EVENT, listener);

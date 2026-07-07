@@ -21,9 +21,47 @@ describe('useShortcutCapture', () => {
     vi.useFakeTimers();
 
     // Populate valid keys for tests
-    ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-     'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'Space', '/', 'Escape'].forEach(k => VALID_KEYS.add(k));
+    [
+      'A',
+      'B',
+      'C',
+      'D',
+      'E',
+      'F',
+      'G',
+      'H',
+      'I',
+      'J',
+      'K',
+      'L',
+      'M',
+      'N',
+      'O',
+      'P',
+      'Q',
+      'R',
+      'S',
+      'T',
+      'U',
+      'V',
+      'W',
+      'X',
+      'Y',
+      'Z',
+      '0',
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9',
+      'Space',
+      '/',
+      'Escape',
+    ].forEach((k) => VALID_KEYS.add(k));
   });
 
   afterEach(() => {
@@ -81,11 +119,13 @@ describe('useShortcutCapture', () => {
   it('pressing Backspace marks error invalid-key', () => {
     const capture = useShortcutCapture({ onCapture: async () => true });
     capture.startRecording();
-    window.dispatchEvent(makeKeyEvent('keydown', {
-      key: 'Backspace',
-      code: 'Backspace',
-      metaKey: true,
-    }));
+    window.dispatchEvent(
+      makeKeyEvent('keydown', {
+        key: 'Backspace',
+        code: 'Backspace',
+        metaKey: true,
+      }),
+    );
     expect(capture.state.errorType).toBe('invalid-key');
   });
 
@@ -93,11 +133,13 @@ describe('useShortcutCapture', () => {
     const onCapture = vi.fn().mockResolvedValue(true);
     const capture = useShortcutCapture({ onCapture });
     capture.startRecording();
-    window.dispatchEvent(makeKeyEvent('keydown', {
-      key: 'k',
-      code: 'KeyK',
-      metaKey: true,
-    }));
+    window.dispatchEvent(
+      makeKeyEvent('keydown', {
+        key: 'k',
+        code: 'KeyK',
+        metaKey: true,
+      }),
+    );
     await vi.waitFor(() => {
       expect(onCapture).toHaveBeenCalledWith({ modifier: 'Super', key: 'K' });
     });
@@ -107,12 +149,14 @@ describe('useShortcutCapture', () => {
     const onCapture = vi.fn().mockResolvedValue(true);
     const capture = useShortcutCapture({ onCapture });
     capture.startRecording();
-    window.dispatchEvent(makeKeyEvent('keydown', {
-      key: '?',
-      code: 'Slash',
-      shiftKey: true,
-      metaKey: true,
-    }));
+    window.dispatchEvent(
+      makeKeyEvent('keydown', {
+        key: '?',
+        code: 'Slash',
+        shiftKey: true,
+        metaKey: true,
+      }),
+    );
     await vi.waitFor(() => {
       expect(onCapture).toHaveBeenCalledWith({ modifier: 'Shift+Super', key: '/' });
     });
@@ -122,14 +166,16 @@ describe('useShortcutCapture', () => {
     const onCapture = vi.fn().mockResolvedValue(true);
     const capture = useShortcutCapture({ onCapture });
     capture.startRecording();
-    window.dispatchEvent(makeKeyEvent('keydown', {
-      key: 'k',
-      code: 'KeyK',
-      ctrlKey: true,
-      altKey: true,
-      shiftKey: true,
-      metaKey: true,
-    }));
+    window.dispatchEvent(
+      makeKeyEvent('keydown', {
+        key: 'k',
+        code: 'KeyK',
+        ctrlKey: true,
+        altKey: true,
+        shiftKey: true,
+        metaKey: true,
+      }),
+    );
     await vi.waitFor(() => {
       expect(onCapture).toHaveBeenCalledWith({ modifier: 'Control+Alt+Shift+Super', key: 'K' });
     });
@@ -138,11 +184,13 @@ describe('useShortcutCapture', () => {
   it('onCapture returning an error string moves saveState to error', async () => {
     const capture = useShortcutCapture({ onCapture: async () => 'boom' });
     capture.startRecording();
-    window.dispatchEvent(makeKeyEvent('keydown', {
-      key: 'k',
-      code: 'KeyK',
-      metaKey: true,
-    }));
+    window.dispatchEvent(
+      makeKeyEvent('keydown', {
+        key: 'k',
+        code: 'KeyK',
+        metaKey: true,
+      }),
+    );
     await vi.waitFor(() => {
       expect(capture.state.saveState).toBe('error');
       expect(capture.state.errorMessage).toBe('boom');
@@ -154,11 +202,13 @@ describe('useShortcutCapture', () => {
     const onCapture = vi.fn().mockResolvedValue(true);
     const capture = useShortcutCapture({ onCapture, conflictChecker });
     capture.startRecording();
-    window.dispatchEvent(makeKeyEvent('keydown', {
-      key: 'k',
-      code: 'KeyK',
-      metaKey: true,
-    }));
+    window.dispatchEvent(
+      makeKeyEvent('keydown', {
+        key: 'k',
+        code: 'KeyK',
+        metaKey: true,
+      }),
+    );
     await vi.waitFor(() => {
       expect(capture.state.errorType).toBe('conflict');
       expect(capture.state.conflictInfo).toBe('Slack');

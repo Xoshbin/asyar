@@ -84,7 +84,14 @@ describe('clipboardHistoryStore', () => {
   });
 
   it('fetchFullItem calls clipboardGetItem and does NOT touch list endpoints', async () => {
-    mockGetItem.mockResolvedValue({ id: 'full', type: 'text', content: 'body', preview: 'body', createdAt: 1, favorite: false });
+    mockGetItem.mockResolvedValue({
+      id: 'full',
+      type: 'text',
+      content: 'body',
+      preview: 'body',
+      createdAt: 1,
+      favorite: false,
+    });
     const got = await clipboardHistoryStore.fetchFullItem('full');
     expect(got?.content).toBe('body');
     expect(mockListInitial).not.toHaveBeenCalled();
@@ -92,10 +99,14 @@ describe('clipboardHistoryStore', () => {
   });
 
   it('deleteHistoryItem removes the row locally and reports image path', async () => {
-    mockListInitial.mockResolvedValue({ favorites: [], recent: [
-      { id: 'a', type: 'text', createdAt: 1, favorite: false },
-      { id: 'b', type: 'text', createdAt: 2, favorite: false },
-    ], nextCursor: undefined });
+    mockListInitial.mockResolvedValue({
+      favorites: [],
+      recent: [
+        { id: 'a', type: 'text', createdAt: 1, favorite: false },
+        { id: 'b', type: 'text', createdAt: 2, favorite: false },
+      ],
+      nextCursor: undefined,
+    });
     mockDelete.mockResolvedValue({ imageContentPath: undefined });
     await clipboardHistoryStore.loadInitial(10);
     const res = await clipboardHistoryStore.deleteHistoryItem('a');
@@ -127,11 +138,17 @@ describe('clipboardHistoryStore', () => {
     await clipboardHistoryStore.loadInitial(10);
 
     const events: { type: string; id: string }[] = [];
-    const unsub = clipboardHistoryStore.subscribe((e) => events.push({ type: e.type, id: e.itemId }));
+    const unsub = clipboardHistoryStore.subscribe((e) =>
+      events.push({ type: e.type, id: e.itemId }),
+    );
 
     await clipboardHistoryStore.addHistoryItem({
-      id: 'new', type: 'text', content: 'body', preview: 'body',
-      createdAt: 100, favorite: false,
+      id: 'new',
+      type: 'text',
+      content: 'body',
+      preview: 'body',
+      createdAt: 100,
+      favorite: false,
     } as any);
 
     expect(clipboardHistoryStore.recent[0].id).toBe('new');

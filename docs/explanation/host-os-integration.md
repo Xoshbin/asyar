@@ -1,6 +1,7 @@
 ---
 order: 10
 ---
+
 # Host OS Integration & Data Flow
 
 ## 8. OS Communication
@@ -8,7 +9,7 @@ order: 10
 Asyar relies strictly on Rust for handling raw Operating System tasks.
 
 - **Global Hotkey Registration:** Managed via the `tauri_plugin_global_shortcut` crate. The core logic sits in `lib.rs:setup_global_shortcut()`.
-  - **Conflict Handling:** If a shortcut registration fails (e.g., the user attempts to bind a key combination already reserved by the OS or another app), the `Err` is caught and logged to standard error (`eprintln!`). 
+  - **Conflict Handling:** If a shortcut registration fails (e.g., the user attempts to bind a key combination already reserved by the OS or another app), the `Err` is caught and logged to standard error (`eprintln!`).
   - **User Experience:** Crucially, a hotkey conflict **does not crash the app**. Asyar continues its startup sequence and launches successfully. However, there is no automatic fallback hotkey assigned. The user will simply find the hotkey unresponsive and must use the System Tray icon to open the app and rebind the shortcut in settings.
 - **System Tray (two independent code paths):**
   - **Asyar's own tray** lives in `src-tauri/src/tray.rs`. It owns a single fixed-menu `TrayIcon` (Settings / Check for Updates / Quit). Extensions never write to it, and its menu never mutates at runtime.
@@ -21,7 +22,7 @@ Asyar relies strictly on Rust for handling raw Operating System tasks.
 - **Selection Capture:** The `selection:read` capability (exposed to extensions through `SelectionService`) reads the user's current selection — text from the frontmost app or items from the frontmost file manager — using platform-native accessibility APIs (macOS `AXUIElementCopyAttributeValue`, Windows `IUIAutomation` `TextPattern`, Linux AT-SPI2 via the `atspi` crate). When the accessibility fast path returns nothing (sandboxed apps, Electron processes, custom widgets), Asyar falls back to a clipboard-trick: snapshot → post Cmd+C/Ctrl+C to the frontmost app's PID (via `CGEventPostToPid` on macOS, `enigo` elsewhere) → poll the platform's clipboard change marker (`NSPasteboard.changeCount`, `GetClipboardSequenceNumber`, content hash on X11) for up to 250 ms → read → restore. Restore is RAII-guarded so any error path still puts the original clipboard contents back. macOS captures every clipboard MIME type for restore; Windows and Linux currently snapshot only the text representation. File-manager items are read via Finder AppleScript on macOS, `IShellWindows` COM enumeration matched against `previous_hwnd` on Windows, and a Tier-A clipboard URI list on Linux. A static `tokio::sync::Mutex` serialises selection operations across all extensions to prevent concurrent clipboard-trick races. Wayland is unsupported (same constraint as snippet expansion). The shared key-event posting helpers live in `src-tauri/src/platform/input.rs` and are used by both paste and copy code paths.
 - **Window Management:** Asyar declares three windows in `tauri.conf.json`:
   - **`main` (the launcher)** behaves like a Spotlight search bar rather than a standard application window.
-    - **macOS:** The app uses the `tauri_nspanel` crate. `window.to_spotlight_panel()?` converts the Tauri window into a native `NSPanel`. The app listens to `{SPOTLIGHT_LABEL}_panel_did_resign_key` (fired when the user clicks outside) to auto-hide, unless the window is pinned. "Hidden" is a *parked* state: the panel stays ordered in at alpha 0 and mouse-transparent so WebKit keeps rendering it; see [Launcher rendering lifecycle](./launcher-rendering-lifecycle.md).
+    - **macOS:** The app uses the `tauri_nspanel` crate. `window.to_spotlight_panel()?` converts the Tauri window into a native `NSPanel`. The app listens to `{SPOTLIGHT_LABEL}_panel_did_resign_key` (fired when the user clicks outside) to auto-hide, unless the window is pinned. "Hidden" is a _parked_ state: the panel stays ordered in at alpha 0 and mouse-transparent so WebKit keeps rendering it; see [Launcher rendering lifecycle](./launcher-rendering-lifecycle.md).
     - **Windows:** Visual composition uses `apply_blur`. Window focus-loss and hide behavior is handled through Tauri's standard window event system.
     - **Linux:** Window management follows Tauri's standard cross-platform APIs. Visual blur effects are not applied on Linux.
     - Visual composition effects are platform-gated: `apply_vibrancy` on macOS, `apply_blur` on Windows, no-op on Linux.
@@ -33,6 +34,7 @@ Asyar relies strictly on Rust for handling raw Operating System tasks.
 ## 11. Data Flow Diagrams
 
 ### App Startup Sequence
+
 ```ascii
 +------------+       +-------------+       +--------------+       +-------------------+       +-------+
 | Tauri Init | ----> | Rust Setup  | ----> | WebView Load | ----> | SvelteKit Boots   | ----> | Ready |
@@ -47,6 +49,7 @@ Asyar relies strictly on Rust for handling raw Operating System tasks.
 ```
 
 ### Tier 1 Command Execution
+
 ```ascii
 +------------+       +-------------------+       +-------------------------+
 | User Input | ----> |   ResultsList     | ----> |  handleCommandAction()  |
@@ -65,6 +68,7 @@ Asyar relies strictly on Rust for handling raw Operating System tasks.
 ```
 
 ### Tier 2 Command Execution (Isolates)
+
 ```ascii
 +------------+       +-------------------+       +-------------------------+
 | User Input | ----> |   ResultsList     | ----> |  handleCommandAction()  |

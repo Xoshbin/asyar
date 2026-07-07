@@ -77,7 +77,9 @@ export async function modelComplete(prompt: string): Promise<string> {
   const options: Options = {
     maxTurns: 1,
     tools: [],
-    ...(claudeExecutablePath() !== undefined ? { pathToClaudeCodeExecutable: claudeExecutablePath() } : {}),
+    ...(claudeExecutablePath() !== undefined
+      ? { pathToClaudeCodeExecutable: claudeExecutablePath() }
+      : {}),
   };
   let text = '';
   const q = query({ prompt, options });
@@ -160,7 +162,12 @@ export async function run(argv: string[]): Promise<void> {
     const gatePrompt = buildGatePrompt(args.prompt, caps);
     const raw = await modelComplete(gatePrompt);
     const verdict = parseVerdict(raw);
-    emit({ kind: 'verdict', possible: verdict.possible, reason: verdict.reason, ...(verdict.degradedNote ? { degradedNote: verdict.degradedNote } : {}) });
+    emit({
+      kind: 'verdict',
+      possible: verdict.possible,
+      reason: verdict.reason,
+      ...(verdict.degradedNote ? { degradedNote: verdict.degradedNote } : {}),
+    });
     if (!verdict.possible) {
       // No files written on an impossible verdict.
       process.exit(0);
@@ -176,7 +183,12 @@ export async function run(argv: string[]): Promise<void> {
       abortController,
     });
 
-    emit({ kind: 'done', extensionId: out.extensionId, path: out.path, smokeSummary: out.smoke.summary });
+    emit({
+      kind: 'done',
+      extensionId: out.extensionId,
+      path: out.path,
+      smokeSummary: out.smoke.summary,
+    });
     process.exit(0);
   } catch (e) {
     if (isBuilderError(e)) {

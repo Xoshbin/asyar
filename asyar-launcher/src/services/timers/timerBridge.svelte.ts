@@ -47,9 +47,8 @@ export class TimerBridge {
   private unlisten: (() => void) | null = null;
 
   async subscribe(deps: TimerBridgeDeps): Promise<void> {
-    this.unlisten = await listen<TimerFirePayload>(
-      'asyar:timer:fire',
-      (event) => this.handleFire(event.payload, deps.isExtensionEnabled),
+    this.unlisten = await listen<TimerFirePayload>('asyar:timer:fire', (event) =>
+      this.handleFire(event.payload, deps.isExtensionEnabled),
     );
   }
 
@@ -58,10 +57,7 @@ export class TimerBridge {
     this.unlisten = null;
   }
 
-  private handleFire(
-    payload: TimerFirePayload,
-    isExtensionEnabled: (id: string) => boolean,
-  ): void {
+  private handleFire(payload: TimerFirePayload, isExtensionEnabled: (id: string) => boolean): void {
     const { extensionId, timerId, commandId, argsJson } = payload;
 
     if (!isExtensionEnabled(extensionId)) {
@@ -72,9 +68,7 @@ export class TimerBridge {
     }
 
     const args = parseArgs(argsJson);
-    logService.debug(
-      `[TimerBridge] dispatching ${extensionId}:${commandId} (timer ${timerId})`,
-    );
+    logService.debug(`[TimerBridge] dispatching ${extensionId}:${commandId} (timer ${timerId})`);
     void dispatch({
       extensionId,
       kind: 'command',

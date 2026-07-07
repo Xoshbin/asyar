@@ -20,7 +20,7 @@ describe('themeInjector', () => {
   it('injectThemeVariables populates it with :root declarations', () => {
     injectThemeVariables({
       '--bg-primary': 'red',
-      '--text-primary': 'white'
+      '--text-primary': 'white',
     });
 
     const style = document.getElementById('asyar-theme-vars')!;
@@ -53,8 +53,8 @@ describe('themeInjector', () => {
     const event = new MessageEvent('message', {
       data: {
         type: 'asyar:theme:variables',
-        payload: themeVars
-      }
+        payload: themeVars,
+      },
     });
 
     window.dispatchEvent(event);
@@ -91,8 +91,8 @@ describe('themeInjector', () => {
     const event = new MessageEvent('message', {
       data: {
         type: 'asyar:theme:fonts',
-        payload: mockCSS
-      }
+        payload: mockCSS,
+      },
     });
 
     window.dispatchEvent(event);
@@ -107,8 +107,8 @@ describe('themeInjector', () => {
     const event = new MessageEvent('message', {
       data: {
         type: 'asyar:theme:fonts',
-        payload: { invalid: 'type' }
-      }
+        payload: { invalid: 'type' },
+      },
     });
 
     window.dispatchEvent(event);
