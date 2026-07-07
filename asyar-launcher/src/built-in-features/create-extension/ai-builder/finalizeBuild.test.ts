@@ -12,7 +12,9 @@ vi.mock('asyar-sdk/contracts', () => ({
 
 // Consent is exercised in permissionConsentService.test.ts; here it would
 // only drag the real logService (and its Tauri log invoke) into a node env.
-const ensureConsent = vi.fn().mockResolvedValue(true);
+const { ensureConsent } = vi.hoisted(() => ({
+  ensureConsent: vi.fn().mockResolvedValue(true),
+}));
 vi.mock('../../../services/extension/permissionConsentService.svelte', () => ({
   permissionConsentService: { ensureConsent },
 }));
