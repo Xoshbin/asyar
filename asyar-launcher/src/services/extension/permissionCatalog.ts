@@ -68,8 +68,7 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
   },
   'files:search': {
     title: 'Search local files',
-    description:
-      'Search the local file index (file names and metadata, not file contents).',
+    description: 'Search the local file index (file names and metadata, not file contents).',
   },
   'shell:spawn': {
     title: 'Run programs',
@@ -106,7 +105,8 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
   },
   'window:manage': {
     title: 'Manage windows',
-    description: 'Read and change the position, size, and fullscreen state of the frontmost window.',
+    description:
+      'Read and change the position, size, and fullscreen state of the frontmost window.',
   },
   'power:inhibit': {
     title: 'Keep system awake',
