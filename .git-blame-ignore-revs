@@ -1,0 +1,9 @@
+# Commits that only reformatted code (Prettier/rustfmt) and introduced no
+# logic changes. `git blame` (and GitHub's blame view) skip these so history
+# points at the commit that actually changed behavior, not the reformat.
+#
+# Configure locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: apply Prettier/rustfmt formatting pass across the codebase
+479705d0d1e1599f7c32caa13ef3bccaaeb96a06
