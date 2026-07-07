@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/
+.svelte-kit/
+target/
+extensions/
+browser-companions/
+pnpm-lock.yaml
+*.log
+
+# Rust is formatted by rustfmt, not Prettier
+*.rs

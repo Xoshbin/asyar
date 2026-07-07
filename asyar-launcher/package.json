@@ -59,6 +59,7 @@
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
     "eslint": "^9.23.0",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-config-standard": "^17.1.0",
     "eslint-plugin-svelte": "^3.3.3",
     "globals": "^16.0.0",

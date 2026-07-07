@@ -8,6 +8,8 @@
     "build": "node scripts/build.mjs",
     "build:all": "node scripts/build-all.mjs",
     "check": "node scripts/check.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "release:sdk": "pnpm --filter asyar-sdk run release"
   },
   "engines": {
@@ -36,6 +38,8 @@
   },
   "devDependencies": {
     "@testing-library/svelte": "^5.3.1",
+    "prettier": "^3.9.4",
+    "prettier-plugin-svelte": "^4.1.1",
     "semver": "^7.6.0"
   }
 }

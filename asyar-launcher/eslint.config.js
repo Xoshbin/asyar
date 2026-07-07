@@ -33,6 +33,9 @@ export default defineConfig([
       "plugin:@typescript-eslint/recommended",
       "plugin:@typescript-eslint/recommended-requiring-type-checking",
       "standard", // SIMPLIFIED: Just use the string "standard"
+      // Must come last: turns off stylistic rules (quotes, semi, indent, ...)
+      // that would otherwise fight Prettier, which now owns all formatting.
+      "prettier",
     ],
     rules: {
       // Customize as needed:
