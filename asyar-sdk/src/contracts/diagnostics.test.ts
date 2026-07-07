@@ -26,6 +26,8 @@ describe('Diagnostic contract', () => {
 
   it('IDiagnosticsService.report is async', () => {
     const svc: IDiagnosticsService = { report: async () => undefined };
-    expect(svc.report({ kind: 'manual', severity: 'info', retryable: false })).toBeInstanceOf(Promise);
+    expect(svc.report({ kind: 'manual', severity: 'info', retryable: false })).toBeInstanceOf(
+      Promise,
+    );
   });
 });

@@ -9,13 +9,28 @@ export interface Portal {
 }
 
 const DEFAULT_PORTALS: Omit<Portal, 'createdAt'>[] = [
-  { id: 'default-search-google',    name: 'Search Google',    url: 'https://google.com/search?q={query}',   icon: '🌐' },
-  { id: 'default-search-github',    name: 'Search GitHub',    url: 'https://github.com/search?q={query}',   icon: '🐙' },
-  { id: 'default-search-wikipedia', name: 'Search Wikipedia', url: 'https://en.wikipedia.org/wiki/{query}', icon: '📖' },
+  {
+    id: 'default-search-google',
+    name: 'Search Google',
+    url: 'https://google.com/search?q={query}',
+    icon: '🌐',
+  },
+  {
+    id: 'default-search-github',
+    name: 'Search GitHub',
+    url: 'https://github.com/search?q={query}',
+    icon: '🐙',
+  },
+  {
+    id: 'default-search-wikipedia',
+    name: 'Search Wikipedia',
+    url: 'https://en.wikipedia.org/wiki/{query}',
+    icon: '📖',
+  },
 ];
 
 function seedDefaults(): Portal[] {
-  return DEFAULT_PORTALS.map(p => ({ ...p, createdAt: Date.now() }));
+  return DEFAULT_PORTALS.map((p) => ({ ...p, createdAt: Date.now() }));
 }
 
 const persistence = createPersistence<Portal[]>('asyar:portals', 'portals.dat');
@@ -25,8 +40,7 @@ const persistence = createPersistence<Portal[]>('asyar:portals', 'portals.dat');
  * the cloud sync delta provider to mark items dirty for the next push.
  */
 export type PortalStoreChangeEvent =
-  | { type: 'upsert'; itemId: string }
-  | { type: 'delete'; itemId: string };
+  { type: 'upsert'; itemId: string } | { type: 'delete'; itemId: string };
 
 class PortalStoreClass {
   portals = $state<Portal[]>([]);
@@ -67,7 +81,7 @@ class PortalStoreClass {
     } else {
       // Deduplicate by id — heals snapshots that accumulated duplicate defaults
       const seen = new Set<string>();
-      const deduped = data.filter(p => seen.has(p.id) ? false : (seen.add(p.id), true));
+      const deduped = data.filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
       if (deduped.length !== data.length) {
         data = deduped;
         await persistence.save(data);
@@ -81,7 +95,7 @@ class PortalStoreClass {
   }
 
   getById(id: string): Portal | undefined {
-    return this.portals.find(p => p.id === id);
+    return this.portals.find((p) => p.id === id);
   }
 
   add(portal: Portal) {
@@ -99,13 +113,13 @@ class PortalStoreClass {
   }
 
   update(id: string, changes: Partial<Portal>) {
-    this.portals = this.portals.map(p => p.id === id ? { ...p, ...changes } : p);
+    this.portals = this.portals.map((p) => (p.id === id ? { ...p, ...changes } : p));
     persistence.save($state.snapshot(this.portals) as Portal[]);
     this.#notify({ type: 'upsert', itemId: id });
   }
 
   remove(id: string) {
-    this.portals = this.portals.filter(p => p.id !== id);
+    this.portals = this.portals.filter((p) => p.id !== id);
     persistence.save($state.snapshot(this.portals) as Portal[]);
     this.#notify({ type: 'delete', itemId: id });
   }

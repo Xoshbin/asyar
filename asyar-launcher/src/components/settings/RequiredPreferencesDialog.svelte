@@ -26,7 +26,7 @@
       if (p.type === 'checkbox') return typeof v === 'boolean';
       if (p.type === 'number') return typeof v === 'number' && Number.isFinite(v);
       return v !== undefined && v !== null && v !== '';
-    })
+    }),
   );
 
   function handleChange(key: string, value: unknown) {

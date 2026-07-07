@@ -24,7 +24,7 @@ At runtime a command sees the union: command-scoped keys shadow extension-scoped
       "type": "password",
       "title": "OpenWeather API Key",
       "description": "Get one at openweathermap.org/api",
-      "required": true
+      "required": true,
     },
     {
       "name": "units",
@@ -33,9 +33,9 @@ At runtime a command sees the union: command-scoped keys shadow extension-scoped
       "default": "metric",
       "data": [
         { "value": "metric", "title": "Celsius" },
-        { "value": "imperial", "title": "Fahrenheit" }
-      ]
-    }
+        { "value": "imperial", "title": "Fahrenheit" },
+      ],
+    },
   ],
   "commands": [
     {
@@ -47,26 +47,26 @@ At runtime a command sees the union: command-scoped keys shadow extension-scoped
           "name": "days",
           "type": "number",
           "title": "Forecast days",
-          "default": 5
-        }
-      ]
-    }
-  ]
+          "default": 5,
+        },
+      ],
+    },
+  ],
 }
 ```
 
 ## Supported Types
 
-| Type        | Value type      | Rendered as             |
-|-------------|-----------------|-------------------------|
-| `textfield` | `string`        | Text input              |
-| `password`  | `string`        | Password input          |
-| `number`    | `number`        | Number input            |
-| `checkbox`  | `boolean`       | Checkbox                |
-| `dropdown`  | `string`        | Native `<select>` menu  |
-| `appPicker` | `string` (path) | Text input *            |
-| `file`      | `string` (path) | Text input *            |
-| `directory` | `string` (path) | Text input *            |
+| Type        | Value type      | Rendered as            |
+| ----------- | --------------- | ---------------------- |
+| `textfield` | `string`        | Text input             |
+| `password`  | `string`        | Password input         |
+| `number`    | `number`        | Number input           |
+| `checkbox`  | `boolean`       | Checkbox               |
+| `dropdown`  | `string`        | Native `<select>` menu |
+| `appPicker` | `string` (path) | Text input *           |
+| `file`      | `string` (path) | Text input *           |
+| `directory` | `string` (path) | Text input *           |
 
 \* Native picker UIs for `appPicker`, `file`, and `directory` are deferred. They currently accept manual path entry.
 
@@ -121,8 +121,8 @@ Where `PreferencesSnapshot` is:
 
 ```ts
 interface PreferencesSnapshot {
-  [key: string]: unknown
-  commands: { [commandId: string]: { [key: string]: unknown } }
+  [key: string]: unknown;
+  commands: { [commandId: string]: { [key: string]: unknown } };
 }
 ```
 
@@ -149,21 +149,21 @@ export default {
 Use `context.preferences.set(scope, key, value)` to persist a single preference. `scope` is either `'extension'` for an extension-level preference or the command id for a command-level preference:
 
 ```ts
-await context.preferences.set('extension', 'apiKey', 'sk-…')
-await context.preferences.set('my-command', 'focusMinutes', 25)
+await context.preferences.set('extension', 'apiKey', 'sk-…');
+await context.preferences.set('my-command', 'focusMinutes', 25);
 ```
 
 Use `context.preferences.reset(scope)` to clear all preferences for a given scope back to their manifest defaults. `scope` is required and resets only the named scope:
 
 ```ts
-await context.preferences.reset('extension')      // resets extension-scope only
-await context.preferences.reset('my-command')     // resets one command's scope only
+await context.preferences.reset('extension'); // resets extension-scope only
+await context.preferences.reset('my-command'); // resets one command's scope only
 ```
 
 Use `context.preferences.refresh()` to pull the current snapshot from the host on demand, returning the fresh `PreferencesSnapshot`:
 
 ```ts
-const fresh = await context.preferences.refresh()
+const fresh = await context.preferences.refresh();
 ```
 
 ### Updates and Propagation
@@ -171,8 +171,8 @@ const fresh = await context.preferences.refresh()
 When the user edits a preference in Settings, or after any `set()` or `reset()` call resolves, the launcher pushes a fresh snapshot to the extension — by the time your `await` resolves, `context.preferences.values` has already been updated with the new snapshot. No manual `refresh()` needed. The launcher guarantees this ordering: it posts the fresh snapshot back to the extension before posting the invoke response, so the update is visible the moment the mutation call returns:
 
 ```ts
-await context.preferences.set('extension', 'theme', 'dark')
-context.preferences.values.theme  // → 'dark' (already updated)
+await context.preferences.set('extension', 'theme', 'dark');
+context.preferences.values.theme; // → 'dark' (already updated)
 ```
 
 - **Tier 1 (built-in) features** are fully reloaded — their `initialize()` runs again with a fresh `context`.
@@ -220,7 +220,7 @@ export function init(context: ExtensionContext) {
 }
 ```
 
-The callback is read-only: it receives no arguments and cannot mutate the snapshot. `context.preferences.values` is frozen at every nesting level. The callback fires *after* the new snapshot is installed, so the first `context.preferences.values.<key>` read inside it always returns the new value.
+The callback is read-only: it receives no arguments and cannot mutate the snapshot. `context.preferences.values` is frozen at every nesting level. The callback fires _after_ the new snapshot is installed, so the first `context.preferences.values.<key>` read inside it always returns the new value.
 
 For simple cases that don't cache values — where the extension reads `context.preferences.values.<key>` on each use — no subscription is needed. Later reads automatically see the new snapshot.
 

@@ -33,12 +33,7 @@ export class BrowserServiceProxy extends BaseServiceProxy implements IBrowserSer
   }
 
   isCompanionInstalled(family: BrowserFamily): Promise<boolean> {
-    return this.broker.invoke<boolean>(
-      'browser:isCompanionInstalled',
-      { family },
-      undefined,
-      5000,
-    );
+    return this.broker.invoke<boolean>('browser:isCompanionInstalled', { family }, undefined, 5000);
   }
 
   listBookmarks(filter?: ListBookmarksFilter): Promise<Bookmark[]> {
@@ -60,21 +55,11 @@ export class BrowserServiceProxy extends BaseServiceProxy implements IBrowserSer
   }
 
   listTabs(filter?: { browser?: BrowserId; query?: string }): Promise<Tab[]> {
-    return this.broker.invoke<Tab[]>(
-      'browser:listTabs',
-      { filter: filter ?? {} },
-      undefined,
-      5000,
-    );
+    return this.broker.invoke<Tab[]>('browser:listTabs', { filter: filter ?? {} }, undefined, 5000);
   }
 
   getActiveTab(browser?: BrowserId): Promise<Tab | null> {
-    return this.broker.invoke<Tab | null>(
-      'browser:getActiveTab',
-      { browser },
-      undefined,
-      5000,
-    );
+    return this.broker.invoke<Tab | null>('browser:getActiveTab', { browser }, undefined, 5000);
   }
 
   activateTab(tabId: string): Promise<void> {
@@ -95,12 +80,7 @@ export class BrowserServiceProxy extends BaseServiceProxy implements IBrowserSer
   }
 
   listPairedBrowsers(): Promise<BrowserKey[]> {
-    return this.broker.invoke<BrowserKey[]>(
-      'browser:listPairedBrowsers',
-      {},
-      undefined,
-      5000,
-    );
+    return this.broker.invoke<BrowserKey[]>('browser:listPairedBrowsers', {}, undefined, 5000);
   }
 
   onTabsChanged(handler: (e: TabsChangedEvent) => void): () => void {
@@ -169,9 +149,11 @@ export class BrowserServiceProxy extends BaseServiceProxy implements IBrowserSer
       if (!payload || typeof payload !== 'object' || !('type' in payload)) return;
       const env = payload as { type: string };
       const kind =
-        env.type === 'tabs-changed' ? 'tabs.changed' as const :
-        env.type === 'page-changed' ? 'page.changed' as const :
-        null;
+        env.type === 'tabs-changed'
+          ? ('tabs.changed' as const)
+          : env.type === 'page-changed'
+            ? ('page.changed' as const)
+            : null;
       if (!kind) return;
       const state = this.states.get(kind);
       if (!state) return;
@@ -206,12 +188,7 @@ export class BrowserServiceProxy extends BaseServiceProxy implements IBrowserSer
   }
 
   actOnPage(tabId: string, action: PageAction): Promise<void> {
-    return this.broker.invoke<void>(
-      'browser:actOnPage',
-      { tabId, action },
-      undefined,
-      10000,
-    );
+    return this.broker.invoke<void>('browser:actOnPage', { tabId, action }, undefined, 10000);
   }
 
   // — Plan A (command-bar additions) —
@@ -221,6 +198,11 @@ export class BrowserServiceProxy extends BaseServiceProxy implements IBrowserSer
   }
 
   getMostRecentActiveBrowser(): Promise<BrowserKey | null> {
-    return this.broker.invoke<BrowserKey | null>('browser:getMostRecentActiveBrowser', {}, undefined, 5000);
+    return this.broker.invoke<BrowserKey | null>(
+      'browser:getMostRecentActiveBrowser',
+      {},
+      undefined,
+      5000,
+    );
   }
 }

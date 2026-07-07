@@ -34,7 +34,13 @@ beforeEach(() => {
 
 describe('fileSearch', () => {
   it('calls invoke with query, typeFilter, and limit', async () => {
-    mockInvoke.mockResolvedValue({ hits: [], truncated: false, scannedAll: true, indexGeneration: 0, work: {} });
+    mockInvoke.mockResolvedValue({
+      hits: [],
+      truncated: false,
+      scannedAll: true,
+      indexGeneration: 0,
+      work: {},
+    });
     await fileSearch('report', 'document', 20);
     expect(mockInvoke).toHaveBeenCalledWith('file_search', {
       query: 'report',
@@ -54,7 +60,13 @@ describe('fileSearch', () => {
   });
 
   it('returns the FileSearchResponse payload', async () => {
-    const expected = { hits: [{ fileId: 'abc', name: 'a.txt' }], truncated: false, scannedAll: true, indexGeneration: 1, work: {} };
+    const expected = {
+      hits: [{ fileId: 'abc', name: 'a.txt' }],
+      truncated: false,
+      scannedAll: true,
+      indexGeneration: 1,
+      work: {},
+    };
     mockInvoke.mockResolvedValue(expected);
     const result = await fileSearch('a');
     expect(result).toEqual(expected);
@@ -63,7 +75,13 @@ describe('fileSearch', () => {
 
 describe('fileIndexStatus', () => {
   it('calls invoke with file_index_status', async () => {
-    mockInvoke.mockResolvedValue({ state: 'ready', entryCount: 10, lastScanMs: 5, snapshotLoaded: true, capReached: false });
+    mockInvoke.mockResolvedValue({
+      state: 'ready',
+      entryCount: 10,
+      lastScanMs: 5,
+      snapshotLoaded: true,
+      capReached: false,
+    });
     await fileIndexStatus();
     expect(mockInvoke).toHaveBeenCalledWith('file_index_status', undefined);
   });
@@ -102,7 +120,10 @@ describe('fileSearchPin / fileSearchUnpin / fileSearchListPinned', () => {
   it('pin calls invoke with fileId and path', async () => {
     mockInvoke.mockResolvedValue(undefined);
     await fileSearchPin('abc123', '/tmp/a.txt');
-    expect(mockInvoke).toHaveBeenCalledWith('file_search_pin', { fileId: 'abc123', path: '/tmp/a.txt' });
+    expect(mockInvoke).toHaveBeenCalledWith('file_search_pin', {
+      fileId: 'abc123',
+      path: '/tmp/a.txt',
+    });
   });
 
   it('unpin calls invoke with fileId', async () => {

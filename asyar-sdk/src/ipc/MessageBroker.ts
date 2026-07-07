@@ -22,14 +22,17 @@ export type HostDispatcher = (
 ) => unknown | Promise<unknown>;
 
 export class MessageBroker {
-  private pendingRequests: Map<string, {
-    resolve: (val: unknown) => void;
-    reject: (err: unknown) => void;
-    timer: ReturnType<typeof setTimeout>;
-    /** Debug-only: captured at send time so the response log can report elapsed. */
-    startedAt: number;
-    command: WireCommand;
-  }> = new Map();
+  private pendingRequests: Map<
+    string,
+    {
+      resolve: (val: unknown) => void;
+      reject: (err: unknown) => void;
+      timer: ReturnType<typeof setTimeout>;
+      /** Debug-only: captured at send time so the response log can report elapsed. */
+      startedAt: number;
+      command: WireCommand;
+    }
+  > = new Map();
   private eventListeners: Map<string, Set<(payload: unknown) => void>> = new Map();
   private isBrowser: boolean;
   private extensionId?: string;
@@ -107,13 +110,13 @@ export class MessageBroker {
     } else if (data.type?.startsWith('asyar:event:')) {
       const listeners = this.eventListeners.get(data.type);
       if (listeners) {
-        listeners.forEach(listener => listener(data.payload));
+        listeners.forEach((listener) => listener(data.payload));
       }
     } else if (data.type?.startsWith('asyar:invoke:')) {
       // Main app calling an extension function
       const listeners = this.eventListeners.get(data.type);
       if (listeners) {
-         listeners.forEach(listener => listener(data));
+        listeners.forEach((listener) => listener(data));
       }
     } else if (data.messageId && data.type?.startsWith('asyar:api:')) {
       // Ignore messages intended for main app if they loop back somehow
@@ -122,10 +125,17 @@ export class MessageBroker {
   }
 
   private generateId(): string {
-    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    return (
+      Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+    );
   }
 
-  public invoke<T>(command: WireCommand, payload?: Record<string, unknown> | unknown[], extensionId?: string, timeoutMs: number = 10000): Promise<T> {
+  public invoke<T>(
+    command: WireCommand,
+    payload?: Record<string, unknown> | unknown[],
+    extensionId?: string,
+    timeoutMs: number = 10000,
+  ): Promise<T> {
     if (this.hostDispatcher && this.isHostRealm()) {
       try {
         return Promise.resolve(this.hostDispatcher(command, payload, extensionId)) as Promise<T>;
@@ -164,7 +174,7 @@ export class MessageBroker {
         type: `asyar:api:${command}`,
         payload: payload || {},
         messageId,
-        ...(extensionId ? { extensionId } : {})
+        ...(extensionId ? { extensionId } : {}),
       };
 
       emitIpcLog({

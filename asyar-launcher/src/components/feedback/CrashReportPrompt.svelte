@@ -27,14 +27,20 @@
     <button
       class="crash-prompt-details-toggle"
       type="button"
-      onclick={() => { showDetails = !showDetails; }}
+      onclick={() => {
+        showDetails = !showDetails;
+      }}
       aria-expanded={showDetails}
     >
       {showDetails ? 'Hide' : 'View exactly what will be sent'}
     </button>
 
     {#if showDetails}
-      <pre class="text-mono custom-scrollbar crash-prompt-pre">{JSON.stringify(crashPromptState.payload, null, 2)}</pre>
+      <pre class="text-mono custom-scrollbar crash-prompt-pre">{JSON.stringify(
+          crashPromptState.payload,
+          null,
+          2,
+        )}</pre>
     {/if}
 
     {#if crashPromptState.sendError}

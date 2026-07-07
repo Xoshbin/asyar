@@ -57,10 +57,7 @@ export interface IFileSystemWatcherService {
   /** Watch one or more paths. Every path must be matched by a glob in
    *  `permissionArgs["fs:watch"]`; otherwise rejects with a permission
    *  error. Auto-disposed on extension uninstall or disable. */
-  watch(
-    paths: string[],
-    opts?: FileSystemWatcherOptions,
-  ): Promise<WatcherHandle>;
+  watch(paths: string[], opts?: FileSystemWatcherOptions): Promise<WatcherHandle>;
 }
 
 interface WirePushPayload {
@@ -80,19 +77,16 @@ export class FileSystemWatcherServiceProxy
   private callbacks = new Map<string, Set<(e: FileSystemChangeEvent) => void>>();
   private pushListenerInstalled = false;
 
-  async watch(
-    paths: string[],
-    opts?: FileSystemWatcherOptions,
-  ): Promise<WatcherHandle> {
+  async watch(paths: string[], opts?: FileSystemWatcherOptions): Promise<WatcherHandle> {
     this.ensurePushListener();
     // Wire shape: launcher → Rust `fs_watch_create` returns `Result<String, _>`,
     // launcher TS forwards the string verbatim, so the response is the
     // handle id as a plain string. Destructuring `{ handleId }` here would
     // silently bind `undefined` and break both push routing and dispose.
-    const handleId = await this.broker.invoke<string>(
-      'fsWatcher:create',
-      { paths, opts: opts ?? {} },
-    );
+    const handleId = await this.broker.invoke<string>('fsWatcher:create', {
+      paths,
+      opts: opts ?? {},
+    });
     if (!this.callbacks.has(handleId)) {
       this.callbacks.set(handleId, new Set());
     }

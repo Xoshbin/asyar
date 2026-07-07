@@ -57,7 +57,11 @@ export function setupSearchEffects(state: LauncherState) {
         if (contextModeService.isActive()) contextModeService.deactivate();
         searchOrchestrator.handleSearch(state.localSearchValue);
       }
-    } else if (state.activeViewVal && state.activeViewSearchableVal && state.localSearchValue !== undefined) {
+    } else if (
+      state.activeViewVal &&
+      state.activeViewSearchableVal &&
+      state.localSearchValue !== undefined
+    ) {
       logService.debug(`Search in extension: "${state.localSearchValue}"`);
       extensionManager.handleViewSearch(state.localSearchValue);
     }

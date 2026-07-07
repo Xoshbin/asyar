@@ -22,9 +22,7 @@ class StatusBarServiceClass {
   // malformed tree) would be logged on the host and silently succeed from
   // the extension's perspective.
   async registerItem(item: StatusBarItem): Promise<void> {
-    logService.debug(
-      `[StatusBar] registerItem ext='${item.extensionId}' id='${item.id}'`,
-    );
+    logService.debug(`[StatusBar] registerItem ext='${item.extensionId}' id='${item.id}'`);
     const ok = await trayRegisterItem(item);
     if (!ok) throw new Error('tray_register_item failed');
   }

@@ -1,6 +1,7 @@
 ---
 order: 5
 ---
+
 ## Register Extension Tools for the Agent Runtime
 
 Asyar's agent runtime can invoke tools contributed by any enabled Tier 2 extension. The agent sees your tools alongside built-in tools (calculator, clipboard, shell, etc.) and MCP-sourced tools. This page walks through declaring tools in the extension manifest and registering handlers from the worker so the agent can call them.
@@ -45,6 +46,7 @@ Add `"tools:register"` to your `permissions` array and list every tool your exte
 ```
 
 **`id` constraints:**
+
 - Cannot contain a colon (`:`). The Rust registry rejects any tool id with a colon because colons are used as the separator in fully-qualified ids (e.g. `org.example.contacts:lookup-contact`). Use hyphens or dots instead.
 - Must be unique within your extension. Duplicate ids cause the second declaration to silently overwrite the first inside the replace-style registry update.
 

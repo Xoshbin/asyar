@@ -37,8 +37,20 @@ import { agentService } from './agentService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import agentsExtension from './index';
 
-const thread1 = { id: 'thread-1', agentId: 'agent-a', title: 'First', createdAt: 1000, updatedAt: 2000 };
-const thread2 = { id: 'thread-2', agentId: 'agent-a', title: 'Second', createdAt: 500, updatedAt: 1500 };
+const thread1 = {
+  id: 'thread-1',
+  agentId: 'agent-a',
+  title: 'First',
+  createdAt: 1000,
+  updatedAt: 2000,
+};
+const thread2 = {
+  id: 'thread-2',
+  agentId: 'agent-a',
+  title: 'Second',
+  createdAt: 500,
+  updatedAt: 1500,
+};
 
 describe('openAgentForTab', () => {
   beforeEach(() => {

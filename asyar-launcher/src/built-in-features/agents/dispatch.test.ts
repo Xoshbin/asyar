@@ -94,9 +94,7 @@ describe('dispatchAgentCommand — non-silent agents (default)', () => {
     vi.mocked(commands.agentsList).mockResolvedValueOnce([] as never);
     await service.init();
 
-    await expect(dispatchAgentCommand('unknown-id', undefined)).rejects.toThrow(
-      'unknown-id',
-    );
+    await expect(dispatchAgentCommand('unknown-id', undefined)).rejects.toThrow('unknown-id');
   });
 });
 

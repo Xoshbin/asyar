@@ -21,8 +21,7 @@ export function prewarmEmojiFont(): void {
   // Offscreen but NOT display:none / visibility:hidden — the glyphs must
   // reach both layout (fallback-chain resolution) and paint (glyph
   // rasterization) for the font caches to actually warm.
-  probe.style.cssText =
-    'position:fixed;left:-10000px;top:0;pointer-events:none;font-size:16px;';
+  probe.style.cssText = 'position:fixed;left:-10000px;top:0;pointer-events:none;font-size:16px;';
   probe.textContent = SAMPLE;
   document.body.appendChild(probe);
 

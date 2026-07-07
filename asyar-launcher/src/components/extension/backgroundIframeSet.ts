@@ -22,7 +22,5 @@ export function computeBackgroundIframeSet(
     extensions.filter((e) => e.enabled && !e.isBuiltIn).map((e) => e.manifest.id),
   );
   const activeExt = activeView?.split('/')[0] ?? null;
-  return entries.filter(
-    (e) => enabledSet.has(e.extensionId) && e.extensionId !== activeExt,
-  );
+  return entries.filter((e) => enabledSet.has(e.extensionId) && e.extensionId !== activeExt);
 }

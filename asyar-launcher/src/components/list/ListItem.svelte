@@ -38,7 +38,7 @@
       {@render leading()}
     </div>
   {/if}
-  
+
   <div class="list-item-content">
     <div class="truncate text-title">{title}</div>
     {#if typeof subtitle === 'function'}

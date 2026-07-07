@@ -42,10 +42,7 @@ describe('isValidBip39Word', () => {
 });
 
 describe('parsePhraseInput', () => {
-  const validPhrase24 = Array.from(
-    { length: 24 },
-    (_, i) => BIP39_WORDLIST[i],
-  ).join(' ');
+  const validPhrase24 = Array.from({ length: 24 }, (_, i) => BIP39_WORDLIST[i]).join(' ');
 
   it('returns empty result for blank input', () => {
     const out = parsePhraseInput('');
@@ -97,9 +94,7 @@ describe('parsePhraseInput', () => {
 
 describe('joinPhraseForWire', () => {
   it('joins with single spaces', () => {
-    expect(joinPhraseForWire(['abandon', 'ability', 'able'])).toBe(
-      'abandon ability able',
-    );
+    expect(joinPhraseForWire(['abandon', 'ability', 'able'])).toBe('abandon ability able');
   });
   it('produces an empty string for an empty array', () => {
     expect(joinPhraseForWire([])).toBe('');

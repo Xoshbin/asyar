@@ -21,13 +21,17 @@ describe('anthropicPlugin.getModels transport', () => {
 
     vi.mocked(tauriFetch).mockResolvedValue({
       ok: true,
-      json: async () => ({ data: [{ id: 'claude-3-5-sonnet-latest', display_name: 'Claude 3.5 Sonnet' }] }),
+      json: async () => ({
+        data: [{ id: 'claude-3-5-sonnet-latest', display_name: 'Claude 3.5 Sonnet' }],
+      }),
     } as unknown as Response);
 
     const models = await anthropicPlugin.getModels({ enabled: true, apiKey: 'sk-ant' });
 
     expect(tauriFetch).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(tauriFetch).mock.calls[0][0]).toBe('https://api.anthropic.com/v1/models?limit=100');
+    expect(vi.mocked(tauriFetch).mock.calls[0][0]).toBe(
+      'https://api.anthropic.com/v1/models?limit=100',
+    );
     expect(webViewFetch).not.toHaveBeenCalled();
     expect(models).toEqual([{ id: 'claude-3-5-sonnet-latest', label: 'Claude 3.5 Sonnet' }]);
   });
@@ -85,9 +89,7 @@ describe('anthropicPlugin.buildToolRequest', () => {
   });
 
   it('anthropic_buildToolRequest_emits_tool_result_block_for_tool_role', () => {
-    const messages: LoopMessage[] = [
-      { role: 'tool', content: '42', toolUseId: 'tu1' },
-    ];
+    const messages: LoopMessage[] = [{ role: 'tool', content: '42', toolUseId: 'tu1' }];
 
     const spec = anthropicPlugin.buildToolRequest(messages, fakeConfig, fakeParams, []);
     const body = spec.body as Record<string, unknown>;
@@ -126,7 +128,10 @@ describe('anthropicPlugin.buildToolRequest', () => {
         id: 'calc',
         name: 'calc',
         description: 'A calculator',
-        parameters: { type: 'object', properties: { x: { type: 'number' } } } as Record<string, unknown>,
+        parameters: { type: 'object', properties: { x: { type: 'number' } } } as Record<
+          string,
+          unknown
+        >,
       },
     ];
 

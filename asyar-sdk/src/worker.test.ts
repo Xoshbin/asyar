@@ -31,12 +31,7 @@ const WORKER_PROXY_NAMESPACES = [
   'files',
 ] as const;
 
-const VIEW_ONLY_NAMESPACES = [
-  'feedback',
-  'selection',
-  'interop',
-  'clipboard',
-] as const;
+const VIEW_ONLY_NAMESPACES = ['feedback', 'selection', 'interop', 'clipboard'] as const;
 
 function setRole(role: string | undefined) {
   if (role === undefined) {

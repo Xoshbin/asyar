@@ -1,5 +1,5 @@
-import type { Namespace } from "./ipc/namespaces";
-import type { BaseServiceProxy } from "./services/BaseServiceProxy";
+import type { Namespace } from './ipc/namespaces';
+import type { BaseServiceProxy } from './services/BaseServiceProxy';
 import {
   LogServiceProxy,
   NotificationServiceProxy,
@@ -18,7 +18,7 @@ import {
   CacheServiceProxy,
   SearchServiceProxy,
   ApplicationServiceProxy,
-} from "./services";
+} from './services';
 import { AIServiceProxy } from './services/AIServiceProxy';
 import { OAuthServiceProxy } from './services/OAuthServiceProxy';
 import { FileManagerServiceProxy } from './services/FileManagerServiceProxy';
@@ -98,22 +98,28 @@ export class ExtensionContext extends ExtensionContextCore {
     // Auto-report uncaught errors / rejections to host parent (Task 24).
     if (typeof window !== 'undefined' && window.parent !== window) {
       window.addEventListener('error', (e: ErrorEvent) => {
-        window.parent.postMessage({
-          type: 'asyar:diagnostics:uncaught',
-          payload: {
-            kind: 'iframe_uncaught',
-            developerDetail: e.error?.stack ?? String(e.message),
+        window.parent.postMessage(
+          {
+            type: 'asyar:diagnostics:uncaught',
+            payload: {
+              kind: 'iframe_uncaught',
+              developerDetail: e.error?.stack ?? String(e.message),
+            },
           },
-        }, '*');
+          '*',
+        );
       });
       window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
-        window.parent.postMessage({
-          type: 'asyar:diagnostics:uncaught',
-          payload: {
-            kind: 'iframe_unhandled_rejection',
-            developerDetail: String(e.reason),
+        window.parent.postMessage(
+          {
+            type: 'asyar:diagnostics:uncaught',
+            payload: {
+              kind: 'iframe_unhandled_rejection',
+              developerDetail: String(e.reason),
+            },
           },
-        }, '*');
+          '*',
+        );
       });
     }
 
@@ -170,4 +176,4 @@ export class ExtensionContext extends ExtensionContextCore {
 export type { PreferencesSnapshot as _Unused } from './PreferencesFacade';
 
 // Import at the end to avoid circular dependencies
-import { extensionBridge } from "./ExtensionBridge";
+import { extensionBridge } from './ExtensionBridge';

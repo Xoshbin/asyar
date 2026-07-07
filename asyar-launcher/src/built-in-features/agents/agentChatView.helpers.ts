@@ -14,7 +14,12 @@ export interface SendMessageInput {
 }
 
 export interface SendMessageDeps {
-  runAgent: (input: { agentId: string; threadId: string; userText: string; abortSignal: AbortSignal }) => Promise<void>;
+  runAgent: (input: {
+    agentId: string;
+    threadId: string;
+    userText: string;
+    abortSignal: AbortSignal;
+  }) => Promise<void>;
   refreshMessages: () => Promise<void>;
   currentAbortController: AbortController;
 }
@@ -54,10 +59,7 @@ export async function handleSendMessage(
 
 // ── handleNewThread ───────────────────────────────────────────────────────────
 
-export async function handleNewThread(
-  agentId: string,
-  deps: NewThreadDeps,
-): Promise<ThreadDef> {
+export async function handleNewThread(agentId: string, deps: NewThreadDeps): Promise<ThreadDef> {
   const thread = await deps.service.createThread(agentId, '');
   await deps.refreshThreadsAndSelect(thread);
   return thread;

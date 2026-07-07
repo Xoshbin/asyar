@@ -107,10 +107,10 @@ describe('searchBarAccessoryService', () => {
       value: 'images',
     });
     expect(searchBarAccessoryService.active?.value).toBe('images');
-    expect(extensionIframeManager.sendFilterChangeToView).toHaveBeenCalledWith(
-      EXT,
-      { commandId: CMD, value: 'images' },
-    );
+    expect(extensionIframeManager.sendFilterChangeToView).toHaveBeenCalledWith(EXT, {
+      commandId: CMD,
+      value: 'images',
+    });
   });
 
   it('clear() nulls active state but does not touch SQLite', async () => {

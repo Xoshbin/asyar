@@ -23,10 +23,7 @@ interface PerKindState {
  * lazily on the first subscribe and dispatches the payload to the matching
  * callback set by `event.type`.
  */
-export class SystemEventsServiceProxy
-  extends BaseServiceProxy
-  implements ISystemEventsService
-{
+export class SystemEventsServiceProxy extends BaseServiceProxy implements ISystemEventsService {
   private states = new Map<SystemEventKind, PerKindState>();
   private pushListenerInstalled = false;
 
@@ -55,10 +52,9 @@ export class SystemEventsServiceProxy
     this.ensurePushListener();
     let state = this.states.get(kind);
     if (!state) {
-      const subscriptionIdPromise = this.broker.invoke<string>(
-        'systemEvents:subscribe',
-        { eventTypes: [kind] },
-      );
+      const subscriptionIdPromise = this.broker.invoke<string>('systemEvents:subscribe', {
+        eventTypes: [kind],
+      });
       state = { subscriptionIdPromise, callbacks: new Set() };
       this.states.set(kind, state);
     }

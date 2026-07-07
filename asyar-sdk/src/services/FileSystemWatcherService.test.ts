@@ -78,9 +78,7 @@ describe('FileSystemWatcherServiceProxy', () => {
   });
 
   it('two concurrent handles do not cross-deliver events', async () => {
-    mockBroker.invoke
-      .mockResolvedValueOnce('h1')
-      .mockResolvedValueOnce('h2');
+    mockBroker.invoke.mockResolvedValueOnce('h1').mockResolvedValueOnce('h2');
     const ha = await proxy.watch(['/tmp/a']);
     const hb = await proxy.watch(['/tmp/b']);
     const cba = vi.fn();
@@ -110,9 +108,7 @@ describe('FileSystemWatcherServiceProxy', () => {
   });
 
   it('dispose() issues fsWatcher:dispose and stops subsequent delivery', async () => {
-    mockBroker.invoke
-      .mockResolvedValueOnce('h1')
-      .mockResolvedValueOnce(undefined);
+    mockBroker.invoke.mockResolvedValueOnce('h1').mockResolvedValueOnce(undefined);
     const h = await proxy.watch(['/tmp/a']);
     const cb = vi.fn();
     h.onChange(cb);
@@ -126,9 +122,7 @@ describe('FileSystemWatcherServiceProxy', () => {
   });
 
   it('dispose() is idempotent — second call is a no-op', async () => {
-    mockBroker.invoke
-      .mockResolvedValueOnce('h1')
-      .mockResolvedValueOnce(undefined);
+    mockBroker.invoke.mockResolvedValueOnce('h1').mockResolvedValueOnce(undefined);
     const h = await proxy.watch(['/tmp/a']);
     await h.dispose();
     await h.dispose(); // must not throw and must not re-invoke

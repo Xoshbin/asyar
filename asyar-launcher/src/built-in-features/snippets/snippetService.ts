@@ -6,7 +6,10 @@ import { logService } from '../../services/log/logService';
 import { resolveTemplate } from '../../lib/placeholders';
 import { secretRedactionService } from '../../services/privacy/secretRedactionService.svelte';
 
-export const enabledPersistence = createPersistence<boolean>('asyar:snippets:enabled', 'snippets-enabled.dat');
+export const enabledPersistence = createPersistence<boolean>(
+  'asyar:snippets:enabled',
+  'snippets-enabled.dat',
+);
 
 /**
  * Run the secret redactor over a snippet's expansion text.
@@ -55,9 +58,10 @@ export const snippetService = {
   },
 
   async syncToRust(): Promise<void> {
-    const pairs = snippetStore.getAll()
-      .filter(s => s.keyword)
-      .map(s => [s.keyword!, s.expansion] as [string, string]);
+    const pairs = snippetStore
+      .getAll()
+      .filter((s) => s.keyword)
+      .map((s) => [s.keyword!, s.expansion] as [string, string]);
     await commands.syncSnippetsToRust(pairs);
   },
 

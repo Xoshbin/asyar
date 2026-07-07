@@ -21,7 +21,7 @@ describe('publishExtension', () => {
     await publishExtension('/home/u/AsyarExtensions/com.x.notion');
     expect(mockOpenTerminal).toHaveBeenCalledWith(
       '/home/u/AsyarExtensions/com.x.notion',
-      PUBLISH_COMMAND
+      PUBLISH_COMMAND,
     );
   });
 

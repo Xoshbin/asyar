@@ -8,17 +8,21 @@
   let dotColor = $derived.by<'success' | 'warning' | 'danger' | 'info'>(() => {
     switch (current?.severity) {
       case 'success':
-      case 'info': return 'success';
-      case 'warning': return 'warning';
+      case 'info':
+        return 'success';
+      case 'warning':
+        return 'warning';
       case 'error':
-      case 'fatal': return 'danger';
-      default: return 'info';
+      case 'fatal':
+        return 'danger';
+      default:
+        return 'info';
     }
   });
   let message = $derived.by(() => {
     if (!current) return '';
     const t = DIAGNOSTIC_MESSAGES[current.kind as DiagnosticKind];
-    return t ? t(current.context ?? {}) : current.developerDetail ?? 'Error';
+    return t ? t(current.context ?? {}) : (current.developerDetail ?? 'Error');
   });
   let isSticky = $derived(current?.severity === 'error' || current?.severity === 'fatal');
 
@@ -34,17 +38,21 @@
       diagnosticsService.dismiss();
     }
   }
-  function onDismiss() { diagnosticsService.dismiss(); }
+  function onDismiss() {
+    diagnosticsService.dismiss();
+  }
 </script>
 
 {#if current}
-  <div class="flex items-center gap-2 min-w-0 text-xs text-[var(--text-secondary)]"
-       title={current.developerDetail ?? message}>
+  <div
+    class="flex items-center gap-2 min-w-0 text-xs text-[var(--text-secondary)]"
+    title={current.developerDetail ?? message}
+  >
     <StatusDot color={dotColor} />
     <span class="truncate">{message}</span>
     {#if current.retryable && current.retryActionId}
       <button type="button" class="pressable" onclick={onRetry}>
-        <KeyboardHint keys={["⌘", "R"]} action="Retry" />
+        <KeyboardHint keys={['⌘', 'R']} action="Retry" />
       </button>
     {/if}
     {#if current.reportActionId}

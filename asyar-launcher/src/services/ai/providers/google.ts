@@ -1,5 +1,14 @@
 import { fetch } from '@tauri-apps/plugin-http';
-import type { IProviderPlugin, ModelInfo, ProviderConfig, RequestSpec, ChatParams, ChatMessage, LoopMessage, ToolStreamEvent } from '../IProviderPlugin';
+import type {
+  IProviderPlugin,
+  ModelInfo,
+  ProviderConfig,
+  RequestSpec,
+  ChatParams,
+  ChatMessage,
+  LoopMessage,
+  ToolStreamEvent,
+} from '../IProviderPlugin';
 
 export const googlePlugin: IProviderPlugin = {
   id: 'google',
@@ -16,7 +25,9 @@ export const googlePlugin: IProviderPlugin = {
       },
     });
     if (!res.ok) return [];
-    const json = await res.json() as { models?: Array<{ name: string; displayName?: string; supportedGenerationMethods?: string[] }> };
+    const json = (await res.json()) as {
+      models?: Array<{ name: string; displayName?: string; supportedGenerationMethods?: string[] }>;
+    };
     return (json.models ?? [])
       .filter((m) => (m.supportedGenerationMethods ?? []).includes('generateContent'))
       .filter((m) => m.name.includes('gemini'))
@@ -53,7 +64,12 @@ export const googlePlugin: IProviderPlugin = {
     messages: LoopMessage[],
     config: ProviderConfig,
     params: ChatParams,
-    tools: Array<{ id: string; name: string; description: string; parameters: Record<string, unknown> }>,
+    tools: Array<{
+      id: string;
+      name: string;
+      description: string;
+      parameters: Record<string, unknown>;
+    }>,
   ): RequestSpec {
     // Gemini requires `name` in functionResponse; look up from prior assistant turn's functionCall
     const idToName = new Map<string, string>();
@@ -90,7 +106,11 @@ export const googlePlugin: IProviderPlugin = {
         const id = m.toolUseId ?? '';
         const name = idToName.get(id) ?? '';
         let output: unknown = m.content;
-        try { output = JSON.parse(m.content); } catch { /* leave as string */ }
+        try {
+          output = JSON.parse(m.content);
+        } catch {
+          /* leave as string */
+        }
         contents.push({
           role: 'user',
           parts: [{ functionResponse: { id, name, response: { output } } }],
@@ -101,7 +121,15 @@ export const googlePlugin: IProviderPlugin = {
 
     const body: Record<string, unknown> = {
       contents,
-      tools: [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })) }],
+      tools: [
+        {
+          functionDeclarations: tools.map((t) => ({
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters,
+          })),
+        },
+      ],
       generationConfig: {
         ...(params.temperature !== undefined && { temperature: params.temperature }),
         ...(params.maxTokens !== undefined && { maxOutputTokens: params.maxTokens }),
@@ -119,7 +147,9 @@ export const googlePlugin: IProviderPlugin = {
     };
   },
 
-  async *parseToolStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<ToolStreamEvent> {
+  async *parseToolStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+  ): AsyncGenerator<ToolStreamEvent> {
     const decoder = new TextDecoder();
     let buffer = '';
     let toolCounter = 0;
@@ -140,7 +170,11 @@ export const googlePlugin: IProviderPlugin = {
           if (!payload) continue;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let parsed: any;
-          try { parsed = JSON.parse(payload); } catch { continue; }
+          try {
+            parsed = JSON.parse(payload);
+          } catch {
+            continue;
+          }
           const candidate = parsed?.candidates?.[0];
           const parts = candidate?.content?.parts;
           if (Array.isArray(parts)) {
@@ -185,7 +219,9 @@ export const googlePlugin: IProviderPlugin = {
           const json = JSON.parse(data);
           const token = json.candidates?.[0]?.content?.parts?.[0]?.text;
           if (token) yield token;
-        } catch { /* skip malformed */ }
+        } catch {
+          /* skip malformed */
+        }
       }
     }
   },

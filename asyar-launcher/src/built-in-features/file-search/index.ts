@@ -9,7 +9,11 @@ import { fileManagerService } from '../../services/fileManager/fileManagerServic
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 import { logService } from '../../services/log/logService';
-import { openInTerminal, quickLookPath, fileSearchClearHistory } from '../../lib/ipc/fileSearchCommands';
+import {
+  openInTerminal,
+  quickLookPath,
+  fileSearchClearHistory,
+} from '../../lib/ipc/fileSearchCommands';
 import {
   fileSearchViewState,
   getSelectedFile,
@@ -255,7 +259,8 @@ class FileSearchExtension implements Extension {
       {
         id: 'file-search:deep-search',
         title: 'Search Everywhere',
-        description: 'Run an OS-native deep search (Spotlight/Everything/plocate) for the current query',
+        description:
+          'Run an OS-native deep search (Spotlight/Everything/plocate) for the current query',
         icon: 'icon:globe',
         extensionId: 'file-search',
         category: 'file-action',

@@ -1,18 +1,18 @@
-import { ExtensionBridge, ActionContext } from "asyar-sdk/contracts";
-import type { Extension, ExtensionManifest, ExtensionCommand } from "asyar-sdk/contracts";
+import { ExtensionBridge, ActionContext } from 'asyar-sdk/contracts';
+import type { Extension, ExtensionManifest, ExtensionCommand } from 'asyar-sdk/contracts';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
-import { logService } from "../log/logService";
-import { extensionLoaderService } from "../extensionLoaderService";
-import { settingsService } from "../settings/settingsService.svelte";
-import { performanceService } from "../performance/performanceService.svelte";
-import { commandService } from "./commandService.svelte";
-import * as commands from "../../lib/ipc/commands";
+import { logService } from '../log/logService';
+import { extensionLoaderService } from '../extensionLoaderService';
+import { settingsService } from '../settings/settingsService.svelte';
+import { performanceService } from '../performance/performanceService.svelte';
+import { commandService } from './commandService.svelte';
+import * as commands from '../../lib/ipc/commands';
 import { dispatch } from './extensionDispatcher.svelte';
 import { onboardingViewInterception } from './onboardingViewInterception';
-import { extensionPreferencesService } from "./extensionPreferencesService.svelte";
-import { actionService } from "../action/actionService.svelte";
-import { searchOrchestrator } from "../search/searchOrchestrator.svelte";
-import { searchStores } from "../search/stores/search.svelte";
+import { extensionPreferencesService } from './extensionPreferencesService.svelte';
+import { actionService } from '../action/actionService.svelte';
+import { searchOrchestrator } from '../search/searchOrchestrator.svelte';
+import { searchStores } from '../search/stores/search.svelte';
 
 /**
  * A loaded extension module: either a direct Extension instance
@@ -23,13 +23,21 @@ type LoadedExtensionModule = Extension | { default: Extension };
 export class ExtensionLoader {
   // Internal state built during loadExtensions()
   private extensionModulesById = new Map<string, LoadedExtensionModule>();
-  private allLoadedCommands: { cmd: ExtensionCommand; manifest: ExtensionManifest; isBuiltIn: boolean }[] = [];
+  private allLoadedCommands: {
+    cmd: ExtensionCommand;
+    manifest: ExtensionManifest;
+    isBuiltIn: boolean;
+  }[] = [];
 
   constructor(
     private readonly bridge: ExtensionBridge,
     private readonly onManifestRegistered: (id: string, manifest: ExtendedManifest) => void,
     private readonly onModuleRegistered: (id: string, module: LoadedExtensionModule) => void,
-    private readonly onCommandRegistered: (cmd: ExtensionCommand, manifest: ExtensionManifest, isBuiltIn: boolean) => void,
+    private readonly onCommandRegistered: (
+      cmd: ExtensionCommand,
+      manifest: ExtensionManifest,
+      isBuiltIn: boolean,
+    ) => void,
   ) {}
 
   private resolveExtensionInstance(module: LoadedExtensionModule): Extension {
@@ -40,8 +48,8 @@ export class ExtensionLoader {
   }
 
   private getCmdObjectId(cmd: ExtensionCommand, manifest: ExtensionManifest): string {
-    const commandId = cmd.id || "unknown_cmd";
-    const extensionId = manifest.id || "unknown_ext";
+    const commandId = cmd.id || 'unknown_cmd';
+    const extensionId = manifest.id || 'unknown_ext';
     return `cmd_${extensionId}_${commandId}`;
   }
 
@@ -49,49 +57,47 @@ export class ExtensionLoader {
     navigateToView: (viewPath: string) => void,
     isReady: { set: (value: boolean) => void },
   ): Promise<void> {
-    logService.debug(
-      "Starting loadExtensions process using extensionLoaderService..."
-    );
+    logService.debug('Starting loadExtensions process using extensionLoaderService...');
     try {
       // Clear its own internal state at the start
       this.extensionModulesById.clear();
       this.allLoadedCommands = [];
 
       // Use the loader service
-      const loadedExtensionsMap =
-        await extensionLoaderService.loadAllExtensions();
+      const loadedExtensionsMap = await extensionLoaderService.loadAllExtensions();
 
       let enabledCount = 0;
       let disabledCount = 0;
 
       // Process the loaded extensions provided by the service
-      for (const [
-        loaderId,
-        { module, manifest, isBuiltIn },
-      ] of loadedExtensionsMap.entries()) {
-
+      for (const [loaderId, { module, manifest, isBuiltIn }] of loadedExtensionsMap.entries()) {
         // Ensure manifest is not null before proceeding
         if (!manifest || !manifest.id) {
-            logService.warn(`Skipping extension loader ID ${loaderId} due to missing manifest or manifest ID.`);
-            continue;
+          logService.warn(
+            `Skipping extension loader ID ${loaderId} due to missing manifest or manifest ID.`,
+          );
+          continue;
         }
 
         const extensionId = manifest.id;
 
         // Extension is loaded and enabled (filtered by service), proceed with registration
-        performanceService.trackExtensionLoadStart(extensionId); 
+        performanceService.trackExtensionLoadStart(extensionId);
         // Store the full module by ID
         this.extensionModulesById.set(extensionId, module);
         this.onModuleRegistered(extensionId, module);
-        this.onManifestRegistered(extensionId, manifest as ExtendedManifest); 
+        this.onManifestRegistered(extensionId, manifest as ExtendedManifest);
 
         // Register preferences
         extensionPreferencesService.registerManifest(extensionId, {
           extension: manifest.preferences ?? [],
-          commands: (manifest.commands ?? []).reduce((acc, cmd) => {
-            if (cmd.preferences) acc[cmd.id] = cmd.preferences;
-            return acc;
-          }, {} as Record<string, any>)
+          commands: (manifest.commands ?? []).reduce(
+            (acc, cmd) => {
+              if (cmd.preferences) acc[cmd.id] = cmd.preferences;
+              return acc;
+            },
+            {} as Record<string, any>,
+          ),
         });
 
         // Register manifest with bridge first
@@ -108,7 +114,9 @@ export class ExtensionLoader {
             commands: bundle.commands,
           });
         } catch (err) {
-          logService.warn(`[ExtensionLoader] Failed to pre-load preferences for ${extensionId}: ${err}`);
+          logService.warn(
+            `[ExtensionLoader] Failed to pre-load preferences for ${extensionId}: ${err}`,
+          );
         }
 
         // Sync declared permissions + their sidecar args to the Rust registry
@@ -116,13 +124,15 @@ export class ExtensionLoader {
         // patterns for fs:watch (and will grow to host other parameterized
         // permissions as they land).
         const extended = manifest as ExtendedManifest;
-        commands.registerExtensionPermissions(
-          extensionId,
-          extended.permissions ?? [],
-          extended.permissionArgs ?? null,
-        ).catch((err: unknown) => {
-          logService.warn(`[PermissionRegistry] Failed to register ${extensionId}: ${err}`);
-        });
+        commands
+          .registerExtensionPermissions(
+            extensionId,
+            extended.permissions ?? [],
+            extended.permissionArgs ?? null,
+          )
+          .catch((err: unknown) => {
+            logService.warn(`[PermissionRegistry] Failed to register ${extensionId}: ${err}`);
+          });
 
         if (isBuiltIn) {
           // Register with bridge using the default export (class instance)
@@ -132,7 +142,9 @@ export class ExtensionLoader {
           }
           const extensionInstance = this.resolveExtensionInstance(module);
           if (!extensionInstance) {
-            logService.error(`Module for built-in feature ${extensionId} does not have a default export or is invalid.`);
+            logService.error(
+              `Module for built-in feature ${extensionId} does not have a default export or is invalid.`,
+            );
             continue; // Skip registration if instance cannot be obtained
           }
           this.bridge.registerExtensionImplementation(extensionId, extensionInstance);
@@ -143,14 +155,12 @@ export class ExtensionLoader {
         // Collect commands (manifest is guaranteed non-null here)
         if (manifest.commands) {
           manifest.commands.forEach((cmd) => {
-              if (cmd && cmd.id) {
-                // Ensure command and its ID exist
-                this.onCommandRegistered(cmd, manifest, isBuiltIn);
-                this.allLoadedCommands.push({ cmd, manifest, isBuiltIn });
-              } else {
-              logService.warn(
-                `Skipping command due to missing ID in manifest: ${manifest.id}`
-              );
+            if (cmd && cmd.id) {
+              // Ensure command and its ID exist
+              this.onCommandRegistered(cmd, manifest, isBuiltIn);
+              this.allLoadedCommands.push({ cmd, manifest, isBuiltIn });
+            } else {
+              logService.warn(`Skipping command due to missing ID in manifest: ${manifest.id}`);
             }
           });
         }
@@ -165,18 +175,17 @@ export class ExtensionLoader {
         // to attach an execute callback to an already-registered manifest action.
         this.registerManifestActions();
 
-        performanceService.startTiming("extension-initialization-activation");
+        performanceService.startTiming('extension-initialization-activation');
         await this.bridge.initializeExtensions();
         await this.bridge.activateExtensions();
-        performanceService.stopTiming("extension-initialization-activation");
+        performanceService.stopTiming('extension-initialization-activation');
         this.registerCommandHandlersFromManifests(navigateToView); // Register handlers only after activation
-
       } else {
-        logService.debug("No enabled extensions to initialize or activate.");
+        logService.debug('No enabled extensions to initialize or activate.');
       }
 
       logService.debug(
-        `Extensions loading complete: ${enabledCount} enabled, ${disabledCount} disabled`
+        `Extensions loading complete: ${enabledCount} enabled, ${disabledCount} disabled`,
       );
       isReady.set(true); // Signal readiness after processing and activation
       logService.debug('[ExtensionManager] Ready.');
@@ -190,7 +199,7 @@ export class ExtensionLoader {
 
   registerCommandHandlersFromManifests(navigateToView: (viewPath: string) => void): void {
     logService.debug(
-      `Registering command handlers for ${this.allLoadedCommands.length} loaded commands.`
+      `Registering command handlers for ${this.allLoadedCommands.length} loaded commands.`,
     );
     this.allLoadedCommands.forEach(({ cmd, manifest, isBuiltIn }) => {
       try {
@@ -199,16 +208,14 @@ export class ExtensionLoader {
         // Only require the module instance for built-in extensions
         if (isBuiltIn && !module) {
           logService.warn(
-            `Could not find loaded feature module for built-in ID: ${manifest.id} while registering command: ${cmd.id}`
+            `Could not find loaded feature module for built-in ID: ${manifest.id} while registering command: ${cmd.id}`,
           );
           return; // Skip if built-in feature instance not found
         }
 
         // Ensure cmd and manifest IDs exist
         if (!cmd.id || !manifest.id) {
-          logService.warn(
-            `Skipping command registration due to missing ID in cmd or manifest.`
-          );
+          logService.warn(`Skipping command registration due to missing ID in cmd or manifest.`);
           return;
         }
 
@@ -263,9 +270,7 @@ export class ExtensionLoader {
                       );
                     }
                     if (!onboarded) {
-                      const onbCmd = manifest.commands.find(
-                        (c) => c.id === onboardingDecl.command,
-                      );
+                      const onbCmd = manifest.commands.find((c) => c.id === onboardingDecl.command);
                       const onbComponent = onbCmd?.component;
                       if (onbComponent) {
                         onboardingViewInterception.put(manifest.id, {
@@ -288,13 +293,15 @@ export class ExtensionLoader {
           }
           return;
         }
-        
+
         const extensionInstance = this.resolveExtensionInstance(module);
-        
+
         if (isBuiltIn) {
           if (!extensionInstance || typeof extensionInstance.executeCommand !== 'function') {
-             logService.error(`Invalid instance or missing executeCommand for built-in feature ${manifest.id}.`);
-             return; 
+            logService.error(
+              `Invalid instance or missing executeCommand for built-in feature ${manifest.id}.`,
+            );
+            return;
           }
         }
 
@@ -309,7 +316,7 @@ export class ExtensionLoader {
               }
             } catch (execError) {
               logService.error(
-                `Error executing command ${shortCmdId} in extension ${manifest.id}: ${execError}`
+                `Error executing command ${shortCmdId} in extension ${manifest.id}: ${execError}`,
               );
               throw execError;
             }
@@ -319,19 +326,17 @@ export class ExtensionLoader {
         commandService.setShortCommandId(fullObjectId, shortCmdId);
 
         logService.debug(
-          `Registered handler for command: ${shortCmdId} (ID: ${fullObjectId}) for extension: ${manifest.id}`
+          `Registered handler for command: ${shortCmdId} (ID: ${fullObjectId}) for extension: ${manifest.id}`,
         );
       } catch (error) {
         logService.error(
           `Error registering handler for command ${
-            cmd?.id || "unknown"
-          } of extension ${manifest?.id || "unknown"}: ${error}`
+            cmd?.id || 'unknown'
+          } of extension ${manifest?.id || 'unknown'}: ${error}`,
         );
       }
     });
-    logService.info(
-      `Finished registering command handlers for enabled extensions.`
-    );
+    logService.info(`Finished registering command handlers for enabled extensions.`);
   }
 
   /**
@@ -359,7 +364,8 @@ export class ExtensionLoader {
             extensionId,
             context: ActionContext.CORE,
             visible: () => {
-              if (settingsService.getSettings().search.allowExtensionActions === false) return false;
+              if (settingsService.getSettings().search.allowExtensionActions === false)
+                return false;
               const idx = searchStores.selectedIndex;
               if (idx < 0) return false;
               const item = searchOrchestrator.items[idx];
@@ -386,7 +392,8 @@ export class ExtensionLoader {
             extensionId,
             context: ActionContext.CORE,
             visible: () => {
-              if (settingsService.getSettings().search.allowExtensionActions === false) return false;
+              if (settingsService.getSettings().search.allowExtensionActions === false)
+                return false;
               const idx = searchStores.selectedIndex;
               if (idx < 0) return false;
               const item = searchOrchestrator.items[idx];
@@ -398,7 +405,12 @@ export class ExtensionLoader {
     }
 
     const actionCount = Array.from(seenExtensions).reduce((sum, extId) => {
-      return sum + actionService.getAllActions().filter(a => a.extensionId === extId && a.id.startsWith('act_')).length;
+      return (
+        sum +
+        actionService
+          .getAllActions()
+          .filter((a) => a.extensionId === extId && a.id.startsWith('act_')).length
+      );
     }, 0);
 
     if (actionCount > 0) {
@@ -409,7 +421,7 @@ export class ExtensionLoader {
   async syncCommandIndex(
     allLoadedCommands: { cmd: ExtensionCommand; manifest: ExtensionManifest; isBuiltIn: boolean }[],
   ): Promise<void> {
-    logService.info("Starting command index synchronization via Rust...");
+    logService.info('Starting command index synchronization via Rust...');
     try {
       const inputs: commands.CommandSyncInput[] = allLoadedCommands
         .filter((c) => c.manifest?.id && c.cmd?.id)
@@ -418,7 +430,10 @@ export class ExtensionLoader {
         // (Plan B). It must stay in `manifest.commands[]` so the Rust
         // dispatch can resolve it after rewriting the payload, but it
         // should NOT appear in the launcher's search results.
-        .filter((c) => c.cmd.id !== (c.manifest as { onboarding?: { command?: string } }).onboarding?.command)
+        .filter(
+          (c) =>
+            c.cmd.id !== (c.manifest as { onboarding?: { command?: string } }).onboarding?.command,
+        )
         .map(({ cmd, manifest }) => ({
           id: this.getCmdObjectId(cmd, manifest),
           name: cmd.name,
@@ -436,7 +451,7 @@ export class ExtensionLoader {
         throw new Error('sync_command_index failed');
       }
       logService.info(
-        `Command Sync complete: ${result.added} added, ${result.removed} removed, ${result.total} total commands indexed.`
+        `Command Sync complete: ${result.added} added, ${result.removed} removed, ${result.total} total commands indexed.`,
       );
     } catch (error) {
       logService.error(`Failed to synchronize command index: ${error}`);

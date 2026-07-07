@@ -34,7 +34,13 @@ describe('snippetStore', () => {
 
   it('add() replaces snippet with same id', () => {
     snippetStore.add({ id: '1', name: 'A', keyword: ';a', expansion: 'alpha', createdAt: 0 });
-    snippetStore.add({ id: '1', name: 'A updated', keyword: ';a', expansion: 'alpha2', createdAt: 1 });
+    snippetStore.add({
+      id: '1',
+      name: 'A updated',
+      keyword: ';a',
+      expansion: 'alpha2',
+      createdAt: 1,
+    });
     expect(snippetStore.snippets).toHaveLength(1);
     expect(snippetStore.snippets[0].expansion).toBe('alpha2');
   });

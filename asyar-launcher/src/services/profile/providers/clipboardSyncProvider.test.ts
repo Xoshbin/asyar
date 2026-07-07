@@ -25,24 +25,31 @@ import type { SyncProviderData } from '../types';
 const mockExport = clipboardExportForSync as unknown as ReturnType<typeof vi.fn>;
 const mockCount = clipboardCount as unknown as ReturnType<typeof vi.fn>;
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 // ── Paged export ─────────────────────────────────────────────────────────────
 
 describe('ClipboardSyncProvider — paged export', () => {
   it('exportItems iterates every row across multiple pages without holding all rows at once', async () => {
     const allRows: StoredClipboardItem[] = Array.from({ length: 5 }, (_, i) => ({
-      id: `id-${i}`, type: 'text', content: `body ${i}`, preview: `body ${i}`,
-      createdAt: 1000 + i, favorite: false,
+      id: `id-${i}`,
+      type: 'text',
+      content: `body ${i}`,
+      preview: `body ${i}`,
+      createdAt: 1000 + i,
+      favorite: false,
     }));
     let call = 0;
     mockExport.mockImplementation(async (cursor: unknown, limit: number) => {
       const pageStart = call * limit;
       call++;
       const slice = allRows.slice(pageStart, pageStart + limit);
-      const nextCursor = (pageStart + limit) < allRows.length
-        ? { createdAt: slice[slice.length - 1].createdAt, id: slice[slice.length - 1].id }
-        : undefined;
+      const nextCursor =
+        pageStart + limit < allRows.length
+          ? { createdAt: slice[slice.length - 1].createdAt, id: slice[slice.length - 1].id }
+          : undefined;
       return { items: slice, nextCursor };
     });
 
@@ -55,8 +62,12 @@ describe('ClipboardSyncProvider — paged export', () => {
 
   it('exportItems issues multiple pages when the dataset is larger than the page size', async () => {
     const allRows: StoredClipboardItem[] = Array.from({ length: 5 }, (_, i) => ({
-      id: `id-${i}`, type: 'text', content: `c${i}`, preview: `c${i}`,
-      createdAt: 1000 + i, favorite: false,
+      id: `id-${i}`,
+      type: 'text',
+      content: `c${i}`,
+      preview: `c${i}`,
+      createdAt: 1000 + i,
+      favorite: false,
     }));
     let call = 0;
     mockExport.mockImplementation(async () => {
@@ -64,9 +75,10 @@ describe('ClipboardSyncProvider — paged export', () => {
       const start = call * pageSize;
       call++;
       const slice = allRows.slice(start, start + pageSize);
-      const nextCursor = (start + pageSize) < allRows.length
-        ? { createdAt: slice[slice.length - 1].createdAt, id: slice[slice.length - 1].id }
-        : undefined;
+      const nextCursor =
+        start + pageSize < allRows.length
+          ? { createdAt: slice[slice.length - 1].createdAt, id: slice[slice.length - 1].id }
+          : undefined;
       return { items: slice, nextCursor };
     });
 
@@ -126,7 +138,13 @@ describe('ClipboardSyncProvider — exportFull', () => {
   it('preserves raw HTML content unchanged', async () => {
     mockExport.mockResolvedValueOnce({
       items: [
-        { id: 'h2', type: 'html', content: '<p>Hello <b>world</b></p>', createdAt: 1000, favorite: false },
+        {
+          id: 'h2',
+          type: 'html',
+          content: '<p>Hello <b>world</b></p>',
+          createdAt: 1000,
+          favorite: false,
+        },
       ],
       nextCursor: undefined,
     });
@@ -162,7 +180,14 @@ describe('ClipboardSyncProvider — exportForSync', () => {
   it('strips HTML tags from html items and downgrades type to text', async () => {
     mockExport.mockResolvedValueOnce({
       items: [
-        { id: 'h1', type: 'html', content: '<p>Hello <b>world</b></p>', preview: 'Hello world', createdAt: 1000, favorite: false },
+        {
+          id: 'h1',
+          type: 'html',
+          content: '<p>Hello <b>world</b></p>',
+          preview: 'Hello world',
+          createdAt: 1000,
+          favorite: false,
+        },
       ],
       nextCursor: undefined,
     });
@@ -179,7 +204,14 @@ describe('ClipboardSyncProvider — exportForSync', () => {
   it('strips RTF markup from rtf items and downgrades type to text', async () => {
     mockExport.mockResolvedValueOnce({
       items: [
-        { id: 'r1', type: 'rtf', content: '{\\rtf1 visible text}', preview: 'visible text', createdAt: 1000, favorite: false },
+        {
+          id: 'r1',
+          type: 'rtf',
+          content: '{\\rtf1 visible text}',
+          preview: 'visible text',
+          createdAt: 1000,
+          favorite: false,
+        },
       ],
       nextCursor: undefined,
     });
@@ -195,9 +227,7 @@ describe('ClipboardSyncProvider — exportForSync', () => {
 
   it('leaves text items unchanged', async () => {
     mockExport.mockResolvedValueOnce({
-      items: [
-        { id: 't1', type: 'text', content: 'plain text', createdAt: 1000, favorite: false },
-      ],
+      items: [{ id: 't1', type: 'text', content: 'plain text', createdAt: 1000, favorite: false }],
       nextCursor: undefined,
     });
 
@@ -236,8 +266,8 @@ describe('ClipboardSyncProvider — preview', () => {
     const preview = await provider.preview(incoming);
     expect(preview.localCount).toBe(2);
     expect(preview.incomingCount).toBe(2);
-    expect(preview.conflicts).toBe(1);  // c1 exists in both
-    expect(preview.newItems).toBe(1);   // c3 is new
+    expect(preview.conflicts).toBe(1); // c1 exists in both
+    expect(preview.newItems).toBe(1); // c3 is new
     expect(preview.removedItems).toBe(1); // c2 only in local
   });
 });
@@ -246,14 +276,13 @@ describe('ClipboardSyncProvider — preview', () => {
 
 describe('ClipboardSyncProvider — applyImport', () => {
   it('replace — calls clearHistory and addHistoryItem for each', async () => {
-    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    const { clipboardHistoryStore } =
+      await import('../../clipboard/stores/clipboardHistoryStore.svelte');
     const incoming: SyncProviderData = {
       providerId: 'clipboard',
       version: 1,
       exportedAt: Date.now(),
-      data: [
-        { id: 'c10', type: 'text', content: 'New item', createdAt: 5000, favorite: false },
-      ],
+      data: [{ id: 'c10', type: 'text', content: 'New item', createdAt: 5000, favorite: false }],
     };
 
     const provider = new ClipboardSyncProvider();
@@ -273,7 +302,8 @@ describe('ClipboardSyncProvider — applyImport', () => {
       nextCursor: undefined,
     });
 
-    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    const { clipboardHistoryStore } =
+      await import('../../clipboard/stores/clipboardHistoryStore.svelte');
     const incoming: SyncProviderData = {
       providerId: 'clipboard',
       version: 1,
@@ -292,7 +322,8 @@ describe('ClipboardSyncProvider — applyImport', () => {
   });
 
   it('skip — does nothing', async () => {
-    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    const { clipboardHistoryStore } =
+      await import('../../clipboard/stores/clipboardHistoryStore.svelte');
     const incoming: SyncProviderData = {
       providerId: 'clipboard',
       version: 1,
@@ -329,7 +360,8 @@ describe('ClipboardSyncProvider — delta sync surface', () => {
   });
 
   it('applyItemUpsert routes to addHistoryItem with the content', async () => {
-    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    const { clipboardHistoryStore } =
+      await import('../../clipboard/stores/clipboardHistoryStore.svelte');
     const content = { id: 'c10', type: 'text', content: 'Hello', createdAt: 5000, favorite: false };
     const provider = new ClipboardSyncProvider();
     await provider.applyItemUpsert({ id: 'c10', categoryId: 'clipboard', content });
@@ -337,7 +369,8 @@ describe('ClipboardSyncProvider — delta sync surface', () => {
   });
 
   it('applyItemDelete routes to deleteHistoryItem with the id', async () => {
-    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    const { clipboardHistoryStore } =
+      await import('../../clipboard/stores/clipboardHistoryStore.svelte');
     const provider = new ClipboardSyncProvider();
     await provider.applyItemDelete('c1');
     expect(clipboardHistoryStore.deleteHistoryItem).toHaveBeenCalledWith('c1');
@@ -345,7 +378,8 @@ describe('ClipboardSyncProvider — delta sync surface', () => {
 
   it('subscribeToChanges fires when the store emits an upsert', async () => {
     // Re-wire the subscribe mock to support __emit for this test
-    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    const { clipboardHistoryStore } =
+      await import('../../clipboard/stores/clipboardHistoryStore.svelte');
     type ChangeCb = (event: { type: 'upsert' | 'delete'; itemId: string }) => void;
     const subscribers = new Set<ChangeCb>();
     vi.mocked(clipboardHistoryStore.subscribe).mockImplementation((cb: ChangeCb) => {
@@ -365,7 +399,8 @@ describe('ClipboardSyncProvider — delta sync surface', () => {
   });
 
   it('subscribeToChanges propagates delete events', async () => {
-    const { clipboardHistoryStore } = await import('../../clipboard/stores/clipboardHistoryStore.svelte');
+    const { clipboardHistoryStore } =
+      await import('../../clipboard/stores/clipboardHistoryStore.svelte');
     type ChangeCb = (event: { type: 'upsert' | 'delete'; itemId: string }) => void;
     const subscribers = new Set<ChangeCb>();
     vi.mocked(clipboardHistoryStore.subscribe).mockImplementation((cb: ChangeCb) => {

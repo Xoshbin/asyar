@@ -78,20 +78,34 @@ describe('searchOrchestrator alias handling', () => {
     // pinned, and the orchestrator must not reorder them.
     mergedSearchMock.mockResolvedValueOnce({
       results: [
-        { objectId: 'cmd_clip_history', name: 'Clipboard History', type: 'command', score: 0.5, alias: 'cl' } as any,
+        {
+          objectId: 'cmd_clip_history',
+          name: 'Clipboard History',
+          type: 'command',
+          score: 0.5,
+          alias: 'cl',
+        } as any,
         { objectId: 'app_other', name: 'Other', type: 'application', score: 0.9 } as any,
       ],
       aliasMatch: { objectId: 'cmd_clip_history', itemType: 'command', autoExecute: false },
     });
     await searchOrchestrator.handleSearch('cl');
-    expect(searchOrchestrator.items.map(r => r.objectId)).toEqual(['cmd_clip_history', 'app_other']);
+    expect(searchOrchestrator.items.map((r) => r.objectId)).toEqual([
+      'cmd_clip_history',
+      'app_other',
+    ]);
     expect(executeCommand).not.toHaveBeenCalled();
   });
 
   it('auto-executes command on alias + trailing space and clears the search input', async () => {
     mergedSearchMock.mockResolvedValueOnce({
       results: [
-        { objectId: 'cmd_clip_history', name: 'Clipboard History', type: 'command', score: 0.5 } as any,
+        {
+          objectId: 'cmd_clip_history',
+          name: 'Clipboard History',
+          type: 'command',
+          score: 0.5,
+        } as any,
       ],
       aliasMatch: { objectId: 'cmd_clip_history', itemType: 'command', autoExecute: true },
     });
@@ -133,9 +147,7 @@ describe('searchOrchestrator alias handling', () => {
 
   it('does not auto-execute applications even on trailing space', async () => {
     mergedSearchMock.mockResolvedValueOnce({
-      results: [
-        { objectId: 'app_finder', name: 'Finder', type: 'application', score: 1 } as any,
-      ],
+      results: [{ objectId: 'app_finder', name: 'Finder', type: 'application', score: 1 } as any],
       aliasMatch: { objectId: 'app_finder', itemType: 'application', autoExecute: false },
     });
     await searchOrchestrator.handleSearch('f ');
@@ -146,7 +158,12 @@ describe('searchOrchestrator alias handling', () => {
   it('does not double-fire when the same auto-execute query repeats', async () => {
     mergedSearchMock.mockResolvedValue({
       results: [
-        { objectId: 'cmd_clip_history', name: 'Clipboard History', type: 'command', score: 0.5 } as any,
+        {
+          objectId: 'cmd_clip_history',
+          name: 'Clipboard History',
+          type: 'command',
+          score: 0.5,
+        } as any,
       ],
       aliasMatch: { objectId: 'cmd_clip_history', itemType: 'command', autoExecute: true },
     });
@@ -158,7 +175,12 @@ describe('searchOrchestrator alias handling', () => {
   it('clears the auto-execute guard when the query changes', async () => {
     mergedSearchMock.mockResolvedValue({
       results: [
-        { objectId: 'cmd_clip_history', name: 'Clipboard History', type: 'command', score: 0.5 } as any,
+        {
+          objectId: 'cmd_clip_history',
+          name: 'Clipboard History',
+          type: 'command',
+          score: 0.5,
+        } as any,
       ],
       aliasMatch: { objectId: 'cmd_clip_history', itemType: 'command', autoExecute: true },
     });
@@ -171,7 +193,12 @@ describe('searchOrchestrator alias handling', () => {
     // Same `cl ` query fires again.
     mergedSearchMock.mockResolvedValueOnce({
       results: [
-        { objectId: 'cmd_clip_history', name: 'Clipboard History', type: 'command', score: 0.5 } as any,
+        {
+          objectId: 'cmd_clip_history',
+          name: 'Clipboard History',
+          type: 'command',
+          score: 0.5,
+        } as any,
       ],
       aliasMatch: { objectId: 'cmd_clip_history', itemType: 'command', autoExecute: true },
     });
@@ -191,7 +218,7 @@ describe('searchOrchestrator alias handling', () => {
       aliasMatch: { objectId: 'app_finder', itemType: 'application', autoExecute: false },
     });
     await searchOrchestrator.handleSearch('f');
-    expect(searchOrchestrator.items.map(r => r.objectId)).toEqual(['app_other', 'app_finder']);
+    expect(searchOrchestrator.items.map((r) => r.objectId)).toEqual(['app_other', 'app_finder']);
   });
 
   it('falls through to normal search ordering when aliasMatch is null', async () => {
@@ -203,7 +230,7 @@ describe('searchOrchestrator alias handling', () => {
       aliasMatch: null,
     });
     await searchOrchestrator.handleSearch('al');
-    expect(searchOrchestrator.items.map(r => r.objectId)).toEqual(['a', 'b']);
+    expect(searchOrchestrator.items.map((r) => r.objectId)).toEqual(['a', 'b']);
     expect(executeCommand).not.toHaveBeenCalled();
   });
 });

@@ -162,7 +162,10 @@ describe('buildServiceRegistry search entry', () => {
     vi.mocked(invoke).mockResolvedValueOnce(['b']);
 
     const registry = makeRegistry() as any;
-    const items = [{ id: 'a', title: 'Apple' }, { id: 'b', title: 'Banana' }];
+    const items = [
+      { id: 'a', title: 'Apple' },
+      { id: 'b', title: 'Banana' },
+    ];
     const result = await registry.search.rank('ban', items);
 
     expect(invoke).toHaveBeenCalledWith('rank_items', { query: 'ban', items });
@@ -330,7 +333,10 @@ describe('buildServiceRegistry — INJECTS_EXTENSION_ID drift guard', () => {
 
     // Sentinel: if we extracted nothing, the toString source has been
     // minified or transformed and this guard has silently weakened.
-    expect(extractedAny, 'guard could not extract parameter names from any handler — has the build pipeline started minifying tests? Revisit firstParamName.').toBe(true);
+    expect(
+      extractedAny,
+      'guard could not extract parameter names from any handler — has the build pipeline started minifying tests? Revisit firstParamName.',
+    ).toBe(true);
 
     expect(
       offenders,

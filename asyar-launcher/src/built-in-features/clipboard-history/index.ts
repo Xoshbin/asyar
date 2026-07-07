@@ -1,13 +1,13 @@
-import { clipboardViewState } from "./state.svelte";
+import { clipboardViewState } from './state.svelte';
 import DefaultView from './DefaultView.svelte'; // Import renamed component
-import { actionService } from "../../services/action/actionService.svelte";
-import { logService } from "../../services/log/logService";
-import { contextModeService } from "../../services/context/contextModeService.svelte";
-import { diagnosticsService } from "../../services/diagnostics/diagnosticsService.svelte";
-import { searchStores } from "../../services/search/stores/search.svelte";
-import { viewManager } from "../../services/extension/viewManager.svelte";
+import { actionService } from '../../services/action/actionService.svelte';
+import { logService } from '../../services/log/logService';
+import { contextModeService } from '../../services/context/contextModeService.svelte';
+import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { searchStores } from '../../services/search/stores/search.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
 
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   type Extension,
   type ExtensionContext,
@@ -18,17 +18,17 @@ import {
   type ClipboardHistoryItem,
   ActionContext,
   ClipboardItemType,
-} from "asyar-sdk/contracts";
-import type { ExtensionAction, IActionService } from "asyar-sdk/contracts";
+} from 'asyar-sdk/contracts';
+import type { ExtensionAction, IActionService } from 'asyar-sdk/contracts';
 import { snippetUiState } from '../snippets/snippetUiState.svelte';
 
 // Define static results for clipboard extension
 const clipboardResults = [
   {
-    id: "clipboard-history",
-    title: "Clipboard History",
-    subtitle: "View and manage your clipboard history",
-    keywords: "clipboard copy paste history",
+    id: 'clipboard-history',
+    title: 'Clipboard History',
+    subtitle: 'View and manage your clipboard history',
+    keywords: 'clipboard copy paste history',
   },
 ];
 
@@ -46,17 +46,16 @@ async function assertTextSendable(actionTitle: string): Promise<string | null> {
   const item = clipboardViewState.selectedItem;
   if (!item) return null;
 
-  if (
-    item.type === ClipboardItemType.Image ||
-    item.type === ClipboardItemType.Files
-  ) {
+  if (item.type === ClipboardItemType.Image || item.type === ClipboardItemType.Files) {
     const typeName = item.type === ClipboardItemType.Image ? 'Image' : 'File';
     await diagnosticsService.report({
       source: 'frontend',
       kind: 'manual',
       severity: 'error',
       retryable: false,
-      context: { message: `Not supported yet — ${typeName} clipboard items can't be used with "${actionTitle}" yet.` },
+      context: {
+        message: `Not supported yet — ${typeName} clipboard items can't be used with "${actionTitle}" yet.`,
+      },
     });
     return null;
   }
@@ -65,8 +64,6 @@ async function assertTextSendable(actionTitle: string): Promise<string | null> {
   if (!text.trim()) return null;
   return text;
 }
-
-
 
 class ClipboardHistoryExtension implements Extension {
   onUnload: any;
@@ -80,24 +77,13 @@ class ClipboardHistoryExtension implements Extension {
   async initialize(context: ExtensionContext): Promise<void> {
     try {
       this.context = context;
-      this.logService = context.getService<ILogService>("log");
-      this.extensionManager =
-        context.getService<IExtensionManager>("extensions");
-      this.clipboardService = context.getService<IClipboardHistoryService>(
-        "clipboard"
-      );
+      this.logService = context.getService<ILogService>('log');
+      this.extensionManager = context.getService<IExtensionManager>('extensions');
+      this.clipboardService = context.getService<IClipboardHistoryService>('clipboard');
 
-      if (
-        !this.logService ||
-        !this.extensionManager ||
-        !this.clipboardService
-      ) {
-        logService.error(
-          "Failed to initialize required services for Clipboard History"
-        );
-        this.logService?.error(
-          "Failed to initialize required services for Clipboard History"
-        );
+      if (!this.logService || !this.extensionManager || !this.clipboardService) {
+        logService.error('Failed to initialize required services for Clipboard History');
+        this.logService?.error('Failed to initialize required services for Clipboard History');
         return;
       }
 
@@ -117,43 +103,36 @@ class ClipboardHistoryExtension implements Extension {
         }
       });
 
-      this.logService.info(
-        "Clipboard History extension initialized with services"
-      );
+      this.logService.info('Clipboard History extension initialized with services');
     } catch (error) {
       logService.error(`Clipboard History initialization failed: ${error}`);
-      this.logService?.error(
-        `Clipboard History initialization failed: ${error}`
-      );
+      this.logService?.error(`Clipboard History initialization failed: ${error}`);
     }
   }
 
-  async executeCommand(
-    commandId: string,
-    args?: Record<string, any>
-  ): Promise<any> {
+  async executeCommand(commandId: string, args?: Record<string, any>): Promise<any> {
     this.logService?.info(`Executing clipboard command: ${commandId}`);
 
     switch (commandId) {
-      case "show-clipboard":
+      case 'show-clipboard':
         // Navigate first, load in the background. Awaiting refreshClipboardData
         // before navigating yields the event loop; the view would still land,
         // but the list would briefly show stale items from the last session.
-        this.extensionManager?.navigateToView(
-          "clipboard-history/DefaultView"
-        );
+        this.extensionManager?.navigateToView('clipboard-history/DefaultView');
         this.registerViewActions();
         this.refreshClipboardData().catch((e) => {
           this.logService?.error(`refreshClipboardData failed: ${e}`);
           diagnosticsService.report({
-            source: 'frontend', kind: 'manual', severity: 'warning',
+            source: 'frontend',
+            kind: 'manual',
+            severity: 'warning',
             retryable: false,
             context: { message: 'Could not refresh clipboard history — list may be stale' },
           });
         });
         return {
-          type: "view",
-          viewPath: "clipboard-history/DefaultView",
+          type: 'view',
+          viewPath: 'clipboard-history/DefaultView',
         };
 
       default:
@@ -166,12 +145,12 @@ class ClipboardHistoryExtension implements Extension {
   async viewActivated(viewPath: string): Promise<void> {
     this.inView = true;
     this.logService?.debug(`Clipboard History view activated: ${viewPath}`);
-    
+
     // Add global key listener
-    window.addEventListener("keydown", this.handleKeydownBound);
+    window.addEventListener('keydown', this.handleKeydownBound);
 
     // Set the primary action label via the manager
-    this.extensionManager?.setActiveViewActionLabel("Paste");
+    this.extensionManager?.setActiveViewActionLabel('Paste');
   }
 
   private handleKeydownBound = (event: KeyboardEvent) => this.handleKeydown(event);
@@ -184,11 +163,13 @@ class ClipboardHistoryExtension implements Extension {
     const state = clipboardViewState;
     if (!state.filteredItems.length) return;
 
-    if (event.key === "Enter") {
-      this.logService?.debug(`[clipboard] Enter pressed. selectedItem=${!!state.selectedItem}, items=${state.items.length}, activeElement=${document.activeElement?.tagName}`);
+    if (event.key === 'Enter') {
+      this.logService?.debug(
+        `[clipboard] Enter pressed. selectedItem=${!!state.selectedItem}, items=${state.items.length}, activeElement=${document.activeElement?.tagName}`,
+      );
     }
 
-    if ((event.metaKey || event.ctrlKey) && event.key === "Backspace") {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Backspace') {
       event.preventDefault();
       event.stopPropagation();
       if (state.selectedItem) {
@@ -197,15 +178,15 @@ class ClipboardHistoryExtension implements Extension {
       return;
     }
 
-    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       event.preventDefault();
       event.stopPropagation();
-      clipboardViewState.moveSelection(event.key === "ArrowUp" ? 'up' : 'down');
-    } else if (event.key === "Enter" && event.shiftKey && state.selectedItem) {
+      clipboardViewState.moveSelection(event.key === 'ArrowUp' ? 'up' : 'down');
+    } else if (event.key === 'Enter' && event.shiftKey && state.selectedItem) {
       event.preventDefault();
       event.stopPropagation();
       clipboardViewState.pasteAsPlainText();
-    } else if (event.key === "Enter" && state.selectedItem) {
+    } else if (event.key === 'Enter' && state.selectedItem) {
       event.preventDefault();
       event.stopPropagation();
       clipboardViewState.handleItemAction(state.selectedItem, 'paste');
@@ -215,12 +196,10 @@ class ClipboardHistoryExtension implements Extension {
   // Helper method to register view-specific actions
   private registerViewActions() {
     if (!this.clipboardService) {
-      this.logService?.warn(
-        "ClipboardService not available, cannot register view actions."
-      );
+      this.logService?.warn('ClipboardService not available, cannot register view actions.');
       return;
     }
-    this.logService?.debug("Registering clipboard view actions...");
+    this.logService?.debug('Registering clipboard view actions...');
 
     // Note: "Clear Clipboard History" is now manifest-declared (see manifest.json)
     // and available from root search. The executor is wired in initialize() via
@@ -231,12 +210,12 @@ class ClipboardHistoryExtension implements Extension {
     // drives clipboardViewState.setTypeFilter directly — see DefaultView.svelte.
 
     const toggleHtmlAction: ExtensionAction = {
-      id: "clipboard-history:toggle-html-view",
-      title: "Toggle HTML Rendered/Source",
-      description: "Switch between rendered HTML preview and raw source",
-      icon: "icon:eye",
-      extensionId: "clipboard-history",
-      category: "clipboard-action",
+      id: 'clipboard-history:toggle-html-view',
+      title: 'Toggle HTML Rendered/Source',
+      description: 'Switch between rendered HTML preview and raw source',
+      icon: 'icon:eye',
+      extensionId: 'clipboard-history',
+      category: 'clipboard-action',
       execute: () => {
         clipboardViewState.toggleHtmlView();
       },
@@ -244,12 +223,12 @@ class ClipboardHistoryExtension implements Extension {
     actionService.registerAction(toggleHtmlAction);
 
     const openInBrowserAction: ExtensionAction = {
-      id: "clipboard-history:open-in-browser",
-      title: "Open in Browser",
-      description: "Open the selected URL in the default browser",
-      icon: "icon:link",
-      extensionId: "clipboard-history",
-      category: "clipboard-action",
+      id: 'clipboard-history:open-in-browser',
+      title: 'Open in Browser',
+      description: 'Open the selected URL in the default browser',
+      icon: 'icon:link',
+      extensionId: 'clipboard-history',
+      category: 'clipboard-action',
       execute: async () => {
         const selected = clipboardViewState.selectedItem;
         if (selected?.content && /^https?:\/\/[^\s]+$/.test(selected.content.trim())) {
@@ -260,12 +239,12 @@ class ClipboardHistoryExtension implements Extension {
     actionService.registerAction(openInBrowserAction);
 
     const pasteAsPlainTextAction: ExtensionAction = {
-      id: "clipboard-history:paste-as-plain-text",
-      title: "Paste as Plain Text",
-      description: "Paste the selected item as plain text, stripping all formatting",
-      icon: "icon:type",
-      extensionId: "clipboard-history",
-      category: "clipboard-action",
+      id: 'clipboard-history:paste-as-plain-text',
+      title: 'Paste as Plain Text',
+      description: 'Paste the selected item as plain text, stripping all formatting',
+      icon: 'icon:type',
+      extensionId: 'clipboard-history',
+      category: 'clipboard-action',
       execute: async () => {
         await clipboardViewState.pasteAsPlainText();
       },
@@ -273,12 +252,12 @@ class ClipboardHistoryExtension implements Extension {
     actionService.registerAction(pasteAsPlainTextAction);
 
     const toggleFavoriteAction: ExtensionAction = {
-      id: "clipboard-history:toggle-favorite",
-      title: "Toggle Favorite",
-      description: "Pin or unpin the selected clipboard item",
-      icon: "icon:star",
-      extensionId: "clipboard-history",
-      category: "clipboard-action",
+      id: 'clipboard-history:toggle-favorite',
+      title: 'Toggle Favorite',
+      description: 'Pin or unpin the selected clipboard item',
+      icon: 'icon:star',
+      extensionId: 'clipboard-history',
+      category: 'clipboard-action',
       execute: async () => {
         const selected = clipboardViewState.selectedItem;
         if (selected) {
@@ -299,7 +278,8 @@ class ClipboardHistoryExtension implements Extension {
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
         const item = clipboardViewState.selectedItem;
-        if (!item || item.type === ClipboardItemType.Image || item.type === ClipboardItemType.Files) return;
+        if (!item || item.type === ClipboardItemType.Image || item.type === ClipboardItemType.Files)
+          return;
         snippetUiState.prefillExpansion = clipboardViewState.getPlainText(item);
         snippetUiState.editorTrigger = 'add';
         this.extensionManager?.navigateToView('snippets/DefaultView');
@@ -368,12 +348,12 @@ class ClipboardHistoryExtension implements Extension {
 
   // Helper method to unregister view-specific actions
   private unregisterViewActions() {
-    this.logService?.debug("Unregistering clipboard view actions...");
-    actionService.unregisterAction("clipboard-history:toggle-html-view");
-    actionService.unregisterAction("clipboard-history:toggle-favorite");
-    actionService.unregisterAction("clipboard-history:paste-as-plain-text");
-    actionService.unregisterAction("clipboard-history:open-in-browser");
-    actionService.unregisterAction("clipboard-history:save-as-snippet");
+    this.logService?.debug('Unregistering clipboard view actions...');
+    actionService.unregisterAction('clipboard-history:toggle-html-view');
+    actionService.unregisterAction('clipboard-history:toggle-favorite');
+    actionService.unregisterAction('clipboard-history:paste-as-plain-text');
+    actionService.unregisterAction('clipboard-history:open-in-browser');
+    actionService.unregisterAction('clipboard-history:save-as-snippet');
     actionService.unregisterAction('clipboard-history:delete');
     actionService.unregisterAction('clipboard-history:ask-ai-about-this');
   }
@@ -381,7 +361,7 @@ class ClipboardHistoryExtension implements Extension {
   // Called when this extension's view is deactivated
   async viewDeactivated(viewPath: string): Promise<void> {
     // Remove global key listener first
-    window.removeEventListener("keydown", this.handleKeydownBound);
+    window.removeEventListener('keydown', this.handleKeydownBound);
 
     // Unregister actions when the view is deactivated
     this.unregisterViewActions();
@@ -409,14 +389,12 @@ class ClipboardHistoryExtension implements Extension {
         clipboardViewState.setLoading(false);
       }
     } else {
-      this.logService?.warn(
-        "ClipboardService not available in refreshClipboardData"
-      );
+      this.logService?.warn('ClipboardService not available in refreshClipboardData');
     }
   }
 
   async activate(): Promise<void> {
-    this.logService?.info("Clipboard History extension activated");
+    this.logService?.info('Clipboard History extension activated');
   }
 
   async deactivate(): Promise<void> {
@@ -424,7 +402,7 @@ class ClipboardHistoryExtension implements Extension {
     if (this.inView) {
       this.unregisterViewActions();
     }
-    this.logService?.info("Clipboard History extension deactivated");
+    this.logService?.info('Clipboard History extension deactivated');
   }
 }
 

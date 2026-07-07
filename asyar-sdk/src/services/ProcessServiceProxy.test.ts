@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
-      invoke: vi.fn(),
+    invoke: vi.fn(),
   },
 }));
 

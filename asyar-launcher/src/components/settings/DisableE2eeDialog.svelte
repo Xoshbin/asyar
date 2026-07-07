@@ -79,16 +79,19 @@
       transition:popupScale={{ duration: 120 }}
     >
       <div class="p-6">
-        <h2 id="disable-title" class="dialog-title danger">
-          Disable encrypted sync
-        </h2>
+        <h2 id="disable-title" class="dialog-title danger">Disable encrypted sync</h2>
         <p class="dialog-body primary">
-          Disabling encrypted sync will re-upload every item to Asyar's servers in plaintext. Asyar will be able to read your synced data again. Continue?
+          Disabling encrypted sync will re-upload every item to Asyar's servers in plaintext. Asyar
+          will be able to read your synced data again. Continue?
         </p>
         <p class="dialog-body">
           To confirm, type <strong>DISABLE</strong> below.
         </p>
-        <Input bind:value={confirmation} bind:ref={confirmationInput} placeholder="Type DISABLE to confirm" />
+        <Input
+          bind:value={confirmation}
+          bind:ref={confirmationInput}
+          placeholder="Type DISABLE to confirm"
+        />
         {#if errorMessage}
           <p class="text-caption error mt-2">{errorMessage}</p>
         {/if}
@@ -109,7 +112,7 @@
     backdrop-filter: blur(8px);
   }
 
-  :global(html[data-platform="linux"]) .dialog-backdrop {
+  :global(html[data-platform='linux']) .dialog-backdrop {
     backdrop-filter: none;
     background: rgba(0, 0, 0, 0.6);
   }

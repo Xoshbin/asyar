@@ -15,9 +15,9 @@ if (
 ) {
   throw new Error(
     '[asyar-sdk/view] Imported outside a view context. ' +
-    'This entry point is intended for code running in view.html ' +
-    '(a Tier 2 extension\'s UI iframe). ' +
-    'Did you mean to import from "asyar-sdk/worker"?',
+      'This entry point is intended for code running in view.html ' +
+      "(a Tier 2 extension's UI iframe). " +
+      'Did you mean to import from "asyar-sdk/worker"?',
   );
 }
 

@@ -281,7 +281,9 @@ pub fn set_window_alpha<R: Runtime>(window: &WebviewWindow<R>, alpha: f64) {
 /// click landing inside its frame.
 pub fn set_ignores_mouse_events<R: Runtime>(window: &WebviewWindow<R>, ignores: bool) {
     let ns_window = window.ns_window().unwrap() as *mut AnyObject;
-    unsafe { let _: () = msg_send![ns_window, setIgnoresMouseEvents: ignores]; }
+    unsafe {
+        let _: () = msg_send![ns_window, setIgnoresMouseEvents: ignores];
+    }
 }
 
 /// Whether the launcher panel currently owns key focus. Decides the
@@ -477,7 +479,9 @@ pub fn configure_launcher_webkit_features<R: Runtime>(window: &WebviewWindow<R>)
             return;
         }
 
-        let Some(prefs_cls) = AnyClass::get("WKPreferences") else { return };
+        let Some(prefs_cls) = AnyClass::get("WKPreferences") else {
+            return;
+        };
         let cls_obj = prefs_cls as *const AnyClass as *mut AnyObject;
 
         let mut flipped: Vec<(String, bool)> = Vec::new();
@@ -505,8 +509,7 @@ pub fn configure_launcher_webkit_features<R: Runtime>(window: &WebviewWindow<R>)
                 let Some(key) = key_obj.map(|k| k.to_string()) else {
                     continue;
                 };
-                let Some(&(_, enable)) =
-                    WEBKIT_FEATURES_TO_SET.iter().find(|(k, _)| *k == key)
+                let Some(&(_, enable)) = WEBKIT_FEATURES_TO_SET.iter().find(|(k, _)| *k == key)
                 else {
                     continue;
                 };
@@ -833,7 +836,9 @@ pub fn set_launcher_window_height<R: Runtime + 'static>(
     let commit = move || unsafe {
         let current = RESIZE_GEN.load(Ordering::Acquire);
         if current != gen {
-            log::info!("[launcher-resize] gen {gen} superseded by {current}; dropping resize to {height}");
+            log::info!(
+                "[launcher-resize] gen {gen} superseded by {current}; dropping resize to {height}"
+            );
             return;
         }
         let nsw = nsw as *mut AnyObject;
@@ -902,7 +907,8 @@ pub fn set_launcher_window_height<R: Runtime + 'static>(
             let hooked = unsafe {
                 let content_view: *mut AnyObject = msg_send![nsw as *mut AnyObject, contentView];
                 let webview = find_webview(content_view);
-                if !webview.is_null() && responds_to(webview, sel!(_doAfterNextPresentationUpdate:)) {
+                if !webview.is_null() && responds_to(webview, sel!(_doAfterNextPresentationUpdate:))
+                {
                     arm_grow_presentation_hook(webview as usize, gen, commit, GROW_HOOK_MAX_REARMS);
                     true
                 } else {
@@ -910,7 +916,9 @@ pub fn set_launcher_window_height<R: Runtime + 'static>(
                 }
             };
             if !hooked {
-                log::info!("[launcher-resize] presentation SPI absent; falling back to CA pre-commit");
+                log::info!(
+                    "[launcher-resize] presentation SPI absent; falling back to CA pre-commit"
+                );
                 schedule_on_next_pre_commit(commit);
                 return;
             }

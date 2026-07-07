@@ -1,31 +1,31 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ClipboardItemType } from 'asyar-sdk/contracts'
-import extension from './index'
-import { clipboardViewState } from './state.svelte'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ClipboardItemType } from 'asyar-sdk/contracts';
+import extension from './index';
+import { clipboardViewState } from './state.svelte';
 
 vi.mock('../../services/log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}))
+}));
 
 vi.mock('../../services/action/actionService.svelte', () => ({
-  actionService: { 
-    registerAction: vi.fn(), 
+  actionService: {
+    registerAction: vi.fn(),
     unregisterAction: vi.fn(),
-    setExtensionForwarder: vi.fn()
+    setExtensionForwarder: vi.fn(),
   },
-}))
+}));
 
 vi.mock('../snippets/snippetUiState.svelte', () => ({
   snippetUiState: {
     prefillExpansion: null,
     editorTrigger: null,
   },
-}))
+}));
 
 vi.mock('@tauri-apps/plugin-opener', () => ({
   openUrl: vi.fn(),
-}))
+}));
 
 vi.mock('../../services/extension/viewManager.svelte', () => ({
   viewManager: {
@@ -87,31 +87,31 @@ vi.mock('./state.svelte', () => ({
       if (item.type === ClipboardItemType.Rtf) return 'stripped rtf';
       return item.content;
     }),
-  }
-}))
+  },
+}));
 
 describe('ClipboardHistoryExtension', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    vi.spyOn(window, 'addEventListener')
-    vi.spyOn(window, 'removeEventListener')
-  })
+    vi.clearAllMocks();
+    vi.spyOn(window, 'addEventListener');
+    vi.spyOn(window, 'removeEventListener');
+  });
 
   afterEach(() => {
-    vi.restoreAllMocks()
-  })
+    vi.restoreAllMocks();
+  });
 
   it('removes keydown event listener on viewDeactivated', async () => {
     // Setup context
     const mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {
-        if (name === "extensions") {
+        if (name === 'extensions') {
           return {
             setActiveViewActionLabel: vi.fn(),
             navigateToView: vi.fn(),
           };
         }
-        if (name === "clipboard") {
+        if (name === 'clipboard') {
           return {
             getRecentItems: vi.fn().mockResolvedValue([]),
           };
@@ -126,36 +126,38 @@ describe('ClipboardHistoryExtension', () => {
     };
 
     // Initialize extension
-    await extension.initialize(mockContext as any)
+    await extension.initialize(mockContext as any);
 
     // Activate view
-    await extension.viewActivated('some/path')
-    expect(window.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function))
+    await extension.viewActivated('some/path');
+    expect(window.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
 
-    const handler = vi.mocked(window.addEventListener).mock.calls.find(call => call[0] === 'keydown')?.[1];
+    const handler = vi
+      .mocked(window.addEventListener)
+      .mock.calls.find((call) => call[0] === 'keydown')?.[1];
 
     // Deactivate view
-    await extension.viewDeactivated('some/path')
+    await extension.viewDeactivated('some/path');
 
     // This should fail (RED) because viewDeactivated doesn't call removeEventListener currently
-    expect(window.removeEventListener).toHaveBeenCalledWith('keydown', handler)
-  })
-})
+    expect(window.removeEventListener).toHaveBeenCalledWith('keydown', handler);
+  });
+});
 
 describe('Keyboard shortcut: Cmd+Backspace to delete', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    vi.spyOn(window, 'addEventListener')
-    vi.spyOn(window, 'removeEventListener')
-  })
+    vi.clearAllMocks();
+    vi.spyOn(window, 'addEventListener');
+    vi.spyOn(window, 'removeEventListener');
+  });
 
   it('calls deleteItem when Cmd+Backspace is pressed with a selected item', async () => {
     const mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {
-        if (name === "extensions") {
+        if (name === 'extensions') {
           return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
         }
-        if (name === "clipboard") {
+        if (name === 'clipboard') {
           return { getRecentItems: vi.fn().mockResolvedValue([]) };
         }
         return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
@@ -163,7 +165,7 @@ describe('Keyboard shortcut: Cmd+Backspace to delete', () => {
     };
 
     await extension.initialize(mockContext as any);
-    
+
     // Set items and selectedItem on the mock
     const mockState = await import('./state.svelte');
     (mockState.clipboardViewState as any).items = [{ id: 'test-1', content: 'hello' }];
@@ -173,7 +175,9 @@ describe('Keyboard shortcut: Cmd+Backspace to delete', () => {
     await extension.viewActivated('some/path');
 
     // Get the keydown handler
-    const handler = vi.mocked(window.addEventListener).mock.calls.find(call => call[0] === 'keydown')?.[1] as EventListener;
+    const handler = vi
+      .mocked(window.addEventListener)
+      .mock.calls.find((call) => call[0] === 'keydown')?.[1] as EventListener;
     expect(handler).toBeDefined();
 
     // Simulate Cmd+Backspace
@@ -183,7 +187,7 @@ describe('Keyboard shortcut: Cmd+Backspace to delete', () => {
     handler(event);
 
     // Wait for async
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 10));
 
     expect(mockState.clipboardViewState.deleteItem).toHaveBeenCalledWith('test-1');
   });
@@ -193,10 +197,10 @@ describe('Action registration', () => {
   it('registers view actions on view activation', async () => {
     const mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {
-        if (name === "extensions") {
+        if (name === 'extensions') {
           return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
         }
-        if (name === "clipboard") {
+        if (name === 'clipboard') {
           return { getRecentItems: vi.fn().mockResolvedValue([]) };
         }
         return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
@@ -215,7 +219,7 @@ describe('Action registration', () => {
     // toggle favorite + save as snippet + ask AI about this = 6 actions.
     expect(registerCalls.length).toBeGreaterThanOrEqual(6);
 
-    const actionIds = registerCalls.map(call => call[0].id);
+    const actionIds = registerCalls.map((call) => call[0].id);
     expect(actionIds).not.toContain('clipboard-history:filter-all');
     expect(actionIds).not.toContain('clipboard-history:filter-text');
     expect(actionIds).not.toContain('clipboard-history:filter-images');
@@ -264,7 +268,7 @@ describe('Save as Snippet action', () => {
 
     const { actionService } = await import('../../services/action/actionService.svelte');
     const registerCalls = vi.mocked(actionService.registerAction).mock.calls;
-    const actionIds = registerCalls.map(call => call[0].id);
+    const actionIds = registerCalls.map((call) => call[0].id);
     expect(actionIds).toContain('clipboard-history:save-as-snippet');
   });
 
@@ -273,7 +277,9 @@ describe('Save as Snippet action', () => {
     await extension.viewDeactivated('clipboard-history/DefaultView');
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    expect(actionService.unregisterAction).toHaveBeenCalledWith('clipboard-history:save-as-snippet');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith(
+      'clipboard-history:save-as-snippet',
+    );
   });
 
   it('execute() sets snippetUiState.prefillExpansion to the selected item content', async () => {
@@ -290,7 +296,9 @@ describe('Save as Snippet action', () => {
 
     const { actionService } = await import('../../services/action/actionService.svelte');
     const registerCalls = vi.mocked(actionService.registerAction).mock.calls;
-    const saveAction = registerCalls.find(c => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
+    const saveAction = registerCalls.find(
+      (c) => c[0].id === 'clipboard-history:save-as-snippet',
+    )?.[0];
     expect(saveAction).toBeDefined();
 
     await saveAction!.execute();
@@ -312,8 +320,9 @@ describe('Save as Snippet action', () => {
     };
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const saveAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
+    const saveAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
 
     await saveAction!.execute();
 
@@ -334,8 +343,9 @@ describe('Save as Snippet action', () => {
     };
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const saveAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
+    const saveAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
 
     await saveAction!.execute();
 
@@ -356,8 +366,9 @@ describe('Save as Snippet action', () => {
     };
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const saveAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
+    const saveAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
 
     await saveAction!.execute();
 
@@ -380,8 +391,9 @@ describe('Save as Snippet action', () => {
     };
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const saveAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
+    const saveAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
 
     await saveAction!.execute();
 
@@ -398,8 +410,9 @@ describe('Save as Snippet action', () => {
     (mockState.clipboardViewState as any).selectedItem = null;
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const saveAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
+    const saveAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
 
     await saveAction!.execute();
 
@@ -421,8 +434,9 @@ describe('Save as Snippet action', () => {
     };
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const saveAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
+    const saveAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
 
     await saveAction!.execute();
 
@@ -444,8 +458,9 @@ describe('Save as Snippet action', () => {
     };
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const saveAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
+    const saveAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:save-as-snippet')?.[0];
 
     await saveAction!.execute();
 
@@ -463,8 +478,8 @@ describe('Ask AI about this action', () => {
     mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {
         if (name === 'extensions') {
-          return { 
-            setActiveViewActionLabel: vi.fn(), 
+          return {
+            setActiveViewActionLabel: vi.fn(),
             navigateToView: vi.fn(),
           };
         }
@@ -479,7 +494,8 @@ describe('Ask AI about this action', () => {
     searchStores.query = '';
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    const { diagnosticsService } = await import('../../services/diagnostics/diagnosticsService.svelte');
+    const { diagnosticsService } =
+      await import('../../services/diagnostics/diagnosticsService.svelte');
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
     vi.mocked(contextModeService.activate).mockClear();
     vi.mocked(contextModeService.updateQuery).mockClear();
@@ -499,7 +515,7 @@ describe('Ask AI about this action', () => {
 
     const { actionService } = await import('../../services/action/actionService.svelte');
     const registerCalls = vi.mocked(actionService.registerAction).mock.calls;
-    const actionIds = registerCalls.map(c => c[0].id);
+    const actionIds = registerCalls.map((c) => c[0].id);
     expect(actionIds).toContain('clipboard-history:ask-ai-about-this');
   });
 
@@ -508,10 +524,12 @@ describe('Ask AI about this action', () => {
     await extension.viewDeactivated('clipboard-history/DefaultView');
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    expect(actionService.unregisterAction).toHaveBeenCalledWith('clipboard-history:ask-ai-about-this');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith(
+      'clipboard-history:ask-ai-about-this',
+    );
   });
 
-  it('execute() with a Text item calls extensionManager.goBack, pinHint(\'ai-chat\'), and sets searchStores.query; no diagnostic', async () => {
+  it("execute() with a Text item calls extensionManager.goBack, pinHint('ai-chat'), and sets searchStores.query; no diagnostic", async () => {
     await extension.executeCommand('show-clipboard');
 
     const mockState = await import('./state.svelte');
@@ -524,14 +542,16 @@ describe('Ask AI about this action', () => {
     };
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const askAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+    const askAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
     expect(askAction).toBeDefined();
 
     await askAction!.execute();
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    const { diagnosticsService } = await import('../../services/diagnostics/diagnosticsService.svelte');
+    const { diagnosticsService } =
+      await import('../../services/diagnostics/diagnosticsService.svelte');
     const { searchStores } = await import('../../services/search/stores/search.svelte');
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
@@ -556,8 +576,9 @@ describe('Ask AI about this action', () => {
     };
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const askAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+    const askAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
 
     await askAction!.execute();
 
@@ -583,8 +604,9 @@ describe('Ask AI about this action', () => {
     };
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const askAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+    const askAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
 
     await askAction!.execute();
 
@@ -610,24 +632,30 @@ describe('Ask AI about this action', () => {
     };
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const askAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+    const askAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
 
     await askAction!.execute();
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    const { diagnosticsService } = await import('../../services/diagnostics/diagnosticsService.svelte');
+    const { diagnosticsService } =
+      await import('../../services/diagnostics/diagnosticsService.svelte');
     const { searchStores } = await import('../../services/search/stores/search.svelte');
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
-    expect(diagnosticsService.report).toHaveBeenCalledWith(expect.objectContaining({
-      kind: 'manual',
-      severity: 'error',
-      context: expect.objectContaining({ message: expect.stringContaining('Image') }),
-    }));
-    expect(diagnosticsService.report).toHaveBeenCalledWith(expect.objectContaining({
-      context: expect.objectContaining({ message: expect.stringContaining('Ask AI about this') }),
-    }));
+    expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'manual',
+        severity: 'error',
+        context: expect.objectContaining({ message: expect.stringContaining('Image') }),
+      }),
+    );
+    expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({ message: expect.stringContaining('Ask AI about this') }),
+      }),
+    );
     expect(viewManager.goBack).not.toHaveBeenCalled();
     expect(contextModeService.pinHint).not.toHaveBeenCalled();
     expect(searchStores.query).toBe('');
@@ -646,24 +674,30 @@ describe('Ask AI about this action', () => {
     };
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const askAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+    const askAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
 
     await askAction!.execute();
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    const { diagnosticsService } = await import('../../services/diagnostics/diagnosticsService.svelte');
+    const { diagnosticsService } =
+      await import('../../services/diagnostics/diagnosticsService.svelte');
     const { searchStores } = await import('../../services/search/stores/search.svelte');
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
-    expect(diagnosticsService.report).toHaveBeenCalledWith(expect.objectContaining({
-      kind: 'manual',
-      severity: 'error',
-      context: expect.objectContaining({ message: expect.stringContaining('File') }),
-    }));
-    expect(diagnosticsService.report).toHaveBeenCalledWith(expect.objectContaining({
-      context: expect.objectContaining({ message: expect.stringContaining('Ask AI about this') }),
-    }));
+    expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'manual',
+        severity: 'error',
+        context: expect.objectContaining({ message: expect.stringContaining('File') }),
+      }),
+    );
+    expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({ message: expect.stringContaining('Ask AI about this') }),
+      }),
+    );
     expect(viewManager.goBack).not.toHaveBeenCalled();
     expect(contextModeService.pinHint).not.toHaveBeenCalled();
     expect(searchStores.query).toBe('');
@@ -676,13 +710,15 @@ describe('Ask AI about this action', () => {
     (mockState.clipboardViewState as any).selectedItem = null;
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const askAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+    const askAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
 
     await askAction!.execute();
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    const { diagnosticsService } = await import('../../services/diagnostics/diagnosticsService.svelte');
+    const { diagnosticsService } =
+      await import('../../services/diagnostics/diagnosticsService.svelte');
     const { searchStores } = await import('../../services/search/stores/search.svelte');
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
 
@@ -707,13 +743,15 @@ describe('Ask AI about this action', () => {
     vi.mocked(mockState.clipboardViewState.getPlainText).mockImplementationOnce(() => '   ');
 
     const { actionService } = await import('../../services/action/actionService.svelte');
-    const askAction = vi.mocked(actionService.registerAction).mock.calls
-      .find(c => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
+    const askAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:ask-ai-about-this')?.[0];
 
     await askAction!.execute();
 
     const { contextModeService } = await import('../../services/context/contextModeService.svelte');
-    const { diagnosticsService } = await import('../../services/diagnostics/diagnosticsService.svelte');
+    const { diagnosticsService } =
+      await import('../../services/diagnostics/diagnosticsService.svelte');
     const { searchStores } = await import('../../services/search/stores/search.svelte');
     const { viewManager } = await import('../../services/extension/viewManager.svelte');
 

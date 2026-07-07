@@ -1,11 +1,11 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}))
+}));
 
 vi.mock('tauri-plugin-clipboard-x-api', () => ({
   readText: vi.fn(),
@@ -28,7 +28,7 @@ vi.mock('tauri-plugin-clipboard-x-api', () => ({
   onClipboardChange: vi.fn().mockResolvedValue(vi.fn()),
 }));
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
 vi.mock('@tauri-apps/api/path', () => ({
   appDataDir: vi.fn().mockResolvedValue('/mock/app/data/'),
@@ -57,220 +57,238 @@ vi.mock('./stores/clipboardHistoryStore.svelte', () => ({
     searchResults: null,
     indexState: 'ready',
     nextOlderCursor: undefined,
-  }
-}))
+  },
+}));
 
-vi.mock('uuid', () => ({ v4: vi.fn(() => 'test-uuid') }))
+vi.mock('uuid', () => ({ v4: vi.fn(() => 'test-uuid') }));
 
 vi.mock('../privacy/clipboardPrivacyService.svelte', () => ({
   clipboardPrivacyService: {
     classify: vi.fn(),
   },
-}))
+}));
 
 vi.mock('../privacy/secretRedactionService.svelte', () => ({
   secretRedactionService: {
     redactIfEnabled: vi.fn(),
   },
-}))
+}));
 
 vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
   diagnosticsService: {
     report: vi.fn().mockResolvedValue(undefined),
   },
-}))
+}));
 
-import { ClipboardHistoryService } from './clipboardHistoryService'
-import { invoke } from '@tauri-apps/api/core'
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte'
-import { ClipboardItemType, type ClipboardHistoryItem } from 'asyar-sdk/contracts'
-import { clipboardPrivacyService } from '../privacy/clipboardPrivacyService.svelte'
-import { secretRedactionService } from '../privacy/secretRedactionService.svelte'
-import { clipboardHistoryStore } from './stores/clipboardHistoryStore.svelte'
-import { remove } from '@tauri-apps/plugin-fs'
+import { ClipboardHistoryService } from './clipboardHistoryService';
+import { invoke } from '@tauri-apps/api/core';
+import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { ClipboardItemType, type ClipboardHistoryItem } from 'asyar-sdk/contracts';
+import { clipboardPrivacyService } from '../privacy/clipboardPrivacyService.svelte';
+import { secretRedactionService } from '../privacy/secretRedactionService.svelte';
+import { clipboardHistoryStore } from './stores/clipboardHistoryStore.svelte';
+import { remove } from '@tauri-apps/plugin-fs';
 
 function getInstance(): ClipboardHistoryService {
-  return new ClipboardHistoryService()
+  return new ClipboardHistoryService();
 }
 
 function makeItem(
   type: ClipboardItemType,
   content: string,
-  overrides: Partial<ClipboardHistoryItem> = {}
+  overrides: Partial<ClipboardHistoryItem> = {},
 ): ClipboardHistoryItem {
-  return { id: 'id', type, content, preview: '', createdAt: Date.now(), favorite: false, ...overrides }
+  return {
+    id: 'id',
+    type,
+    content,
+    preview: '',
+    createdAt: Date.now(),
+    favorite: false,
+    ...overrides,
+  };
 }
 
 // ── normalizeImageData ────────────────────────────────────────────────────────
 
 describe('normalizeImageData', () => {
   it('removes the extra space after the base64 header', () => {
-    const svc = getInstance()
-    const input = 'data:image/png;base64, abc123'
-    expect(svc.normalizeImageData(input)).toBe('data:image/png;base64,abc123')
-  })
+    const svc = getInstance();
+    const input = 'data:image/png;base64, abc123';
+    expect(svc.normalizeImageData(input)).toBe('data:image/png;base64,abc123');
+  });
 
   it('prepends the data URI prefix when missing', () => {
-    const svc = getInstance()
-    expect(svc.normalizeImageData('abc123')).toBe('data:image/png;base64,abc123')
-  })
+    const svc = getInstance();
+    expect(svc.normalizeImageData('abc123')).toBe('data:image/png;base64,abc123');
+  });
 
   it('leaves a well-formed data URI unchanged', () => {
-    const svc = getInstance()
-    const input = 'data:image/png;base64,abc123'
-    expect(svc.normalizeImageData(input)).toBe(input)
-  })
-})
+    const svc = getInstance();
+    const input = 'data:image/png;base64,abc123';
+    expect(svc.normalizeImageData(input)).toBe(input);
+  });
+});
 
 // ── isValidImageData ──────────────────────────────────────────────────────────
 
 describe('isValidImageData', () => {
   it('returns false for empty string', () => {
-    expect(getInstance().isValidImageData('')).toBe(false)
-  })
+    expect(getInstance().isValidImageData('')).toBe(false);
+  });
 
   it('returns false for placeholder data containing AAAAAAAA', () => {
-    expect(getInstance().isValidImageData('data:image/png;base64,AAAAAAAA')).toBe(false)
-  })
+    expect(getInstance().isValidImageData('data:image/png;base64,AAAAAAAA')).toBe(false);
+  });
 
   it('returns true for real-looking base64 data', () => {
-    expect(getInstance().isValidImageData('data:image/png;base64,iVBORw0KGgo=')).toBe(true)
-  })
-})
+    expect(getInstance().isValidImageData('data:image/png;base64,iVBORw0KGgo=')).toBe(true);
+  });
+});
 
 // ── formatClipboardItem ───────────────────────────────────────────────────────
 
 describe('formatClipboardItem', () => {
   it('returns a human-readable date string for image items', () => {
-    const svc = getInstance()
-    const item = makeItem(ClipboardItemType.Image, '/path/to/image.png')
-    expect(svc.formatClipboardItem(item)).toMatch(/^Image captured on /)
-  })
+    const svc = getInstance();
+    const item = makeItem(ClipboardItemType.Image, '/path/to/image.png');
+    expect(svc.formatClipboardItem(item)).toMatch(/^Image captured on /);
+  });
 
   it('returns empty string for text items with no content', () => {
-    const svc = getInstance()
-    const item = makeItem(ClipboardItemType.Text, '')
-    expect(svc.formatClipboardItem(item)).toBe('')
-  })
+    const svc = getInstance();
+    const item = makeItem(ClipboardItemType.Text, '');
+    expect(svc.formatClipboardItem(item)).toBe('');
+  });
 
   it('returns the content for short text items', () => {
-    const svc = getInstance()
-    const item = makeItem(ClipboardItemType.Text, 'hello')
-    expect(svc.formatClipboardItem(item)).toBe('hello')
-  })
+    const svc = getInstance();
+    const item = makeItem(ClipboardItemType.Text, 'hello');
+    expect(svc.formatClipboardItem(item)).toBe('hello');
+  });
 
   it('truncates text items longer than 100 characters', () => {
-    const svc = getInstance()
-    const long = 'a'.repeat(120)
-    const result = svc.formatClipboardItem(makeItem(ClipboardItemType.Text, long))
-    expect(result).toHaveLength(103) // 100 + '...'
-    expect(result.endsWith('...')).toBe(true)
-  })
-})
+    const svc = getInstance();
+    const long = 'a'.repeat(120);
+    const result = svc.formatClipboardItem(makeItem(ClipboardItemType.Text, long));
+    expect(result).toHaveLength(103); // 100 + '...'
+    expect(result.endsWith('...')).toBe(true);
+  });
+});
 
 // ── writeToClipboard ──────────────────────────────────────────────────────────
 
 describe('writeToClipboard', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('throws for items with empty content', async () => {
-    const svc = getInstance()
-    await expect(
-      svc.writeToClipboard(makeItem(ClipboardItemType.Text, ''))
-    ).rejects.toThrow('Cannot paste item with empty content')
-  })
+    const svc = getInstance();
+    await expect(svc.writeToClipboard(makeItem(ClipboardItemType.Text, ''))).rejects.toThrow(
+      'Cannot paste item with empty content',
+    );
+  });
 
   it('calls writeText for Text items', async () => {
-    const { writeText } = await import('tauri-plugin-clipboard-x-api')
-    const svc = getInstance()
-    await svc.writeToClipboard(makeItem(ClipboardItemType.Text, 'hello'))
-    expect(writeText).toHaveBeenCalledWith('hello')
-  })
+    const { writeText } = await import('tauri-plugin-clipboard-x-api');
+    const svc = getInstance();
+    await svc.writeToClipboard(makeItem(ClipboardItemType.Text, 'hello'));
+    expect(writeText).toHaveBeenCalledWith('hello');
+  });
 
   it('calls writeHTML for HTML items with plaintext fallback', async () => {
-    const { writeHTML } = await import('tauri-plugin-clipboard-x-api')
-    const svc = getInstance()
-    const html = '<b>bold</b>'
-    await svc.writeToClipboard(makeItem(ClipboardItemType.Html, html))
-    expect(writeHTML).toHaveBeenCalledWith('bold', html)
-  })
+    const { writeHTML } = await import('tauri-plugin-clipboard-x-api');
+    const svc = getInstance();
+    const html = '<b>bold</b>';
+    await svc.writeToClipboard(makeItem(ClipboardItemType.Html, html));
+    expect(writeHTML).toHaveBeenCalledWith('bold', html);
+  });
 
   it('calls writeImage for Image items with file path', async () => {
-    const { writeImage } = await import('tauri-plugin-clipboard-x-api')
-    const svc = getInstance()
-    const path = '/path/to/image.png'
-    await svc.writeToClipboard(makeItem(ClipboardItemType.Image, path))
-    expect(writeImage).toHaveBeenCalledWith(path)
-  })
+    const { writeImage } = await import('tauri-plugin-clipboard-x-api');
+    const svc = getInstance();
+    const path = '/path/to/image.png';
+    await svc.writeToClipboard(makeItem(ClipboardItemType.Image, path));
+    expect(writeImage).toHaveBeenCalledWith(path);
+  });
 
   it('throws for unsupported item types', async () => {
-    const svc = getInstance()
-    const bad = makeItem('unsupported' as ClipboardItemType, 'x')
-    await expect(svc.writeToClipboard(bad)).rejects.toThrow('Unsupported clipboard item type')
-  })
-})
+    const svc = getInstance();
+    const bad = makeItem('unsupported' as ClipboardItemType, 'x');
+    await expect(svc.writeToClipboard(bad)).rejects.toThrow('Unsupported clipboard item type');
+  });
+});
 
 // ── handleClipboardChange ───────────────────────────────────────────────────
 
 describe('handleClipboardChange', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('captures text when result contains text', async () => {
     const svc = getInstance();
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
-    
+
     await (svc as any).handleClipboardChange({
-      text: { type: 'text', value: 'hello world', count: 11 }
+      text: { type: 'text', value: 'hello world', count: 11 },
     });
-    
+
     expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
-      expect.objectContaining({ type: ClipboardItemType.Text, content: 'hello world' })
+      expect.objectContaining({ type: ClipboardItemType.Text, content: 'hello world' }),
     );
   });
 
   it('captures html when result contains html', async () => {
     const svc = getInstance();
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
-    
+
     await (svc as any).handleClipboardChange({
       html: { type: 'html', value: '<b>bold</b>', count: 11 },
-      text: { type: 'text', value: 'bold', count: 4 }
+      text: { type: 'text', value: 'bold', count: 4 },
     });
-    
+
     // Should capture HTML, not text (HTML has priority)
     expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
-      expect.objectContaining({ type: ClipboardItemType.Html, content: '<b>bold</b>' })
+      expect.objectContaining({ type: ClipboardItemType.Html, content: '<b>bold</b>' }),
     );
   });
 
   it('captures image when result contains image', async () => {
     const svc = getInstance();
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
-    
+
     await (svc as any).handleClipboardChange({
-      image: { type: 'image', value: '/tmp/clipboard-image.png', count: 1, width: 800, height: 600 }
+      image: {
+        type: 'image',
+        value: '/tmp/clipboard-image.png',
+        count: 1,
+        width: 800,
+        height: 600,
+      },
     });
-    
+
     expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
       expect.objectContaining({
         type: ClipboardItemType.Image,
-        content: expect.stringContaining('clipboard_cache/')
-      })
+        content: expect.stringContaining('clipboard_cache/'),
+      }),
     );
   });
 
   it('prioritizes image over text and html', async () => {
     const svc = getInstance();
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
-    
+
     await (svc as any).handleClipboardChange({
       image: { type: 'image', value: '/tmp/img.png', count: 1, width: 100, height: 100 },
       text: { type: 'text', value: 'fallback', count: 8 },
-      html: { type: 'html', value: '<p>fallback</p>', count: 14 }
+      html: { type: 'html', value: '<p>fallback</p>', count: 14 },
     });
-    
+
     expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
-      expect.objectContaining({ type: ClipboardItemType.Image })
+      expect.objectContaining({ type: ClipboardItemType.Image }),
     );
   });
 
@@ -295,7 +313,7 @@ describe('handleClipboardChange', () => {
     });
 
     expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
-      expect.objectContaining({ type: ClipboardItemType.Text, content: 'plain text fallback' })
+      expect.objectContaining({ type: ClipboardItemType.Text, content: 'plain text fallback' }),
     );
   });
 
@@ -329,7 +347,9 @@ describe('handleClipboardChange', () => {
   });
 
   describe('capture-time privacy gate', () => {
-    beforeEach(() => { vi.clearAllMocks() });
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
 
     it('does not persist when classifier returns skip:true', async () => {
       vi.mocked(clipboardPrivacyService.classify).mockResolvedValueOnce({
@@ -412,7 +432,9 @@ describe('handleClipboardChange', () => {
   });
 
   describe('secret redaction at capture time', () => {
-    beforeEach(() => { vi.clearAllMocks() });
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
 
     it('redacts text content when redactor returns kinds', async () => {
       vi.mocked(secretRedactionService.redactIfEnabled).mockResolvedValueOnce({
@@ -521,18 +543,20 @@ describe('handleClipboardChange', () => {
   });
 
   describe('handleClipboardChange — RTF and Files', () => {
-    beforeEach(() => { vi.clearAllMocks() })
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
 
     it('captures RTF when result contains rtf', async () => {
       const svc = getInstance();
       const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
 
       await (svc as any).handleClipboardChange({
-        rtf: { type: 'rtf', value: '{\\rtf1 Hello}', count: 13 }
+        rtf: { type: 'rtf', value: '{\\rtf1 Hello}', count: 13 },
       });
 
       expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'rtf', content: '{\\rtf1 Hello}' })
+        expect.objectContaining({ type: 'rtf', content: '{\\rtf1 Hello}' }),
       );
     });
 
@@ -541,14 +565,14 @@ describe('handleClipboardChange', () => {
       const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
 
       await (svc as any).handleClipboardChange({
-        files: { type: 'files', value: ['/path/to/file1.txt', '/path/to/file2.png'], count: 2 }
+        files: { type: 'files', value: ['/path/to/file1.txt', '/path/to/file2.png'], count: 2 },
       });
 
       expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'files',
           content: JSON.stringify(['/path/to/file1.txt', '/path/to/file2.png']),
-        })
+        }),
       );
     });
 
@@ -557,7 +581,7 @@ describe('handleClipboardChange', () => {
       const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
 
       await (svc as any).handleClipboardChange({
-        files: { type: 'files', value: ['/Users/test/doc.pdf', '/Users/test/photo.jpg'], count: 2 }
+        files: { type: 'files', value: ['/Users/test/doc.pdf', '/Users/test/photo.jpg'], count: 2 },
       });
 
       expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
@@ -565,8 +589,8 @@ describe('handleClipboardChange', () => {
           metadata: expect.objectContaining({
             fileCount: 2,
             fileNames: ['doc.pdf', 'photo.jpg'],
-          })
-        })
+          }),
+        }),
       );
     });
 
@@ -578,11 +602,11 @@ describe('handleClipboardChange', () => {
         files: { type: 'files', value: ['/path/file.txt'], count: 1 },
         image: { type: 'image', value: '/tmp/img.png', count: 1, width: 100, height: 100 },
         html: { type: 'html', value: '<p>test</p>', count: 10 },
-        text: { type: 'text', value: 'test', count: 4 }
+        text: { type: 'text', value: 'test', count: 4 },
       });
 
       expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'files' })
+        expect.objectContaining({ type: 'files' }),
       );
     });
 
@@ -594,11 +618,11 @@ describe('handleClipboardChange', () => {
         image: { type: 'image', value: '/tmp/img.png', count: 1, width: 100, height: 100 },
         html: { type: 'html', value: '<p>test</p>', count: 10 },
         rtf: { type: 'rtf', value: '{\\rtf1 test}', count: 12 },
-        text: { type: 'text', value: 'test', count: 4 }
+        text: { type: 'text', value: 'test', count: 4 },
       });
 
       expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'image' })
+        expect.objectContaining({ type: 'image' }),
       );
     });
 
@@ -606,8 +630,12 @@ describe('handleClipboardChange', () => {
       const svc = getInstance();
       const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
 
-      await (svc as any).handleClipboardChange({ rtf: { type: 'rtf', value: '{\\rtf1 same}', count: 12 } });
-      await (svc as any).handleClipboardChange({ rtf: { type: 'rtf', value: '{\\rtf1 same}', count: 12 } });
+      await (svc as any).handleClipboardChange({
+        rtf: { type: 'rtf', value: '{\\rtf1 same}', count: 12 },
+      });
+      await (svc as any).handleClipboardChange({
+        rtf: { type: 'rtf', value: '{\\rtf1 same}', count: 12 },
+      });
 
       expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledTimes(2);
     });
@@ -627,28 +655,31 @@ describe('handleClipboardChange', () => {
       const svc = getInstance();
       const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
 
-      const rtfValue = '{\\rtf1\\ansi\\ansicpg1252\\cocoartf2868{\\fonttbl\\f0\\fnil\\fcharset0 .SFNSRounded-Regular;}{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;} \\f0\\fs28 \\cf2 Fix it\\\'92s ugly}';
+      const rtfValue =
+        "{\\rtf1\\ansi\\ansicpg1252\\cocoartf2868{\\fonttbl\\f0\\fnil\\fcharset0 .SFNSRounded-Regular;}{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;} \\f0\\fs28 \\cf2 Fix it\\'92s ugly}";
       await (svc as any).handleClipboardChange({
-        rtf: { type: 'rtf', value: rtfValue, count: rtfValue.length }
+        rtf: { type: 'rtf', value: rtfValue, count: rtfValue.length },
       });
 
       expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'rtf',
           content: rtfValue,
-          preview: 'Fix it\u2019s ugly'
-        })
+          preview: 'Fix it\u2019s ugly',
+        }),
       );
     });
   });
 
   describe('writeToClipboard — RTF and Files', () => {
-    beforeEach(() => { vi.clearAllMocks() })
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
 
     it('calls writeRTF with plaintext from the Rust stripper and the original RTF', async () => {
       const { writeRTF } = await import('tauri-plugin-clipboard-x-api');
       vi.mocked(invoke).mockImplementation(async (cmd: string) =>
-        cmd === 'clipboard_strip_rtf' ? 'Hello World' : undefined
+        cmd === 'clipboard_strip_rtf' ? 'Hello World' : undefined,
       );
       const svc = getInstance();
       const rtfContent = '{\\rtf1\\ansi Hello World}';
@@ -669,7 +700,9 @@ describe('handleClipboardChange', () => {
   });
 
   describe('stripHtml / stripRtf — public methods (Tier 2 SDK surface)', () => {
-    beforeEach(() => { vi.clearAllMocks() })
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
 
     it('stripHtml calls clipboard_strip_html and returns the result', async () => {
       vi.mocked(invoke).mockResolvedValue('hello');
@@ -730,7 +763,7 @@ describe('handleClipboardChange', () => {
           bundleId: 'com.google.Chrome',
           windowTitle: 'Google – Search',
         },
-      })
+      }),
     );
   });
 
@@ -752,14 +785,18 @@ describe('handleClipboardChange', () => {
     expect(call.sourceApp).toBeUndefined();
 
     const { logService } = await import('../log/logService');
-    expect(logService.error).toHaveBeenCalledWith(expect.stringContaining('get_frontmost_application'));
+    expect(logService.error).toHaveBeenCalledWith(
+      expect.stringContaining('get_frontmost_application'),
+    );
   });
 });
 
 // ── getRecentItems ────────────────────────────────────────────────────────────
 
 describe('getRecentItems', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('delegates to loadInitial and returns favorites + recent', async () => {
     const loadSpy = vi.spyOn(clipboardHistoryStore, 'loadInitial').mockResolvedValue(undefined);
@@ -774,7 +811,7 @@ describe('getRecentItems', () => {
 
     expect(loadSpy).toHaveBeenCalledWith(30);
     expect(items.map((i) => i.id)).toEqual(['f1', 'r1']);
-  })
+  });
 
   it('passes limit through to loadInitial', async () => {
     const loadSpy = vi.spyOn(clipboardHistoryStore, 'loadInitial').mockResolvedValue(undefined);
@@ -784,7 +821,7 @@ describe('getRecentItems', () => {
     await getInstance().getRecentItems(75);
 
     expect(loadSpy).toHaveBeenCalledWith(75);
-  })
+  });
 
   it('returns empty array and reports to diagnostics when loadInitial throws', async () => {
     vi.spyOn(clipboardHistoryStore, 'loadInitial').mockRejectedValueOnce(new Error('db error'));
@@ -792,55 +829,55 @@ describe('getRecentItems', () => {
     const result = await getInstance().getRecentItems(30);
 
     expect(result).toEqual([]);
-  })
-})
+  });
+});
 
 // ── pasteItem ─────────────────────────────────────────────────────────────────
 
 describe('pasteItem', () => {
   it('calls hideWindow, writeToClipboard, and simulatePaste in order without delay', async () => {
-    const svc = getInstance()
+    const svc = getInstance();
 
     // Accessibility is granted, so the paste proceeds normally.
-    vi.mocked(invoke).mockResolvedValue(true)
+    vi.mocked(invoke).mockResolvedValue(true);
 
-    const hideWindowSpy = vi.spyOn(svc, 'hideWindow').mockResolvedValue(undefined)
-    const writeToClipboardSpy = vi.spyOn(svc, 'writeToClipboard').mockResolvedValue(undefined)
-    const simulatePasteSpy = vi.spyOn(svc, 'simulatePaste').mockResolvedValue(true)
+    const hideWindowSpy = vi.spyOn(svc, 'hideWindow').mockResolvedValue(undefined);
+    const writeToClipboardSpy = vi.spyOn(svc, 'writeToClipboard').mockResolvedValue(undefined);
+    const simulatePasteSpy = vi.spyOn(svc, 'simulatePaste').mockResolvedValue(true);
 
-    const item = makeItem(ClipboardItemType.Text, 'pasted content')
+    const item = makeItem(ClipboardItemType.Text, 'pasted content');
 
-    await svc.pasteItem(item)
+    await svc.pasteItem(item);
 
-    expect(hideWindowSpy).toHaveBeenCalled()
-    expect(writeToClipboardSpy).toHaveBeenCalledWith(item)
-    expect(simulatePasteSpy).toHaveBeenCalled()
-  })
+    expect(hideWindowSpy).toHaveBeenCalled();
+    expect(writeToClipboardSpy).toHaveBeenCalledWith(item);
+    expect(simulatePasteSpy).toHaveBeenCalled();
+  });
 
   it('skips the clipboard write and opens Accessibility settings when permission is denied', async () => {
-    const svc = getInstance()
+    const svc = getInstance();
 
     // check_accessibility_permission resolves false; open_accessibility_preferences resolves undefined.
     vi.mocked(invoke).mockImplementation(async (cmd: string) =>
-      cmd === 'check_accessibility_permission' ? false : undefined
-    )
+      cmd === 'check_accessibility_permission' ? false : undefined,
+    );
 
-    const hideWindowSpy = vi.spyOn(svc, 'hideWindow').mockResolvedValue(undefined)
-    const writeToClipboardSpy = vi.spyOn(svc, 'writeToClipboard').mockResolvedValue(undefined)
-    const simulatePasteSpy = vi.spyOn(svc, 'simulatePaste').mockResolvedValue(true)
+    const hideWindowSpy = vi.spyOn(svc, 'hideWindow').mockResolvedValue(undefined);
+    const writeToClipboardSpy = vi.spyOn(svc, 'writeToClipboard').mockResolvedValue(undefined);
+    const simulatePasteSpy = vi.spyOn(svc, 'simulatePaste').mockResolvedValue(true);
 
-    const item = makeItem(ClipboardItemType.Text, 'pasted content')
+    const item = makeItem(ClipboardItemType.Text, 'pasted content');
 
-    await svc.pasteItem(item)
+    await svc.pasteItem(item);
 
     // No clipboard mutation => no duplicate history entry, and the window stays
     // visible so the user can see the guidance.
-    expect(writeToClipboardSpy).not.toHaveBeenCalled()
-    expect(simulatePasteSpy).not.toHaveBeenCalled()
-    expect(hideWindowSpy).not.toHaveBeenCalled()
+    expect(writeToClipboardSpy).not.toHaveBeenCalled();
+    expect(simulatePasteSpy).not.toHaveBeenCalled();
+    expect(hideWindowSpy).not.toHaveBeenCalled();
 
     // Jumps the user straight to the right System Settings pane.
-    expect(invoke).toHaveBeenCalledWith('open_accessibility_preferences', undefined)
+    expect(invoke).toHaveBeenCalledWith('open_accessibility_preferences', undefined);
 
     // Surfaces a guiding diagnostic mentioning Accessibility.
     expect(diagnosticsService.report).toHaveBeenCalledWith(
@@ -850,13 +887,15 @@ describe('pasteItem', () => {
         context: expect.objectContaining({
           message: expect.stringContaining('Accessibility'),
         }),
-      })
-    )
-  })
-})
+      }),
+    );
+  });
+});
 
 describe('image cache persistence', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('copies image to permanent cache directory', async () => {
     const { copyFile, mkdir } = await import('@tauri-apps/plugin-fs');
@@ -864,19 +903,25 @@ describe('image cache persistence', () => {
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
 
     await (svc as any).handleClipboardChange({
-      image: { type: 'image', value: '/tmp/plugin-temp/img123.png', count: 1, width: 800, height: 600 }
+      image: {
+        type: 'image',
+        value: '/tmp/plugin-temp/img123.png',
+        count: 1,
+        width: 800,
+        height: 600,
+      },
     });
 
     // Should create cache directory
     expect(mkdir).toHaveBeenCalledWith(
       expect.stringContaining('clipboard_cache'),
-      expect.objectContaining({ recursive: true })
+      expect.objectContaining({ recursive: true }),
     );
 
     // Should copy from temp to permanent location
     expect(copyFile).toHaveBeenCalledWith(
       '/tmp/plugin-temp/img123.png',
-      expect.stringContaining('clipboard_cache/')
+      expect.stringContaining('clipboard_cache/'),
     );
 
     // The stored item should have the permanent cache path, NOT the temp path
@@ -884,7 +929,7 @@ describe('image cache persistence', () => {
       expect.objectContaining({
         type: 'image',
         content: expect.stringContaining('clipboard_cache/'),
-      })
+      }),
     );
   });
 
@@ -893,7 +938,7 @@ describe('image cache persistence', () => {
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
 
     await (svc as any).handleClipboardChange({
-      image: { type: 'image', value: '/tmp/img.png', count: 1, width: 1920, height: 1080 }
+      image: { type: 'image', value: '/tmp/img.png', count: 1, width: 1920, height: 1080 },
     });
 
     expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
@@ -901,13 +946,14 @@ describe('image cache persistence', () => {
         metadata: expect.objectContaining({
           width: 1920,
           height: 1080,
-        })
-      })
+        }),
+      }),
     );
   });
 
   it('deleteItem unlinks image cache using the IPC response, not a full scan', async () => {
-    const deleteSpy = vi.spyOn(clipboardHistoryStore, 'deleteHistoryItem')
+    const deleteSpy = vi
+      .spyOn(clipboardHistoryStore, 'deleteHistoryItem')
       .mockResolvedValue({ imageContentPath: '/cache/foo.png' });
     vi.mocked(remove).mockClear();
 
@@ -919,8 +965,9 @@ describe('image cache persistence', () => {
   });
 
   it('deleteItem does not unlink anything when the IPC response has no image path', async () => {
-    vi.spyOn(clipboardHistoryStore, 'deleteHistoryItem')
-      .mockResolvedValue({ imageContentPath: undefined });
+    vi.spyOn(clipboardHistoryStore, 'deleteHistoryItem').mockResolvedValue({
+      imageContentPath: undefined,
+    });
     vi.mocked(remove).mockClear();
 
     await getInstance().deleteItem('text-row');
@@ -929,11 +976,10 @@ describe('image cache persistence', () => {
   });
 
   it('clearNonFavorites unlinks every image path returned by the IPC response', async () => {
-    vi.spyOn(clipboardHistoryStore, 'clearHistory')
-      .mockResolvedValue({
-        removedIds: ['a', 'b'],
-        removedImagePaths: ['/cache/a.png', '/cache/b.png'],
-      });
+    vi.spyOn(clipboardHistoryStore, 'clearHistory').mockResolvedValue({
+      removedIds: ['a', 'b'],
+      removedImagePaths: ['/cache/a.png', '/cache/b.png'],
+    });
     vi.mocked(remove).mockClear();
 
     const ok = await getInstance().clearNonFavorites();
@@ -951,7 +997,7 @@ describe('image cache persistence', () => {
 
     // Should not throw, should log error and still store with temp path as fallback
     await (svc as any).handleClipboardChange({
-      image: { type: 'image', value: '/tmp/img.png', count: 1, width: 100, height: 100 }
+      image: { type: 'image', value: '/tmp/img.png', count: 1, width: 100, height: 100 },
     });
 
     // Should still store the item (with the temp path as fallback)
@@ -961,22 +1007,22 @@ describe('image cache persistence', () => {
 
 describe('Android fallback', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    vi.clearAllMocks();
+  });
 
   it('uses polling on Android instead of event-driven monitoring', async () => {
     const { platform } = await import('@tauri-apps/plugin-os');
     const { startListening, onClipboardChange } = await import('tauri-plugin-clipboard-x-api');
-    
+
     vi.mocked(platform).mockResolvedValue('android' as any);
-    
+
     const svc = getInstance();
     await svc.initialize();
-    
+
     expect(startListening).not.toHaveBeenCalled();
     expect(onClipboardChange).not.toHaveBeenCalled();
     expect((svc as any).pollingInterval).not.toBeNull();
-    
+
     svc.stopMonitoring();
   });
 
@@ -985,7 +1031,7 @@ describe('Android fallback', () => {
     const { writeText, writeHTML } = await import('tauri-plugin-clipboard-x-api');
     vi.mocked(platform).mockResolvedValue('android' as any);
     vi.mocked(invoke).mockImplementation(async (cmd: string) =>
-      cmd === 'clipboard_strip_html' ? 'bold' : undefined
+      cmd === 'clipboard_strip_html' ? 'bold' : undefined,
     );
 
     const svc = getInstance();
@@ -1004,7 +1050,7 @@ describe('Android fallback', () => {
     const { writeText, writeRTF } = await import('tauri-plugin-clipboard-x-api');
     vi.mocked(platform).mockResolvedValue('android' as any);
     vi.mocked(invoke).mockImplementation(async (cmd: string) =>
-      cmd === 'clipboard_strip_rtf' ? 'hello' : undefined
+      cmd === 'clipboard_strip_rtf' ? 'hello' : undefined,
     );
 
     const svc = getInstance();
@@ -1022,70 +1068,71 @@ describe('Android fallback', () => {
 // ── readCurrentText ───────────────────────────────────────────────────────────
 
 describe('readCurrentText', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('returns plain text from readText when clipboard has text', async () => {
-    const { readText, hasText } = await import('tauri-plugin-clipboard-x-api')
-    vi.mocked(hasText).mockResolvedValueOnce(true)
-    vi.mocked(readText).mockResolvedValueOnce('hello world')
+    const { readText, hasText } = await import('tauri-plugin-clipboard-x-api');
+    vi.mocked(hasText).mockResolvedValueOnce(true);
+    vi.mocked(readText).mockResolvedValueOnce('hello world');
 
-    const svc = getInstance()
-    const result = await svc.readCurrentText()
+    const svc = getInstance();
+    const result = await svc.readCurrentText();
 
-    expect(result).toBe('hello world')
-  })
+    expect(result).toBe('hello world');
+  });
 
   it('returns plain text even when clipboard ALSO has HTML flavor (regression)', async () => {
     // This is the Mickey Mouse trap: copying from a browser populates BOTH
     // plain-text and HTML. readCurrentText must return the plain-text flavor,
     // not the HTML blob, regardless of ordering in readCurrentClipboard.
     const { readText, hasText, hasHTML, hasImage, hasFiles, hasRTF } =
-      await import('tauri-plugin-clipboard-x-api')
-    vi.mocked(hasText).mockResolvedValueOnce(true)
-    vi.mocked(hasHTML).mockResolvedValueOnce(true)
-    vi.mocked(hasImage).mockResolvedValueOnce(false)
-    vi.mocked(hasFiles).mockResolvedValueOnce(false)
-    vi.mocked(hasRTF).mockResolvedValueOnce(false)
-    vi.mocked(readText).mockResolvedValueOnce('hello world')
+      await import('tauri-plugin-clipboard-x-api');
+    vi.mocked(hasText).mockResolvedValueOnce(true);
+    vi.mocked(hasHTML).mockResolvedValueOnce(true);
+    vi.mocked(hasImage).mockResolvedValueOnce(false);
+    vi.mocked(hasFiles).mockResolvedValueOnce(false);
+    vi.mocked(hasRTF).mockResolvedValueOnce(false);
+    vi.mocked(readText).mockResolvedValueOnce('hello world');
 
-    const svc = getInstance()
-    const result = await svc.readCurrentText()
+    const svc = getInstance();
+    const result = await svc.readCurrentText();
 
-    expect(result).toBe('hello world')
-  })
+    expect(result).toBe('hello world');
+  });
 
   it('returns empty string when clipboard has no text at all', async () => {
-    const { hasText, readText } = await import('tauri-plugin-clipboard-x-api')
-    vi.mocked(hasText).mockResolvedValueOnce(false)
-    vi.mocked(readText).mockResolvedValueOnce('')
+    const { hasText, readText } = await import('tauri-plugin-clipboard-x-api');
+    vi.mocked(hasText).mockResolvedValueOnce(false);
+    vi.mocked(readText).mockResolvedValueOnce('');
 
-    const svc = getInstance()
-    const result = await svc.readCurrentText()
+    const svc = getInstance();
+    const result = await svc.readCurrentText();
 
-    expect(result).toBe('')
-  })
+    expect(result).toBe('');
+  });
 
   it('returns empty string when clipboard contains only an image', async () => {
-    const { hasText, hasImage, readText } = await import('tauri-plugin-clipboard-x-api')
-    vi.mocked(hasText).mockResolvedValueOnce(false)
-    vi.mocked(hasImage).mockResolvedValueOnce(true)
-    vi.mocked(readText).mockResolvedValueOnce('')
+    const { hasText, hasImage, readText } = await import('tauri-plugin-clipboard-x-api');
+    vi.mocked(hasText).mockResolvedValueOnce(false);
+    vi.mocked(hasImage).mockResolvedValueOnce(true);
+    vi.mocked(readText).mockResolvedValueOnce('');
 
-    const svc = getInstance()
-    const result = await svc.readCurrentText()
+    const svc = getInstance();
+    const result = await svc.readCurrentText();
 
-    expect(result).toBe('')
-  })
+    expect(result).toBe('');
+  });
 
   it('returns empty string when readText throws', async () => {
-    const { hasText, readText } = await import('tauri-plugin-clipboard-x-api')
-    vi.mocked(hasText).mockResolvedValueOnce(true)
-    vi.mocked(readText).mockRejectedValueOnce(new Error('clipboard unavailable'))
+    const { hasText, readText } = await import('tauri-plugin-clipboard-x-api');
+    vi.mocked(hasText).mockResolvedValueOnce(true);
+    vi.mocked(readText).mockRejectedValueOnce(new Error('clipboard unavailable'));
 
-    const svc = getInstance()
-    const result = await svc.readCurrentText()
+    const svc = getInstance();
+    const result = await svc.readCurrentText();
 
-    expect(result).toBe('')
-  })
-})
-
+    expect(result).toBe('');
+  });
+});

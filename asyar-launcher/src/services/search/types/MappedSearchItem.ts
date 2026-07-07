@@ -13,7 +13,7 @@ export type MappedSearchItem = {
   score: number;
   /** Tier ordinal from Rust's `ranker::Tier` (0=Pinned .. 5=FrecencyOnly). */
   tier?: number;
-  style?: "default" | "large";
+  style?: 'default' | 'large';
   shortcut?: string;
   alias?: string;
   action: () => void;

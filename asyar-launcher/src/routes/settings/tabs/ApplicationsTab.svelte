@@ -2,13 +2,7 @@
   import { onMount } from 'svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { emit } from '@tauri-apps/api/event';
-  import {
-    Button,
-    Icon,
-    Toggle,
-    KeyboardHint,
-    EmptyState,
-  } from '../../../components';
+  import { Button, Icon, Toggle, KeyboardHint, EmptyState } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import {
     getDefaultAppScanPaths,
@@ -18,7 +12,10 @@
   } from '../../../lib/ipc/commands';
   import { logService } from '../../../services/log/logService';
   import ShortcutCapture from '../../../built-in-features/shortcuts/ShortcutCapture.svelte';
-  import { shortcutStore, type ItemShortcut } from '../../../built-in-features/shortcuts/shortcutStore.svelte';
+  import {
+    shortcutStore,
+    type ItemShortcut,
+  } from '../../../built-in-features/shortcuts/shortcutStore.svelte';
   import { shortcutService } from '../../../built-in-features/shortcuts/shortcutService';
   import { toDisplayString } from '../../../built-in-features/shortcuts/shortcutFormatter';
   import { aliasStore } from '../../../built-in-features/aliases/aliasStore.svelte';
@@ -36,18 +33,12 @@
   let editingApp = $state<IndexedApp | null>(null);
   let editingAliasApp = $state<IndexedApp | null>(null);
 
-  let userPaths = $derived(
-    settingsService.currentSettings.search.additionalScanPaths ?? []
-  );
-  let enabledMap = $derived(
-    settingsService.currentSettings.search.applicationEnabled ?? {}
-  );
+  let userPaths = $derived(settingsService.currentSettings.search.additionalScanPaths ?? []);
+  let enabledMap = $derived(settingsService.currentSettings.search.applicationEnabled ?? {});
   let defaultSet = $derived(new Set(defaultPaths));
 
   let shortcutsByObjectId = $derived(
-    new Map<string, ItemShortcut>(
-      shortcutStore.shortcuts.map((s) => [s.objectId, s])
-    )
+    new Map<string, ItemShortcut>(shortcutStore.shortcuts.map((s) => [s.objectId, s])),
   );
 
   let pathRows = $derived([
@@ -55,9 +46,7 @@
     ...userPaths.map((path) => ({ path, readonly: false })),
   ]);
 
-  let sortedApps = $derived(
-    [...apps].sort((a, b) => a.name.localeCompare(b.name))
-  );
+  let sortedApps = $derived([...apps].sort((a, b) => a.name.localeCompare(b.name)));
 
   function withIds(list: Application[]): IndexedApp[] {
     return list.filter((a): a is IndexedApp => typeof a.id === 'string' && a.id.length > 0);
@@ -154,7 +143,10 @@
     editingApp = app;
   }
 
-  async function handleShortcutSave(detail: { modifier: string; key: string }): Promise<string | true> {
+  async function handleShortcutSave(detail: {
+    modifier: string;
+    key: string;
+  }): Promise<string | true> {
     if (!editingApp) return 'No application selected';
     const shortcut = `${detail.modifier}+${detail.key}`;
     const result = await shortcutService.register(
@@ -195,9 +187,7 @@
 <div class="app-tab">
   <section class="section">
     <h2 class="section-title">Search Scope</h2>
-    <p class="section-description">
-      Directories added here will be searched for applications.
-    </p>
+    <p class="section-description">Directories added here will be searched for applications.</p>
 
     <div class="add-row">
       <Button onclick={handleAddDirectory} disabled={isBrowsing}>
@@ -283,11 +273,7 @@
                   ✕
                 </button>
               {:else}
-                <button
-                  type="button"
-                  class="row-action"
-                  onclick={() => openAliasCapture(app)}
-                >
+                <button type="button" class="row-action" onclick={() => openAliasCapture(app)}>
                   Add Alias
                 </button>
               {/if}
@@ -311,20 +297,13 @@
                   ✕
                 </button>
               {:else}
-                <button
-                  type="button"
-                  class="row-action"
-                  onclick={() => openShortcutCapture(app)}
-                >
+                <button type="button" class="row-action" onclick={() => openShortcutCapture(app)}>
                   Record Hotkey
                 </button>
               {/if}
             </div>
             <div class="col-enabled" role="cell">
-              <Toggle
-                checked={isEnabled(app.id)}
-                onchange={() => handleToggleEnabled(app)}
-              />
+              <Toggle checked={isEnabled(app.id)} onchange={() => handleToggleEnabled(app)} />
             </div>
           </div>
         {/each}
@@ -416,8 +395,12 @@
     padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--separator);
   }
-  .path-row:last-child { border-bottom: none; }
-  .path-row-default { background: var(--bg-secondary); }
+  .path-row:last-child {
+    border-bottom: none;
+  }
+  .path-row-default {
+    background: var(--bg-secondary);
+  }
 
   :global(.path-icon) {
     color: var(--text-tertiary);
@@ -465,7 +448,9 @@
     padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--separator);
   }
-  .app-row:last-child { border-bottom: none; }
+  .app-row:last-child {
+    border-bottom: none;
+  }
 
   .app-table-head {
     background: var(--bg-secondary);

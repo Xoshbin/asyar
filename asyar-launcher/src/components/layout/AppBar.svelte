@@ -1,8 +1,8 @@
 <script lang="ts">
   let {
-    title = "Asyar",
+    title = 'Asyar',
     showBackButton = false,
-    onback
+    onback,
   }: {
     title?: string;
     showBackButton?: boolean;
@@ -17,7 +17,13 @@
       class="mr-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)] focus:outline-none"
       aria-label="Back"
     >
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        class="h-6 w-6"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
       </svg>
     </button>

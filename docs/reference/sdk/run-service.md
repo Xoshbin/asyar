@@ -17,10 +17,10 @@ export interface Run {
   label: string;
   status: RunStatus;
   extensionId?: string;
-  startedAt: number;          // Unix ms
-  endedAt?: number;           // Unix ms; set when the run reaches a terminal status
+  startedAt: number; // Unix ms
+  endedAt?: number; // Unix ms; set when the run reaches a terminal status
   cancellable: boolean;
-  errorMessage?: string;      // Populated by fail()
+  errorMessage?: string; // Populated by fail()
   /**
    * Stable join key linking this run back to its dynamic command's object_id.
    * Set only by built-in dispatch sites (scripts, agents).
@@ -115,6 +115,7 @@ All three terminal methods — `done()`, `fail()`, and `cancel()` — release th
 `subjectId` is a join key that links a run row back to a dynamic command's `object_id`, so the launcher can render a status dot next to the originating item without fragile label matching.
 
 Built-in dispatch sites set this field automatically:
+
 - Script runs: `cmd_scripts_dyn_<dynamicId>`
 - Agent runs: `cmd_agents_dyn_<agentId>` (all concurrent threads of one agent share the same `subjectId`, so they share a single status dot)
 

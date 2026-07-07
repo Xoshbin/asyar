@@ -1,51 +1,48 @@
-import { info, error, debug, attachConsole } from "@tauri-apps/plugin-log";
-import type { ILogService } from "asyar-sdk/contracts";
+import { info, error, debug, attachConsole } from '@tauri-apps/plugin-log';
+import type { ILogService } from 'asyar-sdk/contracts';
 
 /**
  * Color codes for terminal output
  */
 const colors = {
-  reset: "\x1b[0m",
-  bright: "\x1b[1m",
-  dim: "\x1b[2m",
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  dim: '\x1b[2m',
   // Colors
-  red: "\x1b[31m",
-  green: "\x1b[32m",
-  yellow: "\x1b[33m",
-  blue: "\x1b[34m",
-  magenta: "\x1b[35m",
-  cyan: "\x1b[36m",
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m',
   // Backgrounds
-  bgRed: "\x1b[41m",
-  bgGreen: "\x1b[42m",
-  bgYellow: "\x1b[43m",
-  bgBlue: "\x1b[44m",
-  bgMagenta: "\x1b[45m",
-  bgCyan: "\x1b[46m",
+  bgRed: '\x1b[41m',
+  bgGreen: '\x1b[42m',
+  bgYellow: '\x1b[43m',
+  bgBlue: '\x1b[44m',
+  bgMagenta: '\x1b[45m',
+  bgCyan: '\x1b[46m',
   // Frame characters
-  frameHorizontal: "─",
-  frameVertical: "│",
-  frameTopLeft: "┌",
-  frameTopRight: "┐",
-  frameBottomLeft: "└",
-  frameBottomRight: "┘",
+  frameHorizontal: '─',
+  frameVertical: '│',
+  frameTopLeft: '┌',
+  frameTopRight: '┐',
+  frameBottomLeft: '└',
+  frameBottomRight: '┘',
 };
 
 /**
  * Service for logging application events with enhanced formatting
  */
 export class LogService implements ILogService {
-  private appName = "Asyar";
+  private appName = 'Asyar';
   private useColors = true; // Can be toggled for environments without color support
   private useFrames = false; // Can be toggled for environments without box drawing support
 
   /**
    * Initialize the logger
    */
-  async init(options?: {
-    disableColors?: boolean;
-    disableFrames?: boolean;
-  }): Promise<void> {
+  async init(options?: { disableColors?: boolean; disableFrames?: boolean }): Promise<void> {
     await attachConsole();
 
     if (options?.disableColors) {
@@ -56,7 +53,7 @@ export class LogService implements ILogService {
       this.useFrames = false;
     }
 
-    this.info("Logger initialized");
+    this.info('Logger initialized');
   }
 
   /**
@@ -68,7 +65,7 @@ export class LogService implements ILogService {
     }
 
     // Handle multiline messages
-    const lines = message.split("\n");
+    const lines = message.split('\n');
 
     // For multiline messages, we'll format each line separately to avoid duplication
     if (lines.length === 1) {
@@ -82,17 +79,15 @@ export class LogService implements ILogService {
    * Create a frame for a single line message
    */
   private createSingleLineFrame(message: string, borderColor: string): string {
-    const width = message.replace(/\u001b\[\d+m/g, "").length;
+    const width = message.replace(/\u001b\[\d+m/g, '').length;
 
-    const color = this.useColors ? borderColor : "";
-    const reset = this.useColors ? colors.reset : "";
+    const color = this.useColors ? borderColor : '';
+    const reset = this.useColors ? colors.reset : '';
 
     const top = `${color}${colors.frameTopLeft}${colors.frameHorizontal.repeat(
-      width + 2
+      width + 2,
     )}${colors.frameTopRight}${reset}`;
-    const bottom = `${color}${
-      colors.frameBottomLeft
-    }${colors.frameHorizontal.repeat(width + 2)}${
+    const bottom = `${color}${colors.frameBottomLeft}${colors.frameHorizontal.repeat(width + 2)}${
       colors.frameBottomRight
     }${reset}`;
     const middle = `${color}${colors.frameVertical}${reset} ${message} ${color}${colors.frameVertical}${reset}`;
@@ -104,30 +99,26 @@ export class LogService implements ILogService {
    * Create a frame for a multiline message
    */
   private createMultiLineFrame(lines: string[], borderColor: string): string {
-    const width = Math.max(
-      ...lines.map((line) => line.replace(/\u001b\[\d+m/g, "").length)
-    );
+    const width = Math.max(...lines.map((line) => line.replace(/\u001b\[\d+m/g, '').length));
 
-    const color = this.useColors ? borderColor : "";
-    const reset = this.useColors ? colors.reset : "";
+    const color = this.useColors ? borderColor : '';
+    const reset = this.useColors ? colors.reset : '';
 
     const top = `${color}${colors.frameTopLeft}${colors.frameHorizontal.repeat(
-      width + 2
+      width + 2,
     )}${colors.frameTopRight}${reset}`;
-    const bottom = `${color}${
-      colors.frameBottomLeft
-    }${colors.frameHorizontal.repeat(width + 2)}${
+    const bottom = `${color}${colors.frameBottomLeft}${colors.frameHorizontal.repeat(width + 2)}${
       colors.frameBottomRight
     }${reset}`;
 
     const framedLines = lines.map((line) => {
-      const paddingLength = width - line.replace(/\u001b\[\d+m/g, "").length;
-      return `${color}${colors.frameVertical}${reset} ${line}${" ".repeat(
-        paddingLength
+      const paddingLength = width - line.replace(/\u001b\[\d+m/g, '').length;
+      return `${color}${colors.frameVertical}${reset} ${line}${' '.repeat(
+        paddingLength,
       )} ${color}${colors.frameVertical}${reset}`;
     });
 
-    return `${top}\n${framedLines.join("\n")}\n${bottom}`;
+    return `${top}\n${framedLines.join('\n')}\n${bottom}`;
   }
 
   /**
@@ -137,10 +128,10 @@ export class LogService implements ILogService {
     message: string,
     category: string,
     textColor: string,
-    borderColor: string
+    borderColor: string,
   ): string {
     const timestamp = new Date().toLocaleTimeString();
-    const categoryPadded = category.padEnd(5, " ");
+    const categoryPadded = category.padEnd(5, ' ');
 
     const formattedMessage = this.useColors
       ? `${colors.dim}[${timestamp}]${colors.reset} ${textColor}${this.appName}:${categoryPadded}${colors.reset} ${message}`
@@ -149,11 +140,15 @@ export class LogService implements ILogService {
     return this.createFrame(formattedMessage, borderColor);
   }
 
-  private tryLog(tauriLogFn: (msg: string) => void, consoleFn: (...data: any[]) => void, message: string): void {
+  private tryLog(
+    tauriLogFn: (msg: string) => void,
+    consoleFn: (...data: any[]) => void,
+    message: string,
+  ): void {
     try {
       if (typeof window !== 'undefined' && !(window as any).__TAURI_INTERNALS__) {
-          consoleFn(message);
-          return;
+        consoleFn(message);
+        return;
       }
       tauriLogFn(message);
     } catch {
@@ -165,7 +160,12 @@ export class LogService implements ILogService {
    * Log informational message
    */
   info(msg: string): void {
-    const formattedMessage = this.format(msg, "INFO", `${colors.bright}${colors.green}`, colors.green);
+    const formattedMessage = this.format(
+      msg,
+      'INFO',
+      `${colors.bright}${colors.green}`,
+      colors.green,
+    );
     this.tryLog(info, console.info, formattedMessage);
   }
 
@@ -174,7 +174,12 @@ export class LogService implements ILogService {
    */
   error(msg: string | Error): void {
     const errorMessage = msg instanceof Error ? msg.message : msg;
-    const formattedMessage = this.format(errorMessage, "ERROR", `${colors.bright}${colors.red}`, colors.red);
+    const formattedMessage = this.format(
+      errorMessage,
+      'ERROR',
+      `${colors.bright}${colors.red}`,
+      colors.red,
+    );
     this.tryLog(error, console.error, formattedMessage);
   }
 
@@ -182,7 +187,12 @@ export class LogService implements ILogService {
    * Log warning message
    */
   warn(msg: string): void {
-    const formattedMessage = this.format(msg, "WARN", `${colors.bright}${colors.yellow}`, colors.yellow);
+    const formattedMessage = this.format(
+      msg,
+      'WARN',
+      `${colors.bright}${colors.yellow}`,
+      colors.yellow,
+    );
     this.tryLog(info, console.warn, formattedMessage); // plugin-log uses info for warnings sometimes if warn isn't exported
   }
 
@@ -190,7 +200,7 @@ export class LogService implements ILogService {
    * Log debug message
    */
   debug(msg: string): void {
-    const formattedMessage = this.format(msg, "DEBUG", `${colors.cyan}`, colors.cyan);
+    const formattedMessage = this.format(msg, 'DEBUG', `${colors.cyan}`, colors.cyan);
     this.tryLog(debug, console.debug, formattedMessage);
   }
 
@@ -200,9 +210,9 @@ export class LogService implements ILogService {
   success(message: string): void {
     const formattedMessage = this.format(
       message,
-      "OK",
+      'OK',
       `${colors.bright}${colors.green}`,
-      colors.bgGreen
+      colors.bgGreen,
     );
     this.tryLog(info, console.info, formattedMessage);
   }
@@ -214,34 +224,23 @@ export class LogService implements ILogService {
     message: string,
     category: string,
     colorName: keyof typeof colors,
-    frameName?: keyof typeof colors
+    frameName?: keyof typeof colors,
   ): void {
-    const textColor = this.useColors ? colors[colorName] || colors.reset : "";
-    const frameColor = this.useColors
-      ? colors[frameName || colorName] || colors.reset
-      : "";
+    const textColor = this.useColors ? colors[colorName] || colors.reset : '';
+    const frameColor = this.useColors ? colors[frameName || colorName] || colors.reset : '';
 
-    const formattedMessage = this.format(
-      message,
-      category,
-      textColor,
-      frameColor
-    );
+    const formattedMessage = this.format(message, category, textColor, frameColor);
     this.tryLog(info, console.info, formattedMessage);
   }
 
   /**
    * Track extension usage with special formatting
    */
-  trackExtensionUsage(
-    extensionId: string,
-    action: string,
-    details?: Record<string, any>
-  ): void {
+  trackExtensionUsage(extensionId: string, action: string, details?: Record<string, any>): void {
     const timestamp = new Date().toISOString();
-    const detailsStr = details ? JSON.stringify(details) : "";
+    const detailsStr = details ? JSON.stringify(details) : '';
     this.info(
-      `EXTENSION_TRACKED [${timestamp}] Extension: ${extensionId} | Action: ${action} | ${detailsStr}`
+      `EXTENSION_TRACKED [${timestamp}] Extension: ${extensionId} | Action: ${action} | ${detailsStr}`,
     );
 
     // You could add here code to send this data to analytics or persistent storage

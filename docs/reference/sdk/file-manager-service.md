@@ -42,7 +42,7 @@ await fm.trash('/Users/me/Downloads/old-file.zip');
 ```typescript
 import type { IFileManagerService, IFeedbackService } from 'asyar-sdk';
 
-const fm       = context.getService<IFileManagerService>('fs');
+const fm = context.getService<IFileManagerService>('fs');
 const feedback = context.getService<IFeedbackService>('feedback');
 
 async function revealDownload(path: string) {
@@ -98,11 +98,11 @@ Both operations are synchronous request/response — no streaming, no callbacks,
 
 #### Cross-platform behavior
 
-| Platform | `showInFileManager` | `trash` |
-|---|---|---|
-| macOS | `open -R <path>` — opens Finder and selects the item | `trash` crate → `NSFileManager.trashItem` |
-| Windows | `explorer /select,<path>` — opens Explorer and selects the item | `trash` crate → Shell API with `FOFX_RECYCLEONDELETE` |
-| Linux | `xdg-open <parent_dir>` — opens the parent directory in the default file manager | `trash` crate → freedesktop.org trash spec |
+| Platform | `showInFileManager`                                                              | `trash`                                               |
+| -------- | -------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| macOS    | `open -R <path>` — opens Finder and selects the item                             | `trash` crate → `NSFileManager.trashItem`             |
+| Windows  | `explorer /select,<path>` — opens Explorer and selects the item                  | `trash` crate → Shell API with `FOFX_RECYCLEONDELETE` |
+| Linux    | `xdg-open <parent_dir>` — opens the parent directory in the default file manager | `trash` crate → freedesktop.org trash spec            |
 
 **Linux note:** Most Linux file managers do not support selecting a specific file via CLI. `showInFileManager` opens the containing folder instead of highlighting the file.
 
@@ -113,13 +113,13 @@ Both operations are synchronous request/response — no streaming, no callbacks,
 
 #### Error handling
 
-| Scenario | Behavior |
-|---|---|
-| Relative path | Promise rejects: `"Path must be absolute: ..."` |
-| Path does not exist | Promise rejects: `"Path does not exist: ..."` |
-| `trash()` outside home directory | Promise rejects: `"Access denied: path '...' is outside home directory"` |
-| `fs:read` / `fs:write` not in manifest | IPC call rejects (permission denied) |
-| OS file manager unavailable | Promise rejects with platform-specific spawn error |
+| Scenario                               | Behavior                                                                 |
+| -------------------------------------- | ------------------------------------------------------------------------ |
+| Relative path                          | Promise rejects: `"Path must be absolute: ..."`                          |
+| Path does not exist                    | Promise rejects: `"Path does not exist: ..."`                            |
+| `trash()` outside home directory       | Promise rejects: `"Access denied: path '...' is outside home directory"` |
+| `fs:read` / `fs:write` not in manifest | IPC call rejects (permission denied)                                     |
+| OS file manager unavailable            | Promise rejects with platform-specific spawn error                       |
 
 #### Security model
 

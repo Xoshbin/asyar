@@ -54,8 +54,7 @@ fn main() {
     // bundled `bun` sidecar (`bun dist/sidecar.js`). This replaces the old
     // `bun --compile` binary approach so the Agent SDK can spawn subprocess `claude`
     // and host its in-process MCP server (both of which compiled binaries can't do).
-    let sidecar_js_source =
-        base_dir.join("../../asyar-ext-builder/dist/sidecar.js");
+    let sidecar_js_source = base_dir.join("../../asyar-ext-builder/dist/sidecar.js");
     let sidecar_js_staging_dir = base_dir.join("resources/ext-builder");
     let sidecar_js_staging = sidecar_js_staging_dir.join("sidecar.js");
 
@@ -74,8 +73,7 @@ fn main() {
     } else {
         // Create an empty placeholder so tauri_build doesn't fail during
         // development before `pnpm build:js` has been run in asyar-ext-builder.
-        std::fs::write(&sidecar_js_staging, b"")
-            .expect("Failed to create placeholder sidecar.js");
+        std::fs::write(&sidecar_js_staging, b"").expect("Failed to create placeholder sidecar.js");
         println!("cargo:warning=ext-builder sidecar.js not built — staged an EMPTY placeholder. Run `bun run build:js` in asyar-ext-builder before `tauri build`, or the AI extension builder will be non-functional in this bundle.");
     }
 
@@ -153,8 +151,12 @@ fn main() {
 /// Recursively copy the capability spec tree, skipping dev-only `*.test.ts`
 /// files which must not ship in the bundled resource.
 fn copy_capability_spec(src: &std::path::Path, dest: &std::path::Path) {
-    let entries = std::fs::read_dir(src)
-        .unwrap_or_else(|e| panic!("build.rs failed to read capabilitySpec dir {:?}: {}", src, e));
+    let entries = std::fs::read_dir(src).unwrap_or_else(|e| {
+        panic!(
+            "build.rs failed to read capabilitySpec dir {:?}: {}",
+            src, e
+        )
+    });
 
     for entry in entries.flatten() {
         let path = entry.path();
@@ -174,7 +176,10 @@ fn copy_capability_spec(src: &std::path::Path, dest: &std::path::Path) {
             continue;
         } else {
             std::fs::copy(&path, &target).unwrap_or_else(|_| {
-                panic!("Failed to copy capabilitySpec file {:?} -> {:?}", path, target)
+                panic!(
+                    "Failed to copy capabilitySpec file {:?} -> {:?}",
+                    path, target
+                )
             });
         }
     }

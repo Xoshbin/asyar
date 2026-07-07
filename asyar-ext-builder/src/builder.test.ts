@@ -28,9 +28,7 @@ describe('isSafeExtensionId', () => {
 
 describe('resolveExtensionId (path-traversal guard)', () => {
   it('throws on a malicious EXTENSION_ID marker', () => {
-    expect(() =>
-      resolveExtensionId('EXTENSION_ID=../../evil', '/tmp/base', new Set()),
-    ).toThrow();
+    expect(() => resolveExtensionId('EXTENSION_ID=../../evil', '/tmp/base', new Set())).toThrow();
   });
 
   it('returns a good id from a clean marker', () => {

@@ -1,6 +1,7 @@
 ---
 order: 10
 ---
+
 # Dynamic Commands
 
 Dynamic commands let a Tier 2 extension register commands at **runtime** —
@@ -68,13 +69,11 @@ const commandsService = workerContext.getService<ICommandService>('commands');
 
 const regs: DynamicCommandRegistration[] = [
   {
-    id: 'sc-lights',          // stable identifier — see "Stable ids" below
-    name: 'Set Lights',       // displayed in search results
+    id: 'sc-lights', // stable identifier — see "Stable ids" below
+    name: 'Set Lights', // displayed in search results
     description: 'Smart-home command',
     icon: 'icon:lightbulb',
-    arguments: [
-      { name: 'value', type: 'text', placeholder: 'e.g. 85' },
-    ],
+    arguments: [{ name: 'value', type: 'text', placeholder: 'e.g. 85' }],
   },
   // ...up to N items; no max enforced today, but expect ~5-100 in practice
 ];
@@ -136,12 +135,12 @@ The `id` field is the persistence key for argument last-values. If the
 underlying source allows renaming (e.g., an Apple Shortcut's name is
 editable, but its UUID is not), use the **stable identity** as `id`:
 
-| Source | Recommended id |
-|---|---|
-| Apple Shortcut | the shortcut's UUID from `shortcuts list --show-identifiers` |
-| SSH host | the `Host` line value (rarely renamed) |
-| Script in directory | the file basename without extension |
-| Project | absolute path hash, or workspace UUID if available |
+| Source              | Recommended id                                               |
+| ------------------- | ------------------------------------------------------------ |
+| Apple Shortcut      | the shortcut's UUID from `shortcuts list --show-identifiers` |
+| SSH host            | the `Host` line value (rarely renamed)                       |
+| Script in directory | the file basename without extension                          |
+| Project             | absolute path hash, or workspace UUID if available           |
 
 The id format is `[a-zA-Z0-9_-]+`, max 128 characters. Colons and dots
 are not allowed (the launcher reserves `:` for storage namespacing).
@@ -168,12 +167,12 @@ identically — no parallel implementation to maintain.
 
 ## Lifecycle
 
-| Event | Effect on dynamic commands |
-|---|---|
-| Extension activate | Worker boots, calls `replaceDynamicCommands` from your activate handler |
-| Extension disable | Launcher drops registrations; persistence is **kept** so re-enable restores last-values |
-| Extension uninstall | Launcher drops registrations and wipes all persisted last-values |
-| Launcher restart | In-memory registry is fresh; your worker's activate path re-registers |
+| Event               | Effect on dynamic commands                                                              |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| Extension activate  | Worker boots, calls `replaceDynamicCommands` from your activate handler                 |
+| Extension disable   | Launcher drops registrations; persistence is **kept** so re-enable restores last-values |
+| Extension uninstall | Launcher drops registrations and wipes all persisted last-values                        |
+| Launcher restart    | In-memory registry is fresh; your worker's activate path re-registers                   |
 
 ## Persistence
 
@@ -204,7 +203,11 @@ specific platform feature — those concerns belong in the extension.
 ```ts
 // extensions/apple-shortcuts/src/worker.ts
 import { ExtensionContext as WorkerExtensionContext } from 'asyar-sdk/worker';
-import type { ICommandService, IShellService, IFileSystemWatcherService } from 'asyar-sdk/contracts';
+import type {
+  ICommandService,
+  IShellService,
+  IFileSystemWatcherService,
+} from 'asyar-sdk/contracts';
 
 const ctx = new WorkerExtensionContext();
 const commandsService = ctx.getService<ICommandService>('commands');

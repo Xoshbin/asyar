@@ -15,7 +15,12 @@ import {
 import type { EditFormState } from './agentEditView.helpers';
 import type { AgentDef } from './types';
 import type { ToolDescriptor } from 'asyar-sdk/contracts';
-import type { IProviderPlugin, ProviderId, ProviderConfig, ModelInfo } from '../../services/ai/IProviderPlugin';
+import type {
+  IProviderPlugin,
+  ProviderId,
+  ProviderConfig,
+  ModelInfo,
+} from '../../services/ai/IProviderPlugin';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -48,10 +53,7 @@ const makeState = (over: Partial<EditFormState> = {}): EditFormState => ({
   ...over,
 });
 
-const makeDescriptor = (
-  id: string,
-  source: ToolDescriptor['source'],
-): ToolDescriptor => {
+const makeDescriptor = (id: string, source: ToolDescriptor['source']): ToolDescriptor => {
   let fqid: `${string}:${string}`;
   if (source === 'builtin') {
     fqid = `builtin:${id}`;
@@ -371,9 +373,7 @@ describe('handleSave', () => {
     });
 
     expect(service.update).toHaveBeenCalledTimes(1);
-    expect(service.update).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'agent-1' }),
-    );
+    expect(service.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'agent-1' }));
     expect(service.create).not.toHaveBeenCalled();
     expect(manager.refresh).toHaveBeenCalledTimes(1);
     expect(viewManager.goBack).toHaveBeenCalledTimes(1);
@@ -397,8 +397,12 @@ describe('handleSave', () => {
 // ── filterAvailableProviders ─────────────────────────────────────────────────
 
 describe('filterAvailableProviders', () => {
-  const makePlugin = (id: ProviderId, requiresApiKey = true, requiresBaseUrl = false): IProviderPlugin =>
-    ({ id, name: id, requiresApiKey, requiresBaseUrl } as unknown as IProviderPlugin);
+  const makePlugin = (
+    id: ProviderId,
+    requiresApiKey = true,
+    requiresBaseUrl = false,
+  ): IProviderPlugin =>
+    ({ id, name: id, requiresApiKey, requiresBaseUrl }) as unknown as IProviderPlugin;
 
   const makeConfigs = (
     overrides: Partial<Record<ProviderId, Partial<ProviderConfig>>>,
@@ -431,7 +435,10 @@ describe('filterAvailableProviders', () => {
       openai: { enabled: true, apiKey: 'sk-x' },
       anthropic: { enabled: true, apiKey: 'sk-y' },
     });
-    expect(filterAvailableProviders(providers, configs).map((p) => p.id)).toEqual(['openai', 'anthropic']);
+    expect(filterAvailableProviders(providers, configs).map((p) => p.id)).toEqual([
+      'openai',
+      'anthropic',
+    ]);
   });
 
   it('includes enabled providers that do not require an api key', () => {

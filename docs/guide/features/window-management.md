@@ -3,7 +3,7 @@
 > Resize and arrange windows with layout presets.
 
 ![Layout presets list](../../images/feature-window-management-hero.png)
-*Figure: the layout presets list.*
+_Figure: the layout presets list._
 
 ## What it does
 
@@ -32,11 +32,11 @@ You can also save your own custom layouts by capturing any window's current size
 
 ## Shortcuts & actions
 
-| Action | How |
-|--------|-----|
-| Apply any preset | Search its name, then `Enter` |
-| Undo last layout | Search `restore`, then `Enter` |
-| Open action panel | `⌘K` (in Manage Layouts view) |
+| Action            | How                            |
+| ----------------- | ------------------------------ |
+| Apply any preset  | Search its name, then `Enter`  |
+| Undo last layout  | Search `restore`, then `Enter` |
+| Open action panel | `⌘K` (in Manage Layouts view)  |
 
 **Action panel (⌘K) entries inside the Manage Layouts view:**
 
@@ -45,24 +45,24 @@ You can also save your own custom layouts by capturing any window's current size
 
 ## Built-in presets
 
-| Preset | What it does |
-|--------|-------------|
-| Left Half | Left 50% of the screen |
-| Right Half | Right 50% of the screen |
-| Top Half | Top 50% of the screen |
-| Bottom Half | Bottom 50% of the screen |
-| Top Left Quarter | Top-left 25% |
-| Top Right Quarter | Top-right 25% |
-| Bottom Left Quarter | Bottom-left 25% |
-| Bottom Right Quarter | Bottom-right 25% |
-| Left Third | Left 33% |
-| Center Third | Center 33% |
-| Right Third | Right 33% |
-| Left Two Thirds | Left 66% |
-| Right Two Thirds | Right 66% |
-| Center | Centered, 80% × 80% |
-| Almost Maximize | Centered, 90% × 90% |
-| Maximize | Full screen |
+| Preset                  | What it does                 |
+| ----------------------- | ---------------------------- |
+| Left Half               | Left 50% of the screen       |
+| Right Half              | Right 50% of the screen      |
+| Top Half                | Top 50% of the screen        |
+| Bottom Half             | Bottom 50% of the screen     |
+| Top Left Quarter        | Top-left 25%                 |
+| Top Right Quarter       | Top-right 25%                |
+| Bottom Left Quarter     | Bottom-left 25%              |
+| Bottom Right Quarter    | Bottom-right 25%             |
+| Left Third              | Left 33%                     |
+| Center Third            | Center 33%                   |
+| Right Third             | Right 33%                    |
+| Left Two Thirds         | Left 66%                     |
+| Right Two Thirds        | Right 66%                    |
+| Center                  | Centered, 80% × 80%          |
+| Almost Maximize         | Centered, 90% × 90%          |
+| Maximize                | Full screen                  |
 | Restore Previous Bounds | Undo the last applied layout |
 
 ## Tips

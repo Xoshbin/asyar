@@ -39,16 +39,16 @@ interface Todo {
 }
 
 function rankTodos(query: string, todos: Todo[]): Promise<Todo[]> {
-  const items: RankableItem[] = todos.map(t => ({
+  const items: RankableItem[] = todos.map((t) => ({
     id: t.id,
     title: t.text,
     subtitle: t.notes,
     keywords: t.tags,
   }));
 
-  return search.rank(query, items).then(orderedIds => {
-    const byId = new Map(todos.map(t => [t.id, t]));
-    return orderedIds.map(id => byId.get(id)!);
+  return search.rank(query, items).then((orderedIds) => {
+    const byId = new Map(todos.map((t) => [t.id, t]));
+    return orderedIds.map((id) => byId.get(id)!);
   });
 }
 ```
@@ -69,12 +69,12 @@ Within each tier, results are ordered by fuzzy score, then alphabetically by tit
 
 **Scale limits.** `rank()` is stateless — there is no persistent index, and your full `items` array is sent over IPC on every call. Fine for keystroke-by-keystroke filtering of up to a few hundred items. Not a fit for thousands+.
 
-| | `SearchService.rank()` | Indexed search (e.g. clipboard history) |
-|---|---|---|
-| State | Stateless — no index | Persistent index, built once |
-| Per-call cost | Full item list sent every call | Query only; index already in Rust |
-| Good for | A few hundred items (your own snippets, an extension catalog) | Thousands+ items |
-| Available to extensions | Yes — this service | No — internal to the clipboard feature, not exposed via the SDK |
+|                         | `SearchService.rank()`                                        | Indexed search (e.g. clipboard history)                         |
+| ----------------------- | ------------------------------------------------------------- | --------------------------------------------------------------- |
+| State                   | Stateless — no index                                          | Persistent index, built once                                    |
+| Per-call cost           | Full item list sent every call                                | Query only; index already in Rust                               |
+| Good for                | A few hundred items (your own snippets, an extension catalog) | Thousands+ items                                                |
+| Available to extensions | Yes — this service                                            | No — internal to the clipboard feature, not exposed via the SDK |
 
 > If your list can grow into the thousands, don't pass a larger payload to `rank()` — that doesn't scale. Build a dedicated indexed-search command instead, the same way clipboard history's full-text search works internally.
 

@@ -1,11 +1,7 @@
 // Wire types for the `raycast_import_parse` Tauri command
 // (see src-tauri/src/raycast_import/mod.rs — serde camelCase).
 
-export type SourceFormat =
-  | 'rayconfigX'
-  | 'rayconfigClassic'
-  | 'snippetsJson'
-  | 'quicklinksJson';
+export type SourceFormat = 'rayconfigX' | 'rayconfigClassic' | 'snippetsJson' | 'quicklinksJson';
 
 export interface ImportSnippet {
   name: string;

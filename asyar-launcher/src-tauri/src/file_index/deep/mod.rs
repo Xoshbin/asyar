@@ -3,10 +3,10 @@
 //! provider exists on this machine wins; if none does, the feature simply
 //! isn't offered — no cross-platform shim, no degraded fallback.
 
-#[cfg(target_os = "macos")]
-pub mod mdfind;
 #[cfg(target_os = "windows")]
 pub mod everything;
+#[cfg(target_os = "macos")]
+pub mod mdfind;
 #[cfg(target_os = "linux")]
 pub mod plocate;
 

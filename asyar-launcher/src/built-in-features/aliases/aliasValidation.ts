@@ -8,8 +8,7 @@ export const ALIAS_REGEX = /^[a-z0-9]{1,10}$/;
 export const ALIAS_MAX_LEN = 10;
 
 export type ValidateResult =
-  | { ok: true; normalized: string }
-  | { ok: false; reason: 'empty' | 'too-long' | 'invalid-chars' };
+  { ok: true; normalized: string } | { ok: false; reason: 'empty' | 'too-long' | 'invalid-chars' };
 
 export function normalizeAlias(input: string): string {
   return input.trim().toLowerCase();

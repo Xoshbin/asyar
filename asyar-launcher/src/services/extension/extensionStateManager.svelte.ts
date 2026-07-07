@@ -1,8 +1,12 @@
-import { settingsService } from "../settings/settingsService.svelte";
-import { logService } from "../log/logService";
-import { isBuiltInFeature } from "./extensionDiscovery";
-import { discoverExtensions, setExtensionEnabled, uninstallExtension as uninstallExtensionCmd } from "../../lib/ipc/commands";
-import { statusBarService } from "../statusBar/statusBarService.svelte";
+import { settingsService } from '../settings/settingsService.svelte';
+import { logService } from '../log/logService';
+import { isBuiltInFeature } from './extensionDiscovery';
+import {
+  discoverExtensions,
+  setExtensionEnabled,
+  uninstallExtension as uninstallExtensionCmd,
+} from '../../lib/ipc/commands';
+import { statusBarService } from '../statusBar/statusBarService.svelte';
 import { removeTheme } from '../theme/themeService';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 
@@ -16,7 +20,7 @@ export class ExtensionStateManager {
 
   public init(
     manifestsById: Map<string, ExtendedManifest>,
-    reloadExtensionsCallback: () => Promise<void>
+    reloadExtensionsCallback: () => Promise<void>,
   ) {
     this.manifestsById = manifestsById;
     this.reloadExtensionsCallback = reloadExtensionsCallback;
@@ -29,10 +33,7 @@ export class ExtensionStateManager {
     return settingsService.isExtensionEnabled(extensionId);
   }
 
-  async toggleExtensionState(
-    extensionId: string,
-    enabled: boolean
-  ): Promise<boolean> {
+  async toggleExtensionState(extensionId: string, enabled: boolean): Promise<boolean> {
     if (isBuiltInFeature(extensionId) && !enabled) {
       logService.warn(`Cannot disable built-in feature: ${extensionId}`);
       return false;
@@ -40,18 +41,16 @@ export class ExtensionStateManager {
 
     try {
       await setExtensionEnabled(extensionId, enabled);
-      
+
       logService.info(
         `Extension '${extensionId}' state set to ${
-          enabled ? "enabled" : "disabled"
-        }. Reloading extensions...`
+          enabled ? 'enabled' : 'disabled'
+        }. Reloading extensions...`,
       );
       await this.reloadExtensionsCallback();
       return true;
     } catch (error) {
-      logService.error(
-        `Failed to toggle extension state for '${extensionId}': ${error}`
-      );
+      logService.error(`Failed to toggle extension state for '${extensionId}': ${error}`);
       return false;
     }
   }
@@ -65,15 +64,12 @@ export class ExtensionStateManager {
         const manifest = record.manifest;
         allExtensionsData.push({
           title: manifest.name,
-          subtitle: manifest.description || "",
-          type: manifest.type || "unknown",
-          keywords:
-            manifest.commands
-              ?.map((cmd: any) => cmd.trigger || cmd.name)
-              .join(" ") || "",
+          subtitle: manifest.description || '',
+          type: manifest.type || 'unknown',
+          keywords: manifest.commands?.map((cmd: any) => cmd.trigger || cmd.name).join(' ') || '',
           enabled: record.enabled,
           id: manifest.id,
-          version: manifest.version || "N/A",
+          version: manifest.version || 'N/A',
           isBuiltIn: record.isBuiltIn,
           compatibility: record.compatibility,
           commands: manifest.commands ?? [],
@@ -97,10 +93,7 @@ export class ExtensionStateManager {
         allItems.push({
           title: manifest.name,
           subtitle: manifest.description,
-          keywords:
-            manifest.commands
-              ?.map((cmd) => cmd.trigger || cmd.name)
-              .join(" ") || "",
+          keywords: manifest.commands?.map((cmd) => cmd.trigger || cmd.name).join(' ') || '',
           type: manifest.type,
           action: () => {
             // After the Tier 2 worker/view split, auto-navigate on enable
@@ -108,13 +101,14 @@ export class ExtensionStateManager {
             // top-level `defaultView` is gone; the per-command `component`
             // field is now authoritative.
             const firstViewCmd = manifest.commands?.find(
-              (c: any) => c.mode === "view" && typeof c.component === "string" && c.component.length > 0,
+              (c: any) =>
+                c.mode === 'view' && typeof c.component === 'string' && c.component.length > 0,
             );
             if (firstViewCmd) {
               navigateToView(`${manifest.id}/${firstViewCmd.component}`);
             } else {
               logService.info(
-                `Default action triggered for non-view/commandless extension: ${manifest.id}`
+                `Default action triggered for non-view/commandless extension: ${manifest.id}`,
               );
             }
           },
@@ -127,17 +121,13 @@ export class ExtensionStateManager {
   public recordViewUsage(extensionId: string): void {
     const manifest = this.manifestsById.get(extensionId);
     if (manifest && manifest.id) {
-      logService.info(
-        `Extension view opened for extension: ${manifest.id}`
-      );
+      logService.info(`Extension view opened for extension: ${manifest.id}`);
       const now = Date.now();
       const currentCount = this.extensionUsageStats[manifest.id!] || 0;
       this.extensionUsageStats = { ...this.extensionUsageStats, [manifest.id!]: currentCount + 1 };
       this.extensionLastUsed = { ...this.extensionLastUsed, [manifest.id!]: now };
     } else {
-      logService.warn(
-        `Could not find manifest for ID ${extensionId} while updating usage stats.`
-      );
+      logService.warn(`Could not find manifest for ID ${extensionId} while updating usage stats.`);
     }
   }
 

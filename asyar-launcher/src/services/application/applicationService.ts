@@ -23,7 +23,9 @@ export class ApplicationService {
     return getFrontmostApplication();
   }
 
-  async syncApplicationIndex(extraPaths?: string[]): Promise<{ added: number; removed: number; total: number }> {
+  async syncApplicationIndex(
+    extraPaths?: string[],
+  ): Promise<{ added: number; removed: number; total: number }> {
     const paths = extraPaths ?? settingsService.currentSettings.search.additionalScanPaths ?? [];
     return (await syncApplicationIndex(paths)) ?? { added: 0, removed: 0, total: 0 };
   }

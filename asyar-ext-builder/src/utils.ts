@@ -16,13 +16,7 @@ export interface BuilderError {
 
 /** Type guard for a BuilderError-shaped thrown value. */
 export function isBuilderError(e: unknown): e is BuilderError {
-  return (
-    typeof e === 'object' &&
-    e !== null &&
-    'step' in e &&
-    'message' in e &&
-    'log' in e
-  );
+  return typeof e === 'object' && e !== null && 'step' in e && 'message' in e && 'log' in e;
 }
 
 /** Best-effort message extraction from any thrown value. */
@@ -99,7 +93,10 @@ function tokenLooksLikePackageSpec(token: string): boolean {
  * prefixes stripped, so the first returned token is the program itself.
  */
 function programTokens(segment: string): string[] {
-  const tokens = segment.trim().split(/\s+/).filter((t) => t !== '');
+  const tokens = segment
+    .trim()
+    .split(/\s+/)
+    .filter((t) => t !== '');
   let i = 0;
   while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) i++;
   return tokens.slice(i);

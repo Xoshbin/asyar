@@ -51,10 +51,7 @@
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asyar-icon: http://asyar-icon.localhost asyar-thumb: http://asyar-thumb.localhost asset: https://asset.localhost data: https://*; connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://openrouter.ai https://asyar.org http://localhost:* https://*; frame-src asyar-extension: http://asyar-extension.localhost blob:; font-src 'self'; object-src 'none'; base-uri 'self'",
-      "capabilities": [
-        "default",
-        "hud"
-      ]
+      "capabilities": ["default", "hud"]
     },
     "macOSPrivateApi": true
   },
@@ -69,16 +66,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": [
-      "binaries/bun",
-      "binaries/uv",
-      "binaries/claude"
-    ],
-    "resources": [
-      "built-in-features",
-      "resources/capabilitySpec",
-      "resources/ext-builder"
-    ],
+    "externalBin": ["binaries/bun", "binaries/uv", "binaries/claude"],
+    "resources": ["built-in-features", "resources/capabilitySpec", "resources/ext-builder"],
     "macOS": {
       "signingIdentity": "Developer ID Application: Khoshbin Ahmed (877MKJ6983)",
       "entitlements": "./entitlements.plist",
@@ -91,9 +80,7 @@
     "updater": {
       "active": true,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEMyNDUwMkFDNTdBOUQxMjUKUldRbDBhbFhyQUpGd3ArcUplOWtFTk1UV1I1QWIweGtCRU0zMTd5YjZZTXdJbi95Zm43aExZZk0K",
-      "endpoints": [
-        "https://asyar.org/api/update/{{target}}-{{arch}}/{{current_version}}"
-      ]
+      "endpoints": ["https://asyar.org/api/update/{{target}}-{{arch}}/{{current_version}}"]
     },
     "deep-link": {
       "desktop": {

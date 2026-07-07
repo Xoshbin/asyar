@@ -55,7 +55,11 @@ describe('iframeDeliveryListener', () => {
     expect(handler, 'listener must subscribe to asyar:iframe:deliver').toBeDefined();
 
     const m1 = { kind: 'command', payload: { commandId: 'tick-test' }, source: 'schedule' };
-    const m2 = { kind: 'command', payload: { commandId: 'tick-test', args: { scheduledTick: true } }, source: 'schedule' };
+    const m2 = {
+      kind: 'command',
+      payload: { commandId: 'tick-test', args: { scheduledTick: true } },
+      source: 'schedule',
+    };
     handler!({
       payload: {
         extensionId: 'org.asyar.sdk-playground',

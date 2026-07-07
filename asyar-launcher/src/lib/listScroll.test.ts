@@ -10,8 +10,15 @@ function makeRow(index: number, top: number, height: number): HTMLElement {
   const row = document.createElement('div');
   row.setAttribute('data-index', String(index));
   row.getBoundingClientRect = () => ({
-    top, height, bottom: top + height, left: 0, right: 0, width: 0,
-    x: 0, y: top, toJSON: () => ({}),
+    top,
+    height,
+    bottom: top + height,
+    left: 0,
+    right: 0,
+    width: 0,
+    x: 0,
+    y: top,
+    toJSON: () => ({}),
   });
   return row;
 }
@@ -36,15 +43,22 @@ function makeContainer(opts: {
   });
   container.scrollTop = opts.scrollerInitialScrollTop ?? 0;
   container.getBoundingClientRect = () => ({
-    top: opts.scrollerTop ?? 0, height: opts.scrollerClientHeight ?? 0,
+    top: opts.scrollerTop ?? 0,
+    height: opts.scrollerClientHeight ?? 0,
     bottom: (opts.scrollerTop ?? 0) + (opts.scrollerClientHeight ?? 0),
-    left: 0, right: 0, width: 0, x: 0, y: opts.scrollerTop ?? 0,
+    left: 0,
+    right: 0,
+    width: 0,
+    x: 0,
+    y: opts.scrollerTop ?? 0,
     toJSON: () => ({}),
   });
   // The walk-up loop reads getComputedStyle(node).overflowY; stub it so the
   // container qualifies as the scroller.
   vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
-    return ({ overflowY: el === container ? (opts.scrollerOverflowY ?? 'auto') : 'visible' } as unknown) as CSSStyleDeclaration;
+    return {
+      overflowY: el === container ? (opts.scrollerOverflowY ?? 'auto') : 'visible',
+    } as unknown as CSSStyleDeclaration;
   });
   document.body.appendChild(container);
   return container;
@@ -142,7 +156,7 @@ describe('scrollSelectedIntoView', () => {
     document.body.appendChild(container);
     // overflow:visible everywhere → walk-up finds no scroller → fallback fires.
     vi.spyOn(window, 'getComputedStyle').mockImplementation(
-      () => (({ overflowY: 'visible' } as unknown) as CSSStyleDeclaration),
+      () => ({ overflowY: 'visible' }) as unknown as CSSStyleDeclaration,
     );
     const spy = vi.fn();
     row1.scrollIntoView = spy;

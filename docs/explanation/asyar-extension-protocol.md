@@ -1,9 +1,11 @@
 ---
 order: 4
 ---
+
 ### The `asyar-extension://` protocol
 
 When Asyar renders an extension iframe, it loads a URL like:
+
 ```
 asyar-extension://com.yourname.hello-world/index.html?view=DefaultView
 ```
@@ -18,11 +20,13 @@ The Rust URI scheme handler (`uri_schemes.rs`) resolves this URL to a file with 
 The protocol handler strips query parameters and URL fragments before filesystem lookup. It also has path-traversal protection (`..` segments are rejected).
 
 **Security:** The iframe runs with this sandbox attribute:
+
 ```
 allow-scripts allow-same-origin allow-forms allow-popups
 ```
 
 And this Content Security Policy:
+
 ```
 default-src asyar-extension: 'self';
 script-src  asyar-extension: 'unsafe-inline' 'unsafe-eval';

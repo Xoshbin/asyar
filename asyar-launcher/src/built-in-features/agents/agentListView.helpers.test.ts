@@ -90,7 +90,10 @@ describe('handleDeleteAgent', () => {
 
 describe('handleSelectAgentForChat', () => {
   it('sets manager.currentAgentId to the given id', async () => {
-    const manager = { currentAgentId: null as string | null, currentThreadId: null as string | null };
+    const manager = {
+      currentAgentId: null as string | null,
+      currentThreadId: null as string | null,
+    };
     const viewMgr = { navigateToView: vi.fn() };
     const service = { listThreads: vi.fn().mockResolvedValue([]) };
 
@@ -100,7 +103,10 @@ describe('handleSelectAgentForChat', () => {
   });
 
   it('navigates to agents/AgentChatView', async () => {
-    const manager = { currentAgentId: null as string | null, currentThreadId: null as string | null };
+    const manager = {
+      currentAgentId: null as string | null,
+      currentThreadId: null as string | null,
+    };
     const viewMgr = { navigateToView: vi.fn() };
     const service = { listThreads: vi.fn().mockResolvedValue([]) };
 
@@ -110,9 +116,18 @@ describe('handleSelectAgentForChat', () => {
   });
 
   it('sets manager.currentThreadId to first thread when threads exist', async () => {
-    const manager = { currentAgentId: null as string | null, currentThreadId: null as string | null };
+    const manager = {
+      currentAgentId: null as string | null,
+      currentThreadId: null as string | null,
+    };
     const viewMgr = { navigateToView: vi.fn() };
-    const thread = { id: 'thread-1', agentId: 'agent-42', title: null, createdAt: 1000, updatedAt: 2000 };
+    const thread = {
+      id: 'thread-1',
+      agentId: 'agent-42',
+      title: null,
+      createdAt: 1000,
+      updatedAt: 2000,
+    };
     const service = { listThreads: vi.fn().mockResolvedValue([thread]) };
 
     await handleSelectAgentForChat('agent-42', { manager, viewManager: viewMgr, service });
@@ -121,7 +136,10 @@ describe('handleSelectAgentForChat', () => {
   });
 
   it('sets manager.currentThreadId to null when no threads exist', async () => {
-    const manager = { currentAgentId: null as string | null, currentThreadId: 'old-thread' as string | null };
+    const manager = {
+      currentAgentId: null as string | null,
+      currentThreadId: 'old-thread' as string | null,
+    };
     const viewMgr = { navigateToView: vi.fn() };
     const service = { listThreads: vi.fn().mockResolvedValue([]) };
 

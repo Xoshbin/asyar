@@ -14,7 +14,11 @@ import { logService } from '../log/logService';
 import extensionManager from '../extension/extensionManager.svelte';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
 import { getExtensionRuntimeSnapshot } from '../../lib/ipc/iframeLifecycleCommands';
-import { forceRemountWorker as forceRemountWorkerCommand, stateGetAll, stateGetSubscriptions } from '../../lib/ipc/devCommands';
+import {
+  forceRemountWorker as forceRemountWorkerCommand,
+  stateGetAll,
+  stateGetSubscriptions,
+} from '../../lib/ipc/devCommands';
 
 /** Runtime-aware dev check — returns true during development OR when the user
  *  has opted into developer mode in production. */
@@ -24,12 +28,7 @@ function isDevActive(): boolean {
 
 export type ContextRoleWire = 'worker' | 'view';
 
-export type RuntimeState =
-  | 'dormant'
-  | 'mounting'
-  | 'ready'
-  | 'degraded'
-  | 'unknown';
+export type RuntimeState = 'dormant' | 'mounting' | 'ready' | 'degraded' | 'unknown';
 
 export interface RuntimeEntry {
   extensionId: string;
@@ -310,8 +309,7 @@ class InspectorStore {
   async forceRemountWorker(extensionId: string): Promise<void> {
     if (!isDevActive()) return;
     const manifest = extensionManager.getManifestById(extensionId) as
-      | { background?: { main?: string } }
-      | undefined;
+      { background?: { main?: string } } | undefined;
     const hasBackgroundMain = !!manifest?.background?.main;
     const ok = await forceRemountWorkerCommand(extensionId, hasBackgroundMain);
     if (!ok) logService.debug('[dev-inspector] force_remount_worker failed');
@@ -391,17 +389,20 @@ class InspectorStore {
    * one row going from Pending to Resolved. Unknown correlation ids are
    * created on the fly — the inspector may attach mid-flight.
    */
-  recordRpcLog(extensionId: string, log: {
-    phase: RpcPhase;
-    id?: string;
-    correlationId: string;
-    payload?: unknown;
-    result?: unknown;
-    error?: string;
-    timeoutMs?: number;
-    elapsedMs?: number;
-    timestamp: number;
-  }): void {
+  recordRpcLog(
+    extensionId: string,
+    log: {
+      phase: RpcPhase;
+      id?: string;
+      correlationId: string;
+      payload?: unknown;
+      result?: unknown;
+      error?: string;
+      timeoutMs?: number;
+      elapsedMs?: number;
+      timestamp: number;
+    },
+  ): void {
     const byId = this.rpcByExt[extensionId] ?? {};
     const prev = byId[log.correlationId];
     const merged: RpcTrace = {
@@ -442,16 +443,19 @@ class InspectorStore {
    * Ingest an `asyar:dev:ipc-log` observation. Always appends — the ring
    * buffer handles cap.
    */
-  recordIpcLog(extensionId: string, log: {
-    phase: IpcPhase;
-    command?: string;
-    payload?: unknown;
-    result?: unknown;
-    error?: string;
-    messageId: string;
-    elapsedMs?: number;
-    timestamp: number;
-  }): void {
+  recordIpcLog(
+    extensionId: string,
+    log: {
+      phase: IpcPhase;
+      command?: string;
+      payload?: unknown;
+      result?: unknown;
+      error?: string;
+      messageId: string;
+      elapsedMs?: number;
+      timestamp: number;
+    },
+  ): void {
     const row: IpcTrace = {
       seq: this.#ipcSeq++,
       messageId: log.messageId,
@@ -506,11 +510,7 @@ class InspectorStore {
     this.stateByExt = { ...this.stateByExt, [extensionId]: next };
   }
 
-  #patchEntry(
-    extensionId: string,
-    role: ContextRoleWire,
-    patch: Partial<RuntimeEntry>,
-  ): void {
+  #patchEntry(extensionId: string, role: ContextRoleWire, patch: Partial<RuntimeEntry>): void {
     const key = keyOf(extensionId, role);
     const prev = this.runtimeMap[key];
     const merged: RuntimeEntry = {

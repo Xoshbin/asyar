@@ -8,7 +8,7 @@ export interface AppSettings {
   general: {
     startAtLogin: boolean;
     showDockIcon: boolean;
-    escapeInViewBehavior?: "go-back" | "close-window" | "hide-and-reset";
+    escapeInViewBehavior?: 'go-back' | 'close-window' | 'hide-and-reset';
   };
   search: {
     searchApplications: boolean;
@@ -24,8 +24,8 @@ export interface AppSettings {
     key: string;
   };
   appearance: {
-    theme: "system" | "light" | "dark";
-    launchView: "default" | "compact";
+    theme: 'system' | 'light' | 'dark';
+    launchView: 'default' | 'compact';
     windowWidth: number;
     windowHeight: number;
     activeTheme?: string | null;
@@ -38,7 +38,7 @@ export interface AppSettings {
     completed: boolean;
   };
   updates?: {
-    channel: "stable" | "beta";
+    channel: 'stable' | 'beta';
     autoCheck: boolean;
     lastSeenVersion?: string;
   };

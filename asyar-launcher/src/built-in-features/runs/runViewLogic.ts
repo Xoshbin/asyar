@@ -18,17 +18,13 @@ export function formatRunSubtitle(run: Run): string {
       return `Running · ${elapsed}`;
     }
     case 'succeeded': {
-      const duration = run.endedAt
-        ? formatElapsed(run.endedAt - run.startedAt)
-        : '';
+      const duration = run.endedAt ? formatElapsed(run.endedAt - run.startedAt) : '';
       return duration ? `Succeeded · ${duration}` : 'Succeeded';
     }
     case 'failed': {
       const msg = run.errorMessage ?? 'unknown error';
       const truncated =
-        msg.length > ERROR_MESSAGE_MAX
-          ? `${msg.slice(0, ERROR_MESSAGE_MAX - 3)}...`
-          : msg;
+        msg.length > ERROR_MESSAGE_MAX ? `${msg.slice(0, ERROR_MESSAGE_MAX - 3)}...` : msg;
       return `Failed · ${truncated}`;
     }
     case 'cancelled':

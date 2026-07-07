@@ -107,8 +107,14 @@
       {#each pendingPairings as p (p.id)}
         <article class="pending-item">
           <span class="browser-label">{p.family} · {p.variant}</span>
-          <button class="action-btn" onclick={() => resolve(p.id, 'allow')} data-testid="allow-{p.id}">Allow</button>
-          <button class="action-btn" onclick={() => resolve(p.id, 'deny')} data-testid="deny-{p.id}">Deny</button>
+          <button
+            class="action-btn"
+            onclick={() => resolve(p.id, 'allow')}
+            data-testid="allow-{p.id}">Allow</button
+          >
+          <button class="action-btn" onclick={() => resolve(p.id, 'deny')} data-testid="deny-{p.id}"
+            >Deny</button
+          >
         </article>
       {/each}
     </div>
@@ -118,8 +124,8 @@
     <h3>Connected browsers</h3>
     {#if pairedBrowsers.length === 0}
       <p class="empty">
-        No browsers paired yet. Install the Asyar Companion extension below — once it's
-        running, it pairs automatically and your browser shows up here.
+        No browsers paired yet. Install the Asyar Companion extension below — once it's running, it
+        pairs automatically and your browser shows up here.
       </p>
     {:else}
       {#each pairedBrowsers as b (familyKey(b.family, b.variant))}
@@ -128,7 +134,11 @@
           <span class="status" class:connected={connectionStatus[b.family]}>
             {connectionStatus[b.family] ? 'connected' : 'offline'}
           </span>
-          <button class="action-btn" onclick={() => revoke(b.family, b.variant)} data-testid="revoke-{familyKey(b.family, b.variant)}">
+          <button
+            class="action-btn"
+            onclick={() => revoke(b.family, b.variant)}
+            data-testid="revoke-{familyKey(b.family, b.variant)}"
+          >
             Revoke
           </button>
         </article>
@@ -139,10 +149,10 @@
   <div class="install-links">
     <h3>Install the Asyar Companion</h3>
     <p class="companion-intro">
-      Asyar's browser features need a small companion extension installed in your browser.
-      The two work as a pair: the companion streams your open tabs, bookmarks, and history to
-      Asyar so you can search and control them from here. Install it, and it pairs with this
-      launcher automatically.
+      Asyar's browser features need a small companion extension installed in your browser. The two
+      work as a pair: the companion streams your open tabs, bookmarks, and history to Asyar so you
+      can search and control them from here. Install it, and it pairs with this launcher
+      automatically.
     </p>
     <button
       class="btn btn-primary install-btn"
@@ -152,8 +162,8 @@
       Install for Chrome
     </button>
     <p class="companion-note">
-      Works for Chrome, Brave, Edge, Arc, and Vivaldi. Firefox and Safari companions are
-      coming soon.
+      Works for Chrome, Brave, Edge, Arc, and Vivaldi. Firefox and Safari companions are coming
+      soon.
     </p>
   </div>
 </section>

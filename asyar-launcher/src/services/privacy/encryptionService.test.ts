@@ -6,11 +6,7 @@ vi.mock('../../lib/ipc/commands', () => ({
   cryptoDecrypt: vi.fn(),
 }));
 
-import {
-  cryptoGetStatus,
-  cryptoEncrypt,
-  cryptoDecrypt,
-} from '../../lib/ipc/commands';
+import { cryptoGetStatus, cryptoEncrypt, cryptoDecrypt } from '../../lib/ipc/commands';
 import { encryptionService } from './encryptionService.svelte';
 
 describe('encryptionService', () => {

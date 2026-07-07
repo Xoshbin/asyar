@@ -1,15 +1,15 @@
-export * from "./LogService";
-export * from "./INotificationService";
-export * from "./IClipboardHistoryService";
-export * from "./IExtensionManager";
-export * from "./ICommandService";
-export * from "./ISettingsService";
+export * from './LogService';
+export * from './INotificationService';
+export * from './IClipboardHistoryService';
+export * from './IExtensionManager';
+export * from './ICommandService';
+export * from './ISettingsService';
 
-export * from "./BaseServiceProxy";
-export * from "./LogServiceProxy";
-export * from "./NotificationServiceProxy";
-export * from "./ClipboardHistoryServiceProxy";
-export * from "./ExtensionManagerProxy";
+export * from './BaseServiceProxy';
+export * from './LogServiceProxy';
+export * from './NotificationServiceProxy';
+export * from './ClipboardHistoryServiceProxy';
+export * from './ExtensionManagerProxy';
 export { CommandServiceProxy } from './CommandServiceProxy';
 export { ActionServiceProxy } from './ActionServiceProxy';
 export { NetworkServiceProxy } from './NetworkServiceProxy';
@@ -99,11 +99,7 @@ export type {
 } from './ISystemEventsService';
 export { SystemEventsServiceProxy } from './SystemEventsServiceProxy';
 
-export type {
-  ITimerService,
-  TimerDescriptor,
-  ScheduleTimerOptions,
-} from './ITimerService';
+export type { ITimerService, TimerDescriptor, ScheduleTimerOptions } from './ITimerService';
 export { TimerServiceProxy } from './TimerServiceProxy';
 
 export type {
@@ -113,4 +109,3 @@ export type {
   WatcherHandle,
 } from './FileSystemWatcherService';
 export { FileSystemWatcherServiceProxy } from './FileSystemWatcherService';
-

@@ -29,12 +29,9 @@ export interface CompactIdleInputs {
  * i.e. the window may safely expand without flashing stale items.
  */
 export function isSearchSettled(i: SearchSettledInputs): boolean {
-  if (i.currentDiagnosticSeverity === 'error' || i.currentDiagnosticSeverity === 'fatal') return true;
-  return (
-    !!i.localSearchValue &&
-    !i.isSearchLoading &&
-    i.lastCompletedQuery === i.localSearchValue
-  );
+  if (i.currentDiagnosticSeverity === 'error' || i.currentDiagnosticSeverity === 'fatal')
+    return true;
+  return !!i.localSearchValue && !i.isSearchLoading && i.lastCompletedQuery === i.localSearchValue;
 }
 
 /**

@@ -1,6 +1,7 @@
 ---
 order: 3
 ---
+
 # The IPC Bridge — How Service Calls Travel
 
 Asyar runs every Tier 2 extension across **two iframes** — a `worker` and a
@@ -74,7 +75,7 @@ Scenario: extension code calls `context.proxies.log.info("Hello")` from the
 
 ### Role-aware iframe selection
 
-Some host → iframe pushes (preferences, search requests, view-search keystrokes, push events) need to target a *specific* role. The launcher uses the helper at [`asyar-launcher/src/services/extension/extensionIframeManager.svelte.ts`](../../asyar-launcher/src/services/extension/extensionIframeManager.svelte.ts):
+Some host → iframe pushes (preferences, search requests, view-search keystrokes, push events) need to target a _specific_ role. The launcher uses the helper at [`asyar-launcher/src/services/extension/extensionIframeManager.svelte.ts`](../../asyar-launcher/src/services/extension/extensionIframeManager.svelte.ts):
 
 ```ts
 function pickExtensionIframe(extensionId, prefer: 'view' | 'worker') {
@@ -192,12 +193,34 @@ The `ExtensionIpcRouter` handles `type === 'asyar:stream:abort'` as a special ca
 
 ```typescript
 // Host → Extension (unilateral, no response expected)
-{ type: 'asyar:stream'; streamId: string; phase: 'chunk'; data: { token: string } }
-{ type: 'asyar:stream'; streamId: string; phase: 'done' }
-{ type: 'asyar:stream'; streamId: string; phase: 'error'; error: { code: string; message: string } }
+{
+  type: 'asyar:stream';
+  streamId: string;
+  phase: 'chunk';
+  data: {
+    token: string;
+  }
+}
+{
+  type: 'asyar:stream';
+  streamId: string;
+  phase: 'done';
+}
+{
+  type: 'asyar:stream';
+  streamId: string;
+  phase: 'error';
+  error: {
+    code: string;
+    message: string;
+  }
+}
 
 // Extension → Host (abort signal, no response)
-{ type: 'asyar:stream:abort'; streamId: string }
+{
+  type: 'asyar:stream:abort';
+  streamId: string;
+}
 ```
 
 ## Preferences delivery — `asyar:event:preferences:set-all`
@@ -208,11 +231,11 @@ Declarative extension preferences (see [Preferences](../reference/sdk/preference
 
 The SDK's `MessageBroker` inside the iframe only dispatches messages to registered listeners when the type begins with one of three prefixes:
 
-| Prefix | Purpose |
-|---|---|
-| `asyar:response` | Resolves a pending `invoke()` request by `messageId` |
-| `asyar:event:*` | Fires all listeners registered via `broker.on('asyar:event:…', cb)` |
-| `asyar:invoke:*` | Host calling an extension-provided function |
+| Prefix           | Purpose                                                             |
+| ---------------- | ------------------------------------------------------------------- |
+| `asyar:response` | Resolves a pending `invoke()` request by `messageId`                |
+| `asyar:event:*`  | Fires all listeners registered via `broker.on('asyar:event:…', cb)` |
+| `asyar:invoke:*` | Host calling an extension-provided function                         |
 
 Anything else is silently dropped. The preferences listener is registered via `broker.on('asyar:event:preferences:set-all', …)`, so the host MUST post with that exact type. A plain `asyar:preferences:set-all` would land in the iframe, match no branch in `handleMessage`, and vanish.
 
@@ -369,8 +392,19 @@ Each `authorize()` call generates a unique `flowId`. The window listener ignores
 
 ```typescript
 // Host → Extension (push after deep-link callback — no IPC response)
-{ type: 'asyar:oauth:result'; flowId: string; token: OAuthToken }
-{ type: 'asyar:oauth:result'; flowId: string; error: { code: string; message: string } }
+{
+  type: 'asyar:oauth:result';
+  flowId: string;
+  token: OAuthToken;
+}
+{
+  type: 'asyar:oauth:result';
+  flowId: string;
+  error: {
+    code: string;
+    message: string;
+  }
+}
 ```
 
 ---

@@ -9,9 +9,7 @@ class ExtensionReadinessListener {
   init(): void {
     if (this.handler) return;
     this.handler = (event: MessageEvent) => {
-      this.handle(event).catch((err) =>
-        logService.warn(`[readiness] handler threw: ${err}`),
-      );
+      this.handle(event).catch((err) => logService.warn(`[readiness] handler threw: ${err}`));
     };
     window.addEventListener('message', this.handler);
   }

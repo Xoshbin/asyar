@@ -3,7 +3,7 @@
 > Run shell scripts from watched folders.
 
 ![Scripts settings tab with watched folders](../../images/feature-scripts-hero.png)
-*Figure: the Scripts settings tab with watched folders configured.*
+_Figure: the Scripts settings tab with watched folders configured._
 
 ## What it does
 
@@ -50,11 +50,11 @@ Available header directives:
 
 ## Shortcuts & actions
 
-| Action | How |
-|---|---|
-| Run a script | Select it and press `Enter` |
-| Open Manage Scripts view | Search for **Manage Scripts** and press `Enter` |
-| Remove a watched folder | Settings → Scripts → trash icon next to the folder |
+| Action                   | How                                                |
+| ------------------------ | -------------------------------------------------- |
+| Run a script             | Select it and press `Enter`                        |
+| Open Manage Scripts view | Search for **Manage Scripts** and press `Enter`    |
+| Remove a watched folder  | Settings → Scripts → trash icon next to the folder |
 
 ## Tips
 

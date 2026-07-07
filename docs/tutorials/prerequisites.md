@@ -1,15 +1,16 @@
 ---
 order: 1
 ---
+
 ## 2. Prerequisites & Environment Setup
 
 ### Runtime requirements
 
-| Requirement | Minimum Version |
-|---|---|
-| Node.js | 18 or later |
-| pnpm | 8 or later (recommended) |
-| Asyar app | Installed and running |
+| Requirement | Minimum Version          |
+| ----------- | ------------------------ |
+| Node.js     | 18 or later              |
+| pnpm        | 8 or later (recommended) |
+| Asyar app   | Installed and running    |
 
 ### Install the Asyar CLI
 

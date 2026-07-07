@@ -34,9 +34,8 @@ export class ExtensionEventSubscriptions {
         const extensionId = event.payload?.extensionId;
         if (!extensionId) return;
 
-        const { extensionPreferencesService } = await import(
-          './extensionPreferencesService.svelte'
-        );
+        const { extensionPreferencesService } =
+          await import('./extensionPreferencesService.svelte');
         extensionPreferencesService.invalidateCache(extensionId);
 
         try {

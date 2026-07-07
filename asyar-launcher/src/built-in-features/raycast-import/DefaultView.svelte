@@ -14,9 +14,7 @@
     try {
       const selected = await open({
         multiple: false,
-        filters: [
-          { name: 'Raycast export', extensions: ['rayconfig', 'json'] },
-        ],
+        filters: [{ name: 'Raycast export', extensions: ['rayconfig', 'json'] }],
       });
       if (typeof selected === 'string') {
         await state.chooseFile(selected);
@@ -140,7 +138,10 @@
           <Button
             class="btn-primary"
             onclick={() => state.runImport()}
-            disabled={!state.selection.snippets && !state.selection.portals && !state.selection.shortcuts && !state.selection.aliases}
+            disabled={!state.selection.snippets &&
+              !state.selection.portals &&
+              !state.selection.shortcuts &&
+              !state.selection.aliases}
           >
             Import
           </Button>
@@ -163,10 +164,18 @@
           <Icon name="download" size={28} />
         {/snippet}
         <div class="summary-rows">
-          <span class="text-body">Snippets: {state.summary.snippets.added} added, {state.summary.snippets.skipped} skipped</span>
-          <span class="text-body">Portals: {state.summary.portals.added} added, {state.summary.portals.skipped} skipped</span>
-          <span class="text-body">Shortcuts: {state.summary.shortcuts.added} added, {state.summary.shortcuts.skipped} skipped</span>
-          <span class="text-body">Aliases: {state.summary.aliases.added} added, {state.summary.aliases.skipped} skipped</span>
+          <span class="text-body"
+            >Snippets: {state.summary.snippets.added} added, {state.summary.snippets.skipped} skipped</span
+          >
+          <span class="text-body"
+            >Portals: {state.summary.portals.added} added, {state.summary.portals.skipped} skipped</span
+          >
+          <span class="text-body"
+            >Shortcuts: {state.summary.shortcuts.added} added, {state.summary.shortcuts.skipped} skipped</span
+          >
+          <span class="text-body"
+            >Aliases: {state.summary.aliases.added} added, {state.summary.aliases.skipped} skipped</span
+          >
         </div>
         <Button class="btn-primary" onclick={() => state.reset()}>Import another file</Button>
       </EmptyState>

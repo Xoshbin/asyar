@@ -15,6 +15,7 @@ interface ISettingsService {
 ```
 
 **Usage:**
+
 ```typescript
 const settings = context.getService<ISettingsService>('settings');
 
@@ -27,12 +28,9 @@ await settings.set('com.yourname.myext', 'theme', 'dark');
 await settings.set('com.yourname.myext', 'lastUsed', Date.now());
 
 // Subscribe to changes (reactive — fires when value changes from any source)
-const unsubscribe = settings.onChanged<{ theme: string }>(
-  'com.yourname.myext',
-  (newSettings) => {
-    console.log('Theme changed to:', newSettings.theme);
-  }
-);
+const unsubscribe = settings.onChanged<{ theme: string }>('com.yourname.myext', (newSettings) => {
+  console.log('Theme changed to:', newSettings.theme);
+});
 
 // Call the returned function to stop listening
 unsubscribe();

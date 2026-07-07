@@ -1,40 +1,40 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { ActionService, type ApplicationAction } from './actionService.svelte'
-import { ActionContext } from 'asyar-sdk/contracts'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ActionService, type ApplicationAction } from './actionService.svelte';
+import { ActionContext } from 'asyar-sdk/contracts';
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}))
+}));
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
-}))
+}));
 
 vi.mock('../search/SearchService', () => ({
   searchService: { resetIndex: vi.fn() },
-}))
+}));
 
 vi.mock('tauri-plugin-clipboard-x-api', () => ({
   writeText: vi.fn().mockResolvedValue(undefined),
-}))
+}));
 
-const mockSearchOrchestrator = vi.hoisted(() => ({ items: [] as any[] }))
+const mockSearchOrchestrator = vi.hoisted(() => ({ items: [] as any[] }));
 vi.mock('../search/searchOrchestrator.svelte', () => ({
   searchOrchestrator: mockSearchOrchestrator,
-}))
+}));
 
-const mockSearchStores = vi.hoisted(() => ({ selectedIndex: -1 }))
+const mockSearchStores = vi.hoisted(() => ({ selectedIndex: -1 }));
 vi.mock('../search/stores/search.svelte', () => ({
   searchStores: mockSearchStores,
-}))
+}));
 
 const mockFeedbackService = vi.hoisted(() => ({
   showHUD: vi.fn().mockResolvedValue(undefined),
   confirmAlert: vi.fn().mockResolvedValue(true),
-}))
+}));
 vi.mock('../feedback/feedbackService.svelte', () => ({
   feedbackService: mockFeedbackService,
-}))
+}));
 
 const mockApplicationService = vi.hoisted(() => ({
   uninstallApplication: vi.fn().mockResolvedValue(undefined),
@@ -44,10 +44,10 @@ const mockApplicationService = vi.hoisted(() => ({
     dataPaths: [],
     totalBytes: 10_000_000,
   }),
-}))
+}));
 vi.mock('../application/applicationService', () => ({
   applicationService: mockApplicationService,
-}))
+}));
 
 // Plain-object mock with a mutable `isDeveloperMode` field. Tests flip it to
 // drive the visibility of dev-gated actions (reset_search, factory_reset,
@@ -60,10 +60,10 @@ const mockDeveloperSettingsService = vi.hoisted(() => ({
   isVerboseLoggingEnabled: false,
   isTracingEnabled: false,
   isSideloadingAllowed: false,
-}))
+}));
 vi.mock('../settings/developerSettingsService.svelte', () => ({
   developerSettingsService: mockDeveloperSettingsService,
-}))
+}));
 
 // Platform detection is module-level in actionService — mocking here controls
 // the IS_MACOS constant for every test in this file. Individual tests that
@@ -71,18 +71,18 @@ vi.mock('../settings/developerSettingsService.svelte', () => ({
 // different mock.
 vi.mock('@tauri-apps/plugin-os', () => ({
   platform: () => 'macos',
-}))
+}));
 
 // Fresh instance per test so tests are isolated
 function freshService(): ActionService {
-  return new ActionService()
+  return new ActionService();
 }
 
 // Minimal action factory
 function makeAction(
   id: string,
   context: ActionContext = ActionContext.EXTENSION_VIEW,
-  extensionId?: string
+  extensionId?: string,
 ): ApplicationAction {
   return {
     id,
@@ -90,250 +90,254 @@ function makeAction(
     context,
     extensionId,
     execute: vi.fn(),
-  }
+  };
 }
 
 // ── registerAction ────────────────────────────────────────────────────────────
 
 describe('registerAction', () => {
   it('stores the action and makes it retrievable via getAllActions', () => {
-    const svc = freshService()
-    svc.registerAction(makeAction('my-action'))
-    const ids = svc.getAllActions().map((a) => a.id)
-    expect(ids).toContain('my-action')
-  })
+    const svc = freshService();
+    svc.registerAction(makeAction('my-action'));
+    const ids = svc.getAllActions().map((a) => a.id);
+    expect(ids).toContain('my-action');
+  });
 
   it('overwrites an existing action with the same id', () => {
-    const svc = freshService()
-    svc.registerAction(makeAction('dup'))
-    svc.registerAction({ ...makeAction('dup'), label: 'updated' })
-    const matches = svc.getAllActions().filter((a) => a.id === 'dup')
-    expect(matches).toHaveLength(1)
-    expect(matches[0].label).toBe('updated')
-  })
+    const svc = freshService();
+    svc.registerAction(makeAction('dup'));
+    svc.registerAction({ ...makeAction('dup'), label: 'updated' });
+    const matches = svc.getAllActions().filter((a) => a.id === 'dup');
+    expect(matches).toHaveLength(1);
+    expect(matches[0].label).toBe('updated');
+  });
 
   it('normalises ExtensionAction title → label', () => {
-    const svc = freshService()
+    const svc = freshService();
     svc.registerAction({
       id: 'ext-action',
       title: 'My Title',
       extensionId: 'my-ext',
       execute: vi.fn(),
-    } as any)
-    const action = svc.getAllActions().find((a) => a.id === 'ext-action')
-    expect(action?.label).toBe('My Title')
-  })
+    } as any);
+    const action = svc.getAllActions().find((a) => a.id === 'ext-action');
+    expect(action?.label).toBe('My Title');
+  });
 
   it('defaults context to EXTENSION_VIEW when none provided', () => {
-    const svc = freshService()
-    svc.registerAction({ id: 'no-ctx', title: 'x', extensionId: 'e', execute: vi.fn() } as any)
-    const action = svc.getAllActions().find((a) => a.id === 'no-ctx')
-    expect(action?.context).toBe(ActionContext.EXTENSION_VIEW)
-  })
+    const svc = freshService();
+    svc.registerAction({ id: 'no-ctx', title: 'x', extensionId: 'e', execute: vi.fn() } as any);
+    const action = svc.getAllActions().find((a) => a.id === 'no-ctx');
+    expect(action?.context).toBe(ActionContext.EXTENSION_VIEW);
+  });
 
   it('preserves confirm: true through registerAction normalization', () => {
-    const svc = freshService()
-    svc.registerAction({ ...makeAction('confirm-me'), confirm: true } as any)
-    const action = svc.getAllActions().find(a => a.id === 'confirm-me')
-    expect(action?.confirm).toBe(true)
-  })
+    const svc = freshService();
+    svc.registerAction({ ...makeAction('confirm-me'), confirm: true } as any);
+    const action = svc.getAllActions().find((a) => a.id === 'confirm-me');
+    expect(action?.confirm).toBe(true);
+  });
 
   it('confirm defaults to undefined when not provided', () => {
-    const svc = freshService()
-    svc.registerAction(makeAction('no-confirm'))
-    const action = svc.getAllActions().find(a => a.id === 'no-confirm')
-    expect(action?.confirm).toBeUndefined()
-  })
+    const svc = freshService();
+    svc.registerAction(makeAction('no-confirm'));
+    const action = svc.getAllActions().find((a) => a.id === 'no-confirm');
+    expect(action?.confirm).toBeUndefined();
+  });
 
   it('preserves shortcut through registerAction normalization', () => {
-    const svc = freshService()
-    svc.registerAction({ ...makeAction('shortcut-me'), shortcut: '⌘⇧C' } as any)
-    const action = svc.getAllActions().find(a => a.id === 'shortcut-me')
-    expect(action?.shortcut).toBe('⌘⇧C')
-  })
+    const svc = freshService();
+    svc.registerAction({ ...makeAction('shortcut-me'), shortcut: '⌘⇧C' } as any);
+    const action = svc.getAllActions().find((a) => a.id === 'shortcut-me');
+    expect(action?.shortcut).toBe('⌘⇧C');
+  });
 
   it('shortcut defaults to undefined when not provided', () => {
-    const svc = freshService()
-    svc.registerAction(makeAction('no-shortcut'))
-    const action = svc.getAllActions().find(a => a.id === 'no-shortcut')
-    expect(action?.shortcut).toBeUndefined()
-  })
-})
+    const svc = freshService();
+    svc.registerAction(makeAction('no-shortcut'));
+    const action = svc.getAllActions().find((a) => a.id === 'no-shortcut');
+    expect(action?.shortcut).toBeUndefined();
+  });
+});
 
 // ── unregisterAction ──────────────────────────────────────────────────────────
 
 describe('unregisterAction', () => {
   it('removes a registered action', () => {
-    const svc = freshService()
-    svc.registerAction(makeAction('to-remove'))
-    svc.unregisterAction('to-remove')
-    expect(svc.getAllActions().map((a) => a.id)).not.toContain('to-remove')
-  })
+    const svc = freshService();
+    svc.registerAction(makeAction('to-remove'));
+    svc.unregisterAction('to-remove');
+    expect(svc.getAllActions().map((a) => a.id)).not.toContain('to-remove');
+  });
 
   it('does not throw when removing a non-existent action', () => {
-    const svc = freshService()
-    expect(() => svc.unregisterAction('ghost')).not.toThrow()
-  })
-})
+    const svc = freshService();
+    expect(() => svc.unregisterAction('ghost')).not.toThrow();
+  });
+});
 
 // ── clearActionsForExtension ──────────────────────────────────────────────────
 
 describe('clearActionsForExtension', () => {
   it('removes all actions belonging to the given extension', () => {
-    const svc = freshService()
-    svc.registerAction(makeAction('a1', ActionContext.EXTENSION_VIEW, 'ext-a'))
-    svc.registerAction(makeAction('a2', ActionContext.EXTENSION_VIEW, 'ext-a'))
-    svc.registerAction(makeAction('b1', ActionContext.EXTENSION_VIEW, 'ext-b'))
-    svc.clearActionsForExtension('ext-a')
-    const ids = svc.getAllActions().map((a) => a.id)
-    expect(ids).not.toContain('a1')
-    expect(ids).not.toContain('a2')
-    expect(ids).toContain('b1')
-  })
+    const svc = freshService();
+    svc.registerAction(makeAction('a1', ActionContext.EXTENSION_VIEW, 'ext-a'));
+    svc.registerAction(makeAction('a2', ActionContext.EXTENSION_VIEW, 'ext-a'));
+    svc.registerAction(makeAction('b1', ActionContext.EXTENSION_VIEW, 'ext-b'));
+    svc.clearActionsForExtension('ext-a');
+    const ids = svc.getAllActions().map((a) => a.id);
+    expect(ids).not.toContain('a1');
+    expect(ids).not.toContain('a2');
+    expect(ids).toContain('b1');
+  });
 
   it('does nothing when the extension has no registered actions', () => {
-    const svc = freshService()
-    const before = svc.getAllActions().length
-    svc.clearActionsForExtension('nonexistent-ext')
-    expect(svc.getAllActions().length).toBe(before)
-  })
-})
+    const svc = freshService();
+    const before = svc.getAllActions().length;
+    svc.clearActionsForExtension('nonexistent-ext');
+    expect(svc.getAllActions().length).toBe(before);
+  });
+});
 
 // ── setContext / getContext ───────────────────────────────────────────────────
 
 describe('setContext / getContext', () => {
   it('starts in CORE context', () => {
-    const svc = freshService()
-    expect(svc.getContext()).toBe(ActionContext.CORE)
-  })
+    const svc = freshService();
+    expect(svc.getContext()).toBe(ActionContext.CORE);
+  });
 
   it('updates the context', () => {
-    const svc = freshService()
-    svc.setContext(ActionContext.EXTENSION_VIEW)
-    expect(svc.getContext()).toBe(ActionContext.EXTENSION_VIEW)
-  })
+    const svc = freshService();
+    svc.setContext(ActionContext.EXTENSION_VIEW);
+    expect(svc.getContext()).toBe(ActionContext.EXTENSION_VIEW);
+  });
 
   it('does not trigger an update when context is unchanged', () => {
-    const svc = freshService()
+    const svc = freshService();
     // Already CORE; set CORE again — should be a no-op
-    const before = svc.filteredActions
-    svc.setContext(ActionContext.CORE)
-    expect(svc.filteredActions).toBe(before)
-  })
-})
+    const before = svc.filteredActions;
+    svc.setContext(ActionContext.CORE);
+    expect(svc.filteredActions).toBe(before);
+  });
+});
 
 // ── filterActionsByContext ────────────────────────────────────────────────────
 
 describe('filterActionsByContext (via getActions)', () => {
   it('returns actions whose context exactly matches the requested context', () => {
-    const svc = freshService()
-    svc.registerAction(makeAction('ev', ActionContext.EXTENSION_VIEW))
-    svc.registerAction(makeAction('sv', ActionContext.SEARCH_VIEW))
-    const ids = svc.getActions(ActionContext.EXTENSION_VIEW).map((a) => a.id)
-    expect(ids).toContain('ev')
-    expect(ids).not.toContain('sv')
-  })
+    const svc = freshService();
+    svc.registerAction(makeAction('ev', ActionContext.EXTENSION_VIEW));
+    svc.registerAction(makeAction('sv', ActionContext.SEARCH_VIEW));
+    const ids = svc.getActions(ActionContext.EXTENSION_VIEW).map((a) => a.id);
+    expect(ids).toContain('ev');
+    expect(ids).not.toContain('sv');
+  });
 
   it('shows GLOBAL actions in filteredActions when context is CORE', () => {
-    const svc = freshService()
-    svc.registerAction(makeAction('global-b', ActionContext.GLOBAL))
-    svc.setContext(ActionContext.CORE)
-    const ids = svc.filteredActions.map((a) => a.id)
-    expect(ids).toContain('global-b')
-  })
+    const svc = freshService();
+    svc.registerAction(makeAction('global-b', ActionContext.GLOBAL));
+    svc.setContext(ActionContext.CORE);
+    const ids = svc.filteredActions.map((a) => a.id);
+    expect(ids).toContain('global-b');
+  });
 
   it('shows GLOBAL actions in filteredActions when context is EXTENSION_VIEW', () => {
-    const svc = freshService()
-    svc.registerAction(makeAction('global-c', ActionContext.GLOBAL))
-    svc.setContext(ActionContext.EXTENSION_VIEW)
-    const ids = svc.filteredActions.map((a) => a.id)
-    expect(ids).toContain('global-c')
-  })
+    const svc = freshService();
+    svc.registerAction(makeAction('global-c', ActionContext.GLOBAL));
+    svc.setContext(ActionContext.EXTENSION_VIEW);
+    const ids = svc.filteredActions.map((a) => a.id);
+    expect(ids).toContain('global-c');
+  });
 
   it('does NOT show GLOBAL actions in SEARCH_VIEW context', () => {
-    const svc = freshService()
-    svc.registerAction(makeAction('global-d', ActionContext.GLOBAL))
-    svc.setContext(ActionContext.SEARCH_VIEW)
-    const ids = svc.filteredActions.map((a) => a.id)
-    expect(ids).not.toContain('global-d')
-  })
+    const svc = freshService();
+    svc.registerAction(makeAction('global-d', ActionContext.GLOBAL));
+    svc.setContext(ActionContext.SEARCH_VIEW);
+    const ids = svc.filteredActions.map((a) => a.id);
+    expect(ids).not.toContain('global-d');
+  });
 
   it('shows CORE actions in CORE context when no other specific actions exist', () => {
-    const svc = freshService()
-    svc.registerAction(makeAction('core-a', ActionContext.CORE))
-    svc.setContext(ActionContext.CORE)
-    const ids = svc.filteredActions.map((a) => a.id)
-    expect(ids).toContain('core-a')
-  })
-})
+    const svc = freshService();
+    svc.registerAction(makeAction('core-a', ActionContext.CORE));
+    svc.setContext(ActionContext.CORE);
+    const ids = svc.filteredActions.map((a) => a.id);
+    expect(ids).toContain('core-a');
+  });
+});
 
 // ── visible callback ─────────────────────────────────────────────────────────
 
 describe('visible callback', () => {
   it('excludes action from filteredActions when visible returns false', () => {
-    const svc = freshService()
-    svc.setContext(ActionContext.CORE)
-    svc.registerAction({ ...makeAction('hidden', ActionContext.CORE), visible: () => false })
-    expect(svc.filteredActions.map(a => a.id)).not.toContain('hidden')
-  })
+    const svc = freshService();
+    svc.setContext(ActionContext.CORE);
+    svc.registerAction({ ...makeAction('hidden', ActionContext.CORE), visible: () => false });
+    expect(svc.filteredActions.map((a) => a.id)).not.toContain('hidden');
+  });
 
   it('includes action in filteredActions when visible returns true', () => {
-    const svc = freshService()
-    svc.setContext(ActionContext.CORE)
-    svc.registerAction({ ...makeAction('shown', ActionContext.CORE), visible: () => true })
-    expect(svc.filteredActions.map(a => a.id)).toContain('shown')
-  })
+    const svc = freshService();
+    svc.setContext(ActionContext.CORE);
+    svc.registerAction({ ...makeAction('shown', ActionContext.CORE), visible: () => true });
+    expect(svc.filteredActions.map((a) => a.id)).toContain('shown');
+  });
 
   it('includes action when visible is not set (backward compat)', () => {
-    const svc = freshService()
-    svc.setContext(ActionContext.CORE)
-    svc.registerAction(makeAction('no-visible', ActionContext.CORE))
-    expect(svc.filteredActions.map(a => a.id)).toContain('no-visible')
-  })
+    const svc = freshService();
+    svc.setContext(ActionContext.CORE);
+    svc.registerAction(makeAction('no-visible', ActionContext.CORE));
+    expect(svc.filteredActions.map((a) => a.id)).toContain('no-visible');
+  });
 
   it('re-evaluates visible when updateState runs via registerAction', () => {
-    const svc = freshService()
-    svc.setContext(ActionContext.CORE)
-    let show = false
-    svc.registerAction({ ...makeAction('toggle', ActionContext.CORE), visible: () => show })
-    expect(svc.filteredActions.map(a => a.id)).not.toContain('toggle')
+    const svc = freshService();
+    svc.setContext(ActionContext.CORE);
+    let show = false;
+    svc.registerAction({ ...makeAction('toggle', ActionContext.CORE), visible: () => show });
+    expect(svc.filteredActions.map((a) => a.id)).not.toContain('toggle');
 
     // Flip the flag and trigger updateState by re-registering a dummy action
-    show = true
-    svc.registerAction(makeAction('dummy', ActionContext.CORE))
-    expect(svc.filteredActions.map(a => a.id)).toContain('toggle')
-  })
-})
+    show = true;
+    svc.registerAction(makeAction('dummy', ActionContext.CORE));
+    expect(svc.filteredActions.map((a) => a.id)).toContain('toggle');
+  });
+});
 
 // ── executeAction ─────────────────────────────────────────────────────────────
 
 describe('executeAction', () => {
   it('calls the action execute function', async () => {
-    const svc = freshService()
-    const execute = vi.fn()
-    svc.registerAction({ ...makeAction('run-me'), execute })
-    await svc.executeAction('run-me')
-    expect(execute).toHaveBeenCalledOnce()
-  })
+    const svc = freshService();
+    const execute = vi.fn();
+    svc.registerAction({ ...makeAction('run-me'), execute });
+    await svc.executeAction('run-me');
+    expect(execute).toHaveBeenCalledOnce();
+  });
 
   it('throws when the action does not exist', async () => {
-    const svc = freshService()
-    await expect(svc.executeAction('does-not-exist')).rejects.toThrow('Action not found: does-not-exist')
-  })
+    const svc = freshService();
+    await expect(svc.executeAction('does-not-exist')).rejects.toThrow(
+      'Action not found: does-not-exist',
+    );
+  });
 
   it('re-throws errors from the execute function', async () => {
-    const svc = freshService()
+    const svc = freshService();
     svc.registerAction({
       ...makeAction('faulty'),
-      execute: () => { throw new Error('boom') },
-    })
-    await expect(svc.executeAction('faulty')).rejects.toThrow('boom')
-  })
+      execute: () => {
+        throw new Error('boom');
+      },
+    });
+    await expect(svc.executeAction('faulty')).rejects.toThrow('boom');
+  });
 
   it('forwards to sendToExtension when execute is not a function and extensionId is set', async () => {
-    const svc = freshService()
-    const forwarder = vi.fn()
-    svc.setExtensionForwarder(forwarder)
+    const svc = freshService();
+    const forwarder = vi.fn();
+    svc.setExtensionForwarder(forwarder);
     // Register with no execute fn but with extensionId
     svc.registerAction({
       id: 'ext-fwd',
@@ -341,135 +345,135 @@ describe('executeAction', () => {
       extensionId: 'my-ext',
       context: ActionContext.EXTENSION_VIEW,
       execute: undefined as any, // simulate missing execute
-    })
-    await svc.executeAction('ext-fwd')
-    expect(forwarder).toHaveBeenCalledWith('my-ext', 'ext-fwd', undefined)
-  })
-})
+    });
+    await svc.executeAction('ext-fwd');
+    expect(forwarder).toHaveBeenCalledWith('my-ext', 'ext-fwd', undefined);
+  });
+});
 
 // ── handler-role registry (worker/view routing) ───────────────────────────────
 
 describe('handler-role registry', () => {
   it('recordActionHandlerRole + getActionHandlerRole round-trip', () => {
-    const svc = freshService()
-    svc.recordActionHandlerRole('my-ext', 'do-thing', 'worker')
-    expect(svc.getActionHandlerRole('act_my-ext_do-thing')).toBe('worker')
-  })
+    const svc = freshService();
+    svc.recordActionHandlerRole('my-ext', 'do-thing', 'worker');
+    expect(svc.getActionHandlerRole('act_my-ext_do-thing')).toBe('worker');
+  });
 
   it('unregisterAction clears the stored role for that action', () => {
-    const svc = freshService()
-    svc.recordActionHandlerRole('my-ext', 'do-thing', 'worker')
-    svc.unregisterAction('act_my-ext_do-thing')
-    expect(svc.getActionHandlerRole('act_my-ext_do-thing')).toBeUndefined()
-  })
+    const svc = freshService();
+    svc.recordActionHandlerRole('my-ext', 'do-thing', 'worker');
+    svc.unregisterAction('act_my-ext_do-thing');
+    expect(svc.getActionHandlerRole('act_my-ext_do-thing')).toBeUndefined();
+  });
 
   it('clearActionsForExtension clears stored roles for that extension only', () => {
-    const svc = freshService()
-    svc.recordActionHandlerRole('ext-a', 'x', 'view')
-    svc.recordActionHandlerRole('ext-b', 'y', 'worker')
-    svc.clearActionsForExtension('ext-a')
-    expect(svc.getActionHandlerRole('act_ext-a_x')).toBeUndefined()
-    expect(svc.getActionHandlerRole('act_ext-b_y')).toBe('worker')
-  })
+    const svc = freshService();
+    svc.recordActionHandlerRole('ext-a', 'x', 'view');
+    svc.recordActionHandlerRole('ext-b', 'y', 'worker');
+    svc.clearActionsForExtension('ext-a');
+    expect(svc.getActionHandlerRole('act_ext-a_x')).toBeUndefined();
+    expect(svc.getActionHandlerRole('act_ext-b_y')).toBe('worker');
+  });
 
   it('executeAction passes stored role to the forwarder as 3rd arg (worker)', async () => {
-    const svc = freshService()
-    const forwarder = vi.fn()
-    svc.setExtensionForwarder(forwarder)
+    const svc = freshService();
+    const forwarder = vi.fn();
+    svc.setExtensionForwarder(forwarder);
     svc.registerAction({
       id: 'act_my-ext_do-thing',
       label: 'do',
       extensionId: 'my-ext',
       context: ActionContext.EXTENSION_VIEW,
       execute: undefined as any,
-    })
-    svc.recordActionHandlerRole('my-ext', 'do-thing', 'worker')
-    await svc.executeAction('act_my-ext_do-thing')
-    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_do-thing', 'worker')
-  })
+    });
+    svc.recordActionHandlerRole('my-ext', 'do-thing', 'worker');
+    await svc.executeAction('act_my-ext_do-thing');
+    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_do-thing', 'worker');
+  });
 
   it('executeAction forwards view role for view-registered actions (regression)', async () => {
-    const svc = freshService()
-    const forwarder = vi.fn()
-    svc.setExtensionForwarder(forwarder)
+    const svc = freshService();
+    const forwarder = vi.fn();
+    svc.setExtensionForwarder(forwarder);
     svc.registerAction({
       id: 'act_my-ext_view-thing',
       label: 'v',
       extensionId: 'my-ext',
       context: ActionContext.EXTENSION_VIEW,
       execute: undefined as any,
-    })
-    svc.recordActionHandlerRole('my-ext', 'view-thing', 'view')
-    await svc.executeAction('act_my-ext_view-thing')
-    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_view-thing', 'view')
-  })
+    });
+    svc.recordActionHandlerRole('my-ext', 'view-thing', 'view');
+    await svc.executeAction('act_my-ext_view-thing');
+    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_view-thing', 'view');
+  });
 
   it('executeAction passes undefined role when none was recorded (legacy path)', async () => {
-    const svc = freshService()
-    const forwarder = vi.fn()
-    svc.setExtensionForwarder(forwarder)
+    const svc = freshService();
+    const forwarder = vi.fn();
+    svc.setExtensionForwarder(forwarder);
     svc.registerAction({
       id: 'act_legacy-ext_legacy',
       label: 'l',
       extensionId: 'legacy-ext',
       context: ActionContext.EXTENSION_VIEW,
       execute: undefined as any,
-    })
-    await svc.executeAction('act_legacy-ext_legacy')
-    expect(forwarder).toHaveBeenCalledWith('legacy-ext', 'act_legacy-ext_legacy', undefined)
-  })
-})
+    });
+    await svc.executeAction('act_legacy-ext_legacy');
+    expect(forwarder).toHaveBeenCalledWith('legacy-ext', 'act_legacy-ext_legacy', undefined);
+  });
+});
 
 // ── executeExtensionAction (Tier 2 result-action dispatch) ────────────────────
 
 describe('executeExtensionAction', () => {
   it('looks up the recorded role and forwards (extensionId, actionId, role, payload)', () => {
-    const svc = freshService()
-    const forwarder = vi.fn()
-    svc.setExtensionForwarder(forwarder)
-    svc.recordActionHandlerRole('my-ext', 'open-item', 'worker')
-    const payload = { url: 'https://x.test' }
-    const ok = svc.executeExtensionAction('my-ext', 'open-item', payload)
-    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_open-item', 'worker', payload)
-    expect(ok).toBe(true)
-  })
+    const svc = freshService();
+    const forwarder = vi.fn();
+    svc.setExtensionForwarder(forwarder);
+    svc.recordActionHandlerRole('my-ext', 'open-item', 'worker');
+    const payload = { url: 'https://x.test' };
+    const ok = svc.executeExtensionAction('my-ext', 'open-item', payload);
+    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_open-item', 'worker', payload);
+    expect(ok).toBe(true);
+  });
 
   it('falls back to the worker role when none was recorded', () => {
-    const svc = freshService()
-    const forwarder = vi.fn()
-    svc.setExtensionForwarder(forwarder)
-    svc.executeExtensionAction('my-ext', 'open-item', { a: 1 })
-    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_open-item', 'worker', { a: 1 })
-  })
+    const svc = freshService();
+    const forwarder = vi.fn();
+    svc.setExtensionForwarder(forwarder);
+    svc.executeExtensionAction('my-ext', 'open-item', { a: 1 });
+    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_open-item', 'worker', { a: 1 });
+  });
 
   it('forwards a recorded view role unchanged', () => {
-    const svc = freshService()
-    const forwarder = vi.fn()
-    svc.setExtensionForwarder(forwarder)
-    svc.recordActionHandlerRole('my-ext', 'open-item', 'view')
-    svc.executeExtensionAction('my-ext', 'open-item')
-    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_open-item', 'view', undefined)
-  })
-})
+    const svc = freshService();
+    const forwarder = vi.fn();
+    svc.setExtensionForwarder(forwarder);
+    svc.recordActionHandlerRole('my-ext', 'open-item', 'view');
+    svc.executeExtensionAction('my-ext', 'open-item');
+    expect(forwarder).toHaveBeenCalledWith('my-ext', 'act_my-ext_open-item', 'view', undefined);
+  });
+});
 
 // ── filteredActions updates ───────────────────────────────────────────────────────
 
 describe('filteredActions', () => {
   it('reflects newly registered actions matching the current context', () => {
-    const svc = freshService()
-    svc.setContext(ActionContext.EXTENSION_VIEW)
-    svc.registerAction(makeAction('store-test', ActionContext.EXTENSION_VIEW))
-    expect(svc.filteredActions.map((a) => a.id)).toContain('store-test')
-  })
+    const svc = freshService();
+    svc.setContext(ActionContext.EXTENSION_VIEW);
+    svc.registerAction(makeAction('store-test', ActionContext.EXTENSION_VIEW));
+    expect(svc.filteredActions.map((a) => a.id)).toContain('store-test');
+  });
 
   it('removes an action from the state when it is unregistered', () => {
-    const svc = freshService()
-    svc.setContext(ActionContext.EXTENSION_VIEW)
-    svc.registerAction(makeAction('remove-from-store', ActionContext.EXTENSION_VIEW))
-    svc.unregisterAction('remove-from-store')
-    expect(svc.filteredActions.map((a) => a.id)).not.toContain('remove-from-store')
-  })
-})
+    const svc = freshService();
+    svc.setContext(ActionContext.EXTENSION_VIEW);
+    svc.registerAction(makeAction('remove-from-store', ActionContext.EXTENSION_VIEW));
+    svc.unregisterAction('remove-from-store');
+    expect(svc.filteredActions.map((a) => a.id)).not.toContain('remove-from-store');
+  });
+});
 
 // ── copy_deeplink built-in action ────────────────────────────────────────────
 
@@ -481,7 +485,7 @@ describe('copy_deeplink built-in action', () => {
       type: 'command' as const,
       score: 1,
       extensionId,
-    }
+    };
   }
 
   function makeAppResult() {
@@ -490,93 +494,93 @@ describe('copy_deeplink built-in action', () => {
       name: 'Finder',
       type: 'application' as const,
       score: 1,
-    }
+    };
   }
 
   beforeEach(() => {
-    mockSearchStores.selectedIndex = -1
-    mockSearchOrchestrator.items = []
-    vi.clearAllMocks()
-  })
+    mockSearchStores.selectedIndex = -1;
+    mockSearchOrchestrator.items = [];
+    vi.clearAllMocks();
+  });
 
   it('is registered as a built-in action', () => {
-    const svc = freshService()
-    const ids = svc.getAllActions().map(a => a.id)
-    expect(ids).toContain('copy_deeplink')
-  })
+    const svc = freshService();
+    const ids = svc.getAllActions().map((a) => a.id);
+    expect(ids).toContain('copy_deeplink');
+  });
 
   it('has correct metadata', () => {
-    const svc = freshService()
-    const action = svc.getAllActions().find(a => a.id === 'copy_deeplink')
-    expect(action).toBeDefined()
-    expect(action!.context).toBe(ActionContext.CORE)
-    expect(action!.shortcut).toBe('Super+Shift+C')
-    expect(action!.category).toBe('Share')
-    expect(action!.icon).toBe('icon:link')
-  })
+    const svc = freshService();
+    const action = svc.getAllActions().find((a) => a.id === 'copy_deeplink');
+    expect(action).toBeDefined();
+    expect(action!.context).toBe(ActionContext.CORE);
+    expect(action!.shortcut).toBe('Super+Shift+C');
+    expect(action!.category).toBe('Share');
+    expect(action!.icon).toBe('icon:link');
+  });
 
   it('visible returns false when no item is selected', () => {
-    const svc = freshService()
-    mockSearchStores.selectedIndex = -1
-    const action = svc.getAllActions().find(a => a.id === 'copy_deeplink')
-    expect(action!.visible!()).toBe(false)
-  })
+    const svc = freshService();
+    mockSearchStores.selectedIndex = -1;
+    const action = svc.getAllActions().find((a) => a.id === 'copy_deeplink');
+    expect(action!.visible!()).toBe(false);
+  });
 
   it('visible returns false when selected item is type application', () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeAppResult()]
-    mockSearchStores.selectedIndex = 0
-    const action = svc.getAllActions().find(a => a.id === 'copy_deeplink')
-    expect(action!.visible!()).toBe(false)
-  })
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeAppResult()];
+    mockSearchStores.selectedIndex = 0;
+    const action = svc.getAllActions().find((a) => a.id === 'copy_deeplink');
+    expect(action!.visible!()).toBe(false);
+  });
 
   it('visible returns true when selected item is type command', () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeCommandResult('com.example.ext', 'mycommand')]
-    mockSearchStores.selectedIndex = 0
-    const action = svc.getAllActions().find(a => a.id === 'copy_deeplink')
-    expect(action!.visible!()).toBe(true)
-  })
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeCommandResult('com.example.ext', 'mycommand')];
+    mockSearchStores.selectedIndex = 0;
+    const action = svc.getAllActions().find((a) => a.id === 'copy_deeplink');
+    expect(action!.visible!()).toBe(true);
+  });
 
   it('execute copies correct deeplink URL to clipboard', async () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeCommandResult('com.example.ext', 'mycommand')]
-    mockSearchStores.selectedIndex = 0
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeCommandResult('com.example.ext', 'mycommand')];
+    mockSearchStores.selectedIndex = 0;
 
-    const { writeText } = await import('tauri-plugin-clipboard-x-api')
-    await svc.executeAction('copy_deeplink')
-    expect(writeText).toHaveBeenCalledWith('asyar://extensions/com.example.ext/mycommand')
-  })
+    const { writeText } = await import('tauri-plugin-clipboard-x-api');
+    await svc.executeAction('copy_deeplink');
+    expect(writeText).toHaveBeenCalledWith('asyar://extensions/com.example.ext/mycommand');
+  });
 
   it('execute shows HUD after copying', async () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeCommandResult('com.example.ext', 'mycommand')]
-    mockSearchStores.selectedIndex = 0
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeCommandResult('com.example.ext', 'mycommand')];
+    mockSearchStores.selectedIndex = 0;
 
-    await svc.executeAction('copy_deeplink')
-    expect(mockFeedbackService.showHUD).toHaveBeenCalledWith('Deeplink Copied to Clipboard')
-  })
+    await svc.executeAction('copy_deeplink');
+    expect(mockFeedbackService.showHUD).toHaveBeenCalledWith('Deeplink Copied to Clipboard');
+  });
 
   it('execute is a no-op when no command is selected', async () => {
-    const svc = freshService()
-    mockSearchStores.selectedIndex = -1
+    const svc = freshService();
+    mockSearchStores.selectedIndex = -1;
 
-    const { writeText } = await import('tauri-plugin-clipboard-x-api')
-    await svc.executeAction('copy_deeplink')
-    expect(writeText).not.toHaveBeenCalled()
-    expect(mockFeedbackService.showHUD).not.toHaveBeenCalled()
-  })
+    const { writeText } = await import('tauri-plugin-clipboard-x-api');
+    await svc.executeAction('copy_deeplink');
+    expect(writeText).not.toHaveBeenCalled();
+    expect(mockFeedbackService.showHUD).not.toHaveBeenCalled();
+  });
 
   it('execute correctly parses commandId with hyphens from objectId', async () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeCommandResult('com.example.ext', 'open-url')]
-    mockSearchStores.selectedIndex = 0
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeCommandResult('com.example.ext', 'open-url')];
+    mockSearchStores.selectedIndex = 0;
 
-    const { writeText } = await import('tauri-plugin-clipboard-x-api')
-    await svc.executeAction('copy_deeplink')
-    expect(writeText).toHaveBeenCalledWith('asyar://extensions/com.example.ext/open-url')
-  })
-})
+    const { writeText } = await import('tauri-plugin-clipboard-x-api');
+    await svc.executeAction('copy_deeplink');
+    expect(writeText).toHaveBeenCalledWith('asyar://extensions/com.example.ext/open-url');
+  });
+});
 
 // ── manifest-declared extension actions ──────────────────────────────────────
 
@@ -588,93 +592,95 @@ describe('manifest-declared extension actions', () => {
       type: 'command' as const,
       score: 1,
       extensionId,
-    }
+    };
   }
 
   beforeEach(() => {
-    mockSearchStores.selectedIndex = -1
-    mockSearchOrchestrator.items = []
-    vi.clearAllMocks()
-  })
+    mockSearchStores.selectedIndex = -1;
+    mockSearchOrchestrator.items = [];
+    vi.clearAllMocks();
+  });
 
   it('extension-level action visible when its extension command is selected', () => {
-    const svc = freshService()
+    const svc = freshService();
     svc.registerAction({
       id: 'act_com.example.github_open-browser',
       label: 'Open in Browser',
       extensionId: 'com.example.github',
       context: ActionContext.CORE,
       visible: () => {
-        const idx = mockSearchStores.selectedIndex
-        if (idx < 0) return false
-        const item = mockSearchOrchestrator.items[idx]
-        return item?.type === 'command' && item.extensionId === 'com.example.github'
+        const idx = mockSearchStores.selectedIndex;
+        if (idx < 0) return false;
+        const item = mockSearchOrchestrator.items[idx];
+        return item?.type === 'command' && item.extensionId === 'com.example.github';
       },
       execute: undefined as any, // no callback — relies on forwarder
-    })
+    });
 
-    mockSearchOrchestrator.items = [makeCommandItem('com.example.github', 'search-repos')]
-    mockSearchStores.selectedIndex = 0
-    svc.refreshFiltered()
+    mockSearchOrchestrator.items = [makeCommandItem('com.example.github', 'search-repos')];
+    mockSearchStores.selectedIndex = 0;
+    svc.refreshFiltered();
 
-    expect(svc.filteredActions.map(a => a.id)).toContain('act_com.example.github_open-browser')
-  })
+    expect(svc.filteredActions.map((a) => a.id)).toContain('act_com.example.github_open-browser');
+  });
 
   it('extension-level action hidden when different extension is selected', () => {
-    const svc = freshService()
+    const svc = freshService();
     svc.registerAction({
       id: 'act_com.example.github_open-browser',
       label: 'Open in Browser',
       extensionId: 'com.example.github',
       context: ActionContext.CORE,
       visible: () => {
-        const idx = mockSearchStores.selectedIndex
-        if (idx < 0) return false
-        const item = mockSearchOrchestrator.items[idx]
-        return item?.type === 'command' && item.extensionId === 'com.example.github'
+        const idx = mockSearchStores.selectedIndex;
+        if (idx < 0) return false;
+        const item = mockSearchOrchestrator.items[idx];
+        return item?.type === 'command' && item.extensionId === 'com.example.github';
       },
       execute: undefined as any,
-    })
+    });
 
-    mockSearchOrchestrator.items = [makeCommandItem('com.other.ext', 'some-cmd')]
-    mockSearchStores.selectedIndex = 0
-    svc.refreshFiltered()
+    mockSearchOrchestrator.items = [makeCommandItem('com.other.ext', 'some-cmd')];
+    mockSearchStores.selectedIndex = 0;
+    svc.refreshFiltered();
 
-    expect(svc.filteredActions.map(a => a.id)).not.toContain('act_com.example.github_open-browser')
-  })
+    expect(svc.filteredActions.map((a) => a.id)).not.toContain(
+      'act_com.example.github_open-browser',
+    );
+  });
 
   it('command-level action visible only when specific command is selected', () => {
-    const svc = freshService()
+    const svc = freshService();
     svc.registerAction({
       id: 'act_com.example.github_clone-repo',
       label: 'Clone Repository',
       extensionId: 'com.example.github',
       context: ActionContext.CORE,
       visible: () => {
-        const idx = mockSearchStores.selectedIndex
-        if (idx < 0) return false
-        const item = mockSearchOrchestrator.items[idx]
-        return item?.objectId === 'cmd_com.example.github_search-repos'
+        const idx = mockSearchStores.selectedIndex;
+        if (idx < 0) return false;
+        const item = mockSearchOrchestrator.items[idx];
+        return item?.objectId === 'cmd_com.example.github_search-repos';
       },
       execute: undefined as any,
-    })
+    });
 
     // Select the right command
-    mockSearchOrchestrator.items = [makeCommandItem('com.example.github', 'search-repos')]
-    mockSearchStores.selectedIndex = 0
-    svc.refreshFiltered()
-    expect(svc.filteredActions.map(a => a.id)).toContain('act_com.example.github_clone-repo')
+    mockSearchOrchestrator.items = [makeCommandItem('com.example.github', 'search-repos')];
+    mockSearchStores.selectedIndex = 0;
+    svc.refreshFiltered();
+    expect(svc.filteredActions.map((a) => a.id)).toContain('act_com.example.github_clone-repo');
 
     // Select a different command from the same extension
-    mockSearchOrchestrator.items = [makeCommandItem('com.example.github', 'search-issues')]
-    svc.refreshFiltered()
-    expect(svc.filteredActions.map(a => a.id)).not.toContain('act_com.example.github_clone-repo')
-  })
+    mockSearchOrchestrator.items = [makeCommandItem('com.example.github', 'search-issues')];
+    svc.refreshFiltered();
+    expect(svc.filteredActions.map((a) => a.id)).not.toContain('act_com.example.github_clone-repo');
+  });
 
   it('action without execute triggers sendToExtension forwarder', async () => {
-    const svc = freshService()
-    const forwarder = vi.fn()
-    svc.setExtensionForwarder(forwarder)
+    const svc = freshService();
+    const forwarder = vi.fn();
+    svc.setExtensionForwarder(forwarder);
 
     svc.registerAction({
       id: 'act_com.example.github_open-browser',
@@ -682,94 +688,109 @@ describe('manifest-declared extension actions', () => {
       extensionId: 'com.example.github',
       context: ActionContext.CORE,
       execute: undefined as any,
-    })
+    });
 
-    await svc.executeAction('act_com.example.github_open-browser')
-    expect(forwarder).toHaveBeenCalledWith('com.example.github', 'act_com.example.github_open-browser', undefined)
-  })
+    await svc.executeAction('act_com.example.github_open-browser');
+    expect(forwarder).toHaveBeenCalledWith(
+      'com.example.github',
+      'act_com.example.github_open-browser',
+      undefined,
+    );
+  });
 
   it('refreshFiltered re-evaluates visible callbacks', () => {
-    const svc = freshService()
+    const svc = freshService();
     svc.registerAction({
       id: 'act_com.example.github_open-browser',
       label: 'Open in Browser',
       extensionId: 'com.example.github',
       context: ActionContext.CORE,
       visible: () => {
-        const idx = mockSearchStores.selectedIndex
-        if (idx < 0) return false
-        const item = mockSearchOrchestrator.items[idx]
-        return item?.type === 'command' && item.extensionId === 'com.example.github'
+        const idx = mockSearchStores.selectedIndex;
+        if (idx < 0) return false;
+        const item = mockSearchOrchestrator.items[idx];
+        return item?.type === 'command' && item.extensionId === 'com.example.github';
       },
       execute: undefined as any,
-    })
+    });
 
     // Initially no selection
-    svc.refreshFiltered()
-    expect(svc.filteredActions.map(a => a.id)).not.toContain('act_com.example.github_open-browser')
+    svc.refreshFiltered();
+    expect(svc.filteredActions.map((a) => a.id)).not.toContain(
+      'act_com.example.github_open-browser',
+    );
 
     // Select a matching item and refresh
-    mockSearchOrchestrator.items = [makeCommandItem('com.example.github', 'search')]
-    mockSearchStores.selectedIndex = 0
-    svc.refreshFiltered()
-    expect(svc.filteredActions.map(a => a.id)).toContain('act_com.example.github_open-browser')
-  })
-})
+    mockSearchOrchestrator.items = [makeCommandItem('com.example.github', 'search')];
+    mockSearchStores.selectedIndex = 0;
+    svc.refreshFiltered();
+    expect(svc.filteredActions.map((a) => a.id)).toContain('act_com.example.github_open-browser');
+  });
+});
 
 // ── setActionExecutor ─────────────────────────────────────────────────────────
 
 describe('setActionExecutor', () => {
   it('sets the execute function on an existing action', async () => {
-    const svc = freshService()
-    svc.registerAction({ ...makeAction('act_my-ext_do-thing', ActionContext.CORE), execute: undefined as any })
-    const executor = vi.fn()
-    svc.setActionExecutor('act_my-ext_do-thing', executor)
-    await svc.executeAction('act_my-ext_do-thing')
-    expect(executor).toHaveBeenCalledOnce()
-  })
+    const svc = freshService();
+    svc.registerAction({
+      ...makeAction('act_my-ext_do-thing', ActionContext.CORE),
+      execute: undefined as any,
+    });
+    const executor = vi.fn();
+    svc.setActionExecutor('act_my-ext_do-thing', executor);
+    await svc.executeAction('act_my-ext_do-thing');
+    expect(executor).toHaveBeenCalledOnce();
+  });
 
   it('preserves the visible callback after setting executor', () => {
-    const svc = freshService()
-    const visible = vi.fn().mockReturnValue(false)
-    svc.registerAction({ ...makeAction('act_my-ext_do-thing', ActionContext.CORE), visible, execute: undefined as any })
-    svc.setActionExecutor('act_my-ext_do-thing', vi.fn())
-    const action = svc.getAllActions().find(a => a.id === 'act_my-ext_do-thing')
-    expect(action?.visible).toBe(visible)
-  })
+    const svc = freshService();
+    const visible = vi.fn().mockReturnValue(false);
+    svc.registerAction({
+      ...makeAction('act_my-ext_do-thing', ActionContext.CORE),
+      visible,
+      execute: undefined as any,
+    });
+    svc.setActionExecutor('act_my-ext_do-thing', vi.fn());
+    const action = svc.getAllActions().find((a) => a.id === 'act_my-ext_do-thing');
+    expect(action?.visible).toBe(visible);
+  });
 
   it('preserves label, extensionId, and context after setting executor', () => {
-    const svc = freshService()
+    const svc = freshService();
     svc.registerAction({
       id: 'act_my-ext_do-thing',
       label: 'Do Thing',
       extensionId: 'my-ext',
       context: ActionContext.CORE,
       execute: undefined as any,
-    })
-    svc.setActionExecutor('act_my-ext_do-thing', vi.fn())
-    const action = svc.getAllActions().find(a => a.id === 'act_my-ext_do-thing')
-    expect(action?.label).toBe('Do Thing')
-    expect(action?.extensionId).toBe('my-ext')
-    expect(action?.context).toBe(ActionContext.CORE)
-  })
+    });
+    svc.setActionExecutor('act_my-ext_do-thing', vi.fn());
+    const action = svc.getAllActions().find((a) => a.id === 'act_my-ext_do-thing');
+    expect(action?.label).toBe('Do Thing');
+    expect(action?.extensionId).toBe('my-ext');
+    expect(action?.context).toBe(ActionContext.CORE);
+  });
 
   it('is a no-op when the action does not exist', () => {
-    const svc = freshService()
-    expect(() => svc.setActionExecutor('nonexistent', vi.fn())).not.toThrow()
-  })
-})
+    const svc = freshService();
+    expect(() => svc.setActionExecutor('nonexistent', vi.fn())).not.toThrow();
+  });
+});
 
 // ── uninstall_application built-in action ────────────────────────────────────
 
 describe('uninstall_application built-in action', () => {
-  function makeAppResult(overrides: Partial<{ path: string; name: string; objectId: string }> = {}) {
+  function makeAppResult(
+    overrides: Partial<{ path: string; name: string; objectId: string }> = {},
+  ) {
     return {
       objectId: overrides.objectId ?? 'app_Foo_Applications_Foo_app',
       name: overrides.name ?? 'Foo',
       type: 'application' as const,
       score: 1,
       path: overrides.path ?? '/Applications/Foo.app',
-    }
+    };
   }
 
   function makeCommandResult() {
@@ -779,176 +800,192 @@ describe('uninstall_application built-in action', () => {
       type: 'command' as const,
       score: 1,
       extensionId: 'com.example',
-    }
+    };
   }
 
   beforeEach(() => {
-    mockSearchStores.selectedIndex = -1
-    mockSearchOrchestrator.items = []
-    mockApplicationService.uninstallApplication.mockReset().mockResolvedValue(undefined)
-    mockApplicationService.scanUninstallTargets
-      .mockReset()
-      .mockResolvedValue({
-        appPath: '/Applications/Foo.app',
-        appSizeBytes: 10_000_000,
-        dataPaths: [],
-        totalBytes: 10_000_000,
-      })
-    mockFeedbackService.showHUD.mockReset().mockResolvedValue(undefined)
-    mockFeedbackService.confirmAlert.mockReset().mockResolvedValue(true)
-  })
+    mockSearchStores.selectedIndex = -1;
+    mockSearchOrchestrator.items = [];
+    mockApplicationService.uninstallApplication.mockReset().mockResolvedValue(undefined);
+    mockApplicationService.scanUninstallTargets.mockReset().mockResolvedValue({
+      appPath: '/Applications/Foo.app',
+      appSizeBytes: 10_000_000,
+      dataPaths: [],
+      totalBytes: 10_000_000,
+    });
+    mockFeedbackService.showHUD.mockReset().mockResolvedValue(undefined);
+    mockFeedbackService.confirmAlert.mockReset().mockResolvedValue(true);
+  });
 
   it('is registered as a built-in action', () => {
-    const svc = freshService()
-    const ids = svc.getAllActions().map(a => a.id)
-    expect(ids).toContain('uninstall_application')
-  })
+    const svc = freshService();
+    const ids = svc.getAllActions().map((a) => a.id);
+    expect(ids).toContain('uninstall_application');
+  });
 
   it('has correct metadata (icon, shortcut, category, confirm flag)', () => {
-    const svc = freshService()
-    const action = svc.getAllActions().find(a => a.id === 'uninstall_application')
-    expect(action).toBeDefined()
-    expect(action!.icon).toBe('icon:trash')
-    expect(action!.shortcut).toBe('Super+Backspace')
-    expect(action!.category).toBe('Danger')
-    expect(action!.confirm).toBe(true)
-    expect(action!.context).toBe(ActionContext.CORE)
-  })
+    const svc = freshService();
+    const action = svc.getAllActions().find((a) => a.id === 'uninstall_application');
+    expect(action).toBeDefined();
+    expect(action!.icon).toBe('icon:trash');
+    expect(action!.shortcut).toBe('Super+Backspace');
+    expect(action!.category).toBe('Danger');
+    expect(action!.confirm).toBe(true);
+    expect(action!.context).toBe(ActionContext.CORE);
+  });
 
   it('visible returns false when no item is selected', () => {
-    const svc = freshService()
-    mockSearchStores.selectedIndex = -1
-    const action = svc.getAllActions().find(a => a.id === 'uninstall_application')
-    expect(action!.visible!()).toBe(false)
-  })
+    const svc = freshService();
+    mockSearchStores.selectedIndex = -1;
+    const action = svc.getAllActions().find((a) => a.id === 'uninstall_application');
+    expect(action!.visible!()).toBe(false);
+  });
 
   it('visible returns false when selected item is a command (type !== application)', () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeCommandResult()]
-    mockSearchStores.selectedIndex = 0
-    const action = svc.getAllActions().find(a => a.id === 'uninstall_application')
-    expect(action!.visible!()).toBe(false)
-  })
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeCommandResult()];
+    mockSearchStores.selectedIndex = 0;
+    const action = svc.getAllActions().find((a) => a.id === 'uninstall_application');
+    expect(action!.visible!()).toBe(false);
+  });
 
   it('visible returns false when selected application has no path', () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [{ ...makeAppResult(), path: undefined } as any]
-    mockSearchStores.selectedIndex = 0
-    const action = svc.getAllActions().find(a => a.id === 'uninstall_application')
-    expect(action!.visible!()).toBe(false)
-  })
+    const svc = freshService();
+    mockSearchOrchestrator.items = [{ ...makeAppResult(), path: undefined } as any];
+    mockSearchStores.selectedIndex = 0;
+    const action = svc.getAllActions().find((a) => a.id === 'uninstall_application');
+    expect(action!.visible!()).toBe(false);
+  });
 
   it('visible returns false for /System/ paths', () => {
-    const svc = freshService()
+    const svc = freshService();
     mockSearchOrchestrator.items = [
       makeAppResult({ path: '/System/Applications/Calendar.app', name: 'Calendar' }),
-    ]
-    mockSearchStores.selectedIndex = 0
-    const action = svc.getAllActions().find(a => a.id === 'uninstall_application')
-    expect(action!.visible!()).toBe(false)
-  })
+    ];
+    mockSearchStores.selectedIndex = 0;
+    const action = svc.getAllActions().find((a) => a.id === 'uninstall_application');
+    expect(action!.visible!()).toBe(false);
+  });
 
   it('visible returns true for a normal user-installed application', () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeAppResult()]
-    mockSearchStores.selectedIndex = 0
-    const action = svc.getAllActions().find(a => a.id === 'uninstall_application')
-    expect(action!.visible!()).toBe(true)
-  })
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeAppResult()];
+    mockSearchStores.selectedIndex = 0;
+    const action = svc.getAllActions().find((a) => a.id === 'uninstall_application');
+    expect(action!.visible!()).toBe(true);
+  });
 
   it('execute scans the app before showing the confirm dialog', async () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeAppResult({ path: '/Applications/Foo.app' })]
-    mockSearchStores.selectedIndex = 0
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeAppResult({ path: '/Applications/Foo.app' })];
+    mockSearchStores.selectedIndex = 0;
 
-    await svc.executeAction('uninstall_application')
+    await svc.executeAction('uninstall_application');
 
-    expect(mockApplicationService.scanUninstallTargets).toHaveBeenCalledWith('/Applications/Foo.app')
-  })
+    expect(mockApplicationService.scanUninstallTargets).toHaveBeenCalledWith(
+      '/Applications/Foo.app',
+    );
+  });
 
   it('execute shows a confirm dialog before calling Rust', async () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeAppResult()]
-    mockSearchStores.selectedIndex = 0
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeAppResult()];
+    mockSearchStores.selectedIndex = 0;
 
-    await svc.executeAction('uninstall_application')
+    await svc.executeAction('uninstall_application');
 
-    expect(mockFeedbackService.confirmAlert).toHaveBeenCalledOnce()
-    const opts = mockFeedbackService.confirmAlert.mock.calls[0][0]
-    expect(opts.title).toContain('Foo')
-    expect(opts.confirmText).toBe('Move to Trash')
-    expect(opts.variant).toBe('danger')
-  })
+    expect(mockFeedbackService.confirmAlert).toHaveBeenCalledOnce();
+    const opts = mockFeedbackService.confirmAlert.mock.calls[0][0];
+    expect(opts.title).toContain('Foo');
+    expect(opts.confirmText).toBe('Move to Trash');
+    expect(opts.variant).toBe('danger');
+  });
 
   it('confirm message includes the total size when the scan has no extra data paths', async () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeAppResult()]
-    mockSearchStores.selectedIndex = 0
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeAppResult()];
+    mockSearchStores.selectedIndex = 0;
     mockApplicationService.scanUninstallTargets.mockResolvedValueOnce({
       appPath: '/Applications/Foo.app',
       appSizeBytes: 10_000_000, // 10 MB
       dataPaths: [],
       totalBytes: 10_000_000,
-    })
+    });
 
-    await svc.executeAction('uninstall_application')
+    await svc.executeAction('uninstall_application');
 
-    const msg = mockFeedbackService.confirmAlert.mock.calls[0][0].message
-    expect(msg).toMatch(/10\.0 MB/)
-    expect(msg).toMatch(/Trash/)
-  })
+    const msg = mockFeedbackService.confirmAlert.mock.calls[0][0].message;
+    expect(msg).toMatch(/10\.0 MB/);
+    expect(msg).toMatch(/Trash/);
+  });
 
   it('confirm message lists associated data-file count and formatted total', async () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeAppResult({ name: 'BigApp' })]
-    mockSearchStores.selectedIndex = 0
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeAppResult({ name: 'BigApp' })];
+    mockSearchStores.selectedIndex = 0;
     mockApplicationService.scanUninstallTargets.mockResolvedValueOnce({
       appPath: '/Applications/BigApp.app',
       appSizeBytes: 100_000_000,
       dataPaths: [
-        { path: '/Users/x/Library/Application Support/com.example.BigApp', sizeBytes: 50_000_000, category: 'Application data' },
-        { path: '/Users/x/Library/Caches/com.example.BigApp', sizeBytes: 200_000_000, category: 'Cache' },
+        {
+          path: '/Users/x/Library/Application Support/com.example.BigApp',
+          sizeBytes: 50_000_000,
+          category: 'Application data',
+        },
+        {
+          path: '/Users/x/Library/Caches/com.example.BigApp',
+          sizeBytes: 200_000_000,
+          category: 'Cache',
+        },
       ],
       totalBytes: 350_000_000,
-    })
+    });
 
-    await svc.executeAction('uninstall_application')
+    await svc.executeAction('uninstall_application');
 
-    const msg = mockFeedbackService.confirmAlert.mock.calls[0][0].message
-    expect(msg).toMatch(/BigApp/)
-    expect(msg).toMatch(/2 associated files/)
+    const msg = mockFeedbackService.confirmAlert.mock.calls[0][0].message;
+    expect(msg).toMatch(/BigApp/);
+    expect(msg).toMatch(/2 associated files/);
     // 350 MB >= 100 → formatBytes drops the decimal (matches Finder-style
     // rendering). `formatBytes` drops the decimal for >= 100 of any unit.
-    expect(msg).toMatch(/350 MB/)
-  })
+    expect(msg).toMatch(/350 MB/);
+  });
 
   it('execute does NOT call uninstall when user cancels', async () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeAppResult()]
-    mockSearchStores.selectedIndex = 0
-    mockFeedbackService.confirmAlert.mockResolvedValueOnce(false)
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeAppResult()];
+    mockSearchStores.selectedIndex = 0;
+    mockFeedbackService.confirmAlert.mockResolvedValueOnce(false);
 
-    await svc.executeAction('uninstall_application')
+    await svc.executeAction('uninstall_application');
 
-    expect(mockApplicationService.uninstallApplication).not.toHaveBeenCalled()
-    expect(mockFeedbackService.showHUD).not.toHaveBeenCalled()
-  })
+    expect(mockApplicationService.uninstallApplication).not.toHaveBeenCalled();
+    expect(mockFeedbackService.showHUD).not.toHaveBeenCalled();
+  });
 
   it('execute passes dataPaths from the scan to uninstallApplication', async () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeAppResult({ path: '/Applications/Bar.app', name: 'Bar' })]
-    mockSearchStores.selectedIndex = 0
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeAppResult({ path: '/Applications/Bar.app', name: 'Bar' })];
+    mockSearchStores.selectedIndex = 0;
     mockApplicationService.scanUninstallTargets.mockResolvedValueOnce({
       appPath: '/Applications/Bar.app',
       appSizeBytes: 1_000_000,
       dataPaths: [
-        { path: '/Users/x/Library/Preferences/com.example.Bar.plist', sizeBytes: 400, category: 'Preferences' },
-        { path: '/Users/x/Library/Caches/com.example.Bar', sizeBytes: 2_000_000, category: 'Cache' },
+        {
+          path: '/Users/x/Library/Preferences/com.example.Bar.plist',
+          sizeBytes: 400,
+          category: 'Preferences',
+        },
+        {
+          path: '/Users/x/Library/Caches/com.example.Bar',
+          sizeBytes: 2_000_000,
+          category: 'Cache',
+        },
       ],
       totalBytes: 3_000_400,
-    })
+    });
 
-    await svc.executeAction('uninstall_application')
+    await svc.executeAction('uninstall_application');
 
     expect(mockApplicationService.uninstallApplication).toHaveBeenCalledWith(
       '/Applications/Bar.app',
@@ -956,122 +993,122 @@ describe('uninstall_application built-in action', () => {
         '/Users/x/Library/Preferences/com.example.Bar.plist',
         '/Users/x/Library/Caches/com.example.Bar',
       ],
-    )
-    expect(mockFeedbackService.showHUD).toHaveBeenCalledWith('Moved to Trash')
-  })
+    );
+    expect(mockFeedbackService.showHUD).toHaveBeenCalledWith('Moved to Trash');
+  });
 
   it('execute falls back to app-only confirm when the scan fails', async () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeAppResult({ name: 'Broken' })]
-    mockSearchStores.selectedIndex = 0
-    mockApplicationService.scanUninstallTargets.mockResolvedValueOnce(null)
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeAppResult({ name: 'Broken' })];
+    mockSearchStores.selectedIndex = 0;
+    mockApplicationService.scanUninstallTargets.mockResolvedValueOnce(null);
 
-    await svc.executeAction('uninstall_application')
+    await svc.executeAction('uninstall_application');
 
-    expect(mockFeedbackService.confirmAlert).toHaveBeenCalledOnce()
-    const msg = mockFeedbackService.confirmAlert.mock.calls[0][0].message
-    expect(msg).toMatch(/move Broken to the Trash/i)
+    expect(mockFeedbackService.confirmAlert).toHaveBeenCalledOnce();
+    const msg = mockFeedbackService.confirmAlert.mock.calls[0][0].message;
+    expect(msg).toMatch(/move Broken to the Trash/i);
     expect(mockApplicationService.uninstallApplication).toHaveBeenCalledWith(
       '/Applications/Foo.app',
       [],
-    )
-  })
+    );
+  });
 
   it('execute surfaces a failure HUD when uninstall rejects', async () => {
-    const svc = freshService()
-    mockSearchOrchestrator.items = [makeAppResult()]
-    mockSearchStores.selectedIndex = 0
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeAppResult()];
+    mockSearchStores.selectedIndex = 0;
     mockApplicationService.uninstallApplication.mockRejectedValueOnce(
       new Error('Permission denied: cannot uninstall system-protected application'),
-    )
+    );
 
-    await svc.executeAction('uninstall_application')
+    await svc.executeAction('uninstall_application');
 
-    expect(mockFeedbackService.showHUD).toHaveBeenCalledOnce()
-    const hudArg = mockFeedbackService.showHUD.mock.calls[0][0]
-    expect(hudArg).toMatch(/Uninstall failed/)
-    expect(hudArg).toMatch(/system-protected/)
-  })
+    expect(mockFeedbackService.showHUD).toHaveBeenCalledOnce();
+    const hudArg = mockFeedbackService.showHUD.mock.calls[0][0];
+    expect(hudArg).toMatch(/Uninstall failed/);
+    expect(hudArg).toMatch(/system-protected/);
+  });
 
   it('execute is a no-op when no item is selected', async () => {
-    const svc = freshService()
-    mockSearchStores.selectedIndex = -1
+    const svc = freshService();
+    mockSearchStores.selectedIndex = -1;
 
-    await svc.executeAction('uninstall_application')
+    await svc.executeAction('uninstall_application');
 
-    expect(mockFeedbackService.confirmAlert).not.toHaveBeenCalled()
-    expect(mockApplicationService.uninstallApplication).not.toHaveBeenCalled()
-  })
-})
+    expect(mockFeedbackService.confirmAlert).not.toHaveBeenCalled();
+    expect(mockApplicationService.uninstallApplication).not.toHaveBeenCalled();
+  });
+});
 
 // ── factory_reset action ──────────────────────────────────────────────────────
 
 describe('factory_reset built-in action', () => {
   beforeEach(() => {
-    mockDeveloperSettingsService.isDeveloperMode = false
-    mockFeedbackService.confirmAlert.mockReset().mockResolvedValue(true)
-  })
+    mockDeveloperSettingsService.isDeveloperMode = false;
+    mockFeedbackService.confirmAlert.mockReset().mockResolvedValue(true);
+  });
 
   it('is registered with the expected destructive metadata', () => {
-    const svc = freshService()
-    const action = svc.getAllActions().find((a) => a.id === 'factory_reset')
-    expect(action).toBeDefined()
-    expect(action?.label).toBe('Reset Asyar to Factory Default')
-    expect(action?.category).toBe('Danger')
-    expect(action?.context).toBe(ActionContext.CORE)
-    expect(action?.confirm).toBe(true)
-  })
+    const svc = freshService();
+    const action = svc.getAllActions().find((a) => a.id === 'factory_reset');
+    expect(action).toBeDefined();
+    expect(action?.label).toBe('Reset Asyar to Factory Default');
+    expect(action?.category).toBe('Danger');
+    expect(action?.context).toBe(ActionContext.CORE);
+    expect(action?.confirm).toBe(true);
+  });
 
   it('is hidden from filteredActions when developer mode is OFF', () => {
-    mockDeveloperSettingsService.isDeveloperMode = false
-    const svc = freshService()
-    svc.setContext(ActionContext.CORE)
-    expect(svc.filteredActions.map((a) => a.id)).not.toContain('factory_reset')
-  })
+    mockDeveloperSettingsService.isDeveloperMode = false;
+    const svc = freshService();
+    svc.setContext(ActionContext.CORE);
+    expect(svc.filteredActions.map((a) => a.id)).not.toContain('factory_reset');
+  });
 
   it('is shown in filteredActions in CORE context when developer mode is ON', () => {
-    mockDeveloperSettingsService.isDeveloperMode = true
-    const svc = freshService()
-    svc.setContext(ActionContext.CORE)
-    expect(svc.filteredActions.map((a) => a.id)).toContain('factory_reset')
-  })
+    mockDeveloperSettingsService.isDeveloperMode = true;
+    const svc = freshService();
+    svc.setContext(ActionContext.CORE);
+    expect(svc.filteredActions.map((a) => a.id)).toContain('factory_reset');
+  });
 
   it('execute opens a danger-variant confirm dialog', async () => {
-    mockDeveloperSettingsService.isDeveloperMode = true
-    const { invoke } = await import('@tauri-apps/api/core')
-    vi.mocked(invoke).mockReset()
-    const svc = freshService()
+    mockDeveloperSettingsService.isDeveloperMode = true;
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockReset();
+    const svc = freshService();
 
-    await svc.executeAction('factory_reset')
+    await svc.executeAction('factory_reset');
 
-    expect(mockFeedbackService.confirmAlert).toHaveBeenCalledOnce()
-    const arg = mockFeedbackService.confirmAlert.mock.calls[0][0]
-    expect(arg.variant).toBe('danger')
-    expect(arg.confirmText).toBe('Reset & Quit')
-    expect(arg.title).toMatch(/Factory Default/i)
-  })
+    expect(mockFeedbackService.confirmAlert).toHaveBeenCalledOnce();
+    const arg = mockFeedbackService.confirmAlert.mock.calls[0][0];
+    expect(arg.variant).toBe('danger');
+    expect(arg.confirmText).toBe('Reset & Quit');
+    expect(arg.title).toMatch(/Factory Default/i);
+  });
 
   it('execute invokes the factory_reset Tauri command after the user confirms', async () => {
-    mockDeveloperSettingsService.isDeveloperMode = true
-    mockFeedbackService.confirmAlert.mockResolvedValueOnce(true)
-    const { invoke } = await import('@tauri-apps/api/core')
-    vi.mocked(invoke).mockReset().mockResolvedValue(undefined)
-    const svc = freshService()
+    mockDeveloperSettingsService.isDeveloperMode = true;
+    mockFeedbackService.confirmAlert.mockResolvedValueOnce(true);
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockReset().mockResolvedValue(undefined);
+    const svc = freshService();
 
-    await svc.executeAction('factory_reset')
+    await svc.executeAction('factory_reset');
 
-    expect(invoke).toHaveBeenCalledWith('factory_reset', undefined)
-  })
+    expect(invoke).toHaveBeenCalledWith('factory_reset', undefined);
+  });
 
   it('execute is a no-op when the user cancels the confirm dialog', async () => {
-    mockDeveloperSettingsService.isDeveloperMode = true
-    mockFeedbackService.confirmAlert.mockResolvedValueOnce(false)
-    const { invoke } = await import('@tauri-apps/api/core')
-    vi.mocked(invoke).mockReset()
-    const svc = freshService()
+    mockDeveloperSettingsService.isDeveloperMode = true;
+    mockFeedbackService.confirmAlert.mockResolvedValueOnce(false);
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockReset();
+    const svc = freshService();
 
-    await svc.executeAction('factory_reset')
+    await svc.executeAction('factory_reset');
 
-    expect(invoke).not.toHaveBeenCalledWith('factory_reset')
-  })
-})
+    expect(invoke).not.toHaveBeenCalledWith('factory_reset');
+  });
+});

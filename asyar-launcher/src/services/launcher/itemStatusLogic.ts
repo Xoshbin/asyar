@@ -65,7 +65,7 @@ export function aggregateKindCounts(
 ): AggregateCounts {
   const out: AggregateCounts = {
     scripts: { active: 0, done: 0 },
-    agents:  { active: 0, done: 0 },
+    agents: { active: 0, done: 0 },
   };
 
   for (const r of active) {
@@ -85,9 +85,7 @@ export function aggregateKindCounts(
  *   - anything else           → null (def rows are "what you can invoke";
  *                                     run rows carry the status signal)
  */
-export function statusForRow(
-  item: { type?: string; object_id: string },
-): ItemStatus | null {
+export function statusForRow(item: { type?: string; object_id: string }): ItemStatus | null {
   if (item.type === 'run') return 'active';
   if (item.type === 'run-done') return 'done';
   if (item.type === 'run-failed') return 'failed';

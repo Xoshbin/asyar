@@ -1,4 +1,7 @@
-import { shortcutStore, type ItemShortcut } from '../../../built-in-features/shortcuts/shortcutStore.svelte';
+import {
+  shortcutStore,
+  type ItemShortcut,
+} from '../../../built-in-features/shortcuts/shortcutStore.svelte';
 import type {
   ISyncProvider,
   SyncProviderData,
@@ -63,7 +66,13 @@ export class ShortcutsSyncProvider implements ISyncProvider {
       for (const item of incomingItems) {
         shortcutStore.add(item);
       }
-      return { success: true, itemsAdded: incomingItems.length, itemsUpdated: 0, itemsRemoved: existing.length, warnings: [] };
+      return {
+        success: true,
+        itemsAdded: incomingItems.length,
+        itemsUpdated: 0,
+        itemsRemoved: existing.length,
+        warnings: [],
+      };
     }
 
     // merge — dedup by objectId
@@ -83,12 +92,21 @@ export class ShortcutsSyncProvider implements ISyncProvider {
       }
     }
 
-    return { success: true, itemsAdded: added, itemsUpdated: updated, itemsRemoved: 0, warnings: [] };
+    return {
+      success: true,
+      itemsAdded: added,
+      itemsUpdated: updated,
+      itemsRemoved: 0,
+      warnings: [],
+    };
   }
 
   async getLocalSummary(): Promise<DataSummary> {
     const items = shortcutStore.getAll();
-    return { itemCount: items.length, label: `${items.length} shortcut${items.length !== 1 ? 's' : ''}` };
+    return {
+      itemCount: items.length,
+      label: `${items.length} shortcut${items.length !== 1 ? 's' : ''}`,
+    };
   }
 
   // ── Delta sync surface ──────────────────────────────────────────────────

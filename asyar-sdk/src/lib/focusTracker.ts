@@ -15,7 +15,20 @@ export function setupFocusTracking(): void {
     if (tag === 'textarea' || tag === 'select') return true;
     if (tag === 'input') {
       const type = (el as HTMLInputElement).type?.toLowerCase() || 'text';
-      const textTypes = ['text', 'search', 'email', 'password', 'number', 'tel', 'url', 'date', 'time', 'datetime-local', 'month', 'week'];
+      const textTypes = [
+        'text',
+        'search',
+        'email',
+        'password',
+        'number',
+        'tel',
+        'url',
+        'date',
+        'time',
+        'datetime-local',
+        'month',
+        'week',
+      ];
       return textTypes.includes(type);
     }
     if ((el as HTMLElement).isContentEditable) return true;

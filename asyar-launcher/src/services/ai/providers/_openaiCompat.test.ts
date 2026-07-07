@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  openAIToolsMessages,
-  buildOpenAIToolsBody,
-  parseOpenAIToolStream,
-} from './_openaiCompat';
+import { openAIToolsMessages, buildOpenAIToolsBody, parseOpenAIToolStream } from './_openaiCompat';
 import type { LoopMessage, ChatParams } from '../IProviderPlugin';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -62,15 +58,11 @@ describe('openAIToolsMessages', () => {
   });
 
   it('openaiCompat_messages_emits_tool_role_with_tool_call_id', () => {
-    const messages: LoopMessage[] = [
-      { role: 'tool', content: '42', toolUseId: 'call_1' },
-    ];
+    const messages: LoopMessage[] = [{ role: 'tool', content: '42', toolUseId: 'call_1' }];
 
     const result = openAIToolsMessages(messages);
 
-    expect(result).toEqual([
-      { role: 'tool', tool_call_id: 'call_1', content: '42' },
-    ]);
+    expect(result).toEqual([{ role: 'tool', tool_call_id: 'call_1', content: '42' }]);
   });
 });
 
@@ -144,7 +136,12 @@ describe('parseOpenAIToolStream', () => {
     const reader = readerFromChunks(chunks);
     const events = await collectToolStreamEvents(reader);
 
-    expect(events).toContainEqual({ type: 'tool_use', id: 'call_1', name: 'calc', input: { x: 1 } });
+    expect(events).toContainEqual({
+      type: 'tool_use',
+      id: 'call_1',
+      name: 'calc',
+      input: { x: 1 },
+    });
     expect(events[events.length - 1]).toEqual({ type: 'message_stop' });
     expect(events.filter((e) => e.type === 'text')).toHaveLength(0);
   });

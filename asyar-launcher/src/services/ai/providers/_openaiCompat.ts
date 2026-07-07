@@ -75,7 +75,9 @@ export async function* parseOpenAIToolStream(
       let input: unknown = {};
       try {
         input = JSON.parse(entry.argumentsJson || '{}');
-      } catch { /* use empty object on parse failure */ }
+      } catch {
+        /* use empty object on parse failure */
+      }
       yield { type: 'tool_use', id: entry.id, name: entry.name, input };
     }
     toolAccumulator.clear();
@@ -140,7 +142,9 @@ export async function* parseOpenAIToolStream(
         if (choice.finish_reason === 'tool_calls') {
           yield* flushTools();
         }
-      } catch { /* skip malformed SSE lines */ }
+      } catch {
+        /* skip malformed SSE lines */
+      }
     }
   }
 

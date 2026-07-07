@@ -22,12 +22,12 @@ export interface AIStreamParams {
 }
 
 export type AIErrorCode =
-  | 'ai_not_configured'    // No AI provider set up in launcher settings
-  | 'ai_disabled_by_user'  // Master "Allow extensions to use AI" toggle is off
-  | 'provider_error'       // Provider API error (bad key, rate limit, network, etc)
-  | 'invalid_request'      // Malformed payload
-  | 'internal_error'       // Unexpected host failure
-  | 'aborted';             // handle.abort() was called
+  | 'ai_not_configured' // No AI provider set up in launcher settings
+  | 'ai_disabled_by_user' // Master "Allow extensions to use AI" toggle is off
+  | 'provider_error' // Provider API error (bad key, rate limit, network, etc)
+  | 'invalid_request' // Malformed payload
+  | 'internal_error' // Unexpected host failure
+  | 'aborted'; // handle.abort() was called
 
 export interface AIError {
   code: AIErrorCode;

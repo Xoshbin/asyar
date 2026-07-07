@@ -4,8 +4,22 @@ import type { SyncProviderData } from '../types';
 
 const mockExport = vi.hoisted(() => ({
   rows: [
-    { extensionId: 'ext1', commandId: null, key: 'foo', value: '"bar"', isEncrypted: false, updatedAt: 1000 },
-    { extensionId: 'ext2', commandId: 'cmd1', key: 'baz', value: '"qux"', isEncrypted: false, updatedAt: 2000 },
+    {
+      extensionId: 'ext1',
+      commandId: null,
+      key: 'foo',
+      value: '"bar"',
+      isEncrypted: false,
+      updatedAt: 1000,
+    },
+    {
+      extensionId: 'ext2',
+      commandId: 'cmd1',
+      key: 'baz',
+      value: '"qux"',
+      isEncrypted: false,
+      updatedAt: 2000,
+    },
   ],
 }));
 
@@ -58,8 +72,22 @@ describe('ExtensionPreferencesSyncProvider', () => {
       exportedAt: Date.now(),
       data: {
         rows: [
-          { extensionId: 'ext1', commandId: null, key: 'foo', value: '"updated"', isEncrypted: false, updatedAt: 5000 },
-          { extensionId: 'ext1', commandId: null, key: 'new', value: '"x"', isEncrypted: false, updatedAt: 5000 },
+          {
+            extensionId: 'ext1',
+            commandId: null,
+            key: 'foo',
+            value: '"updated"',
+            isEncrypted: false,
+            updatedAt: 5000,
+          },
+          {
+            extensionId: 'ext1',
+            commandId: null,
+            key: 'new',
+            value: '"x"',
+            isEncrypted: false,
+            updatedAt: 5000,
+          },
         ],
       },
     };
@@ -71,7 +99,8 @@ describe('ExtensionPreferencesSyncProvider', () => {
   });
 
   it('applyImport replace — calls IPC import with strategy', async () => {
-    const { extensionPreferencesImportAll } = await import('../../../lib/ipc/extensionPreferencesCommands');
+    const { extensionPreferencesImportAll } =
+      await import('../../../lib/ipc/extensionPreferencesCommands');
     const incoming: SyncProviderData = {
       providerId: 'extension-preferences',
       version: 1,
@@ -83,7 +112,8 @@ describe('ExtensionPreferencesSyncProvider', () => {
   });
 
   it('applyImport skip — does not call IPC', async () => {
-    const { extensionPreferencesImportAll } = await import('../../../lib/ipc/extensionPreferencesCommands');
+    const { extensionPreferencesImportAll } =
+      await import('../../../lib/ipc/extensionPreferencesCommands');
     const incoming: SyncProviderData = {
       providerId: 'extension-preferences',
       version: 1,
@@ -113,7 +143,8 @@ describe('ExtensionPreferencesSyncProvider', () => {
 
   describe('applyItemUpsert_writes_full_state', () => {
     it('hands the full preferences export to extensionPreferencesImportAll', async () => {
-      const { extensionPreferencesImportAll } = await import('../../../lib/ipc/extensionPreferencesCommands');
+      const { extensionPreferencesImportAll } =
+        await import('../../../lib/ipc/extensionPreferencesCommands');
       await provider.applyItemUpsert({
         id: 'extension-preferences',
         categoryId: 'extension-preferences',
@@ -125,7 +156,9 @@ describe('ExtensionPreferencesSyncProvider', () => {
 
   describe('applyItemDelete_resets_to_default_or_throws_unsupported', () => {
     it('throws since extension-preferences is a singleton aggregate', async () => {
-      await expect(provider.applyItemDelete('extension-preferences')).rejects.toThrow(/cannot delete singleton/i);
+      await expect(provider.applyItemDelete('extension-preferences')).rejects.toThrow(
+        /cannot delete singleton/i,
+      );
     });
   });
 

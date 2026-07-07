@@ -95,17 +95,34 @@
         </p>
         <div class="flex-col gap-3">
           <div class="input-gap">
-            <Input type="password" placeholder="Current passphrase" bind:value={oldPass} bind:ref={oldPassInput} maxlength={256} />
+            <Input
+              type="password"
+              placeholder="Current passphrase"
+              bind:value={oldPass}
+              bind:ref={oldPassInput}
+              maxlength={256}
+            />
           </div>
           <div class="input-gap">
-            <Input type="password" placeholder="New passphrase (12+ characters)" bind:value={newPass} maxlength={256} />
+            <Input
+              type="password"
+              placeholder="New passphrase (12+ characters)"
+              bind:value={newPass}
+              maxlength={256}
+            />
           </div>
           <div class="input-gap">
-            <Input type="password" placeholder="Confirm new passphrase" bind:value={confirmNew} maxlength={256} />
+            <Input
+              type="password"
+              placeholder="Confirm new passphrase"
+              bind:value={confirmNew}
+              maxlength={256}
+            />
           </div>
           {#if newPass.length > 0}
             <p class="text-caption" class:error={!strength.accepted}>
-              Strength {strength.score}/4{#if strength.reason} — {strength.reason}{/if}
+              Strength {strength.score}/4{#if strength.reason}
+                — {strength.reason}{/if}
             </p>
           {/if}
           {#if confirmNew.length > 0 && !confirmsMatch}
@@ -132,7 +149,7 @@
     backdrop-filter: blur(8px);
   }
 
-  :global(html[data-platform="linux"]) .dialog-backdrop {
+  :global(html[data-platform='linux']) .dialog-backdrop {
     backdrop-filter: none;
     background: rgba(0, 0, 0, 0.6);
   }
@@ -181,6 +198,4 @@
   .text-caption.error {
     color: var(--accent-danger);
   }
-
-
 </style>

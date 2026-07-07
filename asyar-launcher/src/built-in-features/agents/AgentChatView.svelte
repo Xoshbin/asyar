@@ -186,11 +186,7 @@
     </div>
   {:else}
     <div class="chat-layout">
-      <ThreadListSidebar
-        threads={threads}
-        selectedThreadId={selectedThreadId}
-        onSelectThread={onSelectThread}
-      />
+      <ThreadListSidebar {threads} {selectedThreadId} {onSelectThread} />
       <div class="chat-main">
         <header class="chat-header">
           <h2>{agent.name}</h2>
@@ -199,14 +195,16 @@
           {/if}
         </header>
 
-        <div class="messages-container custom-scrollbar" bind:this={messagesEl} onscroll={handleScroll} role="log">
+        <div
+          class="messages-container custom-scrollbar"
+          bind:this={messagesEl}
+          onscroll={handleScroll}
+          role="log"
+        >
           {#if loadError}
             <p class="error">{loadError}</p>
           {:else if messages.length === 0 && !sending}
-            <EmptyState
-              message="Start chatting"
-              description="Type a message to begin."
-            />
+            <EmptyState message="Start chatting" description="Type a message to begin." />
           {:else}
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -247,7 +245,18 @@
                       ariaLabel="Copy message"
                       size="sm"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        ><rect x="9" y="9" width="13" height="13" rx="2" /><path
+                          d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
+                        /></svg
+                      >
                     </IconButton>
                   </div>
                 </div>
@@ -264,7 +273,9 @@
               {:else if sending}
                 <div class="message-row assistant">
                   <div class="avatar assistant-avatar">AI</div>
-                  <div class="message-bubble assistant"><span class="streaming-cursor">▊</span></div>
+                  <div class="message-bubble assistant">
+                    <span class="streaming-cursor">▊</span>
+                  </div>
                 </div>
               {/if}
             </div>
@@ -332,7 +343,9 @@
     align-items: flex-start;
     gap: var(--space-4);
   }
-  .message-row.user { flex-direction: row-reverse; }
+  .message-row.user {
+    flex-direction: row-reverse;
+  }
 
   .avatar {
     flex-shrink: 0;
@@ -346,9 +359,20 @@
     font-weight: 700;
     margin-top: 2px;
   }
-  .assistant-avatar { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border-color); }
-  .user-avatar { background: var(--accent-primary); color: white; }
-  .tool-avatar { background: var(--bg-tertiary); color: var(--text-tertiary); border: 1px solid var(--border-color); }
+  .assistant-avatar {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+  }
+  .user-avatar {
+    background: var(--accent-primary);
+    color: white;
+  }
+  .tool-avatar {
+    background: var(--bg-tertiary);
+    color: var(--text-tertiary);
+    border: 1px solid var(--border-color);
+  }
 
   .message-bubble {
     position: relative;
@@ -383,9 +407,16 @@
     right: var(--space-1);
     opacity: 0;
   }
-  .message-bubble:hover :global(.copy-message-btn) { opacity: 1; }
-  .message-bubble.user :global(.copy-message-btn) { color: inherit; opacity: 0; }
-  .message-bubble.user:hover :global(.copy-message-btn) { opacity: 0.7; }
+  .message-bubble:hover :global(.copy-message-btn) {
+    opacity: 1;
+  }
+  .message-bubble.user :global(.copy-message-btn) {
+    color: inherit;
+    opacity: 0;
+  }
+  .message-bubble.user:hover :global(.copy-message-btn) {
+    opacity: 0.7;
+  }
 
   .tool-use-chip {
     margin-top: var(--space-3);
@@ -398,7 +429,8 @@
     font-weight: 600;
     color: var(--text-secondary);
   }
-  .chip-input, .tool-result {
+  .chip-input,
+  .tool-result {
     margin: var(--space-1) 0 0;
     white-space: pre-wrap;
     word-break: break-word;
@@ -410,7 +442,15 @@
     font-weight: bold;
     animation: blink 0.8s step-end infinite;
   }
-  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+  @keyframes blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
 
   .error {
     color: var(--accent-danger);

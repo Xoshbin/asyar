@@ -42,13 +42,15 @@ describe('decideTabDestination', () => {
   it('falls back to the first agent when defaultAgentId is null or ghost', () => {
     const agentA = makeAgent({ id: 'agent-a', name: 'A' });
     const agentB = makeAgent({ id: 'agent-b', name: 'B' });
-    expect(
-      decideTabDestination({ defaultAgentId: null, agents: [agentA, agentB] }),
-    ).toEqual({ kind: 'agent', agentId: 'agent-a' });
+    expect(decideTabDestination({ defaultAgentId: null, agents: [agentA, agentB] })).toEqual({
+      kind: 'agent',
+      agentId: 'agent-a',
+    });
 
     const agentC = makeAgent({ id: 'agent-c', name: 'C' });
-    expect(
-      decideTabDestination({ defaultAgentId: 'ghost', agents: [agentC] }),
-    ).toEqual({ kind: 'agent', agentId: 'agent-c' });
+    expect(decideTabDestination({ defaultAgentId: 'ghost', agents: [agentC] })).toEqual({
+      kind: 'agent',
+      agentId: 'agent-c',
+    });
   });
 });

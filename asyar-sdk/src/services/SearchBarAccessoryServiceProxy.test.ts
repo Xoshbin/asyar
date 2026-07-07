@@ -44,32 +44,21 @@ describe('SearchBarAccessoryServiceProxy', () => {
 
   it('clear() invokes searchBar:clear with empty payload', async () => {
     await proxy.clear();
-    expect(invokeSpy).toHaveBeenCalledWith(
-      'searchBar:clear',
-      {},
-      'org.test.example',
-      undefined,
-    );
+    expect(invokeSpy).toHaveBeenCalledWith('searchBar:clear', {}, 'org.test.example', undefined);
   });
 
   it('onChange() registers a listener for filterChange and returns a disposer', () => {
     const handler = vi.fn();
     const off = proxy.onChange(handler);
 
-    expect(onSpy).toHaveBeenCalledWith(
-      'asyar:event:searchBar:filterChange',
-      expect.any(Function),
-    );
+    expect(onSpy).toHaveBeenCalledWith('asyar:event:searchBar:filterChange', expect.any(Function));
 
     const registeredListener = onSpy.mock.calls[0][1] as (p: unknown) => void;
     registeredListener({ commandId: 'cmd-1', value: 'images' });
     expect(handler).toHaveBeenCalledWith('images');
 
     off();
-    expect(offSpy).toHaveBeenCalledWith(
-      'asyar:event:searchBar:filterChange',
-      registeredListener,
-    );
+    expect(offSpy).toHaveBeenCalledWith('asyar:event:searchBar:filterChange', registeredListener);
   });
 
   it('onChange() ignores malformed payloads', () => {

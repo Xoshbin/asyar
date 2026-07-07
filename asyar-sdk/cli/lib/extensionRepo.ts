@@ -1,6 +1,6 @@
-import * as fs from 'fs'
-import * as path from 'path'
-import { execSync } from 'child_process'
+import * as fs from 'fs';
+import * as path from 'path';
+import { execSync } from 'child_process';
 
 /**
  * Symlink-safe path comparison. `path.resolve` does not resolve
@@ -11,9 +11,9 @@ import { execSync } from 'child_process'
  */
 function realResolve(p: string): string {
   try {
-    return fs.realpathSync(p)
+    return fs.realpathSync(p);
   } catch {
-    return path.resolve(p)
+    return path.resolve(p);
   }
 }
 
@@ -30,10 +30,11 @@ function realResolve(p: string): string {
 export function isOwnGitRoot(cwd: string): boolean {
   try {
     const toplevel = execSync('git rev-parse --show-toplevel', { cwd, stdio: 'pipe' })
-      .toString().trim()
-    return realResolve(toplevel) === realResolve(cwd)
+      .toString()
+      .trim();
+    return realResolve(toplevel) === realResolve(cwd);
   } catch {
-    return false
+    return false;
   }
 }
 
@@ -50,23 +51,25 @@ export function isOwnGitRoot(cwd: string): boolean {
  * discarded so we auto-create a dedicated repo instead.
  */
 export function findEnclosingParentOrigin(cwd: string): string | null {
-  let start = realResolve(cwd)
-  if (isOwnGitRoot(start)) start = path.dirname(start)
-  if (start === path.dirname(start)) return null
+  let start = realResolve(cwd);
+  if (isOwnGitRoot(start)) start = path.dirname(start);
+  if (start === path.dirname(start)) return null;
   try {
     const toplevel = execSync('git rev-parse --show-toplevel', { cwd: start, stdio: 'pipe' })
-      .toString().trim()
+      .toString()
+      .trim();
     // If the enclosing toplevel turns out to be the same path we just
     // dirnamed out of (because git's realpath traversal climbed back
     // into a repo whose .git is at or below `start`), treat it as no
     // parent — otherwise we'd report the child's own origin.
-    if (realResolve(toplevel) === realResolve(cwd)) return null
+    if (realResolve(toplevel) === realResolve(cwd)) return null;
     return execSync('git remote get-url origin', { cwd: toplevel, stdio: 'pipe' })
-      .toString().trim()
+      .toString()
+      .trim()
       .replace('git@github.com:', 'https://github.com/')
-      .replace(/\.git$/, '')
+      .replace(/\.git$/, '');
   } catch {
-    return null
+    return null;
   }
 }
 
@@ -79,11 +82,13 @@ export function findEnclosingParentOrigin(cwd: string): string | null {
  */
 export function ensureInitialCommit(cwd: string): void {
   try {
-    execSync('git log -1', { cwd, stdio: 'pipe' })
-    return
-  } catch { /* no commits yet — create one */ }
-  execSync('git add .', { cwd, stdio: 'pipe' })
-  execSync('git commit -m "Initial extension"', { cwd, stdio: 'pipe' })
+    execSync('git log -1', { cwd, stdio: 'pipe' });
+    return;
+  } catch {
+    /* no commits yet — create one */
+  }
+  execSync('git add .', { cwd, stdio: 'pipe' });
+  execSync('git commit -m "Initial extension"', { cwd, stdio: 'pipe' });
 }
 
 /**
@@ -92,8 +97,8 @@ export function ensureInitialCommit(cwd: string): void {
  * don't commit build artifacts or installed deps to the brand-new repo.
  */
 export function ensureExtensionGitignore(cwd: string): void {
-  const gitignorePath = path.join(cwd, '.gitignore')
-  if (fs.existsSync(gitignorePath)) return
+  const gitignorePath = path.join(cwd, '.gitignore');
+  if (fs.existsSync(gitignorePath)) return;
   fs.writeFileSync(
     gitignorePath,
     [
@@ -104,5 +109,5 @@ export function ensureExtensionGitignore(cwd: string): void {
       '.DS_Store',
       '',
     ].join('\n'),
-  )
+  );
 }

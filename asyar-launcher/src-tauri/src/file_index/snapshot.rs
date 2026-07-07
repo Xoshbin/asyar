@@ -89,7 +89,9 @@ mod tests {
             NOW,
         );
         idx.apply_batch(
-            vec![IndexUpdate::Removed(PathBuf::from("/tmp/rootA/docs/Report.pdf"))],
+            vec![IndexUpdate::Removed(PathBuf::from(
+                "/tmp/rootA/docs/Report.pdf",
+            ))],
             NOW,
         );
         idx
@@ -117,7 +119,10 @@ mod tests {
         let report = loaded
             .lookup_path(Path::new("/tmp/rootA/docs/Report.pdf"))
             .expect("sealed entry resolves after load");
-        assert!(loaded.is_tombstoned(report), "tombstone survives round-trip");
+        assert!(
+            loaded.is_tombstoned(report),
+            "tombstone survives round-trip"
+        );
 
         let _ = std::fs::remove_file(&p);
     }

@@ -23,8 +23,7 @@ pub async fn get_file_thumbnail<R: tauri::Runtime>(
     let cache_dir = get_thumbnail_cache_dir(&app);
     let src = std::path::PathBuf::from(&path);
 
-    let Some(cached_path) = super::get_or_generate(&state, &cache_dir, &src, max_dim).await
-    else {
+    let Some(cached_path) = super::get_or_generate(&state, &cache_dir, &src, max_dim).await else {
         return Ok(None);
     };
 

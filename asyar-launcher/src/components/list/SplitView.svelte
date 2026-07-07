@@ -2,11 +2,11 @@
   import type { Snippet } from 'svelte';
 
   let {
-    leftWidth = "33.333%",
+    leftWidth = '33.333%',
     minLeftWidth = 200,
     maxLeftWidth = 800,
     left,
-    right
+    right,
   }: {
     leftWidth?: string | number;
     minLeftWidth?: number;

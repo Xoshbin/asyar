@@ -3,7 +3,7 @@
 > Bring your snippets, quicklinks, and app hotkeys over from Raycast in one step.
 
 ![The Raycast import preview screen with category counts](../../images/feature-raycast-import-hero.png)
-*Figure: the preview screen showing how many items were found in each category.*
+_Figure: the preview screen showing how many items were found in each category._
 
 ## What it does
 
@@ -17,12 +17,12 @@ It accepts three kinds of files:
 
 Each Raycast item type maps to an Asyar equivalent:
 
-| Raycast | Becomes in Asyar |
-|---|---|
-| Snippets (with keyword and text) | [Snippets](./snippets.md) |
-| Quicklinks | [Portals](./portals.md) |
-| App hotkeys | [Item shortcuts](./aliases-and-shortcuts.md) |
-| App and quicklink aliases | [Aliases](./aliases-and-shortcuts.md) |
+| Raycast                          | Becomes in Asyar                             |
+| -------------------------------- | -------------------------------------------- |
+| Snippets (with keyword and text) | [Snippets](./snippets.md)                    |
+| Quicklinks                       | [Portals](./portals.md)                      |
+| App hotkeys                      | [Item shortcuts](./aliases-and-shortcuts.md) |
+| App and quicklink aliases        | [Aliases](./aliases-and-shortcuts.md)        |
 
 Hotkeys and aliases bound to Raycast's own built-in commands or third-party extensions have no Asyar equivalent and are not imported — Asyar shows how many were skipped so nothing silently disappears.
 

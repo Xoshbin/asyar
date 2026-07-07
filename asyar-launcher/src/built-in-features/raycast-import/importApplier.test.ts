@@ -18,9 +18,15 @@ vi.mock('../shortcuts/shortcutService', () => ({
 vi.mock('../aliases/aliasService', () => ({
   aliasService: {
     findConflict: vi.fn(async () => null),
-    register: vi.fn(async (objectId: string, alias: string, itemName: string, itemType: string) => ({
-      objectId, alias, itemName, itemType, createdAt: 0,
-    })),
+    register: vi.fn(
+      async (objectId: string, alias: string, itemName: string, itemType: string) => ({
+        objectId,
+        alias,
+        itemName,
+        itemType,
+        createdAt: 0,
+      }),
+    ),
   },
 }));
 vi.mock('../aliases/aliasStore.svelte', () => ({
@@ -106,7 +112,12 @@ describe('applyBundle', () => {
     ]);
     const bundle = makeBundle({
       portals: [
-        { raycastId: '02A', name: 'Google', url: 'https://google.com/search?q={query}', icon: '🔗' },
+        {
+          raycastId: '02A',
+          name: 'Google',
+          url: 'https://google.com/search?q={query}',
+          icon: '🔗',
+        },
         { name: 'Existing', url: 'https://e.com/{query}', icon: '🔗' },
       ],
     });
@@ -146,7 +157,7 @@ describe('applyBundle', () => {
       'application',
       'Control+Alt+Shift+Super+I',
       '/Applications/iTerm.app',
-      'icon-data'
+      'icon-data',
     );
   });
 
@@ -171,9 +182,7 @@ describe('applyBundle', () => {
 
   it('binds quicklink hotkeys to the imported portal command', async () => {
     const bundle = makeBundle({
-      portals: [
-        { raycastId: '02A', name: 'Google', url: 'https://g.com/{query}', icon: '🔗' },
-      ],
+      portals: [{ raycastId: '02A', name: 'Google', url: 'https://g.com/{query}', icon: '🔗' }],
       shortcuts: [
         {
           target: { kind: 'portal', raycastQuicklinkId: '02A' },
@@ -192,7 +201,7 @@ describe('applyBundle', () => {
       'command',
       'Shift+Super+T',
       undefined,
-      '🔗'
+      '🔗',
     );
   });
 
@@ -201,9 +210,7 @@ describe('applyBundle', () => {
       { id: 'existing-id', name: 'Google', url: 'https://g.com/{query}', icon: '🌐', createdAt: 1 },
     ]);
     const bundle = makeBundle({
-      portals: [
-        { raycastId: '02A', name: 'Google', url: 'https://g.com/{query}', icon: '🔗' },
-      ],
+      portals: [{ raycastId: '02A', name: 'Google', url: 'https://g.com/{query}', icon: '🔗' }],
       shortcuts: [
         { target: { kind: 'portal', raycastQuicklinkId: '02A' }, shortcut: 'Shift+Super+T' },
       ],
@@ -219,7 +226,7 @@ describe('applyBundle', () => {
       'command',
       'Shift+Super+T',
       undefined,
-      '🌐'
+      '🌐',
     );
   });
 
@@ -256,16 +263,18 @@ describe('applyBundle', () => {
     expect(aliasService.findConflict).toHaveBeenCalledWith('it', 'app_123');
     expect(aliasService.register).toHaveBeenCalledWith('app_123', 'it', 'iTerm', 'application');
     expect(aliasStore.addOptimistic).toHaveBeenCalledWith({
-      objectId: 'app_123', alias: 'it', itemName: 'iTerm', itemType: 'application', createdAt: 0,
+      objectId: 'app_123',
+      alias: 'it',
+      itemName: 'iTerm',
+      itemType: 'application',
+      createdAt: 0,
     });
   });
 
   it('binds quicklink aliases to the imported portal command', async () => {
     const bundle = makeBundle({
       portals: [{ raycastId: '02A', name: 'Google', url: 'https://g.com/{query}', icon: '🔗' }],
-      aliases: [
-        { target: { kind: 'portal', raycastQuicklinkId: '02A' }, alias: 'gg' },
-      ],
+      aliases: [{ target: { kind: 'portal', raycastQuicklinkId: '02A' }, alias: 'gg' }],
     });
 
     const summary = await applyBundle(bundle, ALL);
@@ -276,12 +285,15 @@ describe('applyBundle', () => {
       `cmd_portals_${portal.id}`,
       'gg',
       'Google',
-      'command'
+      'command',
     );
   });
 
   it('counts conflicting aliases as skipped', async () => {
-    vi.mocked(aliasService.findConflict).mockResolvedValue({ objectId: 'other', itemName: 'Other' });
+    vi.mocked(aliasService.findConflict).mockResolvedValue({
+      objectId: 'other',
+      itemName: 'Other',
+    });
     const bundle = makeBundle({
       aliases: [
         { target: { kind: 'app', path: '/a.app', objectId: 'a', itemName: 'A' }, alias: 'aa' },
@@ -296,9 +308,7 @@ describe('applyBundle', () => {
 
   it('skips aliases whose target has no resolved object id', async () => {
     const bundle = makeBundle({
-      aliases: [
-        { target: { kind: 'app', path: '/a.app' }, alias: 'aa' },
-      ],
+      aliases: [{ target: { kind: 'app', path: '/a.app' }, alias: 'aa' }],
     });
 
     const summary = await applyBundle(bundle, ALL);
@@ -309,9 +319,7 @@ describe('applyBundle', () => {
 
   it('skips aliases whose portal target was not imported', async () => {
     const bundle = makeBundle({
-      aliases: [
-        { target: { kind: 'portal', raycastQuicklinkId: 'missing' }, alias: 'aa' },
-      ],
+      aliases: [{ target: { kind: 'portal', raycastQuicklinkId: 'missing' }, alias: 'aa' }],
     });
 
     const summary = await applyBundle(bundle, ALL);
@@ -324,7 +332,10 @@ describe('applyBundle', () => {
       snippets: [{ name: 'S', expansion: 'x', pinned: false }],
       portals: [{ name: 'P', url: 'u', icon: '🔗' }],
       shortcuts: [
-        { target: { kind: 'app', path: '/a.app', objectId: 'a', itemName: 'A' }, shortcut: 'Super+A' },
+        {
+          target: { kind: 'app', path: '/a.app', objectId: 'a', itemName: 'A' },
+          shortcut: 'Super+A',
+        },
       ],
       aliases: [
         { target: { kind: 'app', path: '/a.app', objectId: 'a', itemName: 'A' }, alias: 'aa' },

@@ -2,8 +2,8 @@
   let {
     checked = $bindable(false),
     disabled = false,
-    id = "",
-    onchange
+    id = '',
+    onchange,
   }: {
     checked?: boolean;
     disabled?: boolean;
@@ -13,14 +13,7 @@
 </script>
 
 <label class="relative inline-flex items-center cursor-pointer" class:cursor-not-allowed={disabled}>
-  <input
-    type="checkbox"
-    bind:checked
-    {disabled}
-    {id}
-    class="sr-only peer"
-    {onchange}
-  >
+  <input type="checkbox" bind:checked {disabled} {id} class="sr-only peer" {onchange} />
   <div
     class="toggle-track peer peer-checked:after:translate-x-full
     rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white

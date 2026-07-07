@@ -10,7 +10,7 @@
     "resolveJsonModule": true,
     "allowJs": true,
     "isolatedModules": true, // Add this line
-    "noEmit": true,          // Add this line
+    "noEmit": true, // Add this line
     "moduleResolution": "bundler",
     "lib": ["esnext", "dom"]
     // Remove explicit types array to allow inference

@@ -6,8 +6,12 @@
   import { parseUrlPlaceholders } from '../../lib/placeholders';
   import PortalForm from './PortalForm.svelte';
   import {
-    SplitListDetail, LauncherListRow, IconBox, Badge,
-    ActionFooter, EmptyState,
+    SplitListDetail,
+    LauncherListRow,
+    IconBox,
+    Badge,
+    ActionFooter,
+    EmptyState,
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
@@ -29,7 +33,7 @@
   let portals = $derived(portalStore.portals);
   let selectedIndex = $derived(portalsUiState.selectedIndex);
   let selectedPortal = $derived(
-    selectedIndex >= 0 && selectedIndex < portals.length ? portals[selectedIndex] : null
+    selectedIndex >= 0 && selectedIndex < portals.length ? portals[selectedIndex] : null,
   );
 
   $effect(() => {
@@ -55,7 +59,9 @@
       extensionId: 'portals',
       category: 'Portals',
       context: ActionContext.EXTENSION_VIEW,
-      execute: async () => { startEdit(portal); },
+      execute: async () => {
+        startEdit(portal);
+      },
     });
     actionService.registerAction({
       id: 'portals:duplicate',
@@ -64,7 +70,9 @@
       extensionId: 'portals',
       category: 'Portals',
       context: ActionContext.EXTENSION_VIEW,
-      execute: async () => { await handleDuplicate(portal); },
+      execute: async () => {
+        await handleDuplicate(portal);
+      },
     });
     actionService.registerAction({
       id: 'portals:delete',
@@ -74,7 +82,9 @@
       category: 'Portals',
       destructive: true,
       context: ActionContext.EXTENSION_VIEW,
-      execute: async () => { await handleDelete(portal); },
+      execute: async () => {
+        await handleDelete(portal);
+      },
     });
     return () => {
       actionService.unregisterAction('portals:edit');
@@ -84,7 +94,9 @@
   });
 
   const dateFormat = new Intl.DateTimeFormat('en-US', {
-    month: 'long', day: 'numeric', year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
   });
 
   function startCreate() {
@@ -112,12 +124,14 @@
       } else {
         portalStore.add(portal);
         await syncPortalToIndex(portal);
-        const idx = portalStore.portals.findIndex(p => p.id === portal.id);
+        const idx = portalStore.portals.findIndex((p) => p.id === portal.id);
         if (idx >= 0) portalsUiState.selectedIndex = idx;
       }
     } catch (err) {
       diagnosticsService.report({
-        source: 'frontend', kind: 'manual', severity: 'error',
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
         retryable: false,
         context: { message: `Could not save portal: ${err}` },
       });
@@ -138,7 +152,9 @@
       await deletePortal(portal.id);
     } catch (err) {
       diagnosticsService.report({
-        source: 'frontend', kind: 'manual', severity: 'warning',
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'warning',
         retryable: false,
         context: { message: `Could not fully remove portal: ${err}` },
       });
@@ -157,13 +173,15 @@
       await syncPortalToIndex(dup);
     } catch (err) {
       diagnosticsService.report({
-        source: 'frontend', kind: 'manual', severity: 'warning',
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'warning',
         retryable: false,
         context: { message: `Could not index duplicated portal: ${err}` },
       });
     }
     await tick();
-    const idx = portalStore.portals.findIndex(p => p.id === dup.id);
+    const idx = portalStore.portals.findIndex((p) => p.id === dup.id);
     if (idx >= 0) portalsUiState.selectedIndex = idx;
   }
 
@@ -267,12 +285,18 @@
       {:else}
         <EmptyState
           message={portals.length === 0 ? 'No portals yet' : 'Select a portal'}
-          description={portals.length === 0 ? 'Add a URL shortcut to get started.' : 'Choose a portal from the list to view its details.'}
+          description={portals.length === 0
+            ? 'Add a URL shortcut to get started.'
+            : 'Choose a portal from the list to view its details.'}
         >
           {#snippet icon()}
             <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+              />
             </svg>
           {/snippet}
           {#if portals.length === 0}
@@ -285,19 +309,82 @@
 </div>
 
 <style>
-  .portal-detail-content { flex: 1; overflow-y: auto; padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-6); }
-  .detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-5); }
-  .detail-title-row { display: flex; align-items: center; gap: var(--space-3); }
-  .portal-name { font-size: var(--font-size-lg); font-weight: 600; color: var(--text-primary); margin: 0; }
-  .portal-meta-dim { color: var(--text-tertiary); }
+  .portal-detail-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+  .detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-5);
+  }
+  .detail-title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .portal-name {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+  .portal-meta-dim {
+    color: var(--text-tertiary);
+  }
 
-  .field-group { display: flex; flex-direction: column; gap: var(--space-2); }
-  .field-label { font-size: var(--font-size-xs); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; }
-  .portal-url { font-family: var(--font-mono); font-size: var(--font-size-md); line-height: 1.6; color: var(--text-primary); white-space: pre-wrap; word-break: break-all; background: var(--bg-secondary); border-radius: var(--radius-sm); padding: var(--space-4) var(--space-5); margin: 0; }
-  .placeholder-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .field-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .portal-url {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-md);
+    line-height: 1.6;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-all;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    padding: var(--space-4) var(--space-5);
+    margin: 0;
+  }
+  .placeholder-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
 
-  .form-panel { display: flex; flex-direction: column; height: 100%; }
-  .form-header { padding: var(--space-7) var(--space-8) 0; flex-shrink: 0; }
-  .form-title { font-size: var(--font-size-lg); font-weight: 600; color: var(--text-primary); margin: 0 0 var(--space-6); }
-  .form-body { flex: 1; overflow-y: auto; padding: 0 var(--space-8) var(--space-6); }
+  .form-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .form-header {
+    padding: var(--space-7) var(--space-8) 0;
+    flex-shrink: 0;
+  }
+  .form-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 var(--space-6);
+  }
+  .form-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 var(--space-8) var(--space-6);
+  }
 </style>

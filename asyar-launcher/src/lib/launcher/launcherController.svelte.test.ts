@@ -20,7 +20,10 @@ vi.mock('../../services/search/searchOrchestrator.svelte', () => ({
 }));
 
 vi.mock('../../services/appInitializer', () => ({
-  appInitializer: { init: vi.fn().mockResolvedValue(undefined), isAppInitialized: vi.fn(() => false) },
+  appInitializer: {
+    init: vi.fn().mockResolvedValue(undefined),
+    isAppInitialized: vi.fn(() => false),
+  },
 }));
 
 vi.mock('../../services/extension/viewManager.svelte', () => ({
@@ -131,7 +134,9 @@ describe('LauncherController.handleEnterKey — nav-stack observation guard', ()
   it('does NOT clear search when the action pushed onto the nav stack during the await', async () => {
     let stackSize = 0;
     vi.mocked(viewManager.getNavigationStackSize).mockImplementation(() => stackSize);
-    const action = vi.fn().mockImplementation(async () => { stackSize = 1; });
+    const action = vi.fn().mockImplementation(async () => {
+      stackSize = 1;
+    });
 
     selectItem({ type: 'command', action });
 
@@ -158,10 +163,12 @@ describe('LauncherController.handleEnterKey — nav-stack observation guard', ()
 
     await controller.handleEnterKey();
 
-    expect(diagnosticsService.report).toHaveBeenCalledWith(expect.objectContaining({
-      kind: 'action_failed',
-      context: { message: 'Error executing action' },
-    }));
+    expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'action_failed',
+        context: { message: 'Error executing action' },
+      }),
+    );
     expect(searchStores.query).toBe('hello');
   });
 });

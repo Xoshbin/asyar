@@ -1,6 +1,10 @@
-import type { IExtensionManager } from "./IExtensionManager";
-import type { ExtensionManifest, ExtensionResult, ExtensionWithState } from "../types/ExtensionType";
-import { BaseServiceProxy } from "./BaseServiceProxy";
+import type { IExtensionManager } from './IExtensionManager';
+import type {
+  ExtensionManifest,
+  ExtensionResult,
+  ExtensionWithState,
+} from '../types/ExtensionType';
+import { BaseServiceProxy } from './BaseServiceProxy';
 
 export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensionManager {
   private _currentExtension: ExtensionManifest | null = null;
@@ -32,7 +36,10 @@ export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensio
   }
 
   toggleExtensionState(extensionName: string, enabled: boolean): Promise<boolean> {
-    return this.broker.invoke<boolean>('extensions:toggleExtensionState', { extensionName, enabled });
+    return this.broker.invoke<boolean>('extensions:toggleExtensionState', {
+      extensionName,
+      enabled,
+    });
   }
 
   getAllExtensionsWithState(): Promise<ExtensionWithState[]> {
@@ -52,11 +59,15 @@ export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensio
   }
 
   navigateToView(viewPath: string): void {
-    this.broker.invoke('extensions:navigateToView', { viewPath }).catch(err => console.warn('[ExtensionManagerProxy] navigateToView failed:', err));
+    this.broker
+      .invoke('extensions:navigateToView', { viewPath })
+      .catch((err) => console.warn('[ExtensionManagerProxy] navigateToView failed:', err));
   }
 
   goBack(): void {
-    this.broker.invoke('extensions:goBack').catch(err => console.warn('[ExtensionManagerProxy] goBack failed:', err));
+    this.broker
+      .invoke('extensions:goBack')
+      .catch((err) => console.warn('[ExtensionManagerProxy] goBack failed:', err));
   }
 
   forwardKeyToActiveView(keyEvent: {
@@ -66,7 +77,9 @@ export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensio
     metaKey: boolean;
     altKey: boolean;
   }): void {
-    this.broker.invoke('extensions:forwardKeyToActiveView', { keyEvent }).catch(err => console.warn('[ExtensionManagerProxy] forwardKeyToActiveView failed:', err));
+    this.broker
+      .invoke('extensions:forwardKeyToActiveView', { keyEvent })
+      .catch((err) => console.warn('[ExtensionManagerProxy] forwardKeyToActiveView failed:', err));
   }
 
   getAllExtensions(): Promise<ExtensionManifest[]> {
@@ -74,15 +87,23 @@ export class ExtensionManagerProxy extends BaseServiceProxy implements IExtensio
   }
 
   uninstallExtension(extensionId: string, extensionName: string): Promise<boolean> {
-    return this.broker.invoke<boolean>('extensions:uninstallExtension', { extensionId, extensionName });
+    return this.broker.invoke<boolean>('extensions:uninstallExtension', {
+      extensionId,
+      extensionName,
+    });
   }
 
   setActiveViewActionLabel(label: string | null): void {
-    this.broker.invoke('extensions:setActiveViewActionLabel', { label }).catch(err => console.warn('[ExtensionManagerProxy] setActiveViewActionLabel failed:', err));
+    this.broker
+      .invoke('extensions:setActiveViewActionLabel', { label })
+      .catch((err) =>
+        console.warn('[ExtensionManagerProxy] setActiveViewActionLabel failed:', err),
+      );
   }
 
   setActiveViewSubtitle(subtitle: string | null): void {
-    this.broker.invoke('extensions:setActiveViewSubtitle', { subtitle }).catch(err => console.warn('[ExtensionManagerProxy] setActiveViewSubtitle failed:', err));
+    this.broker
+      .invoke('extensions:setActiveViewSubtitle', { subtitle })
+      .catch((err) => console.warn('[ExtensionManagerProxy] setActiveViewSubtitle failed:', err));
   }
 }
-

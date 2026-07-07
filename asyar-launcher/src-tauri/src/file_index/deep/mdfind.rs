@@ -28,7 +28,9 @@ impl FileSearchProvider for MdfindProvider {
 impl DeepProvider for MdfindProvider {
     fn probe(&self) -> bool {
         let mut cmd = Command::new("mdfind");
-        cmd.arg("-name").arg("__asyar_deep_search_probe__").arg("-count");
+        cmd.arg("-name")
+            .arg("__asyar_deep_search_probe__")
+            .arg("-count");
         run_with_timeout(cmd, PROBE_TIMEOUT).is_some()
     }
 
@@ -48,7 +50,10 @@ mod tests {
 
     #[test]
     fn probe_succeeds_on_a_real_mac() {
-        assert!(MdfindProvider.probe(), "mdfind ships with every macOS install");
+        assert!(
+            MdfindProvider.probe(),
+            "mdfind ships with every macOS install"
+        );
     }
 
     #[test]

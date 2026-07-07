@@ -2,11 +2,11 @@
  * Types of content that can be stored in the clipboard
  */
 export enum ClipboardItemType {
-  Text = "text",
-  Html = "html",
-  Rtf = "rtf",
-  Image = "image",
-  Files = "files",
+  Text = 'text',
+  Html = 'html',
+  Rtf = 'rtf',
+  Image = 'image',
+  Files = 'files',
 }
 
 /**

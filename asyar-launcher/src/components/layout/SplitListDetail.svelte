@@ -80,7 +80,9 @@
     overflow-y: auto;
     padding: 8px;
   }
-  .list-panel:focus { outline: none; }
+  .list-panel:focus {
+    outline: none;
+  }
 
   .detail-panel {
     height: 100%;

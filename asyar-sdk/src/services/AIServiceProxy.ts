@@ -81,7 +81,7 @@ export class AIServiceProxy extends BaseServiceProxy implements IAIService {
       .catch((err) => {
         const errorStr = String(err.message || err);
         const match = errorStr.match(/^(\w+):\s*(.*)$/);
-        
+
         if (match) {
           const [, code, message] = match;
           settle({
@@ -106,7 +106,7 @@ export class AIServiceProxy extends BaseServiceProxy implements IAIService {
             type: 'asyar:stream:abort',
             streamId,
           },
-          '*'
+          '*',
         );
         settle({ code: 'aborted', message: 'Stream was aborted by the extension' });
       },

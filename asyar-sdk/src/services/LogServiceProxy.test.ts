@@ -4,10 +4,10 @@ import { messageBroker } from '../ipc/MessageBroker';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
-      invoke: vi.fn(),
-      on: vi.fn(),
-      off: vi.fn(),
-    },
+    invoke: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
 }));
 
 function makeProxy() {
@@ -29,9 +29,7 @@ describe('LogServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     proxy.debug('test message');
     await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'log:debug',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'log:debug');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ message: 'test message' });
   });
@@ -40,9 +38,7 @@ describe('LogServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     proxy.info('hello');
     await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'log:info',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'log:info');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ message: 'hello' });
   });
@@ -51,9 +47,7 @@ describe('LogServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     proxy.warn('caution');
     await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'log:warn',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'log:warn');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ message: 'caution' });
   });
@@ -62,9 +56,7 @@ describe('LogServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     proxy.error('something broke');
     await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'log:error',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'log:error');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ message: 'something broke' });
   });
@@ -73,9 +65,7 @@ describe('LogServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     proxy.error(new Error('err obj'));
     await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'log:error',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'log:error');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ message: 'err obj' });
   });
@@ -84,9 +74,7 @@ describe('LogServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     proxy.custom('msg', 'myCategory', 'blue', 'frame1');
     await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'log:custom',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'log:custom');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({
       message: 'msg',
@@ -100,9 +88,7 @@ describe('LogServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     proxy.custom('msg', 'cat', 'red');
     await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'log:custom',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'log:custom');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({
       message: 'msg',

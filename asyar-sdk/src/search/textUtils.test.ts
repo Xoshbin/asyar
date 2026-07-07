@@ -11,7 +11,8 @@ describe('stripHtml', () => {
   });
 
   it('strips full HTML documents', () => {
-    const html = '<html><head><meta charset="UTF-8"><style>body{color:red}</style></head><body><p>quarterly report</p></body></html>';
+    const html =
+      '<html><head><meta charset="UTF-8"><style>body{color:red}</style></head><body><p>quarterly report</p></body></html>';
     expect(stripHtml(html)).toContain('quarterly report');
     expect(stripHtml(html)).not.toContain('<');
     expect(stripHtml(html)).not.toContain('color:red');
@@ -71,22 +72,25 @@ describe('stripRtf', () => {
   });
 
   it('drops font table content', () => {
-    const input = '{\\rtf1\\ansi{\\fonttbl\\f0\\fnil\\fcharset0 .SFNSRounded-Regular;}\\f0 hello world}';
+    const input =
+      '{\\rtf1\\ansi{\\fonttbl\\f0\\fnil\\fcharset0 .SFNSRounded-Regular;}\\f0 hello world}';
     expect(stripRtf(input)).toBe('hello world');
   });
 
   it('drops color table content', () => {
-    const input = '{\\rtf1{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;}\\cf2 body text}';
+    const input =
+      '{\\rtf1{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;}\\cf2 body text}';
     expect(stripRtf(input)).toBe('body text');
   });
 
   it('drops expandedcolortbl with nested groups and labelColor', () => {
-    const input = '{\\rtf1{\\*\\expandedcolortbl;;\\cssrgb\\c0\\c0\\c0;\\cssrgb\\c0\\c0\\c0\\labelColor;}body}';
+    const input =
+      '{\\rtf1{\\*\\expandedcolortbl;;\\cssrgb\\c0\\c0\\c0;\\cssrgb\\c0\\c0\\c0\\labelColor;}body}';
     expect(stripRtf(input)).toBe('body');
   });
 
-  it('decodes \\\'92 as curly apostrophe', () => {
-    const input = '{\\rtf1 it\\\'92s fine}';
+  it("decodes \\'92 as curly apostrophe", () => {
+    const input = "{\\rtf1 it\\'92s fine}";
     expect(stripRtf(input)).toBe('it\u2019s fine');
   });
 
@@ -109,10 +113,25 @@ describe('stripRtf', () => {
   });
 
   it('full real-world TextEdit sample', () => {
-    const input = '{\\rtf1\\ansi\\ansicpg1252\\cocoartf2868\\cocoatextscaling0\\cocoaplatform0{\\fonttbl\\f0\\fnil\\fcharset0 .SFNSRounded-Regular;}{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;}{\\*\\expandedcolortbl;;\\cssrgb\\c0\\c0\\c0;\\cssrgb\\c0\\c0\\c0\\labelColor;}\\pard\\pardirnatural\\partightenfactor0\\f0\\fs28 \\cf2 \\expnd0\\expndtw0\\kerning0\\outl0\\strokewidth0 \\strokec2 Fix clipboard history formatting, currently it\\\'92s ugly}';
+    const input =
+      "{\\rtf1\\ansi\\ansicpg1252\\cocoartf2868\\cocoatextscaling0\\cocoaplatform0{\\fonttbl\\f0\\fnil\\fcharset0 .SFNSRounded-Regular;}{\\colortbl;\\red255\\green255\\blue255;\\red0\\green0\\blue0;}{\\*\\expandedcolortbl;;\\cssrgb\\c0\\c0\\c0;\\cssrgb\\c0\\c0\\c0\\labelColor;}\\pard\\pardirnatural\\partightenfactor0\\f0\\fs28 \\cf2 \\expnd0\\expndtw0\\kerning0\\outl0\\strokewidth0 \\strokec2 Fix clipboard history formatting, currently it\\'92s ugly}";
     const result = stripRtf(input);
     expect(result).toBe('Fix clipboard history formatting, currently it\u2019s ugly');
-    ['SFNSRounded', 'JetBrainsMono', 'cocoartf', 'fonttbl', 'colortbl', 'labelColor', 'expandedcolortbl', 'pard', '\\f0', '\\fs28', '\\cf2', '\\\'92', '\\u8217'].forEach(term => {
+    [
+      'SFNSRounded',
+      'JetBrainsMono',
+      'cocoartf',
+      'fonttbl',
+      'colortbl',
+      'labelColor',
+      'expandedcolortbl',
+      'pard',
+      '\\f0',
+      '\\fs28',
+      '\\cf2',
+      "\\'92",
+      '\\u8217',
+    ].forEach((term) => {
       expect(result).not.toContain(term);
     });
   });

@@ -9,9 +9,17 @@
   <h3>Worker DevTools</h3>
   <p>Tauri cannot open DevTools scoped to a single iframe.</p>
   <ol>
-    <li>Press <kbd>Cmd</kbd>+<kbd>Option</kbd>+<kbd>I</kbd> on the launcher window to open DevTools.</li>
-    <li>In the DevTools top bar, find the frame dropdown (chain icon next to the console filter).</li>
-    <li>Select the worker iframe — labeled <code>asyar-extension://&lt;extension-id&gt;/worker.html</code>.</li>
+    <li>
+      Press <kbd>Cmd</kbd>+<kbd>Option</kbd>+<kbd>I</kbd> on the launcher window to open DevTools.
+    </li>
+    <li>
+      In the DevTools top bar, find the frame dropdown (chain icon next to the console filter).
+    </li>
+    <li>
+      Select the worker iframe — labeled <code
+        >asyar-extension://&lt;extension-id&gt;/worker.html</code
+      >.
+    </li>
     <li>The console and sources now reflect the worker context.</li>
   </ol>
   <p class="muted">

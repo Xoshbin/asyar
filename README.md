@@ -12,42 +12,42 @@ Built with [Tauri v2](https://tauri.app/) + Rust and [Svelte 5](https://svelte.d
 
 ## Screenshots
 
-|  |  |
-|:---:|:---:|
-| ![Search results](docs/images/the-basics-results.png) | ![AI agents](docs/images/feature-ai-agents-hero.png) |
-| **Fast fuzzy search** | **AI agents with tool calling** |
-| ![Calculator](docs/images/feature-calculator-hero.png) | ![Clipboard history](docs/images/feature-clipboard-hero.png) |
-| **Instant calculator** | **Clipboard history** |
-| ![MCP servers](docs/images/feature-mcp-hero.png) | ![Window management](docs/images/feature-window-management-hero.png) |
-| **MCP servers** | **Window management** |
-| ![Snippets](docs/images/feature-snippets-hero.png) | ![Scripts](docs/images/feature-scripts-hero.png) |
-| **Snippets** | **Scripts** |
-| ![Extensions](docs/images/feature-extensions-hero.png) | ![Browser integration](docs/images/feature-browser-hero.png) |
-| **Extensions** | **Browser integration** |
-| ![Keyboard shortcuts](docs/images/keyboard-shortcuts-help.png) | ![Settings](docs/images/settings-general.png) |
-| **Keyboard-first** | **Settings** |
+|                                                                |                                                                      |
+| :------------------------------------------------------------: | :------------------------------------------------------------------: |
+|     ![Search results](docs/images/the-basics-results.png)      |         ![AI agents](docs/images/feature-ai-agents-hero.png)         |
+|                     **Fast fuzzy search**                      |                   **AI agents with tool calling**                    |
+|     ![Calculator](docs/images/feature-calculator-hero.png)     |     ![Clipboard history](docs/images/feature-clipboard-hero.png)     |
+|                     **Instant calculator**                     |                        **Clipboard history**                         |
+|        ![MCP servers](docs/images/feature-mcp-hero.png)        | ![Window management](docs/images/feature-window-management-hero.png) |
+|                        **MCP servers**                         |                        **Window management**                         |
+|       ![Snippets](docs/images/feature-snippets-hero.png)       |           ![Scripts](docs/images/feature-scripts-hero.png)           |
+|                          **Snippets**                          |                             **Scripts**                              |
+|     ![Extensions](docs/images/feature-extensions-hero.png)     |     ![Browser integration](docs/images/feature-browser-hero.png)     |
+|                         **Extensions**                         |                       **Browser integration**                        |
+| ![Keyboard shortcuts](docs/images/keyboard-shortcuts-help.png) |            ![Settings](docs/images/settings-general.png)             |
+|                       **Keyboard-first**                       |                             **Settings**                             |
 
 ---
 
 ## Asyar vs. The Alternatives
 
-| | **Asyar** | Raycast | Alfred |
-|---|:---:|:---:|:---:|
-| Open Source | ✅ | ❌ | ❌ |
-| Local-First (data never leaves device) | ✅ | ❌ | ✅ |
-| No Account Required | ✅ | ❌ (Pro features) | ✅ |
-| No Cloud Required | ✅ | ❌ | ✅ |
-| Free Extensions | ✅ | Freemium | Paid Powerpack |
-| Linux Support | ✅ | ❌ | ❌ |
-| Native Rust Backend | ✅ | ❌ | ❌ |
-| Reactive Svelte 5 UI | ✅ | ❌ | ❌ |
-| Extension Sandboxing | ✅ | ❌ | ❌ |
-| Root-Search Extension Actions | ✅ | ❌ | ❌ |
-| Window Management | ✅ | ✅ | ❌ |
-| Deep Link Integration | ✅ | ✅ | ✅ |
-| Background Scheduling (native Rust daemon) | ✅ | ❌ | ❌ |
-| Reactive Live Subtitles (real-time root list updates) | ✅ | ❌ | ❌ |
-| **Silent AI Commands** (no-window in-place text replacement) | ✅ | ❌ | ❌ |
+|                                                              | **Asyar** |      Raycast      |     Alfred     |
+| ------------------------------------------------------------ | :-------: | :---------------: | :------------: |
+| Open Source                                                  |    ✅     |        ❌         |       ❌       |
+| Local-First (data never leaves device)                       |    ✅     |        ❌         |       ✅       |
+| No Account Required                                          |    ✅     | ❌ (Pro features) |       ✅       |
+| No Cloud Required                                            |    ✅     |        ❌         |       ✅       |
+| Free Extensions                                              |    ✅     |     Freemium      | Paid Powerpack |
+| Linux Support                                                |    ✅     |        ❌         |       ❌       |
+| Native Rust Backend                                          |    ✅     |        ❌         |       ❌       |
+| Reactive Svelte 5 UI                                         |    ✅     |        ❌         |       ❌       |
+| Extension Sandboxing                                         |    ✅     |        ❌         |       ❌       |
+| Root-Search Extension Actions                                |    ✅     |        ❌         |       ❌       |
+| Window Management                                            |    ✅     |        ✅         |       ❌       |
+| Deep Link Integration                                        |    ✅     |        ✅         |       ✅       |
+| Background Scheduling (native Rust daemon)                   |    ✅     |        ❌         |       ❌       |
+| Reactive Live Subtitles (real-time root list updates)        |    ✅     |        ❌         |       ❌       |
+| **Silent AI Commands** (no-window in-place text replacement) |    ✅     |        ❌         |       ❌       |
 
 ---
 
@@ -60,7 +60,7 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 - **Real OS integration** — native APIs for app indexing, clipboard, global hotkeys, and accessibility
 - **Secure by default** — extensions run in isolated iframes; a broken extension can't crash the launcher
 
-> *Native performance, web flexibility — Rust does the heavy lifting, Svelte 5 keeps the UI snappy.*
+> _Native performance, web flexibility — Rust does the heavy lifting, Svelte 5 keeps the UI snappy._
 
 ---
 
@@ -82,7 +82,7 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 - **Window Management** — 17 built-in layout presets (halves, quarters, thirds, maximize, center) plus custom saved layouts; undo the last move with "Restore Previous"; works on macOS, Windows, and Linux
 - **Context Modes** — Type prefixes (`ask ai`, a URL, etc.) to switch the launcher into a specialized mode; visual chips indicate the active context
 - **Create Extension** — Scaffold a new extension from a template without leaving the launcher
-- **AI Extension Builder** — Describe an extension in plain language (*"build an extension for Notion"*) and an AI agent scaffolds, codes, builds, and verifies it for you — gating feasibility up front, asking clarifying questions via notifications, and dropping a working extension into `~/AsyarExtensions`. Uses your own Anthropic key (BYOK, no Asyar account). Browse and one-click-publish everything you've built from the **My Extensions** view.
+- **AI Extension Builder** — Describe an extension in plain language (_"build an extension for Notion"_) and an AI agent scaffolds, codes, builds, and verifies it for you — gating feasibility up front, asking clarifying questions via notifications, and dropping a working extension into `~/AsyarExtensions`. Uses your own Anthropic key (BYOK, no Asyar account). Browse and one-click-publish everything you've built from the **My Extensions** view.
 - **Themes** — Customize the launcher's appearance with built-in themes or create your own
 - **Backup & Restore** — Export and import your data locally; optional password encryption for sensitive fields
 - **Privacy by Default** — Clipboard items the OS or source app marks private (NSPasteboard concealed/transient/auto-generated, Windows clipboard-history opt-out) are never stored; password managers (1Password, Bitwarden, KeePassXC, Dashlane, Enpass, LastPass, Apple Keychain Access) are denylisted by default. Known secret formats (AWS keys, GitHub/GitLab/Stripe/Slack/OpenAI/Anthropic tokens, JWTs, PEM private keys, Luhn-validated credit cards) are redacted in place across clipboard, snippets, and AI conversations — including before the AI provider sees them.
@@ -100,22 +100,22 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 
 ## Privacy Scorecard
 
-| | Asyar |
-|---|:---:|
-| Data stored locally only | ✅ |
-| Works fully offline | ✅ |
-| No telemetry by default | ✅ |
-| No account or login required | ✅ |
-| No subscription to unlock features | ✅ |
-| Extensions run in sandboxed iframes | ✅ |
-| Sensitive backup fields encrypted | ✅ |
-| Honors OS "do not capture" clipboard flags | ✅ |
-| Configurable password-manager denylist | ✅ |
-| Auto-redacts known secret formats (API keys, JWTs, private keys) | ✅ |
-| AI provider receives redacted user messages, not raw secrets | ✅ |
-| Local encryption at rest with OS-keychain key | ✅ |
-| Cloud sync uploads only what changed | ✅ |
-| Optional end-to-end encrypted cloud sync (passphrase + Argon2id + AES-256-GCM) | ✅ |
+|                                                                                | Asyar |
+| ------------------------------------------------------------------------------ | :---: |
+| Data stored locally only                                                       |  ✅   |
+| Works fully offline                                                            |  ✅   |
+| No telemetry by default                                                        |  ✅   |
+| No account or login required                                                   |  ✅   |
+| No subscription to unlock features                                             |  ✅   |
+| Extensions run in sandboxed iframes                                            |  ✅   |
+| Sensitive backup fields encrypted                                              |  ✅   |
+| Honors OS "do not capture" clipboard flags                                     |  ✅   |
+| Configurable password-manager denylist                                         |  ✅   |
+| Auto-redacts known secret formats (API keys, JWTs, private keys)               |  ✅   |
+| AI provider receives redacted user messages, not raw secrets                   |  ✅   |
+| Local encryption at rest with OS-keychain key                                  |  ✅   |
+| Cloud sync uploads only what changed                                           |  ✅   |
+| Optional end-to-end encrypted cloud sync (passphrase + Argon2id + AES-256-GCM) |  ✅   |
 
 ---
 
@@ -135,17 +135,17 @@ Items rejected at this layer never reach SQLite, so they cannot leak via local d
 
 ### Layer 2 — Pattern-based secret redaction
 
-For everything that *does* get stored, Asyar runs a regex-based detector over clipboard items (text / HTML / RTF), snippet expansions, and AI conversation messages. Each match is replaced in place with `[redacted: <kind>]` — items still appear in history but the secret value is gone.
+For everything that _does_ get stored, Asyar runs a regex-based detector over clipboard items (text / HTML / RTF), snippet expansions, and AI conversation messages. Each match is replaced in place with `[redacted: <kind>]` — items still appear in history but the secret value is gone.
 
 Bundled detector kinds (false-positive rate near zero on plain-English text):
 
-| Category | Kinds |
-|---|---|
-| Cloud & infra | `aws_access_key`, `stripe_live_secret`, `stripe_restricted` |
+| Category      | Kinds                                                                                                            |
+| ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Cloud & infra | `aws_access_key`, `stripe_live_secret`, `stripe_restricted`                                                      |
 | Source forges | `github_pat`, `github_oauth`, `github_user_to_server`, `github_server_to_server`, `github_refresh`, `gitlab_pat` |
-| Chat & AI | `slack_token`, `openai_key`, `anthropic_key` |
-| Cryptography | `pem_private_key`, `jwt` |
-| Financial | `credit_card` (Luhn-validated) |
+| Chat & AI     | `slack_token`, `openai_key`, `anthropic_key`                                                                     |
+| Cryptography  | `pem_private_key`, `jwt`                                                                                         |
+| Financial     | `credit_card` (Luhn-validated)                                                                                   |
 
 **AI conversations are redacted before the provider call** — the AI provider never sees raw secrets either, even if the user pastes a JWT and asks "what does this token mean?".
 
@@ -179,52 +179,52 @@ See [`docs/explanation/clipboard-privacy.md`](docs/explanation/clipboard-privacy
 
 ## OS Support Matrix
 
-| Feature | macOS | Windows | Linux (X11)* |
-|---------|:-----:|:-------:|:------------:|
-| Spotlight | ✅ | ✅ | ✅ |
-| Applications | ✅ | ✅ | ✅ |
-| Application Icons | ✅ | ✅ | ✅ |
-| AI Agents | ✅ | ✅ | ✅ |
-| Silent AI Commands | ✅ | ✅ | ✅ |
-| MCP Servers | ✅ | ✅ | ✅ |
-| Scripts | ✅ | ✅ | ✅ |
-| Calculator | ✅ | ✅ | ✅ |
-| Clipboard History | ✅ | ✅ | ✅ |
-| File Search | ✅ | ✅ | ✅ |
-| Context Modes | ✅ | ✅ | ✅ |
-| Create Extension | ✅ | ✅ | ✅ |
-| Portals | ✅ | ✅ | ✅ |
-| Shortcuts | ✅ | ✅ | ✅ |
-| Snippets | ✅ | ✅ | ✅ |
-| Store | ✅ | ✅ | ✅ |
-| Installed Extensions | ✅ | ✅ | ✅ |
-| Backup & Restore | ✅ | ✅ | ✅ |
-| Window Management | ✅ | ✅ | ✅ |
-| Deep Links | ✅ | ✅ | ✅ |
-| Background Scheduling | ✅ | ✅ | ✅ |
-| HUD Notifications | ✅ | ✅ | ✅ |
+| Feature               | macOS | Windows | Linux (X11)* |
+| --------------------- | :---: | :-----: | :----------: |
+| Spotlight             |  ✅   |   ✅    |      ✅      |
+| Applications          |  ✅   |   ✅    |      ✅      |
+| Application Icons     |  ✅   |   ✅    |      ✅      |
+| AI Agents             |  ✅   |   ✅    |      ✅      |
+| Silent AI Commands    |  ✅   |   ✅    |      ✅      |
+| MCP Servers           |  ✅   |   ✅    |      ✅      |
+| Scripts               |  ✅   |   ✅    |      ✅      |
+| Calculator            |  ✅   |   ✅    |      ✅      |
+| Clipboard History     |  ✅   |   ✅    |      ✅      |
+| File Search           |  ✅   |   ✅    |      ✅      |
+| Context Modes         |  ✅   |   ✅    |      ✅      |
+| Create Extension      |  ✅   |   ✅    |      ✅      |
+| Portals               |  ✅   |   ✅    |      ✅      |
+| Shortcuts             |  ✅   |   ✅    |      ✅      |
+| Snippets              |  ✅   |   ✅    |      ✅      |
+| Store                 |  ✅   |   ✅    |      ✅      |
+| Installed Extensions  |  ✅   |   ✅    |      ✅      |
+| Backup & Restore      |  ✅   |   ✅    |      ✅      |
+| Window Management     |  ✅   |   ✅    |      ✅      |
+| Deep Links            |  ✅   |   ✅    |      ✅      |
+| Background Scheduling |  ✅   |   ✅    |      ✅      |
+| HUD Notifications     |  ✅   |   ✅    |      ✅      |
 
-> * **Note on Linux Wayland:** Global input-heavy features like Snippets do **not** work on Wayland (e.g., default Ubuntu 22.04+, Fedora 25+, KDE Plasma 6).
+> - **Note on Linux Wayland:** Global input-heavy features like Snippets do **not** work on Wayland (e.g., default Ubuntu 22.04+, Fedora 25+, KDE Plasma 6).
 
 ### Detailed Platform Compatibility
 
-*(Asyar is fully tested and verified on **macOS**, **Windows 11**, and **Debian**)*
+_(Asyar is fully tested and verified on **macOS**, **Windows 11**, and **Debian**)_
 
 - **macOS:** Fully supported and tested. Global features like Snippets require Accessibility permissions.
 - **Windows:** Fully tested on Windows 11. Supported on Windows 10 out-of-the-box.
 - **Linux (X11):** Fully tested on Debian. Supported on all other X11 sessions (Mint, MATE, Xfce, Ubuntu on Xorg).
-- **Linux (Wayland):** ❌ Not supported for global hooks. *Workaround: Log out and select an "Xorg" or "X11" session at your login screen.*
+- **Linux (Wayland):** ❌ Not supported for global hooks. _Workaround: Log out and select an "Xorg" or "X11" session at your login screen._
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology | Why It Matters |
-|-------|-----------|----------------|
-| Backend | Rust (Tauri v2) | Native OS integration, memory safety, no Electron overhead |
-| Frontend | Svelte 5 | Fine-grained reactivity, minimal bundle size, instant renders |
-| Extensions | TypeScript + any web framework | Build with Svelte, React, Vue, or vanilla JS — sandboxed in iframes |
-| Extension Store | [asyar.org](https://asyar.org) | Browse, publish, and install community extensions |
+| Layer           | Technology                     | Why It Matters                                                      |
+| --------------- | ------------------------------ | ------------------------------------------------------------------- |
+| Backend         | Rust (Tauri v2)                | Native OS integration, memory safety, no Electron overhead          |
+| Frontend        | Svelte 5                       | Fine-grained reactivity, minimal bundle size, instant renders       |
+| Extensions      | TypeScript + any web framework | Build with Svelte, React, Vue, or vanilla JS — sandboxed in iframes |
+| Extension Store | [asyar.org](https://asyar.org) | Browse, publish, and install community extensions                   |
 
 ---
 
@@ -247,21 +247,21 @@ Every installed extension declares the permissions it needs in its `manifest.jso
 1. **Frontend gate** — the IPC router intercepts every extension call and checks it against the manifest before it ever reaches the backend
 2. **Rust gate** — the permission registry enforces the same rules again at the Rust layer, so a compromised frontend can't bypass security
 
-| Permission | What it grants |
-|------------|---------------|
-| `clipboard:read` / `clipboard:write` | Access the system clipboard |
-| `fs:read` / `fs:write` | Read or write files |
-| `network` | Make HTTP requests |
-| `shell:execute` | Run shell commands |
-| `shell:open-url` | Open URLs in the browser |
-| `notifications:send` | Show system notifications |
-| `store:read` / `store:write` | Persist extension data |
-| `tools:register` | Register tools that AI agents can invoke |
-| `runs:track` | Surface long-running work in the launcher's runs UI |
+| Permission                           | What it grants                                      |
+| ------------------------------------ | --------------------------------------------------- |
+| `clipboard:read` / `clipboard:write` | Access the system clipboard                         |
+| `fs:read` / `fs:write`               | Read or write files                                 |
+| `network`                            | Make HTTP requests                                  |
+| `shell:execute`                      | Run shell commands                                  |
+| `shell:open-url`                     | Open URLs in the browser                            |
+| `notifications:send`                 | Show system notifications                           |
+| `store:read` / `store:write`         | Persist extension data                              |
+| `tools:register`                     | Register tools that AI agents can invoke            |
+| `runs:track`                         | Surface long-running work in the launcher's runs UI |
 
 On top of permission gating, each installed extension runs in an **isolated iframe** with its own browsing context — no access to the host DOM, no access to other extensions' data, and a strict Content Security Policy that prevents loading external scripts. All communication flows through a typed `postMessage` bridge; malformed messages are rejected.
 
-> *The result: users can install community extensions without trusting them with full system access.*
+> _The result: users can install community extensions without trusting them with full system access._
 
 ---
 
@@ -282,25 +282,25 @@ Asyar agents are first-class command targets — type the agent's name, press `E
 ## Silent AI Commands
 
 1. Open the launcher → **Manage Agents** → **New Agent**.
-2. Name it (e.g. *Grammar Fix*), set a one-line system prompt (*"Reply ONLY with the corrected text — no preamble, no quotes"*).
+2. Name it (e.g. _Grammar Fix_), set a one-line system prompt (_"Reply ONLY with the corrected text — no preamble, no quotes"_).
 3. Toggle **Run silently (no chat view)** on. Pick an **Input source** and an **Output action**.
-4. Save, then bind a hotkey from the launcher root with ⌘K → *Set Shortcut*.
+4. Save, then bind a hotkey from the launcher root with ⌘K → _Set Shortcut_.
 
 Now select text anywhere — TextEdit, your editor, a browser textarea, Mail — and press your hotkey. The selection is sent to the LLM and the response **replaces it in place**. The launcher never opens.
 
-| Input source | Where the agent's input comes from |
-|---|---|
+| Input source                        | Where the agent's input comes from                               |
+| ----------------------------------- | ---------------------------------------------------------------- |
 | **Selected text in the active app** | The text you currently have highlighted (read via Accessibility) |
-| **Clipboard** | Whatever you most recently copied |
-| **Argument** | A one-shot text argument typed in the chip row |
-| **None** | Empty input — the prompt alone drives the response |
+| **Clipboard**                       | Whatever you most recently copied                                |
+| **Argument**                        | A one-shot text argument typed in the chip row                   |
+| **None**                            | Empty input — the prompt alone drives the response               |
 
-| Output action | What happens to the LLM's response |
-|---|---|
+| Output action                             | What happens to the LLM's response                                                                                     |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | **Replace the selection with the result** | Saves your clipboard, writes the result, pastes (replacing the selection), then restores your clipboard a moment later |
-| **Copy to clipboard** | Quietly copies the result; nothing is pasted |
-| **Paste at cursor** | Pastes at the cursor position without trying to replace anything |
-| **Show a HUD with the last line** | Brief top-of-screen toast with the last line of the response |
+| **Copy to clipboard**                     | Quietly copies the result; nothing is pasted                                                                           |
+| **Paste at cursor**                       | Pastes at the cursor position without trying to replace anything                                                       |
+| **Show a HUD with the last line**         | Brief top-of-screen toast with the last line of the response                                                           |
 
 The whole pipeline is structurally headless — silent agents never create a thread, never enter the Run Tracker's "Done" list, never fire a notification on success (failures still notify, with the error in the body). Tool-using silent agents are supported: the loop iterates until a final assistant message and only then triggers the output action.
 
@@ -312,10 +312,10 @@ See [`docs/reference/silent-agents.md`](docs/reference/silent-agents.md) for the
 
 Typing certain prefixes transforms the launcher into a specialized mode:
 
-| Prefix | Mode |
-|--------|------|
-| `ask ai`, `ai`, `chat` | Asyar Assistant (AI Agent) |
-| A URL or portal trigger | Portal / web view |
+| Prefix                  | Mode                       |
+| ----------------------- | -------------------------- |
+| `ask ai`, `ai`, `chat`  | Asyar Assistant (AI Agent) |
+| A URL or portal trigger | Portal / web view          |
 
 An active context is shown as a chip in the search bar. Press `Escape` to exit the current context and return to normal search.
 

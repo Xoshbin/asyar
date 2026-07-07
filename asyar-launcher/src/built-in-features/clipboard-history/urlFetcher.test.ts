@@ -4,7 +4,13 @@ import { fetchUrlContent } from './urlFetcher';
 
 function makeNetwork(body: string, ok = true) {
   return {
-    fetch: vi.fn().mockResolvedValue({ ok, status: ok ? 200 : 404, statusText: ok ? 'OK' : 'Not Found', body, headers: {} }),
+    fetch: vi.fn().mockResolvedValue({
+      ok,
+      status: ok ? 200 : 404,
+      statusText: ok ? 'OK' : 'Not Found',
+      body,
+      headers: {},
+    }),
   };
 }
 
@@ -50,7 +56,10 @@ describe('fetchUrlContent', () => {
   });
 
   it('fixes relative image src to absolute', async () => {
-    const content = '<p>This is a content paragraph with enough text to pass the minimum length threshold.</p>'.repeat(5);
+    const content =
+      '<p>This is a content paragraph with enough text to pass the minimum length threshold.</p>'.repeat(
+        5,
+      );
     const html = `<html><body><article>${content}<img src="/images/photo.png"/></article></body></html>`;
     const network = makeNetwork(html);
     const result = await fetchUrlContent('https://example.com/post-img', network as any);
@@ -61,7 +70,10 @@ describe('fetchUrlContent', () => {
   });
 
   it('fixes relative link href to absolute and adds target=_blank', async () => {
-    const content = '<p>This is a content paragraph with enough text to pass the minimum length threshold.</p>'.repeat(5);
+    const content =
+      '<p>This is a content paragraph with enough text to pass the minimum length threshold.</p>'.repeat(
+        5,
+      );
     const html = `<html><body><article>${content}<a href="/about">About</a></article></body></html>`;
     const network = makeNetwork(html);
     const result = await fetchUrlContent('https://example.com/post-link', network as any);
@@ -73,7 +85,10 @@ describe('fetchUrlContent', () => {
   });
 
   it('strips script tags from extracted content', async () => {
-    const content = '<p>This is a content paragraph with enough text to pass the minimum length threshold.</p>'.repeat(5);
+    const content =
+      '<p>This is a content paragraph with enough text to pass the minimum length threshold.</p>'.repeat(
+        5,
+      );
     const html = `<html><body><article>${content}<script>alert(1)</script></article></body></html>`;
     const network = makeNetwork(html);
     const result = await fetchUrlContent('https://example.com/post', network as any);
@@ -84,7 +99,10 @@ describe('fetchUrlContent', () => {
   });
 
   it('uses main selector when article not present', async () => {
-    const content = '<p>Main content paragraph with enough text to pass the minimum length threshold.</p>'.repeat(5);
+    const content =
+      '<p>Main content paragraph with enough text to pass the minimum length threshold.</p>'.repeat(
+        5,
+      );
     const html = `<html><body><nav>Nav</nav><main>${content}</main></body></html>`;
     const network = makeNetwork(html);
     const result = await fetchUrlContent('https://example.com/page', network as any);

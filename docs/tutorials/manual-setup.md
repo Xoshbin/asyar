@@ -1,6 +1,7 @@
 ---
 order: 3
 ---
+
 ### Method B: Manual scaffold
 
 If you prefer full control, here is the minimum project structure:
@@ -68,16 +69,19 @@ window.addEventListener('keydown', (event) => {
   const isCommandK = (event.metaKey || event.ctrlKey) && event.key === 'k';
   if (isCommandK) {
     event.preventDefault();
-    window.parent.postMessage({
-      type: 'asyar:extension:keydown',
-      payload: {
-        key: event.key,
-        metaKey: event.metaKey,
-        ctrlKey: event.ctrlKey,
-        shiftKey: event.shiftKey,
-        altKey: event.altKey,
-      }
-    }, '*');
+    window.parent.postMessage(
+      {
+        type: 'asyar:extension:keydown',
+        payload: {
+          key: event.key,
+          metaKey: event.metaKey,
+          ctrlKey: event.ctrlKey,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+        },
+      },
+      '*',
+    );
   }
 });
 
@@ -90,7 +94,7 @@ if (viewName === 'DefaultView') {
     target: document.getElementById('app')!,
     props: {
       logger: context.getService<ILogService>('log'),
-    }
+    },
   });
 }
 ```
@@ -134,8 +138,14 @@ if (viewName === 'DefaultView') {
     background: var(--bg-primary);
     color: var(--text-primary);
   }
-  h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-  p  { opacity: 0.7; margin-bottom: 1.5rem; }
+  h1 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+  p {
+    opacity: 0.7;
+    margin-bottom: 1.5rem;
+  }
   button {
     background: var(--accent-primary, #2563eb);
     color: white;
@@ -145,7 +155,9 @@ if (viewName === 'DefaultView') {
     cursor: pointer;
     transition: opacity 0.15s;
   }
-  button:hover { opacity: 0.85; }
+  button:hover {
+    opacity: 0.85;
+  }
 </style>
 ```
 
@@ -186,15 +198,15 @@ export { DefaultView };
 ```html
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hello World</title>
-</head>
-<body>
-  <div id="app"></div>
-  <script type="module" src="/src/main.ts"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hello World</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>
 ```
 
@@ -231,11 +243,11 @@ export default defineConfig(({ mode }) => ({
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev":      "vite build --watch",
-    "build":    "asyar build",
+    "dev": "vite build --watch",
+    "build": "asyar build",
     "validate": "asyar validate",
-    "link":     "asyar link",
-    "publish":  "asyar publish"
+    "link": "asyar link",
+    "publish": "asyar publish"
   },
   "dependencies": {
     "asyar-sdk": "^3.1.0",

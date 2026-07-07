@@ -46,7 +46,9 @@
     color: var(--text-secondary);
     font-family: var(--font-ui);
     cursor: pointer;
-    transition: color var(--transition-fast), background-color var(--transition-fast);
+    transition:
+      color var(--transition-fast),
+      background-color var(--transition-fast);
   }
 
   .bottom-bar-button:hover:not(:disabled) {

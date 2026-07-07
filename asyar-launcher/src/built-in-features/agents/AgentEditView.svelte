@@ -144,8 +144,7 @@
         class="field-textarea"
         bind:value={form.systemPrompt}
         rows={6}
-        placeholder="You are a helpful assistant."
-      ></textarea>
+        placeholder="You are a helpful assistant."></textarea>
     </div>
 
     <div class="form-field">
@@ -198,7 +197,9 @@
         <ToolPickerTree
           {groups}
           selectedIds={form.toolSelection}
-          onChange={(s) => { form.toolSelection = s; }}
+          onChange={(s) => {
+            form.toolSelection = s;
+          }}
         />
       </div>
     {/if}
@@ -213,16 +214,12 @@
     -->
     <div class="form-field">
       <label class="silent-toggle">
-        <input
-          type="checkbox"
-          bind:checked={form.silent}
-        />
+        <input type="checkbox" bind:checked={form.silent} />
         <span>Run silently (no chat view)</span>
       </label>
       <p class="field-hint silent-hint">
-        Silent agents run in the background and put the result back wherever
-        you triggered them from. Useful for one-shot tasks like grammar fixes
-        or translations.
+        Silent agents run in the background and put the result back wherever you triggered them
+        from. Useful for one-shot tasks like grammar fixes or translations.
       </p>
     </div>
 

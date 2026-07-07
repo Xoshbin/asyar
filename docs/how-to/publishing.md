@@ -1,6 +1,7 @@
 ---
 order: 2
 ---
+
 ## 13. Publishing — GitHub & the Asyar Store
 
 ### The full publish pipeline
@@ -98,6 +99,7 @@ https://github.com/<user>/<repo>/releases/download/v1.0.0/<extension-id>.zip
 Users can also install extensions directly from a local file — no internet connection or store submission required. This is the primary distribution method for theme extensions and useful for beta testing any extension type.
 
 **To install:**
+
 1. Package your extension as a `.asyar` file (a renamed ZIP archive — see [Type 3: Theme Extension](#type-3-theme-extension-theme) for the packaging command; view/result extensions use the same format with `index.html` instead of `theme.json`).
 2. Open Asyar → Settings → Extensions.
 3. Click **Install from File...** and select the `.asyar` file.

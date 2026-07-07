@@ -1,8 +1,16 @@
 // Heuristic for the AI hint chip's visual tier — passive (muted) vs active (styled).
 
 const AI_INTENT_STARTERS = [
-  'why', 'how', 'what', 'explain', 'describe', 'summarize',
-  'write', 'generate', 'translate', 'ask',
+  'why',
+  'how',
+  'what',
+  'explain',
+  'describe',
+  'summarize',
+  'write',
+  'generate',
+  'translate',
+  'ask',
 ];
 
 /**

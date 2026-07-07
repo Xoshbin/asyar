@@ -22,7 +22,9 @@
     } catch (e) {
       logService.error(`Failed to load scheduled tasks: ${e}`);
       diagnosticsService.report({
-        source: 'frontend', kind: 'manual', severity: 'warning',
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'warning',
         retryable: false,
         context: { message: 'Could not load scheduled tasks list' },
       });

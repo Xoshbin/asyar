@@ -22,12 +22,14 @@ export async function buildFontFaceCSS(): Promise<string> {
     return cachedFontCSS;
   }
 
-  const [satoshiB64, satoshiItalicB64, jetbrainsRegularB64, jetbrainsMediumB64] = await Promise.all([
-    fetchAndEncodeFont(satoshiUrl),
-    fetchAndEncodeFont(satoshiItalicUrl),
-    fetchAndEncodeFont(jetbrainsRegularUrl),
-    fetchAndEncodeFont(jetbrainsMediumUrl)
-  ]);
+  const [satoshiB64, satoshiItalicB64, jetbrainsRegularB64, jetbrainsMediumB64] = await Promise.all(
+    [
+      fetchAndEncodeFont(satoshiUrl),
+      fetchAndEncodeFont(satoshiItalicUrl),
+      fetchAndEncodeFont(jetbrainsRegularUrl),
+      fetchAndEncodeFont(jetbrainsMediumUrl),
+    ],
+  );
 
   cachedFontCSS = `
 @font-face {

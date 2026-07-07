@@ -1,11 +1,5 @@
 <script lang="ts">
-  import {
-    SettingsSection,
-    SettingsRow,
-    Toggle,
-    Badge,
-    EmptyState,
-  } from '../index';
+  import { SettingsSection, SettingsRow, Toggle, Badge, EmptyState } from '../index';
   import { secretRedactionService } from '../../services/privacy/secretRedactionService.svelte';
 
   let totalRedacted = $derived(
@@ -38,10 +32,7 @@
     description="Master switch for the secret detector across all categories below."
   >
     {#snippet children()}
-      <Toggle
-        checked={secretRedactionService.settings.master}
-        onchange={toggleMaster}
-      />
+      <Toggle checked={secretRedactionService.settings.master} onchange={toggleMaster} />
     {/snippet}
   </SettingsRow>
 

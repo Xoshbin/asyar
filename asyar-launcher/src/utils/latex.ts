@@ -38,12 +38,14 @@ function injectKatexCss(): void {
 
   try {
     // @ts-expect-error – Vite handles `?url` imports at build time
-    import('katex/dist/katex.min.css?url').then((mod) => {
-      link.href = mod.default;
-      document.head.appendChild(link);
-    }).catch(() => {
-      document.head.appendChild(link);
-    });
+    import('katex/dist/katex.min.css?url')
+      .then((mod) => {
+        link.href = mod.default;
+        document.head.appendChild(link);
+      })
+      .catch(() => {
+        document.head.appendChild(link);
+      });
   } catch {
     document.head.appendChild(link);
   }
@@ -61,10 +63,7 @@ function renderKatex(latex: string, displayMode: boolean): string {
       output: 'html',
     });
   } catch {
-    const escaped = latex
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    const escaped = latex.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     return `<code class="katex-error" title="LaTeX parse error">${escaped}</code>`;
   }
 }
@@ -189,15 +188,12 @@ export function extractLatexBeforeMarkdown(raw: string): {
     if (slots.length === 0) return html;
     injectKatexCss();
 
-    return html.replace(
-      /\x02LATEX(\d+)\x02/g,
-      (_m, idxStr: string) => {
-        const idx = parseInt(idxStr, 10);
-        const slot = slots[idx];
-        if (!slot) return _m;
-        return renderKatex(slot.latex, slot.display);
-      },
-    );
+    return html.replace(/\x02LATEX(\d+)\x02/g, (_m, idxStr: string) => {
+      const idx = parseInt(idxStr, 10);
+      const slot = slots[idx];
+      if (!slot) return _m;
+      return renderKatex(slot.latex, slot.display);
+    });
   }
 
   return { text, restore };
@@ -210,4 +206,3 @@ export function extractLatexBeforeMarkdown(raw: string): {
 export function containsLatex(text: string): boolean {
   return /\$\$.+?\$\$|\$[^$\n]+?\$|\\\[[\s\S]+?\\\]|\\\([^)]+?\\\)/s.test(text);
 }
-

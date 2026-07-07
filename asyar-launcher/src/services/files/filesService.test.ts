@@ -31,7 +31,13 @@ describe('filesService', () => {
 
   it('search returns the hits array when present', async () => {
     const hits = [{ fileId: 'abc', name: 'a.pdf' }];
-    invokeMock.mockResolvedValue({ hits, truncated: false, scannedAll: true, indexGeneration: 1, work: {} });
+    invokeMock.mockResolvedValue({
+      hits,
+      truncated: false,
+      scannedAll: true,
+      indexGeneration: 1,
+      work: {},
+    });
     const result = await filesService.search('a');
     expect(result).toEqual(hits);
   });
@@ -45,7 +51,13 @@ describe('filesService', () => {
   });
 
   it('status returns the real payload when present', async () => {
-    const status = { state: 'ready', entryCount: 42, lastScanMs: 5, snapshotLoaded: true, capReached: false };
+    const status = {
+      state: 'ready',
+      entryCount: 42,
+      lastScanMs: 5,
+      snapshotLoaded: true,
+      capReached: false,
+    };
     invokeMock.mockResolvedValue(status);
     const result = await filesService.status();
     expect(result).toEqual(status);

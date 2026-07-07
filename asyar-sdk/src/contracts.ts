@@ -14,8 +14,8 @@
  * role-appropriate proxy surface.
  */
 
-export { ExtensionBridge, extensionBridge } from "./ExtensionBridge";
-export { ExtensionContext } from "./ExtensionContext";
+export { ExtensionBridge, extensionBridge } from './ExtensionBridge';
+export { ExtensionContext } from './ExtensionContext';
 export { ExtensionContextCore } from './ExtensionContextCore';
 export type { ExtensionContextRole } from './ExtensionContextCore';
 
@@ -108,9 +108,27 @@ export type {
 } from './types/SearchBarAccessoryType';
 export { SearchBarAccessoryServiceProxy } from './services/SearchBarAccessoryServiceProxy';
 
-export type { Diagnostic, DiagnosticSource, IDiagnosticsService, Severity } from './contracts/diagnostics';
-export type { Run, RunHandle, RunKind, RunStartInput, RunStatus, IRunService } from './contracts/runs';
-export type { ManifestTool, ToolDescriptor, ToolFullyQualifiedId, ToolHandler, IToolsService } from './contracts/tools';
+export type {
+  Diagnostic,
+  DiagnosticSource,
+  IDiagnosticsService,
+  Severity,
+} from './contracts/diagnostics';
+export type {
+  Run,
+  RunHandle,
+  RunKind,
+  RunStartInput,
+  RunStatus,
+  IRunService,
+} from './contracts/runs';
+export type {
+  ManifestTool,
+  ToolDescriptor,
+  ToolFullyQualifiedId,
+  ToolHandler,
+  IToolsService,
+} from './contracts/tools';
 export { ToolsServiceProxy } from './services/ToolsServiceProxy';
 
 export type { ShortcodeMap, ISnippetsService } from './contracts/snippets';
@@ -153,10 +171,7 @@ export { ExtensionStateProxy, extensionStateProxy } from './services/ExtensionSt
 export { ExtensionRpc, extensionRpc } from './services/ExtensionRpc';
 
 // Type-reference exports for Tier 1 launcher registry wiring.
-export {
-  ExtensionManagerProxy,
-  StatusBarServiceProxy,
-} from './services';
+export { ExtensionManagerProxy, StatusBarServiceProxy } from './services';
 
 export { ActionContext, ActionCategory } from './types/ActionType';
 export type { ActionCategoryValue } from './types/ActionType';

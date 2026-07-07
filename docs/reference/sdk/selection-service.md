@@ -50,7 +50,7 @@ interface ISelectionService {
 import type { ISelectionService, SelectionError } from 'asyar-sdk';
 
 const selection = context.getService<ISelectionService>('selection');
-const feedback  = context.getService<IFeedbackService>('feedback');
+const feedback = context.getService<IFeedbackService>('feedback');
 
 async function translateSelection() {
   let text: string | null;
@@ -111,6 +111,7 @@ async function compressSelectedFiles() {
    The restore is bullet-proofed by an RAII guard — even if the operation errors out partway through, your clipboard comes back as it was. The restore is the one operation Asyar surfaces as a hard failure (`code === 'CLIPBOARD_RESTORE_FAILED'`) — silent corruption of the clipboard is unacceptable.
 
 `getSelectedFinderItems()` uses native, file-manager-specific paths:
+
 - **macOS:** AppleScript against Finder (`POSIX path of (selection as alias list)`).
 - **Windows:** COM enumeration of `IShellWindows` to find the Explorer window matching the previously focused HWND, then `IShellFolderViewDual2.SelectedItems()`.
 - **Linux X11:** Tier-A clipboard fallback — posts Ctrl+C, reads the file manager's `text/uri-list` clipboard target, parses `file://` URIs.
@@ -121,11 +122,11 @@ Only one selection operation can be in flight at a time across all extensions. I
 
 #### Platform support matrix and limitations
 
-| Capability | macOS | Windows | Linux X11 | Wayland |
-|---|---|---|---|---|
-| `getSelectedText()` — accessibility fast path | ✅ AX API | ✅ UIA `TextPattern` | ⚠️ AT-SPI2 (depends on `at-spi2-core` running) | ❌ Not supported |
-| `getSelectedText()` — clipboard fallback | ✅ Multi-format snapshot, restores images & files intact | ⚠️ Text-only snapshot (see below) | ⚠️ Text-only snapshot (see below) | ❌ Not supported |
-| `getSelectedFinderItems()` | ✅ Finder via AppleScript | ✅ File Explorer via COM | ⚠️ Tier-A clipboard URI list (Nautilus, Nemo, Thunar, Dolphin) | ❌ Not supported |
+| Capability                                    | macOS                                                    | Windows                           | Linux X11                                                      | Wayland          |
+| --------------------------------------------- | -------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------- | ---------------- |
+| `getSelectedText()` — accessibility fast path | ✅ AX API                                                | ✅ UIA `TextPattern`              | ⚠️ AT-SPI2 (depends on `at-spi2-core` running)                 | ❌ Not supported |
+| `getSelectedText()` — clipboard fallback      | ✅ Multi-format snapshot, restores images & files intact | ⚠️ Text-only snapshot (see below) | ⚠️ Text-only snapshot (see below)                              | ❌ Not supported |
+| `getSelectedFinderItems()`                    | ✅ Finder via AppleScript                                | ✅ File Explorer via COM          | ⚠️ Tier-A clipboard URI list (Nautilus, Nemo, Thunar, Dolphin) | ❌ Not supported |
 
 **Limitations to be aware of:**
 
@@ -140,12 +141,12 @@ Only one selection operation can be in flight at a time across all extensions. I
 
 #### Error handling
 
-| `SelectionErrorCode` | When it fires | What to do |
-|---|---|---|
-| `ACCESSIBILITY_PERMISSION_REQUIRED` | macOS — Asyar lacks Accessibility permission. Asyar automatically opens the System Settings panel. | Show a toast or HUD telling the user to grant access; the call will work after they do. |
-| `ACCESSIBILITY_UNAVAILABLE` | The platform's accessibility subsystem is not running (rare; primarily Linux without `at-spi2-core`). | Inform the user; degrade gracefully. |
-| `CLIPBOARD_RESTORE_FAILED` | The clipboard snapshot was captured but the restore step failed. The user's clipboard may be in an unexpected state. | Surface the error visibly. This is rare but important. |
-| `OPERATION_FAILED` | Generic catch-all for OS API errors. | Log; consider falling back to a different code path. |
+| `SelectionErrorCode`                | When it fires                                                                                                        | What to do                                                                              |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `ACCESSIBILITY_PERMISSION_REQUIRED` | macOS — Asyar lacks Accessibility permission. Asyar automatically opens the System Settings panel.                   | Show a toast or HUD telling the user to grant access; the call will work after they do. |
+| `ACCESSIBILITY_UNAVAILABLE`         | The platform's accessibility subsystem is not running (rare; primarily Linux without `at-spi2-core`).                | Inform the user; degrade gracefully.                                                    |
+| `CLIPBOARD_RESTORE_FAILED`          | The clipboard snapshot was captured but the restore step failed. The user's clipboard may be in an unexpected state. | Surface the error visibly. This is rare but important.                                  |
+| `OPERATION_FAILED`                  | Generic catch-all for OS API errors.                                                                                 | Log; consider falling back to a different code path.                                    |
 
 A `null` return from `getSelectedText()` and an empty array from `getSelectedFinderItems()` are **not errors** — they are the expected "nothing was selected" outcome. Don't wrap them in try/catch logic.
 

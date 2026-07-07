@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./snippetStore.svelte', () => ({
-  snippetStore: { snippets: [] }
+  snippetStore: { snippets: [] },
 }));
 // Ranking is delegated to the Rust engine via rankItems. The engine's
 // fuzzy/tier behavior is covered by Rust tests (search_engine::ranker); here we
@@ -15,9 +15,27 @@ import { snippetStore } from './snippetStore.svelte';
 import { rankItems } from '../../lib/rankItems';
 
 const mockSnippets = [
-  { id: '1', name: 'Work Email', keyword: ';email', expansion: 'work@example.com', createdAt: Date.now() },
-  { id: '2', name: 'Home Address', keyword: ';addr', expansion: '123 Main St', createdAt: Date.now() },
-  { id: '3', name: 'Z-Snippet', keyword: ';zz', expansion: 'expansion of z', createdAt: Date.now() }
+  {
+    id: '1',
+    name: 'Work Email',
+    keyword: ';email',
+    expansion: 'work@example.com',
+    createdAt: Date.now(),
+  },
+  {
+    id: '2',
+    name: 'Home Address',
+    keyword: ';addr',
+    expansion: '123 Main St',
+    createdAt: Date.now(),
+  },
+  {
+    id: '3',
+    name: 'Z-Snippet',
+    keyword: ';zz',
+    expansion: 'expansion of z',
+    createdAt: Date.now(),
+  },
 ];
 
 describe('snippetViewState', () => {
@@ -59,7 +77,9 @@ describe('snippetViewState', () => {
       vi.mocked(rankItems).mockResolvedValueOnce([]);
       await snippetViewState.setSearch('x');
       const fields = vi.mocked(rankItems).mock.calls[0][2];
-      expect(fields.keywords?.({ id: 'n', name: 'No KW', expansion: 'e', createdAt: 1 } as any)).toEqual([]);
+      expect(
+        fields.keywords?.({ id: 'n', name: 'No KW', expansion: 'e', createdAt: 1 } as any),
+      ).toEqual([]);
     });
   });
 
@@ -89,7 +109,12 @@ describe('snippetViewState', () => {
     it('ignores a stale result when a newer query has superseded it', async () => {
       let resolveFirst: (v: any) => void = () => {};
       vi.mocked(rankItems)
-        .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r; }))
+        .mockImplementationOnce(
+          () =>
+            new Promise((r) => {
+              resolveFirst = r;
+            }),
+        )
         .mockResolvedValueOnce([mockSnippets[1]]);
 
       const first = snippetViewState.setSearch('work');
@@ -124,7 +149,13 @@ describe('snippetViewState', () => {
     });
 
     it('re-ranks against the live store before selecting, so a newly created item under an active filter is found', async () => {
-      const created = { id: 'new', name: 'Brand New', keyword: ';bn', expansion: 'x', createdAt: Date.now() };
+      const created = {
+        id: 'new',
+        name: 'Brand New',
+        keyword: ';bn',
+        expansion: 'x',
+        createdAt: Date.now(),
+      };
       vi.mocked(rankItems).mockResolvedValueOnce([mockSnippets[0]]); // initial search for "work"
       await snippetViewState.setSearch('work');
 

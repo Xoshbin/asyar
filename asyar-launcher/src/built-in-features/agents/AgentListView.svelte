@@ -4,10 +4,7 @@
   import { agentsManager } from './agentsManager.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { searchStores } from '../../services/search/stores/search.svelte';
-  import {
-    buildAgentRowProps,
-    handleSelectAgentForChat,
-  } from './agentListView.helpers';
+  import { buildAgentRowProps, handleSelectAgentForChat } from './agentListView.helpers';
   import ListItem from '../../components/list/ListItem.svelte';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
 
@@ -106,5 +103,4 @@
     flex: 1;
     overflow-y: auto;
   }
-
 </style>

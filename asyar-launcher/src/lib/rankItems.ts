@@ -38,7 +38,5 @@ export async function rankItems<T>(
   const orderedIds = (await rankItemsCommand(trimmed, payload)) ?? [];
 
   const byId = new Map(items.map((item) => [fields.id(item), item]));
-  return orderedIds
-    .map((id) => byId.get(id))
-    .filter((item): item is T => item !== undefined);
+  return orderedIds.map((id) => byId.get(id)).filter((item): item is T => item !== undefined);
 }

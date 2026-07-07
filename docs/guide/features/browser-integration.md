@@ -3,7 +3,7 @@
 > Search bookmarks, history, and tabs.
 
 ![Bookmark and tab results in search](../../images/feature-browser-hero.png)
-*Figure: bookmark and tab results appearing in search.*
+_Figure: bookmark and tab results appearing in search._
 
 ## What it does
 
@@ -41,14 +41,14 @@ You can also use the **Browser** command for a dedicated command bar that lets y
 
 ## Shortcuts & actions
 
-| Action | How |
-|---|---|
-| Open a bookmark or history result | Select it → `Enter` |
-| Switch to an open tab | Select the tab result → `Enter` |
-| Open Browser command bar | Search "Browser" → `Enter` |
-| Open URL directly | Use the **Open URL** command (type `open url`) |
-| Approve a pairing request | Settings → Browsers → **Allow** |
-| Revoke a paired browser | Settings → Browsers → **Revoke** |
+| Action                            | How                                            |
+| --------------------------------- | ---------------------------------------------- |
+| Open a bookmark or history result | Select it → `Enter`                            |
+| Switch to an open tab             | Select the tab result → `Enter`                |
+| Open Browser command bar          | Search "Browser" → `Enter`                     |
+| Open URL directly                 | Use the **Open URL** command (type `open url`) |
+| Approve a pairing request         | Settings → Browsers → **Allow**                |
+| Revoke a paired browser           | Settings → Browsers → **Revoke**               |
 
 ## Tips
 

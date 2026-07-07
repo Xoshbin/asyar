@@ -12,125 +12,127 @@
  *
  * Cross-platform (Node.js, no bash dependencies).
  */
-import { execSync } from 'child_process'
-import { existsSync, mkdirSync } from 'fs'
-import { resolve, dirname } from 'path'
-import { fileURLToPath } from 'url'
+import { execSync } from 'child_process';
+import { existsSync, mkdirSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const root = resolve(__dirname)
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const root = resolve(__dirname);
 
 function run(cmd, opts = {}) {
-  execSync(cmd, { cwd: root, stdio: 'inherit', ...opts })
+  execSync(cmd, { cwd: root, stdio: 'inherit', ...opts });
 }
 
 function step(msg) {
-  console.log(`\n── ${msg} ${'─'.repeat(Math.max(0, 60 - msg.length))}`)
+  console.log(`\n── ${msg} ${'─'.repeat(Math.max(0, 60 - msg.length))}`);
 }
 
 // ── Preflight checks ─────────────────────────────────────────────────────────
 
-step('Checking prerequisites')
+step('Checking prerequisites');
 
 const checks = [
   { cmd: 'node --version', name: 'Node.js', minVersion: '20' },
   { cmd: 'pnpm --version', name: 'pnpm', minVersion: '9' },
   { cmd: 'rustc --version', name: 'Rust' },
   { cmd: 'cargo --version', name: 'Cargo' },
-]
+];
 
-let preflight = true
+let preflight = true;
 for (const check of checks) {
   try {
-    const ver = execSync(check.cmd, { stdio: 'pipe' }).toString().trim()
-    const major = ver.match(/(\d+)/)?.[1]
+    const ver = execSync(check.cmd, { stdio: 'pipe' }).toString().trim();
+    const major = ver.match(/(\d+)/)?.[1];
     if (check.minVersion && major && parseInt(major) < parseInt(check.minVersion)) {
-      console.error(`  ✗ ${check.name}: ${ver} (need ${check.minVersion}+)`)
-      preflight = false
+      console.error(`  ✗ ${check.name}: ${ver} (need ${check.minVersion}+)`);
+      preflight = false;
     } else {
-      console.log(`  ✓ ${check.name}: ${ver}`)
+      console.log(`  ✓ ${check.name}: ${ver}`);
     }
   } catch {
-    console.error(`  ✗ ${check.name}: not found`)
-    preflight = false
+    console.error(`  ✗ ${check.name}: not found`);
+    preflight = false;
   }
 }
 
 if (!preflight) {
-  console.error('\nMissing prerequisites. See https://github.com/Xoshbin/asyar#prerequisites')
-  process.exit(1)
+  console.error('\nMissing prerequisites. See https://github.com/Xoshbin/asyar#prerequisites');
+  process.exit(1);
 }
 
 // ── Set up extensions directory ──────────────────────────────────────────────
 
-step('Setting up extensions directory')
+step('Setting up extensions directory');
 
-const extDir = resolve(root, 'extensions')
+const extDir = resolve(root, 'extensions');
 if (!existsSync(extDir)) {
-  mkdirSync(extDir, { recursive: true })
-  console.log('  ✓ extensions/ created')
+  mkdirSync(extDir, { recursive: true });
+  console.log('  ✓ extensions/ created');
 } else {
-  console.log('  ✓ extensions/ already exists')
+  console.log('  ✓ extensions/ already exists');
 }
 
 const extensions = [
   { name: 'sdk-playground', url: 'https://github.com/Xoshbin/asyar-sdk-playground-extension.git' },
-]
+];
 
 for (const ext of extensions) {
-  const dir = resolve(extDir, ext.name)
+  const dir = resolve(extDir, ext.name);
   if (existsSync(dir)) {
-    console.log(`  ✓ extensions/${ext.name}/ already exists, skipping`)
+    console.log(`  ✓ extensions/${ext.name}/ already exists, skipping`);
   } else {
-    console.log(`  Cloning extensions/${ext.name}...`)
-    run(`git clone ${ext.url} ${ext.name}`, { cwd: extDir })
-    console.log(`  ✓ extensions/${ext.name}`)
+    console.log(`  Cloning extensions/${ext.name}...`);
+    run(`git clone ${ext.url} ${ext.name}`, { cwd: extDir });
+    console.log(`  ✓ extensions/${ext.name}`);
   }
 }
 
 // ── Install dependencies ─────────────────────────────────────────────────────
 
-step('Installing dependencies (pnpm install)')
+step('Installing dependencies (pnpm install)');
 
-run('pnpm install')
+run('pnpm install');
 
-console.log('  ✓ Dependencies installed and SDK workspace-linked')
+console.log('  ✓ Dependencies installed and SDK workspace-linked');
 
 // ── Download sidecars (bun + uv) ─────────────────────────────────────────────
 
-step('Downloading MCP sidecars (bun + uv)')
+step('Downloading MCP sidecars (bun + uv)');
 
 try {
-  run('node asyar-launcher/scripts/download-sidecars.mjs')
-  console.log('  ✓ Sidecars downloaded')
+  run('node asyar-launcher/scripts/download-sidecars.mjs');
+  console.log('  ✓ Sidecars downloaded');
 } catch {
-  console.error('  ⚠ Sidecar download failed — MCP servers that need npx/uvx will require')
-  console.error('    system Node.js / Python. Re-run: node asyar-launcher/scripts/download-sidecars.mjs')
+  console.error('  ⚠ Sidecar download failed — MCP servers that need npx/uvx will require');
+  console.error(
+    '    system Node.js / Python. Re-run: node asyar-launcher/scripts/download-sidecars.mjs',
+  );
 }
 
 // ── Build and attach extensions ──────────────────────────────────────────────
 
-step('Setting up extensions (build + attach)')
+step('Setting up extensions (build + attach)');
 
 for (const ext of extensions) {
-  const dir = resolve(extDir, ext.name)
-  console.log(`  Building extensions/${ext.name}...`)
-  run('pnpm build', { cwd: dir })
-  console.log(`  Attaching extensions/${ext.name}...`)
-  run('pnpm exec asyar attach', { cwd: dir })
-  console.log(`  ✓ extensions/${ext.name} built and attached`)
+  const dir = resolve(extDir, ext.name);
+  console.log(`  Building extensions/${ext.name}...`);
+  run('pnpm build', { cwd: dir });
+  console.log(`  Attaching extensions/${ext.name}...`);
+  run('pnpm exec asyar attach', { cwd: dir });
+  console.log(`  ✓ extensions/${ext.name} built and attached`);
 }
 
 // ── Verify setup ─────────────────────────────────────────────────────────────
 
-step('Verifying setup (asyar doctor)')
+step('Verifying setup (asyar doctor)');
 
 try {
-  run('node dist/cli/index.js doctor', { cwd: resolve(root, 'asyar-sdk') })
+  run('node dist/cli/index.js doctor', { cwd: resolve(root, 'asyar-sdk') });
 } catch {
-  console.error('\n⚠ Doctor reported issues — see above for details.')
-  console.error('  The workspace is installed but may need manual fixes.')
-  process.exit(1)
+  console.error('\n⚠ Doctor reported issues — see above for details.');
+  console.error('  The workspace is installed but may need manual fixes.');
+  process.exit(1);
 }
 
 // ── Done ─────────────────────────────────────────────────────────────────────
@@ -149,4 +151,4 @@ ${'─'.repeat(64)}
     https://github.com/Xoshbin/asyar
 
 ${'─'.repeat(64)}
-`)
+`);

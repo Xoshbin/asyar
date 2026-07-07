@@ -5,14 +5,16 @@
   import { agentService } from '../../../built-in-features/agents/agentService.svelte';
   import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
   import { availableProvidersForNewRow, canTestAndFetch } from './AiTab.helpers';
-  import type { IProviderPlugin, ModelInfo, ProviderConfig } from '../../../services/ai/IProviderPlugin';
+  import type {
+    IProviderPlugin,
+    ModelInfo,
+    ProviderConfig,
+  } from '../../../services/ai/IProviderPlugin';
   import type { ProviderId } from '../../../services/settings/types/AppSettingsType';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
 
-  let {
-    handler,
-    mode = 'full',
-  }: { handler?: SettingsHandler; mode?: 'full' | 'providers-only' } = $props();
+  let { handler, mode = 'full' }: { handler?: SettingsHandler; mode?: 'full' | 'providers-only' } =
+    $props();
 
   let settings = $derived(settingsService.currentSettings.ai);
 
@@ -145,7 +147,8 @@
         severity: 'warning',
         retryable: false,
         context: {
-          message: 'Could not auto-set the default AI agent. You can pick it manually with the star.',
+          message:
+            'Could not auto-set the default AI agent. You can pick it manually with the star.',
         },
         developerDetail: String(err),
       });
@@ -232,7 +235,8 @@
         <SettingsFormRow label="Tab continues last thread" separator>
           <Toggle
             checked={settings.tabContinuesLastThread}
-            onchange={() => handler!.handleToggleTabContinuesLastThread(!settings.tabContinuesLastThread)}
+            onchange={() =>
+              handler!.handleToggleTabContinuesLastThread(!settings.tabContinuesLastThread)}
           />
         </SettingsFormRow>
       </SettingsForm>
@@ -253,7 +257,8 @@
       <!-- Top toolbar: explanation on the left, Add button on the right -->
       <div class="providers-toolbar">
         <p class="providers-hint">
-          The <span class="hint-star">★</span> provider is what Asyar Assistant uses when you press Tab in the launcher.
+          The <span class="hint-star">★</span> provider is what Asyar Assistant uses when you press Tab
+          in the launcher.
         </p>
         {#if !draftActive && availableForDraft.length > 0}
           <button class="add-provider-btn" onclick={addProviderRow}>+ Add provider</button>
@@ -292,7 +297,11 @@
                 class="star-btn"
                 class:is-filled={defaultRow}
                 disabled={!hasModel}
-                title={hasModel ? (defaultRow ? 'Default provider' : 'Set as default') : 'Pick a model first'}
+                title={hasModel
+                  ? defaultRow
+                    ? 'Default provider'
+                    : 'Set as default'
+                  : 'Pick a model first'}
                 onclick={() => setAsDefault(providerId)}
                 aria-label={defaultRow ? 'Default provider' : 'Set as default'}
               >
@@ -311,147 +320,152 @@
           </div>
 
           {#if expanded}
-          <div class="row-body" id="row-body-{providerId}">
-            {#if plugin?.requiresApiKey || plugin?.optionalApiKey}
-              <div class="card-field">
-                <label class="field-label" for="apikey-{providerId}">
-                  API Key{#if !plugin?.requiresApiKey} <span class="field-hint">(optional)</span>{/if}
-                </label>
-                <input
-                  class="card-input"
-                  id="apikey-{providerId}"
-                  type="password"
-                  value={config.apiKey ?? ''}
-                  placeholder={plugin?.requiresApiKey ? 'sk-••••••••••••••••' : 'Leave blank for unsecured endpoints'}
-                  autocomplete="off"
-                  onblur={(e) =>
-                    updateProviderConfig(providerId, {
-                      apiKey: (e.currentTarget as HTMLInputElement).value || undefined,
-                    })}
-                />
-              </div>
-            {/if}
-
-            {#if plugin?.requiresBaseUrl}
-              <div class="card-field">
-                <label class="field-label" for="baseurl-{providerId}">Base URL</label>
-                <input
-                  class="card-input"
-                  id="baseurl-{providerId}"
-                  type="url"
-                  value={config.baseUrl ?? ''}
-                  placeholder={providerId === 'ollama'
-                    ? 'http://localhost:11434'
-                    : 'https://your-api.example.com'}
-                  onblur={(e) =>
-                    updateProviderConfig(providerId, {
-                      baseUrl: (e.currentTarget as HTMLInputElement).value || undefined,
-                    })}
-                />
-              </div>
-            {/if}
-
-            <!-- Test & Fetch button -->
-            <div class="card-actions">
-              <Button
-                onclick={() => plugin && fetchModels(plugin)}
-                disabled={isFetching || !canTestAndFetch(plugin ?? null, config)}
-              >
-                {isFetching ? 'Fetching…' : 'Test & Fetch Models'}
-              </Button>
-            </div>
-
-            {#if fetchError}
-              <p class="fetch-error">{fetchError}</p>
-            {/if}
-
-            <!-- Model picker -->
-            {#if cachedModels.length > 0 && !useCustomInput}
-              <div class="card-field">
-                <label class="field-label" for="model-{providerId}">Model</label>
-                <select
-                  class="card-select"
-                  id="model-{providerId}"
-                  value={config.lastModelId ?? cachedModels[0]?.id}
-                  onchange={async (e) => {
-                    const val = (e.currentTarget as HTMLSelectElement).value;
-                    if (val === '__custom__') {
-                      customModelMode = { ...customModelMode, [providerId]: true };
-                      return;
-                    }
-                    updateProviderConfig(providerId, { lastModelId: val });
-                    if (isDefault(providerId)) {
-                      try {
-                        await agentService.upsertDefaultAgent(providerId, val);
-                      } catch (err) {
-                        diagnosticsService.report({
-                          source: 'frontend',
-                          kind: 'manual',
-                          severity: 'error',
-                          retryable: true,
-                          context: { message: 'Could not update the default AI agent.' },
-                          developerDetail: String(err),
-                        });
-                      }
-                    } else {
-                      await maybeAutoSetAsDefault(providerId, val);
-                    }
-                  }}
-                >
-                  {#each cachedModels as m (m.id)}
-                    <option value={m.id}>{m.label}</option>
-                  {/each}
-                  <option value="__custom__">Enter a custom model id…</option>
-                </select>
-              </div>
-            {:else if useCustomInput || fetchError || (!cachedModels.length && !isFetching && !plugin?.requiresApiKey && !plugin?.requiresBaseUrl)}
-              <div class="card-field">
-                <label class="field-label" for="model-manual-{providerId}">
-                  Model
-                  {#if fetchError}<span class="field-hint">(fetch failed — enter manually)</span>{/if}
-                </label>
-                <div class="model-manual-row">
+            <div class="row-body" id="row-body-{providerId}">
+              {#if plugin?.requiresApiKey || plugin?.optionalApiKey}
+                <div class="card-field">
+                  <label class="field-label" for="apikey-{providerId}">
+                    API Key{#if !plugin?.requiresApiKey}
+                      <span class="field-hint">(optional)</span>{/if}
+                  </label>
                   <input
                     class="card-input"
-                    id="model-manual-{providerId}"
-                    type="text"
-                    value={config.lastModelId ?? ''}
-                    placeholder="e.g. gpt-4o or llama3.2"
-                    onblur={async (e) => {
-                      const val = (e.currentTarget as HTMLInputElement).value.trim();
-                      if (val) {
-                        updateProviderConfig(providerId, { lastModelId: val });
-                        if (isDefault(providerId)) {
-                          try {
-                            await agentService.upsertDefaultAgent(providerId, val);
-                          } catch (err) {
-                            diagnosticsService.report({
-                              source: 'frontend',
-                              kind: 'manual',
-                              severity: 'error',
-                              retryable: true,
-                              context: { message: 'Could not update the default AI agent.' },
-                              developerDetail: String(err),
-                            });
-                          }
-                        } else {
-                          await maybeAutoSetAsDefault(providerId, val);
+                    id="apikey-{providerId}"
+                    type="password"
+                    value={config.apiKey ?? ''}
+                    placeholder={plugin?.requiresApiKey
+                      ? 'sk-••••••••••••••••'
+                      : 'Leave blank for unsecured endpoints'}
+                    autocomplete="off"
+                    onblur={(e) =>
+                      updateProviderConfig(providerId, {
+                        apiKey: (e.currentTarget as HTMLInputElement).value || undefined,
+                      })}
+                  />
+                </div>
+              {/if}
+
+              {#if plugin?.requiresBaseUrl}
+                <div class="card-field">
+                  <label class="field-label" for="baseurl-{providerId}">Base URL</label>
+                  <input
+                    class="card-input"
+                    id="baseurl-{providerId}"
+                    type="url"
+                    value={config.baseUrl ?? ''}
+                    placeholder={providerId === 'ollama'
+                      ? 'http://localhost:11434'
+                      : 'https://your-api.example.com'}
+                    onblur={(e) =>
+                      updateProviderConfig(providerId, {
+                        baseUrl: (e.currentTarget as HTMLInputElement).value || undefined,
+                      })}
+                  />
+                </div>
+              {/if}
+
+              <!-- Test & Fetch button -->
+              <div class="card-actions">
+                <Button
+                  onclick={() => plugin && fetchModels(plugin)}
+                  disabled={isFetching || !canTestAndFetch(plugin ?? null, config)}
+                >
+                  {isFetching ? 'Fetching…' : 'Test & Fetch Models'}
+                </Button>
+              </div>
+
+              {#if fetchError}
+                <p class="fetch-error">{fetchError}</p>
+              {/if}
+
+              <!-- Model picker -->
+              {#if cachedModels.length > 0 && !useCustomInput}
+                <div class="card-field">
+                  <label class="field-label" for="model-{providerId}">Model</label>
+                  <select
+                    class="card-select"
+                    id="model-{providerId}"
+                    value={config.lastModelId ?? cachedModels[0]?.id}
+                    onchange={async (e) => {
+                      const val = (e.currentTarget as HTMLSelectElement).value;
+                      if (val === '__custom__') {
+                        customModelMode = { ...customModelMode, [providerId]: true };
+                        return;
+                      }
+                      updateProviderConfig(providerId, { lastModelId: val });
+                      if (isDefault(providerId)) {
+                        try {
+                          await agentService.upsertDefaultAgent(providerId, val);
+                        } catch (err) {
+                          diagnosticsService.report({
+                            source: 'frontend',
+                            kind: 'manual',
+                            severity: 'error',
+                            retryable: true,
+                            context: { message: 'Could not update the default AI agent.' },
+                            developerDetail: String(err),
+                          });
                         }
+                      } else {
+                        await maybeAutoSetAsDefault(providerId, val);
                       }
                     }}
-                  />
-                  {#if useCustomInput && cachedModels.length > 0}
-                    <button
-                      class="text-btn"
-                      onclick={() => (customModelMode = { ...customModelMode, [providerId]: false })}
-                    >
-                      Back to list
-                    </button>
-                  {/if}
+                  >
+                    {#each cachedModels as m (m.id)}
+                      <option value={m.id}>{m.label}</option>
+                    {/each}
+                    <option value="__custom__">Enter a custom model id…</option>
+                  </select>
                 </div>
-              </div>
-            {/if}
-          </div>
+              {:else if useCustomInput || fetchError || (!cachedModels.length && !isFetching && !plugin?.requiresApiKey && !plugin?.requiresBaseUrl)}
+                <div class="card-field">
+                  <label class="field-label" for="model-manual-{providerId}">
+                    Model
+                    {#if fetchError}<span class="field-hint">(fetch failed — enter manually)</span
+                      >{/if}
+                  </label>
+                  <div class="model-manual-row">
+                    <input
+                      class="card-input"
+                      id="model-manual-{providerId}"
+                      type="text"
+                      value={config.lastModelId ?? ''}
+                      placeholder="e.g. gpt-4o or llama3.2"
+                      onblur={async (e) => {
+                        const val = (e.currentTarget as HTMLInputElement).value.trim();
+                        if (val) {
+                          updateProviderConfig(providerId, { lastModelId: val });
+                          if (isDefault(providerId)) {
+                            try {
+                              await agentService.upsertDefaultAgent(providerId, val);
+                            } catch (err) {
+                              diagnosticsService.report({
+                                source: 'frontend',
+                                kind: 'manual',
+                                severity: 'error',
+                                retryable: true,
+                                context: { message: 'Could not update the default AI agent.' },
+                                developerDetail: String(err),
+                              });
+                            }
+                          } else {
+                            await maybeAutoSetAsDefault(providerId, val);
+                          }
+                        }
+                      }}
+                    />
+                    {#if useCustomInput && cachedModels.length > 0}
+                      <button
+                        class="text-btn"
+                        onclick={() =>
+                          (customModelMode = { ...customModelMode, [providerId]: false })}
+                      >
+                        Back to list
+                      </button>
+                    {/if}
+                  </div>
+                </div>
+              {/if}
+            </div>
           {/if}
         </div>
       {/each}
@@ -460,11 +474,7 @@
       {#if draftActive}
         <div class="provider-row draft-row">
           <div class="row-header">
-            <select
-              class="card-select provider-picker"
-              value=""
-              onchange={onDraftProviderPick}
-            >
+            <select class="card-select provider-picker" value="" onchange={onDraftProviderPick}>
               <option value="" disabled>Choose provider…</option>
               {#each availableForDraft as p (p.id)}
                 <option value={p.id}>{p.name}</option>
@@ -506,7 +516,8 @@
                 min="128"
                 max="32768"
                 step="128"
-                onblur={() => saveGlobal({ maxTokens: parseInt(maxTokensStr) || settings.maxTokens })}
+                onblur={() =>
+                  saveGlobal({ maxTokens: parseInt(maxTokensStr) || settings.maxTokens })}
               />
             </SettingsFormRow>
           </SettingsForm>
@@ -639,7 +650,9 @@
     font-size: 16px;
     line-height: 1;
     color: var(--text-tertiary);
-    transition: color var(--transition-smooth), opacity var(--transition-smooth);
+    transition:
+      color var(--transition-smooth),
+      opacity var(--transition-smooth);
     border-radius: var(--radius-sm);
   }
 
@@ -665,7 +678,9 @@
     line-height: 1;
     color: var(--text-tertiary);
     border-radius: var(--radius-sm);
-    transition: color var(--transition-smooth), background var(--transition-smooth);
+    transition:
+      color var(--transition-smooth),
+      background var(--transition-smooth);
   }
 
   .remove-btn:hover {
@@ -758,7 +773,9 @@
     cursor: pointer;
     text-align: center;
     width: 100%;
-    transition: color var(--transition-smooth), border-color var(--transition-smooth);
+    transition:
+      color var(--transition-smooth),
+      border-color var(--transition-smooth);
   }
 
   .add-provider-btn:hover {

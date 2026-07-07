@@ -28,10 +28,10 @@
         "type": "dropdown",
         "default": "all",
         "options": [
-          { "value": "all",    "title": "All Types" },
-          { "value": "text",   "title": "Text" },
+          { "value": "all", "title": "All Types" },
+          { "value": "text", "title": "Text" },
           { "value": "images", "title": "Images" },
-          { "value": "files",  "title": "Files" }
+          { "value": "files", "title": "Files" }
         ]
       }
     }

@@ -46,20 +46,18 @@
 
 <div class="feedback-view">
   <div class="feedback-body custom-scrollbar">
-    <TabGroup
-      variant="pills"
-      tabs={categories}
-      bind:activeTab={feedbackViewState.category}
-    />
+    <TabGroup variant="pills" tabs={categories} bind:activeTab={feedbackViewState.category} />
 
     <textarea
       class="input feedback-message"
       placeholder="Tell us what's on your mind…"
       rows="6"
-      bind:value={feedbackViewState.message}
-    ></textarea>
+      bind:value={feedbackViewState.message}></textarea>
 
-    <Input placeholder="Email (optional — or clear to send anonymously)" bind:value={feedbackViewState.email} />
+    <Input
+      placeholder="Email (optional — or clear to send anonymously)"
+      bind:value={feedbackViewState.email}
+    />
 
     <div class="feedback-actions">
       <Button onclick={submit} disabled={!feedbackViewState.canSubmit}>Send Feedback</Button>

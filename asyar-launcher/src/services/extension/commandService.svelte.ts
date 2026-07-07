@@ -2,12 +2,12 @@ import type {
   CommandHandler,
   DynamicCommandRegistration,
   ICommandService,
-} from "asyar-sdk/contracts";
+} from 'asyar-sdk/contracts';
 import type { ExtensionManager } from './extensionManager.svelte';
-import { logService } from "../log/logService";
-import { extensionPreferencesService } from "./extensionPreferencesService.svelte";
-import { preferencesPromptStore } from "./preferencesPromptStore.svelte";
-import * as commands from "../../lib/ipc/commands";
+import { logService } from '../log/logService';
+import { extensionPreferencesService } from './extensionPreferencesService.svelte';
+import { preferencesPromptStore } from './preferencesPromptStore.svelte';
+import * as commands from '../../lib/ipc/commands';
 
 interface RegisteredCommand {
   handler: CommandHandler;
@@ -35,8 +35,7 @@ export class CommandService implements ICommandService {
   private shortCommandIds = new Map<string, string>();
   private extensionManager: ExtensionManager | null = null;
 
-  constructor() {
-  }
+  constructor() {}
 
   /**
    * Initialize the service with necessary dependencies.
@@ -45,31 +44,23 @@ export class CommandService implements ICommandService {
    */
   initialize(manager: ExtensionManager): void {
     if (this.extensionManager) {
-      logService.warn("CommandService already initialized.");
+      logService.warn('CommandService already initialized.');
       return;
     }
     this.extensionManager = manager;
-    logService.debug(
-      "CommandService initialized and connected to ExtensionManager."
-    );
+    logService.debug('CommandService initialized and connected to ExtensionManager.');
   }
 
   /**
    * Register a command with a handler function.
    */
-  registerCommand(
-    commandId: string,
-    handler: CommandHandler,
-    extensionId: string
-  ): void {
+  registerCommand(commandId: string, handler: CommandHandler, extensionId: string): void {
     this.commands.set(commandId, {
       handler,
       extensionId,
     });
 
-    logService.debug(
-      `Registered command: ${commandId} from extension: ${extensionId}`
-    );
+    logService.debug(`Registered command: ${commandId} from extension: ${extensionId}`);
   }
 
   /**
@@ -89,9 +80,7 @@ export class CommandService implements ICommandService {
     if (this.commands.delete(commandId)) {
       logService.debug(`Unregistered command: ${commandId}`);
     } else {
-      logService.warn(
-        `Attempted to unregister non-existent command: ${commandId}`
-      );
+      logService.warn(`Attempted to unregister non-existent command: ${commandId}`);
     }
   }
 
@@ -106,10 +95,7 @@ export class CommandService implements ICommandService {
    * invocations (`args.deeplinkTrigger === true`) bypass the gate — there's
    * no user to prompt from a background timer or external trigger.
    */
-  async executeCommand(
-    commandObjectId: string,
-    args?: Record<string, any>
-  ): Promise<any> {
+  async executeCommand(commandObjectId: string, args?: Record<string, any>): Promise<any> {
     logService.debug(`[CommandService] executeCommand called with ID: ${commandObjectId}`);
     const command = this.commands.get(commandObjectId);
     if (!command) {
@@ -121,7 +107,7 @@ export class CommandService implements ICommandService {
     if (!bypassPreferenceGate && shortCommandId) {
       const missing = await extensionPreferencesService.getMissingRequired(
         command.extensionId,
-        shortCommandId
+        shortCommandId,
       );
       if (missing.length > 0) {
         preferencesPromptStore.open({
@@ -131,14 +117,15 @@ export class CommandService implements ICommandService {
           missing,
         });
         throw new Error(
-          `Extension '${command.extensionId}' requires preferences before running command '${shortCommandId}'`
+          `Extension '${command.extensionId}' requires preferences before running command '${shortCommandId}'`,
         );
       }
     }
 
     logService.info(
-      `EXTENSION_TRACKED: Executing command: ${commandObjectId} from extension: ${command.extensionId
-      } with args: ${JSON.stringify(args || {})}`
+      `EXTENSION_TRACKED: Executing command: ${commandObjectId} from extension: ${
+        command.extensionId
+      } with args: ${JSON.stringify(args || {})}`,
     );
 
     try {
@@ -187,7 +174,7 @@ export class CommandService implements ICommandService {
     const { aliasStore } = await import('../../built-in-features/aliases/aliasStore.svelte');
     const { aliasService } = await import('../../built-in-features/aliases/aliasService');
     const prefix = `cmd_${extensionId}_`;
-    const toRemove = aliasStore.list.filter(a => a.objectId.startsWith(prefix));
+    const toRemove = aliasStore.list.filter((a) => a.objectId.startsWith(prefix));
     for (const a of toRemove) {
       try {
         await aliasService.unregister(a.alias);
@@ -210,14 +197,12 @@ export class CommandService implements ICommandService {
   async updateCommandMetadata(
     extensionId: string,
     commandId: string,
-    subtitle: string | null
+    subtitle: string | null,
   ): Promise<void> {
     const commandObjectId = `cmd_${extensionId}_${commandId}`;
     const registered = this.commands.get(commandObjectId);
     if (!registered || registered.extensionId !== extensionId) {
-      throw new Error(
-        `Command '${commandId}' not found for extension '${extensionId}'`
-      );
+      throw new Error(`Command '${commandId}' not found for extension '${extensionId}'`);
     }
     await commands.updateCommandMetadata({ commandObjectId, subtitle });
     // Replace the object reference so Svelte's $state reactivity re-runs
@@ -239,7 +224,7 @@ export class CommandService implements ICommandService {
    */
   async replaceDynamicCommands(
     extensionId: string,
-    regs: DynamicCommandRegistration[]
+    regs: DynamicCommandRegistration[],
   ): Promise<void> {
     await commands.replaceDynamicCommands(extensionId, regs);
   }

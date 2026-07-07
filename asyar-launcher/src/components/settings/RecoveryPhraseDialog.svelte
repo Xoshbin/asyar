@@ -105,7 +105,13 @@
           <p class="dialog-body">
             Enter your current passphrase to view your 24-word recovery phrase.
           </p>
-          <Input type="password" placeholder="Passphrase" bind:value={passphrase} bind:ref={passphraseInput} maxlength={256} />
+          <Input
+            type="password"
+            placeholder="Passphrase"
+            bind:value={passphrase}
+            bind:ref={passphraseInput}
+            maxlength={256}
+          />
           {#if errorMessage}
             <p class="text-caption error mt-2">{errorMessage}</p>
           {/if}
@@ -122,8 +128,8 @@
         {:else if stage === 'phrase'}
           <h2 id="phrase-title" class="dialog-title">Your recovery phrase</h2>
           <p class="dialog-body">
-            Save these 24 words somewhere safe — a password manager, encrypted note, or paper.
-            If you forget your passphrase, this is the only way to get your data back.
+            Save these 24 words somewhere safe — a password manager, encrypted note, or paper. If
+            you forget your passphrase, this is the only way to get your data back.
           </p>
           <div class="phrase-blob">{recoveryPhrase}</div>
           <div class="phrase-actions-row">
@@ -150,7 +156,7 @@
     backdrop-filter: blur(8px);
   }
 
-  :global(html[data-platform="linux"]) .dialog-backdrop {
+  :global(html[data-platform='linux']) .dialog-backdrop {
     backdrop-filter: none;
     background: rgba(0, 0, 0, 0.6);
   }

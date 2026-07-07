@@ -5,10 +5,10 @@ import type { OAuthConfig, OAuthToken } from './IOAuthService';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
-      invoke: vi.fn(),
-      on: vi.fn(),
-      off: vi.fn(),
-    },
+    invoke: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -91,7 +91,14 @@ describe('OAuthServiceProxy', () => {
       const payload = mockInvoke.mock.calls[0][1];
       const keys = Object.keys(payload);
       // Must match: providerId, clientId, authorizationUrl, tokenUrl, scopes, flowId
-      expect(keys).toEqual(['providerId', 'clientId', 'authorizationUrl', 'tokenUrl', 'scopes', 'flowId']);
+      expect(keys).toEqual([
+        'providerId',
+        'clientId',
+        'authorizationUrl',
+        'tokenUrl',
+        'scopes',
+        'flowId',
+      ]);
     });
 
     it('resolves via asyar:oauth:result postMessage when host returns pending:true', async () => {

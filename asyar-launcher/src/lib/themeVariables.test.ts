@@ -13,7 +13,7 @@ describe('collectThemeVariables', () => {
   it('returns only non-empty entries', () => {
     element.style.setProperty('--bg-primary', 'rgb(255, 255, 255)');
     element.style.setProperty('--text-primary', '');
-    
+
     const vars = collectThemeVariables(element);
     expect(vars['--bg-primary']).toBe('rgb(255, 255, 255)');
     expect(vars).not.toHaveProperty('--text-primary');
@@ -22,10 +22,10 @@ describe('collectThemeVariables', () => {
   it('result keys are all from THEME_VAR_NAMES', () => {
     element.style.setProperty('--bg-primary', 'blue');
     element.style.setProperty('--custom-var', 'red');
-    
+
     const vars = collectThemeVariables(element);
     const keys = Object.keys(vars);
-    keys.forEach(key => {
+    keys.forEach((key) => {
       expect(THEME_VAR_NAMES).toContain(key);
     });
     expect(vars).not.toHaveProperty('--custom-var');

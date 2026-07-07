@@ -31,7 +31,7 @@
   {:else if rows.length === 0}
     <div class="empty">No IPC traffic yet.</div>
   {:else}
-    <StreamTail rows={rows} tail={250}>
+    <StreamTail {rows} tail={250}>
       {#snippet row(item)}
         <span class="time">{formatTime(item.timestamp)}</span>
         <span class="phase phase-{item.phase}">{item.phase}</span>

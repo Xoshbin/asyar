@@ -31,111 +31,111 @@
 
 <!-- Export Backup & Restore -->
 <div class="no-separators">
-<SettingsForm>
-  {#each backup.providers as provider (provider.id)}
-    <SettingsFormRow label={provider.displayName}>
-      <Checkbox
-        checked={backup.enabledCategories.has(provider.id)}
-        onchange={() => backup.toggleCategory(provider.id)}
+  <SettingsForm>
+    {#each backup.providers as provider (provider.id)}
+      <SettingsFormRow label={provider.displayName}>
+        <Checkbox
+          checked={backup.enabledCategories.has(provider.id)}
+          onchange={() => backup.toggleCategory(provider.id)}
+        />
+      </SettingsFormRow>
+    {/each}
+
+    {#if backup.hasSensitiveData}
+      <div class="warning-row">
+        <WarningBanner>
+          This backup includes sensitive data (e.g. API keys). Set a password below to encrypt it,
+          or leave it blank — sensitive fields will be stripped from the file.
+        </WarningBanner>
+      </div>
+    {/if}
+
+    <SettingsFormRow label="Password (optional)">
+      <Input
+        id="export-password"
+        type="password"
+        placeholder="Leave blank to strip sensitive fields"
+        bind:value={backup.exportPassword}
       />
     </SettingsFormRow>
-  {/each}
 
-  {#if backup.hasSensitiveData}
-    <div class="warning-row">
-      <WarningBanner>
-        This backup includes sensitive data (e.g. API keys). Set a password below to encrypt it,
-        or leave it blank — sensitive fields will be stripped from the file.
-      </WarningBanner>
-    </div>
-  {/if}
-
-  <SettingsFormRow label="Password (optional)">
-    <Input
-      id="export-password"
-      type="password"
-      placeholder="Leave blank to strip sensitive fields"
-      bind:value={backup.exportPassword}
-    />
-  </SettingsFormRow>
-
-  <SettingsFormRow label="">
-    <div class="action-row">
-      <Button
-        onclick={() => backup.handleExport()}
-        disabled={backup.exportStatus === 'exporting' || backup.enabledCategories.size === 0}
-      >
-        {backup.exportStatus === 'exporting' ? 'Exporting…' : 'Export…'}
-      </Button>
-      {#if backup.exportMessage}
-        <span class="status-text" class:error={backup.exportStatus === 'error'}>
-          {backup.exportMessage}
-        </span>
-      {/if}
-    </div>
-  </SettingsFormRow>
-</SettingsForm>
-
-<!-- Migrate from Raycast -->
-<SettingsForm>
-  <SettingsFormRow label="Migrate from Raycast">
-    <div class="action-row">
-      <Button onclick={openRaycastImport}>Import from Raycast…</Button>
-      <span class="text-caption">Snippets, quicklinks, and app hotkeys</span>
-    </div>
-  </SettingsFormRow>
-</SettingsForm>
-
-<!-- Restore from Backup -->
-<SettingsForm>
-  <SettingsFormRow label="" separator>
-    <div class="action-row">
-      <Button
-        onclick={() => backup.handleChooseFile()}
-        disabled={backup.importStatus === 'importing'}
-      >
-        {backup.importStatus === 'importing' && !backup.importNeedsPassword
-          ? 'Reading…'
-          : 'Choose Backup File…'}
-      </Button>
-      {#if backup.importMessage && !backup.importModalOpen}
-        <span class="status-text" class:error={backup.importStatus === 'error'}>
-          {backup.importMessage}
-        </span>
-      {/if}
-    </div>
-  </SettingsFormRow>
-
-  {#if backup.importNeedsPassword}
-    <SettingsFormRow label="Password">
-      <div class="import-password-row">
-        <Input
-          type="password"
-          placeholder="Backup password"
-          bind:value={backup.importPassword}
-        />
+    <SettingsFormRow label="">
+      <div class="action-row">
         <Button
-          onclick={() => backup.handleFileWithPassword()}
-          disabled={backup.importStatus === 'importing'}
+          onclick={() => backup.handleExport()}
+          disabled={backup.exportStatus === 'exporting' || backup.enabledCategories.size === 0}
         >
-          {backup.importStatus === 'importing' ? 'Unlocking…' : 'Unlock'}
+          {backup.exportStatus === 'exporting' ? 'Exporting…' : 'Export…'}
         </Button>
+        {#if backup.exportMessage}
+          <span class="status-text" class:error={backup.exportStatus === 'error'}>
+            {backup.exportMessage}
+          </span>
+        {/if}
       </div>
     </SettingsFormRow>
-    {#if backup.importStatus === 'error' && backup.importMessage}
-      <SettingsFormRow label="">
-        <span class="status-text error">{backup.importMessage}</span>
+  </SettingsForm>
+
+  <!-- Migrate from Raycast -->
+  <SettingsForm>
+    <SettingsFormRow label="Migrate from Raycast">
+      <div class="action-row">
+        <Button onclick={openRaycastImport}>Import from Raycast…</Button>
+        <span class="text-caption">Snippets, quicklinks, and app hotkeys</span>
+      </div>
+    </SettingsFormRow>
+  </SettingsForm>
+
+  <!-- Restore from Backup -->
+  <SettingsForm>
+    <SettingsFormRow label="" separator>
+      <div class="action-row">
+        <Button
+          onclick={() => backup.handleChooseFile()}
+          disabled={backup.importStatus === 'importing'}
+        >
+          {backup.importStatus === 'importing' && !backup.importNeedsPassword
+            ? 'Reading…'
+            : 'Choose Backup File…'}
+        </Button>
+        {#if backup.importMessage && !backup.importModalOpen}
+          <span class="status-text" class:error={backup.importStatus === 'error'}>
+            {backup.importMessage}
+          </span>
+        {/if}
+      </div>
+    </SettingsFormRow>
+
+    {#if backup.importNeedsPassword}
+      <SettingsFormRow label="Password">
+        <div class="import-password-row">
+          <Input type="password" placeholder="Backup password" bind:value={backup.importPassword} />
+          <Button
+            onclick={() => backup.handleFileWithPassword()}
+            disabled={backup.importStatus === 'importing'}
+          >
+            {backup.importStatus === 'importing' ? 'Unlocking…' : 'Unlock'}
+          </Button>
+        </div>
       </SettingsFormRow>
+      {#if backup.importStatus === 'error' && backup.importMessage}
+        <SettingsFormRow label="">
+          <span class="status-text error">{backup.importMessage}</span>
+        </SettingsFormRow>
+      {/if}
     {/if}
-  {/if}
-</SettingsForm>
+  </SettingsForm>
 </div>
 
 <!-- Import Preview Modal -->
 {#if backup.importModalOpen && backup.importManifest}
   <ModalOverlay
     title="Restore from Backup"
-    subtitle={new Date(backup.importManifest.exportedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+    subtitle={new Date(backup.importManifest.exportedAt).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })}
     width="560px"
   >
     {#snippet children()}
@@ -153,7 +153,10 @@
                 onchange={() => {
                   const current = backup.importCategories.get(cat.id);
                   if (current) {
-                    backup.importCategories = new Map([...backup.importCategories, [cat.id, { ...current, enabled: !current.enabled }]]);
+                    backup.importCategories = new Map([
+                      ...backup.importCategories,
+                      [cat.id, { ...current, enabled: !current.enabled }],
+                    ]);
                   }
                 }}
               />
@@ -165,7 +168,9 @@
                   <div class="text-xs mt-0.5" style="color: var(--text-secondary)">
                     Local: {preview.localCount} → Incoming: {preview.incomingCount}
                     {#if preview.conflicts > 0}
-                      <span style="color: var(--accent-warning)"> · {preview.conflicts} conflicts</span>
+                      <span style="color: var(--accent-warning)">
+                        · {preview.conflicts} conflicts</span
+                      >
                     {/if}
                   </div>
                 {/if}
@@ -176,11 +181,25 @@
                 oninput={(e) => {
                   const current = backup.importCategories.get(cat.id);
                   if (current) {
-                    backup.importCategories = new Map([...backup.importCategories, [cat.id, { ...current, strategy: e.currentTarget.value as import('../../../services/profile/types').ConflictStrategy }]]);
+                    backup.importCategories = new Map([
+                      ...backup.importCategories,
+                      [
+                        cat.id,
+                        {
+                          ...current,
+                          strategy: e.currentTarget
+                            .value as import('../../../services/profile/types').ConflictStrategy,
+                        },
+                      ],
+                    ]);
                   }
                 }}
                 class="text-sm px-2 py-1 rounded"
-                style="background: var(--bg-tertiary); border: 1px solid var(--border-color); color: {catState.enabled ? 'var(--text-primary)' : 'var(--text-tertiary)'}; cursor: {catState.enabled ? 'pointer' : 'not-allowed'};"
+                style="background: var(--bg-tertiary); border: 1px solid var(--border-color); color: {catState.enabled
+                  ? 'var(--text-primary)'
+                  : 'var(--text-tertiary)'}; cursor: {catState.enabled
+                  ? 'pointer'
+                  : 'not-allowed'};"
               >
                 <option value="merge">Merge</option>
                 <option value="replace">Replace</option>
@@ -198,10 +217,7 @@
 
     {#snippet actions()}
       <Button onclick={() => backup.closeImportModal()}>Cancel</Button>
-      <Button
-        onclick={() => backup.handleImport()}
-        disabled={backup.importStatus === 'importing'}
-      >
+      <Button onclick={() => backup.handleImport()} disabled={backup.importStatus === 'importing'}>
         {backup.importStatus === 'importing' ? 'Restoring…' : 'Restore'}
       </Button>
     {/snippet}

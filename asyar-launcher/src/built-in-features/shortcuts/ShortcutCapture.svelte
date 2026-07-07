@@ -74,5 +74,4 @@
     justify-content: center;
     gap: var(--space-1);
   }
-
 </style>

@@ -20,7 +20,8 @@ async function exists(path: string): Promise<boolean> {
   return (await checkPathExists(path)) ?? false;
 }
 
-const isWindows = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('win');
+const isWindows =
+  typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('win');
 const npmCommand = isWindows ? 'npm-cmd' : 'npm';
 const codeCommand = isWindows ? 'code-cmd' : 'code';
 
@@ -36,7 +37,7 @@ async function getLatestSdkVersion(): Promise<string> {
     if (output.code === 0 && output.stdout.trim()) {
       return `^${output.stdout.trim()}`;
     }
-  } catch { }
+  } catch {}
   return '^4.0.0'; // Offline fallback
 }
 
@@ -82,7 +83,7 @@ export interface ScaffoldOptions {
 export async function generateExtension(options: ScaffoldOptions): Promise<void> {
   const { name, id, description, location, extensionType, onProgress } = options;
 
-  onProgress("Preparing file system...");
+  onProgress('Preparing file system...');
 
   if (!(await exists(location))) {
     await mkdir(location);
@@ -90,7 +91,7 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
 
   // ── Theme path: no JS, no build, no SDK dependency ────────────────────────
   if (extensionType === 'theme') {
-    onProgress("Writing theme files...");
+    onProgress('Writing theme files...');
     const populateBasic = (tmpl: string) =>
       tmpl
         .replaceAll('{{EXTENSION_NAME}}', name)
@@ -99,10 +100,10 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
 
     await writeTextFile(`${location}/manifest.json`, populateBasic(manifestThemeTmpl));
     await writeTextFile(`${location}/theme.json`, themeJsonTmpl);
-    await writeTextFile(`${location}/.gitignore`, "*.zip\n");
+    await writeTextFile(`${location}/.gitignore`, '*.zip\n');
     await writeTextFile(`${location}/README.md`, populateBasic(readmeThemeTmpl));
 
-    onProgress("Opening IDE...");
+    onProgress('Opening IDE...');
     try {
       const codeCmd = Command.create(codeCommand, ['.'], { cwd: location });
       await codeCmd.execute();
@@ -113,11 +114,11 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
         logService.debug(`Could not open folder automatically: ${fallbackError}`);
       }
     }
-    onProgress("Done!");
+    onProgress('Done!');
     return;
   }
 
-  onProgress("Resolving latest SDK version...");
+  onProgress('Resolving latest SDK version...');
   const sdkVersion = await getLatestSdkVersion();
 
   const populate = (tmpl: string) =>
@@ -127,13 +128,13 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
       .replaceAll('{{EXTENSION_DESC}}', description)
       .replaceAll('{{SDK_VERSION}}', sdkVersion);
 
-  onProgress("Writing scaffold files...");
+  onProgress('Writing scaffold files...');
 
   // ── Shared root files (all non-theme types) ───────────────────────────────
   await writeTextFile(`${location}/package.json`, populate(packageJsonTmpl));
   await writeTextFile(`${location}/vite.config.ts`, populate(viteConfigTmpl));
   await writeTextFile(`${location}/tsconfig.json`, populate(tsconfigTmpl));
-  await writeTextFile(`${location}/.gitignore`, "node_modules\ndist\n.env\n*.zip\n");
+  await writeTextFile(`${location}/.gitignore`, 'node_modules\ndist\n.env\n*.zip\n');
   await writeTextFile(`${location}/README.md`, populate(readmeTmpl));
 
   // ── src/ directory ────────────────────────────────────────────────────────
@@ -172,15 +173,15 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
 
     if (isWindows) {
       const installCmd = Command.create('cmd-exe', ['/c', 'pnpm install'], { cwd: location });
-      installCmd.on('error', error => logService.error(`pnpm install error: "${error}"`));
-      installCmd.stdout.on('data', line => logService.debug(`pnpm: "${line}"`));
-      installCmd.stderr.on('data', line => logService.error(`pnpm err: "${line}"`));
+      installCmd.on('error', (error) => logService.error(`pnpm install error: "${error}"`));
+      installCmd.stdout.on('data', (line) => logService.debug(`pnpm: "${line}"`));
+      installCmd.stderr.on('data', (line) => logService.error(`pnpm err: "${line}"`));
       installOutput = await installCmd.execute();
     } else {
       const installCmd = Command.create('sh', ['-l', '-c', 'pnpm install'], { cwd: location });
-      installCmd.on('error', error => logService.error(`pnpm install error: "${error}"`));
-      installCmd.stdout.on('data', line => logService.debug(`pnpm: "${line}"`));
-      installCmd.stderr.on('data', line => logService.error(`pnpm err: "${line}"`));
+      installCmd.on('error', (error) => logService.error(`pnpm install error: "${error}"`));
+      installCmd.stdout.on('data', (line) => logService.debug(`pnpm: "${line}"`));
+      installCmd.stderr.on('data', (line) => logService.error(`pnpm err: "${line}"`));
       installOutput = await installCmd.execute();
     }
 
@@ -188,19 +189,19 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
       throw new Error(`pnpm install failed with code ${installOutput.code}`);
     }
 
-    onProgress("Building extension...");
+    onProgress('Building extension...');
 
     if (isWindows) {
       const buildCmd = Command.create('cmd-exe', ['/c', 'pnpm run build'], { cwd: location });
-      buildCmd.on('error', error => logService.error(`pnpm build error: "${error}"`));
-      buildCmd.stdout.on('data', line => logService.debug(`pnpm build: "${line}"`));
-      buildCmd.stderr.on('data', line => logService.error(`pnpm build err: "${line}"`));
+      buildCmd.on('error', (error) => logService.error(`pnpm build error: "${error}"`));
+      buildCmd.stdout.on('data', (line) => logService.debug(`pnpm build: "${line}"`));
+      buildCmd.stderr.on('data', (line) => logService.error(`pnpm build err: "${line}"`));
       buildOutput = await buildCmd.execute();
     } else {
       const buildCmd = Command.create('sh', ['-l', '-c', 'pnpm run build'], { cwd: location });
-      buildCmd.on('error', error => logService.error(`pnpm build error: "${error}"`));
-      buildCmd.stdout.on('data', line => logService.debug(`pnpm build: "${line}"`));
-      buildCmd.stderr.on('data', line => logService.error(`pnpm build err: "${line}"`));
+      buildCmd.on('error', (error) => logService.error(`pnpm build error: "${error}"`));
+      buildCmd.stdout.on('data', (line) => logService.debug(`pnpm build: "${line}"`));
+      buildCmd.stderr.on('data', (line) => logService.error(`pnpm build err: "${line}"`));
       buildOutput = await buildCmd.execute();
     }
 
@@ -209,18 +210,20 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
     }
   } catch (error) {
     logService.error(`Failed to run commands automatically: ${error}`);
-    onProgress("Note: Could not build automatically. Please run 'pnpm install && pnpm run build' in the extension directory.");
+    onProgress(
+      "Note: Could not build automatically. Please run 'pnpm install && pnpm run build' in the extension directory.",
+    );
   }
 
   // ── Register dev extension ────────────────────────────────────────────────
-  onProgress("Registering development extension...");
+  onProgress('Registering development extension...');
   const registered = await registerDevExtension(id, location);
   if (!registered) {
     onProgress("Note: Failed to register for auto-loading. You may need to run 'asyar link'.");
   }
 
   // ── Open IDE ──────────────────────────────────────────────────────────────
-  onProgress("Opening IDE...");
+  onProgress('Opening IDE...');
   try {
     const codeCmd = Command.create(codeCommand, ['.'], { cwd: location });
     await codeCmd.execute();
@@ -232,5 +235,5 @@ export async function generateExtension(options: ScaffoldOptions): Promise<void>
     }
   }
 
-  onProgress("Done!");
+  onProgress('Done!');
 }

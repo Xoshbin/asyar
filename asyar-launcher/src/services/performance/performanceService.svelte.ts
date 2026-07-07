@@ -1,4 +1,4 @@
-import { logService } from "../log/logService";
+import { logService } from '../log/logService';
 
 // Performance metrics for individual operations
 export interface PerformanceMetric {
@@ -72,10 +72,10 @@ class PerformanceService {
 
     try {
       logService.custom(
-        "🚀 Initializing performance monitoring service...",
-        "PERF",
-        "magenta",
-        "bgMagenta"
+        '🚀 Initializing performance monitoring service...',
+        'PERF',
+        'magenta',
+        'bgMagenta',
       );
 
       // Record startup time
@@ -88,30 +88,24 @@ class PerformanceService {
 
       // Log current memory usage
       const memory = this.getMemoryUsage();
-      logService.custom(
-        `📊 Initial memory usage: ${this.formatMemory(memory)}`,
-        "PERF",
-        "cyan"
-      );
+      logService.custom(`📊 Initial memory usage: ${this.formatMemory(memory)}`, 'PERF', 'cyan');
 
       // Set up periodic performance reporting
       const reportInterval = this.config.performanceReportInterval;
       logService.custom(
-        `⏰ Performance reports will be generated every ${this.formatTime(
-          reportInterval
-        )}`,
-        "PERF",
-        "cyan"
+        `⏰ Performance reports will be generated every ${this.formatTime(reportInterval)}`,
+        'PERF',
+        'cyan',
       );
 
       setInterval(() => this.logPerformanceReport(), reportInterval);
 
       this.initialized = true;
       logService.custom(
-        "✅ Performance monitoring service initialized successfully",
-        "PERF",
-        "green",
-        "bgGreen"
+        '✅ Performance monitoring service initialized successfully',
+        'PERF',
+        'green',
+        'bgGreen',
       );
 
       // Generate an initial report immediately
@@ -133,11 +127,7 @@ class PerformanceService {
       memoryBefore: memory,
     });
 
-    logService.custom(
-      `▶️ Started timing operation: ${operationId}`,
-      "PERF",
-      "blue"
-    );
+    logService.custom(`▶️ Started timing operation: ${operationId}`, 'PERF', 'blue');
   }
 
   /**
@@ -148,9 +138,7 @@ class PerformanceService {
     const operation = this.activeOperations.get(operationId);
 
     if (!operation) {
-      logService.warn(
-        `Attempted to stop timing for unknown operation: ${operationId}`
-      );
+      logService.warn(`Attempted to stop timing for unknown operation: ${operationId}`);
       return {
         startTime: now,
         endTime: now,
@@ -167,19 +155,15 @@ class PerformanceService {
       duration,
       memoryBefore: operation.memoryBefore,
       memoryAfter: memory,
-      memoryDelta: operation.memoryBefore
-        ? memory - operation.memoryBefore
-        : undefined,
+      memoryDelta: operation.memoryBefore ? memory - operation.memoryBefore : undefined,
     };
 
     this.activeOperations.delete(operationId);
 
     logService.custom(
-      `⏹️ Completed timing operation: ${operationId} (${duration.toFixed(
-        2
-      )}ms)`,
-      "PERF",
-      "blue"
+      `⏹️ Completed timing operation: ${operationId} (${duration.toFixed(2)}ms)`,
+      'PERF',
+      'blue',
     );
 
     return result;
@@ -188,10 +172,7 @@ class PerformanceService {
   /**
    * Track when an extension begins loading
    */
-  trackExtensionLoadStart(
-    extensionId: string,
-    isUserInitiated: boolean = true
-  ): void {
+  trackExtensionLoadStart(extensionId: string, isUserInitiated: boolean = true): void {
     this.loadingStartTimes.set(extensionId, performance.now());
 
     // Initialize or update extension metrics
@@ -217,9 +198,9 @@ class PerformanceService {
 
       logService.custom(
         `⚠️ Extension "${extensionId}" is being loaded without explicit user action!`,
-        "PERF",
-        "yellow",
-        "bgYellow"
+        'PERF',
+        'yellow',
+        'bgYellow',
       );
     }
   }
@@ -230,9 +211,7 @@ class PerformanceService {
   trackExtensionLoadEnd(extensionId: string): void {
     const startTime = this.loadingStartTimes.get(extensionId);
     if (!startTime) {
-      logService.warn(
-        `No load start time recorded for extension: ${extensionId}`
-      );
+      logService.warn(`No load start time recorded for extension: ${extensionId}`);
       return;
     }
 
@@ -266,18 +245,16 @@ class PerformanceService {
     // Check if load time is slow
     if (loadTime > this.config.slowLoadThreshold) {
       logService.custom(
-        `🐢 Slow extension load: "${extensionId}" took ${loadTime.toFixed(
-          2
-        )}ms to load`,
-        "PERF",
-        "yellow"
+        `🐢 Slow extension load: "${extensionId}" took ${loadTime.toFixed(2)}ms to load`,
+        'PERF',
+        'yellow',
       );
     }
 
     logService.custom(
       `📊 Extension "${extensionId}" loaded in ${loadTime.toFixed(2)}ms`,
-      "PERF",
-      "cyan"
+      'PERF',
+      'cyan',
     );
   }
 
@@ -289,9 +266,7 @@ class PerformanceService {
 
     const ext = this.extensionPerformance[extensionId];
     if (!ext) {
-      logService.warn(
-        `Attempted to unload unknown extension: ${extensionId}`
-      );
+      logService.warn(`Attempted to unload unknown extension: ${extensionId}`);
       return;
     }
 
@@ -299,7 +274,7 @@ class PerformanceService {
     ext.lastUnloadTime = unloadTime;
     ext.isCurrentlyLoaded = false;
 
-    logService.custom(`📤 Extension "${extensionId}" unloaded`, "PERF", "blue");
+    logService.custom(`📤 Extension "${extensionId}" unloaded`, 'PERF', 'blue');
   }
 
   /**
@@ -349,10 +324,10 @@ class PerformanceService {
     if (executionTime > this.config.slowExecutionThreshold) {
       logService.custom(
         `⏱️ Slow method execution: "${extensionId}.${methodName}" took ${executionTime.toFixed(
-          2
+          2,
         )}ms`,
-        "PERF",
-        "yellow"
+        'PERF',
+        'yellow',
       );
     }
   }
@@ -374,10 +349,13 @@ class PerformanceService {
     // Update current memory usage
     const currentMemory = this.getMemoryUsage();
     this.appPerformance.totalMemoryUsage = currentMemory;
-    this.appPerformance.maxMemoryUsage = Math.max(this.appPerformance.maxMemoryUsage, currentMemory);
+    this.appPerformance.maxMemoryUsage = Math.max(
+      this.appPerformance.maxMemoryUsage,
+      currentMemory,
+    );
 
     const loadedExtensions = Object.values(this.extensionPerformance).filter(
-      (ext) => ext.isCurrentlyLoaded
+      (ext) => ext.isCurrentlyLoaded,
     );
 
     const violations = Array.from(this.lazyLoadingViolations);
@@ -387,44 +365,42 @@ class PerformanceService {
       `Total memory: ${this.formatMemory(currentMemory)}`,
       `Peak memory: ${this.formatMemory(this.appPerformance.maxMemoryUsage)}`,
       `Total extension loads: ${this.appPerformance.extensionLoadCount}`,
-    ].join("\n");
+    ].join('\n');
 
     const loadedExtensionsInfo =
       loadedExtensions.length === 0
-        ? "None"
+        ? 'None'
         : loadedExtensions
             .map((ext) => {
               return `• ${ext.id} - loaded for ${this.formatTime(
-                Date.now() - (ext.loadTimestamp || 0)
+                Date.now() - (ext.loadTimestamp || 0),
               )}`;
             })
-            .join("\n");
+            .join('\n');
 
     const violationsInfo =
-      violations.length === 0
-        ? "None"
-        : violations.map((id) => `• ${id}`).join("\n");
+      violations.length === 0 ? 'None' : violations.map((id) => `• ${id}`).join('\n');
 
     const fullReport = [
-      "📊 PERFORMANCE REPORT",
-      "═════════════════════",
-      "",
-      "🔄 Runtime Statistics:",
+      '📊 PERFORMANCE REPORT',
+      '═════════════════════',
+      '',
+      '🔄 Runtime Statistics:',
       runtimeInfo,
-      "",
-      "📱 Currently Loaded Extensions:",
+      '',
+      '📱 Currently Loaded Extensions:',
       loadedExtensionsInfo,
-      "",
-      "⚠️ Lazy Loading Violations:",
+      '',
+      '⚠️ Lazy Loading Violations:',
       violationsInfo,
-    ].join("\n");
+    ].join('\n');
 
-    logService.custom(fullReport, "PERF", "magenta");
+    logService.custom(fullReport, 'PERF', 'magenta');
   }
 
   private formatMemory(bytes: number): string {
-    if (bytes === 0) return "N/A";
-    const units = ["Bytes", "KB", "MB", "GB"];
+    if (bytes === 0) return 'N/A';
+    const units = ['Bytes', 'KB', 'MB', 'GB'];
     let i = 0;
     let formatted = bytes;
     while (formatted > 1024 && i < units.length - 1) {
@@ -455,7 +431,7 @@ export const extensionPerformance = {
       fn(performanceService.extensionPerformance);
       return () => {};
     };
-  }
+  },
 };
 
 export const appPerformance = {
@@ -464,7 +440,7 @@ export const appPerformance = {
       fn(performanceService.appPerformance);
       return () => {};
     };
-  }
+  },
 };
 
 export default performanceService;

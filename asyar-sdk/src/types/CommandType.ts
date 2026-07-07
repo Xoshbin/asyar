@@ -2,7 +2,7 @@
  * Command argument types — declared in manifest.json per command.
  * Max 3 arguments per command. Required args must precede optional args.
  */
-export type CommandArgumentType = "text" | "password" | "dropdown" | "number";
+export type CommandArgumentType = 'text' | 'password' | 'dropdown' | 'number';
 
 export interface CommandArgumentDropdownOption {
   value: string;

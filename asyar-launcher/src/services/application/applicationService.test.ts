@@ -51,7 +51,9 @@ describe('ApplicationService', () => {
 
       await service.syncApplicationIndex();
 
-      expect(invoke).toHaveBeenCalledWith('sync_application_index', { extraPaths: ['/custom/path'] });
+      expect(invoke).toHaveBeenCalledWith('sync_application_index', {
+        extraPaths: ['/custom/path'],
+      });
     });
   });
 
@@ -124,9 +126,7 @@ describe('ApplicationService', () => {
         'Platform error: scan_uninstall_targets is only supported on macOS',
       );
 
-      await expect(
-        service.scanUninstallTargets('/Applications/Foo.app'),
-      ).resolves.toBeNull();
+      await expect(service.scanUninstallTargets('/Applications/Foo.app')).resolves.toBeNull();
     });
   });
 

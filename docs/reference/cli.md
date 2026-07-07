@@ -1,18 +1,19 @@
 ---
 order: 2
 ---
+
 ## 12. Development Workflow — CLI Reference
 
 ### Available CLI commands
 
-| Command | Description |
-|---|---|
-| `asyar validate` | Validate `manifest.json` against all rules |
-| `asyar build` | Validate + run `vite build` + verify output |
-| `asyar dev` | Validate + build + link + watch for changes |
-| `asyar link` | Build + create symlink in Asyar's extensions directory |
-| `asyar link --watch` | `link` + continuous file watching and rebuild |
-| `asyar publish` | Full publish pipeline (validate → build → GitHub → Store) |
+| Command              | Description                                               |
+| -------------------- | --------------------------------------------------------- |
+| `asyar validate`     | Validate `manifest.json` against all rules                |
+| `asyar build`        | Validate + run `vite build` + verify output               |
+| `asyar dev`          | Validate + build + link + watch for changes               |
+| `asyar link`         | Build + create symlink in Asyar's extensions directory    |
+| `asyar link --watch` | `link` + continuous file watching and rebuild             |
+| `asyar publish`      | Full publish pipeline (validate → build → GitHub → Store) |
 
 ---
 
@@ -26,23 +27,23 @@ asyar validate
 
 **What it checks:**
 
-| Check | Rule |
-|---|---|
-| `id` present and format | Required; must match `/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/` |
-| `name` | Required; 2–50 characters |
-| `version` | Required; valid semver |
-| `description` | Required; 10–200 characters |
-| `author` | Required |
-| `type` | Optional; one of `"extension"` (default) or `"theme"` |
-| `commands` | At least one entry, OR `searchable: true`, OR a `background.main` entry |
-| Each command `id`, `name`, `mode` | Required |
-| `mode` values | Must be `"view"` or `"background"` |
-| `component` when `mode: "view"` | Required (Svelte component name exported by `view.ts`) |
-| `component` when `mode: "background"` | Forbidden |
-| `background.main` | Required when any command has `mode: "background"` or when `searchable: true` |
-| `permissions` values | Each must be a recognized permission string |
-| `view.html` at project root | Must exist for any extension with `mode: "view"` commands |
-| `vite.config.ts` or `.js` | Must exist |
+| Check                                 | Rule                                                                          |
+| ------------------------------------- | ----------------------------------------------------------------------------- |
+| `id` present and format               | Required; must match `/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/`                  |
+| `name`                                | Required; 2–50 characters                                                     |
+| `version`                             | Required; valid semver                                                        |
+| `description`                         | Required; 10–200 characters                                                   |
+| `author`                              | Required                                                                      |
+| `type`                                | Optional; one of `"extension"` (default) or `"theme"`                         |
+| `commands`                            | At least one entry, OR `searchable: true`, OR a `background.main` entry       |
+| Each command `id`, `name`, `mode`     | Required                                                                      |
+| `mode` values                         | Must be `"view"` or `"background"`                                            |
+| `component` when `mode: "view"`       | Required (Svelte component name exported by `view.ts`)                        |
+| `component` when `mode: "background"` | Forbidden                                                                     |
+| `background.main`                     | Required when any command has `mode: "background"` or when `searchable: true` |
+| `permissions` values                  | Each must be a recognized permission string                                   |
+| `view.html` at project root           | Must exist for any extension with `mode: "view"` commands                     |
+| `vite.config.ts` or `.js`             | Must exist                                                                    |
 
 ---
 

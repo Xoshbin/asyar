@@ -9,7 +9,9 @@ vi.mock('../ipc/MessageBroker', () => ({
 function makeProxy(resolved: unknown = undefined) {
   const mockInvoke = vi.fn().mockResolvedValue(resolved);
   Object.assign(messageBroker, {
-    invoke: mockInvoke, on: vi.fn(), off: vi.fn(),
+    invoke: mockInvoke,
+    on: vi.fn(),
+    off: vi.fn(),
   });
   const proxy = new NotificationServiceProxy();
   proxy.setExtensionId('ext.test');
@@ -40,10 +42,15 @@ describe('NotificationServiceProxy', () => {
       const payload = mockInvoke.mock.calls[0][1];
       expect(payload.options.actions).toHaveLength(2);
       expect(payload.options.actions[0]).toEqual({
-        id: 'extend', title: 'Extend 30m', commandId: 'coffee.extend', args: { minutes: 30 },
+        id: 'extend',
+        title: 'Extend 30m',
+        commandId: 'coffee.extend',
+        args: { minutes: 30 },
       });
       expect(payload.options.actions[1]).toEqual({
-        id: 'stop', title: 'Stop now', commandId: 'coffee.stop',
+        id: 'stop',
+        title: 'Stop now',
+        commandId: 'coffee.stop',
       });
     });
 

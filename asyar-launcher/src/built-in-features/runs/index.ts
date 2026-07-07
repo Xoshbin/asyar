@@ -11,10 +11,7 @@ class RunsExtension implements Extension {
 
   async initialize(_context: ExtensionContext): Promise<void> {}
 
-  async executeCommand(
-    commandId: string,
-    args?: Record<string, unknown>,
-  ): Promise<unknown> {
+  async executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
     if (commandId === 'open-runs') {
       const argsWithId = args as { arguments?: { id?: string } } | undefined;
       const id = argsWithId?.arguments?.id;

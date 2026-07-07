@@ -1,6 +1,7 @@
 import { renderIcon } from './IconRenderer';
 
-const HTMLElementClass = typeof HTMLElement !== 'undefined' ? HTMLElement : class {} as unknown as typeof HTMLElement;
+const HTMLElementClass =
+  typeof HTMLElement !== 'undefined' ? HTMLElement : (class {} as unknown as typeof HTMLElement);
 
 export class AsyarIconElement extends HTMLElementClass {
   static observedAttributes = ['name', 'size', 'stroke-width'];

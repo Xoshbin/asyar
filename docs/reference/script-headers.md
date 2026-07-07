@@ -1,6 +1,7 @@
 ---
 order: 11
 ---
+
 # Script Headers
 
 Asyar scans user-configured directories for executable script files and
@@ -63,11 +64,11 @@ this directive the script is not registered.
 
 The icon shown next to the title. Three forms are accepted:
 
-| Form | Example | Notes |
-|---|---|---|
-| Emoji | `🔔` | Any Unicode emoji. Renders inline. |
-| Icon name | `icon:terminal` | Built-in icon set; see [Design system](./design-system/). |
-| Image path | `images/icon.png` | Relative to the script file's directory. PNG/JPG/SVG. |
+| Form       | Example           | Notes                                                     |
+| ---------- | ----------------- | --------------------------------------------------------- |
+| Emoji      | `🔔`              | Any Unicode emoji. Renders inline.                        |
+| Icon name  | `icon:terminal`   | Built-in icon set; see [Design system](./design-system/). |
+| Image path | `images/icon.png` | Relative to the script file's directory. PNG/JPG/SVG.     |
 
 When absent the launcher falls back to `icon:terminal`.
 
@@ -102,12 +103,12 @@ Rules:
 Declares how the script's output is surfaced. Defaults to `compact` when
 absent.
 
-| Mode | Behavior | Status |
-|---|---|---|
-| `silent` | Run, discard output, surface a notification on completion or failure. | Accepted; behaves like `compact` today. |
-| `compact` | Default. One-shot run; full output available in RunView; succeeded/failed rows persist in the Scripts section per the [run-tracking lifecycle](../explanation/run-tracking.md). | ✅ |
-| `fullOutput` | One-shot run; auto-open RunView with streaming output. | Accepted; behaves like `compact` today. |
-| `inline` | Re-execute on a timer; first line of stdout becomes the row subtitle. See [Inline-mode scripts](#inline-mode-scripts). | ✅ |
+| Mode         | Behavior                                                                                                                                                                        | Status                                  |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `silent`     | Run, discard output, surface a notification on completion or failure.                                                                                                           | Accepted; behaves like `compact` today. |
+| `compact`    | Default. One-shot run; full output available in RunView; succeeded/failed rows persist in the Scripts section per the [run-tracking lifecycle](../explanation/run-tracking.md). | ✅                                      |
+| `fullOutput` | One-shot run; auto-open RunView with streaming output.                                                                                                                          | Accepted; behaves like `compact` today. |
+| `inline`     | Re-execute on a timer; first line of stdout becomes the row subtitle. See [Inline-mode scripts](#inline-mode-scripts).                                                          | ✅                                      |
 
 The `silent` and `fullOutput` values are reserved for forthcoming
 behaviour and accepted by the parser today so scripts written for them
@@ -120,11 +121,11 @@ Sets the tick interval for inline-mode scripts. The value is `N` followed
 by a unit suffix:
 
 | Suffix | Meaning | Example |
-|---|---|---|
-| `s` | seconds | `10s` |
-| `m` | minutes | `5m` |
-| `h` | hours   | `1h` |
-| `d` | days    | `1d` |
+| ------ | ------- | ------- |
+| `s`    | seconds | `10s`   |
+| `m`    | minutes | `5m`    |
+| `h`    | hours   | `1h`    |
+| `d`    | days    | `1d`    |
 
 The **minimum** is **10 seconds**. Values below this are clamped on
 ingest and a one-time `inline_script_clamped` diagnostic toast is shown
@@ -249,11 +250,11 @@ open "$URL"
 
 ## Diagnostics surfaced to the user
 
-| Kind | When | Severity |
-|---|---|---|
-| `script_header_invalid` | Header JSON malformed, duplicate argument index, out-of-range index, unknown mode, malformed refreshTime. | `warning` — file skipped, not registered. |
-| `inline_script_clamped` | A script declared `@asyar.refreshTime` below 10s. Fired once per script. | `warning` — value raised to 10s, ticking proceeds. |
-| `inline_script_capped` | More than 10 inline scripts present after a rescan. Fired once per newly-overflowed script. | `warning` — capped scripts still run on manual Enter, just don't auto-tick. |
+| Kind                    | When                                                                                                      | Severity                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `script_header_invalid` | Header JSON malformed, duplicate argument index, out-of-range index, unknown mode, malformed refreshTime. | `warning` — file skipped, not registered.                                   |
+| `inline_script_clamped` | A script declared `@asyar.refreshTime` below 10s. Fired once per script.                                  | `warning` — value raised to 10s, ticking proceeds.                          |
+| `inline_script_capped`  | More than 10 inline scripts present after a rescan. Fired once per newly-overflowed script.               | `warning` — capped scripts still run on manual Enter, just don't auto-tick. |
 
 All three flow through the unified `diagnosticsService` channel — they
 appear as toast banners alongside other launcher diagnostics.

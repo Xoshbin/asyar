@@ -81,9 +81,7 @@ export class ExtensionStateProxy extends BaseServiceProxy {
       this.subs.clear();
       for (const s of snapshot) {
         // Fire-and-forget — we're unmounting, nothing to await.
-        this.broker
-          .invoke<void>('state:unsubscribe', { subscriptionId: s.id })
-          .catch(() => {});
+        this.broker.invoke<void>('state:unsubscribe', { subscriptionId: s.id }).catch(() => {});
       }
     });
   }

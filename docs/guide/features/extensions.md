@@ -3,7 +3,7 @@
 > Browse, install, and manage extensions from the store.
 
 ![The Extension Store view](../../images/feature-extensions-hero.png)
-*Figure: the Extension Store view.*
+_Figure: the Extension Store view._
 
 ## What it does
 
@@ -54,14 +54,14 @@ Use the filter chips at the top of the Extensions tab to show **All**, **Command
 
 ## Shortcuts & actions
 
-| Action | How |
-|---|---|
-| Open the Extension Store | Type `store` → `Enter` |
-| Enable / disable an extension | Settings → Extensions → toggle |
-| Add an alias to a command | Settings → Extensions → expand extension → **Add Alias** |
-| Record a hotkey for a command | Settings → Extensions → expand extension → **Record Hotkey** |
-| Sideload from file | Settings → Extensions → **+** → **Install from File…** (Developer mode) |
-| Uninstall an extension | Settings → Extensions → select extension → **Uninstall** in detail panel |
+| Action                        | How                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| Open the Extension Store      | Type `store` → `Enter`                                                   |
+| Enable / disable an extension | Settings → Extensions → toggle                                           |
+| Add an alias to a command     | Settings → Extensions → expand extension → **Add Alias**                 |
+| Record a hotkey for a command | Settings → Extensions → expand extension → **Record Hotkey**             |
+| Sideload from file            | Settings → Extensions → **+** → **Install from File…** (Developer mode)  |
+| Uninstall an extension        | Settings → Extensions → select extension → **Uninstall** in detail panel |
 
 ## Tips
 

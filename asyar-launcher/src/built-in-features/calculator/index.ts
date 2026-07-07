@@ -4,14 +4,14 @@ import type {
   ExtensionResult,
   ILogService,
   INotificationService,
-} from "asyar-sdk/contracts";
-import { writeText } from "tauri-plugin-clipboard-x-api";
+} from 'asyar-sdk/contracts';
+import { writeText } from 'tauri-plugin-clipboard-x-api';
 
-import { evaluateMath } from "./engine/math";
-import { evaluateUnitExpression } from "./engine/units";
-import { evaluateCurrencyExpression, refreshRates } from "./engine/currency";
-import { evaluateDatetime } from "./engine/datetime";
-import { convertBase } from "./engine/bases";
+import { evaluateMath } from './engine/math';
+import { evaluateUnitExpression } from './engine/units';
+import { evaluateCurrencyExpression, refreshRates } from './engine/currency';
+import { evaluateDatetime } from './engine/datetime';
+import { convertBase } from './engine/bases';
 
 const DEFAULT_INTERVAL_HOURS = 6;
 const MIN_INTERVAL_HOURS = 1;
@@ -26,18 +26,15 @@ class CalculatorExtension implements Extension {
   onUnload: any;
 
   async initialize(context: ExtensionContext): Promise<void> {
-    this.logService = context.getService<ILogService>("log");
-    this.notificationService = context.getService<INotificationService>("notifications");
+    this.logService = context.getService<ILogService>('log');
+    this.notificationService = context.getService<INotificationService>('notifications');
 
     // Read refresh interval from the frozen preferences snapshot. When the
     // user edits this in Settings, extensionManager reloads the extension
     // and initialize() runs again with the fresh value.
     const raw = context.preferences.values.refreshInterval;
-    if (typeof raw === "number" && Number.isFinite(raw)) {
-      this.currentIntervalHours = Math.max(
-        MIN_INTERVAL_HOURS,
-        Math.min(MAX_INTERVAL_HOURS, raw)
-      );
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+      this.currentIntervalHours = Math.max(MIN_INTERVAL_HOURS, Math.min(MAX_INTERVAL_HOURS, raw));
     }
   }
 
@@ -54,7 +51,7 @@ class CalculatorExtension implements Extension {
     // no runtime listener is needed here.
     this.startRefreshTimer();
   }
-  
+
   private startRefreshTimer() {
     if (this.refreshTimer) {
       clearInterval(this.refreshTimer);
@@ -62,7 +59,7 @@ class CalculatorExtension implements Extension {
 
     const intervalMs = this.currentIntervalHours * 60 * 60 * 1000;
     this.refreshTimer = setInterval(() => {
-      this.logService?.info("Background currency refresh triggered");
+      this.logService?.info('Background currency refresh triggered');
       refreshRates();
     }, intervalMs);
   }
@@ -80,44 +77,46 @@ class CalculatorExtension implements Extension {
 
     const results: ExtensionResult[] = [];
 
-    const addResult = async (res: string | null | Promise<string | null>, icon: string, formula: string) => {
+    const addResult = async (
+      res: string | null | Promise<string | null>,
+      icon: string,
+      formula: string,
+    ) => {
       const resolved = await res;
       if (!resolved) return;
       results.push({
         score: 1.0,
         title: resolved,
         subtitle: formula,
-        type: "result",
+        type: 'result',
         icon: icon,
-        style: "large",
-        priority: "top",
+        style: 'large',
+        priority: 'top',
         action: async () => {
           try {
             await writeText(resolved);
             this.notificationService?.send({
-              title: "Calculator",
-              body: `Copied: ${resolved}`
+              title: 'Calculator',
+              body: `Copied: ${resolved}`,
             });
           } catch (e) {
-            this.logService?.error("Copy failed: " + e);
+            this.logService?.error('Copy failed: ' + e);
           }
-        }
+        },
       });
     };
 
     // Calculate possible results based on expressions
     await Promise.all([
-      addResult(evaluateMath(trimmed), "🧮", trimmed),
-      addResult(evaluateUnitExpression(trimmed), "📏", trimmed),
-      addResult(evaluateCurrencyExpression(trimmed), "💵", trimmed),
-      addResult(evaluateDatetime(trimmed), "📅", trimmed),
-      addResult(convertBase(trimmed), "🔟", trimmed)
+      addResult(evaluateMath(trimmed), '🧮', trimmed),
+      addResult(evaluateUnitExpression(trimmed), '📏', trimmed),
+      addResult(evaluateCurrencyExpression(trimmed), '💵', trimmed),
+      addResult(evaluateDatetime(trimmed), '📅', trimmed),
+      addResult(convertBase(trimmed), '🔟', trimmed),
     ]);
-
 
     return results;
   }
-
 }
 
 // Export singleton instance

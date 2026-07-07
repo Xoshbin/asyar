@@ -1,4 +1,4 @@
-import type { ClipboardHistoryItem, ClipboardItemType } from "../types";
+import type { ClipboardHistoryItem, ClipboardItemType } from '../types';
 
 /**
  * Interface for Clipboard History Service

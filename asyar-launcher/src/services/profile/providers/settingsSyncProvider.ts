@@ -56,7 +56,10 @@ export class SettingsSyncProvider implements ISyncProvider {
         if (incomingSettings[section] !== undefined) {
           // updateSettings is generic over the section key — TS can't narrow
           // here without a per-key dispatch. The cast is contained and safe.
-          await settingsService.updateSettings(section, incomingSettings[section] as Partial<AppSettings[typeof section]>);
+          await settingsService.updateSettings(
+            section,
+            incomingSettings[section] as Partial<AppSettings[typeof section]>,
+          );
         }
       }
       return { success: true, itemsAdded: 0, itemsUpdated: 1, itemsRemoved: 0, warnings: [] };
@@ -66,7 +69,10 @@ export class SettingsSyncProvider implements ISyncProvider {
     for (const section of Object.keys(incomingSettings) as Array<keyof AppSettings>) {
       const incomingSection = incomingSettings[section];
       if (incomingSection !== undefined) {
-        await settingsService.updateSettings(section, incomingSection as Partial<AppSettings[typeof section]>);
+        await settingsService.updateSettings(
+          section,
+          incomingSection as Partial<AppSettings[typeof section]>,
+        );
       }
     }
     return { success: true, itemsAdded: 0, itemsUpdated: 1, itemsRemoved: 0, warnings: [] };
@@ -88,7 +94,10 @@ export class SettingsSyncProvider implements ISyncProvider {
     for (const section of Object.keys(incomingSettings) as Array<keyof AppSettings>) {
       const value = incomingSettings[section];
       if (value !== undefined) {
-        await settingsService.updateSettings(section, value as Partial<AppSettings[typeof section]>);
+        await settingsService.updateSettings(
+          section,
+          value as Partial<AppSettings[typeof section]>,
+        );
       }
     }
   }

@@ -5,10 +5,10 @@ import { AIErrorCode } from './IAIService';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
-      invoke: vi.fn(),
-      on: vi.fn(),
-      off: vi.fn(),
-    },
+    invoke: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
 }));
 
 describe('AIServiceProxy', () => {
@@ -37,10 +37,10 @@ describe('AIServiceProxy', () => {
       const { proxy, mockInvoke } = makeProxy();
       proxy.stream(
         { messages: [{ role: 'user', content: 'hi' }] },
-        { onToken: vi.fn(), onDone: vi.fn(), onError: vi.fn() }
+        { onToken: vi.fn(), onDone: vi.fn(), onError: vi.fn() },
       );
       await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
-      const call = mockInvoke.mock.calls.find(c => c[0] === 'ai:streamChat');
+      const call = mockInvoke.mock.calls.find((c) => c[0] === 'ai:streamChat');
       expect(call).toBeDefined();
     });
   });
@@ -57,10 +57,7 @@ describe('AIServiceProxy', () => {
     const onDone = vi.fn();
     const onError = vi.fn();
 
-    proxy.stream(
-      { messages: [{ role: 'user', content: 'hi' }] },
-      { onToken, onDone, onError }
-    );
+    proxy.stream({ messages: [{ role: 'user', content: 'hi' }] }, { onToken, onDone, onError });
 
     await vi.waitFor(() => capturedId !== undefined);
 
@@ -92,10 +89,7 @@ describe('AIServiceProxy', () => {
     });
 
     const onDone = vi.fn();
-    proxy.stream(
-      { messages: [] },
-      { onToken: vi.fn(), onDone, onError: vi.fn() }
-    );
+    proxy.stream({ messages: [] }, { onToken: vi.fn(), onDone, onError: vi.fn() });
 
     await vi.waitFor(() => capturedId !== undefined);
 
@@ -117,10 +111,7 @@ describe('AIServiceProxy', () => {
     });
 
     const onError = vi.fn();
-    proxy.stream(
-      { messages: [] },
-      { onToken: vi.fn(), onDone: vi.fn(), onError }
-    );
+    proxy.stream({ messages: [] }, { onToken: vi.fn(), onDone: vi.fn(), onError });
 
     await vi.waitFor(() => capturedId !== undefined);
 
@@ -142,10 +133,7 @@ describe('AIServiceProxy', () => {
     mockInvoke.mockRejectedValue(new Error('ai_not_configured: No provider set'));
 
     const onError = vi.fn();
-    proxy.stream(
-      { messages: [] },
-      { onToken: vi.fn(), onDone: vi.fn(), onError }
-    );
+    proxy.stream({ messages: [] }, { onToken: vi.fn(), onDone: vi.fn(), onError });
 
     await vi.waitFor(() => onError.mock.calls.length > 0);
 
@@ -160,10 +148,7 @@ describe('AIServiceProxy', () => {
     mockInvoke.mockRejectedValue(new Error('unknown_thing: Something happened'));
 
     const onError = vi.fn();
-    proxy.stream(
-      { messages: [] },
-      { onToken: vi.fn(), onDone: vi.fn(), onError }
-    );
+    proxy.stream({ messages: [] }, { onToken: vi.fn(), onDone: vi.fn(), onError });
 
     await vi.waitFor(() => onError.mock.calls.length > 0);
 
@@ -178,10 +163,7 @@ describe('AIServiceProxy', () => {
     mockInvoke.mockRejectedValue(new Error('just a message without code'));
 
     const onError = vi.fn();
-    proxy.stream(
-      { messages: [] },
-      { onToken: vi.fn(), onDone: vi.fn(), onError }
-    );
+    proxy.stream({ messages: [] }, { onToken: vi.fn(), onDone: vi.fn(), onError });
 
     await vi.waitFor(() => onError.mock.calls.length > 0);
 
@@ -200,15 +182,17 @@ describe('AIServiceProxy', () => {
     });
 
     const onToken = vi.fn();
-    proxy.stream(
-      { messages: [] },
-      { onToken, onDone: vi.fn(), onError: vi.fn() }
-    );
+    proxy.stream({ messages: [] }, { onToken, onDone: vi.fn(), onError: vi.fn() });
 
     await vi.waitFor(() => capturedId !== undefined);
 
     fireStreamMessage({ type: 'asyar:stream', streamId: capturedId, phase: 'done' });
-    fireStreamMessage({ type: 'asyar:stream', streamId: capturedId, phase: 'chunk', data: { token: 'after' } });
+    fireStreamMessage({
+      type: 'asyar:stream',
+      streamId: capturedId,
+      phase: 'chunk',
+      data: { token: 'after' },
+    });
 
     expect(onToken).not.toHaveBeenCalled();
   });
@@ -226,7 +210,7 @@ describe('AIServiceProxy', () => {
 
     const handle = proxy.stream(
       { messages: [] },
-      { onToken: vi.fn(), onDone: vi.fn(), onError: vi.fn() }
+      { onToken: vi.fn(), onDone: vi.fn(), onError: vi.fn() },
     );
 
     await vi.waitFor(() => capturedId !== undefined);
@@ -238,7 +222,7 @@ describe('AIServiceProxy', () => {
         type: 'asyar:stream:abort',
         streamId: capturedId,
       },
-      '*'
+      '*',
     );
   });
 
@@ -251,10 +235,7 @@ describe('AIServiceProxy', () => {
     });
 
     const onToken = vi.fn();
-    proxy.stream(
-      { messages: [] },
-      { onToken, onDone: vi.fn(), onError: vi.fn() }
-    );
+    proxy.stream({ messages: [] }, { onToken, onDone: vi.fn(), onError: vi.fn() });
 
     await vi.waitFor(() => capturedId !== undefined);
 

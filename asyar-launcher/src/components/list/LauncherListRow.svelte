@@ -63,11 +63,7 @@
           <Icon name={getBuiltInIconName(icon)} size={15} />
         </div>
       {:else if isIconImage(icon)}
-        <img
-          src={icon}
-          alt={title}
-          class="row-icon-img"
-        />
+        <img src={icon} alt={title} class="row-icon-img" />
       {:else}
         <div class="row-icon-fallback">
           {icon}
@@ -85,7 +81,10 @@
         />
       {/if}
       {#if subtitle}
-        <span class="font-medium text-[var(--text-secondary)] truncate flex-shrink" style="font-size: var(--font-size-md)">{subtitle}</span>
+        <span
+          class="font-medium text-[var(--text-secondary)] truncate flex-shrink"
+          style="font-size: var(--font-size-md)">{subtitle}</span
+        >
       {/if}
       {#if alias}
         <span data-test="alias-chip" class="alias-chip text-mono">{alias}</span>
@@ -102,7 +101,10 @@
         <KeyboardHint keys={toDisplayKeys(shortcut)} />
       </div>
     {:else if typeLabel}
-      <span class="font-medium text-[var(--text-secondary)] flex-shrink-0 ml-auto" style="font-size: var(--font-size-md)">{typeLabel}</span>
+      <span
+        class="font-medium text-[var(--text-secondary)] flex-shrink-0 ml-auto"
+        style="font-size: var(--font-size-md)">{typeLabel}</span
+      >
     {/if}
   </div>
 </button>

@@ -28,7 +28,7 @@ vi.mock('../../services/extension/viewManager.svelte', () => {
       activeViewPrimaryActionLabel: null,
       getActiveView: vi.fn(() => null),
       getNavigationStackSize: vi.fn(() => 0),
-    }
+    },
   };
 });
 
@@ -59,7 +59,12 @@ import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.s
 vi.mock('../../services/search/searchBarAccessoryService.svelte', () => {
   return {
     searchBarAccessoryService: {
-      active: null as null | { extensionId: string; commandId: string; options: any[]; value: string },
+      active: null as null | {
+        extensionId: string;
+        commandId: string;
+        options: any[];
+        value: string;
+      },
     },
   };
 });
@@ -93,16 +98,16 @@ import { contextModeService } from '../../services/context/contextModeService.sv
 vi.mock('../../services/settings/settingsService.svelte', () => ({
   settingsService: {
     getSettings: vi.fn(() => ({
-      general: { 
+      general: {
         startAtLogin: false,
         showDockIcon: true,
-        escapeInViewBehavior: 'close-window' 
+        escapeInViewBehavior: 'close-window',
       },
       search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
       shortcut: { modifier: 'Alt', key: 'Space' },
       appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
       extensions: { enabled: {} },
-      calculator: { refreshInterval: 6 }
+      calculator: { refreshInterval: 6 },
     })),
   },
 }));
@@ -114,7 +119,6 @@ vi.mock('../../services/extension/extensionDiscovery', () => ({
 }));
 
 import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
-
 
 vi.mock('../../services/log/logService', () => ({
   logService: {
@@ -163,15 +167,22 @@ import { resetLauncherState } from '../launcher/launcherReset';
 if (typeof global.document === 'undefined') {
   const _doc = {
     _activeElement: null as any,
-    get activeElement() { return this._activeElement; },
-    set activeElement(el: any) { this._activeElement = el; }
+    get activeElement() {
+      return this._activeElement;
+    },
+    set activeElement(el: any) {
+      this._activeElement = el;
+    },
   };
   (global as any).document = _doc;
 }
 
 if (typeof global.KeyboardEvent === 'undefined') {
   (global as any).KeyboardEvent = class KeyboardEvent {
-    constructor(public type: string, public init?: any) {
+    constructor(
+      public type: string,
+      public init?: any,
+    ) {
       Object.assign(this, init);
     }
     preventDefault = () => {};
@@ -185,7 +196,12 @@ if (typeof global.requestAnimationFrame === 'undefined') {
 
 // Helper to create a mock KeyboardEvent:
 function createKeyEvent(key: string, opts: Partial<KeyboardEvent> = {}): KeyboardEvent {
-  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...opts }) as KeyboardEvent;
+  const event = new KeyboardEvent('keydown', {
+    key,
+    bubbles: true,
+    cancelable: true,
+    ...opts,
+  }) as KeyboardEvent;
   // Spy on preventDefault and stopPropagation
   event.preventDefault = vi.fn();
   event.stopPropagation = vi.fn();
@@ -194,10 +210,10 @@ function createKeyEvent(key: string, opts: Partial<KeyboardEvent> = {}): Keyboar
 
 // Helper to create mock deps:
 function createMockDeps(overrides: Partial<KeyboardDeps> = {}): KeyboardDeps {
-  const bottomBar = { 
-    isOpen: vi.fn(() => false), 
-    closeActionList: vi.fn(), 
-    toggleActionList: vi.fn() 
+  const bottomBar = {
+    isOpen: vi.fn(() => false),
+    closeActionList: vi.fn(),
+    toggleActionList: vi.fn(),
   };
   const searchInput = { focus: vi.fn(), value: '' };
   return {
@@ -230,7 +246,7 @@ describe('launcherKeyboard characterization tests', () => {
     (searchBarAccessoryService as any).active = null;
     (commandArgumentsService as any).active = null;
     vi.mocked(settingsService.getSettings).mockReturnValue({
-      general: { 
+      general: {
         startAtLogin: false,
         showDockIcon: true,
         escapeInViewBehavior: 'close-window',
@@ -321,7 +337,12 @@ describe('launcherKeyboard characterization tests', () => {
       it('Tab commits context hint into full context mode', () => {
         const hint = {
           type: 'prefix',
-          provider: { id: 'portals', type: 'url', display: { name: 'Portals', icon: '🔗' }, triggers: ['portals'] }
+          provider: {
+            id: 'portals',
+            type: 'url',
+            display: { name: 'Portals', icon: '🔗' },
+            triggers: ['portals'],
+          },
         } as any;
         const deps = createMockDeps({
           getContextHint: vi.fn(() => hint),
@@ -340,7 +361,12 @@ describe('launcherKeyboard characterization tests', () => {
       it('Tab with AI hint passes current query to context activation', () => {
         const hint = {
           type: 'ai',
-          provider: { id: 'agents:default', type: 'stream', display: { name: 'Agents', icon: '🤖' }, triggers: [] }
+          provider: {
+            id: 'agents:default',
+            type: 'stream',
+            display: { name: 'Agents', icon: '🤖' },
+            triggers: [],
+          },
         } as any;
         const deps = createMockDeps({
           getContextHint: vi.fn(() => hint),
@@ -373,7 +399,7 @@ describe('launcherKeyboard characterization tests', () => {
         const hint = { provider: { id: 'test' } } as any;
         const deps = createMockDeps({
           getContextHint: vi.fn(() => hint),
-          getActiveContext: vi.fn(() => ({ provider: { id: 'existing' }, query: '' } as any)),
+          getActiveContext: vi.fn(() => ({ provider: { id: 'existing' }, query: '' }) as any),
         });
         const { handleGlobalKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Tab');
@@ -388,7 +414,7 @@ describe('launcherKeyboard characterization tests', () => {
     describe('Backspace / Context Exit', () => {
       it('Backspace exits context mode when context query is empty', () => {
         const deps = createMockDeps({
-          getActiveContext: vi.fn(() => ({ provider: { id: 'google' }, query: '' } as any)),
+          getActiveContext: vi.fn(() => ({ provider: { id: 'google' }, query: '' }) as any),
         });
         const { handleGlobalKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Backspace');
@@ -402,7 +428,7 @@ describe('launcherKeyboard characterization tests', () => {
       it('Backspace exits context AND goes back when in view with empty query', () => {
         viewManager.activeView = 'some-ext/SomeView';
         const deps = createMockDeps({
-          getActiveContext: vi.fn(() => ({ provider: { id: 'google' }, query: '' } as any)),
+          getActiveContext: vi.fn(() => ({ provider: { id: 'google' }, query: '' }) as any),
         });
         const { handleGlobalKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Backspace');
@@ -416,7 +442,7 @@ describe('launcherKeyboard characterization tests', () => {
 
       it('Backspace does NOT exit context when query is non-empty', () => {
         const deps = createMockDeps({
-          getActiveContext: vi.fn(() => ({ provider: { id: 'google' }, query: 'hello' } as any)),
+          getActiveContext: vi.fn(() => ({ provider: { id: 'google' }, query: 'hello' }) as any),
         });
         const { handleGlobalKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Backspace');
@@ -658,7 +684,12 @@ describe('launcherKeyboard characterization tests', () => {
       it('Cmd+, does not interfere with context hint Tab', () => {
         const hint = {
           type: 'prefix',
-          provider: { id: 'portals', type: 'url', display: { name: 'Portals', icon: '🔗' }, triggers: ['portals'] }
+          provider: {
+            id: 'portals',
+            type: 'url',
+            display: { name: 'Portals', icon: '🔗' },
+            triggers: ['portals'],
+          },
         } as any;
         const deps = createMockDeps({
           getContextHint: vi.fn(() => hint),
@@ -678,7 +709,11 @@ describe('launcherKeyboard characterization tests', () => {
 
     describe('Close Action Panel', () => {
       it('Escape closes action panel from the global handler when focus is outside the popup', () => {
-        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const bottomBar = {
+          isOpen: vi.fn(() => true),
+          closeActionList: vi.fn(),
+          toggleActionList: vi.fn(),
+        };
         const deps = createMockDeps({
           getBottomBar: vi.fn(() => bottomBar),
         });
@@ -705,7 +740,11 @@ describe('launcherKeyboard characterization tests', () => {
       });
 
       it('Escape does NOT close action panel when focus is inside the popup (popup owns the chain)', () => {
-        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const bottomBar = {
+          isOpen: vi.fn(() => true),
+          closeActionList: vi.fn(),
+          toggleActionList: vi.fn(),
+        };
         const deps = createMockDeps({
           getBottomBar: vi.fn(() => bottomBar),
         });
@@ -718,7 +757,7 @@ describe('launcherKeyboard characterization tests', () => {
         const popupEl = { tagName: 'DIV' };
         (document as any)._activeElement = {
           tagName: 'INPUT',
-          closest: vi.fn((sel: string) => sel === '.action-popup' ? popupEl : null),
+          closest: vi.fn((sel: string) => (sel === '.action-popup' ? popupEl : null)),
         };
 
         handleGlobalKeydown(event);
@@ -730,7 +769,11 @@ describe('launcherKeyboard characterization tests', () => {
       });
 
       it('Backspace closes action panel when open', () => {
-        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const bottomBar = {
+          isOpen: vi.fn(() => true),
+          closeActionList: vi.fn(),
+          toggleActionList: vi.fn(),
+        };
         const deps = createMockDeps({
           getBottomBar: vi.fn(() => bottomBar),
         });
@@ -744,7 +787,11 @@ describe('launcherKeyboard characterization tests', () => {
       });
 
       it('Backspace does NOT close action panel when its search input has content', () => {
-        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const bottomBar = {
+          isOpen: vi.fn(() => true),
+          closeActionList: vi.fn(),
+          toggleActionList: vi.fn(),
+        };
         const searchInput = { focus: vi.fn(), value: '' };
         const deps = createMockDeps({
           getBottomBar: vi.fn(() => bottomBar),
@@ -767,7 +814,11 @@ describe('launcherKeyboard characterization tests', () => {
       });
 
       it('Backspace closes action panel when its search input is empty', () => {
-        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const bottomBar = {
+          isOpen: vi.fn(() => true),
+          closeActionList: vi.fn(),
+          toggleActionList: vi.fn(),
+        };
         const searchInput = { focus: vi.fn(), value: '' };
         const deps = createMockDeps({
           getBottomBar: vi.fn(() => bottomBar),
@@ -801,7 +852,7 @@ describe('launcherKeyboard characterization tests', () => {
         handleGlobalKeydown(event);
 
         expect(extensionManager.forwardKeyToActiveView).toHaveBeenCalledWith(
-          expect.objectContaining({ key: 'ArrowDown' })
+          expect.objectContaining({ key: 'ArrowDown' }),
         );
         expect(event.preventDefault).toHaveBeenCalled();
         expect(event.stopPropagation).toHaveBeenCalled();
@@ -810,7 +861,11 @@ describe('launcherKeyboard characterization tests', () => {
       it('ArrowDown is NOT forwarded when action panel is open', () => {
         viewManager.activeView = 'org.asyar.tauri-docs/DocsView';
         vi.mocked(isBuiltInFeature).mockReturnValue(false);
-        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const bottomBar = {
+          isOpen: vi.fn(() => true),
+          closeActionList: vi.fn(),
+          toggleActionList: vi.fn(),
+        };
         const deps = createMockDeps({ getBottomBar: vi.fn(() => bottomBar) });
         const { handleGlobalKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('ArrowDown');
@@ -825,7 +880,11 @@ describe('launcherKeyboard characterization tests', () => {
       it('ArrowUp is NOT forwarded when action panel is open', () => {
         viewManager.activeView = 'org.asyar.tauri-docs/DocsView';
         vi.mocked(isBuiltInFeature).mockReturnValue(false);
-        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const bottomBar = {
+          isOpen: vi.fn(() => true),
+          closeActionList: vi.fn(),
+          toggleActionList: vi.fn(),
+        };
         const deps = createMockDeps({ getBottomBar: vi.fn(() => bottomBar) });
         const { handleGlobalKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('ArrowUp');
@@ -838,7 +897,11 @@ describe('launcherKeyboard characterization tests', () => {
       it('Enter is NOT forwarded when action panel is open', () => {
         viewManager.activeView = 'org.asyar.tauri-docs/DocsView';
         vi.mocked(isBuiltInFeature).mockReturnValue(false);
-        const bottomBar = { isOpen: vi.fn(() => true), closeActionList: vi.fn(), toggleActionList: vi.fn() };
+        const bottomBar = {
+          isOpen: vi.fn(() => true),
+          closeActionList: vi.fn(),
+          toggleActionList: vi.fn(),
+        };
         const deps = createMockDeps({ getBottomBar: vi.fn(() => bottomBar) });
         const { handleGlobalKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Enter');
@@ -939,7 +1002,9 @@ describe('launcherKeyboard characterization tests', () => {
 
       it('Enter submits context query when context active with non-empty query', () => {
         const deps = createMockDeps({
-          getActiveContext: vi.fn(() => ({ provider: { id: 'google' }, query: 'rust lang' } as any)),
+          getActiveContext: vi.fn(
+            () => ({ provider: { id: 'google' }, query: 'rust lang' }) as any,
+          ),
         });
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Enter');
@@ -954,7 +1019,7 @@ describe('launcherKeyboard characterization tests', () => {
       it('Enter with chip active + empty query → does NOT call handleEnterKey or contextModeService.activate', () => {
         searchStores.selectedIndex = -1;
         const deps = createMockDeps({
-          getActiveContext: vi.fn(() => ({ provider: { id: 'portal_1' }, query: '' } as any)),
+          getActiveContext: vi.fn(() => ({ provider: { id: 'portal_1' }, query: '' }) as any),
           getSearchResultsLength: vi.fn(() => 1),
         });
         const { handleKeydown } = createKeyboardHandlers(deps);
@@ -969,7 +1034,7 @@ describe('launcherKeyboard characterization tests', () => {
 
       it('Enter with chip active + whitespace-only query → treated as empty, no activation', () => {
         const deps = createMockDeps({
-          getActiveContext: vi.fn(() => ({ provider: { id: 'portal_1' }, query: '   ' } as any)),
+          getActiveContext: vi.fn(() => ({ provider: { id: 'portal_1' }, query: '   ' }) as any),
         });
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Enter');
@@ -1047,7 +1112,7 @@ describe('launcherKeyboard characterization tests', () => {
         const event = createKeyEvent('Escape');
 
         handleKeydown(event);
-        await new Promise(resolve => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(hideWindow).toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
@@ -1059,13 +1124,18 @@ describe('launcherKeyboard characterization tests', () => {
           general: {
             startAtLogin: false,
             showDockIcon: true,
-            escapeInViewBehavior: 'go-back'
+            escapeInViewBehavior: 'go-back',
           },
           search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
           shortcut: { modifier: 'Alt', key: 'Space' },
-          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
+          appearance: {
+            theme: 'system',
+            launchView: 'default',
+            windowWidth: 800,
+            windowHeight: 600,
+          },
           extensions: { enabled: {} },
-          calculator: { refreshInterval: 6 }
+          calculator: { refreshInterval: 6 },
         } as any);
         const deps = createMockDeps();
         const { handleKeydown } = createKeyboardHandlers(deps);
@@ -1085,13 +1155,18 @@ describe('launcherKeyboard characterization tests', () => {
           general: {
             startAtLogin: false,
             showDockIcon: true,
-            escapeInViewBehavior: 'go-back'
+            escapeInViewBehavior: 'go-back',
           },
           search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
           shortcut: { modifier: 'Alt', key: 'Space' },
-          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
+          appearance: {
+            theme: 'system',
+            launchView: 'default',
+            windowWidth: 800,
+            windowHeight: 600,
+          },
           extensions: { enabled: {} },
-          calculator: { refreshInterval: 6 }
+          calculator: { refreshInterval: 6 },
         } as any);
         const deps = createMockDeps({
           getLocalSearchValue: vi.fn(() => 'foo'),
@@ -1113,20 +1188,25 @@ describe('launcherKeyboard characterization tests', () => {
           general: {
             startAtLogin: false,
             showDockIcon: true,
-            escapeInViewBehavior: 'hide-and-reset'
+            escapeInViewBehavior: 'hide-and-reset',
           },
           search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
           shortcut: { modifier: 'Alt', key: 'Space' },
-          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
+          appearance: {
+            theme: 'system',
+            launchView: 'default',
+            windowWidth: 800,
+            windowHeight: 600,
+          },
           extensions: { enabled: {} },
-          calculator: { refreshInterval: 6 }
+          calculator: { refreshInterval: 6 },
         } as any);
         const deps = createMockDeps();
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Escape');
 
         handleKeydown(event);
-        await new Promise(resolve => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(hideWindow).toHaveBeenCalled();
         expect(resetLauncherState).toHaveBeenCalledTimes(1);
@@ -1139,20 +1219,31 @@ describe('launcherKeyboard characterization tests', () => {
           general: {
             startAtLogin: false,
             showDockIcon: true,
-            escapeInViewBehavior: 'hide-and-reset'
+            escapeInViewBehavior: 'hide-and-reset',
           },
           search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
           shortcut: { modifier: 'Alt', key: 'Space' },
-          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
+          appearance: {
+            theme: 'system',
+            launchView: 'default',
+            windowWidth: 800,
+            windowHeight: 600,
+          },
           extensions: { enabled: {} },
-          calculator: { refreshInterval: 6 }
+          calculator: { refreshInterval: 6 },
         } as any);
 
         // Make hideWindow resolve after a short delay so we can observe ordering.
         let hideResolved = false;
-        vi.mocked(hideWindow).mockImplementationOnce(() => new Promise<void>((r) => {
-          setTimeout(() => { hideResolved = true; r(); }, 10);
-        }));
+        vi.mocked(hideWindow).mockImplementationOnce(
+          () =>
+            new Promise<void>((r) => {
+              setTimeout(() => {
+                hideResolved = true;
+                r();
+              }, 10);
+            }),
+        );
 
         const deps = createMockDeps();
         const { handleKeydown } = createKeyboardHandlers(deps);
@@ -1179,20 +1270,25 @@ describe('launcherKeyboard characterization tests', () => {
           general: {
             startAtLogin: false,
             showDockIcon: true,
-            escapeInViewBehavior: 'hide-and-reset'
+            escapeInViewBehavior: 'hide-and-reset',
           },
           search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
           shortcut: { modifier: 'Alt', key: 'Space' },
-          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
+          appearance: {
+            theme: 'system',
+            launchView: 'default',
+            windowWidth: 800,
+            windowHeight: 600,
+          },
           extensions: { enabled: {} },
-          calculator: { refreshInterval: 6 }
+          calculator: { refreshInterval: 6 },
         } as any);
         const deps = createMockDeps();
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Escape');
 
         handleKeydown(event);
-        await new Promise(resolve => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(hideWindow).toHaveBeenCalled();
         expect(resetLauncherState).toHaveBeenCalledTimes(1);
@@ -1204,32 +1300,36 @@ describe('launcherKeyboard characterization tests', () => {
           general: {
             startAtLogin: false,
             showDockIcon: true,
-            escapeInViewBehavior: 'close-window'
+            escapeInViewBehavior: 'close-window',
           },
           search: { searchApplications: true, searchSystemPreferences: true, fuzzySearch: true },
           shortcut: { modifier: 'Alt', key: 'Space' },
-          appearance: { theme: 'system', launchView: 'default', windowWidth: 800, windowHeight: 600 },
+          appearance: {
+            theme: 'system',
+            launchView: 'default',
+            windowWidth: 800,
+            windowHeight: 600,
+          },
           extensions: { enabled: {} },
-          calculator: { refreshInterval: 6 }
+          calculator: { refreshInterval: 6 },
         } as any);
         const deps = createMockDeps();
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Escape');
 
         handleKeydown(event);
-        await new Promise(resolve => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(hideWindow).toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
       });
-
     });
 
     describe('Backspace/Delete in view', () => {
       it('Backspace with empty input in view goes back', () => {
         viewManager.activeView = 'ext/View';
         const deps = createMockDeps({
-          getSearchInput: vi.fn(() => ({ value: '', focus: vi.fn() } as any)),
+          getSearchInput: vi.fn(() => ({ value: '', focus: vi.fn() }) as any),
         });
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Backspace');
@@ -1243,7 +1343,7 @@ describe('launcherKeyboard characterization tests', () => {
       it('Backspace with non-empty input in view does NOT go back', () => {
         viewManager.activeView = 'ext/View';
         const deps = createMockDeps({
-          getSearchInput: vi.fn(() => ({ value: 'hello', focus: vi.fn() } as any)),
+          getSearchInput: vi.fn(() => ({ value: 'hello', focus: vi.fn() }) as any),
         });
         const { handleKeydown } = createKeyboardHandlers(deps);
         const event = createKeyEvent('Backspace');
@@ -1259,7 +1359,9 @@ describe('launcherKeyboard characterization tests', () => {
       it('Enter in view with context submits context query', () => {
         viewManager.activeView = 'ext/View';
         const deps = createMockDeps({
-          getActiveContext: vi.fn(() => ({ provider: { id: 'test' }, query: 'search term' } as any)),
+          getActiveContext: vi.fn(
+            () => ({ provider: { id: 'test' }, query: 'search term' }) as any,
+          ),
           getContextQuery: vi.fn(() => 'search term'),
         });
         const { handleKeydown } = createKeyboardHandlers(deps);
@@ -1333,7 +1435,7 @@ describe('launcherKeyboard characterization tests', () => {
       it('Enter in active context with empty query does NOT consume the event', () => {
         viewManager.activeView = 'ext/View';
         const deps = createMockDeps({
-          getActiveContext: vi.fn(() => ({ provider: { id: 'test' }, query: '' } as any)),
+          getActiveContext: vi.fn(() => ({ provider: { id: 'test' }, query: '' }) as any),
           getContextQuery: vi.fn(() => ''),
         });
         const { handleKeydown } = createKeyboardHandlers(deps);
@@ -1346,7 +1448,6 @@ describe('launcherKeyboard characterization tests', () => {
         expect(event.stopPropagation).not.toHaveBeenCalled();
       });
     });
-
   });
 
   describe('restoreSearchFocus', () => {
@@ -1418,7 +1519,12 @@ describe('launcherKeyboard characterization tests', () => {
   describe('Tab — AI chip default behavior', () => {
     const aiHint = {
       type: 'ai',
-      provider: { id: 'agents:default', type: 'stream', display: { name: 'AI', icon: 'icon:ai-chat' }, triggers: [] },
+      provider: {
+        id: 'agents:default',
+        type: 'stream',
+        display: { name: 'AI', icon: 'icon:ai-chat' },
+        triggers: [],
+      },
     } as any;
 
     it('Tab with empty search value and AI hint calls activate with empty string', () => {
@@ -1471,7 +1577,7 @@ describe('launcherKeyboard characterization tests', () => {
     it('Tab with already-committed activeContext does NOT call activate even with AI hint', () => {
       const deps = createMockDeps({
         getContextHint: vi.fn(() => aiHint),
-        getActiveContext: vi.fn(() => ({ provider: { id: 'portal-google' }, query: '' } as any)),
+        getActiveContext: vi.fn(() => ({ provider: { id: 'portal-google' }, query: '' }) as any),
       });
       viewManager.activeView = null;
       (commandArgumentsService as any).active = null;

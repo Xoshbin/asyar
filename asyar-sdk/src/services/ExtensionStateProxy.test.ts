@@ -167,7 +167,9 @@ describe('ExtensionStateProxy', () => {
 
     const unsubCalls = invokeSpy.mock.calls.filter((c: unknown[]) => c[0] === 'state:unsubscribe');
     expect(unsubCalls.length).toBeGreaterThanOrEqual(3);
-    const ids = unsubCalls.map((c: unknown[]) => (c[1] as { subscriptionId: number }).subscriptionId).sort();
+    const ids = unsubCalls
+      .map((c: unknown[]) => (c[1] as { subscriptionId: number }).subscriptionId)
+      .sort();
     expect(ids).toEqual([1, 2, 3]);
     delete (window as any).__ASYAR_ROLE__;
   });

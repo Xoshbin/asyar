@@ -73,7 +73,7 @@ export function registerProfileProviders(): void {
 export const appInitializer = {
   async init(): Promise<boolean> {
     if (isInitialized) {
-      logService.warn("Application already initialized.");
+      logService.warn('Application already initialized.');
       return true;
     }
     isInitialized = true; // Set early to prevent concurrent calls
@@ -104,7 +104,7 @@ export const appInitializer = {
       // Initialize performance service first
       await performanceService.init();
 
-      logService.custom("🔍 Performance monitoring initialized", "PERF", "cyan", "cyan");
+      logService.custom('🔍 Performance monitoring initialized', 'PERF', 'cyan', 'cyan');
       performanceService.logPerformanceReport(); // Initial report
 
       // Initialize core services
@@ -234,38 +234,44 @@ export const appInitializer = {
       commandService.initialize(extensionManager); // Initialize CommandService with ExtensionManager instance
 
       // Initialize app auto-update store (listens for Rust scheduler events)
-      const { initAppUpdateStore } = await import('./update/appUpdateStore.svelte')
-      await initAppUpdateStore()
-      logService.info('App update store initialized.')
+      const { initAppUpdateStore } = await import('./update/appUpdateStore.svelte');
+      await initAppUpdateStore();
+      logService.info('App update store initialized.');
 
       // Check whether to show What's New panel (shown once after each update).
       // Idle-deferred: purely cosmetic and independent of the remaining init
       // chain, so it must not compete with first paint (native
       // requestIdleCallback when the WebKit flag landed, deadline-gated
       // setTimeout otherwise; see src/lib/idle.ts).
-      runWhenIdle(() => {
-        void (async () => {
-          try {
-            const { getVersion } = await import('@tauri-apps/api/app')
-            const { appUpdaterShouldShowWhatsNew } = await import('../lib/ipc/applicationCommands')
-            const { whatsNewStore } = await import('./update/whatsNewStore.svelte')
-            const currentVersion = await getVersion()
-            const lastSeen = settingsService.currentSettings.updates?.lastSeenVersion
-            if (lastSeen == null) {
-              // Fresh install — record silently so next update shows the panel
-              await settingsService.updateSettings('updates', { lastSeenVersion: currentVersion })
-            } else {
-              const shouldShow = await appUpdaterShouldShowWhatsNew(lastSeen, currentVersion)
-              if (shouldShow) {
-                whatsNewStore.version = currentVersion
+      runWhenIdle(
+        () => {
+          void (async () => {
+            try {
+              const { getVersion } = await import('@tauri-apps/api/app');
+              const { appUpdaterShouldShowWhatsNew } =
+                await import('../lib/ipc/applicationCommands');
+              const { whatsNewStore } = await import('./update/whatsNewStore.svelte');
+              const currentVersion = await getVersion();
+              const lastSeen = settingsService.currentSettings.updates?.lastSeenVersion;
+              if (lastSeen == null) {
+                // Fresh install — record silently so next update shows the panel
+                await settingsService.updateSettings('updates', {
+                  lastSeenVersion: currentVersion,
+                });
+              } else {
+                const shouldShow = await appUpdaterShouldShowWhatsNew(lastSeen, currentVersion);
+                if (shouldShow) {
+                  whatsNewStore.version = currentVersion;
+                }
               }
+              logService.info("What's New check complete.");
+            } catch (e) {
+              logService.warn(`What's New check failed: ${e}`);
             }
-            logService.info("What's New check complete.")
-          } catch (e) {
-            logService.warn(`What's New check failed: ${e}`)
-          }
-        })()
-      }, { timeout: 4000 })
+          })();
+        },
+        { timeout: 4000 },
+      );
 
       // Initialize extension deeplink service (asyar://extensions/{extId}/{cmdId})
       const { createDeeplinkService } = await import('./deeplink/deeplinkService.svelte');
@@ -284,7 +290,8 @@ export const appInitializer = {
       // Notification action dispatch bridge. Runs on every Tauri instance
       // so clicking a button on an OS notification fires the declared
       // extension command even when the launcher window is hidden.
-      const { NotificationActionBridge } = await import('./notification/notificationActionBridge.svelte');
+      const { NotificationActionBridge } =
+        await import('./notification/notificationActionBridge.svelte');
       const notificationActionBridge = new NotificationActionBridge({
         getManifestById: (id) => extensionManager.getManifestById(id),
         isExtensionEnabled: (id) => extensionManager.isExtensionEnabled(id),
@@ -309,16 +316,19 @@ export const appInitializer = {
         await snippetService.expandSnippet(keywordLen, expansion);
       });
 
-      listen<{ keyword: string; expansion: string }>('snippet:promote-from-cache', async (event) => {
-        const { keyword, expansion } = event.payload;
-        snippetStore.add({
-          id: crypto.randomUUID(),
-          keyword,
-          expansion,
-          name: `${expansion} (${keyword})`,
-          createdAt: Date.now(),
-        });
-      });
+      listen<{ keyword: string; expansion: string }>(
+        'snippet:promote-from-cache',
+        async (event) => {
+          const { keyword, expansion } = event.payload;
+          snippetStore.add({
+            id: crypto.randomUUID(),
+            keyword,
+            expansion,
+            name: `${expansion} (${keyword})`,
+            createdAt: Date.now(),
+          });
+        },
+      );
 
       listen<EmojiFallbackPayload>('emoji-fallback', async (event) => {
         const { handleEmojiFallback } = await import('../built-in-features/ai/inlineEmojiFallback');
@@ -329,7 +339,7 @@ export const appInitializer = {
       listen<{ themeId: string | null }>('asyar:theme-changed', async ({ payload }) => {
         const { applyTheme, removeTheme } = await import('./theme/themeService');
         if (payload.themeId) {
-          applyTheme(payload.themeId).catch(err => {
+          applyTheme(payload.themeId).catch((err) => {
             logService.error(`[AppInitializer] Failed to apply theme: ${err}`);
           });
         } else {
@@ -352,7 +362,9 @@ export const appInitializer = {
         try {
           await commandService.executeCommand(payload.commandId);
         } catch (e) {
-          logService.error(`[AppInitializer] asyar:run-command failed for ${payload.commandId}: ${e}`);
+          logService.error(
+            `[AppInitializer] asyar:run-command failed for ${payload.commandId}: ${e}`,
+          );
         }
       });
 
@@ -383,7 +395,7 @@ export const appInitializer = {
         'asyar:app-scan-paths-changed',
         async ({ payload }) => {
           await applicationService.resync(payload ?? undefined);
-        }
+        },
       ).catch((err) => {
         logService.warn(`Failed to register app-scan-paths-changed listener: ${err}`);
       });
@@ -394,11 +406,20 @@ export const appInitializer = {
       // inside the extension's SDK proxy. The launcher no longer
       // navigates on tray clicks.
 
-      const serviceInitMetrics = performanceService.stopTiming("service-init");
-      logService.custom(`🔌 Core services initialized in ${serviceInitMetrics.duration?.toFixed(2)}ms`, "PERF", "green");
+      const serviceInitMetrics = performanceService.stopTiming('service-init');
+      logService.custom(
+        `🔌 Core services initialized in ${serviceInitMetrics.duration?.toFixed(2)}ms`,
+        'PERF',
+        'green',
+      );
 
-      const initMetrics = performanceService.stopTiming("app-initialization");
-      logService.custom(`⚡ App initialized in ${initMetrics.duration?.toFixed(2)}ms`, "PERF", "green", "bgGreen");
+      const initMetrics = performanceService.stopTiming('app-initialization');
+      logService.custom(
+        `⚡ App initialized in ${initMetrics.duration?.toFixed(2)}ms`,
+        'PERF',
+        'green',
+        'bgGreen',
+      );
 
       // Log performance report once startup work has drained (idle-time,
       // deadline-capped; diagnostics only, never worth competing for a frame)
@@ -406,7 +427,6 @@ export const appInitializer = {
 
       logService.info(`Application initialization complete.`);
       return true;
-
     } catch (error) {
       logService.error(`Failed to initialize application: ${error}`);
       isInitialized = false; // Reset flag on error
@@ -416,5 +436,5 @@ export const appInitializer = {
 
   isAppInitialized(): boolean {
     return isInitialized;
-  }
+  },
 };

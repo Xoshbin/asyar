@@ -31,7 +31,7 @@
         await extensionPreferencesService.set(extensionId, scope, key, value);
       } catch (err) {
         logService.error(
-          `PreferencesPromptHost: failed to save '${key}' for ${extensionId}: ${err}`
+          `PreferencesPromptHost: failed to save '${key}' for ${extensionId}: ${err}`,
         );
         return;
       }
@@ -47,7 +47,7 @@
       await commandService.executeCommand(commandObjectId);
     } catch (err) {
       logService.error(
-        `PreferencesPromptHost: command re-invocation failed for ${commandObjectId}: ${err}`
+        `PreferencesPromptHost: command re-invocation failed for ${commandObjectId}: ${err}`,
       );
     }
   }

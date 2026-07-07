@@ -79,7 +79,10 @@ describe('AISettingsSyncProvider', () => {
 
   it('export snapshot strips per-provider apiKey for safety', async () => {
     const result = await provider.exportForSync();
-    const providers = (result.data as Record<string, unknown>).providers as Record<string, Record<string, unknown>>;
+    const providers = (result.data as Record<string, unknown>).providers as Record<
+      string,
+      Record<string, unknown>
+    >;
     expect(providers['openai']).not.toHaveProperty('apiKey');
   });
 
@@ -104,7 +107,7 @@ describe('AISettingsSyncProvider', () => {
       expect.objectContaining({
         defaultAgentId: 'agent-xyz',
         tabContinuesLastThread: true,
-      })
+      }),
     );
   });
 
@@ -172,7 +175,7 @@ describe('AISettingsSyncProvider', () => {
         maxTokens: newSettings.maxTokens,
         defaultAgentId: newSettings.defaultAgentId,
         tabContinuesLastThread: newSettings.tabContinuesLastThread,
-      })
+      }),
     );
   });
 
@@ -209,14 +212,20 @@ describe('AISettingsSyncProvider', () => {
   describe('applyItemUpsert_writes_full_state', () => {
     it('hands the full settings object to settingsService.updateSettings', async () => {
       const newSettings = { ...mockAiSettings };
-      await provider.applyItemUpsert({ id: 'ai-settings', categoryId: 'ai-settings', content: newSettings });
+      await provider.applyItemUpsert({
+        id: 'ai-settings',
+        categoryId: 'ai-settings',
+        content: newSettings,
+      });
       expect(mockUpdateSettings).toHaveBeenCalledWith('ai', newSettings);
     });
   });
 
   describe('applyItemDelete_resets_to_default_or_throws_unsupported', () => {
     it('throws since the AI settings singleton cannot be deleted', async () => {
-      await expect(provider.applyItemDelete('ai-settings')).rejects.toThrow(/cannot delete singleton/i);
+      await expect(provider.applyItemDelete('ai-settings')).rejects.toThrow(
+        /cannot delete singleton/i,
+      );
     });
   });
 
@@ -229,7 +238,11 @@ describe('AISettingsSyncProvider', () => {
       (settingsService as unknown as { __emit: () => void }).__emit();
 
       expect(events.length).toBeGreaterThan(0);
-      expect(events[0]).toEqual({ type: 'upsert', itemId: 'ai-settings', categoryId: 'ai-settings' });
+      expect(events[0]).toEqual({
+        type: 'upsert',
+        itemId: 'ai-settings',
+        categoryId: 'ai-settings',
+      });
       unsub();
     });
   });

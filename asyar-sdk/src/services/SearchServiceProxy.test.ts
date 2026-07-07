@@ -25,7 +25,10 @@ describe('SearchServiceProxy', () => {
   it('rank() calls broker.invoke with the named-key payload the host expects', async () => {
     vi.mocked(mockBroker.invoke).mockResolvedValueOnce(['a']);
 
-    const items = [{ id: 'a', title: 'Apple' }, { id: 'b', title: 'Banana' }];
+    const items = [
+      { id: 'a', title: 'Apple' },
+      { id: 'b', title: 'Banana' },
+    ];
     const result = await proxy.rank('app', items);
 
     expect(mockBroker.invoke).toHaveBeenCalledWith('search:rank', {
@@ -37,7 +40,10 @@ describe('SearchServiceProxy', () => {
 
   it('rank() returns whatever ordered ids the host resolves with', async () => {
     vi.mocked(mockBroker.invoke).mockResolvedValueOnce(['b', 'a']);
-    const result = await proxy.rank('x', [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }]);
+    const result = await proxy.rank('x', [
+      { id: 'a', title: 'A' },
+      { id: 'b', title: 'B' },
+    ]);
     expect(result).toEqual(['b', 'a']);
   });
 });

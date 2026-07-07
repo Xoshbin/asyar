@@ -76,7 +76,7 @@ describe('ExtensionsSyncProvider', () => {
 
     const preview = await provider.preview(incoming);
     expect(preview.incomingCount).toBe(1); // only ext1 (non-built-in)
-    expect(preview.localCount).toBe(1);    // only ext1 from mock
+    expect(preview.localCount).toBe(1); // only ext1 from mock
   });
 
   it('applyImport replace — updates enabled states and warns about missing extensions', async () => {
@@ -84,7 +84,9 @@ describe('ExtensionsSyncProvider', () => {
     const { extensionStateManager } = await import('../../extension/extensionStateManager.svelte');
 
     // Simulate that ext3 (non-built-in) from incoming is not currently installed
-    (extensionStateManager.getAllExtensionsWithState as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+    (
+      extensionStateManager.getAllExtensionsWithState as ReturnType<typeof vi.fn>
+    ).mockResolvedValueOnce([
       { id: 'ext2', title: 'Ext Two', version: '2.0', isBuiltIn: true, enabled: true },
     ]);
 
@@ -103,7 +105,9 @@ describe('ExtensionsSyncProvider', () => {
 
     const result = await provider.applyImport(incoming, 'replace');
     expect(result.success).toBe(true);
-    expect(settingsService.updateSettings).toHaveBeenCalledWith('extensions', { enabled: { ext1: true, ext2: true } });
+    expect(settingsService.updateSettings).toHaveBeenCalledWith('extensions', {
+      enabled: { ext1: true, ext2: true },
+    });
     expect(result.itemsUpdated).toBe(2);
     // ext1 is not in currentIds and is not built-in → should warn
     expect(result.warnings.length).toBe(1);
@@ -149,7 +153,7 @@ describe('ExtensionsSyncProvider', () => {
       // include both ext1's new state and any other already-enabled keys.
       expect(settingsService.updateSettings).toHaveBeenCalledWith(
         'extensions',
-        expect.objectContaining({ enabled: expect.objectContaining({ ext1: false }) })
+        expect.objectContaining({ enabled: expect.objectContaining({ ext1: false }) }),
       );
     });
   });
@@ -158,7 +162,9 @@ describe('ExtensionsSyncProvider', () => {
     it('writes the extensions.enabled map without the deleted id', async () => {
       const { settingsService } = await import('../../settings/settingsService.svelte');
       await provider.applyItemDelete('ext1');
-      const lastCall = (settingsService.updateSettings as ReturnType<typeof vi.fn>).mock.calls.at(-1);
+      const lastCall = (settingsService.updateSettings as ReturnType<typeof vi.fn>).mock.calls.at(
+        -1,
+      );
       expect(lastCall?.[0]).toBe('extensions');
       const enabled = (lastCall?.[1] as { enabled: Record<string, boolean> }).enabled;
       expect(enabled).not.toHaveProperty('ext1');

@@ -5,7 +5,7 @@
   import Icon from '../base/Icon.svelte';
 
   let {
-    activeViewManifest = null
+    activeViewManifest = null,
   }: {
     activeViewManifest?: ExtensionManifest | null;
   } = $props();

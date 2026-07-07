@@ -1,4 +1,4 @@
-import { logService as globalLogService } from "../../services/log/logService";
+import { logService as globalLogService } from '../../services/log/logService';
 import {
   type ClipboardHistoryItem,
   type IClipboardHistoryService,
@@ -7,14 +7,13 @@ import {
   ClipboardItemType,
   stripHtml,
   stripRtf,
-} from "asyar-sdk/contracts";
-import { shiftIndex } from "../../lib/listSelection.svelte";
-import { clipboardHistoryStore } from "../../services/clipboard/stores/clipboardHistoryStore.svelte";
-import { diagnosticsService } from "../../services/diagnostics/diagnosticsService.svelte";
-
+} from 'asyar-sdk/contracts';
+import { shiftIndex } from '../../lib/listSelection.svelte';
+import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
+import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 
 export class ClipboardViewStateClass {
-  searchQuery = $state("");
+  searchQuery = $state('');
   lastSearch = $state(Date.now());
   items = $state<ClipboardHistoryItem[]>([]);
   selectedItemId = $state<string | null>(null);
@@ -30,24 +29,34 @@ export class ClipboardViewStateClass {
   filteredItems = $derived.by(() => {
     const base = this.items;
     if (this.typeFilter === 'all') return base;
-    if (this.typeFilter === 'text') return base.filter(i => i.type === 'text' || i.type === 'html' || i.type === 'rtf');
-    if (this.typeFilter === 'images') return base.filter(i => i.type === 'image');
-    if (this.typeFilter === 'files') return base.filter(i => i.type === 'files');
+    if (this.typeFilter === 'text')
+      return base.filter((i) => i.type === 'text' || i.type === 'html' || i.type === 'rtf');
+    if (this.typeFilter === 'images') return base.filter((i) => i.type === 'image');
+    if (this.typeFilter === 'files') return base.filter((i) => i.type === 'files');
     return base;
   });
 
   selectedIndex = $derived.by(() => {
     if (!this.selectedItemId || !this.filteredItems.length) return 0;
-    const idx = this.filteredItems.findIndex(i => i.id === this.selectedItemId);
+    const idx = this.filteredItems.findIndex((i) => i.id === this.selectedItemId);
     return idx >= 0 ? idx : 0;
   });
 
   selectedItem = $derived(this.filteredItems[this.selectedIndex] ?? null);
   isLoading = $state(true);
   loadError = $state(false);
-  errorMessage = $state("");
-  typeFilter = $state<string>("all");
-  showRenderedHtml = $state((() => { try { const v = localStorage.getItem('clipboard:showRendered'); return v === null ? true : v === 'true'; } catch { return true; } })());
+  errorMessage = $state('');
+  typeFilter = $state<string>('all');
+  showRenderedHtml = $state(
+    (() => {
+      try {
+        const v = localStorage.getItem('clipboard:showRendered');
+        return v === null ? true : v === 'true';
+      } catch {
+        return true;
+      }
+    })(),
+  );
 
   filtered = $derived(this.searchQuery.length > 0);
 
@@ -56,11 +65,9 @@ export class ClipboardViewStateClass {
   networkService?: INetworkService;
 
   initializeServices(context: ExtensionContext) {
-    this.clipboardService = context.getService<IClipboardHistoryService>(
-      "clipboard"
-    );
-    this.logService = context.getService("log");
-    this.networkService = context.getService<INetworkService>("network");
+    this.clipboardService = context.getService<IClipboardHistoryService>('clipboard');
+    this.logService = context.getService('log');
+    this.networkService = context.getService<INetworkService>('network');
   }
 
   setSearch(query: string) {
@@ -82,37 +89,33 @@ export class ClipboardViewStateClass {
   }
 
   getTypeFilteredItems(): ClipboardHistoryItem[] {
-    if (this.typeFilter === "all") return this.items;
-    if (this.typeFilter === "text") {
-      return this.items.filter(i => i.type === "text" || i.type === "html" || i.type === "rtf");
+    if (this.typeFilter === 'all') return this.items;
+    if (this.typeFilter === 'text') {
+      return this.items.filter((i) => i.type === 'text' || i.type === 'html' || i.type === 'rtf');
     }
-    if (this.typeFilter === "images") {
-      return this.items.filter(i => i.type === "image");
+    if (this.typeFilter === 'images') {
+      return this.items.filter((i) => i.type === 'image');
     }
-    if (this.typeFilter === "files") {
-      return this.items.filter(i => i.type === "files");
+    if (this.typeFilter === 'files') {
+      return this.items.filter((i) => i.type === 'files');
     }
     return this.items;
   }
 
   reset() {
-    this.searchQuery = "";
+    this.searchQuery = '';
     this.lastSearch = Date.now();
     this.selectedItemId = null;
     this.isLoading = true;
     this.loadError = false;
-    this.errorMessage = "";
-    this.typeFilter = "all";
+    this.errorMessage = '';
+    this.typeFilter = 'all';
     this.showRenderedHtml = false;
   }
 
-
-
-
-
   private sortItemsByFavorite(items: ClipboardHistoryItem[]): ClipboardHistoryItem[] {
-    const favorites = items.filter(i => i.favorite);
-    const rest = items.filter(i => !i.favorite);
+    const favorites = items.filter((i) => i.favorite);
+    const rest = items.filter((i) => !i.favorite);
     return [...favorites, ...rest];
   }
 
@@ -130,7 +133,7 @@ export class ClipboardViewStateClass {
     }
   }
 
-  moveSelection(direction: "up" | "down") {
+  moveSelection(direction: 'up' | 'down') {
     const items = this.filteredItems;
     if (!items.length) return;
     const next = shiftIndex(this.selectedIndex, items.length, direction);
@@ -143,12 +146,12 @@ export class ClipboardViewStateClass {
 
   setError(error: string | null) {
     this.loadError = !!error;
-    this.errorMessage = error || "";
+    this.errorMessage = error || '';
   }
 
   async clearNonFavorites() {
     if (!this.clipboardService) {
-      this.logService?.error("Clipboard service not initialized in clearNonFavorites");
+      this.logService?.error('Clipboard service not initialized in clearNonFavorites');
       return false;
     }
     try {
@@ -161,7 +164,7 @@ export class ClipboardViewStateClass {
 
   async toggleFavorite(itemId: string) {
     if (!this.clipboardService) {
-      this.logService?.error("Clipboard service not initialized in toggleFavorite");
+      this.logService?.error('Clipboard service not initialized in toggleFavorite');
       return false;
     }
     try {
@@ -174,14 +177,14 @@ export class ClipboardViewStateClass {
 
   async deleteItem(itemId: string): Promise<boolean> {
     if (!this.clipboardService) {
-      this.logService?.error("Clipboard service not initialized in deleteItem");
+      this.logService?.error('Clipboard service not initialized in deleteItem');
       return false;
     }
     try {
       const result = await this.clipboardService.deleteItem(itemId);
       if (result) {
         await clipboardHistoryStore.deleteHistoryItem(itemId);
-        this.items = this.items.filter(i => i.id !== itemId);
+        this.items = this.items.filter((i) => i.id !== itemId);
         if (this.selectedItemId === itemId) {
           this.selectedItemId = this.items.length > 0 ? this.items[0].id : null;
         }
@@ -232,30 +235,28 @@ export class ClipboardViewStateClass {
     } catch (error) {
       this.logService?.error(`Failed to paste as plain text: ${error}`);
       diagnosticsService.report({
-        source: 'frontend', kind: 'clipboard/paste-failed', severity: 'error',
-        retryable: false, developerDetail: String(error),
+        source: 'frontend',
+        kind: 'clipboard/paste-failed',
+        severity: 'error',
+        retryable: false,
+        developerDetail: String(error),
       });
     }
   }
 
-  async handleItemAction(
-    item: ClipboardHistoryItem,
-    action: "paste" | "select" | "favorite"
-  ) {
+  async handleItemAction(item: ClipboardHistoryItem, action: 'paste' | 'select' | 'favorite') {
     if (!item?.id || !this.clipboardService) return;
 
     try {
       switch (action) {
-        case "paste":
+        case 'paste':
           // Path A: item already carries content — paste inline. The
           // $state.snapshot(item) call MUST stay inline as a direct argument
           // to pasteItem so the Svelte compiler emits the proxy-stripping
           // clone (assigning the snapshot to a `let`/`const` first loses the
           // transform in this build).
           if (item.content) {
-            await this.clipboardService.pasteItem(
-              $state.snapshot(item) as ClipboardHistoryItem
-            );
+            await this.clipboardService.pasteItem($state.snapshot(item) as ClipboardHistoryItem);
           } else {
             // Path B: list-row payload — fetch the full row first to decrypt
             // content, then paste.
@@ -266,22 +267,25 @@ export class ClipboardViewStateClass {
           }
           break;
 
-        case "select":
+        case 'select':
           this.selectedItemId = item.id;
           break;
       }
     } catch (error) {
       this.logService?.error(`Failed to handle item action: ${error}`);
       diagnosticsService.report({
-        source: 'frontend', kind: 'clipboard/paste-failed', severity: 'error',
-        retryable: false, developerDetail: String(error),
+        source: 'frontend',
+        kind: 'clipboard/paste-failed',
+        severity: 'error',
+        retryable: false,
+        developerDetail: String(error),
       });
     }
   }
 
   async hidePanel() {
     if (!this.clipboardService) {
-      this.logService?.error("Clipboard service not initialized in hidePanel");
+      this.logService?.error('Clipboard service not initialized in hidePanel');
       return;
     }
     try {
@@ -315,8 +319,11 @@ export async function onViewActivated(): Promise<void> {
     }
   } catch (err) {
     diagnosticsService.report({
-      source: 'frontend', kind: 'clipboard/load-failed', severity: 'error',
-      retryable: false, developerDetail: String(err),
+      source: 'frontend',
+      kind: 'clipboard/load-failed',
+      severity: 'error',
+      retryable: false,
+      developerDetail: String(err),
     });
   }
 }
@@ -332,8 +339,11 @@ export async function onSearchChanged(query: string): Promise<void> {
     await clipboardHistoryStore.search(trimmed, 200);
   } catch (err) {
     diagnosticsService.report({
-      source: 'frontend', kind: 'clipboard/search-failed', severity: 'error',
-      retryable: false, developerDetail: String(err),
+      source: 'frontend',
+      kind: 'clipboard/search-failed',
+      severity: 'error',
+      retryable: false,
+      developerDetail: String(err),
     });
   }
 }
@@ -347,8 +357,11 @@ export async function onScrolledToEnd(): Promise<void> {
     await clipboardHistoryStore.loadOlder(200);
   } catch (err) {
     diagnosticsService.report({
-      source: 'frontend', kind: 'clipboard/load-older-failed', severity: 'error',
-      retryable: false, developerDetail: String(err),
+      source: 'frontend',
+      kind: 'clipboard/load-older-failed',
+      severity: 'error',
+      retryable: false,
+      developerDetail: String(err),
     });
   }
 }
@@ -359,8 +372,11 @@ export async function fetchFullItemForId(id: string) {
     return await clipboardHistoryStore.fetchFullItem(id);
   } catch (err) {
     diagnosticsService.report({
-      source: 'frontend', kind: 'clipboard/get-item-failed', severity: 'error',
-      retryable: false, developerDetail: String(err),
+      source: 'frontend',
+      kind: 'clipboard/get-item-failed',
+      severity: 'error',
+      retryable: false,
+      developerDetail: String(err),
     });
     return null;
   }
@@ -369,8 +385,10 @@ export async function fetchFullItemForId(id: string) {
 /** The list to render — search results when in search mode, otherwise
  *  favorites + recent in their order. */
 export function visibleItems() {
-  return clipboardHistoryStore.searchResults ?? [
-    ...clipboardHistoryStore.favorites,
-    ...clipboardHistoryStore.recent,
-  ];
+  return (
+    clipboardHistoryStore.searchResults ?? [
+      ...clipboardHistoryStore.favorites,
+      ...clipboardHistoryStore.recent,
+    ]
+  );
 }

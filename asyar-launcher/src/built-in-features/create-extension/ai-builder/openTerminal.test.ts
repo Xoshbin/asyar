@@ -57,7 +57,7 @@ describe('buildTerminalCommand', () => {
     const r = buildTerminalCommand('macos', `/x'"; rm -rf ~ #`, CMD);
     if ('fallback' in r) throw new Error('expected command');
     const s = r.args[1];
-    expect(s).toContain('\\"');     // AppleScript-escaped double quote present
-    expect(s).toContain(`'\\''`);   // POSIX single-quote escape present
+    expect(s).toContain('\\"'); // AppleScript-escaped double quote present
+    expect(s).toContain(`'\\''`); // POSIX single-quote escape present
   });
 });

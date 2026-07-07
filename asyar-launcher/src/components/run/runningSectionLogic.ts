@@ -19,9 +19,9 @@ const OTHER_KINDS: ReadonlyArray<RunKind> = ['custom'];
  * omitted. Output order: Scripts, Agents, Other.
  */
 export function groupRunsByKind(runs: Run[]): RunGroup[] {
-  const scripts = runs.filter(r => SCRIPTS_KINDS.includes(r.kind));
-  const agents = runs.filter(r => AGENTS_KINDS.includes(r.kind));
-  const other = runs.filter(r => OTHER_KINDS.includes(r.kind));
+  const scripts = runs.filter((r) => SCRIPTS_KINDS.includes(r.kind));
+  const agents = runs.filter((r) => AGENTS_KINDS.includes(r.kind));
+  const other = runs.filter((r) => OTHER_KINDS.includes(r.kind));
 
   const groups: RunGroup[] = [];
   if (scripts.length) groups.push({ title: 'Scripts', runs: scripts });

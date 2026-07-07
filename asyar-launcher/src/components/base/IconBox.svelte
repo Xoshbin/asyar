@@ -2,12 +2,12 @@
   import type { Snippet } from 'svelte';
 
   let {
-    size = "md",
-    rounded = "md",
+    size = 'md',
+    rounded = 'md',
     content,
   }: {
-    size?: "sm" | "md" | "lg" | "xl";
-    rounded?: "sm" | "md" | "lg" | "full";
+    size?: 'sm' | 'md' | 'lg' | 'xl';
+    rounded?: 'sm' | 'md' | 'lg' | 'full';
     content?: Snippet;
   } = $props();
 
@@ -34,16 +34,40 @@
   }
 
   /* Sizes */
-  .size-sm { width: 24px; height: 24px; font-size: var(--font-size-base); }
-  .size-md { width: 32px; height: 32px; font-size: var(--font-size-xl); }
-  .size-lg { width: 64px; height: 64px; font-size: var(--font-size-display); }
-  .size-xl { width: 128px; height: 128px; font-size: 64px; }
+  .size-sm {
+    width: 24px;
+    height: 24px;
+    font-size: var(--font-size-base);
+  }
+  .size-md {
+    width: 32px;
+    height: 32px;
+    font-size: var(--font-size-xl);
+  }
+  .size-lg {
+    width: 64px;
+    height: 64px;
+    font-size: var(--font-size-display);
+  }
+  .size-xl {
+    width: 128px;
+    height: 128px;
+    font-size: 64px;
+  }
 
   /* Rounded */
-  .rounded-sm { border-radius: var(--radius-xs); }
-  .rounded-md { border-radius: var(--radius-sm); }
-  .rounded-lg { border-radius: var(--radius-md); }
-  .rounded-full { border-radius: 50%; }
+  .rounded-sm {
+    border-radius: var(--radius-xs);
+  }
+  .rounded-md {
+    border-radius: var(--radius-sm);
+  }
+  .rounded-lg {
+    border-radius: var(--radius-md);
+  }
+  .rounded-full {
+    border-radius: 50%;
+  }
 
   :global(.icon-box img) {
     width: 60%;

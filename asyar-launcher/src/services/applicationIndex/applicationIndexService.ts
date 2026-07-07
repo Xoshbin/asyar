@@ -18,17 +18,11 @@ import {
  * service is pure IPC glue, no business logic.
  */
 export const applicationIndexService = {
-  async subscribe(
-    extensionId: string | null,
-    eventTypes: string[],
-  ): Promise<string | null> {
+  async subscribe(extensionId: string | null, eventTypes: string[]): Promise<string | null> {
     return applicationIndexSubscribe(extensionId, eventTypes);
   },
 
-  async unsubscribe(
-    extensionId: string | null,
-    subscriptionId: string,
-  ): Promise<void> {
+  async unsubscribe(extensionId: string | null, subscriptionId: string): Promise<void> {
     await applicationIndexUnsubscribe(extensionId, subscriptionId);
   },
 };

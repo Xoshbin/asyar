@@ -1,5 +1,14 @@
 import { fetch } from '@tauri-apps/plugin-http';
-import type { IProviderPlugin, ModelInfo, ProviderConfig, RequestSpec, ChatParams, ChatMessage, LoopMessage, ToolStreamEvent } from '../IProviderPlugin';
+import type {
+  IProviderPlugin,
+  ModelInfo,
+  ProviderConfig,
+  RequestSpec,
+  ChatParams,
+  ChatMessage,
+  LoopMessage,
+  ToolStreamEvent,
+} from '../IProviderPlugin';
 import { buildOpenAIToolsBody, parseOpenAIToolStream } from './_openaiCompat';
 import type { OpenAIToolDescriptor } from './_openaiCompat';
 
@@ -16,10 +25,17 @@ export const openaiPlugin: IProviderPlugin = {
       headers: { Authorization: `Bearer ${config.apiKey ?? ''}` },
     });
     if (!res.ok) return [];
-    const json = await res.json() as { data?: Array<{ id: string }> };
+    const json = (await res.json()) as { data?: Array<{ id: string }> };
     return (json.data ?? [])
       .map((m) => m.id)
-      .filter((id) => id.startsWith('gpt-') || id.startsWith('o1') || id.startsWith('o3') || id.startsWith('o4') || id.startsWith('o2'))
+      .filter(
+        (id) =>
+          id.startsWith('gpt-') ||
+          id.startsWith('o1') ||
+          id.startsWith('o3') ||
+          id.startsWith('o4') ||
+          id.startsWith('o2'),
+      )
       .sort()
       .map((id) => ({ id, label: id }));
   },
@@ -28,9 +44,7 @@ export const openaiPlugin: IProviderPlugin = {
     const base = config.baseUrl?.replace(/\/$/, '') || 'https://api.openai.com';
     const systemPrompt = params.systemPrompt?.trim() ?? '';
     const filtered = messages.filter((m) => m.role !== 'system');
-    const msgs = systemPrompt
-      ? [{ role: 'system', content: systemPrompt }, ...filtered]
-      : filtered;
+    const msgs = systemPrompt ? [{ role: 'system', content: systemPrompt }, ...filtered] : filtered;
     return {
       url: `${base}/v1/chat/completions`,
       headers: {
@@ -65,7 +79,9 @@ export const openaiPlugin: IProviderPlugin = {
           const json = JSON.parse(data);
           const token = json.choices?.[0]?.delta?.content;
           if (token) yield token;
-        } catch { /* skip malformed */ }
+        } catch {
+          /* skip malformed */
+        }
       }
     }
   },
@@ -82,13 +98,15 @@ export const openaiPlugin: IProviderPlugin = {
       url: `${base}/v1/chat/completions`,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey ?? ''}`,
+        Authorization: `Bearer ${config.apiKey ?? ''}`,
       },
       body: JSON.stringify(body),
     };
   },
 
-  parseToolStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<ToolStreamEvent> {
+  parseToolStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+  ): AsyncGenerator<ToolStreamEvent> {
     return parseOpenAIToolStream(reader);
   },
 };

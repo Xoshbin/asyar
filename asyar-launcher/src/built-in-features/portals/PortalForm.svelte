@@ -8,16 +8,16 @@
     portal = {},
     isEditing = false,
     onsave,
-    oncancel
+    oncancel,
   }: {
     portal?: Partial<Portal>;
     isEditing?: boolean;
     onsave?: (portal: Portal) => void;
-    oncancel?: () => void
+    oncancel?: () => void;
   } = $props();
 
   let name = $state('');
-  let url  = $state('');
+  let url = $state('');
   let icon = $state('🌐');
 
   let pickerOpen = $state(false);
@@ -27,25 +27,31 @@
 
   $effect(() => {
     name = portal.name ?? '';
-    url  = portal.url  ?? '';
+    url = portal.url ?? '';
     icon = portal.icon ?? '🌐';
   });
 
   function handleSave() {
     if (!name.trim() || !url.trim()) return;
     onsave?.({
-      id:        portal.id ?? crypto.randomUUID(),
-      name:      name.trim(),
-      url:       url.trim(),
-      icon:      icon.trim() || '🌐',
+      id: portal.id ?? crypto.randomUUID(),
+      name: name.trim(),
+      url: url.trim(),
+      icon: icon.trim() || '🌐',
       createdAt: portal.createdAt ?? Date.now(),
     });
   }
 
   function handleKeydown(e: KeyboardEvent) {
     if (pickerOpen) return; // picker handles its own keys
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSave(); }
-    if (e.key === 'Escape') { e.preventDefault(); oncancel?.(); }
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      e.preventDefault();
+      handleSave();
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      oncancel?.();
+    }
   }
 
   function handleUrlInput(e: Event) {
@@ -72,12 +78,12 @@
     if (triggerCursorPos > 0) {
       // User typed `{` to open the picker; replace the `{` with `{token}`
       const replaceStart = triggerCursorPos - 1;
-      const replaceEnd   = triggerCursorPos;
+      const replaceEnd = triggerCursorPos;
       urlInputEl.setRangeText('{' + token + '}', replaceStart, replaceEnd, 'end');
     } else {
       // Button-triggered; insert at current selection
       const start = urlInputEl.selectionStart ?? urlInputEl.value.length;
-      const end   = urlInputEl.selectionEnd   ?? urlInputEl.value.length;
+      const end = urlInputEl.selectionEnd ?? urlInputEl.value.length;
       urlInputEl.setRangeText('{' + token + '}', start, end, 'end');
     }
 
@@ -92,14 +98,21 @@
   }
 
   // Build the help text listing all tokens
-  const tokenList = PLACEHOLDERS.map(p => `{${p.token}}`).join(', ');
+  const tokenList = PLACEHOLDERS.map((p) => `{${p.token}}`).join(', ');
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="portal-form p-4">
   <FormField label="Name" id="portal-name">
-    <input id="portal-name" class="field-input" type="text" bind:value={name} placeholder="Search Google" autofocus />
+    <input
+      id="portal-name"
+      class="field-input"
+      type="text"
+      bind:value={name}
+      placeholder="Search Google"
+      autofocus
+    />
   </FormField>
 
   <div style="position: relative">
@@ -118,8 +131,8 @@
           class="btn-secondary picker-toggle"
           type="button"
           title="Insert placeholder"
-          onclick={openPickerViaButton}
-        >{'{ }'}</button>
+          onclick={openPickerViaButton}>{'{ }'}</button
+        >
       </div>
     </FormField>
 
@@ -129,12 +142,20 @@
   </div>
 
   <FormField label="Icon" id="portal-icon">
-    <input id="portal-icon" class="field-input" type="text" bind:value={icon} placeholder="🌐" maxlength="4" />
+    <input
+      id="portal-icon"
+      class="field-input"
+      type="text"
+      bind:value={icon}
+      placeholder="🌐"
+      maxlength="4"
+    />
   </FormField>
 
   <p class="text-caption">
     Use placeholders in the URL: {tokenList}.<br />
-    Press <code class="text-mono code-inline">{'{'}</code> or the <strong>{'{ }'}</strong> button to browse all placeholders.
+    Press <code class="text-mono code-inline">{'{'}</code> or the <strong>{'{ }'}</strong> button to browse
+    all placeholders.
   </p>
 
   <div class="flex justify-end gap-2 pt-1">

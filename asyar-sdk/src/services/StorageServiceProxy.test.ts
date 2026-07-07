@@ -4,10 +4,10 @@ import { messageBroker } from '../ipc/MessageBroker';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
-      invoke: vi.fn(),
-      on: vi.fn(),
-      off: vi.fn(),
-    },
+    invoke: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
 }));
 
 function makeProxy() {
@@ -29,9 +29,7 @@ describe('StorageServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue('value1');
     const result = await proxy.get('myKey');
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'storage:get',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'storage:get');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ key: 'myKey' });
     expect(result).toBe('value1');
@@ -40,9 +38,7 @@ describe('StorageServiceProxy', () => {
   it('set → "storage:set" with key and value', async () => {
     const { proxy, mockInvoke } = makeProxy();
     await proxy.set('myKey', 'myValue');
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'storage:set',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'storage:set');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ key: 'myKey', value: 'myValue' });
   });
@@ -51,9 +47,7 @@ describe('StorageServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue(true);
     const result = await proxy.delete('myKey');
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'storage:delete',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'storage:delete');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ key: 'myKey' });
     expect(result).toBe(true);
@@ -64,9 +58,7 @@ describe('StorageServiceProxy', () => {
     const data = { a: '1', b: '2' };
     mockInvoke.mockResolvedValue(data);
     const result = await proxy.getAll();
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'storage:getAll',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'storage:getAll');
     expect(call).toBeDefined();
     expect(result).toEqual(data);
   });
@@ -75,9 +67,7 @@ describe('StorageServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue(5);
     const result = await proxy.clear();
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'storage:clear',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'storage:clear');
     expect(call).toBeDefined();
     expect(result).toBe(5);
   });

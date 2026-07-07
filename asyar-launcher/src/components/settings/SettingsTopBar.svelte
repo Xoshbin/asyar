@@ -17,7 +17,7 @@
       class:active={activeTab === tab.id}
       role="tab"
       aria-selected={activeTab === tab.id}
-      onclick={() => activeTab = tab.id}
+      onclick={() => (activeTab = tab.id)}
     >
       <div class="icon-container">
         <Icon name={tab.icon} size={22} />

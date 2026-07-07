@@ -21,19 +21,19 @@ Everywhere else in the app, typing a search that doesn't match many apps or comm
 
 ## Shortcuts & actions
 
-| Action | How |
-|--------|-----|
-| Open file | `Enter` or double-click |
-| Quick Look preview | `Space` |
-| Reveal in Finder | `⌘R` |
-| Copy Path | `⌘⇧C` |
-| Copy Name | `⌘⌥C` |
-| Open in Terminal | `⌘T` |
-| Toggle Pin | `⌘P` |
-| Move to Trash | `⌘⌫` |
-| Send to Asyar AI | `Tab` or `⌘I` |
-| Search Everywhere (Deep Search) | `⌘⇧F` |
-| Open action panel | `⌘K` |
+| Action                          | How                     |
+| ------------------------------- | ----------------------- |
+| Open file                       | `Enter` or double-click |
+| Quick Look preview              | `Space`                 |
+| Reveal in Finder                | `⌘R`                    |
+| Copy Path                       | `⌘⇧C`                   |
+| Copy Name                       | `⌘⌥C`                   |
+| Open in Terminal                | `⌘T`                    |
+| Toggle Pin                      | `⌘P`                    |
+| Move to Trash                   | `⌘⌫`                    |
+| Send to Asyar AI                | `Tab` or `⌘I`           |
+| Search Everywhere (Deep Search) | `⌘⇧F`                   |
+| Open action panel               | `⌘K`                    |
 
 **Action panel (⌘K) entries while the list is open:**
 

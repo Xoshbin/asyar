@@ -30,10 +30,7 @@ export class FsWatcherService implements IFsWatcherIpc {
     return (await fsWatchCreate(extensionId, paths, opts ?? null)) ?? '';
   }
 
-  async dispose(
-    extensionId: string | null,
-    handleId: string,
-  ): Promise<void> {
+  async dispose(extensionId: string | null, handleId: string): Promise<void> {
     await fsWatchDispose(extensionId, handleId);
   }
 }

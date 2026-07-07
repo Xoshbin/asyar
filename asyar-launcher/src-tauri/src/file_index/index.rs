@@ -697,7 +697,9 @@ mod tests {
         let target = PathBuf::from("/tmp/rootA/docs/report.pdf");
 
         idx.apply_batch(vec![IndexUpdate::Removed(target.clone())], NOW);
-        let i = idx.lookup_path(&target).expect("tombstoned entry still resolves");
+        let i = idx
+            .lookup_path(&target)
+            .expect("tombstoned entry still resolves");
         assert!(idx.is_tombstoned(i));
         assert_eq!(idx.live_count(), 2);
         assert!(idx.generation() > gen0);

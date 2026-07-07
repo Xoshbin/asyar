@@ -1,13 +1,7 @@
-import * as commands from "../../lib/ipc/commands";
-import { logService } from "../log/logService";
-import {
-  isPermissionGranted,
-  requestPermission,
-} from "@tauri-apps/plugin-notification";
-import type {
-  NotificationAction,
-  NotificationOptions,
-} from "asyar-sdk/contracts";
+import * as commands from '../../lib/ipc/commands';
+import { logService } from '../log/logService';
+import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification';
+import type { NotificationAction, NotificationOptions } from 'asyar-sdk/contracts';
 
 /**
  * Host-side notification service. All real work happens in Rust —
@@ -26,7 +20,7 @@ export class NotificationService {
 
   async requestPermission(): Promise<boolean> {
     const permission = await requestPermission();
-    return permission === "granted";
+    return permission === 'granted';
   }
 
   async send(callerExtensionId: string, options: NotificationOptions): Promise<string> {
@@ -67,9 +61,7 @@ function normaliseAction(a: NotificationAction): WireAction {
     try {
       JSON.stringify(a.args);
     } catch {
-      throw new Error(
-        `NotificationAction "${a.id}" args are not JSON-serialisable`,
-      );
+      throw new Error(`NotificationAction "${a.id}" args are not JSON-serialisable`);
     }
   }
   return {

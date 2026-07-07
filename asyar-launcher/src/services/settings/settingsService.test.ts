@@ -1,27 +1,27 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { settingsService } from './settingsService.svelte'
-import type { AppSettings } from './types/AppSettingsType'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { settingsService } from './settingsService.svelte';
+import type { AppSettings } from './types/AppSettingsType';
 
 const mockTauriStore = vi.hoisted(() => ({
   get: vi.fn().mockResolvedValue(null),
   set: vi.fn().mockResolvedValue(undefined),
   save: vi.fn().mockResolvedValue(undefined),
-}))
+}));
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}))
+}));
 
 vi.mock('@tauri-apps/plugin-store', () => ({
   load: vi.fn().mockResolvedValue(mockTauriStore),
   Store: vi.fn(),
-}))
+}));
 
 vi.mock('@tauri-apps/api/path', () => ({
   appDataDir: vi.fn().mockResolvedValue('/mock/data/'),
-}))
+}));
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn().mockResolvedValue(undefined) }));
 
 const DEFAULT: AppSettings = {
   general: { startAtLogin: false, showDockIcon: true, escapeInViewBehavior: 'go-back' },
@@ -64,74 +64,74 @@ const DEFAULT: AppSettings = {
     crashReportMode: 'off' as const,
     usageShareMode: 'off' as const,
   },
-}
+};
 
-const svc = settingsService as any
+const svc = settingsService as any;
 
 function resetState() {
-  svc.currentSettings = JSON.parse(JSON.stringify(DEFAULT))
-  svc.initialized = false
-  svc.store = null
+  svc.currentSettings = JSON.parse(JSON.stringify(DEFAULT));
+  svc.initialized = false;
+  svc.store = null;
 }
 
 function injectStore() {
-  mockTauriStore.get.mockResolvedValue(null)
-  mockTauriStore.set.mockResolvedValue(undefined)
-  mockTauriStore.save.mockResolvedValue(undefined)
-  svc.store = mockTauriStore
+  mockTauriStore.get.mockResolvedValue(null);
+  mockTauriStore.set.mockResolvedValue(undefined);
+  mockTauriStore.save.mockResolvedValue(undefined);
+  svc.store = mockTauriStore;
 }
 
 // ── mergeWithDefaults ─────────────────────────────────────────────────────────
 
 describe('mergeWithDefaults', () => {
-  const merge = (stored: unknown) => svc.mergeWithDefaults(stored)
+  const merge = (stored: unknown) => svc.mergeWithDefaults(stored);
 
   it('returns a copy of defaults for null', () => {
-    const result = merge(null)
-    expect(result.general.startAtLogin).toBe(false)
-    expect(result.shortcut.key).toBe('Space')
-  })
+    const result = merge(null);
+    expect(result.general.startAtLogin).toBe(false);
+    expect(result.shortcut.key).toBe('Space');
+  });
 
   it('returns defaults for a non-object value', () => {
-    const result = merge('bad input')
-    expect(result.appearance.theme).toBe('system')
-  })
+    const result = merge('bad input');
+    expect(result.appearance.theme).toBe('system');
+  });
 
   it('fills all default fields when stored is an empty object', () => {
-    const result = merge({})
-    expect(result.general).toEqual(DEFAULT.general)
-    expect(result.search).toEqual(DEFAULT.search)
-    expect(result.appearance).toEqual(DEFAULT.appearance)
-  })
+    const result = merge({});
+    expect(result.general).toEqual(DEFAULT.general);
+    expect(result.search).toEqual(DEFAULT.search);
+    expect(result.appearance).toEqual(DEFAULT.appearance);
+  });
 
   it('overrides individual fields while keeping other defaults', () => {
-    const result = merge({ shortcut: { modifier: 'Alt', key: 'Space' } })
-    expect(result.shortcut.modifier).toBe('Alt')
-    expect(result.shortcut.key).toBe('Space')
-    expect(result.general.startAtLogin).toBe(DEFAULT.general.startAtLogin)
-  })
+    const result = merge({ shortcut: { modifier: 'Alt', key: 'Space' } });
+    expect(result.shortcut.modifier).toBe('Alt');
+    expect(result.shortcut.key).toBe('Space');
+    expect(result.general.startAtLogin).toBe(DEFAULT.general.startAtLogin);
+  });
 
   it('merges extension enabled states', () => {
-    const result = merge({ extensions: { enabled: { clipboard: false, store: true } } })
-    expect(result.extensions.enabled.clipboard).toBe(false)
-    expect(result.extensions.enabled.store).toBe(true)
-  })
+    const result = merge({ extensions: { enabled: { clipboard: false, store: true } } });
+    expect(result.extensions.enabled.clipboard).toBe(false);
+    expect(result.extensions.enabled.store).toBe(true);
+  });
 
   it('preserves the user field when present', () => {
-    const result = merge({ user: { id: 'u1', syncEnabled: true } })
-    expect(result.user).toEqual({ id: 'u1', syncEnabled: true })
-  })
+    const result = merge({ user: { id: 'u1', syncEnabled: true } });
+    expect(result.user).toEqual({ id: 'u1', syncEnabled: true });
+  });
 
   it('sets user to undefined when not in stored data', () => {
-    const result = merge({})
-    expect(result.user).toBeUndefined()
-  })
+    const result = merge({});
+    expect(result.user).toBeUndefined();
+  });
 
   it('overrides only the provided appearance fields', () => {
-    const result = merge({ appearance: { theme: 'dark' } })
-    expect(result.appearance.theme).toBe('dark')
-    expect(result.appearance.windowWidth).toBe(DEFAULT.appearance.windowWidth)
-  })
+    const result = merge({ appearance: { theme: 'dark' } });
+    expect(result.appearance.theme).toBe('dark');
+    expect(result.appearance.windowWidth).toBe(DEFAULT.appearance.windowWidth);
+  });
 
   it('mergeWithDefaults fills onboarding with defaults when missing from stored settings', () => {
     const stored = {
@@ -142,11 +142,11 @@ describe('mergeWithDefaults', () => {
       extensions: {},
       ai: {},
       // no onboarding key — simulates existing user upgrading
-    }
-    const merged = merge(stored)
-    expect(merged.onboarding).toBeDefined()
-    expect(merged.onboarding.completed).toBe(false)
-  })
+    };
+    const merged = merge(stored);
+    expect(merged.onboarding).toBeDefined();
+    expect(merged.onboarding.completed).toBe(false);
+  });
 
   it('mergeWithDefaults preserves stored onboarding.completed=true', () => {
     const stored = {
@@ -157,157 +157,157 @@ describe('mergeWithDefaults', () => {
       extensions: {},
       ai: {},
       onboarding: { completed: true },
-    }
-    const merged = merge(stored)
-    expect(merged.onboarding.completed).toBe(true)
-  })
-})
+    };
+    const merged = merge(stored);
+    expect(merged.onboarding.completed).toBe(true);
+  });
+});
 
 // ── getSettings ───────────────────────────────────────────────────────────────
 
 describe('getSettings', () => {
-  beforeEach(resetState)
+  beforeEach(resetState);
 
   it('returns or reflects the current state', () => {
-    const s = settingsService.getSettings()
-    expect(s.shortcut).toEqual({ modifier: 'Alt', key: 'Space' })
-  })
+    const s = settingsService.getSettings();
+    expect(s.shortcut).toEqual({ modifier: 'Alt', key: 'Space' });
+  });
 
   it('reflects changes made directly to currentSettings', () => {
-    svc.currentSettings.shortcut = { modifier: 'Ctrl', key: 'P' }
-    expect(settingsService.getSettings().shortcut.key).toBe('P')
-  })
-})
+    svc.currentSettings.shortcut = { modifier: 'Ctrl', key: 'P' };
+    expect(settingsService.getSettings().shortcut.key).toBe('P');
+  });
+});
 
 // ── isInitialized ─────────────────────────────────────────────────────────────
 
 describe('isInitialized', () => {
-  beforeEach(resetState)
+  beforeEach(resetState);
 
   it('returns false on a fresh reset', () => {
-    expect(settingsService.isInitialized()).toBe(false)
-  })
+    expect(settingsService.isInitialized()).toBe(false);
+  });
 
   it('returns true after being manually set (simulating init)', () => {
-    svc.initialized = true
-    expect(settingsService.isInitialized()).toBe(true)
-  })
-})
+    svc.initialized = true;
+    expect(settingsService.isInitialized()).toBe(true);
+  });
+});
 
 // ── isExtensionEnabled ────────────────────────────────────────────────────────
 
 describe('isExtensionEnabled', () => {
-  beforeEach(resetState)
+  beforeEach(resetState);
 
   it('returns true for an extension that has no explicit setting', () => {
-    expect(settingsService.isExtensionEnabled('myExt')).toBe(true)
-  })
+    expect(settingsService.isExtensionEnabled('myExt')).toBe(true);
+  });
 
   it('returns false for an extension explicitly disabled', () => {
-    svc.currentSettings.extensions.enabled.myExt = false
-    expect(settingsService.isExtensionEnabled('myExt')).toBe(false)
-  })
+    svc.currentSettings.extensions.enabled.myExt = false;
+    expect(settingsService.isExtensionEnabled('myExt')).toBe(false);
+  });
 
   it('returns true for an extension explicitly enabled', () => {
-    svc.currentSettings.extensions.enabled.myExt = true
-    expect(settingsService.isExtensionEnabled('myExt')).toBe(true)
-  })
-})
+    svc.currentSettings.extensions.enabled.myExt = true;
+    expect(settingsService.isExtensionEnabled('myExt')).toBe(true);
+  });
+});
 
 // ── getExtensionStates ────────────────────────────────────────────────────────
 
 describe('getExtensionStates', () => {
-  beforeEach(resetState)
+  beforeEach(resetState);
 
   it('returns an empty object with default settings', () => {
-    expect(settingsService.getExtensionStates()).toEqual({})
-  })
+    expect(settingsService.getExtensionStates()).toEqual({});
+  });
 
   it('returns all extension states', () => {
-    svc.currentSettings.extensions.enabled = { a: true, b: false }
-    expect(settingsService.getExtensionStates()).toEqual({ a: true, b: false })
-  })
-})
+    svc.currentSettings.extensions.enabled = { a: true, b: false };
+    expect(settingsService.getExtensionStates()).toEqual({ a: true, b: false });
+  });
+});
 
 // ── updateSettings ────────────────────────────────────────────────────────────
 
 describe('updateSettings', () => {
   beforeEach(() => {
-    resetState()
-    injectStore()
-  })
+    resetState();
+    injectStore();
+  });
 
   it('updates the in-memory state and returns true', async () => {
-    const ok = await settingsService.updateSettings('shortcut', { key: 'J' })
-    expect(ok).toBe(true)
-    expect(settingsService.getSettings().shortcut.key).toBe('J')
-  })
+    const ok = await settingsService.updateSettings('shortcut', { key: 'J' });
+    expect(ok).toBe(true);
+    expect(settingsService.getSettings().shortcut.key).toBe('J');
+  });
 
   it('merges into the section without clobbering other fields', async () => {
-    await settingsService.updateSettings('search', { fuzzySearch: false })
-    const s = settingsService.getSettings().search
-    expect(s.fuzzySearch).toBe(false)
-    expect(s.searchApplications).toBe(true)
-  })
+    await settingsService.updateSettings('search', { fuzzySearch: false });
+    const s = settingsService.getSettings().search;
+    expect(s.fuzzySearch).toBe(false);
+    expect(s.searchApplications).toBe(true);
+  });
 
   it('returns false (save fails) when the store is not initialized', async () => {
-    svc.store = null
-    const ok = await settingsService.updateSettings('shortcut', { key: 'X' })
-    expect(ok).toBe(false)
+    svc.store = null;
+    const ok = await settingsService.updateSettings('shortcut', { key: 'X' });
+    expect(ok).toBe(false);
     // In-memory change still happened
-    expect(settingsService.getSettings().shortcut.key).toBe('X')
-  })
-})
+    expect(settingsService.getSettings().shortcut.key).toBe('X');
+  });
+});
 
 // ── updateExtensionState ──────────────────────────────────────────────────────
 
 describe('updateExtensionState', () => {
   beforeEach(() => {
-    resetState()
-    injectStore()
-  })
+    resetState();
+    injectStore();
+  });
 
   it('sets an extension to enabled', async () => {
-    await settingsService.updateExtensionState('clipboard', true)
-    expect(settingsService.getSettings().extensions.enabled.clipboard).toBe(true)
-  })
+    await settingsService.updateExtensionState('clipboard', true);
+    expect(settingsService.getSettings().extensions.enabled.clipboard).toBe(true);
+  });
 
   it('sets an extension to disabled', async () => {
-    await settingsService.updateExtensionState('clipboard', false)
-    expect(settingsService.getSettings().extensions.enabled.clipboard).toBe(false)
-  })
+    await settingsService.updateExtensionState('clipboard', false);
+    expect(settingsService.getSettings().extensions.enabled.clipboard).toBe(false);
+  });
 
   it('updating one extension does not affect others', async () => {
-    svc.currentSettings.extensions.enabled.other = true
-    await settingsService.updateExtensionState('clipboard', false)
-    expect(settingsService.getSettings().extensions.enabled.other).toBe(true)
-  })
-})
+    svc.currentSettings.extensions.enabled.other = true;
+    await settingsService.updateExtensionState('clipboard', false);
+    expect(settingsService.getSettings().extensions.enabled.other).toBe(true);
+  });
+});
 
 // ── removeExtensionState ──────────────────────────────────────────────────────
 
 describe('removeExtensionState', () => {
   beforeEach(() => {
-    resetState()
-    injectStore()
-  })
+    resetState();
+    injectStore();
+  });
 
   it('removes an extension entry entirely', async () => {
-    svc.currentSettings.extensions.enabled.toRemove = true
-    await settingsService.removeExtensionState('toRemove')
-    expect('toRemove' in settingsService.getSettings().extensions.enabled).toBe(false)
-  })
+    svc.currentSettings.extensions.enabled.toRemove = true;
+    await settingsService.removeExtensionState('toRemove');
+    expect('toRemove' in settingsService.getSettings().extensions.enabled).toBe(false);
+  });
 
   it('does not affect other extensions when removing one', async () => {
-    svc.currentSettings.extensions.enabled = { keep: true, remove: false }
-    await settingsService.removeExtensionState('remove')
-    expect(settingsService.getSettings().extensions.enabled.keep).toBe(true)
-  })
+    svc.currentSettings.extensions.enabled = { keep: true, remove: false };
+    await settingsService.removeExtensionState('remove');
+    expect(settingsService.getSettings().extensions.enabled.keep).toBe(true);
+  });
 
   it('is a no-op when the extension does not exist', async () => {
-    await expect(settingsService.removeExtensionState('nonexistent')).resolves.toBeDefined()
-  })
-})
+    await expect(settingsService.removeExtensionState('nonexistent')).resolves.toBeDefined();
+  });
+});
 
 // ── Rust read_launch_view contract ────────────────────────────────────────────
 //
@@ -324,31 +324,31 @@ describe('removeExtensionState', () => {
 describe('rust read_launch_view contract', () => {
   // Round-trip through JSON so we're asserting against the exact shape Rust
   // sees (not TS-only sugar like Symbol keys or class instances).
-  const serializedDefaults = JSON.parse(JSON.stringify(DEFAULT))
+  const serializedDefaults = JSON.parse(JSON.stringify(DEFAULT));
 
   it('exposes launchView at appearance.launchView', () => {
-    expect(serializedDefaults.appearance).toBeDefined()
-    expect(typeof serializedDefaults.appearance.launchView).toBe('string')
-  })
+    expect(serializedDefaults.appearance).toBeDefined();
+    expect(typeof serializedDefaults.appearance.launchView).toBe('string');
+  });
 
   it('uses one of the enum values Rust checks against', () => {
-    expect(['default', 'compact']).toContain(serializedDefaults.appearance.launchView)
-  })
+    expect(['default', 'compact']).toContain(serializedDefaults.appearance.launchView);
+  });
 
   it('keeps the appearance key at the top level (not nested under ui/window/etc.)', () => {
-    const topLevelKeys = Object.keys(serializedDefaults)
-    expect(topLevelKeys).toContain('appearance')
-  })
+    const topLevelKeys = Object.keys(serializedDefaults);
+    expect(topLevelKeys).toContain('appearance');
+  });
 
   it('persists onboarding.completed under settings.onboarding', () => {
-    const settings = { ...DEFAULT, onboarding: { completed: true } }
-    expect(settings.onboarding.completed).toBe(true)
-  })
+    const settings = { ...DEFAULT, onboarding: { completed: true } };
+    expect(settings.onboarding.completed).toBe(true);
+  });
 
   it('defaults onboarding.completed to false', () => {
-    expect(DEFAULT.onboarding.completed).toBe(false)
-  })
-})
+    expect(DEFAULT.onboarding.completed).toBe(false);
+  });
+});
 
 // ── Rust merged_search disabled-app contract ──────────────────────────────────
 //
@@ -361,83 +361,90 @@ describe('rust read_launch_view contract', () => {
 // (the app would stay visible in search despite being "disabled").
 
 describe('rust merged_search disabled-app contract', () => {
-  const serializedDefaults = JSON.parse(JSON.stringify(DEFAULT))
+  const serializedDefaults = JSON.parse(JSON.stringify(DEFAULT));
 
   it('exposes applicationEnabled at search.applicationEnabled', () => {
-    expect(serializedDefaults.search).toBeDefined()
-    expect(typeof serializedDefaults.search.applicationEnabled).toBe('object')
-  })
+    expect(serializedDefaults.search).toBeDefined();
+    expect(typeof serializedDefaults.search.applicationEnabled).toBe('object');
+  });
 
   it('keeps the search key at the top level (not nested under settings/general/etc.)', () => {
-    expect(Object.keys(serializedDefaults)).toContain('search')
-  })
+    expect(Object.keys(serializedDefaults)).toContain('search');
+  });
 
   it('marks a disabled app with a literal boolean false (not a string or omission)', () => {
-    const settings = { ...DEFAULT, search: { ...DEFAULT.search, applicationEnabled: { app_x: false } } }
-    const serialized = JSON.parse(JSON.stringify(settings))
-    expect(serialized.search.applicationEnabled.app_x).toBe(false)
-  })
-})
+    const settings = {
+      ...DEFAULT,
+      search: { ...DEFAULT.search, applicationEnabled: { app_x: false } },
+    };
+    const serialized = JSON.parse(JSON.stringify(settings));
+    expect(serialized.search.applicationEnabled.app_x).toBe(false);
+  });
+});
 
 // ── privacy.crashReportMode ───────────────────────────────────────────────────
 
 describe('privacy.crashReportMode', () => {
   beforeEach(() => {
-    resetState()
-    injectStore()
-  })
+    resetState();
+    injectStore();
+  });
 
   it('defaults crashReportMode to off', () => {
-    expect(settingsService.currentSettings.privacy.crashReportMode).toBe('off')
-  })
+    expect(settingsService.currentSettings.privacy.crashReportMode).toBe('off');
+  });
 
   it('persists an updated crashReportMode', async () => {
-    const ok = await settingsService.updateSettings('privacy', { crashReportMode: 'ask' })
-    expect(ok).toBe(true)
-    expect(settingsService.currentSettings.privacy.crashReportMode).toBe('ask')
-  })
+    const ok = await settingsService.updateSettings('privacy', { crashReportMode: 'ask' });
+    expect(ok).toBe(true);
+    expect(settingsService.currentSettings.privacy.crashReportMode).toBe('ask');
+  });
 
   it('mergeWithDefaults fills privacy with defaults when missing from stored settings', () => {
-    const result = (settingsService as any).mergeWithDefaults({})
-    expect(result.privacy).toBeDefined()
-    expect(result.privacy.crashReportMode).toBe('off')
-  })
+    const result = (settingsService as any).mergeWithDefaults({});
+    expect(result.privacy).toBeDefined();
+    expect(result.privacy.crashReportMode).toBe('off');
+  });
 
   it('mergeWithDefaults preserves a stored crashReportMode', () => {
-    const result = (settingsService as any).mergeWithDefaults({ privacy: { crashReportMode: 'auto' } })
-    expect(result.privacy.crashReportMode).toBe('auto')
-  })
-})
+    const result = (settingsService as any).mergeWithDefaults({
+      privacy: { crashReportMode: 'auto' },
+    });
+    expect(result.privacy.crashReportMode).toBe('auto');
+  });
+});
 
 // ── privacy.usageShareMode ────────────────────────────────────────────────────
 
 describe('privacy.usageShareMode', () => {
   beforeEach(() => {
-    resetState()
-    injectStore()
-  })
+    resetState();
+    injectStore();
+  });
 
   it('defaults usageShareMode to off', () => {
-    expect(settingsService.currentSettings.privacy.usageShareMode).toBe('off')
-  })
+    expect(settingsService.currentSettings.privacy.usageShareMode).toBe('off');
+  });
 
   it('persists an updated usageShareMode', async () => {
-    const ok = await settingsService.updateSettings('privacy', { usageShareMode: 'ask' })
-    expect(ok).toBe(true)
-    expect(settingsService.currentSettings.privacy.usageShareMode).toBe('ask')
-  })
+    const ok = await settingsService.updateSettings('privacy', { usageShareMode: 'ask' });
+    expect(ok).toBe(true);
+    expect(settingsService.currentSettings.privacy.usageShareMode).toBe('ask');
+  });
 
   it('mergeWithDefaults fills usageShareMode with off when missing from stored settings', () => {
-    const result = (settingsService as any).mergeWithDefaults({})
-    expect(result.privacy).toBeDefined()
-    expect(result.privacy.usageShareMode).toBe('off')
-  })
+    const result = (settingsService as any).mergeWithDefaults({});
+    expect(result.privacy).toBeDefined();
+    expect(result.privacy.usageShareMode).toBe('off');
+  });
 
   it('mergeWithDefaults preserves a stored usageShareMode', () => {
-    const result = (settingsService as any).mergeWithDefaults({ privacy: { crashReportMode: 'off', usageShareMode: 'auto' } })
-    expect(result.privacy.usageShareMode).toBe('auto')
-  })
-})
+    const result = (settingsService as any).mergeWithDefaults({
+      privacy: { crashReportMode: 'off', usageShareMode: 'auto' },
+    });
+    expect(result.privacy.usageShareMode).toBe('auto');
+  });
+});
 
 // ── DEFAULT_SETTINGS.ai shape (Phase 1: Unify AI Chat into Agents) ────────────
 //
@@ -450,27 +457,27 @@ describe('DEFAULT_SETTINGS.ai shape', () => {
   // Pull from the production DEFAULT_SETTINGS, not the local test constant.
   // mergeWithDefaults(null) returns a copy of DEFAULT_SETTINGS, so this
   // reflects the actual production defaults, not whatever the test constant says.
-  const productionAi = (settingsService as any).mergeWithDefaults(null).ai
+  const productionAi = (settingsService as any).mergeWithDefaults(null).ai;
 
   it('has defaultAgentId set to null', () => {
-    expect(productionAi).toHaveProperty('defaultAgentId', null)
-  })
+    expect(productionAi).toHaveProperty('defaultAgentId', null);
+  });
 
   it('has tabContinuesLastThread set to false', () => {
-    expect(productionAi).toHaveProperty('tabContinuesLastThread', false)
-  })
+    expect(productionAi).toHaveProperty('tabContinuesLastThread', false);
+  });
 
   it('does not contain the deleted key activeProviderId', () => {
-    expect(productionAi).not.toHaveProperty('activeProviderId')
-  })
+    expect(productionAi).not.toHaveProperty('activeProviderId');
+  });
 
   it('does not contain the deleted key activeModelId', () => {
-    expect(productionAi).not.toHaveProperty('activeModelId')
-  })
+    expect(productionAi).not.toHaveProperty('activeModelId');
+  });
 
   it('does not contain the deleted key allowExtensionUse', () => {
-    expect(productionAi).not.toHaveProperty('allowExtensionUse')
-  })
+    expect(productionAi).not.toHaveProperty('allowExtensionUse');
+  });
 
   it('matches the full new AISettings shape', () => {
     expect(productionAi).toEqual({
@@ -486,6 +493,6 @@ describe('DEFAULT_SETTINGS.ai shape', () => {
       maxTokens: 2048,
       defaultAgentId: null,
       tabContinuesLastThread: false,
-    })
-  })
-})
+    });
+  });
+});

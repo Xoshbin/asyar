@@ -12,10 +12,10 @@ function makeBaseStub(id: string): IProviderPlugin {
     requiresBaseUrl: false,
     supportsTools: true,
     getModels: async () => [],
-    buildRequest: () => ({ url: '', headers: {}, body: '' } as any),
+    buildRequest: () => ({ url: '', headers: {}, body: '' }) as any,
     parseStream: (async function* () {})() as any,
-    buildToolRequest: () => ({ url: '', headers: {}, body: '' } as any),
-    parseToolStream: (async function* () {}) as any,
+    buildToolRequest: () => ({ url: '', headers: {}, body: '' }) as any,
+    parseToolStream: async function* () {} as any,
   };
 }
 

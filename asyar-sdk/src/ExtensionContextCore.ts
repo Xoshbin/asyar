@@ -1,8 +1,8 @@
-import type { ExtensionSyncProvider } from "./types/SyncType";
-import type { ExtensionAction } from "./types/ActionType";
-import type { CommandHandler } from "./types/CommandType";
-import type { Namespace } from "./ipc/namespaces";
-import type { BaseServiceProxy } from "./services/BaseServiceProxy";
+import type { ExtensionSyncProvider } from './types/SyncType';
+import type { ExtensionAction } from './types/ActionType';
+import type { CommandHandler } from './types/CommandType';
+import type { Namespace } from './ipc/namespaces';
+import type { BaseServiceProxy } from './services/BaseServiceProxy';
 
 import { PreferencesFacade, buildFrozenSnapshot } from './PreferencesFacade';
 import { registerSyncProvider as setupSyncProvider } from './lib/syncProviderBridge';
@@ -23,7 +23,7 @@ interface CoreInit {
  * as a type.
  */
 export class ExtensionContextCore {
-  private extensionId: string = "";
+  private extensionId: string = '';
   public readonly role: ExtensionContextRole;
   public readonly preferences: PreferencesFacade = new PreferencesFacade();
   public readonly proxies: Partial<Record<Namespace, BaseServiceProxy>>;
@@ -52,9 +52,7 @@ export class ExtensionContextCore {
   public onPreferencesChanged(callback: () => void): () => void {
     this.preferenceChangeListeners.push(callback);
     return () => {
-      this.preferenceChangeListeners = this.preferenceChangeListeners.filter(
-        (l) => l !== callback
-      );
+      this.preferenceChangeListeners = this.preferenceChangeListeners.filter((l) => l !== callback);
     };
   }
 
@@ -108,10 +106,7 @@ export class ExtensionContextCore {
         typeof window.parent.postMessage === 'function'
       ) {
         const role = this.resolveRuntimeRole();
-        window.parent.postMessage(
-          { type: 'asyar:extension:loaded', extensionId: id, role },
-          '*',
-        );
+        window.parent.postMessage({ type: 'asyar:extension:loaded', extensionId: id, role }, '*');
       }
     } catch {
       // best-effort — host will time out and strike if we can't signal.
@@ -128,12 +123,14 @@ export class ExtensionContextCore {
 
   registerAction(action: ExtensionAction): void {
     if (!this.extensionId) {
-      console.error("Cannot register action: Extension ID not set");
+      console.error('Cannot register action: Extension ID not set');
       return;
     }
-    const actions = this.proxies.actions as unknown as {
-      registerAction: (a: ExtensionAction) => void;
-    } | undefined;
+    const actions = this.proxies.actions as unknown as
+      | {
+          registerAction: (a: ExtensionAction) => void;
+        }
+      | undefined;
     if (!actions) {
       throw new Error('actions service not available in this context');
     }
@@ -141,22 +138,26 @@ export class ExtensionContextCore {
   }
 
   unregisterAction(actionId: string): void {
-    const actions = this.proxies.actions as unknown as {
-      unregisterAction: (id: string) => void;
-    } | undefined;
+    const actions = this.proxies.actions as unknown as
+      | {
+          unregisterAction: (id: string) => void;
+        }
+      | undefined;
     if (!actions) return;
     actions.unregisterAction(actionId);
   }
 
   registerCommand(commandId: string, handler: CommandHandler): void {
     if (!this.extensionId) {
-      console.error("Cannot register command: Extension ID not set");
+      console.error('Cannot register command: Extension ID not set');
       return;
     }
     const fullCommandId = `${this.extensionId}.${commandId}`;
-    const commands = this.proxies.commands as unknown as {
-      registerCommand: (id: string, h: CommandHandler, extId: string) => void;
-    } | undefined;
+    const commands = this.proxies.commands as unknown as
+      | {
+          registerCommand: (id: string, h: CommandHandler, extId: string) => void;
+        }
+      | undefined;
     if (!commands) {
       throw new Error('commands service not available in this context');
     }
@@ -165,9 +166,11 @@ export class ExtensionContextCore {
 
   unregisterCommand(commandId: string): void {
     const fullCommandId = `${this.extensionId}.${commandId}`;
-    const commands = this.proxies.commands as unknown as {
-      unregisterCommand: (id: string) => void;
-    } | undefined;
+    const commands = this.proxies.commands as unknown as
+      | {
+          unregisterCommand: (id: string) => void;
+        }
+      | undefined;
     if (!commands) return;
     commands.unregisterCommand(fullCommandId);
   }
@@ -186,7 +189,7 @@ export class ExtensionContextCore {
 
   registerSyncProvider(provider: ExtensionSyncProvider): void {
     if (!this.extensionId) {
-      console.error("Cannot register sync provider: Extension ID not set");
+      console.error('Cannot register sync provider: Extension ID not set');
       return;
     }
     setupSyncProvider(this.extensionId, provider);

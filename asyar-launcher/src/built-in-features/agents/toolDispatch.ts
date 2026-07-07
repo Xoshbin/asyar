@@ -75,9 +75,7 @@ export async function invokeTool(
   // Tier 2: source is the extension id.
   const iframe = pickExtensionIframe(source, 'worker');
   if (!iframe) {
-    throw new Error(
-      `invokeTool: extension '${source}' worker iframe is not mounted`,
-    );
+    throw new Error(`invokeTool: extension '${source}' worker iframe is not mounted`);
   }
 
   const messageId = `tool-${++messageIdCounter}-${Date.now()}`;
@@ -106,9 +104,7 @@ export async function invokeTool(
  * Falls back to inspecting `developerDetail` for compatibility with any error
  * shape that may not carry structured fields.
  */
-function isMcpPermissionRequired(
-  err: unknown,
-): { serverId: string; toolId: string } | null {
+function isMcpPermissionRequired(err: unknown): { serverId: string; toolId: string } | null {
   if (typeof err !== 'object' || err === null) return null;
   const obj = err as Record<string, unknown>;
 
@@ -143,11 +139,7 @@ async function invokeMcpTool(
     return await invokeRaw('mcp_invoke_tool', { serverId, toolId, agentId, args });
   } catch (err) {
     if (!isMcpPermissionRequired(err)) throw err;
-    const decision = await mcpService.requestPermission(
-      serverId,
-      toolId,
-      agentId ?? '',
-    );
+    const decision = await mcpService.requestPermission(serverId, toolId, agentId ?? '');
     if (decision === 'never' || decision === 'cancel') {
       throw new Error(`MCP tool ${toolId} blocked by user`);
     }

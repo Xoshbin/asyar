@@ -5,7 +5,9 @@ const mockNotify = vi.hoisted(() => vi.fn().mockResolvedValue('notif-id'));
 const mockFinalize = vi.hoisted(() => vi.fn().mockResolvedValue({ leaked: false }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }));
-vi.mock('../../../services/notification/notificationService', () => ({ notificationService: { send: mockNotify } }));
+vi.mock('../../../services/notification/notificationService', () => ({
+  notificationService: { send: mockNotify },
+}));
 vi.mock('./finalizeBuild', () => ({ finalizeBuild: mockFinalize }));
 
 // orchestrator.ts imports these at module level — mock to prevent Tauri native calls
@@ -28,7 +30,12 @@ import { handleEvent } from './orchestrator';
 import { submitAnswer } from './questionBridge';
 import { parseSidecarEvent } from './buildProtocol';
 
-beforeEach(() => { buildJobStore.reset(); mockInvoke.mockClear(); mockNotify.mockClear(); mockFinalize.mockClear().mockResolvedValue({ leaked: false }); });
+beforeEach(() => {
+  buildJobStore.reset();
+  mockInvoke.mockClear();
+  mockNotify.mockClear();
+  mockFinalize.mockClear().mockResolvedValue({ leaked: false });
+});
 
 // A fake sidecar transcript: gate -> steps -> ask -> step -> done.
 const TRANSCRIPT = [
@@ -54,13 +61,18 @@ describe('end-to-end native flow with real ids', () => {
     expect(mockNotify).toHaveBeenCalled(); // deep-link notification fired
 
     await submitAnswer('Tasks DB'); // writes answer to sidecar, resumes
-    expect(mockInvoke).toHaveBeenCalledWith('ext_builder_answer', { line: '{"kind":"answer","questionId":"q1","value":"Tasks DB"}' });
+    expect(mockInvoke).toHaveBeenCalledWith('ext_builder_answer', {
+      line: '{"kind":"answer","questionId":"q1","value":"Tasks DB"}',
+    });
     expect(buildJobStore.job!.status).toBe('working');
 
     await handleEvent(parseSidecarEvent(TRANSCRIPT[3])!); // step
     await handleEvent(parseSidecarEvent(TRANSCRIPT[4])!); // done
 
-    expect(mockFinalize).toHaveBeenCalledWith('/home/u/AsyarExtensions/com.user.notion', 'com.user.notion');
+    expect(mockFinalize).toHaveBeenCalledWith(
+      '/home/u/AsyarExtensions/com.user.notion',
+      'com.user.notion',
+    );
     expect(buildJobStore.job!.status).toBe('done');
     expect(buildJobStore.job!.result!.smokeSummary).toBe('200 OK');
   });

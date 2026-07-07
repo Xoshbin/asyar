@@ -10,14 +10,16 @@ export function formatRelativeTime(timestampMillis: number, now: number = Date.n
   return `${diffDay}d ago`;
 }
 
-export function statusBadgeColor(
-  status: 'starting' | 'connected' | 'failed' | 'disabled',
-): string {
+export function statusBadgeColor(status: 'starting' | 'connected' | 'failed' | 'disabled'): string {
   switch (status) {
-    case 'connected': return 'var(--accent-success)';
-    case 'starting': return 'var(--accent-warning)';
-    case 'failed': return 'var(--accent-danger)';
-    case 'disabled': return 'var(--text-tertiary)';
+    case 'connected':
+      return 'var(--accent-success)';
+    case 'starting':
+      return 'var(--accent-warning)';
+    case 'failed':
+      return 'var(--accent-danger)';
+    case 'disabled':
+      return 'var(--text-tertiary)';
   }
 }
 

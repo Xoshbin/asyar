@@ -264,9 +264,7 @@ export class CompactSyncService {
       this.compactExpanded = true;
     })
       .then((fn) => unlistens.push(fn))
-      .catch((e) =>
-        logService.debug(`[compact] listen show-more-clicked failed: ${e}`),
-      );
+      .catch((e) => logService.debug(`[compact] listen show-more-clicked failed: ${e}`));
 
     listen('main_panel_did_resign_key', () => {
       this.compactExpanded = false;
@@ -276,9 +274,7 @@ export class CompactSyncService {
       if (this.isCompactIdle) this.#shrinkToCompactNow('resign-key');
     })
       .then((fn) => unlistens.push(fn))
-      .catch((e) =>
-        logService.debug(`[compact] listen did_resign_key failed: ${e}`),
-      );
+      .catch((e) => logService.debug(`[compact] listen did_resign_key failed: ${e}`));
 
     // Single rAF (not double): lines `setHidden:NO` up with WebKit's first
     // painted frame. Double would be one frame too late and the bar would

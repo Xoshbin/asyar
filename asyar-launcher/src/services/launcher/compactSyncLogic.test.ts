@@ -42,7 +42,9 @@ describe('isSearchSettled', () => {
   });
 
   it('returns false when severity is "warning" (warning does not pin expanded)', () => {
-    expect(isSearchSettled({ ...settledDefaults, currentDiagnosticSeverity: 'warning' })).toBe(false);
+    expect(isSearchSettled({ ...settledDefaults, currentDiagnosticSeverity: 'warning' })).toBe(
+      false,
+    );
   });
 
   it('returns false when no query is typed and no error', () => {

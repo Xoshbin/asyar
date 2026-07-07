@@ -21,7 +21,13 @@
   <span class="checkbox-box" class:checked>
     {#if checked}
       <svg viewBox="0 0 10 8" fill="none" xmlns="http://www.w3.org/2000/svg" class="checkmark">
-        <path d="M1 4L3.8 7L9 1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path
+          d="M1 4L3.8 7L9 1"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
       </svg>
     {/if}
   </span>
@@ -61,7 +67,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background var(--transition-fast), border-color var(--transition-fast);
+    transition:
+      background var(--transition-fast),
+      border-color var(--transition-fast);
     flex-shrink: 0;
   }
 

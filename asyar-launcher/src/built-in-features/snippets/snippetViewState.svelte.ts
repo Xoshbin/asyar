@@ -29,19 +29,19 @@ class SnippetViewStateClass {
     if (!q || this.rankedIds === null) {
       searched = all;
     } else {
-      const byId = new Map(all.map(s => [s.id, s]));
+      const byId = new Map(all.map((s) => [s.id, s]));
       searched = this.rankedIds
-        .map(id => byId.get(id))
+        .map((id) => byId.get(id))
         .filter((s): s is Snippet => s !== undefined);
     }
 
-    const pinned = searched.filter(s => s.pinned);
-    const rest = searched.filter(s => !s.pinned);
+    const pinned = searched.filter((s) => s.pinned);
+    const rest = searched.filter((s) => !s.pinned);
     return [...pinned, ...rest];
   }
 
   get pinnedCount(): number {
-    return this.getFilteredSnippets().filter(s => s.pinned).length;
+    return this.getFilteredSnippets().filter((s) => s.pinned).length;
   }
 
   get selectedSnippet(): Snippet | null {
@@ -60,16 +60,16 @@ class SnippetViewStateClass {
     }
 
     const ranked = await rankItems(q, snippetStore.snippets || [], {
-      id: s => s.id,
-      title: s => s.name,
-      subtitle: s => s.expansion,
-      keywords: s => (s.keyword ? [s.keyword] : []),
+      id: (s) => s.id,
+      title: (s) => s.name,
+      subtitle: (s) => s.expansion,
+      keywords: (s) => (s.keyword ? [s.keyword] : []),
     });
 
     // Guard against out-of-order responses: a newer keystroke may have
     // superseded this query while Rust was ranking.
     if (this.searchQuery.trim() !== q) return;
-    this.rankedIds = ranked.map(s => s.id);
+    this.rankedIds = ranked.map((s) => s.id);
   }
 
   /**
@@ -82,7 +82,7 @@ class SnippetViewStateClass {
     if (this.searchQuery.trim()) {
       await this.setSearch(this.searchQuery);
     }
-    const idx = this.getFilteredSnippets().findIndex(s => s.id === id);
+    const idx = this.getFilteredSnippets().findIndex((s) => s.id === id);
     if (idx >= 0) this.selectItem(idx);
   }
 

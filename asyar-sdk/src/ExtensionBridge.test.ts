@@ -108,7 +108,7 @@ describe('ExtensionBridge search IPC', () => {
             }),
           ]),
         }),
-        '*'
+        '*',
       );
     });
   });
@@ -154,7 +154,7 @@ describe('ExtensionBridge search IPC', () => {
           messageId: 'search_456',
           result: [],
         }),
-        '*'
+        '*',
       );
     });
   });
@@ -257,9 +257,7 @@ describe('ExtensionBridge search IPC', () => {
     await vi.waitFor(() => {
       expect(postMessageSpy).toHaveBeenCalled();
     });
-    const call = postMessageSpy.mock.calls.find(
-      (c) => c[0]?.messageId === 'search_action'
-    );
+    const call = postMessageSpy.mock.calls.find((c) => c[0]?.messageId === 'search_action');
     expect(call).toBeDefined();
     const result = call![0].result[0];
     expect(result.actionId).toBe('activate-tab');
@@ -297,7 +295,7 @@ describe('ExtensionBridge registerActionHandler', () => {
     bridge.registerActionHandler('com.example.github', 'open-browser', handler);
 
     const actions = bridge.getActions();
-    const found = actions.find(a => a.id === 'act_com.example.github_open-browser');
+    const found = actions.find((a) => a.id === 'act_com.example.github_open-browser');
     expect(found).toBeDefined();
     expect(found!.extensionId).toBe('com.example.github');
   });
@@ -370,7 +368,7 @@ describe('ExtensionBridge registerActionHandler', () => {
     messageHandler!(event);
 
     // Give it a tick to process
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 10));
     expect(handler).not.toHaveBeenCalled();
   });
 });
@@ -417,9 +415,7 @@ describe('ExtensionBridge bookkeeping logs use identity-agnostic console.debug',
 
     bridge.registerManifest(manifest);
 
-    expect(consoleDebugSpy).toHaveBeenCalledWith(
-      expect.stringContaining('log-test-ext'),
-    );
+    expect(consoleDebugSpy).toHaveBeenCalledWith(expect.stringContaining('log-test-ext'));
   });
 
   it('registerExtensionImplementation logs via console.debug', async () => {
@@ -435,9 +431,7 @@ describe('ExtensionBridge bookkeeping logs use identity-agnostic console.debug',
       executeCommand: vi.fn(),
     });
 
-    expect(consoleDebugSpy).toHaveBeenCalledWith(
-      expect.stringContaining('log-test-ext'),
-    );
+    expect(consoleDebugSpy).toHaveBeenCalledWith(expect.stringContaining('log-test-ext'));
   });
 
   it('registerAction logs via console.debug', async () => {
@@ -451,9 +445,7 @@ describe('ExtensionBridge bookkeeping logs use identity-agnostic console.debug',
       execute: vi.fn(),
     });
 
-    expect(consoleDebugSpy).toHaveBeenCalledWith(
-      expect.stringContaining('do-thing'),
-    );
+    expect(consoleDebugSpy).toHaveBeenCalledWith(expect.stringContaining('do-thing'));
   });
 
   it('registerActionHandler logs via console.debug', async () => {
@@ -473,8 +465,6 @@ describe('ExtensionBridge bookkeeping logs use identity-agnostic console.debug',
 
     bridge.registerCommand('log-test-ext.do-thing', { execute: vi.fn() }, 'log-test-ext');
 
-    expect(consoleDebugSpy).toHaveBeenCalledWith(
-      expect.stringContaining('log-test-ext.do-thing'),
-    );
+    expect(consoleDebugSpy).toHaveBeenCalledWith(expect.stringContaining('log-test-ext.do-thing'));
   });
 });

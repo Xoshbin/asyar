@@ -144,7 +144,6 @@ describe('BrowserServiceProxy — bridge methods', () => {
       10000,
     );
   });
-
 });
 
 describe('BrowserServiceProxy.onTabsChanged — subscribe pattern', () => {
@@ -171,12 +170,7 @@ describe('BrowserServiceProxy.onTabsChanged — subscribe pattern', () => {
     const handler = vi.fn();
     proxy.onTabsChanged(handler);
 
-    expect(invokeMock).toHaveBeenCalledWith(
-      'browser:subscribeTabsChanged',
-      {},
-      undefined,
-      5000,
-    );
+    expect(invokeMock).toHaveBeenCalledWith('browser:subscribeTabsChanged', {}, undefined, 5000);
     expect(onMock).toHaveBeenCalledWith('asyar:event:browser-event:push', expect.any(Function));
     expect(onMock).toHaveBeenCalledTimes(1);
 
@@ -283,7 +277,9 @@ describe('BrowserServiceProxy.onTabsChanged — subscribe pattern', () => {
       if (event === 'asyar:event:browser-event:push') pushHandler = h;
     });
 
-    const a = vi.fn(() => { throw new Error('bad'); });
+    const a = vi.fn(() => {
+      throw new Error('bad');
+    });
     const b = vi.fn();
     proxy.onTabsChanged(a);
     proxy.onTabsChanged(b);
@@ -303,16 +299,34 @@ describe('BrowserServiceProxy — command-bar additions', () => {
   it('searchWeb invokes browser:searchWeb with text + browser', async () => {
     const invokeMock = vi.fn(async () => undefined);
     const proxy = new BrowserServiceProxy();
-    (proxy as unknown as { broker: unknown }).broker = { invoke: invokeMock, on: vi.fn(), off: vi.fn() };
+    (proxy as unknown as { broker: unknown }).broker = {
+      invoke: invokeMock,
+      on: vi.fn(),
+      off: vi.fn(),
+    };
     await proxy.searchWeb('react hooks');
-    expect(invokeMock).toHaveBeenCalledWith('browser:searchWeb', { text: 'react hooks', browser: undefined }, undefined, 5000);
+    expect(invokeMock).toHaveBeenCalledWith(
+      'browser:searchWeb',
+      { text: 'react hooks', browser: undefined },
+      undefined,
+      5000,
+    );
   });
   it('getMostRecentActiveBrowser invokes browser:getMostRecentActiveBrowser', async () => {
     const invokeMock = vi.fn(async () => null);
     const proxy = new BrowserServiceProxy();
-    (proxy as unknown as { broker: unknown }).broker = { invoke: invokeMock, on: vi.fn(), off: vi.fn() };
+    (proxy as unknown as { broker: unknown }).broker = {
+      invoke: invokeMock,
+      on: vi.fn(),
+      off: vi.fn(),
+    };
     await proxy.getMostRecentActiveBrowser();
-    expect(invokeMock).toHaveBeenCalledWith('browser:getMostRecentActiveBrowser', {}, undefined, 5000);
+    expect(invokeMock).toHaveBeenCalledWith(
+      'browser:getMostRecentActiveBrowser',
+      {},
+      undefined,
+      5000,
+    );
   });
 });
 
@@ -339,12 +353,7 @@ describe('BrowserServiceProxy.onPageChanged — subscribe pattern', () => {
     invokeMock.mockResolvedValueOnce('sub-pg');
     proxy.onPageChanged(vi.fn());
 
-    expect(invokeMock).toHaveBeenCalledWith(
-      'browser:subscribePageChanged',
-      {},
-      undefined,
-      5000,
-    );
+    expect(invokeMock).toHaveBeenCalledWith('browser:subscribePageChanged', {}, undefined, 5000);
     expect(onMock).toHaveBeenCalledWith('asyar:event:browser-event:push', expect.any(Function));
   });
 
@@ -384,7 +393,9 @@ describe('BrowserServiceProxy.onPageChanged — subscribe pattern', () => {
     let resolveSub: (v: string) => void = () => {};
     invokeMock.mockImplementation((cmd: string) => {
       if (cmd === 'browser:subscribePageChanged') {
-        return new Promise<string>((res) => { resolveSub = res; });
+        return new Promise<string>((res) => {
+          resolveSub = res;
+        });
       }
       return Promise.resolve(undefined);
     });

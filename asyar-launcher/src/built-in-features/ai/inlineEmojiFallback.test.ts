@@ -53,9 +53,11 @@ describe('handleEmojiFallback', () => {
 
   it('records hit outcome when agent returns a single emoji character', async () => {
     let captured: ((t: string) => Promise<void>) | undefined;
-    (dispatchSilentAgentCommand as ReturnType<typeof vi.fn>).mockImplementationOnce(async (input) => {
-      captured = input.onFinalText;
-    });
+    (dispatchSilentAgentCommand as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      async (input) => {
+        captured = input.onFinalText;
+      },
+    );
     (invoke as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
 
     await handleEmojiFallback(SAMPLE);
@@ -71,9 +73,11 @@ describe('handleEmojiFallback', () => {
 
   it('records miss outcome when agent returns empty string', async () => {
     let captured: ((t: string) => Promise<void>) | undefined;
-    (dispatchSilentAgentCommand as ReturnType<typeof vi.fn>).mockImplementationOnce(async (input) => {
-      captured = input.onFinalText;
-    });
+    (dispatchSilentAgentCommand as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      async (input) => {
+        captured = input.onFinalText;
+      },
+    );
     (invoke as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
 
     await handleEmojiFallback(SAMPLE);
@@ -88,9 +92,11 @@ describe('handleEmojiFallback', () => {
 
   it('records miss outcome when agent returns whitespace or non-emoji text', async () => {
     let captured: ((t: string) => Promise<void>) | undefined;
-    (dispatchSilentAgentCommand as ReturnType<typeof vi.fn>).mockImplementationOnce(async (input) => {
-      captured = input.onFinalText;
-    });
+    (dispatchSilentAgentCommand as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      async (input) => {
+        captured = input.onFinalText;
+      },
+    );
     (invoke as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
 
     await handleEmojiFallback(SAMPLE);

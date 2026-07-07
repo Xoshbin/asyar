@@ -1,13 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}))
+}));
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
-import { statusBarService, type StatusBarItem } from './statusBarService.svelte'
-import { invoke } from '@tauri-apps/api/core'
+import { statusBarService, type StatusBarItem } from './statusBarService.svelte';
+import { invoke } from '@tauri-apps/api/core';
 
 function topItem(overrides: Partial<StatusBarItem> = {}): StatusBarItem {
   return {
@@ -16,24 +16,24 @@ function topItem(overrides: Partial<StatusBarItem> = {}): StatusBarItem {
     icon: '☕',
     text: 'Coffee',
     ...overrides,
-  }
+  };
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
-  vi.mocked(invoke).mockResolvedValue(undefined as any)
-})
+  vi.clearAllMocks();
+  vi.mocked(invoke).mockResolvedValue(undefined as any);
+});
 
 describe('registerItem', () => {
   it('invokes tray_register_item with the full item including extensionId', async () => {
-    await statusBarService.registerItem(topItem())
+    await statusBarService.registerItem(topItem());
     expect(invoke).toHaveBeenCalledWith(
       'tray_register_item',
       expect.objectContaining({
         item: expect.objectContaining({ id: 't1', extensionId: 'ext-a' }),
       }),
-    )
-  })
+    );
+  });
 
   it('forwards submenu trees verbatim', async () => {
     const item = topItem({
@@ -41,47 +41,47 @@ describe('registerItem', () => {
         { id: 'p', extensionId: 'ext-a', text: 'Play', checked: true },
         { id: 'n', extensionId: 'ext-a', text: 'Next', enabled: false },
       ],
-    })
-    await statusBarService.registerItem(item)
-    const arg = vi.mocked(invoke).mock.calls[0][1] as any
-    expect(arg.item.submenu).toHaveLength(2)
-    expect(arg.item.submenu[0]).toMatchObject({ id: 'p', checked: true })
-  })
+    });
+    await statusBarService.registerItem(item);
+    const arg = vi.mocked(invoke).mock.calls[0][1] as any;
+    expect(arg.item.submenu).toHaveLength(2);
+    expect(arg.item.submenu[0]).toMatchObject({ id: 'p', checked: true });
+  });
 
   it('rejects the caller when the Rust command fails', async () => {
-    vi.mocked(invoke).mockRejectedValueOnce(new Error('validation: top-level must provide icon'))
-    await expect(statusBarService.registerItem(topItem())).rejects.toThrow(/tray_register_item/)
-  })
-})
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('validation: top-level must provide icon'));
+    await expect(statusBarService.registerItem(topItem())).rejects.toThrow(/tray_register_item/);
+  });
+});
 
 describe('updateItem', () => {
   it('invokes tray_update_item with the merged item', async () => {
-    const merged = topItem({ icon: '🍵', text: 'Tea' })
-    await statusBarService.updateItem('ext-a', 't1', { item: merged })
+    const merged = topItem({ icon: '🍵', text: 'Tea' });
+    await statusBarService.updateItem('ext-a', 't1', { item: merged });
     expect(invoke).toHaveBeenCalledWith(
       'tray_update_item',
       expect.objectContaining({
         item: expect.objectContaining({ id: 't1', icon: '🍵', text: 'Tea' }),
       }),
-    )
-  })
-})
+    );
+  });
+});
 
 describe('unregisterItem', () => {
   it('invokes tray_unregister_item with extensionId + id', async () => {
-    await statusBarService.unregisterItem('ext-a', 't1')
+    await statusBarService.unregisterItem('ext-a', 't1');
     expect(invoke).toHaveBeenCalledWith('tray_unregister_item', {
       extensionId: 'ext-a',
       id: 't1',
-    })
-  })
-})
+    });
+  });
+});
 
 describe('clearItemsForExtension', () => {
   it('invokes tray_remove_all_for_extension', async () => {
-    await statusBarService.clearItemsForExtension('ext-a')
+    await statusBarService.clearItemsForExtension('ext-a');
     expect(invoke).toHaveBeenCalledWith('tray_remove_all_for_extension', {
       extensionId: 'ext-a',
-    })
-  })
-})
+    });
+  });
+});

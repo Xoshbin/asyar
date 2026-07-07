@@ -15,7 +15,10 @@ describe('MessageBroker.invoke — host dispatcher fast path', () => {
   it('runs the dispatcher synchronously when in host realm', async () => {
     const broker = freshBroker();
     let ran = false;
-    broker.setHostDispatcher(() => { ran = true; return 'ok'; });
+    broker.setHostDispatcher(() => {
+      ran = true;
+      return 'ok';
+    });
 
     const promise = broker.invoke('extensions:navigateToView', { viewPath: 'calc/Default' });
 
@@ -37,21 +40,29 @@ describe('MessageBroker.invoke — host dispatcher fast path', () => {
     const broker = freshBroker();
     broker.setHostDispatcher(() => Promise.resolve({ ok: true }));
 
-    await expect(broker.invoke('extensions:searchAll', { query: 'q' })).resolves.toEqual({ ok: true });
+    await expect(broker.invoke('extensions:searchAll', { query: 'q' })).resolves.toEqual({
+      ok: true,
+    });
   });
 
   it('rejects when the dispatcher throws', async () => {
     const broker = freshBroker();
-    broker.setHostDispatcher(() => { throw new Error('boom'); });
+    broker.setHostDispatcher(() => {
+      throw new Error('boom');
+    });
 
-    await expect(broker.invoke('extensions:navigateToView', { viewPath: 'x/V' })).rejects.toThrow('boom');
+    await expect(broker.invoke('extensions:navigateToView', { viewPath: 'x/V' })).rejects.toThrow(
+      'boom',
+    );
   });
 
   it('rejects when the dispatcher returns a rejected promise', async () => {
     const broker = freshBroker();
     broker.setHostDispatcher(() => Promise.reject(new Error('boom')));
 
-    await expect(broker.invoke('extensions:navigateToView', { viewPath: 'x/V' })).rejects.toThrow('boom');
+    await expect(broker.invoke('extensions:navigateToView', { viewPath: 'x/V' })).rejects.toThrow(
+      'boom',
+    );
   });
 
   it('falls back to postMessage from an iframe context', () => {

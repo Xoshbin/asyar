@@ -1,12 +1,12 @@
 <script lang="ts">
   let {
     text,
-    variant = "default",
+    variant = 'default',
     mono = false,
     bordered = false,
   }: {
     text: string;
-    variant?: "default" | "success" | "warning" | "danger" | "info";
+    variant?: 'default' | 'success' | 'warning' | 'danger' | 'info';
     mono?: boolean;
     bordered?: boolean;
   } = $props();

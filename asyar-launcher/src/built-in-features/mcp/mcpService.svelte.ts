@@ -54,20 +54,17 @@ export class McpService {
 
   private async subscribeToStatusEvents(): Promise<void> {
     try {
-      this.statusUnlisten = await listen<StatusChangedEvent>(
-        'mcp:status_changed',
-        (event) => {
-          const { serverId, status, toolsCount } = event.payload;
-          const idx = this.servers.findIndex((s) => s.id === serverId);
-          if (idx >= 0) {
-            this.servers[idx] = {
-              ...this.servers[idx],
-              status,
-              toolsCount,
-            };
-          }
-        },
-      );
+      this.statusUnlisten = await listen<StatusChangedEvent>('mcp:status_changed', (event) => {
+        const { serverId, status, toolsCount } = event.payload;
+        const idx = this.servers.findIndex((s) => s.id === serverId);
+        if (idx >= 0) {
+          this.servers[idx] = {
+            ...this.servers[idx],
+            status,
+            toolsCount,
+          };
+        }
+      });
     } catch (err) {
       void logService.warn(`[mcp] status listener setup failed: ${err}`);
     }
@@ -76,11 +73,7 @@ export class McpService {
   async refresh(): Promise<void> {
     this.loading = true;
     try {
-      await Promise.all([
-        this.refreshServers(),
-        this.refreshAudit(),
-        this.refreshStrictMode(),
-      ]);
+      await Promise.all([this.refreshServers(), this.refreshAudit(), this.refreshStrictMode()]);
       if (this.servers.length === 0) {
         await this.detectConfigs();
       }
@@ -176,9 +169,7 @@ export class McpService {
     });
   }
 
-  handlePermissionDecision(
-    decision: 'allow_once' | 'allow_always' | 'never' | 'cancel',
-  ): void {
+  handlePermissionDecision(decision: 'allow_once' | 'allow_always' | 'never' | 'cancel'): void {
     const p = this.permissionPrompt;
     if (!p) return;
     if (decision !== 'cancel') {

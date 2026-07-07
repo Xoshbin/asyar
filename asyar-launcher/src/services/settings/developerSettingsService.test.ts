@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the settings service before importing the module under test
 const mockCurrentSettings = vi.hoisted(() => ({
   developer: undefined as any,
-}))
+}));
 
 vi.mock('./settingsService.svelte', () => ({
   settingsService: {
@@ -11,30 +11,30 @@ vi.mock('./settingsService.svelte', () => ({
       return mockCurrentSettings;
     },
   },
-}))
+}));
 
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}))
+}));
 
-import { DeveloperSettingsService } from './developerSettingsService.svelte'
+import { DeveloperSettingsService } from './developerSettingsService.svelte';
 
 describe('DeveloperSettingsService', () => {
-  let svc: DeveloperSettingsService
+  let svc: DeveloperSettingsService;
 
   beforeEach(() => {
-    svc = new DeveloperSettingsService()
+    svc = new DeveloperSettingsService();
     // Reset to no developer section (like a fresh install)
-    mockCurrentSettings.developer = undefined
-  })
+    mockCurrentSettings.developer = undefined;
+  });
 
   // ── isDeveloperMode ────────────────────────────────────────────────────
 
   describe('isDeveloperMode', () => {
     it('returns false when developer section is undefined', () => {
-      mockCurrentSettings.developer = undefined
-      expect(svc.isDeveloperMode).toBe(false)
-    })
+      mockCurrentSettings.developer = undefined;
+      expect(svc.isDeveloperMode).toBe(false);
+    });
 
     it('returns false when developer.enabled is false', () => {
       mockCurrentSettings.developer = {
@@ -43,9 +43,9 @@ describe('DeveloperSettingsService', () => {
         verboseLogging: false,
         tracing: false,
         allowSideloading: false,
-      }
-      expect(svc.isDeveloperMode).toBe(false)
-    })
+      };
+      expect(svc.isDeveloperMode).toBe(false);
+    });
 
     it('returns true when developer.enabled is true', () => {
       mockCurrentSettings.developer = {
@@ -54,10 +54,10 @@ describe('DeveloperSettingsService', () => {
         verboseLogging: false,
         tracing: false,
         allowSideloading: false,
-      }
-      expect(svc.isDeveloperMode).toBe(true)
-    })
-  })
+      };
+      expect(svc.isDeveloperMode).toBe(true);
+    });
+  });
 
   // ── showInspector ──────────────────────────────────────────────────────
 
@@ -69,9 +69,9 @@ describe('DeveloperSettingsService', () => {
         verboseLogging: false,
         tracing: false,
         allowSideloading: false,
-      }
-      expect(svc.showInspector).toBe(false)
-    })
+      };
+      expect(svc.showInspector).toBe(false);
+    });
 
     it('returns false when developer mode is on but showInspector is off', () => {
       mockCurrentSettings.developer = {
@@ -80,9 +80,9 @@ describe('DeveloperSettingsService', () => {
         verboseLogging: false,
         tracing: false,
         allowSideloading: false,
-      }
-      expect(svc.showInspector).toBe(false)
-    })
+      };
+      expect(svc.showInspector).toBe(false);
+    });
 
     it('returns true when both developer mode and showInspector are on', () => {
       mockCurrentSettings.developer = {
@@ -91,10 +91,10 @@ describe('DeveloperSettingsService', () => {
         verboseLogging: false,
         tracing: false,
         allowSideloading: false,
-      }
-      expect(svc.showInspector).toBe(true)
-    })
-  })
+      };
+      expect(svc.showInspector).toBe(true);
+    });
+  });
 
   // ── verboseLogging ─────────────────────────────────────────────────────
 
@@ -106,9 +106,9 @@ describe('DeveloperSettingsService', () => {
         verboseLogging: true,
         tracing: false,
         allowSideloading: false,
-      }
-      expect(svc.verboseLogging).toBe(false)
-    })
+      };
+      expect(svc.verboseLogging).toBe(false);
+    });
 
     it('returns true when both developer mode and verboseLogging are on', () => {
       mockCurrentSettings.developer = {
@@ -117,10 +117,10 @@ describe('DeveloperSettingsService', () => {
         verboseLogging: true,
         tracing: false,
         allowSideloading: false,
-      }
-      expect(svc.verboseLogging).toBe(true)
-    })
-  })
+      };
+      expect(svc.verboseLogging).toBe(true);
+    });
+  });
 
   // ── tracing ────────────────────────────────────────────────────────────
 
@@ -132,9 +132,9 @@ describe('DeveloperSettingsService', () => {
         verboseLogging: false,
         tracing: true,
         allowSideloading: false,
-      }
-      expect(svc.tracing).toBe(false)
-    })
+      };
+      expect(svc.tracing).toBe(false);
+    });
 
     it('returns true when both developer mode and tracing are on', () => {
       mockCurrentSettings.developer = {
@@ -143,10 +143,10 @@ describe('DeveloperSettingsService', () => {
         verboseLogging: false,
         tracing: true,
         allowSideloading: false,
-      }
-      expect(svc.tracing).toBe(true)
-    })
-  })
+      };
+      expect(svc.tracing).toBe(true);
+    });
+  });
 
   // ── allowSideloading ───────────────────────────────────────────────────
 
@@ -158,9 +158,9 @@ describe('DeveloperSettingsService', () => {
         verboseLogging: false,
         tracing: false,
         allowSideloading: true,
-      }
-      expect(svc.allowSideloading).toBe(false)
-    })
+      };
+      expect(svc.allowSideloading).toBe(false);
+    });
 
     it('returns true when both developer mode and allowSideloading are on', () => {
       mockCurrentSettings.developer = {
@@ -169,13 +169,13 @@ describe('DeveloperSettingsService', () => {
         verboseLogging: false,
         tracing: false,
         allowSideloading: true,
-      }
-      expect(svc.allowSideloading).toBe(true)
-    })
+      };
+      expect(svc.allowSideloading).toBe(true);
+    });
 
     it('returns false when developer section is undefined', () => {
-      mockCurrentSettings.developer = undefined
-      expect(svc.allowSideloading).toBe(false)
-    })
-  })
-})
+      mockCurrentSettings.developer = undefined;
+      expect(svc.allowSideloading).toBe(false);
+    });
+  });
+});

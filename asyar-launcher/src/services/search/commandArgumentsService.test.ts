@@ -1,38 +1,48 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}))
+}));
 
-const commandArgDefaultsGet = vi.fn<(ext: string, cmd: string) => Promise<Record<string, string>>>()
-const commandArgDefaultsSet = vi.fn<(ext: string, cmd: string, v: Record<string, string>) => Promise<void>>()
+const commandArgDefaultsGet =
+  vi.fn<(ext: string, cmd: string) => Promise<Record<string, string>>>();
+const commandArgDefaultsSet =
+  vi.fn<(ext: string, cmd: string, v: Record<string, string>) => Promise<void>>();
 vi.mock('../../lib/ipc/commandArgDefaultsCommands', () => ({
   commandArgDefaultsGet: (ext: string, cmd: string) => commandArgDefaultsGet(ext, cmd),
   commandArgDefaultsSet: (ext: string, cmd: string, v: Record<string, string>) =>
     commandArgDefaultsSet(ext, cmd, v),
-}))
+}));
 
-import { CommandArgumentsService } from './commandArgumentsService.svelte'
-import type { CommandArgument } from 'asyar-sdk/contracts'
+import { CommandArgumentsService } from './commandArgumentsService.svelte';
+import type { CommandArgument } from 'asyar-sdk/contracts';
 
 function makeDeps(opts: {
-  args: CommandArgument[]
-  extensionId?: string
-  commandId?: string
-  commandName?: string
-  icon?: string
-  isBuiltIn?: boolean
-  mode?: 'view' | 'background'
+  args: CommandArgument[];
+  extensionId?: string;
+  commandId?: string;
+  commandName?: string;
+  icon?: string;
+  isBuiltIn?: boolean;
+  mode?: 'view' | 'background';
 }) {
-  const extensionId = opts.extensionId ?? 'org.asyar.demo'
-  const commandId = opts.commandId ?? 'do-thing'
-  const commandObjectId = `cmd_${extensionId}_${commandId}`
-  const executeBuiltInCommand = vi.fn<(id: string, args?: Record<string, unknown>) => Promise<unknown>>()
+  const extensionId = opts.extensionId ?? 'org.asyar.demo';
+  const commandId = opts.commandId ?? 'do-thing';
+  const commandObjectId = `cmd_${extensionId}_${commandId}`;
+  const executeBuiltInCommand =
+    vi.fn<(id: string, args?: Record<string, unknown>) => Promise<unknown>>();
   const dispatchTier2Argument =
-    vi.fn<(req: { extensionId: string; commandId: string; args: Record<string, string | number>; mode: 'view' | 'background' }) => Promise<void>>()
+    vi.fn<
+      (req: {
+        extensionId: string;
+        commandId: string;
+        args: Record<string, string | number>;
+        mode: 'view' | 'background';
+      }) => Promise<void>
+    >();
   const getManifestByCommandObjectId = vi.fn((id: string) => {
-    if (id !== commandObjectId) return null
+    if (id !== commandObjectId) return null;
     return {
       extensionId,
       commandId,
@@ -41,8 +51,8 @@ function makeDeps(opts: {
       icon: opts.icon,
       args: opts.args,
       mode: opts.mode,
-    }
-  })
+    };
+  });
   return {
     executeBuiltInCommand,
     dispatchTier2Argument,
@@ -50,42 +60,48 @@ function makeDeps(opts: {
     extensionId,
     commandId,
     commandObjectId,
-  }
+  };
 }
 
 describe('CommandArgumentsService', () => {
   beforeEach(() => {
-    commandArgDefaultsGet.mockReset()
-    commandArgDefaultsSet.mockReset()
-    commandArgDefaultsGet.mockResolvedValue({})
-    commandArgDefaultsSet.mockResolvedValue(undefined)
-  })
+    commandArgDefaultsGet.mockReset();
+    commandArgDefaultsSet.mockReset();
+    commandArgDefaultsGet.mockResolvedValue({});
+    commandArgDefaultsSet.mockResolvedValue(undefined);
+  });
 
   it('starts inactive', () => {
-    const { executeBuiltInCommand, dispatchTier2Argument, getManifestByCommandObjectId } = makeDeps({ args: [] })
-    const svc = new CommandArgumentsService({ executeBuiltInCommand, dispatchTier2Argument, getManifestByCommandObjectId })
-    expect(svc.active).toBeNull()
-  })
+    const { executeBuiltInCommand, dispatchTier2Argument, getManifestByCommandObjectId } = makeDeps(
+      { args: [] },
+    );
+    const svc = new CommandArgumentsService({
+      executeBuiltInCommand,
+      dispatchTier2Argument,
+      getManifestByCommandObjectId,
+    });
+    expect(svc.active).toBeNull();
+  });
 
   it('enter() loads manifest args and defaults, focuses field 0', async () => {
     const args: CommandArgument[] = [
       { name: 'query', type: 'text', placeholder: 'Search' },
       { name: 'max', type: 'number', placeholder: 'Max results' },
-    ]
-    commandArgDefaultsGet.mockResolvedValueOnce({ query: 'prev-query' })
-    const d = makeDeps({ args })
-    const svc = new CommandArgumentsService(d)
+    ];
+    commandArgDefaultsGet.mockResolvedValueOnce({ query: 'prev-query' });
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
 
-    const ok = await svc.enter(d.commandObjectId)
-    expect(ok).toBe(true)
-    expect(svc.active).not.toBeNull()
-    expect(svc.active!.extensionId).toBe(d.extensionId)
-    expect(svc.active!.commandId).toBe(d.commandId)
-    expect(svc.active!.args).toEqual(args)
-    expect(svc.active!.values.query).toBe('prev-query')
-    expect(svc.active!.currentFieldIdx).toBe(0)
-    expect(commandArgDefaultsGet).toHaveBeenCalledWith(d.extensionId, d.commandId)
-  })
+    const ok = await svc.enter(d.commandObjectId);
+    expect(ok).toBe(true);
+    expect(svc.active).not.toBeNull();
+    expect(svc.active!.extensionId).toBe(d.extensionId);
+    expect(svc.active!.commandId).toBe(d.commandId);
+    expect(svc.active!.args).toEqual(args);
+    expect(svc.active!.values.query).toBe('prev-query');
+    expect(svc.active!.currentFieldIdx).toBe(0);
+    expect(commandArgDefaultsGet).toHaveBeenCalledWith(d.extensionId, d.commandId);
+  });
 
   it('enter() seeds dropdown default when no persisted value exists', async () => {
     const args: CommandArgument[] = [
@@ -98,214 +114,214 @@ describe('CommandArgumentsService', () => {
           { value: 'es', title: 'Spanish' },
         ],
       },
-    ]
-    const d = makeDeps({ args })
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    expect(svc.active!.values.lang).toBe('en')
-  })
+    ];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    expect(svc.active!.values.lang).toBe('en');
+  });
 
   it('enter() returns false for unknown command id', async () => {
-    const d = makeDeps({ args: [] })
-    const svc = new CommandArgumentsService(d)
-    const ok = await svc.enter('cmd_unknown_x')
-    expect(ok).toBe(false)
-    expect(svc.active).toBeNull()
-  })
+    const d = makeDeps({ args: [] });
+    const svc = new CommandArgumentsService(d);
+    const ok = await svc.enter('cmd_unknown_x');
+    expect(ok).toBe(false);
+    expect(svc.active).toBeNull();
+  });
 
   it('enter() returns false when command has no arguments', async () => {
-    const d = makeDeps({ args: [] })
-    const svc = new CommandArgumentsService(d)
-    const ok = await svc.enter(d.commandObjectId)
-    expect(ok).toBe(false)
-    expect(svc.active).toBeNull()
-  })
+    const d = makeDeps({ args: [] });
+    const svc = new CommandArgumentsService(d);
+    const ok = await svc.enter(d.commandObjectId);
+    expect(ok).toBe(false);
+    expect(svc.active).toBeNull();
+  });
 
   it('setValue() updates field state', async () => {
-    const args: CommandArgument[] = [{ name: 'q', type: 'text' }]
-    const d = makeDeps({ args })
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    svc.setValue('q', 'hello')
-    expect(svc.active!.values.q).toBe('hello')
-  })
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    expect(svc.active!.values.q).toBe('hello');
+  });
 
   it('focusField / next / prev move the cursor', async () => {
     const args: CommandArgument[] = [
       { name: 'a', type: 'text' },
       { name: 'b', type: 'text' },
       { name: 'c', type: 'text' },
-    ]
-    const d = makeDeps({ args })
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    expect(svc.active!.currentFieldIdx).toBe(0)
-    svc.next()
-    expect(svc.active!.currentFieldIdx).toBe(1)
-    svc.next()
-    svc.next()
-    expect(svc.active!.currentFieldIdx).toBe(2)
-    svc.prev()
-    expect(svc.active!.currentFieldIdx).toBe(1)
-    svc.focusField(0)
-    expect(svc.active!.currentFieldIdx).toBe(0)
-  })
+    ];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    expect(svc.active!.currentFieldIdx).toBe(0);
+    svc.next();
+    expect(svc.active!.currentFieldIdx).toBe(1);
+    svc.next();
+    svc.next();
+    expect(svc.active!.currentFieldIdx).toBe(2);
+    svc.prev();
+    expect(svc.active!.currentFieldIdx).toBe(1);
+    svc.focusField(0);
+    expect(svc.active!.currentFieldIdx).toBe(0);
+  });
 
   it('canSubmit() is false when a required text field is empty', async () => {
-    const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }]
-    const d = makeDeps({ args })
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    expect(svc.canSubmit()).toBe(false)
-    svc.setValue('q', 'hi')
-    expect(svc.canSubmit()).toBe(true)
-  })
+    const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    expect(svc.canSubmit()).toBe(false);
+    svc.setValue('q', 'hi');
+    expect(svc.canSubmit()).toBe(true);
+  });
 
   it('canSubmit() is false when a required number field is not a valid number', async () => {
-    const args: CommandArgument[] = [{ name: 'n', type: 'number', required: true }]
-    const d = makeDeps({ args })
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    svc.setValue('n', 'abc')
-    expect(svc.canSubmit()).toBe(false)
-    svc.setValue('n', '42')
-    expect(svc.canSubmit()).toBe(true)
-  })
+    const args: CommandArgument[] = [{ name: 'n', type: 'number', required: true }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('n', 'abc');
+    expect(svc.canSubmit()).toBe(false);
+    svc.setValue('n', '42');
+    expect(svc.canSubmit()).toBe(true);
+  });
 
   it('canSubmit() is true with no required args and empty optional', async () => {
-    const args: CommandArgument[] = [{ name: 'q', type: 'text' }]
-    const d = makeDeps({ args })
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    expect(svc.canSubmit()).toBe(true)
-  })
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    expect(svc.canSubmit()).toBe(true);
+  });
 
   it('submit() for a Tier 2 command routes through dispatchTier2Argument, never executeBuiltInCommand', async () => {
     const args: CommandArgument[] = [
       { name: 'q', type: 'text', required: true },
       { name: 'n', type: 'number' },
-    ]
-    const d = makeDeps({ args, isBuiltIn: false })
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    svc.setValue('q', 'hello')
-    svc.setValue('n', '7')
-    await svc.submit()
+    ];
+    const d = makeDeps({ args, isBuiltIn: false });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.setValue('n', '7');
+    await svc.submit();
 
     expect(d.dispatchTier2Argument).toHaveBeenCalledWith({
       extensionId: d.extensionId,
       commandId: d.commandId,
       args: { q: 'hello', n: 7 },
       mode: 'view',
-    })
-    expect(d.executeBuiltInCommand).not.toHaveBeenCalled()
-    expect(svc.active).toBeNull()
-  })
+    });
+    expect(d.executeBuiltInCommand).not.toHaveBeenCalled();
+    expect(svc.active).toBeNull();
+  });
 
   it('submit() threads manifest mode=background through to dispatchTier2Argument (regression: caffeinate-for was dispatched as view and timed out against the view iframe)', async () => {
     const args: CommandArgument[] = [
       { name: 'hours', type: 'number' },
       { name: 'minutes', type: 'number' },
-    ]
-    const d = makeDeps({ args, isBuiltIn: false, mode: 'background' })
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    svc.setValue('hours', '0')
-    svc.setValue('minutes', '2')
-    await svc.submit()
+    ];
+    const d = makeDeps({ args, isBuiltIn: false, mode: 'background' });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('hours', '0');
+    svc.setValue('minutes', '2');
+    await svc.submit();
 
     expect(d.dispatchTier2Argument).toHaveBeenCalledWith({
       extensionId: d.extensionId,
       commandId: d.commandId,
       args: { hours: 0, minutes: 2 },
       mode: 'background',
-    })
-  })
+    });
+  });
 
   it('submit() for a Tier 1 (built-in) command routes through executeBuiltInCommand', async () => {
-    const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }]
-    const d = makeDeps({ args, isBuiltIn: true })
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    svc.setValue('q', 'hi')
-    await svc.submit()
+    const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }];
+    const d = makeDeps({ args, isBuiltIn: true });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hi');
+    await svc.submit();
 
     expect(d.executeBuiltInCommand).toHaveBeenCalledWith(d.commandObjectId, {
       arguments: { q: 'hi' },
-    })
-    expect(d.dispatchTier2Argument).not.toHaveBeenCalled()
-  })
+    });
+    expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
+  });
 
   it('submit() persists last non-password values', async () => {
     const args: CommandArgument[] = [
       { name: 'q', type: 'text', required: true },
       { name: 'apiKey', type: 'password' },
-    ]
-    const d = makeDeps({ args, isBuiltIn: false })
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    svc.setValue('q', 'hello')
-    svc.setValue('apiKey', 'sk-secret')
-    await svc.submit()
+    ];
+    const d = makeDeps({ args, isBuiltIn: false });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.setValue('apiKey', 'sk-secret');
+    await svc.submit();
 
-    expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, { q: 'hello' })
-    const persisted = commandArgDefaultsSet.mock.calls[0][2]
-    expect(persisted).not.toHaveProperty('apiKey')
-  })
+    expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, { q: 'hello' });
+    const persisted = commandArgDefaultsSet.mock.calls[0][2];
+    expect(persisted).not.toHaveProperty('apiKey');
+  });
 
   it('submit() does nothing when required fields are missing', async () => {
-    const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }]
-    const d = makeDeps({ args })
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    await svc.submit()
-    expect(d.executeBuiltInCommand).not.toHaveBeenCalled()
-    expect(d.dispatchTier2Argument).not.toHaveBeenCalled()
-    expect(svc.active).not.toBeNull()
-  })
+    const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    await svc.submit();
+    expect(d.executeBuiltInCommand).not.toHaveBeenCalled();
+    expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
+    expect(svc.active).not.toBeNull();
+  });
 
   it('submit() preserves argument-mode when dispatch throws', async () => {
-    const args: CommandArgument[] = [{ name: 'q', type: 'text' }]
-    const d = makeDeps({ args, isBuiltIn: false })
-    d.dispatchTier2Argument.mockRejectedValueOnce(new Error('boom'))
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    svc.setValue('q', 'hi')
-    await expect(svc.submit()).rejects.toThrow('boom')
-    expect(svc.active).not.toBeNull()
-  })
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args, isBuiltIn: false });
+    d.dispatchTier2Argument.mockRejectedValueOnce(new Error('boom'));
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hi');
+    await expect(svc.submit()).rejects.toThrow('boom');
+    expect(svc.active).not.toBeNull();
+  });
 
   it('exit() clears state', async () => {
-    const args: CommandArgument[] = [{ name: 'q', type: 'text' }]
-    const d = makeDeps({ args })
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    svc.exit()
-    expect(svc.active).toBeNull()
-  })
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.exit();
+    expect(svc.active).toBeNull();
+  });
 
   it('submit() drops empty-string values from the arguments payload', async () => {
     const args: CommandArgument[] = [
       { name: 'a', type: 'text', required: true },
       { name: 'b', type: 'text' },
-    ]
-    const d = makeDeps({ args, isBuiltIn: false })
-    const svc = new CommandArgumentsService(d)
-    await svc.enter(d.commandObjectId)
-    svc.setValue('a', 'hi')
+    ];
+    const d = makeDeps({ args, isBuiltIn: false });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('a', 'hi');
     // b is left as empty string
-    await svc.submit()
-    const payload = d.dispatchTier2Argument.mock.calls[0][0]
-    expect(payload.args).toEqual({ a: 'hi' })
-    expect(payload.args).not.toHaveProperty('b')
-  })
+    await svc.submit();
+    const payload = d.dispatchTier2Argument.mock.calls[0][0];
+    expect(payload.args).toEqual({ a: 'hi' });
+    expect(payload.args).not.toHaveProperty('b');
+  });
 
   describe('dynamic command persistence keying', () => {
     function makeDynamicDeps() {
-      const extensionId = 'org.asyar.shortcuts'
-      const dynamicId = 'uuid-1'
-      const commandObjectId = `cmd_${extensionId}_dyn_${dynamicId}`
-      const args: CommandArgument[] = [{ name: 'input', type: 'text' }]
+      const extensionId = 'org.asyar.shortcuts';
+      const dynamicId = 'uuid-1';
+      const commandObjectId = `cmd_${extensionId}_dyn_${dynamicId}`;
+      const args: CommandArgument[] = [{ name: 'input', type: 'text' }];
       return {
         extensionId,
         dynamicId,
@@ -314,7 +330,7 @@ describe('CommandArgumentsService', () => {
         executeBuiltInCommand: vi.fn(),
         dispatchTier2Argument: vi.fn().mockResolvedValue(undefined),
         getManifestByCommandObjectId: vi.fn(async (id: string) => {
-          if (id !== commandObjectId) return null
+          if (id !== commandObjectId) return null;
           return {
             extensionId,
             commandId: dynamicId,
@@ -324,57 +340,55 @@ describe('CommandArgumentsService', () => {
             args,
             mode: 'background' as const,
             isDynamic: true,
-          }
+          };
         }),
-      }
+      };
     }
 
     it('enter() loads defaults using dynamic: prefix in storage key', async () => {
-      const d = makeDynamicDeps()
-      commandArgDefaultsGet.mockResolvedValueOnce({ input: 'last value' })
-      const svc = new CommandArgumentsService(d)
+      const d = makeDynamicDeps();
+      commandArgDefaultsGet.mockResolvedValueOnce({ input: 'last value' });
+      const svc = new CommandArgumentsService(d);
 
-      const ok = await svc.enter(d.commandObjectId)
-      expect(ok).toBe(true)
+      const ok = await svc.enter(d.commandObjectId);
+      expect(ok).toBe(true);
       // Key sent to Rust must namespace the dynamic id.
-      expect(commandArgDefaultsGet).toHaveBeenCalledWith(d.extensionId, `dynamic:${d.dynamicId}`)
+      expect(commandArgDefaultsGet).toHaveBeenCalledWith(d.extensionId, `dynamic:${d.dynamicId}`);
       // Pre-fill from persisted value still applies.
-      expect(svc.active?.values.input).toBe('last value')
-    })
+      expect(svc.active?.values.input).toBe('last value');
+    });
 
     it('submit() persists with the dynamic: storage prefix', async () => {
-      const d = makeDynamicDeps()
-      const svc = new CommandArgumentsService(d)
-      await svc.enter(d.commandObjectId)
-      svc.setValue('input', '85')
-      await svc.submit()
-      expect(commandArgDefaultsSet).toHaveBeenCalledWith(
-        d.extensionId,
-        `dynamic:${d.dynamicId}`,
-        { input: '85' }
-      )
-    })
+      const d = makeDynamicDeps();
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('input', '85');
+      await svc.submit();
+      expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, `dynamic:${d.dynamicId}`, {
+        input: '85',
+      });
+    });
 
     it('submit() dispatches the bare commandId (no dynamic: prefix) so the worker handler matches', async () => {
-      const d = makeDynamicDeps()
-      const svc = new CommandArgumentsService(d)
-      await svc.enter(d.commandObjectId)
-      svc.setValue('input', 'value')
-      await svc.submit()
-      const dispatched = d.dispatchTier2Argument.mock.calls[0][0]
-      expect(dispatched.commandId).toBe(d.dynamicId)
-      expect(dispatched.commandId).not.toContain('dynamic:')
-    })
+      const d = makeDynamicDeps();
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('input', 'value');
+      await svc.submit();
+      const dispatched = d.dispatchTier2Argument.mock.calls[0][0];
+      expect(dispatched.commandId).toBe(d.dynamicId);
+      expect(dispatched.commandId).not.toContain('dynamic:');
+    });
 
     it('manifest commands without isDynamic still use the bare key (regression)', async () => {
-      const args: CommandArgument[] = [{ name: 'q', type: 'text' }]
-      const d = makeDeps({ args })
-      const svc = new CommandArgumentsService(d)
-      await svc.enter(d.commandObjectId)
-      svc.setValue('q', 'hi')
-      await svc.submit()
+      const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('q', 'hi');
+      await svc.submit();
       // Bare commandId, no `dynamic:` prefix
-      expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, { q: 'hi' })
-    })
-  })
-})
+      expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, { q: 'hi' });
+    });
+  });
+});

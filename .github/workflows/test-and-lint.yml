@@ -62,4 +62,4 @@ jobs:
         run: cargo doc --no-deps --document-private-items
         working-directory: asyar-launcher/src-tauri
         env:
-          RUSTDOCFLAGS: "-D warnings"
+          RUSTDOCFLAGS: '-D warnings'

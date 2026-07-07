@@ -1,5 +1,14 @@
 import { fetch } from '@tauri-apps/plugin-http';
-import type { IProviderPlugin, ModelInfo, ProviderConfig, RequestSpec, ChatParams, ChatMessage, LoopMessage, ToolStreamEvent } from '../IProviderPlugin';
+import type {
+  IProviderPlugin,
+  ModelInfo,
+  ProviderConfig,
+  RequestSpec,
+  ChatParams,
+  ChatMessage,
+  LoopMessage,
+  ToolStreamEvent,
+} from '../IProviderPlugin';
 import { buildOpenAIToolsBody } from './_openaiCompat';
 import type { OpenAIToolDescriptor } from './_openaiCompat';
 
@@ -15,7 +24,7 @@ export const ollamaPlugin: IProviderPlugin = {
     try {
       const res = await fetch(`${base}/api/tags`);
       if (!res.ok) return [];
-      const json = await res.json() as { models?: Array<{ name: string }> };
+      const json = (await res.json()) as { models?: Array<{ name: string }> };
       return (json.models ?? []).map((m) => ({ id: m.name, label: m.name }));
     } catch {
       return [];
@@ -26,9 +35,7 @@ export const ollamaPlugin: IProviderPlugin = {
     const base = config.baseUrl?.replace(/\/$/, '') || 'http://localhost:11434';
     const systemPrompt = params.systemPrompt?.trim() ?? '';
     const filtered = messages.filter((m) => m.role !== 'system');
-    const msgs = systemPrompt
-      ? [{ role: 'system', content: systemPrompt }, ...filtered]
-      : filtered;
+    const msgs = systemPrompt ? [{ role: 'system', content: systemPrompt }, ...filtered] : filtered;
     return {
       url: `${base}/api/chat`,
       headers: { 'Content-Type': 'application/json' },
@@ -56,7 +63,9 @@ export const ollamaPlugin: IProviderPlugin = {
           const token = json.message?.content;
           if (token) yield token;
           if (json.done) return;
-        } catch { /* skip malformed lines */ }
+        } catch {
+          /* skip malformed lines */
+        }
       }
     }
   },
@@ -77,7 +86,9 @@ export const ollamaPlugin: IProviderPlugin = {
     };
   },
 
-  async *parseToolStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<ToolStreamEvent> {
+  async *parseToolStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+  ): AsyncGenerator<ToolStreamEvent> {
     const decoder = new TextDecoder();
     let buffer = '';
     let toolCounter = 0;
@@ -92,7 +103,11 @@ export const ollamaPlugin: IProviderPlugin = {
         buffer = buffer.slice(nl + 1);
         if (!line) continue;
         let parsed: any;
-        try { parsed = JSON.parse(line); } catch { continue; }
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue;
+        }
         const message = parsed?.message;
         if (typeof message?.content === 'string' && message.content !== '') {
           yield { type: 'text', text: message.content };

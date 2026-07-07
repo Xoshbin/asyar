@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { actionService, type ApplicationAction } from '../../services/action/actionService.svelte';
+  import {
+    actionService,
+    type ApplicationAction,
+  } from '../../services/action/actionService.svelte';
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import extensionManager from '../../services/extension/extensionManager.svelte';
@@ -15,7 +18,11 @@
   // commits atomically with NSWindow setFrame: — see platform/macos.rs.
   // Windows/Linux fall back to the Svelte-rendered overlay below.
   const IS_MACOS = (() => {
-    try { return platform() === 'macos'; } catch { return false; }
+    try {
+      return platform() === 'macos';
+    } catch {
+      return false;
+    }
   })();
 
   let {
@@ -36,12 +43,17 @@
 
   let availableActions = $derived(actionService.filteredActions);
 
-  let enrichedActionsInternal = $derived(availableActions.map(action => ({
-    ...action,
-    displayCategory: action.category
-      ?? (action.extensionId ? (extensionManager.getManifestById(action.extensionId)?.name ?? action.extensionId) : null)
-      ?? 'Actions'
-  })));
+  let enrichedActionsInternal = $derived(
+    availableActions.map((action) => ({
+      ...action,
+      displayCategory:
+        action.category ??
+        (action.extensionId
+          ? (extensionManager.getManifestById(action.extensionId)?.name ?? action.extensionId)
+          : null) ??
+        'Actions',
+    })),
+  );
 
   // Inside an extension view the bottom-left shows the active extension;
   // diagnostics take precedence when present.
@@ -58,9 +70,15 @@
   }
 
   // Legacy compat functions for LauncherController
-  export function toggleActionList() { onactionListToggled(); }
-  export function closeActionList() { if (isActionListOpen) onactionListClosed(); }
-  export function isOpen(): boolean { return isActionListOpen; }
+  export function toggleActionList() {
+    onactionListToggled();
+  }
+  export function closeActionList() {
+    if (isActionListOpen) onactionListClosed();
+  }
+  export function isOpen(): boolean {
+    return isActionListOpen;
+  }
 
   function handleActionClick() {
     onactionListToggled();
@@ -72,9 +90,11 @@
   changes DOM layout. macOS: bottom bar is cropped away by NSWindow in compact.
   Non-macOS: hidden via CSS since the window really shrinks.
 -->
-<div class="fixed bottom-0 left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-between px-3 bottom-action-bar"
-     class:is-compact={isCompactIdle}
-     style="background-color: var(--bg-secondary-full-opacity);">
+<div
+  class="fixed bottom-0 left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-between px-3 bottom-action-bar"
+  class:is-compact={isCompactIdle}
+  style="background-color: var(--bg-secondary-full-opacity);"
+>
   <div class="flex-1 min-w-0 flex items-center gap-3">
     {#if hasDiagnostic}
       <DiagnosticBar />
@@ -84,7 +104,10 @@
   </div>
 
   <div class="flex items-center gap-3 flex-shrink-0">
-    <PrimaryActionDisplay {selectedItem} activeViewLabel={viewManager.activeViewPrimaryActionLabel} />
+    <PrimaryActionDisplay
+      {selectedItem}
+      activeViewLabel={viewManager.activeViewPrimaryActionLabel}
+    />
 
     {#if selectedItem || viewManager.activeViewPrimaryActionLabel}
       <span aria-hidden="true" class="bottom-bar-separator"></span>
@@ -92,7 +115,7 @@
 
     <BottomBarButton
       label="Actions"
-      keyHint={["⌘", "K"]}
+      keyHint={['⌘', 'K']}
       onclick={handleActionClick}
       ariaHaspopup="true"
       ariaExpanded={isActionListOpen}
@@ -111,24 +134,26 @@
   but layout and structure are hardcoded on each side.
 -->
 {#if !IS_MACOS}
-  <div class="fixed left-0 right-0 z-40 h-10 flex items-center justify-between gap-3 px-3 show-more-bar"
-       class:is-visible={isCompactIdle}
-       style="top: 56px; background-color: var(--bg-secondary-full-opacity);">
+  <div
+    class="fixed left-0 right-0 z-40 h-10 flex items-center justify-between gap-3 px-3 show-more-bar"
+    class:is-visible={isCompactIdle}
+    style="top: 56px; background-color: var(--bg-secondary-full-opacity);"
+  >
     <ShowMoreBarHuds />
-    <BottomBarButton
-      label="Show More"
-      keyHint="↓"
-      onclick={() => onexpand?.()}
-    />
+    <BottomBarButton label="Show More" keyHint="↓" onclick={() => onexpand?.()} />
   </div>
 {/if}
 
 <style>
-  :global(html:not([data-platform="macos"])) .bottom-action-bar.is-compact {
+  :global(html:not([data-platform='macos'])) .bottom-action-bar.is-compact {
     display: none;
   }
-  .show-more-bar { visibility: hidden; }
-  .show-more-bar.is-visible { visibility: visible; }
+  .show-more-bar {
+    visibility: hidden;
+  }
+  .show-more-bar.is-visible {
+    visibility: visible;
+  }
 
   /* Thin vertical divider between primary action and Actions cluster. */
   .bottom-bar-separator {

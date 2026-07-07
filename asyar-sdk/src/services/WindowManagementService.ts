@@ -1,14 +1,14 @@
-import { BaseServiceProxy } from './BaseServiceProxy'
+import { BaseServiceProxy } from './BaseServiceProxy';
 
 export interface WindowBounds {
   /** Logical pixels from the left edge of the monitor. */
-  x: number
+  x: number;
   /** Logical pixels from the top edge of the monitor. */
-  y: number
+  y: number;
   /** Logical width in pixels. */
-  width: number
+  width: number;
   /** Logical height in pixels. */
-  height: number
+  height: number;
 }
 
 export interface IWindowManagementService {
@@ -25,7 +25,7 @@ export interface IWindowManagementService {
    *
    * **Linux (X11):** Requires `xdotool` to be installed. Not supported on Wayland.
    */
-  getWindowBounds(): Promise<WindowBounds>
+  getWindowBounds(): Promise<WindowBounds>;
 
   /**
    * Updates the position and/or size of the frontmost OS application window.
@@ -33,7 +33,7 @@ export interface IWindowManagementService {
    *
    * Requires `window:manage` permission.
    */
-  setWindowBounds(update: Partial<WindowBounds>): Promise<void>
+  setWindowBounds(update: Partial<WindowBounds>): Promise<void>;
 
   /**
    * Toggles the fullscreen state of the frontmost OS application window.
@@ -42,21 +42,21 @@ export interface IWindowManagementService {
    *
    * Requires `window:manage` permission.
    */
-  setFullscreen(enable: boolean): Promise<void>
+  setFullscreen(enable: boolean): Promise<void>;
 
   /**
    * Returns a list of all available monitors and their logical bounds.
    *
    * Requires `window:manage` permission.
    */
-  getMonitors(): Promise<WindowBounds[]>
+  getMonitors(): Promise<WindowBounds[]>;
 
   /**
    * Applies a preset layout to the frontmost OS application window relative to the monitor it is on.
    *
    * Requires `window:manage` permission.
    */
-  applyPreset(presetId: string): Promise<void>
+  applyPreset(presetId: string): Promise<void>;
 }
 
 export class WindowManagementServiceProxy
@@ -64,7 +64,7 @@ export class WindowManagementServiceProxy
   implements IWindowManagementService
 {
   async getWindowBounds(): Promise<WindowBounds> {
-    return this.broker.invoke('window:getWindowBounds')
+    return this.broker.invoke('window:getWindowBounds');
   }
 
   async setWindowBounds(update: Partial<WindowBounds>): Promise<void> {
@@ -73,18 +73,18 @@ export class WindowManagementServiceProxy
       y: update.y,
       width: update.width,
       height: update.height,
-    })
+    });
   }
 
   async setFullscreen(enable: boolean): Promise<void> {
-    return this.broker.invoke('window:setFullscreen', { enable })
+    return this.broker.invoke('window:setFullscreen', { enable });
   }
 
   async getMonitors(): Promise<WindowBounds[]> {
-    return this.broker.invoke('window:getMonitors')
+    return this.broker.invoke('window:getMonitors');
   }
 
   async applyPreset(presetId: string): Promise<void> {
-    return this.broker.invoke('window:applyPreset', { presetId })
+    return this.broker.invoke('window:applyPreset', { presetId });
   }
 }

@@ -114,18 +114,29 @@
     >
       <div class="p-6">
         {#if stage === 'passphrase' || stage === 'submitting'}
-          <h2 id="enrol-title" class="dialog-title">
-            Set up encrypted sync
-          </h2>
+          <h2 id="enrol-title" class="dialog-title">Set up encrypted sync</h2>
           <p class="dialog-body">
-            Choose a passphrase. You'll need this on every other device. Asyar cannot reset it for you.
+            Choose a passphrase. You'll need this on every other device. Asyar cannot reset it for
+            you.
           </p>
           <div class="flex flex-col gap-3">
-            <Input type="password" placeholder="Passphrase (12+ characters)" bind:value={pass1} bind:ref={pass1Input} maxlength={256} />
-            <Input type="password" placeholder="Confirm passphrase" bind:value={pass2} maxlength={256} />
+            <Input
+              type="password"
+              placeholder="Passphrase (12+ characters)"
+              bind:value={pass1}
+              bind:ref={pass1Input}
+              maxlength={256}
+            />
+            <Input
+              type="password"
+              placeholder="Confirm passphrase"
+              bind:value={pass2}
+              maxlength={256}
+            />
             {#if pass1.length > 0}
               <p class="text-caption" class:error={!strength.accepted}>
-                Strength {strength.score}/4{#if strength.reason} — {strength.reason}{/if}
+                Strength {strength.score}/4{#if strength.reason}
+                  — {strength.reason}{/if}
               </p>
             {/if}
             {#if pass2.length > 0 && !confirmsMatch}
@@ -142,12 +153,10 @@
             </Button>
           </div>
         {:else if stage === 'phrase'}
-          <h2 id="enrol-title" class="dialog-title">
-            Your recovery phrase
-          </h2>
+          <h2 id="enrol-title" class="dialog-title">Your recovery phrase</h2>
           <p class="dialog-body">
-            Save these 24 words somewhere safe — a password manager, encrypted note, or paper.
-            If you forget your passphrase, this is the only way to recover your data.
+            Save these 24 words somewhere safe — a password manager, encrypted note, or paper. If
+            you forget your passphrase, this is the only way to recover your data.
           </p>
           <div class="phrase-blob">{recoveryPhrase}</div>
           <div class="phrase-actions-row">
@@ -174,7 +183,7 @@
     backdrop-filter: blur(8px);
   }
 
-  :global(html[data-platform="linux"]) .dialog-backdrop {
+  :global(html[data-platform='linux']) .dialog-backdrop {
     backdrop-filter: none;
     background: rgba(0, 0, 0, 0.6);
   }

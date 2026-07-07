@@ -55,9 +55,7 @@ describe('registerItem happy path', () => {
   it('sends statusBar:registerItem with the stripped tree + extensionId', () => {
     const { proxy, broker } = makeProxy();
     proxy.registerItem(topLevel());
-    const call = broker.invoke.mock.calls.find(
-      (c: any[]) => c[0] === 'statusBar:registerItem',
-    );
+    const call = broker.invoke.mock.calls.find((c: any[]) => c[0] === 'statusBar:registerItem');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({
       item: expect.objectContaining({
@@ -80,9 +78,7 @@ describe('registerItem happy path', () => {
         ],
       }),
     );
-    const call = broker.invoke.mock.calls.find(
-      (c: any[]) => c[0] === 'statusBar:registerItem',
-    );
+    const call = broker.invoke.mock.calls.find((c: any[]) => c[0] === 'statusBar:registerItem');
     expect(call).toBeDefined();
     const submenu = (call![1].item as any).submenu;
     expect(submenu).toHaveLength(3);
@@ -100,9 +96,7 @@ describe('registerItem happy path', () => {
         submenu: [{ id: 'sub', text: 'Sub', onClick }],
       }),
     );
-    const call = broker.invoke.mock.calls.find(
-      (c: any[]) => c[0] === 'statusBar:registerItem',
-    );
+    const call = broker.invoke.mock.calls.find((c: any[]) => c[0] === 'statusBar:registerItem');
     const item = call![1].item as any;
     expect(item).not.toHaveProperty('onClick');
     expect(item.submenu[0]).not.toHaveProperty('onClick');
@@ -117,9 +111,7 @@ describe('registerItem validation (client-side)', () => {
     expect(() => proxy.registerItem(bad)).toThrow(matcher);
     // No IPC sent for rejected input.
     expect(
-      broker.invoke.mock.calls.find(
-        (c: any[]) => c[0] === 'statusBar:registerItem',
-      ),
+      broker.invoke.mock.calls.find((c: any[]) => c[0] === 'statusBar:registerItem'),
     ).toBeUndefined();
   }
 
@@ -216,9 +208,7 @@ describe('unregisterItem', () => {
   it('sends the unregister IPC with extensionId + id', () => {
     const { proxy, broker } = makeProxy();
     proxy.unregisterItem('top');
-    const call = broker.invoke.mock.calls.find(
-      (c: any[]) => c[0] === 'statusBar:unregisterItem',
-    );
+    const call = broker.invoke.mock.calls.find((c: any[]) => c[0] === 'statusBar:unregisterItem');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ extensionId: 'ext.test', id: 'top' });
   });
@@ -228,9 +218,7 @@ describe('updateItem', () => {
   it('re-validates and sends merged tree', () => {
     const { proxy, broker } = makeProxy();
     proxy.updateItem('top', { icon: '🍵', text: 'Tea' });
-    const call = broker.invoke.mock.calls.find(
-      (c: any[]) => c[0] === 'statusBar:updateItem',
-    );
+    const call = broker.invoke.mock.calls.find((c: any[]) => c[0] === 'statusBar:updateItem');
     expect(call).toBeDefined();
     expect(call![1].item).toMatchObject({
       id: 'top',
@@ -305,15 +293,9 @@ describe('click dispatch', () => {
   it('ignores malformed click payloads without throwing', () => {
     const { proxy, broker } = makeProxy();
     proxy.registerItem(topLevel());
-    expect(() =>
-      broker.emit('asyar:event:statusBar:click', undefined),
-    ).not.toThrow();
-    expect(() =>
-      broker.emit('asyar:event:statusBar:click', { itemPath: [] }),
-    ).not.toThrow();
-    expect(() =>
-      broker.emit('asyar:event:statusBar:click', {}),
-    ).not.toThrow();
+    expect(() => broker.emit('asyar:event:statusBar:click', undefined)).not.toThrow();
+    expect(() => broker.emit('asyar:event:statusBar:click', { itemPath: [] })).not.toThrow();
+    expect(() => broker.emit('asyar:event:statusBar:click', {})).not.toThrow();
   });
 
   it('routes top-level click when itemPath has length 1', () => {
@@ -321,8 +303,6 @@ describe('click dispatch', () => {
     const onTop = vi.fn();
     proxy.registerItem(topLevel({ onClick: onTop }));
     broker.emit('asyar:event:statusBar:click', { itemPath: ['top'] });
-    expect(onTop).toHaveBeenCalledWith(
-      expect.objectContaining({ itemPath: ['top'] }),
-    );
+    expect(onTop).toHaveBeenCalledWith(expect.objectContaining({ itemPath: ['top'] }));
   });
 });

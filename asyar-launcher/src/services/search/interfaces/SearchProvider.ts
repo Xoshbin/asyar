@@ -1,5 +1,5 @@
-import type { SearchableItem } from "../types/SearchableItem";
-import type { SearchResult } from "./SearchResult";
+import type { SearchableItem } from '../types/SearchableItem';
+import type { SearchResult } from './SearchResult';
 
 export interface SearchProvider {
   search(query: string): Promise<SearchResult[]>;

@@ -48,9 +48,8 @@ pub struct SelectionRow {
 /// Everything in the table — loaded once at startup into the in-memory
 /// `LearningCache` (never queried on the keystroke path).
 pub fn load_all(conn: &Connection) -> Result<Vec<SelectionRow>> {
-    let mut stmt = conn.prepare(
-        "SELECT query_prefix, file_id, count, last_used FROM file_search_selections",
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT query_prefix, file_id, count, last_used FROM file_search_selections")?;
     let rows = stmt
         .query_map([], |r| {
             Ok(SelectionRow {

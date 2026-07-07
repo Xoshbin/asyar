@@ -1,9 +1,25 @@
 export type JobStatus = 'working' | 'waiting' | 'done' | 'failed';
 
-export interface BuildStep { label: string; detail?: string }
-export interface PendingQuestion { questionId: string; prompt: string; inputKind: 'text' | 'confirm' | 'secret'; placeholder?: string }
-export interface BuildResult { extensionId: string; path: string; smokeSummary: string }
-export interface BuildFailure { step: string; error: string; log: string }
+export interface BuildStep {
+  label: string;
+  detail?: string;
+}
+export interface PendingQuestion {
+  questionId: string;
+  prompt: string;
+  inputKind: 'text' | 'confirm' | 'secret';
+  placeholder?: string;
+}
+export interface BuildResult {
+  extensionId: string;
+  path: string;
+  smokeSummary: string;
+}
+export interface BuildFailure {
+  step: string;
+  error: string;
+  log: string;
+}
 
 export interface BuildJob {
   prompt: string;
@@ -26,7 +42,15 @@ class BuildJobStore {
   }
 
   start(prompt: string, dir: string) {
-    this.job = { prompt, dir, status: 'working', steps: [], pendingQuestion: null, result: null, failure: null };
+    this.job = {
+      prompt,
+      dir,
+      status: 'working',
+      steps: [],
+      pendingQuestion: null,
+      result: null,
+      failure: null,
+    };
   }
 
   appendStep(step: BuildStep) {

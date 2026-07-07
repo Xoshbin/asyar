@@ -1,8 +1,8 @@
-import { logService } from "../log/logService";
-import { diagnosticsService } from "../diagnostics/diagnosticsService.svelte";
-import type { SearchResult } from "./interfaces/SearchResult";
-import type { SearchableItem } from "./types/SearchableItem";
-import * as commands from "../../lib/ipc/commands";
+import { logService } from '../log/logService';
+import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import type { SearchResult } from './interfaces/SearchResult';
+import type { SearchableItem } from './types/SearchableItem';
+import * as commands from '../../lib/ipc/commands';
 
 export class SearchService {
   async performSearch(query: string): Promise<SearchResult[]> {
@@ -29,9 +29,7 @@ export class SearchService {
    * Handles updates automatically (Rust's index_item deletes then adds).
    */
   async indexItem(item: SearchableItem): Promise<void> {
-    logService.debug(
-      `Indexing item category: ${item.category}, name: ${item.name}`
-    );
+    logService.debug(`Indexing item category: ${item.category}, name: ${item.name}`);
     const ok = await commands.indexItem(item);
     if (!ok) {
       logService.error(`Failed indexing item ${item.name}`);
@@ -92,13 +90,9 @@ export class SearchService {
   /**
    * Gets all indexed object IDs, optionally filtering by prefix.
    */
-  async getIndexedObjectIds(prefix?: "app_" | "cmd_"): Promise<Set<string>> {
+  async getIndexedObjectIds(prefix?: 'app_' | 'cmd_'): Promise<Set<string>> {
     try {
-      logService.debug(
-        `Fetching indexed object IDs ${
-          prefix ? `with prefix "${prefix}"` : ""
-        }...`
-      );
+      logService.debug(`Fetching indexed object IDs ${prefix ? `with prefix "${prefix}"` : ''}...`);
       const allIndexedIds = await commands.getIndexedObjectIds();
       if (allIndexedIds === null) {
         // commands.getIndexedObjectIds already reports its own diagnostic
@@ -115,9 +109,7 @@ export class SearchService {
           filteredIds.add(id);
         }
       });
-      logService.debug(
-        `Found ${filteredIds.size} IDs with prefix "${prefix}".`
-      );
+      logService.debug(`Found ${filteredIds.size} IDs with prefix "${prefix}".`);
       return filteredIds;
     } catch (error) {
       logService.error(`Failed to get indexed object IDs: ${error}`);
@@ -134,7 +126,7 @@ export class SearchService {
   }
 
   async resetIndex(): Promise<void> {
-    logService.info("Requesting search index reset...");
+    logService.info('Requesting search index reset...');
     const ok = await commands.resetSearchIndex();
     if (!ok) {
       logService.error('Failed to reset search index');
@@ -147,7 +139,7 @@ export class SearchService {
       });
       return;
     }
-    logService.info("Search index reset successful.");
+    logService.info('Search index reset successful.');
   }
 
   /**

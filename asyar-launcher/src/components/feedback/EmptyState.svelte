@@ -3,7 +3,7 @@
 
   let {
     icon,
-    message = "No items found",
+    message = 'No items found',
     description,
     children,
   }: {

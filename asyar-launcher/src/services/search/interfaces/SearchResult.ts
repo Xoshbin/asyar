@@ -6,11 +6,11 @@ import type { SearchResult as SearchResultBase } from '../../../bindings';
  * Base fields stay in sync with Rust automatically via specta.
  */
 export interface SearchResult extends Omit<SearchResultBase, 'type'> {
-  type: "application" | "command";
+  type: 'application' | 'command';
   // Frontend-only fields (not in Rust struct):
   action?: string | (() => unknown);
   subtitle?: string;
   description?: string;
   category?: string;
-  style?: "default" | "large";
+  style?: 'default' | 'large';
 }

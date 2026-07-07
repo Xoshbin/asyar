@@ -1,5 +1,5 @@
-import { logService } from "../../log/logService";
-import type { ClipboardHistoryItem } from "asyar-sdk/contracts";
+import { logService } from '../../log/logService';
+import type { ClipboardHistoryItem } from 'asyar-sdk/contracts';
 import {
   clipboardListInitial,
   clipboardListOlder,
@@ -14,11 +14,10 @@ import {
   type ClipboardCursor,
   type ClipboardDeleteResult,
   type ClipboardClearResult,
-} from "../../../lib/ipc/commands";
+} from '../../../lib/ipc/commands';
 
 export type ClipboardStoreChangeEvent =
-  | { type: 'upsert'; itemId: string }
-  | { type: 'delete'; itemId: string };
+  { type: 'upsert'; itemId: string } | { type: 'delete'; itemId: string };
 
 type ListItem = StoredClipboardListItem;
 
@@ -33,13 +32,16 @@ export class ClipboardHistoryStoreClass {
 
   subscribe(callback: (event: ClipboardStoreChangeEvent) => void): () => void {
     this.#subscribers.add(callback);
-    return () => { this.#subscribers.delete(callback); };
+    return () => {
+      this.#subscribers.delete(callback);
+    };
   }
 
   #notify(event: ClipboardStoreChangeEvent): void {
     this.#subscribers.forEach((cb) => {
-      try { cb(event); }
-      catch (err) {
+      try {
+        cb(event);
+      } catch (err) {
         logService.warn(`clipboardHistoryStore subscriber threw: ${err}`);
       }
     });
@@ -162,7 +164,7 @@ export class ClipboardHistoryStoreClass {
 
     if (this.searchResults) {
       this.searchResults = this.searchResults.map((i) =>
-        i.id === id ? { ...i, favorite: newFavorite } : i
+        i.id === id ? { ...i, favorite: newFavorite } : i,
       );
     }
     this.#notify({ type: 'upsert', itemId: id });

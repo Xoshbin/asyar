@@ -5,17 +5,14 @@ export interface ICommandService {
     commandId: string,
     handler: CommandHandler,
     extensionId: string,
-    actions?: Omit<ExtensionAction, 'extensionId'>[] // Add actions from manifest
+    actions?: Omit<ExtensionAction, 'extensionId'>[], // Add actions from manifest
   ): void;
   unregisterCommand(commandId: string): void;
   executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown>;
   getCommands(): string[];
   getCommandsForExtension(extensionId: string): string[];
   clearCommandsForExtension(extensionId: string): void;
-  updateCommandMetadata(
-    commandId: string,
-    metadata: { subtitle?: string }
-  ): Promise<void>;
+  updateCommandMetadata(commandId: string, metadata: { subtitle?: string }): Promise<void>;
   /**
    * Replace this extension's dynamic command list with the given set.
    * Worker-only — the proxy method asserts `__ASYAR_ROLE__ === 'worker'`

@@ -1,9 +1,9 @@
-import type { ExtensionContext } from "./ExtensionContext";
-import type { Extension, ExtensionManifest, ExtensionResult } from "./types/ExtensionType";
-import type { ExtensionAction } from "./types/ActionType";
-import type { CommandHandler } from "./types/CommandType";
-import { MessageBroker, messageBroker } from "./ipc/MessageBroker";
-import type { IPCMessage, IPCResponse } from "./ipc/MessageBroker";
+import type { ExtensionContext } from './ExtensionContext';
+import type { Extension, ExtensionManifest, ExtensionResult } from './types/ExtensionType';
+import type { ExtensionAction } from './types/ActionType';
+import type { CommandHandler } from './types/CommandType';
+import { MessageBroker, messageBroker } from './ipc/MessageBroker';
+import type { IPCMessage, IPCResponse } from './ipc/MessageBroker';
 
 // Bridge-internal trace logs route through `console.*` directly, never through
 // `LogServiceProxy`. The bridge is a singleton constructed at module load —
@@ -18,10 +18,8 @@ export class ExtensionBridge {
   private extensionManifests: Map<string, ExtensionManifest> = new Map();
   private extensionImplementations: Map<string, Extension> = new Map();
   private actionRegistry: Map<string, ExtensionAction> = new Map();
-  private commandRegistry: Map<
-    string,
-    { handler: CommandHandler; extensionId: string }
-  > = new Map();
+  private commandRegistry: Map<string, { handler: CommandHandler; extensionId: string }> =
+    new Map();
   private preferences: Map<
     string,
     { extension: Record<string, unknown>; commands: Record<string, Record<string, unknown>> }
@@ -59,16 +57,19 @@ export class ExtensionBridge {
     };
     const forward = (event: KeyboardEvent) => {
       event.preventDefault();
-      window.parent.postMessage({
-        type: 'asyar:extension:keydown',
-        payload: {
-          key: event.key,
-          metaKey: event.metaKey,
-          ctrlKey: event.ctrlKey,
-          shiftKey: event.shiftKey,
-          altKey: event.altKey,
+      window.parent.postMessage(
+        {
+          type: 'asyar:extension:keydown',
+          payload: {
+            key: event.key,
+            metaKey: event.metaKey,
+            ctrlKey: event.ctrlKey,
+            shiftKey: event.shiftKey,
+            altKey: event.altKey,
+          },
         },
-      }, '*');
+        '*',
+      );
     };
     window.addEventListener('keydown', (event) => {
       const isModifierCombo = event.metaKey || event.ctrlKey;
@@ -83,8 +84,6 @@ export class ExtensionBridge {
     });
   }
 
-
-
   private setupIPCListeners() {
     // Listen for events from main app
     this.broker.on('asyar:invoke:command', async (raw: unknown) => {
@@ -94,57 +93,54 @@ export class ExtensionBridge {
         this.broker.send({
           type: 'asyar:response',
           messageId: data.messageId,
-          result
+          result,
         } as IPCResponse);
       } catch (err: unknown) {
         this.broker.send({
           type: 'asyar:response',
           messageId: data.messageId,
-          error: err instanceof Error ? err.message : String(err)
+          error: err instanceof Error ? err.message : String(err),
         } as IPCResponse);
       }
     });
-    
+
     // The broker routes anything under `asyar:event:*` straight to registered
     // listeners with the payload unwrapped (see MessageBroker.handleMessage).
     // That's why the message type uses the `:event:` namespace here instead
     // of a plain `asyar:preferences:set-all` — a non-event message would be
     // filtered out and the listener would silently never fire.
-    this.broker.on(
-      'asyar:event:preferences:set-all',
-      (raw: unknown) => {
-        const payload = raw as {
-          extension?: Record<string, unknown>;
-          commands?: Record<string, Record<string, unknown>>;
-        };
-        const bundle = {
-          extension: payload?.extension ?? {},
-          commands: payload?.commands ?? {},
-        };
-        // Iterate `activeContexts`, not `extensionManifests`. Tier 2 iframes
-        // bootstrap via `new ExtensionContext()` directly — they never call
-        // `bridge.registerManifest`, so `extensionManifests` is empty. But
-        // `activeContexts` is populated by the self-register path in
-        // `ExtensionContext.setExtensionId`, so that's where the live
-        // contexts live in both Tier 1 and Tier 2.
-        //
-        // Also store the bundle in `this.preferences` so any context that
-        // registers AFTER this message arrives can pick it up via the
-        // stash-and-drain path in `registerActiveContext`.
-        for (const [id, context] of this.activeContexts) {
-          this.preferences.set(id, bundle);
-          context.setPreferences(bundle);
-        }
-
-        // Race guard: if the reply arrived before any context registered
-        // (the iframe posts `asyar:extension:loaded` asynchronously), stash
-        // under a sentinel key. The next `registerActiveContext` call will
-        // drain it into the real extension id.
-        if (this.activeContexts.size === 0) {
-          this.preferences.set('__pending__', bundle);
-        }
+    this.broker.on('asyar:event:preferences:set-all', (raw: unknown) => {
+      const payload = raw as {
+        extension?: Record<string, unknown>;
+        commands?: Record<string, Record<string, unknown>>;
+      };
+      const bundle = {
+        extension: payload?.extension ?? {},
+        commands: payload?.commands ?? {},
+      };
+      // Iterate `activeContexts`, not `extensionManifests`. Tier 2 iframes
+      // bootstrap via `new ExtensionContext()` directly — they never call
+      // `bridge.registerManifest`, so `extensionManifests` is empty. But
+      // `activeContexts` is populated by the self-register path in
+      // `ExtensionContext.setExtensionId`, so that's where the live
+      // contexts live in both Tier 1 and Tier 2.
+      //
+      // Also store the bundle in `this.preferences` so any context that
+      // registers AFTER this message arrives can pick it up via the
+      // stash-and-drain path in `registerActiveContext`.
+      for (const [id, context] of this.activeContexts) {
+        this.preferences.set(id, bundle);
+        context.setPreferences(bundle);
       }
-    );
+
+      // Race guard: if the reply arrived before any context registered
+      // (the iframe posts `asyar:extension:loaded` asynchronously), stash
+      // under a sentinel key. The next `registerActiveContext` call will
+      // drain it into the real extension id.
+      if (this.activeContexts.size === 0) {
+        this.preferences.set('__pending__', bundle);
+      }
+    });
 
     // Listen for search requests from the host
     if (typeof window !== 'undefined') {
@@ -174,10 +170,9 @@ export class ExtensionBridge {
           // Each Tier 2 iframe has exactly one extension
           for (const extension of this.extensionImplementations.values()) {
             if (typeof extension.executeCommand === 'function') {
-              Promise.resolve(extension.executeCommand(commandId, args))
-                .catch((err: Error) =>
-                  console.error('[asyar-sdk] command execute failed:', err),
-                );
+              Promise.resolve(extension.executeCommand(commandId, args)).catch((err: Error) =>
+                console.error('[asyar-sdk] command execute failed:', err),
+              );
             }
           }
           return;
@@ -194,7 +189,7 @@ export class ExtensionBridge {
           let results: Omit<ExtensionResult, 'action'>[] = [];
           for (const extension of this.extensionImplementations.values()) {
             if (extension.search) {
-              const extResults = await extension.search(query) ?? [];
+              const extResults = (await extension.search(query)) ?? [];
               results = [
                 ...results,
                 ...extResults.map((r) => ({
@@ -220,7 +215,7 @@ export class ExtensionBridge {
               messageId,
               result: results,
             },
-            '*'
+            '*',
           );
         } catch (error: unknown) {
           window.parent.postMessage(
@@ -229,7 +224,7 @@ export class ExtensionBridge {
               messageId,
               error: error instanceof Error ? error.message : String(error),
             },
-            '*'
+            '*',
           );
         }
       });
@@ -239,7 +234,9 @@ export class ExtensionBridge {
   // Register a service implementation from the base app
   registerService(serviceType: string, _implementation: unknown): void {
     // Deprecated in new architecture, services are proxied
-    console.warn(`[asyar-sdk] registerService is deprecated. Service ${serviceType} is now proxied.`);
+    console.warn(
+      `[asyar-sdk] registerService is deprecated. Service ${serviceType} is now proxied.`,
+    );
   }
 
   // Component proxying has been removed in the new architecture.
@@ -272,7 +269,11 @@ export class ExtensionBridge {
    * asyar:action:execute message from the host can find it.
    * No IPC message sent — the host already knows about the action from the manifest.
    */
-  registerActionHandler(extensionId: string, actionId: string, handler: (payload?: unknown) => Promise<void> | void): void {
+  registerActionHandler(
+    extensionId: string,
+    actionId: string,
+    handler: (payload?: unknown) => Promise<void> | void,
+  ): void {
     const fullActionId = `act_${extensionId}_${actionId}`;
     this.actionRegistry.set(fullActionId, {
       id: fullActionId,
@@ -307,9 +308,7 @@ export class ExtensionBridge {
     // context sees the latest snapshot immediately. The `__pending__`
     // sentinel key is used when the message arrives before any context
     // is registered — we move it to the real id and clear the sentinel.
-    const existing =
-      this.preferences.get(extensionId) ??
-      this.preferences.get('__pending__');
+    const existing = this.preferences.get(extensionId) ?? this.preferences.get('__pending__');
     if (existing) {
       context.setPreferences(existing);
       this.preferences.set(extensionId, existing);
@@ -325,7 +324,10 @@ export class ExtensionBridge {
    */
   setPreferences(
     extensionId: string,
-    bundle: { extension: Record<string, unknown>; commands: Record<string, Record<string, unknown>> }
+    bundle: {
+      extension: Record<string, unknown>;
+      commands: Record<string, Record<string, unknown>>;
+    },
   ): void {
     this.preferences.set(extensionId, bundle);
   }
@@ -333,13 +335,17 @@ export class ExtensionBridge {
   // Register an extension manifest
   registerManifest(manifest: ExtensionManifest): void {
     this.extensionManifests.set(manifest.id, manifest);
-    console.debug(`[asyar-sdk] Registered extension manifest: ${manifest.id} (${manifest.name} v${manifest.version})`);
+    console.debug(
+      `[asyar-sdk] Registered extension manifest: ${manifest.id} (${manifest.name} v${manifest.version})`,
+    );
   }
 
   // Register extension implementation
   registerExtensionImplementation(id: string, extension: Extension): void {
     if (!this.extensionManifests.has(id)) {
-      console.error(`[asyar-sdk] Cannot register extension implementation: Manifest for ${id} not found`);
+      console.error(
+        `[asyar-sdk] Cannot register extension implementation: Manifest for ${id} not found`,
+      );
       return;
     }
 
@@ -361,7 +367,7 @@ export class ExtensionBridge {
       // pulls in) off the worker entry's static import graph. Worker
       // extensions that never call initializeExtensions() do not load
       // this module at runtime — preserves the worker bundle-size budget.
-      const { ExtensionContext } = await import("./ExtensionContext");
+      const { ExtensionContext } = await import('./ExtensionContext');
       const context = new ExtensionContext();
       // `setExtensionId` self-registers the context with the bridge and
       // drains any stashed preferences bundle (either under `manifest.id`
@@ -422,11 +428,7 @@ export class ExtensionBridge {
   }
 
   // Register a command from an extension
-  registerCommand(
-    commandId: string,
-    handler: CommandHandler,
-    extensionId: string
-  ): void {
+  registerCommand(commandId: string, handler: CommandHandler, extensionId: string): void {
     this.commandRegistry.set(commandId, { handler, extensionId });
     console.debug(`[asyar-sdk] Registered command: ${commandId}`);
   }
@@ -437,10 +439,7 @@ export class ExtensionBridge {
   }
 
   // Execute a command
-  async executeCommand(
-    commandId: string,
-    args?: Record<string, unknown>
-  ): Promise<unknown> {
+  async executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
     const command = this.commandRegistry.get(commandId);
     if (!command) {
       throw new Error(`Command not found: ${commandId}`);

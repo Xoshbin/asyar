@@ -1,5 +1,5 @@
-import { logService } from "../log/logService";
-import * as commands from "../../lib/ipc/commands";
+import { logService } from '../log/logService';
+import * as commands from '../../lib/ipc/commands';
 import {
   contributeShortcodes,
   revokeShortcodes,
@@ -19,16 +19,16 @@ import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
 
 const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
-  'search_items': (args) => commands.searchItems(args?.query ?? ''),
-  'check_path_exists': (args) => commands.checkPathExists(args?.path ?? ''),
-  'list_applications': () => commands.listApplications(),
-  'get_extensions_dir': () => commands.getExtensionsDir(),
-  'list_installed_extensions': () => commands.listInstalledExtensions(),
-  'get_builtin_extensions_path': () => commands.getBuiltinFeaturesPath(),
-  'get_indexed_object_ids': () => commands.getIndexedObjectIds(),
-  'get_autostart_status': () => commands.getAutostartStatus(),
-  'get_persisted_shortcut': () => commands.getPersistedShortcut(),
-  'check_snippet_permission': () => commands.checkSnippetPermission(),
+  search_items: (args) => commands.searchItems(args?.query ?? ''),
+  check_path_exists: (args) => commands.checkPathExists(args?.path ?? ''),
+  list_applications: () => commands.listApplications(),
+  get_extensions_dir: () => commands.getExtensionsDir(),
+  list_installed_extensions: () => commands.listInstalledExtensions(),
+  get_builtin_extensions_path: () => commands.getBuiltinFeaturesPath(),
+  get_indexed_object_ids: () => commands.getIndexedObjectIds(),
+  get_autostart_status: () => commands.getAutostartStatus(),
+  get_persisted_shortcut: () => commands.getPersistedShortcut(),
+  check_snippet_permission: () => commands.checkSnippetPermission(),
 };
 
 // Kept for documentation — actual dispatch uses EXTENSION_INVOKE_DISPATCH
@@ -53,7 +53,26 @@ class HandledDispatchError extends Error {}
  * its first argument instead of the extension ID — a silent, hard-to-debug bug.
  */
 export const INJECTS_EXTENSION_ID = new Set<Namespace>([
-  'storage', 'ai', 'oauth', 'shell', 'interop', 'cache', 'preferences', 'notifications', 'power', 'process', 'systemEvents', 'appEvents', 'timers', 'fsWatcher', 'state', 'searchBar', 'diagnostics', 'onboarding', 'runs', 'tools',
+  'storage',
+  'ai',
+  'oauth',
+  'shell',
+  'interop',
+  'cache',
+  'preferences',
+  'notifications',
+  'power',
+  'process',
+  'systemEvents',
+  'appEvents',
+  'timers',
+  'fsWatcher',
+  'state',
+  'searchBar',
+  'diagnostics',
+  'onboarding',
+  'runs',
+  'tools',
 ] as const satisfies readonly Namespace[]);
 
 /**
@@ -62,7 +81,8 @@ export const INJECTS_EXTENSION_ID = new Set<Namespace>([
  * the service needs to know who triggered the request regardless of context.
  */
 export const ALWAYS_INJECTS_CALLER_ID = new Set<Namespace>([
-  'network', 'applicationIndex',
+  'network',
+  'applicationIndex',
 ] as const satisfies readonly Namespace[]);
 
 export class ExtensionIpcRouter {
@@ -70,7 +90,7 @@ export class ExtensionIpcRouter {
     private serviceRegistry: ServiceRegistry,
     private getManifestById: (id: string) => ExtendedManifest | undefined,
     private goBack: () => void,
-    private saveSearchIndex: () => void
+    private saveSearchIndex: () => void,
   ) {}
 
   public setup(): void {
@@ -78,7 +98,7 @@ export class ExtensionIpcRouter {
 
     window.addEventListener('message', async (event: MessageEvent) => {
       extensionIframeManager.handleSearchResponse(event);
-      
+
       const data = event.data;
       const { type, payload, messageId, extensionId: msgExtensionId } = data;
       if (!type || !type.startsWith('asyar:')) return;
@@ -90,7 +110,7 @@ export class ExtensionIpcRouter {
         commands.hideWindow();
         return;
       }
-      
+
       // Ignore responses sent to extensions from the main process to prevent infinite loops
       if (type === 'asyar:response') return;
 
@@ -99,7 +119,11 @@ export class ExtensionIpcRouter {
       const isDevActive = import.meta.env.DEV || developerSettingsService.isDeveloperMode;
       const isTracingEnabled = import.meta.env.DEV || developerSettingsService.tracing;
 
-      if (isDevActive && isTracingEnabled && (type === 'asyar:dev:rpc-log' || type === 'asyar:dev:ipc-log')) {
+      if (
+        isDevActive &&
+        isTracingEnabled &&
+        (type === 'asyar:dev:rpc-log' || type === 'asyar:dev:ipc-log')
+      ) {
         const devExtensionId = payload?.extensionId || msgExtensionId;
         if (devExtensionId) {
           void import('../dev/inspectorStore.svelte').then(({ inspectorStore }) => {
@@ -122,7 +146,10 @@ export class ExtensionIpcRouter {
         if (faultExtensionId) {
           void diagnosticsService.report({
             source: 'extension',
-            kind: payload?.kind === 'iframe_unhandled_rejection' ? 'iframe_unhandled_rejection' : 'iframe_uncaught',
+            kind:
+              payload?.kind === 'iframe_unhandled_rejection'
+                ? 'iframe_unhandled_rejection'
+                : 'iframe_uncaught',
             severity: 'error',
             retryable: false,
             context: { extensionId: faultExtensionId, role: faultRole ?? 'unknown' },
@@ -139,19 +166,26 @@ export class ExtensionIpcRouter {
       // Mandatory Validation only for external iframe contexts
       if (!isPrivilegedHostContext) {
         if (!extensionId) {
-          logService.error(`[Main] Rejected IPC message: No extensionId provided by untrusted frame for type ${type}`);
+          logService.error(
+            `[Main] Rejected IPC message: No extensionId provided by untrusted frame for type ${type}`,
+          );
           return;
         }
 
         const manifest = this.getManifestById(extensionId);
         if (!manifest) {
-          logService.error(`[Main] Unauthorized: No registered manifest found for iframe extension ${extensionId}`);
+          logService.error(
+            `[Main] Unauthorized: No registered manifest found for iframe extension ${extensionId}`,
+          );
           const unknownError = `Unknown extension: ${extensionId}`;
-          (event.source as Window)?.postMessage({
-            type: 'asyar:response',
-            messageId,
-            error: unknownError
-          }, '*');
+          (event.source as Window)?.postMessage(
+            {
+              type: 'asyar:response',
+              messageId,
+              error: unknownError,
+            },
+            '*',
+          );
           void diagnosticsService.report({
             source: 'extension',
             kind: classifyProxyError(type, unknownError),
@@ -168,13 +202,18 @@ export class ExtensionIpcRouter {
         // or silently let the call through.
         const permissionResult = await commands.checkExtensionPermission(extensionId, type);
         if (!permissionResult?.allowed) {
-          logService.warn(`[PermissionGate] BLOCKED: ${permissionResult?.reason ?? 'permission check failed'}`);
+          logService.warn(
+            `[PermissionGate] BLOCKED: ${permissionResult?.reason ?? 'permission check failed'}`,
+          );
           const permError = `Permission denied: "${permissionResult?.requiredPermission ?? type}" is required but not declared in manifest.json`;
-          (event.source as Window)?.postMessage({
-            type: 'asyar:response',
-            messageId,
-            error: permError
-          }, '*');
+          (event.source as Window)?.postMessage(
+            {
+              type: 'asyar:response',
+              messageId,
+              error: permError,
+            },
+            '*',
+          );
           void diagnosticsService.report({
             source: 'extension',
             kind: classifyProxyError(type, permError),
@@ -187,7 +226,9 @@ export class ExtensionIpcRouter {
         }
       }
 
-      logService.debug(`[Main] Received IPC message${extensionId ? ` from ${extensionId}` : ' from Privileged Host Context'}: ${type}`);
+      logService.debug(
+        `[Main] Received IPC message${extensionId ? ` from ${extensionId}` : ' from Privileged Host Context'}: ${type}`,
+      );
 
       try {
         let result: any;
@@ -216,13 +257,16 @@ export class ExtensionIpcRouter {
           logService.info(`Extension ready: ${extensionId}`);
           if (extensionId) {
             const bundle = await extensionPreferencesService.getEffectivePreferences(extensionId);
-            (event.source as WindowProxy)?.postMessage({
-              type: 'asyar:event:preferences:set-all',
-              payload: {
-                extension: bundle.extension,
-                commands: bundle.commands,
-              }
-            }, '*');
+            (event.source as WindowProxy)?.postMessage(
+              {
+                type: 'asyar:event:preferences:set-all',
+                payload: {
+                  extension: bundle.extension,
+                  commands: bundle.commands,
+                },
+              },
+              '*',
+            );
           }
           return;
         }
@@ -235,13 +279,16 @@ export class ExtensionIpcRouter {
           // never from the payload.
           if (!isPrivilegedHostContext && extensionId) {
             const role = this.findIframeRoleForSource(event.source);
-            const actionId = typeof (payload as { actionId?: unknown })?.actionId === 'string'
-              ? (payload as { actionId: string }).actionId
-              : null;
+            const actionId =
+              typeof (payload as { actionId?: unknown })?.actionId === 'string'
+                ? (payload as { actionId: string }).actionId
+                : null;
             if (role && actionId) {
               const actionsService = this.serviceRegistry.actions as {
                 recordActionHandlerRole?: (
-                  extensionId: string, actionId: string, role: 'view' | 'worker',
+                  extensionId: string,
+                  actionId: string,
+                  role: 'view' | 'worker',
                 ) => void;
               };
               actionsService.recordActionHandlerRole?.(extensionId, actionId, role);
@@ -254,27 +301,38 @@ export class ExtensionIpcRouter {
           const originRole = !isPrivilegedHostContext
             ? this.findIframeRoleForSource(event.source)
             : undefined;
-          result = await this.dispatchApiCall(type, payload, extensionId, isPrivilegedHostContext, originRole);
+          result = await this.dispatchApiCall(
+            type,
+            payload,
+            extensionId,
+            isPrivilegedHostContext,
+            originRole,
+          );
         } else {
-           if (import.meta.env.DEV) {
-              logService.warn(`[IPC] Unhandled message type: ${type}`);
-           }
+          if (import.meta.env.DEV) {
+            logService.warn(`[IPC] Unhandled message type: ${type}`);
+          }
         }
 
-        (event.source as WindowProxy)?.postMessage({
-          type: 'asyar:response',
-          messageId,
-          result
-        }, '*');
-
+        (event.source as WindowProxy)?.postMessage(
+          {
+            type: 'asyar:response',
+            messageId,
+            result,
+          },
+          '*',
+        );
       } catch (error) {
         logService.error(`[Main] IPC handling error for ${extensionId}: ${error}`);
         const catchError = error instanceof Error ? error.message : String(error);
-        (event.source as Window)?.postMessage({
-          type: 'asyar:response',
-          messageId,
-          error: catchError
-        }, '*');
+        (event.source as Window)?.postMessage(
+          {
+            type: 'asyar:response',
+            messageId,
+            error: catchError,
+          },
+          '*',
+        );
         if (!(error instanceof HandledDispatchError)) {
           void diagnosticsService.report({
             source: 'extension',
@@ -319,7 +377,9 @@ export class ExtensionIpcRouter {
    * Tier 2 iframe. Trusted path — the attribute is set by the host when
    * the iframe is created, not by extension code.
    */
-  private findIframeRoleForSource(source: MessageEventSource | null): 'view' | 'worker' | undefined {
+  private findIframeRoleForSource(
+    source: MessageEventSource | null,
+  ): 'view' | 'worker' | undefined {
     if (!source || typeof document === 'undefined') return undefined;
     const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe[data-extension-id]');
     for (const frame of iframes) {
@@ -346,7 +406,9 @@ export class ExtensionIpcRouter {
       const handler = EXTENSION_INVOKE_DISPATCH[payload?.cmd];
       if (!handler) {
         if (!isPrivilegedHostContext) {
-          logService.warn(`[PermissionGate] BLOCKED invoke: iframe extension "${extensionId}" tried to call non-allowlisted command "${payload?.cmd}"`);
+          logService.warn(
+            `[PermissionGate] BLOCKED invoke: iframe extension "${extensionId}" tried to call non-allowlisted command "${payload?.cmd}"`,
+          );
         }
         throw new Error(`Command "${payload?.cmd}" is not available to extensions`);
       }
@@ -403,7 +465,9 @@ export class ExtensionIpcRouter {
     const service = this.serviceRegistry[ns] as Record<string, unknown> | undefined;
     const method = service?.[methodName];
     if (!service || typeof method !== 'function') {
-      logService.warn(`[Main] Dispatch failed for ${type}: Service ${serviceName}.${methodName} not found`);
+      logService.warn(
+        `[Main] Dispatch failed for ${type}: Service ${serviceName}.${methodName} not found`,
+      );
       return undefined;
     }
 
@@ -428,7 +492,10 @@ export class ExtensionIpcRouter {
   }
 }
 
-function classifyProxyError(_method: string, msg: string | undefined): 'permission_denied' | 'rpc_timeout' | 'extension_proxy_error' {
+function classifyProxyError(
+  _method: string,
+  msg: string | undefined,
+): 'permission_denied' | 'rpc_timeout' | 'extension_proxy_error' {
   const m = (msg ?? '').toLowerCase();
   if (m.includes('permission')) return 'permission_denied';
   if (m.includes('timeout')) return 'rpc_timeout';

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock logService before importing (it calls Tauri log plugin at module level)
 vi.mock('../services/log/logService', () => ({
@@ -8,7 +8,7 @@ vi.mock('../services/log/logService', () => ({
     warn: vi.fn(),
     error: vi.fn(),
   },
-}))
+}));
 
 vi.mock('../services/extension/extensionManager.svelte', () => ({
   __esModule: true,
@@ -16,40 +16,40 @@ vi.mock('../services/extension/extensionManager.svelte', () => ({
     getManifestById: vi.fn(),
     handleCommandAction: vi.fn().mockResolvedValue(undefined),
   },
-}))
+}));
 
-import extensionManager from '../services/extension/extensionManager.svelte'
+import extensionManager from '../services/extension/extensionManager.svelte';
 
 vi.mock('../services/application/applicationsService', () => ({
   applicationService: {
     open: vi.fn(),
   },
-}))
+}));
 
 vi.mock('../services/run/runService.svelte', () => ({
   runService: { selectedRunId: null, active: [], recent: [] },
-}))
+}));
 
 vi.mock('../services/extension/viewManager.svelte', () => ({
   viewManager: { navigateToView: vi.fn() },
-}))
+}));
 
 vi.mock('../services/search/searchOrchestrator.svelte', () => ({
   searchOrchestrator: {
     tryExecuteResultAction: vi.fn().mockReturnValue(false),
   },
-}))
+}));
 
 vi.mock('../services/window/windowService', () => ({
   windowService: { hide: vi.fn().mockResolvedValue(undefined) },
-}))
+}));
 
-import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte'
-import { windowService } from '../services/window/windowService'
+import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte';
+import { windowService } from '../services/window/windowService';
 
-import { resolveItemMeta, buildMappedItems } from './searchResultMapper'
-import type { SearchResult } from '../services/search/interfaces/SearchResult'
-import type { Run } from 'asyar-sdk/contracts'
+import { resolveItemMeta, buildMappedItems } from './searchResultMapper';
+import type { SearchResult } from '../services/search/interfaces/SearchResult';
+import type { Run } from 'asyar-sdk/contracts';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -60,109 +60,109 @@ function makeResult(overrides: Partial<SearchResult> = {}): SearchResult {
     type: 'command',
     score: 0.5,
     ...overrides,
-  } as SearchResult
+  } as SearchResult;
 }
 
-const noManifest = (_id: string) => null
+const noManifest = (_id: string) => null;
 
 // ── Icon resolution ───────────────────────────────────────────────────────────
 
 describe('icon resolution', () => {
   it('uses the result icon when provided', () => {
-    const { icon } = resolveItemMeta(makeResult({ icon: '🎯' }), noManifest)
-    expect(icon).toBe('🎯')
-  })
+    const { icon } = resolveItemMeta(makeResult({ icon: '🎯' }), noManifest);
+    expect(icon).toBe('🎯');
+  });
 
   it('falls back to 🖥️ for application type with no icon', () => {
-    const { icon } = resolveItemMeta(makeResult({ type: 'application', icon: undefined }), noManifest)
-    expect(icon).toBe('🖥️')
-  })
+    const { icon } = resolveItemMeta(
+      makeResult({ type: 'application', icon: undefined }),
+      noManifest,
+    );
+    expect(icon).toBe('🖥️');
+  });
 
   it('falls back to ❯_ for command type with no icon', () => {
-    const { icon } = resolveItemMeta(makeResult({ type: 'command', icon: undefined }), noManifest)
-    expect(icon).toBe('❯_')
-  })
+    const { icon } = resolveItemMeta(makeResult({ type: 'command', icon: undefined }), noManifest);
+    expect(icon).toBe('❯_');
+  });
 
   it('falls back to 🧩 for unknown type with no icon', () => {
-    const { icon } = resolveItemMeta(makeResult({ type: undefined, icon: undefined }), noManifest)
-    expect(icon).toBe('🧩')
-  })
+    const { icon } = resolveItemMeta(makeResult({ type: undefined, icon: undefined }), noManifest);
+    expect(icon).toBe('🧩');
+  });
 
   it('does not override a provided icon even for application type', () => {
-    const { icon } = resolveItemMeta(makeResult({ type: 'application', icon: '📦' }), noManifest)
-    expect(icon).toBe('📦')
-  })
-})
+    const { icon } = resolveItemMeta(makeResult({ type: 'application', icon: '📦' }), noManifest);
+    expect(icon).toBe('📦');
+  });
+});
 
 // ── TypeLabel resolution ──────────────────────────────────────────────────────
 
 describe('typeLabel resolution', () => {
   it('capitalizes the type string', () => {
-    const { typeLabel } = resolveItemMeta(makeResult({ type: 'application' }), noManifest)
-    expect(typeLabel).toBe('Application')
-  })
+    const { typeLabel } = resolveItemMeta(makeResult({ type: 'application' }), noManifest);
+    expect(typeLabel).toBe('Application');
+  });
 
   it('uses manifest name for command type when manifest is found', () => {
-    const getManifest = (_id: string) => ({ name: 'My Extension' })
+    const getManifest = (_id: string) => ({ name: 'My Extension' });
     const { typeLabel } = resolveItemMeta(
       makeResult({ type: 'command', extensionId: 'my-ext' }),
       getManifest,
-    )
-    expect(typeLabel).toBe('My Extension')
-  })
+    );
+    expect(typeLabel).toBe('My Extension');
+  });
 
   it('falls back to "Command" when manifest is not found', () => {
     const { typeLabel } = resolveItemMeta(
       makeResult({ type: 'command', extensionId: 'unknown-ext' }),
       noManifest,
-    )
-    expect(typeLabel).toBe('Command')
-  })
+    );
+    expect(typeLabel).toBe('Command');
+  });
 
   it('falls back to "Command" when no extensionId is provided', () => {
     const { typeLabel } = resolveItemMeta(
       makeResult({ type: 'command', extensionId: undefined }),
       noManifest,
-    )
-    expect(typeLabel).toBe('Command')
-  })
+    );
+    expect(typeLabel).toBe('Command');
+  });
 
   it('does not use manifest name for non-command types', () => {
-    const getManifest = (_id: string) => ({ name: 'My Extension' })
+    const getManifest = (_id: string) => ({ name: 'My Extension' });
     const { typeLabel } = resolveItemMeta(
       makeResult({ type: 'application', extensionId: 'my-ext' }),
       getManifest,
-    )
-    expect(typeLabel).toBe('Application')
-  })
+    );
+    expect(typeLabel).toBe('Application');
+  });
 
   it('falls back to "Unknown" when type is falsy (defaults to unknown)', () => {
-    const { typeLabel } = resolveItemMeta(
-      makeResult({ type: undefined as any }),
-      noManifest,
-    )
-    expect(typeLabel).toBe('Unknown')
-  })
-})
+    const { typeLabel } = resolveItemMeta(makeResult({ type: undefined as any }), noManifest);
+    expect(typeLabel).toBe('Unknown');
+  });
+});
 
 // ── ObjectId resolution ───────────────────────────────────────────────────────
 
 describe('objectId resolution', () => {
   it('returns the result objectId when present', () => {
-    const { objectId } = resolveItemMeta(makeResult({ objectId: 'calc-cmd-1' }), noManifest)
-    expect(objectId).toBe('calc-cmd-1')
-  })
+    const { objectId } = resolveItemMeta(makeResult({ objectId: 'calc-cmd-1' }), noManifest);
+    expect(objectId).toBe('calc-cmd-1');
+  });
 
   it('generates a fallback id when objectId is missing', () => {
-    const { objectId } = resolveItemMeta(makeResult({ objectId: undefined as any }), noManifest)
-    expect(objectId).toMatch(/^fallback_id_/)
-  })
+    const { objectId } = resolveItemMeta(makeResult({ objectId: undefined as any }), noManifest);
+    expect(objectId).toMatch(/^fallback_id_/);
+  });
 
   it('generates a fallback id when objectId is an empty string', () => {
-    const { objectId } = resolveItemMeta(makeResult({ objectId: '' }), noManifest)
-    expect(objectId).toMatch(/^fallback_id_/)
-  })
-})
+    const { objectId } = resolveItemMeta(makeResult({ objectId: '' }), noManifest);
+    expect(objectId).toMatch(/^fallback_id_/);
+  });
+});
 
 // ── buildMappedItems: style & description pass-through ───────────────────────
 
@@ -177,7 +177,7 @@ describe('buildMappedItems preserves calculator fields', () => {
       icon: '🧮',
       style: 'large',
       action: () => {},
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [calcResult],
@@ -186,13 +186,13 @@ describe('buildMappedItems preserves calculator fields', () => {
       localSearchValue: '6 * 7',
       selectedIndex: 0,
       onError: vi.fn(),
-    })
+    });
 
-    expect(mappedItems).toHaveLength(1)
-    expect(mappedItems[0].style).toBe('large')
-    expect(mappedItems[0].subtitle).toBe('6 * 7')
-    expect(mappedItems[0].icon).toBe('🧮')
-  })
+    expect(mappedItems).toHaveLength(1);
+    expect(mappedItems[0].style).toBe('large');
+    expect(mappedItems[0].subtitle).toBe('6 * 7');
+    expect(mappedItems[0].icon).toBe('🧮');
+  });
 
   it('maps style: undefined for non-calculator results', () => {
     const appResult = makeResult({
@@ -201,7 +201,7 @@ describe('buildMappedItems preserves calculator fields', () => {
       type: 'application',
       score: 0.9,
       path: '/Applications/Safari.app',
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [appResult],
@@ -210,24 +210,24 @@ describe('buildMappedItems preserves calculator fields', () => {
       localSearchValue: 'saf',
       selectedIndex: 0,
       onError: vi.fn(),
-    })
+    });
 
-    expect(mappedItems[0].style).toBeUndefined()
-  })
-})
+    expect(mappedItems[0].style).toBeUndefined();
+  });
+});
 
 // ── buildMappedItems: command action return value propagation ────────────────
 
 describe('buildMappedItems command action returns result', () => {
   it('propagates the return value from handleCommandAction', async () => {
-    vi.mocked(extensionManager.handleCommandAction).mockResolvedValueOnce({ type: 'no-view' })
+    vi.mocked(extensionManager.handleCommandAction).mockResolvedValueOnce({ type: 'no-view' });
 
     const cmdResult = makeResult({
       objectId: 'cmd_quit_quit-asyar',
       name: 'Quit Asyar',
       type: 'command',
       score: 1.0,
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [cmdResult],
@@ -236,21 +236,21 @@ describe('buildMappedItems command action returns result', () => {
       localSearchValue: 'quit',
       selectedIndex: 0,
       onError: vi.fn(),
-    })
+    });
 
-    const result = await mappedItems[0].action()
-    expect(result).toEqual({ type: 'no-view' })
-  })
+    const result = await mappedItems[0].action();
+    expect(result).toEqual({ type: 'no-view' });
+  });
 
   it('returns undefined when command returns undefined (e.g. cancelled)', async () => {
-    vi.mocked(extensionManager.handleCommandAction).mockResolvedValueOnce(undefined)
+    vi.mocked(extensionManager.handleCommandAction).mockResolvedValueOnce(undefined);
 
     const cmdResult = makeResult({
       objectId: 'cmd_quit_quit-asyar',
       name: 'Quit Asyar',
       type: 'command',
       score: 1.0,
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [cmdResult],
@@ -259,29 +259,29 @@ describe('buildMappedItems command action returns result', () => {
       localSearchValue: 'quit',
       selectedIndex: 0,
       onError: vi.fn(),
-    })
+    });
 
-    const result = await mappedItems[0].action()
-    expect(result).toBeUndefined()
-  })
-})
+    const result = await mappedItems[0].action();
+    expect(result).toBeUndefined();
+  });
+});
 
 // ── buildMappedItems: result-action interception ─────────────────────────────
 
 describe('buildMappedItems command action consults the orchestrator result-action map', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    vi.mocked(extensionManager.handleCommandAction).mockResolvedValue(undefined)
-  })
+    vi.clearAllMocks();
+    vi.mocked(extensionManager.handleCommandAction).mockResolvedValue(undefined);
+  });
 
   it('dispatches the worker-side action and skips handleCommandAction when the objectId is a result-action', async () => {
-    vi.mocked(searchOrchestrator.tryExecuteResultAction).mockReturnValue(true)
+    vi.mocked(searchOrchestrator.tryExecuteResultAction).mockReturnValue(true);
 
     const cmdResult = makeResult({
       objectId: 'ext_my-ext_Toggle_Thing_0',
       name: 'Toggle Thing',
       type: 'command',
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [cmdResult],
@@ -290,26 +290,26 @@ describe('buildMappedItems command action consults the orchestrator result-actio
       localSearchValue: 'toggle',
       selectedIndex: 0,
       onError: vi.fn(),
-    })
+    });
 
-    await mappedItems[0].action()
+    await mappedItems[0].action();
 
     expect(vi.mocked(searchOrchestrator.tryExecuteResultAction)).toHaveBeenCalledWith(
       'ext_my-ext_Toggle_Thing_0',
-    )
-    expect(vi.mocked(extensionManager.handleCommandAction)).not.toHaveBeenCalled()
+    );
+    expect(vi.mocked(extensionManager.handleCommandAction)).not.toHaveBeenCalled();
     // The launcher dismisses itself so the app the companion raised is unobstructed.
-    expect(vi.mocked(windowService.hide)).toHaveBeenCalled()
-  })
+    expect(vi.mocked(windowService.hide)).toHaveBeenCalled();
+  });
 
   it('falls through to handleCommandAction for a normal command not in the result-action map', async () => {
-    vi.mocked(searchOrchestrator.tryExecuteResultAction).mockReturnValue(false)
+    vi.mocked(searchOrchestrator.tryExecuteResultAction).mockReturnValue(false);
 
     const cmdResult = makeResult({
       objectId: 'cmd_quit_quit-asyar',
       name: 'Quit Asyar',
       type: 'command',
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [cmdResult],
@@ -318,19 +318,19 @@ describe('buildMappedItems command action consults the orchestrator result-actio
       localSearchValue: 'quit',
       selectedIndex: 0,
       onError: vi.fn(),
-    })
+    });
 
-    await mappedItems[0].action()
+    await mappedItems[0].action();
 
     expect(vi.mocked(searchOrchestrator.tryExecuteResultAction)).toHaveBeenCalledWith(
       'cmd_quit_quit-asyar',
-    )
+    );
     expect(vi.mocked(extensionManager.handleCommandAction)).toHaveBeenCalledWith(
       'cmd_quit_quit-asyar',
       { query: 'quit' },
-    )
-  })
-})
+    );
+  });
+});
 
 // ── buildMappedItems: portal command captures activeContext.query ─────────────
 
@@ -343,11 +343,11 @@ function makePortalContext(query: string) {
       triggers: ['Google'],
     },
     query,
-  }
+  };
 }
 
 describe('buildMappedItems: portal command uses activeContext.query', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => vi.clearAllMocks());
 
   it('passes activeContext.query to handleCommandAction when non-empty', async () => {
     const { mappedItems } = buildMappedItems({
@@ -357,13 +357,12 @@ describe('buildMappedItems: portal command uses activeContext.query', () => {
       localSearchValue: '',
       selectedIndex: 0,
       onError: vi.fn(),
-    })
-    await mappedItems[0].action()
-    expect(vi.mocked(extensionManager.handleCommandAction)).toHaveBeenCalledWith(
-      'cmd_portals_1',
-      { query: 'hello world' },
-    )
-  })
+    });
+    await mappedItems[0].action();
+    expect(vi.mocked(extensionManager.handleCommandAction)).toHaveBeenCalledWith('cmd_portals_1', {
+      query: 'hello world',
+    });
+  });
 
   it('passes empty string when activeContext.query is empty', async () => {
     const { mappedItems } = buildMappedItems({
@@ -373,16 +372,15 @@ describe('buildMappedItems: portal command uses activeContext.query', () => {
       localSearchValue: '',
       selectedIndex: 0,
       onError: vi.fn(),
-    })
-    await mappedItems[0].action()
-    expect(vi.mocked(extensionManager.handleCommandAction)).toHaveBeenCalledWith(
-      'cmd_portals_1',
-      { query: '' },
-    )
-  })
+    });
+    await mappedItems[0].action();
+    expect(vi.mocked(extensionManager.handleCommandAction)).toHaveBeenCalledWith('cmd_portals_1', {
+      query: '',
+    });
+  });
 
   it('uses localSearchValue for non-portal commands', async () => {
-    const result = makeResult({ objectId: 'cmd_calc', type: 'command' })
+    const result = makeResult({ objectId: 'cmd_calc', type: 'command' });
     const { mappedItems } = buildMappedItems({
       searchItems: [result],
       activeContext: null,
@@ -390,14 +388,13 @@ describe('buildMappedItems: portal command uses activeContext.query', () => {
       localSearchValue: 'typed text',
       selectedIndex: 0,
       onError: vi.fn(),
-    })
-    await mappedItems[0].action()
-    expect(vi.mocked(extensionManager.handleCommandAction)).toHaveBeenCalledWith(
-      'cmd_calc',
-      { query: 'typed text' },
-    )
-  })
-})
+    });
+    await mappedItems[0].action();
+    expect(vi.mocked(extensionManager.handleCommandAction)).toHaveBeenCalledWith('cmd_calc', {
+      query: 'typed text',
+    });
+  });
+});
 
 // ── buildMappedItems: run injection query-awareness ───────────────────────────
 
@@ -410,14 +407,14 @@ function makeRun(overrides: Partial<Run> = {}): Run {
     startedAt: Date.now(),
     cancellable: true,
     ...overrides,
-  }
+  };
 }
 
 describe('buildMappedItems run injection', () => {
   // ── Empty query: runs prepended (sectioned-list / default-mode browse view) ──
   it('empty query: runs are prepended before search results', () => {
-    const run = makeRun({ id: 'r1', label: 'ping -c 30 127.0.0.1', kind: 'shell-script' })
-    const searchItem = makeResult({ objectId: 'cmd_safari', name: 'Safari' })
+    const run = makeRun({ id: 'r1', label: 'ping -c 30 127.0.0.1', kind: 'shell-script' });
+    const searchItem = makeResult({ objectId: 'cmd_safari', name: 'Safari' });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [searchItem],
@@ -428,12 +425,12 @@ describe('buildMappedItems run injection', () => {
       onError: vi.fn(),
       activeRuns: [run],
       query: '',
-    })
+    });
 
-    expect(mappedItems).toHaveLength(2)
-    expect(mappedItems[0].object_id).toBe('run_r1')
-    expect(mappedItems[1].object_id).toBe('cmd_safari')
-  })
+    expect(mappedItems).toHaveLength(2);
+    expect(mappedItems[0].object_id).toBe('run_r1');
+    expect(mappedItems[1].object_id).toBe('cmd_safari');
+  });
 
   // ── Tier-based interleaving when query is non-empty ──
   // Tiers are now precomputed (Rust's ranker::Tier ordinal: 0=Pinned ..
@@ -448,8 +445,8 @@ describe('buildMappedItems run injection', () => {
   // way under substring matching, so this only passes if the explicit
   // tier/runTiers values are what actually drive the order (not the strings).
   it('non-empty query: higher-tier run is inserted before lower-tier search result', () => {
-    const run = makeRun({ id: 'r-sdk', label: 'totally unrelated label', kind: 'shell-script' })
-    const searchItem = makeResult({ objectId: 'cmd_zzz', name: 'sdk', tier: 4 })
+    const run = makeRun({ id: 'r-sdk', label: 'totally unrelated label', kind: 'shell-script' });
+    const searchItem = makeResult({ objectId: 'cmd_zzz', name: 'sdk', tier: 4 });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [searchItem],
@@ -461,20 +458,20 @@ describe('buildMappedItems run injection', () => {
       activeRuns: [run],
       runTiers: new Map([['r-sdk', 2]]),
       query: 'sdk',
-    })
+    });
 
-    expect(mappedItems).toHaveLength(2)
-    expect(mappedItems[0].object_id).toBe('run_r-sdk')
-    expect(mappedItems[1].object_id).toBe('cmd_zzz')
-  })
+    expect(mappedItems).toHaveLength(2);
+    expect(mappedItems[0].object_id).toBe('run_r-sdk');
+    expect(mappedItems[1].object_id).toBe('cmd_zzz');
+  });
 
   // Catalog wins ties at the same tier (Rust's within-tier ordering is preserved).
   // Adversarial labels: substring matching would put the run first (exact
   // label match) and the item last (no substring relation) — the opposite of
   // the tie-break this test asserts.
   it('non-empty query: catalog wins ties within the same tier', () => {
-    const run = makeRun({ id: 'r-sdk-build', label: 'sdk', kind: 'shell-script' })
-    const searchItem = makeResult({ objectId: 'cmd_sdk_cli', name: 'banana', tier: 2 })
+    const run = makeRun({ id: 'r-sdk-build', label: 'sdk', kind: 'shell-script' });
+    const searchItem = makeResult({ objectId: 'cmd_sdk_cli', name: 'banana', tier: 2 });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [searchItem],
@@ -486,19 +483,19 @@ describe('buildMappedItems run injection', () => {
       activeRuns: [run],
       runTiers: new Map([['r-sdk-build', 2]]),
       query: 'sdk',
-    })
+    });
 
-    expect(mappedItems).toHaveLength(2)
-    expect(mappedItems[0].object_id).toBe('cmd_sdk_cli')
-    expect(mappedItems[1].object_id).toBe('run_r-sdk-build')
-  })
+    expect(mappedItems).toHaveLength(2);
+    expect(mappedItems[0].object_id).toBe('cmd_sdk_cli');
+    expect(mappedItems[1].object_id).toBe('run_r-sdk-build');
+  });
 
   // Exact-match run (tier 1) beats prefix mappedItem (tier 2).
   // Adversarial labels: substring matching would rank the item first (exact
   // title match) and the run last (no substring relation).
   it('non-empty query: exact-match run beats prefix-match search result', () => {
-    const run = makeRun({ id: 'r-sdk-exact', label: 'unrelated xyz', kind: 'shell-script' })
-    const searchItem = makeResult({ objectId: 'cmd_sdk_cli', name: 'sdk', tier: 2 })
+    const run = makeRun({ id: 'r-sdk-exact', label: 'unrelated xyz', kind: 'shell-script' });
+    const searchItem = makeResult({ objectId: 'cmd_sdk_cli', name: 'sdk', tier: 2 });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [searchItem],
@@ -510,12 +507,12 @@ describe('buildMappedItems run injection', () => {
       activeRuns: [run],
       runTiers: new Map([['r-sdk-exact', 1]]),
       query: 'sdk',
-    })
+    });
 
-    expect(mappedItems).toHaveLength(2)
-    expect(mappedItems[0].object_id).toBe('run_r-sdk-exact')
-    expect(mappedItems[1].object_id).toBe('cmd_sdk_cli')
-  })
+    expect(mappedItems).toHaveLength(2);
+    expect(mappedItems[0].object_id).toBe('run_r-sdk-exact');
+    expect(mappedItems[1].object_id).toBe('cmd_sdk_cli');
+  });
 
   // A run missing from runTiers (e.g. the async classify round-trip hasn't
   // resolved yet) defaults to tier 5 (no match) and sinks to the bottom.
@@ -523,8 +520,8 @@ describe('buildMappedItems run injection', () => {
   // rank first under the old algorithm) but it's absent from runTiers, so
   // the default-to-no-match behavior is what must place it last.
   it('non-empty query: run absent from runTiers defaults to no-match and sinks to the bottom', () => {
-    const run = makeRun({ id: 'r-ping', label: 'sdk', kind: 'shell-script' })
-    const searchItem = makeResult({ objectId: 'cmd_sdk_play', name: 'zzz', tier: 2 })
+    const run = makeRun({ id: 'r-ping', label: 'sdk', kind: 'shell-script' });
+    const searchItem = makeResult({ objectId: 'cmd_sdk_play', name: 'zzz', tier: 2 });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [searchItem],
@@ -536,12 +533,12 @@ describe('buildMappedItems run injection', () => {
       activeRuns: [run],
       runTiers: new Map(),
       query: 'sdk',
-    })
+    });
 
-    expect(mappedItems).toHaveLength(2)
-    expect(mappedItems[0].object_id).toBe('cmd_sdk_play')
-    expect(mappedItems[1].object_id).toBe('run_r-ping')
-  })
+    expect(mappedItems).toHaveLength(2);
+    expect(mappedItems[0].object_id).toBe('cmd_sdk_play');
+    expect(mappedItems[1].object_id).toBe('run_r-ping');
+  });
 
   // A mappedItem missing a `tier` (e.g. an extension result that hasn't been
   // through Rust's tier pass) also defaults to 5 (no match).
@@ -549,8 +546,8 @@ describe('buildMappedItems run injection', () => {
   // rank first under the old algorithm) but has no `tier` field, so the
   // default-to-no-match behavior is what must place it last.
   it('non-empty query: mappedItem missing tier defaults to no-match and sinks to the bottom', () => {
-    const run = makeRun({ id: 'r-sdk', label: 'zzz unrelated', kind: 'shell-script' })
-    const searchItem = makeResult({ objectId: 'cmd_untiered', name: 'sdk' }) // no tier field
+    const run = makeRun({ id: 'r-sdk', label: 'zzz unrelated', kind: 'shell-script' });
+    const searchItem = makeResult({ objectId: 'cmd_untiered', name: 'sdk' }); // no tier field
 
     const { mappedItems } = buildMappedItems({
       searchItems: [searchItem],
@@ -562,12 +559,12 @@ describe('buildMappedItems run injection', () => {
       activeRuns: [run],
       runTiers: new Map([['r-sdk', 2]]),
       query: 'sdk',
-    })
+    });
 
-    expect(mappedItems).toHaveLength(2)
-    expect(mappedItems[0].object_id).toBe('run_r-sdk')
-    expect(mappedItems[1].object_id).toBe('cmd_untiered')
-  })
+    expect(mappedItems).toHaveLength(2);
+    expect(mappedItems[0].object_id).toBe('run_r-sdk');
+    expect(mappedItems[1].object_id).toBe('cmd_untiered');
+  });
 
   // End-to-end mix: matching runs interleave by tier; non-matching runs go last.
   // mappedItems: ["sdk-cli" tier2, "weird" tier4]; runs: ["sdk-build" tier2, "ping" tier5(no match)].
@@ -578,10 +575,10 @@ describe('buildMappedItems run injection', () => {
   // Non-matching at end: ping
   // → [sdk-cli, sdk-build, weird, ping]
   it('non-empty query: matching runs interleave, non-matching stay at the bottom', () => {
-    const runSdkBuild = makeRun({ id: 'r-sdk-build', label: 'sdk-build', kind: 'shell-script' })
-    const runPing    = makeRun({ id: 'r-ping',      label: 'ping',      kind: 'shell-script' })
-    const sdkCli = makeResult({ objectId: 'cmd_sdk_cli', name: 'sdk-cli', tier: 2 })
-    const weird  = makeResult({ objectId: 'cmd_weird',   name: 'weird',   tier: 4 })
+    const runSdkBuild = makeRun({ id: 'r-sdk-build', label: 'sdk-build', kind: 'shell-script' });
+    const runPing = makeRun({ id: 'r-ping', label: 'ping', kind: 'shell-script' });
+    const sdkCli = makeResult({ objectId: 'cmd_sdk_cli', name: 'sdk-cli', tier: 2 });
+    const weird = makeResult({ objectId: 'cmd_weird', name: 'weird', tier: 4 });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [sdkCli, weird],
@@ -593,14 +590,14 @@ describe('buildMappedItems run injection', () => {
       activeRuns: [runSdkBuild, runPing],
       runTiers: new Map([['r-sdk-build', 2]]), // runPing absent → defaults to 5
       query: 'sdk',
-    })
+    });
 
-    expect(mappedItems).toHaveLength(4)
-    expect(mappedItems[0].object_id).toBe('cmd_sdk_cli')
-    expect(mappedItems[1].object_id).toBe('run_r-sdk-build')
-    expect(mappedItems[2].object_id).toBe('cmd_weird')
-    expect(mappedItems[3].object_id).toBe('run_r-ping')
-  })
+    expect(mappedItems).toHaveLength(4);
+    expect(mappedItems[0].object_id).toBe('cmd_sdk_cli');
+    expect(mappedItems[1].object_id).toBe('run_r-sdk-build');
+    expect(mappedItems[2].object_id).toBe('cmd_weird');
+    expect(mappedItems[3].object_id).toBe('run_r-ping');
+  });
 
   // Failed and kept-agent runs participate in tier interleaving like active runs.
   // mappedItem "foo" tier4; failedRun "ping failure" tier5 (no match); keptRun "sdk agent" tier2.
@@ -608,9 +605,19 @@ describe('buildMappedItems run injection', () => {
   // Non-matching at end: failed "ping failure".
   // → [sdk agent (kept), foo (mapped), ping failure (failed)]
   it('non-empty query: failed and kept runs obey the same tier interleaving', () => {
-    const failedRun = makeRun({ id: 'r-fail-ping', label: 'ping failure', status: 'failed',    kind: 'shell-script' })
-    const keptRun   = makeRun({ id: 'r-kept-sdk',  label: 'sdk agent',    status: 'succeeded', kind: 'agent'        })
-    const foo = makeResult({ objectId: 'cmd_foo', name: 'foo', tier: 4 })
+    const failedRun = makeRun({
+      id: 'r-fail-ping',
+      label: 'ping failure',
+      status: 'failed',
+      kind: 'shell-script',
+    });
+    const keptRun = makeRun({
+      id: 'r-kept-sdk',
+      label: 'sdk agent',
+      status: 'succeeded',
+      kind: 'agent',
+    });
+    const foo = makeResult({ objectId: 'cmd_foo', name: 'foo', tier: 4 });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [foo],
@@ -623,19 +630,19 @@ describe('buildMappedItems run injection', () => {
       keptAgentRuns: [keptRun],
       runTiers: new Map([['r-kept-sdk', 2]]), // failedRun absent → defaults to 5
       query: 'sdk',
-    })
+    });
 
-    expect(mappedItems).toHaveLength(3)
-    expect(mappedItems[0].object_id).toBe('run_r-kept-sdk')
-    expect(mappedItems[1].object_id).toBe('cmd_foo')
-    expect(mappedItems[2].object_id).toBe('run_r-fail-ping')
-  })
+    expect(mappedItems).toHaveLength(3);
+    expect(mappedItems[0].object_id).toBe('run_r-kept-sdk');
+    expect(mappedItems[1].object_id).toBe('cmd_foo');
+    expect(mappedItems[2].object_id).toBe('run_r-fail-ping');
+  });
 
   // selectedOriginal must still resolve correctly when the user lands on an
   // interleaved mappedItem (i.e., its UI position is no longer == baseItems index).
   it('non-empty query: selectedOriginal resolves the right SearchResult after interleaving', () => {
-    const run = makeRun({ id: 'r-sdk', label: 'sdk-build', kind: 'shell-script' })
-    const zzz = makeResult({ objectId: 'cmd_zzz', name: 'ZZZ', tier: 4 })
+    const run = makeRun({ id: 'r-sdk', label: 'sdk-build', kind: 'shell-script' });
+    const zzz = makeResult({ objectId: 'cmd_zzz', name: 'ZZZ', tier: 4 });
 
     // Layout: [run, zzz] — selectedIndex=1 points at zzz, which is baseItems[0].
     const { selectedOriginal } = buildMappedItems({
@@ -648,15 +655,15 @@ describe('buildMappedItems run injection', () => {
       activeRuns: [run],
       runTiers: new Map([['r-sdk', 2]]),
       query: 'sdk',
-    })
+    });
 
-    expect(selectedOriginal?.objectId).toBe('cmd_zzz')
-  })
+    expect(selectedOriginal?.objectId).toBe('cmd_zzz');
+  });
 
   // selectedOriginal is null when the user lands on a run row.
   it('non-empty query: selectedOriginal is null when selection is a run', () => {
-    const run = makeRun({ id: 'r-sdk', label: 'sdk-build', kind: 'shell-script' })
-    const zzz = makeResult({ objectId: 'cmd_zzz', name: 'ZZZ', tier: 4 })
+    const run = makeRun({ id: 'r-sdk', label: 'sdk-build', kind: 'shell-script' });
+    const zzz = makeResult({ objectId: 'cmd_zzz', name: 'ZZZ', tier: 4 });
 
     // Layout: [run, zzz] — selectedIndex=0 points at the run.
     const { selectedOriginal } = buildMappedItems({
@@ -669,10 +676,10 @@ describe('buildMappedItems run injection', () => {
       activeRuns: [run],
       runTiers: new Map([['r-sdk', 2]]),
       query: 'sdk',
-    })
+    });
 
-    expect(selectedOriginal).toBeNull()
-  })
+    expect(selectedOriginal).toBeNull();
+  });
 
   // ── Def row and run row both render for attributed runs ─────────────────
   // Uniform rule: definition rows are "what you can invoke"; run rows are
@@ -685,12 +692,12 @@ describe('buildMappedItems run injection', () => {
       label: 'Updates',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
-    })
+    });
     const defRow = makeResult({
       objectId: 'cmd_scripts_dyn_updates',
       name: 'updates',
       type: 'command',
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [defRow],
@@ -701,24 +708,24 @@ describe('buildMappedItems run injection', () => {
       onError: vi.fn(),
       activeRuns: [run],
       query: '',
-    })
+    });
 
-    const ids = mappedItems.map((m) => m.object_id)
-    expect(ids).toContain('run_r-upd')
-    expect(ids).toContain('cmd_scripts_dyn_updates')
-  })
+    const ids = mappedItems.map((m) => m.object_id);
+    expect(ids).toContain('run_r-upd');
+    expect(ids).toContain('cmd_scripts_dyn_updates');
+  });
 
   it('empty query: anonymous runs (no subjectId) are still injected', () => {
     const anonRun = makeRun({
       id: 'r-anon',
       label: 'ping -c 30 127.0.0.1',
       kind: 'shell-script',
-    })
+    });
     const defRow = makeResult({
       objectId: 'cmd_updates',
       name: 'updates',
       type: 'command',
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [defRow],
@@ -729,12 +736,12 @@ describe('buildMappedItems run injection', () => {
       onError: vi.fn(),
       activeRuns: [anonRun],
       query: '',
-    })
+    });
 
-    expect(mappedItems).toHaveLength(2)
-    expect(mappedItems[0].object_id).toBe('run_r-anon')
-    expect(mappedItems[1].object_id).toBe('cmd_updates')
-  })
+    expect(mappedItems).toHaveLength(2);
+    expect(mappedItems[0].object_id).toBe('run_r-anon');
+    expect(mappedItems[1].object_id).toBe('cmd_updates');
+  });
 
   it('empty query: anonymous and attributed runs coexist with the def row', () => {
     const attributedRun = makeRun({
@@ -742,17 +749,17 @@ describe('buildMappedItems run injection', () => {
       label: 'Updates',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
-    })
+    });
     const anonRun = makeRun({
       id: 'r-anon',
       label: 'ping -c 30 127.0.0.1',
       kind: 'shell-script',
-    })
+    });
     const defRow = makeResult({
       objectId: 'cmd_scripts_dyn_updates',
       name: 'updates',
       type: 'command',
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [defRow],
@@ -763,13 +770,13 @@ describe('buildMappedItems run injection', () => {
       onError: vi.fn(),
       activeRuns: [attributedRun, anonRun],
       query: '',
-    })
+    });
 
-    const ids = mappedItems.map((m) => m.object_id)
-    expect(ids).toContain('run_r-attr')
-    expect(ids).toContain('run_r-anon')
-    expect(ids).toContain('cmd_scripts_dyn_updates')
-  })
+    const ids = mappedItems.map((m) => m.object_id);
+    expect(ids).toContain('run_r-attr');
+    expect(ids).toContain('run_r-anon');
+    expect(ids).toContain('cmd_scripts_dyn_updates');
+  });
 
   it('non-empty query: attributed run and def row both render and interleave by tier', () => {
     const run = makeRun({
@@ -777,12 +784,12 @@ describe('buildMappedItems run injection', () => {
       label: 'updates',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
-    })
+    });
     const defRow = makeResult({
       objectId: 'cmd_scripts_dyn_updates',
       name: 'updates',
       type: 'command',
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [defRow],
@@ -793,12 +800,12 @@ describe('buildMappedItems run injection', () => {
       onError: vi.fn(),
       activeRuns: [run],
       query: 'upd',
-    })
+    });
 
-    const ids = mappedItems.map((m) => m.object_id)
-    expect(ids).toContain('run_r-upd')
-    expect(ids).toContain('cmd_scripts_dyn_updates')
-  })
+    const ids = mappedItems.map((m) => m.object_id);
+    expect(ids).toContain('run_r-upd');
+    expect(ids).toContain('cmd_scripts_dyn_updates');
+  });
 
   it('non-empty query: attributed failed run and def row both render', () => {
     const failedRun = makeRun({
@@ -807,12 +814,12 @@ describe('buildMappedItems run injection', () => {
       status: 'failed',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
-    })
+    });
     const defRow = makeResult({
       objectId: 'cmd_scripts_dyn_updates',
       name: 'updates',
       type: 'command',
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [defRow],
@@ -823,12 +830,12 @@ describe('buildMappedItems run injection', () => {
       onError: vi.fn(),
       failedRuns: [failedRun],
       query: 'upd',
-    })
+    });
 
-    const ids = mappedItems.map((m) => m.object_id)
-    expect(ids).toContain('run_r-fail-upd')
-    expect(ids).toContain('cmd_scripts_dyn_updates')
-  })
+    const ids = mappedItems.map((m) => m.object_id);
+    expect(ids).toContain('run_r-fail-upd');
+    expect(ids).toContain('cmd_scripts_dyn_updates');
+  });
 
   it('empty query: attributed failed run and def row both render', () => {
     const failedRun = makeRun({
@@ -837,12 +844,12 @@ describe('buildMappedItems run injection', () => {
       status: 'failed',
       kind: 'shell-script',
       subjectId: 'cmd_scripts_dyn_updates',
-    })
+    });
     const defRow = makeResult({
       objectId: 'cmd_scripts_dyn_updates',
       name: 'updates',
       type: 'command',
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [defRow],
@@ -853,12 +860,12 @@ describe('buildMappedItems run injection', () => {
       onError: vi.fn(),
       failedRuns: [failedRun],
       query: '',
-    })
+    });
 
-    const ids = mappedItems.map((m) => m.object_id)
-    expect(ids).toContain('run_r-fail-upd')
-    expect(ids).toContain('cmd_scripts_dyn_updates')
-  })
+    const ids = mappedItems.map((m) => m.object_id);
+    expect(ids).toContain('run_r-fail-upd');
+    expect(ids).toContain('cmd_scripts_dyn_updates');
+  });
 
   it('empty query: idle shell script definitions flow through to mappedItems (no kind-specific filter)', () => {
     // Scripts and Agents sections are status-only — kind-section routing is
@@ -869,12 +876,12 @@ describe('buildMappedItems run injection', () => {
       objectId: 'cmd_scripts_dyn_myscript',
       name: 'My Script',
       type: 'command',
-    })
+    });
     const appRow = makeResult({
       objectId: 'cmd_safari',
       name: 'Safari',
       type: 'command',
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [scriptRow, appRow],
@@ -884,13 +891,13 @@ describe('buildMappedItems run injection', () => {
       selectedIndex: 0,
       onError: vi.fn(),
       query: '',
-    })
+    });
 
-    const ids = mappedItems.map((m) => m.object_id)
-    expect(ids).toContain('cmd_scripts_dyn_myscript')
-    expect(ids).toContain('cmd_safari')
-  })
-})
+    const ids = mappedItems.map((m) => m.object_id);
+    expect(ids).toContain('cmd_scripts_dyn_myscript');
+    expect(ids).toContain('cmd_safari');
+  });
+});
 
 describe('buildMappedItems run rows surface tail output', () => {
   it('succeeded run row subtitle includes tailOutput', () => {
@@ -898,7 +905,7 @@ describe('buildMappedItems run rows surface tail output', () => {
       objectId: 'cmd_scripts_dyn_hosts',
       name: 'Hosts Update',
       type: 'command',
-    })
+    });
     const result = makeRun({
       id: 'r-hosts-1',
       label: 'Hosts Update',
@@ -907,7 +914,7 @@ describe('buildMappedItems run rows surface tail output', () => {
       subjectId: 'cmd_scripts_dyn_hosts',
       tailOutput: 'OK — synced 12 files',
       endedAt: Date.now(),
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [scriptRow],
@@ -918,18 +925,18 @@ describe('buildMappedItems run rows surface tail output', () => {
       onError: vi.fn(),
       scriptResultRuns: [result],
       query: '',
-    })
+    });
 
-    const runRow = mappedItems.find((m) => m.object_id === 'run_r-hosts-1')
-    expect(runRow?.subtitle).toBe('Done · OK — synced 12 files')
-  })
+    const runRow = mappedItems.find((m) => m.object_id === 'run_r-hosts-1');
+    expect(runRow?.subtitle).toBe('Done · OK — synced 12 files');
+  });
 
   it('failed run row subtitle prefers tailOutput over errorMessage', () => {
     const scriptRow = makeResult({
       objectId: 'cmd_scripts_dyn_broken',
       name: 'Broken Script',
       type: 'command',
-    })
+    });
     const run = makeRun({
       id: 'r-broken',
       label: 'Broken Script',
@@ -939,7 +946,7 @@ describe('buildMappedItems run rows surface tail output', () => {
       tailOutput: 'Error: file not found',
       errorMessage: 'exit code 1',
       endedAt: Date.now(),
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [scriptRow],
@@ -950,18 +957,18 @@ describe('buildMappedItems run rows surface tail output', () => {
       onError: vi.fn(),
       failedRuns: [run],
       query: '',
-    })
+    });
 
-    const runRow = mappedItems.find((m) => m.object_id === 'run_r-broken')
-    expect(runRow?.subtitle).toBe('Failed · Error: file not found')
-  })
+    const runRow = mappedItems.find((m) => m.object_id === 'run_r-broken');
+    expect(runRow?.subtitle).toBe('Failed · Error: file not found');
+  });
 
   it('failed run row subtitle falls back to errorMessage when tailOutput is missing', () => {
     const scriptRow = makeResult({
       objectId: 'cmd_scripts_dyn_silent',
       name: 'Silent',
       type: 'command',
-    })
+    });
     const run = makeRun({
       id: 'r-silent',
       label: 'Silent',
@@ -970,7 +977,7 @@ describe('buildMappedItems run rows surface tail output', () => {
       subjectId: 'cmd_scripts_dyn_silent',
       errorMessage: 'exit code 137',
       endedAt: Date.now(),
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [scriptRow],
@@ -981,18 +988,18 @@ describe('buildMappedItems run rows surface tail output', () => {
       onError: vi.fn(),
       failedRuns: [run],
       query: '',
-    })
+    });
 
-    const runRow = mappedItems.find((m) => m.object_id === 'run_r-silent')
-    expect(runRow?.subtitle).toBe('Failed · exit code 137')
-  })
+    const runRow = mappedItems.find((m) => m.object_id === 'run_r-silent');
+    expect(runRow?.subtitle).toBe('Failed · exit code 137');
+  });
 
   it('succeeded run row with no tailOutput shows "(no output)"', () => {
     const scriptRow = makeResult({
       objectId: 'cmd_scripts_dyn_quiet',
       name: 'Quiet',
       type: 'command',
-    })
+    });
     const run = makeRun({
       id: 'r-quiet',
       label: 'Quiet',
@@ -1001,7 +1008,7 @@ describe('buildMappedItems run rows surface tail output', () => {
       subjectId: 'cmd_scripts_dyn_quiet',
       tailOutput: undefined,
       endedAt: Date.now(),
-    })
+    });
 
     const { mappedItems } = buildMappedItems({
       searchItems: [scriptRow],
@@ -1012,9 +1019,9 @@ describe('buildMappedItems run rows surface tail output', () => {
       onError: vi.fn(),
       scriptResultRuns: [run],
       query: '',
-    })
+    });
 
-    const runRow = mappedItems.find((m) => m.object_id === 'run_r-quiet')
-    expect(runRow?.subtitle).toBe('Done · (no output)')
-  })
-})
+    const runRow = mappedItems.find((m) => m.object_id === 'run_r-quiet');
+    expect(runRow?.subtitle).toBe('Done · (no output)');
+  });
+});

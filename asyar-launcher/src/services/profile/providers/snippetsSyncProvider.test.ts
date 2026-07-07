@@ -4,7 +4,14 @@ import type { SyncProviderData } from '../types';
 
 // Mock the snippetStore
 const mockSnippets = [
-  { id: '1', keyword: ';addr', expansion: '123 Main St', name: 'Address', createdAt: 1000, pinned: false },
+  {
+    id: '1',
+    keyword: ';addr',
+    expansion: '123 Main St',
+    name: 'Address',
+    createdAt: 1000,
+    pinned: false,
+  },
   { id: '2', keyword: ';email', expansion: 'me@example.com', name: 'Email', createdAt: 2000 },
 ];
 
@@ -70,7 +77,13 @@ describe('SnippetsSyncProvider', () => {
         version: 1,
         exportedAt: Date.now(),
         data: [
-          { id: '1', keyword: ';addr', expansion: 'Updated Address', name: 'Address', createdAt: 3000 },
+          {
+            id: '1',
+            keyword: ';addr',
+            expansion: 'Updated Address',
+            name: 'Address',
+            createdAt: 3000,
+          },
           { id: '3', keyword: ';phone', expansion: '555-1234', name: 'Phone', createdAt: 3000 },
         ],
       };
@@ -79,14 +92,15 @@ describe('SnippetsSyncProvider', () => {
       expect(preview.localCount).toBe(2);
       expect(preview.incomingCount).toBe(2);
       expect(preview.conflicts).toBe(1); // id '1' exists in both
-      expect(preview.newItems).toBe(1);  // id '3' is new
+      expect(preview.newItems).toBe(1); // id '3' is new
       expect(preview.removedItems).toBe(1); // id '2' only in local
     });
   });
 
   describe('applyImport', () => {
     it('replaces all items on replace strategy', async () => {
-      const { snippetStore } = await import('../../../built-in-features/snippets/snippetStore.svelte');
+      const { snippetStore } =
+        await import('../../../built-in-features/snippets/snippetStore.svelte');
       const incoming: SyncProviderData = {
         providerId: 'snippets',
         version: 1,
@@ -102,14 +116,21 @@ describe('SnippetsSyncProvider', () => {
     });
 
     it('merges new items and updates newer ones', async () => {
-      const { snippetStore } = await import('../../../built-in-features/snippets/snippetStore.svelte');
+      const { snippetStore } =
+        await import('../../../built-in-features/snippets/snippetStore.svelte');
       const incoming: SyncProviderData = {
         providerId: 'snippets',
         version: 1,
         exportedAt: Date.now(),
         data: [
           { id: '1', keyword: ';addr', expansion: 'Updated', name: 'Address', createdAt: 9999 }, // newer
-          { id: '2', keyword: ';email', expansion: 'old@example.com', name: 'Email', createdAt: 500 }, // older
+          {
+            id: '2',
+            keyword: ';email',
+            expansion: 'old@example.com',
+            name: 'Email',
+            createdAt: 500,
+          }, // older
           { id: '3', keyword: ';new', expansion: 'brand new', name: 'New', createdAt: 5000 }, // new
         ],
       };
@@ -155,7 +176,8 @@ describe('SnippetsSyncProvider', () => {
 
   describe('applyItemUpsert routes to snippetStore.add', () => {
     it('adds the snippet content via the store', async () => {
-      const { snippetStore } = await import('../../../built-in-features/snippets/snippetStore.svelte');
+      const { snippetStore } =
+        await import('../../../built-in-features/snippets/snippetStore.svelte');
       const content = { id: '99', keyword: ';n', expansion: 'new', name: 'New', createdAt: 9000 };
       await provider.applyItemUpsert({ id: '99', categoryId: 'snippets', content });
       expect(snippetStore.add).toHaveBeenCalledWith(content);
@@ -164,7 +186,8 @@ describe('SnippetsSyncProvider', () => {
 
   describe('applyItemDelete routes to snippetStore.remove', () => {
     it('removes the snippet by id', async () => {
-      const { snippetStore } = await import('../../../built-in-features/snippets/snippetStore.svelte');
+      const { snippetStore } =
+        await import('../../../built-in-features/snippets/snippetStore.svelte');
       await provider.applyItemDelete('1');
       expect(snippetStore.remove).toHaveBeenCalledWith('1');
     });
@@ -175,10 +198,13 @@ describe('SnippetsSyncProvider', () => {
       const events: Array<{ type: string; itemId: string; categoryId: string }> = [];
       const unsub = provider.subscribeToChanges((ev) => events.push(ev));
 
-      const { snippetStore } = await import('../../../built-in-features/snippets/snippetStore.svelte');
-      const emit = (snippetStore as unknown as {
-        __emit: (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
-      }).__emit;
+      const { snippetStore } =
+        await import('../../../built-in-features/snippets/snippetStore.svelte');
+      const emit = (
+        snippetStore as unknown as {
+          __emit: (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
+        }
+      ).__emit;
       emit({ type: 'upsert', itemId: '1' });
       emit({ type: 'delete', itemId: '2' });
 

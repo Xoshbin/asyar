@@ -20,7 +20,7 @@
     availableActions = [],
     selectedItemName = null,
     inExtensionView = false,
-    onclose
+    onclose,
   }: {
     availableActions?: ApplicationAction[];
     selectedItemName?: string | null;
@@ -84,7 +84,7 @@
 
   async function handleActionSelect(actionId: string) {
     logService.debug(`[ActionListPopup] Action selected: ${actionId}`);
-    const action = flatActions.find(a => a.id === actionId);
+    const action = flatActions.find((a) => a.id === actionId);
     if (!action) return;
 
     // Close the popup BEFORE awaiting the confirm dialog so the user can't
@@ -160,10 +160,7 @@
       <div class="group-section" class:first-group={groupIndex === 0}>
         {#each groupActions as action}
           {@const flatIndex = flatActions.indexOf(action)}
-          <div
-            class="action-row"
-            class:action-destructive={action.destructive}
-          >
+          <div class="action-row" class:action-destructive={action.destructive}>
             <LauncherListRow
               selected={flatIndex === selection.selectedIndex}
               onclick={() => handleActionSelect(action.id)}
@@ -180,11 +177,7 @@
                     <Icon name={getBuiltInIconName(action.icon)} size={18} />
                   </div>
                 {:else if action.icon && isIconImage(action.icon)}
-                  <img
-                    src={action.icon}
-                    alt={action.label}
-                    class="action-icon-img"
-                  />
+                  <img src={action.icon} alt={action.label} class="action-icon-img" />
                 {:else if action.icon}
                   <div class="action-icon-fallback">
                     {action.icon}
@@ -239,7 +232,7 @@
   /* Dark mode: inner highlight + heavier shadow so the popup reads as a
      distinct surface against the dim launcher chrome. Border color is
      handled by the --popup-border-color token, defined per theme in style.css. */
-  :global(html[data-theme="dark"]) .action-popup {
+  :global(html[data-theme='dark']) .action-popup {
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.04),
       -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
@@ -275,7 +268,7 @@
     padding: 0 var(--space-3) var(--space-3);
   }
 
-  :global(html[data-platform="linux"]) .action-popup {
+  :global(html[data-platform='linux']) .action-popup {
     backdrop-filter: none;
     background-color: var(--bg-popup);
   }
@@ -293,7 +286,7 @@
     background-color: rgba(60, 60, 67, 0.11);
     margin: var(--space-4) calc(-1 * var(--space-3));
   }
-  :global(html[data-theme="dark"]) .group-section:not(.first-group)::before,
+  :global(html[data-theme='dark']) .group-section:not(.first-group)::before,
   :global(html:not([data-theme])) .group-section:not(.first-group)::before {
     background-color: rgba(255, 255, 255, 0.07);
   }
@@ -318,7 +311,7 @@
   .action-search > :global(*) {
     width: 100%;
   }
-  :global(html[data-theme="dark"]) .action-search,
+  :global(html[data-theme='dark']) .action-search,
   :global(html:not([data-theme])) .action-search {
     border-top-color: rgba(255, 255, 255, 0.07);
   }
@@ -335,7 +328,11 @@
     background: transparent;
     border-radius: 0;
     color: var(--text-primary);
-    caret-color: color-mix(in srgb, var(--text-primary) 60%, var(--bg-secondary-full-opacity) 40%) !important;
+    caret-color: color-mix(
+      in srgb,
+      var(--text-primary) 60%,
+      var(--bg-secondary-full-opacity) 40%
+    ) !important;
   }
   .action-search :global(.input::placeholder) {
     color: color-mix(in srgb, var(--text-primary) 50%, var(--bg-secondary-full-opacity) 50%);

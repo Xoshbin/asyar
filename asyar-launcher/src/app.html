@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -7,14 +7,14 @@
     <title>Asyar</title>
 
     <script>
-      (function() {
+      (function () {
         // Detect development mode (Vite dev server usually runs on localhost:1420)
         const isDev = window.location.hostname === 'localhost' || window.location.port === '1420';
         const sveltePath = isDev ? '/node_modules/.vite/deps' : '/_app/immutable/chunks';
-        
+
         const importMap = {
           imports: {
-            'svelte': `${sveltePath}/svelte.js`,
+            svelte: `${sveltePath}/svelte.js`,
             'svelte/animate': `${sveltePath}/svelte_animate.js`,
             'svelte/easing': `${sveltePath}/svelte_easing.js`,
             'svelte/internal': `${sveltePath}/svelte_internal.js`,
@@ -28,8 +28,8 @@
             'svelte/reactivity/window': `${sveltePath}/svelte_reactivity_window.js`,
             'svelte/store': `${sveltePath}/svelte_store.js`,
             'svelte/transition': `${sveltePath}/svelte_transition.js`,
-            'svelte/events': `${sveltePath}/svelte_events.js`
-          }
+            'svelte/events': `${sveltePath}/svelte_events.js`,
+          },
         };
         const s = document.createElement('script');
         s.type = 'importmap';

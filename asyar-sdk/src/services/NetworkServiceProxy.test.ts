@@ -4,10 +4,10 @@ import { messageBroker } from '../ipc/MessageBroker';
 
 vi.mock('../ipc/MessageBroker', () => ({
   messageBroker: {
-      invoke: vi.fn(),
-      on: vi.fn(),
-      off: vi.fn(),
-    },
+    invoke: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
 }));
 
 function makeProxy() {
@@ -28,9 +28,7 @@ describe('NetworkServiceProxy', () => {
   it('fetch → "network:fetch" with url and default options', async () => {
     const { proxy, mockInvoke } = makeProxy();
     await proxy.fetch('https://example.com');
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'network:fetch',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'network:fetch');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({ url: 'https://example.com', options: {} });
   });
@@ -39,9 +37,7 @@ describe('NetworkServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     const opts = { method: 'POST' as const, body: '{}', timeout: 5000 };
     await proxy.fetch('https://example.com/api', opts);
-    const call = mockInvoke.mock.calls.find(
-      (c: unknown[]) => c[0] === 'network:fetch',
-    );
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'network:fetch');
     expect(call).toBeDefined();
     expect(call![1]).toMatchObject({
       url: 'https://example.com/api',

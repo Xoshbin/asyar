@@ -1,5 +1,14 @@
 import { fetch } from '@tauri-apps/plugin-http';
-import type { IProviderPlugin, ModelInfo, ProviderConfig, RequestSpec, ChatParams, ChatMessage, LoopMessage, ToolStreamEvent } from '../IProviderPlugin';
+import type {
+  IProviderPlugin,
+  ModelInfo,
+  ProviderConfig,
+  RequestSpec,
+  ChatParams,
+  ChatMessage,
+  LoopMessage,
+  ToolStreamEvent,
+} from '../IProviderPlugin';
 import { buildOpenAIToolsBody, parseOpenAIToolStream } from './_openaiCompat';
 import type { OpenAIToolDescriptor } from './_openaiCompat';
 
@@ -34,7 +43,7 @@ export const customPlugin: IProviderPlugin = {
       if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
       const res = await fetch(`${base}/models`, { headers });
       if (!res.ok) return [];
-      const json = await res.json() as { data?: Array<{ id: string }> };
+      const json = (await res.json()) as { data?: Array<{ id: string }> };
       return (json.data ?? []).map((m) => ({ id: m.id, label: m.id }));
     } catch {
       // Endpoint may not exist — user types model manually
@@ -46,9 +55,7 @@ export const customPlugin: IProviderPlugin = {
     const base = normalizeOpenAIBase(config.baseUrl ?? '');
     const systemPrompt = params.systemPrompt?.trim() ?? '';
     const filtered = messages.filter((m) => m.role !== 'system');
-    const msgs = systemPrompt
-      ? [{ role: 'system', content: systemPrompt }, ...filtered]
-      : filtered;
+    const msgs = systemPrompt ? [{ role: 'system', content: systemPrompt }, ...filtered] : filtered;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       // Required when the user points Custom at Anthropic's OpenAI-compat endpoint;
@@ -87,7 +94,9 @@ export const customPlugin: IProviderPlugin = {
           const json = JSON.parse(data);
           const token = json.choices?.[0]?.delta?.content;
           if (token) yield token;
-        } catch { /* skip malformed */ }
+        } catch {
+          /* skip malformed */
+        }
       }
     }
   },
@@ -114,7 +123,9 @@ export const customPlugin: IProviderPlugin = {
     };
   },
 
-  parseToolStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<ToolStreamEvent> {
+  parseToolStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+  ): AsyncGenerator<ToolStreamEvent> {
     return parseOpenAIToolStream(reader);
   },
 };

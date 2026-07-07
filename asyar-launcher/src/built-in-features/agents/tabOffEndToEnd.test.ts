@@ -171,8 +171,6 @@ describe('Tab OFF end-to-end: first send creates a new thread', () => {
     expect(runAgent).toHaveBeenCalledWith(
       expect.objectContaining({ threadId: 'new-thread', agentId: 'agent-a' }),
     );
-    expect(runAgent).not.toHaveBeenCalledWith(
-      expect.objectContaining({ threadId: 'old-thread' }),
-    );
+    expect(runAgent).not.toHaveBeenCalledWith(expect.objectContaining({ threadId: 'old-thread' }));
   });
 });

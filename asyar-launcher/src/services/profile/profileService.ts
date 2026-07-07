@@ -32,9 +32,7 @@ export class ProfileService {
 
     for (const provider of selectedProviders) {
       const data =
-        options.mode === 'sync'
-          ? await provider.exportForSync()
-          : await provider.exportFull();
+        options.mode === 'sync' ? await provider.exportForSync() : await provider.exportFull();
       result.set(provider.id, data);
     }
 

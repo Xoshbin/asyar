@@ -48,7 +48,7 @@ describe('markdown utility', () => {
     // Content is now highlighted with spans
     expect(html).toContain('token keyword');
   });
-  
+
   it('highlights PHP code blocks', () => {
     const html = renderMarkdown('```php\necho "Hello";\n```');
     expect(html).toContain('language-php');

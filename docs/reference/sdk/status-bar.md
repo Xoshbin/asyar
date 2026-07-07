@@ -20,19 +20,19 @@ Check for Updates / Quit).
 
 ```typescript
 interface StatusBarClickContext {
-  itemPath: string[];   // ['top-id', 'submenu-id', ..., 'leaf-id']
-  checked?: boolean;    // NEW state after native auto-toggle, when applicable
+  itemPath: string[]; // ['top-id', 'submenu-id', ..., 'leaf-id']
+  checked?: boolean; // NEW state after native auto-toggle, when applicable
 }
 
 interface IStatusBarItem {
   id: string;
-  icon?: string;        // Emoji / unicode / label prefix
-  iconPath?: string;    // Absolute path or asyar-extension://{id}/path.png
-  text: string;         // Tooltip at top level; label in submenus
-  checked?: boolean;    // ✓ state — submenu only
+  icon?: string; // Emoji / unicode / label prefix
+  iconPath?: string; // Absolute path or asyar-extension://{id}/path.png
+  text: string; // Tooltip at top level; label in submenus
+  checked?: boolean; // ✓ state — submenu only
   submenu?: IStatusBarItem[];
-  enabled?: boolean;    // false greys out — submenu only
-  separator?: boolean;  // divider — submenu only
+  enabled?: boolean; // false greys out — submenu only
+  separator?: boolean; // divider — submenu only
   onClick?: (ctx: StatusBarClickContext) => void;
 }
 
@@ -83,7 +83,7 @@ const statusBar = context.getService<IStatusBarService>('statusBar');
 statusBar.registerItem({
   id: 'spotify-now-playing',
   iconPath: 'asyar-extension://com.example.spotify/assets/icon-16.png',
-  text: '♪ In Rainbows',              // tooltip
+  text: '♪ In Rainbows', // tooltip
   submenu: [
     {
       id: 'play',
@@ -92,16 +92,16 @@ statusBar.registerItem({
       onClick: ({ checked }) => setPlaying(checked ?? true),
     },
     { separator: true },
-    { id: 'next',     text: 'Next',     onClick: () => next() },
+    { id: 'next', text: 'Next', onClick: () => next() },
     { id: 'previous', text: 'Previous', onClick: () => previous() },
     {
       id: 'volume',
       text: 'Volume',
       submenu: [
-        { id: 'mute',     text: 'Mute',     checked: false, onClick: ({ checked }) => setMuted(checked!) },
-        { id: 'low',      text: '33%',      onClick: () => setVolume(33) },
-        { id: 'medium',   text: '66%',      onClick: () => setVolume(66) },
-        { id: 'high',     text: '100%',     onClick: () => setVolume(100) },
+        { id: 'mute', text: 'Mute', checked: false, onClick: ({ checked }) => setMuted(checked!) },
+        { id: 'low', text: '33%', onClick: () => setVolume(33) },
+        { id: 'medium', text: '66%', onClick: () => setVolume(66) },
+        { id: 'high', text: '100%', onClick: () => setVolume(100) },
         // Depth 4 max — a submenu under any of these would be rejected.
       ],
     },
@@ -154,14 +154,14 @@ path, the click is a no-op.
 
 ## Platform matrix
 
-| Capability                          | macOS         | Windows       | Linux (GTK)             |
-| ----------------------------------- | ------------- | ------------- | ----------------------- |
-| `iconPath` image in menu bar        | ✅            | ✅            | ✅                      |
-| `icon` emoji with no `iconPath`     | ✅ text label | ⚠ 1×1 stub¹   | ⚠ 1×1 stub¹             |
-| Submenus (click opens dropdown)     | ✅            | ✅            | ⚠ Varies by DE²         |
-| `checked` rendering                 | ✅            | ✅            | ⚠ Varies by DE²         |
-| `separator` rendering               | ✅            | ✅            | ✅                      |
-| `enabled: false` greying            | ✅            | ✅            | ✅                      |
+| Capability                      | macOS         | Windows     | Linux (GTK)     |
+| ------------------------------- | ------------- | ----------- | --------------- |
+| `iconPath` image in menu bar    | ✅            | ✅          | ✅              |
+| `icon` emoji with no `iconPath` | ✅ text label | ⚠ 1×1 stub¹ | ⚠ 1×1 stub¹     |
+| Submenus (click opens dropdown) | ✅            | ✅          | ⚠ Varies by DE² |
+| `checked` rendering             | ✅            | ✅          | ⚠ Varies by DE² |
+| `separator` rendering           | ✅            | ✅          | ✅              |
+| `enabled: false` greying        | ✅            | ✅          | ✅              |
 
 ¹ Windows/Linux trays need a bitmap. When the extension supplies only an
 emoji via `icon`, Asyar attaches a 1×1 transparent PNG so the tray still

@@ -50,7 +50,9 @@ export class DeeplinkService {
       // 3. Command must exist in manifest
       const command = manifest.commands.find((c: ExtensionCommand) => c.id === commandId);
       if (!command) {
-        logService.error(`[Deeplink] Command '${commandId}' not found in extension '${extensionId}'`);
+        logService.error(
+          `[Deeplink] Command '${commandId}' not found in extension '${extensionId}'`,
+        );
         return;
       }
 
@@ -75,10 +77,11 @@ export class DeeplinkService {
       await this.deps.executeCommand(objectId, { ...args, deeplinkTrigger: true });
 
       // 8. Record usage
-      this.deps.recordItemUsage(objectId).catch((err) =>
-        logService.error(`[Deeplink] Failed to record usage for ${objectId}: ${err}`)
-      );
-
+      this.deps
+        .recordItemUsage(objectId)
+        .catch((err) =>
+          logService.error(`[Deeplink] Failed to record usage for ${objectId}: ${err}`),
+        );
     } catch (error) {
       logService.error(`[Deeplink] Failed to execute ${objectId}: ${error}`);
     }

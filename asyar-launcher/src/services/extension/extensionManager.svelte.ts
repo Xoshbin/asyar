@@ -1,31 +1,31 @@
-import { settingsService } from "../settings/settingsService.svelte";
-import * as commands from "../../lib/ipc/commands";
+import { settingsService } from '../settings/settingsService.svelte';
+import * as commands from '../../lib/ipc/commands';
 import type {
   Extension,
   ExtensionManifest,
   ExtensionResult,
   IExtensionManager,
   ExtensionCommand,
-} from "asyar-sdk/contracts";
+} from 'asyar-sdk/contracts';
 
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
-import { isBuiltInFeature } from "./extensionDiscovery";
-import { extensionBridge, type ExtensionBridge } from "asyar-sdk/contracts";
-import { logService } from "../log/logService";
-import { actionService } from "../action/actionService.svelte";
+import { isBuiltInFeature } from './extensionDiscovery';
+import { extensionBridge, type ExtensionBridge } from 'asyar-sdk/contracts';
+import { logService } from '../log/logService';
+import { actionService } from '../action/actionService.svelte';
 
-import { commandService } from "./commandService.svelte";
-import { performanceService } from "../performance/performanceService.svelte";
-import { viewManager } from "./viewManager.svelte";
-import type { ExtensionRecord } from "../../types/ExtensionRecord";
+import { commandService } from './commandService.svelte';
+import { performanceService } from '../performance/performanceService.svelte';
+import { viewManager } from './viewManager.svelte';
+import type { ExtensionRecord } from '../../types/ExtensionRecord';
 
-import { searchService } from "../search/SearchService";
-import { invalidateTopItemsCache } from "../search/topItemsCache";
+import { searchService } from '../search/SearchService';
+import { invalidateTopItemsCache } from '../search/topItemsCache';
 import { applyTheme } from '../theme/themeService';
-import { ExtensionIpcRouter } from "./ExtensionIpcRouter";
-import { ExtensionLoader } from "./ExtensionLoader";
-import { resetLauncherState } from "../../lib/launcher/launcherReset";
-import type { ServiceRegistry } from "./defineServiceRegistry";
+import { ExtensionIpcRouter } from './ExtensionIpcRouter';
+import { ExtensionLoader } from './ExtensionLoader';
+import { resetLauncherState } from '../../lib/launcher/launcherReset';
+import type { ServiceRegistry } from './defineServiceRegistry';
 import { buildServiceRegistry } from './buildServiceRegistry';
 import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
 import { TimerBridge } from '../timers/timerBridge.svelte';
@@ -37,16 +37,13 @@ import { dispatch } from './extensionDispatcher.svelte';
  */
 type LoadedExtensionModule = Extension | { default: Extension };
 
-
-import { extensionSearchAggregator } from "./extensionSearchAggregator";
-import {
-  extensionStateManager
-} from "./extensionStateManager.svelte";
-import { extensionIframeManager } from "./extensionIframeManager.svelte";
+import { extensionSearchAggregator } from './extensionSearchAggregator';
+import { extensionStateManager } from './extensionStateManager.svelte';
+import { extensionIframeManager } from './extensionIframeManager.svelte';
 import {
   getBuiltinDynamicDispatcher,
   isBuiltinDynamicExtension,
-} from "./builtinDynamicDispatchers";
+} from './builtinDynamicDispatchers';
 
 /**
  * Manages application extensions
@@ -65,11 +62,11 @@ export class ExtensionManager implements IExtensionManager {
     isBuiltIn: boolean;
   }[] = [];
   private mountedComponents = new Map<string, any>(); // mountId -> component instance
-  
+
   // Svelte 5 reactive state
   public isReady = $state(false);
   private _extensionRecords = $state<ExtensionRecord[]>([]);
-  
+
   public get extensionRecords() {
     return this._extensionRecords;
   }
@@ -81,7 +78,7 @@ export class ExtensionManager implements IExtensionManager {
   get currentExtension(): Extension | null {
     const currentView = viewManager.getActiveView();
     if (!currentView) return null;
-    const extensionId = currentView.split("/")[0];
+    const extensionId = currentView.split('/')[0];
     const module = this.extensionModulesById.get(extensionId);
     if (!module) return null;
     // Return the default export (the class instance) or the module itself if no default
@@ -110,10 +107,11 @@ export class ExtensionManager implements IExtensionManager {
       handleCommandAction: this.handleCommandAction.bind(this),
     });
 
-
     extensionIframeManager.init(viewManager);
-    actionService.setExtensionForwarder(extensionIframeManager.sendActionExecuteToExtension.bind(extensionIframeManager));
-    
+    actionService.setExtensionForwarder(
+      extensionIframeManager.sendActionExecuteToExtension.bind(extensionIframeManager),
+    );
+
     // (Removed: legacy settings-broadcast path that was used exclusively by
     // the Calculator built-in to pick up refreshInterval changes. Calculator
     // now reads its refresh interval from `context.preferences` and is
@@ -123,26 +121,32 @@ export class ExtensionManager implements IExtensionManager {
 
     this.loader = new ExtensionLoader(
       this.bridge,
-      (id, manifest) => { this.manifestsById.set(id, manifest); },
-      (id, module) => { this.extensionModulesById.set(id, module); },
-      (cmd, manifest, isBuiltIn) => { this.allLoadedCommands.push({ cmd, manifest, isBuiltIn }); },
+      (id, manifest) => {
+        this.manifestsById.set(id, manifest);
+      },
+      (id, module) => {
+        this.extensionModulesById.set(id, module);
+      },
+      (cmd, manifest, isBuiltIn) => {
+        this.allLoadedCommands.push({ cmd, manifest, isBuiltIn });
+      },
     );
 
     const ipcRouter = new ExtensionIpcRouter(
       this.serviceRegistry,
       this.getManifestById.bind(this),
       this.goBack.bind(this),
-      () => searchService.saveIndex()
+      () => searchService.saveIndex(),
     );
     ipcRouter.setup();
   }
 
   async init(): Promise<boolean> {
     if (this.initialized) {
-      logService.debug("ExtensionManager already initialized.");
+      logService.debug('ExtensionManager already initialized.');
       return true;
     }
-    logService.custom("🔄 Initializing extension manager...", "EXTN", "blue");
+    logService.custom('🔄 Initializing extension manager...', 'EXTN', 'blue');
     try {
       await performanceService.init();
 
@@ -158,13 +162,13 @@ export class ExtensionManager implements IExtensionManager {
         });
       }
 
-      performanceService.startTiming("extension-loading");
+      performanceService.startTiming('extension-loading');
       await this.loadExtensions(); // This now uses the loader service internally
-      const loadMetrics = performanceService.stopTiming("extension-loading");
+      const loadMetrics = performanceService.stopTiming('extension-loading');
       logService.custom(
         `🧩 Extensions loaded in ${loadMetrics.duration?.toFixed(2)}ms`,
-        "PERF",
-        "green"
+        'PERF',
+        'green',
       );
 
       // Initialize services after extensions are loaded
@@ -185,16 +189,17 @@ export class ExtensionManager implements IExtensionManager {
 
       viewManager.setModuleResolver({
         getModule: (id: string) => this.extensionModulesById.get(id),
-        resolveInstance: (module) => extensionSearchAggregator.resolveExtensionInstance(module as any),
+        resolveInstance: (module) =>
+          extensionSearchAggregator.resolveExtensionInstance(module as any),
       });
 
-      performanceService.startTiming("command-index-sync");
-      await this.syncCommandIndex(); 
-      const syncMetrics = performanceService.stopTiming("command-index-sync");
+      performanceService.startTiming('command-index-sync');
+      await this.syncCommandIndex();
+      const syncMetrics = performanceService.stopTiming('command-index-sync');
       logService.custom(
         `🔄 Commands index synced in ${syncMetrics.duration?.toFixed(2)}ms`,
-        "PERF",
-        "blue"
+        'PERF',
+        'blue',
       );
 
       this.updateExtensionRecords();
@@ -221,7 +226,10 @@ export class ExtensionManager implements IExtensionManager {
     }
   }
 
-  public async handleCommandAction(commandObjectId: string, args?: Record<string, any>): Promise<any> {
+  public async handleCommandAction(
+    commandObjectId: string,
+    args?: Record<string, any>,
+  ): Promise<any> {
     logService.debug(`Handling command action for: ${commandObjectId}`);
 
     const dyn = parseDynamicObjectId(commandObjectId);
@@ -232,14 +240,15 @@ export class ExtensionManager implements IExtensionManager {
         // extension's own handler, registered at module load via
         // registerBuiltinDynamicDispatcher (see builtinDynamicDispatchers.ts).
         await builtinDispatcher(dyn.dynamicId, args);
-        
+
         searchService.saveIndex();
         void commands.hideWindow().then(resetLauncherState);
 
-        void commands.recordItemUsage(commandObjectId)
+        void commands
+          .recordItemUsage(commandObjectId)
           .then(() => invalidateTopItemsCache())
           .catch((err) =>
-            logService.error(`Failed to record usage for ${commandObjectId}: ${err}`)
+            logService.error(`Failed to record usage for ${commandObjectId}: ${err}`),
           );
         return { type: 'no-view' };
       }
@@ -257,22 +266,17 @@ export class ExtensionManager implements IExtensionManager {
       }
       // --- Add usage recording ---
       logService.debug(`Recording usage for command: ${commandObjectId}`);
-      commands.recordItemUsage(commandObjectId)
+      commands
+        .recordItemUsage(commandObjectId)
         .then(() => {
           logService.debug(`Usage recorded for ${commandObjectId}`);
           invalidateTopItemsCache();
         })
-        .catch((err) =>
-          logService.error(
-            `Failed to record usage for ${commandObjectId}: ${err}`
-          )
-        );
+        .catch((err) => logService.error(`Failed to record usage for ${commandObjectId}: ${err}`));
       // --- End usage recording ---
       return result;
     } catch (error) {
-      logService.error(
-        `Error handling command action for ${commandObjectId}: ${error}`
-      );
+      logService.error(`Error handling command action for ${commandObjectId}: ${error}`);
       throw error;
     }
   }
@@ -307,28 +311,20 @@ export class ExtensionManager implements IExtensionManager {
       searchService.saveIndex();
       void commands.hideWindow().then(resetLauncherState);
 
-      commands.recordItemUsage(commandObjectId)
+      commands
+        .recordItemUsage(commandObjectId)
         .then(() => invalidateTopItemsCache())
-        .catch((err) =>
-          logService.error(
-            `Failed to record usage for ${commandObjectId}: ${err}`,
-          ),
-        );
+        .catch((err) => logService.error(`Failed to record usage for ${commandObjectId}: ${err}`));
       return { type: 'no-view' };
     } catch (error) {
-      logService.error(
-        `Error dispatching dynamic command ${commandObjectId}: ${error}`,
-      );
+      logService.error(`Error dispatching dynamic command ${commandObjectId}: ${error}`);
       throw error;
     }
   }
 
-  private getCmdObjectId(
-    cmd: ExtensionCommand,
-    manifest: ExtensionManifest
-  ): string {
-    const commandId = cmd.id || "unknown_cmd";
-    const extensionId = manifest.id || "unknown_ext";
+  private getCmdObjectId(cmd: ExtensionCommand, manifest: ExtensionManifest): string {
+    const commandId = cmd.id || 'unknown_cmd';
+    const extensionId = manifest.id || 'unknown_ext';
     return `cmd_${extensionId}_${commandId}`;
   }
 
@@ -344,7 +340,7 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   async reloadExtensions(): Promise<void> {
-    logService.info("Explicitly reloading extensions...");
+    logService.info('Explicitly reloading extensions...');
     try {
       // Clear existing commands first
       this.manifestsById.forEach((manifest) => {
@@ -353,17 +349,17 @@ export class ExtensionManager implements IExtensionManager {
         }
       });
 
-      performanceService.startTiming("extension-reloading");
+      performanceService.startTiming('extension-reloading');
       await this.loadExtensions();
-      
-      performanceService.startTiming("command-index-sync");
+
+      performanceService.startTiming('command-index-sync');
       await this.syncCommandIndex();
-      const syncMetrics = performanceService.stopTiming("command-index-sync");
-      const loadMetrics = performanceService.stopTiming("extension-reloading");
+      const syncMetrics = performanceService.stopTiming('command-index-sync');
+      const loadMetrics = performanceService.stopTiming('extension-reloading');
       logService.custom(
         `🔄 Extensions reloaded and synced in ${loadMetrics.duration?.toFixed(2)}ms`,
-        "PERF",
-        "green"
+        'PERF',
+        'green',
       );
     } catch (e) {
       logService.error(`Failed to reload extensions: ${e}`);
@@ -400,7 +396,7 @@ export class ExtensionManager implements IExtensionManager {
       }
     }
 
-    logService.info("Extensions unloaded and state cleared.");
+    logService.info('Extensions unloaded and state cleared.');
   }
 
   async loadExtensions() {
@@ -408,22 +404,22 @@ export class ExtensionManager implements IExtensionManager {
     this.extensionModulesById.clear();
     this.manifestsById.clear();
     this.allLoadedCommands = [];
-    
+
     // We pass this.isReady as a boolean now, let's see if loadExtensions expects a writable
     // If it does, we might need a wrapper.
     const isReadyWrapper = {
-        set: (v: boolean) => { this.isReady = v; },
-        subscribe: (fn: (v: boolean) => void) => { fn(this.isReady); return () => {}; }
+      set: (v: boolean) => {
+        this.isReady = v;
+      },
+      subscribe: (fn: (v: boolean) => void) => {
+        fn(this.isReady);
+        return () => {};
+      },
     };
-    
-    await this.loader.loadExtensions(
-      this.navigateToView.bind(this),
-      isReadyWrapper as any,
-    );
+
+    await this.loader.loadExtensions(this.navigateToView.bind(this), isReadyWrapper as any);
     this.updateExtensionRecords();
   }
-
-
 
   public getManifestById(id: string): ExtendedManifest | undefined {
     return this.manifestsById.get(id);
@@ -469,7 +465,8 @@ export class ExtensionManager implements IExtensionManager {
         commandName: cmd.name,
         isBuiltIn: isBuiltInFeature(manifest.id),
         icon: (cmd as { icon?: string }).icon ?? (manifest as { icon?: string }).icon,
-        args: (cmd as { arguments?: import('asyar-sdk/contracts').CommandArgument[] }).arguments ?? [],
+        args:
+          (cmd as { arguments?: import('asyar-sdk/contracts').CommandArgument[] }).arguments ?? [],
         mode: (cmd as { mode?: 'view' | 'background' }).mode,
         isDynamic: false,
       };
@@ -496,7 +493,7 @@ export class ExtensionManager implements IExtensionManager {
       };
     } catch (err) {
       logService.warn(
-        `[ExtensionManager] getDynamicCommandMeta failed for ${commandObjectId}: ${err}`
+        `[ExtensionManager] getDynamicCommandMeta failed for ${commandObjectId}: ${err}`,
       );
       return null;
     }
@@ -541,7 +538,13 @@ export class ExtensionManager implements IExtensionManager {
     viewManager.activeViewSubtitle = subtitle;
   }
 
-  forwardKeyToActiveView(keyEvent: { key: string; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean; altKey: boolean }): void {
+  forwardKeyToActiveView(keyEvent: {
+    key: string;
+    shiftKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    altKey: boolean;
+  }): void {
     extensionIframeManager.forwardKeyToActiveView(keyEvent);
   }
 
@@ -553,11 +556,11 @@ export class ExtensionManager implements IExtensionManager {
 
   navigateToView(viewPath: string): void {
     logService.info(`[ExtensionManager] Navigating to view: ${viewPath}`);
-    const extensionId = viewPath.split("/")[0];
-    
+    const extensionId = viewPath.split('/')[0];
+
     // Delegate usage tracking to state manager
     extensionStateManager.recordViewUsage(extensionId);
-    
+
     // Delegate to viewManager
     viewManager.navigateToView(viewPath);
   }
@@ -582,10 +585,7 @@ export class ExtensionManager implements IExtensionManager {
     return extensionStateManager.isExtensionEnabled(extensionId);
   }
 
-  async toggleExtensionState(
-    extensionId: string,
-    enabled: boolean
-  ): Promise<boolean> {
+  async toggleExtensionState(extensionId: string, enabled: boolean): Promise<boolean> {
     return extensionStateManager.toggleExtensionState(extensionId, enabled);
   }
 
@@ -597,10 +597,7 @@ export class ExtensionManager implements IExtensionManager {
     return extensionStateManager.getAllExtensions(this.navigateToView.bind(this));
   }
 
-  async uninstallExtension(
-    extensionId: string,
-    extensionName?: string
-  ): Promise<boolean> {
+  async uninstallExtension(extensionId: string, extensionName?: string): Promise<boolean> {
     return extensionStateManager.uninstallExtension(
       extensionId,
       extensionName,
@@ -616,9 +613,7 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   // New helper function specifically for dynamic manifest import
-  private async _dynamicImportManifest(
-    manifestPath: string
-  ): Promise<any | null> {
+  private async _dynamicImportManifest(manifestPath: string): Promise<any | null> {
     try {
       // @ts-ignore - Suppressing persistent error on this dynamic import line
       return await import(/* @vite-ignore */ manifestPath);
@@ -626,12 +621,11 @@ export class ExtensionManager implements IExtensionManager {
       logService.warn(
         `Dynamic import failed for manifest ${manifestPath}: ${
           importError instanceof Error ? importError.message : importError
-        }`
+        }`,
       );
       return null;
     }
   }
-
 
   // Use extensionsById map instead if needed: this.extensionsById.get(id) -> Extension
 
@@ -640,13 +634,13 @@ export class ExtensionManager implements IExtensionManager {
    * This function delegates to the Tauri command which handles downloading and extracting
    */
   // --- Replacement for installExtensionFromUrl ---
-  
+
   private updateExtensionRecords(): void {
-    const records: ExtensionRecord[] = Array.from(this.manifestsById.values()).map(m => ({
+    const records: ExtensionRecord[] = Array.from(this.manifestsById.values()).map((m) => ({
       manifest: m,
       isBuiltIn: isBuiltInFeature(m.id),
       enabled: this.isExtensionEnabled(m.id),
-      path: m.id // Using id as the path for record identification
+      path: m.id, // Using id as the path for record identification
     }));
     this._extensionRecords = records;
   }
@@ -668,49 +662,49 @@ export class ExtensionManager implements IExtensionManager {
 // delegates every property read, write, and method call to the real instance.
 let _instance: ExtensionManager | null = null;
 function getInstance(): ExtensionManager {
-    if (!_instance) _instance = new ExtensionManager();
-    return _instance;
+  if (!_instance) _instance = new ExtensionManager();
+  return _instance;
 }
 
 const lazyExtensionManager = new Proxy({} as ExtensionManager, {
-    get(_target, prop) {
-        return Reflect.get(getInstance(), prop);
-    },
-    set(_target, prop, value) {
-        return Reflect.set(getInstance(), prop, value);
-    },
-    has(_target, prop) {
-        return Reflect.has(getInstance(), prop);
-    },
-    getPrototypeOf() {
-        return Reflect.getPrototypeOf(getInstance());
-    },
-    // Tools like vi.spyOn / Object.defineProperty reflect on / rewrite property
-    // descriptors. Without these traps, they would see the empty Proxy target
-    // instead of the real instance.
-    getOwnPropertyDescriptor(_target, prop) {
-        const instance = getInstance();
-        return (
-            Object.getOwnPropertyDescriptor(instance, prop) ??
-            Object.getOwnPropertyDescriptor(Object.getPrototypeOf(instance), prop)
-        );
-    },
-    defineProperty(_target, prop, descriptor) {
-        return Reflect.defineProperty(getInstance(), prop, descriptor);
-    },
-    ownKeys() {
-        return Reflect.ownKeys(getInstance());
-    },
+  get(_target, prop) {
+    return Reflect.get(getInstance(), prop);
+  },
+  set(_target, prop, value) {
+    return Reflect.set(getInstance(), prop, value);
+  },
+  has(_target, prop) {
+    return Reflect.has(getInstance(), prop);
+  },
+  getPrototypeOf() {
+    return Reflect.getPrototypeOf(getInstance());
+  },
+  // Tools like vi.spyOn / Object.defineProperty reflect on / rewrite property
+  // descriptors. Without these traps, they would see the empty Proxy target
+  // instead of the real instance.
+  getOwnPropertyDescriptor(_target, prop) {
+    const instance = getInstance();
+    return (
+      Object.getOwnPropertyDescriptor(instance, prop) ??
+      Object.getOwnPropertyDescriptor(Object.getPrototypeOf(instance), prop)
+    );
+  },
+  defineProperty(_target, prop, descriptor) {
+    return Reflect.defineProperty(getInstance(), prop, descriptor);
+  },
+  ownKeys() {
+    return Reflect.ownKeys(getInstance());
+  },
 });
 
 // Compatibility for isReady export
 export const isReady = {
-    get subscribe() {
-        return (fn: (v: boolean) => void) => {
-            fn(lazyExtensionManager.isReady);
-            return () => {};
-        };
-    }
+  get subscribe() {
+    return (fn: (v: boolean) => void) => {
+      fn(lazyExtensionManager.isReady);
+      return () => {};
+    };
+  },
 };
 
 export const extensionManager = lazyExtensionManager;
@@ -725,9 +719,7 @@ export default lazyExtensionManager;
  * `parse_dynamic_object_id` in `commands/dynamic_commands.rs` so both
  * sides interpret ambiguous ids identically.
  */
-function parseDynamicObjectId(
-  objectId: string,
-): { extensionId: string; dynamicId: string } | null {
+function parseDynamicObjectId(objectId: string): { extensionId: string; dynamicId: string } | null {
   if (!objectId.startsWith('cmd_')) return null;
   const rest = objectId.slice(4);
   const idx = rest.lastIndexOf('_dyn_');

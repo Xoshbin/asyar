@@ -37,7 +37,11 @@ describe('ExtensionIpcRouter — host dispatcher integration', () => {
 
   it('propagates service method errors back to invoke() callers', async () => {
     const registry = {
-      extensions: { navigateToView: () => { throw new Error('nav-boom'); } },
+      extensions: {
+        navigateToView: () => {
+          throw new Error('nav-boom');
+        },
+      },
     } as unknown as ServiceRegistry;
     const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
     router.setup();
@@ -50,7 +54,11 @@ describe('ExtensionIpcRouter — host dispatcher integration', () => {
   it('runs the service method synchronously — side effects land before invoke() resolves', async () => {
     let pushed = false;
     const registry = {
-      extensions: { navigateToView: () => { pushed = true; } },
+      extensions: {
+        navigateToView: () => {
+          pushed = true;
+        },
+      },
     } as unknown as ServiceRegistry;
     const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
     router.setup();
@@ -80,9 +88,7 @@ describe('ExtensionIpcRouter — auto-inject extensionId for fsWatcher', () => {
     isPrivilegedHostContext: boolean,
   ) => Promise<unknown>;
 
-  function dispatchAs(
-    router: ExtensionIpcRouter,
-  ): DispatchApiCall {
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
     return (
       router as unknown as {
         dispatchApiCall: DispatchApiCall;
@@ -104,11 +110,7 @@ describe('ExtensionIpcRouter — auto-inject extensionId for fsWatcher', () => {
       false,
     );
 
-    expect(create).toHaveBeenCalledWith(
-      'ext.demo',
-      ['/tmp/asyar-fs-watch'],
-      { recursive: true },
-    );
+    expect(create).toHaveBeenCalledWith('ext.demo', ['/tmp/asyar-fs-watch'], { recursive: true });
   });
 
   it('fsWatcher:dispose from an iframe receives extensionId, handleId in that order', async () => {
@@ -145,9 +147,7 @@ describe('ExtensionIpcRouter — auto-inject extensionId for tools', () => {
   ) => Promise<unknown>;
 
   function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
-    return (
-      router as unknown as { dispatchApiCall: DispatchApiCall }
-    ).dispatchApiCall.bind(router);
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
   }
 
   it('tools:registerTool from an iframe receives extensionId, tool in that order', async () => {
@@ -164,10 +164,12 @@ describe('ExtensionIpcRouter — auto-inject extensionId for tools', () => {
       false,
     );
 
-    expect(registerTool).toHaveBeenCalledWith(
-      'ext.demo',
-      { id: 'foo', name: 'Foo', description: 'd', inputSchema: {} },
-    );
+    expect(registerTool).toHaveBeenCalledWith('ext.demo', {
+      id: 'foo',
+      name: 'Foo',
+      description: 'd',
+      inputSchema: {},
+    });
   });
 
   it('tools:unregisterTool from an iframe receives extensionId, id in that order', async () => {
@@ -177,12 +179,7 @@ describe('ExtensionIpcRouter — auto-inject extensionId for tools', () => {
     } as unknown as ServiceRegistry;
     const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
 
-    await dispatchAs(router)(
-      'asyar:api:tools:unregisterTool',
-      { id: 'foo' },
-      'ext.demo',
-      false,
-    );
+    await dispatchAs(router)('asyar:api:tools:unregisterTool', { id: 'foo' }, 'ext.demo', false);
 
     expect(unregisterTool).toHaveBeenCalledWith('ext.demo', 'foo');
   });
@@ -203,9 +200,7 @@ describe('ExtensionIpcRouter — auto-inject extensionId for applicationIndex', 
   ) => Promise<unknown>;
 
   function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
-    return (
-      router as unknown as { dispatchApiCall: DispatchApiCall }
-    ).dispatchApiCall.bind(router);
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
   }
 
   it('applicationIndex:subscribe from an iframe receives extensionId, eventTypes in that order', async () => {
@@ -260,9 +255,7 @@ describe('ExtensionIpcRouter — originRole injection for shell streams', () => 
   ) => Promise<unknown>;
 
   function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
-    return (
-      router as unknown as { dispatchApiCall: DispatchApiCall }
-    ).dispatchApiCall.bind(router);
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
   }
 
   it('shell:spawn from a worker iframe receives originRole as the trailing argument', async () => {
@@ -330,13 +323,7 @@ describe('ExtensionIpcRouter — originRole injection for shell streams', () => 
     } as unknown as ServiceRegistry;
     const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
 
-    await dispatchAs(router)(
-      'asyar:api:shell:list',
-      {},
-      'ext.demo',
-      false,
-      'worker',
-    );
+    await dispatchAs(router)('asyar:api:shell:list', {}, 'ext.demo', false, 'worker');
 
     expect(list).toHaveBeenCalledWith('ext.demo');
     expect(list.mock.calls[0]).toHaveLength(1);
@@ -373,9 +360,7 @@ describe('ExtensionIpcRouter — snippets Tauri-direct routing', () => {
   ) => Promise<unknown>;
 
   function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
-    return (
-      router as unknown as { dispatchApiCall: DispatchApiCall }
-    ).dispatchApiCall.bind(router);
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
   }
 
   beforeEach(() => {

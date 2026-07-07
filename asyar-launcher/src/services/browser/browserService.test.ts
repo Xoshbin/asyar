@@ -14,9 +14,7 @@ beforeEach(() => {
 
 describe('browserService', () => {
   it('listAvailableBrowsers calls the right command', async () => {
-    const fake: BrowserId[] = [
-      { family: 'chromium', variant: 'chrome', profileId: 'Default' },
-    ];
+    const fake: BrowserId[] = [{ family: 'chromium', variant: 'chrome', profileId: 'Default' }];
     invokeMock.mockResolvedValue(fake);
     const result = await browserService.listAvailableBrowsers();
     expect(invokeMock).toHaveBeenCalledWith('browser_list_available_browsers', undefined);
@@ -26,7 +24,9 @@ describe('browserService', () => {
   it('isCompanionInstalled passes family argument', async () => {
     invokeMock.mockResolvedValue(false);
     const result = await browserService.isCompanionInstalled('chromium');
-    expect(invokeMock).toHaveBeenCalledWith('browser_is_companion_installed', { family: 'chromium' });
+    expect(invokeMock).toHaveBeenCalledWith('browser_is_companion_installed', {
+      family: 'chromium',
+    });
     expect(result).toBe(false);
   });
 
@@ -113,13 +113,20 @@ describe('browserService — live bridge', () => {
   it('queryPage forwards tabId, selector, and attrs', async () => {
     invokeMock.mockResolvedValue([]);
     await browserService.queryPage('t1', 'a', ['href']);
-    expect(invokeMock).toHaveBeenCalledWith('browser_query_page', { tabId: 't1', selector: 'a', attrs: ['href'] });
+    expect(invokeMock).toHaveBeenCalledWith('browser_query_page', {
+      tabId: 't1',
+      selector: 'a',
+      attrs: ['href'],
+    });
   });
 
   it('actOnPage forwards tabId and action', async () => {
     invokeMock.mockResolvedValue(undefined);
     await browserService.actOnPage('t1', { kind: 'reload' });
-    expect(invokeMock).toHaveBeenCalledWith('browser_act_on_page', { tabId: 't1', action: { kind: 'reload' } });
+    expect(invokeMock).toHaveBeenCalledWith('browser_act_on_page', {
+      tabId: 't1',
+      action: { kind: 'reload' },
+    });
   });
 });
 
@@ -127,14 +134,20 @@ describe('browserService — command-bar additions', () => {
   it('searchWeb calls browser_search_web with text + browser undefined', async () => {
     invokeMock.mockResolvedValue(undefined);
     await browserService.searchWeb('q');
-    expect(invokeMock).toHaveBeenCalledWith('browser_search_web', { text: 'q', browser: undefined });
+    expect(invokeMock).toHaveBeenCalledWith('browser_search_web', {
+      text: 'q',
+      browser: undefined,
+    });
   });
 
   it('searchWeb calls browser_search_web with text + specific browser', async () => {
     invokeMock.mockResolvedValue(undefined);
     const someBrowser = { family: 'chromium' as const, variant: 'chrome', profileId: 'Default' };
     await browserService.searchWeb('q', someBrowser);
-    expect(invokeMock).toHaveBeenCalledWith('browser_search_web', { text: 'q', browser: someBrowser });
+    expect(invokeMock).toHaveBeenCalledWith('browser_search_web', {
+      text: 'q',
+      browser: someBrowser,
+    });
   });
 
   it('getMostRecentActiveBrowser calls browser_get_most_recent_active_browser', async () => {
@@ -172,12 +185,16 @@ describe('browserService — subscribe per-kind (hard-coded eventTypes)', () => 
   it('unsubscribeTabsChanged invokes browser_events_unsubscribe', async () => {
     invokeMock.mockResolvedValue(undefined);
     await browserService.unsubscribeTabsChanged('sub-1');
-    expect(invokeMock).toHaveBeenCalledWith('browser_events_unsubscribe', { subscriptionId: 'sub-1' });
+    expect(invokeMock).toHaveBeenCalledWith('browser_events_unsubscribe', {
+      subscriptionId: 'sub-1',
+    });
   });
 
   it('unsubscribePageChanged invokes browser_events_unsubscribe', async () => {
     invokeMock.mockResolvedValue(undefined);
     await browserService.unsubscribePageChanged('sub-2');
-    expect(invokeMock).toHaveBeenCalledWith('browser_events_unsubscribe', { subscriptionId: 'sub-2' });
+    expect(invokeMock).toHaveBeenCalledWith('browser_events_unsubscribe', {
+      subscriptionId: 'sub-2',
+    });
   });
 });

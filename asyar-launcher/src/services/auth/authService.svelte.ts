@@ -59,7 +59,7 @@ class AuthService {
       // Check if cached entitlements are stale
       const now = Math.floor(Date.now() / 1000);
       const cachedAt = cached.entitlementsCachedAt ?? 0;
-      const isStale = (now - cachedAt) > ENTITLEMENT_GRACE_PERIOD_SECONDS;
+      const isStale = now - cachedAt > ENTITLEMENT_GRACE_PERIOD_SECONDS;
 
       // Background refresh — do not await, do not block startup
       this.refreshEntitlements().catch((err) => {
@@ -67,7 +67,9 @@ class AuthService {
         if (isStale) {
           // Stale + no network = clear entitlements and warn
           this.entitlements = [];
-          logService.warn('Auth: cached entitlements expired and refresh failed. Clearing entitlements.');
+          logService.warn(
+            'Auth: cached entitlements expired and refresh failed. Clearing entitlements.',
+          );
         }
       });
     } catch (err) {
@@ -219,7 +221,7 @@ class AuthService {
     const result = await commands.authPoll(sessionCode);
     if (result === null || result.status !== 'complete') {
       // Try once more (network race)
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
       const retry = await commands.authPoll(sessionCode);
       if (retry === null || retry.status !== 'complete') {
         throw new Error('OAuth completed but session data not ready');

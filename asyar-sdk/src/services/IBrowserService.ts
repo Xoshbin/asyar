@@ -91,10 +91,7 @@ export interface PageMatch {
 }
 
 export type PageAction =
-  | { kind: 'reload' }
-  | { kind: 'goBack' }
-  | { kind: 'goForward' }
-  | { kind: 'scrollToTop' };
+  { kind: 'reload' } | { kind: 'goBack' } | { kind: 'goForward' } | { kind: 'scrollToTop' };
 
 export interface PageChangedEvent {
   type: 'page-changed';

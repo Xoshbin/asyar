@@ -1,5 +1,5 @@
-import type { IStorageService } from "./IStorageService";
-import { BaseServiceProxy } from "./BaseServiceProxy";
+import type { IStorageService } from './IStorageService';
+import { BaseServiceProxy } from './BaseServiceProxy';
 
 /**
  * SDK proxy for extension key-value storage.

@@ -10,11 +10,11 @@ export interface ResolveOptions {
 }
 
 export interface PlaceholderDefinition {
-  id: string;          // machine-readable id
-  label: string;       // display name in picker UI (e.g. "Selected Text")
-  token: string;       // canonical `{token}` string (e.g. "Selected Text")
+  id: string; // machine-readable id
+  label: string; // display name in picker UI (e.g. "Selected Text")
+  token: string; // canonical `{token}` string (e.g. "Selected Text")
   description?: string; // subtitle shown in picker UI
-  aliases?: string[];  // other accepted spellings (e.g. ["selection"])
+  aliases?: string[]; // other accepted spellings (e.g. ["selection"])
   resolve(context: ResolveContext): Promise<string> | string;
 }
 
@@ -35,8 +35,11 @@ export const PLACEHOLDERS: readonly PlaceholderDefinition[] = [
     description: 'Text currently selected in the frontmost app',
     aliases: ['selection'],
     resolve: async () => {
-      try { return (await selectionService.getSelectedText()) ?? ''; }
-      catch { return ''; }
+      try {
+        return (await selectionService.getSelectedText()) ?? '';
+      } catch {
+        return '';
+      }
     },
   },
   {
@@ -46,8 +49,11 @@ export const PLACEHOLDERS: readonly PlaceholderDefinition[] = [
     description: 'Current text content of the clipboard',
     aliases: ['clipboard'],
     resolve: async () => {
-      try { return await clipboardHistoryService.readCurrentText(); }
-      catch { return ''; }
+      try {
+        return await clipboardHistoryService.readCurrentText();
+      } catch {
+        return '';
+      }
     },
   },
   {
@@ -94,7 +100,7 @@ export const PLACEHOLDERS: readonly PlaceholderDefinition[] = [
 
 // Internal: find a placeholder by its canonical token or any alias
 function findPlaceholder(tokenText: string): PlaceholderDefinition | undefined {
-  return PLACEHOLDERS.find(p => p.token === tokenText || p.aliases?.includes(tokenText));
+  return PLACEHOLDERS.find((p) => p.token === tokenText || p.aliases?.includes(tokenText));
 }
 
 /**
@@ -110,26 +116,26 @@ function findPlaceholder(tokenText: string): PlaceholderDefinition | undefined {
 export async function resolveTemplate(
   template: string,
   context: ResolveContext = {},
-  options: ResolveOptions = {}
+  options: ResolveOptions = {},
 ): Promise<string> {
   const TOKEN_RE = /\{([^{}]+)\}/g;
   const matches = [...template.matchAll(TOKEN_RE)];
   if (matches.length === 0) return template;
 
   // Resolve each unique token once (concurrent resolution for async tokens)
-  const uniqueTokens = [...new Set(matches.map(m => m[1]))];
+  const uniqueTokens = [...new Set(matches.map((m) => m[1]))];
   const resolved = await Promise.all(
     uniqueTokens.map(async (tokenText) => {
       const def = findPlaceholder(tokenText);
       if (!def) return [tokenText, null] as const; // null = leave as-is
       const value = await def.resolve(context);
       return [tokenText, options.encodeValues ? encodeURIComponent(value) : value] as const;
-    })
+    }),
   );
   const valueMap = new Map(resolved.filter(([, v]) => v !== null) as [string, string][]);
 
   return template.replace(TOKEN_RE, (fullMatch, tokenText) =>
-    valueMap.has(tokenText) ? valueMap.get(tokenText)! : fullMatch
+    valueMap.has(tokenText) ? valueMap.get(tokenText)! : fullMatch,
   );
 }
 

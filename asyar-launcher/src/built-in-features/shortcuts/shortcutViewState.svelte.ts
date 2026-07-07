@@ -10,10 +10,11 @@ class ShortcutViewStateClass {
     const q = searchStores.query.trim().toLowerCase();
     const filtered = !q
       ? all
-      : all.filter(s =>
-          s.itemName.toLowerCase().includes(q) ||
-          s.itemType.toLowerCase().includes(q) ||
-          (s.itemPath?.toLowerCase().includes(q) ?? false)
+      : all.filter(
+          (s) =>
+            s.itemName.toLowerCase().includes(q) ||
+            s.itemType.toLowerCase().includes(q) ||
+            (s.itemPath?.toLowerCase().includes(q) ?? false),
         );
     return groupShortcutsBySection(filtered);
   }

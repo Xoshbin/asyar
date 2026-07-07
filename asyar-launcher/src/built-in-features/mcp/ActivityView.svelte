@@ -23,11 +23,7 @@
         <li class="audit-row">
           <span class="audit-time">{formatRelativeTime(row.calledAt)}</span>
           <span class="audit-tool">{row.serverId}.{row.toolId}</span>
-          <span
-            class="audit-status"
-            class:success={row.success}
-            class:failure={!row.success}
-          >
+          <span class="audit-status" class:success={row.success} class:failure={!row.success}>
             {row.success ? '✓' : '✗'}
           </span>
           {#if row.argsSummary}

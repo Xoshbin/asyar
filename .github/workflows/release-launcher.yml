@@ -277,7 +277,7 @@ jobs:
           # Tauri's bundler invokes linuxdeploy/appimagetool — themselves AppImages.
           # Ubuntu 24.04 blocks their default FUSE/userns mount path, so tell them
           # to self-extract to a temp dir instead. Official CI-mode flag, not a hack.
-          APPIMAGE_EXTRACT_AND_RUN: "1"
+          APPIMAGE_EXTRACT_AND_RUN: '1'
         run: pnpm tauri build -v --target ${{ matrix.rust-target }}
 
       - name: Upload Linux ${{ matrix.arch }} Artifacts
@@ -332,7 +332,7 @@ jobs:
       - name: Notify Website
         env:
           ASYAR_UPDATE_TOKEN: ${{ secrets.ASYAR_UPDATE_TOKEN }}
-          APP_URL: "https://asyar.org"
+          APP_URL: 'https://asyar.org'
           REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
           REPO: ${{ github.repository }}
         run: |

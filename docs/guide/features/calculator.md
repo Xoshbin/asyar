@@ -3,7 +3,7 @@
 > Do math, unit conversion, currency conversion, and date math right from the search bar.
 
 ![A calculator result shown inline in the search bar](../../images/feature-calculator-hero.png)
-*Figure: type a sum and the answer appears inline, ready to copy.*
+_Figure: type a sum and the answer appears inline, ready to copy._
 
 ## What it does
 
@@ -29,8 +29,8 @@ For currency results, rates are fetched when Asyar starts and refreshed automati
 
 ## Shortcuts & actions
 
-| Action | How |
-|--------|-----|
+| Action      | How                       |
+| ----------- | ------------------------- |
 | Copy result | `Enter` on the result row |
 
 The calculator result row has no action panel (⌘K) entries — its single action is copy on `Enter`.

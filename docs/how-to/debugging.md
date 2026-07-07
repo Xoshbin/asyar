@@ -1,6 +1,7 @@
 ---
 order: 3
 ---
+
 ## 16. Debugging Workflows
 
 ### Step 1 — Check the Asyar developer log
@@ -16,6 +17,7 @@ Asyar is built on Tauri/WebKit. You can open WebKit Inspector for the extension 
 3. The full WebKit DevTools open for your iframe's context.
 
 From DevTools you can:
+
 - Inspect the DOM, styles, and layout.
 - Use the Console to run JavaScript in your extension's context.
 - Set breakpoints in the Sources panel.
@@ -57,16 +59,16 @@ It should contain an entry mapping your extension ID to the absolute path. If it
 
 ### Common issues and solutions
 
-| Symptom | Cause | Fix |
-|---|---|---|
-| Extension not appearing in search | Manifest `id` doesn't match directory name | Rename directory to exactly match `id` |
-| Extension not appearing in search | Not registered in dev registry | Run `asyar link` |
-| Blank white iframe panel | `main.ts` throws before mounting | Open DevTools, check Console for errors |
-| `asyar:extension:loaded` never fired | `window.parent.postMessage` call missing from `main.ts` | Add the loaded signal (see template) |
-| Service call hangs for 10s then rejects | Missing permission | Declare permission in `manifest.json` |
-| External URL fetch blocked | Using `window.fetch()` directly | Use `NetworkService` instead |
-| ⌘K shows stale actions from old view | Actions not unregistered in `onDestroy` | Add `actionService.unregisterAction()` cleanup |
-| Changes not reflected after save | `pnpm dev` not running | Start `pnpm dev` (Vite watch mode) |
-| Double IPC calls | Two `ExtensionContext` instances created | Keep exactly one context in `main.ts` |
+| Symptom                                 | Cause                                                   | Fix                                            |
+| --------------------------------------- | ------------------------------------------------------- | ---------------------------------------------- |
+| Extension not appearing in search       | Manifest `id` doesn't match directory name              | Rename directory to exactly match `id`         |
+| Extension not appearing in search       | Not registered in dev registry                          | Run `asyar link`                               |
+| Blank white iframe panel                | `main.ts` throws before mounting                        | Open DevTools, check Console for errors        |
+| `asyar:extension:loaded` never fired    | `window.parent.postMessage` call missing from `main.ts` | Add the loaded signal (see template)           |
+| Service call hangs for 10s then rejects | Missing permission                                      | Declare permission in `manifest.json`          |
+| External URL fetch blocked              | Using `window.fetch()` directly                         | Use `NetworkService` instead                   |
+| ⌘K shows stale actions from old view    | Actions not unregistered in `onDestroy`                 | Add `actionService.unregisterAction()` cleanup |
+| Changes not reflected after save        | `pnpm dev` not running                                  | Start `pnpm dev` (Vite watch mode)             |
+| Double IPC calls                        | Two `ExtensionContext` instances created                | Keep exactly one context in `main.ts`          |
 
 ---

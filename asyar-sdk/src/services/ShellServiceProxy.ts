@@ -93,9 +93,15 @@ export class ShellServiceProxy extends BaseServiceProxy implements IShellService
 
     return {
       spawnId,
-      onChunk: (cb) => { chunkCb = cb; },
-      onDone: (cb) => { doneCb = cb; },
-      onError: (cb) => { errorCb = cb; },
+      onChunk: (cb) => {
+        chunkCb = cb;
+      },
+      onDone: (cb) => {
+        doneCb = cb;
+      },
+      onError: (cb) => {
+        errorCb = cb;
+      },
       abort: () => {
         if (settled) return;
         window.parent.postMessage(

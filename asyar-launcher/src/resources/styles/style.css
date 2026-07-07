@@ -1,34 +1,34 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* ── Font Faces ─────────────────────────────────────────── */
 
 @font-face {
-  font-family: "Satoshi";
-  src: url("../fonts/Satoshi-Variable.woff2") format("woff2");
+  font-family: 'Satoshi';
+  src: url('../fonts/Satoshi-Variable.woff2') format('woff2');
   font-weight: 300 900;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "Satoshi";
-  src: url("../fonts/Satoshi-VariableItalic.woff2") format("woff2");
+  font-family: 'Satoshi';
+  src: url('../fonts/Satoshi-VariableItalic.woff2') format('woff2');
   font-weight: 300 900;
   font-style: italic;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "JetBrains Mono";
-  src: url("../fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-family: 'JetBrains Mono';
+  src: url('../fonts/JetBrainsMono-Regular.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "JetBrains Mono";
-  src: url("../fonts/JetBrainsMono-Medium.woff2") format("woff2");
+  font-family: 'JetBrains Mono';
+  src: url('../fonts/JetBrainsMono-Medium.woff2') format('woff2');
   font-weight: 500;
   font-style: normal;
   font-display: swap;
@@ -54,8 +54,10 @@
   border-radius: 20px;
 
   /* Typography */
-  --font-ui: "Satoshi", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", "Helvetica Neue", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", "Consolas", monospace;
+  --font-ui:
+    'Satoshi', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable', 'Segoe UI',
+    'Helvetica Neue', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
 
   /* Transition tokens */
   --transition-fast: 100ms ease;
@@ -63,8 +65,8 @@
   --transition-smooth: 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
 
   /* Brand tokens (constant across themes) */
-  --asyar-brand: #2EC4B6;
-  --asyar-brand-hover: #28B0A3;
+  --asyar-brand: #2ec4b6;
+  --asyar-brand-hover: #28b0a3;
   --asyar-brand-muted: rgba(46, 196, 182, 0.15);
   --asyar-brand-subtle: rgba(46, 196, 182, 0.08);
   --accent-primary-rgb: 46, 196, 182;
@@ -116,8 +118,8 @@
 
 /* macOS: use San Francisco system font (skip Satoshi). Other platforms
    keep the Satoshi-first stack defined in :root above. */
-html[data-platform="macos"] {
-  --font-ui: -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", sans-serif;
+html[data-platform='macos'] {
+  --font-ui: -apple-system, BlinkMacSystemFont, system-ui, 'Helvetica Neue', sans-serif;
 }
 
 * {
@@ -152,9 +154,9 @@ body {
 /* macOS launcher: WKWebView is pinned at 480, NSWindow is cropped around it
    (platform/macos.rs). Freezing the height chain keeps the DOM static — using
    100vh would force WebKit to re-lay out on every setFrame. */
-html[data-platform="macos"],
-html[data-platform="macos"] body,
-html[data-platform="macos"] .app-root {
+html[data-platform='macos'],
+html[data-platform='macos'] body,
+html[data-platform='macos'] .app-root {
   height: 480px;
 }
 
@@ -243,7 +245,7 @@ html[data-platform="macos"] .app-root {
   }
 }
 
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   --bg-primary: rgba(30, 30, 32, 0.65);
   --bg-popup: rgb(30, 30, 32);
   --popup-border-color: rgba(255, 255, 255, 0.18);
@@ -273,12 +275,12 @@ html[data-platform="macos"] .app-root {
   color-scheme: dark;
 }
 
-:root[data-theme="dark"] .macos-panel {
+:root[data-theme='dark'] .macos-panel {
   backdrop-filter: blur(25px);
   background-color: rgba(30, 30, 32, 0.72);
 }
 
-:root[data-theme="dark"] .back-button {
+:root[data-theme='dark'] .back-button {
   color: rgba(160, 175, 190, 0.75);
 
   &:hover {
@@ -286,7 +288,7 @@ html[data-platform="macos"] .app-root {
   }
 }
 
-:root[data-theme="dark"] .search-input {
+:root[data-theme='dark'] .search-input {
   color: rgba(235, 240, 245, 0.95);
 
   &::placeholder {
@@ -294,15 +296,15 @@ html[data-platform="macos"] .app-root {
   }
 }
 
-:root[data-theme="dark"] .result-title {
+:root[data-theme='dark'] .result-title {
   color: rgba(235, 240, 245, 0.95);
 }
 
-:root[data-theme="dark"] .result-subtitle {
+:root[data-theme='dark'] .result-subtitle {
   color: rgba(160, 175, 190, 0.75);
 }
 
-:root[data-theme="dark"] .settings-page {
+:root[data-theme='dark'] .settings-page {
   --bg-primary: rgb(30, 30, 32);
   --bg-secondary: rgb(37, 37, 40);
   --bg-tertiary: rgb(47, 47, 50);
@@ -389,11 +391,11 @@ html[data-platform="macos"] .app-root {
     --border-color: rgba(60, 60, 67, 0.15);
     --separator: rgba(60, 60, 67, 0.12);
     --divider-soft: rgba(60, 60, 67, 0.06);
-    --shadow-color: rgba(0, 0, 0, 0.10);
+    --shadow-color: rgba(0, 0, 0, 0.1);
   }
 }
 
-:root[data-theme="light"] {
+:root[data-theme='light'] {
   --bg-primary: rgba(240, 240, 245, 0.65);
   --bg-popup: rgb(240, 240, 245);
   --popup-border-color: rgba(60, 60, 67, 0.16);
@@ -424,12 +426,12 @@ html[data-platform="macos"] .app-root {
   color-scheme: light;
 }
 
-:root[data-theme="light"] .macos-panel {
+:root[data-theme='light'] .macos-panel {
   backdrop-filter: blur(25px);
   background-color: rgba(242, 242, 245, 0.72);
 }
 
-:root[data-theme="light"] .back-button {
+:root[data-theme='light'] .back-button {
   color: rgba(55, 65, 80, 0.6);
 
   &:hover {
@@ -437,7 +439,7 @@ html[data-platform="macos"] .app-root {
   }
 }
 
-:root[data-theme="light"] .search-input {
+:root[data-theme='light'] .search-input {
   color: rgba(15, 23, 42, 0.85);
 
   &::placeholder {
@@ -445,15 +447,15 @@ html[data-platform="macos"] .app-root {
   }
 }
 
-:root[data-theme="light"] .result-title {
+:root[data-theme='light'] .result-title {
   color: rgba(15, 23, 42, 0.85);
 }
 
-:root[data-theme="light"] .result-subtitle {
+:root[data-theme='light'] .result-subtitle {
   color: rgba(55, 65, 80, 0.6);
 }
 
-:root[data-theme="light"] .settings-page {
+:root[data-theme='light'] .settings-page {
   --bg-primary: rgb(240, 240, 245);
   --bg-secondary: rgb(230, 230, 235);
   --bg-tertiary: rgb(245, 245, 247);
@@ -464,7 +466,7 @@ html[data-platform="macos"] .app-root {
   --border-color: rgba(60, 60, 67, 0.15);
   --separator: rgba(60, 60, 67, 0.12);
   --divider-soft: rgba(60, 60, 67, 0.06);
-  --shadow-color: rgba(0, 0, 0, 0.10);
+  --shadow-color: rgba(0, 0, 0, 0.1);
 }
 
 /* ── Component Layer ────────────────────────────────────── */
@@ -562,7 +564,9 @@ html[data-platform="macos"] .app-root {
     font-family: var(--font-ui);
     border-radius: var(--radius-sm);
     background-color: var(--bg-tertiary);
-    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    transition:
+      border-color var(--transition-fast),
+      box-shadow var(--transition-fast);
 
     &:focus {
       border-color: var(--accent-primary);
@@ -608,7 +612,7 @@ html[data-platform="macos"] .app-root {
    * Defining any ::-webkit-scrollbar rule on macOS would demote the
    * scroller to legacy obtrusive mode.
    */
-  html:not([data-platform="macos"]) .custom-scrollbar {
+  html:not([data-platform='macos']) .custom-scrollbar {
     &::-webkit-scrollbar {
       width: 6px;
     }
@@ -631,43 +635,73 @@ html[data-platform="macos"] .app-root {
   }
 
   .btn-primary {
-    background: linear-gradient(to bottom, var(--accent-primary), color-mix(in srgb, var(--accent-primary) 90%, black));
+    background: linear-gradient(
+      to bottom,
+      var(--accent-primary),
+      color-mix(in srgb, var(--accent-primary) 90%, black)
+    );
     color: white;
     border: none;
 
     &:hover {
-      background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-primary) 95%, white), var(--accent-primary));
+      background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--accent-primary) 95%, white),
+        var(--accent-primary)
+      );
     }
 
     &:active {
-      background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-primary) 90%, black), var(--accent-primary));
+      background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--accent-primary) 90%, black),
+        var(--accent-primary)
+      );
     }
   }
 
   .btn-success {
-    background: linear-gradient(to bottom, var(--accent-success), color-mix(in srgb, var(--accent-success) 90%, black));
+    background: linear-gradient(
+      to bottom,
+      var(--accent-success),
+      color-mix(in srgb, var(--accent-success) 90%, black)
+    );
     color: white;
     border: none;
 
     &:hover {
-      background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-success) 95%, white), var(--accent-success));
+      background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--accent-success) 95%, white),
+        var(--accent-success)
+      );
     }
   }
 
   .btn-danger {
-    background: linear-gradient(to bottom, var(--accent-danger), color-mix(in srgb, var(--accent-danger) 90%, black));
+    background: linear-gradient(
+      to bottom,
+      var(--accent-danger),
+      color-mix(in srgb, var(--accent-danger) 90%, black)
+    );
     color: white;
     border: none;
 
     &:hover {
-      background: linear-gradient(to bottom, color-mix(in srgb, var(--accent-danger) 95%, white), var(--accent-danger));
+      background: linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--accent-danger) 95%, white),
+        var(--accent-danger)
+      );
     }
   }
 
   .split-view-handle {
     @apply w-px hover:w-1 cursor-ew-resize z-10;
     background-color: var(--divider-soft);
-    transition: width var(--transition-fast), background-color var(--transition-fast);
+    transition:
+      width var(--transition-fast),
+      background-color var(--transition-fast);
 
     &:hover {
       background-color: var(--accent-primary);
@@ -768,7 +802,9 @@ html[data-platform="macos"] .app-root {
     @apply flex items-center gap-2 px-4 py-2 text-sm;
     border-radius: var(--radius-sm);
     color: var(--text-secondary);
-    transition: background-color var(--transition-fast), color var(--transition-fast);
+    transition:
+      background-color var(--transition-fast),
+      color var(--transition-fast);
 
     &:hover {
       background-color: var(--bg-hover);
@@ -783,20 +819,20 @@ html[data-platform="macos"] .app-root {
 
 /* ── Platform: Windows ──────────────────────────────────── */
 
-html[data-platform="win32"] .macos-panel,
-html[data-platform="windows"] .macos-panel {
+html[data-platform='win32'] .macos-panel,
+html[data-platform='windows'] .macos-panel {
   backdrop-filter: none;
   background-color: transparent;
 }
 
 @media (prefers-color-scheme: light) {
-  html[data-platform="win32"]:not([data-theme]),
-  html[data-platform="windows"]:not([data-theme]) {
+  html[data-platform='win32']:not([data-theme]),
+  html[data-platform='windows']:not([data-theme]) {
     background-color: transparent;
     --bg-primary: rgba(247, 249, 251, 0.25);
-    --bg-secondary: rgba(238, 242, 246, 0.20);
-    --bg-tertiary: rgba(243, 246, 249, 0.20);
-    --bg-hover: rgba(228, 233, 238, 0.30);
+    --bg-secondary: rgba(238, 242, 246, 0.2);
+    --bg-tertiary: rgba(243, 246, 249, 0.2);
+    --bg-hover: rgba(228, 233, 238, 0.3);
     --bg-selected: rgba(140, 140, 148, 0.22);
     /* Themed translucent overlay over the DWM Acrylic backdrop. ~85% opaque
        so the theme reads regardless of the desktop wallpaper behind, while a
@@ -805,37 +841,37 @@ html[data-platform="windows"] .macos-panel {
   }
 }
 
-html[data-platform="win32"][data-theme="light"],
-html[data-platform="windows"][data-theme="light"] {
+html[data-platform='win32'][data-theme='light'],
+html[data-platform='windows'][data-theme='light'] {
   background-color: transparent;
   --bg-primary: rgba(247, 249, 251, 0.25);
-  --bg-secondary: rgba(238, 242, 246, 0.20);
-  --bg-tertiary: rgba(243, 246, 249, 0.20);
-  --bg-hover: rgba(228, 233, 238, 0.30);
+  --bg-secondary: rgba(238, 242, 246, 0.2);
+  --bg-tertiary: rgba(243, 246, 249, 0.2);
+  --bg-hover: rgba(228, 233, 238, 0.3);
   --bg-selected: rgba(140, 140, 148, 0.22);
   --win-acrylic-tint: rgba(240, 240, 245, 0.85);
 }
 
 @media (prefers-color-scheme: dark) {
-  html[data-platform="win32"]:not([data-theme]),
-  html[data-platform="windows"]:not([data-theme]) {
+  html[data-platform='win32']:not([data-theme]),
+  html[data-platform='windows']:not([data-theme]) {
     background-color: transparent;
     --bg-primary: rgba(14, 17, 20, 0.25);
-    --bg-secondary: rgba(20, 24, 28, 0.20);
-    --bg-tertiary: rgba(28, 33, 38, 0.20);
-    --bg-hover: rgba(36, 42, 48, 0.30);
+    --bg-secondary: rgba(20, 24, 28, 0.2);
+    --bg-tertiary: rgba(28, 33, 38, 0.2);
+    --bg-hover: rgba(36, 42, 48, 0.3);
     --bg-selected: rgba(74, 74, 78, 0.65);
     --win-acrylic-tint: rgba(28, 28, 32, 0.85);
   }
 }
 
-html[data-platform="win32"][data-theme="dark"],
-html[data-platform="windows"][data-theme="dark"] {
+html[data-platform='win32'][data-theme='dark'],
+html[data-platform='windows'][data-theme='dark'] {
   background-color: transparent;
   --bg-primary: rgba(14, 17, 20, 0.25);
-  --bg-secondary: rgba(20, 24, 28, 0.20);
-  --bg-tertiary: rgba(28, 33, 38, 0.20);
-  --bg-hover: rgba(36, 42, 48, 0.30);
+  --bg-secondary: rgba(20, 24, 28, 0.2);
+  --bg-tertiary: rgba(28, 33, 38, 0.2);
+  --bg-hover: rgba(36, 42, 48, 0.3);
   --bg-selected: rgba(74, 74, 78, 0.65);
   --win-acrylic-tint: rgba(28, 28, 32, 0.85);
 }
@@ -849,54 +885,54 @@ html[data-platform="windows"][data-theme="dark"] {
  * backdrop so the launcher reads as dark/light regardless of the desktop
  * wallpaper Acrylic is blurring underneath (Acrylic's tint defaults to
  * transparent so the desktop's color otherwise dominates the result). */
-html[data-platform="win32"] .app-root,
-html[data-platform="windows"] .app-root {
+html[data-platform='win32'] .app-root,
+html[data-platform='windows'] .app-root {
   height: 100vh;
   width: 100vw;
   background-color: var(--win-acrylic-tint);
 }
 
-html[data-platform="win32"],
-html[data-platform="windows"],
-html[data-platform="win32"] body,
-html[data-platform="windows"] body {
+html[data-platform='win32'],
+html[data-platform='windows'],
+html[data-platform='win32'] body,
+html[data-platform='windows'] body {
   background-color: transparent;
 }
 
 /* ── Platform: Linux ────────────────────────────────────── */
 
 @media (prefers-color-scheme: light) {
-  html[data-platform="linux"]:not([data-theme]) {
+  html[data-platform='linux']:not([data-theme]) {
     --bg-primary: rgb(247, 249, 251);
     --bg-secondary: rgb(238, 242, 246);
     --bg-tertiary: rgb(243, 246, 249);
     --bg-hover: rgba(228, 233, 238, 0.8);
     --bg-selected: rgba(140, 140, 148, 0.22);
-    --shadow-color: rgba(0, 0, 0, 0.10);
+    --shadow-color: rgba(0, 0, 0, 0.1);
   }
 
-  html[data-platform="linux"]:not([data-theme]) .macos-panel {
+  html[data-platform='linux']:not([data-theme]) .macos-panel {
     backdrop-filter: none;
     background-color: var(--bg-primary);
   }
 }
 
-html[data-platform="linux"][data-theme="light"] {
+html[data-platform='linux'][data-theme='light'] {
   --bg-primary: rgb(247, 249, 251);
   --bg-secondary: rgb(238, 242, 246);
   --bg-tertiary: rgb(243, 246, 249);
   --bg-hover: rgba(228, 233, 238, 0.8);
   --bg-selected: rgba(140, 140, 148, 0.22);
-  --shadow-color: rgba(0, 0, 0, 0.10);
+  --shadow-color: rgba(0, 0, 0, 0.1);
 }
 
-html[data-platform="linux"][data-theme="light"] .macos-panel {
+html[data-platform='linux'][data-theme='light'] .macos-panel {
   backdrop-filter: none;
   background-color: var(--bg-primary);
 }
 
 @media (prefers-color-scheme: dark) {
-  html[data-platform="linux"]:not([data-theme]) {
+  html[data-platform='linux']:not([data-theme]) {
     --bg-primary: rgb(14, 17, 20);
     --bg-secondary: rgb(20, 24, 28);
     --bg-tertiary: rgb(28, 33, 38);
@@ -905,13 +941,13 @@ html[data-platform="linux"][data-theme="light"] .macos-panel {
     --shadow-color: rgba(0, 0, 0, 0.35);
   }
 
-  html[data-platform="linux"]:not([data-theme]) .macos-panel {
+  html[data-platform='linux']:not([data-theme]) .macos-panel {
     backdrop-filter: none;
     background-color: var(--bg-primary);
   }
 }
 
-html[data-platform="linux"][data-theme="dark"] {
+html[data-platform='linux'][data-theme='dark'] {
   --bg-primary: rgb(14, 17, 20);
   --bg-secondary: rgb(20, 24, 28);
   --bg-tertiary: rgb(28, 33, 38);
@@ -920,7 +956,7 @@ html[data-platform="linux"][data-theme="dark"] {
   --shadow-color: rgba(0, 0, 0, 0.35);
 }
 
-html[data-platform="linux"][data-theme="dark"] .macos-panel {
+html[data-platform='linux'][data-theme='dark'] .macos-panel {
   backdrop-filter: none;
   background-color: var(--bg-primary);
 }
@@ -928,21 +964,65 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
 /* ── Typography utilities ─────────────────────────────── */
 @layer components {
   /* Heading scale — for page/section headings inside built-in views */
-  .text-page-title { font-size: var(--font-size-3xl); font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; line-height: 1.25; }
-  .text-section    { font-size: 16px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.01em; line-height: 1.35; }
-  .text-subtitle   { font-size: var(--font-size-md); font-weight: 400; color: var(--text-secondary); line-height: 1.5; }
+  .text-page-title {
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+  }
+  .text-section {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+  }
+  .text-subtitle {
+    font-size: var(--font-size-md);
+    font-weight: 400;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
 
   /* Inline text scale — for list items, labels, body copy */
-  .text-title    { font-size: var(--font-size-base); font-weight: 600; color: var(--text-primary); }
-  .text-body     { font-size: var(--font-size-base); font-weight: 400; color: var(--text-primary); }
-  .text-label    { font-size: var(--font-size-sm); font-weight: 500; color: var(--text-secondary); }
-  .text-caption  { font-size: var(--font-size-xs); font-weight: 400; color: var(--text-tertiary); }
-  .text-mono     { font-family: var(--font-mono); font-size: var(--font-size-sm); }
+  .text-title {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .text-body {
+    font-size: var(--font-size-base);
+    font-weight: 400;
+    color: var(--text-primary);
+  }
+  .text-label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
+  .text-caption {
+    font-size: var(--font-size-xs);
+    font-weight: 400;
+    color: var(--text-tertiary);
+  }
+  .text-mono {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+  }
 
   /* ── Surface utilities ────────────────────────────────── */
-  .surface-primary   { background: var(--bg-primary); }
-  .surface-secondary { background: var(--bg-secondary); }
-  .surface-popup     { background: var(--bg-popup); border: 1px solid var(--border-color); border-radius: var(--radius-lg); }
+  .surface-primary {
+    background: var(--bg-primary);
+  }
+  .surface-secondary {
+    background: var(--bg-secondary);
+  }
+  .surface-popup {
+    background: var(--bg-popup);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+  }
 
   /* ── Section header (used inside feature views) ──────── */
   .section-header {
@@ -977,7 +1057,6 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     font-size: var(--font-size-base);
   }
 
-
   /* ── List row (for rows inside feature views) ─────────── */
   .list-row {
     display: flex;
@@ -994,9 +1073,13 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     background: var(--bg-selected);
     box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
   }
-  .list-row.selected * { color: var(--text-primary); }
+  .list-row.selected * {
+    color: var(--text-primary);
+  }
   .list-row.selected .text-caption,
-  .list-row.selected .text-tertiary { color: var(--text-secondary); }
+  .list-row.selected .text-tertiary {
+    color: var(--text-secondary);
+  }
 
   /* ── Input field ─────────────────────────────────────── */
   .field-input {
@@ -1011,7 +1094,9 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     width: 100%;
     transition: border-color var(--transition-fast);
   }
-  .field-input:focus { border-color: var(--accent-primary); }
+  .field-input:focus {
+    border-color: var(--accent-primary);
+  }
 
   .field-select {
     padding: 7px 10px;
@@ -1027,7 +1112,9 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     appearance: auto;
     cursor: pointer;
   }
-  .field-select:focus { border-color: var(--accent-primary); }
+  .field-select:focus {
+    border-color: var(--accent-primary);
+  }
 
   .field-textarea {
     padding: 7px 10px;
@@ -1043,7 +1130,9 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     resize: vertical;
     min-height: 70px;
   }
-  .field-textarea:focus { border-color: var(--accent-primary); }
+  .field-textarea:focus {
+    border-color: var(--accent-primary);
+  }
 
   .field-range {
     width: 100%;
@@ -1063,8 +1152,13 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     cursor: pointer;
     transition: opacity var(--transition-fast);
   }
-  .btn-primary:hover   { opacity: 0.9; }
-  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary:hover {
+    opacity: 0.9;
+  }
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 
   /* ── Secondary button ─────────────────────────────────── */
   .btn-secondary {
@@ -1078,7 +1172,9 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     cursor: pointer;
     transition: background var(--transition-fast);
   }
-  .btn-secondary:hover { background: var(--bg-hover); }
+  .btn-secondary:hover {
+    background: var(--bg-hover);
+  }
 
   /* ── Danger button ────────────────────────────────────── */
   .btn-danger {
@@ -1091,7 +1187,9 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     font-size: var(--font-size-md);
     transition: background var(--transition-fast);
   }
-  .btn-danger:hover { background: color-mix(in srgb, var(--accent-danger) 12%, transparent); }
+  .btn-danger:hover {
+    background: color-mix(in srgb, var(--accent-danger) 12%, transparent);
+  }
 
   /* ── Empty state ──────────────────────────────────────── */
   .empty-state {
@@ -1140,23 +1238,39 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     line-height: 1.3;
     font-weight: 600;
   }
-  .md-content h1 { font-size: 1.5em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
-  .md-content h2 { font-size: 1.3em; }
-  .md-content h3 { font-size: 1.15em; }
+  .md-content h1 {
+    font-size: 1.5em;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.3em;
+  }
+  .md-content h2 {
+    font-size: 1.3em;
+  }
+  .md-content h3 {
+    font-size: 1.15em;
+  }
 
   .md-content p {
     margin: 1em 0;
   }
-  .md-content p:first-child { margin-top: 0; }
-  .md-content p:last-child  { margin-bottom: 0; }
+  .md-content p:first-child {
+    margin-top: 0;
+  }
+  .md-content p:last-child {
+    margin-bottom: 0;
+  }
 
-  .md-content strong { font-weight: 600; }
+  .md-content strong {
+    font-weight: 600;
+  }
 
   .md-content a {
     color: var(--accent-primary);
     text-decoration: none;
   }
-  .md-content a:hover { text-decoration: underline; }
+  .md-content a:hover {
+    text-decoration: underline;
+  }
 
   .md-content ul,
   .md-content ol {
@@ -1227,9 +1341,22 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     color: var(--text-primary);
     border-color: var(--text-tertiary);
   }
-  .md-content .md-code-block pre { margin: 0; padding: 14px; overflow-x: auto; }
-  .md-content .md-code-block pre { margin: 0; padding: 14px; overflow-x: auto; }
-  .md-content pre code { background: none; padding: 0; font-size: 13px; line-height: 1.5; }
+  .md-content .md-code-block pre {
+    margin: 0;
+    padding: 14px;
+    overflow-x: auto;
+  }
+  .md-content .md-code-block pre {
+    margin: 0;
+    padding: 14px;
+    overflow-x: auto;
+  }
+  .md-content pre code {
+    background: none;
+    padding: 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
 
   /* Prism Syntax Highlighting Tokens */
   .md-content .token.comment,
@@ -1239,8 +1366,12 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     color: #637777;
     font-style: italic;
   }
-  .md-content .token.punctuation { color: var(--text-secondary); }
-  .md-content .token.namespace { opacity: .7; }
+  .md-content .token.punctuation {
+    color: var(--text-secondary);
+  }
+  .md-content .token.namespace {
+    opacity: 0.7;
+  }
   .md-content .token.property,
   .md-content .token.tag,
   .md-content .token.boolean,
@@ -1323,7 +1454,7 @@ html[data-platform="linux"][data-theme="dark"] .macos-panel {
     min-height: 50px;
     transition: opacity var(--transition-normal);
   }
-  .md-content .mermaid[data-processed="true"] {
+  .md-content .mermaid[data-processed='true'] {
     background: transparent;
     padding: 0;
   }

@@ -104,7 +104,10 @@ mod tests {
     fn parse_path_lines_trims_skips_blanks_and_caps_at_limit() {
         let stdout = "/a/one.txt\n\n  /a/two.txt  \n/a/three.txt\n";
         let paths = parse_path_lines(stdout, 2);
-        assert_eq!(paths, vec![PathBuf::from("/a/one.txt"), PathBuf::from("/a/two.txt")]);
+        assert_eq!(
+            paths,
+            vec![PathBuf::from("/a/one.txt"), PathBuf::from("/a/two.txt")]
+        );
     }
 
     #[test]

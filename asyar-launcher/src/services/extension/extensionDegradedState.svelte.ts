@@ -11,7 +11,9 @@ class ExtensionDegradedState {
       kind: 'manual',
       severity: 'error',
       retryable: false,
-      context: { message: `${displayName} isn't responding — ${strikes} strikes. Try again in an hour or reinstall.` },
+      context: {
+        message: `${displayName} isn't responding — ${strikes} strikes. Try again in an hour or reinstall.`,
+      },
     });
   }
 

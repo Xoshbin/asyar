@@ -45,9 +45,7 @@ function mockBucketUpsertDefault() {
     const isSameEntry = (existing: Run): boolean => {
       if (kind === 'failure') return existing.id === run.id;
       if (kind === 'kept-agent') return existing.subjectId === run.subjectId;
-      return run.subjectId
-        ? existing.subjectId === run.subjectId
-        : existing.id === run.id;
+      return run.subjectId ? existing.subjectId === run.subjectId : existing.id === run.id;
     };
     return [run, ...bucket.filter((r) => !isSameEntry(r))].slice(0, cap) as unknown;
   });
@@ -77,10 +75,20 @@ describe('start', () => {
 
   it('forwards subjectId in the runs_start payload when provided', async () => {
     vi.mocked(invokeSafe).mockResolvedValue(makeRun());
-    await runService.start('ext.foo', 'r1', 'shell-script', 'My Script', true, 'cmd_scripts_dyn_abc');
-    expect(invokeSafe).toHaveBeenCalledWith('runs_start', expect.objectContaining({
-      subjectId: 'cmd_scripts_dyn_abc',
-    }));
+    await runService.start(
+      'ext.foo',
+      'r1',
+      'shell-script',
+      'My Script',
+      true,
+      'cmd_scripts_dyn_abc',
+    );
+    expect(invokeSafe).toHaveBeenCalledWith(
+      'runs_start',
+      expect.objectContaining({
+        subjectId: 'cmd_scripts_dyn_abc',
+      }),
+    );
   });
 });
 
@@ -94,17 +102,23 @@ describe('startLocal', () => {
       extensionId: null,
       subjectId: 'cmd_scripts_dyn_abc',
     });
-    expect(invokeSafe).toHaveBeenCalledWith('runs_start', expect.objectContaining({
-      subjectId: 'cmd_scripts_dyn_abc',
-    }));
+    expect(invokeSafe).toHaveBeenCalledWith(
+      'runs_start',
+      expect.objectContaining({
+        subjectId: 'cmd_scripts_dyn_abc',
+      }),
+    );
   });
 
   it('passes subjectId=null when omitted', async () => {
     vi.mocked(invokeSafe).mockResolvedValue(makeRun());
     await runService.startLocal({ label: 'x', kind: 'custom' });
-    expect(invokeSafe).toHaveBeenCalledWith('runs_start', expect.objectContaining({
-      subjectId: null,
-    }));
+    expect(invokeSafe).toHaveBeenCalledWith(
+      'runs_start',
+      expect.objectContaining({
+        subjectId: null,
+      }),
+    );
   });
 });
 
@@ -151,10 +165,15 @@ describe('onStateChanged', () => {
 
   it('state_changed_running_to_succeeded_moves_to_recent_immediately', async () => {
     const runRunning = makeRun({ id: 'r1', status: 'running', subjectId: 'cmd_scripts_dyn_abc' });
-    const runSucceeded = makeRun({ id: 'r1', status: 'succeeded', endedAt: Date.now(), subjectId: 'cmd_scripts_dyn_abc' });
+    const runSucceeded = makeRun({
+      id: 'r1',
+      status: 'succeeded',
+      endedAt: Date.now(),
+      subjectId: 'cmd_scripts_dyn_abc',
+    });
     await runService['onStateChanged'](runRunning);
     await runService['onStateChanged'](runSucceeded);
-    
+
     // Succeeded shell-script leaves the active slice; the kept row lives in
     // unacknowledgedScriptResults (see separate test).
     expect(runService.active.some((r) => r.id === 'r1')).toBe(false);
@@ -166,11 +185,16 @@ describe('onStateChanged', () => {
 
   it('anonymous_shell_script_auto_removes_immediately_on_success', async () => {
     const runRunning = makeRun({ id: 'r2', status: 'running', subjectId: undefined });
-    const runSucceeded = makeRun({ id: 'r2', status: 'succeeded', endedAt: Date.now(), subjectId: undefined });
-    
+    const runSucceeded = makeRun({
+      id: 'r2',
+      status: 'succeeded',
+      endedAt: Date.now(),
+      subjectId: undefined,
+    });
+
     await runService['onStateChanged'](runRunning);
     expect(runService.active.some((r) => r.id === 'r2')).toBe(true);
-    
+
     // Anonymous (no subjectId) shell-script still leaves active on success;
     // it lives in unacknowledgedScriptResults (deduped by id).
     await runService['onStateChanged'](runSucceeded);
@@ -210,8 +234,11 @@ describe('onStateChanged', () => {
 
   it('succeeded_agent_run_with_subjectId_is_added_to_keptAgents', async () => {
     const run = makeRun({
-      id: 'r1', status: 'succeeded', kind: 'agent',
-      subjectId: 'cmd_agents_dyn_a1', endedAt: Date.now(),
+      id: 'r1',
+      status: 'succeeded',
+      kind: 'agent',
+      subjectId: 'cmd_agents_dyn_a1',
+      endedAt: Date.now(),
     });
     await runService['onStateChanged'](run);
     expect(runService.keptAgents).toHaveLength(1);
@@ -221,8 +248,11 @@ describe('onStateChanged', () => {
   it('succeeded_shell_script_does_NOT_populate_keptAgents_but_does_populate_scriptResults', async () => {
     // Scripts persist in their own slice; the agent kept-slice stays agent-only.
     const run = makeRun({
-      id: 'r1', status: 'succeeded', kind: 'shell-script',
-      subjectId: 'cmd_scripts_dyn_abc', endedAt: Date.now(),
+      id: 'r1',
+      status: 'succeeded',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_abc',
+      endedAt: Date.now(),
     });
     await runService['onStateChanged'](run);
     expect(runService.keptAgents).toHaveLength(0);
@@ -232,12 +262,18 @@ describe('onStateChanged', () => {
 
   it('keptAgents_dedupes_by_subjectId_keeping_newest', async () => {
     const old = makeRun({
-      id: 'r1', status: 'succeeded', kind: 'agent',
-      subjectId: 'cmd_agents_dyn_a1', endedAt: 1,
+      id: 'r1',
+      status: 'succeeded',
+      kind: 'agent',
+      subjectId: 'cmd_agents_dyn_a1',
+      endedAt: 1,
     });
     const fresh = makeRun({
-      id: 'r2', status: 'succeeded', kind: 'agent',
-      subjectId: 'cmd_agents_dyn_a1', endedAt: 2,
+      id: 'r2',
+      status: 'succeeded',
+      kind: 'agent',
+      subjectId: 'cmd_agents_dyn_a1',
+      endedAt: 2,
     });
     await runService['onStateChanged'](old);
     await runService['onStateChanged'](fresh);
@@ -246,32 +282,50 @@ describe('onStateChanged', () => {
   });
 
   it('keptAgents_keeps_separate_entries_per_distinct_subjectId', async () => {
-    await runService['onStateChanged'](makeRun({
-      id: 'r1', status: 'succeeded', kind: 'agent',
-      subjectId: 'cmd_agents_dyn_a1', endedAt: 1,
-    }));
-    await runService['onStateChanged'](makeRun({
-      id: 'r2', status: 'succeeded', kind: 'agent',
-      subjectId: 'cmd_agents_dyn_a2', endedAt: 2,
-    }));
+    await runService['onStateChanged'](
+      makeRun({
+        id: 'r1',
+        status: 'succeeded',
+        kind: 'agent',
+        subjectId: 'cmd_agents_dyn_a1',
+        endedAt: 1,
+      }),
+    );
+    await runService['onStateChanged'](
+      makeRun({
+        id: 'r2',
+        status: 'succeeded',
+        kind: 'agent',
+        subjectId: 'cmd_agents_dyn_a2',
+        endedAt: 2,
+      }),
+    );
     expect(runService.keptAgents).toHaveLength(2);
   });
 
   it('succeeded_agent_without_subjectId_is_skipped', async () => {
     // Without a subjectId we can't dedupe / re-open the thread, so skip.
     const run = makeRun({
-      id: 'r1', status: 'succeeded', kind: 'agent',
-      subjectId: undefined, endedAt: Date.now(),
+      id: 'r1',
+      status: 'succeeded',
+      kind: 'agent',
+      subjectId: undefined,
+      endedAt: Date.now(),
     });
     await runService['onStateChanged'](run);
     expect(runService.keptAgents).toHaveLength(0);
   });
 
   it('dismissKeptAgent_removes_the_entry', async () => {
-    await runService['onStateChanged'](makeRun({
-      id: 'r1', status: 'succeeded', kind: 'agent',
-      subjectId: 'cmd_agents_dyn_a1', endedAt: 1,
-    }));
+    await runService['onStateChanged'](
+      makeRun({
+        id: 'r1',
+        status: 'succeeded',
+        kind: 'agent',
+        subjectId: 'cmd_agents_dyn_a1',
+        endedAt: 1,
+      }),
+    );
     runService.dismissKeptAgent('r1');
     expect(runService.keptAgents).toHaveLength(0);
   });
@@ -280,8 +334,12 @@ describe('onStateChanged', () => {
 
   it('succeeded_shell_script_with_subjectId_is_added_to_scriptResults', async () => {
     const run = makeRun({
-      id: 'r1', status: 'succeeded', kind: 'shell-script',
-      subjectId: 'cmd_scripts_dyn_abc', tailOutput: 'OK', endedAt: Date.now(),
+      id: 'r1',
+      status: 'succeeded',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_abc',
+      tailOutput: 'OK',
+      endedAt: Date.now(),
     });
     await runService['onStateChanged'](run);
     expect(runService.unacknowledgedScriptResults).toHaveLength(1);
@@ -291,8 +349,11 @@ describe('onStateChanged', () => {
 
   it('succeeded_agent_does_NOT_populate_scriptResults', async () => {
     const run = makeRun({
-      id: 'r1', status: 'succeeded', kind: 'agent',
-      subjectId: 'cmd_agents_dyn_a1', endedAt: Date.now(),
+      id: 'r1',
+      status: 'succeeded',
+      kind: 'agent',
+      subjectId: 'cmd_agents_dyn_a1',
+      endedAt: Date.now(),
     });
     await runService['onStateChanged'](run);
     expect(runService.unacknowledgedScriptResults).toHaveLength(0);
@@ -300,12 +361,18 @@ describe('onStateChanged', () => {
 
   it('scriptResults_dedupes_by_subjectId_keeping_newest', async () => {
     const old = makeRun({
-      id: 'r1', status: 'succeeded', kind: 'shell-script',
-      subjectId: 'cmd_scripts_dyn_abc', endedAt: 1,
+      id: 'r1',
+      status: 'succeeded',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_abc',
+      endedAt: 1,
     });
     const fresh = makeRun({
-      id: 'r2', status: 'succeeded', kind: 'shell-script',
-      subjectId: 'cmd_scripts_dyn_abc', endedAt: 2,
+      id: 'r2',
+      status: 'succeeded',
+      kind: 'shell-script',
+      subjectId: 'cmd_scripts_dyn_abc',
+      endedAt: 2,
     });
     await runService['onStateChanged'](old);
     await runService['onStateChanged'](fresh);
@@ -315,18 +382,26 @@ describe('onStateChanged', () => {
 
   it('anonymous_succeeded_shell_script_without_subjectId_is_added_dedupes_by_id', async () => {
     const run = makeRun({
-      id: 'r1', status: 'succeeded', kind: 'shell-script',
-      subjectId: undefined, endedAt: Date.now(),
+      id: 'r1',
+      status: 'succeeded',
+      kind: 'shell-script',
+      subjectId: undefined,
+      endedAt: Date.now(),
     });
     await runService['onStateChanged'](run);
     expect(runService.unacknowledgedScriptResults).toHaveLength(1);
   });
 
   it('dismissScriptResult_filters_slice_and_invokes_runs_dismiss', async () => {
-    await runService['onStateChanged'](makeRun({
-      id: 'r1', status: 'succeeded', kind: 'shell-script',
-      subjectId: 'cmd_scripts_dyn_abc', endedAt: 1,
-    }));
+    await runService['onStateChanged'](
+      makeRun({
+        id: 'r1',
+        status: 'succeeded',
+        kind: 'shell-script',
+        subjectId: 'cmd_scripts_dyn_abc',
+        endedAt: 1,
+      }),
+    );
     vi.mocked(invokeSafe).mockResolvedValue(null);
     runService.dismissScriptResult('r1');
     expect(runService.unacknowledgedScriptResults).toHaveLength(0);
@@ -334,10 +409,15 @@ describe('onStateChanged', () => {
   });
 
   it('reset_clears_unacknowledgedScriptResults', async () => {
-    await runService['onStateChanged'](makeRun({
-      id: 'r1', status: 'succeeded', kind: 'shell-script',
-      subjectId: 'cmd_scripts_dyn_abc', endedAt: 1,
-    }));
+    await runService['onStateChanged'](
+      makeRun({
+        id: 'r1',
+        status: 'succeeded',
+        kind: 'shell-script',
+        subjectId: 'cmd_scripts_dyn_abc',
+        endedAt: 1,
+      }),
+    );
     expect(runService.unacknowledgedScriptResults).toHaveLength(1);
     runService.reset();
     expect(runService.unacknowledgedScriptResults).toHaveLength(0);
@@ -395,9 +475,14 @@ describe('activeCount', () => {
     await runService['onStateChanged'](r1);
     await runService['onStateChanged'](r2);
     expect(runService.activeCount).toBe(2);
-    const r1Succeeded = makeRun({ id: 'r1', status: 'succeeded', endedAt: Date.now(), subjectId: 'cmd_scripts_dyn_a' });
+    const r1Succeeded = makeRun({
+      id: 'r1',
+      status: 'succeeded',
+      endedAt: Date.now(),
+      subjectId: 'cmd_scripts_dyn_a',
+    });
     await runService['onStateChanged'](r1Succeeded);
-    
+
     // Removes immediately from active slice on success
     expect(runService.activeCount).toBe(1);
   });
@@ -518,7 +603,10 @@ describe('startLocal', () => {
 describe('keyboard selection (combined + moveSelection)', () => {
   it('combined merges active first, then recent, deduping by id', () => {
     runService.active = [makeRun({ id: 'a1' }), makeRun({ id: 'a2' })];
-    runService.recent = [makeRun({ id: 'a1', status: 'succeeded' }), makeRun({ id: 'r1', status: 'succeeded' })];
+    runService.recent = [
+      makeRun({ id: 'a1', status: 'succeeded' }),
+      makeRun({ id: 'r1', status: 'succeeded' }),
+    ];
     const ids = runService.combined.map((r) => r.id);
     expect(ids).toEqual(['a1', 'a2', 'r1']);
   });
@@ -542,7 +630,10 @@ describe('keyboard selection (combined + moveSelection)', () => {
 
   it('moveSelection("up") retreats and wraps to last at the top', () => {
     runService.active = [makeRun({ id: 'a1' })];
-    runService.recent = [makeRun({ id: 'r1', status: 'succeeded' }), makeRun({ id: 'r2', status: 'succeeded' })];
+    runService.recent = [
+      makeRun({ id: 'r1', status: 'succeeded' }),
+      makeRun({ id: 'r2', status: 'succeeded' }),
+    ];
     runService.selectedRunId = 'a1';
     runService.moveSelection('up');
     expect(runService.selectedRunId).toBe('r2');

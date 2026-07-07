@@ -78,7 +78,9 @@ function makeFakeHandle(): FakeHandle {
     cancel: vi.fn().mockResolvedValue(undefined),
     onCancel: vi.fn((cb: () => void) => {
       cbs.push(cb);
-      return () => { /* unsub */ };
+      return () => {
+        /* unsub */
+      };
     }),
     _cancelCallbacks: cbs,
   };
@@ -151,10 +153,7 @@ const makeToolPlugin = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const makeToolDescriptor = (
-  fqid: string,
-  over: Record<string, unknown> = {},
-) => ({
+const makeToolDescriptor = (fqid: string, over: Record<string, unknown> = {}) => ({
   id: fqid.split(':')[1],
   name: fqid.split(':')[1],
   description: 'A test tool',
@@ -293,17 +292,31 @@ describe('runAgent', () => {
   // 6 ── Passes full thread history to provider in correct order ─────────────
 
   it('runAgent_passes_thread_history_to_provider', async () => {
-    const priorUser = makeMessage({ id: 'p1', role: 'user', content: { text: 'first' }, createdAt: 1000 });
+    const priorUser = makeMessage({
+      id: 'p1',
+      role: 'user',
+      content: { text: 'first' },
+      createdAt: 1000,
+    });
     const priorAssistant = makeMessage({
       id: 'p2',
       role: 'assistant',
       content: { text: 'second' },
       createdAt: 2000,
     });
-    const newUser = makeMessage({ id: 'p3', role: 'user', content: { text: 'hi' }, createdAt: 3000 });
+    const newUser = makeMessage({
+      id: 'p3',
+      role: 'user',
+      content: { text: 'hi' },
+      createdAt: 3000,
+    });
 
     // listMessages returns all 3 (2 prior + new user already inserted)
-    vi.mocked(agentService.listMessages).mockResolvedValue([priorUser, priorAssistant, newUser] as never);
+    vi.mocked(agentService.listMessages).mockResolvedValue([
+      priorUser,
+      priorAssistant,
+      newUser,
+    ] as never);
     vi.mocked(agentService.getById).mockReturnValue(
       makeAgent({ systemPrompt: 'You are helpful' }) as never,
     );
@@ -391,7 +404,9 @@ describe('runAgent', () => {
     // streamChat (text path) must be called
     expect(streamChat).toHaveBeenCalled();
     // parseToolStream must NOT be called
-    const plugin = vi.mocked(getProvider).mock.results[0].value as ReturnType<typeof makeToolPlugin>;
+    const plugin = vi.mocked(getProvider).mock.results[0].value as ReturnType<
+      typeof makeToolPlugin
+    >;
     expect(plugin.parseToolStream).not.toHaveBeenCalled();
     // invokeTool must NOT be called
     expect(invokeTool).not.toHaveBeenCalled();
@@ -420,10 +435,7 @@ describe('runAgent', () => {
           { type: 'message_stop' },
         ]);
       }
-      return makeAsyncGen([
-        { type: 'text', text: 'Done!' },
-        { type: 'message_stop' },
-      ]);
+      return makeAsyncGen([{ type: 'text', text: 'Done!' }, { type: 'message_stop' }]);
     });
 
     await runAgent({ agentId: 'a1', threadId: 't1', userText: 'ask echo' });
@@ -438,7 +450,9 @@ describe('runAgent', () => {
 
     const assistantWithTool = calls[1][0];
     expect(assistantWithTool.role).toBe('assistant');
-    expect((assistantWithTool.content as { text: string; toolUse?: unknown[] }).text).toBe('Let me check');
+    expect((assistantWithTool.content as { text: string; toolUse?: unknown[] }).text).toBe(
+      'Let me check',
+    );
     expect((assistantWithTool.content as { toolUse: ToolCall[] }).toolUse).toEqual([
       { id: 'tu1', name: 'builtin:echo', input: { x: 1 } },
     ]);
@@ -452,9 +466,7 @@ describe('runAgent', () => {
     const finalAssistant = calls[3][0];
     expect(finalAssistant.role).toBe('assistant');
     expect((finalAssistant.content as { text: string }).text).toBe('Done!');
-    expect(
-      (finalAssistant.content as { toolUse?: unknown[] }).toolUse,
-    ).toBeFalsy();
+    expect((finalAssistant.content as { toolUse?: unknown[] }).toolUse).toBeFalsy();
 
     expect(invokeTool).toHaveBeenCalledWith('builtin:echo', { x: 1 }, 'a1');
     expect(invokeTool).toHaveBeenCalledTimes(1);
@@ -472,9 +484,11 @@ describe('runAgent', () => {
       makeAgent({ toolSelection: ['builtin:echo'] }) as never,
     );
     vi.mocked(getProvider).mockReturnValue(plugin as never);
-    vi.mocked(commands.agentsToolsList).mockResolvedValue(
-      [echoDescriptor, otherDescriptor, extDescriptor] as never,
-    );
+    vi.mocked(commands.agentsToolsList).mockResolvedValue([
+      echoDescriptor,
+      otherDescriptor,
+      extDescriptor,
+    ] as never);
     vi.mocked(invokeTool).mockResolvedValue({} as never);
     vi.mocked(plugin.parseToolStream).mockReturnValue(
       makeAsyncGen([{ type: 'text', text: 'ok' }, { type: 'message_stop' }]),
@@ -511,9 +525,7 @@ describe('runAgent', () => {
       ]),
     );
 
-    await expect(
-      runAgent({ agentId: 'a1', threadId: 't1', userText: 'run it' }),
-    ).rejects.toThrow();
+    await expect(runAgent({ agentId: 'a1', threadId: 't1', userText: 'run it' })).rejects.toThrow();
 
     expect(diagnosticsService.report).toHaveBeenCalled();
 
@@ -591,9 +603,7 @@ describe('runAgent', () => {
       ]),
     );
 
-    await expect(
-      runAgent({ agentId: 'a1', threadId: 't1', userText: 'loop' }),
-    ).rejects.toThrow();
+    await expect(runAgent({ agentId: 'a1', threadId: 't1', userText: 'loop' })).rejects.toThrow();
 
     // Should have invoked at most 20 times (one per turn)
     expect(vi.mocked(invokeTool).mock.calls.length).toBeLessThanOrEqual(20);
@@ -608,7 +618,12 @@ describe('runAgent', () => {
     const echoDescriptor = makeToolDescriptor('builtin:echo');
     const plugin = makeToolPlugin();
 
-    const priorUser = makeMessage({ id: 'h1', role: 'user', content: { text: 'prior q' }, createdAt: 1000 });
+    const priorUser = makeMessage({
+      id: 'h1',
+      role: 'user',
+      content: { text: 'prior q' },
+      createdAt: 1000,
+    });
     const priorAssistantWithTool = makeMessage({
       id: 'h2',
       role: 'assistant',
@@ -621,7 +636,12 @@ describe('runAgent', () => {
       content: { toolResult: { toolUseId: 'tu0', output: 42 } },
       createdAt: 3000,
     });
-    const newUser = makeMessage({ id: 'h4', role: 'user', content: { text: 'new q' }, createdAt: 4000 });
+    const newUser = makeMessage({
+      id: 'h4',
+      role: 'user',
+      content: { text: 'new q' },
+      createdAt: 4000,
+    });
 
     vi.mocked(agentService.getById).mockReturnValue(
       makeAgent({ toolSelection: ['builtin:echo'] }) as never,
@@ -629,9 +649,12 @@ describe('runAgent', () => {
     vi.mocked(getProvider).mockReturnValue(plugin as never);
     vi.mocked(commands.agentsToolsList).mockResolvedValue([echoDescriptor] as never);
     // Return all 4 messages (prior 3 + newly inserted user)
-    vi.mocked(agentService.listMessages).mockResolvedValue(
-      [priorUser, priorAssistantWithTool, priorToolResult, newUser] as never,
-    );
+    vi.mocked(agentService.listMessages).mockResolvedValue([
+      priorUser,
+      priorAssistantWithTool,
+      priorToolResult,
+      newUser,
+    ] as never);
     vi.mocked(plugin.parseToolStream).mockReturnValue(
       makeAsyncGen([{ type: 'text', text: 'reply' }, { type: 'message_stop' }]),
     );
@@ -901,7 +924,9 @@ describe('runAgent', () => {
     });
 
     // Should resolve cleanly (not reject)
-    await expect(runAgent({ agentId: 'a1', threadId: 't1', userText: 'go' })).resolves.toBeUndefined();
+    await expect(
+      runAgent({ agentId: 'a1', threadId: 't1', userText: 'go' }),
+    ).resolves.toBeUndefined();
 
     // Only one LLM turn should have happened (buildToolRequest called once)
     expect(plugin.buildToolRequest).toHaveBeenCalledTimes(1);
@@ -922,7 +947,9 @@ describe('runAgent', () => {
     vi.mocked(commands.agentsToolsList).mockResolvedValue([echoDescriptor] as never);
 
     let toolResolve: (v: unknown) => void;
-    const toolPromise = new Promise((resolve) => { toolResolve = resolve; });
+    const toolPromise = new Promise((resolve) => {
+      toolResolve = resolve;
+    });
 
     vi.mocked(invokeTool).mockImplementation(() => {
       // Fire cancel BEFORE the tool resolves
@@ -939,7 +966,9 @@ describe('runAgent', () => {
       ]),
     );
 
-    await expect(runAgent({ agentId: 'a1', threadId: 't1', userText: 'go' })).resolves.toBeUndefined();
+    await expect(
+      runAgent({ agentId: 'a1', threadId: 't1', userText: 'go' }),
+    ).resolves.toBeUndefined();
 
     // Tool result must still be persisted (tool was awaited fully)
     const calls = vi.mocked(agentService.insertMessage).mock.calls;
@@ -1086,7 +1115,12 @@ describe('runAgent', () => {
       return makeMessage({ role: input.role as 'user' | 'assistant' }) as never;
     });
 
-    await runAgent({ agentId: 'a1', threadId: 't1', userText: 'go', abortSignal: controller.signal });
+    await runAgent({
+      agentId: 'a1',
+      threadId: 't1',
+      userText: 'go',
+      abortSignal: controller.signal,
+    });
 
     expect(fakeHandle.done).not.toHaveBeenCalled();
     expect(fakeHandle.fail).not.toHaveBeenCalled();
@@ -1098,7 +1132,12 @@ describe('runAgent', () => {
     const controller = new AbortController();
     mockStreamChatTokens(['Hello', ' world']);
 
-    await runAgent({ agentId: 'a1', threadId: 't1', userText: 'hi', abortSignal: controller.signal });
+    await runAgent({
+      agentId: 'a1',
+      threadId: 't1',
+      userText: 'hi',
+      abortSignal: controller.signal,
+    });
 
     expect(fakeHandle.done).toHaveBeenCalledOnce();
     expect(fakeHandle.fail).not.toHaveBeenCalled();
@@ -1131,10 +1170,14 @@ describe('runAgent', () => {
         handlers.onToken('partial-');
         await new Promise<void>((resolve) => {
           resolveStream = resolve;
-          signal.addEventListener('abort', () => {
-            handlers.onDone();
-            resolve();
-          }, { once: true });
+          signal.addEventListener(
+            'abort',
+            () => {
+              handlers.onDone();
+              resolve();
+            },
+            { once: true },
+          );
         });
       },
     );
@@ -1178,25 +1221,28 @@ describe('runAgent', () => {
     // until the signal aborts.
     let capturedSignal: AbortSignal | undefined;
     let fetchCalled = false;
-    vi.mocked(tauriFetch).mockImplementation(
-      (async (_url: unknown, init?: { signal?: AbortSignal | null }) => {
-        fetchCalled = true;
-        capturedSignal = init?.signal ?? undefined;
-        // Block until the signal aborts, then return a Response whose body
-        // stream we can hand to parseToolStream (which is mocked to ignore it).
-        await new Promise<void>((resolve) => {
-          if (init?.signal?.aborted) return resolve();
-          init?.signal?.addEventListener('abort', () => resolve(), { once: true });
-        });
-        const body = new ReadableStream<Uint8Array>({ start(c) { c.close(); } });
-        return new Response(body, { status: 200 });
-      }) as never,
-    );
+    vi.mocked(tauriFetch).mockImplementation((async (
+      _url: unknown,
+      init?: { signal?: AbortSignal | null },
+    ) => {
+      fetchCalled = true;
+      capturedSignal = init?.signal ?? undefined;
+      // Block until the signal aborts, then return a Response whose body
+      // stream we can hand to parseToolStream (which is mocked to ignore it).
+      await new Promise<void>((resolve) => {
+        if (init?.signal?.aborted) return resolve();
+        init?.signal?.addEventListener('abort', () => resolve(), { once: true });
+      });
+      const body = new ReadableStream<Uint8Array>({
+        start(c) {
+          c.close();
+        },
+      });
+      return new Response(body, { status: 200 });
+    }) as never);
 
     // parseToolStream is a vi.fn(); make it yield message_stop so the loop exits
-    vi.mocked(plugin.parseToolStream).mockReturnValue(
-      makeAsyncGen([{ type: 'message_stop' }]),
-    );
+    vi.mocked(plugin.parseToolStream).mockReturnValue(makeAsyncGen([{ type: 'message_stop' }]));
 
     const runPromise = runAgent({ agentId: 'a1', threadId: 't1', userText: 'go' });
 
@@ -1247,9 +1293,7 @@ describe('coalesceConsecutiveSameRole', () => {
       { role: 'user', content: 'second' },
       { role: 'user', content: 'third' },
     ]);
-    expect(out).toEqual([
-      { role: 'user', content: 'first\n\nsecond\n\nthird' },
-    ]);
+    expect(out).toEqual([{ role: 'user', content: 'first\n\nsecond\n\nthird' }]);
   });
 
   it('preserves alternating user/assistant pairs unchanged', () => {
@@ -1284,7 +1328,11 @@ describe('coalesceConsecutiveSameRole', () => {
 
   it('does not merge assistant messages with toolUse blocks', () => {
     const input = [
-      { role: 'assistant' as const, content: 'thinking', toolUse: [{ id: 't1', name: 'x', input: {} }] },
+      {
+        role: 'assistant' as const,
+        content: 'thinking',
+        toolUse: [{ id: 't1', name: 'x', input: {} }],
+      },
       { role: 'assistant' as const, content: 'still thinking' },
     ];
     // Don't collapse — toolUse on the first one means it must stand alone.

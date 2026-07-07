@@ -202,11 +202,7 @@ class CloudSyncService {
         // Fast path: no sensitive fields → single stringify.
         // Strip path: stringify → parse → mutate → stringify.
         let contentJson: string;
-        if (
-          hasSensitiveFields &&
-          item.content !== null &&
-          typeof item.content === 'object'
-        ) {
+        if (hasSensitiveFields && item.content !== null && typeof item.content === 'object') {
           const cloned = JSON.parse(JSON.stringify(item.content)) as unknown;
           provider.sensitiveFields.forEach((path) => stripField(cloned, path));
           contentJson = JSON.stringify(cloned);
@@ -249,8 +245,7 @@ class CloudSyncService {
         if (record.deleted) {
           await provider.applyItemDelete(record.itemId);
         } else {
-          const content =
-            record.content === null ? null : (JSON.parse(record.content) as unknown);
+          const content = record.content === null ? null : (JSON.parse(record.content) as unknown);
           await provider.applyItemUpsert({
             id: record.itemId,
             categoryId: record.categoryId,
@@ -305,9 +300,7 @@ class CloudSyncService {
         });
     }
     if (report.failed.length > 0) {
-      const detail = report.failed
-        .map((f) => `${f.itemId} (${f.reason})`)
-        .join(', ');
+      const detail = report.failed.map((f) => `${f.itemId} (${f.reason})`).join(', ');
       logService.warn(`Cloud sync had ${report.failed.length} failed items: ${detail}`);
       // Mirror the failure into the diagnostic bar so the user sees it
       // alongside other sync warnings.
@@ -365,25 +358,19 @@ class CloudSyncService {
               try {
                 await commands.syncMarkTombstone(ev.itemId, ev.categoryId);
               } catch (err) {
-                logService.warn(
-                  `Cloud sync: failed to mark tombstone for ${ev.itemId}: ${err}`,
-                );
+                logService.warn(`Cloud sync: failed to mark tombstone for ${ev.itemId}: ${err}`);
                 // Fall through — syncNow still runs; tombstone gets retried
                 // next change event or on the next periodic tick.
               }
             }
             await this.syncNow();
           })().catch((err) => {
-            logService.warn(
-              `Cloud sync: change-triggered run failed for ${provider.id}: ${err}`,
-            );
+            logService.warn(`Cloud sync: change-triggered run failed for ${provider.id}: ${err}`);
           });
         });
         this.providerUnsubs.push(unsub);
       } catch (err: unknown) {
-        logService.warn(
-          `Cloud sync: provider ${provider.id} subscribeToChanges threw: ${err}`,
-        );
+        logService.warn(`Cloud sync: provider ${provider.id} subscribeToChanges threw: ${err}`);
       }
     }
   }

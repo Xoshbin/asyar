@@ -3,7 +3,11 @@
   import Checkbox from '../../components/base/Checkbox.svelte';
   import { mcpService } from '../mcp/mcpService.svelte';
 
-  let { groups, selectedIds, onChange }: {
+  let {
+    groups,
+    selectedIds,
+    onChange,
+  }: {
     groups: ToolGroup[];
     selectedIds: Set<string>;
     onChange: (s: Set<string>) => void;
@@ -29,7 +33,8 @@
   {#each groups as group (groupKey(group))}
     {@const key = groupKey(group)}
     <button class="group-header" onclick={() => (collapsed[key] = !collapsed[key])}>
-      {collapsed[key] ? '▸' : '▾'} {groupLabel(group)}
+      {collapsed[key] ? '▸' : '▾'}
+      {groupLabel(group)}
     </button>
     {#if !collapsed[key]}
       <div class="group-items">

@@ -12,14 +12,14 @@ gitignored and provisioned at build time (they are large and platform-specific).
 Tauri appends the Rust target triple to the binary name at bundle time. You
 must place the binary here with the correct suffix before building:
 
-| Platform      | bun / uv / claude suffix              |
-|---------------|---------------------------------------|
-| macOS arm64   | `-aarch64-apple-darwin`               |
-| macOS x86_64  | `-x86_64-apple-darwin`                |
-| Linux x86_64  | `-x86_64-unknown-linux-gnu`           |
-| Linux arm64   | `-aarch64-unknown-linux-gnu`          |
-| Windows x86_64| `-x86_64-pc-windows-msvc.exe`         |
-| Windows arm64 | `-aarch64-pc-windows-msvc.exe`        |
+| Platform       | bun / uv / claude suffix       |
+| -------------- | ------------------------------ |
+| macOS arm64    | `-aarch64-apple-darwin`        |
+| macOS x86_64   | `-x86_64-apple-darwin`         |
+| Linux x86_64   | `-x86_64-unknown-linux-gnu`    |
+| Linux arm64    | `-aarch64-unknown-linux-gnu`   |
+| Windows x86_64 | `-x86_64-pc-windows-msvc.exe`  |
+| Windows arm64  | `-aarch64-pc-windows-msvc.exe` |
 
 macOS universal builds (`--target universal-apple-darwin`) also need a
 `-universal-apple-darwin` binary; the download script produces it by lipo-merging

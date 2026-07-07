@@ -1,7 +1,10 @@
-import { logService } from "./log/logService";
-import type { ExtensionManifest } from "asyar-sdk/contracts";
-import { isBuiltInFeature } from "./extension/extensionDiscovery";
-import { discoverExtensions as discoverExtensionsIpc, getExtension as getExtensionIpc } from "../lib/ipc/commands";
+import { logService } from './log/logService';
+import type { ExtensionManifest } from 'asyar-sdk/contracts';
+import { isBuiltInFeature } from './extension/extensionDiscovery';
+import {
+  discoverExtensions as discoverExtensionsIpc,
+  getExtension as getExtensionIpc,
+} from '../lib/ipc/commands';
 
 // Type for extension loading response
 export interface LoadedExtensionModule {
@@ -15,11 +18,9 @@ class ExtensionLoaderService {
 
   constructor() {
     // Determine if we're in development mode
-    this.isDevMode = import.meta.env.MODE === "development";
+    this.isDevMode = import.meta.env.MODE === 'development';
     logService.info(
-      `ExtensionLoader initialized in ${
-        this.isDevMode ? "development" : "production"
-      } mode`
+      `ExtensionLoader initialized in ${this.isDevMode ? 'development' : 'production'} mode`,
     );
   }
 
@@ -37,7 +38,10 @@ class ExtensionLoaderService {
       }
 
       // 2. Load built-in JS modules (Vite globs — must stay in TypeScript)
-      const builtInFeatureModules = import.meta.glob(['/src/built-in-features/*/index.ts', '/src/built-in-features/*/index.svelte.ts'], { eager: true }) as Record<string, any>;
+      const builtInFeatureModules = import.meta.glob(
+        ['/src/built-in-features/*/index.ts', '/src/built-in-features/*/index.svelte.ts'],
+        { eager: true },
+      ) as Record<string, any>;
 
       for (const record of records) {
         if (!record.enabled) {
@@ -49,14 +53,14 @@ class ExtensionLoaderService {
         if (record.compatibility?.status === 'sdkMismatch') {
           logService.warn(
             `Skipping extension ${record.manifest.id}: requires SDK ${record.compatibility.required}, ` +
-            `app supports ${record.compatibility.supported}`
+              `app supports ${record.compatibility.supported}`,
           );
           continue;
         }
         if (record.compatibility?.status === 'appVersionTooOld') {
           logService.warn(
             `Skipping extension ${record.manifest.id}: requires app version ${record.compatibility.required}, ` +
-            `current is ${record.compatibility.current}`
+              `current is ${record.compatibility.current}`,
           );
           continue;
         }
@@ -68,16 +72,16 @@ class ExtensionLoaderService {
 
         if (record.isBuiltIn) {
           // Match to Vite-loaded module by ID
-          const modulePath = Object.keys(builtInFeatureModules).find(
-            p => p.includes(`/${record.manifest.id}/`)
+          const modulePath = Object.keys(builtInFeatureModules).find((p) =>
+            p.includes(`/${record.manifest.id}/`),
           );
-          
+
           extensionsMap.set(record.manifest.id, {
             module: modulePath ? builtInFeatureModules[modulePath] : null,
             manifest: record.manifest,
-            isBuiltIn: true
+            isBuiltIn: true,
           });
-          
+
           if (!modulePath) {
             logService.warn(`Vite module not found for built-in feature ${record.manifest.id}`);
           } else {
@@ -88,9 +92,11 @@ class ExtensionLoaderService {
           extensionsMap.set(record.manifest.id, {
             module: null,
             manifest: record.manifest,
-            isBuiltIn: false
+            isBuiltIn: false,
           });
-          logService.debug(`Registered installed extension: ${record.manifest.id} from ${record.path}`);
+          logService.debug(
+            `Registered installed extension: ${record.manifest.id} from ${record.path}`,
+          );
         }
       }
 
@@ -104,9 +110,7 @@ class ExtensionLoaderService {
   /**
    * Loads a single extension by ID
    */
-  async loadSingleExtension(
-    extensionId: string
-  ): Promise<LoadedExtensionModule | null> {
+  async loadSingleExtension(extensionId: string): Promise<LoadedExtensionModule | null> {
     try {
       // 1. Get extension from Rust (checks all sources)
       const record = await getExtensionIpc(extensionId);
@@ -123,14 +127,14 @@ class ExtensionLoaderService {
       if (record.compatibility?.status === 'sdkMismatch') {
         logService.warn(
           `Skipping extension ${record.manifest.id}: requires SDK ${record.compatibility.required}, ` +
-          `app supports ${record.compatibility.supported}`
+            `app supports ${record.compatibility.supported}`,
         );
         return null;
       }
       if (record.compatibility?.status === 'appVersionTooOld') {
         logService.warn(
           `Skipping extension ${record.manifest.id}: requires app version ${record.compatibility.required}, ` +
-          `current is ${record.compatibility.current}`
+            `current is ${record.compatibility.current}`,
         );
         return null;
       }
@@ -142,9 +146,12 @@ class ExtensionLoaderService {
 
       if (record.isBuiltIn) {
         // Find Vite module
-        const builtInFeatureModules = import.meta.glob(['/src/built-in-features/*/index.ts', '/src/built-in-features/*/index.svelte.ts'], { eager: true }) as Record<string, any>;
-        const modulePath = Object.keys(builtInFeatureModules).find(
-          p => p.includes(`/${extensionId}/`)
+        const builtInFeatureModules = import.meta.glob(
+          ['/src/built-in-features/*/index.ts', '/src/built-in-features/*/index.svelte.ts'],
+          { eager: true },
+        ) as Record<string, any>;
+        const modulePath = Object.keys(builtInFeatureModules).find((p) =>
+          p.includes(`/${extensionId}/`),
         );
 
         if (!modulePath) {
@@ -155,11 +162,11 @@ class ExtensionLoaderService {
         return {
           module: builtInFeatureModules[modulePath],
           manifest: record.manifest,
-          isBuiltIn: true
+          isBuiltIn: true,
         };
       } else {
         // [ARCHITECTURE SAFEGUARD]: CODE LOADING SEPARATION
-        // Tier 1 (Built-in) extensions have their JS modules dynamically imported 
+        // Tier 1 (Built-in) extensions have their JS modules dynamically imported
         // into the privileged Host window context to execute.
         // Tier 2 (Installed) extensions MUST NEVER be imported into the Host window.
         // They execute securely inside their own sandboxed iframes. By returning
@@ -168,7 +175,7 @@ class ExtensionLoaderService {
         return {
           module: null,
           manifest: record.manifest,
-          isBuiltIn: false
+          isBuiltIn: false,
         };
       }
     } catch (error) {

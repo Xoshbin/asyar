@@ -15,9 +15,13 @@
   const extensionId = $derived(activeView.split('/')[0]);
   const viewName = $derived(activeView.split('/')[1] || 'DefaultView');
   const isBuiltIn = $derived(isBuiltInFeature(extensionId));
-  const manifest = $derived(extensionManager.getManifestById ? extensionManager.getManifestById(extensionId) : null);
+  const manifest = $derived(
+    extensionManager.getManifestById ? extensionManager.getManifestById(extensionId) : null,
+  );
   const module = $derived(extensionManager.getLoadedExtensionModule(extensionId));
-  const ActiveComponent = $derived(isBuiltIn ? (module?.[viewName] ?? module?.default?.[viewName] ?? module?.default) : null);
+  const ActiveComponent = $derived(
+    isBuiltIn ? (module?.[viewName] ?? module?.default?.[viewName] ?? module?.default) : null,
+  );
 
   // Auto-declare/clear the searchbar accessory dropdown for the active
   // view-mode command. The manifest's command is matched by `component`
@@ -27,19 +31,13 @@
   // race.
   $effect(() => {
     if (!extensionId || !viewName) return;
-    const command = manifest?.commands?.find(
-      (c: ExtensionCommand) => c.component === viewName,
-    );
+    const command = manifest?.commands?.find((c: ExtensionCommand) => c.component === viewName);
     if (!command) return;
     const commandId = command.id;
     void applyAccessoryFromCommand(command, extensionId, commandId);
     return () => {
       const active = searchBarAccessoryService.active;
-      if (
-        active &&
-        active.extensionId === extensionId &&
-        active.commandId === commandId
-      ) {
+      if (active && active.extensionId === extensionId && active.commandId === commandId) {
         searchBarAccessoryService.clear();
       }
     };
@@ -57,11 +55,7 @@
         </div>
       {/if}
     {:else}
-      <ExtensionIframe
-        {extensionId}
-        view={activeView}
-        manifest={manifest ?? null}
-      />
+      <ExtensionIframe {extensionId} view={activeView} manifest={manifest ?? null} />
     {/if}
   {/key}
 </div>

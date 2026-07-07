@@ -12,7 +12,7 @@ export class AliasService {
     objectId: string,
     alias: string,
     itemName: string,
-    itemType: 'application' | 'command'
+    itemType: 'application' | 'command',
   ): Promise<ItemAlias> {
     const result = await commands.setAlias(objectId, alias, itemName, itemType);
     if (result === null) throw new Error('set_alias failed');
@@ -29,10 +29,7 @@ export class AliasService {
     return result;
   }
 
-  async findConflict(
-    alias: string,
-    excludingObjectId?: string
-  ): Promise<AliasConflict | null> {
+  async findConflict(alias: string, excludingObjectId?: string): Promise<AliasConflict | null> {
     return commands.findAliasConflict(alias, excludingObjectId);
   }
 }

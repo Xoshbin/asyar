@@ -92,9 +92,7 @@ describe('scanPathsSync', () => {
     await flush();
     expect(invoke).toHaveBeenCalledTimes(1);
 
-    subscribedCallbacks.forEach((cb) =>
-      cb({ search: { additionalScanPaths: ['/new/path'] } }),
-    );
+    subscribedCallbacks.forEach((cb) => cb({ search: { additionalScanPaths: ['/new/path'] } }));
     await flush();
 
     expect(invoke).toHaveBeenCalledTimes(2);
@@ -114,9 +112,7 @@ describe('scanPathsSync', () => {
     expect(invoke).toHaveBeenCalledTimes(1);
 
     // Same value, different array identity — must not trigger another push.
-    subscribedCallbacks.forEach((cb) =>
-      cb({ search: { additionalScanPaths: ['/opt'] } }),
-    );
+    subscribedCallbacks.forEach((cb) => cb({ search: { additionalScanPaths: ['/opt'] } }));
     await flush();
 
     expect(invoke).toHaveBeenCalledTimes(1);
@@ -132,9 +128,7 @@ describe('scanPathsSync', () => {
     await flush();
     expect(invoke).toHaveBeenCalledTimes(1);
 
-    subscribedCallbacks.forEach((cb) =>
-      cb({ search: { additionalScanPaths: ['/b', '/a'] } }),
-    );
+    subscribedCallbacks.forEach((cb) => cb({ search: { additionalScanPaths: ['/b', '/a'] } }));
     await flush();
 
     expect(invoke).toHaveBeenCalledTimes(2);

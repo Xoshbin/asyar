@@ -1,7 +1,10 @@
 import type { SearchBarAccessoryDropdownOption } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
 import { extensionIframeManager } from '../extension/extensionIframeManager.svelte';
-import { searchbarAccessoryGet, searchbarAccessorySet } from '../../lib/ipc/searchAccessoryCommands';
+import {
+  searchbarAccessoryGet,
+  searchbarAccessorySet,
+} from '../../lib/ipc/searchAccessoryCommands';
 
 export interface SearchBarAccessoryActiveState {
   extensionId: string;
@@ -79,11 +82,7 @@ export class SearchBarAccessoryServiceClass {
     this.broadcast(input.extensionId, input.commandId, seed, /*toView=*/ true);
   }
 
-  async setSelected(
-    extensionId: string,
-    commandId: string,
-    value: string,
-  ): Promise<void> {
+  async setSelected(extensionId: string, commandId: string, value: string): Promise<void> {
     if (
       !this.active ||
       this.active.extensionId !== extensionId ||
@@ -95,9 +94,7 @@ export class SearchBarAccessoryServiceClass {
       return;
     }
     if (!this.active.options.some((o) => o.value === value)) {
-      throw new Error(
-        `searchBarAccessory.setSelected: value '${value}' not in options`,
-      );
+      throw new Error(`searchBarAccessory.setSelected: value '${value}' not in options`);
     }
 
     const persisted = await searchbarAccessorySet(extensionId, commandId, value);
@@ -119,9 +116,7 @@ export class SearchBarAccessoryServiceClass {
     },
   ): Promise<void> {
     if (!this.active || this.active.extensionId !== extensionId) {
-      logService.warn(
-        `[SearchBarAccessory] set ignored: no active accessory for ${extensionId}`,
-      );
+      logService.warn(`[SearchBarAccessory] set ignored: no active accessory for ${extensionId}`);
       return;
     }
 
@@ -145,9 +140,7 @@ export class SearchBarAccessoryServiceClass {
 
     if (opts.value !== undefined) {
       if (!nextOptions.some((o) => o.value === opts.value)) {
-        throw new Error(
-          `searchBarAccessory.set: value '${opts.value}' not in options`,
-        );
+        throw new Error(`searchBarAccessory.set: value '${opts.value}' not in options`);
       }
       nextValue = opts.value;
     }
@@ -169,12 +162,7 @@ export class SearchBarAccessoryServiceClass {
       value: nextValue,
     };
 
-    this.broadcast(
-      extensionId,
-      commandId,
-      nextValue,
-      /*toView=*/ valueChanged,
-    );
+    this.broadcast(extensionId, commandId, nextValue, /*toView=*/ valueChanged);
   }
 
   /** Tier 2 IPC entry — routed from `asyar:api:searchBar:clear`. */
@@ -193,11 +181,7 @@ export class SearchBarAccessoryServiceClass {
    * `active` already matches `(extensionId, commandId)` — call order of
    * `declare` and `subscribe` does not matter.
    */
-  subscribe(
-    extensionId: string,
-    commandId: string,
-    handler: (value: string) => void,
-  ): () => void {
+  subscribe(extensionId: string, commandId: string, handler: (value: string) => void): () => void {
     const sub: Subscriber = { extensionId, commandId, handler };
     this.subscribers.add(sub);
     if (
@@ -212,12 +196,7 @@ export class SearchBarAccessoryServiceClass {
     };
   }
 
-  private broadcast(
-    extensionId: string,
-    commandId: string,
-    value: string,
-    toView: boolean,
-  ): void {
+  private broadcast(extensionId: string, commandId: string, value: string, toView: boolean): void {
     for (const s of this.subscribers) {
       if (s.extensionId === extensionId && s.commandId === commandId) {
         try {

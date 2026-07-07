@@ -49,7 +49,7 @@ export class SelectionService implements ISelectionService {
 
     const selectionError = new Error(errorString) as SelectionError;
     selectionError.code = code;
-    
+
     logService.error(`[SelectionService] ${code}: ${errorString}`);
     throw selectionError;
   }

@@ -14,17 +14,14 @@ interface ICommandService {
     commandId: string,
     handler: CommandHandler,
     extensionId: string,
-    actions?: Omit<ExtensionAction, 'extensionId'>[]
+    actions?: Omit<ExtensionAction, 'extensionId'>[],
   ): void;
   unregisterCommand(commandId: string): void;
   executeCommand(commandId: string, args?: Record<string, any>): Promise<any>;
   getCommands(): string[];
   getCommandsForExtension(extensionId: string): string[];
   clearCommandsForExtension(extensionId: string): void;
-  updateCommandMetadata(
-    commandId: string,
-    metadata: { subtitle?: string }
-  ): Promise<void>;
+  updateCommandMetadata(commandId: string, metadata: { subtitle?: string }): Promise<void>;
 }
 ```
 
@@ -49,6 +46,7 @@ await context.commandService.updateCommandMetadata('check-weather', {
 The subtitle is persisted to the SQLite database immediately, so it survives app restarts. It appears in the search results list under the command name alongside the extension icon.
 
 **Notes:**
+
 - `commandId` is the short ID declared in your manifest (e.g. `"check-weather"`), not the full object ID.
 - Passing `subtitle: undefined` (or omitting `subtitle`) clears the subtitle.
 - Calling this on a command that does not belong to your extension throws an error.

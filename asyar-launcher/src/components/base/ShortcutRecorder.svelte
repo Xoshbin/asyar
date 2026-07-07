@@ -28,7 +28,9 @@
   let buttonEl = $state<HTMLButtonElement>();
 
   const capture = useShortcutCapture({
-    get conflictChecker() { return conflictChecker; },
+    get conflictChecker() {
+      return conflictChecker;
+    },
     onCapture: async (result) => {
       const previousModifier = modifier;
       const previousKey = key;
@@ -45,8 +47,12 @@
       }
       return true;
     },
-    get onCancel() { return oncancel; },
-    get onDone() { return ondone; },
+    get onCancel() {
+      return oncancel;
+    },
+    get onDone() {
+      return ondone;
+    },
   });
 
   function handleStartRecording() {
@@ -79,19 +85,17 @@
 
   let idleChips = $derived.by(() => {
     if (modifier && key) {
-      const mods = modifier.split('+')
+      const mods = modifier
+        .split('+')
         .sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))
-        .map(m => capture.modifierSymbol(m));
+        .map((m) => capture.modifierSymbol(m));
       return [...mods, capture.displayKey(key)];
     }
     return [];
   });
 </script>
 
-<div
-  class="shortcut-recorder"
-  class:disabled
->
+<div class="shortcut-recorder" class:disabled>
   <button
     bind:this={buttonEl}
     type="button"
@@ -100,7 +104,7 @@
     class:error={capture.state.saveState === 'error'}
     class:success={capture.state.saveState === 'success'}
     onclick={handleStartRecording}
-    disabled={disabled}
+    {disabled}
     tabindex={disabled ? -1 : 0}
     aria-label="Press keys to set shortcut"
   >
@@ -109,7 +113,9 @@
         {#if capture.state.errorType === 'conflict' && capture.state.failedChips.length > 0}
           <div class="key-chips">
             {#each capture.state.failedChips as chip, i}
-              {#if i === capture.state.failedChips.length - 1 && capture.state.failedChips.length > 1}<span class="chip-separator error-separator">+</span>{/if}
+              {#if i === capture.state.failedChips.length - 1 && capture.state.failedChips.length > 1}<span
+                  class="chip-separator error-separator">+</span
+                >{/if}
               <span class="chip error-chip">{chip}</span>
             {/each}
           </div>
@@ -118,11 +124,15 @@
             {#each capture.rejectedModifierChips as chip}
               <span class="chip recording-chip">{chip}</span>
             {/each}
-            <span class="chip-separator {capture.hasValidRejectedKeys ? 'recording-separator' : 'example-separator'}">+</span>
-            {#each capture.state.rejectedKeys.filter(k => !capture.state.invalidKeys.has(k)) as rk}
+            <span
+              class="chip-separator {capture.hasValidRejectedKeys
+                ? 'recording-separator'
+                : 'example-separator'}">+</span
+            >
+            {#each capture.state.rejectedKeys.filter((k) => !capture.state.invalidKeys.has(k)) as rk}
               <span class="chip recording-chip">{capture.displayKey(rk)}</span>
             {/each}
-            {#each capture.state.rejectedKeys.filter(k => capture.state.invalidKeys.has(k)) as rk}
+            {#each capture.state.rejectedKeys.filter((k) => capture.state.invalidKeys.has(k)) as rk}
               <span class="chip error-chip">{capture.displayKey(rk)}</span>
             {/each}
           </div>
@@ -131,10 +141,10 @@
             <span class="chip example-chip">⇧</span>
             <span class="chip example-chip">⌘</span>
             <span class="chip-separator example-separator">+</span>
-            {#each capture.state.rejectedKeys.filter(k => !capture.state.invalidKeys.has(k)) as rk}
+            {#each capture.state.rejectedKeys.filter((k) => !capture.state.invalidKeys.has(k)) as rk}
               <span class="chip recording-chip">{capture.displayKey(rk)}</span>
             {/each}
-            {#each capture.state.rejectedKeys.filter(k => capture.state.invalidKeys.has(k)) as rk}
+            {#each capture.state.rejectedKeys.filter((k) => capture.state.invalidKeys.has(k)) as rk}
               <span class="chip error-chip">{capture.displayKey(rk)}</span>
             {/each}
           </div>
@@ -160,7 +170,9 @@
       <div class="recorder-content">
         <div class="key-chips">
           {#each idleChips as chip, i}
-            {#if i === idleChips.length - 1 && idleChips.length > 1}<span class="chip-separator success-separator">+</span>{/if}
+            {#if i === idleChips.length - 1 && idleChips.length > 1}<span
+                class="chip-separator success-separator">+</span
+              >{/if}
             <span class="chip success-chip">{chip}</span>
           {/each}
         </div>
@@ -169,7 +181,9 @@
       <div class="recorder-content">
         <div class="key-chips">
           {#each capture.state.failedChips as chip, i}
-            {#if i === capture.state.failedChips.length - 1 && capture.state.failedChips.length > 1}<span class="chip-separator error-separator">+</span>{/if}
+            {#if i === capture.state.failedChips.length - 1 && capture.state.failedChips.length > 1}<span
+                class="chip-separator error-separator">+</span
+              >{/if}
             <span class="chip error-chip">{chip}</span>
           {/each}
         </div>
@@ -183,7 +197,9 @@
         {#if idleChips.length > 0}
           <div class="key-chips">
             {#each idleChips as chip, i}
-              {#if i === idleChips.length - 1 && idleChips.length > 1}<span class="chip-separator">+</span>{/if}
+              {#if i === idleChips.length - 1 && idleChips.length > 1}<span class="chip-separator"
+                  >+</span
+                >{/if}
               <span class="chip">{chip}</span>
             {/each}
           </div>
@@ -194,7 +210,11 @@
     {/if}
   </button>
 
-  <div class="message-slot" class:visible={capture.state.saveState === 'success' || (capture.state.errorType !== '' && capture.state.errorType !== 'no-modifier')}>
+  <div
+    class="message-slot"
+    class:visible={capture.state.saveState === 'success' ||
+      (capture.state.errorType !== '' && capture.state.errorType !== 'no-modifier')}
+  >
     {#if capture.state.saveState === 'success'}
       <div class="success-message">Saved</div>
     {:else if capture.state.errorType === 'invalid-key'}
@@ -353,7 +373,9 @@
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: height var(--transition-normal), opacity var(--transition-normal);
+    transition:
+      height var(--transition-normal),
+      opacity var(--transition-normal);
   }
 
   .message-slot.visible {

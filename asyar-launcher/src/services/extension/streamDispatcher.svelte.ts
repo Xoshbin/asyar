@@ -88,11 +88,7 @@ export class StreamDispatcher {
    * spawn() and attach() reach the same posting pipeline without
    * double-listener bookkeeping.
    */
-  forward(
-    streamId: string,
-    phase: 'chunk' | 'done' | 'error',
-    data: unknown,
-  ): void {
+  forward(streamId: string, phase: 'chunk' | 'done' | 'error', data: unknown): void {
     const entry = this.streams.get(streamId);
     if (!entry || entry.closed) return;
     if (phase === 'chunk' && entry.aborted) return;

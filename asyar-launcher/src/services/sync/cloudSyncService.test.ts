@@ -87,14 +87,12 @@ function makeProvider(opts: {
     exportItems: vi.fn().mockResolvedValue(opts.items ?? []),
     applyItemUpsert: vi.fn().mockResolvedValue(undefined),
     applyItemDelete: vi.fn().mockResolvedValue(undefined),
-    subscribeToChanges: vi.fn(
-      (cb: (ev: SyncChangeEvent) => void): Unsubscribe => {
-        fp.__emit = cb;
-        return () => {
-          fp.__emit = undefined;
-        };
-      },
-    ),
+    subscribeToChanges: vi.fn((cb: (ev: SyncChangeEvent) => void): Unsubscribe => {
+      fp.__emit = cb;
+      return () => {
+        fp.__emit = undefined;
+      };
+    }),
   };
   return fp;
 }
@@ -205,7 +203,9 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
 
     it('throws when sync:settings entitlement is missing', async () => {
       vi.mocked(entitlementService.check).mockReturnValue(false);
-      await expect(cloudSyncService.syncNow()).rejects.toThrow('sync:settings entitlement required');
+      await expect(cloudSyncService.syncNow()).rejects.toThrow(
+        'sync:settings entitlement required',
+      );
     });
 
     it('stripField_strips_sensitive_fields_per_item', async () => {

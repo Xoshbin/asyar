@@ -59,9 +59,7 @@ export function createPushBridge(
             `iframe[data-extension-id="${extensionId}"]`,
           ) as HTMLIFrameElement | null);
         if (!iframe?.contentWindow) {
-          logService.debug(
-            `[${logTag}] no iframe for ${extensionId}; event dropped`,
-          );
+          logService.debug(`[${logTag}] no iframe for ${extensionId}; event dropped`);
           return;
         }
         iframe.contentWindow.postMessage(

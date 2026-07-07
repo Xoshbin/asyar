@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { NAMESPACES } from 'asyar-sdk/contracts';
-import {
-  INJECTS_EXTENSION_ID,
-  ALWAYS_INJECTS_CALLER_ID,
-} from '../ExtensionIpcRouter';
+import { INJECTS_EXTENSION_ID, ALWAYS_INJECTS_CALLER_ID } from '../ExtensionIpcRouter';
 
 describe('INJECTS_EXTENSION_ID', () => {
   it('contains only valid Namespace values', () => {

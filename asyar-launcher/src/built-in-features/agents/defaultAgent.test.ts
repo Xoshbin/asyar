@@ -10,7 +10,7 @@ import {
 const LOCKED_SYSTEM_PROMPT =
   'You are Asyar Assistant, a friendly and helpful AI built into the Asyar launcher. ' +
   'Help the user with quick questions, explanations, drafting, summarizing, and general thinking-through. ' +
-  'Be concise, accurate, and direct. If you don\'t know something, say so. ' +
+  "Be concise, accurate, and direct. If you don't know something, say so. " +
   'Use Markdown for code and lists when it improves clarity.';
 
 describe('defaultAgent', () => {

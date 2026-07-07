@@ -1,12 +1,12 @@
-import { defineConfig } from "eslint/config";
-import js from "@eslint/js";
-import tseslint from "typescript-eslint";
-import neostandard from "neostandard";
-import svelte from "eslint-plugin-svelte";
-import svelteParser from "svelte-eslint-parser";
-import svelteConfig from "./svelte.config.js";
-import prettier from "eslint-config-prettier";
-import globals from "globals";
+import { defineConfig } from 'eslint/config';
+import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
+import neostandard from 'neostandard';
+import svelte from 'eslint-plugin-svelte';
+import svelteParser from 'svelte-eslint-parser';
+import svelteConfig from './svelte.config.js';
+import prettier from 'eslint-config-prettier';
+import globals from 'globals';
 
 // eslint-config-standard (v17) is eslintrc-format and targets ESLint 8; it
 // can't be extended by name under ESLint 9 flat config. neostandard is the
@@ -36,27 +36,27 @@ export default defineConfig([
       // suggests for intentionally-ignored promises, and already used
       // throughout this codebase. Allow void as a statement; still catches
       // stray `void` in expression position.
-      "no-void": ["error", { allowAsStatement: true }],
+      'no-void': ['error', { allowAsStatement: true }],
     },
   },
   {
-    files: ["**/*.{js,ts,mjs,cjs}"],
+    files: ['**/*.{js,ts,mjs,cjs}'],
     languageOptions: {
       parserOptions: {
-        project: "./tsconfig.json",
+        project: './tsconfig.json',
       },
     },
     rules: {
       // Customize as needed:
-      "no-unused-vars": "warn",
-      "no-undef": "warn",
-      "@typescript-eslint/no-unsafe-assignment": "warn",
-      "@typescript-eslint/no-unsafe-call": "warn",
-      "@typescript-eslint/no-unsafe-member-access": "warn",
-      "@typescript-eslint/no-unsafe-return": "warn",
-      "@typescript-eslint/explicit-function-return-type": "off",
-      "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-non-null-assertion": "off",
+      'no-unused-vars': 'warn',
+      'no-undef': 'warn',
+      '@typescript-eslint/no-unsafe-assignment': 'warn',
+      '@typescript-eslint/no-unsafe-call': 'warn',
+      '@typescript-eslint/no-unsafe-member-access': 'warn',
+      '@typescript-eslint/no-unsafe-return': 'warn',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-non-null-assertion': 'off',
     },
   },
   {
@@ -66,19 +66,19 @@ export default defineConfig([
     // parser assignment. Reassert svelte-eslint-parser as the template
     // parser here; parserOptions.parser is the *inner* sub-parser it
     // delegates <script> block contents to.
-    files: ["**/*.svelte"],
+    files: ['**/*.svelte'],
     languageOptions: {
       parser: svelteParser,
       parserOptions: {
         parser: tseslint.parser,
-        project: "./tsconfig.json",
-        extraFileExtensions: [".svelte"],
+        project: './tsconfig.json',
+        extraFileExtensions: ['.svelte'],
         svelteConfig,
       },
     },
     rules: {
-      "svelte/valid-compile": ["warn", { ignoreWarnings: false }],
-      "no-inner-declarations": "off",
+      'svelte/valid-compile': ['warn', { ignoreWarnings: false }],
+      'no-inner-declarations': 'off',
     },
   },
   // Must come last: turns off stylistic rules (quotes, semi, indent, ...)

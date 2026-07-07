@@ -107,10 +107,10 @@ describe('seedDefaults stability', () => {
     mockLoad.mockResolvedValue([]); // always empty → triggers seedDefaults each reload
 
     await portalStore.reload();
-    const firstIds = portalStore.portals.map(p => p.id).sort();
+    const firstIds = portalStore.portals.map((p) => p.id).sort();
 
     await portalStore.reload();
-    const secondIds = portalStore.portals.map(p => p.id).sort();
+    const secondIds = portalStore.portals.map((p) => p.id).sort();
 
     expect(firstIds).toHaveLength(3);
     expect(firstIds).toEqual(secondIds);
@@ -152,9 +152,27 @@ describe('sync duplicate healing', () => {
     // After fix: portals have stable IDs → merge correctly skips/updates, never adds
 
     const stablePortals = [
-      { id: 'default-search-google',    name: 'Search Google',    url: 'https://google.com/search?q={query}',   icon: '🌐', createdAt: 1000 },
-      { id: 'default-search-github',    name: 'Search GitHub',    url: 'https://github.com/search?q={query}',   icon: '🐙', createdAt: 1000 },
-      { id: 'default-search-wikipedia', name: 'Search Wikipedia', url: 'https://en.wikipedia.org/wiki/{query}', icon: '📖', createdAt: 1000 },
+      {
+        id: 'default-search-google',
+        name: 'Search Google',
+        url: 'https://google.com/search?q={query}',
+        icon: '🌐',
+        createdAt: 1000,
+      },
+      {
+        id: 'default-search-github',
+        name: 'Search GitHub',
+        url: 'https://github.com/search?q={query}',
+        icon: '🐙',
+        createdAt: 1000,
+      },
+      {
+        id: 'default-search-wikipedia',
+        name: 'Search Wikipedia',
+        url: 'https://en.wikipedia.org/wiki/{query}',
+        icon: '📖',
+        createdAt: 1000,
+      },
     ];
 
     // 9-portal snapshot: 3 copies of each of the 3 stable IDs
@@ -163,9 +181,9 @@ describe('sync duplicate healing', () => {
       version: 1,
       exportedAt: Date.now(),
       data: [
-        ...stablePortals.map(p => ({ ...p, createdAt: 500  })),  // set 1 – older
-        ...stablePortals.map(p => ({ ...p, createdAt: 800  })),  // set 2 – still older
-        ...stablePortals.map(p => ({ ...p, createdAt: 1200 })),  // set 3 – newer
+        ...stablePortals.map((p) => ({ ...p, createdAt: 500 })), // set 1 – older
+        ...stablePortals.map((p) => ({ ...p, createdAt: 800 })), // set 2 – still older
+        ...stablePortals.map((p) => ({ ...p, createdAt: 1200 })), // set 3 – newer
       ],
     };
 

@@ -124,7 +124,9 @@ pub struct ImportBundle {
 #[serde(tag = "status", rename_all = "camelCase")]
 pub enum ParseOutcome {
     #[serde(rename_all = "camelCase")]
-    Ok { bundle: ImportBundle },
+    Ok {
+        bundle: ImportBundle,
+    },
     PasswordRequired,
     WrongPassword,
 }
@@ -139,7 +141,9 @@ pub fn parse_export(bytes: &[u8], password: Option<&str>) -> Result<ParseOutcome
             return parse_rayconfig_x(&value, password);
         }
         if is_classic_config(&value) {
-            return Ok(ParseOutcome::Ok { bundle: parse_classic(&value)? });
+            return Ok(ParseOutcome::Ok {
+                bundle: parse_classic(&value)?,
+            });
         }
         return Err(AppError::Validation(
             "Unrecognized rayconfig contents".to_string(),
@@ -149,7 +153,9 @@ pub fn parse_export(bytes: &[u8], password: Option<&str>) -> Result<ParseOutcome
     // Plain JSON exports from "Export Snippets" / "Export Quicklinks".
     if let Ok(value) = serde_json::from_slice::<serde_json::Value>(bytes) {
         if let Some(items) = value.as_array() {
-            return Ok(ParseOutcome::Ok { bundle: parse_plain_json(items)? });
+            return Ok(ParseOutcome::Ok {
+                bundle: parse_plain_json(items)?,
+            });
         }
         return Err(AppError::Validation(
             "Unrecognized Raycast export file".to_string(),
@@ -191,7 +197,13 @@ pub fn resolve_app_targets(bundle: &mut ImportBundle, apps: &[Application]) {
 /// `apps` (the caller drops the entry); `true` otherwise, having filled in
 /// index identity for `App` targets.
 fn resolve_app_target(target: &mut ShortcutTarget, apps: &[Application]) -> bool {
-    let ShortcutTarget::App { path, object_id, item_name, item_icon } = target else {
+    let ShortcutTarget::App {
+        path,
+        object_id,
+        item_name,
+        item_icon,
+    } = target
+    else {
         return true;
     };
     match apps.iter().find(|a| &a.path == path) {
@@ -266,11 +278,17 @@ fn parse_rayconfig_x(
         _ => data,
     };
 
-    let inner = if schema_version >= 2 { gunzip(&payload)? } else { payload };
+    let inner = if schema_version >= 2 {
+        gunzip(&payload)?
+    } else {
+        payload
+    };
     let categories: serde_json::Value = serde_json::from_slice(&inner)
         .map_err(|e| AppError::Validation(format!("Invalid rayconfig categories: {e}")))?;
 
-    Ok(ParseOutcome::Ok { bundle: bundle_from_x_categories(&categories)? })
+    Ok(ParseOutcome::Ok {
+        bundle: bundle_from_x_categories(&categories)?,
+    })
 }
 
 /// AES-256-GCM with an scrypt-derived key (Node `crypto.scrypt` defaults:
@@ -286,9 +304,12 @@ fn decrypt_x_payload(
     use aes_gcm::{AesGcm, KeyInit, Nonce};
 
     let field = |name: &str| -> Result<Vec<u8>, AppError> {
-        let hex_str = encryption.get(name).and_then(|v| v.as_str()).ok_or_else(|| {
-            AppError::Validation(format!("rayconfig encryption block missing {name}"))
-        })?;
+        let hex_str = encryption
+            .get(name)
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                AppError::Validation(format!("rayconfig encryption block missing {name}"))
+            })?;
         hex::decode(hex_str)
             .map_err(|e| AppError::Validation(format!("Invalid {name} encoding: {e}")))
     };
@@ -346,8 +367,12 @@ fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBund
         .and_then(|v| v.as_array())
     {
         for s in snippets {
-            let Some(title) = s.get("title").and_then(|v| v.as_str()) else { continue };
-            let Some(text) = s.get("text").and_then(|v| v.as_str()) else { continue };
+            let Some(title) = s.get("title").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            let Some(text) = s.get("text").and_then(|v| v.as_str()) else {
+                continue;
+            };
             bundle.snippets.push(ImportSnippet {
                 name: title.to_string(),
                 keyword: s
@@ -369,8 +394,12 @@ fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBund
         .and_then(|v| v.as_array())
     {
         for q in quicklinks {
-            let Some(name) = q.get("name").and_then(|v| v.as_str()) else { continue };
-            let Some(link) = q.get("link").and_then(|v| v.as_str()) else { continue };
+            let Some(name) = q.get("name").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            let Some(link) = q.get("link").and_then(|v| v.as_str()) else {
+                continue;
+            };
             bundle.portals.push(ImportPortal {
                 raycast_id: q.get("id").and_then(|v| v.as_str()).map(str::to_string),
                 name: name.to_string(),
@@ -391,7 +420,10 @@ fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBund
                 .get("macosHotkey")
                 .or_else(|| command.get("windowsHotkey"))
             {
-                match (shortcut_target_from_command_id(id), translate_hotkey(hotkey)) {
+                match (
+                    shortcut_target_from_command_id(id),
+                    translate_hotkey(hotkey),
+                ) {
                     (Some(target), Some(shortcut)) => {
                         bundle.shortcuts.push(ImportShortcut { target, shortcut })
                     }
@@ -404,7 +436,9 @@ fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBund
                     shortcut_target_from_command_id(id),
                     normalize_and_validate_alias(alias_raw),
                 ) {
-                    (Some(target), Some(alias)) => bundle.aliases.push(ImportAlias { target, alias }),
+                    (Some(target), Some(alias)) => {
+                        bundle.aliases.push(ImportAlias { target, alias })
+                    }
                     _ => bundle.skipped.aliases += 1,
                 }
             }
@@ -429,7 +463,9 @@ fn shortcut_target_from_command_id(id: &str) -> Option<ShortcutTarget> {
         });
     }
     id.strip_prefix(X_QUICKLINK_COMMAND_PREFIX)
-        .map(|ql_id| ShortcutTarget::Portal { raycast_quicklink_id: ql_id.to_string() })
+        .map(|ql_id| ShortcutTarget::Portal {
+            raycast_quicklink_id: ql_id.to_string(),
+        })
 }
 
 /// Mirrors Asyar's alias validator (`aliasValidation.ts::ALIAS_REGEX`):
@@ -469,10 +505,7 @@ fn iso_to_epoch_ms(iso: &str) -> Option<f64> {
 /// Classic encrypted layout: first 16 bytes are the IV, the rest is
 /// AES-256-CBC ciphertext keyed with sha256(password). The plaintext is the
 /// same gzip stream a passwordless classic export produces.
-fn parse_classic_encrypted(
-    bytes: &[u8],
-    password: Option<&str>,
-) -> Result<ParseOutcome, AppError> {
+fn parse_classic_encrypted(bytes: &[u8], password: Option<&str>) -> Result<ParseOutcome, AppError> {
     use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
     use sha2::{Digest, Sha256};
 
@@ -508,7 +541,9 @@ fn parse_classic_encrypted(
             "Unrecognized rayconfig contents".to_string(),
         ));
     }
-    Ok(ParseOutcome::Ok { bundle: parse_classic(&value)? })
+    Ok(ParseOutcome::Ok {
+        bundle: parse_classic(&value)?,
+    })
 }
 
 fn parse_classic(value: &serde_json::Value) -> Result<ImportBundle, AppError> {
@@ -526,8 +561,12 @@ fn parse_classic(value: &serde_json::Value) -> Result<ImportBundle, AppError> {
         .and_then(|v| v.as_array())
     {
         for s in snippets {
-            let Some(name) = s.get("name").and_then(|v| v.as_str()) else { continue };
-            let Some(text) = s.get("text").and_then(|v| v.as_str()) else { continue };
+            let Some(name) = s.get("name").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            let Some(text) = s.get("text").and_then(|v| v.as_str()) else {
+                continue;
+            };
             bundle.snippets.push(ImportSnippet {
                 name: name.to_string(),
                 keyword: s.get("alias").and_then(|v| v.as_str()).map(str::to_string),
@@ -546,8 +585,12 @@ fn parse_classic(value: &serde_json::Value) -> Result<ImportBundle, AppError> {
         .and_then(|v| v.as_array())
     {
         for q in quicklinks {
-            let Some(name) = q.get("name").and_then(|v| v.as_str()) else { continue };
-            let Some(url) = q.get("url").and_then(|v| v.as_str()) else { continue };
+            let Some(name) = q.get("name").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            let Some(url) = q.get("url").and_then(|v| v.as_str()) else {
+                continue;
+            };
             bundle.portals.push(ImportPortal {
                 raycast_id: q.get("uuid").and_then(|v| v.as_str()).map(str::to_string),
                 name: name.to_string(),
@@ -888,7 +931,9 @@ mod tests {
         let ql = &b.shortcuts[1];
         assert_eq!(
             ql.target,
-            ShortcutTarget::Portal { raycast_quicklink_id: "02A".into() }
+            ShortcutTarget::Portal {
+                raycast_quicklink_id: "02A".into()
+            }
         );
         assert_eq!(ql.shortcut, "Shift+Super+T");
 
@@ -916,7 +961,9 @@ mod tests {
         let portal_alias = &b.aliases[1];
         assert_eq!(
             portal_alias.target,
-            ShortcutTarget::Portal { raycast_quicklink_id: "02A".into() }
+            ShortcutTarget::Portal {
+                raycast_quicklink_id: "02A".into()
+            }
         );
         assert_eq!(portal_alias.alias, "gg");
 
@@ -1033,7 +1080,12 @@ mod tests {
         // iTerm matched: identity attached
         assert_eq!(b.shortcuts.len(), 2);
         match &b.shortcuts[0].target {
-            ShortcutTarget::App { object_id, item_name, item_icon, .. } => {
+            ShortcutTarget::App {
+                object_id,
+                item_name,
+                item_icon,
+                ..
+            } => {
                 assert_eq!(object_id.as_deref(), Some("app_123"));
                 assert_eq!(item_name.as_deref(), Some("iTerm"));
                 assert_eq!(item_icon.as_deref(), Some("icon-data"));
@@ -1059,7 +1111,12 @@ mod tests {
         // iTerm's alias resolved: identity attached
         assert_eq!(b.aliases.len(), 2);
         match &b.aliases[0].target {
-            ShortcutTarget::App { object_id, item_name, item_icon, .. } => {
+            ShortcutTarget::App {
+                object_id,
+                item_name,
+                item_icon,
+                ..
+            } => {
                 assert_eq!(object_id.as_deref(), Some("app_123"));
                 assert_eq!(item_name.as_deref(), Some("iTerm"));
                 assert_eq!(item_icon.as_deref(), Some("icon-data"));
@@ -1069,7 +1126,9 @@ mod tests {
         // Portal alias passes through untouched
         assert_eq!(
             b.aliases[1].target,
-            ShortcutTarget::Portal { raycast_quicklink_id: "02A".into() }
+            ShortcutTarget::Portal {
+                raycast_quicklink_id: "02A".into()
+            }
         );
 
         // Against an empty index: iTerm's alias dropped and counted, portal

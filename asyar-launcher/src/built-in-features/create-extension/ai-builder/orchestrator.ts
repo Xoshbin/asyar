@@ -17,7 +17,10 @@ export async function handleEvent(ev: SidecarEvent): Promise<void> {
     case 'verdict': {
       if (!ev.possible) {
         buildJobStore.finishFailed({ step: 'feasibility', error: ev.reason, log: ev.reason });
-        await notificationService.send(CALLER_EXT_ID, { title: "Asyar can't build that", body: ev.reason });
+        await notificationService.send(CALLER_EXT_ID, {
+          title: "Asyar can't build that",
+          body: ev.reason,
+        });
         return;
       }
       buildJobStore.appendStep({ label: 'Feasible — starting build', detail: ev.degradedNote });
@@ -27,36 +30,68 @@ export async function handleEvent(ev: SidecarEvent): Promise<void> {
       buildJobStore.appendStep({ label: ev.label, detail: ev.detail });
       return;
     case 'ask':
-      await presentQuestion({ questionId: ev.questionId, prompt: ev.prompt, inputKind: ev.inputKind, placeholder: ev.placeholder });
+      await presentQuestion({
+        questionId: ev.questionId,
+        prompt: ev.prompt,
+        inputKind: ev.inputKind,
+        placeholder: ev.placeholder,
+      });
       return;
     case 'done': {
       try {
         const scan = await finalizeBuild(ev.path, ev.extensionId);
         if (scan.leaked) {
-          buildJobStore.finishFailed({ step: 'secret-guard', error: `Refused: hardcoded secret found in ${scan.path}`, log: `Secret found at ${scan.path}` });
-          await notificationService.send(CALLER_EXT_ID, { title: 'Build blocked', body: 'A secret was hardcoded; refusing to ship.' });
+          buildJobStore.finishFailed({
+            step: 'secret-guard',
+            error: `Refused: hardcoded secret found in ${scan.path}`,
+            log: `Secret found at ${scan.path}`,
+          });
+          await notificationService.send(CALLER_EXT_ID, {
+            title: 'Build blocked',
+            body: 'A secret was hardcoded; refusing to ship.',
+          });
           return;
         }
-        buildJobStore.finishDone({ extensionId: ev.extensionId, path: ev.path, smokeSummary: ev.smokeSummary });
+        buildJobStore.finishDone({
+          extensionId: ev.extensionId,
+          path: ev.path,
+          smokeSummary: ev.smokeSummary,
+        });
         await notificationService.send(CALLER_EXT_ID, {
           title: '✅ Extension ready',
           body: `${ev.extensionId} built and verified (${ev.smokeSummary}).`,
-          actions: [{ id: 'open', title: 'Open in editor', commandId: 'build-with-ai', args: { buildId: 'current' } }],
+          actions: [
+            {
+              id: 'open',
+              title: 'Open in editor',
+              commandId: 'build-with-ai',
+              args: { buildId: 'current' },
+            },
+          ],
         });
       } catch (err) {
         buildJobStore.finishFailed({ step: 'finalize', error: String(err), log: String(err) });
-        await notificationService.send(CALLER_EXT_ID, { title: 'Build failed', body: `finalize: ${String(err)}` });
+        await notificationService.send(CALLER_EXT_ID, {
+          title: 'Build failed',
+          body: `finalize: ${String(err)}`,
+        });
       }
       return;
     }
     case 'fail':
       buildJobStore.finishFailed({ step: ev.step, error: ev.error, log: ev.log });
-      await notificationService.send(CALLER_EXT_ID, { title: 'Build failed', body: `${ev.step}: ${ev.error}` });
+      await notificationService.send(CALLER_EXT_ID, {
+        title: 'Build failed',
+        body: `${ev.step}: ${ev.error}`,
+      });
       return;
   }
 }
 
-export interface StartResult { ok: boolean; reason?: string }
+export interface StartResult {
+  ok: boolean;
+  reason?: string;
+}
 
 let unlisten: UnlistenFn | null = null;
 
@@ -73,13 +108,22 @@ export async function ensureListening(): Promise<void> {
 }
 
 export async function stopListening(): Promise<void> {
-  if (unlisten) { unlisten(); unlisten = null; }
+  if (unlisten) {
+    unlisten();
+    unlisten = null;
+  }
 }
 
-export async function startBuild(prompt: string, opts: { anthropicKey: string }): Promise<StartResult> {
+export async function startBuild(
+  prompt: string,
+  opts: { anthropicKey: string },
+): Promise<StartResult> {
   const key = opts.anthropicKey?.trim();
   if (!key) {
-    return { ok: false, reason: 'This feature needs an Anthropic API key. Add one in Settings → AI → Anthropic.' };
+    return {
+      ok: false,
+      reason: 'This feature needs an Anthropic API key. Add one in Settings → AI → Anthropic.',
+    };
   }
   await ensureListening();
   const baseDir = await join(await homeDir(), 'AsyarExtensions');

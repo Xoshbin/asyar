@@ -92,9 +92,7 @@ describe('ScriptsManager', () => {
     expect(commands.scriptsRescan).toHaveBeenCalled();
     expect(commands.replaceDynamicCommandsBuiltin).toHaveBeenCalledWith(
       'scripts',
-      expect.arrayContaining([
-        expect.objectContaining({ id: mockScript.dynamicId }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ id: mockScript.dynamicId })]),
     );
   });
 
@@ -121,7 +119,10 @@ describe('ScriptsManager', () => {
   });
 
   it('start_with_titled_script_uses_title_as_command_name', async () => {
-    const titled: ScannedScript = { ...mockScript, header: { ...mockScript.header, title: 'Deploy' } };
+    const titled: ScannedScript = {
+      ...mockScript,
+      header: { ...mockScript.header, title: 'Deploy' },
+    };
     vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([titled]);
 
     await scriptsManager.start();
@@ -287,7 +288,11 @@ describe('ScriptsManager', () => {
   });
 
   it('inline_tick_event_writes_to_liveSubtitle', async () => {
-    let captured: ((p: { payload: { dynamicId: string; subtitle: string | null; error: string | null } }) => void) | null = null;
+    let captured:
+      | ((p: {
+          payload: { dynamicId: string; subtitle: string | null; error: string | null };
+        }) => void)
+      | null = null;
     // First listen() call = 'scripts:changed' (unused here), second = 'scripts:inline:tick'.
     vi.mocked(listen)
       .mockImplementationOnce(async () => () => {})
@@ -306,7 +311,11 @@ describe('ScriptsManager', () => {
   });
 
   it('inline_tick_with_error_writes_error_subtitle', async () => {
-    let captured: ((p: { payload: { dynamicId: string; subtitle: string | null; error: string | null } }) => void) | null = null;
+    let captured:
+      | ((p: {
+          payload: { dynamicId: string; subtitle: string | null; error: string | null };
+        }) => void)
+      | null = null;
     vi.mocked(listen)
       .mockImplementationOnce(async () => () => {})
       .mockImplementationOnce(async (_event, handler) => {

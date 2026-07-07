@@ -5,14 +5,15 @@ import { render, fireEvent } from '@testing-library/svelte';
 // jsdom doesn't implement the Web Animations API that Svelte 5 uses to drive
 // `transition:fadeIn`/`transition:popupScale` on the modal's backdrop.
 if (typeof Element !== 'undefined' && !Element.prototype.animate) {
-  Element.prototype.animate = () => ({
-    cancel: () => {},
-    finish: () => {},
-    finished: Promise.resolve(),
-    onfinish: null,
-    play: () => {},
-    pause: () => {},
-  }) as unknown as Animation;
+  Element.prototype.animate = () =>
+    ({
+      cancel: () => {},
+      finish: () => {},
+      finished: Promise.resolve(),
+      onfinish: null,
+      play: () => {},
+      pause: () => {},
+    }) as unknown as Animation;
 }
 
 // AliasCapture imports Button/Input/FormField from the `../../components`

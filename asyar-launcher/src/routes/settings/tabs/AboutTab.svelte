@@ -1,5 +1,12 @@
 <script lang="ts">
-  import { SettingsForm, SettingsFormRow, Button, SegmentedControl, Toggle, Card } from '../../../components';
+  import {
+    SettingsForm,
+    SettingsFormRow,
+    Button,
+    SegmentedControl,
+    Toggle,
+    Card,
+  } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { runUpdateCheck } from '../../../services/update/updateService';
   import { appUpdateState } from '../../../services/update/appUpdateStore.svelte';
@@ -15,7 +22,9 @@
     handler: SettingsHandler;
   } = $props();
 
-  let updateStatus = $state<'idle' | 'checking' | 'downloading' | 'available' | 'up-to-date' | 'error' | 'installed'>('idle');
+  let updateStatus = $state<
+    'idle' | 'checking' | 'downloading' | 'available' | 'up-to-date' | 'error' | 'installed'
+  >('idle');
   let updateVersion = $state('');
   let updateError = $state('');
   let appVersion = $state('');
@@ -32,15 +41,25 @@
   });
 
   $effect(() => {
-    getVersion().then(v => { appVersion = v }).catch(() => { appVersion = '0.1.0' });
+    getVersion()
+      .then((v) => {
+        appVersion = v;
+      })
+      .catch(() => {
+        appVersion = '0.1.0';
+      });
 
     let unlisten: UnlistenFn | undefined;
     listen('check-for-updates', () => {
       handler.activeTab = 'about';
       checkForUpdates();
-    }).then(fn => { unlisten = fn });
+    }).then((fn) => {
+      unlisten = fn;
+    });
 
-    return () => { unlisten?.(); };
+    return () => {
+      unlisten?.();
+    };
   });
 
   async function checkForUpdates() {
@@ -66,13 +85,19 @@
   }
 
   let updateStatusText = $derived(
-    updateStatus === 'checking' ? 'Checking for updates...' :
-    updateStatus === 'available' ? `Update ${updateVersion} is available. Starting download...` :
-    updateStatus === 'downloading' ? `Downloading and installing update ${updateVersion}...` :
-    updateStatus === 'installed' ? `Update ${updateVersion} installed. Restart Asyar to apply.` :
-    updateStatus === 'up-to-date' ? "You're running the latest version." :
-    updateStatus === 'error' ? `Update check failed: ${updateError}` :
-    ''
+    updateStatus === 'checking'
+      ? 'Checking for updates...'
+      : updateStatus === 'available'
+        ? `Update ${updateVersion} is available. Starting download...`
+        : updateStatus === 'downloading'
+          ? `Downloading and installing update ${updateVersion}...`
+          : updateStatus === 'installed'
+            ? `Update ${updateVersion} installed. Restart Asyar to apply.`
+            : updateStatus === 'up-to-date'
+              ? "You're running the latest version."
+              : updateStatus === 'error'
+                ? `Update check failed: ${updateError}`
+                : '',
   );
 
   async function restartAndUpdate() {
@@ -100,7 +125,10 @@
     />
   </SettingsFormRow>
 
-  <SettingsFormRow label="Automatic updates" description="Check for and download updates in the background">
+  <SettingsFormRow
+    label="Automatic updates"
+    description="Check for and download updates in the background"
+  >
     <Toggle
       checked={handler.settings.updates?.autoCheck ?? true}
       onchange={(e) => handler.updateAutoCheck((e.currentTarget as HTMLInputElement).checked)}
@@ -125,7 +153,9 @@
         onclick={checkForUpdates}
         disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
       >
-        {updateStatus === 'checking' || updateStatus === 'downloading' ? 'Checking...' : 'Check for Updates'}
+        {updateStatus === 'checking' || updateStatus === 'downloading'
+          ? 'Checking...'
+          : 'Check for Updates'}
       </Button>
       {#if updateStatus !== 'idle'}
         <span

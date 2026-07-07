@@ -4,8 +4,8 @@ const TTL_MS: Record<Severity, number | null> = {
   info: 3000,
   success: 3000,
   warning: 8000,
-  error: null,    // sticky
-  fatal: null,    // sticky + modal
+  error: null, // sticky
+  fatal: null, // sticky + modal
 };
 
 export class DiagnosticsService implements IDiagnosticsService {

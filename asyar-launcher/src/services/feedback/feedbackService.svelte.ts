@@ -1,9 +1,5 @@
-import type {
-  IFeedbackService,
-  ShowToastOptions,
-  ConfirmAlertOptions,
-} from "asyar-sdk/contracts";
-import * as commands from "../../lib/ipc/commands";
+import type { IFeedbackService, ShowToastOptions, ConfirmAlertOptions } from 'asyar-sdk/contracts';
+import * as commands from '../../lib/ipc/commands';
 
 interface ActiveToast {
   id: string;
@@ -17,7 +13,7 @@ interface ActiveDialog {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  variant?: "default" | "danger";
+  variant?: 'default' | 'danger';
 }
 
 /** Default HUD visibility duration. */
@@ -41,7 +37,6 @@ export interface HudSpinnerHandle {
   dismiss(): Promise<void>;
 }
 
-
 class FeedbackService implements IFeedbackService {
   activeToast = $state<ActiveToast | null>(null);
   activeDialog = $state<ActiveDialog | null>(null);
@@ -62,22 +57,18 @@ class FeedbackService implements IFeedbackService {
       id,
       title: options.title,
       message: options.message,
-      style: "animated",
+      style: 'animated',
     };
     return id;
   }
 
-  async updateToast(
-    toastId: string,
-    options: Partial<ShowToastOptions>,
-  ): Promise<void> {
+  async updateToast(toastId: string, options: Partial<ShowToastOptions>): Promise<void> {
     if (this.activeToast === null || this.activeToast.id !== toastId) return;
     this.activeToast = {
       ...this.activeToast,
       title: options.title ?? this.activeToast.title,
-      message:
-        "message" in options ? options.message : this.activeToast.message,
-      style: "animated",
+      message: 'message' in options ? options.message : this.activeToast.message,
+      style: 'animated',
     };
   }
 

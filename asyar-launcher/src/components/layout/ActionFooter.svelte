@@ -40,7 +40,9 @@
   :global(.action-footer .text-caption) {
     color: var(--text-secondary);
   }
-  :global(.action-footer .opacity-70) { opacity: 1; }
+  :global(.action-footer .opacity-70) {
+    opacity: 1;
+  }
 
   .action-footer-left,
   .action-footer-right {

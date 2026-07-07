@@ -16,7 +16,13 @@ import { createdExtensionsViewState } from './createdExtensionsViewState.svelte'
 
 const ITEMS = [
   { id: 'com.a.alpha', name: 'Alpha', version: '1.0.0', description: 'first', path: '/x/alpha' },
-  { id: 'com.a.bravo', name: 'Bravo', version: '1.0.0', description: 'second tool', path: '/x/bravo' },
+  {
+    id: 'com.a.bravo',
+    name: 'Bravo',
+    version: '1.0.0',
+    description: 'second tool',
+    path: '/x/bravo',
+  },
 ];
 
 beforeEach(() => {

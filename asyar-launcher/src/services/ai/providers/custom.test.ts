@@ -51,10 +51,26 @@ describe('customPlugin.buildRequest', () => {
     ['bare host (no version)', 'https://example.com', 'https://example.com/v1/chat/completions'],
     ['trailing slash', 'https://example.com/', 'https://example.com/v1/chat/completions'],
     ['ollama localhost', 'http://localhost:11434', 'http://localhost:11434/v1/chat/completions'],
-    ['openrouter with /v1 (must NOT double-up)', 'https://openrouter.ai/api/v1', 'https://openrouter.ai/api/v1/chat/completions'],
-    ['anthropic with /v1', 'https://api.anthropic.com/v1', 'https://api.anthropic.com/v1/chat/completions'],
-    ['gemini /v1beta/openai compat path', 'https://generativelanguage.googleapis.com/v1beta/openai', 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'],
-    ['gemini path with trailing slash', 'https://generativelanguage.googleapis.com/v1beta/openai/', 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'],
+    [
+      'openrouter with /v1 (must NOT double-up)',
+      'https://openrouter.ai/api/v1',
+      'https://openrouter.ai/api/v1/chat/completions',
+    ],
+    [
+      'anthropic with /v1',
+      'https://api.anthropic.com/v1',
+      'https://api.anthropic.com/v1/chat/completions',
+    ],
+    [
+      'gemini /v1beta/openai compat path',
+      'https://generativelanguage.googleapis.com/v1beta/openai',
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    ],
+    [
+      'gemini path with trailing slash',
+      'https://generativelanguage.googleapis.com/v1beta/openai/',
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    ],
   ])('builds the right chat-completions URL for %s', (_name, baseUrl, expected) => {
     const spec = customPlugin.buildRequest([userMsg], { enabled: true, baseUrl }, baseParams);
     expect(spec.url).toBe(expected);
@@ -88,11 +104,15 @@ describe('customPlugin.buildRequest', () => {
   // API-key-exposure risk. Tauri's webview is browser-like to their server, so we
   // mirror what the native anthropicPlugin already sends. Harmless for other providers.
   it('always sends anthropic-dangerous-direct-browser-access: true so Custom can target Anthropic', () => {
-    const spec = customPlugin.buildRequest([userMsg], {
-      enabled: true,
-      baseUrl: 'https://api.anthropic.com',
-      apiKey: 'sk-ant-test',
-    }, baseParams);
+    const spec = customPlugin.buildRequest(
+      [userMsg],
+      {
+        enabled: true,
+        baseUrl: 'https://api.anthropic.com',
+        apiKey: 'sk-ant-test',
+      },
+      baseParams,
+    );
 
     expect(spec.headers['anthropic-dangerous-direct-browser-access']).toBe('true');
   });
@@ -121,7 +141,10 @@ describe('customPlugin tool calling', () => {
       id: 'calc',
       name: 'calc',
       description: 'A calculator',
-      parameters: { type: 'object', properties: { x: { type: 'number' } } } as Record<string, unknown>,
+      parameters: { type: 'object', properties: { x: { type: 'number' } } } as Record<
+        string,
+        unknown
+      >,
     },
   ];
 
@@ -167,7 +190,12 @@ describe('customPlugin tool calling', () => {
       events.push(event);
     }
 
-    expect(events).toContainEqual({ type: 'tool_use', id: 'call_1', name: 'calc', input: { x: 1 } });
+    expect(events).toContainEqual({
+      type: 'tool_use',
+      id: 'call_1',
+      name: 'calc',
+      input: { x: 1 },
+    });
     expect(events[events.length - 1]).toEqual({ type: 'message_stop' });
   });
 });
@@ -178,7 +206,9 @@ describe('customPlugin.getModels', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Sabotage the WebView fetch so any reliance on it surfaces as a failure.
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({}) }) as unknown as typeof fetch;
   });
 
   afterEach(() => {
@@ -216,7 +246,10 @@ describe('customPlugin.getModels', () => {
 
     expect(models).toEqual([{ id: 'm-1', label: 'm-1' }]);
     expect(tauriFetch).toHaveBeenCalledTimes(1);
-    const [url, init] = vi.mocked(tauriFetch).mock.calls[0] as unknown as [string, { headers: Record<string, string> }];
+    const [url, init] = vi.mocked(tauriFetch).mock.calls[0] as unknown as [
+      string,
+      { headers: Record<string, string> },
+    ];
     expect(url).toBe('https://my-llm.example/api/v1/models');
     expect(init.headers.Authorization).toBe('Bearer sk-secret');
   });
@@ -248,7 +281,10 @@ describe('customPlugin.getModels', () => {
       baseUrl: 'http://localhost:8080',
     });
 
-    const [, init] = vi.mocked(tauriFetch).mock.calls[0] as unknown as [string, { headers: Record<string, string> }];
+    const [, init] = vi.mocked(tauriFetch).mock.calls[0] as unknown as [
+      string,
+      { headers: Record<string, string> },
+    ];
     expect(init.headers.Authorization).toBeUndefined();
   });
 });

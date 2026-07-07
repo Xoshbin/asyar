@@ -170,7 +170,8 @@ describe('latex utility', () => {
     });
 
     it('handles multiple LaTeX blocks in the same string', () => {
-      const input = 'Solve \\(ax^2+bx+c=0\\) using\n\\[\nx = \\frac{-b}{2a}\n\\]\nwhere \\(a \\neq 0\\).';
+      const input =
+        'Solve \\(ax^2+bx+c=0\\) using\n\\[\nx = \\frac{-b}{2a}\n\\]\nwhere \\(a \\neq 0\\).';
       const { text, restore } = extractLatexBeforeMarkdown(input);
       // All LaTeX should be replaced with placeholders
       expect(text).not.toContain('\\(');

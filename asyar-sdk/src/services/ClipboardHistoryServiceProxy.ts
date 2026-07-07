@@ -1,15 +1,20 @@
-import type { IClipboardHistoryService } from "./IClipboardHistoryService";
-import type { ClipboardHistoryItem } from "../types";
-import { ClipboardItemType } from "../types";
-import { BaseServiceProxy } from "./BaseServiceProxy";
+import type { IClipboardHistoryService } from './IClipboardHistoryService';
+import type { ClipboardHistoryItem } from '../types';
+import { ClipboardItemType } from '../types';
+import { BaseServiceProxy } from './BaseServiceProxy';
 
-export class ClipboardHistoryServiceProxy extends BaseServiceProxy implements IClipboardHistoryService {
+export class ClipboardHistoryServiceProxy
+  extends BaseServiceProxy
+  implements IClipboardHistoryService
+{
   initialize(): Promise<void> {
     return this.broker.invoke<void>('clipboard:initialize');
   }
 
   stopMonitoring(): void {
-    this.broker.invoke('clipboard:stopMonitoring').catch(err => console.warn('[ClipboardHistoryServiceProxy] stopMonitoring failed:', err));
+    this.broker
+      .invoke('clipboard:stopMonitoring')
+      .catch((err) => console.warn('[ClipboardHistoryServiceProxy] stopMonitoring failed:', err));
   }
 
   formatClipboardItem(item: ClipboardHistoryItem): string {
@@ -72,7 +77,9 @@ export class ClipboardHistoryServiceProxy extends BaseServiceProxy implements IC
   }
 
   readCurrentClipboard(): Promise<{ type: ClipboardItemType; content: string }> {
-    return this.broker.invoke<{ type: ClipboardItemType; content: string }>('clipboard:readCurrentClipboard');
+    return this.broker.invoke<{ type: ClipboardItemType; content: string }>(
+      'clipboard:readCurrentClipboard',
+    );
   }
 
   readCurrentText(): Promise<string> {
@@ -87,4 +94,3 @@ export class ClipboardHistoryServiceProxy extends BaseServiceProxy implements IC
     return this.broker.invoke<string>('clipboard:stripRtf', { rtf });
   }
 }
-

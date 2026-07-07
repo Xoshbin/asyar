@@ -1,9 +1,9 @@
 import { ICON_DATA, ICON_NAMES } from './iconData';
 
 export interface IconOptions {
-  size?: number;        // default 20
+  size?: number; // default 20
   strokeWidth?: number; // default 1.5
-  class?: string;       // CSS class to add to the <svg>
+  class?: string; // CSS class to add to the <svg>
 }
 
 /** Returns a complete SVG markup string for the given icon name, or empty string if not found. */

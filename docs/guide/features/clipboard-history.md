@@ -3,7 +3,7 @@
 > Browse, filter, favorite, and paste past copies.
 
 ![Clipboard list with type filter](../../images/feature-clipboard-hero.png)
-*Figure: the clipboard list with the type filter visible.*
+_Figure: the clipboard list with the type filter visible._
 
 ## What it does
 
@@ -24,12 +24,12 @@ Asyar also records which app each item came from, so you can see the source appl
 
 ## Shortcuts & actions
 
-| Action | How |
-|--------|-----|
-| Paste | `Enter` |
+| Action              | How      |
+| ------------------- | -------- |
+| Paste               | `Enter`  |
 | Paste as Plain Text | `⇧Enter` |
-| Delete item | `⌘⌫` |
-| Open action panel | `⌘K` |
+| Delete item         | `⌘⌫`     |
+| Open action panel   | `⌘K`     |
 
 **Action panel (⌘K) entries while the list is open:**
 

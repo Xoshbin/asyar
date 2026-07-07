@@ -45,10 +45,7 @@ interface IFileSystemWatcherService {
 {
   "permissions": ["fs:watch"],
   "permissionArgs": {
-    "fs:watch": [
-      "~/Library/Shortcuts/**",
-      "~/.ssh/config"
-    ]
+    "fs:watch": ["~/Library/Shortcuts/**", "~/.ssh/config"]
   },
   "background": {
     "main": "dist/worker.js"
@@ -70,13 +67,8 @@ time.
 
 ```typescript
 // worker.ts
-import {
-  ExtensionContext as WorkerExtensionContext,
-} from 'asyar-sdk/worker';
-import type {
-  IFileSystemWatcherService,
-  ExtensionStateProxy,
-} from 'asyar-sdk/contracts';
+import { ExtensionContext as WorkerExtensionContext } from 'asyar-sdk/worker';
+import type { IFileSystemWatcherService, ExtensionStateProxy } from 'asyar-sdk/contracts';
 
 const ctx = new WorkerExtensionContext();
 ctx.setExtensionId('your.extension.id');
@@ -121,10 +113,10 @@ handle.onChange(async (ev) => {
 
 ```typescript
 // worker.ts
-const handle = await fsWatcher.watch(
-  ['~/.vimrc', '~/.zshrc', '~/.gitconfig'],
-  { recursive: false, debounceMs: 250 },
-);
+const handle = await fsWatcher.watch(['~/.vimrc', '~/.zshrc', '~/.gitconfig'], {
+  recursive: false,
+  debounceMs: 250,
+});
 
 handle.onChange(() => {
   void state.set('dotfiles.stale', true);
@@ -199,23 +191,23 @@ view bag, by design.
 
 #### Platform coverage
 
-| Platform | Backend | Notes |
-|---|---|---|
-| macOS | FSEvents | Default. Canonicalizes through `/private/var/folders/...` for tempdirs. |
-| Linux | inotify | Per-user inotify-instance and watch-count ceilings apply. |
-| Windows | ReadDirectoryChangesW | Non-recursive mode only watches the root, not subdirs. |
+| Platform | Backend               | Notes                                                                   |
+| -------- | --------------------- | ----------------------------------------------------------------------- |
+| macOS    | FSEvents              | Default. Canonicalizes through `/private/var/folders/...` for tempdirs. |
+| Linux    | inotify               | Per-user inotify-instance and watch-count ceilings apply.               |
+| Windows  | ReadDirectoryChangesW | Non-recursive mode only watches the root, not subdirs.                  |
 
 The extension-facing event shape is identical across all three. OS-specific failure modes (e.g. Linux's `/proc/sys/fs/inotify/max_user_watches` limit) surface as a watch-time error from `watch()` — there's no silent dropped-subscriber mode.
 
 #### Lifecycle
 
-| Event | Effect on handles |
-|---|---|
-| `handle.dispose()` | Host closes the debouncer; callbacks stop firing immediately. |
-| Worker deactivate (e.g. extension disabled) | All handles closed by the host's `remove_all_for_extension` sweep. Callbacks cease. On re-enable, the worker's `activate()` should re-issue any `watch()` calls it needs. |
-| Extension uninstall | Same as disable + manifest gone. |
-| Worker iframe reload (dev hot-reload) | Host-side handles persist briefly until the next disable/uninstall; the worker should re-issue `watch()` on its next activate. The pattern in [`sdk-playground`'s fsWatch controller](../../../extensions/sdk-playground/src/worker/subscriptions/fsWatch.ts) — read `fsWatch.active` from state on activate and re-issue — is the canonical idempotent boot. |
-| Launcher restart | Handles do not persist. Worker `activate()` must re-issue `watch()`; the playground demo pattern (boot from `state.get('fsWatch.active')`) is the recommended idiom. |
+| Event                                       | Effect on handles                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `handle.dispose()`                          | Host closes the debouncer; callbacks stop firing immediately.                                                                                                                                                                                                                                                                                                 |
+| Worker deactivate (e.g. extension disabled) | All handles closed by the host's `remove_all_for_extension` sweep. Callbacks cease. On re-enable, the worker's `activate()` should re-issue any `watch()` calls it needs.                                                                                                                                                                                     |
+| Extension uninstall                         | Same as disable + manifest gone.                                                                                                                                                                                                                                                                                                                              |
+| Worker iframe reload (dev hot-reload)       | Host-side handles persist briefly until the next disable/uninstall; the worker should re-issue `watch()` on its next activate. The pattern in [`sdk-playground`'s fsWatch controller](../../../extensions/sdk-playground/src/worker/subscriptions/fsWatch.ts) — read `fsWatch.active` from state on activate and re-issue — is the canonical idempotent boot. |
+| Launcher restart                            | Handles do not persist. Worker `activate()` must re-issue `watch()`; the playground demo pattern (boot from `state.get('fsWatch.active')`) is the recommended idiom.                                                                                                                                                                                          |
 
 #### Related runtime notes
 

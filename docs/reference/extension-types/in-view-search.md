@@ -1,16 +1,18 @@
 ---
 order: 5
 ---
+
 ### In-view search (all types)
 
 When your extension's panel is open and `searchable: true`, the Asyar search bar becomes your extension's input field. Two messages are dispatched:
 
-| Message | When fired | Payload |
-|---|---|---|
+| Message             | When fired         | Payload             |
+| ------------------- | ------------------ | ------------------- |
 | `asyar:view:search` | On every keystroke | `{ query: string }` |
-| `asyar:view:submit` | On Enter key | `{ query: string }` |
+| `asyar:view:submit` | On Enter key       | `{ query: string }` |
 
 **Svelte 5 implementation:**
+
 ```svelte
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
@@ -25,7 +27,7 @@ When your extension's panel is open and `searchable: true`, the Asyar search bar
     if (type === 'asyar:view:search') {
       query = payload?.query ?? '';
       // Filter or search your local data based on query
-      results = myData.filter(item => item.includes(query));
+      results = myData.filter((item) => item.includes(query));
     }
 
     if (type === 'asyar:view:submit') {

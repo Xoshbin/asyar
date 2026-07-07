@@ -12,15 +12,16 @@
 // check is here.
 
 import { platform } from '@tauri-apps/plugin-os';
-import {
-  updateShowMoreBarHuds,
-  type ShowMoreBarHudsPayload,
-} from '../../lib/ipc/commands';
+import { updateShowMoreBarHuds, type ShowMoreBarHudsPayload } from '../../lib/ipc/commands';
 import type { AggregateCounts } from './itemStatusLogic';
 import { logService } from '../log/logService';
 
 const IS_MACOS = (() => {
-  try { return platform() === 'macos'; } catch { return false; }
+  try {
+    return platform() === 'macos';
+  } catch {
+    return false;
+  }
 })();
 
 let lastPushed: ShowMoreBarHudsPayload | null = null;
@@ -35,10 +36,12 @@ function payloadFor(counts: AggregateCounts): ShowMoreBarHudsPayload {
 }
 
 function samePayload(a: ShowMoreBarHudsPayload, b: ShowMoreBarHudsPayload): boolean {
-  return a.scripts_active === b.scripts_active
-    && a.scripts_done === b.scripts_done
-    && a.agents_active === b.agents_active
-    && a.agents_done === b.agents_done;
+  return (
+    a.scripts_active === b.scripts_active &&
+    a.scripts_done === b.scripts_done &&
+    a.agents_active === b.agents_active &&
+    a.agents_done === b.agents_done
+  );
 }
 
 /**

@@ -19,7 +19,12 @@ export class RaycastImportState {
   passwordError = $state(false);
   parsing = $state(false);
   bundle = $state<ImportBundle | null>(null);
-  selection = $state<ImportSelection>({ snippets: true, portals: true, shortcuts: true, aliases: true });
+  selection = $state<ImportSelection>({
+    snippets: true,
+    portals: true,
+    shortcuts: true,
+    aliases: true,
+  });
   summary = $state<ImportSummary | null>(null);
   errorMessage = $state<string | null>(null);
 

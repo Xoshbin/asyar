@@ -59,9 +59,7 @@
   let filteredOptions = $derived(
     filterQuery.trim() === ''
       ? options
-      : options.filter((o) =>
-          o.title.toLowerCase().includes(filterQuery.trim().toLowerCase()),
-        ),
+      : options.filter((o) => o.title.toLowerCase().includes(filterQuery.trim().toLowerCase())),
   );
 
   // Re-clamp highlightedIndex whenever the filtered list changes (typing
@@ -146,9 +144,7 @@
       e.preventDefault();
       e.stopPropagation();
       if (filteredOptions.length === 0) return;
-      highlightedIndex =
-        (highlightedIndex - 1 + filteredOptions.length) %
-        filteredOptions.length;
+      highlightedIndex = (highlightedIndex - 1 + filteredOptions.length) % filteredOptions.length;
     } else if (e.key === 'Enter') {
       e.preventDefault();
       e.stopPropagation();
@@ -164,11 +160,7 @@
   function onWindowMousedown(e: MouseEvent) {
     if (!open) return;
     const target = e.target as Node | null;
-    if (
-      target &&
-      !buttonRef?.contains(target) &&
-      !popoverRef?.contains(target)
-    ) {
+    if (target && !buttonRef?.contains(target) && !popoverRef?.contains(target)) {
       closePopover();
     }
   }
@@ -300,7 +292,8 @@
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);
     cursor: pointer;
-    transition: background var(--transition-normal),
+    transition:
+      background var(--transition-normal),
       box-shadow var(--transition-normal);
   }
   .accessory-button:hover {

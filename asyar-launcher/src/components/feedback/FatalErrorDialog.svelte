@@ -10,10 +10,12 @@
     const c = diagnosticsService.current;
     if (!c) return '';
     const t = DIAGNOSTIC_MESSAGES[c.kind as DiagnosticKind];
-    return t ? t(c.context ?? {}) : c.developerDetail ?? 'Unknown error';
+    return t ? t(c.context ?? {}) : (c.developerDetail ?? 'Unknown error');
   });
 
-  function onClose() { diagnosticsService.dismiss(); }
+  function onClose() {
+    diagnosticsService.dismiss();
+  }
 </script>
 
 {#if isOpen}

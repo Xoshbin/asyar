@@ -21,38 +21,33 @@ export const trayClickBridge = {
 
   async init(): Promise<void> {
     if (this._unlisten) return;
-    this._unlisten = await listen<TrayClickEnvelope>(
-      'asyar:tray-item-click',
-      (msg) => {
-        const { extensionId, event } = msg.payload;
-        logService.debug(
-          `[trayClickBridge] received click for ext='${extensionId}' path=${JSON.stringify(event?.itemPath ?? [])}`,
-        );
-        // statusBar.registerItem is called from the worker, so tray click
-        // callbacks live in the worker's closure. Prefer the worker iframe;
-        // fall back to view for extensions without `background.main`.
-        const iframe =
-          (document.querySelector(
-            `iframe[data-extension-id="${extensionId}"][data-role="worker"]`,
-          ) as HTMLIFrameElement | null) ??
-          (document.querySelector(
-            `iframe[data-extension-id="${extensionId}"][data-role="view"]`,
-          ) as HTMLIFrameElement | null) ??
-          (document.querySelector(
-            `iframe[data-extension-id="${extensionId}"]`,
-          ) as HTMLIFrameElement | null);
-        if (!iframe?.contentWindow) {
-          logService.warn(
-            `[trayClickBridge] no iframe found for ${extensionId}; click dropped`,
-          );
-          return;
-        }
-        iframe.contentWindow.postMessage(
-          { type: 'asyar:event:statusBar:click', payload: event },
-          getExtensionFrameOrigin(extensionId),
-        );
-      },
-    );
+    this._unlisten = await listen<TrayClickEnvelope>('asyar:tray-item-click', (msg) => {
+      const { extensionId, event } = msg.payload;
+      logService.debug(
+        `[trayClickBridge] received click for ext='${extensionId}' path=${JSON.stringify(event?.itemPath ?? [])}`,
+      );
+      // statusBar.registerItem is called from the worker, so tray click
+      // callbacks live in the worker's closure. Prefer the worker iframe;
+      // fall back to view for extensions without `background.main`.
+      const iframe =
+        (document.querySelector(
+          `iframe[data-extension-id="${extensionId}"][data-role="worker"]`,
+        ) as HTMLIFrameElement | null) ??
+        (document.querySelector(
+          `iframe[data-extension-id="${extensionId}"][data-role="view"]`,
+        ) as HTMLIFrameElement | null) ??
+        (document.querySelector(
+          `iframe[data-extension-id="${extensionId}"]`,
+        ) as HTMLIFrameElement | null);
+      if (!iframe?.contentWindow) {
+        logService.warn(`[trayClickBridge] no iframe found for ${extensionId}; click dropped`);
+        return;
+      }
+      iframe.contentWindow.postMessage(
+        { type: 'asyar:event:statusBar:click', payload: event },
+        getExtensionFrameOrigin(extensionId),
+      );
+    });
     logService.debug('[trayClickBridge] listening for asyar:tray-item-click');
   },
 

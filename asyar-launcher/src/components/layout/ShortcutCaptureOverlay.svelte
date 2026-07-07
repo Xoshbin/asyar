@@ -4,7 +4,11 @@
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import { fadeIn } from '$lib/transitions';
 
-  let { target, oncapture, oncancel }: {
+  let {
+    target,
+    oncapture,
+    oncancel,
+  }: {
     target: SearchResult;
     oncapture?: () => void;
     oncancel?: () => void;
@@ -15,9 +19,7 @@
     const result = await shortcutService.register(
       target.objectId,
       target.name,
-      (target.type === 'application' || target.type === 'command')
-        ? target.type
-        : 'command',
+      target.type === 'application' || target.type === 'command' ? target.type : 'command',
       shortcut,
       target.path ?? undefined,
       target.icon ?? undefined,

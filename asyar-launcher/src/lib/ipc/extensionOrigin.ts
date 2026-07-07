@@ -44,8 +44,7 @@
  */
 export function getExtensionFrameOrigin(_extensionId: string): string {
   const isWindows =
-    typeof navigator !== 'undefined' &&
-    navigator.userAgent.toLowerCase().includes('windows');
+    typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('windows');
   // On Windows the real origin matches this URL, so we keep the strict
   // check as defense-in-depth. Everywhere else, use the wildcard.
   return isWindows ? 'http://asyar-extension.localhost' : '*';

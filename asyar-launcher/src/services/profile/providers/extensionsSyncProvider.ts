@@ -36,8 +36,8 @@ export class ExtensionsSyncProvider implements ISyncProvider {
 
   async exportFull(): Promise<SyncProviderData> {
     const all = await extensionStateManager.getAllExtensionsWithState();
-    const userInstalled = all.filter(ext => !ext.isBuiltIn);
-    const installed: ExtensionInfo[] = userInstalled.map(ext => ({
+    const userInstalled = all.filter((ext) => !ext.isBuiltIn);
+    const installed: ExtensionInfo[] = userInstalled.map((ext) => ({
       id: ext.id,
       title: ext.title,
       version: ext.version,
@@ -65,8 +65,8 @@ export class ExtensionsSyncProvider implements ISyncProvider {
     const incomingData = incoming.data as ExtensionsData;
 
     return {
-      localCount: all.filter(e => !e.isBuiltIn).length,
-      incomingCount: incomingData.installed.filter(e => !e.isBuiltIn).length,
+      localCount: all.filter((e) => !e.isBuiltIn).length,
+      incomingCount: incomingData.installed.filter((e) => !e.isBuiltIn).length,
       conflicts: 0,
       newItems: 0,
       removedItems: 0,
@@ -85,7 +85,7 @@ export class ExtensionsSyncProvider implements ISyncProvider {
 
     // Warn about non-built-in extensions that need reinstallation
     const currentAll = await extensionStateManager.getAllExtensionsWithState();
-    const currentIds = new Set(currentAll.map(e => e.id));
+    const currentIds = new Set(currentAll.map((e) => e.id));
     const warnings: string[] = [];
 
     for (const ext of incomingData.installed) {
@@ -105,7 +105,7 @@ export class ExtensionsSyncProvider implements ISyncProvider {
 
   async getLocalSummary(): Promise<DataSummary> {
     const all = await extensionStateManager.getAllExtensionsWithState();
-    const count = all.filter(e => !e.isBuiltIn).length;
+    const count = all.filter((e) => !e.isBuiltIn).length;
     return { itemCount: count, label: `${count} extension(s)` };
   }
 

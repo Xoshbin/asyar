@@ -24,11 +24,11 @@ describe('registerSyncProvider', () => {
     vi.stubGlobal('parent', { postMessage: postMessageSpy });
 
     messageHandler = undefined;
-    addEventListenerSpy = vi.spyOn(window, 'addEventListener').mockImplementation(
-      (event: string, handler: any) => {
+    addEventListenerSpy = vi
+      .spyOn(window, 'addEventListener')
+      .mockImplementation((event: string, handler: any) => {
         if (event === 'message') messageHandler = handler;
-      },
-    );
+      });
   });
 
   afterEach(() => {

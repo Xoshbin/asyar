@@ -5,8 +5,13 @@
   import { toDisplayKeys, normalizeShortcut } from './shortcutFormatter';
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
   import {
-    SplitListDetail, LauncherListRow, KeyboardHint, ShortcutRecorder,
-    Badge, ActionFooter, EmptyState,
+    SplitListDetail,
+    LauncherListRow,
+    KeyboardHint,
+    ShortcutRecorder,
+    Badge,
+    ActionFooter,
+    EmptyState,
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
@@ -36,7 +41,9 @@
       extensionId: 'shortcuts',
       category: 'Shortcuts',
       context: ActionContext.EXTENSION_VIEW,
-      execute: async () => { startEdit(); },
+      execute: async () => {
+        startEdit();
+      },
     });
     actionService.registerAction({
       id: 'shortcuts:remove',
@@ -46,7 +53,9 @@
       category: 'Shortcuts',
       destructive: true,
       context: ActionContext.EXTENSION_VIEW,
-      execute: async () => { await handleRemove(s.objectId, s.itemName); },
+      execute: async () => {
+        await handleRemove(s.objectId, s.itemName);
+      },
     });
     return () => {
       actionService.unregisterAction('shortcuts:remove');
@@ -159,7 +168,9 @@
         <div class="form-panel">
           <div class="form-header">
             <h2 class="form-title">Assign Shortcut</h2>
-            <p class="form-subtitle">Press the combination you want to use for {selectedShortcut.itemName}.</p>
+            <p class="form-subtitle">
+              Press the combination you want to use for {selectedShortcut.itemName}.
+            </p>
           </div>
           <div class="form-body custom-scrollbar">
             <ShortcutRecorder
@@ -206,7 +217,7 @@
       {:else if shortcutStore.shortcuts.length === 0}
         <EmptyState
           message="No shortcuts configured yet"
-          description='Use ⌘K on any search result and choose "Assign Shortcut" to add one.'
+          description={`Use ⌘K on any search result and choose "Assign Shortcut" to add one.`}
         >
           {#snippet icon()}
             <span class="text-4xl opacity-50">⌨️</span>
@@ -227,21 +238,83 @@
 </div>
 
 <style>
-  .shortcut-detail-content { flex: 1; overflow-y: auto; padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-7); }
-  .detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-5); }
-  .shortcut-name { font-size: var(--font-size-lg); font-weight: 600; color: var(--text-primary); margin: 0; }
-  .shortcut-meta-dim { color: var(--text-tertiary); }
+  .shortcut-detail-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-7);
+  }
+  .detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-5);
+  }
+  .shortcut-name {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+  .shortcut-meta-dim {
+    color: var(--text-tertiary);
+  }
 
-  .hero-block { display: flex; align-items: center; justify-content: center; padding: var(--space-7) var(--space-5); background: var(--bg-secondary); border-radius: var(--radius-md); }
+  .hero-block {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-7) var(--space-5);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+  }
 
-  .meta-grid { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-3) var(--space-6); align-items: baseline; }
-  .meta-label { font-size: var(--font-size-xs); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; }
-  .meta-value { font-size: var(--font-size-sm); color: var(--text-primary); word-break: break-all; }
-  .meta-value.mono { font-family: var(--font-mono); }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--space-3) var(--space-6);
+    align-items: baseline;
+  }
+  .meta-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .meta-value {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    word-break: break-all;
+  }
+  .meta-value.mono {
+    font-family: var(--font-mono);
+  }
 
-  .form-panel { display: flex; flex-direction: column; height: 100%; }
-  .form-header { padding: var(--space-7) var(--space-8) 0; flex-shrink: 0; }
-  .form-title { font-size: var(--font-size-lg); font-weight: 600; color: var(--text-primary); margin: 0; }
-  .form-subtitle { font-size: var(--font-size-sm); color: var(--text-secondary); margin: var(--space-2) 0 var(--space-6); }
-  .form-body { flex: 1; overflow-y: auto; padding: 0 var(--space-8) var(--space-6); }
+  .form-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .form-header {
+    padding: var(--space-7) var(--space-8) 0;
+    flex-shrink: 0;
+  }
+  .form-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+  .form-subtitle {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin: var(--space-2) 0 var(--space-6);
+  }
+  .form-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 var(--space-8) var(--space-6);
+  }
 </style>

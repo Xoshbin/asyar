@@ -1,6 +1,6 @@
-import type { INotificationService } from "./INotificationService";
-import type { NotificationAction, NotificationOptions } from "../types/NotificationType";
-import { BaseServiceProxy } from "./BaseServiceProxy";
+import type { INotificationService } from './INotificationService';
+import type { NotificationAction, NotificationOptions } from '../types/NotificationType';
+import { BaseServiceProxy } from './BaseServiceProxy';
 
 export class NotificationServiceProxy extends BaseServiceProxy implements INotificationService {
   checkPermission(): Promise<boolean> {
@@ -33,9 +33,7 @@ function validateAction(a: NotificationAction): void {
     try {
       JSON.stringify(a.args);
     } catch {
-      throw new Error(
-        `NotificationAction "${a.id}" args are not JSON-serialisable`,
-      );
+      throw new Error(`NotificationAction "${a.id}" args are not JSON-serialisable`);
     }
   }
 }

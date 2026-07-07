@@ -15,10 +15,10 @@
   type AccessoryHandle = { focus: () => void; openPopover: () => void; togglePopover: () => void };
 
   let {
-    value = $bindable(""),
+    value = $bindable(''),
     showBack = false,
     searchable = true,
-    placeholder = "Search...",
+    placeholder = 'Search...',
     ref = $bindable(null as HTMLInputElement | null),
     accessoryRef = $bindable(null as AccessoryHandle | null),
     activeContext = null,
@@ -121,14 +121,14 @@
     if (!accessory) return;
     searchBarAccessoryService
       .setSelected(accessory.extensionId, accessory.commandId, value)
-      .catch((err) =>
-        logService.warn(`[SearchHeader] accessory setSelected failed: ${err}`),
-      );
+      .catch((err) => logService.warn(`[SearchHeader] accessory setSelected failed: ${err}`));
   }
 </script>
 
 <div class="search-header">
-  <div class="relative w-full border-b border-[var(--separator)] flex items-center min-h-[56px] px-4 gap-3">
+  <div
+    class="relative w-full border-b border-[var(--separator)] flex items-center min-h-[56px] px-4 gap-3"
+  >
     {#if showBack}
       <button
         type="button"
@@ -166,7 +166,12 @@
             {/if}
           </span>
           <span class="chip-name">{activeContext.name}</span>
-          <button class="chip-dismiss" onclick={dismissContext} tabindex="-1" aria-label="Exit context mode">×</button>
+          <button
+            class="chip-dismiss"
+            onclick={dismissContext}
+            tabindex="-1"
+            aria-label="Exit context mode">×</button
+          >
         </span>
         <input
           bind:this={ref}
@@ -244,7 +249,11 @@
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    caret-color: color-mix(in srgb, var(--text-primary) 60%, var(--bg-secondary-full-opacity) 40%) !important;
+    caret-color: color-mix(
+      in srgb,
+      var(--text-primary) 60%,
+      var(--bg-secondary-full-opacity) 40%
+    ) !important;
     font-size: var(--font-size-xl);
     font-weight: 600;
     padding: 0;
@@ -264,7 +273,9 @@
     flex-shrink: 0;
   }
   .back-button-new :global(kbd) {
-    transition: background-color var(--transition-normal), color var(--transition-normal);
+    transition:
+      background-color var(--transition-normal),
+      color var(--transition-normal);
   }
   .back-button-new:hover :global(kbd) {
     background: var(--bg-hover);
@@ -282,7 +293,9 @@
     pointer-events: none;
     transition: opacity var(--transition-fast);
   }
-  .context-hint--muted { opacity: 0.55; }
+  .context-hint--muted {
+    opacity: 0.55;
+  }
   .hint-text {
     display: inline-flex;
     align-items: center;
@@ -321,7 +334,9 @@
     user-select: none;
     box-shadow: var(--shadow-xs);
   }
-  .chip-icon { font-size: var(--font-size-md); }
+  .chip-icon {
+    font-size: var(--font-size-md);
+  }
   .chip-name {
     font-size: var(--font-size-sm);
     max-width: 120px;
@@ -341,18 +356,27 @@
     border-radius: var(--radius-xs);
     margin-left: 2px;
   }
-  .chip-dismiss:hover { color: white; background: rgba(255,255,255,0.15); }
+  .chip-dismiss:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.15);
+  }
   .context-query-input {
     flex: 1;
     border: none;
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    caret-color: color-mix(in srgb, var(--text-primary) 60%, var(--bg-secondary-full-opacity) 40%) !important;
+    caret-color: color-mix(
+      in srgb,
+      var(--text-primary) 60%,
+      var(--bg-secondary-full-opacity) 40%
+    ) !important;
     font-size: var(--font-size-xl);
     font-weight: 600;
     padding: 0;
     min-width: 0;
   }
-  .context-query-input::placeholder { color: color-mix(in srgb, var(--text-primary) 35%, var(--bg-secondary-full-opacity) 65%); }
+  .context-query-input::placeholder {
+    color: color-mix(in srgb, var(--text-primary) 35%, var(--bg-secondary-full-opacity) 65%);
+  }
 </style>

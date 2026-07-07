@@ -2,10 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { availableProvidersForNewRow, canTestAndFetch } from './AiTab.helpers';
 import type { IProviderPlugin, ProviderConfig } from '../../../services/ai/IProviderPlugin';
 
-function makePlugin(
-  id: string,
-  opts: Partial<IProviderPlugin> = {},
-): IProviderPlugin {
+function makePlugin(id: string, opts: Partial<IProviderPlugin> = {}): IProviderPlugin {
   return {
     id: id as IProviderPlugin['id'],
     name: id,
@@ -55,9 +52,9 @@ describe('canTestAndFetch', () => {
 
   it('returns true for Ollama (requiresBaseUrl, no apiKey) when baseUrl is set', () => {
     const plugin = makePlugin('ollama', { requiresBaseUrl: true });
-    expect(
-      canTestAndFetch(plugin, { enabled: true, baseUrl: 'http://localhost:11434' }),
-    ).toBe(true);
+    expect(canTestAndFetch(plugin, { enabled: true, baseUrl: 'http://localhost:11434' })).toBe(
+      true,
+    );
   });
 
   it('returns true for Custom (requiresBaseUrl + optionalApiKey) even when apiKey is absent', () => {
@@ -65,8 +62,8 @@ describe('canTestAndFetch', () => {
       requiresBaseUrl: true,
       optionalApiKey: true,
     });
-    expect(
-      canTestAndFetch(plugin, { enabled: true, baseUrl: 'https://api.example.com' }),
-    ).toBe(true);
+    expect(canTestAndFetch(plugin, { enabled: true, baseUrl: 'https://api.example.com' })).toBe(
+      true,
+    );
   });
 });

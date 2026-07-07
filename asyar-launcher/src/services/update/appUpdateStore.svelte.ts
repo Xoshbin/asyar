@@ -1,68 +1,68 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { logService } from '../log/logService'
-import { appUpdaterGetPending } from '../../lib/ipc/updateCommands'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { logService } from '../log/logService';
+import { appUpdaterGetPending } from '../../lib/ipc/updateCommands';
 
-export type AppUpdatePhase = 'idle' | 'checking' | 'downloading' | 'ready' | 'error'
+export type AppUpdatePhase = 'idle' | 'checking' | 'downloading' | 'ready' | 'error';
 
 // Svelte 5 class-based reactive state — $state is only valid as a class field or
 // variable declaration initializer, not inside an object literal.
 class AppUpdateStore {
-  phase = $state<AppUpdatePhase>('idle')
-  pendingVersion = $state<string | null>(null)
-  errorMessage = $state<string | null>(null)
+  phase = $state<AppUpdatePhase>('idle');
+  pendingVersion = $state<string | null>(null);
+  errorMessage = $state<string | null>(null);
 }
 
-export const appUpdateState = new AppUpdateStore()
+export const appUpdateState = new AppUpdateStore();
 
-let unlisteners: UnlistenFn[] = []
-let initialized = false
+let unlisteners: UnlistenFn[] = [];
+let initialized = false;
 
 export async function initAppUpdateStore(): Promise<void> {
-  if (initialized) return
-  initialized = true
+  if (initialized) return;
+  initialized = true;
 
   // Restore state from Rust in case a download completed before the webview loaded
-  const pending = await appUpdaterGetPending()
+  const pending = await appUpdaterGetPending();
   if (pending) {
-    appUpdateState.phase = 'ready'
-    appUpdateState.pendingVersion = pending.version
+    appUpdateState.phase = 'ready';
+    appUpdateState.pendingVersion = pending.version;
   }
 
   // Listen to Rust-emitted events
   const checking = await listen('asyar:app-update:checking', () => {
-    appUpdateState.phase = 'checking'
-    appUpdateState.errorMessage = null
-  })
+    appUpdateState.phase = 'checking';
+    appUpdateState.errorMessage = null;
+  });
 
   const idle = await listen('asyar:app-update:idle', () => {
-    appUpdateState.phase = 'idle'
-  })
+    appUpdateState.phase = 'idle';
+  });
 
   const downloading = await listen<{ version: string }>('asyar:app-update:downloading', (e) => {
-    appUpdateState.phase = 'downloading'
-    appUpdateState.pendingVersion = e.payload.version
-  })
+    appUpdateState.phase = 'downloading';
+    appUpdateState.pendingVersion = e.payload.version;
+  });
 
   const ready = await listen<{ version: string }>('asyar:app-update:ready', (e) => {
-    appUpdateState.phase = 'ready'
-    appUpdateState.pendingVersion = e.payload.version
-    logService.info(`appUpdateStore: update ${e.payload.version} ready, will apply on next launch`)
-  })
+    appUpdateState.phase = 'ready';
+    appUpdateState.pendingVersion = e.payload.version;
+    logService.info(`appUpdateStore: update ${e.payload.version} ready, will apply on next launch`);
+  });
 
   const error = await listen<{ message: string }>('asyar:app-update:error', (e) => {
-    appUpdateState.phase = 'error'
-    appUpdateState.errorMessage = e.payload.message
-    logService.warn(`appUpdateStore: auto-check error — ${e.payload.message}`)
-  })
+    appUpdateState.phase = 'error';
+    appUpdateState.errorMessage = e.payload.message;
+    logService.warn(`appUpdateStore: auto-check error — ${e.payload.message}`);
+  });
 
-  unlisteners = [checking, idle, downloading, ready, error]
+  unlisteners = [checking, idle, downloading, ready, error];
 }
 
 export function destroyAppUpdateStore(): void {
-  for (const unlisten of unlisteners) unlisten()
-  unlisteners = []
-  initialized = false
-  appUpdateState.phase = 'idle'
-  appUpdateState.pendingVersion = null
-  appUpdateState.errorMessage = null
+  for (const unlisten of unlisteners) unlisten();
+  unlisteners = [];
+  initialized = false;
+  appUpdateState.phase = 'idle';
+  appUpdateState.pendingVersion = null;
+  appUpdateState.errorMessage = null;
 }

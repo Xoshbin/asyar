@@ -310,9 +310,13 @@ mod tests {
         let path = tmp.path().join("default_cap.txt");
         std::fs::write(&path, "a".repeat(60_000)).unwrap();
 
-        let content = read_text_preview(app.handle().clone(), path.to_str().unwrap().to_string(), None)
-            .await
-            .unwrap();
+        let content = read_text_preview(
+            app.handle().clone(),
+            path.to_str().unwrap().to_string(),
+            None,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(content.len(), 50_000, "default cap must be 50,000 bytes");
     }
@@ -333,12 +337,7 @@ mod tests {
     #[tokio::test]
     async fn test_read_text_preview_rejects_disallowed_path() {
         let app = tauri::test::mock_app();
-        let result = read_text_preview(
-            app.handle().clone(),
-            "/etc/hosts".to_string(),
-            None,
-        )
-        .await;
+        let result = read_text_preview(app.handle().clone(), "/etc/hosts".to_string(), None).await;
         assert!(result.is_err());
     }
 }

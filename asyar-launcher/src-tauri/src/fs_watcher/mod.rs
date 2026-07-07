@@ -144,27 +144,33 @@ impl FsWatcherRegistry {
         let emit_for_cb = self.emit.clone();
         let roots_for_cb = paths.clone();
 
-        let mut debouncer = new_debouncer_opt(debounce, None, move |result: DebounceEventResult| {
-            let events = match result {
-                Ok(e) if !e.is_empty() => e,
-                _ => return,
-            };
-            let raw_paths: Vec<PathBuf> =
-                events.into_iter().flat_map(|ev| ev.paths.clone()).collect();
-            let coalesced = coalesce_to_roots(&raw_paths, &roots_for_cb);
-            if coalesced.is_empty() {
-                return;
-            }
-            if let Ok(guard) = emit_for_cb.lock() {
-                if let Some(ref f) = *guard {
-                    f(
-                        ext_for_cb.clone(),
-                        hid_for_cb.clone(),
-                        FsWatchEvent { paths: coalesced },
-                    );
+        let mut debouncer = new_debouncer_opt(
+            debounce,
+            None,
+            move |result: DebounceEventResult| {
+                let events = match result {
+                    Ok(e) if !e.is_empty() => e,
+                    _ => return,
+                };
+                let raw_paths: Vec<PathBuf> =
+                    events.into_iter().flat_map(|ev| ev.paths.clone()).collect();
+                let coalesced = coalesce_to_roots(&raw_paths, &roots_for_cb);
+                if coalesced.is_empty() {
+                    return;
                 }
-            }
-        }, NoCache::new(), notify::Config::default())
+                if let Ok(guard) = emit_for_cb.lock() {
+                    if let Some(ref f) = *guard {
+                        f(
+                            ext_for_cb.clone(),
+                            hid_for_cb.clone(),
+                            FsWatchEvent { paths: coalesced },
+                        );
+                    }
+                }
+            },
+            NoCache::new(),
+            notify::Config::default(),
+        )
         .map_err(|e| AppError::Other(format!("failed to create debouncer: {e}")))?;
 
         for p in &paths {

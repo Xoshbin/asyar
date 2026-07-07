@@ -34,7 +34,10 @@ const fakeTools = [
     id: 'calc',
     name: 'calc',
     description: 'A calculator',
-    parameters: { type: 'object', properties: { x: { type: 'number' } } } as Record<string, unknown>,
+    parameters: { type: 'object', properties: { x: { type: 'number' } } } as Record<
+      string,
+      unknown
+    >,
   },
 ];
 
@@ -57,7 +60,10 @@ describe('ollamaPlugin.getModels transport', () => {
       json: async () => ({ models: [{ name: 'llama3.1:latest' }] }),
     } as unknown as Response);
 
-    const models = await ollamaPlugin.getModels({ enabled: true, baseUrl: 'http://localhost:11434' });
+    const models = await ollamaPlugin.getModels({
+      enabled: true,
+      baseUrl: 'http://localhost:11434',
+    });
 
     expect(tauriFetch).toHaveBeenCalledTimes(1);
     expect(tauriFetch).toHaveBeenCalledWith('http://localhost:11434/api/tags');

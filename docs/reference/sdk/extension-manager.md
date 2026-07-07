@@ -23,6 +23,7 @@ interface IExtensionManager {
 ```
 
 **Usage:**
+
 ```typescript
 const manager = context.getService<IExtensionManager>('extensions');
 
@@ -51,6 +52,7 @@ manager.setActiveViewSubtitle(null); // clear when leaving the view
 **View navigation format:**
 
 The `viewPath` string follows the pattern `<extensionId>/<ViewComponentName>`. The host translates this to:
+
 ```
 asyar-extension://<extensionId>/index.html?view=<ViewComponentName>
 ```

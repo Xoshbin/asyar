@@ -7,10 +7,11 @@ let initialized = false;
  */
 export async function initMermaid() {
   if (initialized) return;
-  
+
   // Get CSS variable values for themes
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-  
+  const isDark =
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+
   mermaid.initialize({
     startOnLoad: false,
     theme: isDark ? 'dark' : 'default',
@@ -23,9 +24,9 @@ export async function initMermaid() {
       lineColor: '#637777',
       secondaryColor: '#28B0A3',
       tertiaryColor: 'var(--bg-tertiary)',
-    }
+    },
   });
-  
+
   initialized = true;
 }
 
@@ -35,18 +36,18 @@ export async function initMermaid() {
  */
 export async function renderMermaidDiagrams(container: HTMLElement) {
   if (!container) return;
-  
+
   const blocks = container.querySelectorAll('.mermaid:not([data-processed="true"])');
   if (blocks.length === 0) return;
-  
+
   await initMermaid();
-  
+
   try {
     await mermaid.run({
       nodes: Array.from(blocks) as HTMLElement[],
     });
-    
-    blocks.forEach(block => {
+
+    blocks.forEach((block) => {
       block.setAttribute('data-processed', 'true');
       // Add a class for styling the rendered SVG
       const svg = block.querySelector('svg');

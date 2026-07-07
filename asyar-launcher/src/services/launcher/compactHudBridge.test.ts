@@ -105,7 +105,9 @@ describe('compactHudBridge.pushShowMoreBarHuds (non-macOS)', () => {
 
   it('treats a thrown platform() detection as non-macOS (defensive)', async () => {
     vi.doMock('@tauri-apps/plugin-os', () => ({
-      platform: vi.fn(() => { throw new Error('no plugin'); }),
+      platform: vi.fn(() => {
+        throw new Error('no plugin');
+      }),
     }));
     const { mod, invoke } = await loadModule();
     await mod.pushShowMoreBarHuds(counts(2, 0, 1, 1));

@@ -1,6 +1,7 @@
 ---
 order: 9
 ---
+
 # Command Arguments
 
 Command arguments let a command declare structured input fields that the
@@ -55,14 +56,14 @@ Add an `arguments` array to a command in `manifest.json`:
 
 ### Per-argument fields
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `name` | `string` | ✅ | Unique within the command. Regex: `/^[a-zA-Z_][a-zA-Z0-9_]*$/`. Becomes the key on `args.arguments`. |
-| `type` | `"text" \| "password" \| "dropdown" \| "number"` | ✅ | Input type. See [Type behaviour](#type-behaviour). |
-| `placeholder` | `string` | ❌ | Chip placeholder text shown when the field is empty. |
-| `required` | `boolean` | ❌ | Default `false`. Required arguments must be filled before `Enter` will submit. |
-| `default` | `string \| number` | ❌ | Pre-filled value on first invocation. Type must match the declared `type` (number default → number, everything else → string). For `dropdown`, must be one of `data[].value`. |
-| `data` | `{ value, title }[]` | ❌ (required for `dropdown`) | Non-empty option list. Each option needs both `value` (returned) and `title` (displayed). |
+| Field         | Type                                             | Required                     | Description                                                                                                                                                                   |
+| ------------- | ------------------------------------------------ | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`        | `string`                                         | ✅                           | Unique within the command. Regex: `/^[a-zA-Z_][a-zA-Z0-9_]*$/`. Becomes the key on `args.arguments`.                                                                          |
+| `type`        | `"text" \| "password" \| "dropdown" \| "number"` | ✅                           | Input type. See [Type behaviour](#type-behaviour).                                                                                                                            |
+| `placeholder` | `string`                                         | ❌                           | Chip placeholder text shown when the field is empty.                                                                                                                          |
+| `required`    | `boolean`                                        | ❌                           | Default `false`. Required arguments must be filled before `Enter` will submit.                                                                                                |
+| `default`     | `string \| number`                               | ❌                           | Pre-filled value on first invocation. Type must match the declared `type` (number default → number, everything else → string). For `dropdown`, must be one of `data[].value`. |
+| `data`        | `{ value, title }[]`                             | ❌ (required for `dropdown`) | Non-empty option list. Each option needs both `value` (returned) and `title` (displayed).                                                                                     |
 
 ### Schema constraints
 
@@ -87,12 +88,12 @@ Add an `arguments` array to a command in `manifest.json`:
 
 ## Type behaviour
 
-| Type | Input widget | Submitted as |
-|---|---|---|
-| `text` | Plain text input | `string` |
-| `password` | Masked text input (asterisks) | `string` |
-| `number` | Numeric input (`inputmode="decimal"`) | `number` — parsed; submit is blocked if the value isn't a finite number |
-| `dropdown` | Native `<select>` of `data[]` options | `string` — the chosen option's `value` |
+| Type       | Input widget                          | Submitted as                                                            |
+| ---------- | ------------------------------------- | ----------------------------------------------------------------------- |
+| `text`     | Plain text input                      | `string`                                                                |
+| `password` | Masked text input (asterisks)         | `string`                                                                |
+| `number`   | Numeric input (`inputmode="decimal"`) | `number` — parsed; submit is blocked if the value isn't a finite number |
+| `dropdown` | Native `<select>` of `data[]` options | `string` — the chosen option's `value`                                  |
 
 Dropdowns always submit one of the declared values. Numbers are coerced
 before delivery, so your handler receives `7`, not `"7"`.
@@ -172,14 +173,14 @@ iframe involved.
 
 ## Relationship to preferences
 
-| | Arguments | Preferences |
-|---|---|---|
-| Scope | Per invocation | Per install (extension or command) |
-| UI | Inline chip row in the search bar | Settings panel in Extensions tab |
-| Persistence | Last-value per `(ext, cmd, arg)`, except `password` | All values, encrypted-at-rest for `password` |
-| Max count | 3 per command | No fixed limit |
-| Types | `text`, `password`, `dropdown`, `number` | `textfield`, `password`, `dropdown`, `number`, `checkbox`, `appPicker`, `file`, `directory` |
-| Reached as | `args.arguments.<name>` | `context.preferences.<name>` / `context.preferences.commands.<cmdId>.<name>` |
+|             | Arguments                                           | Preferences                                                                                 |
+| ----------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Scope       | Per invocation                                      | Per install (extension or command)                                                          |
+| UI          | Inline chip row in the search bar                   | Settings panel in Extensions tab                                                            |
+| Persistence | Last-value per `(ext, cmd, arg)`, except `password` | All values, encrypted-at-rest for `password`                                                |
+| Max count   | 3 per command                                       | No fixed limit                                                                              |
+| Types       | `text`, `password`, `dropdown`, `number`            | `textfield`, `password`, `dropdown`, `number`, `checkbox`, `appPicker`, `file`, `directory` |
+| Reached as  | `args.arguments.<name>`                             | `context.preferences.<name>` / `context.preferences.commands.<cmdId>.<name>`                |
 
 An extension can use both. Preferences configure defaults, API endpoints,
 units — things the user sets once. Arguments capture the bits that change

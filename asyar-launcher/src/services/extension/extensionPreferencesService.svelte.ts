@@ -94,7 +94,7 @@ class ExtensionPreferencesService {
    */
   async getMissingRequired(
     extensionId: string,
-    commandId: string
+    commandId: string,
   ): Promise<PreferenceDeclaration[]> {
     const decls = this.declarations.get(extensionId);
     if (!decls) return [];
@@ -120,12 +120,7 @@ class ExtensionPreferencesService {
    * always JSON.parse what Rust returns (after Rust-side decryption for
    * password rows).
    */
-  async set(
-    extensionId: string,
-    commandId: string | null,
-    key: string,
-    value: any
-  ): Promise<void> {
+  async set(extensionId: string, commandId: string | null, key: string, value: any): Promise<void> {
     const decls = this.declarations.get(extensionId);
     if (!decls) throw new Error(`Manifest not registered for ${extensionId}`);
 
@@ -134,13 +129,7 @@ class ExtensionPreferencesService {
     if (!decl) throw new Error(`Preference '${key}' not declared`);
 
     const isEncrypted = decl.type === 'password';
-    await extensionPreferencesSet(
-      extensionId,
-      commandId,
-      key,
-      JSON.stringify(value),
-      isEncrypted
-    );
+    await extensionPreferencesSet(extensionId, commandId, key, JSON.stringify(value), isEncrypted);
 
     await this.pushSnapshotToIframe(extensionId);
   }
@@ -168,13 +157,12 @@ class ExtensionPreferencesService {
       throw new Error(`No declarations registered for extension "${extensionId}"`);
     }
 
-    const group =
-      scope === 'extension' ? decls.extension : decls.commands?.[scope];
+    const group = scope === 'extension' ? decls.extension : decls.commands?.[scope];
 
     if (!group) {
       const known = ['extension', ...Object.keys(decls.commands ?? {})];
       throw new Error(
-        `Unknown scope "${scope}" for extension "${extensionId}". Known scopes: ${known.join(', ')}`
+        `Unknown scope "${scope}" for extension "${extensionId}". Known scopes: ${known.join(', ')}`,
       );
     }
 

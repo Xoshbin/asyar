@@ -9,7 +9,13 @@ vi.mock('../../lib/rankItems', () => ({ rankItems: vi.fn() }));
 import { StoreViewStateClass, type ApiExtension } from './state.svelte';
 import { rankItems } from '../../lib/rankItems';
 
-function ext(id: number, name: string, description = '', author = 'Acme', category = 'utils'): ApiExtension {
+function ext(
+  id: number,
+  name: string,
+  description = '',
+  author = 'Acme',
+  category = 'utils',
+): ApiExtension {
   return {
     id,
     name,
@@ -75,7 +81,12 @@ describe('StoreViewStateClass search', () => {
   it('ignores a stale result superseded by a newer query', async () => {
     let resolveFirst: (v: any) => void = () => {};
     vi.mocked(rankItems)
-      .mockImplementationOnce(() => new Promise((r) => { resolveFirst = r; }))
+      .mockImplementationOnce(
+        () =>
+          new Promise((r) => {
+            resolveFirst = r;
+          }),
+      )
       .mockResolvedValueOnce([items[1]]);
 
     const first = state.setSearch('clo');

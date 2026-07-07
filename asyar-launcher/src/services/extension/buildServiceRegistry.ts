@@ -78,8 +78,7 @@ export function buildServiceRegistry(deps: {
         extensionId: string,
         opts: { options?: SearchBarAccessoryDropdownOption[]; value?: string },
       ) => searchBarAccessoryService.set(extensionId, opts ?? {}),
-      clear: (extensionId: string) =>
-        searchBarAccessoryService.clearForExtension(extensionId),
+      clear: (extensionId: string) => searchBarAccessoryService.clearForExtension(extensionId),
     },
     entitlements: {
       check: (entitlement: string) => entitlementService.check(entitlement),
@@ -148,7 +147,8 @@ export function buildServiceRegistry(deps: {
         const current = toolMap.get(extensionId) ?? [];
         // Replace existing entry with same id, or append.
         const idx = current.findIndex((t) => t.id === tool.id);
-        const updated = idx === -1 ? [...current, tool] : current.map((t, i) => (i === idx ? tool : t));
+        const updated =
+          idx === -1 ? [...current, tool] : current.map((t, i) => (i === idx ? tool : t));
         toolMap.set(extensionId, updated);
         await agentsToolsRegisterTier2(extensionId, updated);
       },

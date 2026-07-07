@@ -35,7 +35,17 @@ import {
 } from './state.svelte';
 
 function hit(fileId: string, name = fileId): any {
-  return { fileId, name, path: `/r/${name}`, type: 'document', isDir: false, modifiedAt: 0, score: 1, pinned: false, source: 'local' };
+  return {
+    fileId,
+    name,
+    path: `/r/${name}`,
+    type: 'document',
+    isDir: false,
+    modifiedAt: 0,
+    score: 1,
+    pinned: false,
+    source: 'local',
+  };
 }
 
 beforeEach(() => {
@@ -58,7 +68,13 @@ describe('runSearch', () => {
   });
 
   it('passes the trimmed query, resolved typeFilter, and a 50 limit', async () => {
-    vi.mocked(fileSearch).mockResolvedValue({ hits: [hit('a')], truncated: false, scannedAll: true, indexGeneration: 1, work: {} as any });
+    vi.mocked(fileSearch).mockResolvedValue({
+      hits: [hit('a')],
+      truncated: false,
+      scannedAll: true,
+      indexGeneration: 1,
+      work: {} as any,
+    });
     fileSearchViewState.searchQuery = ' report ';
     fileSearchViewState.typeFilter = 'document';
     await runSearch();
@@ -67,7 +83,13 @@ describe('runSearch', () => {
   });
 
   it('passes undefined typeFilter for "all"', async () => {
-    vi.mocked(fileSearch).mockResolvedValue({ hits: [], truncated: false, scannedAll: true, indexGeneration: 1, work: {} as any });
+    vi.mocked(fileSearch).mockResolvedValue({
+      hits: [],
+      truncated: false,
+      scannedAll: true,
+      indexGeneration: 1,
+      work: {} as any,
+    });
     fileSearchViewState.searchQuery = 'x';
     fileSearchViewState.typeFilter = 'all';
     await runSearch();
@@ -75,7 +97,13 @@ describe('runSearch', () => {
   });
 
   it('resets selection when the previously selected file drops out of results', async () => {
-    vi.mocked(fileSearch).mockResolvedValue({ hits: [hit('b')], truncated: false, scannedAll: true, indexGeneration: 1, work: {} as any });
+    vi.mocked(fileSearch).mockResolvedValue({
+      hits: [hit('b')],
+      truncated: false,
+      scannedAll: true,
+      indexGeneration: 1,
+      work: {} as any,
+    });
     fileSearchViewState.searchQuery = 'x';
     fileSearchViewState.selectedFileId = 'gone';
     await runSearch();
@@ -83,7 +111,13 @@ describe('runSearch', () => {
   });
 
   it('clears deepResults on every new search', async () => {
-    vi.mocked(fileSearch).mockResolvedValue({ hits: [], truncated: false, scannedAll: true, indexGeneration: 1, work: {} as any });
+    vi.mocked(fileSearch).mockResolvedValue({
+      hits: [],
+      truncated: false,
+      scannedAll: true,
+      indexGeneration: 1,
+      work: {} as any,
+    });
     fileSearchViewState.deepResults = [hit('stale-deep')];
     fileSearchViewState.searchQuery = 'x';
     await runSearch();

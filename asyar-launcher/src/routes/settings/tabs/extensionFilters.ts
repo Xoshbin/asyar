@@ -16,17 +16,20 @@ export function filterExtensions(
 ): ExtensionItem[] {
   let result = extensions;
 
-  if (filter === 'extension') result = result.filter(e => e.type === 'extension' || !e.type);
-  else if (filter === 'theme') result = result.filter(e => e.type === 'theme');
-  else if (filter === 'commands') result = result.filter(e => (e.commands?.length ?? 0) > 0);
+  if (filter === 'extension') result = result.filter((e) => e.type === 'extension' || !e.type);
+  else if (filter === 'theme') result = result.filter((e) => e.type === 'theme');
+  else if (filter === 'commands') result = result.filter((e) => (e.commands?.length ?? 0) > 0);
 
   const q = query.trim().toLowerCase();
   if (!q) return result;
 
-  return result.filter(ext => {
+  return result.filter((ext) => {
     if (ext.title.toLowerCase().includes(q)) return true;
-    return ext.commands?.some(
-      cmd => cmd.name.toLowerCase().includes(q) || (cmd.trigger ?? '').toLowerCase().includes(q),
-    ) ?? false;
+    return (
+      ext.commands?.some(
+        (cmd) =>
+          cmd.name.toLowerCase().includes(q) || (cmd.trigger ?? '').toLowerCase().includes(q),
+      ) ?? false
+    );
   });
 }

@@ -33,9 +33,11 @@ export const DIAGNOSTIC_MESSAGES = defineDiagnosticMessages({
   render_error: () => 'A view failed to render',
   invoke_unknown: ({ command }) => `Command failed${command ? `: ${command}` : ''}`,
   extension_proxy_error: ({ method }) => `Extension call failed${method ? ` (${method})` : ''}`,
-  extension_crash: ({ extensionId, role }) => `${extensionId ?? 'Extension'} (${role ?? '?'}) stopped responding`,
+  extension_crash: ({ extensionId, role }) =>
+    `${extensionId ?? 'Extension'} (${role ?? '?'}) stopped responding`,
   iframe_uncaught: ({ extensionId }) => `${extensionId ?? 'Extension'} hit an unexpected error`,
-  iframe_unhandled_rejection: ({ extensionId }) => `${extensionId ?? 'Extension'} promise was rejected`,
+  iframe_unhandled_rejection: ({ extensionId }) =>
+    `${extensionId ?? 'Extension'} promise was rejected`,
   rpc_timeout: ({ method }) => `${method ?? 'Operation'} timed out`,
   panic: () => 'Asyar encountered a fatal error',
   manual: ({ message }) => message ?? 'Error',
@@ -43,9 +45,12 @@ export const DIAGNOSTIC_MESSAGES = defineDiagnosticMessages({
   mcp_permission_required: ({ tool }) => `Permission required to use ${tool ?? 'this MCP tool'}`,
 
   // E2EE cloud sync
-  e2ee_enrollment_failed: () => 'Couldn\'t enable encrypted sync. Check your connection and try again.',
+  e2ee_enrollment_failed: () =>
+    "Couldn't enable encrypted sync. Check your connection and try again.",
   e2ee_passphrase_required: () => 'Encrypted sync needs your passphrase to continue.',
-  e2ee_key_derivation_failed: () => 'Couldn\'t derive your sync key. Try closing other apps and retrying.',
-  e2ee_decrypt_failed: () => 'An item failed to decrypt — your data may be corrupted, or the passphrase has changed.',
+  e2ee_key_derivation_failed: () =>
+    "Couldn't derive your sync key. Try closing other apps and retrying.",
+  e2ee_decrypt_failed: () =>
+    'An item failed to decrypt — your data may be corrupted, or the passphrase has changed.',
   e2ee_key_version_mismatch: () => 'Your encrypted sync needs to refresh. Pulling latest…',
 });

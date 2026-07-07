@@ -282,8 +282,20 @@ describe('deriveThreadTitle', () => {
 // that intent; it only clears a stale id or leaves null alone.
 
 describe('resolveThreadId', () => {
-  const t1: ThreadDef = { id: 't1', agentId: 'agent-a', title: null, createdAt: 1000, updatedAt: 2000 };
-  const t2: ThreadDef = { id: 't2', agentId: 'agent-a', title: null, createdAt: 500, updatedAt: 1500 };
+  const t1: ThreadDef = {
+    id: 't1',
+    agentId: 'agent-a',
+    title: null,
+    createdAt: 1000,
+    updatedAt: 2000,
+  };
+  const t2: ThreadDef = {
+    id: 't2',
+    agentId: 'agent-a',
+    title: null,
+    createdAt: 500,
+    updatedAt: 1500,
+  };
 
   it('new-thread path: currentThreadId null with existing threads → stays null', () => {
     // Tab was opened with continueLastThread=false; threadOpener set null.

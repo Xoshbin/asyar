@@ -22,7 +22,9 @@ export async function browserIsCompanionInstalled(family: BrowserFamily): Promis
   return invokeSafe<boolean>('browser_is_companion_installed', { family });
 }
 
-export async function browserListBookmarks(filter?: ListBookmarksFilter): Promise<Bookmark[] | null> {
+export async function browserListBookmarks(
+  filter?: ListBookmarksFilter,
+): Promise<Bookmark[] | null> {
   return invokeSafe<Bookmark[]>('browser_list_bookmarks', {
     browser: filter?.browser,
     query: filter?.query,
@@ -40,9 +42,10 @@ export async function browserSearchHistory(
   });
 }
 
-export async function browserListTabs(
-  filter?: { browser?: BrowserId; query?: string },
-): Promise<Tab[] | null> {
+export async function browserListTabs(filter?: {
+  browser?: BrowserId;
+  query?: string;
+}): Promise<Tab[] | null> {
   return invokeSafe<Tab[]>('browser_list_tabs', {
     browser: filter?.browser,
     query: filter?.query,

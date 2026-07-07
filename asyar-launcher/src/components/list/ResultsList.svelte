@@ -11,24 +11,25 @@
   let {
     items = [],
     selectedIndex = -1,
-    onselect
+    onselect,
   }: {
     items?: Item[];
     selectedIndex?: number;
     onselect?: (detail: { item: Item }) => void;
   } = $props();
 
-
   type CalcIconMeta = { color: string; label: string; name: string };
   const CALC_ICONS: Record<string, CalcIconMeta> = {
     '🧮': { color: 'var(--accent-primary)', label: 'Calculator', name: 'calculator' },
-    '📏': { color: 'rgb(52,199,89)',        label: 'Units',      name: 'calc-units' },
-    '💵': { color: 'rgb(255,149,0)',        label: 'Currency',   name: 'calc-currency' },
-    '📅': { color: 'rgb(175,82,222)',       label: 'Date',       name: 'calc-date' },
-    '🔟': { color: 'rgb(255,59,48)',        label: 'Base',       name: 'calc-base' },
+    '📏': { color: 'rgb(52,199,89)', label: 'Units', name: 'calc-units' },
+    '💵': { color: 'rgb(255,149,0)', label: 'Currency', name: 'calc-currency' },
+    '📅': { color: 'rgb(175,82,222)', label: 'Date', name: 'calc-date' },
+    '🔟': { color: 'rgb(255,59,48)', label: 'Base', name: 'calc-base' },
   };
   const CALC_ICON_FALLBACK: CalcIconMeta = {
-    color: 'var(--accent-primary)', label: '', name: 'calculator',
+    color: 'var(--accent-primary)',
+    label: '',
+    name: 'calculator',
   };
 </script>
 
@@ -94,7 +95,11 @@
     margin-bottom: var(--space-2);
     overflow: hidden;
     background:
-      radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cat-color) 10%, transparent), transparent 65%),
+      radial-gradient(
+        ellipse at 0% 0%,
+        color-mix(in srgb, var(--cat-color) 10%, transparent),
+        transparent 65%
+      ),
       var(--bg-secondary);
     border: 1px solid color-mix(in srgb, var(--cat-color) 12%, var(--separator));
     box-shadow:
@@ -108,7 +113,11 @@
 
   .calc-large-item:hover {
     background:
-      radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cat-color) 14%, transparent), transparent 65%),
+      radial-gradient(
+        ellipse at 0% 0%,
+        color-mix(in srgb, var(--cat-color) 14%, transparent),
+        transparent 65%
+      ),
       var(--bg-secondary);
     box-shadow:
       0 2px 6px color-mix(in srgb, var(--cat-color) 10%, transparent),
@@ -117,7 +126,11 @@
 
   .calc-large-item.selected-result {
     background:
-      radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--cat-color) 16%, transparent), transparent 65%),
+      radial-gradient(
+        ellipse at 0% 0%,
+        color-mix(in srgb, var(--cat-color) 16%, transparent),
+        transparent 65%
+      ),
       var(--bg-secondary);
     border-color: color-mix(in srgb, var(--cat-color) 35%, transparent);
     box-shadow:

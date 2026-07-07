@@ -11,7 +11,13 @@ import { logService } from '../../services/log/logService';
 import { extractErrorMessage } from '../../lib/errors';
 import type { LocalRunHandle } from '../../services/run/runService.svelte';
 import type { AgentDef, MessageDef } from './types';
-import type { IProviderPlugin, ChatMessage, LoopMessage, ProviderConfig, ToolCall } from '../../services/ai/IProviderPlugin';
+import type {
+  IProviderPlugin,
+  ChatMessage,
+  LoopMessage,
+  ProviderConfig,
+  ToolCall,
+} from '../../services/ai/IProviderPlugin';
 
 export interface RunAgentInput {
   agentId: string;
@@ -102,11 +108,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     if (input.abortSignal.aborted) {
       cancelController.abort();
     } else {
-      input.abortSignal.addEventListener(
-        'abort',
-        () => cancelController.abort(),
-        { once: true },
-      );
+      input.abortSignal.addEventListener('abort', () => cancelController.abort(), { once: true });
     }
   }
 
@@ -124,7 +126,16 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
 
     if (toolSelection.length === 0) {
       // Text-only path
-      await runTextOnly(input, agent, plugin, config as ProviderConfig, settings, handle, cancelController.signal, isCancelled);
+      await runTextOnly(
+        input,
+        agent,
+        plugin,
+        config as ProviderConfig,
+        settings,
+        handle,
+        cancelController.signal,
+        isCancelled,
+      );
     } else {
       // Fetch all available tool descriptors and filter to selected ones
       const allDescriptors = (await agentsToolsList()) ?? [];
@@ -158,7 +169,19 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
       const history = await agentService.listMessages(input.threadId);
       const currentMessages = buildLoopMessages(agent, history);
 
-      await runToolLoop(input, agent, plugin, config as ProviderConfig, params, tools, currentMessages, wireToFqid, handle, cancelController.signal, isCancelled);
+      await runToolLoop(
+        input,
+        agent,
+        plugin,
+        config as ProviderConfig,
+        params,
+        tools,
+        currentMessages,
+        wireToFqid,
+        handle,
+        cancelController.signal,
+        isCancelled,
+      );
     }
 
     if (isCancelled()) {
@@ -288,7 +311,12 @@ async function runToolLoop(
   plugin: IProviderPlugin,
   config: ProviderConfig,
   params: { modelId: string; temperature: number; maxTokens: number },
-  tools: Array<{ id: string; name: string; description: string; parameters: Record<string, unknown> }>,
+  tools: Array<{
+    id: string;
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  }>,
   currentMessages: LoopMessage[],
   wireToFqid: Map<string, string>,
   handle: LocalRunHandle,
@@ -311,10 +339,10 @@ async function runToolLoop(
       // contract when the provider rejects with `invalid_request_error`.
       // x-api-key is stripped before logging.
       try {
-        logService.debug(
-          `[agents] tool-request body: ${JSON.stringify(spec.body)}`,
-        );
-      } catch { /* unstringifiable bodies — skip */ }
+        logService.debug(`[agents] tool-request body: ${JSON.stringify(spec.body)}`);
+      } catch {
+        /* unstringifiable bodies — skip */
+      }
 
       const response = await tauriFetch(spec.url, {
         method: 'POST',
@@ -327,9 +355,7 @@ async function runToolLoop(
         const errText = await response.text().catch(() => `HTTP ${response.status}`);
         // Always log the full body — diagnostic UI truncates and the user
         // can't see what specifically the provider objected to.
-        logService.error(
-          `[agents] provider ${response.status} response: ${errText}`,
-        );
+        logService.error(`[agents] provider ${response.status} response: ${errText}`);
         // Try to surface just the human message from Anthropic's error envelope:
         //   { type: "error", error: { type: "...", message: "..." } }
         let humanMsg = errText;
@@ -338,7 +364,9 @@ async function runToolLoop(
             error?: { message?: string };
           };
           if (parsed?.error?.message) humanMsg = parsed.error.message;
-        } catch { /* keep raw text */ }
+        } catch {
+          /* keep raw text */
+        }
         throw new Error(`API ${response.status}: ${humanMsg}`);
       }
 
@@ -354,7 +382,9 @@ async function runToolLoop(
     const toolUses: ToolCall[] = [];
 
     try {
-      for await (const ev of plugin.parseToolStream(reader as ReadableStreamDefaultReader<Uint8Array>)) {
+      for await (const ev of plugin.parseToolStream(
+        reader as ReadableStreamDefaultReader<Uint8Array>,
+      )) {
         if (isCancelled()) break;
         if (ev.type === 'text') {
           accumText += ev.text;
@@ -434,9 +464,7 @@ async function runToolLoop(
         content: { toolResult: { toolUseId: tu.id, output } },
         runId: handle.id,
       });
-      void handle
-        .write(`[tool result] ${JSON.stringify(output)}\n`)
-        .catch(() => {});
+      void handle.write(`[tool result] ${JSON.stringify(output)}\n`).catch(() => {});
 
       // Add to loop messages for next turn
       currentMessages.push({
@@ -551,9 +579,8 @@ export function coalesceConsecutiveSameRole(messages: LoopMessage[]): LoopMessag
       !last.toolUse &&
       !m.toolUse;
     if (canMerge) {
-      const joined = last.content && m.content
-        ? `${last.content}\n\n${m.content}`
-        : last.content || m.content;
+      const joined =
+        last.content && m.content ? `${last.content}\n\n${m.content}` : last.content || m.content;
       out[out.length - 1] = { ...last, content: joined };
     } else {
       out.push(m);

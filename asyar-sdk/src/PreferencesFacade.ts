@@ -1,4 +1,4 @@
-import { PreferencesServiceProxy } from "./services/PreferencesServiceProxy";
+import { PreferencesServiceProxy } from './services/PreferencesServiceProxy';
 
 /**
  * A frozen snapshot of an extension's effective preferences, taken at
@@ -18,7 +18,9 @@ export function buildFrozenSnapshot(bundle: {
   extension: Record<string, unknown>;
   commands: Record<string, Record<string, unknown>>;
 }): PreferencesSnapshot {
-  const snapshot = { ...bundle.extension, commands: {} } as Record<string, unknown> & { commands: Record<string, Readonly<Record<string, unknown>>> };
+  const snapshot = { ...bundle.extension, commands: {} } as Record<string, unknown> & {
+    commands: Record<string, Readonly<Record<string, unknown>>>;
+  };
   for (const [cmdId, prefs] of Object.entries(bundle.commands ?? {})) {
     snapshot.commands[cmdId] = Object.freeze({ ...prefs });
   }

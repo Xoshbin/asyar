@@ -10,7 +10,9 @@ vi.mock('../ipc/MessageBroker', () => ({
 function makeProxy() {
   const mockInvoke = vi.fn().mockResolvedValue(undefined);
   Object.assign(messageBroker, {
-    invoke: mockInvoke, on: vi.fn(), off: vi.fn(),
+    invoke: mockInvoke,
+    on: vi.fn(),
+    off: vi.fn(),
   });
   const proxy = new ActionServiceProxy();
   proxy.setExtensionId('ext.test');
@@ -23,14 +25,14 @@ describe('ActionServiceProxy', () => {
   it('registerAction → "actions:registerAction"', () => {
     const { proxy, mockInvoke } = makeProxy();
     proxy.registerAction({ id: 'a1', title: 'A', extensionId: 'ext.test' } as any);
-    const call = mockInvoke.mock.calls.find(c => c[0] === 'actions:registerAction');
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'actions:registerAction');
     expect(call).toBeDefined();
   });
 
   it('unregisterAction → "actions:unregisterAction"', () => {
     const { proxy, mockInvoke } = makeProxy();
     proxy.unregisterAction('a1');
-    const call = mockInvoke.mock.calls.find(c => c[0] === 'actions:unregisterAction');
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'actions:unregisterAction');
     expect(call).toBeDefined();
   });
 
@@ -38,21 +40,21 @@ describe('ActionServiceProxy', () => {
     const { proxy, mockInvoke } = makeProxy();
     mockInvoke.mockResolvedValue(undefined);
     await proxy.executeAction('a1');
-    const call = mockInvoke.mock.calls.find(c => c[0] === 'actions:executeAction');
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'actions:executeAction');
     expect(call).toBeDefined();
   });
 
   it('setContext → "actions:setContext"', () => {
     const { proxy, mockInvoke } = makeProxy();
     proxy.setContext(ActionContext.GLOBAL, { commandId: 'cmd1' });
-    const call = mockInvoke.mock.calls.find(c => c[0] === 'actions:setContext');
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'actions:setContext');
     expect(call).toBeDefined();
   });
 
   it('registerActionHandler → "actions:registerActionHandler" (so the launcher learns the registering iframe\'s role)', () => {
     const { proxy, mockInvoke } = makeProxy();
     proxy.registerActionHandler('send-notification', () => undefined);
-    const call = mockInvoke.mock.calls.find(c => c[0] === 'actions:registerActionHandler');
+    const call = mockInvoke.mock.calls.find((c) => c[0] === 'actions:registerActionHandler');
     expect(call).toBeDefined();
     expect(call?.[1]).toMatchObject({ actionId: 'send-notification' });
   });

@@ -3,10 +3,7 @@
   import { Button, Input } from '../index';
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
   import { evaluatePassphraseStrength } from './EncryptionEnrolmentDialog.logic';
-  import {
-    parsePhraseInput,
-    joinPhraseForWire,
-  } from './RecoverWithMnemonicDialog.logic';
+  import { parsePhraseInput, joinPhraseForWire } from './RecoverWithMnemonicDialog.logic';
   import { logService } from '../../services/log/logService';
   import { fadeIn, popupScale } from '$lib/transitions';
 
@@ -93,9 +90,7 @@
     >
       <div class="p-6">
         {#if stage === 'words'}
-          <h2 id="recover-title" class="dialog-title">
-            Recover with your 24-word phrase
-          </h2>
+          <h2 id="recover-title" class="dialog-title">Recover with your 24-word phrase</h2>
           <p class="dialog-body">
             Paste your recovery phrase below. Words can be separated by spaces or new lines.
           </p>
@@ -105,15 +100,16 @@
             placeholder="abandon ability able about ..."
             rows="5"
             autocomplete="off"
-            spellcheck="false"
-          ></textarea>
+            spellcheck="false"></textarea>
           <div class="phrase-status">
             {#if parsed.words.length === 0}
               <span class="text-caption">0 / 24 words</span>
             {:else if parsed.unknownWords.length > 0}
               <span class="text-caption error">
                 Unknown {parsed.unknownWords.length === 1 ? 'word' : 'words'}:
-                {parsed.unknownWords.slice(0, 3).join(', ')}{parsed.unknownWords.length > 3 ? '…' : ''}
+                {parsed.unknownWords.slice(0, 3).join(', ')}{parsed.unknownWords.length > 3
+                  ? '…'
+                  : ''}
               </span>
             {:else if parsed.words.length !== 24}
               <span class="text-caption" class:error={parsed.words.length > 24}>
@@ -130,22 +126,31 @@
             </Button>
           </div>
         {:else if stage === 'passphrase' || stage === 'submitting'}
-          <h2 id="recover-title" class="dialog-title">
-            Choose a new passphrase
-          </h2>
+          <h2 id="recover-title" class="dialog-title">Choose a new passphrase</h2>
           <p class="dialog-body">
             This passphrase will replace your forgotten one. Your recovery phrase stays the same.
           </p>
           <div class="flex-col">
             <div class="input-gap">
-              <Input type="password" placeholder="New passphrase (12+ characters)" bind:value={newPass} maxlength={256} />
+              <Input
+                type="password"
+                placeholder="New passphrase (12+ characters)"
+                bind:value={newPass}
+                maxlength={256}
+              />
             </div>
             <div class="input-gap">
-              <Input type="password" placeholder="Confirm new passphrase" bind:value={confirmNew} maxlength={256} />
+              <Input
+                type="password"
+                placeholder="Confirm new passphrase"
+                bind:value={confirmNew}
+                maxlength={256}
+              />
             </div>
             {#if newPass.length > 0}
               <p class="text-caption" class:error={!strength.accepted}>
-                Strength {strength.score}/4{#if strength.reason} — {strength.reason}{/if}
+                Strength {strength.score}/4{#if strength.reason}
+                  — {strength.reason}{/if}
               </p>
             {/if}
             {#if confirmNew.length > 0 && !confirmsMatch}
@@ -156,7 +161,8 @@
             {/if}
           </div>
           <div class="dialog-actions">
-            <Button onclick={() => (stage = 'words')} disabled={stage === 'submitting'}>Back</Button>
+            <Button onclick={() => (stage = 'words')} disabled={stage === 'submitting'}>Back</Button
+            >
             <Button class="btn-primary" disabled={submitDisabled} onclick={submit}>
               {stage === 'submitting' ? 'Recovering…' : 'Recover'}
             </Button>
@@ -173,7 +179,7 @@
     backdrop-filter: blur(8px);
   }
 
-  :global(html[data-platform="linux"]) .dialog-backdrop {
+  :global(html[data-platform='linux']) .dialog-backdrop {
     backdrop-filter: none;
     background: rgba(0, 0, 0, 0.6);
   }
