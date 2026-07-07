@@ -33,15 +33,22 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: asyar-launcher/src-tauri -> target
 
+      - name: Check Rust formatting
+        run: cargo fmt --check
+        working-directory: asyar-launcher/src-tauri
+
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Check Prettier formatting
+        run: pnpm format:check
 
       - name: Sync SvelteKit
         run: pnpm svelte-kit sync
