@@ -143,10 +143,11 @@ export class ExtensionLoader {
             logService.warn(
               `[PermissionRegistry] Permissions withheld for ${extensionId}: awaiting user consent`,
             );
-            void feedbackService.showToast({
-              title: `${extensionName} needs a permission review`,
-              message: 'Open Settings → Extensions to review and allow its permissions.',
-            });
+            feedbackService.notice(
+              `${extensionName} needs a permission review`,
+              'Open Settings → Extensions to review and allow its permissions.',
+              'failure',
+            );
           })
           .catch((err: unknown) => {
             logService.warn(`[PermissionRegistry] Failed to register ${extensionId}: ${err}`);

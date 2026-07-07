@@ -41,6 +41,35 @@ describe('showToast', () => {
   });
 });
 
+describe('notice', () => {
+  it('shows a symbol-style toast and auto-dismisses after durationMs', () => {
+    vi.useFakeTimers();
+    try {
+      feedbackService.notice('Ext needs review', 'Open Settings', 'failure', 5000);
+      expect(feedbackService.activeToast?.style).toBe('failure');
+      expect(feedbackService.activeToast?.title).toBe('Ext needs review');
+      vi.advanceTimersByTime(5000);
+      expect(feedbackService.activeToast).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not dismiss a newer toast that replaced it', () => {
+    vi.useFakeTimers();
+    try {
+      feedbackService.notice('First', undefined, 'failure', 5000);
+      feedbackService.notice('Second', undefined, 'success', 10000);
+      vi.advanceTimersByTime(5000); // first toast's timer fires
+      expect(feedbackService.activeToast?.title).toBe('Second');
+      vi.advanceTimersByTime(5000);
+      expect(feedbackService.activeToast).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('updateToast', () => {
   it('updates title in place when id matches', async () => {
     const id = await feedbackService.showToast({ title: 'Loading', style: 'animated' });

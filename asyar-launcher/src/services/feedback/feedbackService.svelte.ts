@@ -5,7 +5,7 @@ interface ActiveToast {
   id: string;
   title: string;
   message?: string;
-  style: 'animated';
+  style: 'animated' | 'success' | 'failure';
 }
 
 interface ActiveDialog {
@@ -60,6 +60,27 @@ class FeedbackService implements IFeedbackService {
       style: 'animated',
     };
     return id;
+  }
+
+  /**
+   * Host-only transient notice: symbol style (✓/✕, no spinner) with
+   * auto-dismiss. Unlike the SDK `showToast` contract — whose only style is
+   * `animated` and whose callers are expected to `hideToast` when their
+   * operation finishes — this is fire-and-forget for one-off notifications.
+   */
+  notice(
+    title: string,
+    message: string | undefined,
+    style: 'success' | 'failure',
+    durationMs = 6000,
+  ): void {
+    const id = `toast-${++this.toastIdCounter}`;
+    this.activeToast = { id, title, message, style };
+    setTimeout(() => {
+      if (this.activeToast?.id === id) {
+        this.activeToast = null;
+      }
+    }, durationMs);
   }
 
   async updateToast(toastId: string, options: Partial<ShowToastOptions>): Promise<void> {
