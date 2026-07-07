@@ -26,7 +26,11 @@
 {#if feedbackService.activeToast}
   {@const toast = feedbackService.activeToast}
   {#if toast.onClick}
-    <div class="toast-host toast-clickable" transition:fadeIn={{ duration: 150 }} data-style={toast.style}>
+    <div
+      class="toast-host toast-clickable"
+      transition:fadeIn={{ duration: 150 }}
+      data-style={toast.style}
+    >
       <button class="toast-action" onclick={() => feedbackService.onToastClicked()}>
         {@render toastBody(toast)}
       </button>
