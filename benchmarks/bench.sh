@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# Asyar vs Raycast black-box performance benchmark (macOS).
+# Asyar vs Raycast (stable + beta/v2) black-box performance benchmark (macOS).
 #
-# Measures both apps the same way, one at a time, from the outside:
+# Measures every app the same way, one at a time, from the outside:
 #   cold start → usable, hotkey → window visible, memory footprint,
 #   idle CPU, size on disk.
 #
 # Usage:
 #   ./benchmarks/bench.sh [--yes] [--update-readme]
-#       [--asyar-app PATH] [--raycast-app PATH]
-#       [--asyar-hotkey SPEC] [--raycast-hotkey SPEC]
+#       [--asyar-app PATH] [--raycast-app PATH] [--raycast-beta-app PATH]
+#       [--asyar-hotkey SPEC] [--raycast-hotkey SPEC] [--raycast-beta-hotkey SPEC]
 #       [--runs N] [--cpu-seconds N] [--settle-seconds N]
+#
+# Raycast Beta is included automatically when installed; each hotkey SPEC
+# must match what that app is actually bound to (e.g. opt+space, cmd+space).
 #
 # Requires: Xcode command-line tools (swiftc) and Accessibility permission
 # for your terminal (System Settings → Privacy & Security → Accessibility).
@@ -23,8 +26,10 @@ RESULTS_DIR="$SCRIPT_DIR/results"
 
 ASYAR_APP="/Applications/asyar.app"
 RAYCAST_APP="/Applications/Raycast.app"
-ASYAR_HOTKEY="opt+space"    # Asyar default (Alt+Space)
-RAYCAST_HOTKEY="opt+space"  # Raycast factory default (⌥Space)
+RAYCAST_BETA_APP="/Applications/Raycast Beta.app"
+ASYAR_HOTKEY="opt+space"        # Asyar default (Alt+Space)
+RAYCAST_HOTKEY="opt+space"      # Raycast factory default (⌥Space)
+RAYCAST_BETA_HOTKEY="opt+space"
 RUNS=15
 CPU_SECONDS=30
 SETTLE_SECONDS=20
@@ -35,14 +40,16 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --asyar-app) ASYAR_APP="$2"; shift 2 ;;
     --raycast-app) RAYCAST_APP="$2"; shift 2 ;;
+    --raycast-beta-app) RAYCAST_BETA_APP="$2"; shift 2 ;;
     --asyar-hotkey) ASYAR_HOTKEY="$2"; shift 2 ;;
     --raycast-hotkey) RAYCAST_HOTKEY="$2"; shift 2 ;;
+    --raycast-beta-hotkey) RAYCAST_BETA_HOTKEY="$2"; shift 2 ;;
     --runs) RUNS="$2"; shift 2 ;;
     --cpu-seconds) CPU_SECONDS="$2"; shift 2 ;;
     --settle-seconds) SETTLE_SECONDS="$2"; shift 2 ;;
     --yes) ASSUME_YES=1; shift ;;
     --update-readme) UPDATE_README=1; shift ;;
-    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
   esac
 done
@@ -62,6 +69,32 @@ fi
 
 app_name() { basename "$1" .app; }
 
+# The benchmarked apps, as parallel arrays (macOS ships bash 3.2 — no namerefs).
+APP_PATHS=()
+APP_HOTKEYS=()
+APP_LABELS=()
+APP_LOGS=()
+
+add_app() { # path hotkey
+  local path="$1" hotkey="$2" name ver slug display
+  name="$(app_name "$path")"
+  ver="$(defaults read "$path/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || echo '?')"
+  slug="$(echo "$name" | tr '[:upper:] ' '[:lower:]-')"
+  display="$(echo "$name" | awk '{ print toupper(substr($0, 1, 1)) substr($0, 2) }')"
+  APP_PATHS+=("$path")
+  APP_HOTKEYS+=("$hotkey")
+  APP_LABELS+=("$display $ver")
+  APP_LOGS+=("$RESULTS_DIR/raw-$slug.txt")
+}
+
+add_app "$ASYAR_APP" "$ASYAR_HOTKEY"
+add_app "$RAYCAST_APP" "$RAYCAST_HOTKEY"
+if [[ -d "$RAYCAST_BETA_APP" ]]; then
+  add_app "$RAYCAST_BETA_APP" "$RAYCAST_BETA_HOTKEY"
+else
+  echo "note: Raycast Beta not found at $RAYCAST_BETA_APP — benchmarking without it."
+fi
+
 quit_app() {
   local app="$1" name
   name="$(app_name "$app")"
@@ -76,17 +109,31 @@ quit_app() {
   sleep 1
 }
 
-if pgrep -f '/Applications/Raycast Beta.app' >/dev/null; then
-  echo "note: Raycast Beta is running and will be quit (it would pollute results)."
-  quit_app "/Applications/Raycast Beta.app"
-fi
+quit_all() {
+  local p
+  for p in "${APP_PATHS[@]}"; do quit_app "$p"; done
+}
+
+echo
+echo "Apps and the hotkeys that will be pressed:"
+for i in "${!APP_PATHS[@]}"; do
+  printf '  %-26s %s\n' "${APP_LABELS[$i]}" "${APP_HOTKEYS[$i]}"
+done
 
 if [[ "$ASSUME_YES" -ne 1 ]]; then
   cat <<EOF
 
-This benchmark will QUIT and RELAUNCH $(app_name "$ASYAR_APP") and $(app_name "$RAYCAST_APP"),
-and will press their global hotkeys (~$((RUNS + 3)) times each) using synthetic
-keyboard events. Do not touch mouse/keyboard while it runs (~4-5 minutes).
+ATTENTION: open each app's settings and confirm the hotkey shown above is
+really registered in that app. An app with NO hotkey registered — or a
+different one — will fail its runs. (Hotkeys can silently disappear after
+app updates or when another launcher takes the key. Launchers cannot share
+one hotkey: give each app its own, then pass the matching
+--asyar-hotkey / --raycast-hotkey / --raycast-beta-hotkey.)
+
+This benchmark will QUIT and RELAUNCH: ${APP_LABELS[*]}.
+It presses each app's global hotkey (~$((RUNS + 3)) times) using synthetic
+keyboard events. Do not touch mouse/keyboard while it runs
+(~2-3 minutes per app).
 
 For fair numbers: close other heavy apps, plug in power, use a release build.
 
@@ -104,25 +151,29 @@ fi
 
 extract() { awk -F= -v k="$2" '$1 == k { print $2 }' "$1" | tail -1; }
 
-measure_app() {
-  # writes raw benchtool output to $3 and per-metric globals via extract()
-  local app="$1" hotkey="$2" log="$3" name
-  name="$(app_name "$app")"
+measure_app() { # index into the APP_* arrays
+  local i="$1"
+  local app="${APP_PATHS[$i]}" hotkey="${APP_HOTKEYS[$i]}" log="${APP_LOGS[$i]}"
   : > "$log"
 
-  echo "== $name =="
-  quit_app "$ASYAR_APP"
-  quit_app "$RAYCAST_APP"
+  echo "== ${APP_LABELS[$i]} =="
+  quit_all
   sleep 2
 
   echo "  cold start (launch → usable)..."
-  "$TOOL" coldstart "$app" "$hotkey" | tee -a "$log"
+  "$TOOL" coldstart "$app" "$hotkey" | tee -a "$log" \
+    || die "'$hotkey' does not summon ${APP_LABELS[$i]} — open that app's settings and check:
+the hotkey may not be registered at all (updates can clear it), set to a
+different key, or owned by another launcher. Register one, then pass the
+matching --asyar-hotkey / --raycast-hotkey / --raycast-beta-hotkey flag."
 
   echo "  settling ${SETTLE_SECONDS}s (startup indexing etc.)..."
   sleep "$SETTLE_SECONDS"
 
   echo "  hotkey → window visible, $RUNS runs..."
-  "$TOOL" hotkey "$app" "$hotkey" "$RUNS" | tee -a "$log"
+  "$TOOL" hotkey "$app" "$hotkey" "$RUNS" | tee -a "$log" \
+    || die "hotkey runs failed for ${APP_LABELS[$i]} — see the message above; pass the
+matching --asyar-hotkey / --raycast-hotkey / --raycast-beta-hotkey flag."
   sleep 5
 
   echo "  memory footprint..."
@@ -135,28 +186,33 @@ measure_app() {
   quit_app "$app"
 }
 
-ASYAR_LOG="$RESULTS_DIR/raw-asyar.txt"
-RAYCAST_LOG="$RESULTS_DIR/raw-raycast.txt"
+for i in "${!APP_PATHS[@]}"; do
+  measure_app "$i"
+done
 
-measure_app "$ASYAR_APP" "$ASYAR_HOTKEY" "$ASYAR_LOG"
-measure_app "$RAYCAST_APP" "$RAYCAST_HOTKEY" "$RAYCAST_LOG"
-
-ASYAR_VER="$(defaults read "$ASYAR_APP/Contents/Info.plist" CFBundleShortVersionString)"
-RAYCAST_VER="$(defaults read "$RAYCAST_APP/Contents/Info.plist" CFBundleShortVersionString)"
 CHIP="$(sysctl -n machdep.cpu.brand_string)"
 RAM_GB="$(( $(sysctl -n hw.memsize) / 1073741824 ))"
 MACOS_VER="$(sw_vers -productVersion)"
 DATE_UTC="$(date -u +%Y-%m-%d)"
 
 row() { # metric key unit
-  printf '| %s | %s %s | %s %s |\n' \
-    "$1" "$(extract "$ASYAR_LOG" "$2")" "$3" "$(extract "$RAYCAST_LOG" "$2")" "$3"
+  local out="| $1 |" log
+  for log in "${APP_LOGS[@]}"; do
+    out+=" $(extract "$log" "$2") $3 |"
+  done
+  echo "$out"
 }
 
 TABLE_FILE="$RESULTS_DIR/table.md"
 {
-  echo "| Metric | Asyar $ASYAR_VER | Raycast $RAYCAST_VER |"
-  echo "| ------ | ---------------: | -------------------: |"
+  header="| Metric |"
+  sep="| ------ |"
+  for label in "${APP_LABELS[@]}"; do
+    header+=" $label |"
+    sep+=" ---: |"
+  done
+  echo "$header"
+  echo "$sep"
   row "Hotkey → window visible (median of $RUNS)" median_ms "ms"
   row "Hotkey → window visible (p95)" p95_ms "ms"
   row "Cold start → usable" coldstart_ms "ms"
@@ -164,7 +220,7 @@ TABLE_FILE="$RESULTS_DIR/table.md"
   row "CPU while idle (${CPU_SECONDS}s average)" cpu_pct "%"
   row "App size on disk" size_mb "MB"
   echo
-  echo "<sub>Measured $DATE_UTC on a $CHIP (${RAM_GB} GB RAM), macOS $MACOS_VER, both apps"
+  echo "<sub>Measured $DATE_UTC on a $CHIP (${RAM_GB} GB RAM), macOS $MACOS_VER, each app"
   echo "as installed with default hotkeys, one at a time on a quiet machine. Black-box"
   echo "measurement: synthetic hotkey press → launcher window on screen. Reproduce with"
   echo "[\`benchmarks/bench.sh\`](benchmarks/README.md).</sub>"
@@ -174,21 +230,19 @@ TABLE_FILE="$RESULTS_DIR/table.md"
   echo "# Benchmark run $DATE_UTC"
   echo
   echo "- Machine: $CHIP, ${RAM_GB} GB RAM, macOS $MACOS_VER"
-  echo "- Asyar $ASYAR_VER (\`$ASYAR_APP\`), hotkey \`$ASYAR_HOTKEY\`"
-  echo "- Raycast $RAYCAST_VER (\`$RAYCAST_APP\`), hotkey \`$RAYCAST_HOTKEY\`"
+  for i in "${!APP_PATHS[@]}"; do
+    echo "- ${APP_LABELS[$i]} (\`${APP_PATHS[$i]}\`), hotkey \`${APP_HOTKEYS[$i]}\`"
+  done
   echo "- $RUNS hotkey runs, ${CPU_SECONDS}s CPU window, ${SETTLE_SECONDS}s settle"
   echo
   cat "$TABLE_FILE"
-  echo
-  echo "## Raw output — Asyar"
-  echo '```'
-  cat "$ASYAR_LOG"
-  echo '```'
-  echo
-  echo "## Raw output — Raycast"
-  echo '```'
-  cat "$RAYCAST_LOG"
-  echo '```'
+  for i in "${!APP_PATHS[@]}"; do
+    echo
+    echo "## Raw output — ${APP_LABELS[$i]}"
+    echo '```'
+    cat "${APP_LOGS[$i]}"
+    echo '```'
+  done
 } > "$RESULTS_DIR/latest.md"
 
 echo

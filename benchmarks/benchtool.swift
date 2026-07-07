@@ -282,13 +282,21 @@ func cmdCpu(_ bundle: String, seconds: Int) {
     print("cpu_pct=\(String(format: "%.2f", max(0, pct)))")
 }
 
-func ensureHidden(_ key: CGKeyCode, _ flags: CGEventFlags, pids: Set<pid_t>) {
-    guard launcherWindowVisible(pids: pids) else { return }
-    postKey(key, flags)
-    if waitFor(timeoutMs: 2000, { !launcherWindowVisible(pids: pids) }) == nil {
+/// Dismiss the launcher window and report whether it is really gone.
+/// Esc is used first: with an empty query all launchers close on Esc, and
+/// unlike the hotkey it is never typed into the search field. (Raycast v1
+/// treats a synthetic ⌥Space as text — a non-breaking space — when its own
+/// search field has focus, so re-pressing the hotkey fills its query with
+/// spaces and the window never hides.)
+@discardableResult
+func hideWindow(_ key: CGKeyCode, _ flags: CGEventFlags, pids: Set<pid_t>) -> Bool {
+    if !launcherWindowVisible(pids: pids) { return true }
+    for _ in 0..<3 {  // repeated Esc also clears any leftover query text first
         postKey(keyCodes["escape"]!, [])
-        _ = waitFor(timeoutMs: 2000) { !launcherWindowVisible(pids: pids) }
+        if waitFor(timeoutMs: 1500, { !launcherWindowVisible(pids: pids) }) != nil { return true }
     }
+    postKey(key, flags)  // last resort: hotkey toggle
+    return waitFor(timeoutMs: 1500, { !launcherWindowVisible(pids: pids) }) != nil
 }
 
 func cmdHotkey(_ bundle: String, spec: String, runs: Int) {
@@ -306,15 +314,20 @@ func cmdHotkey(_ bundle: String, spec: String, runs: Int) {
 
     var samples: [Double] = []
     var failures = 0
-    ensureHidden(key, flags, pids: pids)
+    hideWindow(key, flags, pids: pids)
 
     // one untimed warmup press so caches/first-paint costs don't skew run 1
     postKey(key, flags)
     _ = waitFor(timeoutMs: 5000) { launcherWindowVisible(pids: pids) }
     usleep(300_000)
-    ensureHidden(key, flags, pids: pids)
 
     for run in 1...runs {
+        // A run timed against an already-open window would measure ~0 ms,
+        // so refuse to continue unless the window is really hidden.
+        guard hideWindow(key, flags, pids: pids) else {
+            fputs("error: could not hide the launcher window between runs — results would be invalid\n", stderr)
+            exit(1)
+        }
         usleep(400_000)
         let t0 = nowNs()
         postKey(key, flags)
@@ -327,11 +340,13 @@ func cmdHotkey(_ bundle: String, spec: String, runs: Int) {
             print("run=\(run) ms=timeout")
         }
         usleep(250_000)
-        ensureHidden(key, flags, pids: pids)
     }
+    hideWindow(key, flags, pids: pids)
 
     guard !samples.isEmpty, failures * 5 < runs else {
-        fputs("error: too many timeouts (\(failures)/\(runs)) — wrong hotkey?\n", stderr)
+        fputs(
+            "error: too many timeouts (\(failures)/\(runs)) — hotkey wrong or not registered in the app?\n",
+            stderr)
         exit(1)
     }
     print("median_ms=\(String(format: "%.1f", median(samples)))")
@@ -371,7 +386,26 @@ func cmdColdstart(_ bundle: String, spec: String) {
         if !pids.isEmpty, launcherWindowVisible(pids: pids) {
             print("coldstart_ms=\(String(format: "%.0f", msSince(t0)))")
             usleep(300_000)
-            ensureHidden(key, flags, pids: pids)
+            guard hideWindow(key, flags, pids: pids) else {
+                fputs("error: could not hide the launcher window after cold start\n", stderr)
+                exit(3)
+            }
+            // Some apps (Raycast) show a window by themselves on manual
+            // launch, so the detection above does not prove the hotkey
+            // works. Verify with one toggle now, instead of letting every
+            // timed run fail later.
+            usleep(400_000)
+            postKey(key, flags)
+            if waitFor(timeoutMs: 5000, { launcherWindowVisible(pids: pids) }) == nil {
+                fputs(
+                    "error: app is running but the hotkey does not summon it — the app may "
+                        + "have NO hotkey registered (updates can clear it), a different key, "
+                        + "or another launcher owns this key; check the app's settings\n",
+                    stderr)
+                exit(3)
+            }
+            usleep(300_000)
+            hideWindow(key, flags, pids: pids)
             return
         }
         usleep(5000)
