@@ -167,11 +167,12 @@ export class ExtensionLoader {
               `[PermissionRegistry] Permissions withheld for ${extensionId}: awaiting user consent`,
             );
             whenWindowVisible(() =>
-              feedbackService.notice(
-                `${extensionName} needs a permission review`,
-                'Open Settings → Extensions to review and allow its permissions.',
-                'failure',
-              ),
+              feedbackService.notice({
+                title: `${extensionName} needs a permission review`,
+                message: 'Click to review and allow its permissions in Settings.',
+                style: 'failure',
+                onClick: () => void commands.showSettingsWindow('extensions', extensionId),
+              }),
             );
           })
           .catch((err: unknown) => {

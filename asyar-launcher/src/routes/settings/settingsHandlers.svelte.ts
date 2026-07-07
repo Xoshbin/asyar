@@ -122,6 +122,11 @@ export class SettingsHandler {
   isLoadingExtensions = $state(false);
   extensionError = $state('');
   togglingExtension = $state<string | null>(null);
+  /**
+   * Extension id a deep link (asyar:navigate-settings-tab) asked to select.
+   * Consumed and cleared by ExtensionsTab once the list is loaded.
+   */
+  pendingExtensionSelection = $state<string | null>(null);
 
   private unsubscribe: (() => void) | null = null;
   private unlistenPreferencesChanged: (() => void) | null = null;

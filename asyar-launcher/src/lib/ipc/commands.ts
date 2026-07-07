@@ -276,7 +276,7 @@ export async function factoryReset(): Promise<void> {
   await invokeSafe('factory_reset');
 }
 
-export async function showSettingsWindow(tab?: string): Promise<void> {
+export async function showSettingsWindow(tab?: string, extensionId?: string): Promise<void> {
   // Direct callers bypass the no-view command hide path, so reset here too.
   // Dynamic import breaks the commands ↔ extensionManager module cycle.
   const { resetLauncherState } = await import('../launcher/launcherReset');
@@ -291,7 +291,10 @@ export async function showSettingsWindow(tab?: string): Promise<void> {
       const { emit } = await import('@tauri-apps/api/event');
       // Delay ensures the settings window's onMount listener is registered
       // before the event fires (relevant when the window was hidden/just shown).
-      setTimeout(() => emit('asyar:navigate-settings-tab', { tab }), 50);
+      setTimeout(
+        () => emit('asyar:navigate-settings-tab', { tab, extensionId: extensionId ?? null }),
+        50,
+      );
     }
   }
 }

@@ -6,6 +6,17 @@ interface ActiveToast {
   title: string;
   message?: string;
   style: 'animated' | 'success' | 'failure';
+  /** When set, the toast renders as a button; clicking runs this and dismisses. */
+  onClick?: () => void;
+}
+
+export interface NoticeOptions {
+  title: string;
+  message?: string;
+  style: 'success' | 'failure';
+  /** Auto-dismiss delay. Defaults to 6000ms. */
+  durationMs?: number;
+  onClick?: () => void;
 }
 
 interface ActiveDialog {
@@ -67,20 +78,30 @@ class FeedbackService implements IFeedbackService {
    * auto-dismiss. Unlike the SDK `showToast` contract — whose only style is
    * `animated` and whose callers are expected to `hideToast` when their
    * operation finishes — this is fire-and-forget for one-off notifications.
+   * An `onClick` makes the toast clickable (it dismisses after running).
    */
-  notice(
-    title: string,
-    message: string | undefined,
-    style: 'success' | 'failure',
-    durationMs = 6000,
-  ): void {
+  notice(options: NoticeOptions): void {
     const id = `toast-${++this.toastIdCounter}`;
-    this.activeToast = { id, title, message, style };
+    this.activeToast = {
+      id,
+      title: options.title,
+      message: options.message,
+      style: options.style,
+      onClick: options.onClick,
+    };
     setTimeout(() => {
       if (this.activeToast?.id === id) {
         this.activeToast = null;
       }
-    }, durationMs);
+    }, options.durationMs ?? 6000);
+  }
+
+  /** Called by `<ToastHost />` when a clickable toast is activated. */
+  onToastClicked(): void {
+    const toast = this.activeToast;
+    if (!toast?.onClick) return;
+    this.activeToast = null;
+    toast.onClick();
   }
 
   async updateToast(toastId: string, options: Partial<ShowToastOptions>): Promise<void> {

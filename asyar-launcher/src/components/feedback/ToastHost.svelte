@@ -3,31 +3,46 @@
   import { fadeIn } from '$lib/transitions';
 </script>
 
+{#snippet toastBody(toast: NonNullable<typeof feedbackService.activeToast>)}
+  <span class="toast-icon" aria-hidden="true">
+    {#if toast.style === 'animated'}
+      <span class="spinner"></span>
+    {:else if toast.style === 'success'}
+      <span class="symbol">✓</span>
+    {:else if toast.style === 'failure'}
+      <span class="symbol">✕</span>
+    {/if}
+  </span>
+  <div class="toast-text">
+    <span class="toast-title">{toast.title}</span>
+    {#if toast.message}
+      <span class="toast-message">{toast.message}</span>
+    {/if}
+  </div>
+{/snippet}
+
 {#if feedbackService.activeToast}
   {@const toast = feedbackService.activeToast}
-  <div
-    class="toast-host"
-    role="status"
-    aria-live="polite"
-    transition:fadeIn={{ duration: 150 }}
-    data-style={toast.style}
-  >
-    <span class="toast-icon" aria-hidden="true">
-      {#if toast.style === 'animated'}
-        <span class="spinner"></span>
-      {:else if toast.style === 'success'}
-        <span class="symbol">✓</span>
-      {:else if toast.style === 'failure'}
-        <span class="symbol">✕</span>
-      {/if}
-    </span>
-    <div class="toast-text">
-      <span class="toast-title">{toast.title}</span>
-      {#if toast.message}
-        <span class="toast-message">{toast.message}</span>
-      {/if}
+  {#if toast.onClick}
+    <button
+      class="toast-host toast-clickable"
+      transition:fadeIn={{ duration: 150 }}
+      data-style={toast.style}
+      onclick={() => feedbackService.onToastClicked()}
+    >
+      {@render toastBody(toast)}
+    </button>
+  {:else}
+    <div
+      class="toast-host"
+      role="status"
+      aria-live="polite"
+      transition:fadeIn={{ duration: 150 }}
+      data-style={toast.style}
+    >
+      {@render toastBody(toast)}
     </div>
-  </div>
+  {/if}
 {/if}
 
 <style>
@@ -53,6 +68,19 @@
   :global(html[data-platform='linux']) .toast-host {
     backdrop-filter: none;
     background-color: var(--bg-popup);
+  }
+
+  /* Clickable variant renders as a <button>: undo UA styles, allow clicks. */
+  .toast-clickable {
+    pointer-events: auto;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    color: inherit;
+  }
+
+  .toast-clickable:hover {
+    border-color: var(--accent-primary);
   }
 
   .toast-icon {
