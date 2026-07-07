@@ -1,3 +1,4 @@
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { ExtensionBridge, ActionContext } from 'asyar-sdk/contracts';
 import type { Extension, ExtensionManifest, ExtensionCommand } from 'asyar-sdk/contracts';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
@@ -23,23 +24,25 @@ import { searchStores } from '../search/stores/search.svelte';
 type LoadedExtensionModule = Extension | { default: Extension };
 
 /**
- * Run `show` once the launcher window is visible. Extensions load at startup
- * while the window is still hidden — a toast fired then burns its auto-dismiss
- * timer with nobody watching. Hidden Tauri windows report
- * `document.visibilityState === 'hidden'`, so defer until the next reveal.
+ * Run `show` once the launcher window has the user's attention. Extensions
+ * load at startup while the launcher window is still hidden — a toast fired
+ * then burns its auto-dismiss timer with nobody watching. `onFocusChanged`
+ * is the signal the usage heartbeat already relies on for "the user summoned
+ * the launcher" (the webview's visibilityState is not dependable here).
  */
 function whenWindowVisible(show: () => void): void {
-  if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+  if (typeof document !== 'undefined' && document.hasFocus()) {
     show();
     return;
   }
-  const onVisible = () => {
-    if (document.visibilityState === 'visible') {
-      document.removeEventListener('visibilitychange', onVisible);
+  const promise = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+    if (focused) {
+      void promise.then((unlisten) => unlisten()).catch(() => {});
       show();
     }
-  };
-  document.addEventListener('visibilitychange', onVisible);
+  });
+  // If the listener can't attach, show now rather than never.
+  promise.catch(() => show());
 }
 
 export class ExtensionLoader {
