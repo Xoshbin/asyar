@@ -22,6 +22,26 @@ import { searchStores } from '../search/stores/search.svelte';
  */
 type LoadedExtensionModule = Extension | { default: Extension };
 
+/**
+ * Run `show` once the launcher window is visible. Extensions load at startup
+ * while the window is still hidden — a toast fired then burns its auto-dismiss
+ * timer with nobody watching. Hidden Tauri windows report
+ * `document.visibilityState === 'hidden'`, so defer until the next reveal.
+ */
+function whenWindowVisible(show: () => void): void {
+  if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+    show();
+    return;
+  }
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') {
+      document.removeEventListener('visibilitychange', onVisible);
+      show();
+    }
+  };
+  document.addEventListener('visibilitychange', onVisible);
+}
+
 export class ExtensionLoader {
   // Internal state built during loadExtensions()
   private extensionModulesById = new Map<string, LoadedExtensionModule>();
@@ -143,10 +163,12 @@ export class ExtensionLoader {
             logService.warn(
               `[PermissionRegistry] Permissions withheld for ${extensionId}: awaiting user consent`,
             );
-            feedbackService.notice(
-              `${extensionName} needs a permission review`,
-              'Open Settings → Extensions to review and allow its permissions.',
-              'failure',
+            whenWindowVisible(() =>
+              feedbackService.notice(
+                `${extensionName} needs a permission review`,
+                'Open Settings → Extensions to review and allow its permissions.',
+                'failure',
+              ),
             );
           })
           .catch((err: unknown) => {
