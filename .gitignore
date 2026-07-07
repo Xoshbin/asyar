@@ -34,3 +34,4 @@ pnpm-debug.log*
 .env.local
 .env.*.local
 .vscode/Asyar-Project.code-workspace
+CLAUDE.md

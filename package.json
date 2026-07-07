@@ -33,7 +33,7 @@
       ]
     },
     "overrides": {
-      "vite": "6.2.2",
+      "vite": "6.4.3",
       "asyar-sdk": "workspace:*"
     }
   },
