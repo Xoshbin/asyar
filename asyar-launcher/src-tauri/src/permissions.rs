@@ -318,26 +318,79 @@ pub fn check_extension_permission(
     }
 }
 
+/// Outcome of a registration attempt, returned to the frontend loader.
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionRegistrationResult {
+    pub registered: bool,
+    pub needs_consent: bool,
+}
+
 /// Called by extensionManager.ts when an extension loads. Stores the extension's
 /// declared permission strings + their sidecar arguments so sensitive Rust
 /// commands can check them.
+///
+/// Consent backstop: the declared set only enters the registry when a covering
+/// consent record exists (see `extensions::consent`). Otherwise any stale
+/// entry is cleared and `needs_consent` is reported, so every gated call fails
+/// closed until the user accepts. The declared set is resolved from the
+/// discovered manifest when the extension is known — the caller-supplied
+/// values are only trusted when no discovery record exists.
 #[tauri::command]
 pub fn register_extension_permissions(
+    app_handle: tauri::AppHandle,
     extension_id: String,
     permissions: Vec<String>,
     permission_args: Option<serde_json::Map<String, serde_json::Value>>,
     registry: tauri::State<'_, ExtensionPermissionRegistry>,
-) -> Result<(), AppError> {
+    extensions: tauri::State<'_, crate::extensions::ExtensionRegistryState>,
+) -> Result<PermissionRegistrationResult, AppError> {
     if extension_id.trim().is_empty() {
         return Err(AppError::Validation(
             "extension_id cannot be empty".to_string(),
         ));
     }
-    let perms: HashSet<String> = permissions.into_iter().collect();
-    let args: HashMap<String, serde_json::Value> =
-        permission_args.unwrap_or_default().into_iter().collect();
-    registry.register(&extension_id, perms, args);
-    Ok(())
+
+    let (is_built_in, declared_perms, declared_args) = {
+        let reg = extensions.extensions.lock().map_err(|_| AppError::Lock)?;
+        match reg.get(&extension_id) {
+            Some(record) => (
+                record.is_built_in,
+                record.manifest.permissions.clone().unwrap_or_default(),
+                record.manifest.permission_args.clone().unwrap_or_default(),
+            ),
+            None => (false, permissions, permission_args.unwrap_or_default()),
+        }
+    };
+
+    let consent = crate::extensions::consent::get_consent(&app_handle, &extension_id)?;
+    match crate::extensions::consent::registration_decision(
+        is_built_in,
+        &declared_perms,
+        &declared_args,
+        consent.as_ref(),
+    ) {
+        crate::extensions::consent::RegistrationDecision::Register => {
+            let perms: HashSet<String> = declared_perms.into_iter().collect();
+            let args: HashMap<String, serde_json::Value> = declared_args.into_iter().collect();
+            registry.register(&extension_id, perms, args);
+            Ok(PermissionRegistrationResult {
+                registered: true,
+                needs_consent: false,
+            })
+        }
+        crate::extensions::consent::RegistrationDecision::WithholdNeedsConsent => {
+            registry.unregister(&extension_id);
+            log::warn!(
+                "Withholding permission registration for '{}': declared permissions exceed recorded consent",
+                extension_id
+            );
+            Ok(PermissionRegistrationResult {
+                registered: false,
+                needs_consent: true,
+            })
+        }
+    }
 }
 
 #[cfg(test)]

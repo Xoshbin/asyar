@@ -392,6 +392,8 @@ pub fn run() {
             commands::set_inline_emoji_fallback_enabled,
             permissions::register_extension_permissions,
             permissions::check_extension_permission,
+            extensions::consent::check_extension_consent,
+            extensions::consent::set_extension_consent,
             commands::auth_initiate,
             commands::auth_poll,
             commands::auth_load_cached,

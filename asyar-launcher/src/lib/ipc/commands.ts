@@ -1027,12 +1027,49 @@ export interface PermissionCheckResult {
   reason?: string;
 }
 
+export interface PermissionRegistrationResult {
+  registered: boolean;
+  needsConsent: boolean;
+}
+
+export interface ExtensionConsentRecord {
+  permissions: string[];
+  permissionArgs: Record<string, unknown>;
+  consentedAt: number;
+  grandfathered: boolean;
+}
+
+export interface ExtensionConsentStatus {
+  needsConsent: boolean;
+  declaredPermissions: string[];
+  declaredArgs: Record<string, unknown>;
+  consented: ExtensionConsentRecord | null;
+}
+
 export async function registerExtensionPermissions(
   extensionId: string,
   permissions: string[],
   permissionArgs?: Record<string, unknown> | null,
+): Promise<PermissionRegistrationResult | null> {
+  return invokeSafe<PermissionRegistrationResult>('register_extension_permissions', {
+    extensionId,
+    permissions,
+    permissionArgs: permissionArgs ?? null,
+  });
+}
+
+export async function checkExtensionConsent(
+  extensionId: string,
+): Promise<ExtensionConsentStatus | null> {
+  return invokeSafe<ExtensionConsentStatus>('check_extension_consent', { extensionId });
+}
+
+export async function setExtensionConsent(
+  extensionId: string,
+  permissions: string[],
+  permissionArgs?: Record<string, unknown> | null,
 ): Promise<void> {
-  await invokeSafe('register_extension_permissions', {
+  await invokeSafe('set_extension_consent', {
     extensionId,
     permissions,
     permissionArgs: permissionArgs ?? null,

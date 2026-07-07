@@ -18,6 +18,7 @@
   import storeExtension from './index.svelte';
   import { onMount } from 'svelte';
   import { extensionUpdateService } from '../../services/extension/extensionUpdateService.svelte';
+  import PermissionList from '../../components/settings/PermissionList.svelte';
 
   // Define structure for detailed API response
   interface ExtensionDetail {
@@ -67,6 +68,13 @@
   // Use reactive subscriptions to the store instance
   let currentSlug = $derived(store.selectedExtensionSlug);
   let extensionManager = $derived(store.extensionManager);
+
+  // The detail API doesn't include the manifest, but the store listing does —
+  // surface the declared permissions from the list item for this slug.
+  let listedManifest = $derived(
+    currentSlug ? store.allItems.find((item) => item.slug === currentSlug)?.manifest : undefined,
+  );
+  let listedPermissions = $derived(listedManifest?.permissions ?? []);
 
   $effect(() => {
     if (currentSlug) {
@@ -360,6 +368,18 @@
 
           <!-- Right Column: Meta & Versions -->
           <div class="space-y-8">
+            {#if listedPermissions.length > 0}
+              <section
+                class="bg-[var(--bg-secondary)] rounded-2xl p-6 border border-[var(--separator)]"
+              >
+                <h3 class="text-section mb-6">Permissions</h3>
+                <PermissionList
+                  permissions={listedPermissions}
+                  permissionArgs={listedManifest?.permissionArgs ?? {}}
+                />
+              </section>
+            {/if}
+
             <section
               class="bg-[var(--bg-secondary)] rounded-2xl p-6 border border-[var(--separator)]"
             >

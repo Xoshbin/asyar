@@ -24,7 +24,11 @@ export interface ApiExtension {
   updated_at: string;
   last_polled_at: string | null;
   author: ExtensionAuthor;
-  manifest?: { platforms?: string[] };
+  manifest?: {
+    platforms?: string[];
+    permissions?: string[];
+    permissionArgs?: Record<string, unknown>;
+  };
 }
 
 // Search Engine handled in StoreViewStateClass

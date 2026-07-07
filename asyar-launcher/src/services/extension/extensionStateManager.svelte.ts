@@ -74,6 +74,8 @@ export class ExtensionStateManager {
           compatibility: record.compatibility,
           commands: manifest.commands ?? [],
           preferences: manifest.preferences ?? [],
+          permissions: (manifest as ExtendedManifest).permissions ?? [],
+          permissionArgs: (manifest as ExtendedManifest).permissionArgs ?? {},
         });
       }
       // Ordering (built-in first, then alphabetical) is computed by Rust's

@@ -10,6 +10,8 @@ import * as commands from '../../lib/ipc/commands';
 import { dispatch } from './extensionDispatcher.svelte';
 import { onboardingViewInterception } from './onboardingViewInterception';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
+import { permissionConsentService } from './permissionConsentService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 import { actionService } from '../action/actionService.svelte';
 import { searchOrchestrator } from '../search/searchOrchestrator.svelte';
 import { searchStores } from '../search/stores/search.svelte';
@@ -122,14 +124,30 @@ export class ExtensionLoader {
         // Sync declared permissions + their sidecar args to the Rust registry
         // for defense-in-depth enforcement. `permissionArgs` carries glob
         // patterns for fs:watch (and will grow to host other parameterized
-        // permissions as they land).
+        // permissions as they land). Rust withholds registration when the
+        // declared set exceeds the recorded user consent (e.g. an update added
+        // permissions); the extension still loads, but its gated calls fail
+        // closed until the user reviews in Settings → Extensions.
         const extended = manifest as ExtendedManifest;
+        const extensionName = manifest.name;
         commands
           .registerExtensionPermissions(
             extensionId,
             extended.permissions ?? [],
             extended.permissionArgs ?? null,
           )
+          .then((result) => {
+            if (!result?.needsConsent) return;
+            if (permissionConsentService.needsReview.includes(extensionId)) return;
+            permissionConsentService.markNeedsReview(extensionId);
+            logService.warn(
+              `[PermissionRegistry] Permissions withheld for ${extensionId}: awaiting user consent`,
+            );
+            void feedbackService.showToast({
+              title: `${extensionName} needs a permission review`,
+              message: 'Open Settings → Extensions to review and allow its permissions.',
+            });
+          })
           .catch((err: unknown) => {
             logService.warn(`[PermissionRegistry] Failed to register ${extensionId}: ${err}`);
           });

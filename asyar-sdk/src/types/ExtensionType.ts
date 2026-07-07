@@ -109,6 +109,12 @@ export interface ExtensionManifest {
   minAppVersion?: string;
   platforms?: string[];
   permissions?: string[];
+  /**
+   * Sidecar values for parameterized permissions, keyed by permission string.
+   * Each key must also appear in `permissions`. Value shape is
+   * permission-specific — `fs:watch` takes a `string[]` of glob patterns.
+   */
+  permissionArgs?: Record<string, unknown>;
   /** Extension-level preferences (apply to all commands). */
   preferences?: PreferenceDeclaration[];
   /** Extension-level actions (show when any command from this extension is selected). */

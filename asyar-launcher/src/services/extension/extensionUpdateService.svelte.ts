@@ -1,6 +1,7 @@
 import * as commands from '../../lib/ipc/commands';
 import { envService } from '../envService';
 import { logService } from '../log/logService';
+import { permissionConsentService } from './permissionConsentService.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { AvailableUpdate, UpdateProgressStatus } from '../../types/ExtensionUpdate';
@@ -148,6 +149,9 @@ class ExtensionUpdateService {
         (u) => u.extensionId !== update.extensionId,
       );
       await reloadCallback();
+      // Prompts only when the update grew the declared permission set beyond
+      // the recorded consent; acceptance re-registers without a restart.
+      await permissionConsentService.ensureConsent(update.extensionId, update.name, 'update');
       return true;
     } catch (e: any) {
       logService.error(`Failed to update ${update.extensionId}: ${e}`);
@@ -171,8 +175,14 @@ class ExtensionUpdateService {
         return;
       }
       const failedIds = new Set(results.filter(([, r]) => r.Err).map(([id]) => id));
+      const updated = this.availableUpdates.filter((u) => !failedIds.has(u.extensionId));
       this.availableUpdates = this.availableUpdates.filter((u) => failedIds.has(u.extensionId));
       await reloadCallback();
+      // Consent prompts queue FIFO; only extensions whose declared set grew
+      // beyond recorded consent actually prompt.
+      for (const u of updated) {
+        await permissionConsentService.ensureConsent(u.extensionId, u.name, 'update');
+      }
     } catch (e: any) {
       logService.error(`Failed to update all extensions: ${e}`);
     } finally {
