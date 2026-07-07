@@ -1,42 +1,51 @@
 import { defineConfig } from "eslint/config";
 import js from "@eslint/js";
-import tsParser from "@typescript-eslint/parser";
-import * as tsPlugin from "@typescript-eslint/eslint-plugin";
+import tseslint from "typescript-eslint";
+import neostandard from "neostandard";
+import svelte from "eslint-plugin-svelte";
 import svelteParser from "svelte-eslint-parser";
-import sveltePlugin from "eslint-plugin-svelte3";
-// No need to import standard directly
-// import standard from "eslint-config-standard"; // REMOVE THIS
+import svelteConfig from "./svelte.config.js";
+import prettier from "eslint-config-prettier";
 import globals from "globals";
 
+// eslint-config-standard (v17) is eslintrc-format and targets ESLint 8; it
+// can't be extended by name under ESLint 9 flat config. neostandard is the
+// standard/js team's own flat-config-native successor — same rule philosophy,
+// built for this ESLint version. noStyle: true because Prettier (not ESLint)
+// owns formatting here.
 export default defineConfig([
+  // Parser, plugin registration, and base rules for *.svelte files —
+  // supersedes the old eslint-plugin-svelte3 processor, which isn't
+  // available under eslint-plugin-svelte v3 (flat-config only).
+  ...svelte.configs.recommended,
+  js.configs.recommended,
+  ...neostandard({ noStyle: true }),
+  ...tseslint.configs.recommendedTypeChecked,
   {
-    files: ["**/*.{js,ts,svelte,mjs,cjs}"],
+    // No `files` scoping: applies everywhere (js, ts, and svelte alike), so
+    // nothing here needs duplicating per file type.
     languageOptions: {
       globals: {
         ...globals.browser,
         ...globals.es2021,
       },
-      parser: tsParser,
+    },
+    rules: {
+      // neostandard's no-void otherwise flags `void someAsyncCall();` —
+      // the exact pattern @typescript-eslint/no-floating-promises itself
+      // suggests for intentionally-ignored promises, and already used
+      // throughout this codebase. Allow void as a statement; still catches
+      // stray `void` in expression position.
+      "no-void": ["error", { allowAsStatement: true }],
+    },
+  },
+  {
+    files: ["**/*.{js,ts,mjs,cjs}"],
+    languageOptions: {
       parserOptions: {
-        sourceType: "module",
-        ecmaVersion: 2021,
         project: "./tsconfig.json",
-        extraFileExtensions: [".svelte"],
       },
     },
-    plugins: {
-      "@typescript-eslint": tsPlugin,
-      svelte3: sveltePlugin,
-    },
-    extends: [
-      "eslint:recommended",
-      "plugin:@typescript-eslint/recommended",
-      "plugin:@typescript-eslint/recommended-requiring-type-checking",
-      "standard", // SIMPLIFIED: Just use the string "standard"
-      // Must come last: turns off stylistic rules (quotes, semi, indent, ...)
-      // that would otherwise fight Prettier, which now owns all formatting.
-      "prettier",
-    ],
     rules: {
       // Customize as needed:
       "no-unused-vars": "warn",
@@ -49,21 +58,30 @@ export default defineConfig([
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-non-null-assertion": "off",
     },
-    overrides: [
-      {
-        files: ["*.svelte"],
-        processor: "svelte3/svelte3",
-        languageOptions: {
-          parser: svelteParser,
-          parserOptions: {
-            parser: tsParser,
-          },
-        },
-        rules: {
-            "svelte3/valid-compile": ["warn", { ignoreWarnings: false }],
-            'no-inner-declarations': 'off',
-        }
-      },
-    ],
   },
+  {
+    // typescript-eslint's own base config (spread in above) sets
+    // languageOptions.parser = tseslint.parser with no `files` scoping, so it
+    // applies to *.svelte too and clobbers svelte.configs.recommended's
+    // parser assignment. Reassert svelte-eslint-parser as the template
+    // parser here; parserOptions.parser is the *inner* sub-parser it
+    // delegates <script> block contents to.
+    files: ["**/*.svelte"],
+    languageOptions: {
+      parser: svelteParser,
+      parserOptions: {
+        parser: tseslint.parser,
+        project: "./tsconfig.json",
+        extraFileExtensions: [".svelte"],
+        svelteConfig,
+      },
+    },
+    rules: {
+      "svelte/valid-compile": ["warn", { ignoreWarnings: false }],
+      "no-inner-declarations": "off",
+    },
+  },
+  // Must come last: turns off stylistic rules (quotes, semi, indent, ...)
+  // that would otherwise fight Prettier, which now owns all formatting.
+  prettier,
 ]);
