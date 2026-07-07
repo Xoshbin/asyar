@@ -221,9 +221,9 @@ TABLE_FILE="$RESULTS_DIR/table.md"
   row "App size on disk" size_mb "MB"
   echo
   echo "<sub>Measured $DATE_UTC on a $CHIP (${RAM_GB} GB RAM), macOS $MACOS_VER, each app"
-  echo "as installed with default hotkeys, one at a time on a quiet machine. Black-box"
-  echo "measurement: synthetic hotkey press → launcher window on screen. Reproduce with"
-  echo "[\`benchmarks/bench.sh\`](benchmarks/README.md).</sub>"
+  echo "as installed, summoned by its own registered global hotkey, one at a time on a"
+  echo "quiet machine. Black-box measurement: synthetic hotkey press → launcher window"
+  echo "on screen. Reproduce with [\`benchmarks/bench.sh\`](benchmarks/README.md).</sub>"
 } > "$TABLE_FILE"
 
 {

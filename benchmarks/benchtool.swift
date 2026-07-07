@@ -269,17 +269,30 @@ func cmdCpu(_ bundle: String, seconds: Int) {
         fputs("error: no running process found for \(bundle)\n", stderr)
         exit(1)
     }
-    func sample(_ pids: [pid_t]) -> UInt64 {
-        pids.compactMap(cpuTimeNs).reduce(0, +)
+    // Deltas must be computed per process: helper/XPC processes can exit
+    // mid-window (taking their accumulated CPU time with them), and a
+    // group-total subtraction would then underflow to a giant number.
+    var startNs: [pid_t: UInt64] = [:]
+    for pid in g0 {
+        if let ns = cpuTimeNs(pid) { startNs[pid] = ns }
     }
-    let c0 = sample(g0)
     let t0 = nowNs()
     sleep(UInt32(seconds))
-    let g1 = Array(Set(g0).union(processGroup(bundlePath: bundle)))
-    let c1 = sample(g1)
     let wallNs = nowNs() - t0
-    let pct = Double(c1 &- c0) / Double(wallNs) * 100
-    print("cpu_pct=\(String(format: "%.2f", max(0, pct)))")
+    var deltaNs: UInt64 = 0
+    for pid in Set(processGroup(bundlePath: bundle)) {
+        guard let end = cpuTimeNs(pid) else { continue }
+        if let start = startNs[pid] {
+            if end > start { deltaNs += end - start }  // end < start ⇒ reused PID; skip
+        } else {
+            // born during the window, so all of its CPU time counts
+            deltaNs += end
+        }
+    }
+    // Processes that exited during the window are undercounted slightly;
+    // for an idle measurement that error is negligible and conservative.
+    let pct = Double(deltaNs) / Double(wallNs) * 100
+    print("cpu_pct=\(String(format: "%.2f", pct))")
 }
 
 /// Dismiss the launcher window and report whether it is really gone.
