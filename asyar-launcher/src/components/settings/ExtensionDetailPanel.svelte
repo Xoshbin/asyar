@@ -41,7 +41,11 @@
   // Consent status is re-derived per selection via IPC: the settings window
   // is a separate webview, so it cannot see the main window's in-memory
   // needs-review state — but the Rust registry it queries is global.
+  // consentVersion re-runs this after an acceptance recorded outside this
+  // panel (e.g. the enable-toggle flow), so the badge clears immediately.
   $effect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    permissionConsentService.consentVersion; // touch to subscribe
     const ext = extension;
     needsPermissionReview = false;
     if (ext?.id && !ext.isBuiltIn && (ext.permissions?.length ?? 0) > 0) {

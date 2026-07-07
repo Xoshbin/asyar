@@ -37,6 +37,14 @@ class PermissionConsentService {
    */
   needsReview = $state<string[]>([]);
 
+  /**
+   * Bumped whenever a consent record is written in this webview. UI that
+   * derives consent state via `checkExtensionConsent` (e.g. the settings
+   * detail panel's needs-review badge) reads this in its $effect so it
+   * re-checks after an acceptance recorded outside its own flow.
+   */
+  consentVersion = $state(0);
+
   private queue: QueuedRequest[] = [];
   private activeResolver: ((accepted: boolean) => void) | null = null;
 
@@ -128,6 +136,7 @@ class PermissionConsentService {
       status.declaredArgs,
     );
     this.markReviewed(extensionId);
+    this.consentVersion++;
     return true;
   }
 

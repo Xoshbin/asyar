@@ -83,6 +83,7 @@ describe('permissionConsentService', () => {
       consented: null,
     });
 
+    const versionBefore = permissionConsentService.consentVersion;
     const promise = permissionConsentService.ensureConsent('ext.a', 'Ext A', 'update');
     await vi.waitFor(() => {
       expect(permissionConsentService.activeRequest).not.toBeNull();
@@ -97,6 +98,7 @@ describe('permissionConsentService', () => {
     expect(registerExtensionPermissions).toHaveBeenCalledWith('ext.a', ['fs:watch'], {
       'fs:watch': ['~/a/**'],
     });
+    expect(permissionConsentService.consentVersion).toBe(versionBefore + 1);
   });
 
   it('ensureConsent neither persists nor registers on decline', async () => {
