@@ -8,11 +8,11 @@
 
 | Metric                                 | Asyar 0.1.1-34 | Raycast 1.104.21 | Raycast Beta 0.67.1.0 |
 | -------------------------------------- | -------------: | ---------------: | --------------------: |
-| Hotkey → window visible (median of 15) |        18.6 ms |          18.1 ms |               21.0 ms |
-| Hotkey → window visible (p95)          |        23.0 ms |          22.1 ms |               24.3 ms |
-| Cold start → usable                    |         427 ms |           906 ms |                964 ms |
-| Memory footprint, idle (all processes) |       431.8 MB |         308.0 MB |              484.4 MB |
-| CPU while idle (30s average)           |         0.75 % |           1.13 % |                4.15 % |
+| Hotkey → window visible (median of 15) |        15.8 ms |          18.4 ms |               16.5 ms |
+| Hotkey → window visible (p95)          |        19.5 ms |          21.1 ms |               26.6 ms |
+| Cold start → usable                    |         559 ms |           894 ms |                942 ms |
+| Memory footprint, idle (all processes) |       426.1 MB |         294.7 MB |              486.0 MB |
+| CPU while idle (30s average)           |         0.72 % |           1.12 % |                1.92 % |
 | App size on disk                       |         384 MB |           133 MB |                178 MB |
 
 <sub>Measured 2026-07-07 on a Apple M4 Max (36 GB RAM), macOS 26.5.2, each app
@@ -23,106 +23,106 @@ on screen. Reproduce with [`benchmarks/bench.sh`](benchmarks/README.md).</sub>
 ## Raw output — Asyar 0.1.1-34
 
 ```
-coldstart_ms=427
-run=1 ms=27.1
-run=2 ms=18.6
-run=3 ms=23.0
-run=4 ms=19.2
-run=5 ms=21.0
-run=6 ms=16.0
-run=7 ms=13.7
-run=8 ms=15.6
+coldstart_ms=559
+run=1 ms=19.5
+run=2 ms=19.3
+run=3 ms=14.9
+run=4 ms=16.2
+run=5 ms=15.2
+run=6 ms=15.2
+run=7 ms=17.2
+run=8 ms=15.8
 run=9 ms=16.3
-run=10 ms=15.7
-run=11 ms=20.8
-run=12 ms=17.2
-run=13 ms=8.5
-run=14 ms=22.0
-run=15 ms=23.0
-median_ms=18.6
-p95_ms=23.0
-min_ms=8.5
-process pid=91440 mb=147.3 name=asyar
-process pid=91443 mb=18.7 name=com.apple.WebKit.GPU
-process pid=91444 mb=5.9 name=com.apple.WebKit.Networking
-process pid=91445 mb=139.3 name=com.apple.WebKit.WebContent
-process pid=91446 mb=87.3 name=com.apple.WebKit.WebContent
-process pid=91447 mb=18.5 name=com.apple.WebKit.WebContent
-process pid=91449 mb=5.2 name=com.apple.audio.SandboxHelper
-process pid=91462 mb=9.5 name=com.apple.SafariPlatformSupport.Helper
+run=10 ms=15.6
+run=11 ms=19.2
+run=12 ms=20.5
+run=13 ms=13.5
+run=14 ms=9.0
+run=15 ms=15.0
+median_ms=15.8
+p95_ms=19.5
+min_ms=9.0
+process pid=94684 mb=148.4 name=asyar
+process pid=94686 mb=18.7 name=com.apple.WebKit.GPU
+process pid=94687 mb=6.4 name=com.apple.WebKit.Networking
+process pid=94688 mb=134.5 name=com.apple.WebKit.WebContent
+process pid=94689 mb=85.1 name=com.apple.WebKit.WebContent
+process pid=94690 mb=18.4 name=com.apple.WebKit.WebContent
+process pid=94691 mb=5.2 name=com.apple.audio.SandboxHelper
+process pid=94701 mb=9.4 name=com.apple.SafariPlatformSupport.Helper
 process_count=8
-total_mb=431.8
-cpu_pct=0.75
+total_mb=426.1
+cpu_pct=0.72
 size_mb=384
 ```
 
 ## Raw output — Raycast 1.104.21
 
 ```
-coldstart_ms=906
-run=1 ms=20.4
-run=2 ms=17.1
-run=3 ms=17.2
-run=4 ms=17.4
-run=5 ms=22.1
-run=6 ms=22.7
-run=7 ms=14.8
+coldstart_ms=894
+run=1 ms=21.1
+run=2 ms=17.4
+run=3 ms=20.0
+run=4 ms=16.0
+run=5 ms=17.2
+run=6 ms=14.4
+run=7 ms=19.5
 run=8 ms=17.8
-run=9 ms=21.5
-run=10 ms=18.1
-run=11 ms=19.7
-run=12 ms=16.0
-run=13 ms=19.9
-run=14 ms=17.5
-run=15 ms=20.8
-median_ms=18.1
-p95_ms=22.1
-min_ms=14.8
-process pid=91586 mb=187.3 name=Raycast
-process pid=91608 mb=9.7 name=com.apple.SafariPlatformSupport.Helper
-process pid=91626 mb=60.5 name=ollama
-process pid=91631 mb=5.6 name=com.apple.WebKit.GPU
-process pid=91632 mb=7.2 name=com.apple.WebKit.Networking
-process pid=91633 mb=32.5 name=com.apple.WebKit.WebContent
-process pid=91636 mb=5.2 name=com.apple.audio.SandboxHelper
+run=9 ms=16.9
+run=10 ms=22.8
+run=11 ms=20.9
+run=12 ms=19.9
+run=13 ms=18.4
+run=14 ms=14.7
+run=15 ms=19.3
+median_ms=18.4
+p95_ms=21.1
+min_ms=14.4
+process pid=94919 mb=185.2 name=Raycast
+process pid=94941 mb=9.9 name=com.apple.SafariPlatformSupport.Helper
+process pid=94960 mb=49.1 name=ollama
+process pid=94965 mb=5.6 name=com.apple.WebKit.GPU
+process pid=94966 mb=7.2 name=com.apple.WebKit.Networking
+process pid=94967 mb=32.5 name=com.apple.WebKit.WebContent
+process pid=94970 mb=5.2 name=com.apple.audio.SandboxHelper
 process_count=7
-total_mb=308.0
-cpu_pct=1.13
+total_mb=294.7
+cpu_pct=1.12
 size_mb=133
 ```
 
 ## Raw output — Raycast Beta 0.67.1.0
 
 ```
-coldstart_ms=964
-run=1 ms=16.3
-run=2 ms=20.0
-run=3 ms=23.1
-run=4 ms=20.5
-run=5 ms=21.0
-run=6 ms=24.9
-run=7 ms=20.2
-run=8 ms=21.8
-run=9 ms=20.7
-run=10 ms=20.1
-run=11 ms=20.1
-run=12 ms=22.5
-run=13 ms=22.3
-run=14 ms=24.2
-run=15 ms=24.3
-median_ms=21.0
-p95_ms=24.3
-min_ms=16.3
-process pid=91873 mb=45.3 name=Raycast Beta
-process pid=91878 mb=18.9 name=com.apple.WebKit.GPU
-process pid=91879 mb=15.7 name=com.apple.WebKit.Networking
-process pid=91882 mb=255.3 name=node
-process pid=91885 mb=5.3 name=com.apple.audio.SandboxHelper
-process pid=91886 mb=3.2 name=com.raycast-x.macos.Accessibility
-process pid=91887 mb=4.7 name=com.raycast-x.macos.Pasteboard
-process pid=91900 mb=136.1 name=com.apple.WebKit.WebContent
+coldstart_ms=942
+run=1 ms=17.9
+run=2 ms=24.1
+run=3 ms=15.5
+run=4 ms=15.6
+run=5 ms=26.6
+run=6 ms=16.0
+run=7 ms=29.4
+run=8 ms=16.5
+run=9 ms=20.1
+run=10 ms=16.0
+run=11 ms=20.4
+run=12 ms=15.8
+run=13 ms=15.1
+run=14 ms=23.4
+run=15 ms=15.3
+median_ms=16.5
+p95_ms=26.6
+min_ms=15.1
+process pid=95102 mb=44.6 name=Raycast Beta
+process pid=95105 mb=18.8 name=com.apple.WebKit.GPU
+process pid=95106 mb=15.7 name=com.apple.WebKit.Networking
+process pid=95108 mb=236.9 name=node
+process pid=95109 mb=5.2 name=com.apple.audio.SandboxHelper
+process pid=95110 mb=3.2 name=com.raycast-x.macos.Accessibility
+process pid=95111 mb=4.7 name=com.raycast-x.macos.Pasteboard
+process pid=95133 mb=157.0 name=com.apple.WebKit.WebContent
 process_count=8
-total_mb=484.4
-cpu_pct=4.15
+total_mb=486.0
+cpu_pct=1.92
 size_mb=178
 ```
