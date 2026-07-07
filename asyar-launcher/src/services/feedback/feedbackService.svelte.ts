@@ -14,8 +14,14 @@ export interface NoticeOptions {
   title: string;
   message?: string;
   style: 'success' | 'failure';
-  /** Auto-dismiss delay. Defaults to 6000ms. */
+  /** Auto-dismiss delay. Defaults to 6000ms. Ignored when `onClick` is set. */
   durationMs?: number;
+  /**
+   * Makes the notice actionable: clicking the toast runs this and dismisses.
+   * Actionable notices are sticky — they stay until clicked or explicitly
+   * dismissed via the ✕ (a timed popup for something the user must act on is
+   * a race against the timer).
+   */
   onClick?: () => void;
 }
 
@@ -89,6 +95,7 @@ class FeedbackService implements IFeedbackService {
       style: options.style,
       onClick: options.onClick,
     };
+    if (options.onClick) return; // actionable notices are sticky
     setTimeout(() => {
       if (this.activeToast?.id === id) {
         this.activeToast = null;
@@ -102,6 +109,11 @@ class FeedbackService implements IFeedbackService {
     if (!toast?.onClick) return;
     this.activeToast = null;
     toast.onClick();
+  }
+
+  /** Called by `<ToastHost />` when a sticky toast's ✕ is clicked. */
+  onToastDismissed(): void {
+    this.activeToast = null;
   }
 
   async updateToast(toastId: string, options: Partial<ShowToastOptions>): Promise<void> {

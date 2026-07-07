@@ -24,14 +24,18 @@
 {#if feedbackService.activeToast}
   {@const toast = feedbackService.activeToast}
   {#if toast.onClick}
-    <button
-      class="toast-host toast-clickable"
-      transition:fadeIn={{ duration: 150 }}
-      data-style={toast.style}
-      onclick={() => feedbackService.onToastClicked()}
-    >
-      {@render toastBody(toast)}
-    </button>
+    <div class="toast-host toast-clickable" transition:fadeIn={{ duration: 150 }} data-style={toast.style}>
+      <button class="toast-action" onclick={() => feedbackService.onToastClicked()}>
+        {@render toastBody(toast)}
+      </button>
+      <button
+        class="toast-dismiss"
+        aria-label="Dismiss notification"
+        onclick={() => feedbackService.onToastDismissed()}
+      >
+        ✕
+      </button>
+    </div>
   {:else}
     <div
       class="toast-host"
@@ -70,17 +74,45 @@
     background-color: var(--bg-popup);
   }
 
-  /* Clickable variant renders as a <button>: undo UA styles, allow clicks. */
+  /* Actionable variant: body button runs the action, ✕ dismisses. */
   .toast-clickable {
     pointer-events: auto;
-    cursor: pointer;
-    font: inherit;
-    text-align: left;
-    color: inherit;
   }
 
   .toast-clickable:hover {
     border-color: var(--accent-primary);
+  }
+
+  .toast-action {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .toast-dismiss {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    padding: 2px 5px;
+    border-radius: var(--radius-xs);
+    font-size: 11px;
+    line-height: 1;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+
+  .toast-dismiss:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
   }
 
   .toast-icon {

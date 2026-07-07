@@ -74,11 +74,30 @@ describe('notice', () => {
     }
   });
 
+  it('actionable notices are sticky — no auto-dismiss', () => {
+    vi.useFakeTimers();
+    try {
+      feedbackService.notice({ title: 'Clickable', style: 'failure', onClick: vi.fn() });
+      vi.advanceTimersByTime(60_000);
+      expect(feedbackService.activeToast?.title).toBe('Clickable');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('onToastClicked runs onClick and dismisses', () => {
     const onClick = vi.fn();
     feedbackService.notice({ title: 'Clickable', style: 'failure', onClick });
     feedbackService.onToastClicked();
     expect(onClick).toHaveBeenCalledOnce();
+    expect(feedbackService.activeToast).toBeNull();
+  });
+
+  it('onToastDismissed clears without running onClick', () => {
+    const onClick = vi.fn();
+    feedbackService.notice({ title: 'Clickable', style: 'failure', onClick });
+    feedbackService.onToastDismissed();
+    expect(onClick).not.toHaveBeenCalled();
     expect(feedbackService.activeToast).toBeNull();
   });
 
