@@ -57,16 +57,27 @@
     syncToggleState = cloudSyncService.enabled;
   });
 
+  function revertSyncToggle(previous: boolean, reason: string) {
+    logService.error(`[AccountTab] toggling cloud sync failed: ${reason}`);
+    syncToggleState = previous;
+    // updateSettings mutates the in-memory settings BEFORE saving, so a
+    // failed save leaves the new value live (and the sync watcher acting
+    // on it) — re-reading cloudSyncService.enabled here would return the
+    // value that just failed to persist. Write the old value back so the
+    // UI, the in-memory settings, and the service agree again; if
+    // persistence is still failing this at least restores the in-session
+    // state.
+    settingsService.updateSettings('user', { syncEnabled: previous }).catch(() => {});
+  }
+
   function onSyncToggleClick(target: boolean) {
+    const previous = cloudSyncService.enabled;
     settingsService
       .updateSettings('user', { syncEnabled: target })
       .then((ok) => {
-        if (!ok) syncToggleState = cloudSyncService.enabled;
+        if (!ok) revertSyncToggle(previous, 'settings save returned false');
       })
-      .catch((err) => {
-        logService.error(`[AccountTab] toggling cloud sync failed: ${err}`);
-        syncToggleState = cloudSyncService.enabled;
-      });
+      .catch((err) => revertSyncToggle(previous, String(err)));
   }
 
   function resetToggle() {
