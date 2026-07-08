@@ -58,6 +58,7 @@ describe('permissionCatalog', () => {
       'browser:page.read',
       'browser:page.write',
       'files:search',
+      'files:read',
     ];
     for (const permission of gatedPermissions) {
       expect(describePermission(permission).known, `missing catalog entry: ${permission}`).toBe(

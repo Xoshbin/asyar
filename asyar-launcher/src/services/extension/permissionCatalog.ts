@@ -70,6 +70,11 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     title: 'Search local files',
     description: 'Search the local file index (file names and metadata, not file contents).',
   },
+  'files:read': {
+    title: 'Read file contents',
+    description:
+      'Read the text contents of files matching the declared path patterns. Credential stores and OS locations are always excluded.',
+  },
   'shell:spawn': {
     title: 'Run programs',
     description: 'Spawn OS processes and read their output. Grants broad system access.',

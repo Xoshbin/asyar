@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { invokeSafe, invokeSafeVoid } from './invokeSafe';
 import type { FileHit, FileIndexConfig, FileSearchResponse, IndexStatus } from '../../bindings';
 
@@ -68,4 +69,17 @@ export async function quickLookPath(pathStr: string): Promise<boolean> {
  * `$APPDATA/clipboard_cache/**`). */
 export async function readTextPreview(pathStr: string, maxBytes?: number): Promise<string | null> {
   return invokeSafe<string>('read_text_preview', { pathStr, maxBytes });
+}
+
+/** Extension-scoped bounded content read (`asyar:api:files:read` →
+ * `files_read_text`). Raw `invoke` rather than `invokeSafe` deliberately:
+ * a permission/scope denial must propagate to the calling extension as an
+ * error, not collapse into a null that's indistinguishable from an empty
+ * file. */
+export async function filesReadText(
+  extensionId: string | null,
+  pathStr: string,
+  maxBytes?: number,
+): Promise<string> {
+  return invoke<string>('files_read_text', { extensionId, pathStr, maxBytes });
 }

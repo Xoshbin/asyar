@@ -83,6 +83,7 @@ export const INJECTS_EXTENSION_ID = new Set<Namespace>([
 export const ALWAYS_INJECTS_CALLER_ID = new Set<Namespace>([
   'network',
   'applicationIndex',
+  'files',
 ] as const satisfies readonly Namespace[]);
 
 export class ExtensionIpcRouter {

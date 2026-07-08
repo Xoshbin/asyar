@@ -439,46 +439,64 @@ pub struct ThemeFontEntry {
 }
 
 /// Cross-validate `permissions` and `permission_args` on a loaded
-/// manifest. Enforces: `fs:watch` declared iff `permission_args["fs:watch"]`
-/// is present; value is `Array<String>`; every string is a valid manifest
-/// pattern (see `fs_watcher::matcher::validate_manifest_pattern`).
+/// manifest. Enforces, for each parameterized permission (`fs:watch`,
+/// `files:read`): declared iff its `permission_args` entry is present;
+/// value is `Array<String>`; every string passes the permission's own
+/// pattern validator. `fs:watch` patterns must anchor under `$HOME` or
+/// `/tmp` (`fs_watcher::matcher::validate_manifest_pattern`); `files:read`
+/// patterns may anchor anywhere (`files_scope::validate_files_read_pattern`)
+/// — a one-shot bounded read is a different risk profile than a standing
+/// watch, and the read scope is user-consented and deny-listed instead.
 pub fn validate_permission_args(m: &ExtensionManifest) -> Result<(), AppError> {
-    let has_fs_watch = m
+    validate_string_array_permission(m, "fs:watch", |s| {
+        let home =
+            dirs::home_dir().ok_or_else(|| AppError::Other("could not determine $HOME".into()))?;
+        crate::fs_watcher::matcher::validate_manifest_pattern(s, &home)
+    })?;
+    validate_string_array_permission(m, "files:read", |s| {
+        crate::files_scope::validate_files_read_pattern(s)
+    })?;
+    Ok(())
+}
+
+/// Shared "declared iff args present, args are a validated string array"
+/// rule for parameterized permissions.
+fn validate_string_array_permission(
+    m: &ExtensionManifest,
+    permission: &str,
+    validate_entry: impl Fn(&str) -> Result<(), AppError>,
+) -> Result<(), AppError> {
+    let declared = m
         .permissions
         .as_ref()
-        .map(|list| list.iter().any(|p| p == "fs:watch"))
+        .map(|list| list.iter().any(|p| p == permission))
         .unwrap_or(false);
-    let fs_watch_args = m
+    let args = m
         .permission_args
         .as_ref()
-        .and_then(|map| map.get("fs:watch"));
+        .and_then(|map| map.get(permission));
 
-    match (has_fs_watch, fs_watch_args) {
+    match (declared, args) {
         (false, None) => Ok(()),
-        (true, None) => Err(AppError::Validation(
-            "manifest declares permission 'fs:watch' but no permissionArgs.fs:watch entry"
-                .into(),
-        )),
-        (false, Some(_)) => Err(AppError::Validation(
-            "manifest declares permissionArgs.fs:watch but does not declare 'fs:watch' in permissions"
-                .into(),
-        )),
+        (true, None) => Err(AppError::Validation(format!(
+            "manifest declares permission '{permission}' but no permissionArgs.{permission} entry"
+        ))),
+        (false, Some(_)) => Err(AppError::Validation(format!(
+            "manifest declares permissionArgs.{permission} but does not declare '{permission}' in permissions"
+        ))),
         (true, Some(value)) => {
             let arr = value.as_array().ok_or_else(|| {
-                AppError::Validation(
-                    "permissionArgs.fs:watch must be an array of glob strings".into(),
-                )
-            })?;
-            let home = dirs::home_dir().ok_or_else(|| {
-                AppError::Other("could not determine $HOME".into())
+                AppError::Validation(format!(
+                    "permissionArgs.{permission} must be an array of glob strings"
+                ))
             })?;
             for item in arr {
                 let s = item.as_str().ok_or_else(|| {
-                    AppError::Validation(
-                        "permissionArgs.fs:watch entries must be strings".into(),
-                    )
+                    AppError::Validation(format!(
+                        "permissionArgs.{permission} entries must be strings"
+                    ))
                 })?;
-                crate::fs_watcher::matcher::validate_manifest_pattern(s, &home)?;
+                validate_entry(s)?;
             }
             Ok(())
         }
@@ -738,6 +756,90 @@ mod tests {
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
         let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
         assert!(format!("{err}").contains("must resolve"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_manifest_declaring_files_read_without_args() {
+        let tmp = TempDir::new().unwrap();
+        let ext_dir = tmp.path();
+        let manifest = merge_json(
+            valid_manifest_fields(),
+            serde_json::json!({
+                "id": "bad.ext",
+                "name": "Bad",
+                "version": "0.1.0",
+                "permissions": ["files:read"]
+            }),
+        );
+        fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+        let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
+        assert!(format!("{err}").contains("files:read"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_manifest_declaring_files_read_args_without_permission() {
+        let tmp = TempDir::new().unwrap();
+        let ext_dir = tmp.path();
+        let manifest = merge_json(
+            valid_manifest_fields(),
+            serde_json::json!({
+                "id": "bad.ext",
+                "name": "Bad",
+                "version": "0.1.0",
+                "permissionArgs": {
+                    "files:read": ["/tmp/foo"]
+                }
+            }),
+        );
+        fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+        let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
+        assert!(format!("{err}").contains("files:read"), "got: {err}");
+    }
+
+    #[test]
+    fn accepts_manifest_with_files_read_pattern_outside_home() {
+        // The deliberate policy divergence from fs:watch: files:read
+        // patterns may anchor anywhere, including other drives or nowhere
+        // at all.
+        let tmp = TempDir::new().unwrap();
+        let ext_dir = tmp.path();
+        let manifest = merge_json(
+            valid_manifest_fields(),
+            serde_json::json!({
+                "id": "test.files-read-ext",
+                "name": "Files Read Test",
+                "version": "0.1.0",
+                "permissions": ["files:read"],
+                "permissionArgs": {
+                    "files:read": [
+                        "C:/Program Files (x86)/Steam/**",
+                        "**/steamapps/appmanifest_*.acf"
+                    ]
+                }
+            }),
+        );
+        fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+        let m = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap();
+        assert_eq!(m.permissions, Some(vec!["files:read".into()]));
+    }
+
+    #[test]
+    fn rejects_manifest_with_files_read_traversal_pattern() {
+        let tmp = TempDir::new().unwrap();
+        let ext_dir = tmp.path();
+        let manifest = merge_json(
+            valid_manifest_fields(),
+            serde_json::json!({
+                "id": "bad.ext",
+                "name": "Bad",
+                "version": "0.1.0",
+                "permissions": ["files:read"],
+                "permissionArgs": { "files:read": ["~/foo/../../etc/**"] }
+            }),
+        );
+        fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+        let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
+        assert!(format!("{err}").contains(".."), "got: {err}");
     }
 
     #[test]
