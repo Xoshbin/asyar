@@ -1,4 +1,10 @@
-import { fileSearch, fileIndexStatus, filesReadText } from '../../lib/ipc/fileSearchCommands';
+import {
+  fileSearch,
+  fileIndexStatus,
+  filesReadText,
+  filesGlob,
+  filesThumbnail,
+} from '../../lib/ipc/fileSearchCommands';
 import type { FileHit, FileSearchOptions, IndexStatus } from 'asyar-sdk/contracts';
 
 const DISABLED_STATUS: IndexStatus = {
@@ -39,6 +45,22 @@ export class FilesService {
     opts?: { maxBytes?: number } | null,
   ): Promise<string> {
     return filesReadText(callerExtensionId, path, opts?.maxBytes);
+  }
+
+  async glob(
+    callerExtensionId: string | null,
+    pattern: string,
+    opts?: { maxResults?: number } | null,
+  ): Promise<string[]> {
+    return filesGlob(callerExtensionId, pattern, opts?.maxResults);
+  }
+
+  async thumbnail(
+    callerExtensionId: string | null,
+    path: string,
+    opts?: { maxDim?: number } | null,
+  ): Promise<string | null> {
+    return filesThumbnail(callerExtensionId, path, opts?.maxDim);
   }
 }
 

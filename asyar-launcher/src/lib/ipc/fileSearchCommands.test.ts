@@ -25,6 +25,8 @@ import {
   quickLookPath,
   readTextPreview,
   filesReadText,
+  filesGlob,
+  filesThumbnail,
 } from './fileSearchCommands';
 
 const mockInvoke = invoke as ReturnType<typeof vi.fn>;
@@ -227,5 +229,48 @@ describe('filesReadText', () => {
   it('throws (not null) on invoke failure so denials reach the extension', async () => {
     mockInvoke.mockRejectedValue(new Error('not covered'));
     await expect(filesReadText('ext.a', '/etc/shadow')).rejects.toThrow('not covered');
+  });
+});
+
+describe('filesGlob', () => {
+  it('calls invoke with extensionId, pattern, and maxResults', async () => {
+    const paths = ['/opt/steam/appcache/librarycache/105600/dca2.jpg'];
+    mockInvoke.mockResolvedValue(paths);
+    const result = await filesGlob('ext.a', '/opt/steam/appcache/**/*.jpg', 5);
+    expect(mockInvoke).toHaveBeenCalledWith('files_glob', {
+      extensionId: 'ext.a',
+      pattern: '/opt/steam/appcache/**/*.jpg',
+      maxResults: 5,
+    });
+    expect(result).toEqual(paths);
+  });
+
+  it('throws (not null) on invoke failure so scope denials reach the extension', async () => {
+    mockInvoke.mockRejectedValue(new Error('outside the declared files:read scope'));
+    await expect(filesGlob('ext.a', '/**')).rejects.toThrow('outside the declared');
+  });
+});
+
+describe('filesThumbnail', () => {
+  it('calls invoke with extensionId, pathStr, and maxDim', async () => {
+    mockInvoke.mockResolvedValue('asyar-thumb://localhost/abc.png');
+    const result = await filesThumbnail('ext.a', '/opt/steam/art.jpg', 64);
+    expect(mockInvoke).toHaveBeenCalledWith('files_thumbnail', {
+      extensionId: 'ext.a',
+      pathStr: '/opt/steam/art.jpg',
+      maxDim: 64,
+    });
+    expect(result).toBe('asyar-thumb://localhost/abc.png');
+  });
+
+  it('passes through the no-strategy null without treating it as failure', async () => {
+    mockInvoke.mockResolvedValue(null);
+    const result = await filesThumbnail('ext.a', '/opt/steam/notes.txt');
+    expect(result).toBeNull();
+  });
+
+  it('throws (not null) on invoke failure so scope denials reach the extension', async () => {
+    mockInvoke.mockRejectedValue(new Error('not covered'));
+    await expect(filesThumbnail('ext.a', '/etc/shadow.png')).rejects.toThrow('not covered');
   });
 });

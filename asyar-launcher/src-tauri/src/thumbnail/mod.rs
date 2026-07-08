@@ -83,6 +83,23 @@ pub async fn get_or_generate(
     Some(cached)
 }
 
+/// Maps a cached thumbnail path to the URL the webview loads it from —
+/// `http://asyar-thumb.localhost/` on Windows (where custom schemes are
+/// bridged through localhost), `asyar-thumb://localhost/` elsewhere.
+/// Shared by the host preview command and the extension-gated
+/// `files_thumbnail` so both hand out identical URLs.
+pub fn thumb_url(cached_path: &Path) -> Result<String, String> {
+    let filename = cached_path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .ok_or_else(|| "generated thumbnail path has no file name".to_string())?;
+
+    #[cfg(target_os = "windows")]
+    return Ok(format!("http://asyar-thumb.localhost/{filename}"));
+    #[cfg(not(target_os = "windows"))]
+    Ok(format!("asyar-thumb://localhost/{filename}"))
+}
+
 async fn generate(path: &Path, dest: &Path, max_dim: u32) -> Option<()> {
     let path = path.to_path_buf();
     let dest_owned = dest.to_path_buf();

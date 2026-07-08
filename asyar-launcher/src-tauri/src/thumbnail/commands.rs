@@ -27,17 +27,7 @@ pub async fn get_file_thumbnail<R: tauri::Runtime>(
         return Ok(None);
     };
 
-    let filename = cached_path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .ok_or_else(|| "generated thumbnail path has no file name".to_string())?;
-
-    #[cfg(target_os = "windows")]
-    let url = format!("http://asyar-thumb.localhost/{filename}");
-    #[cfg(not(target_os = "windows"))]
-    let url = format!("asyar-thumb://localhost/{filename}");
-
-    Ok(Some(url))
+    super::thumb_url(&cached_path).map(Some)
 }
 
 #[cfg(test)]
