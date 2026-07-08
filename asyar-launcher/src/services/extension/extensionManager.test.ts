@@ -670,6 +670,11 @@ describe('ExtensionManager Characterization Tests', () => {
 
     it('rejects messages from unregistered iframe extensionId', async () => {
       const mockIframeWindow = { postMessage: vi.fn() } as any;
+      // Configure the DOM mock so findExtensionIdForSource resolves 'unknown' from the iframe.
+      vi.mocked(document.querySelectorAll).mockReturnValue([
+        { contentWindow: mockIframeWindow, dataset: { extensionId: 'unknown', role: 'view' } },
+      ] as any);
+
       window.dispatchEvent({
         type: 'message',
         data: { type: 'asyar:api:test', extensionId: 'unknown' },
@@ -703,6 +708,10 @@ describe('ExtensionManager Characterization Tests', () => {
       // @ts-ignore
       extensionManager.manifestsById.set('ext1', { id: 'ext1', permissions: ['native-api'] });
       vi.mocked(commands.checkExtensionPermission).mockResolvedValue({ allowed: true } as any);
+      // DOM mock so findExtensionIdForSource resolves 'ext1' from the iframe.
+      vi.mocked(document.querySelectorAll).mockReturnValue([
+        { contentWindow: mockIframeWindow, dataset: { extensionId: 'ext1', role: 'view' } },
+      ] as any);
 
       window.dispatchEvent({
         type: 'message',
@@ -753,6 +762,10 @@ describe('ExtensionManager Characterization Tests', () => {
       // @ts-ignore
       extensionManager.manifestsById.set('ext1', { id: 'ext1', permissions: [] });
       vi.mocked(commands.checkExtensionPermission).mockResolvedValue({ allowed: true } as any);
+      // DOM mock so findExtensionIdForSource resolves 'ext1' from the iframe.
+      vi.mocked(document.querySelectorAll).mockReturnValue([
+        { contentWindow: mockIframeWindow, dataset: { extensionId: 'ext1', role: 'view' } },
+      ] as any);
 
       window.dispatchEvent({
         type: 'message',
@@ -773,6 +786,10 @@ describe('ExtensionManager Characterization Tests', () => {
         reason: 'No permission',
         requiredPermission: 'log',
       } as any);
+      // DOM mock so findExtensionIdForSource resolves 'ext1' from the iframe.
+      vi.mocked(document.querySelectorAll).mockReturnValue([
+        { contentWindow: mockIframeWindow, dataset: { extensionId: 'ext1', role: 'view' } },
+      ] as any);
 
       window.dispatchEvent({
         type: 'message',
