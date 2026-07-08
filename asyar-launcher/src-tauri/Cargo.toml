@@ -62,6 +62,7 @@ zip = { version = "2.1", default-features = false, features = ["deflate"] } # Fo
 futures-util = "0.3" # For stream handling
 tokio-util = { version = "0.7", features = ["codec"] } # For async file I/O helpers
 tempfile = "3.10" # For temporary file handling
+dunce = "1" # Canonicalize without Windows verbatim (\\?\) prefixes, which break Path::starts_with against normal-form roots
 async_zip = { version = "0.0.17", features = ["full", "tokio"] } # Enable tokio feature
 # Force `async_zip`'s transitive liblzma to compile from vendored xz sources
 # instead of dynamic-linking the host's system liblzma. macOS CI runners ship

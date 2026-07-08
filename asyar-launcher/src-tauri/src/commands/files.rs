@@ -232,17 +232,32 @@ pub(crate) fn files_read_text_inner(
     // reasoning as fs:watch's coverage check.
     files_scope::path_covered_by_patterns(&patterns, &normalized, home)?;
     files_scope::check_path_denied(&normalized, home, extra_deny)?;
-    // Canonicalize to resolve symlinks, then re-check the deny-list on the
-    // real location: a covered path must not launder a read out of a
-    // protected one through a symlink.
-    let canonical = normalized.canonicalize().map_err(|e| {
+    // Canonicalize to resolve symlinks, then re-run BOTH checks against the
+    // real location: a covered path must not launder a read out of scope —
+    // neither into a protected root nor into an arbitrary uncovered file —
+    // through a symlink or junction. `dunce` (not `Path::canonicalize`)
+    // because Windows canonicalization yields verbatim `\\?\C:\...` paths,
+    // whose prefix component never `starts_with`-matches a normal-form
+    // root and never glob-matches an anchored pattern. The comparison
+    // anchors (home, deny roots) are canonicalized too, so a symlinked
+    // home or app-data dir can't skew the re-check; entries that don't
+    // exist keep their literal form.
+    let canonical = dunce::canonicalize(&normalized).map_err(|e| {
         AppError::Validation(format!(
             "files:read path '{}' does not exist or is not accessible: {}",
             normalized.display(),
             e
         ))
     })?;
-    files_scope::check_path_denied(&canonical, home, extra_deny)?;
+    let canonical_home = dunce::canonicalize(home).unwrap_or_else(|_| home.to_path_buf());
+    let canonical_extra_deny: Vec<PathBuf> = extra_deny
+        .iter()
+        .map(|p| dunce::canonicalize(p).unwrap_or_else(|_| p.clone()))
+        .collect();
+    // Deny first so laundering into a protected root reports the specific
+    // "protected location" error rather than the generic coverage miss.
+    files_scope::check_path_denied(&canonical, &canonical_home, &canonical_extra_deny)?;
+    files_scope::path_covered_by_patterns(&patterns, &canonical, &canonical_home)?;
     let cap = max_bytes
         .map(u64::from)
         .unwrap_or(50_000)
@@ -615,6 +630,71 @@ mod tests {
 
         let err = files_read_text_inner(&perms, "ext.a", link.to_str().unwrap(), None, &home, &[])
             .unwrap_err();
+        assert!(
+            format!("{err}").contains("protected location"),
+            "got: {err}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn files_read_inner_denies_symlink_out_of_declared_scope() {
+        // A symlink inside a covered glob must not read an arbitrary file
+        // that is neither covered nor deny-listed: coverage is re-checked
+        // against the canonical (resolved) path.
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let outside = TempDir::new().unwrap();
+        let secret = outside.path().canonicalize().unwrap().join("private.txt");
+        std::fs::write(&secret, "private").unwrap();
+        let link = root.join("innocent.txt");
+        std::os::unix::fs::symlink(&secret, &link).unwrap();
+
+        let err = files_read_text_inner(&perms, "ext.a", link.to_str().unwrap(), None, &root, &[])
+            .unwrap_err();
+        assert!(format!("{err}").contains("not covered"), "got: {err}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn files_read_inner_deny_roots_hold_under_symlinked_home() {
+        // Home itself is reached through a symlink. A covered symlink into
+        // `<real home>/.ssh` must still be denied: the deny roots are
+        // rebuilt from the CANONICAL home for the post-resolution check.
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path().canonicalize().unwrap();
+        let real_home = base.join("real-home");
+        std::fs::create_dir_all(real_home.join(".ssh")).unwrap();
+        std::fs::write(real_home.join(".ssh/secret"), "PRIVATE").unwrap();
+        std::fs::create_dir_all(real_home.join("docs")).unwrap();
+        let link_home = base.join("link-home");
+        std::os::unix::fs::symlink(&real_home, &link_home).unwrap();
+        let laundered = real_home.join("docs/launder");
+        std::os::unix::fs::symlink(real_home.join(".ssh/secret"), &laundered).unwrap();
+
+        let perms = ExtensionPermissionRegistry::default();
+        let mut args = HashMap::new();
+        args.insert(
+            "files:read".to_string(),
+            serde_json::json!([
+                "~/docs/**",
+                format!("{}/docs/**", real_home.to_string_lossy())
+            ]),
+        );
+        perms.register("ext.a", HashSet::from(["files:read".to_string()]), args);
+
+        // `home` is passed in its symlinked form; without canonicalizing it,
+        // deny roots would anchor under link-home and never match the
+        // canonical secret path under real-home.
+        let err = files_read_text_inner(
+            &perms,
+            "ext.a",
+            laundered.to_str().unwrap(),
+            None,
+            &link_home,
+            &[],
+        )
+        .unwrap_err();
         assert!(
             format!("{err}").contains("protected location"),
             "got: {err}"

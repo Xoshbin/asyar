@@ -77,8 +77,10 @@ pub fn validate_files_read_pattern(pattern: &str) -> Result<(), AppError> {
 
 /// Check that `requested` is matched by at least one declared pattern.
 /// Patterns are tilde-expanded and compiled into a `GlobSet`; on Windows
-/// they match case-insensitively (NTFS path semantics — a pattern of
-/// `D:/SteamLibrary/**` must cover `d:/steamlibrary/...`).
+/// and macOS they match case-insensitively (NTFS and default-APFS path
+/// semantics — a pattern of `D:/SteamLibrary/**` must cover
+/// `d:/steamlibrary/...`), keeping coverage consistent with the deny-list
+/// comparison below.
 pub fn path_covered_by_patterns(
     patterns: &[String],
     requested: &Path,
@@ -94,7 +96,7 @@ pub fn path_covered_by_patterns(
         let expanded = expand_tilde(p, home);
         let as_str = expanded.to_string_lossy().into_owned();
         let glob = globset::GlobBuilder::new(&as_str)
-            .case_insensitive(cfg!(windows))
+            .case_insensitive(CASE_INSENSITIVE_FS)
             .build()
             .map_err(|e| {
                 AppError::Validation(format!(
@@ -148,13 +150,20 @@ pub fn check_path_denied(path: &Path, home: &Path, extra_deny: &[PathBuf]) -> Re
     Ok(())
 }
 
-/// Component-wise prefix check, case-insensitive on Windows (where the
-/// filesystem is) so `c:\windows\...` can't sidestep a `C:\Windows` root.
+/// Platforms whose default filesystems compare paths case-insensitively
+/// (NTFS; APFS/HFS+ as shipped). The deny-list fails OPEN on a case
+/// mismatch, so both the glob coverage and the prefix check below must
+/// follow the filesystem's semantics.
+const CASE_INSENSITIVE_FS: bool = cfg!(any(windows, target_os = "macos"));
+
+/// Component-wise prefix check, case-insensitive on Windows and macOS so
+/// `c:\windows\...` or `~/library/keychains/...` can't sidestep a
+/// protected root.
 fn starts_with_case_aware(path: &Path, root: &Path) -> bool {
     if path.starts_with(root) {
         return true;
     }
-    if cfg!(windows) {
+    if CASE_INSENSITIVE_FS {
         let p = path.to_string_lossy().to_lowercase();
         let r = root.to_string_lossy().to_lowercase();
         return Path::new(&p).starts_with(Path::new(&r));
