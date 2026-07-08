@@ -296,6 +296,10 @@
                 id="form-name"
                 class="field-input"
                 type="text"
+                autocapitalize="none"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
                 bind:value={formName}
                 placeholder="e.g. My Email"
               />
@@ -309,6 +313,10 @@
                 id="form-keyword"
                 class="field-input"
                 type="text"
+                autocapitalize="none"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
                 bind:value={formKeyword}
                 placeholder="e.g. ;email"
               />
@@ -319,6 +327,10 @@
                   <textarea
                     id="form-expansion"
                     class="field-textarea"
+                    autocapitalize="none"
+                    autocomplete="off"
+                    autocorrect="off"
+                    spellcheck="false"
                     bind:value={formExpansion}
                     bind:this={formExpansionEl}
                     oninput={handleExpansionInput}
