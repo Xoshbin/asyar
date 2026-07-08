@@ -79,6 +79,7 @@ pub mod network;
 pub mod notifications;
 pub mod oauth;
 pub mod onboarding;
+pub mod opener_scope;
 pub mod permissions;
 pub mod platform;
 pub mod power;
@@ -344,6 +345,7 @@ pub fn run() {
             commands::browser::browser_activate_tab,
             commands::browser::browser_close_tab,
             commands::browser::browser_open_url,
+            commands::opener_open_url,
             commands::browser::browser_list_paired_browsers,
             commands::browser::browser_list_pending_pairings,
             commands::browser::browser_resolve_pairing,

@@ -129,7 +129,11 @@ export interface IBrowserService {
   /** Closes the given tab. Requires `browser:tabs.control`. */
   closeTab(tabId: string): Promise<void>;
 
-  /** Opens the URL in the requested target. Requires `browser:openUrl`. */
+  /** Opens the URL in the requested target. Requires `browser:tabs.write`.
+   * The URL's scheme must be a web default (`http`, `https`, `mailto`,
+   * `tel`) or one the extension declared in
+   * `permissionArgs["shell:open-url"]`; anything else rejects — including
+   * schemeless/relative URLs. */
   openUrl(url: string, target?: OpenUrlTarget): Promise<void>;
 
   /** Lists browser families/variants currently paired with the companion bridge. */

@@ -81,9 +81,26 @@ pub async fn browser_close_tab(
 #[tauri::command]
 pub async fn browser_open_url(
     bridge: State<'_, BridgeState>,
+    permissions: State<'_, crate::permissions::ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
     url: String,
     target: Option<OpenUrlTarget>,
 ) -> Result<(), String> {
+    // Extension callers pass the declared-scheme gate before any open
+    // strategy: with no companion connected, the OsDefault branch reaches
+    // the plugin's scope-free Rust-side open_url, which performs no check
+    // of its own. Bare browser:tabs.write means web schemes only;
+    // permissionArgs["shell:open-url"] extends it — the same allowlist the
+    // opener path enforces. Host callers (no extension identity) are
+    // unchanged.
+    if extension_id.is_some() {
+        permissions
+            .check(&extension_id, "browser:tabs.write")
+            .map_err(|e| e.to_string())?;
+        let ext = extension_id.as_deref().unwrap_or_default();
+        let declared = crate::opener_scope::declared_schemes(&permissions, ext);
+        crate::opener_scope::check_url_allowed(&url, &declared).map_err(|e| e.to_string())?;
+    }
     BrowserService::new()
         .open_url(bridge.inner(), url, target)
         .await

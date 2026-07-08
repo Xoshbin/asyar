@@ -44,12 +44,12 @@
   }
 
   async function refresh() {
-    availableBrowsers = await browserService.listAvailableBrowsers();
-    pairedBrowsers = await browserService.listPairedBrowsers();
+    availableBrowsers = await browserService.listAvailableBrowsers(null);
+    pairedBrowsers = await browserService.listPairedBrowsers(null);
     pendingPairings = (await browserListPendingPairings()) ?? [];
     const status: Record<string, boolean> = {};
     for (const fam of ['chromium', 'firefox', 'safari'] as const) {
-      status[fam] = await browserService.isCompanionInstalled(fam as BrowserFamily);
+      status[fam] = await browserService.isCompanionInstalled(null, fam as BrowserFamily);
     }
     connectionStatus = status;
   }

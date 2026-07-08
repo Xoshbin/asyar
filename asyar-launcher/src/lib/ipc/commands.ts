@@ -1,4 +1,5 @@
 // asyar-launcher/src/lib/ipc/commands.ts
+import { invoke } from '@tauri-apps/api/core';
 import { invokeSafe, invokeSafeVoid } from './invokeSafe';
 import type {
   SearchableItem,
@@ -769,6 +770,16 @@ export async function checkAccessibilityPermission(): Promise<boolean | null> {
 
 export async function openUrl(url: string): Promise<void> {
   await invokeSafe('plugin:opener|open_url', { url });
+}
+
+/** Scheme-gated opener for router-dispatched callers
+ * (`asyar:api:opener:open` → `opener_open_url`). Unlike `openUrl` above,
+ * this goes through the Rust command that checks the caller's declared
+ * `shell:open-url` schemes rather than the webview ACL — and it uses a raw
+ * `invoke` deliberately so scheme denials propagate to the calling
+ * extension as errors instead of dissolving into a diagnostic. */
+export async function openerOpenUrl(extensionId: string | null, url: string): Promise<void> {
+  await invoke('opener_open_url', { extensionId, url });
 }
 
 // ── Storage: Clipboard ───────────────────────────────────────────────────────

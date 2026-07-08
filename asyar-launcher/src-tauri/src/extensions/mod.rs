@@ -447,6 +447,8 @@ pub struct ThemeFontEntry {
 /// patterns may anchor anywhere (`files_scope::validate_files_read_pattern`)
 /// — a one-shot bounded read is a different risk profile than a standing
 /// watch, and the read scope is user-consented and deny-listed instead.
+/// Also validates the optional `shell:open-url` scheme list (see
+/// `validate_shell_open_url_args`).
 pub fn validate_permission_args(m: &ExtensionManifest) -> Result<(), AppError> {
     validate_string_array_permission(m, "fs:watch", |s| {
         let home =
@@ -456,6 +458,7 @@ pub fn validate_permission_args(m: &ExtensionManifest) -> Result<(), AppError> {
     validate_string_array_permission(m, "files:read", |s| {
         crate::files_scope::validate_files_read_pattern(s)
     })?;
+    validate_shell_open_url_args(m)?;
     Ok(())
 }
 
@@ -497,6 +500,49 @@ fn validate_string_array_permission(
                     ))
                 })?;
                 validate_entry(s)?;
+            }
+            Ok(())
+        }
+    }
+}
+
+/// Validate the optional `shell:open-url` scheme list. Unlike `fs:watch`
+/// (declared iff args present), the args here are OPTIONAL: bare
+/// `shell:open-url` keeps meaning the web-default schemes, and
+/// `permissionArgs["shell:open-url"]` EXTENDS that set. Args without the
+/// permission are rejected; when present, the value must be an array of
+/// valid lowercase scheme names (see
+/// `opener_scope::validate_declared_scheme`).
+fn validate_shell_open_url_args(m: &ExtensionManifest) -> Result<(), AppError> {
+    let declared = m
+        .permissions
+        .as_ref()
+        .map(|list| list.iter().any(|p| p == "shell:open-url"))
+        .unwrap_or(false);
+    let args = m
+        .permission_args
+        .as_ref()
+        .and_then(|map| map.get("shell:open-url"));
+
+    match (declared, args) {
+        (_, None) => Ok(()),
+        (false, Some(_)) => Err(AppError::Validation(
+            "manifest declares permissionArgs.shell:open-url but does not declare 'shell:open-url' in permissions"
+                .into(),
+        )),
+        (true, Some(value)) => {
+            let arr = value.as_array().ok_or_else(|| {
+                AppError::Validation(
+                    "permissionArgs.shell:open-url must be an array of scheme strings".into(),
+                )
+            })?;
+            for item in arr {
+                let s = item.as_str().ok_or_else(|| {
+                    AppError::Validation(
+                        "permissionArgs.shell:open-url entries must be strings".into(),
+                    )
+                })?;
+                crate::opener_scope::validate_declared_scheme(s)?;
             }
             Ok(())
         }
@@ -840,6 +886,91 @@ mod tests {
         fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
         let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
         assert!(format!("{err}").contains(".."), "got: {err}");
+    }
+
+    #[test]
+    fn accepts_manifest_with_bare_shell_open_url() {
+        // Unlike fs:watch, shell:open-url args are optional — bare means
+        // the web-default schemes.
+        let tmp = TempDir::new().unwrap();
+        let ext_dir = tmp.path();
+        let manifest = merge_json(
+            valid_manifest_fields(),
+            serde_json::json!({
+                "id": "test.opener-ext",
+                "name": "Opener Test",
+                "version": "0.1.0",
+                "permissions": ["shell:open-url"]
+            }),
+        );
+        fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+        assert!(discovery::read_manifest(&ext_dir.join("manifest.json")).is_ok());
+    }
+
+    #[test]
+    fn accepts_manifest_with_shell_open_url_schemes() {
+        let tmp = TempDir::new().unwrap();
+        let ext_dir = tmp.path();
+        let manifest = merge_json(
+            valid_manifest_fields(),
+            serde_json::json!({
+                "id": "test.opener-ext",
+                "name": "Opener Test",
+                "version": "0.1.0",
+                "permissions": ["shell:open-url"],
+                "permissionArgs": { "shell:open-url": ["steam", "vscode"] }
+            }),
+        );
+        fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+        let m = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap();
+        let schemes = m
+            .permission_args
+            .as_ref()
+            .and_then(|a| a.get("shell:open-url"))
+            .and_then(|v| v.as_array())
+            .expect("schemes parsed");
+        assert_eq!(schemes.len(), 2);
+    }
+
+    #[test]
+    fn rejects_manifest_with_shell_open_url_args_without_permission() {
+        let tmp = TempDir::new().unwrap();
+        let ext_dir = tmp.path();
+        let manifest = merge_json(
+            valid_manifest_fields(),
+            serde_json::json!({
+                "id": "bad.ext",
+                "name": "Bad",
+                "version": "0.1.0",
+                "permissionArgs": { "shell:open-url": ["steam"] }
+            }),
+        );
+        fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+        let err = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap_err();
+        assert!(format!("{err}").contains("shell:open-url"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_manifest_with_invalid_or_denied_scheme() {
+        for bad in ["file", "Steam", "c"] {
+            let tmp = TempDir::new().unwrap();
+            let ext_dir = tmp.path();
+            let manifest = merge_json(
+                valid_manifest_fields(),
+                serde_json::json!({
+                    "id": "bad.ext",
+                    "name": "Bad",
+                    "version": "0.1.0",
+                    "permissions": ["shell:open-url"],
+                    "permissionArgs": { "shell:open-url": [bad] }
+                }),
+            );
+            fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+            assert!(
+                discovery::read_manifest(&ext_dir.join("manifest.json")).is_err(),
+                "expected rejection for scheme '{bad}'"
+            );
+        }
     }
 
     #[test]
