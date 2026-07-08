@@ -187,6 +187,8 @@ export const VALID_PERMISSIONS = [
   'browser:page.write',
   'process:read',
   'process:kill',
+  'files:search',
+  'files:read',
 ] as const;
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const;
