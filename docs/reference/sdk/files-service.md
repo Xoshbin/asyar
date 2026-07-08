@@ -10,7 +10,7 @@ Files" view — your extension gets the identical search capability, not a
 separate implementation. Search is a per-keystroke-safe operation (bounded
 work regardless of index size); it does not read file contents.
 
-For file *contents* there is `read`: a bounded text read scoped to the
+For file _contents_ there is `read`: a bounded text read scoped to the
 glob patterns your manifest declares in `permissionArgs["files:read"]`.
 Those patterns are the entire readable scope — nothing outside them is
 readable, and credential stores (`~/.ssh`, `~/.aws`, …) and OS locations
