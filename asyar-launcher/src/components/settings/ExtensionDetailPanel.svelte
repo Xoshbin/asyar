@@ -2,11 +2,15 @@
   import Badge from '../base/Badge.svelte';
   import Toggle from '../base/Toggle.svelte';
   import ExtensionPreferencesForm from './ExtensionPreferencesForm.svelte';
+  import PermissionList from './PermissionList.svelte';
   import type { ExtensionItem } from '../../routes/settings/settingsHandlers.svelte';
   import type { ExtensionCommand } from 'asyar-sdk/contracts';
   import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
+  import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
   import { logService } from '../../services/log/logService';
+  import * as commands from '../../lib/ipc/commands';
 
   let {
     extension = null,
@@ -33,6 +37,54 @@
 
   let preferenceValues = $state<Record<string, any>>({});
   let isLoadingPrefs = $state(false);
+  let needsPermissionReview = $state(false);
+
+  // Consent status is re-derived per selection via IPC: the settings window
+  // is a separate webview, so it cannot see the main window's in-memory
+  // needs-review state — but the Rust registry it queries is global.
+  // consentVersion re-runs this after an acceptance recorded outside this
+  // panel (e.g. the enable-toggle flow), so the badge clears immediately.
+  $effect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    permissionConsentService.consentVersion; // touch to subscribe
+    const ext = extension;
+    needsPermissionReview = false;
+    if (ext?.id && !ext.isBuiltIn && (ext.permissions?.length ?? 0) > 0) {
+      commands.checkExtensionConsent(ext.id).then((status) => {
+        if (extension?.id === ext.id) {
+          needsPermissionReview = status?.needsConsent ?? false;
+        }
+      });
+    }
+  });
+
+  async function reviewPermissions() {
+    const ext = extension;
+    if (!ext?.id) return;
+    const accepted = await permissionConsentService.ensureConsent(ext.id, ext.title, 'review');
+    if (accepted && extension?.id === ext.id) {
+      needsPermissionReview = false;
+    }
+  }
+
+  // Revoking withdraws consent without uninstalling — the extension stays
+  // installed and enabled, but its gated calls fail closed until the user
+  // reviews and re-allows via reviewPermissions() above.
+  async function revokePermissions() {
+    const ext = extension;
+    if (!ext?.id) return;
+    const confirmed = await feedbackService.confirmAlert({
+      title: 'Revoke Permissions',
+      message: `"${ext.title}" will lose access to its granted permissions until you review and re-allow them. It stays installed and enabled.`,
+      confirmText: 'Revoke',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    const revoked = await permissionConsentService.revoke(ext.id);
+    if (revoked && extension?.id === ext.id) {
+      needsPermissionReview = true;
+    }
+  }
 
   // Load preferences when selection changes OR when preferencesVersion bumps.
   // Reading `preferencesVersion` inside the effect makes it a reactive
@@ -184,7 +236,27 @@
       {#if extension.compatibility?.status === 'platformNotSupported'}
         <Badge text="{extension.compatibility.platform} not supported" variant="danger" />
       {/if}
+      {#if needsPermissionReview}
+        <Badge text="Permissions need review" variant="danger" />
+      {/if}
     </div>
+
+    {#if !extension.isBuiltIn && extension.permissions && extension.permissions.length > 0}
+      <div class="panel-section">
+        <div class="section-header flex-header">
+          <span>Permissions</span>
+          {#if needsPermissionReview}
+            <button class="review-link" onclick={reviewPermissions}>Review permissions</button>
+          {:else}
+            <button class="revoke-link" onclick={revokePermissions}>Revoke</button>
+          {/if}
+        </div>
+        <PermissionList
+          permissions={extension.permissions}
+          permissionArgs={extension.permissionArgs ?? {}}
+        />
+      </div>
+    {/if}
 
     {#if extension.preferences && extension.preferences.length > 0}
       <div class="panel-section">
@@ -316,6 +388,34 @@
 
   .reset-link:hover {
     color: var(--accent-danger);
+    text-decoration: underline;
+  }
+
+  .review-link {
+    font-size: 10px;
+    color: var(--accent-danger);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: var(--transition-fast);
+  }
+
+  .review-link:hover {
+    text-decoration: underline;
+  }
+
+  .revoke-link {
+    font-size: 10px;
+    color: var(--accent-danger);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: var(--transition-fast);
+  }
+
+  .revoke-link:hover {
     text-decoration: underline;
   }
 

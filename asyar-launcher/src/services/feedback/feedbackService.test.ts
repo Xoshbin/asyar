@@ -41,6 +41,74 @@ describe('showToast', () => {
   });
 });
 
+describe('notice', () => {
+  it('shows a symbol-style toast and auto-dismisses after durationMs', () => {
+    vi.useFakeTimers();
+    try {
+      feedbackService.notice({
+        title: 'Ext needs review',
+        message: 'Open Settings',
+        style: 'failure',
+        durationMs: 5000,
+      });
+      expect(feedbackService.activeToast?.style).toBe('failure');
+      expect(feedbackService.activeToast?.title).toBe('Ext needs review');
+      vi.advanceTimersByTime(5000);
+      expect(feedbackService.activeToast).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not dismiss a newer toast that replaced it', () => {
+    vi.useFakeTimers();
+    try {
+      feedbackService.notice({ title: 'First', style: 'failure', durationMs: 5000 });
+      feedbackService.notice({ title: 'Second', style: 'success', durationMs: 10000 });
+      vi.advanceTimersByTime(5000); // first toast's timer fires
+      expect(feedbackService.activeToast?.title).toBe('Second');
+      vi.advanceTimersByTime(5000);
+      expect(feedbackService.activeToast).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('actionable notices are sticky — no auto-dismiss', () => {
+    vi.useFakeTimers();
+    try {
+      feedbackService.notice({ title: 'Clickable', style: 'warning', onClick: vi.fn() });
+      vi.advanceTimersByTime(60_000);
+      expect(feedbackService.activeToast?.title).toBe('Clickable');
+      expect(feedbackService.activeToast?.style).toBe('warning');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('onToastClicked runs onClick and dismisses', () => {
+    const onClick = vi.fn();
+    feedbackService.notice({ title: 'Clickable', style: 'failure', onClick });
+    feedbackService.onToastClicked();
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(feedbackService.activeToast).toBeNull();
+  });
+
+  it('onToastDismissed clears without running onClick', () => {
+    const onClick = vi.fn();
+    feedbackService.notice({ title: 'Clickable', style: 'failure', onClick });
+    feedbackService.onToastDismissed();
+    expect(onClick).not.toHaveBeenCalled();
+    expect(feedbackService.activeToast).toBeNull();
+  });
+
+  it('onToastClicked is a no-op for toasts without onClick', () => {
+    feedbackService.notice({ title: 'Plain', style: 'success' });
+    feedbackService.onToastClicked();
+    expect(feedbackService.activeToast?.title).toBe('Plain');
+  });
+});
+
 describe('updateToast', () => {
   it('updates title in place when id matches', async () => {
     const id = await feedbackService.showToast({ title: 'Loading', style: 'animated' });

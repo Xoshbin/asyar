@@ -9,6 +9,7 @@ import extensionManager from '../../services/extension/extensionManager.svelte';
 import { extensionStateManager } from '../../services/extension/extensionStateManager.svelte';
 import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
 import type { AppSettings } from '../../services/settings/types/AppSettingsType';
 import { logService } from '../../services/log/logService';
 import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
@@ -29,6 +30,8 @@ export interface ExtensionItem {
   commands?: ExtensionCommand[];
   preferences?: any[];
   isBuiltIn?: boolean;
+  permissions?: string[];
+  permissionArgs?: Record<string, unknown>;
 }
 
 // Initialize with default settings first
@@ -119,6 +122,11 @@ export class SettingsHandler {
   isLoadingExtensions = $state(false);
   extensionError = $state('');
   togglingExtension = $state<string | null>(null);
+  /**
+   * Extension id a deep link (asyar:navigate-settings-tab) asked to select.
+   * Consumed and cleared by ExtensionsTab once the list is loaded.
+   */
+  pendingExtensionSelection = $state<string | null>(null);
 
   private unsubscribe: (() => void) | null = null;
   private unlistenPreferencesChanged: (() => void) | null = null;
@@ -279,6 +287,17 @@ export class SettingsHandler {
     const newState = !extension.enabled;
 
     try {
+      // Enabling grants the declared permission set — require consent first.
+      // No-op when a covering consent record exists or nothing is declared.
+      if (newState && !extension.isBuiltIn && extension.id) {
+        const consented = await permissionConsentService.ensureConsent(
+          extension.id,
+          extension.title,
+          'enable',
+        );
+        if (!consented) return;
+      }
+
       const success = await extensionManager.toggleExtensionState(extension.title, newState);
 
       if (success) {

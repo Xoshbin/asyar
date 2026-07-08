@@ -5,7 +5,28 @@ interface ActiveToast {
   id: string;
   title: string;
   message?: string;
-  style: 'animated';
+  style: 'animated' | 'success' | 'failure' | 'warning';
+  /** When set, the toast renders as a button; clicking runs this and dismisses. */
+  onClick?: () => void;
+}
+
+export interface NoticeOptions {
+  title: string;
+  message?: string;
+  /**
+   * `success`/`failure` report an operation's outcome; `warning` flags an
+   * attention-required state (e.g. permissions awaiting review).
+   */
+  style: 'success' | 'failure' | 'warning';
+  /** Auto-dismiss delay. Defaults to 6000ms. Ignored when `onClick` is set. */
+  durationMs?: number;
+  /**
+   * Makes the notice actionable: clicking the toast runs this and dismisses.
+   * Actionable notices are sticky — they stay until clicked or explicitly
+   * dismissed via the ✕ (a timed popup for something the user must act on is
+   * a race against the timer).
+   */
+  onClick?: () => void;
 }
 
 interface ActiveDialog {
@@ -60,6 +81,43 @@ class FeedbackService implements IFeedbackService {
       style: 'animated',
     };
     return id;
+  }
+
+  /**
+   * Host-only transient notice: symbol style (✓/✕, no spinner) with
+   * auto-dismiss. Unlike the SDK `showToast` contract — whose only style is
+   * `animated` and whose callers are expected to `hideToast` when their
+   * operation finishes — this is fire-and-forget for one-off notifications.
+   * An `onClick` makes the toast clickable (it dismisses after running).
+   */
+  notice(options: NoticeOptions): void {
+    const id = `toast-${++this.toastIdCounter}`;
+    this.activeToast = {
+      id,
+      title: options.title,
+      message: options.message,
+      style: options.style,
+      onClick: options.onClick,
+    };
+    if (options.onClick) return; // actionable notices are sticky
+    setTimeout(() => {
+      if (this.activeToast?.id === id) {
+        this.activeToast = null;
+      }
+    }, options.durationMs ?? 6000);
+  }
+
+  /** Called by `<ToastHost />` when a clickable toast is activated. */
+  onToastClicked(): void {
+    const toast = this.activeToast;
+    if (!toast?.onClick) return;
+    this.activeToast = null;
+    toast.onClick();
+  }
+
+  /** Called by `<ToastHost />` when a sticky toast's ✕ is clicked. */
+  onToastDismissed(): void {
+    this.activeToast = null;
   }
 
   async updateToast(toastId: string, options: Partial<ShowToastOptions>): Promise<void> {

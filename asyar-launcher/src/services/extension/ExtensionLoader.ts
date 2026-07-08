@@ -1,3 +1,4 @@
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { ExtensionBridge, ActionContext } from 'asyar-sdk/contracts';
 import type { Extension, ExtensionManifest, ExtensionCommand } from 'asyar-sdk/contracts';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
@@ -10,6 +11,8 @@ import * as commands from '../../lib/ipc/commands';
 import { dispatch } from './extensionDispatcher.svelte';
 import { onboardingViewInterception } from './onboardingViewInterception';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
+import { permissionConsentService } from './permissionConsentService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 import { actionService } from '../action/actionService.svelte';
 import { searchOrchestrator } from '../search/searchOrchestrator.svelte';
 import { searchStores } from '../search/stores/search.svelte';
@@ -19,6 +22,28 @@ import { searchStores } from '../search/stores/search.svelte';
  * or an ES module wrapper where the extension is the default export.
  */
 type LoadedExtensionModule = Extension | { default: Extension };
+
+/**
+ * Run `show` once the launcher window has the user's attention. Extensions
+ * load at startup while the launcher window is still hidden — a toast fired
+ * then burns its auto-dismiss timer with nobody watching. `onFocusChanged`
+ * is the signal the usage heartbeat already relies on for "the user summoned
+ * the launcher" (the webview's visibilityState is not dependable here).
+ */
+function whenWindowVisible(show: () => void): void {
+  if (typeof document !== 'undefined' && document.hasFocus()) {
+    show();
+    return;
+  }
+  const promise = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+    if (focused) {
+      void promise.then((unlisten) => unlisten()).catch(() => {});
+      show();
+    }
+  });
+  // If the listener can't attach, show now rather than never.
+  promise.catch(() => show());
+}
 
 export class ExtensionLoader {
   // Internal state built during loadExtensions()
@@ -122,14 +147,34 @@ export class ExtensionLoader {
         // Sync declared permissions + their sidecar args to the Rust registry
         // for defense-in-depth enforcement. `permissionArgs` carries glob
         // patterns for fs:watch (and will grow to host other parameterized
-        // permissions as they land).
+        // permissions as they land). Rust withholds registration when the
+        // declared set exceeds the recorded user consent (e.g. an update added
+        // permissions); the extension still loads, but its gated calls fail
+        // closed until the user reviews in Settings → Extensions.
         const extended = manifest as ExtendedManifest;
+        const extensionName = manifest.name;
         commands
           .registerExtensionPermissions(
             extensionId,
             extended.permissions ?? [],
             extended.permissionArgs ?? null,
           )
+          .then((result) => {
+            if (!result?.needsConsent) return;
+            if (permissionConsentService.needsReview.includes(extensionId)) return;
+            permissionConsentService.markNeedsReview(extensionId);
+            logService.warn(
+              `[PermissionRegistry] Permissions withheld for ${extensionId}: awaiting user consent`,
+            );
+            whenWindowVisible(() =>
+              feedbackService.notice({
+                title: `${extensionName} needs a permission review`,
+                message: 'Click to review and allow its permissions in Settings.',
+                style: 'warning',
+                onClick: () => void commands.showSettingsWindow('extensions', extensionId),
+              }),
+            );
+          })
           .catch((err: unknown) => {
             logService.warn(`[PermissionRegistry] Failed to register ${extensionId}: ${err}`);
           });

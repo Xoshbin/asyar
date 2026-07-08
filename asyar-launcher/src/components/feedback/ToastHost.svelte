@@ -3,31 +3,56 @@
   import { fadeIn } from '$lib/transitions';
 </script>
 
+{#snippet toastBody(toast: NonNullable<typeof feedbackService.activeToast>)}
+  <span class="toast-icon" aria-hidden="true">
+    {#if toast.style === 'animated'}
+      <span class="spinner"></span>
+    {:else if toast.style === 'success'}
+      <span class="symbol">✓</span>
+    {:else if toast.style === 'failure'}
+      <span class="symbol">✕</span>
+    {:else if toast.style === 'warning'}
+      <span class="symbol">!</span>
+    {/if}
+  </span>
+  <div class="toast-text">
+    <span class="toast-title">{toast.title}</span>
+    {#if toast.message}
+      <span class="toast-message">{toast.message}</span>
+    {/if}
+  </div>
+{/snippet}
+
 {#if feedbackService.activeToast}
   {@const toast = feedbackService.activeToast}
-  <div
-    class="toast-host"
-    role="status"
-    aria-live="polite"
-    transition:fadeIn={{ duration: 150 }}
-    data-style={toast.style}
-  >
-    <span class="toast-icon" aria-hidden="true">
-      {#if toast.style === 'animated'}
-        <span class="spinner"></span>
-      {:else if toast.style === 'success'}
-        <span class="symbol">✓</span>
-      {:else if toast.style === 'failure'}
-        <span class="symbol">✕</span>
-      {/if}
-    </span>
-    <div class="toast-text">
-      <span class="toast-title">{toast.title}</span>
-      {#if toast.message}
-        <span class="toast-message">{toast.message}</span>
-      {/if}
+  {#if toast.onClick}
+    <div
+      class="toast-host toast-clickable"
+      transition:fadeIn={{ duration: 150 }}
+      data-style={toast.style}
+    >
+      <button class="toast-action" onclick={() => feedbackService.onToastClicked()}>
+        {@render toastBody(toast)}
+      </button>
+      <button
+        class="toast-dismiss"
+        aria-label="Dismiss notification"
+        onclick={() => feedbackService.onToastDismissed()}
+      >
+        ✕
+      </button>
     </div>
-  </div>
+  {:else}
+    <div
+      class="toast-host"
+      role="status"
+      aria-live="polite"
+      transition:fadeIn={{ duration: 150 }}
+      data-style={toast.style}
+    >
+      {@render toastBody(toast)}
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -55,6 +80,47 @@
     background-color: var(--bg-popup);
   }
 
+  /* Actionable variant: body button runs the action, ✕ dismisses. */
+  .toast-clickable {
+    pointer-events: auto;
+  }
+
+  .toast-clickable:hover {
+    border-color: var(--accent-primary);
+  }
+
+  .toast-action {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .toast-dismiss {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    padding: 2px 5px;
+    border-radius: var(--radius-xs);
+    font-size: 11px;
+    line-height: 1;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+
+  .toast-dismiss:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+  }
+
   .toast-icon {
     flex-shrink: 0;
     width: 16px;
@@ -72,6 +138,9 @@
   }
   .toast-host[data-style='failure'] .toast-icon {
     color: var(--accent-danger);
+  }
+  .toast-host[data-style='warning'] .toast-icon {
+    color: var(--accent-warning);
   }
 
   .toast-text {
@@ -96,6 +165,9 @@
   }
   .toast-host[data-style='failure'] .toast-title {
     color: var(--accent-danger);
+  }
+  .toast-host[data-style='warning'] .toast-title {
+    color: var(--accent-warning);
   }
 
   .toast-message {

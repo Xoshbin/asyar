@@ -10,6 +10,15 @@ vi.mock('asyar-sdk/contracts', () => ({
   },
 }));
 
+// Consent is exercised in permissionConsentService.test.ts; here it would
+// only drag the real logService (and its Tauri log invoke) into a node env.
+const { ensureConsent } = vi.hoisted(() => ({
+  ensureConsent: vi.fn().mockResolvedValue(true),
+}));
+vi.mock('../../../services/extension/permissionConsentService.svelte', () => ({
+  permissionConsentService: { ensureConsent },
+}));
+
 import { finalizeBuild } from './finalizeBuild';
 import { invoke } from '@tauri-apps/api/core';
 import { scanForSecret } from './secretGuard';
@@ -33,6 +42,7 @@ describe('finalizeBuild', () => {
       path: '/home/me/AsyarExtensions/com.x',
     });
     expect(reloadExtensions).toHaveBeenCalledOnce();
+    expect(ensureConsent).toHaveBeenCalledWith('com.x', 'com.x', 'install');
   });
 
   it('scans for the secret and still registers when the build is clean', async () => {
@@ -59,5 +69,6 @@ describe('finalizeBuild', () => {
     expect(result).toEqual({ leaked: true, path: '/ext/src/config.ts' });
     expect(invoke).not.toHaveBeenCalled();
     expect(reloadExtensions).not.toHaveBeenCalled();
+    expect(ensureConsent).not.toHaveBeenCalled();
   });
 });

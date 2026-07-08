@@ -216,6 +216,20 @@
     selectedCommandId = null;
   }
 
+  // Deep-link selection (asyar:navigate-settings-tab with an extensionId,
+  // e.g. from the needs-permission-review toast). Waits for the list to load,
+  // then consumes the pending id exactly once.
+  $effect(() => {
+    const pending = handler.pendingExtensionSelection;
+    if (!pending || handler.isLoadingExtensions) return;
+    if (handler.extensions.length === 0) return;
+    const ext = handler.extensions.find((e) => (e.id ?? e.title) === pending);
+    if (ext) {
+      selectExtension(ext);
+    }
+    handler.pendingExtensionSelection = null;
+  });
+
   function selectCommand(ext: ExtensionItem, cmd: ExtensionCommand) {
     selectedExtensionId = ext.id ?? ext.title;
     selectedCommandId = cmd.id;

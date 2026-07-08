@@ -276,7 +276,7 @@ export async function factoryReset(): Promise<void> {
   await invokeSafe('factory_reset');
 }
 
-export async function showSettingsWindow(tab?: string): Promise<void> {
+export async function showSettingsWindow(tab?: string, extensionId?: string): Promise<void> {
   // Direct callers bypass the no-view command hide path, so reset here too.
   // Dynamic import breaks the commands ↔ extensionManager module cycle.
   const { resetLauncherState } = await import('../launcher/launcherReset');
@@ -291,7 +291,10 @@ export async function showSettingsWindow(tab?: string): Promise<void> {
       const { emit } = await import('@tauri-apps/api/event');
       // Delay ensures the settings window's onMount listener is registered
       // before the event fires (relevant when the window was hidden/just shown).
-      setTimeout(() => emit('asyar:navigate-settings-tab', { tab }), 50);
+      setTimeout(
+        () => emit('asyar:navigate-settings-tab', { tab, extensionId: extensionId ?? null }),
+        50,
+      );
     }
   }
 }
@@ -1027,16 +1030,63 @@ export interface PermissionCheckResult {
   reason?: string;
 }
 
+export interface PermissionRegistrationResult {
+  registered: boolean;
+  needsConsent: boolean;
+}
+
+export interface ExtensionConsentRecord {
+  permissions: string[];
+  permissionArgs: Record<string, unknown>;
+  consentedAt: number;
+  grandfathered: boolean;
+}
+
+export interface ExtensionConsentStatus {
+  needsConsent: boolean;
+  declaredPermissions: string[];
+  declaredArgs: Record<string, unknown>;
+  consented: ExtensionConsentRecord | null;
+}
+
 export async function registerExtensionPermissions(
   extensionId: string,
   permissions: string[],
   permissionArgs?: Record<string, unknown> | null,
-): Promise<void> {
-  await invokeSafe('register_extension_permissions', {
+): Promise<PermissionRegistrationResult | null> {
+  return invokeSafe<PermissionRegistrationResult>('register_extension_permissions', {
     extensionId,
     permissions,
     permissionArgs: permissionArgs ?? null,
   });
+}
+
+export async function checkExtensionConsent(
+  extensionId: string,
+): Promise<ExtensionConsentStatus | null> {
+  return invokeSafe<ExtensionConsentStatus>('check_extension_consent', { extensionId });
+}
+
+export async function setExtensionConsent(
+  extensionId: string,
+  permissions: string[],
+  permissionArgs?: Record<string, unknown> | null,
+): Promise<void> {
+  await invokeSafe('set_extension_consent', {
+    extensionId,
+    permissions,
+    permissionArgs: permissionArgs ?? null,
+  });
+}
+
+/**
+ * Withdraw a previously-granted consent record (Settings → Extensions
+ * "Revoke" action). The extension stays installed/enabled; its permissions
+ * are unregistered immediately, so gated calls fail closed without a
+ * restart. Returns whether the IPC call itself succeeded.
+ */
+export async function revokeExtensionConsent(extensionId: string): Promise<boolean> {
+  return invokeSafeVoid('revoke_extension_consent', { extensionId });
 }
 
 export async function checkExtensionPermission(

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+pub mod consent;
 pub mod discovery;
 pub mod extension_runtime;
 pub mod extension_state;

@@ -74,6 +74,13 @@ pub(crate) fn uninstall(
                         }
                     }
                 }
+                if let Some(consent) = extensions.get_mut("consent") {
+                    if let Some(obj) = consent.as_object_mut() {
+                        if obj.remove(extension_id).is_some() {
+                            modified = true;
+                        }
+                    }
+                }
             }
             if modified {
                 store.set("settings", settings);
@@ -515,6 +522,15 @@ pub(crate) fn discover_all(
 
     // 4. Apply enabled/disabled state from store
     apply_extension_states(app_handle, &mut all_records)?;
+
+    // 4b. One-shot consent migration for extensions installed before the
+    // consent surface shipped. Runs after enabled state is applied so only
+    // actually-enabled extensions are grandfathered. Failure must not abort
+    // discovery — affected extensions degrade to the needs-consent path.
+    if let Err(e) = crate::extensions::consent::run_grandfather_migration(app_handle, &all_records)
+    {
+        warn!("Consent grandfather migration failed: {}", e);
+    }
 
     // 5. Order for display: built-ins first, then each group alphabetically.
     sort_extension_records(&mut all_records);

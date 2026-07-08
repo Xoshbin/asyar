@@ -16,6 +16,7 @@ import DefaultView from './DefaultView.svelte'; // Import component
 import DetailView from './DetailView.svelte'; // Import component
 import { actionService } from '../../services/action/actionService.svelte';
 import { extensionUpdateService } from '../../services/extension/extensionUpdateService.svelte';
+import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
 import { filterCompatibleExtensions } from '../../lib/filterCompatibleExtensions';
 
 const EXTENSION_ID = 'store';
@@ -95,6 +96,28 @@ class StoreExtension implements Extension {
     const displayName = name || slug; // Use name if provided, otherwise slug
 
     const store = initializeStore();
+
+    // Permission consent gate: prompt from the store listing's manifest
+    // metadata before anything is downloaded. The packaged manifest is
+    // reconciled against this acceptance after install, so listing/package
+    // drift re-prompts rather than slipping through.
+    const listing = store?.allItems.find((item) => item.slug === slug);
+    const acceptedPermissions = listing?.manifest?.permissions ?? [];
+    const acceptedArgs = listing?.manifest?.permissionArgs ?? {};
+    if (acceptedPermissions.length > 0) {
+      const accepted = await permissionConsentService.requestConsent({
+        extensionId: extensionId.toString(),
+        extensionName: displayName,
+        reason: 'install',
+        permissions: acceptedPermissions,
+        permissionArgs: acceptedArgs,
+      });
+      if (!accepted) {
+        this.logService?.info(`Install of ${displayName} declined at permission consent`);
+        return;
+      }
+    }
+
     store?.setInstallingSlug(slug);
 
     this.logService?.info(`Install action triggered for slug: ${slug}`);
@@ -123,6 +146,17 @@ class StoreExtension implements Extension {
         throw new Error('Extension download URL is not available. Please try again.');
       }
 
+      // Persist the pre-install acceptance under the real manifest id before
+      // extensions reload, so the loader's registration finds a covering
+      // consent record instead of withholding.
+      if (acceptedPermissions.length > 0 && installInfo.extensionId) {
+        await commands.setExtensionConsent(
+          installInfo.extensionId,
+          acceptedPermissions,
+          acceptedArgs,
+        );
+      }
+
       // 2. Trigger installation via Tauri command
       this.logService?.info(
         `Invoking Tauri command 'install_extension_from_url' for ${displayName}`,
@@ -148,6 +182,17 @@ class StoreExtension implements Extension {
         await this.extensionManager?.reloadExtensions();
       } catch (err) {
         this.logService?.error(`Failed to reload extensions after install: ${err}`);
+      }
+
+      // Reconcile against the actual packaged manifest: if the package
+      // declares more than the store listing showed, this re-prompts with the
+      // real set; if the pre-install acceptance covers it, no prompt.
+      if (installInfo.extensionId) {
+        await permissionConsentService.ensureConsent(
+          installInfo.extensionId,
+          displayName,
+          'install',
+        );
       }
 
       const store = initializeStore();

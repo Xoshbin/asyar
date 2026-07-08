@@ -58,9 +58,15 @@
     await initValidKeys();
     registerProfileProviders();
     cloudSyncService.checkStatus().catch(() => {});
-    unlistenNavTab = await listen<{ tab: string }>('asyar:navigate-settings-tab', (e) => {
-      handler.activeTab = e.payload.tab;
-    });
+    unlistenNavTab = await listen<{ tab: string; extensionId?: string | null }>(
+      'asyar:navigate-settings-tab',
+      (e) => {
+        handler.activeTab = e.payload.tab;
+        if (e.payload.extensionId) {
+          handler.pendingExtensionSelection = e.payload.extensionId;
+        }
+      },
+    );
   });
 
   onDestroy(() => {

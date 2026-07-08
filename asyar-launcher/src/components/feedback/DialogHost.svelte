@@ -1,7 +1,17 @@
 <script lang="ts">
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
   import ConfirmDialog from '../base/ConfirmDialog.svelte';
+  import PermissionConsentDialog from './PermissionConsentDialog.svelte';
 </script>
+
+{#if permissionConsentService.activeRequest}
+  <PermissionConsentDialog
+    request={permissionConsentService.activeRequest}
+    onAccept={() => permissionConsentService.onAccepted()}
+    onDecline={() => permissionConsentService.onDeclined()}
+  />
+{/if}
 
 {#if feedbackService.activeDialog}
   {@const dialog = feedbackService.activeDialog}
