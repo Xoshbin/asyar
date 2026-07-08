@@ -164,7 +164,17 @@ export class ExtensionIpcRouter {
       }
 
       const isPrivilegedHostContext = event.source === window;
-      const extensionId = msgExtensionId || payload?.extensionId;
+      // Derive the caller's identity from the DOM for iframe contexts.
+      // The host sets `data-extension-id` on each iframe element — the extension
+      // cannot forge this attribute.  Trusting `extensionId` from the payload
+      // (as `msgExtensionId || payload?.extensionId`) would let any extension
+      // impersonate another by sending a different ID in its message data.
+      // The privileged host context (event.source === window) has no corresponding
+      // iframe element, so it falls back to the payload-sourced value, which is
+      // already trusted in that path.
+      const extensionId = isPrivilegedHostContext
+        ? msgExtensionId || payload?.extensionId
+        : this.findExtensionIdForSource(event.source);
 
       // Mandatory Validation only for external iframe contexts
       if (!isPrivilegedHostContext) {

@@ -46,7 +46,7 @@ const count = await storage.clear(); // number of deleted entries
 
 **How it works under the hood:**
 
-All extensions share one `extension_storage` table in `asyar_data.db` (SQLite, WAL mode). The IPC Router automatically injects your `extensionId` into every call — you never see it, and you cannot impersonate another extension. On uninstall, Asyar deletes all rows for your extension automatically.
+All extensions share one `extension_storage` table in `asyar_data.db` (SQLite, WAL mode). The IPC Router derives your identity from the host-set `data-extension-id` attribute on the iframe element — any `extensionId` your extension includes in the message payload is ignored for this purpose, so you receive only your own namespace. On uninstall, Asyar deletes all rows for your extension automatically.
 
 **When to use what:**
 
