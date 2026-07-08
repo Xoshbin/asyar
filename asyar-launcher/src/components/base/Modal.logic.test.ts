@@ -37,6 +37,36 @@ describe('isActionableElementFocused', () => {
     const textarea = document.createElement('textarea');
     expect(isActionableElementFocused(textarea)).toBe(true);
   });
+
+  it('returns true for a select (Enter picks the highlighted option when open)', () => {
+    const select = document.createElement('select');
+    expect(isActionableElementFocused(select)).toBe(true);
+  });
+
+  it.each(['submit', 'button', 'reset', 'file'])(
+    'returns true for an input[type="%s"] (button-like, owns its own Enter/activation)',
+    (type) => {
+      const input = document.createElement('input');
+      input.type = type;
+      expect(isActionableElementFocused(input)).toBe(true);
+    },
+  );
+
+  it('returns false for input[type="text"] (must not be swept up by the button-like check)', () => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    expect(isActionableElementFocused(input)).toBe(false);
+  });
+
+  it('returns true for a contenteditable element (Enter inserts a line break, not submit)', () => {
+    // jsdom doesn't implement contentEditable/isContentEditable at all
+    // (setting .contentEditable is a silent no-op, isContentEditable stays
+    // undefined) — same class of gap as :modal/showModal. Fake the IDL
+    // property directly; the implementation reads the real one in browsers.
+    const div = document.createElement('div');
+    Object.defineProperty(div, 'isContentEditable', { value: true });
+    expect(isActionableElementFocused(div)).toBe(true);
+  });
 });
 
 describe('isAnyModalOpen', () => {

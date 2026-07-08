@@ -1,15 +1,22 @@
 const ACTIONABLE_ROLES = new Set(['button', 'link', 'menuitem', 'option', 'tab']);
+const BUTTON_LIKE_INPUT_TYPES = new Set(['submit', 'button', 'reset', 'file']);
 
 // Enter should not trigger a dialog's default action when focus is on a
 // control that already owns Enter itself — a focused Cancel button (native
-// Enter-as-click), a link, or a textarea (Enter inserts a newline). Plain
-// text inputs are intentionally excluded: Enter-to-submit while a text field
-// is focused is the expected behavior in passphrase/form dialogs.
+// Enter-as-click), a link, a textarea or contenteditable region (Enter
+// inserts a newline), a select (Enter picks the highlighted option when its
+// native dropdown is open), or a button-like input (submit/button/reset
+// trigger their own action; file opens the native picker). Plain text
+// inputs are intentionally excluded: Enter-to-submit while a text field is
+// focused is the expected behavior in passphrase/form dialogs.
 export function isActionableElementFocused(el: Element | null): boolean {
   if (!el) return false;
   if (el instanceof HTMLButtonElement) return true;
   if (el instanceof HTMLAnchorElement) return true;
   if (el instanceof HTMLTextAreaElement) return true;
+  if (el instanceof HTMLSelectElement) return true;
+  if (el instanceof HTMLInputElement) return BUTTON_LIKE_INPUT_TYPES.has(el.type);
+  if (el instanceof HTMLElement && el.isContentEditable) return true;
   const role = el.getAttribute('role');
   return role !== null && ACTIONABLE_ROLES.has(role);
 }
