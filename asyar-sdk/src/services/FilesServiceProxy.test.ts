@@ -56,4 +56,28 @@ describe('FilesServiceProxy', () => {
     expect(mockBroker.invoke).toHaveBeenCalledWith('files:status', {});
     expect(result).toEqual(status);
   });
+
+  it('read() calls broker.invoke with path and default empty opts', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce('contents');
+    const result = await proxy.read('D:/SteamLibrary/steamapps/libraryfolders.vdf');
+    expect(mockBroker.invoke).toHaveBeenCalledWith('files:read', {
+      path: 'D:/SteamLibrary/steamapps/libraryfolders.vdf',
+      opts: {},
+    });
+    expect(result).toBe('contents');
+  });
+
+  it('read() forwards maxBytes', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce('x');
+    await proxy.read('/tmp/a.txt', { maxBytes: 1000 });
+    expect(mockBroker.invoke).toHaveBeenCalledWith('files:read', {
+      path: '/tmp/a.txt',
+      opts: { maxBytes: 1000 },
+    });
+  });
+
+  it('read() propagates broker rejections (denials must reach the caller)', async () => {
+    vi.mocked(mockBroker.invoke).mockRejectedValueOnce(new Error('not covered'));
+    await expect(proxy.read('/etc/shadow')).rejects.toThrow('not covered');
+  });
 });

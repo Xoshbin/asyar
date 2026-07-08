@@ -70,6 +70,7 @@ pub mod extension_tray;
 pub mod extensions;
 pub mod feedback;
 pub mod file_index;
+pub mod files_scope;
 pub mod fs_watcher;
 pub mod hud_window;
 pub mod index_events;
@@ -358,6 +359,7 @@ pub fn run() {
             commands::write_text_file_absolute,
             commands::read_text_file_absolute,
             commands::read_text_preview,
+            commands::files_read_text,
             commands::mkdir_absolute,
             commands::spawn_headless_extension,
             commands::kill_extension,

@@ -91,25 +91,48 @@ impl ExtensionPermissionRegistry {
         guard.get(extension_id)?.get(permission).cloned()
     }
 
-    /// Narrowed typed view of `fs:watch` patterns. Errors if the extension
+    /// Narrowed typed view of a `string[]` arg bag (the shape shared by
+    /// `fs:watch` and `files:read` patterns). Errors if the extension
     /// hasn't declared the permission.
-    pub fn fs_watch_patterns(&self, extension_id: &str) -> Result<Vec<String>, AppError> {
-        let value = self.args_for(extension_id, "fs:watch").ok_or_else(|| {
+    pub fn string_array_args(
+        &self,
+        extension_id: &str,
+        permission: &str,
+    ) -> Result<Vec<String>, AppError> {
+        let value = self.args_for(extension_id, permission).ok_or_else(|| {
             AppError::Permission(format!(
-                "Extension '{}' has no fs:watch patterns declared in manifest",
-                extension_id
+                "Extension '{}' has no {} patterns declared in manifest",
+                extension_id, permission
             ))
         })?;
         let arr = value.as_array().ok_or_else(|| {
-            AppError::Validation("permissionArgs.fs:watch must be an array of strings".into())
+            AppError::Validation(format!(
+                "permissionArgs.{} must be an array of strings",
+                permission
+            ))
         })?;
         arr.iter()
             .map(|v| {
                 v.as_str().map(|s| s.to_string()).ok_or_else(|| {
-                    AppError::Validation("permissionArgs.fs:watch entries must be strings".into())
+                    AppError::Validation(format!(
+                        "permissionArgs.{} entries must be strings",
+                        permission
+                    ))
                 })
             })
             .collect()
+    }
+
+    /// Narrowed typed view of `fs:watch` patterns. Errors if the extension
+    /// hasn't declared the permission.
+    pub fn fs_watch_patterns(&self, extension_id: &str) -> Result<Vec<String>, AppError> {
+        self.string_array_args(extension_id, "fs:watch")
+    }
+
+    /// Narrowed typed view of `files:read` patterns. Errors if the extension
+    /// hasn't declared the permission.
+    pub fn files_read_patterns(&self, extension_id: &str) -> Result<Vec<String>, AppError> {
+        self.string_array_args(extension_id, "files:read")
     }
 }
 
@@ -229,6 +252,9 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // index is read-only, no separate write surface.
         "asyar:api:files:search" => Some("files:search"),
         "asyar:api:files:status" => Some("files:search"),
+        // File content read — separate permission from the index search;
+        // scope is in permissionArgs.files:read (glob patterns).
+        "asyar:api:files:read" => Some("files:read"),
         // browser:listAvailableBrowsers / isCompanionInstalled are intentionally
         // permission-free (discovery, low blast radius) → fall through to None.
         // search:rank is intentionally permission-free: the caller supplies its
@@ -432,6 +458,10 @@ mod tests {
         assert_eq!(
             get_required_permission("asyar:api:files:status"),
             Some("files:search")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:files:read"),
+            Some("files:read")
         );
     }
 
@@ -902,6 +932,30 @@ mod tests {
     fn fs_watch_patterns_errors_when_extension_not_registered() {
         let reg = ExtensionPermissionRegistry::default();
         assert!(reg.fs_watch_patterns("ext.missing").is_err());
+    }
+
+    #[test]
+    fn files_read_patterns_returns_registered_strings() {
+        let reg = ExtensionPermissionRegistry::default();
+        let mut inner_args = HashMap::new();
+        inner_args.insert(
+            "files:read".to_string(),
+            serde_json::json!(["**/steamapps/appmanifest_*.acf"]),
+        );
+        reg.register(
+            "ext.a",
+            HashSet::from(["files:read".to_string()]),
+            inner_args,
+        );
+        let patterns = reg.files_read_patterns("ext.a").unwrap();
+        assert_eq!(patterns, vec!["**/steamapps/appmanifest_*.acf".to_string()]);
+    }
+
+    #[test]
+    fn files_read_patterns_errors_when_extension_has_no_args() {
+        let reg = ExtensionPermissionRegistry::default();
+        reg.register("ext.a", HashSet::new(), HashMap::new());
+        assert!(reg.files_read_patterns("ext.a").is_err());
     }
 
     #[test]

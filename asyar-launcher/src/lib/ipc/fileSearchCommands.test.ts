@@ -24,6 +24,7 @@ import {
   openInTerminal,
   quickLookPath,
   readTextPreview,
+  filesReadText,
 } from './fileSearchCommands';
 
 const mockInvoke = invoke as ReturnType<typeof vi.fn>;
@@ -208,5 +209,23 @@ describe('readTextPreview', () => {
     mockInvoke.mockRejectedValue(new Error('boom'));
     const result = await readTextPreview('/tmp/a.txt');
     expect(result).toBeNull();
+  });
+});
+
+describe('filesReadText', () => {
+  it('calls invoke with extensionId, pathStr, and maxBytes', async () => {
+    mockInvoke.mockResolvedValue('contents');
+    const result = await filesReadText('ext.a', '/tmp/a.txt', 1000);
+    expect(mockInvoke).toHaveBeenCalledWith('files_read_text', {
+      extensionId: 'ext.a',
+      pathStr: '/tmp/a.txt',
+      maxBytes: 1000,
+    });
+    expect(result).toBe('contents');
+  });
+
+  it('throws (not null) on invoke failure so denials reach the extension', async () => {
+    mockInvoke.mockRejectedValue(new Error('not covered'));
+    await expect(filesReadText('ext.a', '/etc/shadow')).rejects.toThrow('not covered');
   });
 });

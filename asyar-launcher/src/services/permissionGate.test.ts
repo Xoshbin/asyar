@@ -297,6 +297,18 @@ describe('checkPermission', () => {
     });
   });
 
+  describe('files:read', () => {
+    it('denies files:read when not declared', () => {
+      const result = checkPermission('test-ext', 'asyar:api:files:read', ['files:search']);
+      expect(result.allowed).toBe(false);
+      expect(result.requiredPermission).toBe('files:read');
+    });
+    it('allows files:read when declared', () => {
+      const result = checkPermission('test-ext', 'asyar:api:files:read', ['files:read']);
+      expect(result.allowed).toBe(true);
+    });
+  });
+
   // ── PERMISSION_MAP structure ───────────────────────────────────────────────
 
   // ── OAuth ─────────────────────────────────────────────────────────────────

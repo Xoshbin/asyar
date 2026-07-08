@@ -163,6 +163,7 @@ export type {
   IndexStateKind,
   IndexStatus,
   FileSearchOptions,
+  FileReadOptions,
 } from './services/IFilesService';
 
 // Launcher-brokered extension state store + RPC primitive.

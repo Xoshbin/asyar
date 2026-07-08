@@ -149,6 +149,10 @@ export const PERMISSION_MAP: Record<string, string> = {
   // write surface, the file index itself is read-only).
   'asyar:api:files:search': 'files:search',
   'asyar:api:files:status': 'files:search',
+  // File content read — separate permission from the index search; the
+  // readable scope is the extension's declared permissionArgs["files:read"]
+  // globs, enforced in Rust (files_read_text).
+  'asyar:api:files:read': 'files:read',
 };
 
 /**

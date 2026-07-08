@@ -46,14 +46,31 @@ export interface FileSearchOptions {
   limit?: number;
 }
 
+export interface FileReadOptions {
+  /** Read at most this many bytes (lossy UTF-8). Defaults to 50,000; the
+   * host clamps extension reads to a 1 MiB ceiling regardless. */
+  maxBytes?: number;
+}
+
 /**
  * Generic file-search capability, exposed to Tier 2 extensions through the
  * same `files:*` wire namespace the Tier 1 "Search Files" view itself
- * consumes host-side. Requires `files:search`.
+ * consumes host-side. `search`/`status` require `files:search`; `read`
+ * requires `files:read`.
  */
 export interface IFilesService {
   /** Bounded per-keystroke query against the local file index. */
   search(query: string, opts?: FileSearchOptions): Promise<FileHit[]>;
   /** Current index lifecycle state — useful for showing a "still indexing" hint. */
   status(): Promise<IndexStatus>;
+  /**
+   * Bounded text read of an absolute path. Requires the `files:read`
+   * permission, and the path must match one of the glob patterns the
+   * extension declared in `permissionArgs["files:read"]` — those patterns
+   * are the entire readable scope (shown to the user at install/enable
+   * time). Credential stores (`~/.ssh`, `~/.aws`, …) and OS locations are
+   * denied even when a declared pattern covers them. Rejects (with the
+   * denial reason) rather than resolving empty when access is refused.
+   */
+  read(path: string, opts?: FileReadOptions): Promise<string>;
 }
