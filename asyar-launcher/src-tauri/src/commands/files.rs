@@ -366,19 +366,43 @@ pub(crate) fn files_glob_inner(
         )));
     }
     let patterns = permissions.files_read_patterns(extension_id)?;
+    // A wildcard-free pattern IS its own literal prefix — a file, not a
+    // directory to walk. Enumerate its parent and let the matcher select
+    // it, so an existing exact path resolves to itself instead of lying
+    // with an empty result. (A symlink at that exact path stays hidden:
+    // the parent walk drops symlinks like everywhere else.)
+    let walk_root = if prefix.is_file() {
+        prefix.parent().unwrap_or(&prefix).to_path_buf()
+    } else {
+        prefix.clone()
+    };
     // A walk root that doesn't exist enumerates to nothing — normal for
     // the multi-drive Steam case, where a configured library drive may be
     // absent. Canonicalizing it also resolves the one symlink the walk
     // itself can't skip: one sitting inside the literal prefix.
-    let canonical_prefix = match dunce::canonicalize(&prefix) {
+    let canonical_prefix = match dunce::canonicalize(&walk_root) {
         Ok(p) => p,
         Err(_) => return Ok(Vec::new()),
     };
+    let canonical_home = dunce::canonicalize(home).unwrap_or_else(|_| home.to_path_buf());
+    let canonical_extra_deny: Vec<PathBuf> = extra_deny
+        .iter()
+        .map(|p| dunce::canonicalize(p).unwrap_or_else(|_| p.clone()))
+        .collect();
+    // A walk root inside a protected location is an explicit denial (the
+    // same "protected location" error files:read gives), not an empty
+    // enumeration — and the walk below never even opens such a directory.
+    files_scope::check_path_denied(&walk_root, home, extra_deny)?;
+    files_scope::check_path_denied(&canonical_prefix, &canonical_home, &canonical_extra_deny)?;
     // Fail fast when no declared pattern could match anything under the
     // walk root. The per-result coverage filter below would return nothing
     // anyway — but only after walking a whole out-of-scope tree.
-    if !files_scope::glob_prefix_plausibly_in_scope(&prefix, &patterns, home)
-        && !files_scope::glob_prefix_plausibly_in_scope(&canonical_prefix, &patterns, home)
+    if !files_scope::glob_prefix_plausibly_in_scope(&walk_root, &patterns, home)
+        && !files_scope::glob_prefix_plausibly_in_scope(
+            &canonical_prefix,
+            &patterns,
+            &canonical_home,
+        )
     {
         return Err(AppError::Validation(format!(
             "files:glob pattern '{}' is outside the declared files:read scope",
@@ -387,11 +411,14 @@ pub(crate) fn files_glob_inner(
     }
     let matcher = files_scope::compile_expanded_glob(&expanded.to_string_lossy(), pattern_str)?
         .compile_matcher();
-    let canonical_home = dunce::canonicalize(home).unwrap_or_else(|_| home.to_path_buf());
-    let canonical_extra_deny: Vec<PathBuf> = extra_deny
-        .iter()
-        .map(|p| dunce::canonicalize(p).unwrap_or_else(|_| p.clone()))
-        .collect();
+    // Candidates exist in two spellings when the walk root canonicalized
+    // to something else: the caller's requested form and the canonical
+    // (walked) form.
+    let requested_form_of =
+        |canonical_path: &Path| match canonical_path.strip_prefix(&canonical_prefix) {
+            Ok(rel) => walk_root.join(rel),
+            Err(_) => canonical_path.to_path_buf(),
+        };
 
     let mut visited: usize = 0;
     let mut results: Vec<String> = Vec::new();
@@ -409,7 +436,7 @@ pub(crate) fn files_glob_inner(
                     "files:glob visited more than {} entries under '{}' — narrow the pattern's \
                      literal prefix",
                     GLOB_MAX_VISITS,
-                    prefix.display()
+                    walk_root.display()
                 )));
             }
             // `DirEntry::file_type` does not traverse symlinks, so links —
@@ -422,23 +449,42 @@ pub(crate) fn files_glob_inner(
             }
             let canonical_path = entry.path();
             if file_type.is_dir() {
+                // Prune before descending: a denied directory's entries are
+                // never even enumerated (defense in depth — the per-file
+                // filter already keeps them out of results), and a subtree
+                // no declared pattern could match doesn't get to burn the
+                // visit budget.
+                let requested_dir = requested_form_of(&canonical_path);
+                if files_scope::check_path_denied(&requested_dir, home, extra_deny).is_err()
+                    || files_scope::check_path_denied(
+                        &canonical_path,
+                        &canonical_home,
+                        &canonical_extra_deny,
+                    )
+                    .is_err()
+                {
+                    continue;
+                }
+                if !files_scope::glob_prefix_plausibly_in_scope(&requested_dir, &patterns, home)
+                    && !files_scope::glob_prefix_plausibly_in_scope(
+                        &canonical_path,
+                        &patterns,
+                        &canonical_home,
+                    )
+                {
+                    continue;
+                }
                 stack.push(canonical_path);
                 continue;
             }
             if !file_type.is_file() {
                 continue;
             }
-            // Candidates exist in two spellings when the literal prefix
-            // canonicalized to something else: the caller's requested form
-            // and the canonical (walked) form. Match the requested glob
-            // against either; require declared coverage and the deny-list
-            // to hold for BOTH — the same double check `files:read` runs —
-            // so every returned path is guaranteed consumable by
-            // `files:read`/`files:thumbnail`.
-            let requested_form = match canonical_path.strip_prefix(&canonical_prefix) {
-                Ok(rel) => prefix.join(rel),
-                Err(_) => canonical_path.clone(),
-            };
+            // Match the requested glob against either spelling; require
+            // declared coverage and the deny-list to hold for BOTH — the
+            // same double check `files:read` runs — so every returned path
+            // is guaranteed consumable by `files:read`/`files:thumbnail`.
+            let requested_form = requested_form_of(&canonical_path);
             if !matcher.is_match(&requested_form) && !matcher.is_match(&canonical_path) {
                 continue;
             }
@@ -1147,6 +1193,52 @@ mod tests {
         let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
         assert_eq!(hits.len(), 1, "got: {hits:?}");
         assert!(!hits[0].contains("secret"));
+    }
+
+    #[test]
+    fn files_glob_literal_pattern_returns_the_exact_file() {
+        // A wildcard-free pattern must resolve to the file itself, not
+        // enumerate to empty because the literal prefix isn't a directory.
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let target = root.join("appcache/librarycache/105600/logo.png");
+        let hits =
+            files_glob_inner(&perms, "ext.a", &target.to_string_lossy(), None, &root, &[]).unwrap();
+        assert_eq!(hits, vec![target.to_string_lossy().into_owned()]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn files_glob_literal_symlink_is_not_reported() {
+        // The no-symlink policy holds for exact-path patterns too: the
+        // parent walk drops the link like everywhere else.
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let outside = TempDir::new().unwrap();
+        let secret = outside.path().canonicalize().unwrap().join("secret.jpg");
+        std::fs::write(&secret, "jpg").unwrap();
+        let link = root.join("linked.jpg");
+        std::os::unix::fs::symlink(&secret, &link).unwrap();
+        let hits =
+            files_glob_inner(&perms, "ext.a", &link.to_string_lossy(), None, &root, &[]).unwrap();
+        assert!(hits.is_empty(), "got: {hits:?}");
+    }
+
+    #[test]
+    fn files_glob_denied_walk_root_errors_as_protected() {
+        // Enumerating from inside a protected root is an explicit denial,
+        // not an empty result — and the walk never opens the directory.
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let ssh = root.join(".ssh");
+        std::fs::create_dir_all(&ssh).unwrap();
+        std::fs::write(ssh.join("id_rsa.jpg"), "not art").unwrap();
+        let pattern = format!("{}/.ssh/**", root.to_string_lossy());
+        let err = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap_err();
+        assert!(
+            format!("{err}").contains("protected location"),
+            "got: {err}"
+        );
     }
 
     // ---- files_thumbnail (extension-scoped) ----
