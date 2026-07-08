@@ -35,7 +35,9 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:entitlements:getAll': 'entitlements:read',
   'asyar:api:invoke': 'shell:spawn', // Safe gate for raw Tauri commands
   'asyar:api:network:fetch': 'network',
-  'asyar:api:opener:open': 'shell:open-url', // Open a URL in the system browser
+  // Open a URL: web-default schemes for every holder; declared
+  // permissionArgs["shell:open-url"] schemes extend it (checked in Rust).
+  'asyar:api:opener:open': 'shell:open-url',
 
   'asyar:api:fs:showInFileManager': 'fs:read',
   'asyar:api:fs:trash': 'fs:write',

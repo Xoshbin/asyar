@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { invokeSafe } from './invokeSafe';
 import type {
   Bookmark,
@@ -64,8 +65,15 @@ export async function browserCloseTab(tabId: string): Promise<void> {
   await invokeSafe('browser_close_tab', { tabId });
 }
 
-export async function browserOpenUrl(url: string, target?: OpenUrlTarget): Promise<void> {
-  await invokeSafe('browser_open_url', { url, target });
+/** Raw `invoke` deliberately (not `invokeSafe`): the Rust command scheme-
+ * gates extension callers, and a denial must propagate to the caller as an
+ * error rather than dissolving into a diagnostic. */
+export async function browserOpenUrl(
+  extensionId: string | null,
+  url: string,
+  target?: OpenUrlTarget,
+): Promise<void> {
+  await invoke('browser_open_url', { extensionId, url, target });
 }
 
 export async function browserListPairedBrowsers(): Promise<BrowserKey[] | null> {

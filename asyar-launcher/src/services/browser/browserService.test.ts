@@ -16,14 +16,14 @@ describe('browserService', () => {
   it('listAvailableBrowsers calls the right command', async () => {
     const fake: BrowserId[] = [{ family: 'chromium', variant: 'chrome', profileId: 'Default' }];
     invokeMock.mockResolvedValue(fake);
-    const result = await browserService.listAvailableBrowsers();
+    const result = await browserService.listAvailableBrowsers(null);
     expect(invokeMock).toHaveBeenCalledWith('browser_list_available_browsers', undefined);
     expect(result).toEqual(fake);
   });
 
   it('isCompanionInstalled passes family argument', async () => {
     invokeMock.mockResolvedValue(false);
-    const result = await browserService.isCompanionInstalled('chromium');
+    const result = await browserService.isCompanionInstalled(null, 'chromium');
     expect(invokeMock).toHaveBeenCalledWith('browser_is_companion_installed', {
       family: 'chromium',
     });
@@ -33,7 +33,7 @@ describe('browserService', () => {
   it('listBookmarks passes filter args', async () => {
     const fake: Bookmark[] = [];
     invokeMock.mockResolvedValue(fake);
-    await browserService.listBookmarks({ query: 'foo' });
+    await browserService.listBookmarks(null, { query: 'foo' });
     expect(invokeMock).toHaveBeenCalledWith('browser_list_bookmarks', {
       browser: undefined,
       query: 'foo',
@@ -42,7 +42,7 @@ describe('browserService', () => {
 
   it('listBookmarks with no filter passes undefined args', async () => {
     invokeMock.mockResolvedValue([]);
-    await browserService.listBookmarks();
+    await browserService.listBookmarks(null);
     expect(invokeMock).toHaveBeenCalledWith('browser_list_bookmarks', {
       browser: undefined,
       query: undefined,
@@ -52,7 +52,7 @@ describe('browserService', () => {
   it('searchHistory forwards all options', async () => {
     const fake: HistoryEntry[] = [];
     invokeMock.mockResolvedValue(fake);
-    await browserService.searchHistory('react', { limit: 50, sinceMs: 1000 });
+    await browserService.searchHistory(null, 'react', { limit: 50, sinceMs: 1000 });
     expect(invokeMock).toHaveBeenCalledWith('browser_search_history', {
       query: 'react',
       limit: 50,
@@ -64,7 +64,7 @@ describe('browserService', () => {
 describe('browserService — live bridge', () => {
   it('listTabs forwards browser + query', async () => {
     invokeMock.mockResolvedValue([]);
-    await browserService.listTabs({ query: 'react' });
+    await browserService.listTabs(null, { query: 'react' });
     expect(invokeMock).toHaveBeenCalledWith('browser_list_tabs', {
       browser: undefined,
       query: 'react',
@@ -73,46 +73,54 @@ describe('browserService — live bridge', () => {
 
   it('getActiveTab forwards browser', async () => {
     invokeMock.mockResolvedValue(null);
-    await browserService.getActiveTab();
+    await browserService.getActiveTab(null);
     expect(invokeMock).toHaveBeenCalledWith('browser_get_active_tab', { browser: undefined });
   });
 
   it('activateTab passes tab_id', async () => {
     invokeMock.mockResolvedValue(undefined);
-    await browserService.activateTab('tab-42');
+    await browserService.activateTab(null, 'tab-42');
     expect(invokeMock).toHaveBeenCalledWith('browser_activate_tab', { tabId: 'tab-42' });
   });
 
   it('closeTab passes tab_id', async () => {
     invokeMock.mockResolvedValue(undefined);
-    await browserService.closeTab('tab-42');
+    await browserService.closeTab(null, 'tab-42');
     expect(invokeMock).toHaveBeenCalledWith('browser_close_tab', { tabId: 'tab-42' });
   });
 
-  it('openUrl forwards url + target', async () => {
+  it('openUrl forwards caller identity + url + target', async () => {
     invokeMock.mockResolvedValue(undefined);
-    await browserService.openUrl('https://x', { newWindow: true });
+    await browserService.openUrl('ext.a', 'https://x', { newWindow: true });
     expect(invokeMock).toHaveBeenCalledWith('browser_open_url', {
+      extensionId: 'ext.a',
       url: 'https://x',
       target: { newWindow: true },
     });
   });
 
+  it('openUrl propagates scheme denials as rejections', async () => {
+    invokeMock.mockRejectedValue(new Error('scheme is not in the declared scheme list'));
+    await expect(browserService.openUrl('ext.a', 'steam://run/42')).rejects.toThrow(
+      'declared scheme',
+    );
+  });
+
   it('listPairedBrowsers calls the command', async () => {
     invokeMock.mockResolvedValue([]);
-    await browserService.listPairedBrowsers();
+    await browserService.listPairedBrowsers(null);
     expect(invokeMock).toHaveBeenCalledWith('browser_list_paired_browsers', undefined);
   });
 
   it('getCurrentPage forwards browser', async () => {
     invokeMock.mockResolvedValue(null);
-    await browserService.getCurrentPage();
+    await browserService.getCurrentPage(null);
     expect(invokeMock).toHaveBeenCalledWith('browser_get_current_page', { browser: undefined });
   });
 
   it('queryPage forwards tabId, selector, and attrs', async () => {
     invokeMock.mockResolvedValue([]);
-    await browserService.queryPage('t1', 'a', ['href']);
+    await browserService.queryPage(null, 't1', 'a', ['href']);
     expect(invokeMock).toHaveBeenCalledWith('browser_query_page', {
       tabId: 't1',
       selector: 'a',
@@ -122,7 +130,7 @@ describe('browserService — live bridge', () => {
 
   it('actOnPage forwards tabId and action', async () => {
     invokeMock.mockResolvedValue(undefined);
-    await browserService.actOnPage('t1', { kind: 'reload' });
+    await browserService.actOnPage(null, 't1', { kind: 'reload' });
     expect(invokeMock).toHaveBeenCalledWith('browser_act_on_page', {
       tabId: 't1',
       action: { kind: 'reload' },
@@ -133,7 +141,7 @@ describe('browserService — live bridge', () => {
 describe('browserService — command-bar additions', () => {
   it('searchWeb calls browser_search_web with text + browser undefined', async () => {
     invokeMock.mockResolvedValue(undefined);
-    await browserService.searchWeb('q');
+    await browserService.searchWeb(null, 'q');
     expect(invokeMock).toHaveBeenCalledWith('browser_search_web', {
       text: 'q',
       browser: undefined,
@@ -143,7 +151,7 @@ describe('browserService — command-bar additions', () => {
   it('searchWeb calls browser_search_web with text + specific browser', async () => {
     invokeMock.mockResolvedValue(undefined);
     const someBrowser = { family: 'chromium' as const, variant: 'chrome', profileId: 'Default' };
-    await browserService.searchWeb('q', someBrowser);
+    await browserService.searchWeb(null, 'q', someBrowser);
     expect(invokeMock).toHaveBeenCalledWith('browser_search_web', {
       text: 'q',
       browser: someBrowser,
@@ -152,7 +160,7 @@ describe('browserService — command-bar additions', () => {
 
   it('getMostRecentActiveBrowser calls browser_get_most_recent_active_browser', async () => {
     invokeMock.mockResolvedValue(null);
-    await browserService.getMostRecentActiveBrowser();
+    await browserService.getMostRecentActiveBrowser(null);
     expect(invokeMock).toHaveBeenCalledWith('browser_get_most_recent_active_browser', undefined);
   });
 });
@@ -160,7 +168,7 @@ describe('browserService — command-bar additions', () => {
 describe('browserService — subscribe per-kind (hard-coded eventTypes)', () => {
   it('subscribeTabsChanged invokes browser_events_subscribe with hard-coded tabs.changed', async () => {
     invokeMock.mockResolvedValue('sub-1');
-    const id = await browserService.subscribeTabsChanged();
+    const id = await browserService.subscribeTabsChanged(null);
     expect(invokeMock).toHaveBeenCalledWith('browser_events_subscribe', {
       eventTypes: ['tabs.changed'],
     });
@@ -169,22 +177,22 @@ describe('browserService — subscribe per-kind (hard-coded eventTypes)', () => 
 
   it('subscribePageChanged invokes browser_events_subscribe with hard-coded page.changed', async () => {
     invokeMock.mockResolvedValue('sub-2');
-    await browserService.subscribePageChanged();
+    await browserService.subscribePageChanged(null);
     expect(invokeMock).toHaveBeenCalledWith('browser_events_subscribe', {
       eventTypes: ['page.changed'],
     });
   });
 
-  it('subscribeTabsChanged takes NO parameters (security boundary — wire payload cannot override eventTypes)', () => {
-    // TypeScript-level check: the signature must be `(): Promise<string>` with arity 0.
-    // If someone adds an `eventTypes?: string[]` param, this assertion-by-shape fails to compile.
-    expect(browserService.subscribeTabsChanged.length).toBe(0);
-    expect(browserService.subscribePageChanged.length).toBe(0);
+  it('subscribeTabsChanged takes ONLY the injected caller identity (security boundary — wire payload cannot override eventTypes)', () => {
+    // Shape check: arity must be exactly 1 — the router-injected caller id.
+    // If someone adds an `eventTypes?: string[]` param, this assertion fails.
+    expect(browserService.subscribeTabsChanged.length).toBe(1);
+    expect(browserService.subscribePageChanged.length).toBe(1);
   });
 
   it('unsubscribeTabsChanged invokes browser_events_unsubscribe', async () => {
     invokeMock.mockResolvedValue(undefined);
-    await browserService.unsubscribeTabsChanged('sub-1');
+    await browserService.unsubscribeTabsChanged(null, 'sub-1');
     expect(invokeMock).toHaveBeenCalledWith('browser_events_unsubscribe', {
       subscriptionId: 'sub-1',
     });
@@ -192,7 +200,7 @@ describe('browserService — subscribe per-kind (hard-coded eventTypes)', () => 
 
   it('unsubscribePageChanged invokes browser_events_unsubscribe', async () => {
     invokeMock.mockResolvedValue(undefined);
-    await browserService.unsubscribePageChanged('sub-2');
+    await browserService.unsubscribePageChanged(null, 'sub-2');
     expect(invokeMock).toHaveBeenCalledWith('browser_events_unsubscribe', {
       subscriptionId: 'sub-2',
     });

@@ -81,7 +81,8 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
   },
   'shell:open-url': {
     title: 'Open URLs',
-    description: 'Open URLs in the system browser.',
+    description:
+      'Open web links (http, https, mailto, tel) in the default browser — plus any additional URL schemes the extension declares, which can launch the apps registered for them.',
   },
   'entitlements:read': {
     title: 'Read subscription status',
