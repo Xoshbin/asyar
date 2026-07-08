@@ -307,6 +307,14 @@ describe('checkPermission', () => {
       const result = checkPermission('test-ext', 'asyar:api:files:read', ['files:read']);
       expect(result.allowed).toBe(true);
     });
+    it('gates glob and thumbnail behind the same permission', () => {
+      for (const route of ['asyar:api:files:glob', 'asyar:api:files:thumbnail']) {
+        const denied = checkPermission('test-ext', route, ['files:search']);
+        expect(denied.allowed).toBe(false);
+        expect(denied.requiredPermission).toBe('files:read');
+        expect(checkPermission('test-ext', route, ['files:read']).allowed).toBe(true);
+      }
+    });
   });
 
   // ── PERMISSION_MAP structure ───────────────────────────────────────────────

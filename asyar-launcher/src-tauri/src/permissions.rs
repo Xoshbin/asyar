@@ -255,6 +255,12 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // File content read — separate permission from the index search;
         // scope is in permissionArgs.files:read (glob patterns).
         "asyar:api:files:read" => Some("files:read"),
+        // Scoped enumeration and thumbnails ride the same permission and
+        // the same declared globs: listing in-scope names and rendering an
+        // in-scope file as an icon are both strictly less information than
+        // the byte read files:read already grants.
+        "asyar:api:files:glob" => Some("files:read"),
+        "asyar:api:files:thumbnail" => Some("files:read"),
         // browser:listAvailableBrowsers / isCompanionInstalled are intentionally
         // permission-free (discovery, low blast radius) → fall through to None.
         // search:rank is intentionally permission-free: the caller supplies its
@@ -461,6 +467,14 @@ mod tests {
         );
         assert_eq!(
             get_required_permission("asyar:api:files:read"),
+            Some("files:read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:files:glob"),
+            Some("files:read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:files:thumbnail"),
             Some("files:read")
         );
     }

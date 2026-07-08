@@ -75,6 +75,22 @@ pub fn validate_files_read_pattern(pattern: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Compile a single already-tilde-expanded pattern with the platform's
+/// case semantics (`original` only feeds the error message). Shared by the
+/// coverage check below and `files:glob`'s requested-pattern matcher so
+/// both surfaces match identically.
+pub fn compile_expanded_glob(expanded: &str, original: &str) -> Result<globset::Glob, AppError> {
+    globset::GlobBuilder::new(expanded)
+        .case_insensitive(CASE_INSENSITIVE_FS)
+        .build()
+        .map_err(|e| {
+            AppError::Validation(format!(
+                "files:read pattern '{}' is not a valid glob: {}",
+                original, e
+            ))
+        })
+}
+
 /// Check that `requested` is matched by at least one declared pattern.
 /// Patterns are tilde-expanded and compiled into a `GlobSet`; on Windows
 /// and macOS they match case-insensitively (NTFS and default-APFS path
@@ -95,16 +111,7 @@ pub fn path_covered_by_patterns(
     for p in patterns {
         let expanded = expand_tilde(p, home);
         let as_str = expanded.to_string_lossy().into_owned();
-        let glob = globset::GlobBuilder::new(&as_str)
-            .case_insensitive(CASE_INSENSITIVE_FS)
-            .build()
-            .map_err(|e| {
-                AppError::Validation(format!(
-                    "files:read pattern '{}' is not a valid glob: {}",
-                    p, e
-                ))
-            })?;
-        builder.add(glob);
+        builder.add(compile_expanded_glob(&as_str, p)?);
     }
     let set = builder.build().map_err(|e| {
         AppError::Validation(format!("files:read: failed to build glob set: {}", e))
@@ -117,6 +124,43 @@ pub fn path_covered_by_patterns(
             requested.display()
         )))
     }
+}
+
+/// The longest leading run of components containing no glob
+/// metacharacters — the concrete directory a scoped enumeration
+/// (`files:glob`) can walk from. `C:/Steam/appcache/**/*.jpg` →
+/// `C:/Steam/appcache`; a pattern starting with a wildcard
+/// (`**/steamapps/...`) yields an empty path, which callers reject —
+/// there is no finite root to enumerate.
+pub fn glob_literal_prefix(expanded: &Path) -> PathBuf {
+    let mut prefix = PathBuf::new();
+    for comp in expanded.components() {
+        let s = comp.as_os_str().to_string_lossy();
+        if s.contains(['*', '?', '[', '{']) {
+            break;
+        }
+        prefix.push(comp);
+    }
+    prefix
+}
+
+/// Cheap pre-walk pruning for `files:glob`: a walk root is plausible when
+/// some declared pattern could match files under it — the pattern's own
+/// literal prefix contains, or is contained by, the walk root (or the
+/// pattern is unanchored and could match anywhere). Per-result coverage
+/// still gates every returned path; this exists only so an obviously
+/// out-of-scope request (`C:/**` against a `C:/Steam/**` scope) fails fast
+/// instead of walking a whole tree to return nothing.
+pub fn glob_prefix_plausibly_in_scope(prefix: &Path, patterns: &[String], home: &Path) -> bool {
+    patterns.iter().any(|p| {
+        let expanded = expand_tilde(p, home);
+        let declared_prefix = glob_literal_prefix(&expanded);
+        if declared_prefix.as_os_str().is_empty() {
+            return true;
+        }
+        starts_with_case_aware(prefix, &declared_prefix)
+            || starts_with_case_aware(&declared_prefix, prefix)
+    })
 }
 
 /// The full deny-list for a given home directory. Callers append any
@@ -322,6 +366,104 @@ mod tests {
             format!("{err}").contains("protected location"),
             "got: {err}"
         );
+    }
+
+    // ---- glob_literal_prefix ----
+
+    #[test]
+    fn literal_prefix_stops_at_first_metacharacter() {
+        assert_eq!(
+            glob_literal_prefix(Path::new("/opt/steam/appcache/**/*.jpg")),
+            PathBuf::from("/opt/steam/appcache")
+        );
+        assert_eq!(
+            glob_literal_prefix(Path::new("/opt/steam/appcache/1?5/icon.jpg")),
+            PathBuf::from("/opt/steam/appcache")
+        );
+    }
+
+    #[test]
+    fn literal_prefix_of_unanchored_pattern_is_empty() {
+        assert_eq!(
+            glob_literal_prefix(Path::new("**/steamapps/appmanifest_*.acf")),
+            PathBuf::new()
+        );
+    }
+
+    #[test]
+    fn literal_prefix_of_fully_literal_path_is_the_path() {
+        assert_eq!(
+            glob_literal_prefix(Path::new("/opt/app/config.toml")),
+            PathBuf::from("/opt/app/config.toml")
+        );
+    }
+
+    // ---- glob_prefix_plausibly_in_scope ----
+
+    #[test]
+    fn prefix_inside_declared_scope_is_plausible() {
+        let patterns = vec!["/opt/steam/**".to_string()];
+        assert!(glob_prefix_plausibly_in_scope(
+            Path::new("/opt/steam/appcache"),
+            &patterns,
+            &home()
+        ));
+    }
+
+    #[test]
+    fn prefix_above_declared_scope_is_plausible() {
+        // Walking /opt/steam with a deeper declared scope is fine — the
+        // per-result coverage filter keeps only in-scope hits.
+        let patterns = vec!["/opt/steam/appcache/**".to_string()];
+        assert!(glob_prefix_plausibly_in_scope(
+            Path::new("/opt/steam"),
+            &patterns,
+            &home()
+        ));
+    }
+
+    #[test]
+    fn disjoint_prefix_is_not_plausible() {
+        let patterns = vec!["/opt/steam/**".to_string()];
+        assert!(!glob_prefix_plausibly_in_scope(
+            Path::new("/var/log"),
+            &patterns,
+            &home()
+        ));
+    }
+
+    #[test]
+    fn unanchored_declared_pattern_makes_any_prefix_plausible() {
+        let patterns = vec!["**/steamapps/appmanifest_*.acf".to_string()];
+        assert!(glob_prefix_plausibly_in_scope(
+            Path::new("/var/log"),
+            &patterns,
+            &home()
+        ));
+    }
+
+    #[test]
+    fn empty_declared_patterns_are_never_plausible() {
+        assert!(!glob_prefix_plausibly_in_scope(
+            Path::new("/opt/steam"),
+            &[],
+            &home()
+        ));
+    }
+
+    #[test]
+    fn tilde_declared_pattern_is_expanded_before_prefix_comparison() {
+        let patterns = vec!["~/steam/**".to_string()];
+        assert!(glob_prefix_plausibly_in_scope(
+            Path::new("/Users/test/steam/appcache"),
+            &patterns,
+            &home()
+        ));
+        assert!(!glob_prefix_plausibly_in_scope(
+            Path::new("/Users/other/steam"),
+            &patterns,
+            &home()
+        ));
     }
 
     #[test]

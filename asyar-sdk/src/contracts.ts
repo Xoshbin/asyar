@@ -164,6 +164,8 @@ export type {
   IndexStatus,
   FileSearchOptions,
   FileReadOptions,
+  FileGlobOptions,
+  FileThumbnailOptions,
 } from './services/IFilesService';
 
 // Launcher-brokered extension state store + RPC primitive.

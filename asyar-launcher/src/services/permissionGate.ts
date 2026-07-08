@@ -155,6 +155,10 @@ export const PERMISSION_MAP: Record<string, string> = {
   // readable scope is the extension's declared permissionArgs["files:read"]
   // globs, enforced in Rust (files_read_text).
   'asyar:api:files:read': 'files:read',
+  // Scoped enumeration and thumbnails ride the same permission and globs:
+  // both are strictly less information than the byte read already granted.
+  'asyar:api:files:glob': 'files:read',
+  'asyar:api:files:thumbnail': 'files:read',
 };
 
 /**

@@ -73,7 +73,7 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
   'files:read': {
     title: 'Read file contents',
     description:
-      'Read the text contents of files matching the declared path patterns. Credential stores and OS locations are always excluded.',
+      'Read the text contents, list the file names, and render thumbnails of files matching the declared path patterns. Credential stores and OS locations are always excluded.',
   },
   'shell:spawn': {
     title: 'Run programs',

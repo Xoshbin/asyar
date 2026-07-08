@@ -362,6 +362,8 @@ pub fn run() {
             commands::read_text_file_absolute,
             commands::read_text_preview,
             commands::files_read_text,
+            commands::files_glob,
+            commands::files_thumbnail,
             commands::mkdir_absolute,
             commands::spawn_headless_extension,
             commands::kill_extension,

@@ -80,4 +80,38 @@ describe('FilesServiceProxy', () => {
     vi.mocked(mockBroker.invoke).mockRejectedValueOnce(new Error('not covered'));
     await expect(proxy.read('/etc/shadow')).rejects.toThrow('not covered');
   });
+
+  it('glob() calls broker.invoke with pattern and forwards maxResults', async () => {
+    const paths = ['C:/Steam/appcache/librarycache/105600/dca2.jpg'];
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(paths);
+    const result = await proxy.glob('C:/Steam/appcache/librarycache/**/*.jpg', {
+      maxResults: 5,
+    });
+    expect(mockBroker.invoke).toHaveBeenCalledWith('files:glob', {
+      pattern: 'C:/Steam/appcache/librarycache/**/*.jpg',
+      opts: { maxResults: 5 },
+    });
+    expect(result).toEqual(paths);
+  });
+
+  it('glob() propagates broker rejections', async () => {
+    vi.mocked(mockBroker.invoke).mockRejectedValueOnce(new Error('outside the declared scope'));
+    await expect(proxy.glob('C:/**')).rejects.toThrow('outside the declared scope');
+  });
+
+  it('thumbnail() calls broker.invoke with path and forwards maxDim', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce('http://asyar-thumb.localhost/abc.png');
+    const result = await proxy.thumbnail('C:/Steam/art.jpg', { maxDim: 64 });
+    expect(mockBroker.invoke).toHaveBeenCalledWith('files:thumbnail', {
+      path: 'C:/Steam/art.jpg',
+      opts: { maxDim: 64 },
+    });
+    expect(result).toBe('http://asyar-thumb.localhost/abc.png');
+  });
+
+  it('thumbnail() passes through the no-strategy null', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(null);
+    const result = await proxy.thumbnail('C:/Steam/notes.txt');
+    expect(result).toBeNull();
+  });
 });

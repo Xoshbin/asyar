@@ -188,6 +188,17 @@ pub async fn files_read_text<R: tauri::Runtime>(
         validate_path_allowed(&path_str, &app_handle)?;
         return read_bounded(Path::new(&path_str), max_bytes.unwrap_or(50_000) as u64);
     };
+    let (home, extra_deny) = extension_scope_env(&app_handle)?;
+    files_read_text_inner(&permissions, &ext, &path_str, max_bytes, &home, &extra_deny)
+}
+
+/// Home dir + runtime deny roots for the extension-scoped file commands.
+/// The launcher's own app-data dir (settings.dat, consent records, MCP
+/// config) joins the deny-list — a broad consented glob like `~/**` must
+/// not read the launcher's internal state.
+fn extension_scope_env<R: tauri::Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+) -> Result<(PathBuf, Vec<PathBuf>), AppError> {
     let home = app_handle
         .path()
         .home_dir()
@@ -196,17 +207,7 @@ pub async fn files_read_text<R: tauri::Runtime>(
         .path()
         .app_data_dir()
         .map_err(|e| AppError::Other(format!("Cannot resolve app data dir: {}", e)))?;
-    // The launcher's own app-data dir (settings.dat, consent records, MCP
-    // config) joins the deny-list — a broad consented glob like `~/**`
-    // must not read the launcher's internal state.
-    files_read_text_inner(
-        &permissions,
-        &ext,
-        &path_str,
-        max_bytes,
-        &home,
-        &[normalize_path(&app_data)],
-    )
+    Ok((home, vec![normalize_path(&app_data)]))
 }
 
 pub(crate) fn files_read_text_inner(
@@ -217,6 +218,25 @@ pub(crate) fn files_read_text_inner(
     home: &Path,
     extra_deny: &[PathBuf],
 ) -> Result<String, AppError> {
+    let canonical = validate_scoped_path(permissions, extension_id, path_str, home, extra_deny)?;
+    let cap = max_bytes
+        .map(u64::from)
+        .unwrap_or(50_000)
+        .min(EXTENSION_READ_MAX_BYTES);
+    read_bounded(&canonical, cap)
+}
+
+/// The full `files:read` scope check shared by every extension-facing
+/// command that touches file contents (`files:read`, `files:thumbnail`) —
+/// permission, absolute-path, declared-glob coverage, deny-list, and the
+/// canonical re-check. Returns the canonical path to operate on.
+pub(crate) fn validate_scoped_path(
+    permissions: &ExtensionPermissionRegistry,
+    extension_id: &str,
+    path_str: &str,
+    home: &Path,
+    extra_deny: &[PathBuf],
+) -> Result<PathBuf, AppError> {
     permissions.check(&Some(extension_id.to_string()), FILES_READ_PERMISSION)?;
     let path = Path::new(path_str);
     if !path.is_absolute() {
@@ -258,11 +278,304 @@ pub(crate) fn files_read_text_inner(
     // "protected location" error rather than the generic coverage miss.
     files_scope::check_path_denied(&canonical, &canonical_home, &canonical_extra_deny)?;
     files_scope::path_covered_by_patterns(&patterns, &canonical, &canonical_home)?;
-    let cap = max_bytes
-        .map(u64::from)
-        .unwrap_or(50_000)
-        .min(EXTENSION_READ_MAX_BYTES);
-    read_bounded(&canonical, cap)
+    // Regular files only: on Unix a covered FIFO would pass every scope
+    // check and then block `File::open` (or an image decode plus one of
+    // the thumbnail semaphore's three permits) indefinitely — an
+    // extension-triggered hang. Directories get a clear rejection here
+    // instead of a platform-worded open error.
+    let meta = fs::metadata(&canonical).map_err(|e| {
+        AppError::Validation(format!(
+            "files:read path '{}' is not accessible: {}",
+            canonical.display(),
+            e
+        ))
+    })?;
+    if !meta.is_file() {
+        return Err(AppError::Validation(format!(
+            "files:read path '{}' is not a regular file",
+            canonical.display()
+        )));
+    }
+    Ok(canonical)
+}
+
+/// Results cap for `files:glob` — plenty for any per-directory artwork
+/// lookup while keeping the IPC payload bounded. Also the ceiling for the
+/// caller-supplied `max_results`.
+const GLOB_MAX_RESULTS: usize = 256;
+
+/// Directory-entry budget for one `files:glob` walk. Exhausting it is an
+/// error rather than a silent truncation — which entries a cut-off walk
+/// would have covered is filesystem-order nondeterministic, so the caller
+/// must narrow the pattern's literal prefix instead.
+const GLOB_MAX_VISITS: usize = 10_000;
+
+/// Scoped filename enumeration for extensions (`asyar:api:files:glob`).
+/// Complements `files:read`/`files:thumbnail`, which take exact paths the
+/// caller must already know — but names in Steam-style caches are
+/// content-addressed (`librarycache/<appid>/<sha1>.jpg`), unknowable in
+/// advance, and extensions cannot list directories. Returns the absolute
+/// paths of existing regular files (never directories) matching `pattern`,
+/// filtered to the caller's declared `permissionArgs["files:read"]` scope
+/// minus the deny-list — out-of-scope names never leave the host. Symlinks
+/// are neither followed nor reported. Extension identity is required: host
+/// code has the file index and unscoped reads already.
+#[tauri::command]
+pub async fn files_glob<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    permissions: tauri::State<'_, ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
+    pattern: String,
+    max_results: Option<u32>,
+) -> Result<Vec<String>, AppError> {
+    let Some(ext) = extension_id else {
+        return Err(AppError::Validation(
+            "files:glob requires an extension caller".into(),
+        ));
+    };
+    let (home, extra_deny) = extension_scope_env(&app_handle)?;
+    files_glob_inner(
+        &permissions,
+        &ext,
+        &pattern,
+        max_results,
+        &home,
+        &extra_deny,
+    )
+}
+
+pub(crate) fn files_glob_inner(
+    permissions: &ExtensionPermissionRegistry,
+    extension_id: &str,
+    pattern_str: &str,
+    max_results: Option<u32>,
+    home: &Path,
+    extra_deny: &[PathBuf],
+) -> Result<Vec<String>, AppError> {
+    permissions.check(&Some(extension_id.to_string()), FILES_READ_PERMISSION)?;
+    // Same load-time rules as declared patterns: non-empty, no `..`, valid
+    // glob syntax.
+    files_scope::validate_files_read_pattern(pattern_str)?;
+    let expanded = crate::fs_watcher::matcher::expand_tilde(pattern_str, home);
+    let prefix = files_scope::glob_literal_prefix(&expanded);
+    if prefix.as_os_str().is_empty() || !prefix.is_absolute() {
+        return Err(AppError::Validation(format!(
+            "files:glob pattern must begin with an absolute literal prefix to enumerate from \
+             (e.g. 'C:/Steam/appcache/**'), got: '{}'",
+            pattern_str
+        )));
+    }
+    let patterns = permissions.files_read_patterns(extension_id)?;
+    // A wildcard-free pattern IS its own literal prefix — a file, not a
+    // directory to walk. Enumerate its parent and let the matcher select
+    // it, so an existing exact path resolves to itself instead of lying
+    // with an empty result. (A symlink at that exact path stays hidden:
+    // the parent walk drops symlinks like everywhere else.)
+    let walk_root = if prefix.is_file() {
+        prefix.parent().unwrap_or(&prefix).to_path_buf()
+    } else {
+        prefix.clone()
+    };
+    // A walk root that doesn't exist enumerates to nothing — normal for
+    // the multi-drive Steam case, where a configured library drive may be
+    // absent. Canonicalizing it also resolves the one symlink the walk
+    // itself can't skip: one sitting inside the literal prefix.
+    let canonical_prefix = match dunce::canonicalize(&walk_root) {
+        Ok(p) => p,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let canonical_home = dunce::canonicalize(home).unwrap_or_else(|_| home.to_path_buf());
+    let canonical_extra_deny: Vec<PathBuf> = extra_deny
+        .iter()
+        .map(|p| dunce::canonicalize(p).unwrap_or_else(|_| p.clone()))
+        .collect();
+    // A walk root inside a protected location is an explicit denial (the
+    // same "protected location" error files:read gives), not an empty
+    // enumeration — and the walk below never even opens such a directory.
+    files_scope::check_path_denied(&walk_root, home, extra_deny)?;
+    files_scope::check_path_denied(&canonical_prefix, &canonical_home, &canonical_extra_deny)?;
+    // Fail fast when no declared pattern could match anything under the
+    // walk root. The per-result coverage filter below would return nothing
+    // anyway — but only after walking a whole out-of-scope tree.
+    if !files_scope::glob_prefix_plausibly_in_scope(&walk_root, &patterns, home)
+        && !files_scope::glob_prefix_plausibly_in_scope(
+            &canonical_prefix,
+            &patterns,
+            &canonical_home,
+        )
+    {
+        return Err(AppError::Validation(format!(
+            "files:glob pattern '{}' is outside the declared files:read scope",
+            pattern_str
+        )));
+    }
+    let matcher = files_scope::compile_expanded_glob(&expanded.to_string_lossy(), pattern_str)?
+        .compile_matcher();
+    // Candidates exist in two spellings when the walk root canonicalized
+    // to something else: the caller's requested form and the canonical
+    // (walked) form.
+    let requested_form_of =
+        |canonical_path: &Path| match canonical_path.strip_prefix(&canonical_prefix) {
+            Ok(rel) => walk_root.join(rel),
+            Err(_) => canonical_path.to_path_buf(),
+        };
+
+    let mut visited: usize = 0;
+    let mut results: Vec<String> = Vec::new();
+    let mut stack: Vec<PathBuf> = vec![canonical_prefix.clone()];
+    while let Some(dir) = stack.pop() {
+        // Unreadable directories are skipped, not fatal — a broad glob may
+        // legitimately brush against permission-denied subtrees.
+        let Ok(read_dir) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in read_dir.flatten() {
+            visited += 1;
+            if visited > GLOB_MAX_VISITS {
+                return Err(AppError::Validation(format!(
+                    "files:glob visited more than {} entries under '{}' — narrow the pattern's \
+                     literal prefix",
+                    GLOB_MAX_VISITS,
+                    walk_root.display()
+                )));
+            }
+            // `DirEntry::file_type` does not traverse symlinks, so links —
+            // to directories or files — are dropped here, never followed.
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if file_type.is_symlink() {
+                continue;
+            }
+            let canonical_path = entry.path();
+            if file_type.is_dir() {
+                // Prune before descending: a denied directory's entries are
+                // never even enumerated (defense in depth — the per-file
+                // filter already keeps them out of results), and a subtree
+                // no declared pattern could match doesn't get to burn the
+                // visit budget.
+                let requested_dir = requested_form_of(&canonical_path);
+                if files_scope::check_path_denied(&requested_dir, home, extra_deny).is_err()
+                    || files_scope::check_path_denied(
+                        &canonical_path,
+                        &canonical_home,
+                        &canonical_extra_deny,
+                    )
+                    .is_err()
+                {
+                    continue;
+                }
+                if !files_scope::glob_prefix_plausibly_in_scope(&requested_dir, &patterns, home)
+                    && !files_scope::glob_prefix_plausibly_in_scope(
+                        &canonical_path,
+                        &patterns,
+                        &canonical_home,
+                    )
+                {
+                    continue;
+                }
+                stack.push(canonical_path);
+                continue;
+            }
+            if !file_type.is_file() {
+                continue;
+            }
+            // Match the requested glob against either spelling; require
+            // declared coverage and the deny-list to hold for BOTH — the
+            // same double check `files:read` runs — so every returned path
+            // is guaranteed consumable by `files:read`/`files:thumbnail`.
+            let requested_form = requested_form_of(&canonical_path);
+            if !matcher.is_match(&requested_form) && !matcher.is_match(&canonical_path) {
+                continue;
+            }
+            if files_scope::path_covered_by_patterns(&patterns, &requested_form, home).is_err()
+                || files_scope::check_path_denied(&requested_form, home, extra_deny).is_err()
+                || files_scope::path_covered_by_patterns(
+                    &patterns,
+                    &canonical_path,
+                    &canonical_home,
+                )
+                .is_err()
+                || files_scope::check_path_denied(
+                    &canonical_path,
+                    &canonical_home,
+                    &canonical_extra_deny,
+                )
+                .is_err()
+            {
+                continue;
+            }
+            results.push(canonical_path.to_string_lossy().into_owned());
+        }
+    }
+    // Deterministic order and a deterministic first-N under the cap.
+    results.sort();
+    let cap = max_results
+        .map(|n| n as usize)
+        .unwrap_or(GLOB_MAX_RESULTS)
+        .clamp(1, GLOB_MAX_RESULTS);
+    results.truncate(cap);
+    Ok(results)
+}
+
+/// Default edge for extension thumbnails — matches the host previews'
+/// `DEFAULT_MAX_DIM`.
+const THUMB_DEFAULT_MAX_DIM: u32 = 256;
+
+/// Ceiling for the caller-supplied `max_dim`, so an extension can't turn
+/// the shared thumbnail cache into a full-resolution image store.
+const EXTENSION_THUMB_MAX_DIM: u32 = 512;
+
+/// Permission-gated thumbnail for extensions (`asyar:api:files:thumbnail`).
+/// Same declared-glob scope and deny-list as `files:read` — a thumbnail is
+/// strictly less information than the byte read that permission already
+/// grants — feeding the same content-addressed cache and `asyar-thumb://`
+/// scheme the host's file previews use, so the returned URL renders
+/// anywhere the frontend accepts an image icon, dynamic command rows
+/// included. `None` when the file type has no thumbnail strategy on this
+/// platform. Callers without an extension identity (privileged host
+/// context) get `validate_path_allowed` semantics, like `files_read_text`.
+#[tauri::command]
+pub async fn files_thumbnail<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    permissions: tauri::State<'_, ExtensionPermissionRegistry>,
+    thumb_state: tauri::State<'_, std::sync::Arc<crate::thumbnail::ThumbnailState>>,
+    extension_id: Option<String>,
+    path_str: String,
+    max_dim: Option<u32>,
+) -> Result<Option<String>, AppError> {
+    let max_dim = max_dim
+        .unwrap_or(THUMB_DEFAULT_MAX_DIM)
+        .clamp(16, EXTENSION_THUMB_MAX_DIM);
+    let source = match extension_id {
+        Some(ext) => {
+            let (home, extra_deny) = extension_scope_env(&app_handle)?;
+            let source = validate_scoped_path(&permissions, &ext, &path_str, &home, &extra_deny)?;
+            // Extension thumbnails are image-only on EVERY platform: the
+            // per-OS strategies differ (macOS falls back to a `qlmanage`
+            // subprocess, Windows/Linux have no non-image provider yet),
+            // and neither platform-dependent results nor an
+            // extension-triggerable subprocess belongs behind files:read.
+            // Same "no strategy" signal as an unsupported type.
+            if !crate::thumbnail::image_thumb::is_supported_image(&source) {
+                return Ok(None);
+            }
+            source
+        }
+        None => {
+            validate_path_allowed(&path_str, &app_handle)?;
+            PathBuf::from(&path_str)
+        }
+    };
+    let cache_dir = crate::thumbnail::cache::get_thumbnail_cache_dir(&app_handle);
+    let Some(cached) =
+        crate::thumbnail::get_or_generate(&thumb_state, &cache_dir, &source, max_dim).await
+    else {
+        return Ok(None);
+    };
+    crate::thumbnail::thumb_url(&cached)
+        .map(Some)
+        .map_err(AppError::Other)
 }
 
 /// Creates a directory and all required parent directories at an absolute path.
@@ -723,5 +1036,329 @@ mod tests {
             files_read_text_inner(&perms, "ext.a", target.to_str().unwrap(), None, &root, &[])
                 .unwrap();
         assert_eq!(content.len(), 50_000);
+    }
+
+    // ---- files_glob (scoped enumeration) ----
+
+    /// The motivating layout: content-addressed artwork under a per-app
+    /// cache directory, unknowable in advance.
+    fn glob_setup(tmp: &TempDir) -> (ExtensionPermissionRegistry, PathBuf) {
+        let (perms, root) = files_read_setup(tmp);
+        let lib = root.join("appcache/librarycache/105600");
+        std::fs::create_dir_all(&lib).unwrap();
+        std::fs::write(
+            lib.join("dca288f5304172c39b7fa683273a5b6e6ce16f6b.jpg"),
+            "jpg",
+        )
+        .unwrap();
+        std::fs::write(lib.join("logo.png"), "png").unwrap();
+        (perms, root)
+    }
+
+    #[test]
+    fn files_glob_finds_sha1_named_artwork() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        // The exact pattern the Steam extension will use: 40 `?`s match
+        // the hex name precisely.
+        let pattern = format!(
+            "{}/appcache/librarycache/105600/{}.jpg",
+            root.to_string_lossy(),
+            "?".repeat(40)
+        );
+        let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert!(hits[0].ends_with("dca288f5304172c39b7fa683273a5b6e6ce16f6b.jpg"));
+    }
+
+    #[test]
+    fn files_glob_results_are_sorted_and_capped() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let pattern = format!("{}/appcache/**", root.to_string_lossy());
+        let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
+        assert_eq!(hits.len(), 2);
+        assert!(hits[0] < hits[1], "expected sorted results: {hits:?}");
+        let capped = files_glob_inner(&perms, "ext.a", &pattern, Some(1), &root, &[]).unwrap();
+        assert_eq!(capped, hits[..1]);
+    }
+
+    #[test]
+    fn files_glob_rejects_without_permission() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let pattern = format!("{}/**", root.to_string_lossy());
+        let err = files_glob_inner(&perms, "ext.other", &pattern, None, &root, &[]).unwrap_err();
+        assert!(
+            format!("{err}").to_lowercase().contains("permission")
+                || format!("{err}").contains("not registered"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn files_glob_rejects_unanchored_pattern() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let err = files_glob_inner(&perms, "ext.a", "**/librarycache/*.jpg", None, &root, &[])
+            .unwrap_err();
+        assert!(format!("{err}").contains("literal prefix"), "got: {err}");
+    }
+
+    #[test]
+    fn files_glob_rejects_traversal_pattern() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let pattern = format!("{}/sub/../**", root.to_string_lossy());
+        let err = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap_err();
+        assert!(format!("{err}").contains(".."), "got: {err}");
+    }
+
+    #[test]
+    fn files_glob_rejects_out_of_scope_prefix_without_walking() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let outside = TempDir::new().unwrap();
+        let pattern = format!(
+            "{}/**",
+            outside.path().canonicalize().unwrap().to_string_lossy()
+        );
+        let err = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap_err();
+        assert!(
+            format!("{err}").contains("outside the declared"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn files_glob_missing_prefix_enumerates_to_empty() {
+        // A configured-but-absent library drive is normal, not an error.
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let pattern = format!("{}/not-mounted/**", root.to_string_lossy());
+        let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
+        assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn files_glob_deny_list_filters_covered_results() {
+        // `home` is the tempdir root here, so `<root>/.ssh` is a protected
+        // root — a broad in-scope glob must not enumerate its contents.
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let ssh = root.join(".ssh");
+        std::fs::create_dir_all(&ssh).unwrap();
+        std::fs::write(ssh.join("id_rsa.jpg"), "not really art").unwrap();
+        let pattern = format!("{}/**/*.jpg", root.to_string_lossy());
+        let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
+        assert_eq!(hits.len(), 1, "got: {hits:?}");
+        assert!(!hits[0].contains(".ssh"));
+    }
+
+    #[test]
+    fn files_glob_filters_results_outside_declared_scope() {
+        // Declared scope narrower than the walked glob: only in-scope
+        // names may leave the host.
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        let perms = ExtensionPermissionRegistry::default();
+        let mut args = HashMap::new();
+        args.insert(
+            "files:read".to_string(),
+            serde_json::json!([format!("{}/appcache/**", root.to_string_lossy())]),
+        );
+        perms.register("ext.a", HashSet::from(["files:read".to_string()]), args);
+        let lib = root.join("appcache");
+        std::fs::create_dir_all(&lib).unwrap();
+        std::fs::write(lib.join("in-scope.jpg"), "jpg").unwrap();
+        std::fs::write(root.join("out-of-scope.jpg"), "jpg").unwrap();
+
+        let pattern = format!("{}/**/*.jpg", root.to_string_lossy());
+        let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
+        assert_eq!(hits.len(), 1, "got: {hits:?}");
+        assert!(hits[0].ends_with("in-scope.jpg"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn files_glob_does_not_follow_symlinked_directories() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let outside = TempDir::new().unwrap();
+        let secret_dir = outside.path().canonicalize().unwrap();
+        std::fs::write(secret_dir.join("secret.jpg"), "jpg").unwrap();
+        std::os::unix::fs::symlink(&secret_dir, root.join("linked")).unwrap();
+
+        let pattern = format!("{}/**/*.jpg", root.to_string_lossy());
+        let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
+        assert_eq!(hits.len(), 1, "got: {hits:?}");
+        assert!(!hits[0].contains("secret"));
+    }
+
+    #[test]
+    fn files_glob_literal_pattern_returns_the_exact_file() {
+        // A wildcard-free pattern must resolve to the file itself, not
+        // enumerate to empty because the literal prefix isn't a directory.
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let target = root.join("appcache/librarycache/105600/logo.png");
+        let hits =
+            files_glob_inner(&perms, "ext.a", &target.to_string_lossy(), None, &root, &[]).unwrap();
+        assert_eq!(hits, vec![target.to_string_lossy().into_owned()]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn files_glob_literal_symlink_is_not_reported() {
+        // The no-symlink policy holds for exact-path patterns too: the
+        // parent walk drops the link like everywhere else.
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let outside = TempDir::new().unwrap();
+        let secret = outside.path().canonicalize().unwrap().join("secret.jpg");
+        std::fs::write(&secret, "jpg").unwrap();
+        let link = root.join("linked.jpg");
+        std::os::unix::fs::symlink(&secret, &link).unwrap();
+        let hits =
+            files_glob_inner(&perms, "ext.a", &link.to_string_lossy(), None, &root, &[]).unwrap();
+        assert!(hits.is_empty(), "got: {hits:?}");
+    }
+
+    #[test]
+    fn files_glob_denied_walk_root_errors_as_protected() {
+        // Enumerating from inside a protected root is an explicit denial,
+        // not an empty result — and the walk never opens the directory.
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = glob_setup(&tmp);
+        let ssh = root.join(".ssh");
+        std::fs::create_dir_all(&ssh).unwrap();
+        std::fs::write(ssh.join("id_rsa.jpg"), "not art").unwrap();
+        let pattern = format!("{}/.ssh/**", root.to_string_lossy());
+        let err = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap_err();
+        assert!(
+            format!("{err}").contains("protected location"),
+            "got: {err}"
+        );
+    }
+
+    // ---- files_thumbnail (extension-scoped) ----
+
+    fn write_test_png(path: &Path) {
+        let img = image::RgbImage::from_pixel(50, 50, image::Rgb([1, 2, 3]));
+        image::DynamicImage::ImageRgb8(img)
+            .save_with_format(path, image::ImageFormat::Png)
+            .unwrap();
+    }
+
+    fn mock_app_with_thumb_state() -> tauri::App<tauri::test::MockRuntime> {
+        let app = tauri::test::mock_app();
+        app.manage(std::sync::Arc::new(
+            crate::thumbnail::ThumbnailState::default(),
+        ));
+        app
+    }
+
+    #[tokio::test]
+    async fn files_thumbnail_extension_in_scope_returns_url() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let app = mock_app_with_thumb_state();
+        app.manage(perms);
+        let src = root.join("art.png");
+        write_test_png(&src);
+
+        let url = files_thumbnail(
+            app.handle().clone(),
+            app.state(),
+            app.state(),
+            Some("ext.a".to_string()),
+            src.to_string_lossy().into_owned(),
+            Some(64),
+        )
+        .await
+        .unwrap();
+        assert!(url.is_some());
+        assert!(url.unwrap().ends_with(".png"));
+    }
+
+    #[test]
+    fn files_read_inner_rejects_directory() {
+        // Regular files only — a covered directory (or, on Unix, a FIFO,
+        // which would block the open forever) is rejected up front.
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let dir = root.join("subdir");
+        std::fs::create_dir_all(&dir).unwrap();
+        let err = files_read_text_inner(&perms, "ext.a", dir.to_str().unwrap(), None, &root, &[])
+            .unwrap_err();
+        assert!(
+            format!("{err}").contains("not a regular file"),
+            "got: {err}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn files_read_inner_rejects_non_regular_file() {
+        // A unix socket stands in for any non-regular covered path (FIFOs
+        // behave the same and are the ones that would hang an open).
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let sock = root.join("art.jpg");
+        let _listener = std::os::unix::net::UnixListener::bind(&sock).unwrap();
+        let err = files_read_text_inner(&perms, "ext.a", sock.to_str().unwrap(), None, &root, &[])
+            .unwrap_err();
+        assert!(
+            format!("{err}").contains("not a regular file"),
+            "got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn files_thumbnail_extension_non_image_resolves_none() {
+        // Image-only for extensions on every platform — a covered text
+        // file yields the "no strategy" None, never a platform-dependent
+        // result or a qlmanage subprocess on macOS.
+        let tmp = TempDir::new().unwrap();
+        let (perms, root) = files_read_setup(&tmp);
+        let app = mock_app_with_thumb_state();
+        app.manage(perms);
+        let src = root.join("notes.txt");
+        std::fs::write(&src, "not an image").unwrap();
+
+        let url = files_thumbnail(
+            app.handle().clone(),
+            app.state(),
+            app.state(),
+            Some("ext.a".to_string()),
+            src.to_string_lossy().into_owned(),
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(url.is_none());
+    }
+
+    #[tokio::test]
+    async fn files_thumbnail_extension_out_of_scope_is_rejected() {
+        let tmp = TempDir::new().unwrap();
+        let (perms, _root) = files_read_setup(&tmp);
+        let app = mock_app_with_thumb_state();
+        app.manage(perms);
+        let outside = TempDir::new().unwrap();
+        let src = outside.path().canonicalize().unwrap().join("art.png");
+        write_test_png(&src);
+
+        let err = files_thumbnail(
+            app.handle().clone(),
+            app.state(),
+            app.state(),
+            Some("ext.a".to_string()),
+            src.to_string_lossy().into_owned(),
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(format!("{err}").contains("not covered"), "got: {err}");
     }
 }

@@ -83,3 +83,28 @@ export async function filesReadText(
 ): Promise<string> {
   return invoke<string>('files_read_text', { extensionId, pathStr, maxBytes });
 }
+
+/** Extension-scoped filename enumeration (`asyar:api:files:glob` →
+ * `files_glob`). Raw `invoke` for the same reason as `filesReadText`: a
+ * scope denial must surface as an error, not as an empty result — an empty
+ * array here specifically means "the walk root exists (or doesn't) and
+ * nothing in scope matched". */
+export async function filesGlob(
+  extensionId: string | null,
+  pattern: string,
+  maxResults?: number,
+): Promise<string[]> {
+  return invoke<string[]>('files_glob', { extensionId, pattern, maxResults });
+}
+
+/** Extension-scoped thumbnail generation (`asyar:api:files:thumbnail` →
+ * `files_thumbnail`). Resolves to the `asyar-thumb://` URL, or `null` when
+ * the file type has no thumbnail strategy on this platform; scope denials
+ * reject. */
+export async function filesThumbnail(
+  extensionId: string | null,
+  pathStr: string,
+  maxDim?: number,
+): Promise<string | null> {
+  return invoke<string | null>('files_thumbnail', { extensionId, pathStr, maxDim });
+}
