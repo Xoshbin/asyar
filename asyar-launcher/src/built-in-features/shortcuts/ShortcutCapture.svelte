@@ -1,8 +1,9 @@
 <script lang="ts">
+  import Modal from '../../components/base/Modal.svelte';
   import { shortcutService } from './shortcutService';
   import { extensionIframeManager } from '../../services/extension/extensionIframeManager.svelte';
   import { shortcutStore } from './shortcutStore.svelte';
-  import { ShortcutRecorder, ModalOverlay, KeyboardHint } from '../../components';
+  import { ShortcutRecorder, KeyboardHint } from '../../components';
   import { normalizeShortcut } from './shortcutFormatter';
 
   let {
@@ -44,7 +45,12 @@
   });
 </script>
 
-<ModalOverlay title="Assign Shortcut" subtitle="Press the combination you want to use">
+<Modal
+  isOpen={true}
+  title="Assign Shortcut"
+  subtitle="Press the combination you want to use"
+  onEscape={handleCancel}
+>
   <div class="capture-recorder">
     <ShortcutRecorder
       bind:modifier
@@ -58,7 +64,7 @@
   </div>
 
   <div class="hint">Press <KeyboardHint keys="Esc" /> to cancel</div>
-</ModalOverlay>
+</Modal>
 
 <style>
   .capture-recorder {

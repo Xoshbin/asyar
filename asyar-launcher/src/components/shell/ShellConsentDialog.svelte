@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { ModalOverlay, Button, ExtensionAvatar, WarningBanner } from '../index';
+  import Modal from '../base/Modal.svelte';
+  import { Button, ExtensionAvatar, WarningBanner } from '../index';
 
   interface Props {
     extensionName: string;
@@ -40,14 +41,20 @@
   }
 </script>
 
-<ModalOverlay width="420px">
+<Modal
+  isOpen={true}
+  labelledBy="shell-consent-title"
+  width="420px"
+  onEscape={handleDeny}
+  onEnter={handleAllow}
+>
   <div class="dialog-container">
     <!-- Component-Driven Horizontal Header -->
     <div class="dialog-header">
       <ExtensionAvatar name={extensionName} src={extensionIcon} size="md" />
 
       <div class="header-texts">
-        <span class="app-name">{extensionName}</span>
+        <span id="shell-consent-title" class="app-name">{extensionName}</span>
         <span class="app-intent">wants to access the terminal</span>
       </div>
     </div>
@@ -101,7 +108,7 @@
       <Button class="btn-primary" onclick={handleAllow} fullWidth={true}>Allow Always</Button>
     </div>
   </div>
-</ModalOverlay>
+</Modal>
 
 <style>
   .dialog-container {

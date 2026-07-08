@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Modal from '../base/Modal.svelte';
+  import { Button } from '../index';
   import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
   import ExtensionPreferencesForm from './ExtensionPreferencesForm.svelte';
 
@@ -42,11 +44,21 @@
       isSaving = false;
     }
   }
+
+  function handleCancel() {
+    if (!isSaving) onCancel();
+  }
 </script>
 
-<div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Required Preferences">
-  <div class="modal-content">
-    <h2 class="modal-title">Extension requires setup</h2>
+<Modal
+  isOpen={true}
+  labelledBy="required-prefs-title"
+  width="440px"
+  onEscape={handleCancel}
+  onEnter={handleSave}
+>
+  {#snippet children()}
+    <h2 id="required-prefs-title" class="modal-title">Extension requires setup</h2>
     <p class="modal-subtitle">
       Fill in the required preferences for <strong>{extensionId}</strong>
       to run <strong>{commandId}</strong>.
@@ -61,90 +73,33 @@
         onChange={handleChange}
       />
     </div>
-
-    <div class="modal-actions">
-      <button type="button" class="btn btn-secondary" disabled={isSaving} onclick={onCancel}>
-        Cancel
-      </button>
-      <button
-        type="button"
-        class="btn btn-primary"
-        disabled={!isComplete || isSaving}
-        onclick={handleSave}
-      >
-        {isSaving ? 'Saving…' : 'Save & Continue'}
-      </button>
-    </div>
-  </div>
-</div>
+  {/snippet}
+  {#snippet actions()}
+    <Button disabled={isSaving} onclick={handleCancel}>Cancel</Button>
+    <Button class="btn-primary" disabled={!isComplete || isSaving} onclick={handleSave}>
+      {isSaving ? 'Saving…' : 'Save & Continue'}
+    </Button>
+  {/snippet}
+</Modal>
 
 <style>
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.55);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-  .modal-content {
-    background: var(--bg-primary, #fff);
-    color: var(--text-primary);
-    border-radius: var(--radius-md, 8px);
-    padding: var(--space-6, 1.5rem);
-    min-width: 440px;
-    max-width: 90vw;
-    max-height: 90vh;
-    overflow: auto;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
-    font-family: var(--font-ui);
-  }
-
   .modal-title {
-    margin: 0 0 var(--space-2, 0.5rem) 0;
-    font-size: var(--font-size-lg, 1.1rem);
+    margin: 0 0 var(--space-2) 0;
+    font-size: var(--font-size-lg);
     font-weight: 600;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
   }
 
   .modal-subtitle {
-    margin: 0 0 var(--space-4, 1rem) 0;
+    margin: 0 0 var(--space-4) 0;
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
     line-height: 1.5;
+    font-family: var(--font-ui);
   }
 
   .modal-form {
-    margin-bottom: var(--space-4, 1rem);
-  }
-
-  .modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2, 0.5rem);
-  }
-
-  .btn {
-    padding: var(--space-2, 0.5rem) var(--space-4, 1rem);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    font-family: var(--font-ui);
-    border: 1px solid var(--border-color);
-    cursor: pointer;
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-  }
-
-  .btn-primary {
-    background: var(--accent, #3b82f6);
-    color: #fff;
-    border-color: transparent;
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    margin-bottom: var(--space-4);
   }
 </style>

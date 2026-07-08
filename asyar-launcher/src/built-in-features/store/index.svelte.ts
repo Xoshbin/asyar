@@ -18,6 +18,7 @@ import { actionService } from '../../services/action/actionService.svelte';
 import { extensionUpdateService } from '../../services/extension/extensionUpdateService.svelte';
 import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
 import { filterCompatibleExtensions } from '../../lib/filterCompatibleExtensions';
+import { isAnyModalOpen } from '../../components/base/Modal.logic';
 
 const EXTENSION_ID = 'store';
 const ACTION_ID_INSTALL_DETAIL = 'app.asyar.store:install-detail'; // Action ID for detail view
@@ -484,6 +485,11 @@ class StoreExtension implements Extension {
 
   private handleKeydown(event: KeyboardEvent) {
     if (!this.inView || !storeViewState) return;
+    // A permission-consent dialog (or any other modal) can open on top of
+    // this view — e.g. mid-install — while `inView` stays true. This runs
+    // in the window capture phase, ahead of the dialog's own handling, so
+    // without this check Enter/arrows here would fire instead of reaching it.
+    if (isAnyModalOpen(document)) return;
 
     // Detail view specific keyboard handlers
     if (this.currentView === `${EXTENSION_ID}/DetailView`) {

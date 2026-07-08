@@ -16,6 +16,7 @@
   import type { AgentDef, ThreadDef, MessageDef } from './types';
   import { showSettingsWindow } from '../../lib/ipc/commands';
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { isAnyModalOpen } from '../../components/base/Modal.logic';
 
   const agentId = $derived(agentsManager.currentAgentId);
   let agent = $state<AgentDef | null>(null);
@@ -125,6 +126,8 @@
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     // When the action panel (Cmd+K) is open, let it own keyboard navigation.
     if (document.querySelector('.action-popup')) return;
+    // A modal dialog can open on top of this view — don't steal its keys.
+    if (isAnyModalOpen(document)) return;
     if (event.key === 'ArrowUp') {
       moveThreadSelection(-1);
       event.preventDefault();

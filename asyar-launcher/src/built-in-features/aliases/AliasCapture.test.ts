@@ -16,6 +16,20 @@ if (typeof Element !== 'undefined' && !Element.prototype.animate) {
     }) as unknown as Animation;
 }
 
+// jsdom has no layout/top-layer engine, so HTMLDialogElement.showModal()/close()
+// (used by Modal.svelte) aren't implemented at all. Minimal stub so the
+// dialog can still open/close for behavioral tests; :modal/focus-trap
+// semantics remain untestable here and are verified by running the app.
+if (typeof HTMLDialogElement !== 'undefined' && !HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
+    this.setAttribute('open', '');
+  };
+  HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
+    this.removeAttribute('open');
+    this.dispatchEvent(new Event('close'));
+  };
+}
+
 // AliasCapture imports Button/Input/FormField from the `../../components`
 // barrel, which re-exports the entire component tree (ActionListPopup,
 // DialogHost, etc.) and transitively drags in Tauri-backed services that
@@ -64,10 +78,8 @@ describe('AliasCapture', () => {
   });
 
   it('saves (does not cancel) when Enter is pressed after typing a valid alias', async () => {
-    // Regression: pressing Enter in the alias input used to bubble up to the
-    // backdrop's keydown handler, which had no target-equality guard (unlike
-    // its own click handler), so it fired oncancel() instead of letting the
-    // form submit.
+    // Regression: Enter in the alias input must submit via Modal's onEnter,
+    // not get treated as a dialog-level cancel.
     const onsave = vi.fn();
     const oncancel = vi.fn();
     const { container } = render(AliasCapture, {
@@ -79,13 +91,16 @@ describe('AliasCapture', () => {
     });
 
     const input = container.querySelector('input') as HTMLInputElement;
+    input.focus();
     await fireEvent.input(input, { target: { value: 'c' } });
     await fireEvent.keyDown(input, { key: 'Enter' });
 
     expect(oncancel).not.toHaveBeenCalled();
   });
 
-  it('still cancels when Enter is pressed directly on the backdrop (keyboard-activated dismiss)', async () => {
+  it('cancels when the dialog fires its native cancel event (Escape)', async () => {
+    // Simulates the browser's native Escape-on-modal-<dialog> behavior,
+    // which jsdom doesn't implement — dispatch the `cancel` event directly.
     const onsave = vi.fn();
     const oncancel = vi.fn();
     const { container } = render(AliasCapture, {
@@ -96,8 +111,8 @@ describe('AliasCapture', () => {
       oncancel,
     });
 
-    const backdrop = container.querySelector('[role="button"][tabindex="0"]') as HTMLElement;
-    await fireEvent.keyDown(backdrop, { key: 'Enter' });
+    const dialog = container.querySelector('dialog') as HTMLDialogElement;
+    dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
 
     expect(oncancel).toHaveBeenCalledTimes(1);
   });
