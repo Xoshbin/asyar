@@ -7,6 +7,7 @@
   import type { ExtensionCommand } from 'asyar-sdk/contracts';
   import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
   import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
   import { logService } from '../../services/log/logService';
   import * as commands from '../../lib/ipc/commands';
@@ -63,6 +64,25 @@
     const accepted = await permissionConsentService.ensureConsent(ext.id, ext.title, 'review');
     if (accepted && extension?.id === ext.id) {
       needsPermissionReview = false;
+    }
+  }
+
+  // Revoking withdraws consent without uninstalling — the extension stays
+  // installed and enabled, but its gated calls fail closed until the user
+  // reviews and re-allows via reviewPermissions() above.
+  async function revokePermissions() {
+    const ext = extension;
+    if (!ext?.id) return;
+    const confirmed = await feedbackService.confirmAlert({
+      title: 'Revoke Permissions',
+      message: `"${ext.title}" will lose access to its granted permissions until you review and re-allow them. It stays installed and enabled.`,
+      confirmText: 'Revoke',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    const revoked = await permissionConsentService.revoke(ext.id);
+    if (revoked && extension?.id === ext.id) {
+      needsPermissionReview = true;
     }
   }
 
@@ -227,6 +247,8 @@
           <span>Permissions</span>
           {#if needsPermissionReview}
             <button class="review-link" onclick={reviewPermissions}>Review permissions</button>
+          {:else}
+            <button class="revoke-link" onclick={revokePermissions}>Revoke</button>
           {/if}
         </div>
         <PermissionList
@@ -380,6 +402,20 @@
   }
 
   .review-link:hover {
+    text-decoration: underline;
+  }
+
+  .revoke-link {
+    font-size: 10px;
+    color: var(--accent-danger);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: var(--transition-fast);
+  }
+
+  .revoke-link:hover {
     text-decoration: underline;
   }
 

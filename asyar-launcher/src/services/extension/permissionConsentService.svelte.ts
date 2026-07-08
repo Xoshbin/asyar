@@ -140,6 +140,22 @@ class PermissionConsentService {
     return true;
   }
 
+  /**
+   * Withdraw a previously-granted consent record (Settings → Extensions
+   * "Revoke" action). Bumps `consentVersion` on success so any panel
+   * deriving `needsConsent` via `checkExtensionConsent` (e.g. the settings
+   * detail panel's badge) re-checks and reflects the withdrawal
+   * immediately — enforcement itself is already live the moment Rust's
+   * `revoke_extension_consent` returns, since it unregisters synchronously.
+   */
+  async revoke(extensionId: string): Promise<boolean> {
+    const ok = await commands.revokeExtensionConsent(extensionId);
+    if (ok) {
+      this.consentVersion++;
+    }
+    return ok;
+  }
+
   private pump(): void {
     if (this.activeRequest !== null) return;
     const next = this.queue.shift();

@@ -394,6 +394,7 @@ pub fn run() {
             permissions::check_extension_permission,
             extensions::consent::check_extension_consent,
             extensions::consent::set_extension_consent,
+            extensions::consent::revoke_extension_consent,
             commands::auth_initiate,
             commands::auth_poll,
             commands::auth_load_cached,

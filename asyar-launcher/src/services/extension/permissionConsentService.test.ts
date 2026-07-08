@@ -7,6 +7,7 @@ vi.mock('../../lib/ipc/commands', () => ({
   registerExtensionPermissions: vi
     .fn()
     .mockResolvedValue({ registered: true, needsConsent: false }),
+  revokeExtensionConsent: vi.fn().mockResolvedValue(true),
 }));
 vi.mock('../log/logService', () => ({
   logService: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -18,6 +19,7 @@ import { permissionConsentService } from './permissionConsentService.svelte';
 const checkExtensionConsent = vi.mocked(commands.checkExtensionConsent);
 const setExtensionConsent = vi.mocked(commands.setExtensionConsent);
 const registerExtensionPermissions = vi.mocked(commands.registerExtensionPermissions);
+const revokeExtensionConsent = vi.mocked(commands.revokeExtensionConsent);
 
 function request(id = 'ext.a') {
   return {
@@ -142,5 +144,26 @@ describe('permissionConsentService', () => {
     });
     await permissionConsentService.ensureConsent('ext.a', 'Ext A', 'review');
     expect(permissionConsentService.needsReview).toEqual([]);
+  });
+
+  it('revoke calls the IPC command and bumps consentVersion on success', async () => {
+    revokeExtensionConsent.mockResolvedValue(true);
+    const versionBefore = permissionConsentService.consentVersion;
+
+    const result = await permissionConsentService.revoke('ext.a');
+
+    expect(result).toBe(true);
+    expect(revokeExtensionConsent).toHaveBeenCalledWith('ext.a');
+    expect(permissionConsentService.consentVersion).toBe(versionBefore + 1);
+  });
+
+  it('revoke does not bump consentVersion when the IPC call fails', async () => {
+    revokeExtensionConsent.mockResolvedValue(false);
+    const versionBefore = permissionConsentService.consentVersion;
+
+    const result = await permissionConsentService.revoke('ext.a');
+
+    expect(result).toBe(false);
+    expect(permissionConsentService.consentVersion).toBe(versionBefore);
   });
 });

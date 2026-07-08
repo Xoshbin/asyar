@@ -11,6 +11,7 @@
 
 use crate::error::AppError;
 use crate::extensions::{ExtensionRecord, ExtensionRegistryState};
+use crate::permissions::ExtensionPermissionRegistry;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
@@ -358,6 +359,73 @@ pub fn set_extension_consent(
     set_consent(&app_handle, &extension_id, &record)
 }
 
+/// Remove `extension_id`'s entry from `settings.extensions.consent`, if
+/// present. Pure JSON manipulation — testable without an `AppHandle`.
+/// Returns whether an entry was actually removed. Missing `extensions` or
+/// `consent` objects are a no-op (nothing to remove), matching
+/// `get_consent`'s "absent record" semantics; a *present but non-object*
+/// value at either level is corruption and errors instead of being
+/// silently clobbered, same as `child_object_mut`.
+pub fn remove_consent(
+    settings: &mut serde_json::Value,
+    extension_id: &str,
+) -> Result<bool, AppError> {
+    let root = settings_root_mut(settings)?;
+    let Some(extensions) = root.get_mut("extensions") else {
+        return Ok(false);
+    };
+    let extensions = extensions.as_object_mut().ok_or_else(|| {
+        AppError::Other("settings.dat is corrupt: 'extensions' is not a JSON object".into())
+    })?;
+    let Some(consent) = extensions.get_mut("consent") else {
+        return Ok(false);
+    };
+    let consent = consent.as_object_mut().ok_or_else(|| {
+        AppError::Other("settings.dat is corrupt: 'consent' is not a JSON object".into())
+    })?;
+    Ok(consent.remove(extension_id).is_some())
+}
+
+/// Withdraw a previously-granted consent record. Used by the Settings UI's
+/// "Revoke" action — the extension stays installed/enabled; the record's
+/// absence means the next registration attempt withholds its permissions
+/// until the user re-grants via the normal review flow.
+pub fn clear_consent(app_handle: &AppHandle, extension_id: &str) -> Result<(), AppError> {
+    let store = app_handle
+        .store("settings.dat")
+        .map_err(|e| AppError::Other(format!("Failed to open settings store: {}", e)))?;
+    let Some(mut settings) = store.get("settings") else {
+        return Ok(());
+    };
+    if remove_consent(&mut settings, extension_id)? {
+        store.set("settings", settings);
+        store
+            .save()
+            .map_err(|e| AppError::Other(format!("Failed to save settings: {}", e)))?;
+    }
+    Ok(())
+}
+
+/// Tauri command backing the Settings → Extensions "Revoke" button. Clears
+/// the consent record and immediately unregisters the extension from the
+/// live permission registry, so its gated calls fail closed right away —
+/// no restart or extension reload required.
+#[tauri::command]
+pub fn revoke_extension_consent(
+    app_handle: AppHandle,
+    extension_id: String,
+    registry: tauri::State<'_, ExtensionPermissionRegistry>,
+) -> Result<(), AppError> {
+    if extension_id.trim().is_empty() {
+        return Err(AppError::Validation(
+            "extension_id cannot be empty".to_string(),
+        ));
+    }
+    clear_consent(&app_handle, &extension_id)?;
+    registry.unregister(&extension_id);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -628,5 +696,65 @@ mod tests {
         assert!(value.get("permissionArgs").is_some());
         assert!(value.get("consentedAt").is_some());
         assert!(value.get("grandfathered").is_some());
+    }
+
+    // ---- remove_consent (backs the Settings "Revoke" action) ----
+
+    #[test]
+    fn remove_consent_removes_existing_record() {
+        let mut settings = serde_json::json!({
+            "extensions": { "consent": { "ext.a": { "permissions": ["network"] } } }
+        });
+        assert!(remove_consent(&mut settings, "ext.a").unwrap());
+        assert!(settings["extensions"]["consent"].get("ext.a").is_none());
+    }
+
+    #[test]
+    fn remove_consent_preserves_sibling_entries() {
+        let mut settings = serde_json::json!({
+            "extensions": { "consent": {
+                "ext.a": { "permissions": ["network"] },
+                "ext.b": { "permissions": ["fs:watch"] },
+            }}
+        });
+        assert!(remove_consent(&mut settings, "ext.a").unwrap());
+        assert!(settings["extensions"]["consent"].get("ext.a").is_none());
+        assert!(settings["extensions"]["consent"].get("ext.b").is_some());
+    }
+
+    #[test]
+    fn remove_consent_is_noop_when_extensions_key_missing() {
+        let mut settings = serde_json::json!({});
+        assert!(!remove_consent(&mut settings, "ext.a").unwrap());
+    }
+
+    #[test]
+    fn remove_consent_is_noop_when_consent_key_missing() {
+        let mut settings = serde_json::json!({ "extensions": {} });
+        assert!(!remove_consent(&mut settings, "ext.a").unwrap());
+    }
+
+    #[test]
+    fn remove_consent_is_noop_when_id_not_present() {
+        let mut settings = serde_json::json!({ "extensions": { "consent": {} } });
+        assert!(!remove_consent(&mut settings, "ext.a").unwrap());
+    }
+
+    #[test]
+    fn remove_consent_errors_on_corrupt_extensions() {
+        let mut settings = serde_json::json!({ "extensions": "corrupt-string" });
+        assert!(remove_consent(&mut settings, "ext.a").is_err());
+    }
+
+    #[test]
+    fn remove_consent_errors_on_corrupt_consent() {
+        let mut settings = serde_json::json!({ "extensions": { "consent": "corrupt-string" } });
+        assert!(remove_consent(&mut settings, "ext.a").is_err());
+    }
+
+    #[test]
+    fn remove_consent_errors_on_corrupt_settings_root() {
+        let mut settings = serde_json::json!("corrupt");
+        assert!(remove_consent(&mut settings, "ext.a").is_err());
     }
 }

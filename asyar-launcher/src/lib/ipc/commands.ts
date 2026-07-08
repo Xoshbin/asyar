@@ -1079,6 +1079,16 @@ export async function setExtensionConsent(
   });
 }
 
+/**
+ * Withdraw a previously-granted consent record (Settings → Extensions
+ * "Revoke" action). The extension stays installed/enabled; its permissions
+ * are unregistered immediately, so gated calls fail closed without a
+ * restart. Returns whether the IPC call itself succeeded.
+ */
+export async function revokeExtensionConsent(extensionId: string): Promise<boolean> {
+  return invokeSafeVoid('revoke_extension_consent', { extensionId });
+}
+
 export async function checkExtensionPermission(
   extensionId: string,
   callType: string,
