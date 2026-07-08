@@ -8,7 +8,7 @@
     Button,
     Input,
     WarningBanner,
-    ModalOverlay,
+    Modal,
   } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { BackupHandler } from './backupHandler.svelte';
@@ -129,7 +129,8 @@
 
 <!-- Import Preview Modal -->
 {#if backup.importModalOpen && backup.importManifest}
-  <ModalOverlay
+  <Modal
+    isOpen={true}
     title="Restore from Backup"
     subtitle={new Date(backup.importManifest.exportedAt).toLocaleDateString(undefined, {
       year: 'numeric',
@@ -137,6 +138,7 @@
       day: 'numeric',
     })}
     width="560px"
+    onEscape={() => backup.closeImportModal()}
   >
     {#snippet children()}
       <div class="space-y-1 max-h-80 overflow-y-auto">
@@ -221,7 +223,7 @@
         {backup.importStatus === 'importing' ? 'Restoring…' : 'Restore'}
       </Button>
     {/snippet}
-  </ModalOverlay>
+  </Modal>
 {/if}
 
 <style>

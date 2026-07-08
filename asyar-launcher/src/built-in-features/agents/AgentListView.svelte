@@ -7,6 +7,7 @@
   import { buildAgentRowProps, handleSelectAgentForChat } from './agentListView.helpers';
   import ListItem from '../../components/list/ListItem.svelte';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
+  import { isAnyModalOpen } from '../../components/base/Modal.logic';
 
   const deps = $derived({ service: agentService, manager: agentsManager, viewManager });
   const agents = $derived(agentService.agents);
@@ -38,6 +39,8 @@
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     // When the action panel (Cmd+K) is open, let it own keyboard navigation.
     if (document.querySelector('.action-popup')) return;
+    // A modal dialog can open on top of this view — don't steal its keys.
+    if (isAnyModalOpen(document)) return;
     if (event.key === 'ArrowUp') {
       moveSelection(-1);
       event.preventDefault();

@@ -1,11 +1,10 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import Modal from '../base/Modal.svelte';
   import { Button, Input } from '../index';
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
   import { evaluatePassphraseStrength } from './EncryptionEnrolmentDialog.logic';
   import { parsePhraseInput, joinPhraseForWire } from './RecoverWithMnemonicDialog.logic';
   import { logService } from '../../services/log/logService';
-  import { fadeIn, popupScale } from '$lib/transitions';
 
   let {
     isOpen = $bindable(false),
@@ -62,128 +61,99 @@
     }
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (!isOpen) return;
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      cancel();
-    }
+  function handleEnter() {
+    // 'words' stage deliberately has no Enter action: focus is normally in
+    // the multi-line textarea (Enter must insert a newline, not submit), and
+    // there's no dedicated re-focus/autofocus target on the passphrase
+    // fields for entering this stage via "Continue" — matches this dialog's
+    // pre-existing behavior of requiring an explicit click there.
+    if (stage === 'passphrase' && !submitDisabled) submit();
   }
-  onMount(() => window.addEventListener('keydown', handleKeydown, true));
-  onDestroy(() => window.removeEventListener('keydown', handleKeydown, true));
 </script>
 
-{#if isOpen}
-  <div
-    class="fixed inset-0 dialog-backdrop flex items-center justify-center z-[200]"
-    role="presentation"
-    onclick={(e) => e.target === e.currentTarget && cancel()}
-    transition:fadeIn={{ duration: 150 }}
-  >
-    <div
-      class="bg-[var(--bg-primary)] rounded-lg shadow-lg w-full max-w-lg overflow-hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="recover-title"
-      transition:popupScale={{ duration: 120 }}
-    >
-      <div class="p-6">
-        {#if stage === 'words'}
-          <h2 id="recover-title" class="dialog-title">Recover with your 24-word phrase</h2>
-          <p class="dialog-body">
-            Paste your recovery phrase below. Words can be separated by spaces or new lines.
-          </p>
-          <textarea
-            class="phrase-textarea"
-            bind:value={phraseInput}
-            placeholder="abandon ability able about ..."
-            rows="5"
-            autocomplete="off"
-            spellcheck="false"></textarea>
-          <div class="phrase-status">
-            {#if parsed.words.length === 0}
-              <span class="text-caption">0 / 24 words</span>
-            {:else if parsed.unknownWords.length > 0}
-              <span class="text-caption error">
-                Unknown {parsed.unknownWords.length === 1 ? 'word' : 'words'}:
-                {parsed.unknownWords.slice(0, 3).join(', ')}{parsed.unknownWords.length > 3
-                  ? '…'
-                  : ''}
-              </span>
-            {:else if parsed.words.length !== 24}
-              <span class="text-caption" class:error={parsed.words.length > 24}>
-                {parsed.words.length} / 24 words
-              </span>
-            {:else}
-              <span class="text-caption ok">All 24 words look valid.</span>
-            {/if}
-          </div>
-          <div class="dialog-actions">
-            <Button onclick={cancel}>Cancel</Button>
-            <Button class="btn-primary" disabled={!parsed.isValid} onclick={continueToPassphrase}>
-              Continue
-            </Button>
-          </div>
-        {:else if stage === 'passphrase' || stage === 'submitting'}
-          <h2 id="recover-title" class="dialog-title">Choose a new passphrase</h2>
-          <p class="dialog-body">
-            This passphrase will replace your forgotten one. Your recovery phrase stays the same.
-          </p>
-          <div class="flex-col">
-            <div class="input-gap">
-              <Input
-                type="password"
-                placeholder="New passphrase (12+ characters)"
-                bind:value={newPass}
-                maxlength={256}
-              />
-            </div>
-            <div class="input-gap">
-              <Input
-                type="password"
-                placeholder="Confirm new passphrase"
-                bind:value={confirmNew}
-                maxlength={256}
-              />
-            </div>
-            {#if newPass.length > 0}
-              <p class="text-caption" class:error={!strength.accepted}>
-                Strength {strength.score}/4{#if strength.reason}
-                  — {strength.reason}{/if}
-              </p>
-            {/if}
-            {#if confirmNew.length > 0 && !confirmsMatch}
-              <p class="text-caption error">Passphrases don't match.</p>
-            {/if}
-            {#if errorMessage}
-              <p class="text-caption error">{errorMessage}</p>
-            {/if}
-          </div>
-          <div class="dialog-actions">
-            <Button onclick={() => (stage = 'words')} disabled={stage === 'submitting'}>Back</Button
-            >
-            <Button class="btn-primary" disabled={submitDisabled} onclick={submit}>
-              {stage === 'submitting' ? 'Recovering…' : 'Recover'}
-            </Button>
-          </div>
+<Modal bind:isOpen labelledBy="recover-title" width="32rem" onEscape={cancel} onEnter={handleEnter}>
+  {#snippet children()}
+    {#if stage === 'words'}
+      <h2 id="recover-title" class="dialog-title">Recover with your 24-word phrase</h2>
+      <p class="dialog-body">
+        Paste your recovery phrase below. Words can be separated by spaces or new lines.
+      </p>
+      <textarea
+        class="phrase-textarea"
+        bind:value={phraseInput}
+        placeholder="abandon ability able about ..."
+        rows="5"
+        autocomplete="off"
+        spellcheck="false"
+        autofocus></textarea>
+      <div class="phrase-status">
+        {#if parsed.words.length === 0}
+          <span class="text-caption">0 / 24 words</span>
+        {:else if parsed.unknownWords.length > 0}
+          <span class="text-caption error">
+            Unknown {parsed.unknownWords.length === 1 ? 'word' : 'words'}:
+            {parsed.unknownWords.slice(0, 3).join(', ')}{parsed.unknownWords.length > 3 ? '…' : ''}
+          </span>
+        {:else if parsed.words.length !== 24}
+          <span class="text-caption" class:error={parsed.words.length > 24}>
+            {parsed.words.length} / 24 words
+          </span>
+        {:else}
+          <span class="text-caption ok">All 24 words look valid.</span>
         {/if}
       </div>
-    </div>
-  </div>
-{/if}
+      <div class="dialog-actions">
+        <Button onclick={cancel}>Cancel</Button>
+        <Button class="btn-primary" disabled={!parsed.isValid} onclick={continueToPassphrase}>
+          Continue
+        </Button>
+      </div>
+    {:else if stage === 'passphrase' || stage === 'submitting'}
+      <h2 id="recover-title" class="dialog-title">Choose a new passphrase</h2>
+      <p class="dialog-body">
+        This passphrase will replace your forgotten one. Your recovery phrase stays the same.
+      </p>
+      <div class="flex-col">
+        <div class="input-gap">
+          <Input
+            type="password"
+            placeholder="New passphrase (12+ characters)"
+            bind:value={newPass}
+            maxlength={256}
+          />
+        </div>
+        <div class="input-gap">
+          <Input
+            type="password"
+            placeholder="Confirm new passphrase"
+            bind:value={confirmNew}
+            maxlength={256}
+          />
+        </div>
+        {#if newPass.length > 0}
+          <p class="text-caption" class:error={!strength.accepted}>
+            Strength {strength.score}/4{#if strength.reason}
+              — {strength.reason}{/if}
+          </p>
+        {/if}
+        {#if confirmNew.length > 0 && !confirmsMatch}
+          <p class="text-caption error">Passphrases don't match.</p>
+        {/if}
+        {#if errorMessage}
+          <p class="text-caption error">{errorMessage}</p>
+        {/if}
+      </div>
+      <div class="dialog-actions">
+        <Button onclick={() => (stage = 'words')} disabled={stage === 'submitting'}>Back</Button>
+        <Button class="btn-primary" disabled={submitDisabled} onclick={submit}>
+          {stage === 'submitting' ? 'Recovering…' : 'Recover'}
+        </Button>
+      </div>
+    {/if}
+  {/snippet}
+</Modal>
 
 <style>
-  .dialog-backdrop {
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(8px);
-  }
-
-  :global(html[data-platform='linux']) .dialog-backdrop {
-    backdrop-filter: none;
-    background: rgba(0, 0, 0, 0.6);
-  }
-
   .dialog-title {
     font-size: var(--font-size-xl);
     font-weight: 600;

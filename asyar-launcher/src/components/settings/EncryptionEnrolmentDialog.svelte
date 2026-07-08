@@ -1,10 +1,9 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import Modal from '../base/Modal.svelte';
   import { Button, Input, Checkbox } from '../index';
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
   import { evaluatePassphraseStrength } from './EncryptionEnrolmentDialog.logic';
   import { logService } from '../../services/log/logService';
-  import { fadeIn, popupScale } from '$lib/transitions';
 
   let {
     isOpen = $bindable(false),
@@ -60,6 +59,10 @@
     }
   }
 
+  function handleEnter() {
+    if (stage === 'passphrase' && !submitDisabled) submitPassphrase();
+  }
+
   async function copyPhrase() {
     try {
       await navigator.clipboard.writeText(recoveryPhrase);
@@ -77,117 +80,77 @@
     queueMicrotask(reset);
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (!isOpen) return;
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      cancel();
-    } else if (event.key === 'Enter' && stage === 'passphrase' && !submitDisabled) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      submitPassphrase();
-    }
-  }
   $effect(() => {
     if (stage === 'passphrase' && pass1Input) {
       queueMicrotask(() => pass1Input?.focus());
     }
   });
-  onMount(() => window.addEventListener('keydown', handleKeydown, true));
-  onDestroy(() => window.removeEventListener('keydown', handleKeydown, true));
 </script>
 
-{#if isOpen}
-  <div
-    class="fixed inset-0 dialog-backdrop flex items-center justify-center z-[200]"
-    role="presentation"
-    onclick={(e) => e.target === e.currentTarget && cancel()}
-    transition:fadeIn={{ duration: 150 }}
-  >
-    <div
-      class="bg-[var(--bg-primary)] rounded-lg shadow-lg w-full max-w-lg overflow-hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="enrol-title"
-      transition:popupScale={{ duration: 120 }}
-    >
-      <div class="p-6">
-        {#if stage === 'passphrase' || stage === 'submitting'}
-          <h2 id="enrol-title" class="dialog-title">Set up encrypted sync</h2>
-          <p class="dialog-body">
-            Choose a passphrase. You'll need this on every other device. Asyar cannot reset it for
-            you.
+<Modal bind:isOpen labelledBy="enrol-title" width="32rem" onEscape={cancel} onEnter={handleEnter}>
+  {#snippet children()}
+    {#if stage === 'passphrase' || stage === 'submitting'}
+      <h2 id="enrol-title" class="dialog-title">Set up encrypted sync</h2>
+      <p class="dialog-body">
+        Choose a passphrase. You'll need this on every other device. Asyar cannot reset it for you.
+      </p>
+      <div class="flex flex-col gap-3">
+        <Input
+          type="password"
+          placeholder="Passphrase (12+ characters)"
+          bind:value={pass1}
+          bind:ref={pass1Input}
+          maxlength={256}
+        />
+        <Input
+          type="password"
+          placeholder="Confirm passphrase"
+          bind:value={pass2}
+          maxlength={256}
+        />
+        {#if pass1.length > 0}
+          <p class="text-caption" class:error={!strength.accepted}>
+            Strength {strength.score}/4{#if strength.reason}
+              — {strength.reason}{/if}
           </p>
-          <div class="flex flex-col gap-3">
-            <Input
-              type="password"
-              placeholder="Passphrase (12+ characters)"
-              bind:value={pass1}
-              bind:ref={pass1Input}
-              maxlength={256}
-            />
-            <Input
-              type="password"
-              placeholder="Confirm passphrase"
-              bind:value={pass2}
-              maxlength={256}
-            />
-            {#if pass1.length > 0}
-              <p class="text-caption" class:error={!strength.accepted}>
-                Strength {strength.score}/4{#if strength.reason}
-                  — {strength.reason}{/if}
-              </p>
-            {/if}
-            {#if pass2.length > 0 && !confirmsMatch}
-              <p class="text-caption error">Passphrases don't match.</p>
-            {/if}
-            {#if errorMessage}
-              <p class="text-caption error">{errorMessage}</p>
-            {/if}
-          </div>
-          <div class="dialog-actions">
-            <Button onclick={cancel}>Cancel</Button>
-            <Button class="btn-primary" disabled={submitDisabled} onclick={submitPassphrase}>
-              {stage === 'submitting' ? 'Setting up…' : 'Continue'}
-            </Button>
-          </div>
-        {:else if stage === 'phrase'}
-          <h2 id="enrol-title" class="dialog-title">Your recovery phrase</h2>
-          <p class="dialog-body">
-            Save these 24 words somewhere safe — a password manager, encrypted note, or paper. If
-            you forget your passphrase, this is the only way to recover your data.
-          </p>
-          <div class="phrase-blob">{recoveryPhrase}</div>
-          <div class="phrase-actions-row">
-            <Button onclick={copyPhrase}>
-              {copied ? 'Copied!' : 'Copy'}
-            </Button>
-          </div>
-          <label class="written-down-label">
-            <Checkbox checked={savedConfirmed} onchange={(v) => (savedConfirmed = v)} />
-            <span class="dialog-body">I've saved this somewhere safe.</span>
-          </label>
-          <div class="dialog-actions">
-            <Button class="btn-primary" disabled={!savedConfirmed} onclick={finish}>Done</Button>
-          </div>
+        {/if}
+        {#if pass2.length > 0 && !confirmsMatch}
+          <p class="text-caption error">Passphrases don't match.</p>
+        {/if}
+        {#if errorMessage}
+          <p class="text-caption error">{errorMessage}</p>
         {/if}
       </div>
-    </div>
-  </div>
-{/if}
+      <div class="dialog-actions">
+        <Button onclick={cancel}>Cancel</Button>
+        <Button class="btn-primary" disabled={submitDisabled} onclick={submitPassphrase}>
+          {stage === 'submitting' ? 'Setting up…' : 'Continue'}
+        </Button>
+      </div>
+    {:else if stage === 'phrase'}
+      <h2 id="enrol-title" class="dialog-title">Your recovery phrase</h2>
+      <p class="dialog-body">
+        Save these 24 words somewhere safe — a password manager, encrypted note, or paper. If you
+        forget your passphrase, this is the only way to recover your data.
+      </p>
+      <div class="phrase-blob">{recoveryPhrase}</div>
+      <div class="phrase-actions-row">
+        <Button onclick={copyPhrase}>
+          {copied ? 'Copied!' : 'Copy'}
+        </Button>
+      </div>
+      <label class="written-down-label">
+        <Checkbox checked={savedConfirmed} onchange={(v) => (savedConfirmed = v)} />
+        <span class="dialog-body">I've saved this somewhere safe.</span>
+      </label>
+      <div class="dialog-actions">
+        <Button class="btn-primary" disabled={!savedConfirmed} onclick={finish}>Done</Button>
+      </div>
+    {/if}
+  {/snippet}
+</Modal>
 
 <style>
-  .dialog-backdrop {
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(8px);
-  }
-
-  :global(html[data-platform='linux']) .dialog-backdrop {
-    backdrop-filter: none;
-    background: rgba(0, 0, 0, 0.6);
-  }
-
   .dialog-title {
     font-size: var(--font-size-xl);
     font-weight: 600;

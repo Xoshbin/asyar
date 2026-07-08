@@ -1,6 +1,6 @@
 <script lang="ts">
   import { openUrl } from '@tauri-apps/plugin-opener';
-  import ModalOverlay from '../layout/ModalOverlay.svelte';
+  import Modal from '../base/Modal.svelte';
   import Button from '../base/Button.svelte';
 
   let {
@@ -14,15 +14,15 @@
   const releaseNotesUrl = `https://github.com/Xoshbin/asyar-launcher/releases/tag/v${version}`;
 </script>
 
-<ModalOverlay title="What's New in v{version}">
+<Modal isOpen={true} title="What's New in v{version}" onEscape={onDismiss} onEnter={onDismiss}>
   {#snippet children()}
     <p class="description">Asyar has been updated. See what changed in this release.</p>
   {/snippet}
   {#snippet actions()}
     <Button onclick={() => openUrl(releaseNotesUrl)}>View Release Notes</Button>
-    <Button onclick={onDismiss}>Dismiss</Button>
+    <Button autofocus onclick={onDismiss}>Dismiss</Button>
   {/snippet}
-</ModalOverlay>
+</Modal>
 
 <style>
   .description {

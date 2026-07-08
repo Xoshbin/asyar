@@ -1,8 +1,7 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import Modal from '../../components/base/Modal.svelte';
   import { Button, Input, FormField } from '../../components';
   import ConfirmDialog from '../../components/base/ConfirmDialog.svelte';
-  import { fadeIn, popupScale } from '$lib/transitions';
   import { validateAlias } from './aliasValidation';
   import { aliasService } from './aliasService';
   import { aliasStore } from './aliasStore.svelte';
@@ -26,7 +25,6 @@
   let confirmOpen = $state(false);
   let pendingAlias = $state<string | null>(null);
   let conflictName = $state<string | null>(null);
-  let inputEl = $state<HTMLInputElement | null>(null);
 
   function reasonMessage(reason: 'empty' | 'too-long' | 'invalid-chars'): string {
     switch (reason) {
@@ -53,8 +51,8 @@
     }
   }
 
-  async function handleSubmit(e: Event): Promise<void> {
-    e.preventDefault();
+  async function submitAlias(): Promise<void> {
+    if (saving) return;
     error = null;
     const result = validateAlias(value);
     if (!result.ok) {
@@ -71,6 +69,11 @@
     await commit(result.normalized);
   }
 
+  function handleFormSubmit(e: Event): void {
+    e.preventDefault();
+    void submitAlias();
+  }
+
   function handleConfirmReassign(): void {
     if (pendingAlias) {
       const alias = pendingAlias;
@@ -84,56 +87,11 @@
     pendingAlias = null;
     conflictName = null;
   }
-
-  function handleKeydown(event: KeyboardEvent): void {
-    if (confirmOpen) return; // ConfirmDialog owns the keys while it's open
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      oncancel();
-    }
-  }
-
-  function handleBackdropClick(event: MouseEvent): void {
-    if (event.target === event.currentTarget) oncancel();
-  }
-
-  function handleBackdropKey(event: KeyboardEvent): void {
-    // Keydown bubbles from the form's input up to this backdrop div — only
-    // treat it as "activate the backdrop" when the backdrop itself is the
-    // actual target, mirroring handleBackdropClick's guard. Without this,
-    // pressing Enter to save bubbles up and cancels the modal instead.
-    if (event.target !== event.currentTarget) return;
-    if (event.key === 'Enter' || event.key === ' ') oncancel();
-  }
-
-  onMount(() => {
-    window.addEventListener('keydown', handleKeydown, true);
-    // Focus the input on mount so users can type immediately.
-    queueMicrotask(() => inputEl?.focus());
-  });
-
-  onDestroy(() => {
-    window.removeEventListener('keydown', handleKeydown, true);
-  });
 </script>
 
-<div
-  class="fixed inset-0 dialog-backdrop flex items-center justify-center z-[200]"
-  role="button"
-  tabindex="0"
-  onclick={handleBackdropClick}
-  onkeydown={handleBackdropKey}
-  transition:fadeIn={{ duration: 150 }}
->
-  <div
-    class="bg-[var(--bg-primary)] rounded-lg shadow-lg w-full max-w-md overflow-hidden"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="alias-capture-title"
-    transition:popupScale={{ duration: 120 }}
-  >
-    <form onsubmit={handleSubmit} class="p-6 flex flex-col gap-4">
+<Modal isOpen={true} labelledBy="alias-capture-title" onEscape={oncancel} onEnter={submitAlias}>
+  {#snippet children()}
+    <form onsubmit={handleFormSubmit} class="flex flex-col gap-4">
       <div>
         <h2 id="alias-capture-title" class="text-xl font-semibold text-[var(--text-primary)]">
           {currentAlias ? 'Change alias' : 'Assign alias'}
@@ -143,13 +101,13 @@
 
       <FormField label="Alias" hint="1–10 lowercase letters or digits" error={error ?? undefined}>
         <Input
-          bind:ref={inputEl}
           bind:value
           placeholder="e.g. c, s, app"
           disabled={saving}
           autocomplete="off"
           autocapitalize="off"
           spellcheck={false}
+          autofocus
         />
       </FormField>
 
@@ -158,8 +116,8 @@
         <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
       </div>
     </form>
-  </div>
-</div>
+  {/snippet}
+</Modal>
 
 <ConfirmDialog
   bind:isOpen={confirmOpen}
@@ -170,15 +128,3 @@
   onconfirm={handleConfirmReassign}
   oncancel={handleCancelReassign}
 />
-
-<style>
-  .dialog-backdrop {
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(8px);
-  }
-
-  :global(html[data-platform='linux']) .dialog-backdrop {
-    backdrop-filter: none;
-    background: rgba(0, 0, 0, 0.6);
-  }
-</style>

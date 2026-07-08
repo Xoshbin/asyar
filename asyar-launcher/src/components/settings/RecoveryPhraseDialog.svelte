@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import Modal from '../base/Modal.svelte';
   import { Button, Input, Checkbox } from '../index';
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
   import { logService } from '../../services/log/logService';
-  import { fadeIn, popupScale } from '$lib/transitions';
 
   let {
     isOpen = $bindable(false),
@@ -48,6 +47,10 @@
     }
   }
 
+  function handleEnter() {
+    if (stage === 'passphrase' && passphrase.length > 0) submit();
+  }
+
   async function copyPhrase() {
     try {
       await navigator.clipboard.writeText(recoveryPhrase);
@@ -64,103 +67,62 @@
     onComplete?.();
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (!isOpen) return;
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      cancel();
-    } else if (event.key === 'Enter' && stage === 'passphrase' && passphrase.length > 0) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      submit();
-    }
-  }
   $effect(() => {
     if (stage === 'passphrase' && passphraseInput) {
       queueMicrotask(() => passphraseInput?.focus());
     }
   });
-  onMount(() => window.addEventListener('keydown', handleKeydown, true));
-  onDestroy(() => window.removeEventListener('keydown', handleKeydown, true));
 </script>
 
-{#if isOpen}
-  <div
-    class="fixed inset-0 dialog-backdrop flex items-center justify-center z-[200]"
-    role="presentation"
-    onclick={(e) => e.target === e.currentTarget && cancel()}
-    transition:fadeIn={{ duration: 150 }}
-  >
-    <div
-      class="bg-[var(--bg-primary)] rounded-lg shadow-lg w-full max-w-lg overflow-hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="phrase-title"
-      transition:popupScale={{ duration: 120 }}
-    >
-      <div class="p-6">
-        {#if stage === 'passphrase' || stage === 'submitting'}
-          <h2 id="phrase-title" class="dialog-title">View recovery phrase</h2>
-          <p class="dialog-body">
-            Enter your current passphrase to view your 24-word recovery phrase.
-          </p>
-          <Input
-            type="password"
-            placeholder="Passphrase"
-            bind:value={passphrase}
-            bind:ref={passphraseInput}
-            maxlength={256}
-          />
-          {#if errorMessage}
-            <p class="text-caption error mt-2">{errorMessage}</p>
-          {/if}
-          <div class="dialog-actions">
-            <Button onclick={cancel}>Cancel</Button>
-            <Button
-              class="btn-primary"
-              disabled={passphrase.length === 0 || stage === 'submitting'}
-              onclick={submit}
-            >
-              {stage === 'submitting' ? 'Verifying…' : 'View'}
-            </Button>
-          </div>
-        {:else if stage === 'phrase'}
-          <h2 id="phrase-title" class="dialog-title">Your recovery phrase</h2>
-          <p class="dialog-body">
-            Save these 24 words somewhere safe — a password manager, encrypted note, or paper. If
-            you forget your passphrase, this is the only way to get your data back.
-          </p>
-          <div class="phrase-blob">{recoveryPhrase}</div>
-          <div class="phrase-actions-row">
-            <Button onclick={copyPhrase}>
-              {copied ? 'Copied!' : 'Copy'}
-            </Button>
-          </div>
-          <label class="written-down-label">
-            <Checkbox checked={savedConfirmed} onchange={(v) => (savedConfirmed = v)} />
-            <span class="dialog-body-inline">I've saved this somewhere safe.</span>
-          </label>
-          <div class="dialog-actions">
-            <Button class="btn-primary" disabled={!savedConfirmed} onclick={finish}>Done</Button>
-          </div>
-        {/if}
+<Modal bind:isOpen labelledBy="phrase-title" width="32rem" onEscape={cancel} onEnter={handleEnter}>
+  {#snippet children()}
+    {#if stage === 'passphrase' || stage === 'submitting'}
+      <h2 id="phrase-title" class="dialog-title">View recovery phrase</h2>
+      <p class="dialog-body">Enter your current passphrase to view your 24-word recovery phrase.</p>
+      <Input
+        type="password"
+        placeholder="Passphrase"
+        bind:value={passphrase}
+        bind:ref={passphraseInput}
+        maxlength={256}
+      />
+      {#if errorMessage}
+        <p class="text-caption error mt-2">{errorMessage}</p>
+      {/if}
+      <div class="dialog-actions">
+        <Button onclick={cancel}>Cancel</Button>
+        <Button
+          class="btn-primary"
+          disabled={passphrase.length === 0 || stage === 'submitting'}
+          onclick={submit}
+        >
+          {stage === 'submitting' ? 'Verifying…' : 'View'}
+        </Button>
       </div>
-    </div>
-  </div>
-{/if}
+    {:else if stage === 'phrase'}
+      <h2 id="phrase-title" class="dialog-title">Your recovery phrase</h2>
+      <p class="dialog-body">
+        Save these 24 words somewhere safe — a password manager, encrypted note, or paper. If you
+        forget your passphrase, this is the only way to get your data back.
+      </p>
+      <div class="phrase-blob">{recoveryPhrase}</div>
+      <div class="phrase-actions-row">
+        <Button onclick={copyPhrase}>
+          {copied ? 'Copied!' : 'Copy'}
+        </Button>
+      </div>
+      <label class="written-down-label">
+        <Checkbox checked={savedConfirmed} onchange={(v) => (savedConfirmed = v)} />
+        <span class="dialog-body-inline">I've saved this somewhere safe.</span>
+      </label>
+      <div class="dialog-actions">
+        <Button class="btn-primary" disabled={!savedConfirmed} onclick={finish}>Done</Button>
+      </div>
+    {/if}
+  {/snippet}
+</Modal>
 
 <style>
-  .dialog-backdrop {
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(8px);
-  }
-
-  :global(html[data-platform='linux']) .dialog-backdrop {
-    backdrop-filter: none;
-    background: rgba(0, 0, 0, 0.6);
-  }
-
   .dialog-title {
     font-size: var(--font-size-xl);
     font-weight: 600;

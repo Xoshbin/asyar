@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import Modal from '../base/Modal.svelte';
   import { Button, Input } from '../index';
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
   import { logService } from '../../services/log/logService';
-  import { fadeIn, popupScale } from '$lib/transitions';
 
   let {
     isOpen = $bindable(false),
@@ -15,7 +14,6 @@
   let submitting = $state(false);
   let errorMessage = $state<string | null>(null);
   let canSubmit = $derived(confirmation === 'DISABLE' && !submitting);
-  let confirmationInput = $state<HTMLInputElement | null>(null);
 
   function reset() {
     confirmation = '';
@@ -45,78 +43,35 @@
     }
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (!isOpen) return;
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      cancel();
-    } else if (event.key === 'Enter' && canSubmit) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      submit();
-    }
+  function handleEnter() {
+    if (canSubmit) submit();
   }
-  onMount(() => {
-    window.addEventListener('keydown', handleKeydown, true);
-    queueMicrotask(() => confirmationInput?.focus());
-  });
-  onDestroy(() => window.removeEventListener('keydown', handleKeydown, true));
 </script>
 
-{#if isOpen}
-  <div
-    class="fixed inset-0 dialog-backdrop flex items-center justify-center z-[200]"
-    role="presentation"
-    onclick={(e) => e.target === e.currentTarget && cancel()}
-    transition:fadeIn={{ duration: 150 }}
-  >
-    <div
-      class="bg-[var(--bg-primary)] rounded-lg shadow-lg w-full max-w-md overflow-hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="disable-title"
-      transition:popupScale={{ duration: 120 }}
-    >
-      <div class="p-6">
-        <h2 id="disable-title" class="dialog-title danger">Disable encrypted sync</h2>
-        <p class="dialog-body primary">
-          Disabling encrypted sync will re-upload every item to Asyar's servers in plaintext. Asyar
-          will be able to read your synced data again. Continue?
-        </p>
-        <p class="dialog-body">
-          To confirm, type <strong>DISABLE</strong> below.
-        </p>
-        <Input
-          bind:value={confirmation}
-          bind:ref={confirmationInput}
-          placeholder="Type DISABLE to confirm"
-        />
-        {#if errorMessage}
-          <p class="text-caption error mt-2">{errorMessage}</p>
-        {/if}
-        <div class="dialog-actions">
-          <Button onclick={cancel}>Cancel</Button>
-          <Button class="btn-danger" disabled={!canSubmit} onclick={submit}>
-            {submitting ? 'Disabling…' : 'Disable encrypted sync'}
-          </Button>
-        </div>
-      </div>
+<Modal bind:isOpen labelledBy="disable-title" onEscape={cancel} onEnter={handleEnter}>
+  {#snippet children()}
+    <h2 id="disable-title" class="dialog-title danger">Disable encrypted sync</h2>
+    <p class="dialog-body primary">
+      Disabling encrypted sync will re-upload every item to Asyar's servers in plaintext. Asyar will
+      be able to read your synced data again. Continue?
+    </p>
+    <p class="dialog-body">
+      To confirm, type <strong>DISABLE</strong> below.
+    </p>
+    <Input bind:value={confirmation} placeholder="Type DISABLE to confirm" autofocus />
+    {#if errorMessage}
+      <p class="text-caption error mt-2">{errorMessage}</p>
+    {/if}
+    <div class="dialog-actions">
+      <Button onclick={cancel}>Cancel</Button>
+      <Button class="btn-danger" disabled={!canSubmit} onclick={submit}>
+        {submitting ? 'Disabling…' : 'Disable encrypted sync'}
+      </Button>
     </div>
-  </div>
-{/if}
+  {/snippet}
+</Modal>
 
 <style>
-  .dialog-backdrop {
-    background: rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(8px);
-  }
-
-  :global(html[data-platform='linux']) .dialog-backdrop {
-    backdrop-filter: none;
-    background: rgba(0, 0, 0, 0.6);
-  }
-
   .dialog-title {
     font-size: var(--font-size-xl);
     font-weight: 600;

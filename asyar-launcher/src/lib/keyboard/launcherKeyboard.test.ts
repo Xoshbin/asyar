@@ -131,14 +131,6 @@ vi.mock('../../services/log/logService', () => ({
 
 import { logService } from '../../services/log/logService';
 
-vi.mock('../../services/feedback/feedbackService.svelte', () => ({
-  feedbackService: {
-    activeDialog: null,
-  },
-}));
-
-import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-
 vi.mock('../../lib/ipc/commands', () => ({
   showSettingsWindow: vi.fn(),
   hideWindow: vi.fn(),
@@ -173,6 +165,9 @@ if (typeof global.document === 'undefined') {
     set activeElement(el: any) {
       this._activeElement = el;
     },
+    // isAnyModalOpen(document) delegates to querySelector(':modal'); tests
+    // that need to simulate an open modal override this per-case.
+    querySelector: (_selector: string) => null,
   };
   (global as any).document = _doc;
 }
@@ -242,7 +237,7 @@ describe('launcherKeyboard characterization tests', () => {
     searchStores.selectedIndex = -1;
     extensionIframeManager.hasInputFocus = false;
     shortcutStore.isCapturing = false;
-    (feedbackService as any).activeDialog = null;
+    (document as any).querySelector = () => null;
     (searchBarAccessoryService as any).active = null;
     (commandArgumentsService as any).active = null;
     vi.mocked(settingsService.getSettings).mockReturnValue({
@@ -309,17 +304,24 @@ describe('launcherKeyboard characterization tests', () => {
     });
 
     describe('Dialog active guard', () => {
-      it('blocks all keys when a dialog is active', () => {
-        (feedbackService as any).activeDialog = { title: 'Quit' };
+      it('skips launcher navigation/shortcuts when a dialog is active, without swallowing the event', () => {
+        // Must NOT call preventDefault/stopPropagation here: this runs in the
+        // window capture phase, before the event reaches an open native
+        // <dialog>. Swallowing it here would block the dialog's own
+        // Escape/Enter handling from ever seeing the event (regressed once,
+        // see Modal.svelte's handleKeydown for the fix).
+        (document as any).querySelector = (selector: string) =>
+          selector === ':modal' ? ({} as Element) : null;
         const deps = createMockDeps();
         const { handleGlobalKeydown } = createKeyboardHandlers(deps);
 
         for (const key of ['ArrowDown', 'Tab', 'a', 'Enter']) {
           const event = createKeyEvent(key);
           handleGlobalKeydown(event);
-          expect(event.preventDefault).toHaveBeenCalled();
-          expect(event.stopPropagation).toHaveBeenCalled();
+          expect(event.preventDefault).not.toHaveBeenCalled();
+          expect(event.stopPropagation).not.toHaveBeenCalled();
         }
+        expect(deps.handleEnterKey).not.toHaveBeenCalled();
       });
 
       it('does not block keys when no dialog is active', () => {

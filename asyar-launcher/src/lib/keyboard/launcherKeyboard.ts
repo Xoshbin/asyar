@@ -14,7 +14,7 @@ import { isBuiltInFeature } from '../../services/extension/extensionDiscovery';
 import type { ActiveContext, ContextHint } from '../../services/context/contextModeService.svelte';
 import { logService } from '../../services/log/logService';
 import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
-import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+import { isAnyModalOpen } from '../../components/base/Modal.logic';
 import { commandArgumentsService } from '../../services/search/commandArguments';
 import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
 import { resetLauncherState } from '../launcher/launcherReset';
@@ -328,9 +328,12 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       event.preventDefault();
       return;
     }
-    if (feedbackService.activeDialog) {
-      event.preventDefault();
-      event.stopPropagation();
+    if (isAnyModalOpen(document)) {
+      // Do NOT preventDefault/stopPropagation here: this runs in the window
+      // capture phase, before the event reaches the open <dialog>. Stopping
+      // it here would block the dialog's own native Escape/cancel handling
+      // and its local Enter listener from ever seeing the event. Returning
+      // bare only skips the launcher's own logic below.
       return;
     }
     // Searchbar accessory popover open: bail for navigation keys so the
@@ -361,7 +364,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
 
   // Maintain focus function
   function maintainSearchFocus(e: MouseEvent) {
-    if (shortcutStore.isCapturing || feedbackService.activeDialog) return;
+    if (shortcutStore.isCapturing || isAnyModalOpen(document)) return;
 
     const target = e.target as HTMLElement;
 
@@ -575,7 +578,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (shortcutStore.isCapturing || feedbackService.activeDialog) return;
+    if (shortcutStore.isCapturing || isAnyModalOpen(document)) return;
     if (event.defaultPrevented) return;
     if (tryHandleEscape(event)) return;
     if (tryHandleBackspaceInView(event)) return;
