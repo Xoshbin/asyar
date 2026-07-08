@@ -12,10 +12,19 @@ vi.mock('./extensionPreferencesService.svelte', () => ({
   extensionPreferencesService: { getEffectivePreferences: vi.fn() },
 }));
 vi.mock('./streamDispatcher.svelte', () => ({ streamDispatcher: { abort: vi.fn() } }));
-vi.mock('../../lib/ipc/commands', () => ({}));
+vi.mock('../../lib/ipc/commands', () => ({
+  checkExtensionPermission: vi.fn(),
+}));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
+vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
+  diagnosticsService: { report: vi.fn() },
+}));
+vi.mock('../settings/developerSettingsService.svelte', () => ({
+  developerSettingsService: { isDeveloperMode: false, tracing: false },
+}));
 
 import { invoke } from '@tauri-apps/api/core';
+import * as commands from '../../lib/ipc/commands';
 import { ExtensionIpcRouter } from './ExtensionIpcRouter';
 import type { ServiceRegistry } from './defineServiceRegistry';
 
@@ -400,5 +409,147 @@ describe('ExtensionIpcRouter — snippets Tauri-direct routing', () => {
     expect(invoke).toHaveBeenCalledWith('revoke_shortcodes', {
       extensionId: 'org.asyar.emoji',
     });
+  });
+});
+
+describe('ExtensionIpcRouter — identity spoofing prevention', () => {
+  // Regression: before the fix, extensionId was read from the postMessage
+  // payload itself (event.data.extensionId || payload?.extensionId).  A
+  // malicious extension could therefore claim any other extension's ID in
+  // the message body and inherit that extension's storage namespace,
+  // permissions, and service access.
+  //
+  // After the fix, extensionId for iframe contexts is always derived from
+  // the host-set `data-extension-id` DOM attribute of the iframe whose
+  // contentWindow === event.source.  Extensions cannot write to that
+  // attribute, so the identity is authoritative regardless of what the
+  // payload claims.
+
+  let iframeEl: HTMLIFrameElement;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Clean up any iframe we added to the document in a previous test.
+    document.querySelectorAll('iframe[data-extension-id]').forEach((el) => el.remove());
+
+    // Create a real JSDOM iframe element with the legitimate extension's ID
+    // stamped as a host-set attribute.  The router reads this via
+    // findExtensionIdForSource(), which matches iframe.contentWindow === event.source.
+    iframeEl = document.createElement('iframe');
+    iframeEl.setAttribute('data-extension-id', 'org.asyar.legitimate');
+    iframeEl.setAttribute('data-role', 'view');
+    document.body.appendChild(iframeEl);
+  });
+
+  afterEach(() => {
+    iframeEl?.remove();
+  });
+
+  it('uses the DOM-derived extensionId, not the spoofed payload extensionId, for permission check', async () => {
+    // Arrange: permission check allows any call (we are only checking WHICH id was used).
+    vi.mocked(commands.checkExtensionPermission).mockResolvedValue({ allowed: true } as any);
+
+    const getManifestById = vi.fn((id: string) =>
+      id === 'org.asyar.legitimate' ? { id: 'org.asyar.legitimate' } : undefined,
+    ) as any;
+
+    const router = new ExtensionIpcRouter({} as ServiceRegistry, getManifestById, vi.fn(), vi.fn());
+    router.setup();
+
+    // Act: fire a message that claims to be the malicious extension in its payload,
+    // but is actually sent from the legitimate extension's iframe contentWindow.
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'asyar:api:storage:get',
+          // Spoofed — malicious extension claims to be someone else.
+          extensionId: 'org.asyar.malicious',
+          payload: { key: 'secret' },
+          messageId: 'spoof-1',
+        },
+        // The event.source is the legitimate iframe's contentWindow — this is
+        // what the router must use, not the extensionId in the data above.
+        source: iframeEl.contentWindow,
+      }),
+    );
+
+    // Flush microtasks / async handlers.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // Assert: permission was checked against the LEGITIMATE id (from DOM), not the spoofed one.
+    expect(commands.checkExtensionPermission).toHaveBeenCalledWith(
+      'org.asyar.legitimate',
+      expect.any(String),
+    );
+    expect(commands.checkExtensionPermission).not.toHaveBeenCalledWith(
+      'org.asyar.malicious',
+      expect.any(String),
+    );
+  });
+
+  it('uses the DOM-derived extensionId when injecting into service calls', async () => {
+    // Arrange: storage.get should receive the legitimate extensionId as its first arg.
+    vi.mocked(commands.checkExtensionPermission).mockResolvedValue({ allowed: true } as any);
+
+    const storageGet = vi.fn(async () => 'value');
+    const registry = { storage: { get: storageGet } } as unknown as ServiceRegistry;
+
+    const getManifestById = vi.fn((id: string) =>
+      id === 'org.asyar.legitimate' ? { id: 'org.asyar.legitimate' } : undefined,
+    ) as any;
+
+    const router = new ExtensionIpcRouter(registry, getManifestById, vi.fn(), vi.fn());
+    router.setup();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'asyar:api:storage:get',
+          extensionId: 'org.asyar.malicious', // spoofed
+          payload: { key: 'myKey' },
+          messageId: 'spoof-2',
+        },
+        source: iframeEl.contentWindow,
+      }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // storage.get must be called with the DOM-authoritative ID prepended, not the spoofed one.
+    expect(storageGet).toHaveBeenCalledWith('org.asyar.legitimate', 'myKey');
+    expect(storageGet).not.toHaveBeenCalledWith('org.asyar.malicious', expect.anything());
+  });
+
+  it('rejects the message entirely when the source iframe has no data-extension-id', async () => {
+    // An unregistered iframe (no data-extension-id stamp) must be silently dropped.
+    const storageGet = vi.fn(async () => 'value');
+    const registry = { storage: { get: storageGet } } as unknown as ServiceRegistry;
+
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+    router.setup();
+
+    // Create an iframe WITHOUT the attribute.
+    const unknownIframe = document.createElement('iframe');
+    document.body.appendChild(unknownIframe);
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'asyar:api:storage:get',
+          extensionId: 'org.asyar.legitimate', // tries to claim a real ID
+          payload: { key: 'anyKey' },
+          messageId: 'spoof-3',
+        },
+        source: unknownIframe.contentWindow,
+      }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // Neither the permission check nor the service method should have been reached.
+    expect(commands.checkExtensionPermission).not.toHaveBeenCalled();
+    expect(storageGet).not.toHaveBeenCalled();
+
+    unknownIframe.remove();
   });
 });
