@@ -448,7 +448,7 @@ pub struct ThemeFontEntry {
 /// — a one-shot bounded read is a different risk profile than a standing
 /// watch, and the read scope is user-consented and deny-listed instead.
 /// Also validates the optional `shell:open-url` scheme list (see
-/// [`validate_shell_open_url_args`]).
+/// `validate_shell_open_url_args`).
 pub fn validate_permission_args(m: &ExtensionManifest) -> Result<(), AppError> {
     validate_string_array_permission(m, "fs:watch", |s| {
         let home =
