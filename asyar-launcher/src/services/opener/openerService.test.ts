@@ -34,7 +34,9 @@ describe('OpenerService', () => {
     });
 
     it('propagates denials as rejections', async () => {
-      mockOpenerOpenUrl.mockRejectedValueOnce(new Error('not in the caller\'s declared scheme list'));
+      mockOpenerOpenUrl.mockRejectedValueOnce(
+        new Error("not in the caller's declared scheme list"),
+      );
       await expect(makeSvc().open('ext.a', 'steam://run/42')).rejects.toThrow('declared scheme');
     });
   });
