@@ -5,6 +5,8 @@ use crate::browser::types::{
 };
 use tauri::State;
 
+pub const BROWSER_TABS_WRITE_PERMISSION: &str = "browser:tabs.write";
+
 #[tauri::command]
 pub fn browser_list_available_browsers() -> Vec<BrowserId> {
     BrowserService::new().list_available_browsers()
@@ -95,7 +97,7 @@ pub async fn browser_open_url(
     // unchanged.
     if extension_id.is_some() {
         permissions
-            .check(&extension_id, "browser:tabs.write")
+            .check(&extension_id, BROWSER_TABS_WRITE_PERMISSION)
             .map_err(|e| e.to_string())?;
         let ext = extension_id.as_deref().unwrap_or_default();
         let declared = crate::opener_scope::declared_schemes(&permissions, ext);
