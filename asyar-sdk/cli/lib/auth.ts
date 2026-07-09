@@ -137,7 +137,12 @@ export async function getOrAuthorizeGitHub(): Promise<string> {
       },
       body: new URLSearchParams({
         client_id: GITHUB_CLI_CLIENT_ID,
-        scope: 'repo read:user',
+        // Publishing only ever touches the publisher's public extension
+        // repos (create repo, push, create release, upload asset), so
+        // public_repo suffices — full `repo` would also grant read/write
+        // on every private repo the account can reach. No read:user
+        // either: the CLI never calls an endpoint that needs it.
+        scope: 'public_repo',
       }).toString(),
     });
   } catch (err: any) {
