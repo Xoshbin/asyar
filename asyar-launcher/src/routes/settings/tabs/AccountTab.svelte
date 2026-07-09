@@ -12,6 +12,7 @@
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { authService } from '../../../services/auth/authService.svelte';
   import { cloudSyncService } from '../../../services/sync/cloudSyncService.svelte';
+  import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { entitlementService } from '../../../services/auth/entitlementService.svelte';
   import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
   import { logService } from '../../../services/log/logService';
@@ -46,6 +47,38 @@
   $effect(() => {
     toggleState = syncEncryptionService.enabled;
   });
+
+  // Same mirror idiom for the cloud-sync preference toggle. The tab only
+  // writes the setting — cloudSyncService watches it and starts/stops
+  // itself — so the mirror snaps back only if the write fails.
+  let syncToggleState = $state(cloudSyncService.enabled);
+
+  $effect(() => {
+    syncToggleState = cloudSyncService.enabled;
+  });
+
+  function revertSyncToggle(previous: boolean, reason: string) {
+    logService.error(`[AccountTab] toggling cloud sync failed: ${reason}`);
+    syncToggleState = previous;
+    // updateSettings mutates the in-memory settings BEFORE saving, so a
+    // failed save leaves the new value live (and the sync watcher acting
+    // on it) — re-reading cloudSyncService.enabled here would return the
+    // value that just failed to persist. Write the old value back so the
+    // UI, the in-memory settings, and the service agree again; if
+    // persistence is still failing this at least restores the in-session
+    // state.
+    settingsService.updateSettings('user', { syncEnabled: previous }).catch(() => {});
+  }
+
+  function onSyncToggleClick(target: boolean) {
+    const previous = cloudSyncService.enabled;
+    settingsService
+      .updateSettings('user', { syncEnabled: target })
+      .then((ok) => {
+        if (!ok) revertSyncToggle(previous, 'settings save returned false');
+      })
+      .catch((err) => revertSyncToggle(previous, String(err)));
+  }
 
   function resetToggle() {
     toggleState = syncEncryptionService.enabled;
@@ -259,70 +292,86 @@
   {#if entitlementService.check('sync:settings')}
     <div class="no-separators">
       <SettingsForm>
-        <SettingsFormRow label="Last Synced" separator>
-          <div class="sync-status">
+        <SettingsFormRow label="Cloud Sync" separator>
+          <div class="sync-enable-row">
             <span class="secondary-text">
-              {cloudSyncService.lastSyncedAt
-                ? formatRelativeTime(cloudSyncService.lastSyncedAt)
-                : 'Not yet synced'}
+              {syncToggleState
+                ? 'Syncing your data across devices.'
+                : 'Your data stays on this device.'}
             </span>
-            {#if cloudSyncService.lastError}
-              <span class="error-text">{cloudSyncService.lastError}</span>
-            {/if}
-          </div>
-        </SettingsFormRow>
-
-        <SettingsFormRow label="Sync Now">
-          <Button
-            onclick={() => cloudSyncService.syncNow().catch((err) => reportSyncFailure(err))}
-            disabled={cloudSyncService.status === 'syncing'}
-          >
-            {cloudSyncService.status === 'syncing' ? 'Syncing…' : 'Sync Now'}
-          </Button>
-        </SettingsFormRow>
-
-        <SettingsFormRow label="Encrypted Sync" separator>
-          <div class="e2ee-row">
-            <div class="e2ee-status">
-              {#if !syncEncryptionService.enabled}
-                <Badge text="Off" variant="default" />
-                <span class="secondary-text">Server can read your synced data.</span>
-              {:else if syncEncryptionService.locked}
-                <div class="e2ee-badge-with-dot">
-                  <StatusDot color="warning" />
-                  <Badge text="Locked" variant="warning" />
-                </div>
-                <span class="secondary-text">Passphrase needed to continue.</span>
-              {:else}
-                <div class="e2ee-badge-with-dot">
-                  <StatusDot color="success" />
-                  <Badge text="On" variant="success" />
-                </div>
-                <span class="secondary-text">Server stores only ciphertext.</span>
-              {/if}
-            </div>
             <Toggle
-              bind:checked={toggleState}
-              onchange={(e) => onToggleClick((e.target as HTMLInputElement).checked)}
+              bind:checked={syncToggleState}
+              onchange={(e) => onSyncToggleClick((e.target as HTMLInputElement).checked)}
             />
           </div>
         </SettingsFormRow>
 
-        {#if syncEncryptionService.enabled}
-          {#if syncEncryptionService.locked}
-            <SettingsFormRow label="Unlock">
-              <Button onclick={() => (activeDialog = 'unlock')}>Enter passphrase</Button>
-            </SettingsFormRow>
-          {/if}
-          <SettingsFormRow label="Passphrase">
-            <Button onclick={() => (activeDialog = 'rotate')}>Change passphrase</Button>
-          </SettingsFormRow>
-          <SettingsFormRow label="Recovery phrase">
-            <div class="e2ee-phrase-actions">
-              <Button onclick={() => (activeDialog = 'phrase')}>View recovery phrase</Button>
-              <Button onclick={() => (activeDialog = 'recover')}>I forgot my passphrase</Button>
+        {#if cloudSyncService.enabled}
+          <SettingsFormRow label="Last Synced" separator>
+            <div class="sync-status">
+              <span class="secondary-text">
+                {cloudSyncService.lastSyncedAt
+                  ? formatRelativeTime(cloudSyncService.lastSyncedAt)
+                  : 'Not yet synced'}
+              </span>
+              {#if cloudSyncService.lastError}
+                <span class="error-text">{cloudSyncService.lastError}</span>
+              {/if}
             </div>
           </SettingsFormRow>
+
+          <SettingsFormRow label="Sync Now">
+            <Button
+              onclick={() => cloudSyncService.syncNow().catch((err) => reportSyncFailure(err))}
+              disabled={cloudSyncService.status === 'syncing'}
+            >
+              {cloudSyncService.status === 'syncing' ? 'Syncing…' : 'Sync Now'}
+            </Button>
+          </SettingsFormRow>
+
+          <SettingsFormRow label="Encrypted Sync" separator>
+            <div class="e2ee-row">
+              <div class="e2ee-status">
+                {#if !syncEncryptionService.enabled}
+                  <Badge text="Off" variant="default" />
+                  <span class="secondary-text">Server can read your synced data.</span>
+                {:else if syncEncryptionService.locked}
+                  <div class="e2ee-badge-with-dot">
+                    <StatusDot color="warning" />
+                    <Badge text="Locked" variant="warning" />
+                  </div>
+                  <span class="secondary-text">Passphrase needed to continue.</span>
+                {:else}
+                  <div class="e2ee-badge-with-dot">
+                    <StatusDot color="success" />
+                    <Badge text="On" variant="success" />
+                  </div>
+                  <span class="secondary-text">Server stores only ciphertext.</span>
+                {/if}
+              </div>
+              <Toggle
+                bind:checked={toggleState}
+                onchange={(e) => onToggleClick((e.target as HTMLInputElement).checked)}
+              />
+            </div>
+          </SettingsFormRow>
+
+          {#if syncEncryptionService.enabled}
+            {#if syncEncryptionService.locked}
+              <SettingsFormRow label="Unlock">
+                <Button onclick={() => (activeDialog = 'unlock')}>Enter passphrase</Button>
+              </SettingsFormRow>
+            {/if}
+            <SettingsFormRow label="Passphrase">
+              <Button onclick={() => (activeDialog = 'rotate')}>Change passphrase</Button>
+            </SettingsFormRow>
+            <SettingsFormRow label="Recovery phrase">
+              <div class="e2ee-phrase-actions">
+                <Button onclick={() => (activeDialog = 'phrase')}>View recovery phrase</Button>
+                <Button onclick={() => (activeDialog = 'recover')}>I forgot my passphrase</Button>
+              </div>
+            </SettingsFormRow>
+          {/if}
         {/if}
       </SettingsForm>
     </div>
@@ -548,6 +597,18 @@
   }
 
   /* Sync status */
+  .sync-enable-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+  }
+
+  .sync-enable-row .secondary-text {
+    flex: 1;
+    min-width: 0;
+  }
+
   .sync-status {
     display: flex;
     align-items: center;

@@ -18,9 +18,22 @@ vi.mock('../profile/profileService', () => ({
   },
 }));
 
+vi.mock('../auth/authService.svelte', () => ({
+  authService: {
+    isLoggedIn: true,
+  },
+}));
+
 vi.mock('../auth/entitlementService.svelte', () => ({
   entitlementService: {
     check: vi.fn(),
+  },
+}));
+
+vi.mock('../settings/settingsService.svelte', () => ({
+  settingsService: {
+    getSettings: vi.fn(),
+    subscribe: vi.fn(),
   },
 }));
 
@@ -43,9 +56,17 @@ vi.mock('../log/logService', () => ({
 import { cloudSyncService, PERIODIC_SYNC_INTERVAL_MS } from './cloudSyncService.svelte';
 import * as commands from '../../lib/ipc/commands';
 import { profileService } from '../profile/profileService';
+import { authService } from '../auth/authService.svelte';
 import { entitlementService } from '../auth/entitlementService.svelte';
+import { settingsService } from '../settings/settingsService.svelte';
 import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 import type { ISyncProvider, SyncChangeEvent, Unsubscribe } from '../profile/types';
+import type { AppSettings } from '../settings/types/AppSettingsType';
+
+/** Shorthand: point the settings mock at a given `user.syncEnabled` shape. */
+function mockUserSettings(user: AppSettings['user']): void {
+  vi.mocked(settingsService.getSettings).mockReturnValue({ user } as AppSettings);
+}
 
 const okReport: commands.SyncRunReport = {
   uploaded: [],
@@ -103,6 +124,21 @@ function asProviderList(...fakes: FakeProvider[]): ISyncProvider[] {
   return fakes as unknown as ISyncProvider[];
 }
 
+/**
+ * Let the startup run's microtask chain fully settle (`currentRun` → null).
+ *
+ * `vi.waitFor(syncRun called once)` can pass on its immediate first check —
+ * the un-awaited startup `syncNow()` reaches the `commands.syncRun` invoke
+ * before the test resumes from `await init()` — while `runOnce` still has a
+ * few microtasks left before its `.finally` clears the promise-singleton. A
+ * provider event emitted in that window is (by design) collapsed into the
+ * in-flight run and never produces a second `syncRun` call. One macrotask
+ * flushes the whole pending microtask queue.
+ */
+function settleInFlightRun(): Promise<void> {
+  return new Promise((r) => setTimeout(r, 0));
+}
+
 describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -110,9 +146,21 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
     cloudSyncService.lastSyncedAt = null;
     cloudSyncService.lastError = null;
     cloudSyncService.lastReport = null;
-    cloudSyncService.stopPeriodicSync();
-    // Default: entitlement granted + status returns no last-sync time.
+    // Reset the singleton's lifecycle state from the previous test —
+    // dispose() drops the settings watcher (and its priming memory) plus
+    // any provider subscriptions, so each test's init() re-arms cleanly.
+    cloudSyncService.dispose();
+    // Default: signed in, entitlement granted, sync enabled in settings,
+    // status returns no last-sync time.
+    authService.isLoggedIn = true;
     vi.mocked(entitlementService.check).mockReturnValue(true);
+    mockUserSettings({ syncEnabled: true });
+    // Mimic the real subscribe contract: fire eagerly with the current
+    // settings (the watcher's priming call), return an unsubscribe.
+    vi.mocked(settingsService.subscribe).mockImplementation((cb) => {
+      cb(settingsService.getSettings());
+      return vi.fn();
+    });
     vi.mocked(commands.syncGetStatus).mockResolvedValue({
       cursor: 0,
       deviceId: 'dev-A',
@@ -139,6 +187,42 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       expect(commands.syncGetStatus).not.toHaveBeenCalled();
       expect(commands.syncRun).not.toHaveBeenCalled();
       expect(profileService.getProviders).not.toHaveBeenCalled();
+    });
+
+    // Regression (#461): the entitlement check fails open for signed-out
+    // users ("free tier: unrestricted"), so it alone must not gate sync —
+    // a signed-out launcher used to arm the timer and subscriptions, and
+    // every run failed Rust-side with "Not logged in", raising a
+    // `sync.run-failed` diagnostic each 60 s tick and provider change.
+    it('init_skips_when_signed_out_even_though_entitlement_check_passes', async () => {
+      authService.isLoggedIn = false;
+      vi.mocked(entitlementService.check).mockReturnValue(true);
+
+      await cloudSyncService.init();
+
+      expect(commands.syncGetStatus).not.toHaveBeenCalled();
+      expect(commands.syncRun).not.toHaveBeenCalled();
+      expect(profileService.getProviders).not.toHaveBeenCalled();
+    });
+
+    it('init_skips_when_user_disabled_sync_in_settings', async () => {
+      mockUserSettings({ syncEnabled: false });
+
+      await cloudSyncService.init();
+
+      expect(commands.syncGetStatus).not.toHaveBeenCalled();
+      expect(commands.syncRun).not.toHaveBeenCalled();
+      expect(profileService.getProviders).not.toHaveBeenCalled();
+    });
+
+    it('init_treats_absent_syncEnabled_setting_as_enabled', async () => {
+      // Pre-toggle installs have no `user.syncEnabled` key — sync must
+      // keep working for them without a migration.
+      mockUserSettings(undefined);
+
+      await cloudSyncService.init();
+
+      expect(commands.syncGetStatus).toHaveBeenCalledTimes(1);
     });
 
     it('init_pulls_then_pushes_then_starts_periodic_tick', async () => {
@@ -206,6 +290,22 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       await expect(cloudSyncService.syncNow()).rejects.toThrow(
         'sync:settings entitlement required',
       );
+    });
+
+    it('throws when signed out', async () => {
+      authService.isLoggedIn = false;
+      await expect(cloudSyncService.syncNow()).rejects.toThrow(
+        'cloud sync requires a signed-in account',
+      );
+      expect(commands.syncRun).not.toHaveBeenCalled();
+    });
+
+    it('throws when sync is disabled in settings', async () => {
+      mockUserSettings({ syncEnabled: false });
+      await expect(cloudSyncService.syncNow()).rejects.toThrow(
+        'cloud sync is disabled in settings',
+      );
+      expect(commands.syncRun).not.toHaveBeenCalled();
     });
 
     it('stripField_strips_sensitive_fields_per_item', async () => {
@@ -495,6 +595,8 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
         expect(commands.syncRun).toHaveBeenCalledTimes(1);
       });
 
+      await settleInFlightRun();
+
       // Simulate a local change event from the provider.
       provider.__emit?.({ type: 'upsert', itemId: 's1', categoryId: 'snippets' });
 
@@ -522,6 +624,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       await vi.waitFor(() => {
         expect(commands.syncRun).toHaveBeenCalledTimes(1);
       });
+      await settleInFlightRun();
 
       provider.__emit?.({ type: 'delete', itemId: 's-doomed', categoryId: 'snippets' });
 
@@ -541,6 +644,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       await vi.waitFor(() => {
         expect(commands.syncRun).toHaveBeenCalledTimes(1);
       });
+      await settleInFlightRun();
 
       provider.__emit?.({ type: 'upsert', itemId: 's-edited', categoryId: 'snippets' });
 
@@ -562,6 +666,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       await vi.waitFor(() => {
         expect(commands.syncRun).toHaveBeenCalledTimes(1);
       });
+      await settleInFlightRun();
 
       provider.__emit?.({ type: 'delete', itemId: 's-x', categoryId: 'snippets' });
 
@@ -569,6 +674,123 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
         expect(commands.syncMarkTombstone).toHaveBeenCalledTimes(1);
         expect(commands.syncRun).toHaveBeenCalledTimes(2);
       });
+    });
+  });
+
+  // ── reactive syncEnabled lifecycle ─────────────────────────────────────────
+
+  describe('settings watcher (user.syncEnabled)', () => {
+    it('flipping syncEnabled off stops the timer and provider subscriptions', async () => {
+      vi.useFakeTimers();
+      try {
+        const provider = makeProvider({ id: 'snippets' });
+        vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+        await cloudSyncService.init();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
+        expect(provider.__emit).toBeDefined();
+
+        const watch = vi.mocked(settingsService.subscribe).mock.calls[0][0];
+        mockUserSettings({ syncEnabled: false });
+        watch(settingsService.getSettings());
+
+        // Provider subscription is gone — the AccountTab toggle never
+        // touches the service, so this watcher is the only off switch.
+        expect(provider.__emit).toBeUndefined();
+
+        // Timer is gone — periodic ticks no longer fire.
+        vi.mocked(commands.syncRun).mockClear();
+        await vi.advanceTimersByTimeAsync(PERIODIC_SYNC_INTERVAL_MS);
+        expect(commands.syncRun).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('flipping syncEnabled back on restarts sync', async () => {
+      const provider = makeProvider({ id: 'snippets' });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+      await cloudSyncService.init();
+      await vi.waitFor(() => {
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
+      });
+      const watch = vi.mocked(settingsService.subscribe).mock.calls[0][0];
+
+      mockUserSettings({ syncEnabled: false });
+      watch(settingsService.getSettings());
+      expect(provider.__emit).toBeUndefined();
+
+      mockUserSettings({ syncEnabled: true });
+      watch(settingsService.getSettings());
+
+      // start() runs again asynchronously — the status check fires first
+      // and the provider re-subscription lands a few microtasks later, so
+      // both belong inside the waitFor.
+      await vi.waitFor(() => {
+        expect(commands.syncGetStatus).toHaveBeenCalledTimes(2);
+        expect(provider.subscribeToChanges).toHaveBeenCalledTimes(2);
+      });
+      expect(provider.__emit).toBeDefined();
+    });
+
+    it('the priming call and unchanged re-fires are no-ops', async () => {
+      const provider = makeProvider({ id: 'snippets' });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+      // init() already produced the priming call via the subscribe mock.
+      await cloudSyncService.init();
+      await vi.waitFor(() => {
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
+      });
+      expect(provider.subscribeToChanges).toHaveBeenCalledTimes(1);
+
+      // The subscribe callback re-fires on ANY settings change; a re-fire
+      // with the same enabled value must not restart or stop anything.
+      const watch = vi.mocked(settingsService.subscribe).mock.calls[0][0];
+      watch(settingsService.getSettings());
+
+      expect(provider.subscribeToChanges).toHaveBeenCalledTimes(1);
+      expect(provider.__emit).toBeDefined();
+      expect(commands.syncGetStatus).toHaveBeenCalledTimes(1);
+    });
+
+    it('flip to enabled while signed out does not start sync', async () => {
+      authService.isLoggedIn = false;
+      mockUserSettings({ syncEnabled: false });
+
+      // Arms the watcher; start() itself is gated on auth.
+      await cloudSyncService.init();
+      const watch = vi.mocked(settingsService.subscribe).mock.calls[0][0];
+
+      mockUserSettings({ syncEnabled: true });
+      watch(settingsService.getSettings());
+
+      // Give a (buggy) async start a beat to surface before asserting.
+      await new Promise((r) => setTimeout(r, 0));
+      expect(commands.syncGetStatus).not.toHaveBeenCalled();
+      expect(commands.syncRun).not.toHaveBeenCalled();
+    });
+
+    it('init() arms the settings watcher exactly once across re-entry', async () => {
+      // Startup + post-login both call init(); the watcher must not stack.
+      await cloudSyncService.init();
+      await cloudSyncService.init();
+      expect(settingsService.subscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it('dispose() drops the settings watcher; a later init() re-arms it', async () => {
+      await cloudSyncService.init();
+      const watcherUnsub = vi.mocked(settingsService.subscribe).mock.results[0].value as ReturnType<
+        typeof vi.fn
+      >;
+
+      cloudSyncService.dispose();
+      expect(watcherUnsub).toHaveBeenCalledTimes(1);
+
+      await cloudSyncService.init();
+      expect(settingsService.subscribe).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -596,6 +818,14 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       await cloudSyncService.checkStatus();
 
       expect(cloudSyncService.lastSyncedAt).toBeNull();
+    });
+
+    it('is a no-op when signed out', async () => {
+      authService.isLoggedIn = false;
+
+      await cloudSyncService.checkStatus();
+
+      expect(commands.syncGetStatus).not.toHaveBeenCalled();
     });
   });
 });

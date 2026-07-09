@@ -238,6 +238,17 @@ class AuthService {
     if (result.entitlements) this.entitlements = result.entitlements;
     this.isLoggedIn = true;
     logService.info(`Auth: logged in as ${result.user?.email ?? 'unknown'}`);
+
+    // Start cloud sync for this fresh session — appInitializer only calls
+    // cloudSyncService.init() at startup, where it no-ops if the launcher
+    // came up signed-out. Mirror of the dispose() in logout(); same dynamic
+    // import to break the module cycle.
+    try {
+      const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
+      await cloudSyncService.init();
+    } catch (err) {
+      logService.warn(`Auth: cloud sync init failed after login: ${err}`);
+    }
   }
 }
 

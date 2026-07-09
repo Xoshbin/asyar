@@ -1,5 +1,7 @@
 import { profileService } from '../profile/profileService';
+import { authService } from '../auth/authService.svelte';
 import { entitlementService } from '../auth/entitlementService.svelte';
+import { settingsService } from '../settings/settingsService.svelte';
 import { logService } from '../log/logService';
 import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
 import * as commands from '../../lib/ipc/commands';
@@ -31,6 +33,12 @@ export const PERIODIC_SYNC_INTERVAL_MS = 60 * 1000;
  * sources to Rust, lets Rust's hash-based dirty tracking decide what to
  * upload, and fans the server's pulled records back through each
  * provider's `applyItemUpsert` / `applyItemDelete`.
+ *
+ * The whole machine only runs for a signed-in, entitled user who hasn't
+ * turned the `user.syncEnabled` preference off (see [`blockedReason`]).
+ * [`init`] (startup and post-login) arms a settings watcher that starts /
+ * stops sync when that preference flips; [`dispose`] (logout) tears
+ * everything down.
  */
 class CloudSyncService {
   status = $state<'idle' | 'syncing' | 'error'>('idle');
@@ -45,16 +53,55 @@ class CloudSyncService {
   private syncTimer: ReturnType<typeof setInterval> | null = null;
   private currentRun: Promise<void> | null = null;
   private providerUnsubs: Unsubscribe[] = [];
+  private settingsUnsub: (() => void) | null = null;
+  private lastEnabledSeen: boolean | null = null;
+
+  /**
+   * User preference (`user.syncEnabled`), defaulting to `true` so existing
+   * signed-in installs keep syncing. Reactive: reads through
+   * settingsService's `$state`, so UI bound to it updates when the setting
+   * flips (including via a pulled settings upsert).
+   */
+  get enabled(): boolean {
+    return settingsService.getSettings().user?.syncEnabled ?? true;
+  }
+
+  /**
+   * Why sync must not run right now, or `null` when it may. Sync needs an
+   * authenticated session (`sync_run` rejects without a token, so running
+   * signed-out just raises `sync.run-failed` diagnostics forever), the
+   * `sync:settings` entitlement, and the user preference. The entitlement
+   * check alone is NOT a sufficient gate: it fails open for signed-out
+   * users ("free tier: unrestricted").
+   */
+  private blockedReason(): string | null {
+    if (!authService.isLoggedIn) return 'cloud sync requires a signed-in account';
+    if (!entitlementService.check('sync:settings')) return 'sync:settings entitlement required';
+    if (!this.enabled) return 'cloud sync is disabled in settings';
+    return null;
+  }
 
   async init(): Promise<void> {
-    if (!entitlementService.check('sync:settings')) return;
+    this.watchSettings();
+    await this.start();
+  }
+
+  /**
+   * Begin actively syncing: startup pull/push, periodic timer, provider
+   * change subscriptions. No-ops unless every gate in [`blockedReason`]
+   * passes. Safe on the re-entry paths that exist — `startPeriodicSync`
+   * refuses a second timer and `subscribeToProviders` detaches stale
+   * handlers first.
+   */
+  private async start(): Promise<void> {
+    if (this.blockedReason() !== null) return;
 
     await this.checkStatus().catch((err) => {
       logService.warn(`Cloud sync checkStatus failed: ${err}`);
     });
 
     // Background syncNow — do not await; errors flow through diagnostics
-    // and `lastError`, but the caller of `init` shouldn't block on a
+    // and `lastError`, but the caller of `start` shouldn't block on a
     // network round-trip.
     this.syncNow().catch((err) => {
       logService.warn(`Cloud sync initial run failed: ${err}`);
@@ -62,6 +109,37 @@ class CloudSyncService {
 
     this.startPeriodicSync();
     this.subscribeToProviders();
+  }
+
+  /**
+   * Watch `user.syncEnabled` and start/stop sync when it flips, so the
+   * settings UI stays a plain settings-writer. `settingsService.subscribe`
+   * fires eagerly with the current settings (see its contract comment) —
+   * that priming call only records the starting value; [`init`] decides
+   * whether to start.
+   *
+   * The disable path tolerates a benign race: the settings write that
+   * flips the flag also fires settingsSyncProvider's change event, which
+   * can trigger one last change-driven [`syncNow`] before this watcher's
+   * [`stop`] detaches it — harmless, because the gate inside `syncNow`
+   * already sees the flag and rejects the run.
+   */
+  private watchSettings(): void {
+    if (this.settingsUnsub !== null) return;
+    this.settingsUnsub = settingsService.subscribe((settings) => {
+      const enabled = settings.user?.syncEnabled ?? true;
+      if (this.lastEnabledSeen === enabled) return;
+      const isPriming = this.lastEnabledSeen === null;
+      this.lastEnabledSeen = enabled;
+      if (isPriming) return;
+      if (enabled) {
+        this.start().catch((err) => {
+          logService.warn(`Cloud sync: start after enable failed: ${err}`);
+        });
+      } else {
+        this.stop();
+      }
+    });
   }
 
   startPeriodicSync(): void {
@@ -81,12 +159,11 @@ class CloudSyncService {
   }
 
   /**
-   * Full teardown — clears the periodic timer AND unsubscribes every
-   * provider change handler that `init()` wired up. Use on logout, hot
-   * reload, or any flow where the service should fully stop reacting.
-   * Safe to call multiple times.
+   * Pause active syncing — clears the periodic timer AND unsubscribes
+   * every provider change handler that [`start`] wired up. The settings
+   * watcher stays armed, so a later `syncEnabled` re-enable restarts sync.
    */
-  dispose(): void {
+  private stop(): void {
     this.stopPeriodicSync();
     for (const unsub of this.providerUnsubs) {
       try {
@@ -99,6 +176,24 @@ class CloudSyncService {
   }
 
   /**
+   * Full teardown — [`stop`] plus the settings watcher. Use on logout, hot
+   * reload, or any flow where the service should fully stop reacting; a
+   * later [`init`] re-arms everything. Safe to call multiple times.
+   */
+  dispose(): void {
+    this.stop();
+    if (this.settingsUnsub !== null) {
+      try {
+        this.settingsUnsub();
+      } catch (err) {
+        logService.warn(`Cloud sync: settings unsubscribe threw: ${err}`);
+      }
+      this.settingsUnsub = null;
+    }
+    this.lastEnabledSeen = null;
+  }
+
+  /**
    * Manually trigger one delta-sync round-trip. Replaces the old
    * `upload()` + `restore()` split — a single `sync_run` performs the
    * pull then the push.
@@ -108,8 +203,9 @@ class CloudSyncService {
    * events into one HTTP round-trip without any extra state.
    */
   async syncNow(): Promise<void> {
-    if (!entitlementService.check('sync:settings')) {
-      throw new Error('sync:settings entitlement required');
+    const blocked = this.blockedReason();
+    if (blocked !== null) {
+      throw new Error(blocked);
     }
     if (this.currentRun) {
       return this.currentRun;
@@ -121,7 +217,7 @@ class CloudSyncService {
   }
 
   async checkStatus(): Promise<void> {
-    if (!entitlementService.check('sync:settings')) return;
+    if (this.blockedReason() !== null) return;
     const statusResp = await commands.syncGetStatus();
     if (statusResp?.lastFullSyncAtIso) {
       this.lastSyncedAt = new Date(statusResp.lastFullSyncAtIso);
