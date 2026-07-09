@@ -146,8 +146,8 @@ pub async fn update_extension(
 ) -> Result<(), AppError> {
     let base_dir = get_app_data_dir(app_handle)?.join("extensions");
     let live_dir = base_dir.join(&update.extension_id);
-    let staging_dir = base_dir.join(format!("{}_updating", &update.extension_id));
-    let backup_dir = base_dir.join(format!("{}_old", &update.extension_id));
+    let staging_dir = base_dir.join(format!("{}_updating", update.extension_id));
+    let backup_dir = base_dir.join(format!("{}_old", update.extension_id));
 
     // Clean up any leftover dirs from a previous failed update
     if staging_dir.exists() {
