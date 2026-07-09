@@ -11,6 +11,19 @@ const CLI_PORT = 7123;
 
 export const STORE_URL = process.env.ASYAR_STORE_URL ?? 'https://asyar.org';
 
+function openBrowser(url: string): void {
+  // Windows `start` is a cmd built-in that treats its first quoted argument
+  // as the window title, so the URL must be preceded by an empty-title
+  // placeholder — `start "<url>"` opens a console window and no browser.
+  const command =
+    process.platform === 'darwin'
+      ? `open "${url}"`
+      : process.platform === 'win32'
+        ? `start "" "${url}"`
+        : `xdg-open "${url}"`;
+  exec(command);
+}
+
 export async function getStoredAuth(): Promise<{
   storeToken: string;
   githubUsername: string;
@@ -63,13 +76,7 @@ export async function login(): Promise<{
       console.log(chalk.cyan('\nConnect your GitHub account to publish to the Asyar Store.'));
       console.log(chalk.gray('Opening browser...\n'));
 
-      const cmd =
-        process.platform === 'darwin'
-          ? 'open'
-          : process.platform === 'win32'
-            ? 'start'
-            : 'xdg-open';
-      exec(`${cmd} "${authUrl}"`);
+      openBrowser(authUrl);
 
       console.log(chalk.gray(`If the browser did not open, visit:\n${authUrl}\n`));
     });
@@ -143,9 +150,7 @@ export async function getOrAuthorizeGitHub(): Promise<string> {
   console.log();
 
   // Open browser
-  const cmd =
-    process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-  exec(`${cmd} "${verification_uri}"`);
+  openBrowser(verification_uri);
 
   const spinner = ora('Waiting for GitHub authorization...').start();
   const expiresAt = Date.now() + expires_in * 1000;
