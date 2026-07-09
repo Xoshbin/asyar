@@ -298,6 +298,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.tag || github.ref_name }}
+          fetch-depth: 0
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8
@@ -314,6 +315,13 @@ jobs:
             gh release delete "$t" --yes --cleanup-tag=false
           done
 
+      - name: Determine previous launcher release tag
+        id: prev_tag
+        run: |
+          CURRENT_TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          PREV_TAG=$(git tag -l 'v*' --sort=-creatordate | grep -Fvx "$CURRENT_TAG" | head -n 1)
+          echo "tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2.6.1
         with:
@@ -328,6 +336,10 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
           generate_release_notes: true
+          # See release-sdk.yml: without an explicit base, GitHub's auto-notes
+          # picks the most recently published release repo-wide, which can be
+          # an `sdk-v*` tag rather than the last launcher release — pin it.
+          previous_tag: ${{ steps.prev_tag.outputs.tag }}
 
       - name: Notify Website
         env:

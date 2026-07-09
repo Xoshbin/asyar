@@ -55,6 +55,13 @@ jobs:
             npm publish
           fi
 
+      - name: Determine previous SDK release tag
+        id: prev_tag
+        run: |
+          CURRENT_TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          PREV_TAG=$(git tag -l 'sdk-v*' --sort=-creatordate | grep -Fvx "$CURRENT_TAG" | head -n 1)
+          echo "tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2.6.1
         with:
@@ -62,3 +69,8 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
           generate_release_notes: true
+          # GitHub's auto-notes otherwise diffs against the most recently
+          # published release repo-wide, which is usually a launcher `v*`
+          # tag (cut far more often than `sdk-v*`) — pin the base explicitly
+          # so notes only cover commits since the last SDK release.
+          previous_tag: ${{ steps.prev_tag.outputs.tag }}
