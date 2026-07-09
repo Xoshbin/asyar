@@ -152,7 +152,7 @@ pub async fn import_profile(
             let salt = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, salt_b64)
                 .unwrap_or_default();
 
-            for (_filename, json_str) in contents.category_files.iter_mut() {
+            for json_str in contents.category_files.values_mut() {
                 let mut value: Value = serde_json::from_str(json_str)?;
                 decrypt_sensitive_fields(&mut value, pw, &salt)?;
                 *json_str = serde_json::to_string_pretty(&value)?;

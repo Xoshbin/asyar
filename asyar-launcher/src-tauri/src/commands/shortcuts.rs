@@ -186,7 +186,7 @@ pub fn resume_user_shortcuts(
 ) -> Result<(), AppError> {
     let user_shortcuts = state.user_shortcuts.lock().map_err(|_| AppError::Lock)?;
     let shortcut_manager = app_handle.global_shortcut();
-    for (shortcut_str, _object_id) in user_shortcuts.iter() {
+    for shortcut_str in user_shortcuts.keys() {
         if let Ok(shortcut) = parse_shortcut(shortcut_str) {
             // Ignore errors — shortcut may already be registered
             let _ = shortcut_manager.register(shortcut);
@@ -239,7 +239,7 @@ pub fn resume_all_shortcuts(
 
     // Resume user item shortcuts
     let user_shortcuts = state.user_shortcuts.lock().map_err(|_| AppError::Lock)?;
-    for (shortcut_str, _object_id) in user_shortcuts.iter() {
+    for shortcut_str in user_shortcuts.keys() {
         if let Ok(shortcut) = parse_shortcut(shortcut_str) {
             let _ = shortcut_manager.register(shortcut);
         }
