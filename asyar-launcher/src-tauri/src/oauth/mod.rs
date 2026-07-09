@@ -21,6 +21,11 @@ pub struct PendingOAuthFlow {
     pub code_verifier: String,
     pub token_url: String,
     pub client_id: String,
+    /// The redirect_uri sent to the authorization request, using this
+    /// instance's own deep-link scheme (`deeplink::deep_link_scheme`).
+    /// Reused verbatim for the token exchange — the provider requires an
+    /// exact match between the two.
+    pub redirect_uri: String,
 }
 
 /// An OAuth 2.0 token set returned to the extension after a successful flow.

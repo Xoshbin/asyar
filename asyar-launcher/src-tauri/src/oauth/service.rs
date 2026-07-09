@@ -68,7 +68,7 @@ pub(crate) async fn exchange_code_for_token(
     let params = [
         ("grant_type", "authorization_code"),
         ("code", code),
-        ("redirect_uri", "asyar://oauth/callback"),
+        ("redirect_uri", flow.redirect_uri.as_str()),
         ("client_id", &flow.client_id),
         ("code_verifier", &flow.code_verifier),
     ];

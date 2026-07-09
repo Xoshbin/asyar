@@ -1,3 +1,4 @@
+use crate::deeplink::deep_link_scheme;
 use crate::error::AppError;
 use crate::oauth::{
     service, token_store, OAuthExchangeResponse, OAuthPendingFlowState, OAuthStartResponse,
@@ -15,6 +16,7 @@ use tauri::{AppHandle, State};
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn oauth_start_flow(
+    app: AppHandle,
     extension_id: String,
     provider_id: String,
     client_id: String,
@@ -26,6 +28,9 @@ pub async fn oauth_start_flow(
 ) -> Result<OAuthStartResponse, AppError> {
     let (code_verifier, code_challenge) = crate::oauth::pkce::generate_pkce_pair();
     let state = crate::oauth::pkce::generate_state();
+    // Use this instance's own deep-link scheme (asyar vs asyar-dev) so the
+    // provider's redirect comes back to the flavor that started the flow.
+    let redirect_uri = format!("{}://oauth/callback", deep_link_scheme(&app));
 
     let auth_url = crate::oauth::pkce::build_auth_url(
         &authorization_url,
@@ -33,6 +38,7 @@ pub async fn oauth_start_flow(
         &code_challenge,
         &state,
         &scopes,
+        &redirect_uri,
     )?;
 
     pending_flows.insert(
@@ -44,6 +50,7 @@ pub async fn oauth_start_flow(
             code_verifier,
             token_url,
             client_id,
+            redirect_uri,
         },
     );
 
