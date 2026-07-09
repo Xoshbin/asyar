@@ -31,7 +31,7 @@ export function registerLink(program: Command) {
 
       // Build first
       await runViteBuild(cwd);
-      verifyBuildOutput(cwd);
+      verifyBuildOutput(cwd, manifest);
 
       if (opts.copy) {
         // Explicit copy mode — use old behavior
@@ -50,7 +50,7 @@ export function registerLink(program: Command) {
           console.log(chalk.gray(`\nChanged: ${path.relative(cwd, filePath)}`));
           try {
             await runViteBuild(cwd);
-            verifyBuildOutput(cwd);
+            verifyBuildOutput(cwd, manifest);
             console.log(chalk.green('✓') + ' Rebuilt — changes are live');
           } catch {
             console.log(chalk.red('✗ Build failed — fix errors and save again'));

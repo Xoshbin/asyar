@@ -65,7 +65,7 @@ export function registerPublish(program: Command) {
       if (manifest.type !== 'theme') {
         try {
           await runViteBuild(cwd);
-          verifyBuildOutput(cwd);
+          verifyBuildOutput(cwd, manifest);
         } catch {
           process.exit(1);
         }

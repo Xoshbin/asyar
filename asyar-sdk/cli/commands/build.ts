@@ -68,25 +68,33 @@ export async function runViteBuild(cwd: string): Promise<void> {
   });
 }
 
-export function verifyBuildOutput(cwd: string, manifest?: { background?: { main?: string } }) {
+export function verifyBuildOutput(
+  cwd: string,
+  manifest?: { background?: { main?: string }; commands?: { mode?: string }[] },
+) {
   const distDir = path.join(cwd, 'dist');
 
   // Dual-entry layout (Tier 2 worker/view split): dist/view.html is the
   // user-facing iframe; dist/worker.html is additionally required when
   // the manifest declares background.main (always-on headless worker).
+  // Worker-only extensions (background.main with no mode:"view" commands)
+  // legitimately build no view.html, so view.html is only required when a
+  // view command is declared — or when no manifest is available to tell.
   const hasView = fs.existsSync(path.join(distDir, 'view.html'));
   const hasWorker = fs.existsSync(path.join(distDir, 'worker.html'));
   const requiresWorker = !!manifest?.background?.main;
+  const requiresView = manifest?.commands ? manifest.commands.some((c) => c.mode === 'view') : true;
 
   // Legacy single-entry layouts (pre-dual-entry extensions).
   const hasWebApp = fs.existsSync(path.join(distDir, 'index.html'));
   const hasLibrary = fs.existsSync(path.join(distDir, 'index.js'));
 
-  const hasDualEntry = hasView && (!requiresWorker || hasWorker);
+  const hasDualEntry =
+    (hasView || hasWorker) && (!requiresView || hasView) && (!requiresWorker || hasWorker);
   const hasLegacy = hasWebApp || hasLibrary;
 
   if (!hasDualEntry && !hasLegacy) {
-    if (requiresWorker && hasView && !hasWorker) {
+    if (requiresWorker && !hasWorker) {
       console.log(
         chalk.red(
           '✗ Build output incomplete: manifest declares background.main but dist/worker.html is missing. ' +

@@ -1,5 +1,5 @@
 import * as http from 'http';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import chalk from 'chalk';
 import ora from 'ora';
 
@@ -10,6 +10,30 @@ const KEY_GITHUB_USERNAME = 'github-username';
 const CLI_PORT = 7123;
 
 export const STORE_URL = process.env.ASYAR_STORE_URL ?? 'https://asyar.org';
+
+export function openBrowser(rawUrl: string): void {
+  // Untrusted input (env var / GitHub response): allow only normalized
+  // http(s) URLs, spawn the opener without a shell. Callers print the URL
+  // as a manual fallback, so refusing is safe.
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return;
+  const url = parsed.href;
+
+  if (process.platform === 'darwin') {
+    execFile('open', [url]);
+  } else if (process.platform === 'win32') {
+    // cmd's `start` treats its first quoted arg as a window title, so an
+    // empty-title placeholder must precede the quoted URL.
+    execFile('cmd', ['/c', 'start', '""', `"${url}"`], { windowsVerbatimArguments: true });
+  } else {
+    execFile('xdg-open', [url]);
+  }
+}
 
 export async function getStoredAuth(): Promise<{
   storeToken: string;
@@ -63,13 +87,7 @@ export async function login(): Promise<{
       console.log(chalk.cyan('\nConnect your GitHub account to publish to the Asyar Store.'));
       console.log(chalk.gray('Opening browser...\n'));
 
-      const cmd =
-        process.platform === 'darwin'
-          ? 'open'
-          : process.platform === 'win32'
-            ? 'start'
-            : 'xdg-open';
-      exec(`${cmd} "${authUrl}"`);
+      openBrowser(authUrl);
 
       console.log(chalk.gray(`If the browser did not open, visit:\n${authUrl}\n`));
     });
@@ -143,9 +161,7 @@ export async function getOrAuthorizeGitHub(): Promise<string> {
   console.log();
 
   // Open browser
-  const cmd =
-    process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
-  exec(`${cmd} "${verification_uri}"`);
+  openBrowser(verification_uri);
 
   const spinner = ora('Waiting for GitHub authorization...').start();
   const expiresAt = Date.now() + expires_in * 1000;
