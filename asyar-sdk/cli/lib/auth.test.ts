@@ -6,7 +6,7 @@ vi.mock('child_process', () => {
 });
 
 import { execFile } from 'child_process';
-import { openBrowser } from './auth';
+import { openBrowser, getOrAuthorizeGitHub } from './auth';
 
 describe('openBrowser', () => {
   const realPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!;
@@ -63,5 +63,32 @@ describe('openBrowser', () => {
     openBrowser('https://example.com/a"b`c');
     const [, args] = vi.mocked(execFile).mock.calls[0] as unknown as [string, string[]];
     expect(args[0]).toBe('https://example.com/a%22b%60c');
+  });
+});
+
+describe('getOrAuthorizeGitHub', () => {
+  const originalToken = process.env.GITHUB_TOKEN;
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (originalToken === undefined) {
+      delete process.env.GITHUB_TOKEN;
+    } else {
+      process.env.GITHUB_TOKEN = originalToken;
+    }
+  });
+
+  it('returns a GITHUB_TOKEN from the environment without touching stored auth', async () => {
+    process.env.GITHUB_TOKEN = 'github_pat_test_value';
+    await expect(getOrAuthorizeGitHub()).resolves.toBe('github_pat_test_value');
+  });
+
+  it('trims surrounding whitespace from the environment token', async () => {
+    process.env.GITHUB_TOKEN = '  github_pat_test_value\n';
+    await expect(getOrAuthorizeGitHub()).resolves.toBe('github_pat_test_value');
   });
 });
