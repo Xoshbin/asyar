@@ -33,20 +33,24 @@ pub fn generate_state() -> String {
 /// Build the full authorization URL with PKCE + state query params.
 ///
 /// Appends: client_id, response_type=code, redirect_uri, code_challenge,
-/// code_challenge_method=S256, state, scope.
+/// code_challenge_method=S256, state, scope. `redirect_uri` must use this
+/// running instance's registered deep-link scheme (see
+/// `deeplink::deep_link_scheme`) so the OS delivers the callback to the
+/// flavor that started the flow rather than whichever one owns `asyar://`.
 pub fn build_auth_url(
     authorization_url: &str,
     client_id: &str,
     code_challenge: &str,
     state: &str,
     scopes: &[String],
+    redirect_uri: &str,
 ) -> Result<String, AppError> {
     let mut url = url::Url::parse(authorization_url)
         .map_err(|_| AppError::Validation("Invalid authorization URL".into()))?;
     url.query_pairs_mut()
         .append_pair("client_id", client_id)
         .append_pair("response_type", "code")
-        .append_pair("redirect_uri", "asyar://oauth/callback")
+        .append_pair("redirect_uri", redirect_uri)
         .append_pair("code_challenge", code_challenge)
         .append_pair("code_challenge_method", "S256")
         .append_pair("state", state)
@@ -113,6 +117,7 @@ mod tests {
             "abc123challenge",
             "xyz-state",
             &scopes,
+            "asyar://oauth/callback",
         )
         .unwrap();
 
@@ -131,8 +136,31 @@ mod tests {
     }
 
     #[test]
+    fn build_auth_url_uses_the_given_redirect_uri() {
+        // The dev flavor must send its own scheme, not the prod one — see
+        // deeplink::deep_link_scheme.
+        let url = build_auth_url(
+            "https://github.com/login/oauth/authorize",
+            "cid",
+            "ch",
+            "st",
+            &[],
+            "asyar-dev://oauth/callback",
+        )
+        .unwrap();
+        assert!(url.contains("redirect_uri=asyar-dev%3A%2F%2Foauth%2Fcallback"));
+    }
+
+    #[test]
     fn build_auth_url_invalid_base_url_returns_error() {
-        let result = build_auth_url("not-a-url", "cid", "ch", "st", &[]);
+        let result = build_auth_url(
+            "not-a-url",
+            "cid",
+            "ch",
+            "st",
+            &[],
+            "asyar://oauth/callback",
+        );
         assert!(result.is_err());
     }
 }

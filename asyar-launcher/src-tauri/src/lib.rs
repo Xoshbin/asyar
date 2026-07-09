@@ -946,18 +946,22 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         app.manage(extension_tray::ExtensionTrayManager::new(Box::new(backend)));
     }
 
-    // Deep link handler — routes incoming asyar:// URLs.
-    // Extension deep links (asyar://extensions/{extId}/{cmdId}?args) are parsed
-    // in Rust and emitted as a typed "asyar:deeplink:extension" event.
+    // Deep link handler — routes incoming {scheme}:// URLs, where scheme is
+    // "asyar" for production or "asyar-dev" for the local dev flavor (see
+    // deeplink::deep_link_scheme and tauri.dev.conf.json).
+    // Extension deep links ({scheme}://extensions/{extId}/{cmdId}?args) are
+    // parsed in Rust and emitted as a typed "asyar:deeplink:extension" event.
     // All other URLs (auth, OAuth) are emitted as raw "asyar:deep-link" strings.
     {
         use tauri_plugin_deep_link::DeepLinkExt;
         let handle = app.handle().clone();
+        let scheme = deeplink::deep_link_scheme(&handle);
+        let extensions_prefix = format!("{scheme}://extensions/");
         app.deep_link().on_open_url(move |event| {
             let urls: Vec<String> = event.urls().iter().map(|u| u.to_string()).collect();
             for url in urls {
-                if url.starts_with("asyar://extensions/") {
-                    match deeplink::parse_extension_deeplink(&url) {
+                if url.starts_with(&extensions_prefix) {
+                    match deeplink::parse_extension_deeplink(&url, scheme) {
                         Some(payload) => {
                             log::info!(
                                 "[Deeplink] Extension trigger: {}/{}",

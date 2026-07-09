@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Asyar Dev",
+  "identifier": "org.asyar.dev",
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["asyar-dev"]
+      }
+    }
+  }
+}
