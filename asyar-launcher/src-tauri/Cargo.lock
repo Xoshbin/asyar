@@ -193,7 +193,7 @@ dependencies = [
 
 [[package]]
 name = "asyar"
-version = "0.1.1-34"
+version = "0.1.1-35"
 dependencies = [
  "aes",
  "aes-gcm",
