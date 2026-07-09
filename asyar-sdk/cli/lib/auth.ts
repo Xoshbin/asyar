@@ -1,5 +1,5 @@
 import * as http from 'http';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import chalk from 'chalk';
 import ora from 'ora';
 
@@ -11,17 +11,28 @@ const CLI_PORT = 7123;
 
 export const STORE_URL = process.env.ASYAR_STORE_URL ?? 'https://asyar.org';
 
-function openBrowser(url: string): void {
-  // Windows `start` is a cmd built-in that treats its first quoted argument
-  // as the window title, so the URL must be preceded by an empty-title
-  // placeholder — `start "<url>"` opens a console window and no browser.
-  const command =
-    process.platform === 'darwin'
-      ? `open "${url}"`
-      : process.platform === 'win32'
-        ? `start "" "${url}"`
-        : `xdg-open "${url}"`;
-  exec(command);
+export function openBrowser(rawUrl: string): void {
+  // Untrusted input (env var / GitHub response): allow only normalized
+  // http(s) URLs, spawn the opener without a shell. Callers print the URL
+  // as a manual fallback, so refusing is safe.
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return;
+  const url = parsed.href;
+
+  if (process.platform === 'darwin') {
+    execFile('open', [url]);
+  } else if (process.platform === 'win32') {
+    // cmd's `start` treats its first quoted arg as a window title, so an
+    // empty-title placeholder must precede the quoted URL.
+    execFile('cmd', ['/c', 'start', '""', `"${url}"`], { windowsVerbatimArguments: true });
+  } else {
+    execFile('xdg-open', [url]);
+  }
 }
 
 export async function getStoredAuth(): Promise<{
