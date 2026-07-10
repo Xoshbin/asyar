@@ -30,8 +30,8 @@ jobs:
         with:
           version: 10
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust 1.97.0
+        uses: dtolnay/rust-toolchain@1.97.0
         with:
           components: clippy, rustfmt
 
