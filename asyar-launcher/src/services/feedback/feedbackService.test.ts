@@ -102,6 +102,21 @@ describe('notice', () => {
     expect(feedbackService.activeToast).toBeNull();
   });
 
+  it('onToastDismissed runs onDismiss when provided', () => {
+    const onDismiss = vi.fn();
+    feedbackService.notice({ title: 'Clickable', style: 'failure', onClick: vi.fn(), onDismiss });
+    feedbackService.onToastDismissed();
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(feedbackService.activeToast).toBeNull();
+  });
+
+  it('onToastClicked does not run onDismiss', () => {
+    const onDismiss = vi.fn();
+    feedbackService.notice({ title: 'Clickable', style: 'failure', onClick: vi.fn(), onDismiss });
+    feedbackService.onToastClicked();
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+
   it('onToastClicked is a no-op for toasts without onClick', () => {
     feedbackService.notice({ title: 'Plain', style: 'success' });
     feedbackService.onToastClicked();

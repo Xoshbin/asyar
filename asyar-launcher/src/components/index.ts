@@ -27,7 +27,6 @@ export { default as WarningBanner } from './feedback/WarningBanner.svelte';
 export { default as EntitlementGate } from './feedback/EntitlementGate.svelte';
 export { default as ToastHost } from './feedback/ToastHost.svelte';
 export { default as DialogHost } from './feedback/DialogHost.svelte';
-export { default as WhatsNewPanel } from './feedback/WhatsNewPanel.svelte';
 
 // Layout
 export { default as ActionFooter } from './layout/ActionFooter.svelte';

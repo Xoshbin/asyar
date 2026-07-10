@@ -238,36 +238,17 @@ export const appInitializer = {
       await initAppUpdateStore();
       logService.info('App update store initialized.');
 
-      // Check whether to show What's New panel (shown once after each update).
-      // Idle-deferred: purely cosmetic and independent of the remaining init
-      // chain, so it must not compete with first paint (native
+      // Check whether to surface a What's New notice (shown once after each
+      // update). Idle-deferred: purely cosmetic and independent of the
+      // remaining init chain, so it must not compete with first paint (native
       // requestIdleCallback when the WebKit flag landed, deadline-gated
       // setTimeout otherwise; see src/lib/idle.ts).
       runWhenIdle(
         () => {
           void (async () => {
-            try {
-              const { getVersion } = await import('@tauri-apps/api/app');
-              const { appUpdaterShouldShowWhatsNew } =
-                await import('../lib/ipc/applicationCommands');
-              const { whatsNewStore } = await import('./update/whatsNewStore.svelte');
-              const currentVersion = await getVersion();
-              const lastSeen = settingsService.currentSettings.updates?.lastSeenVersion;
-              if (lastSeen == null) {
-                // Fresh install — record silently so next update shows the panel
-                await settingsService.updateSettings('updates', {
-                  lastSeenVersion: currentVersion,
-                });
-              } else {
-                const shouldShow = await appUpdaterShouldShowWhatsNew(lastSeen, currentVersion);
-                if (shouldShow) {
-                  whatsNewStore.version = currentVersion;
-                }
-              }
-              logService.info("What's New check complete.");
-            } catch (e) {
-              logService.warn(`What's New check failed: ${e}`);
-            }
+            const { checkAndNotifyWhatsNew } = await import('./update/whatsNewNotifier');
+            await checkAndNotifyWhatsNew();
+            logService.info("What's New check complete.");
           })();
         },
         { timeout: 4000 },

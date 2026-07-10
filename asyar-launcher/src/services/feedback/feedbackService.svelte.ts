@@ -8,6 +8,8 @@ interface ActiveToast {
   style: 'animated' | 'success' | 'failure' | 'warning';
   /** When set, the toast renders as a button; clicking runs this and dismisses. */
   onClick?: () => void;
+  /** Runs when the ✕ is clicked (not when `onClick` fires). */
+  onDismiss?: () => void;
 }
 
 export interface NoticeOptions {
@@ -27,6 +29,8 @@ export interface NoticeOptions {
    * a race against the timer).
    */
   onClick?: () => void;
+  /** Runs when the ✕ is clicked (not when `onClick` fires). */
+  onDismiss?: () => void;
 }
 
 interface ActiveDialog {
@@ -98,6 +102,7 @@ class FeedbackService implements IFeedbackService {
       message: options.message,
       style: options.style,
       onClick: options.onClick,
+      onDismiss: options.onDismiss,
     };
     if (options.onClick) return; // actionable notices are sticky
     setTimeout(() => {
@@ -117,7 +122,9 @@ class FeedbackService implements IFeedbackService {
 
   /** Called by `<ToastHost />` when a sticky toast's ✕ is clicked. */
   onToastDismissed(): void {
+    const toast = this.activeToast;
     this.activeToast = null;
+    toast?.onDismiss?.();
   }
 
   async updateToast(toastId: string, options: Partial<ShowToastOptions>): Promise<void> {
