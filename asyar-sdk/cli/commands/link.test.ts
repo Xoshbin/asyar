@@ -27,6 +27,7 @@ vi.mock('./build', () => ({
 
 import chokidar from 'chokidar';
 import { readManifest } from '../lib/manifest';
+import { getExtensionsDir } from '../lib/platform';
 import { runViteBuild, verifyBuildOutput } from './build';
 import { registerLink } from './link';
 
@@ -70,5 +71,21 @@ describe('link command', () => {
     await changeHandler!('/some/project/src/index.ts');
 
     expect(verifyBuildOutput).toHaveBeenCalledWith(process.cwd(), workerOnlyManifest);
+  });
+
+  it('passes isDevFlavor=true to getExtensionsDir when --dev flag is provided', async () => {
+    const program = new Command();
+    registerLink(program);
+    await program.parseAsync(['link', '--dev'], { from: 'user' });
+
+    expect(vi.mocked(getExtensionsDir)).toHaveBeenCalledWith(true);
+  });
+
+  it('passes isDevFlavor=undefined to getExtensionsDir when --dev flag is omitted', async () => {
+    const program = new Command();
+    registerLink(program);
+    await program.parseAsync(['link'], { from: 'user' });
+
+    expect(vi.mocked(getExtensionsDir)).toHaveBeenCalledWith(undefined);
   });
 });

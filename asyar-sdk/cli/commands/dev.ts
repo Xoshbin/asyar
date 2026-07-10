@@ -12,10 +12,11 @@ export function registerDev(program: Command) {
   program
     .command('dev')
     .description('Watch mode — auto-rebuild and auto-link on every save')
-    .action(async () => {
+    .option('--dev', 'Link to the dev flavor (org.asyar.dev) instead of production')
+    .action(async (opts) => {
       const cwd = process.cwd();
       const manifest = readManifest(cwd);
-      const targetDir = path.join(getExtensionsDir(), manifest.id);
+      const targetDir = path.join(getExtensionsDir(opts.dev), manifest.id);
 
       const errors = validateManifest(manifest, cwd);
       if (errors.length > 0) {
