@@ -207,10 +207,10 @@ fn x11_pick() -> Result<Option<PickedColor>, AppError> {
                 }
                 break None; // any other button cancels
             }
-            Event::KeyPress(ev) => {
-                if escape_keycode.is_none() || Some(ev.detail) == escape_keycode {
-                    break None;
-                }
+            Event::KeyPress(ev)
+                if escape_keycode.is_none() || Some(ev.detail) == escape_keycode =>
+            {
+                break None;
             }
             _ => {}
         }
