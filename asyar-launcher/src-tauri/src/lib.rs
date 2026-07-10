@@ -152,9 +152,11 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(
             // Silence verbose third-party crate logging (the browser-bridge axum
-            // server, the WebSocket layer, hyper, and the keychain) so a busy or
-            // reconnecting companion does not flood the console with connection
-            // TRACE lines. Asyar's own logs are unaffected.
+            // server, the WebSocket layer, hyper, the keychain, and the notify
+            // file-watcher behind the file index) so a busy companion or a burst
+            // of filesystem events does not flood the log with TRACE lines —
+            // the 40 kB delete-on-rotate file sink loses all history within
+            // minutes under a flood. Asyar's own logs are unaffected.
             tauri_plugin_log::Builder::new()
                 .level_for("axum", log::LevelFilter::Warn)
                 .level_for("hyper", log::LevelFilter::Warn)
@@ -164,6 +166,8 @@ pub fn run() {
                 .level_for("tungstenite", log::LevelFilter::Warn)
                 .level_for("keyring", log::LevelFilter::Warn)
                 .level_for("mio", log::LevelFilter::Warn)
+                .level_for("notify", log::LevelFilter::Warn)
+                .level_for("notify_debouncer_full", log::LevelFilter::Warn)
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
