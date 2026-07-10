@@ -25,6 +25,7 @@ const VIEW_PROXY_NAMESPACES = [
   'application',
   'window',
   'power',
+  'screen',
   'process',
   'systemEvents',
   'timers',

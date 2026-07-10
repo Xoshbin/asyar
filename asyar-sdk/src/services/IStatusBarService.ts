@@ -40,7 +40,13 @@ export interface IStatusBarItem {
   id?: string;
   /** Emoji / unicode prefix / short label used next to `text` in menus. */
   icon?: string;
-  /** Filesystem path or `asyar-extension://{id}/...` URI for the tray image. */
+  /**
+   * Tray image. Three accepted shapes:
+   *   - absolute filesystem path
+   *   - `asyar-extension://{id}/relative/path.png` URI
+   *   - `data:image/png;base64,...` — an in-memory PNG (max 256 KiB
+   *     decoded), for dynamically generated icons like a live color swatch.
+   */
   iconPath?: string;
   /**
    * Tooltip at the top level; label shown in the menu at deeper levels.

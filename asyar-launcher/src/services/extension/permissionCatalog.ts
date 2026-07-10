@@ -114,6 +114,10 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     description:
       'Read and change the position, size, and fullscreen state of the frontmost window.',
   },
+  'screen:pick-color': {
+    title: 'Pick colors from the screen',
+    description: 'Show the OS eyedropper and read the color of a screen pixel the user picks.',
+  },
   'power:inhibit': {
     title: 'Keep system awake',
     description: 'Prevent the OS from sleeping while extension logic is running.',

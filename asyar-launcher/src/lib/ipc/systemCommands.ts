@@ -7,6 +7,7 @@ import type {
   AppGroup,
   KillResult,
   ProcessSortBy,
+  PickedColor,
 } from 'asyar-sdk/contracts';
 
 type RawTimerRow = {
@@ -48,6 +49,10 @@ export async function powerRelease(extensionId: string | null, token: string): P
 
 export async function powerList(extensionId: string | null): Promise<ActiveInhibitor[] | null> {
   return invokeSafe<ActiveInhibitor[]>('power_list', { extensionId });
+}
+
+export async function screenPickColor(extensionId: string | null): Promise<PickedColor | null> {
+  return invokeSafe<PickedColor | null>('screen_pick_color', { extensionId });
 }
 
 export async function systemEventsSubscribe(

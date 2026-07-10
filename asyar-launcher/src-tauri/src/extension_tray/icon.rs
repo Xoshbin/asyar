@@ -1,18 +1,28 @@
 //! Pure icon-path parsing + resolution.
 //!
-//! Two accepted shapes for `iconPath`:
+//! Three accepted shapes for `iconPath`:
 //!   * `asyar-extension://{extensionId}/relative/path/to/image.png` — resolved
 //!     against the extension's bundle/install dir via the `ExtensionDirLookup`.
 //!   * An absolute filesystem path (`starts_with('/')` on unix, `X:\` on
 //!     windows) — returned verbatim.
+//!   * `data:image/png;base64,...` — decoded in memory (PNG only, capped at
+//!     [`MAX_DATA_ICON_BYTES`]) so extensions can render dynamic tray icons.
 //!
 //! Anything else (HTTP URLs, relative paths, empty strings) is rejected so
 //! extensions can't point the tray at arbitrary remote resources.
 
 use crate::error::AppError;
+use base64::Engine as _;
 use std::path::{Path, PathBuf};
 
 const EXT_SCHEME: &str = "asyar-extension://";
+const DATA_PNG_PREFIX: &str = "data:image/png;base64,";
+
+/// Decoded-size cap for `data:` icons. Tray icons are tiny; anything bigger
+/// is a mistake or an abuse attempt.
+pub const MAX_DATA_ICON_BYTES: usize = 256 * 1024;
+
+const PNG_MAGIC: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IconSpec {
@@ -21,6 +31,8 @@ pub enum IconSpec {
     Extension { ext_id: String, rel_path: String },
     /// Absolute filesystem path supplied by the extension.
     Absolute(PathBuf),
+    /// Decoded `data:image/png;base64,...` payload — an in-memory PNG.
+    Data { bytes: Vec<u8> },
 }
 
 /// Look up an extension's base directory on disk. Implementations return
@@ -57,7 +69,16 @@ pub fn parse_spec(spec: &str) -> Result<IconSpec, AppError> {
         });
     }
 
-    // Reject any other URI scheme (http, https, file, data, etc.).
+    if let Some(encoded) = spec.strip_prefix(DATA_PNG_PREFIX) {
+        return parse_data_png(encoded);
+    }
+    if spec.starts_with("data:") {
+        return Err(AppError::Validation(
+            "Unsupported data: iconPath; only data:image/png;base64,... is accepted".into(),
+        ));
+    }
+
+    // Reject any other URI scheme (http, https, file, etc.).
     if let Some(scheme_end) = spec.find("://") {
         let scheme = &spec[..scheme_end];
         return Err(AppError::Validation(format!(
@@ -75,9 +96,35 @@ pub fn parse_spec(spec: &str) -> Result<IconSpec, AppError> {
     Ok(IconSpec::Absolute(p.to_path_buf()))
 }
 
+fn parse_data_png(encoded: &str) -> Result<IconSpec, AppError> {
+    // Cheap length gate before decoding: 4 base64 chars ≈ 3 decoded bytes.
+    if encoded.len() > MAX_DATA_ICON_BYTES / 3 * 4 + 4 {
+        return Err(AppError::Validation(format!(
+            "data: iconPath is too large (decoded cap is {MAX_DATA_ICON_BYTES} bytes)"
+        )));
+    }
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|e| AppError::Validation(format!("data: iconPath has invalid base64: {e}")))?;
+    if bytes.len() > MAX_DATA_ICON_BYTES {
+        return Err(AppError::Validation(format!(
+            "data: iconPath is too large (decoded cap is {MAX_DATA_ICON_BYTES} bytes)"
+        )));
+    }
+    if !bytes.starts_with(&PNG_MAGIC) {
+        return Err(AppError::Validation(
+            "data: iconPath payload is not a PNG image".into(),
+        ));
+    }
+    Ok(IconSpec::Data { bytes })
+}
+
 pub fn resolve(spec: &str, lookup: &dyn ExtensionDirLookup) -> Result<PathBuf, AppError> {
     match parse_spec(spec)? {
         IconSpec::Absolute(path) => Ok(path),
+        IconSpec::Data { .. } => Err(AppError::Validation(
+            "data: icons are decoded in memory and have no filesystem path".into(),
+        )),
         IconSpec::Extension { ext_id, rel_path } => {
             if rel_path.split('/').any(|seg| seg == "..") {
                 return Err(AppError::Validation(format!(
@@ -196,6 +243,71 @@ mod tests {
     #[test]
     fn parse_extension_rejects_empty_ext_id() {
         assert!(parse_spec("asyar-extension:///icon.png").is_err());
+    }
+
+    // ── data: URIs ──────────────────────────────────────────────────────────
+
+    fn png_like_bytes(extra: usize) -> Vec<u8> {
+        let mut bytes = PNG_MAGIC.to_vec();
+        bytes.extend(std::iter::repeat_n(0u8, extra));
+        bytes
+    }
+
+    fn data_png_uri(bytes: &[u8]) -> String {
+        format!(
+            "data:image/png;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(bytes)
+        )
+    }
+
+    #[test]
+    fn parse_data_png_uri_decodes_bytes() {
+        let bytes = png_like_bytes(16);
+        let spec = parse_spec(&data_png_uri(&bytes)).unwrap();
+        assert_eq!(spec, IconSpec::Data { bytes });
+    }
+
+    #[test]
+    fn parse_rejects_non_png_data_uri() {
+        let err = parse_spec("data:image/jpeg;base64,AAAA").unwrap_err();
+        assert!(err.to_string().contains("data:image/png;base64"));
+    }
+
+    #[test]
+    fn parse_rejects_bad_base64_data_uri() {
+        let err = parse_spec("data:image/png;base64,%%%not-base64%%%").unwrap_err();
+        assert!(err.to_string().to_lowercase().contains("base64"));
+    }
+
+    #[test]
+    fn parse_rejects_data_payload_without_png_magic() {
+        let uri = format!(
+            "data:image/png;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(b"definitely not a png")
+        );
+        let err = parse_spec(&uri).unwrap_err();
+        assert!(err.to_string().to_lowercase().contains("png"));
+    }
+
+    #[test]
+    fn parse_rejects_oversized_data_uri() {
+        // One byte over the decoded cap must be rejected.
+        let bytes = png_like_bytes(MAX_DATA_ICON_BYTES - PNG_MAGIC.len() + 1);
+        let err = parse_spec(&data_png_uri(&bytes)).unwrap_err();
+        assert!(err.to_string().to_lowercase().contains("large"));
+    }
+
+    #[test]
+    fn parse_accepts_data_uri_at_the_size_cap() {
+        let bytes = png_like_bytes(MAX_DATA_ICON_BYTES - PNG_MAGIC.len());
+        assert!(parse_spec(&data_png_uri(&bytes)).is_ok());
+    }
+
+    #[test]
+    fn resolve_data_uri_has_no_filesystem_path() {
+        let lookup = fake(&[]);
+        let err = resolve(&data_png_uri(&png_like_bytes(4)), &lookup).unwrap_err();
+        assert!(err.to_string().to_lowercase().contains("path"));
     }
 
     // ── resolve ─────────────────────────────────────────────────────────────

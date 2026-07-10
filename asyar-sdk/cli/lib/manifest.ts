@@ -165,6 +165,7 @@ export const VALID_PERMISSIONS = [
   'cache:read',
   'cache:write',
   'window:manage',
+  'screen:pick-color',
   'application:read',
   'entitlements:read',
   'power:inhibit',

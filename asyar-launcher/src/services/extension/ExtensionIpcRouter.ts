@@ -62,6 +62,7 @@ export const INJECTS_EXTENSION_ID = new Set<Namespace>([
   'preferences',
   'notifications',
   'power',
+  'screen',
   'process',
   'systemEvents',
   'appEvents',

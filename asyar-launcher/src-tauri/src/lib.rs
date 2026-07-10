@@ -59,6 +59,7 @@ pub mod auth;
 pub mod browser;
 pub mod clipboard_markup;
 pub mod clipboard_privacy;
+pub mod color_sampler;
 pub mod commands;
 pub mod crypto;
 pub mod deeplink;
@@ -526,6 +527,7 @@ pub fn run() {
             commands::power_keep_awake,
             commands::power_release,
             commands::power_list,
+            commands::screen_pick_color,
             commands::process::process_list,
             commands::process::process_kill,
             commands::system_events_subscribe,

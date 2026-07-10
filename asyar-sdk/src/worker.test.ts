@@ -15,6 +15,7 @@ const WORKER_PROXY_NAMESPACES = [
   'fsWatcher',
   'application',
   'power',
+  'screen',
   'process',
   'systemEvents',
   'timers',

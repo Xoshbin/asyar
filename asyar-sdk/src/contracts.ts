@@ -74,6 +74,8 @@ export type {
   KeepAwakeOptions,
   ResolvedKeepAwakeOptions,
   ActiveInhibitor,
+  IScreenService,
+  PickedColor,
   IProcessService,
   ProcessSortBy,
   ProcessInfo,
