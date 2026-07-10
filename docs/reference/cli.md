@@ -11,8 +11,10 @@ order: 2
 | `asyar validate`     | Validate `manifest.json` against all rules                |
 | `asyar build`        | Validate + run `vite build` + verify output               |
 | `asyar dev`          | Validate + build + link + watch for changes               |
+| `asyar dev --dev`    | Same as `dev`, but links to the dev flavor of Asyar       |
 | `asyar link`         | Build + create symlink in Asyar's extensions directory    |
 | `asyar link --watch` | `link` + continuous file watching and rebuild             |
+| `asyar link --dev`   | `link` targeting the dev flavor of Asyar                  |
 | `asyar publish`      | Full publish pipeline (validate → build → GitHub → Store) |
 
 ---
@@ -66,6 +68,9 @@ asyar build --skip-validate
 
 ```bash
 asyar dev
+
+# Target the dev flavor (org.asyar.dev) instead of production
+asyar dev --dev
 ```
 
 1. Validates the manifest.
@@ -74,6 +79,8 @@ asyar dev
 4. Watches `src/` for changes and rebuilds on every save.
 
 Every successful rebuild is live in Asyar the next time you open the extension panel (the iframe loads fresh on each open).
+
+> **Flavors:** If you are running the **dev build** of Asyar (identifier `org.asyar.dev`), pass `--dev` so the extension is linked into the correct app data directory. Without the flag, the symlink is created for the production build.
 
 > **If you used "Create Extension"** to scaffold your project, the dev path is already registered and step 3 is a no-op. Just run `pnpm dev` (which calls `vite build --watch`).
 
@@ -93,9 +100,17 @@ asyar link
 With a symlink in place, subsequent `vite build` runs are immediately reflected. You do not need to run `asyar link` again after each rebuild.
 
 ```bash
-# Watch mode: rebuild + re-link on every change
+# Watch mode: rebuild on every change
 asyar link --watch
+
+# Target the dev flavor (org.asyar.dev) instead of production
+asyar link --dev
+
+# Combine both flags
+asyar link --dev --watch
 ```
+
+> **Flavors:** Asyar ships two builds — production (`org.asyar.app`) and dev (`org.asyar.dev`). By default `asyar link` targets production. Pass `--dev` when testing against a locally built dev instance of Asyar.
 
 ---
 
