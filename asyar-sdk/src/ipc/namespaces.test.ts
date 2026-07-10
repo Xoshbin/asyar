@@ -44,6 +44,7 @@ describe('NAMESPACES', () => {
       'browser',
       'search',
       'files',
+      'screen',
     ]);
   });
 
@@ -70,5 +71,9 @@ describe('NAMESPACES', () => {
 
   it('includes files', () => {
     expect(NAMESPACES).toContain('files');
+  });
+
+  it('includes screen', () => {
+    expect(NAMESPACES).toContain('screen');
   });
 });

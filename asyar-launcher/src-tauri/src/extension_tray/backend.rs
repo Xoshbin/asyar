@@ -259,6 +259,16 @@ fn resolve_icon_image(
     let spec = item.icon_path.as_ref().filter(|s| !s.is_empty())?;
     match icon_mod::parse_spec(spec) {
         Ok(IconSpec::Absolute(path)) => load_icon_from_path(&path),
+        Ok(IconSpec::Data { bytes }) => match Image::from_bytes(&bytes) {
+            Ok(img) => Some(img.to_owned()),
+            Err(e) => {
+                warn!(
+                    "[extension_tray] failed to decode data: icon on item '{}': {e}",
+                    item.id
+                );
+                None
+            }
+        },
         Ok(IconSpec::Extension { ext_id, rel_path }) => {
             let base = lookup.base_dir(&ext_id)?;
             let candidates = [base.join("dist").join(&rel_path), base.join(&rel_path)];

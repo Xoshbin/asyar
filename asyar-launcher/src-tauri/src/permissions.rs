@@ -177,6 +177,8 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:cache:set" => Some("cache:write"),
         "asyar:api:cache:delete" => Some("cache:write"),
         "asyar:api:cache:clear" => Some("cache:write"),
+        // Screen sampling (eyedropper)
+        "asyar:api:screen:pickColor" => Some("screen:pick-color"),
         // Selection
         "asyar:api:selection:getSelectedText" => Some("selection:read"),
         "asyar:api:selection:getSelectedFinderItems" => Some("selection:read"),
@@ -970,6 +972,14 @@ mod tests {
         let reg = ExtensionPermissionRegistry::default();
         reg.register("ext.a", HashSet::new(), HashMap::new());
         assert!(reg.files_read_patterns("ext.a").is_err());
+    }
+
+    #[test]
+    fn screen_pick_color_maps_to_screen_pick_color() {
+        assert_eq!(
+            get_required_permission("asyar:api:screen:pickColor"),
+            Some("screen:pick-color")
+        );
     }
 
     #[test]

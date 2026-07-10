@@ -423,6 +423,22 @@ describe('checkPermission', () => {
     });
   });
 
+  describe('screen:pick-color', () => {
+    it('maps pickColor to screen:pick-color', () => {
+      expect(PERMISSION_MAP['asyar:api:screen:pickColor']).toBe('screen:pick-color');
+    });
+    it('denies pickColor without screen:pick-color', () => {
+      const r = checkPermission('ext', 'asyar:api:screen:pickColor', []);
+      expect(r.allowed).toBe(false);
+      expect(r.requiredPermission).toBe('screen:pick-color');
+    });
+    it('allows pickColor with screen:pick-color', () => {
+      expect(
+        checkPermission('ext', 'asyar:api:screen:pickColor', ['screen:pick-color']).allowed,
+      ).toBe(true);
+    });
+  });
+
   describe('power:inhibit', () => {
     it('maps keepAwake to power:inhibit', () => {
       expect(PERMISSION_MAP['asyar:api:power:keepAwake']).toBe('power:inhibit');
