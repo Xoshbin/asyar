@@ -120,14 +120,18 @@ export async function requireAuth(): Promise<{
 }
 
 export async function getOrAuthorizeGitHub(): Promise<string> {
-  // A GITHUB_TOKEN in the environment wins over the stored token and the
-  // device flow. This lets publishers scope access themselves — e.g. a
-  // fine-grained PAT with Contents read/write on the one extension repo —
-  // instead of granting the OAuth app's account-wide scope, and lets CI
-  // publish without an interactive flow.
-  const envToken = process.env.GITHUB_TOKEN?.trim();
+  // A GH_TOKEN or GITHUB_TOKEN in the environment wins over the stored
+  // token and the device flow. This lets publishers scope access
+  // themselves — e.g. a fine-grained PAT with Contents read/write on the
+  // one extension repo — instead of granting the OAuth app's account-wide
+  // scope, and lets CI publish without an interactive flow. GH_TOKEN takes
+  // precedence, matching the gh CLI's documented ordering: GITHUB_TOKEN is
+  // ambient in GitHub Actions, while GH_TOKEN is only ever set on purpose.
+  const ghToken = process.env.GH_TOKEN?.trim();
+  const envToken = ghToken || process.env.GITHUB_TOKEN?.trim();
   if (envToken) {
-    console.log(chalk.gray('Using GitHub token from GITHUB_TOKEN environment variable.'));
+    const source = ghToken ? 'GH_TOKEN' : 'GITHUB_TOKEN';
+    console.log(chalk.gray(`Using GitHub token from ${source} environment variable.`));
     return envToken;
   }
 
