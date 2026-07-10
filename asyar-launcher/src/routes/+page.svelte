@@ -31,8 +31,6 @@
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import { actionService } from '../services/action/actionService.svelte';
   import { commandArgumentsService } from '../services/search/commandArguments';
-  import WhatsNewPanel from '../components/feedback/WhatsNewPanel.svelte';
-  import { whatsNewStore } from '../services/update/whatsNewStore.svelte';
   import { developerSettingsService } from '../services/settings/developerSettingsService.svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import CrashReportPrompt from '../components/feedback/CrashReportPrompt.svelte';
@@ -415,17 +413,6 @@
     {#await import('../components/dev/InspectorShell.svelte') then InspectorShellModule}
       <InspectorShellModule.default />
     {/await}
-  {/if}
-
-  {#if whatsNewStore.version}
-    <WhatsNewPanel
-      version={whatsNewStore.version}
-      onDismiss={async () => {
-        const v = whatsNewStore.version!;
-        await settingsService.updateSettings('updates', { lastSeenVersion: v });
-        whatsNewStore.version = null;
-      }}
-    />
   {/if}
 
   {#if shellConsentService.activeRequest}
