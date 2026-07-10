@@ -168,3 +168,9 @@ mockito = "1.4"
 proptest = "1"
 serial_test = "3"
 tokio-tungstenite = "0.21"
+
+# Upstream 0.6.12 plus one fix: the wait-for-click loop busy-spins on
+# background threads, pinning a core per unclicked notification-with-actions.
+# See vendor/mac-notification-sys/VENDORED.md.
+[patch.crates-io]
+mac-notification-sys = { path = "vendor/mac-notification-sys" }
