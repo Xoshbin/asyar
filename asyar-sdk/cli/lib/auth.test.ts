@@ -67,24 +67,45 @@ describe('openBrowser', () => {
 });
 
 describe('getOrAuthorizeGitHub', () => {
-  const originalToken = process.env.GITHUB_TOKEN;
+  const originalGithubToken = process.env.GITHUB_TOKEN;
+  const originalGhToken = process.env.GH_TOKEN;
 
   beforeEach(() => {
+    // Clear both variables so an ambient token on the developer's machine
+    // (common for gh CLI users) can't leak into the single-variable cases.
+    delete process.env.GITHUB_TOKEN;
+    delete process.env.GH_TOKEN;
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    if (originalToken === undefined) {
+    if (originalGithubToken === undefined) {
       delete process.env.GITHUB_TOKEN;
     } else {
-      process.env.GITHUB_TOKEN = originalToken;
+      process.env.GITHUB_TOKEN = originalGithubToken;
+    }
+    if (originalGhToken === undefined) {
+      delete process.env.GH_TOKEN;
+    } else {
+      process.env.GH_TOKEN = originalGhToken;
     }
   });
 
   it('returns a GITHUB_TOKEN from the environment without touching stored auth', async () => {
     process.env.GITHUB_TOKEN = 'github_pat_test_value';
     await expect(getOrAuthorizeGitHub()).resolves.toBe('github_pat_test_value');
+  });
+
+  it('returns a GH_TOKEN from the environment when GITHUB_TOKEN is not set', async () => {
+    process.env.GH_TOKEN = 'gh_pat_test_value';
+    await expect(getOrAuthorizeGitHub()).resolves.toBe('gh_pat_test_value');
+  });
+
+  it('prefers GH_TOKEN over GITHUB_TOKEN, matching the gh CLI ordering', async () => {
+    process.env.GITHUB_TOKEN = 'github_pat_test_value';
+    process.env.GH_TOKEN = 'gh_pat_test_value';
+    await expect(getOrAuthorizeGitHub()).resolves.toBe('gh_pat_test_value');
   });
 
   it('trims surrounding whitespace from the environment token', async () => {
