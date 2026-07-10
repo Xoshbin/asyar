@@ -120,6 +120,17 @@ export async function requireAuth(): Promise<{
 }
 
 export async function getOrAuthorizeGitHub(): Promise<string> {
+  // A GITHUB_TOKEN in the environment wins over the stored token and the
+  // device flow. This lets publishers scope access themselves — e.g. a
+  // fine-grained PAT with Contents read/write on the one extension repo —
+  // instead of granting the OAuth app's account-wide scope, and lets CI
+  // publish without an interactive flow.
+  const envToken = process.env.GITHUB_TOKEN?.trim();
+  if (envToken) {
+    console.log(chalk.gray('Using GitHub token from GITHUB_TOKEN environment variable.'));
+    return envToken;
+  }
+
   const keytar = require('keytar');
   const existing = await keytar.getPassword(KEYCHAIN_SERVICE, KEY_GITHUB_TOKEN);
   if (existing) return existing;
