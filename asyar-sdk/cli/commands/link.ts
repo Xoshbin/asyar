@@ -14,10 +14,11 @@ export function registerLink(program: Command) {
     .description('Link extension to Asyar extensions directory for local testing')
     .option('--watch', 'Watch src/ for changes and rebuild automatically')
     .option('--copy', 'Use file copy instead of symlink (fallback mode)')
+    .option('--dev', 'Link to the dev flavor (org.asyar.dev) instead of production')
     .action(async (opts) => {
       const cwd = process.cwd();
       const manifest = readManifest(cwd);
-      const targetDir = path.join(getExtensionsDir(), manifest.id);
+      const targetDir = path.join(getExtensionsDir(opts.dev), manifest.id);
 
       if (manifest.type === 'theme') {
         // Themes have no build step — just link the source directory

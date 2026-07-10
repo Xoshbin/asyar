@@ -12,12 +12,29 @@ describe('platform', () => {
     vi.unstubAllGlobals();
   });
 
+  it('returns dev flavor app data dir on darwin when isDevFlavor is true', () => {
+    vi.stubGlobal('process', { ...process, platform: 'darwin' });
+    const homedir = os.homedir();
+    const expected = path.join(homedir, 'Library', 'Application Support', 'org.asyar.dev');
+    expect(getAppDataDir(true)).toBe(expected);
+    vi.unstubAllGlobals();
+  });
+
   it('returns correctly formatted dev extensions file path', () => {
     vi.stubGlobal('process', { ...process, platform: 'darwin' });
     const homedir = os.homedir();
     const appDir = path.join(homedir, 'Library', 'Application Support', 'org.asyar.app');
     const expected = path.join(appDir, 'dev_extensions.json');
     expect(getDevExtensionsFile()).toBe(expected);
+    vi.unstubAllGlobals();
+  });
+
+  it('returns dev extensions file path under dev flavor when isDevFlavor is true', () => {
+    vi.stubGlobal('process', { ...process, platform: 'darwin' });
+    const homedir = os.homedir();
+    const appDir = path.join(homedir, 'Library', 'Application Support', 'org.asyar.dev');
+    const expected = path.join(appDir, 'dev_extensions.json');
+    expect(getDevExtensionsFile(true)).toBe(expected);
     vi.unstubAllGlobals();
   });
 });
