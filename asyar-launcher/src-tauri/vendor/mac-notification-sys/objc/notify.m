@@ -150,6 +150,7 @@ NSDictionary* sendNotification(NSString* title, NSString* subtitle, NSString* me
             [waitLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
         }
         [waitLoop removePort:wakePort forMode:NSDefaultRunLoopMode];
+        [wakePort invalidate];
 
         // XXX: prevents crash described in https://github.com/h4llow3En/mac-notification-sys/issues/64
         // TODO: the underlying issue is not yet understood
