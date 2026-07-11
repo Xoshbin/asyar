@@ -8,6 +8,7 @@ use chrono::{Datelike, Duration, Months, NaiveDate, NaiveTime, Weekday};
 use regex::Regex;
 use std::sync::OnceLock;
 
+use super::format::group_thousands;
 use super::{CalcKind, CalcResult};
 
 /// How to pick a year for a yearless date like `31 mar`.
@@ -167,6 +168,8 @@ struct Patterns {
     weekday_in_weeks: Regex,
     in_n: Regex,
     n_from_now: Regex,
+    n_ago: Regex,
+    work_in_year: Regex,
     next_weekday: Regex,
     clock: Regex,
     date_arith: Regex,
@@ -191,6 +194,8 @@ fn patterns() -> &'static Patterns {
             r"(?i)^(\d+)\s+(days?|weeks?|months?|years?)\s+from\s+(?:now|today)$",
         )
         .unwrap(),
+        n_ago: Regex::new(r"(?i)^(\d+)\s+(days?|weeks?|months?|years?)\s+ago$").unwrap(),
+        work_in_year: Regex::new(r"(?i)^work\s*(?:ing\s*)?(hours|days)\s+in\s+(\d{4})$").unwrap(),
         next_weekday: Regex::new(&format!(r"(?i)^(?:next\s+|this\s+)?({WD})$")).unwrap(),
         clock: Regex::new(
             r"(?i)^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*([+-])\s*(\d+)\s*(hours?|hrs?|h|minutes?|mins?|m)?$",
@@ -303,6 +308,38 @@ pub fn evaluate_date(query: &str, today: NaiveDate, _now_time: NaiveTime) -> Opt
         let n: i64 = c[1].parse().ok()?;
         let target = add_units(today, n, &c[2])?;
         return Some(date_result(target, today));
+    }
+
+    if let Some(c) = p.n_ago.captures(q) {
+        let n: i64 = c[1].parse().ok()?;
+        let target = add_units(today, -n, &c[2])?;
+        let mut r = date_result(target, today);
+        r.detail = format!("{n} {} ago", c[2].to_lowercase());
+        return Some(r);
+    }
+
+    if let Some(c) = p.work_in_year.captures(q) {
+        let year: i32 = c[2].parse().ok()?;
+        let mut workdays: u32 = 0;
+        let mut day = NaiveDate::from_ymd_opt(year, 1, 1)?;
+        while day.year() == year {
+            if !matches!(day.weekday(), Weekday::Sat | Weekday::Sun) {
+                workdays += 1;
+            }
+            day = day.succ_opt()?;
+        }
+        let (value, detail) = if c[1].eq_ignore_ascii_case("hours") {
+            (
+                format!("{} h", group_thousands(&(workdays * 8).to_string())),
+                format!("{workdays} workdays × 8 h in {year}"),
+            )
+        } else {
+            (
+                format!("{workdays} workdays"),
+                format!("Mon–Fri days in {year}"),
+            )
+        };
+        return Some(CalcResult::new(value, detail, CalcKind::Date));
     }
 
     if let Some(c) = p.next_weekday.captures(q) {
@@ -478,6 +515,25 @@ mod tests {
     fn n_days_from_now() {
         let r = eval("45 days from now").unwrap();
         assert!(r.value.contains("25 Aug 2026"), "value: {}", r.value);
+    }
+
+    #[test]
+    fn n_units_ago() {
+        let r = eval("35 days ago").unwrap();
+        assert!(r.value.contains("6 Jun 2026"), "value: {}", r.value);
+        assert!(r.detail.contains("35 days ago"), "detail: {}", r.detail);
+        let r = eval("2 weeks ago").unwrap();
+        assert!(r.value.contains("27 Jun 2026"), "value: {}", r.value);
+    }
+
+    #[test]
+    fn work_time_in_year() {
+        // 2023 has 260 weekdays → 2,080 work hours at 8 h/day.
+        let r = eval("workhours in 2023").unwrap();
+        assert_eq!(r.value, "2,080 h");
+        assert!(r.detail.contains("260"), "detail: {}", r.detail);
+        assert_eq!(eval("workdays in 2023").unwrap().value, "260 workdays");
+        assert_eq!(eval("work hours in 2023").unwrap().value, "2,080 h");
     }
 
     #[test]

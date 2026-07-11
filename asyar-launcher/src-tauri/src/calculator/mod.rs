@@ -7,6 +7,7 @@
 //! extension only renders `CalcResult`s.
 
 pub mod colors;
+pub mod cooking;
 pub mod currency;
 pub mod dates;
 pub mod engine;
@@ -177,6 +178,12 @@ pub fn evaluate_query(raw: &str, ctx: &EvalContext) -> Vec<CalcResult> {
     if let Some(r) = extras::evaluate_ratio(&q) {
         return vec![r];
     }
+    if let Some(r) = cooking::evaluate_cooking(&q) {
+        return vec![r];
+    }
+    if let Some(r) = extras::evaluate_pixels(&q) {
+        return vec![r];
+    }
     if let Some(r) = dates::evaluate_date(&q, ctx.today, ctx.now_time) {
         return vec![r];
     }
@@ -206,6 +213,11 @@ pub fn evaluate_query(raw: &str, ctx: &EvalContext) -> Vec<CalcResult> {
         return vec![r];
     }
 
+    // Rate units: "8 USD/hour in GBP" → "8 USD/hour to GBP/hour".
+    if let Some(r) = rate_unit_currency(&q, ctx) {
+        return vec![r];
+    }
+
     // Mid-typing tolerance: retry with trailing operators stripped so
     // "2+2+" keeps showing 4 while the user types. Echoed results
     // ("100" → "100") are only allowed once something was stripped.
@@ -230,10 +242,32 @@ pub fn evaluate_query(raw: &str, ctx: &EvalContext) -> Vec<CalcResult> {
     Vec::new()
 }
 
+/// Append a currency's own rate age to the result's detail line.
+fn with_rates_age(mut r: CalcResult, ctx: &EvalContext) -> CalcResult {
+    if let Some(age) = &ctx.rates_age {
+        r.detail = format!("{} · rates {} old", r.detail, age);
+    }
+    r
+}
+
+/// Converting a per-unit rate to another currency keeps the denominator:
+/// `8 USD/hour in GBP` becomes `8 USD/hour to GBP/hour`.
+fn rate_unit_currency(q: &str, ctx: &EvalContext) -> Option<CalcResult> {
+    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let re = RE.get_or_init(|| {
+        regex::Regex::new(r"^(.+?/\s*([a-zA-Z]+))\s+(?:in|to)\s+([A-Z]{3,4})$").unwrap()
+    });
+    let c = re.captures(q)?;
+    let expr = format!("{} to {}/{}", &c[1], &c[3], &c[2]);
+    let r = engine::evaluate_fend(&expr, ctx.rates.clone(), false)?;
+    Some(with_rates_age(r, ctx))
+}
+
 /// `50 USD` (no target) → `50 USD to <preferred>`, when they differ.
 fn implicit_currency(q: &str, ctx: &EvalContext) -> Option<CalcResult> {
     static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let re = RE.get_or_init(|| regex::Regex::new(r"^(\d[\d,]*(?:\.\d+)?)\s*([A-Z]{3})$").unwrap());
+    let re =
+        RE.get_or_init(|| regex::Regex::new(r"^(\d[\d,]*(?:\.\d+)?)\s*([A-Z]{3,4})$").unwrap());
     let c = re.captures(q)?;
     let preferred = ctx.preferred_currency.trim().to_ascii_uppercase();
     if preferred.len() != 3 || c[2] == preferred {
@@ -294,7 +328,9 @@ mod tests {
         let mut rates = HashMap::new();
         rates.insert("USD".to_string(), 1.0);
         rates.insert("EUR".to_string(), 0.9);
+        rates.insert("GBP".to_string(), 0.79);
         rates.insert("IQD".to_string(), 1310.0);
+        rates.insert("BTC".to_string(), 1.0 / 80000.0);
         EvalContext {
             rates: Some(Arc::new(rates)),
             rates_age: Some("2 h".to_string()),
@@ -394,6 +430,49 @@ mod tests {
         );
         // Already in the preferred currency → nothing to show.
         assert!(evaluate_query("50 iqd", &test_ctx()).is_empty());
+    }
+
+    #[test]
+    fn pipeline_crypto_conversion() {
+        let res = evaluate_query("5 btc in gbp", &test_ctx());
+        assert_eq!(res[0].value, "316,000 GBP");
+        assert_eq!(res[0].kind, CalcKind::Currency);
+    }
+
+    #[test]
+    fn pipeline_rate_unit_conversion() {
+        // "in gbp" is rewritten to "to GBP/hour" for per-unit rates.
+        let res = evaluate_query("8 dollars/hour in gbp", &test_ctx());
+        assert_eq!(res[0].value, "6.32 GBP/hour");
+    }
+
+    #[test]
+    fn pipeline_cooking_and_pixels() {
+        let res = evaluate_query("1 tablespoon of honey in grams", &test_ctx());
+        assert_eq!(res[0].value, "21 g");
+        let res = evaluate_query("2 inches in px at 72 ppi", &test_ctx());
+        assert_eq!(res[0].value, "144 px");
+    }
+
+    #[test]
+    fn pipeline_wall_time_with_country_and_capitalization() {
+        // 8pm Santiago (-4 in July) = 00:00 UTC = 01:00 London (BST).
+        let res = evaluate_query("8pm chile in London", &test_ctx());
+        assert_eq!(res[0].value, "01:00");
+    }
+
+    #[test]
+    fn pipeline_timespan_hours_and_minutes() {
+        let res = evaluate_query("145 minutes as hours and minutes", &test_ctx());
+        assert_eq!(res[0].value, "2 h 25 min");
+    }
+
+    #[test]
+    fn pipeline_days_ago_and_workhours() {
+        let res = evaluate_query("35 days ago", &test_ctx());
+        assert_eq!(res[0].kind, CalcKind::Date);
+        let res = evaluate_query("workhours in 2023", &test_ctx());
+        assert_eq!(res[0].value, "2,080 h");
     }
 
     #[test]

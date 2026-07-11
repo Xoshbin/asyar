@@ -23,8 +23,20 @@ const CURRENCY_CODES: &[&str] = &[
     "YER", "ZAR", "ZMW", "ZWL",
 ];
 
-fn is_currency_code(token: &str) -> bool {
+/// Crypto tickers we uppercase and treat as money. `SOL` is deliberately
+/// absent: it collides with the Peruvian sol and fend's Mars solar day.
+const CRYPTO_CODES: &[&str] = &[
+    "BTC", "ETH", "BNB", "XRP", "ADA", "DOGE", "LTC", "DOT", "TRX", "LINK", "BCH", "XLM", "USDT",
+    "USDC",
+];
+
+/// ISO 4217 only — these are the codes fend knows natively.
+pub(crate) fn is_iso_currency(token: &str) -> bool {
     token.len() == 3 && CURRENCY_CODES.iter().any(|c| c.eq_ignore_ascii_case(token))
+}
+
+fn is_currency_code(token: &str) -> bool {
+    is_iso_currency(token) || CRYPTO_CODES.iter().any(|c| c.eq_ignore_ascii_case(token))
 }
 
 fn symbol_to_code(sym: &str) -> Option<&'static str> {
@@ -99,10 +111,10 @@ fn patterns() -> &'static Patterns {
         half_of: Regex::new(r"(?i)\bhalf\s+of\s+(.+)$").unwrap(),
         percent_word: Regex::new(r"(?i)(\d+(?:\.\d+)?)\s+percent\b").unwrap(),
         sym_amount: Regex::new(r"([$€£¥])\s*(\d[\d,]*(?:\.\d+)?)([kKmMbB])?\b").unwrap(),
-        code_amount: Regex::new(r"(?i)\b([a-z]{3})(\d[\d,]*(?:\.\d+)?)([kmb])?\b").unwrap(),
-        amount_code: Regex::new(r"(?i)\b(\d[\d,]*(?:\.\d+)?)([kmb])\s+([a-z]{3})\b").unwrap(),
+        code_amount: Regex::new(r"(?i)\b([a-z]{3,4})(\d[\d,]*(?:\.\d+)?)([kmb])?\b").unwrap(),
+        amount_code: Regex::new(r"(?i)\b(\d[\d,]*(?:\.\d+)?)([kmb])\s+([a-z]{3,4})\b").unwrap(),
         bare_kb: Regex::new(r"(?i)\b(\d[\d,]*(?:\.\d+)?)([kb])\b").unwrap(),
-        code_token: Regex::new(r"(?i)\b([a-z]{3})\b").unwrap(),
+        code_token: Regex::new(r"(?i)\b([a-z]{3,4})\b").unwrap(),
     })
 }
 
@@ -237,6 +249,13 @@ mod tests {
     fn uppercases_iso_currency_codes() {
         assert_eq!(normalize("100 usd to iqd"), "100 USD to IQD");
         assert_eq!(normalize("25 usd to eur"), "25 USD to EUR");
+    }
+
+    #[test]
+    fn uppercases_crypto_codes() {
+        assert_eq!(normalize("5 btc in gbp"), "5 BTC in GBP");
+        assert_eq!(normalize("0.5 eth to usd"), "0.5 ETH to USD");
+        assert_eq!(normalize("100 doge in usd"), "100 DOGE in USD");
     }
 
     #[test]

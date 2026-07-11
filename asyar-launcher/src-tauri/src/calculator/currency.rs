@@ -149,6 +149,41 @@ pub fn ensure_rates_fresh(app: &tauri::AppHandle, state: &CalculatorState) {
     }
 }
 
+/// CoinGecko ids and the currency codes they map to.
+const CRYPTO_IDS: &[(&str, &str)] = &[
+    ("bitcoin", "BTC"),
+    ("ethereum", "ETH"),
+    ("binancecoin", "BNB"),
+    ("solana", "SOL"),
+    ("ripple", "XRP"),
+    ("cardano", "ADA"),
+    ("dogecoin", "DOGE"),
+    ("litecoin", "LTC"),
+    ("polkadot", "DOT"),
+    ("tron", "TRX"),
+    ("chainlink", "LINK"),
+    ("bitcoin-cash", "BCH"),
+    ("stellar", "XLM"),
+    ("tether", "USDT"),
+    ("usd-coin", "USDC"),
+];
+
+/// Merge a CoinGecko `simple/price` response into a USD-based rates map,
+/// storing "units of coin per one USD" like every fiat entry.
+pub fn merge_crypto_rates(rates: &mut HashMap<String, f64>, body: &serde_json::Value) {
+    for (id, code) in CRYPTO_IDS {
+        let price = body
+            .get(*id)
+            .and_then(|v| v.get("usd"))
+            .and_then(|v| v.as_f64());
+        if let Some(price) = price {
+            if price > 0.0 {
+                rates.insert((*code).to_string(), 1.0 / price);
+            }
+        }
+    }
+}
+
 /// Fetch fresh USD-based rates.
 pub async fn fetch_rates() -> Result<HashMap<String, f64>, String> {
     let client = reqwest::Client::builder()
@@ -169,13 +204,26 @@ pub async fn fetch_rates() -> Result<HashMap<String, f64>, String> {
         .get("rates")
         .and_then(|r| r.as_object())
         .ok_or("malformed rates response")?;
-    let map: HashMap<String, f64> = rates
+    let mut map: HashMap<String, f64> = rates
         .iter()
         .filter_map(|(k, v)| v.as_f64().map(|f| (k.to_ascii_uppercase(), f)))
         .collect();
     if map.is_empty() {
         return Err("empty rates response".to_string());
     }
+
+    // Crypto prices are best-effort: fiat rates stay usable if this fails.
+    let ids: Vec<&str> = CRYPTO_IDS.iter().map(|(id, _)| *id).collect();
+    let url = format!(
+        "https://api.coingecko.com/api/v3/simple/price?ids={}&vs_currencies=usd",
+        ids.join(",")
+    );
+    if let Ok(resp) = client.get(&url).send().await {
+        if let Ok(body) = resp.json::<serde_json::Value>().await {
+            merge_crypto_rates(&mut map, &body);
+        }
+    }
+
     Ok(map)
 }
 
@@ -228,6 +276,21 @@ mod tests {
         let bad = dir.path().join("bad.json");
         std::fs::write(&bad, "not json").unwrap();
         assert!(RatesCache::load(&bad).is_none());
+    }
+
+    #[test]
+    fn crypto_rates_merge_as_units_per_usd() {
+        let mut rates = sample_rates();
+        let body: serde_json::Value = serde_json::from_str(
+            r#"{"bitcoin":{"usd":80000.0},"ethereum":{"usd":2500.0},"junk":{"usd":0.0}}"#,
+        )
+        .unwrap();
+        merge_crypto_rates(&mut rates, &body);
+        assert!((rates["BTC"] - 1.0 / 80000.0).abs() < 1e-12);
+        assert!((rates["ETH"] - 1.0 / 2500.0).abs() < 1e-12);
+        // Fiat entries untouched, zero/unknown prices skipped.
+        assert_eq!(rates["IQD"], 1310.0);
+        assert!(!rates.contains_key("JUNK"));
     }
 
     #[test]

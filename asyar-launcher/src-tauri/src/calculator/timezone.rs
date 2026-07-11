@@ -45,6 +45,48 @@ fn alias_zone(name: &str) -> Option<Tz> {
         "eet" => Europe::Athens,
         "wet" => Europe::Lisbon,
         "gmt" | "utc" | "zulu" => UTC,
+        // Country names → their principal (or capital) timezone.
+        "chile" => America::Santiago,
+        "japan" => Asia::Tokyo,
+        "germany" => Europe::Berlin,
+        "france" => Europe::Paris,
+        "spain" => Europe::Madrid,
+        "italy" => Europe::Rome,
+        "china" => Asia::Shanghai,
+        "india" => Asia::Kolkata,
+        "brazil" => America::Sao_Paulo,
+        "argentina" => America::Argentina::Buenos_Aires,
+        "australia" => Australia::Sydney,
+        "canada" => America::Toronto,
+        "mexico" => America::Mexico_City,
+        "russia" => Europe::Moscow,
+        "turkey" => Europe::Istanbul,
+        "egypt" => Africa::Cairo,
+        "korea" | "south korea" => Asia::Seoul,
+        "netherlands" => Europe::Amsterdam,
+        "portugal" => Europe::Lisbon,
+        "greece" => Europe::Athens,
+        "sweden" => Europe::Stockholm,
+        "norway" => Europe::Oslo,
+        "poland" => Europe::Warsaw,
+        "thailand" => Asia::Bangkok,
+        "vietnam" => Asia::Ho_Chi_Minh,
+        "philippines" => Asia::Manila,
+        "indonesia" => Asia::Jakarta,
+        "pakistan" => Asia::Karachi,
+        "saudi arabia" => Asia::Riyadh,
+        "israel" => Asia::Jerusalem,
+        "kenya" => Africa::Nairobi,
+        "nigeria" => Africa::Lagos,
+        "south africa" => Africa::Johannesburg,
+        "new zealand" => Pacific::Auckland,
+        "switzerland" => Europe::Zurich,
+        "austria" => Europe::Vienna,
+        "belgium" => Europe::Brussels,
+        "denmark" => Europe::Copenhagen,
+        "finland" => Europe::Helsinki,
+        "ireland" => Europe::Dublin,
+        "usa" | "united states" | "america" => America::New_York,
         _ => return None,
     })
 }
@@ -292,6 +334,20 @@ mod tests {
         );
         assert_eq!(resolve_zone("est").unwrap(), chrono_tz::America::New_York);
         assert!(resolve_zone("nowhereville").is_none());
+    }
+
+    #[test]
+    fn resolves_country_names() {
+        assert_eq!(resolve_zone("chile").unwrap(), chrono_tz::America::Santiago);
+        assert_eq!(resolve_zone("japan").unwrap(), chrono_tz::Asia::Tokyo);
+        assert_eq!(resolve_zone("germany").unwrap(), chrono_tz::Europe::Berlin);
+        assert_eq!(resolve_zone("india").unwrap(), chrono_tz::Asia::Kolkata);
+    }
+
+    #[test]
+    fn wall_time_conversion_with_country_names() {
+        // 8pm Santiago (CLT, -4 in July) = 00:00 UTC = 01:00 London (BST).
+        assert_eq!(eval("8pm chile in london").unwrap().value, "01:00");
     }
 
     #[test]

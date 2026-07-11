@@ -19,7 +19,7 @@ struct Patterns {
 
 fn patterns() -> &'static Patterns {
     static P: OnceLock<Patterns> = OnceLock::new();
-    const NUM: &str = r"(\d[\d,]*(?:\.\d+)?)";
+    const NUM: &str = r"(\d[\d,]*(?:\.\d+)?[kmbKMB]?)";
     P.get_or_init(|| Patterns {
         of: Regex::new(&format!(r"(?i)^{NUM}\s*%\s*of\s+{NUM}$")).unwrap(),
         off: Regex::new(&format!(r"(?i)^{NUM}\s*%\s*off\s+(?:of\s+)?{NUM}$")).unwrap(),
@@ -38,7 +38,15 @@ fn patterns() -> &'static Patterns {
 }
 
 fn num(s: &str) -> Option<f64> {
-    s.replace(',', "").parse().ok()
+    let s = s.replace(',', "");
+    // Soulver-style shorthand: 19m = 19 million, 1.2k = 1,200.
+    let (digits, factor) = match s.chars().last() {
+        Some('k') | Some('K') => (&s[..s.len() - 1], 1e3),
+        Some('m') | Some('M') => (&s[..s.len() - 1], 1e6),
+        Some('b') | Some('B') => (&s[..s.len() - 1], 1e9),
+        _ => (s.as_str(), 1.0),
+    };
+    digits.parse::<f64>().ok().map(|n| n * factor)
 }
 
 /// Percentage with up to 2 decimals, explicit sign: `+20%`, `-16.67%`.
@@ -195,6 +203,13 @@ mod tests {
     fn add_subtract_percent() {
         assert_eq!(evaluate_percent("80 + 20%").unwrap().value, "96");
         assert_eq!(evaluate_percent("80 - 20%").unwrap().value, "64");
+    }
+
+    #[test]
+    fn add_percent_with_amount_shorthand() {
+        // Soulver/Raycast treat "19m" as 19 million in plain arithmetic.
+        assert_eq!(evaluate_percent("19m + 47%").unwrap().value, "27,930,000");
+        assert_eq!(evaluate_percent("1.2k + 10%").unwrap().value, "1,320");
     }
 
     #[test]

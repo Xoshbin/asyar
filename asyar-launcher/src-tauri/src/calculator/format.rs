@@ -50,6 +50,8 @@ pub fn beautify_fend_output(s: &str) -> String {
         Some(rest) => format!("≈ {rest}"),
         None => s.to_string(),
     };
+    // fend prints compound units as "GBP / hour"; compact to "GBP/hour".
+    let s = s.replace(" / ", "/");
 
     let chars: Vec<char> = s.chars().collect();
     let mut out = String::with_capacity(s.len() + 8);

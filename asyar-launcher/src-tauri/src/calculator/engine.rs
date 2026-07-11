@@ -26,12 +26,32 @@ impl fend_core::Interrupt for TimeoutInterrupt {
     }
 }
 
+/// A crypto price as a fend definition string, without float noise:
+/// rate 1/80000 (BTC per USD) → `"80000 USD"`.
+fn crypto_definition(rate: f64) -> String {
+    let mut price = format!("{:.8}", 1.0 / rate);
+    while price.ends_with('0') {
+        price.pop();
+    }
+    if price.ends_with('.') {
+        price.pop();
+    }
+    format!("{price} USD")
+}
+
 fn make_context(rates: &Option<Arc<HashMap<String, f64>>>) -> fend_core::Context {
     let mut ctx = fend_core::Context::new();
+    let none = fend_core::CustomUnitAttribute::None;
     if let Some(r) = rates {
         ctx.set_exchange_rate_handler_v2(FendRates(Arc::clone(r)));
+        // fend only knows ISO 4217 codes; define crypto tickers from the
+        // rates map as custom units so "5 BTC in GBP" works.
+        for (code, rate) in r.iter() {
+            if *rate > 0.0 && !super::normalize::is_iso_currency(code) {
+                ctx.define_custom_unit_v1(code, code, &crypto_definition(*rate), &none);
+            }
+        }
     }
-    let none = fend_core::CustomUnitAttribute::None;
     ctx.define_custom_unit_v1("workday", "workdays", "8 hours", &none);
     ctx.define_custom_unit_v1("workweek", "workweeks", "40 hours", &none);
     ctx.define_custom_unit_v1("workmonth", "workmonths", "160 hours", &none);
@@ -63,9 +83,12 @@ fn infer_kind(output: &str, rates: &Option<Arc<HashMap<String, f64>>>) -> CalcKi
     if plain.starts_with("0x") || plain.starts_with("0b") || plain.starts_with("0o") {
         return CalcKind::Base;
     }
-    let last = plain.rsplit(' ').next().unwrap_or(plain);
+    // Any currency token anywhere ("90 EUR", "6.32 GBP / hour") wins.
     if let Some(r) = rates {
-        if r.contains_key(&last.to_ascii_uppercase()) {
+        if plain
+            .split([' ', '/'])
+            .any(|tok| !tok.is_empty() && r.contains_key(&tok.to_ascii_uppercase()))
+        {
             return CalcKind::Currency;
         }
     }
@@ -108,7 +131,9 @@ mod tests {
         let mut m = HashMap::new();
         m.insert("USD".to_string(), 1.0);
         m.insert("EUR".to_string(), 0.9);
+        m.insert("GBP".to_string(), 0.79);
         m.insert("IQD".to_string(), 1310.0);
+        m.insert("BTC".to_string(), 1.0 / 80000.0);
         Some(Arc::new(m))
     }
 
@@ -169,6 +194,24 @@ mod tests {
         // The Soulver flagship example.
         let r = evaluate_fend("25% of 200 USD + 15 USD to EUR", rates(), false).unwrap();
         assert_eq!(r.value, "58.5 EUR");
+    }
+
+    #[test]
+    fn crypto_units_defined_from_rates_map() {
+        // BTC is not in fend's ISO list; the engine defines it from rates.
+        let r = evaluate_fend("5 BTC to GBP", rates(), false).unwrap();
+        assert_eq!(r.value, "316,000 GBP");
+        assert_eq!(r.kind, CalcKind::Currency);
+        let r = evaluate_fend("1 BTC to USD", rates(), false).unwrap();
+        assert_eq!(r.value, "80,000 USD");
+    }
+
+    #[test]
+    fn rate_units_convert_per_denominator() {
+        // 8 USD/hour → GBP/hour (compound-unit currency conversion).
+        let r = evaluate_fend("8 dollars/hour to GBP/hour", rates(), false).unwrap();
+        assert_eq!(r.value, "6.32 GBP/hour");
+        assert_eq!(r.kind, CalcKind::Currency);
     }
 
     #[test]
