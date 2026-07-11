@@ -26,3 +26,5 @@ Understanding-oriented background. These pages describe how Asyar works and why 
 - **[Auth & subscription](./auth-and-subscription.md)** — The entitlement system and cached sessions.
 - **[Data persistence](./data-persistence.md)** — Where things are stored and known limitations.
 - **[AI Extension Builder](./ai-extension-builder.md)** — How "Build Extension with AI" works: the Tier-1 orchestrator ⇄ coding sidecar, the stdio protocol, feasibility gate, security model, and the claude-runtime packaging constraint.
+- **[File Search](./file-search.md)** — The Rust-owned filename index and thumbnail cache: the arena, the bounded query engine, the parallel walker, and the coalesced filesystem watcher.
+- **[Browser Bridge Protocol](./browser-bridge-protocol.md)** — The wire contract between the launcher's local WebSocket server and companion browser extensions: pairing, auth, and the RPC surface.

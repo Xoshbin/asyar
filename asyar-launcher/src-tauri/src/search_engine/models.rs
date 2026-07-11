@@ -360,7 +360,9 @@ mod bindings_export {
             .register::<crate::file_index::types::FileType>()
             .register::<crate::file_index::types::HitSource>()
             .register::<crate::file_index::types::IndexStateKind>()
-            .register::<crate::file_index::types::WorkMeter>();
+            .register::<crate::file_index::types::WorkMeter>()
+            .register::<crate::calculator::CalcResult>()
+            .register::<crate::calculator::CalcKind>();
 
         Typescript::default()
             .bigint(BigIntExportBehavior::Number)

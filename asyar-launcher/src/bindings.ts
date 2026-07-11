@@ -30,6 +30,18 @@ export type Application = {
 	bundleId?: string | null,
 };
 
+// Category of a calculator answer. Drives icon selection in the UI.
+export type CalcKind = "math" | "unit" | "currency" | "date" | "time" | "base" | "color" | "percent" | "ratio";
+
+// One calculator answer, ready for display.
+export type CalcResult = {
+	// Main display value, e.g. `"177.8 cm"`.
+	value: string,
+	// Supporting line, e.g. the resolved date or the rate used.
+	detail: string,
+	kind: CalcKind,
+};
+
 export type Command = {
 	id: string,
 	name: string,

@@ -57,6 +57,7 @@ pub mod app_updater;
 pub mod application;
 pub mod auth;
 pub mod browser;
+pub mod calculator;
 pub mod clipboard_markup;
 pub mod clipboard_privacy;
 pub mod color_sampler;
@@ -231,6 +232,7 @@ pub fn run() {
         .manage(mcp_supervisor)
         .manage(mcp_sidecar_state)
         .manage(ext_builder::ExtBuilderState::default())
+        .manage(calculator::CalculatorState::default())
         .manage(AppState {
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -341,6 +343,9 @@ pub fn run() {
             commands::scripts::scripts_pick_directory,
             commands::scripts::scripts_rescan,
             commands::scripts::scripts_set_inline_scripts,
+            commands::calculator::calculator_evaluate,
+            commands::calculator::calculator_configure,
+            commands::calculator::calculator_refresh_rates,
             commands::browser::browser_list_available_browsers,
             commands::browser::browser_is_companion_installed,
             commands::browser::browser_list_bookmarks,
