@@ -72,6 +72,20 @@ export const ICON_DATA: Record<string, string> = {
     <line x1="10" y1="3" x2="8" y2="21" />
     <line x1="16" y1="3" x2="14" y2="21" />
   `,
+  'calc-time': `
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  `,
+  'calc-percent': `
+    <line x1="19" y1="5" x2="5" y2="19" />
+    <circle cx="6.5" cy="6.5" r="2.5" />
+    <circle cx="17.5" cy="17.5" r="2.5" />
+  `,
+  'calc-ratio': `
+    <circle cx="12" cy="6" r="1.5" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+    <circle cx="12" cy="18" r="1.5" />
+  `,
   globe: `
     <circle cx="12" cy="12" r="10" />
     <line x1="2" y1="12" x2="22" y2="12" />
