@@ -3,7 +3,7 @@
   "name": "Calculator",
   "icon": "icon:calculator",
   "version": "1.0.0",
-  "description": "Perform math expressions, unit conversions, currency conversion, and date/time calculations inline.",
+  "description": "Natural-language calculator: math, unit and currency conversion, percentages and tips, dates (\"days until christmas\"), world clocks (\"5pm ldn in sf\"), number bases, ratios, and color conversions — right in the search bar.",
   "type": "extension",
   "commands": [],
   "searchable": true,
@@ -14,6 +14,13 @@
       "title": "Currency refresh interval",
       "description": "How often to refresh exchange rates in the background, in hours (1–24).",
       "default": 6
+    },
+    {
+      "name": "preferredCurrency",
+      "type": "textfield",
+      "title": "Preferred currency",
+      "description": "3-letter code (e.g. USD, EUR, IQD) used when you type an amount like \"50 usd\" without a target currency.",
+      "default": "USD"
     }
   ]
 }

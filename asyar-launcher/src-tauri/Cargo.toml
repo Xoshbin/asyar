@@ -95,6 +95,9 @@ fnv = "1"                          # Stable file_id hash (dev,inode) for the fil
 file-id = "0.2"                    # Cross-platform (dev,inode)/(volume,file_index) lookup on stable Rust — MetadataExt's Windows methods are nightly-only
 bincode = "1"                      # Versioned file-index snapshot serialization
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] } # Cross-platform thumbnail downscaling
+fend-core = "1.5.8"
+chrono-tz = "0.10.4"
+iana-time-zone = "0.1.65"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"

@@ -208,12 +208,14 @@ dependencies = [
  "block2 0.5.1",
  "cbc",
  "chrono",
+ "chrono-tz",
  "core-foundation 0.10.1",
  "core-foundation-sys 0.8.7",
  "dirs 5.0.1",
  "dunce",
  "enigo",
  "evalexpr",
+ "fend-core",
  "file-id",
  "flate2",
  "fnv",
@@ -224,6 +226,7 @@ dependencies = [
  "gtk",
  "hex",
  "hmac",
+ "iana-time-zone",
  "icns",
  "ignore",
  "image",
@@ -1006,6 +1009,16 @@ dependencies = [
  "serde",
  "wasm-bindgen",
  "windows-link 0.2.1",
+]
+
+[[package]]
+name = "chrono-tz"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6139a8597ed92cf816dfb33f5dd6cf0bb93a6adc938f11039f371bc5bcd26c3"
+dependencies = [
+ "chrono",
+ "phf 0.12.1",
 ]
 
 [[package]]
@@ -2036,6 +2049,12 @@ checksum = "1e6853b52649d4ac5c0bd02320cddc5ba956bdb407c4b75a2c6b75bf51500f8c"
 dependencies = [
  "simd-adler32",
 ]
+
+[[package]]
+name = "fend-core"
+version = "1.5.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59b16d394a9991c9b0fee89855daafc7c6cd341be9528ac8b45f9b7aed3d8be8"
 
 [[package]]
 name = "fern"
@@ -4595,6 +4614,15 @@ dependencies = [
 
 [[package]]
 name = "phf"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "913273894cec178f401a31ec4b656318d95473527be05c0752cc41cdc32be8b7"
+dependencies = [
+ "phf_shared 0.12.1",
+]
+
+[[package]]
+name = "phf"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1562dc717473dbaa4c1f85a36410e03c047b2e7df7f45ee938fbef64ae7fadf"
@@ -4724,6 +4752,15 @@ name = "phf_shared"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67eabc2ef2a60eb7faa00097bd1ffdb5bd28e62bf39990626a582201b7a754e5"
+dependencies = [
+ "siphasher 1.0.2",
+]
+
+[[package]]
+name = "phf_shared"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06005508882fb681fd97892ecff4b7fd0fee13ef1aa569f8695dae7ab9099981"
 dependencies = [
  "siphasher 1.0.2",
 ]
