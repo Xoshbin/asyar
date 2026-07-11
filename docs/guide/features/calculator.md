@@ -1,31 +1,43 @@
 # Calculator
 
-> Do math, unit conversion, currency conversion, and date math right from the search bar.
+> Type an expression, a date question, or "time in tokyo" — get an instant answer, right in the search bar.
 
 ![A calculator result shown inline in the search bar](../../images/feature-calculator-hero.png)
 _Figure: type a sum and the answer appears inline, ready to copy._
 
 ## What it does
 
-The Calculator evaluates expressions as you type in the search bar — no need to open a separate app. It handles five kinds of computation at once:
+The Calculator evaluates what you type as you type it — no need to open a separate app, and no trigger word to remember. It goes well beyond arithmetic: percentages and tips, unit and currency conversion (including crypto), cooking measurements, natural-language dates ("days until christmas"), world clocks ("time in tokyo"), number bases, colors, and ratios are all understood in plain English.
 
-- **Math** — arithmetic, percentages, powers, and functions like `sqrt`, `sin`, `log`, `factorial`. Powered by math.js, so expressions like `(12 * 3) + sqrt(144)` work fine.
-- **Unit conversion** — length, weight, volume, speed, and temperature. You can be explicit (`100 km to miles`) or just type the value and unit (`32 f`) and Asyar picks the natural counterpart.
-- **Currency conversion** — live exchange rates fetched in the background. Type `50 USD to EUR` or just `50 USD` and Asyar converts to your region's currency automatically.
-- **Date math** — add or subtract days from a date (`2026-01-01 + 30 days`), or ask how many days are between two dates (`days between 2026-01-01 and 2026-12-31`), or how many days until a date (`days until 2026-12-25`).
-- **Base conversion** — convert a decimal to hex/binary/octal (`42 in hex`) or paste a hex/binary/octal literal (`0xff`) to see all bases at once.
-
-Results appear pinned at the top of the result list the moment the expression is recognised. Pressing `Enter` copies the result to your clipboard.
+Results appear pinned at the top of the list the moment an expression is recognized, showing the expression and the answer side by side. Pressing `Enter` copies the answer to your clipboard.
 
 ## How to use it
 
-There is no trigger word — the calculator is always on. Just open Asyar with your global hotkey and start typing an expression.
+There is no trigger word — the calculator is always on. Just open Asyar with your global hotkey and start typing.
 
-1. Type your expression in the search bar — for example `15% of 240`, `5 kg to lbs`, or `100 usd to gbp`.
-2. The result appears as the first item in the list with the expression shown as a subtitle.
+1. Type your expression — for example `15% of 240`, `5 kg to lbs`, `days until christmas`, or `time in tokyo`.
+2. The result appears as the first item in the list, with the expression shown alongside it.
 3. Press `Enter` to copy the result and dismiss the launcher. A brief notification confirms the copy.
 
-For currency results, rates are fetched when Asyar starts and refreshed automatically in the background at the interval you set in preferences (default: every 6 hours).
+For currency results, exchange rates (including crypto) are fetched in the background and cached, so conversions keep working even without a fresh connection — they just refresh automatically at the interval you set in preferences.
+
+## Categories & examples
+
+| Category           | Type                                                           | Get                                                 |
+| ------------------ | -------------------------------------------------------------- | --------------------------------------------------- |
+| Math               | `sqrt(625)`, `2 power 10`, `5!`                                | `25`, `1,024`, `120`                                |
+| Percentages & tips | `20% off 80`, `15% tip on 42`, `12 is what % of 80`            | `64`, `48.30`, `15%`                                |
+| Units              | `5'10" to cm`, `100 km to miles`, `1 GiB to MB`                | `177.8 cm`, `≈ 62.14 miles`, `1,073.741824 MB`      |
+| Design sizes       | `2 inches in px at 72 ppi`                                     | `144 px`                                            |
+| Cooking            | `1 tablespoon of honey in grams`, `2.5 cups of flour to grams` | `21 g`, `312.5 g`                                   |
+| Currency           | `100 usd to eur`, `$1k in iqd`, `5 btc in gbp`                 | `90 EUR`, `1,310,000 IQD`, `316,000 GBP`            |
+| Dates & durations  | `days until christmas`, `next friday`, `2026-01-31 + 1 month`  | `167 days`, a date, `28 Feb 2026`                   |
+| World clocks       | `time in tokyo`, `5pm ldn in sf`, `time diff paris`            | current/converted time, a time difference           |
+| Number bases       | `0xff`, `255 to hex`, `12 to binary`                           | `255`, `0xFF`, `0b1100`                             |
+| Colors             | `#ff8800`, `#ff8800 to hsl`, `rgb(255, 136, 0)`                | `rgb(255, 136, 0)`, `hsl(32, 100%, 50%)`, `#FF8800` |
+| Ratios & timespans | `ratio of 384 to 240`, `145 min to timespan`                   | `8 : 5`, `2 h 25 min`                               |
+
+Math also understands wordy phrasing — `square root of 625`, `7 times 8`, `half of 10` — and amount shorthand like `10k`, `usd1k`, `$2.5m`. Cooking conversions cover common ingredients: water, milk, honey, flour, sugar, butter, oil, rice, salt, cocoa, oats, syrup, cream, yogurt, and peanut butter. Currency covers any ISO code plus the major cryptocurrencies (BTC, ETH, BNB, XRP, ADA, DOGE, LTC, DOT, TRX, LINK, BCH, XLM, USDT, USDC). World clocks recognize city abbreviations (`sf`, `nyc`, `ldn`), timezone abbreviations (`pst`, `cet`, `jst`, …), and full country names (`japan`, `chile`, `india`, …).
 
 ## Shortcuts & actions
 
@@ -37,11 +49,11 @@ The calculator result row has no action panel (⌘K) entries — its single acti
 
 ## Tips
 
-- **Implicit unit counterparts** — you do not need to say "to". Type `5 kg` and Asyar shows the result in pounds. The counterparts are: km ↔ miles, m ↔ feet, cm ↔ inches, kg ↔ lb, g ↔ oz, l ↔ gal, °C ↔ °F, km/h ↔ mph, and more.
-- **Implicit currency** — type `100 eur` (without a target) and Asyar converts to the currency for your system locale.
-- **Date anchor** — use the word `today` as a date, for example `today + 14 days`.
-- **Base literals** — paste a hex colour like `0xFF8C00` and see its decimal, binary, and octal values side by side.
-- **Currency refresh interval** — go to Settings → Extensions → Calculator to change how often rates are refreshed (1–24 hours).
+- **Implicit currency** — type `50 usd` (no target currency) and Asyar converts it to your **Preferred currency** setting automatically.
+- **Rate units convert too** — `8 dollars/hour in gbp` converts per-unit rates, not just flat amounts.
+- **Date anchor** — use the word `today` in date math, for example `today + 45 days`.
+- **Base literals** — paste a hex color like `0xFF8C00` and see its decimal, binary, and octal values side by side.
+- **Currency refresh interval & preferred currency** — go to Settings → Extensions → Calculator to change how often rates refresh (1–24 hours, default 6) and which currency bare amounts convert to.
 
 ## Related
 

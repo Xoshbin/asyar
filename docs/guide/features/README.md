@@ -3,7 +3,7 @@
 A guide to every built-in feature. Each page follows the same shape: what it
 does, how to use it, shortcuts, tips, and related pages.
 
-- [Calculator](./calculator.md) — Math, unit & currency conversion, date math, inline.
+- [Calculator](./calculator.md) — Math, units, currency & crypto, percentages, dates, world clocks, colors, and more, inline.
 - [Clipboard History](./clipboard-history.md) — Browse, filter, favorite, and paste past copies.
 - [File Search](./file-search.md) — Find any file by name, instantly, with a rich preview.
 - [Snippets](./snippets.md) — Text expansion: type a keyword, paste the full text.
