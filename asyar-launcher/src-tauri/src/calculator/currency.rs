@@ -186,8 +186,15 @@ pub fn merge_crypto_rates(rates: &mut HashMap<String, f64>, body: &serde_json::V
 
 /// Fetch fresh USD-based rates.
 pub async fn fetch_rates() -> Result<HashMap<String, f64>, String> {
+    // CoinGecko rejects requests with no descriptive User-Agent (HTTP 403,
+    // but with a *valid* JSON error body — see `fetch_rates_includes_crypto`).
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
+        .user_agent(concat!(
+            "Asyar/",
+            env!("CARGO_PKG_VERSION"),
+            " (+https://asyar.org)"
+        ))
         .build()
         .map_err(|e| e.to_string())?;
     let body: serde_json::Value = client
@@ -237,6 +244,27 @@ mod tests {
         m.insert("EUR".to_string(), 0.9);
         m.insert("IQD".to_string(), 1310.0);
         m
+    }
+
+    /// CoinGecko returns HTTP 403 with a *valid JSON* error body
+    /// (`{"status":{"error_code":403,...}}`) when a request has no
+    /// descriptive User-Agent — which a bare `reqwest::Client` never
+    /// sends. The old code only checked `send()` and `.json()` for
+    /// errors, both of which succeed for that 403 body, so crypto rates
+    /// silently vanished on every real fetch. Hits the live network;
+    /// run manually with `cargo test -- --ignored`.
+    #[tokio::test]
+    #[ignore = "hits the live network — run manually to verify crypto rates actually arrive"]
+    async fn fetch_rates_includes_crypto() {
+        let rates = fetch_rates().await.expect("fetch_rates should succeed");
+        assert!(
+            rates.contains_key("USD"),
+            "fiat rates should still be present"
+        );
+        assert!(
+            rates.contains_key("BTC"),
+            "crypto rates missing — likely the CoinGecko User-Agent 403 regression"
+        );
     }
 
     #[test]
