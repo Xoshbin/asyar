@@ -8,6 +8,7 @@
 use chrono::{DateTime, Duration, Offset, TimeZone, Utc};
 use chrono_tz::{Tz, TZ_VARIANTS};
 use regex::Regex;
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use super::{CalcKind, CalcResult};
@@ -91,6 +92,24 @@ fn alias_zone(name: &str) -> Option<Tz> {
     })
 }
 
+/// Lowercased full IANA name and last-segment name → `Tz`, built once.
+/// Avoids rescanning all ~600 `TZ_VARIANTS` (with allocations) on every
+/// world-clock query.
+fn iana_zone_map() -> &'static HashMap<String, Tz> {
+    static MAP: OnceLock<HashMap<String, Tz>> = OnceLock::new();
+    MAP.get_or_init(|| {
+        let mut map = HashMap::with_capacity(TZ_VARIANTS.len() * 2);
+        for tz in TZ_VARIANTS {
+            let full = tz.name().to_lowercase();
+            if let Some(seg) = full.rsplit('/').next() {
+                map.entry(seg.replace('_', " ")).or_insert(tz);
+            }
+            map.entry(full).or_insert(tz);
+        }
+        map
+    })
+}
+
 /// Resolve a human city/zone name to an IANA timezone.
 pub fn resolve_zone(name: &str) -> Option<Tz> {
     let n = name
@@ -108,18 +127,7 @@ pub fn resolve_zone(name: &str) -> Option<Tz> {
     }
 
     // Full IANA name ("asia/tokyo") or last segment ("tokyo", "new york").
-    for tz in TZ_VARIANTS {
-        let full = tz.name().to_lowercase();
-        if full == n {
-            return Some(tz);
-        }
-        if let Some(seg) = full.rsplit('/').next() {
-            if seg.replace('_', " ") == n {
-                return Some(tz);
-            }
-        }
-    }
-    None
+    iana_zone_map().get(&n).copied()
 }
 
 /// Short display name: `Europe/London` → `London`.
@@ -334,6 +342,11 @@ mod tests {
         );
         assert_eq!(resolve_zone("est").unwrap(), chrono_tz::America::New_York);
         assert!(resolve_zone("nowhereville").is_none());
+        // Three-segment IANA names resolve by their last segment too.
+        assert_eq!(
+            resolve_zone("buenos aires").unwrap(),
+            chrono_tz::America::Argentina::Buenos_Aires
+        );
     }
 
     #[test]

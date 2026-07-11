@@ -71,13 +71,28 @@ fn holiday(s: &str) -> Option<(u32, u32)> {
 }
 
 /// Apply year rolling to a yearless month/day.
+///
+/// Handles Feb 29 specially: it doesn't exist every year, so a naive
+/// "just try +1/-1 year" can miss it entirely (most adjacent years
+/// aren't leap years). Search up to 4 years in the roll direction for
+/// the closest year where the date actually exists.
 fn rolled_date(month: u32, day: u32, today: NaiveDate, roll: Roll) -> Option<NaiveDate> {
-    let this_year = NaiveDate::from_ymd_opt(today.year(), month, day)?;
-    match roll {
-        Roll::Future if this_year < today => NaiveDate::from_ymd_opt(today.year() + 1, month, day),
-        Roll::Past if this_year > today => NaiveDate::from_ymd_opt(today.year() - 1, month, day),
-        _ => Some(this_year),
+    let year = today.year();
+    for offset in 0..=4 {
+        let target_year = match roll {
+            Roll::Future => year + offset,
+            Roll::Past => year - offset,
+        };
+        let Some(d) = NaiveDate::from_ymd_opt(target_year, month, day) else {
+            continue;
+        };
+        match roll {
+            Roll::Future if d >= today => return Some(d),
+            Roll::Past if d <= today => return Some(d),
+            _ => {}
+        }
     }
+    None
 }
 
 fn strip_ordinal(s: &str) -> &str {
@@ -524,6 +539,25 @@ mod tests {
         assert!(r.detail.contains("35 days ago"), "detail: {}", r.detail);
         let r = eval("2 weeks ago").unwrap();
         assert!(r.value.contains("27 Jun 2026"), "value: {}", r.value);
+    }
+
+    #[test]
+    fn days_until_feb_29_from_non_leap_year() {
+        // 2026 isn't a leap year; the next real Feb 29 is 2028.
+        let r = eval("days until feb 29").unwrap();
+        assert_eq!(r.value, "598 days");
+        assert!(r.detail.contains("29 Feb 2028"), "detail: {}", r.detail);
+    }
+
+    #[test]
+    fn days_until_feb_29_after_it_passed_in_leap_year() {
+        // 2028 is a leap year but Feb 29 already passed; 2029 (the naive
+        // "+1 year" guess) isn't a leap year either, so this must keep
+        // searching until 2032.
+        let today = NaiveDate::from_ymd_opt(2028, 3, 1).unwrap();
+        let r = evaluate_date("days until feb 29", today, now()).unwrap();
+        assert_eq!(r.value, "1460 days");
+        assert!(r.detail.contains("29 Feb 2032"), "detail: {}", r.detail);
     }
 
     #[test]

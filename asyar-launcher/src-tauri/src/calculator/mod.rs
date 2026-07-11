@@ -113,7 +113,6 @@ const NL_PREFIXES: &[&str] = &[
     "ratio",
     "sqrt",
     "cbrt",
-    "pi",
     "diff ",
     "christmas",
     "new year",
@@ -151,6 +150,16 @@ pub fn should_attempt(query: &str) -> bool {
     }
     let lower = q.to_lowercase();
     if lower.ends_with(" time") {
+        return true;
+    }
+    // "pi" the constant ("pi * 2", "pi/4", bare "pi"), but not any word
+    // that merely starts with those letters ("pictures", "pin", "pipe").
+    if lower.starts_with("pi")
+        && lower
+            .as_bytes()
+            .get(2)
+            .is_none_or(|b| !b.is_ascii_alphabetic())
+    {
         return true;
     }
     NL_PREFIXES.iter().any(|k| lower.starts_with(k))
@@ -360,6 +369,18 @@ mod tests {
         assert!(should_attempt("#ff8800"));
         assert!(should_attempt("sqrt(2)"));
         assert!(should_attempt("pi * 2"));
+        assert!(should_attempt("pi"));
+        assert!(should_attempt("pi/4"));
+    }
+
+    #[test]
+    fn gate_pi_prefix_does_not_swallow_ordinary_words() {
+        // "pi" must only gate on the constant, not any word starting with it.
+        assert!(!should_attempt("pictures"));
+        assert!(!should_attempt("pinterest"));
+        assert!(!should_attempt("pixel"));
+        assert!(!should_attempt("pin"));
+        assert!(!should_attempt("pipe"));
     }
 
     #[test]
