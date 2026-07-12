@@ -11,6 +11,9 @@
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
   import { logService } from '../../services/log/logService';
   import * as commands from '../../lib/ipc/commands';
+  import { getRuntimeDownloadSizes } from '../../lib/ipc/runtimeCommands';
+  import { downloadDeclaredRuntimes } from '../../services/extension/runtimeDownloads';
+  import extensionManager from '../../services/extension/extensionManager.svelte';
 
   let {
     extension = null,
@@ -38,6 +41,48 @@
   let preferenceValues = $state<Record<string, any>>({});
   let isLoadingPrefs = $state(false);
   let needsPermissionReview = $state(false);
+  let isDownloadingRuntime = $state(false);
+  let needsRuntimeDownload = $state(false);
+
+  // Settings is a separate webview from the main window (see the consent
+  // effect below), so it can't see the main window's in-memory
+  // `extensionStateManager.needsRuntime` — that state simply doesn't exist
+  // here. Re-derive whether a declared runtime is still missing via the
+  // same IPC calls the consent dialog uses, same pattern as
+  // `needsPermissionReview` below.
+  async function refreshRuntimeStatus(extensionId: string): Promise<void> {
+    const status = await commands.checkExtensionConsent(extensionId);
+    const declared = status?.declaredRuntimes ?? [];
+    if (declared.length === 0) {
+      if (extension?.id === extensionId) needsRuntimeDownload = false;
+      return;
+    }
+    const missing = await getRuntimeDownloadSizes(declared);
+    if (extension?.id === extensionId) {
+      needsRuntimeDownload = missing.length > 0;
+    }
+  }
+
+  $effect(() => {
+    const ext = extension;
+    needsRuntimeDownload = false;
+    if (ext?.id && !ext.isBuiltIn) {
+      refreshRuntimeStatus(ext.id);
+    }
+  });
+
+  async function retryRuntimeDownload() {
+    const ext = extension;
+    if (!ext?.id) return;
+    isDownloadingRuntime = true;
+    try {
+      await downloadDeclaredRuntimes(ext.id);
+      await extensionManager.reloadExtensions();
+      await refreshRuntimeStatus(ext.id);
+    } finally {
+      isDownloadingRuntime = false;
+    }
+  }
 
   // Consent status is re-derived per selection via IPC: the settings window
   // is a separate webview, so it cannot see the main window's in-memory
@@ -239,7 +284,29 @@
       {#if needsPermissionReview}
         <Badge text="Permissions need review" variant="danger" />
       {/if}
+      {#if needsRuntimeDownload}
+        <Badge text="Needs runtime download" variant="danger" />
+      {/if}
     </div>
+
+    {#if needsRuntimeDownload}
+      <div class="panel-section">
+        <div class="section-header flex-header">
+          <span>Runtime</span>
+          <button
+            class="review-link"
+            onclick={retryRuntimeDownload}
+            disabled={isDownloadingRuntime}
+          >
+            {isDownloadingRuntime ? 'Downloading…' : 'Download runtime'}
+          </button>
+        </div>
+        <p class="panel-desc">
+          A required runtime failed to download or was declined. Commands are hidden until it's
+          installed — retry from here.
+        </p>
+      </div>
+    {/if}
 
     {#if !extension.isBuiltIn && extension.permissions && extension.permissions.length > 0}
       <div class="panel-section">
@@ -403,6 +470,11 @@
 
   .review-link:hover {
     text-decoration: underline;
+  }
+
+  .review-link:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .revoke-link {

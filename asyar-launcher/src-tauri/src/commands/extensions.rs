@@ -29,10 +29,11 @@ pub async fn uninstall_extension(
     app_handle: AppHandle,
     registry: tauri::State<'_, ExtensionRegistryState>,
     scheduler: tauri::State<'_, SchedulerState>,
+    runtime_manager: tauri::State<'_, crate::runtimes::RuntimeManager>,
     extension_id: String,
 ) -> Result<(), AppError> {
     scheduler::stop_tasks_for_extension(&scheduler, &extension_id)?;
-    extensions::lifecycle::uninstall(&app_handle, &extension_id, &registry)
+    extensions::lifecycle::uninstall(&app_handle, &extension_id, &registry, &runtime_manager)
 }
 
 #[tauri::command]

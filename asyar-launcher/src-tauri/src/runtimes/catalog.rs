@@ -91,6 +91,23 @@ pub(crate) fn fallback_catalog() -> RuntimeCatalog {
         .expect("bundled runtimes/catalog.fallback.json must parse")
 }
 
+/// Runtime names known at discovery time (the bundled fallback catalog's
+/// keys), sorted for deterministic error messages. Deliberately does not
+/// consult the remote catalog: manifest validation runs synchronously with
+/// no network access, so "known" here means "known offline" — matching
+/// `asyar-sdk/cli/lib/manifest.ts`'s `VALID_RUNTIMES`, which must be kept in
+/// sync by hand.
+pub(crate) fn known_names() -> Vec<String> {
+    let mut names: Vec<String> = fallback_catalog().runtimes.keys().cloned().collect();
+    names.sort();
+    names
+}
+
+/// Whether `name` is a runtime known at discovery time (see `known_names`).
+pub(crate) fn is_known_runtime(name: &str) -> bool {
+    fallback_catalog().runtimes.contains_key(name)
+}
+
 /// Builds the shared HTTP client used for small metadata calls (catalog-JSON
 /// fetch, artifact HEAD size lookups) — bounded by `timeout` so a stalled
 /// server can never hang these indefinitely.
@@ -315,6 +332,20 @@ mod tests {
     #[test]
     fn build_metadata_client_constructs_without_panicking() {
         let _client = build_metadata_client();
+    }
+
+    #[test]
+    fn known_names_lists_the_three_bundled_runtimes_sorted() {
+        assert_eq!(known_names(), vec!["bun", "claude", "uv"]);
+    }
+
+    #[test]
+    fn is_known_runtime_true_for_bundled_names_false_for_unknown() {
+        assert!(is_known_runtime("bun"));
+        assert!(is_known_runtime("claude"));
+        assert!(is_known_runtime("uv"));
+        assert!(!is_known_runtime("ffmpeg"));
+        assert!(!is_known_runtime(""));
     }
 
     /// Guards the hand-authored `catalog.fallback.json` itself: it must

@@ -6,8 +6,9 @@
 //!
 //! Reached from the frontend/CLI through `commands/runtimes.rs`'s Tauri
 //! commands (`resolve_runtime`, `ensure_runtime`, `download_runtime`,
-//! `list_runtimes`, `remove_runtime`); `RuntimeManager` itself owns all the
-//! resolve/ensure/download/list/remove business logic.
+//! `list_runtimes`, `remove_runtime`, `get_runtime_download_sizes`);
+//! `RuntimeManager` itself owns all the resolve/ensure/download/list/remove
+//! business logic.
 
 pub(crate) mod catalog;
 pub(crate) mod download;
@@ -24,12 +25,10 @@ use tauri::{AppHandle, Emitter};
 
 const CATALOG_CACHE_TTL_SECS: u64 = 3600;
 
-// `#[allow(dead_code)]` below: `ConsumerRegistry` and `RuntimeManager`'s
-// consumer-tracking methods aren't reached through the public Tauri command
-// surface yet (`commands/runtimes.rs` doesn't expose them), so `cargo
-// clippy --all-targets`'s `lib`-target lint (which runs outside `cfg(test)`)
-// would otherwise flag them as dead code. Tests are the only consumer
-// today; see `application/uninstall.rs` for the same pattern.
+// `is_last_consumer` below is still `#[allow(dead_code)]`: nothing calls it
+// through the public Tauri command surface yet — Phase 5's Settings "remove
+// runtime" warning is its first real consumer. `add`/`remove` are genuinely
+// used now (`download_runtime`'s consumer param, extension uninstall).
 
 /// Tracks which consumers (extension IDs or built-in feature IDs) currently
 /// require each runtime, so uninstalling the last consumer can offer
@@ -37,7 +36,6 @@ const CATALOG_CACHE_TTL_SECS: u64 = 3600;
 /// needs.
 #[derive(Debug, Default)]
 pub(crate) struct ConsumerRegistry {
-    #[allow(dead_code)]
     consumers: HashMap<String, HashSet<String>>,
 }
 
@@ -47,7 +45,6 @@ impl ConsumerRegistry {
         Self::default()
     }
 
-    #[allow(dead_code)]
     pub(crate) fn add(&mut self, runtime: &str, consumer: &str) {
         self.consumers
             .entry(runtime.to_string())
@@ -55,7 +52,6 @@ impl ConsumerRegistry {
             .insert(consumer.to_string());
     }
 
-    #[allow(dead_code)]
     pub(crate) fn remove(&mut self, runtime: &str, consumer: &str) {
         if let Some(set) = self.consumers.get_mut(runtime) {
             set.remove(consumer);
@@ -129,6 +125,72 @@ pub(crate) fn ensure_with_lookup(
     }
 }
 
+/// A runtime that still needs downloading: `resolve` reported it absent and
+/// the size lookup reports a size to get consent for. Shared by
+/// `RuntimeManager::missing_of` (an arbitrary declared-runtime list, e.g. an
+/// extension manifest's `runtimes` field) and `ext_builder::process` (the
+/// fixed `["bun", "claude"]` build-tool check), so this "cheap local
+/// resolve, pay network cost only for what's actually missing" pattern has
+/// one implementation, not two.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct MissingRuntime {
+    pub(crate) name: String,
+    pub(crate) size_bytes: u64,
+}
+
+/// Reports the download size for a runtime already known (by the caller) to
+/// be unresolved through its local resolve tiers. Injectable so
+/// `missing_of_with`'s tests never hit the network `RuntimeManager::ensure`
+/// makes, and so tests can assert it's queried only for actually-missing
+/// names.
+#[async_trait::async_trait]
+pub(crate) trait RuntimeSizeLookup: Send + Sync {
+    async fn needs_download(&self, name: &str) -> Result<Option<u64>, AppError>;
+}
+
+/// Testable core: given already-resolved local lookups (via `resolve`) and
+/// an injected size lookup, returns the subset of `names` that still need
+/// downloading. `size_lookup` is only ever consulted for a name whose
+/// `resolve` returned `None` — never pay the network cost for a runtime
+/// that's already resolvable.
+pub(crate) async fn missing_of_with(
+    names: &[String],
+    resolve: impl Fn(&str) -> Option<PathBuf>,
+    size_lookup: &dyn RuntimeSizeLookup,
+) -> Result<Vec<MissingRuntime>, AppError> {
+    let mut out = Vec::new();
+    for name in names {
+        if resolve(name).is_none() {
+            if let Some(size_bytes) = size_lookup.needs_download(name).await? {
+                out.push(MissingRuntime {
+                    name: name.clone(),
+                    size_bytes,
+                });
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Production adapter over `RuntimeManager::ensure`'s network call — shared
+/// by `RuntimeManager::missing_of` and `ext_builder::process::missing_runtimes`
+/// (which needs its own bundled-binary-tier `resolve` closures but the same
+/// network size lookup).
+pub(crate) struct RuntimeManagerSizeLookup<'a> {
+    pub(crate) app: &'a AppHandle,
+    pub(crate) manager: &'a RuntimeManager,
+}
+
+#[async_trait::async_trait]
+impl RuntimeSizeLookup for RuntimeManagerSizeLookup<'_> {
+    async fn needs_download(&self, name: &str) -> Result<Option<u64>, AppError> {
+        match self.manager.ensure(self.app, name).await? {
+            EnsureResult::Installed(_) => Ok(None),
+            EnsureResult::NeedsDownload { size_bytes } => Ok(Some(size_bytes)),
+        }
+    }
+}
+
 /// A runtime installed under `<app_data_dir>/runtimes/<name>/<version>/`,
 /// as surfaced to the frontend's Settings list. `pub` (not `pub(crate)`)
 /// because it's the return type of the `pub` `list_runtimes` Tauri command.
@@ -145,7 +207,6 @@ pub struct InstalledRuntimeInfo {
 /// cache. Business logic for resolve/ensure/download/list/remove lives
 /// here; `commands/runtimes.rs` only translates this to/from IPC shapes.
 pub struct RuntimeManager {
-    #[allow(dead_code)]
     registry: Mutex<ConsumerRegistry>,
     remote_cache: Mutex<Option<(catalog::RuntimeCatalog, u64)>>,
     /// Per-runtime-name async locks so two concurrent `download()` calls for
@@ -194,14 +255,12 @@ impl RuntimeManager {
             .clone()
     }
 
-    #[allow(dead_code)]
     pub(crate) fn add_consumer(&self, runtime: &str, consumer: &str) {
         if let Ok(mut registry) = self.registry.lock() {
             registry.add(runtime, consumer);
         }
     }
 
-    #[allow(dead_code)]
     pub(crate) fn remove_consumer(&self, runtime: &str, consumer: &str) {
         if let Ok(mut registry) = self.registry.lock() {
             registry.remove(runtime, consumer);
@@ -430,6 +489,24 @@ impl RuntimeManager {
             }
         }
         Ok(out)
+    }
+
+    /// Given an arbitrary list of declared runtime names (e.g. an extension
+    /// manifest's `runtimes` field), returns the ones not yet installed with
+    /// their download size. The general form of
+    /// `ext_builder::process::missing_runtimes`, which needs its own
+    /// bundled-binary resolve tiers for the fixed `["bun", "claude"]` case
+    /// and so calls `missing_of_with` directly instead of this method.
+    pub(crate) async fn missing_of(
+        &self,
+        app_handle: &AppHandle,
+        names: &[String],
+    ) -> Result<Vec<MissingRuntime>, AppError> {
+        let lookup = RuntimeManagerSizeLookup {
+            app: app_handle,
+            manager: self,
+        };
+        missing_of_with(names, |n| self.resolve(app_handle, n), &lookup).await
     }
 
     /// Removes every installed version of `name`. Callers are responsible
@@ -909,6 +986,129 @@ mod tests {
         };
         let err = latest_version(&entry).unwrap_err();
         assert!(err.contains("no published versions"), "got: {err}");
+    }
+
+    // ── missing_of_with: the generalized form of
+    // ext_builder::process::missing_runtimes_with, shared across an
+    // arbitrary declared-runtime list instead of the hardcoded bun/claude
+    // pair. Characterization tests mirroring that module's existing
+    // coverage, so the extraction can't silently change behavior.
+
+    struct RecordingSizeLookup {
+        calls: Mutex<Vec<String>>,
+        sizes: HashMap<&'static str, Option<u64>>,
+    }
+
+    impl RecordingSizeLookup {
+        fn new(sizes: &[(&'static str, Option<u64>)]) -> Self {
+            Self {
+                calls: Mutex::new(Vec::new()),
+                sizes: sizes.iter().cloned().collect(),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl RuntimeSizeLookup for RecordingSizeLookup {
+        async fn needs_download(&self, name: &str) -> Result<Option<u64>, AppError> {
+            self.calls.lock().unwrap().push(name.to_string());
+            Ok(self.sizes.get(name).copied().flatten())
+        }
+    }
+
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[tokio::test]
+    async fn missing_of_with_reports_every_name_the_resolver_cannot_resolve() {
+        let lookup = RecordingSizeLookup::new(&[("bun", Some(10)), ("claude", Some(20))]);
+        let result = missing_of_with(&names(&["bun", "claude"]), |_| None, &lookup)
+            .await
+            .unwrap();
+        assert_eq!(
+            result,
+            vec![
+                MissingRuntime {
+                    name: "bun".to_string(),
+                    size_bytes: 10
+                },
+                MissingRuntime {
+                    name: "claude".to_string(),
+                    size_bytes: 20
+                },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_of_with_reports_only_the_unresolved_names() {
+        let lookup = RecordingSizeLookup::new(&[("claude", Some(20))]);
+        let result = missing_of_with(
+            &names(&["bun", "claude"]),
+            |n| (n == "bun").then(|| PathBuf::from("/bin/bun")),
+            &lookup,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            result,
+            vec![MissingRuntime {
+                name: "claude".to_string(),
+                size_bytes: 20
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_of_with_never_queries_size_lookup_when_everything_resolves() {
+        let lookup = RecordingSizeLookup::new(&[]);
+        let result = missing_of_with(
+            &names(&["bun", "claude"]),
+            |n| Some(PathBuf::from(format!("/bin/{n}"))),
+            &lookup,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result, Vec::new());
+        assert_eq!(
+            lookup.calls.lock().unwrap().len(),
+            0,
+            "size lookup must never be consulted when nothing is missing"
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_of_with_excludes_a_name_the_size_lookup_reports_as_already_installed() {
+        let lookup = RecordingSizeLookup::new(&[("bun", None), ("claude", Some(5))]);
+        let result = missing_of_with(&names(&["bun", "claude"]), |_| None, &lookup)
+            .await
+            .unwrap();
+        assert_eq!(
+            result,
+            vec![MissingRuntime {
+                name: "claude".to_string(),
+                size_bytes: 5
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_of_with_supports_an_arbitrary_declared_runtime_list_beyond_bun_and_claude() {
+        // The whole point of generalizing: an extension manifest's
+        // `runtimes: ["ffmpeg"]` must work here even though ext_builder's
+        // fixed pair never mentions it.
+        let lookup = RecordingSizeLookup::new(&[("ffmpeg", Some(55_000_000))]);
+        let result = missing_of_with(&names(&["ffmpeg"]), |_| None, &lookup)
+            .await
+            .unwrap();
+        assert_eq!(
+            result,
+            vec![MissingRuntime {
+                name: "ffmpeg".to_string(),
+                size_bytes: 55_000_000
+            }]
+        );
     }
 
     #[tokio::test]

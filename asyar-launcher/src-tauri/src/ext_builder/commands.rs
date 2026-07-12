@@ -6,21 +6,11 @@ use serde::Serialize;
 use super::process::StartOutcome;
 use super::ExtBuilderState;
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MissingRuntimeWire {
-    pub name: String,
-    pub size_bytes: u64,
-}
-
-impl From<super::process::MissingRuntime> for MissingRuntimeWire {
-    fn from(m: super::process::MissingRuntime) -> Self {
-        Self {
-            name: m.name,
-            size_bytes: m.size_bytes,
-        }
-    }
-}
+/// Same `{name, sizeBytes}` IPC shape as `commands::runtimes::RuntimeDownloadWire`
+/// (also `From<runtimes::MissingRuntime>`, which `super::process::MissingRuntime`
+/// is a re-export of) — reused rather than redefined so there's one wire type
+/// for "a runtime that still needs downloading", not two identical twins.
+pub type MissingRuntimeWire = crate::commands::runtimes::RuntimeDownloadWire;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status", rename_all = "camelCase")]

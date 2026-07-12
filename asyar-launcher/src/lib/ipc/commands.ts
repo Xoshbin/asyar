@@ -1058,6 +1058,7 @@ export interface ExtensionConsentStatus {
   declaredPermissions: string[];
   declaredArgs: Record<string, unknown>;
   consented: ExtensionConsentRecord | null;
+  declaredRuntimes: string[];
 }
 
 export async function registerExtensionPermissions(

@@ -1,4 +1,5 @@
 import * as commands from '../../lib/ipc/commands';
+import { getRuntimeDownloadSizes, type RuntimeDownload } from '../../lib/ipc/runtimeCommands';
 import { logService } from '../log/logService';
 
 /** Why the consent dialog is being shown; drives its subtitle copy. */
@@ -10,6 +11,8 @@ export interface PermissionConsentRequest {
   reason: ConsentReason;
   permissions: string[];
   permissionArgs: Record<string, unknown>;
+  /** Declared runtimes not yet installed, with their download size. */
+  runtimeDownloads?: RuntimeDownload[];
 }
 
 interface QueuedRequest {
@@ -109,8 +112,20 @@ class PermissionConsentService {
       );
       return true;
     }
+
+    // Permission consent and pending runtime downloads are independent
+    // concerns: mark reviewed as soon as permissions are covered, whether
+    // or not the user goes on to decline an unrelated runtime download
+    // below — a runtime decline must never leave "needs review" stuck.
     if (!status.needsConsent) {
       this.markReviewed(extensionId);
+    }
+
+    const declaredRuntimes = status.declaredRuntimes ?? [];
+    const runtimeDownloads =
+      declaredRuntimes.length > 0 ? await getRuntimeDownloadSizes(declaredRuntimes) : [];
+
+    if (!status.needsConsent && runtimeDownloads.length === 0) {
       return true;
     }
 
@@ -120,6 +135,7 @@ class PermissionConsentService {
       reason,
       permissions: status.declaredPermissions,
       permissionArgs: status.declaredArgs,
+      runtimeDownloads,
     });
     if (!accepted) {
       return false;

@@ -19,6 +19,9 @@ import { extensionUpdateService } from '../../services/extension/extensionUpdate
 import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
 import { filterCompatibleExtensions } from '../../lib/filterCompatibleExtensions';
 import { isAnyModalOpen } from '../../components/base/Modal.logic';
+import { extensionStateManager } from '../../services/extension/extensionStateManager.svelte';
+import { downloadDeclaredRuntimes } from '../../services/extension/runtimeDownloads';
+import { getRuntimeDownloadSizes } from '../../lib/ipc/runtimeCommands';
 
 const EXTENSION_ID = 'store';
 const ACTION_ID_INSTALL_DETAIL = 'app.asyar.store:install-detail'; // Action ID for detail view
@@ -105,13 +108,17 @@ class StoreExtension implements Extension {
     const listing = store?.allItems.find((item) => item.slug === slug);
     const acceptedPermissions = listing?.manifest?.permissions ?? [];
     const acceptedArgs = listing?.manifest?.permissionArgs ?? {};
-    if (acceptedPermissions.length > 0) {
+    const listedRuntimes = listing?.manifest?.runtimes ?? [];
+    const runtimeDownloads =
+      listedRuntimes.length > 0 ? await getRuntimeDownloadSizes(listedRuntimes) : [];
+    if (acceptedPermissions.length > 0 || runtimeDownloads.length > 0) {
       const accepted = await permissionConsentService.requestConsent({
         extensionId: extensionId.toString(),
         extensionName: displayName,
         reason: 'install',
         permissions: acceptedPermissions,
         permissionArgs: acceptedArgs,
+        runtimeDownloads,
       });
       if (!accepted) {
         this.logService?.info(`Install of ${displayName} declined at permission consent`);
@@ -189,11 +196,29 @@ class StoreExtension implements Extension {
       // declares more than the store listing showed, this re-prompts with the
       // real set; if the pre-install acceptance covers it, no prompt.
       if (installInfo.extensionId) {
-        await permissionConsentService.ensureConsent(
+        const accepted = await permissionConsentService.ensureConsent(
           installInfo.extensionId,
           displayName,
           'install',
         );
+
+        const status = await commands.checkExtensionConsent(installInfo.extensionId);
+        const declaresRuntimes = (status?.declaredRuntimes?.length ?? 0) > 0;
+        if (declaresRuntimes) {
+          if (accepted) {
+            // A failed download must not fail the whole install — the
+            // extension stays installed, just marked needsRuntime
+            // (commands hidden, retryable from the detail panel) instead
+            // of a broken/half-installed extension. The `reloadExtensions`
+            // above ran before this download, so it saw the runtime as
+            // still missing and skipped this extension's commands — reload
+            // again so a successful download's commands actually register.
+            await downloadDeclaredRuntimes(installInfo.extensionId);
+            await this.extensionManager?.reloadExtensions();
+          } else {
+            extensionStateManager.markNeedsRuntime(installInfo.extensionId);
+          }
+        }
       }
 
       const store = initializeStore();

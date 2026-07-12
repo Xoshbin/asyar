@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -170,24 +169,14 @@ fn resolve_claude(app: &AppHandle) -> Option<std::path::PathBuf> {
 }
 
 // ── Combined pre-flight runtime check ───────────────────────────────────────
+//
+// Delegates to the shared `runtimes::missing_of_with` core (same "cheap
+// local resolve, pay network cost only for what's actually missing"
+// pattern used for an extension manifest's arbitrary `runtimes` list) —
+// this module only supplies its own bundled-binary-tier resolve closures
+// for the fixed `["bun", "claude"]` build-tool pair.
 
-/// A runtime `resolve_bun`/`resolve_claude` reported as unresolved through
-/// their local tiers, plus the download size the caller should get consent
-/// for before `RuntimeManager::download` actually pulls it.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct MissingRuntime {
-    pub name: String,
-    pub size_bytes: u64,
-}
-
-/// Reports the download size for a runtime already known (by the caller) to
-/// be unresolved through `resolve_bun`/`resolve_claude`'s tiers. Injectable so
-/// `missing_runtimes_with`'s tests never hit the network `RuntimeManager::ensure`
-/// makes, and so tests can assert it's queried only for actually-missing names.
-#[async_trait]
-pub(crate) trait RuntimeSizeLookup: Send + Sync {
-    async fn needs_download(&self, name: &str) -> Result<Option<u64>, crate::error::AppError>;
-}
+pub(crate) use crate::runtimes::{MissingRuntime, RuntimeSizeLookup};
 
 /// Testable core: given already-resolved lookups for bun/claude and an
 /// injected size lookup, returns the list of runtimes that still need
@@ -199,40 +188,17 @@ pub(crate) async fn missing_runtimes_with(
     resolve_claude: impl Fn() -> Option<PathBuf>,
     size_lookup: &dyn RuntimeSizeLookup,
 ) -> Result<Vec<MissingRuntime>, crate::error::AppError> {
-    let mut out = Vec::new();
-    if resolve_bun().is_none() {
-        if let Some(size_bytes) = size_lookup.needs_download("bun").await? {
-            out.push(MissingRuntime {
-                name: "bun".to_string(),
-                size_bytes,
-            });
-        }
-    }
-    if resolve_claude().is_none() {
-        if let Some(size_bytes) = size_lookup.needs_download("claude").await? {
-            out.push(MissingRuntime {
-                name: "claude".to_string(),
-                size_bytes,
-            });
-        }
-    }
-    Ok(out)
-}
-
-/// Production adapter over the real `RuntimeManager::ensure` network call.
-struct RuntimeManagerSizeLookup<'a> {
-    app: &'a AppHandle,
-    manager: &'a crate::runtimes::RuntimeManager,
-}
-
-#[async_trait]
-impl RuntimeSizeLookup for RuntimeManagerSizeLookup<'_> {
-    async fn needs_download(&self, name: &str) -> Result<Option<u64>, crate::error::AppError> {
-        match self.manager.ensure(self.app, name).await? {
-            crate::runtimes::EnsureResult::Installed(_) => Ok(None),
-            crate::runtimes::EnsureResult::NeedsDownload { size_bytes } => Ok(Some(size_bytes)),
-        }
-    }
+    let names = vec!["bun".to_string(), "claude".to_string()];
+    crate::runtimes::missing_of_with(
+        &names,
+        |name| match name {
+            "bun" => resolve_bun(),
+            "claude" => resolve_claude(),
+            _ => None,
+        },
+        size_lookup,
+    )
+    .await
 }
 
 /// Production entry point: checks `resolve_bun`/`resolve_claude` (cheap, local,
@@ -242,7 +208,7 @@ pub(crate) async fn missing_runtimes(
     app: &AppHandle,
     manager: &crate::runtimes::RuntimeManager,
 ) -> Result<Vec<MissingRuntime>, crate::error::AppError> {
-    let lookup = RuntimeManagerSizeLookup { app, manager };
+    let lookup = crate::runtimes::RuntimeManagerSizeLookup { app, manager };
     missing_runtimes_with(|| resolve_bun(app), || resolve_claude(app), &lookup).await
 }
 

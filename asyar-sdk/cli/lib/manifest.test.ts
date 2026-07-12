@@ -555,3 +555,33 @@ describe('manifest validation — permissions', () => {
     ).toBe(true);
   });
 });
+
+describe('manifest validation — runtimes', () => {
+  it('absent runtimes field is legal (no regression on existing manifests)', () => {
+    const errors = validateManifest(viewOnly, './');
+    expect(errors.filter((e) => e.field === 'runtimes')).toEqual([]);
+  });
+
+  it('accepts every known runtime name', () => {
+    const m: AsyarManifest = { ...viewOnly, runtimes: ['bun', 'uv', 'claude'] };
+    const errors = validateManifest(m, './');
+    expect(errors.filter((e) => e.field === 'runtimes')).toEqual([]);
+  });
+
+  it('rejects an unknown runtime name', () => {
+    const m: AsyarManifest = { ...viewOnly, runtimes: ['ffmpeg'] };
+    const errors = validateManifest(m, './');
+    expect(
+      errors.some(
+        (e) => e.field === 'runtimes' && e.message.includes('"ffmpeg" is not a valid runtime'),
+      ),
+    ).toBe(true);
+  });
+
+  it('suggests the closest known runtime name on a near-miss typo', () => {
+    const m: AsyarManifest = { ...viewOnly, runtimes: ['bnu'] };
+    const errors = validateManifest(m, './');
+    const err = errors.find((e) => e.field === 'runtimes');
+    expect(err?.message).toContain('Did you mean "bun"?');
+  });
+});

@@ -299,6 +299,10 @@ pub struct ExtensionConsentStatus {
     pub declared_permissions: Vec<String>,
     pub declared_args: serde_json::Map<String, serde_json::Value>,
     pub consented: Option<ConsentRecord>,
+    /// The extension's declared `runtimes` manifest field, so the frontend
+    /// can look up download sizes (`get_runtime_download_sizes`) without a
+    /// second round trip through the manifest itself.
+    pub declared_runtimes: Vec<String>,
 }
 
 /// Resolve the declared set from the discovered manifest and report whether a
@@ -310,7 +314,7 @@ pub fn check_extension_consent(
     extension_id: String,
     extensions: tauri::State<'_, ExtensionRegistryState>,
 ) -> Result<ExtensionConsentStatus, AppError> {
-    let (is_built_in, declared_permissions, declared_args) = {
+    let (is_built_in, declared_permissions, declared_args, declared_runtimes) = {
         let reg = extensions.extensions.lock().map_err(|_| AppError::Lock)?;
         let record = reg
             .get(&extension_id)
@@ -319,6 +323,7 @@ pub fn check_extension_consent(
             record.is_built_in,
             record.manifest.permissions.clone().unwrap_or_default(),
             record.manifest.permission_args.clone().unwrap_or_default(),
+            record.manifest.runtimes.clone().unwrap_or_default(),
         )
     };
     let consented = get_consent(&app_handle, &extension_id)?;
@@ -333,6 +338,7 @@ pub fn check_extension_consent(
         declared_permissions,
         declared_args,
         consented,
+        declared_runtimes,
     })
 }
 
@@ -634,6 +640,7 @@ mod tests {
                 actions: None,
                 onboarding: None,
                 tools: None,
+                runtimes: None,
             },
             enabled,
             is_built_in,

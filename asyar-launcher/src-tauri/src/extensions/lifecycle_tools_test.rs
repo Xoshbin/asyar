@@ -50,6 +50,7 @@ mod lifecycle_tools_tests {
             actions: None,
             onboarding: None,
             tools: if tools.is_empty() { None } else { Some(tools) },
+            runtimes: None,
         }
     }
 

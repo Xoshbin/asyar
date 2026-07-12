@@ -673,13 +673,13 @@ pub fn run() {
             ext_builder::created::list_created_extensions,
             ext_builder::created::search_created_extensions,
             ext_builder::secret_scan::scan_extension_for_secret,
-            // On-demand sidecar runtimes (bun/uv/claude) — no consumer wired
-            // up yet in this phase.
+            // On-demand sidecar runtimes (bun/uv/claude).
             commands::runtimes::resolve_runtime,
             commands::runtimes::ensure_runtime,
             commands::runtimes::download_runtime,
             commands::runtimes::list_runtimes,
             commands::runtimes::remove_runtime,
+            commands::runtimes::get_runtime_download_sizes,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

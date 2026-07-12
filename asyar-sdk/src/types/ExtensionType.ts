@@ -117,6 +117,13 @@ export interface ExtensionManifest {
   permissionArgs?: Record<string, unknown>;
   /** Extension-level preferences (apply to all commands). */
   preferences?: PreferenceDeclaration[];
+  /**
+   * On-demand sidecar runtimes (e.g. a future `yt-dlp`/`ffmpeg`) this
+   * extension needs. Downloaded once and shared across consumers; declared
+   * names must be known to the launcher's runtime catalog or the extension
+   * is rejected at discovery.
+   */
+  runtimes?: string[];
   /** Extension-level actions (show when any command from this extension is selected). */
   actions?: ManifestAction[];
   /** Tools that this extension exposes for invocation by the launcher or other extensions. */
