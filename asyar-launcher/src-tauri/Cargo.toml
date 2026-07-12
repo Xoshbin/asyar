@@ -52,6 +52,7 @@ cbc = { version = "0.1", features = ["alloc"] }
 scrypt = { version = "0.11", default-features = false } # Raycast X .rayconfig key derivation
 hex = "0.4"
 flate2 = "1"          # .rayconfig gzip layers
+tar = "0.4"            # tar.gz extraction for on-demand runtime downloads (e.g. uv)
 argon2 = "0.5"
 bip39 = { version = "2.0", default-features = false, features = ["std"] }
 rand = "0.10"

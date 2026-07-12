@@ -4,6 +4,7 @@ import { authService } from './auth/authService.svelte';
 import { cloudSyncService } from './sync/cloudSyncService.svelte';
 
 import { performanceService } from './performance/performanceService.svelte';
+import { runtimeService } from './runtime/runtimeService.svelte';
 import { clipboardHistoryService } from './clipboard/clipboardHistoryService';
 import { clipboardPrivacyService } from './privacy/clipboardPrivacyService.svelte';
 import { secretRedactionService } from './privacy/secretRedactionService.svelte';
@@ -126,6 +127,12 @@ export const appInitializer = {
       // user opens settings.
       await encryptionService.init().catch((err: unknown) => {
         logService.warn(`Encryption status init failed: ${err}`);
+      });
+
+      // Subscribe to on-demand runtime (bun/uv/claude) download progress
+      // events before any consumer can trigger a download.
+      await runtimeService.init().catch((err: unknown) => {
+        logService.warn(`Runtime service init failed: ${err}`);
       });
 
       // Initialize Clipboard History
