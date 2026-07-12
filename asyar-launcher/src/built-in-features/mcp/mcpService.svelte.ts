@@ -6,6 +6,7 @@ import type {
   McpAuditRow,
   McpToolDescriptor,
   McpPermissionRow,
+  McpRuntimeConsentNeeded,
 } from './types';
 import {
   mcpListServers,
@@ -25,11 +26,21 @@ import {
 } from '../../lib/ipc/mcpCommands';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../../services/log/logService';
+import { runtimeService } from '../../services/runtime/runtimeService.svelte';
+import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 
 interface StatusChangedEvent {
   serverId: string;
   status: 'starting' | 'connected' | 'failed' | 'disabled';
   toolsCount: number;
+}
+
+function isRuntimeConsentNeeded(value: unknown): value is McpRuntimeConsentNeeded {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { kind?: unknown }).kind === 'needsRuntime'
+  );
 }
 
 export class McpService {
@@ -44,6 +55,12 @@ export class McpService {
     toolId: string;
     agentId: string;
     resolve: (d: 'allow_once' | 'allow_always' | 'never' | 'cancel') => void;
+  } | null>(null);
+  /** Set while `install`/`setEnabled` is waiting on user consent to download a missing runtime. */
+  runtimeConsentPrompt = $state<{
+    name: string;
+    sizeBytes: number;
+    resolve: (approved: boolean) => void;
   } | null>(null);
 
   private statusUnlisten: UnlistenFn | null = null;
@@ -109,10 +126,16 @@ export class McpService {
   }
 
   async install(input: McpServerInstallInput): Promise<McpServerSummary | null> {
-    const result = await mcpInstallServer(input);
-    if (result !== null) {
-      await this.refreshServers();
+    let result = await mcpInstallServer(input);
+    if (isRuntimeConsentNeeded(result)) {
+      if (this.runtimeConsentPrompt) return null; // a consent prompt is already in progress
+      const approved = await this.requestRuntimeConsent(result.name, result.sizeBytes);
+      if (!approved) return null;
+      if (!(await this.downloadRuntimeOrReportFailure(result.name))) return null;
+      result = await mcpInstallServer(input);
     }
+    if (result === null || isRuntimeConsentNeeded(result)) return null;
+    await this.refreshServers();
     return result;
   }
 
@@ -121,8 +144,46 @@ export class McpService {
   }
 
   async setEnabled(serverId: string, enabled: boolean): Promise<void> {
-    const ok = await mcpSetServerEnabled(serverId, enabled);
-    if (ok) await this.refreshServers();
+    let result = await mcpSetServerEnabled(serverId, enabled);
+    if (isRuntimeConsentNeeded(result)) {
+      if (this.runtimeConsentPrompt) return; // a consent prompt is already in progress
+      const approved = await this.requestRuntimeConsent(result.name, result.sizeBytes);
+      if (!approved) return;
+      if (!(await this.downloadRuntimeOrReportFailure(result.name))) return;
+      result = await mcpSetServerEnabled(serverId, enabled);
+    }
+    if (result === true) await this.refreshServers();
+  }
+
+  private requestRuntimeConsent(name: string, sizeBytes: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.runtimeConsentPrompt = { name, sizeBytes, resolve };
+    });
+  }
+
+  /** Downloads `name`, reporting a distinct diagnostic on failure so a
+   * failed download doesn't look identical to "still needs runtime" on the
+   * next retry — the caller always sees a boolean it can act on cleanly. */
+  private async downloadRuntimeOrReportFailure(name: string): Promise<boolean> {
+    const ok = await runtimeService.download(name);
+    if (!ok) {
+      void diagnosticsService.report({
+        source: 'frontend',
+        kind: 'mcp_runtime_download_failed',
+        severity: 'error',
+        retryable: true,
+        developerDetail: `Failed to download the "${name}" runtime needed by this MCP server.`,
+        context: { runtime: name },
+      });
+    }
+    return ok;
+  }
+
+  handleRuntimeConsentDecision(approved: boolean): void {
+    const p = this.runtimeConsentPrompt;
+    if (!p) return;
+    p.resolve(approved);
+    this.runtimeConsentPrompt = null;
   }
 
   async uninstall(serverId: string): Promise<void> {

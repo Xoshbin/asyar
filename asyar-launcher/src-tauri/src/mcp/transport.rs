@@ -1,7 +1,11 @@
-use crate::mcp::sidecar::resolve_command;
+use crate::mcp::sidecar::{resolve_command_with_probe, system_command_exists, ResolvedCommand};
 use crate::mcp::types::{McpClientError, McpTransportSpec};
 use async_trait::async_trait;
 use std::path::PathBuf;
+// `Mutex` isn't used by production code in this module anymore (the old
+// Mutex-based `SidecarPath` is gone), but the RED test fixtures below rely
+// on it being in scope via `use super::*;`.
+#[allow(unused_imports)]
 use std::sync::{Arc, Mutex};
 
 #[async_trait]
@@ -16,22 +20,73 @@ pub trait TransportFactory: Send + Sync {
     async fn connect(&self, spec: &McpTransportSpec) -> Result<Box<dyn Transport>, McpClientError>;
 }
 
-/// Shared mutable sidecar path — populated lazily in `setup_app` once the
-/// `AppHandle` is available, then read by the factory on every `connect` call.
-pub type SidecarPath = Arc<Mutex<Option<PathBuf>>>;
+/// Resolves a bundled runtime name (`"bun"`, `"uv"`) to its installed binary
+/// path. Implementations should look this up fresh on every call rather
+/// than caching it, so a runtime that finishes downloading mid-session is
+/// picked up on the very next `connect()` retry.
+pub trait RuntimeResolver: Send + Sync {
+    fn resolve(&self, name: &str) -> Option<PathBuf>;
+}
+
+/// Harmless default used by `StdioTransportFactory::default()` — resolves
+/// nothing, matching the old Mutex-based default of empty sidecar paths.
+struct NoRuntimeResolver;
+
+impl RuntimeResolver for NoRuntimeResolver {
+    fn resolve(&self, _name: &str) -> Option<PathBuf> {
+        None
+    }
+}
 
 pub struct StdioTransportFactory {
-    pub bundled_bun: SidecarPath,
-    pub bundled_uv: SidecarPath,
+    runtime_resolver: Arc<dyn RuntimeResolver>,
+}
+
+impl StdioTransportFactory {
+    pub fn new(runtime_resolver: Arc<dyn RuntimeResolver>) -> Self {
+        Self { runtime_resolver }
+    }
 }
 
 impl Default for StdioTransportFactory {
     fn default() -> Self {
-        Self {
-            bundled_bun: Arc::new(Mutex::new(None)),
-            bundled_uv: Arc::new(Mutex::new(None)),
-        }
+        Self::new(Arc::new(NoRuntimeResolver))
     }
+}
+
+/// Pure core of stdio command resolution: resolves `command`/`args` against
+/// `runtime_resolver` (bun/uv, looked up fresh on every call) and `probe`
+/// (system PATH availability), delegating the actual rewrite rules to
+/// `sidecar::resolve_command_with_probe`. `StdioTransportFactory::connect`
+/// delegates to this; tests exercise it directly so they can inject a fake
+/// resolver/probe without touching the real filesystem or spawning a
+/// process.
+///
+/// Only resolves the ONE runtime `command` could actually need (via
+/// `sidecar::runtime_for_command` — the same single source of truth
+/// `install::required_runtime_for_command_with_probe` uses), instead of
+/// unconditionally resolving both bun and uv on every call — halving the
+/// filesystem lookups `RuntimeResolver::resolve` does per connect attempt.
+pub fn resolve_stdio_command<F: Fn(&str) -> bool>(
+    command: &str,
+    args: &[String],
+    runtime_resolver: &dyn RuntimeResolver,
+    probe: F,
+) -> Result<ResolvedCommand, McpClientError> {
+    let needed = crate::mcp::sidecar::runtime_for_command(command);
+    let bundled_bun = (needed == Some("bun"))
+        .then(|| runtime_resolver.resolve("bun"))
+        .flatten();
+    let bundled_uv = (needed == Some("uv"))
+        .then(|| runtime_resolver.resolve("uv"))
+        .flatten();
+    resolve_command_with_probe(
+        command,
+        args,
+        bundled_bun.as_ref(),
+        bundled_uv.as_ref(),
+        probe,
+    )
 }
 
 pub struct HttpTransportFactory {
@@ -100,11 +155,12 @@ impl TransportFactory for StdioTransportFactory {
                 if command.is_empty() {
                     return Err(McpClientError::Transport("empty command".to_string()));
                 }
-                let bun_lock = self.bundled_bun.lock().unwrap();
-                let uv_lock = self.bundled_uv.lock().unwrap();
-                let resolved = resolve_command(command, args, bun_lock.as_ref(), uv_lock.as_ref())?;
-                drop(bun_lock);
-                drop(uv_lock);
+                let resolved = resolve_stdio_command(
+                    command,
+                    args,
+                    self.runtime_resolver.as_ref(),
+                    system_command_exists,
+                )?;
                 use std::process::Stdio;
                 let mut cmd = tokio::process::Command::new(&resolved.program);
                 cmd.args(&resolved.args)
@@ -320,32 +376,20 @@ impl TransportFactory for HttpTransportFactory {
 
 /// Dispatches to `StdioTransportFactory` or `HttpTransportFactory` based on
 /// the `kind` discriminant of the `McpTransportSpec`.
+#[derive(Default)]
 pub struct MultiTransportFactory {
     stdio: StdioTransportFactory,
     http: HttpTransportFactory,
 }
 
 impl MultiTransportFactory {
-    pub fn new() -> Self {
+    /// `runtime_resolver` feeds the wrapped `StdioTransportFactory`'s
+    /// bun/uv lookups (see `RuntimeResolver`).
+    pub fn new(runtime_resolver: Arc<dyn RuntimeResolver>) -> Self {
         Self {
-            stdio: StdioTransportFactory::default(),
+            stdio: StdioTransportFactory::new(runtime_resolver),
             http: HttpTransportFactory::new(),
         }
-    }
-
-    /// Return the shared sidecar path handles so callers (e.g. `setup_app`)
-    /// can populate them lazily after the `AppHandle` becomes available.
-    pub fn sidecar_handles(&self) -> (SidecarPath, SidecarPath) {
-        (
-            Arc::clone(&self.stdio.bundled_bun),
-            Arc::clone(&self.stdio.bundled_uv),
-        )
-    }
-}
-
-impl Default for MultiTransportFactory {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -703,5 +747,180 @@ mod tests {
 
         first.assert_async().await;
         second.assert_async().await;
+    }
+
+    // ── RED: StdioTransportFactory resolves bun/uv via an injected runtime
+    // resolver, not the startup-populated SidecarPath Mutex ─────────────────
+    //
+    // `RuntimeResolver`, `StdioTransportFactory::new`, and
+    // `resolve_stdio_command` don't exist yet — production code must add
+    // them. The crate fails to compile until then; that is the expected RED
+    // state for these three tests.
+
+    struct NoopRuntimeResolver;
+
+    impl super::RuntimeResolver for NoopRuntimeResolver {
+        fn resolve(&self, _name: &str) -> Option<PathBuf> {
+            None
+        }
+    }
+
+    #[tokio::test]
+    async fn stdio_transport_factory_new_accepts_a_runtime_resolver_and_still_rejects_empty_command(
+    ) {
+        let factory = super::StdioTransportFactory::new(Arc::new(NoopRuntimeResolver));
+        let spec = McpTransportSpec::Stdio {
+            command: "".to_string(),
+            args: vec![],
+            env: BTreeMap::new(),
+            cwd: None,
+        };
+
+        let result = factory.connect(&spec).await;
+        match result {
+            Err(McpClientError::Transport(_)) => {}
+            Err(e) => panic!(
+                "expected Transport error for empty command via the new resolver-based constructor, got error: {e}"
+            ),
+            Ok(_) => panic!(
+                "expected Transport error for empty command via the new resolver-based constructor, got Ok"
+            ),
+        }
+    }
+
+    struct FixedRuntimeResolver {
+        bun: Option<PathBuf>,
+    }
+
+    impl super::RuntimeResolver for FixedRuntimeResolver {
+        fn resolve(&self, name: &str) -> Option<PathBuf> {
+            if name == "bun" {
+                self.bun.clone()
+            } else {
+                None
+            }
+        }
+    }
+
+    #[test]
+    fn resolve_stdio_command_resolves_bun_via_injected_runtime_resolver_when_not_on_path() {
+        let bun_path = PathBuf::from("/runtimes/bun/1.2.0/bun");
+        let resolver = FixedRuntimeResolver {
+            bun: Some(bun_path.clone()),
+        };
+        let args = vec![
+            "@modelcontextprotocol/server-filesystem".to_string(),
+            "/tmp".to_string(),
+        ];
+
+        let result = super::resolve_stdio_command("npx", &args, &resolver, |_| false)
+            .expect("resolve via injected runtime resolver");
+
+        assert_eq!(result.program, bun_path);
+        assert_eq!(
+            result.args,
+            vec![
+                "x".to_string(),
+                "@modelcontextprotocol/server-filesystem".to_string(),
+                "/tmp".to_string()
+            ]
+        );
+    }
+
+    struct SwitchableRuntimeResolver {
+        bun: Mutex<Option<PathBuf>>,
+    }
+
+    impl super::RuntimeResolver for SwitchableRuntimeResolver {
+        fn resolve(&self, name: &str) -> Option<PathBuf> {
+            if name == "bun" {
+                self.bun.lock().unwrap().clone()
+            } else {
+                None
+            }
+        }
+    }
+
+    #[test]
+    fn resolve_stdio_command_reflects_runtime_resolver_changes_between_calls_so_a_mid_session_download_is_picked_up_on_retry(
+    ) {
+        let resolver = SwitchableRuntimeResolver {
+            bun: Mutex::new(None),
+        };
+        let args = vec!["some-package".to_string()];
+
+        // Before the download finishes: no cached success from a prior call.
+        let before = super::resolve_stdio_command("npx", &args, &resolver, |_| false);
+        match before {
+            Err(McpClientError::Transport(msg)) => {
+                assert!(
+                    msg.contains("npx not found on PATH"),
+                    "error must mention npx not found, got: {msg}"
+                );
+            }
+            other => panic!("expected Transport error before download completes, got: {other:?}"),
+        }
+
+        // Simulate the runtime finishing its download mid-session.
+        *resolver.bun.lock().unwrap() = Some(PathBuf::from("/runtimes/bun/1.2.0/bun"));
+
+        // Same resolver instance, called again: must reflect the update
+        // fresh, not a stale "not found" snapshot from the first call.
+        let after = super::resolve_stdio_command("npx", &args, &resolver, |_| false)
+            .expect("resolve must succeed once the runtime resolver reports bun installed");
+        assert_eq!(after.program, PathBuf::from("/runtimes/bun/1.2.0/bun"));
+    }
+
+    // ── RED (fix #8): resolve_stdio_command must only resolve the ONE
+    // runtime the command actually needs, not both bun and uv unconditionally.
+
+    struct RecordingRuntimeResolver {
+        calls: Mutex<Vec<String>>,
+        bun: Option<PathBuf>,
+    }
+
+    impl super::RuntimeResolver for RecordingRuntimeResolver {
+        fn resolve(&self, name: &str) -> Option<PathBuf> {
+            self.calls.lock().unwrap().push(name.to_string());
+            if name == "bun" {
+                self.bun.clone()
+            } else {
+                None
+            }
+        }
+    }
+
+    #[test]
+    fn resolve_stdio_command_only_resolves_the_runtime_the_command_actually_needs() {
+        let resolver = RecordingRuntimeResolver {
+            calls: Mutex::new(vec![]),
+            bun: Some(PathBuf::from("/runtimes/bun/1.2.0/bun")),
+        };
+        let args = vec!["some-package".to_string()];
+
+        let _ = super::resolve_stdio_command("npx", &args, &resolver, |_| false);
+
+        let calls = resolver.calls.lock().unwrap();
+        assert_eq!(
+            *calls,
+            vec!["bun".to_string()],
+            "an npx command must only resolve 'bun', never also 'uv'"
+        );
+    }
+
+    #[test]
+    fn resolve_stdio_command_resolves_neither_runtime_for_an_unmapped_command() {
+        let resolver = RecordingRuntimeResolver {
+            calls: Mutex::new(vec![]),
+            bun: None,
+        };
+        let args: Vec<String> = vec![];
+
+        let _ = super::resolve_stdio_command("my-custom-server", &args, &resolver, |_| false);
+
+        assert!(
+            resolver.calls.lock().unwrap().is_empty(),
+            "an unmapped command must not resolve any bundled runtime"
+        );
     }
 }

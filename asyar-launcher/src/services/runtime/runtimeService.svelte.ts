@@ -28,8 +28,8 @@ class RuntimeService {
     return runtimeCommands.ensureRuntime(name);
   }
 
-  async download(name: string): Promise<void> {
-    await runtimeCommands.downloadRuntime(name);
+  async download(name: string): Promise<boolean> {
+    return runtimeCommands.downloadRuntime(name);
   }
 
   async list(): Promise<InstalledRuntimeInfo[]> {

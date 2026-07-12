@@ -1,17 +1,33 @@
 use crate::agents::tools::ToolRegistryState;
 use crate::error::AppError;
 use crate::mcp::install::{
-    detect_existing_configs, install_server, list_servers_with_status, parse_mcp_config_json,
-    test_server, DetectedConfig, McpServerInstallInput, McpServerSummary, McpTestResult,
+    detect_existing_configs, install_server_checking_runtime_ensuring, list_servers_with_status,
+    parse_mcp_config_json, test_server, DetectedConfig, McpInstallOutcomeResponse,
+    McpServerInstallInput, McpServerSummary, McpTestResult,
 };
-use crate::mcp::lifecycle::{mcp_cleanup_on_delete, mcp_sync_on_enable_change};
+use crate::mcp::lifecycle::{
+    mcp_cleanup_on_delete, mcp_sync_on_enable_change_checking_runtime_ensuring,
+    McpSetEnabledOutcomeResponse,
+};
 use crate::mcp::tool_adapter::invoke_mcp_tool;
 use crate::mcp::{McpSupervisor, McpToolDescriptor};
+use crate::runtimes::RuntimeManager;
 use crate::storage::mcp_audit::McpAuditRow;
 use crate::storage::mcp_permissions;
 use crate::storage::DataStore;
 use std::sync::Arc;
-use tauri::State;
+use tauri::{AppHandle, State};
+
+// ── Runtime-consent IPC shapes ────────────────────────────────────────────────
+//
+// Both `mcp_install_server` and `mcp_set_server_enabled` can now resolve to a
+// "needs a bundled runtime first" outcome instead of their normal success
+// value — see `McpInstallOutcomeResponse`/`McpSetEnabledOutcomeResponse` in
+// `mcp/install.rs`/`mcp/lifecycle.rs` (moved there so this command layer
+// stays a thin wrapper; business logic — including deciding when the
+// network-backed `RuntimeManager::ensure` call is actually needed — lives in
+// `install_server_checking_runtime_ensuring` /
+// `mcp_sync_on_enable_change_checking_runtime_ensuring`).
 
 // ── mcp_list_servers ──────────────────────────────────────────────────────────
 
@@ -27,12 +43,23 @@ pub async fn mcp_list_servers(
 
 #[tauri::command]
 pub async fn mcp_install_server(
+    app_handle: AppHandle,
     supervisor: State<'_, Arc<McpSupervisor>>,
     registry: State<'_, ToolRegistryState>,
     data_store: State<'_, DataStore>,
+    runtime_manager: State<'_, RuntimeManager>,
     input: McpServerInstallInput,
-) -> Result<McpServerSummary, AppError> {
-    install_server(&supervisor, &registry, &data_store, input).await
+) -> Result<McpInstallOutcomeResponse, AppError> {
+    let outcome = install_server_checking_runtime_ensuring(
+        &app_handle,
+        &runtime_manager,
+        &supervisor,
+        &registry,
+        &data_store,
+        input,
+    )
+    .await?;
+    Ok(outcome.into())
 }
 
 // ── mcp_test_server ───────────────────────────────────────────────────────────
@@ -48,12 +75,20 @@ pub async fn mcp_test_server(
 // ── mcp_set_server_enabled ────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn mcp_set_server_enabled<R: tauri::Runtime>(
-    app: tauri::AppHandle<R>,
+pub async fn mcp_set_server_enabled(
+    app: AppHandle,
+    runtime_manager: State<'_, RuntimeManager>,
     server_id: String,
     enabled: bool,
-) -> Result<(), AppError> {
-    mcp_sync_on_enable_change(&app, &server_id, enabled).await
+) -> Result<McpSetEnabledOutcomeResponse, AppError> {
+    let outcome = mcp_sync_on_enable_change_checking_runtime_ensuring(
+        &app,
+        &runtime_manager,
+        &server_id,
+        enabled,
+    )
+    .await?;
+    Ok(outcome.into())
 }
 
 // ── mcp_uninstall_server ──────────────────────────────────────────────────────

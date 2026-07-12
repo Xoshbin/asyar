@@ -66,6 +66,24 @@ describe('runtimeService', () => {
     expect(runtimeCommands.downloadRuntime).toHaveBeenCalledWith('bun');
   });
 
+  // RED (fix #6): download() must surface the success boolean instead of
+  // discarding it, so a failed download doesn't look identical to success.
+  it('download() returns true when downloadRuntime succeeds', async () => {
+    vi.mocked(runtimeCommands.downloadRuntime).mockResolvedValueOnce(true);
+
+    const ok = await runtimeService.download('bun');
+
+    expect(ok).toBe(true);
+  });
+
+  it('download() returns false when downloadRuntime reports failure', async () => {
+    vi.mocked(runtimeCommands.downloadRuntime).mockResolvedValueOnce(false);
+
+    const ok = await runtimeService.download('bun');
+
+    expect(ok).toBe(false);
+  });
+
   it('list() invokes listRuntimes', async () => {
     vi.mocked(runtimeCommands.listRuntimes).mockResolvedValueOnce([]);
 

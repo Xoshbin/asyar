@@ -30,6 +30,13 @@ export interface McpTestResult {
   error: string | null;
 }
 
+/** A stdio server's command needs a bundled runtime (bun/uv) not installed yet. */
+export interface McpRuntimeConsentNeeded {
+  kind: 'needsRuntime';
+  name: string;
+  sizeBytes: number;
+}
+
 export interface DetectedConfig {
   source: string;
   path: string;

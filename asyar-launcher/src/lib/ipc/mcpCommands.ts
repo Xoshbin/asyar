@@ -7,6 +7,7 @@ import type {
   McpAuditRow,
   McpToolDescriptor,
   McpPermissionRow,
+  McpRuntimeConsentNeeded,
 } from '../../built-in-features/mcp/types';
 
 export async function mcpListServers(): Promise<McpServerSummary[] | null> {
@@ -15,16 +16,29 @@ export async function mcpListServers(): Promise<McpServerSummary[] | null> {
 
 export async function mcpInstallServer(
   input: McpServerInstallInput,
-): Promise<McpServerSummary | null> {
-  return invokeSafe<McpServerSummary>('mcp_install_server', { input });
+): Promise<McpServerSummary | McpRuntimeConsentNeeded | null> {
+  return invokeSafe<McpServerSummary | McpRuntimeConsentNeeded>('mcp_install_server', { input });
 }
 
 export async function mcpTestServer(input: McpServerInstallInput): Promise<McpTestResult | null> {
   return invokeSafe<McpTestResult>('mcp_test_server', { input });
 }
 
-export async function mcpSetServerEnabled(serverId: string, enabled: boolean): Promise<boolean> {
-  return invokeSafeVoid('mcp_set_server_enabled', { serverId, enabled });
+/**
+ * The Rust command returns `true` on success (never `false`) and a
+ * `needsRuntime` shape when a bundled runtime is missing, so `invokeSafe`'s
+ * null-on-failure sentinel can't collide with a real success value — no
+ * need for `invokeSafeVoid`'s separate ambiguity workaround here.
+ */
+export async function mcpSetServerEnabled(
+  serverId: string,
+  enabled: boolean,
+): Promise<boolean | McpRuntimeConsentNeeded> {
+  const result = await invokeSafe<McpRuntimeConsentNeeded | true>('mcp_set_server_enabled', {
+    serverId,
+    enabled,
+  });
+  return result ?? false;
 }
 
 export async function mcpUninstallServer(serverId: string): Promise<boolean> {

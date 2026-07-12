@@ -9,6 +9,23 @@ pub struct ResolvedCommand {
     pub args: Vec<String>,
 }
 
+/// Maps a stdio server's `command` to the bundled runtime it falls back to
+/// when that command isn't found on the system `PATH`: npx/node → bun,
+/// uvx/python(3) → uv, anything else → `None`. Single source of truth for
+/// this mapping, reused by `install::required_runtime_for_command_with_probe`
+/// (install/enable-time check) and `transport::resolve_stdio_command`
+/// (actual spawn-time resolution) so the two layers can never disagree.
+/// `resolve_command_with_probe`'s own match arms below are left untouched
+/// (its 7 tests are load-bearing and must stay green) — this is an
+/// additive, side-by-side helper, not a refactor of that function.
+pub(crate) fn runtime_for_command(command: &str) -> Option<&'static str> {
+    match command {
+        "npx" | "node" => Some("bun"),
+        "uvx" | "python" | "python3" => Some("uv"),
+        _ => None,
+    }
+}
+
 /// Probe for `cmd` on PATH using a manual scan (no extra deps).
 pub fn system_command_exists(cmd: &str) -> bool {
     let path_var = match std::env::var("PATH") {
@@ -129,53 +146,6 @@ pub fn resolve_command_with_probe<F: Fn(&str) -> bool>(
             })
         }
     }
-}
-
-/// Discover bundled sidecar paths from the Tauri app handle.
-///
-/// Tauri places `externalBin` entries next to the executable on macOS/Linux
-/// (Contents/MacOS/ on macOS app bundles) and in the resources/ directory on
-/// Windows. We check both locations so development builds (exe next to
-/// binaries) and packaged builds both work.
-pub fn discover_bundled_paths<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-) -> (Option<PathBuf>, Option<PathBuf>) {
-    use tauri::Manager;
-
-    let resource_dir = app.path().resource_dir().ok();
-    let exe_dir = std::env::current_exe()
-        .ok()
-        .and_then(|e| e.parent().map(|p| p.to_path_buf()));
-
-    let find = |name: &str| -> Option<PathBuf> {
-        // Check resource dir first (Windows packaging path).
-        if let Some(ref dir) = resource_dir {
-            let p = dir.join(name);
-            if p.exists() {
-                return Some(p);
-            }
-        }
-        // Then check next-to-exe (macOS/Linux packaging + dev builds).
-        if let Some(ref dir) = exe_dir {
-            let p = dir.join(name);
-            if p.exists() {
-                return Some(p);
-            }
-        }
-        None
-    };
-
-    let bun = find("bun");
-    let uv = find("uv");
-
-    if bun.is_none() {
-        log::warn!("[mcp::sidecar] bundled bun not found; npx/node commands will require system installation");
-    }
-    if uv.is_none() {
-        log::warn!("[mcp::sidecar] bundled uv not found; uvx/python commands will require system installation");
-    }
-
-    (bun, uv)
 }
 
 #[cfg(test)]
