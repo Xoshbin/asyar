@@ -667,6 +667,7 @@ pub fn run() {
             commands::mcp::mcp_set_strict_mode,
             // AI Extension Builder
             ext_builder::commands::ext_builder_start,
+            ext_builder::commands::ext_builder_check_runtimes,
             ext_builder::commands::ext_builder_answer,
             ext_builder::commands::ext_builder_cancel,
             ext_builder::created::list_created_extensions,

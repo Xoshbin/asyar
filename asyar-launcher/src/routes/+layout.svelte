@@ -12,6 +12,8 @@
   import { extractErrorMessage } from '../lib/errors';
   import PermissionPromptDialog from '../built-in-features/mcp/PermissionPromptDialog.svelte';
   import RuntimeConsentDialog from '../built-in-features/mcp/RuntimeConsentDialog.svelte';
+  import RuntimeBatchConsentDialog from '../built-in-features/create-extension/ai-builder/RuntimeBatchConsentDialog.svelte';
+  import { extBuilderRuntimeConsentStore } from '../built-in-features/create-extension/ai-builder/runtimeConsentStore.svelte';
   import { installIdleCallbackPolyfill } from '../lib/idle';
   let { children } = $props();
 
@@ -100,5 +102,12 @@
     name={mcpService.runtimeConsentPrompt.name}
     sizeBytes={mcpService.runtimeConsentPrompt.sizeBytes}
     onDecide={(approved) => mcpService.handleRuntimeConsentDecision(approved)}
+  />
+{/if}
+
+{#if extBuilderRuntimeConsentStore.prompt}
+  <RuntimeBatchConsentDialog
+    runtimes={extBuilderRuntimeConsentStore.prompt.runtimes}
+    onDecide={(approved) => extBuilderRuntimeConsentStore.decide(approved)}
   />
 {/if}
