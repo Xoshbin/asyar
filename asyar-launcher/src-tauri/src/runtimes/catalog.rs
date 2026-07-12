@@ -52,7 +52,7 @@ pub(crate) struct RuntimeCatalog {
 }
 
 /// Maps a Rust `std::env::consts::OS`/`ARCH` pair to the Node-style platform
-/// keys used throughout this catalog and `scripts/sidecar-platforms.mjs`.
+/// keys used throughout this catalog (and `catalog.fallback.json`).
 pub(crate) fn resolve_platform_key(os: &str, arch: &str) -> Result<&'static str, String> {
     match (os, arch) {
         ("macos", "aarch64") => Ok("darwin-arm64"),

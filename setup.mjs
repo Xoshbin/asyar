@@ -3,7 +3,7 @@
  * Asyar Development Workspace Setup
  *
  * Clones bundled extensions, installs workspace dependencies, builds the SDK,
- * downloads MCP sidecars, and verifies the setup.
+ * and verifies the setup.
  *
  * Usage:
  *   git clone https://github.com/Xoshbin/asyar.git
@@ -95,20 +95,6 @@ step('Installing dependencies (pnpm install)');
 run('pnpm install');
 
 console.log('  ✓ Dependencies installed and SDK workspace-linked');
-
-// ── Download sidecars (bun + uv) ─────────────────────────────────────────────
-
-step('Downloading MCP sidecars (bun + uv)');
-
-try {
-  run('node asyar-launcher/scripts/download-sidecars.mjs');
-  console.log('  ✓ Sidecars downloaded');
-} catch {
-  console.error('  ⚠ Sidecar download failed — MCP servers that need npx/uvx will require');
-  console.error(
-    '    system Node.js / Python. Re-run: node asyar-launcher/scripts/download-sidecars.mjs',
-  );
-}
 
 // ── Build and attach extensions ──────────────────────────────────────────────
 
