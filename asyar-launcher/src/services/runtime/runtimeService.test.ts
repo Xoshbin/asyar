@@ -11,6 +11,7 @@ vi.mock('../../lib/ipc/runtimeCommands', () => ({
   downloadRuntime: vi.fn(),
   listRuntimes: vi.fn(),
   removeRuntime: vi.fn(),
+  getRuntimeConsumers: vi.fn(),
 }));
 
 describe('runtimeService', () => {
@@ -96,6 +97,18 @@ describe('runtimeService', () => {
     await runtimeService.remove('bun');
 
     expect(runtimeCommands.removeRuntime).toHaveBeenCalledWith('bun');
+  });
+
+  it('consumersOf() invokes getRuntimeConsumers with the runtime name and returns its result', async () => {
+    vi.mocked(runtimeCommands.getRuntimeConsumers).mockResolvedValueOnce([
+      'mcp:server-a',
+      'builtin:ext-builder',
+    ]);
+
+    const consumers = await runtimeService.consumersOf('bun');
+
+    expect(runtimeCommands.getRuntimeConsumers).toHaveBeenCalledWith('bun');
+    expect(consumers).toEqual(['mcp:server-a', 'builtin:ext-builder']);
   });
 
   // One case per RuntimeDownloadProgress variant (camelCase per the

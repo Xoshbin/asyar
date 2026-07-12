@@ -96,9 +96,16 @@ pub async fn mcp_set_server_enabled(
 #[tauri::command]
 pub async fn mcp_uninstall_server<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
+    runtime_manager: State<'_, RuntimeManager>,
     server_id: String,
 ) -> Result<(), AppError> {
-    mcp_cleanup_on_delete(&app, &server_id).await
+    mcp_cleanup_on_delete(
+        &app,
+        &runtime_manager,
+        &server_id,
+        crate::mcp::sidecar::system_command_exists,
+    )
+    .await
 }
 
 // ── mcp_list_audit ────────────────────────────────────────────────────────────

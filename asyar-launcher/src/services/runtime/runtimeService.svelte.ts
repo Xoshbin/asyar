@@ -40,6 +40,10 @@ class RuntimeService {
     await runtimeCommands.removeRuntime(name);
   }
 
+  async consumersOf(name: string): Promise<string[]> {
+    return runtimeCommands.getRuntimeConsumers(name);
+  }
+
   destroy(): void {
     this.unlistenProgress?.();
   }

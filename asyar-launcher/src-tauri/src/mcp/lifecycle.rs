@@ -252,28 +252,37 @@ pub enum EnableOutcome {
 /// Like `mcp_sync_on_enable_change`, but when `enabled` is true first checks
 /// whether the server's stored transport needs a bundled runtime that isn't
 /// installed yet, returning `NeedsRuntime` instead of letting the handshake
-/// fail with an error the user can't act on. Disabling never needs a
-/// runtime, so it always delegates straight through. `path_probe` is
-/// injectable (fix #3) so tests don't depend on the ambient system PATH.
+/// fail with an error the user can't act on. `path_probe` is injectable
+/// (fix #3) so tests don't depend on the ambient system PATH.
+///
+/// On success, registers or releases `"mcp:<server_id>"` as a consumer of
+/// whichever bundled runtime this server's transport needs (if any), so
+/// Settings' "remove runtime" warning stays accurate as servers are toggled.
+/// `runtime_manager` takes no `AppHandle`, so this stays testable with
+/// `tauri::test::mock_app()` even though it's generic over `<R:
+/// tauri::Runtime>` — unlike the `_ensuring` wrapper below, which needs a
+/// concrete `&tauri::AppHandle` for its network-backed `ensure()` call.
 pub async fn mcp_sync_on_enable_change_checking_runtime<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
+    runtime_manager: &crate::runtimes::RuntimeManager,
     server_id: &str,
     enabled: bool,
     runtime_availability: &dyn RuntimeAvailability,
     path_probe: impl Fn(&str) -> bool,
 ) -> Result<EnableOutcome, AppError> {
+    let store = app
+        .try_state::<crate::storage::DataStore>()
+        .ok_or_else(|| AppError::Other("DataStore not managed".to_string()))?;
+    let row = {
+        let conn = store.conn()?;
+        mcp_servers::get_server(&conn, server_id)?
+            .ok_or_else(|| AppError::NotFound(format!("MCP server '{}' not found", server_id)))?
+    };
+    let transport = transport_from_row(&row)?;
+    let required_runtime = required_runtime_for_command_with_probe(&transport, path_probe);
+
     if enabled {
-        let store = app
-            .try_state::<crate::storage::DataStore>()
-            .ok_or_else(|| AppError::Other("DataStore not managed".to_string()))?;
-        let row = {
-            let conn = store.conn()?;
-            mcp_servers::get_server(&conn, server_id)?.ok_or_else(|| {
-                AppError::NotFound(format!("MCP server '{}' not found", server_id))
-            })?
-        };
-        let transport = transport_from_row(&row)?;
-        if let Some(name) = required_runtime_for_command_with_probe(&transport, path_probe) {
+        if let Some(name) = required_runtime {
             if let Some(size_bytes) = runtime_availability.needs_download(name) {
                 return Ok(EnableOutcome::NeedsRuntime {
                     name: name.to_string(),
@@ -284,6 +293,16 @@ pub async fn mcp_sync_on_enable_change_checking_runtime<R: tauri::Runtime>(
     }
 
     mcp_sync_on_enable_change(app, server_id, enabled).await?;
+
+    if let Some(name) = required_runtime {
+        let consumer = format!("mcp:{server_id}");
+        if enabled {
+            runtime_manager.add_consumer(name, &consumer);
+        } else {
+            runtime_manager.remove_consumer(name, &consumer);
+        }
+    }
+
     Ok(EnableOutcome::Applied)
 }
 
@@ -330,7 +349,15 @@ pub async fn mcp_sync_on_enable_change_checking_runtime_ensuring(
         }
     };
 
-    mcp_sync_on_enable_change_checking_runtime(app, server_id, enabled, &availability, probe).await
+    mcp_sync_on_enable_change_checking_runtime(
+        app,
+        runtime_manager,
+        server_id,
+        enabled,
+        &availability,
+        probe,
+    )
+    .await
 }
 
 /// Wire shape for `mcp_set_server_enabled`'s response (fix #9: lives next to
@@ -366,10 +393,19 @@ impl From<EnableOutcome> for McpSetEnabledOutcomeResponse {
 // ── mcp_cleanup_on_delete ─────────────────────────────────────────────────────
 
 /// Called when the user deletes an MCP server. Stops the watchdog, removes all
-/// registered tools, and deletes the persisted rows (server, audit, permissions).
+/// registered tools, releases this server's runtime consumer registration
+/// (if its transport needed one — mirrors `extensions/lifecycle.rs`'s
+/// uninstall releasing `"ext:<id>"`), and deletes the persisted rows
+/// (server, audit, permissions). `runtime_manager` takes no `AppHandle`, so
+/// this stays generic over `<R: tauri::Runtime>` and testable with
+/// `tauri::test::mock_app()`. `path_probe` is injectable (mirrors every
+/// other PATH-aware check in this module) so tests don't depend on whether
+/// the machine running them happens to have `npx`/`uvx` on PATH.
 pub async fn mcp_cleanup_on_delete<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
+    runtime_manager: &crate::runtimes::RuntimeManager,
     server_id: &str,
+    path_probe: impl Fn(&str) -> bool,
 ) -> Result<(), AppError> {
     let supervisor = app
         .try_state::<Arc<McpSupervisor>>()
@@ -382,6 +418,14 @@ pub async fn mcp_cleanup_on_delete<R: tauri::Runtime>(
     let store = app
         .try_state::<crate::storage::DataStore>()
         .ok_or_else(|| AppError::Other("DataStore not managed".to_string()))?;
+
+    let required_runtime = {
+        let conn = store.conn()?;
+        mcp_servers::get_server(&conn, server_id)?
+            .as_ref()
+            .and_then(|row| transport_from_row(row).ok())
+            .and_then(|transport| required_runtime_for_command_with_probe(&transport, &path_probe))
+    };
 
     // Stop watchdog (idempotent if not running).
     supervisor
@@ -403,6 +447,10 @@ pub async fn mcp_cleanup_on_delete<R: tauri::Runtime>(
         mcp_servers::delete_server(&conn, server_id)?;
         mcp_audit::purge_for_server(&conn, server_id)?;
         mcp_permissions::delete_for_server(&conn, server_id)?;
+    }
+
+    if let Some(name) = required_runtime {
+        runtime_manager.remove_consumer(name, &format!("mcp:{server_id}"));
     }
 
     Ok(())
@@ -774,6 +822,60 @@ mod tests {
         assert_eq!(mcp.len(), 0, "tool registry should be empty after delete");
     }
 
+    // ── RED: deleting an MCP server whose transport needs a bundled runtime
+    // must release its "mcp:<server_id>" consumer registration, mirroring
+    // how `extensions/lifecycle.rs` releases `"ext:<id>"` on uninstall.
+    // `mcp_cleanup_on_delete` is generic over `<R: tauri::Runtime>`, so it
+    // stays testable with `tauri::test::mock_app()` even after gaining a
+    // `runtime_manager` parameter.
+
+    #[tokio::test]
+    async fn cleanup_on_delete_releases_runtime_consumer_registration() {
+        let supervisor = make_supervisor();
+        let store = crate::storage::create_test_store();
+
+        {
+            let conn = store.conn().unwrap();
+            crate::storage::mcp_servers::insert_server(
+                &conn,
+                &crate::storage::mcp_servers::McpServerRow {
+                    id: "npx-delete-srv".to_string(),
+                    display_name: "NPX Delete Server".to_string(),
+                    description: None,
+                    transport_kind: "stdio".to_string(),
+                    command: Some("npx".to_string()),
+                    args_json: "[]".to_string(),
+                    env_json: "{}".to_string(),
+                    url: None,
+                    headers_json: "{}".to_string(),
+                    enabled: true,
+                    created_at: 9000,
+                    updated_at: 9000,
+                },
+            )
+            .unwrap();
+        }
+
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
+        runtime_manager.add_consumer("bun", "mcp:npx-delete-srv");
+
+        let handle = tauri::test::mock_app();
+        handle.manage(Arc::clone(&supervisor));
+        handle.manage(Arc::new(crate::agents::tools::ToolRegistry::new()) as ToolRegistryState);
+        handle.manage(store);
+
+        super::mcp_cleanup_on_delete(handle.handle(), &runtime_manager, "npx-delete-srv", |_| {
+            false
+        })
+        .await
+        .expect("cleanup failed");
+
+        assert!(
+            runtime_manager.consumers_of("bun").is_empty(),
+            "deleting the server must release its bun consumer registration"
+        );
+    }
+
     // ── 4. seed_makes_exactly_one_factory_connect_call_per_server ────────────
     //
     // Verifies the L1 fix: startup seed uses enable_and_wait_for_tools which
@@ -1010,8 +1112,10 @@ mod tests {
         handle.manage(Arc::new(crate::agents::tools::ToolRegistry::new()) as ToolRegistryState);
         handle.manage(store);
 
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
         let outcome = super::mcp_sync_on_enable_change_checking_runtime(
             handle.handle(),
+            &runtime_manager,
             "uvx-srv",
             true,
             &AlwaysMissingUv,
@@ -1060,8 +1164,10 @@ mod tests {
         handle.manage(Arc::new(crate::agents::tools::ToolRegistry::new()) as ToolRegistryState);
         handle.manage(store);
 
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
         let outcome = super::mcp_sync_on_enable_change_checking_runtime(
             handle.handle(),
+            &runtime_manager,
             "uvx-on-path-srv",
             true,
             &AlwaysMissingUv,
@@ -1074,6 +1180,147 @@ mod tests {
             outcome,
             super::EnableOutcome::Applied,
             "found-on-PATH must skip the runtime requirement entirely"
+        );
+    }
+
+    // ── RED: enabling a server whose transport needs a bundled runtime must
+    // register "mcp:<server_id>" as a consumer of it; disabling must release
+    // that registration. Exercised through the generic
+    // `mcp_sync_on_enable_change_checking_runtime` (testable with
+    // `tauri::test::mock_app()` since it's generic over `<R: tauri::Runtime>`
+    // — unlike its `_ensuring` wrapper, which needs a concrete
+    // `&tauri::AppHandle` `mock_app()` cannot produce).
+
+    struct AlwaysInstalled;
+
+    impl super::RuntimeAvailability for AlwaysInstalled {
+        fn needs_download(&self, _name: &str) -> Option<u64> {
+            None
+        }
+    }
+
+    fn make_uvx_server_row(id: &str, enabled: bool) -> crate::storage::mcp_servers::McpServerRow {
+        crate::storage::mcp_servers::McpServerRow {
+            id: id.to_string(),
+            display_name: id.to_string(),
+            description: None,
+            transport_kind: "stdio".to_string(),
+            command: Some("uvx".to_string()),
+            args_json: "[]".to_string(),
+            env_json: "{}".to_string(),
+            url: None,
+            headers_json: "{}".to_string(),
+            enabled,
+            created_at: 8000,
+            updated_at: 8000,
+        }
+    }
+
+    #[tokio::test]
+    async fn enable_change_checking_runtime_registers_consumer_on_successful_enable() {
+        let supervisor = make_supervisor();
+        let store = crate::storage::create_test_store();
+        {
+            let conn = store.conn().unwrap();
+            crate::storage::mcp_servers::insert_server(&conn, &make_uvx_server_row("uvx-e", false))
+                .unwrap();
+        }
+
+        let handle = tauri::test::mock_app();
+        handle.manage(Arc::clone(&supervisor));
+        handle.manage(Arc::new(crate::agents::tools::ToolRegistry::new()) as ToolRegistryState);
+        handle.manage(store);
+
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
+        let outcome = super::mcp_sync_on_enable_change_checking_runtime(
+            handle.handle(),
+            &runtime_manager,
+            "uvx-e",
+            true,
+            &AlwaysInstalled,
+            |_| false,
+        )
+        .await
+        .expect("enable must succeed when uv is reported already installed");
+
+        assert_eq!(outcome, super::EnableOutcome::Applied);
+        assert_eq!(
+            runtime_manager.consumers_of("uv"),
+            vec!["mcp:uvx-e".to_string()],
+            "enabling a uvx-backed server must register it as a uv consumer"
+        );
+    }
+
+    #[tokio::test]
+    async fn enable_change_checking_runtime_releases_consumer_on_disable() {
+        let supervisor = make_supervisor();
+        let store = crate::storage::create_test_store();
+        {
+            let conn = store.conn().unwrap();
+            crate::storage::mcp_servers::insert_server(&conn, &make_uvx_server_row("uvx-d", true))
+                .unwrap();
+        }
+
+        let handle = tauri::test::mock_app();
+        handle.manage(Arc::clone(&supervisor));
+        handle.manage(Arc::new(crate::agents::tools::ToolRegistry::new()) as ToolRegistryState);
+        handle.manage(store);
+
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
+        runtime_manager.add_consumer("uv", "mcp:uvx-d");
+
+        let outcome = super::mcp_sync_on_enable_change_checking_runtime(
+            handle.handle(),
+            &runtime_manager,
+            "uvx-d",
+            false,
+            &AlwaysInstalled,
+            |_| false,
+        )
+        .await
+        .expect("disable must succeed");
+
+        assert_eq!(outcome, super::EnableOutcome::Applied);
+        assert!(
+            runtime_manager.consumers_of("uv").is_empty(),
+            "disabling a uvx-backed server must release its uv consumer registration"
+        );
+    }
+
+    #[tokio::test]
+    async fn enable_change_checking_runtime_does_not_register_consumer_when_found_on_path() {
+        let supervisor = make_supervisor();
+        let store = crate::storage::create_test_store();
+        {
+            let conn = store.conn().unwrap();
+            crate::storage::mcp_servers::insert_server(
+                &conn,
+                &make_uvx_server_row("uvx-on-path-e", false),
+            )
+            .unwrap();
+        }
+
+        let handle = tauri::test::mock_app();
+        handle.manage(Arc::clone(&supervisor));
+        handle.manage(Arc::new(crate::agents::tools::ToolRegistry::new()) as ToolRegistryState);
+        handle.manage(store);
+
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
+        let outcome = super::mcp_sync_on_enable_change_checking_runtime(
+            handle.handle(),
+            &runtime_manager,
+            "uvx-on-path-e",
+            true,
+            &AlwaysInstalled,
+            |_| true,
+        )
+        .await
+        .expect("enable must succeed when found on PATH");
+
+        assert_eq!(outcome, super::EnableOutcome::Applied);
+        assert!(
+            runtime_manager.consumers_of("uv").is_empty(),
+            "a command already on PATH needs no bundled runtime, so no consumer must be registered"
         );
     }
 }

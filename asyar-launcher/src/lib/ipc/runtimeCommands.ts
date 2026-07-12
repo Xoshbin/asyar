@@ -55,3 +55,8 @@ export async function removeRuntime(name: string): Promise<boolean> {
 export async function getRuntimeDownloadSizes(names: string[]): Promise<RuntimeDownload[]> {
   return (await invokeSafe<RuntimeDownload[]>('get_runtime_download_sizes', { names })) ?? [];
 }
+
+/** Consumer ids (e.g. `ext:<id>`, `mcp:<id>`, `builtin:ext-builder`) currently requiring `name`. */
+export async function getRuntimeConsumers(name: string): Promise<string[]> {
+  return (await invokeSafe<string[]>('get_runtime_consumers', { name })) ?? [];
+}

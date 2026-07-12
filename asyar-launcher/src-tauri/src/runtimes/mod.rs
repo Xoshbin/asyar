@@ -26,9 +26,11 @@ use tauri::{AppHandle, Emitter};
 const CATALOG_CACHE_TTL_SECS: u64 = 3600;
 
 // `is_last_consumer` below is still `#[allow(dead_code)]`: nothing calls it
-// through the public Tauri command surface yet — Phase 5's Settings "remove
-// runtime" warning is its first real consumer. `add`/`remove` are genuinely
-// used now (`download_runtime`'s consumer param, extension uninstall).
+// through the public Tauri command surface yet — Settings' "remove runtime"
+// warning instead reads the full consumer list via `consumers_of` (exposed
+// through `get_runtime_consumers`). `add`/`remove` are genuinely used now
+// (`download_runtime`'s consumer param, extension uninstall, MCP install/
+// enable/disable/delete, the AI Extension Builder).
 
 /// Tracks which consumers (extension IDs or built-in feature IDs) currently
 /// require each runtime, so uninstalling the last consumer can offer
@@ -66,6 +68,16 @@ impl ConsumerRegistry {
         self.consumers
             .get(runtime)
             .is_some_and(|set| set.len() == 1 && set.contains(consumer))
+    }
+
+    /// Every consumer id currently registered against `runtime`, or an empty
+    /// vec if none are. Used by Settings (which isn't itself a consumer) to
+    /// ask "who is using this" before offering to remove it.
+    pub(crate) fn consumers_of(&self, runtime: &str) -> Vec<String> {
+        self.consumers
+            .get(runtime)
+            .map(|set| set.iter().cloned().collect())
+            .unwrap_or_default()
     }
 }
 
@@ -273,6 +285,15 @@ impl RuntimeManager {
             .lock()
             .map(|registry| registry.is_last_consumer(runtime, consumer))
             .unwrap_or(false)
+    }
+
+    /// Every consumer id currently registered against `runtime` — a pure
+    /// registry read, no filesystem/network access.
+    pub(crate) fn consumers_of(&self, runtime: &str) -> Vec<String> {
+        self.registry
+            .lock()
+            .map(|registry| registry.consumers_of(runtime))
+            .unwrap_or_default()
     }
 
     fn runtimes_root(app_handle: &AppHandle) -> Result<PathBuf, AppError> {
@@ -703,6 +724,90 @@ mod tests {
         registry.remove("bun", "ext-builder");
         assert!(!registry.is_last_consumer("bun", "ext-builder"));
         assert!(registry.is_last_consumer("uv", "mcp:server-a"));
+    }
+
+    // ── Phase 5: consumers_of (Settings "who is using this runtime") ───────
+
+    #[test]
+    fn consumer_registry_consumers_of_is_empty_when_nothing_registered() {
+        let registry = ConsumerRegistry::new();
+        assert_eq!(registry.consumers_of("bun"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn consumer_registry_consumers_of_lists_every_registered_consumer() {
+        let mut registry = ConsumerRegistry::new();
+        registry.add("bun", "mcp:server-a");
+        registry.add("bun", "builtin:ext-builder");
+
+        let mut consumers = registry.consumers_of("bun");
+        consumers.sort();
+        assert_eq!(consumers, vec!["builtin:ext-builder", "mcp:server-a"]);
+    }
+
+    #[test]
+    fn consumer_registry_consumers_of_updates_after_remove() {
+        let mut registry = ConsumerRegistry::new();
+        registry.add("bun", "mcp:server-a");
+        registry.add("bun", "builtin:ext-builder");
+        registry.remove("bun", "mcp:server-a");
+
+        assert_eq!(registry.consumers_of("bun"), vec!["builtin:ext-builder"]);
+    }
+
+    #[test]
+    fn runtime_manager_consumers_of_is_empty_when_nothing_registered() {
+        let manager = RuntimeManager::new();
+        assert_eq!(manager.consumers_of("bun"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn runtime_manager_consumers_of_lists_every_registered_consumer() {
+        let manager = RuntimeManager::new();
+        manager.add_consumer("bun", "mcp:server-a");
+        manager.add_consumer("bun", "builtin:ext-builder");
+
+        let mut consumers = manager.consumers_of("bun");
+        consumers.sort();
+        assert_eq!(consumers, vec!["builtin:ext-builder", "mcp:server-a"]);
+    }
+
+    #[test]
+    fn runtime_manager_consumers_of_updates_after_remove_consumer() {
+        let manager = RuntimeManager::new();
+        manager.add_consumer("bun", "mcp:server-a");
+        manager.add_consumer("bun", "builtin:ext-builder");
+        manager.remove_consumer("bun", "mcp:server-a");
+
+        assert_eq!(manager.consumers_of("bun"), vec!["builtin:ext-builder"]);
+    }
+
+    // ── Re-download verification: removing a runtime must let a later
+    // `ensure()` on the same manager report NeedsDownload again, not error or
+    // stay stuck reporting Installed from some cached state.
+
+    #[test]
+    fn ensure_reports_needs_download_again_after_remove() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        // Simulate `<app_data_dir>/runtimes` directly against the pure
+        // `remove_from_root`/`installed_binary_path` cores rather than a
+        // real AppHandle (which `ensure()`/`remove()` need but which isn't
+        // constructible in a unit test) — this still exercises the same "no
+        // cached installed flag anywhere" guarantee those methods rely on.
+        let root = tmp.path().join("runtimes");
+        let bun_dir = root.join("bun").join("1.1.0");
+        std::fs::create_dir_all(&bun_dir).unwrap();
+        std::fs::write(bun_dir.join("bun"), b"binary").unwrap();
+
+        assert!(installed_binary_path(&root, "bun").is_some());
+
+        remove_from_root(&root, "bun").unwrap();
+
+        assert_eq!(
+            installed_binary_path(&root, "bun"),
+            None,
+            "after remove, resolution must report absent so ensure()'s NeedsDownload path re-triggers, not an error"
+        );
     }
 
     #[test]

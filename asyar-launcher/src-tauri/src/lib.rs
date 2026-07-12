@@ -680,6 +680,7 @@ pub fn run() {
             commands::runtimes::list_runtimes,
             commands::runtimes::remove_runtime,
             commands::runtimes::get_runtime_download_sizes,
+            commands::runtimes::get_runtime_consumers,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -320,9 +320,19 @@ pub(crate) enum StartOutcome {
 /// untouched, nothing spawned) or kills any in-flight build and delegates to
 /// `spawn`. `spawn` is injectable so tests never launch a real `bun`
 /// subprocess — production passes a closure wrapping `spawn_build`.
+///
+/// Once both runtimes are confirmed resolvable (`missing` is empty),
+/// registers `"builtin:ext-builder"` as a permanent consumer of both `bun`
+/// and `claude` — there's no "uninstall the builder" event to release it
+/// later, so once used, Settings should always warn before removing either
+/// runtime. Registered here (decoupled from whether `spawn` itself
+/// succeeds) rather than in `start_checking_runtimes_ensuring`, since
+/// `RuntimeManager` needs no `AppHandle` and this keeps the registration
+/// unit-testable without spawning a real subprocess.
 pub(crate) async fn start_checking_runtimes<F, Fut>(
     state: Arc<Mutex<Option<BuildHandle>>>,
     missing: Vec<MissingRuntime>,
+    runtime_manager: &crate::runtimes::RuntimeManager,
     spawn: F,
 ) -> Result<StartOutcome, String>
 where
@@ -332,6 +342,9 @@ where
     if !missing.is_empty() {
         return Ok(StartOutcome::NeedsRuntimes(missing));
     }
+
+    runtime_manager.add_consumer("bun", "builtin:ext-builder");
+    runtime_manager.add_consumer("claude", "builtin:ext-builder");
 
     {
         let mut guard = state.lock().await;
@@ -361,7 +374,7 @@ pub(crate) async fn start_checking_runtimes_ensuring(
     let missing = missing_runtimes(&app, runtime_manager)
         .await
         .map_err(|e| e.to_string())?;
-    start_checking_runtimes(state, missing, move |state| {
+    start_checking_runtimes(state, missing, runtime_manager, move |state| {
         spawn_build(
             app,
             state,
@@ -644,6 +657,7 @@ mod tests {
     #[tokio::test]
     async fn start_checking_runtimes_short_circuits_when_missing_is_non_empty() {
         let state: Arc<Mutex<Option<BuildHandle>>> = Arc::new(Mutex::new(None));
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
         let missing = vec![MissingRuntime {
             name: "bun".to_string(),
             size_bytes: 10,
@@ -651,10 +665,15 @@ mod tests {
         let spawn_called = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let spawn_called_inner = spawn_called.clone();
 
-        let outcome = start_checking_runtimes(state.clone(), missing.clone(), move |_state| {
-            spawn_called_inner.store(true, std::sync::atomic::Ordering::SeqCst);
-            async { Ok(()) }
-        })
+        let outcome = start_checking_runtimes(
+            state.clone(),
+            missing.clone(),
+            &runtime_manager,
+            move |_state| {
+                spawn_called_inner.store(true, std::sync::atomic::Ordering::SeqCst);
+                async { Ok(()) }
+            },
+        )
         .await
         .expect("must produce a success-shaped outcome, not a hard error");
 
@@ -675,10 +694,11 @@ mod tests {
     #[tokio::test]
     async fn start_checking_runtimes_kills_old_handle_and_spawns_when_nothing_is_missing() {
         let state: Arc<Mutex<Option<BuildHandle>>> = Arc::new(Mutex::new(None));
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
         let spawn_called = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let spawn_called_inner = spawn_called.clone();
 
-        let outcome = start_checking_runtimes(state, Vec::new(), move |_state| {
+        let outcome = start_checking_runtimes(state, Vec::new(), &runtime_manager, move |_state| {
             spawn_called_inner.store(true, std::sync::atomic::Ordering::SeqCst);
             async { Ok(()) }
         })
@@ -690,5 +710,56 @@ mod tests {
             spawn_called.load(std::sync::atomic::Ordering::SeqCst),
             "spawn must be attempted when nothing is missing"
         );
+    }
+
+    // ── RED: once both runtimes resolve (missing is empty), the AI Extension
+    // Builder must register "builtin:ext-builder" as a permanent consumer of
+    // both bun and claude — there's no "uninstall the builder" lifecycle
+    // event to release it later (by design: the builder can be reused, so
+    // Settings should always warn before removing either runtime once it's
+    // been used).
+
+    #[tokio::test]
+    async fn start_checking_runtimes_registers_builtin_ext_builder_consumer_for_bun_and_claude_when_nothing_missing(
+    ) {
+        let state: Arc<Mutex<Option<BuildHandle>>> = Arc::new(Mutex::new(None));
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
+
+        let outcome =
+            start_checking_runtimes(state, Vec::new(), &runtime_manager, |_state| async {
+                Ok(())
+            })
+            .await
+            .expect("must succeed when nothing is missing");
+
+        assert!(matches!(outcome, StartOutcome::Started));
+        assert_eq!(
+            runtime_manager.consumers_of("bun"),
+            vec!["builtin:ext-builder".to_string()]
+        );
+        assert_eq!(
+            runtime_manager.consumers_of("claude"),
+            vec!["builtin:ext-builder".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn start_checking_runtimes_does_not_register_consumer_when_runtimes_are_missing() {
+        let state: Arc<Mutex<Option<BuildHandle>>> = Arc::new(Mutex::new(None));
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
+        let missing = vec![MissingRuntime {
+            name: "bun".to_string(),
+            size_bytes: 10,
+        }];
+
+        let _ =
+            start_checking_runtimes(state, missing, &runtime_manager, |_state| async { Ok(()) })
+                .await;
+
+        assert!(
+            runtime_manager.consumers_of("bun").is_empty(),
+            "must not register a consumer while short-circuiting on missing runtimes"
+        );
+        assert!(runtime_manager.consumers_of("claude").is_empty());
     }
 }

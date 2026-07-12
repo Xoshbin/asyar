@@ -112,3 +112,13 @@ pub async fn get_runtime_download_sizes(
         .await
         .map(|v| v.into_iter().map(Into::into).collect())
 }
+
+/// Which consumer ids (extensions, MCP servers, built-in features) currently
+/// require this runtime — for Settings' "remove runtime" warning.
+#[tauri::command]
+pub fn get_runtime_consumers(
+    manager: State<'_, RuntimeManager>,
+    name: String,
+) -> Result<Vec<String>, AppError> {
+    Ok(manager.consumers_of(&name))
+}
