@@ -116,6 +116,7 @@
           kind: 'mcp_server_installed',
           severity: 'success',
           retryable: false,
+          developerDetail: `Installed MCP server "${result.displayName}".`,
           context: { serverId: result.id },
         });
         viewManager.goBack();
