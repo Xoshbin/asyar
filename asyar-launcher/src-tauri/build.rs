@@ -114,7 +114,34 @@ fn main() {
     println!("cargo:rustc-env=ASYAR_SDK_VERSION={}", sdk_version);
     println!("cargo:rerun-if-changed={}", sdk_pkg_path.display());
 
-    tauri_build::build()
+    // Windows (MSVC): make `cargo test` loadable.
+    //
+    // tauri_build's default app manifest — whose entire content is the
+    // Common-Controls v6 side-by-side dependency — is embedded as a compiled
+    // resource that embed-resource links into *bins only*. The `cargo test`
+    // harness for the lib target is not a bin: it gets no manifest, binds
+    // legacy comctl32 v5, and dies at load with STATUS_ENTRYPOINT_NOT_FOUND
+    // (0xc0000139) on the comctl6-only export `TaskDialogIndirect` (imported
+    // transitively via tao/muda/dialog code) — before a single test runs.
+    // Cargo has no directive scoped to the unit-test harness
+    // (`rustc-link-arg-tests` covers only `tests/*.rs` targets), so instead:
+    // drop the resource-based manifest and have the LINKER embed an identical
+    // one into every product it links — app binary and test harnesses alike.
+    // `/MANIFESTDEPENDENCY` reproduces the default tauri manifest 1:1.
+    let is_windows_msvc = std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
+        && std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc");
+    if is_windows_msvc {
+        const COMCTL6_DEPENDENCY: &str = "type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'";
+        println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
+        println!("cargo:rustc-link-arg=/MANIFESTDEPENDENCY:{COMCTL6_DEPENDENCY}");
+    }
+
+    let mut attributes = tauri_build::Attributes::new();
+    if is_windows_msvc {
+        attributes = attributes
+            .windows_attributes(tauri_build::WindowsAttributes::new_without_app_manifest());
+    }
+    tauri_build::try_build(attributes).expect("failed to run tauri-build");
 }
 
 /// Recursively copy the capability spec tree, skipping dev-only `*.test.ts`
