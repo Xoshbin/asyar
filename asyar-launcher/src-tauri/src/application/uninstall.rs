@@ -1012,9 +1012,12 @@ mod tests {
         #[test]
         fn validate_data_path_rejects_missing() {
             let tmp = fake_home();
+            // Absolute (on every platform, unlike a bare "/tmp/..." which is
+            // not absolute on Windows) but nonexistent — so the missing-path
+            // check fires, not the absolute-path one.
+            let missing = tmp.path().join("__asyar_nonexistent_data_path__");
             let err =
-                validate_data_path_under_home("/tmp/__asyar_nonexistent_data_path__", tmp.path())
-                    .unwrap_err();
+                validate_data_path_under_home(&missing.to_string_lossy(), tmp.path()).unwrap_err();
             assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
         }
 
