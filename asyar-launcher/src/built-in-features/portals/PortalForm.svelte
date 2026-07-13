@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Input } from '../../components';
   import type { Portal } from './portalStore.svelte';
   import { FormField } from '../../components';
   import PlaceholderPicker from './PlaceholderPicker.svelte';
@@ -105,7 +106,8 @@
 
 <div class="portal-form p-4">
   <FormField label="Name" id="portal-name">
-    <input
+    <Input
+      unstyled
       id="portal-name"
       class="field-input"
       type="text"
@@ -118,12 +120,13 @@
   <div style="position: relative">
     <FormField label="URL" id="portal-url">
       <div class="url-input-row">
-        <input
+        <Input
+          unstyled
           id="portal-url"
           class="field-input"
           type="text"
           bind:value={url}
-          bind:this={urlInputEl}
+          bind:ref={urlInputEl}
           placeholder="https://google.com/search?q={'{query}'}"
           oninput={handleUrlInput}
         />
@@ -142,13 +145,14 @@
   </div>
 
   <FormField label="Icon" id="portal-icon">
-    <input
+    <Input
+      unstyled
       id="portal-icon"
       class="field-input"
       type="text"
       bind:value={icon}
       placeholder="🌐"
-      maxlength="4"
+      maxlength={4}
     />
   </FormField>
 
@@ -191,7 +195,7 @@
     gap: 6px;
     align-items: center;
   }
-  .url-input-row .field-input {
+  :global(.url-input-row .field-input) {
     flex: 1;
     min-width: 0;
   }

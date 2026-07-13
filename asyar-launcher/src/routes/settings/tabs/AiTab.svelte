@@ -327,7 +327,8 @@
                     API Key{#if !plugin?.requiresApiKey}
                       <span class="field-hint">(optional)</span>{/if}
                   </label>
-                  <input
+                  <Input
+                    unstyled
                     class="card-input"
                     id="apikey-{providerId}"
                     type="password"
@@ -347,7 +348,8 @@
               {#if plugin?.requiresBaseUrl}
                 <div class="card-field">
                   <label class="field-label" for="baseurl-{providerId}">Base URL</label>
-                  <input
+                  <Input
+                    unstyled
                     class="card-input"
                     id="baseurl-{providerId}"
                     type="url"
@@ -424,7 +426,8 @@
                       >{/if}
                   </label>
                   <div class="model-manual-row">
-                    <input
+                    <Input
+                      unstyled
                       class="card-input"
                       id="model-manual-{providerId}"
                       type="text"
@@ -713,7 +716,7 @@
     font-weight: 400;
   }
 
-  .card-input {
+  :global(.card-input) {
     padding: var(--space-2);
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
@@ -725,7 +728,7 @@
     transition: border-color var(--transition-smooth);
   }
 
-  .card-input:focus {
+  :global(.card-input):focus {
     outline: none;
     border-color: var(--accent-primary);
   }
@@ -789,7 +792,7 @@
     align-items: center;
   }
 
-  .model-manual-row .card-input {
+  :global(.model-manual-row .card-input) {
     flex: 1;
   }
 

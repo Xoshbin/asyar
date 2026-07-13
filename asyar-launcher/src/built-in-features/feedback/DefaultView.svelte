@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Textarea } from '../../components';
   import { onMount } from 'svelte';
   import { TabGroup, Input, Button } from '../../components';
   import { feedbackViewState } from './feedbackState.svelte';
@@ -48,11 +49,12 @@
   <div class="feedback-body custom-scrollbar">
     <TabGroup variant="pills" tabs={categories} bind:activeTab={feedbackViewState.category} />
 
-    <textarea
+    <Textarea
       class="input feedback-message"
       placeholder="Tell us what's on your mind…"
       rows="6"
-      bind:value={feedbackViewState.message}></textarea>
+      bind:value={feedbackViewState.message}
+    ></Textarea>
 
     <Input
       placeholder="Email (optional — or clear to send anonymously)"
@@ -82,7 +84,7 @@
     flex: 1;
   }
 
-  .feedback-message {
+  :global(.feedback-message) {
     resize: vertical;
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);

@@ -194,14 +194,7 @@
   </div>
 
   <div class="action-search">
-    <Input
-      bind:value={searchQuery}
-      placeholder="Search for actions..."
-      autocomplete="off"
-      autocorrect="off"
-      autocapitalize="off"
-      spellcheck={false}
-    />
+    <Input bind:value={searchQuery} placeholder="Search for actions..." autocomplete="off" />
   </div>
 </div>
 

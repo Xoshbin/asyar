@@ -105,8 +105,6 @@
           placeholder="e.g. c, s, app"
           disabled={saving}
           autocomplete="off"
-          autocapitalize="off"
-          spellcheck={false}
           autofocus
         />
       </FormField>

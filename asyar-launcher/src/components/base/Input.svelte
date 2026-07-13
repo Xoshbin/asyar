@@ -1,19 +1,31 @@
 <script lang="ts">
+  import type { HTMLInputAttributes } from 'svelte/elements';
+
   let {
     value = $bindable(''),
     placeholder = '',
     disabled = false,
     type = 'text',
-    ref = $bindable(null as HTMLInputElement | null),
+    ref = $bindable(),
+    class: className = '',
+    unstyled = false,
     ...rest
-  }: {
+  }: HTMLInputAttributes & {
     value?: string;
-    placeholder?: string;
-    disabled?: boolean;
-    type?: string;
     ref?: HTMLInputElement | null;
-    [key: string]: any;
+    unstyled?: boolean;
   } = $props();
 </script>
 
-<input bind:this={ref} {type} {placeholder} {disabled} bind:value class="input" {...rest} />
+<input
+  autocapitalize="none"
+  autocorrect="off"
+  spellcheck="false"
+  bind:this={ref}
+  {type}
+  {placeholder}
+  {disabled}
+  bind:value
+  class={[!unstyled && 'input', className].filter(Boolean).join(' ')}
+  {...rest}
+/>

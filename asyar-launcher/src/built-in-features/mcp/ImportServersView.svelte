@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Textarea } from '../../components';
   import { mcpService } from './mcpService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
@@ -158,11 +159,13 @@
       {/if}
     {:else}
       <div class="paste-section">
-        <textarea
+        <Textarea
+          unstyled
           class="field-textarea paste-area"
           placeholder="Paste MCP config JSON here"
           bind:value={pasteJson}
-          rows={8}></textarea>
+          rows={8}
+        ></Textarea>
         <div>
           <Button onclick={handleParse} disabled={!pasteJson.trim()}>Parse</Button>
         </div>
@@ -282,7 +285,7 @@
     gap: var(--space-2);
   }
 
-  .paste-area {
+  :global(.paste-area) {
     font-family: var(--font-mono);
     font-size: var(--font-size-xs);
   }

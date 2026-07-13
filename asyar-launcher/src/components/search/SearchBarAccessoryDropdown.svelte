@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Input } from '..';
   import { tick } from 'svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
@@ -224,8 +225,8 @@
       onkeydown={onPopoverKeydown}
     >
       <div class="accessory-filter-row">
-        <input
-          bind:this={filterInputRef}
+        <Input
+          bind:ref={filterInputRef}
           bind:value={filterQuery}
           type="text"
           class="accessory-filter-input"
@@ -233,7 +234,6 @@
           aria-label="Filter options"
           aria-autocomplete="list"
           autocomplete="off"
-          spellcheck="false"
         />
       </div>
       {#if filteredOptions.length === 0}
@@ -338,7 +338,7 @@
     margin-bottom: var(--space-1);
   }
 
-  .accessory-filter-input {
+  :global(.accessory-filter-input) {
     width: 100%;
     background: transparent;
     color: var(--text-primary);
@@ -349,7 +349,7 @@
     font-family: var(--font-ui);
   }
 
-  .accessory-filter-input::placeholder {
+  :global(.accessory-filter-input)::placeholder {
     color: var(--text-tertiary);
   }
 
