@@ -10,8 +10,8 @@ pub struct ResolvedCommand {
 }
 
 /// Maps a stdio server's `command` to the bundled runtime it falls back to
-/// when that command isn't found on the system `PATH`: npx/node → bun,
-/// uvx/python(3) → uv, anything else → `None`. Single source of truth for
+/// when that command isn't found on the system `PATH`: npx/node/bun → bun,
+/// uvx/python(3)/uv → uv, anything else → `None`. Single source of truth for
 /// this mapping, reused by `install::required_runtime_for_command_with_probe`
 /// (install/enable-time check) and `transport::resolve_stdio_command`
 /// (actual spawn-time resolution) so the two layers can never disagree.
@@ -20,8 +20,8 @@ pub struct ResolvedCommand {
 /// additive, side-by-side helper, not a refactor of that function.
 pub(crate) fn runtime_for_command(command: &str) -> Option<&'static str> {
     match command {
-        "npx" | "node" => Some("bun"),
-        "uvx" | "python" | "python3" => Some("uv"),
+        "npx" | "node" | "bun" => Some("bun"),
+        "uvx" | "python" | "python3" | "uv" => Some("uv"),
         _ => None,
     }
 }
@@ -136,6 +136,29 @@ pub fn resolve_command_with_probe<F: Fn(&str) -> bool>(
             Ok(ResolvedCommand {
                 program: uv.clone(),
                 args: new_args,
+            })
+        }
+        "bun" => {
+            // A stdio server that IS a bun script/binary directly, rather
+            // than run through npx — args pass through unchanged, unlike
+            // the npx/node prefix-rewriting arms above.
+            let bun = bundled_bun.ok_or_else(|| {
+                McpClientError::Transport(
+                    "bun not found on PATH and no bundled bun available".into(),
+                )
+            })?;
+            Ok(ResolvedCommand {
+                program: bun.clone(),
+                args: args.to_vec(),
+            })
+        }
+        "uv" => {
+            let uv = bundled_uv.ok_or_else(|| {
+                McpClientError::Transport("uv not found on PATH and no bundled uv available".into())
+            })?;
+            Ok(ResolvedCommand {
+                program: uv.clone(),
+                args: args.to_vec(),
             })
         }
         other => {
@@ -262,6 +285,72 @@ mod tests {
             .expect("resolve");
 
         assert_eq!(result.program, PathBuf::from("my-custom-server"));
+        assert_eq!(result.args, args);
+    }
+
+    #[test]
+    fn runtime_for_command_maps_direct_bun_and_uv_commands() {
+        assert_eq!(runtime_for_command("bun"), Some("bun"));
+        assert_eq!(runtime_for_command("uv"), Some("uv"));
+    }
+
+    #[test]
+    fn resolve_command_resolves_direct_bun_command_to_bundled_path_with_args_unchanged() {
+        let bun = PathBuf::from("/bundled/bun");
+        let args = sv(&["run", "server.js", "--port", "3000"]);
+
+        let result =
+            resolve_command_with_probe("bun", &args, Some(&bun), None, |_| false).expect("resolve");
+
+        assert_eq!(result.program, bun);
+        assert_eq!(
+            result.args, args,
+            "a direct bun command needs its args passed through unchanged, unlike npx/node which get a rewritten prefix"
+        );
+    }
+
+    #[test]
+    fn resolve_command_resolves_direct_uv_command_to_bundled_path_with_args_unchanged() {
+        let uv = PathBuf::from("/bundled/uv");
+        let args = sv(&["run", "server.py"]);
+
+        let result =
+            resolve_command_with_probe("uv", &args, None, Some(&uv), |_| false).expect("resolve");
+
+        assert_eq!(result.program, uv);
+        assert_eq!(result.args, args);
+    }
+
+    #[test]
+    fn resolve_command_returns_error_when_no_bundled_bun_for_direct_bun_command() {
+        let args = sv(&["run", "server.js"]);
+
+        let result = resolve_command_with_probe("bun", &args, None, None, |_| false);
+
+        match result {
+            Err(McpClientError::Transport(msg)) => {
+                assert!(
+                    msg.contains("bun not found on PATH"),
+                    "error must mention bun not found, got: {msg}"
+                );
+            }
+            other => panic!("expected Transport error, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn resolve_command_prefers_system_bun_on_path_over_bundled() {
+        let bundled_bun = PathBuf::from("/bundled/bun");
+        let args = sv(&["run", "server.js"]);
+
+        let result = resolve_command_with_probe("bun", &args, Some(&bundled_bun), None, |_| true)
+            .expect("resolve");
+
+        assert_eq!(
+            result.program,
+            PathBuf::from("bun"),
+            "system PATH bun must still win over the bundled runtime"
+        );
         assert_eq!(result.args, args);
     }
 }

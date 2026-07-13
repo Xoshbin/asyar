@@ -43,7 +43,14 @@ pub(crate) async fn download_to_temp_file(
     const PROGRESS_STEP_BYTES: u64 = 1_048_576;
 
     let temp_file = NamedTempFile::new().map_err(AppError::Io)?;
-    let mut dest = TokioFile::create(temp_file.path()).await?;
+    // Clone the already-open handle instead of reopening by path: reopening
+    // via `TokioFile::create(temp_file.path())` is a TOCTOU (the path could
+    // be replaced between creation and reopen) and risks a sharing
+    // violation on Windows, where a second independent open of the same
+    // path isn't guaranteed to succeed against the handle `NamedTempFile`
+    // already holds.
+    let std_file = temp_file.as_file().try_clone().map_err(AppError::Io)?;
+    let mut dest = TokioFile::from_std(std_file);
 
     let response = client.get(url).send().await?;
     if !response.status().is_success() {

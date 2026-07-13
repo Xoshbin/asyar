@@ -3,7 +3,7 @@
 //! never leaves a half-installed runtime at the final path.
 
 use crate::error::AppError;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Populates `staging_dir` via `populate`, then atomically renames it to
 /// `final_dir` on success. On failure, `staging_dir` is cleaned up and
@@ -23,15 +23,62 @@ pub(crate) fn install_atomically(
         return Err(e);
     }
 
+    commit(staging_dir, final_dir, |from, to| std::fs::rename(from, to))
+}
+
+/// Promotes `staging_dir` to `final_dir` via `rename_fn` (real
+/// `std::fs::rename` in production; injectable so a rename failure can be
+/// simulated in tests without relying on a real OS-level failure). If
+/// `final_dir` already holds a previous install, it's backed up first and
+/// restored on failure — a bare remove-then-rename would instead leave a
+/// previously-working runtime uninstalled if the rename itself fails (e.g.
+/// a file lock or antivirus scan holding it open on Windows).
+fn commit(
+    staging_dir: &Path,
+    final_dir: &Path,
+    rename_fn: impl Fn(&Path, &Path) -> std::io::Result<()>,
+) -> Result<(), AppError> {
     if let Some(parent) = final_dir.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    if final_dir.exists() {
-        std::fs::remove_dir_all(final_dir)?;
-    }
-    std::fs::rename(staging_dir, final_dir)?;
 
-    Ok(())
+    let backup_dir = backup_path_for(final_dir);
+    let had_previous = final_dir.exists();
+    if had_previous {
+        std::fs::rename(final_dir, &backup_dir)?;
+    }
+
+    match rename_fn(staging_dir, final_dir) {
+        Ok(()) => {
+            if had_previous {
+                // Best-effort: the install already succeeded, so a leftover
+                // backup dir is a harmless disk-space cost, not a correctness issue.
+                let _ = std::fs::remove_dir_all(&backup_dir);
+            }
+            Ok(())
+        }
+        Err(e) => {
+            if had_previous {
+                // Best-effort restore. If this also fails there's nothing
+                // safer left to do — leave the backup dir in place (rather
+                // than having already deleted it) so the failure is at
+                // least diagnosable instead of silently losing the install.
+                let _ = std::fs::rename(&backup_dir, final_dir);
+            }
+            Err(AppError::Io(e))
+        }
+    }
+}
+
+/// A sibling path to `final_dir` used as a temporary backup location during
+/// `commit`, disambiguated by pid so a crashed prior attempt's leftover
+/// backup can never collide with a fresh one.
+fn backup_path_for(final_dir: &Path) -> PathBuf {
+    let name = final_dir
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    final_dir.with_file_name(format!("{name}.bak-{}", std::process::id()))
 }
 
 /// Pure decision: does this binary need an ad-hoc `codesign -s -` re-sign
@@ -100,6 +147,52 @@ mod tests {
         assert!(
             !staging.exists(),
             "the staging dir must be consumed by the atomic rename"
+        );
+    }
+
+    #[test]
+    fn commit_restores_previous_content_when_rename_fails() {
+        let root = TempDir::new().unwrap();
+        let staging = root.path().join("staging");
+        std::fs::create_dir_all(&staging).unwrap();
+        std::fs::write(staging.join("bun"), b"new-version").unwrap();
+        let final_dir = root.path().join("runtimes").join("bun").join("1.1.0");
+        std::fs::create_dir_all(&final_dir).unwrap();
+        std::fs::write(final_dir.join("bun"), b"old-version").unwrap();
+
+        let result = commit(&staging, &final_dir, |_, _| {
+            Err(std::io::Error::other("simulated rename failure"))
+        });
+
+        assert!(
+            result.is_err(),
+            "a failed rename must propagate as an error"
+        );
+        assert!(
+            final_dir.join("bun").exists(),
+            "a failed rename must restore the previously-installed content, not leave final_dir empty"
+        );
+        assert_eq!(
+            std::fs::read(final_dir.join("bun")).unwrap(),
+            b"old-version",
+            "the restored content must be the pre-existing install, not a partial/mixed state"
+        );
+    }
+
+    #[test]
+    fn commit_installs_fresh_when_no_previous_final_dir_exists() {
+        let root = TempDir::new().unwrap();
+        let staging = root.path().join("staging");
+        std::fs::create_dir_all(&staging).unwrap();
+        std::fs::write(staging.join("uv"), b"first-install").unwrap();
+        let final_dir = root.path().join("runtimes").join("uv").join("0.4.9");
+
+        let result = commit(&staging, &final_dir, |from, to| std::fs::rename(from, to));
+
+        assert!(result.is_ok());
+        assert_eq!(
+            std::fs::read(final_dir.join("uv")).unwrap(),
+            b"first-install"
         );
     }
 
