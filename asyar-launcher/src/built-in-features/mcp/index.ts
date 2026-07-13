@@ -63,30 +63,32 @@ class McpExtension implements Extension {
           await mcpService.refresh();
         },
       });
-      actionService.registerAction({
-        id: ACTION_INSTALL,
-        label: 'Install MCP Server',
-        icon: '➕',
-        description: 'Add a new MCP server manually',
-        category: 'MCP',
-        extensionId: 'mcp',
-        context: ActionContext.EXTENSION_VIEW,
-        execute: async () => {
-          viewManager.navigateToView('mcp/InstallServerView');
-        },
-      });
-      actionService.registerAction({
-        id: ACTION_IMPORT,
-        label: 'Import MCP Servers',
-        icon: '📥',
-        description: 'Import servers from existing configs or pasted JSON',
-        category: 'MCP',
-        extensionId: 'mcp',
-        context: ActionContext.EXTENSION_VIEW,
-        execute: async () => {
-          viewManager.navigateToView('mcp/ImportServersView');
-        },
-      });
+      if (viewId === 'mcp/ManageServersView') {
+        actionService.registerAction({
+          id: ACTION_INSTALL,
+          label: 'Install MCP Server',
+          icon: '➕',
+          description: 'Add a new MCP server manually',
+          category: 'MCP',
+          extensionId: 'mcp',
+          context: ActionContext.EXTENSION_VIEW,
+          execute: async () => {
+            viewManager.navigateToView('mcp/InstallServerView');
+          },
+        });
+        actionService.registerAction({
+          id: ACTION_IMPORT,
+          label: 'Import MCP Servers',
+          icon: '📥',
+          description: 'Import servers from existing configs or pasted JSON',
+          category: 'MCP',
+          extensionId: 'mcp',
+          context: ActionContext.EXTENSION_VIEW,
+          execute: async () => {
+            viewManager.navigateToView('mcp/ImportServersView');
+          },
+        });
+      }
       actionService.registerAction({
         id: ACTION_VIEW_PERMISSIONS,
         label: 'View MCP Permissions',
@@ -138,10 +140,6 @@ class McpExtension implements Extension {
     switch (commandId) {
       case 'manage':
         return { type: 'view', viewPath: 'mcp/ManageServersView' };
-      case 'import':
-        return { type: 'view', viewPath: 'mcp/ImportServersView' };
-      case 'install':
-        return { type: 'view', viewPath: 'mcp/InstallServerView' };
       case 'permissions':
         return { type: 'view', viewPath: 'mcp/PermissionsView' };
       default:
