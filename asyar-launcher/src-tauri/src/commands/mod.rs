@@ -32,6 +32,7 @@ pub mod process;
 pub mod profile;
 pub mod raycast_import;
 pub mod runs;
+pub mod runtimes;
 pub mod screen;
 pub mod scripts;
 pub mod searchbar_accessory;

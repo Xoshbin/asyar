@@ -1082,6 +1082,7 @@ mod onboarding_dispatch_tests {
                 command: "setup".into(),
             }),
             tools: None,
+            runtimes: None,
         }
     }
 

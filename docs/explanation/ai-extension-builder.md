@@ -35,7 +35,7 @@ digraph ai_builder {
   orch   [shape=box,label="orchestrator.ts\n(event routing)"];
   rust   [shape=box,label="ext_builder/*.rs\n(spawn + stream + stdin)"];
   side   [shape=box,label="asyar-ext-builder\n(bun sidecar.js)"];
-  claude [shape=box,label="claude runtime\n(externalBin)"];
+  claude [shape=box,label="claude runtime\n(on-demand via RuntimeManager)"];
 
   view -> orch;
   orch -> rust   [label="invoke()"];
@@ -126,19 +126,22 @@ subprocess — it is not a pure HTTP client. Two consequences shaped the design:
 1. A `bun build --compile` single binary does **not** embed `claude`, and even with
    `pathToClaudeCodeExecutable` set it can't host the SDK's multi-turn build
    (in-process MCP + subprocess) from inside the compiled sandbox.
-2. So the sidecar ships as a **bundled JS run by the already-bundled `bun`**:
+2. So the sidecar ships as a **bundled JS run by `bun`**:
    `bun build src/main.ts --target bun --outfile dist/sidecar.js` (inlines the whole
    SDK, ~1.6 MB), staged by `build.rs` into `src-tauri/resources/ext-builder/sidecar.js`.
-   `process.rs` spawns `bun sidecar.js`; the `claude` binary ships as a Tauri
-   `externalBin` and is passed via `CLAUDE_CODE_EXECUTABLE_PATH` →
-   `options.pathToClaudeCodeExecutable`.
+   `process.rs` spawns `bun sidecar.js`; both `bun` and `claude` are resolved by
+   `ext_builder::process::resolve_bun`/`resolve_claude` — exe-adjacent, then the
+   bundled resource dir, then a local `tauri dev` fallback under
+   `src-tauri/binaries/`, and finally (in production) an on-demand download
+   through `RuntimeManager` (`src-tauri/src/runtimes/`) behind a consent dialog.
+   The resolved `claude` path is passed via `CLAUDE_CODE_EXECUTABLE_PATH` →
+   `options.pathToClaudeCodeExecutable`. Neither ships as a Tauri `externalBin`
+   anymore — see `src-tauri/binaries/README.md` for the local-dev-only
+   convenience of placing a binary there manually.
 
 **Build-order requirement:** the release pipeline must run `bun run build:js` in
 `asyar-ext-builder/` **before** `tauri build`, or an empty placeholder ships and the
-feature is dead. `tauri dev` resolution falls back to `CARGO_MANIFEST_DIR/binaries`
-
-- `resources` so a local run works once `build:js` has run and real `bun`/`claude`
-  binaries exist under `src-tauri/binaries/`.
+feature is dead.
 
 ## After the build: My Extensions & Publish
 

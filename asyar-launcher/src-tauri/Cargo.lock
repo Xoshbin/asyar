@@ -264,6 +264,7 @@ dependencies = [
  "specta",
  "specta-typescript",
  "sysinfo",
+ "tar",
  "tauri",
  "tauri-build",
  "tauri-nspanel",

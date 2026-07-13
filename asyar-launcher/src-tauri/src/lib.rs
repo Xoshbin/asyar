@@ -48,6 +48,39 @@ pub struct AppState {
     pub inline_emoji_fallback: crate::ai::inline_emoji_fallback::InlineEmojiFallbackState,
 }
 
+/// Adapts the managed `runtimes::RuntimeManager` to
+/// `mcp::transport::RuntimeResolver`. The MCP transport factory is built
+/// before `AppHandle` exists (`run()` constructs it ahead of the builder
+/// chain), so `app_handle` starts empty and is set once `setup_app` gets a
+/// real `AppHandle` — mirrors the old Mutex-based `SidecarPath` wiring, just
+/// holding a handle instead of a precomputed path. Every `resolve()` call
+/// reads `RuntimeManager` fresh (never caches the resolved path), so a
+/// runtime that finishes downloading mid-session is picked up on the very
+/// next `connect()` retry.
+struct AppRuntimeResolver {
+    app_handle: Mutex<Option<tauri::AppHandle>>,
+}
+
+impl AppRuntimeResolver {
+    fn new() -> Self {
+        Self {
+            app_handle: Mutex::new(None),
+        }
+    }
+
+    fn set_app_handle(&self, handle: tauri::AppHandle) {
+        *self.app_handle.lock().unwrap() = Some(handle);
+    }
+}
+
+impl mcp::transport::RuntimeResolver for AppRuntimeResolver {
+    fn resolve(&self, name: &str) -> Option<std::path::PathBuf> {
+        let handle = self.app_handle.lock().unwrap().clone()?;
+        let manager = handle.try_state::<runtimes::RuntimeManager>()?;
+        manager.resolve(&handle, name)
+    }
+}
+
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 pub mod agents;
 pub mod ai;
@@ -89,6 +122,7 @@ pub mod process_manager;
 pub mod profile;
 pub mod raycast_import;
 pub mod runs;
+pub mod runtimes;
 pub mod scripts;
 mod search_engine;
 pub mod secret_detection;
@@ -130,19 +164,17 @@ pub fn apply_linux_webkit_dmabuf_workaround() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Build the MCP transport factory and extract the shared sidecar path
-    // handles before entering the builder chain. setup_app populates them once
-    // AppHandle (and thus app.path()) is available (Option B wiring pattern).
-    let mcp_factory = std::sync::Arc::new(mcp::MultiTransportFactory::default());
-    let (mcp_bun_handle, mcp_uv_handle) = mcp_factory.sidecar_handles();
+    // Build the MCP transport factory before entering the builder chain. Its
+    // runtime resolver starts with no `AppHandle`; `setup_app` wires the real
+    // one in once it's available (see `AppRuntimeResolver`).
+    let mcp_runtime_resolver = std::sync::Arc::new(AppRuntimeResolver::new());
+    let mcp_factory = std::sync::Arc::new(mcp::MultiTransportFactory::new(
+        mcp_runtime_resolver.clone(),
+    ));
     let mcp_supervisor = std::sync::Arc::new(mcp::McpSupervisor::new(
         mcp_factory,
         mcp::SupervisorConfig::default(),
     ));
-    let mcp_sidecar_state = mcp::McpSidecarState {
-        bun: mcp_bun_handle,
-        uv: mcp_uv_handle,
-    };
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
@@ -230,9 +262,10 @@ pub fn run() {
         .manage(std::sync::Arc::new(agents::tools::ToolRegistry::new())
             as agents::tools::ToolRegistryState)
         .manage(mcp_supervisor)
-        .manage(mcp_sidecar_state)
+        .manage(mcp_runtime_resolver)
         .manage(ext_builder::ExtBuilderState::default())
         .manage(calculator::CalculatorState::default())
+        .manage(runtimes::RuntimeManager::new())
         .manage(AppState {
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -634,11 +667,20 @@ pub fn run() {
             commands::mcp::mcp_set_strict_mode,
             // AI Extension Builder
             ext_builder::commands::ext_builder_start,
+            ext_builder::commands::ext_builder_check_runtimes,
             ext_builder::commands::ext_builder_answer,
             ext_builder::commands::ext_builder_cancel,
             ext_builder::created::list_created_extensions,
             ext_builder::created::search_created_extensions,
             ext_builder::secret_scan::scan_extension_for_secret,
+            // On-demand sidecar runtimes (bun/uv/claude).
+            commands::runtimes::resolve_runtime,
+            commands::runtimes::ensure_runtime,
+            commands::runtimes::download_runtime,
+            commands::runtimes::list_runtimes,
+            commands::runtimes::remove_runtime,
+            commands::runtimes::get_runtime_download_sizes,
+            commands::runtimes::get_runtime_consumers,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -1306,15 +1348,12 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    // MCP: populate bundled sidecar paths before seeding servers so that
-    // npx/node/uvx/python commands resolve to the bundled binaries when
-    // system commands are absent.
-    {
-        let (bun_path, uv_path) = mcp::sidecar::discover_bundled_paths(app.handle());
-        if let Some(sidecar_state) = app.try_state::<mcp::McpSidecarState>() {
-            *sidecar_state.bun.lock().unwrap() = bun_path;
-            *sidecar_state.uv.lock().unwrap() = uv_path;
-        }
+    // MCP: wire the runtime resolver to the now-available AppHandle before
+    // seeding servers, so npx/node/uvx/python commands resolve bun/uv
+    // through `RuntimeManager` (including a runtime that finishes
+    // downloading mid-session) instead of a path snapshot taken once here.
+    if let Some(resolver) = app.try_state::<std::sync::Arc<AppRuntimeResolver>>() {
+        resolver.set_app_handle(app.handle().clone());
     }
 
     // MCP: seed enabled servers at startup. Runs after both register_builtin_tools

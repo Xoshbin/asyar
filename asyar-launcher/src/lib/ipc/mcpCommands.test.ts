@@ -74,19 +74,26 @@ describe('mcpTestServer', () => {
 
 describe('mcpSetServerEnabled', () => {
   it('passes serverId + enabled correctly and returns true on success', async () => {
-    mockInvokeVoid.mockResolvedValue(true);
+    mockInvoke.mockResolvedValue(true);
     const result = await mcpSetServerEnabled('my-server', true);
-    expect(mockInvokeVoid).toHaveBeenCalledWith('mcp_set_server_enabled', {
+    expect(mockInvoke).toHaveBeenCalledWith('mcp_set_server_enabled', {
       serverId: 'my-server',
       enabled: true,
     });
     expect(result).toBe(true);
   });
 
-  it('returns false when invokeSafeVoid reports failure', async () => {
-    mockInvokeVoid.mockResolvedValue(false);
+  it('returns false when invokeSafe returns null (failure)', async () => {
+    mockInvoke.mockResolvedValue(null);
     const result = await mcpSetServerEnabled('my-server', true);
     expect(result).toBe(false);
+  });
+
+  it('returns the needsRuntime outcome unchanged when a bundled runtime is required', async () => {
+    const needsRuntime = { kind: 'needsRuntime', name: 'bun', sizeBytes: 42_000_000 };
+    mockInvoke.mockResolvedValue(needsRuntime);
+    const result = await mcpSetServerEnabled('my-server', true);
+    expect(result).toEqual(needsRuntime);
   });
 });
 

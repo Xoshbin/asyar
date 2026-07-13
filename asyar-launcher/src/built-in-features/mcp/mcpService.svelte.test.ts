@@ -32,6 +32,27 @@ vi.mock('../../services/log/logService', () => ({
   },
 }));
 
+vi.mock('../../services/runtime/runtimeService.svelte', () => ({
+  runtimeService: {
+    resolve: vi.fn(),
+    ensure: vi.fn(),
+    // Real contract (fix #6): download() resolves the success boolean instead
+    // of discarding it. Defaults to a successful download so the existing
+    // consent+retry tests keep passing without change.
+    download: vi.fn().mockResolvedValue(true),
+    list: vi.fn(),
+    remove: vi.fn(),
+    init: vi.fn(),
+    destroy: vi.fn(),
+  },
+}));
+
+vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
+  diagnosticsService: {
+    report: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 import * as cmds from '../../lib/ipc/mcpCommands';
 import { McpService } from './mcpService.svelte';
 import type {
@@ -108,6 +129,15 @@ describe('mcpService.install', () => {
     expect(cmds.mcpListServers).toHaveBeenCalled();
     expect(svc.servers).toContainEqual(refreshed);
   });
+
+  it('clears any stale installError from a previous attempt at the start of a new call', async () => {
+    (cmds.mcpInstallServer as ReturnType<typeof vi.fn>).mockResolvedValue(makeSummary());
+    (cmds.mcpListServers as ReturnType<typeof vi.fn>).mockResolvedValue([makeSummary()]);
+    const svc = new McpService();
+    (svc as unknown as { installError: string | null }).installError = 'stale error';
+    await svc.install(makeInput());
+    expect(svc.installError).toBeNull();
+  });
 });
 
 describe('mcpService.setEnabled', () => {
@@ -127,6 +157,186 @@ describe('mcpService.setEnabled', () => {
     svc.servers = [makeSummary()];
     await svc.setEnabled('srv-1', false);
     expect(cmds.mcpListServers).not.toHaveBeenCalled();
+  });
+});
+
+// ── RED: install()/setEnabled() must offer a consent+download+retry flow
+// when the backend reports a required runtime (bun/uv) isn't installed yet,
+// instead of surfacing the raw "needs runtime" outcome as if it were a
+// successful install/enable. Neither `runtimeConsentPrompt` nor
+// `handleRuntimeConsentDecision` exist on `McpService` yet — production code
+// must add them. These tests fail against current behavior until then.
+
+describe('mcpService.install runtime consent flow', () => {
+  it('leaves installError null when the user declines the download — not an error', async () => {
+    (cmds.mcpInstallServer as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      kind: 'needsRuntime',
+      name: 'bun',
+      sizeBytes: 42_000_000,
+    } as never);
+
+    const svc = new McpService();
+    const installPromise = svc.install(makeInput());
+    await Promise.resolve();
+    await Promise.resolve();
+    svc.handleRuntimeConsentDecision(false);
+    const result = await installPromise;
+
+    expect(result).toBeNull();
+    expect(svc.installError).toBeNull();
+    expect(cmds.mcpInstallServer).toHaveBeenCalledTimes(1);
+  });
+
+  it('sets a distinct installError when the retry after a successful download still fails', async () => {
+    // Simulates a real handshake failure (bad command/args) — the runtime
+    // download itself succeeds, but the server can't actually be reached,
+    // so the retry `mcpInstallServer` call resolves null (invokeSafe's
+    // failure sentinel) rather than a summary or another needsRuntime.
+    (cmds.mcpInstallServer as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ kind: 'needsRuntime', name: 'bun', sizeBytes: 42_000_000 } as never)
+      .mockResolvedValueOnce(null as never);
+
+    const svc = new McpService();
+    const installPromise = svc.install(makeInput());
+    await Promise.resolve();
+    await Promise.resolve();
+    svc.handleRuntimeConsentDecision(true);
+    const result = await installPromise;
+
+    expect(result).toBeNull();
+    expect(cmds.mcpInstallServer).toHaveBeenCalledTimes(2);
+    expect(svc.installError).toMatch(/could not (be )?install/i);
+  });
+
+  it('prompts for runtime consent, downloads, and retries install on approval', async () => {
+    const installed = makeSummary({ id: 'srv-1' });
+    (cmds.mcpInstallServer as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ kind: 'needsRuntime', name: 'bun', sizeBytes: 42_000_000 } as never)
+      .mockResolvedValueOnce(installed as never);
+    (cmds.mcpListServers as ReturnType<typeof vi.fn>).mockResolvedValue([installed]);
+
+    const { runtimeService } = await import('../../services/runtime/runtimeService.svelte');
+
+    const svc = new McpService();
+    const input = makeInput();
+    const installPromise = (svc as unknown as Record<string, (...a: unknown[]) => unknown>).install(
+      input,
+    );
+
+    // Let the first mcpInstallServer() resolution settle so a consent prompt
+    // (if implemented) would have been set by now.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect((svc as unknown as Record<string, unknown>).runtimeConsentPrompt).toEqual(
+      expect.objectContaining({ name: 'bun', sizeBytes: 42_000_000 }),
+    );
+
+    (svc as unknown as Record<string, (...a: unknown[]) => unknown>).handleRuntimeConsentDecision(
+      true,
+    );
+
+    const result = await installPromise;
+
+    expect(runtimeService.download).toHaveBeenCalledWith('bun');
+    expect(cmds.mcpInstallServer).toHaveBeenCalledTimes(2);
+    expect(result).toEqual(installed);
+  });
+});
+
+describe('mcpService.setEnabled runtime consent flow', () => {
+  it('prompts for runtime consent, downloads, and retries enabling on approval', async () => {
+    (cmds.mcpSetServerEnabled as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ kind: 'needsRuntime', name: 'uv', sizeBytes: 18_000_000 } as never)
+      .mockResolvedValueOnce(true as never);
+    (cmds.mcpListServers as ReturnType<typeof vi.fn>).mockResolvedValue([
+      makeSummary({ enabled: true }),
+    ]);
+
+    const { runtimeService } = await import('../../services/runtime/runtimeService.svelte');
+
+    const svc = new McpService();
+    const enablePromise = (
+      svc as unknown as Record<string, (...a: unknown[]) => unknown>
+    ).setEnabled('srv-1', true);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect((svc as unknown as Record<string, unknown>).runtimeConsentPrompt).toEqual(
+      expect.objectContaining({ name: 'uv', sizeBytes: 18_000_000 }),
+    );
+
+    (svc as unknown as Record<string, (...a: unknown[]) => unknown>).handleRuntimeConsentDecision(
+      true,
+    );
+    await enablePromise;
+
+    expect(runtimeService.download).toHaveBeenCalledWith('uv');
+    expect(cmds.mcpSetServerEnabled).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ── RED: fix #6 — a failed runtime download must surface distinctly instead
+// of silently retrying install/enable and getting stuck looking identical to
+// "still needs runtime". ─────────────────────────────────────────────────
+
+describe('mcpService runtime consent flow: download failure', () => {
+  it('install() reports a distinct diagnostic and does not retry when the download fails', async () => {
+    (cmds.mcpInstallServer as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      kind: 'needsRuntime',
+      name: 'bun',
+      sizeBytes: 42_000_000,
+    } as never);
+
+    const { runtimeService } = await import('../../services/runtime/runtimeService.svelte');
+    const { diagnosticsService } =
+      await import('../../services/diagnostics/diagnosticsService.svelte');
+    (runtimeService.download as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
+
+    const svc = new McpService();
+    const installPromise = svc.install(makeInput());
+
+    await Promise.resolve();
+    await Promise.resolve();
+    svc.handleRuntimeConsentDecision(true);
+
+    const result = await installPromise;
+
+    expect(result).toBeNull();
+    expect(cmds.mcpInstallServer).toHaveBeenCalledTimes(1);
+    expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect.objectContaining({ context: expect.objectContaining({ runtime: 'bun' }) }),
+    );
+    expect(svc.installError).toMatch(/download/i);
+  });
+});
+
+// ── RED: fix #7 — a second concurrent install()/setEnabled() call that also
+// needs consent must not clobber the first caller's in-flight prompt. ──────
+
+describe('mcpService runtime consent flow: concurrent calls', () => {
+  it('does not clobber an in-progress consent prompt with a second concurrent install()', async () => {
+    (cmds.mcpInstallServer as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ kind: 'needsRuntime', name: 'bun', sizeBytes: 1 } as never)
+      .mockResolvedValueOnce({ kind: 'needsRuntime', name: 'uv', sizeBytes: 2 } as never);
+
+    const svc = new McpService();
+    const p1 = svc.install(makeInput({ id: 'srv-1' }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(svc.runtimeConsentPrompt?.name).toBe('bun');
+
+    const p2 = svc.install(makeInput({ id: 'srv-2' }));
+    const r2 = await p2;
+
+    // Second caller must not hang and must not silently overwrite the first
+    // caller's prompt.
+    expect(r2).toBeNull();
+    expect(svc.runtimeConsentPrompt?.name).toBe('bun');
+
+    svc.handleRuntimeConsentDecision(true);
+    await p1;
   });
 });
 

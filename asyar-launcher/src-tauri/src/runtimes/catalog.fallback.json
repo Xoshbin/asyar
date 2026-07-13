@@ -1,0 +1,130 @@
+{
+  "runtimes": {
+    "bun": {
+      "versions": {
+        "1.3.14": {
+          "darwin-arm64": {
+            "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-darwin-aarch64.zip",
+            "sha256": "sha256:d8b96221828ad6f97ac7ac0ab7e95872341af763001e8803e8267652c2652620",
+            "archiveFormat": "zip",
+            "binaryPathInArchive": "bun-darwin-aarch64/bun"
+          },
+          "darwin-x64": {
+            "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-darwin-x64.zip",
+            "sha256": "sha256:4183df3374623e5bab315c547cfa0974533cd457d86b73b639f7a87974cd6633",
+            "archiveFormat": "zip",
+            "binaryPathInArchive": "bun-darwin-x64/bun"
+          },
+          "linux-x64": {
+            "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64.zip",
+            "sha256": "sha256:951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f",
+            "archiveFormat": "zip",
+            "binaryPathInArchive": "bun-linux-x64/bun"
+          },
+          "linux-arm64": {
+            "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-aarch64.zip",
+            "sha256": "sha256:a27ffb63a8310375836e0d6f668ae17fa8d8d18b88c37c821c65331973a19a3b",
+            "archiveFormat": "zip",
+            "binaryPathInArchive": "bun-linux-aarch64/bun"
+          },
+          "win32-x64": {
+            "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-windows-x64.zip",
+            "sha256": "sha256:0a0620930b6675d7ba440e81f4e0e00d3cfbe096c4b140d3fff02205e9e18922",
+            "archiveFormat": "zip",
+            "binaryPathInArchive": "bun-windows-x64/bun.exe"
+          },
+          "win32-arm64": {
+            "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-windows-aarch64.zip",
+            "sha256": "sha256:89841f5a57f2348b67ec0839b718f4bf4ea7d07c371c9ba4b77b6c790f918953",
+            "archiveFormat": "zip",
+            "binaryPathInArchive": "bun-windows-aarch64/bun.exe"
+          }
+        }
+      }
+    },
+    "uv": {
+      "versions": {
+        "0.11.28": {
+          "darwin-arm64": {
+            "url": "https://github.com/astral-sh/uv/releases/download/0.11.28/uv-aarch64-apple-darwin.tar.gz",
+            "sha256": "sha256:33540eb7c883ab857eff79bd5ac2aa31fe27b595abecb4a9c003a2c998447232",
+            "archiveFormat": "tarGz",
+            "binaryPathInArchive": "uv-aarch64-apple-darwin/uv"
+          },
+          "darwin-x64": {
+            "url": "https://github.com/astral-sh/uv/releases/download/0.11.28/uv-x86_64-apple-darwin.tar.gz",
+            "sha256": "sha256:2ad79983127ffca7d77b77ce6a24278d7e4f7b817a1acf72fea5f8124b4aac5e",
+            "archiveFormat": "tarGz",
+            "binaryPathInArchive": "uv-x86_64-apple-darwin/uv"
+          },
+          "linux-x64": {
+            "url": "https://github.com/astral-sh/uv/releases/download/0.11.28/uv-x86_64-unknown-linux-gnu.tar.gz",
+            "sha256": "sha256:e490a6464492183c5d4534a5527fb4440f7f2bb2f228162ad7e4afe076dc0224",
+            "archiveFormat": "tarGz",
+            "binaryPathInArchive": "uv-x86_64-unknown-linux-gnu/uv"
+          },
+          "linux-arm64": {
+            "url": "https://github.com/astral-sh/uv/releases/download/0.11.28/uv-aarch64-unknown-linux-gnu.tar.gz",
+            "sha256": "sha256:03e9fe0a81b0718d0bc84625de3885df6cc3f89a8b6af6121d6b9f6113fb6533",
+            "archiveFormat": "tarGz",
+            "binaryPathInArchive": "uv-aarch64-unknown-linux-gnu/uv"
+          },
+          "win32-x64": {
+            "url": "https://github.com/astral-sh/uv/releases/download/0.11.28/uv-x86_64-pc-windows-msvc.zip",
+            "sha256": "sha256:0a23463216d09c6a72ff80ef5dc5a795f07dc1575cb84d24596c2f124a441b7b",
+            "archiveFormat": "zip",
+            "binaryPathInArchive": "uv-x86_64-pc-windows-msvc/uv.exe"
+          },
+          "win32-arm64": {
+            "url": "https://github.com/astral-sh/uv/releases/download/0.11.28/uv-aarch64-pc-windows-msvc.zip",
+            "sha256": "sha256:3248109afad3ec59baad299d324ff53de17e2d9a3b3e21580ffd26744b11e036",
+            "archiveFormat": "zip",
+            "binaryPathInArchive": "uv-aarch64-pc-windows-msvc/uv.exe"
+          }
+        }
+      }
+    },
+    "claude": {
+      "versions": {
+        "2.1.207": {
+          "darwin-arm64": {
+            "url": "https://downloads.claude.ai/claude-code-releases/2.1.207/darwin-arm64/claude",
+            "sha256": "sha256:1397a062c6889675055e3314dd956376ac51262a7734ad9e819c26975d71547a",
+            "archiveFormat": "raw",
+            "binaryPathInArchive": null
+          },
+          "darwin-x64": {
+            "url": "https://downloads.claude.ai/claude-code-releases/2.1.207/darwin-x64/claude",
+            "sha256": "sha256:8a4355d251a60c90d8cf08f32fdb22a8157dd3d085542f95d0da0475f9a2c57c",
+            "archiveFormat": "raw",
+            "binaryPathInArchive": null
+          },
+          "linux-x64": {
+            "url": "https://downloads.claude.ai/claude-code-releases/2.1.207/linux-x64/claude",
+            "sha256": "sha256:85e7e988a392d859f90802ca21fb26e89d3c9ab527f5ed0b08df3955e34d5c83",
+            "archiveFormat": "raw",
+            "binaryPathInArchive": null
+          },
+          "linux-arm64": {
+            "url": "https://downloads.claude.ai/claude-code-releases/2.1.207/linux-arm64/claude",
+            "sha256": "sha256:8bc14a284065383460f37981d724b8f7aa7ca93c9849d2fe367e08f03383f454",
+            "archiveFormat": "raw",
+            "binaryPathInArchive": null
+          },
+          "win32-x64": {
+            "url": "https://downloads.claude.ai/claude-code-releases/2.1.207/win32-x64/claude.exe",
+            "sha256": "sha256:781fdc2c89868b1cb05cc22c253ef142a0b44e7cc36236aecd6335745c7d42d0",
+            "archiveFormat": "raw",
+            "binaryPathInArchive": null
+          },
+          "win32-arm64": {
+            "url": "https://downloads.claude.ai/claude-code-releases/2.1.207/win32-arm64/claude.exe",
+            "sha256": "sha256:fa0c887a3f944ba1915766b525538b82b029ca8078ed6ee180c3b83c1b862521",
+            "archiveFormat": "raw",
+            "binaryPathInArchive": null
+          }
+        }
+      }
+    }
+  }
+}

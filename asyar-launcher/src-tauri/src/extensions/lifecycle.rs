@@ -15,6 +15,7 @@ pub(crate) fn uninstall(
     app_handle: &AppHandle,
     extension_id: &str,
     registry: &ExtensionRegistryState,
+    runtime_manager: &crate::runtimes::RuntimeManager,
 ) -> Result<(), AppError> {
     // Validate
     if extension_id.trim().is_empty() {
@@ -28,17 +29,21 @@ pub(crate) fn uninstall(
         ));
     }
 
-    // Check not built-in
-    {
+    // Check not built-in; snapshot declared runtimes so this extension's
+    // consumer registration can be released below, after the registry entry
+    // itself is gone.
+    let declared_runtimes: Vec<String> = {
         let reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
-        if let Some(record) = reg.get(extension_id) {
-            if record.is_built_in {
+        match reg.get(extension_id) {
+            Some(record) if record.is_built_in => {
                 return Err(AppError::Validation(
                     "Cannot uninstall built-in features".to_string(),
                 ));
             }
+            Some(record) => record.manifest.runtimes.clone().unwrap_or_default(),
+            None => Vec::new(),
         }
-    }
+    };
 
     // Remove directory
     let install_dir = get_app_data_dir(app_handle)?
@@ -95,6 +100,14 @@ pub(crate) fn uninstall(
     {
         let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
         reg.remove(extension_id);
+    }
+
+    // Release this extension's runtime consumer registrations so Settings'
+    // "remove runtime" can correctly warn only when another consumer still
+    // needs it (Phase 5), rather than treating an uninstalled extension as
+    // a phantom holdout.
+    for runtime in &declared_runtimes {
+        runtime_manager.remove_consumer(runtime, &format!("ext:{extension_id}"));
     }
 
     // Clean up extension key-value storage from SQLite
@@ -622,6 +635,7 @@ mod tests {
                 actions: None,
                 onboarding: None,
                 tools: None,
+                runtimes: None,
             },
             enabled: true,
             is_built_in,

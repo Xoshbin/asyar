@@ -3,6 +3,7 @@
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import ScheduledTasksSection from '../../../components/settings/ScheduledTasksSection.svelte';
+  import RuntimesSection from '../../../components/settings/RuntimesSection.svelte';
   import {
     snippetService,
     enabledPersistence,
@@ -118,6 +119,8 @@
 {/if}
 
 <ScheduledTasksSection />
+
+<RuntimesSection />
 
 {#if handler.saveError && handler.saveMessage}
   <div class="error-message">{handler.saveMessage}</div>

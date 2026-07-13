@@ -9,17 +9,22 @@ vi.mock('../../lib/ipc/commands', () => ({
     .mockResolvedValue({ registered: true, needsConsent: false }),
   revokeExtensionConsent: vi.fn().mockResolvedValue(true),
 }));
+vi.mock('../../lib/ipc/runtimeCommands', () => ({
+  getRuntimeDownloadSizes: vi.fn().mockResolvedValue([]),
+}));
 vi.mock('../log/logService', () => ({
   logService: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
 import * as commands from '../../lib/ipc/commands';
+import * as runtimeCommands from '../../lib/ipc/runtimeCommands';
 import { permissionConsentService } from './permissionConsentService.svelte';
 
 const checkExtensionConsent = vi.mocked(commands.checkExtensionConsent);
 const setExtensionConsent = vi.mocked(commands.setExtensionConsent);
 const registerExtensionPermissions = vi.mocked(commands.registerExtensionPermissions);
 const revokeExtensionConsent = vi.mocked(commands.revokeExtensionConsent);
+const getRuntimeDownloadSizes = vi.mocked(runtimeCommands.getRuntimeDownloadSizes);
 
 function request(id = 'ext.a') {
   return {
@@ -70,6 +75,7 @@ describe('permissionConsentService', () => {
       declaredPermissions: ['network'],
       declaredArgs: {},
       consented: null,
+      declaredRuntimes: [],
     });
     const result = await permissionConsentService.ensureConsent('ext.a', 'Ext A', 'enable');
     expect(result).toBe(true);
@@ -83,6 +89,7 @@ describe('permissionConsentService', () => {
       declaredPermissions: ['fs:watch'],
       declaredArgs: { 'fs:watch': ['~/a/**'] },
       consented: null,
+      declaredRuntimes: [],
     });
 
     const versionBefore = permissionConsentService.consentVersion;
@@ -109,6 +116,7 @@ describe('permissionConsentService', () => {
       declaredPermissions: ['network'],
       declaredArgs: {},
       consented: null,
+      declaredRuntimes: [],
     });
 
     const promise = permissionConsentService.ensureConsent('ext.a', 'Ext A', 'enable');
@@ -141,6 +149,7 @@ describe('permissionConsentService', () => {
       declaredPermissions: ['network'],
       declaredArgs: {},
       consented: null,
+      declaredRuntimes: [],
     });
     await permissionConsentService.ensureConsent('ext.a', 'Ext A', 'review');
     expect(permissionConsentService.needsReview).toEqual([]);
@@ -165,5 +174,97 @@ describe('permissionConsentService', () => {
 
     expect(result).toBe(false);
     expect(permissionConsentService.consentVersion).toBe(versionBefore);
+  });
+
+  it('ensureConsent never calls getRuntimeDownloadSizes when the extension declares no runtimes', async () => {
+    checkExtensionConsent.mockResolvedValue({
+      needsConsent: false,
+      declaredPermissions: [],
+      declaredArgs: {},
+      consented: null,
+      declaredRuntimes: [],
+    });
+    const result = await permissionConsentService.ensureConsent('ext.a', 'Ext A', 'enable');
+    expect(result).toBe(true);
+    expect(getRuntimeDownloadSizes).not.toHaveBeenCalled();
+  });
+
+  it('ensureConsent surfaces runtimeDownloads on the consent request when runtimes are declared', async () => {
+    checkExtensionConsent.mockResolvedValue({
+      needsConsent: true,
+      declaredPermissions: ['network'],
+      declaredArgs: {},
+      consented: null,
+      declaredRuntimes: ['bun'],
+    });
+    getRuntimeDownloadSizes.mockResolvedValue([{ name: 'bun', sizeBytes: 55_000_000 }]);
+
+    const promise = permissionConsentService.ensureConsent('ext.a', 'Ext A', 'install');
+    await vi.waitFor(() => {
+      expect(permissionConsentService.activeRequest).not.toBeNull();
+    });
+    expect(getRuntimeDownloadSizes).toHaveBeenCalledWith(['bun']);
+    expect(permissionConsentService.activeRequest?.runtimeDownloads).toEqual([
+      { name: 'bun', sizeBytes: 55_000_000 },
+    ]);
+    permissionConsentService.onAccepted();
+    await expect(promise).resolves.toBe(true);
+  });
+
+  it('ensureConsent prompts for a pending runtime download even when permission consent already covers', async () => {
+    checkExtensionConsent.mockResolvedValue({
+      needsConsent: false,
+      declaredPermissions: ['network'],
+      declaredArgs: {},
+      consented: null,
+      declaredRuntimes: ['bun'],
+    });
+    getRuntimeDownloadSizes.mockResolvedValue([{ name: 'bun', sizeBytes: 55_000_000 }]);
+
+    const promise = permissionConsentService.ensureConsent('ext.a', 'Ext A', 'update');
+    await vi.waitFor(() => {
+      expect(permissionConsentService.activeRequest).not.toBeNull();
+    });
+    permissionConsentService.onAccepted();
+    await expect(promise).resolves.toBe(true);
+  });
+
+  it('ensureConsent still marks reviewed when permissions already cover but the user declines a pending runtime download', async () => {
+    // Permission consent and runtime consent are independent concerns: a
+    // decline on the runtime half must not leave a permission-covered
+    // extension stuck showing "needs review" forever.
+    permissionConsentService.markNeedsReview('ext.a');
+    checkExtensionConsent.mockResolvedValue({
+      needsConsent: false,
+      declaredPermissions: ['network'],
+      declaredArgs: {},
+      consented: null,
+      declaredRuntimes: ['bun'],
+    });
+    getRuntimeDownloadSizes.mockResolvedValue([{ name: 'bun', sizeBytes: 55_000_000 }]);
+
+    const promise = permissionConsentService.ensureConsent('ext.a', 'Ext A', 'review');
+    await vi.waitFor(() => {
+      expect(permissionConsentService.activeRequest).not.toBeNull();
+    });
+    permissionConsentService.onDeclined();
+
+    await expect(promise).resolves.toBe(false);
+    expect(permissionConsentService.needsReview).toEqual([]);
+  });
+
+  it('ensureConsent skips the prompt when consent already covers and every declared runtime is already installed', async () => {
+    checkExtensionConsent.mockResolvedValue({
+      needsConsent: false,
+      declaredPermissions: ['network'],
+      declaredArgs: {},
+      consented: null,
+      declaredRuntimes: ['bun'],
+    });
+    getRuntimeDownloadSizes.mockResolvedValue([]);
+
+    const result = await permissionConsentService.ensureConsent('ext.a', 'Ext A', 'enable');
+    expect(result).toBe(true);
+    expect(permissionConsentService.activeRequest).toBeNull();
   });
 });

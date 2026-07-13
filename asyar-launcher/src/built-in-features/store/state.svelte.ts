@@ -28,6 +28,7 @@ export interface ApiExtension {
     platforms?: string[];
     permissions?: string[];
     permissionArgs?: Record<string, unknown>;
+    runtimes?: string[];
   };
 }
 

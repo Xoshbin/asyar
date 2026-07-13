@@ -12,6 +12,8 @@
   import Button from '../../components/base/Button.svelte';
   import IconButton from '../../components/base/IconButton.svelte';
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
+  import { runtimeService } from '../../services/runtime/runtimeService.svelte';
+  import { formatRuntimeDownloadStatus } from '../../services/runtime/runtimeDownloadStatus';
 
   const transportOptions = [
     { value: 'stdio', label: 'Stdio' },
@@ -37,6 +39,12 @@
   let validationError = $state<string | null>(null);
 
   const validation = $derived(validateInstallForm(form));
+
+  const installLabel = $derived(
+    installing
+      ? formatRuntimeDownloadStatus(runtimeService.downloadProgress, 'Installing…')
+      : 'Install',
+  );
 
   function addArg(): void {
     form.args = [...form.args, ''];
@@ -108,6 +116,7 @@
           kind: 'mcp_server_installed',
           severity: 'success',
           retryable: false,
+          developerDetail: `Installed MCP server "${result.displayName}".`,
           context: { serverId: result.id },
         });
         viewManager.goBack();
@@ -286,6 +295,10 @@
       <p class="validation-error">{validationError}</p>
     {/if}
 
+    {#if mcpService.installError}
+      <p class="validation-error">{mcpService.installError}</p>
+    {/if}
+
     {#if testResult !== null}
       <div
         class="test-result"
@@ -305,7 +318,7 @@
         {testing ? 'Testing…' : 'Test Connection'}
       </Button>
       <Button class="btn-primary" onclick={handleInstall} disabled={installing}>
-        {installing ? 'Installing…' : 'Install'}
+        {installLabel}
       </Button>
       <Button onclick={() => viewManager.goBack()}>Cancel</Button>
     </div>

@@ -132,6 +132,19 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
         );
     }
 
+    if let Some(runtimes) = &m.runtimes {
+        for name in runtimes {
+            if !crate::runtimes::catalog::is_known_runtime(name) {
+                return Err(AppError::Validation(format!(
+                    "Extension '{}' declares unknown runtime '{}'. Known runtimes: {}.",
+                    m.id,
+                    name,
+                    crate::runtimes::catalog::known_names().join(", ")
+                )));
+            }
+        }
+    }
+
     if let Some(onb) = &m.onboarding {
         let target = m.commands.iter().find(|c| c.id == onb.command);
         match target {
@@ -552,6 +565,7 @@ mod first_view_component_tests {
             actions: None,
             onboarding: None,
             tools: None,
+            runtimes: None,
         }
     }
 
@@ -694,6 +708,7 @@ mod onboarding_validation_tests {
             actions: None,
             onboarding: None,
             tools: None,
+            runtimes: None,
         }
     }
 
@@ -793,6 +808,7 @@ mod compatibility_tests {
             actions: None,
             onboarding: None,
             tools: None,
+            runtimes: None,
         }
     }
 
@@ -1872,6 +1888,45 @@ mod manifest_schema_tests {
     }
 
     #[test]
+    fn validate_manifest_accepts_a_known_declared_runtime() {
+        let json = r#"{
+            "id": "org.test.runtime-ok",
+            "name": "Runtime OK",
+            "version": "1.0.0",
+            "searchable": true,
+            "type": "extension",
+            "runtimes": ["bun"]
+        }"#;
+        parse(json).expect("a known runtime name must validate");
+    }
+
+    #[test]
+    fn validate_manifest_rejects_an_unknown_declared_runtime() {
+        let json = r#"{
+            "id": "org.test.runtime-bad",
+            "name": "Runtime Bad",
+            "version": "1.0.0",
+            "searchable": true,
+            "type": "extension",
+            "runtimes": ["ffmpeg"]
+        }"#;
+        let err = parse(json).expect_err("an unknown runtime name must fail validation");
+        assert!(format!("{err}").contains("ffmpeg"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_manifest_passes_when_runtimes_absent() {
+        let json = r#"{
+            "id": "org.test.runtime-absent",
+            "name": "Runtime Absent",
+            "version": "1.0.0",
+            "searchable": true,
+            "type": "extension"
+        }"#;
+        parse(json).expect("absent runtimes field must be legal");
+    }
+
+    #[test]
     fn validate_manifest_rejects_search_bar_accessory_on_background_mode_command() {
         // Per the searchbar-accessory feature: `searchBarAccessory` is only
         // legal on `mode: "view"` commands. The mode-level rule lives in
@@ -1924,6 +1979,7 @@ mod manifest_schema_tests {
             actions: None,
             onboarding: None,
             tools: None,
+            runtimes: None,
         };
 
         let err = validate_manifest(&manifest)

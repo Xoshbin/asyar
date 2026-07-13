@@ -3,27 +3,18 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-import { PROVISIONED_SIDECARS } from './sidecar-platforms.mjs';
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TAURI_CONF = resolve(__dirname, '..', 'src-tauri', 'tauri.conf.json');
 
-// Strip the `binaries/` prefix from each Tauri externalBin entry to get the
-// bare sidecar name Tauri suffixes with `-<target-triple>` at bundle time.
-function externalBinNames() {
-  const conf = JSON.parse(readFileSync(TAURI_CONF, 'utf8'));
-  const list = conf.bundle?.externalBin ?? [];
-  return list.map((p) => p.replace(/^.*\//, ''));
-}
-
-// Guards the exact failure that broke every build job: `binaries/claude` was
-// added to externalBin but never downloaded, so each platform aborted with
-// "resource path 'binaries/claude-<triple>' doesn't exist". This test fails at
-// `test-and-lint` time — before the build jobs ever run — if the two lists drift.
-describe('externalBin ↔ sidecar provisioning', () => {
-  it('declares an externalBin entry for every provisioned sidecar (and vice versa)', () => {
-    const declared = [...externalBinNames()].sort();
-    const provisioned = [...PROVISIONED_SIDECARS].sort();
-    expect(provisioned).toEqual(declared);
+// Sidecars (bun/uv/claude) are no longer build-time-bundled via Tauri
+// `externalBin` — they're downloaded on demand at first use by
+// `RuntimeManager`. This guards against that regressing: a binary declared
+// in `externalBin` without being provisioned fails every platform's build at
+// bundle time with "resource path 'binaries/<name>-<triple>' doesn't exist".
+describe('externalBin', () => {
+  it('declares no runtime binaries', () => {
+    const conf = JSON.parse(readFileSync(TAURI_CONF, 'utf8'));
+    const externalBin = conf.bundle?.externalBin ?? [];
+    expect(externalBin).toEqual([]);
   });
 });

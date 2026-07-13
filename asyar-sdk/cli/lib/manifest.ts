@@ -28,6 +28,13 @@ export interface AsyarManifest {
   background?: {
     main: string;
   };
+  /**
+   * On-demand sidecar runtimes (e.g. a future `yt-dlp`/`ffmpeg`) the
+   * extension needs at runtime. Downloaded once and shared across
+   * consumers; the install consent dialog shows their size alongside
+   * permissions.
+   */
+  runtimes?: string[];
 }
 
 export type PreferenceType =
@@ -194,6 +201,9 @@ export const VALID_PERMISSIONS = [
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const;
 
+/** Mirrors `runtimes::catalog::known_names()` (Rust) — kept in sync by hand. */
+export const VALID_RUNTIMES = ['bun', 'uv', 'claude'] as const;
+
 export function readManifest(cwd: string): AsyarManifest {
   const manifestPath = path.join(cwd, 'manifest.json');
   if (!fs.existsSync(manifestPath)) {
@@ -251,6 +261,20 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
         errors.push({
           field: 'permissions',
           message: `"${perm}" is not a valid permission${
+            suggestion ? `. Did you mean "${suggestion}"?` : ''
+          }`,
+        });
+      }
+    });
+  }
+
+  if (manifest.runtimes) {
+    manifest.runtimes.forEach((rt) => {
+      if (!VALID_RUNTIMES.includes(rt as (typeof VALID_RUNTIMES)[number])) {
+        const suggestion = VALID_RUNTIMES.find((v) => v.startsWith(rt[0]));
+        errors.push({
+          field: 'runtimes',
+          message: `"${rt}" is not a valid runtime${
             suggestion ? `. Did you mean "${suggestion}"?` : ''
           }`,
         });

@@ -2,6 +2,9 @@
   import { mcpService } from './mcpService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { runtimeService } from '../../services/runtime/runtimeService.svelte';
+  import { formatRuntimeDownloadStatus } from '../../services/runtime/runtimeDownloadStatus';
+  import { importServers, type ImportOutcome } from './importServersView.helpers';
   import type { McpServerInstallInput, DetectedConfig } from './types';
   import Button from '../../components/base/Button.svelte';
   import Checkbox from '../../components/base/Checkbox.svelte';
@@ -18,6 +21,13 @@
   let parsedServers = $state<McpServerInstallInput[]>([]);
   let parseError = $state<string | null>(null);
   let importing = $state(false);
+  let importResults = $state<ImportOutcome[]>([]);
+
+  const importLabel = $derived(
+    importing
+      ? formatRuntimeDownloadStatus(runtimeService.downloadProgress, 'Importing…')
+      : 'Import Selected',
+  );
 
   // Selections: map from id → boolean
   let detectedSelected = $state<Record<string, boolean>>({});
@@ -39,20 +49,24 @@
 
   async function importSelected(servers: McpServerInstallInput[]): Promise<void> {
     importing = true;
-    let succeeded = 0;
-    let failed = 0;
+    importResults = [];
     try {
-      for (const input of servers) {
-        const result = await mcpService.install(input);
-        if (result !== null) succeeded += 1;
-        else failed += 1;
-      }
+      const outcomes = await importServers(
+        servers,
+        (input) => mcpService.install(input),
+        () => mcpService.installError,
+      );
+      importResults = outcomes;
+      const succeeded = outcomes.filter((o) => o.ok).length;
+      const failed = outcomes.length - succeeded;
+
       if (succeeded > 0) {
         void diagnosticsService.report({
           source: 'frontend',
           kind: 'mcp_servers_imported',
           severity: 'success',
           retryable: false,
+          developerDetail: `Imported ${succeeded} MCP server${succeeded === 1 ? '' : 's'}.`,
           context: { count: String(succeeded) },
         });
       }
@@ -62,10 +76,16 @@
           kind: 'mcp_servers_import_failed',
           severity: 'warning',
           retryable: false,
+          developerDetail: `${failed} of ${outcomes.length} MCP server${outcomes.length === 1 ? '' : 's'} failed to import — see the list below.`,
           context: { count: String(failed), succeeded: String(succeeded) },
         });
       }
-      viewManager.goBack();
+      // Only leave the view once every selected server actually imported —
+      // a partial or total failure must stay visible with its per-server
+      // reason, not silently look identical to success.
+      if (failed === 0) {
+        viewManager.goBack();
+      }
     } finally {
       importing = false;
     }
@@ -131,9 +151,10 @@
             onclick={handleImportDetected}
             disabled={importing || getDetectedSelectedServers().length === 0}
           >
-            {importing ? 'Importing…' : 'Import Selected'}
+            {importLabel}
           </Button>
         </div>
+        {@render importResultsList()}
       {/if}
     {:else}
       <div class="paste-section">
@@ -171,15 +192,33 @@
                 onclick={handleImportParsed}
                 disabled={importing || getParsedSelectedServers().length === 0}
               >
-                {importing ? 'Importing…' : 'Import Selected'}
+                {importLabel}
               </Button>
             </div>
+            {@render importResultsList()}
           </div>
         {/if}
       </div>
     {/if}
   </div>
 </div>
+
+{#snippet importResultsList()}
+  {#if importResults.length > 0}
+    <div class="import-results">
+      {#each importResults as outcome (outcome.id)}
+        <div class="import-result" class:import-result-fail={!outcome.ok}>
+          <span class="result-name">{outcome.displayName}</span>
+          {#if outcome.ok}
+            <span class="result-status result-ok">Imported</span>
+          {:else}
+            <span class="result-status result-fail-text">{outcome.error}</span>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  {/if}
+{/snippet}
 
 <style>
   .import-view {
@@ -265,5 +304,39 @@
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
     margin: 0;
+  }
+
+  .import-results {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-top: var(--space-3);
+  }
+
+  .import-result {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    font-size: var(--font-size-xs);
+  }
+
+  .import-result-fail {
+    border-left: 2px solid var(--accent-danger);
+  }
+
+  .result-name {
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .result-ok {
+    color: var(--text-tertiary);
+  }
+
+  .result-fail-text {
+    color: var(--accent-danger);
   }
 </style>

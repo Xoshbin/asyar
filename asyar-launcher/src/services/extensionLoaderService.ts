@@ -5,6 +5,8 @@ import {
   discoverExtensions as discoverExtensionsIpc,
   getExtension as getExtensionIpc,
 } from '../lib/ipc/commands';
+import { resolveRuntime } from '../lib/ipc/runtimeCommands';
+import { extensionStateManager } from './extension/extensionStateManager.svelte';
 
 // Type for extension loading response
 export interface LoadedExtensionModule {
@@ -22,6 +24,42 @@ class ExtensionLoaderService {
     logService.info(
       `ExtensionLoader initialized in ${this.isDevMode ? 'development' : 'production'} mode`,
     );
+  }
+
+  /**
+   * Declared runtimes (e.g. a future `ffmpeg`) not yet installed locally.
+   * Empty when the manifest declares none, or when every declared runtime
+   * already resolves.
+   */
+  private async getMissingRuntimes(manifest: ExtensionManifest): Promise<string[]> {
+    const runtimes = manifest.runtimes ?? [];
+    if (runtimes.length === 0) return [];
+    const resolved = await Promise.all(runtimes.map((name) => resolveRuntime(name)));
+    return runtimes.filter((_, i) => resolved[i] === null);
+  }
+
+  /**
+   * Whether `record` should be skipped for a still-missing declared
+   * runtime. Built-ins are always trusted (bundled with the app, same as
+   * the compatibility checks above) and never gated here. Updates
+   * `extensionStateManager.needsRuntime` as a side effect either way, so
+   * the mark clears again once a previously-missing runtime resolves.
+   */
+  private async isBlockedByMissingRuntime(record: {
+    manifest: ExtensionManifest;
+    isBuiltIn: boolean;
+  }): Promise<boolean> {
+    if (record.isBuiltIn) return false;
+    const missingRuntimes = await this.getMissingRuntimes(record.manifest);
+    if (missingRuntimes.length > 0) {
+      extensionStateManager.markNeedsRuntime(record.manifest.id);
+      logService.warn(
+        `Skipping extension ${record.manifest.id}: missing runtime(s) ${missingRuntimes.join(', ')}`,
+      );
+      return true;
+    }
+    extensionStateManager.clearNeedsRuntime(record.manifest.id);
+    return false;
   }
 
   /**
@@ -67,6 +105,10 @@ class ExtensionLoaderService {
 
         // Skip theme extensions — they have no JS module to load
         if (record.manifest.type === 'theme') {
+          continue;
+        }
+
+        if (await this.isBlockedByMissingRuntime(record)) {
           continue;
         }
 
@@ -141,6 +183,10 @@ class ExtensionLoaderService {
 
       // Skip theme extensions — they have no JS module to load
       if (record.manifest.type === 'theme') {
+        return null;
+      }
+
+      if (await this.isBlockedByMissingRuntime(record)) {
         return null;
       }
 

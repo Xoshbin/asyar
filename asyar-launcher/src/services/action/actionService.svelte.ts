@@ -34,7 +34,7 @@ const IS_WINDOWS = HOST_PLATFORM === 'windows';
 const UNINSTALL_SUPPORTED = IS_MACOS || IS_WINDOWS;
 
 /** Human-readable byte size. Matches Finder-style rounding (1 KB = 1000 B). */
-function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number): string {
   if (bytes < 1000) return `${bytes} B`;
   const units = ['KB', 'MB', 'GB', 'TB'];
   let value = bytes / 1000;

@@ -2,6 +2,7 @@
   import Modal from '../base/Modal.svelte';
   import Button from '../base/Button.svelte';
   import PermissionList from '../settings/PermissionList.svelte';
+  import RuntimeDownloadList from '../settings/RuntimeDownloadList.svelte';
   import type { PermissionConsentRequest } from '../../services/extension/permissionConsentService.svelte';
 
   let { request, onAccept, onDecline } = $props<{
@@ -33,6 +34,7 @@
 
     <div class="max-h-72 overflow-y-auto pr-1 custom-scrollbar">
       <PermissionList permissions={request.permissions} permissionArgs={request.permissionArgs} />
+      <RuntimeDownloadList runtimes={request.runtimeDownloads ?? []} />
     </div>
   {/snippet}
   {#snippet actions()}

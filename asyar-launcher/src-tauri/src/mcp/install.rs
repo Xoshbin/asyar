@@ -24,7 +24,7 @@ pub struct McpServerInstallInput {
 }
 
 /// Summary of a persisted MCP server with live status.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServerSummary {
     pub id: String,
@@ -133,6 +133,194 @@ pub async fn install_server(
         status,
         tools_count,
     })
+}
+
+// ── install_server_checking_runtime ───────────────────────────────────────────
+
+/// Whether a bundled runtime (bun/uv) still needs to be downloaded before an
+/// install/enable can proceed. Implemented by a thin production adapter over
+/// `runtimes::RuntimeManager::ensure` at the Tauri command layer; kept as a
+/// trait so `install_server_checking_runtime`'s own tests can use a fixed
+/// stub instead of the real download/network stack.
+pub trait RuntimeAvailability: Send + Sync {
+    /// `Some(size_bytes)` when `name` still needs to be downloaded, `None`
+    /// when it's already installed (or not a runtime this check cares about).
+    fn needs_download(&self, name: &str) -> Option<u64>;
+}
+
+/// Outcome of `install_server_checking_runtime`: either the server was
+/// probed and persisted normally, or a required bundled runtime is missing
+/// and the caller must drive a consent+download flow before retrying.
+#[derive(Debug, Clone, PartialEq)]
+pub enum InstallOutcome {
+    Installed(McpServerSummary),
+    NeedsRuntime { name: String, size_bytes: u64 },
+}
+
+/// Maps a stdio server's `command` to the bundled runtime it needs — but
+/// only when `path_probe` reports the command is NOT already on the system
+/// `PATH` (fix #3: install/enable-time checks must agree with the actual
+/// spawn-time resolution in `transport::resolve_stdio_command`, which always
+/// prefers PATH first). `None` for `Http` transports, commands found on
+/// PATH, and any command that never routes through a bundled runtime.
+/// Delegates the command→runtime name mapping to `sidecar::runtime_for_command`
+/// (single source of truth — see that function's doc comment) rather than
+/// duplicating it here.
+pub(crate) fn required_runtime_for_command_with_probe(
+    transport: &McpTransportSpec,
+    path_probe: impl Fn(&str) -> bool,
+) -> Option<&'static str> {
+    match transport {
+        McpTransportSpec::Stdio { command, .. } => {
+            if path_probe(command) {
+                return None;
+            }
+            crate::mcp::sidecar::runtime_for_command(command)
+        }
+        McpTransportSpec::Http { .. } => None,
+    }
+}
+
+/// Like `install_server`, but first checks whether the server's transport
+/// needs a bundled runtime (bun/uv) that isn't installed yet, returning
+/// `InstallOutcome::NeedsRuntime` instead of persisting a server the caller
+/// can't actually run. Nothing is written to SQLite (nor is the
+/// supervisor/tool registry touched) until the runtime check passes. On a
+/// successful install that did need a runtime, registers `"mcp:<id>"` as a
+/// consumer of it so Settings' "remove runtime" warning knows this server
+/// depends on it. `path_probe` is injectable so tests don't depend on the
+/// ambient system PATH (production passes `sidecar::system_command_exists`
+/// via `install_server_checking_runtime_ensuring`). `runtime_manager` takes
+/// no `AppHandle`, so this whole function stays unit-testable without one —
+/// unlike `install_server_checking_runtime_ensuring`, which needs a concrete
+/// `&tauri::AppHandle` for its network-backed `ensure()` call and so isn't
+/// directly constructible from `tauri::test::mock_app()`.
+pub async fn install_server_checking_runtime(
+    supervisor: &McpSupervisor,
+    registry: &ToolRegistryState,
+    store: &DataStore,
+    input: McpServerInstallInput,
+    runtime_availability: &dyn RuntimeAvailability,
+    path_probe: impl Fn(&str) -> bool,
+    runtime_manager: &crate::runtimes::RuntimeManager,
+) -> Result<InstallOutcome, AppError> {
+    let server_id = input.id.clone();
+    let required_runtime = required_runtime_for_command_with_probe(&input.transport, path_probe);
+
+    if let Some(name) = required_runtime {
+        if let Some(size_bytes) = runtime_availability.needs_download(name) {
+            return Ok(InstallOutcome::NeedsRuntime {
+                name: name.to_string(),
+                size_bytes,
+            });
+        }
+    }
+
+    let summary = install_server(supervisor, registry, store, input).await?;
+    if let Some(name) = required_runtime {
+        runtime_manager.add_consumer(name, &format!("mcp:{server_id}"));
+    }
+    Ok(InstallOutcome::Installed(summary))
+}
+
+/// A `RuntimeAvailability` scoped to at most one runtime name — the one
+/// (if any) a specific transport's command actually needs. Used by
+/// `install_server_checking_runtime_ensuring` / the enable-path equivalent
+/// in `lifecycle.rs` so the network-backed `RuntimeManager::ensure` call
+/// happens at most once, only for the runtime that's actually relevant,
+/// instead of unconditionally `ensure()`ing both bun and uv up front (fix #4).
+pub(crate) struct SingleRuntimeAvailability {
+    entry: Option<(&'static str, u64)>,
+}
+
+impl SingleRuntimeAvailability {
+    /// No runtime is needed at all (Http transport, or command already on PATH).
+    pub(crate) fn none() -> Self {
+        Self { entry: None }
+    }
+
+    /// Built from a single `RuntimeManager::ensure(name)` result.
+    pub(crate) fn from_ensure(name: &'static str, result: crate::runtimes::EnsureResult) -> Self {
+        match result {
+            crate::runtimes::EnsureResult::Installed(_) => Self { entry: None },
+            crate::runtimes::EnsureResult::NeedsDownload { size_bytes } => Self {
+                entry: Some((name, size_bytes)),
+            },
+        }
+    }
+}
+
+impl RuntimeAvailability for SingleRuntimeAvailability {
+    fn needs_download(&self, name: &str) -> Option<u64> {
+        self.entry.and_then(|(n, size)| (n == name).then_some(size))
+    }
+}
+
+/// Production entry point for the install command: determines whether the
+/// server's transport needs a bundled runtime (PATH-aware, fix #3) and, only
+/// if so, makes a single network `ensure()` call for that one runtime (fix
+/// #4) before delegating to `install_server_checking_runtime`. Business
+/// logic lives here (not in `commands/mcp.rs`, fix #9) so the Tauri command
+/// itself stays a thin wrapper.
+pub async fn install_server_checking_runtime_ensuring(
+    app_handle: &tauri::AppHandle,
+    runtime_manager: &crate::runtimes::RuntimeManager,
+    supervisor: &McpSupervisor,
+    registry: &ToolRegistryState,
+    store: &DataStore,
+    input: McpServerInstallInput,
+) -> Result<InstallOutcome, AppError> {
+    let probe = crate::mcp::sidecar::system_command_exists;
+    let availability = match required_runtime_for_command_with_probe(&input.transport, probe) {
+        None => SingleRuntimeAvailability::none(),
+        Some(name) => {
+            let result = runtime_manager.ensure(app_handle, name).await?;
+            SingleRuntimeAvailability::from_ensure(name, result)
+        }
+    };
+    install_server_checking_runtime(
+        supervisor,
+        registry,
+        store,
+        input,
+        &availability,
+        probe,
+        runtime_manager,
+    )
+    .await
+}
+
+/// Wire shape for `mcp_install_server`'s response (fix #9: lives next to
+/// `InstallOutcome`, not in `commands/mcp.rs`). `#[serde(untagged)]` means
+/// the normal-success case serializes with no wrapping at all (a plain
+/// `McpServerSummary`), while the needs-runtime case carries an explicit
+/// `kind: "needsRuntime"` the frontend discriminates on — see
+/// `McpService`'s `runtimeConsentPrompt` flow.
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum McpInstallOutcomeResponse {
+    NeedsRuntime {
+        kind: &'static str,
+        name: String,
+        #[serde(rename = "sizeBytes")]
+        size_bytes: u64,
+    },
+    Installed(McpServerSummary),
+}
+
+impl From<InstallOutcome> for McpInstallOutcomeResponse {
+    fn from(outcome: InstallOutcome) -> Self {
+        match outcome {
+            InstallOutcome::Installed(summary) => McpInstallOutcomeResponse::Installed(summary),
+            InstallOutcome::NeedsRuntime { name, size_bytes } => {
+                McpInstallOutcomeResponse::NeedsRuntime {
+                    kind: "needsRuntime",
+                    name,
+                    size_bytes,
+                }
+            }
+        }
+    }
 }
 
 // ── test_server ───────────────────────────────────────────────────────────────
@@ -510,6 +698,26 @@ pub async fn list_servers_with_status(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn needs_runtime_wire_shape_uses_camel_case_size_bytes_field() {
+        // Regression guard: `#[serde(untagged, rename_all = "camelCase")]`
+        // on the enum does NOT cascade into a struct variant's field names
+        // (confirmed empirically — this bug shipped `size_bytes` over the
+        // wire, which the TS `McpRuntimeConsentNeeded.sizeBytes` field
+        // never matched, producing `undefined` → "NaN KB" in the consent
+        // dialog). Each field needs its own explicit `#[serde(rename)]`.
+        let response = McpInstallOutcomeResponse::from(InstallOutcome::NeedsRuntime {
+            name: "bun".to_string(),
+            size_bytes: 62_914_560,
+        });
+        let value: serde_json::Value = serde_json::to_value(&response).unwrap();
+        assert_eq!(value["sizeBytes"], 62_914_560);
+        assert!(
+            value.get("size_bytes").is_none(),
+            "must not also serialize the raw snake_case field name"
+        );
+    }
     use crate::mcp::transport::{duplex_pair, Transport, TransportFactory};
     use crate::mcp::types::McpClientError;
     use crate::mcp::{McpSupervisor, SupervisorConfig};
@@ -791,6 +999,305 @@ mod tests {
         assert!(
             result.is_empty(),
             "expected empty results when config files have no mcpServers key, got: {result:?}"
+        );
+    }
+
+    // ── RED: install_server surfaces a "needs runtime" outcome instead of a
+    // hard AppError when a stdio server needs bun/uv and it isn't installed
+    // ──────────────────────────────────────────────────────────────────────
+    //
+    // `RuntimeAvailability`, `InstallOutcome`, and
+    // `install_server_checking_runtime` don't exist yet — production code
+    // must add them. The crate fails to compile until then; that is the
+    // expected RED state for this test.
+
+    struct AlwaysMissingBun;
+
+    impl super::RuntimeAvailability for AlwaysMissingBun {
+        fn needs_download(&self, name: &str) -> Option<u64> {
+            match name {
+                "bun" => Some(42_000_000),
+                _ => None,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn install_server_checking_runtime_returns_needs_runtime_when_bun_is_not_installed() {
+        let factory = MockSucceedFactory::new("probe_tool");
+        let cfg = SupervisorConfig {
+            initial_backoff: Duration::from_millis(10),
+            ..SupervisorConfig::default()
+        };
+        let supervisor = McpSupervisor::new(factory, cfg);
+        let store = crate::storage::create_test_store();
+        let registry = Arc::new(crate::agents::tools::ToolRegistry::new());
+
+        let input = McpServerInstallInput {
+            id: "npx-server".to_string(),
+            display_name: "NPX Server".to_string(),
+            description: None,
+            transport: McpTransportSpec::Stdio {
+                command: "npx".to_string(),
+                args: vec!["-y".to_string(), "some-mcp-server".to_string()],
+                env: BTreeMap::new(),
+                cwd: None,
+            },
+        };
+
+        // `|_| false`: explicitly "not found on PATH" so this test is
+        // deterministic regardless of whether the machine running it happens
+        // to have a real `npx` on PATH (fix #3).
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
+        let outcome = super::install_server_checking_runtime(
+            &supervisor,
+            &registry,
+            &store,
+            input,
+            &AlwaysMissingBun,
+            |_| false,
+            &runtime_manager,
+        )
+        .await
+        .expect("a missing runtime must produce a success-shaped outcome, not a hard AppError");
+
+        match outcome {
+            super::InstallOutcome::NeedsRuntime { name, size_bytes } => {
+                assert_eq!(name, "bun");
+                assert_eq!(size_bytes, 42_000_000);
+            }
+            other => panic!("expected NeedsRuntime outcome, got: {other:?}"),
+        }
+
+        // Must short-circuit before persisting a half-installed server.
+        let conn = store.conn().unwrap();
+        assert!(
+            crate::storage::mcp_servers::get_server(&conn, "npx-server")
+                .unwrap()
+                .is_none(),
+            "server must not be persisted while the required runtime is still missing"
+        );
+    }
+
+    // ── RED (fix #3): install/enable-time runtime check must consult the
+    // system PATH first, same as the actual spawn-time resolution — a
+    // command already on PATH needs no bundled runtime at all.
+
+    #[tokio::test]
+    async fn install_server_checking_runtime_skips_runtime_check_when_command_found_on_path() {
+        let factory = MockSucceedFactory::new("probe_tool");
+        let cfg = SupervisorConfig {
+            initial_backoff: Duration::from_millis(10),
+            ..SupervisorConfig::default()
+        };
+        let supervisor = McpSupervisor::new(factory, cfg);
+        let store = crate::storage::create_test_store();
+        let registry = Arc::new(crate::agents::tools::ToolRegistry::new());
+
+        let input = McpServerInstallInput {
+            id: "npx-on-path-server".to_string(),
+            display_name: "NPX On PATH Server".to_string(),
+            description: None,
+            transport: McpTransportSpec::Stdio {
+                command: "npx".to_string(),
+                args: vec!["-y".to_string(), "some-mcp-server".to_string()],
+                env: BTreeMap::new(),
+                cwd: None,
+            },
+        };
+
+        // Probe reports npx present on PATH — the bun requirement must never
+        // even be consulted, so `AlwaysMissingBun` must not cause NeedsRuntime.
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
+        let outcome = super::install_server_checking_runtime(
+            &supervisor,
+            &registry,
+            &store,
+            input,
+            &AlwaysMissingBun,
+            |_| true,
+            &runtime_manager,
+        )
+        .await
+        .expect("install must succeed when the command is found on PATH");
+
+        match outcome {
+            super::InstallOutcome::Installed(summary) => {
+                assert_eq!(summary.id, "npx-on-path-server");
+                assert_eq!(summary.tools_count, 1);
+            }
+            other => panic!("expected Installed outcome when found on PATH, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn required_runtime_for_command_with_probe_returns_none_for_http_transport_regardless_of_probe()
+    {
+        let http = McpTransportSpec::Http {
+            url: "https://example.com/mcp".to_string(),
+            headers: BTreeMap::new(),
+        };
+        assert_eq!(
+            super::required_runtime_for_command_with_probe(&http, |_| false),
+            None
+        );
+        assert_eq!(
+            super::required_runtime_for_command_with_probe(&http, |_| true),
+            None
+        );
+    }
+
+    #[test]
+    fn required_runtime_for_command_with_probe_maps_npx_to_bun_when_not_on_path() {
+        let stdio = McpTransportSpec::Stdio {
+            command: "npx".to_string(),
+            args: vec![],
+            env: BTreeMap::new(),
+            cwd: None,
+        };
+        assert_eq!(
+            super::required_runtime_for_command_with_probe(&stdio, |_| false),
+            Some("bun")
+        );
+        assert_eq!(
+            super::required_runtime_for_command_with_probe(&stdio, |_| true),
+            None
+        );
+    }
+
+    // ── RED: install must register "mcp:<server_id>" as a runtime consumer
+    // on success, so Settings' "remove runtime" warning knows this server
+    // depends on it. Exercised through `install_server_checking_runtime`
+    // itself (not the `_ensuring` wrapper): that function is AppHandle-free
+    // already — the only place this crate can add the consumer-registration
+    // check while staying unit-testable, since `_ensuring` takes a concrete
+    // `&tauri::AppHandle` that `tauri::test::mock_app()` cannot produce
+    // (it's parameterized by `MockRuntime`, not `Wry`).
+
+    struct AlwaysInstalled;
+
+    impl super::RuntimeAvailability for AlwaysInstalled {
+        fn needs_download(&self, _name: &str) -> Option<u64> {
+            None
+        }
+    }
+
+    #[tokio::test]
+    async fn install_server_checking_runtime_registers_mcp_consumer_on_success() {
+        let factory = MockSucceedFactory::new("probe_tool");
+        let cfg = SupervisorConfig {
+            initial_backoff: Duration::from_millis(10),
+            ..SupervisorConfig::default()
+        };
+        let supervisor = McpSupervisor::new(factory, cfg);
+        let store = crate::storage::create_test_store();
+        let registry = Arc::new(crate::agents::tools::ToolRegistry::new());
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
+
+        let input = McpServerInstallInput {
+            id: "npx-server".to_string(),
+            display_name: "NPX Server".to_string(),
+            description: None,
+            transport: McpTransportSpec::Stdio {
+                command: "npx".to_string(),
+                args: vec![],
+                env: BTreeMap::new(),
+                cwd: None,
+            },
+        };
+
+        let outcome = super::install_server_checking_runtime(
+            &supervisor,
+            &registry,
+            &store,
+            input,
+            &AlwaysInstalled,
+            |_| false,
+            &runtime_manager,
+        )
+        .await
+        .expect("install must succeed once bun is reported already installed");
+
+        assert!(matches!(outcome, super::InstallOutcome::Installed(_)));
+        assert_eq!(
+            runtime_manager.consumers_of("bun"),
+            vec!["mcp:npx-server".to_string()],
+            "install must register the server as a bun consumer"
+        );
+    }
+
+    #[tokio::test]
+    async fn install_server_checking_runtime_does_not_register_consumer_for_http_transport() {
+        let factory = MockSucceedFactory::new("probe_tool");
+        let cfg = SupervisorConfig {
+            initial_backoff: Duration::from_millis(10),
+            ..SupervisorConfig::default()
+        };
+        let supervisor = McpSupervisor::new(factory, cfg);
+        let store = crate::storage::create_test_store();
+        let registry = Arc::new(crate::agents::tools::ToolRegistry::new());
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
+
+        let input = McpServerInstallInput {
+            id: "http-server".to_string(),
+            display_name: "HTTP Server".to_string(),
+            description: None,
+            transport: McpTransportSpec::Http {
+                url: "https://example.com/mcp".to_string(),
+                headers: BTreeMap::new(),
+            },
+        };
+
+        let outcome = super::install_server_checking_runtime(
+            &supervisor,
+            &registry,
+            &store,
+            input,
+            &AlwaysInstalled,
+            |_| false,
+            &runtime_manager,
+        )
+        .await
+        .expect("http install must succeed without any runtime");
+
+        assert!(matches!(outcome, super::InstallOutcome::Installed(_)));
+        assert!(
+            runtime_manager.consumers_of("bun").is_empty(),
+            "http transport never needs bun, so it must not register a consumer"
+        );
+    }
+
+    #[tokio::test]
+    async fn install_server_checking_runtime_does_not_register_consumer_when_command_found_on_path()
+    {
+        let factory = MockSucceedFactory::new("probe_tool");
+        let cfg = SupervisorConfig {
+            initial_backoff: Duration::from_millis(10),
+            ..SupervisorConfig::default()
+        };
+        let supervisor = McpSupervisor::new(factory, cfg);
+        let store = crate::storage::create_test_store();
+        let registry = Arc::new(crate::agents::tools::ToolRegistry::new());
+        let runtime_manager = crate::runtimes::RuntimeManager::new();
+
+        let input = make_stdio_input("on-path-server");
+
+        let outcome = super::install_server_checking_runtime(
+            &supervisor,
+            &registry,
+            &store,
+            input,
+            &AlwaysInstalled,
+            |_| true,
+            &runtime_manager,
+        )
+        .await
+        .expect("install must succeed when the command is found on PATH");
+
+        assert!(matches!(outcome, super::InstallOutcome::Installed(_)));
+        assert!(
+            runtime_manager.consumers_of("bun").is_empty(),
+            "a command already on PATH needs no bundled runtime, so no consumer must be registered"
         );
     }
 }

@@ -338,6 +338,12 @@ pub struct ExtensionManifest {
     /// `asyar:tools:invoke` postMessage envelope.
     #[serde(default)]
     pub tools: Option<Vec<crate::agents::tools::ManifestTool>>,
+    /// On-demand sidecar runtimes (e.g. a future `yt-dlp`/`ffmpeg`) this
+    /// extension needs. Rejected at discovery if any name isn't in
+    /// `runtimes::catalog::known_names()`; declared-but-not-yet-installed
+    /// runtimes show their download size in the install consent dialog.
+    #[serde(default)]
+    pub runtimes: Option<Vec<String>>,
 }
 
 impl ExtensionManifest {
@@ -1124,6 +1130,7 @@ mod tests {
                     actions: None,
                     onboarding: None,
                     tools: None,
+                    runtimes: None,
                 },
                 enabled: true,
                 is_built_in: false,

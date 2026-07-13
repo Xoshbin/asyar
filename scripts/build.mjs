@@ -23,14 +23,16 @@ function run(cmd, cwd = root) {
 
 /**
  * Resolve a usable `bun` executable: prefer one on PATH, otherwise fall back
- * to the bundled bun sidecar staged under src-tauri/binaries/bun-<triple>.
+ * to a bun binary manually placed under src-tauri/binaries/bun-<triple> for
+ * local dev (see src-tauri/binaries/README.md) — bun is no longer bundled at
+ * build time.
  */
 function resolveBun() {
   try {
     execSync('bun --version', { stdio: 'ignore' });
     return 'bun';
   } catch {
-    // fall through to the bundled sidecar
+    // fall through to a manually-placed local dev binary
   }
   const binariesDir = resolve(launcherDir, 'src-tauri', 'binaries');
   if (existsSync(binariesDir)) {
@@ -76,8 +78,8 @@ step('Building ext-builder sidecar JS (build:js)');
 const bun = resolveBun();
 if (!bun) {
   console.error(
-    '✗ No bun found (not on PATH and no bundled bun-<triple> sidecar in src-tauri/binaries). ' +
-      'Run `node scripts/download-sidecars.mjs` first or install bun.',
+    '✗ No bun found (not on PATH and no local bun-<triple> binary in src-tauri/binaries). ' +
+      'Install bun (https://bun.sh) or place one manually — see src-tauri/binaries/README.md.',
   );
   process.exit(1);
 }

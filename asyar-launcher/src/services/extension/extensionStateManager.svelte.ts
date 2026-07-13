@@ -15,6 +15,27 @@ export class ExtensionStateManager {
   public extensionUsageStats = $state<Record<string, number>>({});
   public extensionLastUsed = $state<Record<string, number>>({});
 
+  /**
+   * Extensions whose declared manifest `runtimes` aren't all installed yet
+   * (download declined, failed, or never attempted). Populated by
+   * `extensionLoaderService` at load time — commands for these extensions
+   * are excluded from search/action indexing until the runtime resolves and
+   * `reloadExtensions()` runs again.
+   */
+  public needsRuntime = $state<string[]>([]);
+
+  markNeedsRuntime(extensionId: string): void {
+    if (!this.needsRuntime.includes(extensionId)) {
+      this.needsRuntime = [...this.needsRuntime, extensionId];
+    }
+  }
+
+  clearNeedsRuntime(extensionId: string): void {
+    if (this.needsRuntime.includes(extensionId)) {
+      this.needsRuntime = this.needsRuntime.filter((id) => id !== extensionId);
+    }
+  }
+
   private manifestsById: Map<string, ExtendedManifest> = new Map();
   private reloadExtensionsCallback: () => Promise<void> = async () => {};
 

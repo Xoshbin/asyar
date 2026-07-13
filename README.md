@@ -474,21 +474,18 @@ cd asyar
 node setup.mjs
 ```
 
-`setup.mjs` installs workspace dependencies, builds the SDK, downloads the bundled MCP sidecar binaries, clones any optional Tier 2 sample extensions (like `sdk-playground`) into `extensions/`, and runs `asyar doctor` to verify the setup.
+`setup.mjs` installs workspace dependencies, builds the SDK, clones any optional Tier 2 sample extensions (like `sdk-playground`) into `extensions/`, and runs `asyar doctor` to verify the setup.
 
-### MCP sidecar binaries
+### Runtime downloads (bun / uv / claude)
 
-Asyar bundles `bun` and `uv` binaries (in `asyar-launcher/src-tauri/binaries/`) so users can run
-npx/uvx-based MCP servers without a local Node.js or Python installation. These
-binaries are not checked in to version control. `node setup.mjs` populates them automatically,
-but if you need to refresh them manually:
-
-```bash
-node asyar-launcher/scripts/download-sidecars.mjs
-```
-
-This command is idempotent — safe to run multiple times. CI pipelines must run
-it before the build step.
+Asyar no longer bundles `bun`, `uv`, or `claude` at build time. Instead, each is
+downloaded on demand the first time a feature actually needs it (an MCP server
+without a system Node.js/Python, or the AI Extension Builder), behind a consent
+dialog, verified against a pinned sha256. See
+[`asyar-launcher/src-tauri/src/runtimes/`](asyar-launcher/src-tauri/src/runtimes/)
+for the download/verify/install machinery, and
+[`asyar-launcher/src-tauri/binaries/README.md`](asyar-launcher/src-tauri/binaries/README.md)
+if you want to place a runtime manually for local `tauri dev` testing.
 
 For architecture details, see the [explanation docs](docs/explanation/).
 For release procedures (both launcher and SDK), see [`RELEASING.md`](RELEASING.md).
