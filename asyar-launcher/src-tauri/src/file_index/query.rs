@@ -561,7 +561,15 @@ mod tests {
     /// on Unix. Slash-token queries are unaffected: `tokenize` splits the
     /// query on `/` and matches component names, not the stored separator.
     fn np(unix: &str) -> String {
-        unix.replace('/', std::path::MAIN_SEPARATOR_STR)
+        unix.chars()
+            .map(|c| {
+                if c == '/' {
+                    std::path::MAIN_SEPARATOR
+                } else {
+                    c
+                }
+            })
+            .collect()
     }
 
     fn entry(path: &str, kind: EntryKind, mtime: u32) -> ScannedEntry {

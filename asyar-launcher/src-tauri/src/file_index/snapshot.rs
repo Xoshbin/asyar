@@ -52,7 +52,15 @@ mod tests {
     /// Unix fixture path → native separators so it round-trips through the
     /// index (materialized with `MAIN_SEPARATOR`). No-op on Unix.
     fn np(unix: &str) -> String {
-        unix.replace('/', std::path::MAIN_SEPARATOR_STR)
+        unix.chars()
+            .map(|c| {
+                if c == '/' {
+                    std::path::MAIN_SEPARATOR
+                } else {
+                    c
+                }
+            })
+            .collect()
     }
 
     const NOW: i64 = 100_000_000;

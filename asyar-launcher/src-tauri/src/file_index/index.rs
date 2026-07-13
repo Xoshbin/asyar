@@ -562,7 +562,15 @@ mod tests {
     /// Windows a `/tmp/rootA` root joins with `\` to `/tmp/rootA\docs`,
     /// which never equals the unix-spelled lookup key. No-op on Unix.
     fn np(unix: &str) -> String {
-        unix.replace('/', std::path::MAIN_SEPARATOR_STR)
+        unix.chars()
+            .map(|c| {
+                if c == '/' {
+                    std::path::MAIN_SEPARATOR
+                } else {
+                    c
+                }
+            })
+            .collect()
     }
 
     fn scanned(path: &str, kind: EntryKind, mtime: u32) -> ScannedEntry {
