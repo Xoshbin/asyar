@@ -49,6 +49,12 @@ mod tests {
     use crate::file_index::types::EntryKind;
     use std::path::PathBuf;
 
+    /// Unix fixture path → native separators so it round-trips through the
+    /// index (materialized with `MAIN_SEPARATOR`). No-op on Unix.
+    fn np(unix: &str) -> String {
+        unix.replace('/', std::path::MAIN_SEPARATOR_STR)
+    }
+
     const NOW: i64 = 100_000_000;
 
     fn tmp_path() -> PathBuf {
@@ -62,25 +68,25 @@ mod tests {
     fn sample_index() -> FileIndex {
         let items = vec![
             ScannedEntry {
-                path: PathBuf::from("/tmp/rootA/docs"),
+                path: PathBuf::from(np("/tmp/rootA/docs")),
                 kind: EntryKind::Dir,
                 mtime: NOW as u32 - 86_400,
                 hidden: false,
                 placeholder: false,
             },
             ScannedEntry {
-                path: PathBuf::from("/tmp/rootA/docs/Report.pdf"),
+                path: PathBuf::from(np("/tmp/rootA/docs/Report.pdf")),
                 kind: EntryKind::File,
                 mtime: NOW as u32,
                 hidden: false,
                 placeholder: false,
             },
         ];
-        let mut idx = FileIndex::build(vec![PathBuf::from("/tmp/rootA")], items, NOW);
+        let mut idx = FileIndex::build(vec![PathBuf::from(np("/tmp/rootA"))], items, NOW);
         // Give it a tail entry and a tombstone so those survive too.
         idx.apply_batch(
             vec![IndexUpdate::Upserted(ScannedEntry {
-                path: PathBuf::from("/tmp/rootA/tail.txt"),
+                path: PathBuf::from(np("/tmp/rootA/tail.txt")),
                 kind: EntryKind::File,
                 mtime: NOW as u32,
                 hidden: false,
@@ -89,9 +95,9 @@ mod tests {
             NOW,
         );
         idx.apply_batch(
-            vec![IndexUpdate::Removed(PathBuf::from(
+            vec![IndexUpdate::Removed(PathBuf::from(np(
                 "/tmp/rootA/docs/Report.pdf",
-            ))],
+            )))],
             NOW,
         );
         idx
@@ -112,12 +118,12 @@ mod tests {
 
         // Lookups must be rebuilt and functional for sealed AND tail entries.
         let tail = loaded
-            .lookup_path(Path::new("/tmp/rootA/tail.txt"))
+            .lookup_path(Path::new(&np("/tmp/rootA/tail.txt")))
             .expect("tail entry resolves after load");
-        assert_eq!(loaded.materialize_path(tail), "/tmp/rootA/tail.txt");
+        assert_eq!(loaded.materialize_path(tail), np("/tmp/rootA/tail.txt"));
 
         let report = loaded
-            .lookup_path(Path::new("/tmp/rootA/docs/Report.pdf"))
+            .lookup_path(Path::new(&np("/tmp/rootA/docs/Report.pdf")))
             .expect("sealed entry resolves after load");
         assert!(
             loaded.is_tombstoned(report),
@@ -129,7 +135,7 @@ mod tests {
 
     #[test]
     fn load_missing_returns_none() {
-        assert!(load(Path::new("/definitely/does/not/exist.bin")).is_none());
+        assert!(load(Path::new(&np("/definitely/does/not/exist.bin"))).is_none());
     }
 
     #[test]

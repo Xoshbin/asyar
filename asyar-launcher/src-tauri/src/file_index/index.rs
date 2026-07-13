@@ -555,9 +555,19 @@ fn classify(it: &ScannedEntry) -> FileType {
 mod tests {
     use super::*;
 
+    /// Convert a unix-style fixture path to the platform's native
+    /// separators. The index joins components with `MAIN_SEPARATOR` (via
+    /// `materialize_path`) and compares that against requested paths, so a
+    /// fixture must use native separators to round-trip — otherwise on
+    /// Windows a `/tmp/rootA` root joins with `\` to `/tmp/rootA\docs`,
+    /// which never equals the unix-spelled lookup key. No-op on Unix.
+    fn np(unix: &str) -> String {
+        unix.replace('/', std::path::MAIN_SEPARATOR_STR)
+    }
+
     fn scanned(path: &str, kind: EntryKind, mtime: u32) -> ScannedEntry {
         ScannedEntry {
-            path: PathBuf::from(path),
+            path: PathBuf::from(np(path)),
             kind,
             mtime,
             hidden: false,
@@ -569,7 +579,7 @@ mod tests {
 
     /// A small realistic tree under one root.
     fn small_index() -> FileIndex {
-        let root = PathBuf::from("/tmp/rootA");
+        let root = PathBuf::from(np("/tmp/rootA"));
         let items = vec![
             scanned("/tmp/rootA/docs", EntryKind::Dir, NOW as u32 - 86_400 * 40),
             scanned(
@@ -608,7 +618,7 @@ mod tests {
 
     #[test]
     fn lc_names_are_lowercased_and_roots_unmatchable() {
-        let root = PathBuf::from("/tmp/RootB");
+        let root = PathBuf::from(np("/tmp/RootB"));
         let items = vec![scanned("/tmp/RootB/MyFile.TXT", EntryKind::File, 0)];
         let idx = FileIndex::build(vec![root], items, NOW);
         assert_eq!(idx.entry(0).lc_len, 0, "root has an empty match region");
@@ -660,11 +670,14 @@ mod tests {
         let report = (0..idx.entries_len() as u32)
             .find(|&i| idx.disp_name(i) == "report.pdf")
             .unwrap();
-        assert_eq!(idx.materialize_path(report), "/tmp/rootA/docs/report.pdf");
+        assert_eq!(
+            idx.materialize_path(report),
+            np("/tmp/rootA/docs/report.pdf")
+        );
         let notes = (0..idx.entries_len() as u32)
             .find(|&i| idx.disp_name(i) == "old-notes.txt")
             .unwrap();
-        assert_eq!(idx.materialize_path(notes), "/tmp/rootA/old-notes.txt");
+        assert_eq!(idx.materialize_path(notes), np("/tmp/rootA/old-notes.txt"));
     }
 
     #[test]
@@ -684,17 +697,19 @@ mod tests {
     #[test]
     fn lookup_path_finds_entries_and_misses_unknown() {
         let idx = small_index();
-        let found = idx.lookup_path(Path::new("/tmp/rootA/docs/report.pdf"));
+        let found = idx.lookup_path(Path::new(&np("/tmp/rootA/docs/report.pdf")));
         assert!(found.is_some());
         assert_eq!(idx.disp_name(found.unwrap()), "report.pdf");
-        assert!(idx.lookup_path(Path::new("/tmp/rootA/nope.txt")).is_none());
+        assert!(idx
+            .lookup_path(Path::new(&np("/tmp/rootA/nope.txt")))
+            .is_none());
     }
 
     #[test]
     fn removed_tombstones_and_upsert_revives() {
         let mut idx = small_index();
         let gen0 = idx.generation();
-        let target = PathBuf::from("/tmp/rootA/docs/report.pdf");
+        let target = PathBuf::from(np("/tmp/rootA/docs/report.pdf"));
 
         idx.apply_batch(vec![IndexUpdate::Removed(target.clone())], NOW);
         let i = idx
@@ -721,7 +736,7 @@ mod tests {
     fn upsert_existing_updates_mtime_without_growing() {
         let mut idx = small_index();
         let len_before = idx.entries_len();
-        let target = PathBuf::from("/tmp/rootA/old-notes.txt");
+        let target = PathBuf::from(np("/tmp/rootA/old-notes.txt"));
         idx.apply_batch(
             vec![IndexUpdate::Upserted(scanned(
                 "/tmp/rootA/old-notes.txt",
@@ -748,10 +763,10 @@ mod tests {
             NOW,
         );
         let i = idx
-            .lookup_path(Path::new("/tmp/rootA/brand-new.md"))
+            .lookup_path(Path::new(&np("/tmp/rootA/brand-new.md")))
             .unwrap();
         assert!(i as usize >= sealed, "tail entry must live after sealed");
-        assert_eq!(idx.materialize_path(i), "/tmp/rootA/brand-new.md");
+        assert_eq!(idx.materialize_path(i), np("/tmp/rootA/brand-new.md"));
         assert_eq!(idx.lc_name(i), b"brand-new.md");
     }
 
@@ -767,12 +782,14 @@ mod tests {
             NOW,
         );
         let i = idx
-            .lookup_path(Path::new("/tmp/rootA/new1/new2/deep.txt"))
+            .lookup_path(Path::new(&np("/tmp/rootA/new1/new2/deep.txt")))
             .unwrap();
-        assert_eq!(idx.materialize_path(i), "/tmp/rootA/new1/new2/deep.txt");
+        assert_eq!(idx.materialize_path(i), np("/tmp/rootA/new1/new2/deep.txt"));
         assert_eq!(idx.depth(i), 3);
         // Intermediate dirs are real, findable entries.
-        let mid = idx.lookup_path(Path::new("/tmp/rootA/new1/new2")).unwrap();
+        let mid = idx
+            .lookup_path(Path::new(&np("/tmp/rootA/new1/new2")))
+            .unwrap();
         assert!(idx.entry(mid).is_dir());
     }
 
@@ -784,7 +801,9 @@ mod tests {
         assert_eq!(idx.generation(), gen0);
         // Removing an unknown path changes nothing either.
         idx.apply_batch(
-            vec![IndexUpdate::Removed(PathBuf::from("/tmp/rootA/ghost.txt"))],
+            vec![IndexUpdate::Removed(PathBuf::from(np(
+                "/tmp/rootA/ghost.txt",
+            )))],
             NOW,
         );
         assert_eq!(idx.generation(), gen0);

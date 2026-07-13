@@ -556,9 +556,18 @@ mod tests {
 
     const NOW: i64 = 100_000_000;
 
+    /// Unix-style fixture path → native separators, so it round-trips
+    /// through the index (which materializes with `MAIN_SEPARATOR`). No-op
+    /// on Unix. Slash-token queries are unaffected: `tokenize` splits the
+    /// query on `/` and matches component names, not the stored separator.
+    fn np(unix: &str) -> String {
+        unix.replace('/', std::path::MAIN_SEPARATOR_STR)
+    }
+
     fn entry(path: &str, kind: EntryKind, mtime: u32) -> ScannedEntry {
         ScannedEntry {
-            path: PathBuf::from(path),
+            // hidden detection stays on the unix spelling (rsplit '/').
+            path: PathBuf::from(np(path)),
             kind,
             mtime,
             hidden: path.rsplit('/').next().unwrap_or("").starts_with('.'),
@@ -579,7 +588,7 @@ mod tests {
                 entry(p.trim_end_matches('/'), kind, NOW as u32)
             })
             .collect();
-        FileIndex::build(vec![PathBuf::from("/r")], items, NOW)
+        FileIndex::build(vec![PathBuf::from(np("/r"))], items, NOW)
     }
 
     fn never() -> impl Fn() -> bool {
@@ -652,7 +661,7 @@ mod tests {
         ]);
         let r = run(&idx, &mut None, "docs/report");
         assert_eq!(r.hits.len(), 1);
-        assert_eq!(r.hits[0].path, "/r/docs/report.txt");
+        assert_eq!(r.hits[0].path, np("/r/docs/report.txt"));
     }
 
     #[test]
@@ -866,7 +875,7 @@ mod tests {
         assert_eq!(r.hits.len(), 1);
         let h = &r.hits[0];
         assert_eq!(h.name, "Report.PDF");
-        assert_eq!(h.path, "/r/docs/Report.PDF");
+        assert_eq!(h.path, np("/r/docs/Report.PDF"));
         assert_eq!(h.file_type, FileType::Document);
         assert!(!h.is_dir);
         assert_eq!(h.modified_at, NOW);
@@ -903,7 +912,7 @@ mod tests {
             .map(|d| entry(&format!("/r/d{d}"), EntryKind::Dir, NOW as u32))
             .collect();
         items.extend(paths.iter().map(|p| entry(p, EntryKind::File, NOW as u32)));
-        let idx = FileIndex::build(vec![PathBuf::from("/r")], items, NOW);
+        let idx = FileIndex::build(vec![PathBuf::from(np("/r"))], items, NOW);
 
         let learning = LearningCache::new();
         let mut matcher = Matcher::new();
@@ -981,7 +990,7 @@ mod tests {
             ));
         }
         let build_start = std::time::Instant::now();
-        let idx = FileIndex::build(vec![PathBuf::from("/r")], items, NOW);
+        let idx = FileIndex::build(vec![PathBuf::from(np("/r"))], items, NOW);
         eprintln!("build 1M: {:?}", build_start.elapsed());
 
         let learning = LearningCache::new();
