@@ -1,4 +1,5 @@
 import { fetch } from '@tauri-apps/plugin-http';
+import { encodeToolIdForWire } from '../IProviderPlugin';
 import type {
   IProviderPlugin,
   ModelInfo,
@@ -71,11 +72,14 @@ export const googlePlugin: IProviderPlugin = {
       parameters: Record<string, unknown>;
     }>,
   ): RequestSpec {
-    // Gemini requires `name` in functionResponse; look up from prior assistant turn's functionCall
+    // Gemini requires `name` in functionResponse; look up from prior assistant turn's functionCall.
+    // `tu.name` holds the original FQID (e.g. `builtin:calculator`), not the
+    // wire-safe form — encode it here so historical function calls/responses
+    // match the wire-safe names declared in `functionDeclarations` below.
     const idToName = new Map<string, string>();
     for (const m of messages) {
       if (m.role === 'assistant' && Array.isArray(m.toolUse)) {
-        for (const tu of m.toolUse) idToName.set(tu.id, tu.name);
+        for (const tu of m.toolUse) idToName.set(tu.id, encodeToolIdForWire(tu.name));
       }
     }
 
@@ -96,7 +100,9 @@ export const googlePlugin: IProviderPlugin = {
         if (m.content) parts.push({ text: m.content });
         if (Array.isArray(m.toolUse)) {
           for (const tu of m.toolUse) {
-            parts.push({ functionCall: { id: tu.id, name: tu.name, args: tu.input } });
+            parts.push({
+              functionCall: { id: tu.id, name: encodeToolIdForWire(tu.name), args: tu.input },
+            });
           }
         }
         contents.push({ role: 'model', parts });
@@ -124,7 +130,7 @@ export const googlePlugin: IProviderPlugin = {
       tools: [
         {
           functionDeclarations: tools.map((t) => ({
-            name: t.name,
+            name: t.id,
             description: t.description,
             parameters: t.parameters,
           })),

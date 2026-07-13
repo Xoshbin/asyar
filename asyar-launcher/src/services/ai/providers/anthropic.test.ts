@@ -88,6 +88,33 @@ describe('anthropicPlugin.buildToolRequest', () => {
     expect(content).toContainEqual({ type: 'tool_use', id: 'tu1', name: 'calc', input: { x: 1 } });
   });
 
+  it('anthropic_buildToolRequest_encodes_fqid_in_historical_tool_use', () => {
+    // agentLoop.ts stores the resolved FQID (e.g. "builtin:calculator") as
+    // `toolUse[].name`, not the wire-safe id. On turn 2+ of a tool
+    // conversation, that FQID gets replayed as history — it must be
+    // re-encoded so it matches the wire-safe name declared in `tools`,
+    // otherwise Anthropic rejects the invalid characters.
+    const messages: LoopMessage[] = [
+      {
+        role: 'assistant',
+        content: 'thinking...',
+        toolUse: [{ id: 'tu1', name: 'builtin:calculator', input: { x: 1 } }],
+      },
+    ];
+
+    const spec = anthropicPlugin.buildToolRequest(messages, fakeConfig, fakeParams, []);
+    const body = spec.body as Record<string, unknown>;
+    const msgs = body.messages as Array<Record<string, unknown>>;
+    const content = msgs[0].content as Array<Record<string, unknown>>;
+
+    expect(content).toContainEqual({
+      type: 'tool_use',
+      id: 'tu1',
+      name: 'builtin__calculator',
+      input: { x: 1 },
+    });
+  });
+
   it('anthropic_buildToolRequest_emits_tool_result_block_for_tool_role', () => {
     const messages: LoopMessage[] = [{ role: 'tool', content: '42', toolUseId: 'tu1' }];
 

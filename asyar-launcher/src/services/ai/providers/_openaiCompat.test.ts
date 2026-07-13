@@ -64,6 +64,38 @@ describe('openAIToolsMessages', () => {
 
     expect(result).toEqual([{ role: 'tool', tool_call_id: 'call_1', content: '42' }]);
   });
+
+  it('openaiCompat_messages_encodes_fqid_in_historical_tool_calls', () => {
+    // agentLoop.ts stores the resolved FQID (e.g. "builtin:calculator") as
+    // `toolUse[].name`, not the wire-safe id. On turn 2+ of a tool
+    // conversation, that FQID gets replayed as history — it must be
+    // re-encoded so it matches the wire-safe name declared in `tools`,
+    // otherwise OpenAI-compatible providers reject the invalid characters.
+    const messages: LoopMessage[] = [
+      {
+        role: 'assistant',
+        content: 'thinking',
+        toolUse: [{ id: 'call_1', name: 'builtin:calculator', input: { x: 1 } }],
+      },
+    ];
+
+    const result = openAIToolsMessages(messages);
+
+    expect(result).toContainEqual({
+      role: 'assistant',
+      content: 'thinking',
+      tool_calls: [
+        {
+          id: 'call_1',
+          type: 'function',
+          function: {
+            name: 'builtin__calculator',
+            arguments: JSON.stringify({ x: 1 }),
+          },
+        },
+      ],
+    });
+  });
 });
 
 // ─── buildOpenAIToolsBody ─────────────────────────────────────────────────────
@@ -102,6 +134,27 @@ describe('buildOpenAIToolsBody', () => {
     ]);
     expect(body.stream).toBe(true);
     expect(body.model).toBe(fakeParams.modelId);
+  });
+
+  it('openaiCompat_buildToolsBody_uses_wire_safe_id_not_display_name', () => {
+    // Built-in tools have human-readable display names with spaces (e.g.
+    // "Search Launcher Index"). OpenAI's function name validation rejects
+    // spaces, and the wire-safe `id` is also what `wireToFqid` in
+    // agentLoop.ts uses to resolve tool_calls back to the original tool.
+    const messages: LoopMessage[] = [{ role: 'user', content: 'search for files' }];
+    const tools = [
+      {
+        id: 'builtin__search-launcher-index',
+        name: 'Search Launcher Index',
+        description: 'Searches the launcher index',
+        parameters: { type: 'object', properties: {} } as Record<string, unknown>,
+      },
+    ];
+
+    const body = buildOpenAIToolsBody(messages, fakeParams, tools) as Record<string, unknown>;
+    const toolsArray = body.tools as Array<{ function: { name: string } }>;
+
+    expect(toolsArray[0].function.name).toBe('builtin__search-launcher-index');
   });
 });
 

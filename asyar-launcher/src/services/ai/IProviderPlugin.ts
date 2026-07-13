@@ -67,6 +67,22 @@ export interface LoopMessage {
   toolUseId?: string;
 }
 
+/**
+ * Anthropic (and likely other) tool name regex: `^[a-zA-Z0-9_-]{1,64}$`.
+ * Our FQIDs use `:` to separate source from id and `.` inside extension ids,
+ * both of which the API rejects. Encode for the wire — both when declaring
+ * tools and when serializing historical `toolUse`/`toolResult` messages, so
+ * every `name` a provider sees (declarations, function calls, and function
+ * responses) uses the same wire-safe form. Decoding back to the FQID is
+ * map-based (not transform-based) so any naturally-occurring `__` or `--`
+ * in a tool id can't cause collisions.
+ *
+ * Encoding: `:` → `__`, `.` → `--`. Both are wire-safe characters.
+ */
+export function encodeToolIdForWire(fullyQualifiedId: string): string {
+  return fullyQualifiedId.replace(/:/g, '__').replace(/\./g, '--');
+}
+
 // ─── Provider Plugin Interface ─────────────────────────────────────────────────
 
 export interface IProviderPlugin {

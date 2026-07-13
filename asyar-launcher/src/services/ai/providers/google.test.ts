@@ -182,6 +182,69 @@ describe('googlePlugin.buildToolRequest', () => {
       },
     ]);
   });
+
+  it('google_buildToolRequest_encodes_fqid_in_historical_functionCall_and_functionResponse', () => {
+    // agentLoop.ts stores the resolved FQID (e.g. "builtin:calculator") as
+    // `toolUse[].name` on persisted/loop messages, not the wire-safe id. On
+    // turn 2+ of a tool conversation, that FQID gets replayed as history —
+    // it must be re-encoded so it matches the wire-safe name declared in
+    // functionDeclarations, otherwise Gemini rejects the request (same
+    // "Invalid function name" error, now triggered on turn 2 instead of 1).
+    const messages: LoopMessage[] = [
+      { role: 'user', content: 'use the calc' },
+      {
+        role: 'assistant',
+        content: '',
+        toolUse: [{ id: 'tu1', name: 'builtin:calculator', input: { x: 1 } }],
+      },
+      { role: 'tool', content: '42', toolUseId: 'tu1' },
+    ];
+
+    const spec = googlePlugin.buildToolRequest(messages, fakeConfig, fakeParams, []);
+    const body = spec.body as Record<string, unknown>;
+    const contents = body.contents as Array<Record<string, unknown>>;
+
+    const assistantParts = contents[1].parts as Array<Record<string, unknown>>;
+    expect(assistantParts).toContainEqual({
+      functionCall: { id: 'tu1', name: 'builtin__calculator', args: { x: 1 } },
+    });
+
+    const toolParts = contents[2].parts as Array<Record<string, unknown>>;
+    expect(toolParts).toEqual([
+      {
+        functionResponse: {
+          id: 'tu1',
+          name: 'builtin__calculator',
+          response: { output: 42 },
+        },
+      },
+    ]);
+  });
+
+  it('google_buildToolRequest_uses_wire_safe_id_not_display_name', () => {
+    // Built-in tools have human-readable display names with spaces (e.g.
+    // "Search Launcher Index"), which Gemini's function name validation
+    // rejects (must match ^[a-zA-Z_][a-zA-Z0-9_.-]*$). The wire-safe `id`
+    // (e.g. "builtin__search-launcher-index") must be sent instead — it's
+    // also what `wireToFqid` in agentLoop.ts uses to resolve tool_use
+    // blocks back to the original tool.
+    const messages: LoopMessage[] = [{ role: 'user', content: 'search for files' }];
+    const tools = [
+      {
+        id: 'builtin__search-launcher-index',
+        name: 'Search Launcher Index',
+        description: 'Searches the launcher index',
+        parameters: { type: 'object', properties: {} } as Record<string, unknown>,
+      },
+    ];
+
+    const spec = googlePlugin.buildToolRequest(messages, fakeConfig, fakeParams, tools);
+    const body = spec.body as Record<string, unknown>;
+    const declarations = (body.tools as Array<{ functionDeclarations: Array<{ name: string }> }>)[0]
+      .functionDeclarations;
+
+    expect(declarations[0].name).toBe('builtin__search-launcher-index');
+  });
 });
 
 // ─── parseToolStream ──────────────────────────────────────────────────────────
