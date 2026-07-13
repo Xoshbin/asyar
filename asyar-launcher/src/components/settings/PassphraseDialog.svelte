@@ -64,6 +64,7 @@
     <h2 id="passphrase-title" class="dialog-title">{title}</h2>
     <p class="dialog-body">{description}</p>
     <Input
+      textIntent="exact"
       type="password"
       placeholder="Passphrase"
       bind:value={passphrase}

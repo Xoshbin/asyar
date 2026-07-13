@@ -80,6 +80,7 @@
           {#if state.filePath}“{fileName(state.filePath)}”{/if}.
         </p>
         <Input
+          textIntent="exact"
           type="password"
           placeholder="Export password"
           bind:value={state.password}

@@ -211,6 +211,7 @@
     <div class="add-row exclude-add-row">
       <Input
         unstyled
+        textIntent="exact"
         type="text"
         class="exclude-input"
         placeholder="e.g. *.tmp"

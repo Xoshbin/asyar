@@ -130,18 +130,24 @@
   <div class="agent-edit-form">
     <div class="form-field">
       <label class="field-label" for="agent-name">Name</label>
-      <Input id="agent-name" bind:value={form.name} placeholder="My Agent" />
+      <Input textIntent="natural" id="agent-name" bind:value={form.name} placeholder="My Agent" />
     </div>
 
     <div class="form-field">
       <label class="field-label" for="agent-description">Description</label>
-      <Input id="agent-description" bind:value={descLocal} placeholder="(optional)" />
+      <Input
+        textIntent="natural"
+        id="agent-description"
+        bind:value={descLocal}
+        placeholder="(optional)"
+      />
     </div>
 
     <div class="form-field">
       <label class="field-label" for="agent-system-prompt">System prompt</label>
       <Textarea
         unstyled
+        textIntent="natural"
         id="agent-system-prompt"
         class="agent-field-textarea"
         bind:value={form.systemPrompt}

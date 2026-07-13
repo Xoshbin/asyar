@@ -301,6 +301,7 @@
             </svg>
             <Input
               unstyled
+              textIntent="exact"
               class="search-input"
               type="text"
               placeholder="Search…"

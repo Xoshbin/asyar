@@ -135,6 +135,7 @@
       <label for="srv-id" class="field-label">ID <span class="required">*</span></label>
       <Input
         unstyled
+        textIntent="exact"
         id="srv-id"
         class="field-input"
         type="text"
@@ -148,6 +149,7 @@
       <label for="srv-name" class="field-label">Display Name <span class="required">*</span></label>
       <Input
         unstyled
+        textIntent="natural"
         id="srv-name"
         class="field-input"
         type="text"
@@ -161,6 +163,7 @@
       <label for="srv-desc" class="field-label">Description</label>
       <Textarea
         unstyled
+        textIntent="natural"
         id="srv-desc"
         class="field-input"
         placeholder="Optional description"
@@ -181,6 +184,7 @@
         <label for="srv-cmd" class="field-label">Command <span class="required">*</span></label>
         <Input
           unstyled
+          textIntent="exact"
           id="srv-cmd"
           class="field-input"
           type="text"
@@ -196,6 +200,7 @@
           <div class="array-row">
             <Input
               unstyled
+              textIntent="exact"
               class="field-input"
               type="text"
               placeholder="arg"
@@ -220,6 +225,7 @@
           <div class="kv-row">
             <Input
               unstyled
+              textIntent="exact"
               class="field-input kv-key"
               type="text"
               placeholder="KEY"
@@ -228,6 +234,7 @@
             />
             <Input
               unstyled
+              textIntent="exact"
               class="field-input kv-val"
               type="text"
               placeholder="value"
@@ -250,6 +257,7 @@
         <label for="srv-cwd" class="field-label">Working Directory</label>
         <Input
           unstyled
+          textIntent="exact"
           id="srv-cwd"
           class="field-input"
           type="text"
@@ -263,6 +271,7 @@
         <label for="srv-url" class="field-label">URL <span class="required">*</span></label>
         <Input
           unstyled
+          textIntent="exact"
           id="srv-url"
           class="field-input"
           type="url"
@@ -278,6 +287,7 @@
           <div class="kv-row">
             <Input
               unstyled
+              textIntent="exact"
               class="field-input kv-key"
               type="text"
               placeholder="Header-Name"
@@ -286,6 +296,7 @@
             />
             <Input
               unstyled
+              textIntent="exact"
               class="field-input kv-val"
               type="text"
               placeholder="value"

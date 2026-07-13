@@ -194,7 +194,12 @@
   </div>
 
   <div class="action-search">
-    <Input bind:value={searchQuery} placeholder="Search for actions..." autocomplete="off" />
+    <Input
+      textIntent="exact"
+      bind:value={searchQuery}
+      placeholder="Search for actions..."
+      autocomplete="off"
+    />
   </div>
 </div>
 

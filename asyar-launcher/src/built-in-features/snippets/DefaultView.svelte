@@ -295,6 +295,7 @@
             <FormField label="Name" id="form-name">
               <Input
                 unstyled
+                textIntent="natural"
                 id="form-name"
                 class="field-input"
                 type="text"
@@ -310,6 +311,7 @@
             >
               <Input
                 unstyled
+                textIntent="exact"
                 id="form-keyword"
                 class="field-input"
                 type="text"
@@ -323,6 +325,7 @@
                 <div class="textarea-wrapper">
                   <Textarea
                     unstyled
+                    textIntent="verbatim"
                     id="form-expansion"
                     class="field-textarea"
                     autocomplete="off"

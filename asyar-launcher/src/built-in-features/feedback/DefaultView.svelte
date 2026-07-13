@@ -50,6 +50,7 @@
     <TabGroup variant="pills" tabs={categories} bind:activeTab={feedbackViewState.category} />
 
     <Textarea
+      textIntent="natural"
       class="input feedback-message"
       placeholder="Tell us what's on your mind…"
       rows="6"
@@ -57,6 +58,7 @@
     ></Textarea>
 
     <Input
+      textIntent="exact"
       placeholder="Email (optional — or clear to send anonymously)"
       bind:value={feedbackViewState.email}
     />

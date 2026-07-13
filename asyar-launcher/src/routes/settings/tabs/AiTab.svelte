@@ -329,6 +329,7 @@
                   </label>
                   <Input
                     unstyled
+                    textIntent="exact"
                     class="card-input"
                     id="apikey-{providerId}"
                     type="password"
@@ -350,6 +351,7 @@
                   <label class="field-label" for="baseurl-{providerId}">Base URL</label>
                   <Input
                     unstyled
+                    textIntent="exact"
                     class="card-input"
                     id="baseurl-{providerId}"
                     type="url"
@@ -428,6 +430,7 @@
                   <div class="model-manual-row">
                     <Input
                       unstyled
+                      textIntent="exact"
                       class="card-input"
                       id="model-manual-{providerId}"
                       type="text"
@@ -514,6 +517,7 @@
 
             <SettingsFormRow label="Max Tokens">
               <Input
+                textIntent="exact"
                 type="number"
                 bind:value={maxTokensStr}
                 min="128"

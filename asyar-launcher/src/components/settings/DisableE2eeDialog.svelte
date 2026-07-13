@@ -58,7 +58,12 @@
     <p class="dialog-body">
       To confirm, type <strong>DISABLE</strong> below.
     </p>
-    <Input bind:value={confirmation} placeholder="Type DISABLE to confirm" autofocus />
+    <Input
+      textIntent="exact"
+      bind:value={confirmation}
+      placeholder="Type DISABLE to confirm"
+      autofocus
+    />
     {#if errorMessage}
       <p class="text-caption error mt-2">{errorMessage}</p>
     {/if}

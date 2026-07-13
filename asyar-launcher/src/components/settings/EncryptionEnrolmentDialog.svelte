@@ -96,6 +96,7 @@
       </p>
       <div class="flex flex-col gap-3">
         <Input
+          textIntent="exact"
           type="password"
           placeholder="Passphrase (12+ characters)"
           bind:value={pass1}
@@ -103,6 +104,7 @@
           maxlength={256}
         />
         <Input
+          textIntent="exact"
           type="password"
           placeholder="Confirm passphrase"
           bind:value={pass2}

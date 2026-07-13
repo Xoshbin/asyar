@@ -175,6 +175,7 @@
           >
         </span>
         <Input
+          textIntent="exact"
           bind:ref
           type="text"
           bind:value={contextQuery}
@@ -189,6 +190,7 @@
     {:else}
       <div class="search-input-row">
         <Input
+          textIntent="exact"
           bind:ref
           type="text"
           {placeholder}

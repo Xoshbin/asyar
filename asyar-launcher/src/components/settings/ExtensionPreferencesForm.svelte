@@ -47,6 +47,7 @@
       <div class="control-wrapper">
         {#if pref.type === 'textfield'}
           <Input
+            textIntent="exact"
             value={values[pref.name] ?? ''}
             placeholder={pref.placeholder ?? ''}
             {disabled}
@@ -54,6 +55,7 @@
           />
         {:else if pref.type === 'password'}
           <Input
+            textIntent="exact"
             value={values[pref.name] ?? ''}
             type="password"
             placeholder={pref.placeholder ?? ''}
@@ -62,6 +64,7 @@
           />
         {:else if pref.type === 'number'}
           <Input
+            textIntent="exact"
             value={values[pref.name] ?? ''}
             type="number"
             placeholder={pref.placeholder ?? ''}
@@ -87,6 +90,7 @@
           {/if}
         {:else if pref.type === 'appPicker' || pref.type === 'file' || pref.type === 'directory'}
           <Input
+            textIntent="exact"
             type="text"
             value={values[pref.name] ?? ''}
             placeholder={pref.type === 'appPicker'

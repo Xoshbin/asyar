@@ -178,6 +178,7 @@
       <FormField label="Extension Name" error={nameError}>
         <Input
           unstyled
+          textIntent="natural"
           type="text"
           bind:value={extName}
           placeholder="My Awesome Tool"
@@ -195,6 +196,7 @@
       >
         <Input
           unstyled
+          textIntent="exact"
           type="text"
           bind:value={extId}
           placeholder="com.myname.awesome-tool"
@@ -212,6 +214,7 @@
       >
         <Input
           unstyled
+          textIntent="natural"
           type="text"
           bind:value={extDesc}
           placeholder="What does your extension do?"
@@ -226,6 +229,7 @@
         <div class="location-row">
           <Input
             unstyled
+            textIntent="exact"
             type="text"
             value={finalSaveLocation || saveLocation}
             readonly

@@ -24,11 +24,19 @@
 <div class="testbox" class:testbox--disabled={!enabled}>
   <p class="testbox__label">{label}</p>
   {#if multiline}
-    <Textarea unstyled class="testbox__input" rows="3" {placeholder} bind:value disabled={!enabled}
+    <Textarea
+      unstyled
+      textIntent="exact"
+      class="testbox__input"
+      rows="3"
+      {placeholder}
+      bind:value
+      disabled={!enabled}
     ></Textarea>
   {:else}
     <Input
       unstyled
+      textIntent="exact"
       class="testbox__input"
       type="text"
       {placeholder}

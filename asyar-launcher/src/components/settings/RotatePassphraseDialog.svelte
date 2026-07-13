@@ -67,6 +67,7 @@
     <div class="flex-col gap-3">
       <div class="input-gap">
         <Input
+          textIntent="exact"
           type="password"
           placeholder="Current passphrase"
           bind:value={oldPass}
@@ -76,6 +77,7 @@
       </div>
       <div class="input-gap">
         <Input
+          textIntent="exact"
           type="password"
           placeholder="New passphrase (12+ characters)"
           bind:value={newPass}
@@ -84,6 +86,7 @@
       </div>
       <div class="input-gap">
         <Input
+          textIntent="exact"
           type="password"
           placeholder="Confirm new passphrase"
           bind:value={confirmNew}
