@@ -22,6 +22,10 @@ import {
 } from './_openaiResponses';
 
 const EFFORTS_BY_MODEL_FAMILY: Array<[families: string[], efforts: ReasoningEffort[]]> = [
+  [
+    ['o1', 'o3-mini', 'o3', 'o4-mini'],
+    ['low', 'medium', 'high'],
+  ],
   [['gpt-5-pro'], ['high']],
   [
     ['gpt-5.2-pro', 'gpt-5.4-pro', 'gpt-5.5-pro'],

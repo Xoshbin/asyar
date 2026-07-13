@@ -32,6 +32,9 @@ vi.mock('../../lib/ipc/commands', () => ({
 import AgentChatView from './AgentChatView.svelte';
 import { agentService } from './agentService.svelte';
 import { agentsManager } from './agentsManager.svelte';
+import type { MessageDef } from './types';
+
+const mockedAgentService = vi.mocked(agentService);
 
 const agent = {
   id: 'agent-1',
@@ -56,12 +59,20 @@ const thread = {
   updatedAt: 1,
 };
 
+function deferred<T>() {
+  let resolvePromise!: (value: T) => void;
+  const promise = new Promise<T>((resolve) => {
+    resolvePromise = resolve;
+  });
+  return { promise, resolve: resolvePromise };
+}
+
 describe('AgentChatView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(agentService.getById).mockReturnValue(agent);
-    vi.mocked(agentService.listThreads).mockResolvedValue([thread]);
-    vi.mocked(agentService.listMessages).mockResolvedValue([]);
+    mockedAgentService.getById.mockReturnValue(agent);
+    mockedAgentService.listThreads.mockResolvedValue([thread]);
+    mockedAgentService.listMessages.mockResolvedValue([]);
     agentsManager.currentAgentId = agent.id;
     agentsManager.currentThreadId = thread.id;
     agentsManager.sending = false;
@@ -75,11 +86,59 @@ describe('AgentChatView', () => {
     render(AgentChatView);
     await screen.findByText(thread.title);
 
-    vi.mocked(agentService.listThreads).mockResolvedValue([]);
+    mockedAgentService.listThreads.mockResolvedValue([]);
     agentsManager.currentThreadId = null;
 
     await screen.findByText('No threads');
     await waitFor(() => expect(screen.queryByText(thread.title)).toBeNull());
+  });
+
+  it('fetches the initial thread list only once', async () => {
+    render(AgentChatView);
+
+    await screen.findByText(thread.title);
+    expect(mockedAgentService.listThreads.mock.calls).toHaveLength(1);
+  });
+
+  it('ignores messages that resolve after a newer thread is selected', async () => {
+    const otherThread = { ...thread, id: 'thread-2', title: 'Current thread' };
+    const staleMessages = deferred<MessageDef[]>();
+    mockedAgentService.listThreads.mockResolvedValue([thread, otherThread]);
+    mockedAgentService.listMessages.mockImplementation((threadId) => {
+      if (threadId === thread.id) return staleMessages.promise;
+      return Promise.resolve([
+        {
+          id: 'message-2',
+          threadId: otherThread.id,
+          role: 'user',
+          content: { text: 'Current message' },
+          createdAt: 2,
+          runId: null,
+        },
+      ]);
+    });
+
+    render(AgentChatView);
+    await waitFor(() =>
+      expect(mockedAgentService.listMessages.mock.calls).toContainEqual([thread.id]),
+    );
+
+    agentsManager.currentThreadId = otherThread.id;
+    await screen.findByText('Current message');
+
+    staleMessages.resolve([
+      {
+        id: 'message-1',
+        threadId: thread.id,
+        role: 'user',
+        content: { text: 'Stale message' },
+        createdAt: 1,
+        runId: null,
+      },
+    ]);
+
+    await waitFor(() => expect(screen.queryByText('Stale message')).toBeNull());
+    expect(screen.getByText('Current message')).toBeTruthy();
   });
 
   it('keeps pending scroll callbacks safe after unmount', async () => {

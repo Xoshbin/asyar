@@ -39,6 +39,11 @@ describe('openAIReasoningEfforts', () => {
   });
 
   it('uses the documented levels for each known model family', () => {
+    expect(openAIReasoningEfforts('o1')).toEqual(['low', 'medium', 'high']);
+    expect(openAIReasoningEfforts('o1-2024-12-17')).toEqual(['low', 'medium', 'high']);
+    expect(openAIReasoningEfforts('o3-mini-2025-01-31')).toEqual(['low', 'medium', 'high']);
+    expect(openAIReasoningEfforts('o3')).toEqual(['low', 'medium', 'high']);
+    expect(openAIReasoningEfforts('o4-mini')).toEqual(['low', 'medium', 'high']);
     expect(openAIReasoningEfforts('gpt-5')).toEqual(['minimal', 'low', 'medium', 'high']);
     expect(openAIReasoningEfforts('gpt-5.1')).toEqual(['none', 'low', 'medium', 'high']);
     expect(openAIReasoningEfforts('gpt-5.2')).toEqual(['none', 'low', 'medium', 'high', 'xhigh']);
