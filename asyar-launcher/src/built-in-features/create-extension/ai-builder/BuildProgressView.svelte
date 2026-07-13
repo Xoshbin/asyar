@@ -17,6 +17,8 @@
   import { sidecarClient } from './sidecarClient';
   import { openInEditor } from './openInEditor';
   import { publishExtension } from './publishExtension';
+  import { runtimeService } from '../../../services/runtime/runtimeService.svelte';
+  import { formatRuntimeDownloadStatus } from './runtimeDownloadStatus';
 
   // ── local reactive state ──────────────────────────────────────────────────
   let prompt = $state('');
@@ -26,6 +28,13 @@
 
   // ── store binding ─────────────────────────────────────────────────────────
   const job = $derived(buildJobStore.job);
+
+  // Live bun/claude download status shown while `isStarting` — covers the
+  // window before `job` exists yet (runtime download happens ahead of the
+  // actual build spawn in `orchestrator.ts`'s `ensureRuntimesReady`).
+  const startingLabel = $derived(
+    formatRuntimeDownloadStatus(runtimeService.downloadProgress, 'Starting…'),
+  );
 
   // ── deep-link handshake ───────────────────────────────────────────────────
   $effect(() => {
@@ -359,7 +368,7 @@
   <ActionFooter>
     {#snippet left()}
       {#if !job}
-        {#if isStarting}<span class="text-caption animate-pulse">Starting…</span>{/if}
+        {#if isStarting}<span class="text-caption animate-pulse">{startingLabel}</span>{/if}
       {:else if job.status === 'working'}
         <span class="text-caption"
           >{job.steps.length} step{job.steps.length === 1 ? '' : 's'} completed</span

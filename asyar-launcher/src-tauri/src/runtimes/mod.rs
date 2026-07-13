@@ -327,7 +327,7 @@ impl RuntimeManager {
     async fn remote_download_size(&self, name: &str) -> Option<u64> {
         let (_version, artifact) = self.resolve_artifact(name).await.ok()?;
         let response = self.metadata_client.head(&artifact.url).send().await.ok()?;
-        response.content_length()
+        content_length_from_headers(response.headers())
     }
 
     /// Resolves `name` to its latest published version + this platform's
@@ -551,6 +551,22 @@ fn remove_from_root(runtimes_root: &Path, name: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Reads the `Content-Length` header value directly rather than calling
+/// `Response::content_length()`, which reports the size of the body that
+/// will actually be received — always 0 for a HEAD request (a HEAD response
+/// has no body by definition), even when the server's `Content-Length`
+/// header correctly announces the resource's real size. Confirmed against a
+/// real GitHub release asset: the header carries the true size while
+/// `content_length()` returns `Some(0)`.
+fn content_length_from_headers(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    headers
+        .get(reqwest::header::CONTENT_LENGTH)?
+        .to_str()
+        .ok()?
+        .parse()
+        .ok()
+}
+
 fn now_unix() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -669,6 +685,32 @@ fn emit_progress(app_handle: &AppHandle, progress: RuntimeDownloadProgress) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn content_length_from_headers_reads_the_header_value() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::CONTENT_LENGTH,
+            reqwest::header::HeaderValue::from_static("23586433"),
+        );
+        assert_eq!(content_length_from_headers(&headers), Some(23_586_433));
+    }
+
+    #[test]
+    fn content_length_from_headers_returns_none_when_header_absent() {
+        let headers = reqwest::header::HeaderMap::new();
+        assert_eq!(content_length_from_headers(&headers), None);
+    }
+
+    #[test]
+    fn content_length_from_headers_returns_none_for_unparseable_value() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::CONTENT_LENGTH,
+            reqwest::header::HeaderValue::from_static("not-a-number"),
+        );
+        assert_eq!(content_length_from_headers(&headers), None);
+    }
 
     #[test]
     fn consumer_registry_add_registers_a_consumer() {
