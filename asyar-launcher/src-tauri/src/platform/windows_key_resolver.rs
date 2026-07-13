@@ -253,6 +253,22 @@ mod tests {
         use windows::Win32::UI::Input::KeyboardAndMouse::{
             GetKeyboardLayoutList, LoadKeyboardLayoutW, UnloadKeyboardLayout, KLF_NOTELLSHELL,
         };
+
+        /// Unloads the layout on scope exit — including a panic unwind from a
+        /// failed assertion in `f`, so a failing test can never leak the
+        /// layout into the user's input list. `None` when the layout was
+        /// already loaded (we didn't add it, so we must not remove it).
+        struct Unloader(Option<HKL>);
+        impl Drop for Unloader {
+            fn drop(&mut self) {
+                if let Some(hkl) = self.0 {
+                    unsafe {
+                        let _ = UnloadKeyboardLayout(hkl);
+                    }
+                }
+            }
+        }
+
         let wide: Vec<u16> = layout_id.encode_utf16().chain(std::iter::once(0)).collect();
         unsafe {
             // Snapshot already-loaded layouts so we only unload one we add.
@@ -263,10 +279,8 @@ mod tests {
 
             let hkl = LoadKeyboardLayoutW(PCWSTR(wide.as_ptr()), KLF_NOTELLSHELL)
                 .expect("layout load");
+            let _unloader = Unloader((!before.contains(&hkl)).then_some(hkl));
             f(hkl);
-            if !before.contains(&hkl) {
-                let _ = UnloadKeyboardLayout(hkl);
-            }
         }
     }
 }
