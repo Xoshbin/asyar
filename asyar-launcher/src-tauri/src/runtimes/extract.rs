@@ -31,15 +31,18 @@ pub(crate) fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> Result<(),
         let mut entry = entry_result?;
         let entry_path = entry.path()?.into_owned();
 
-        // [SECURITY] tar-slip guard: reject any entry whose path components
-        // include `..`, or that is absolute. `unpack_in` below would only
-        // silently strip a leading `/` and treat the rest as relative to
-        // `dest_dir` rather than reject it outright, so this explicit
-        // up-front check is stricter than relying on it alone.
-        let has_parent_dir_component = entry_path
+        // [SECURITY] tar-slip guard: reject any entry whose path is not a
+        // plain relative path — `..` components, a filesystem root (`/foo`,
+        // which `Path::is_absolute` does NOT flag on Windows), or a Windows
+        // drive prefix (`C:\foo`). `unpack_in` below would only silently
+        // strip a leading `/` and treat the rest as relative to `dest_dir`
+        // rather than reject it outright, so this explicit up-front check is
+        // stricter than relying on it alone. `./`-prefixed entries (common
+        // in tarballs) stay accepted.
+        let has_non_normal_component = entry_path
             .components()
-            .any(|c| matches!(c, Component::ParentDir));
-        if has_parent_dir_component || entry_path.is_absolute() {
+            .any(|c| !matches!(c, Component::Normal(_) | Component::CurDir));
+        if has_non_normal_component {
             return Err(AppError::Validation(format!(
                 "Tar entry '{}' contains a path traversal sequence and was rejected",
                 entry_path.display()
@@ -185,6 +188,23 @@ mod tests {
         assert!(
             !Path::new("/tmp/evil-absolute").exists(),
             "an absolute-path entry must never be written to its literal path"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn extract_tar_gz_rejects_drive_prefixed_entry_on_windows() {
+        // `C:\evil.txt` has a Prefix component but `is_absolute` alone would
+        // catch it only together with the root — the components guard must
+        // reject any non-Normal component regardless.
+        let archive = make_tar_gz(&[("C:\\evil-drive.txt", b"evil")]);
+        let dest = TempDir::new().unwrap();
+
+        let result = extract_tar_gz(archive.path(), dest.path());
+
+        assert!(
+            result.is_err(),
+            "tar.gz entries with a drive-prefixed path must be rejected"
         );
     }
 

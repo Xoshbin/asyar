@@ -104,9 +104,19 @@ pub(crate) fn validate_runtime_name(name: &str) -> Result<(), AppError> {
             "Runtime name '{name}' contains invalid characters"
         )));
     }
-    if Path::new(name).is_absolute() {
+    // NOT `is_absolute()`: on Windows that requires a drive prefix AND a
+    // root, so it misses both unix-absolute names (`/etc`) and
+    // drive-prefixed ones (`C:evil`, which `Path::join` would let replace
+    // the whole runtimes root). `has_root` + an explicit prefix check
+    // cover all three forms on every platform.
+    let path = Path::new(name);
+    if path.has_root()
+        || path
+            .components()
+            .any(|c| matches!(c, std::path::Component::Prefix(_)))
+    {
         return Err(AppError::Validation(format!(
-            "Runtime name '{name}' must not be an absolute path"
+            "Runtime name '{name}' must not be an absolute or drive-prefixed path"
         )));
     }
     Ok(())
@@ -839,7 +849,8 @@ mod tests {
         let root = tmp.path().join("runtimes");
         let bun_dir = root.join("bun").join("1.1.0");
         std::fs::create_dir_all(&bun_dir).unwrap();
-        std::fs::write(bun_dir.join("bun"), b"binary").unwrap();
+        // binary_file_name, not a literal: the lookup expects `bun.exe` on Windows.
+        std::fs::write(bun_dir.join(binary_file_name("bun")), b"binary").unwrap();
 
         assert!(installed_binary_path(&root, "bun").is_some());
 
@@ -916,7 +927,19 @@ mod tests {
 
     #[test]
     fn validate_runtime_name_rejects_absolute_path() {
+        // `has_root` (not `is_absolute`) so this rejects on Windows too,
+        // where "/etc" has a root but no drive prefix.
         assert!(validate_runtime_name("/etc").is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn validate_runtime_name_rejects_drive_prefixed_and_rootful_names_on_windows() {
+        assert!(validate_runtime_name(r"C:\evil").is_err());
+        // Drive-relative: no root, but `Path::join` would still replace the
+        // runtimes root with it.
+        assert!(validate_runtime_name("C:evil").is_err());
+        assert!(validate_runtime_name(r"\etc").is_err());
     }
 
     #[test]
