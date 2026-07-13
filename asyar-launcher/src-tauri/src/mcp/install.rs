@@ -297,11 +297,12 @@ pub async fn install_server_checking_runtime_ensuring(
 /// `kind: "needsRuntime"` the frontend discriminates on — see
 /// `McpService`'s `runtimeConsentPrompt` flow.
 #[derive(Debug, Serialize)]
-#[serde(untagged, rename_all = "camelCase")]
+#[serde(untagged)]
 pub enum McpInstallOutcomeResponse {
     NeedsRuntime {
         kind: &'static str,
         name: String,
+        #[serde(rename = "sizeBytes")]
         size_bytes: u64,
     },
     Installed(McpServerSummary),
@@ -697,6 +698,26 @@ pub async fn list_servers_with_status(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn needs_runtime_wire_shape_uses_camel_case_size_bytes_field() {
+        // Regression guard: `#[serde(untagged, rename_all = "camelCase")]`
+        // on the enum does NOT cascade into a struct variant's field names
+        // (confirmed empirically — this bug shipped `size_bytes` over the
+        // wire, which the TS `McpRuntimeConsentNeeded.sizeBytes` field
+        // never matched, producing `undefined` → "NaN KB" in the consent
+        // dialog). Each field needs its own explicit `#[serde(rename)]`.
+        let response = McpInstallOutcomeResponse::from(InstallOutcome::NeedsRuntime {
+            name: "bun".to_string(),
+            size_bytes: 62_914_560,
+        });
+        let value: serde_json::Value = serde_json::to_value(&response).unwrap();
+        assert_eq!(value["sizeBytes"], 62_914_560);
+        assert!(
+            value.get("size_bytes").is_none(),
+            "must not also serialize the raw snake_case field name"
+        );
+    }
     use crate::mcp::transport::{duplex_pair, Transport, TransportFactory};
     use crate::mcp::types::McpClientError;
     use crate::mcp::{McpSupervisor, SupervisorConfig};

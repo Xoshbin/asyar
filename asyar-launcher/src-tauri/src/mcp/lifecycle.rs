@@ -365,11 +365,12 @@ pub async fn mcp_sync_on_enable_change_checking_runtime_ensuring(
 /// the normal-success case serializes as a bare `true`, while the
 /// needs-runtime case carries an explicit `kind: "needsRuntime"`.
 #[derive(Debug, Serialize)]
-#[serde(untagged, rename_all = "camelCase")]
+#[serde(untagged)]
 pub enum McpSetEnabledOutcomeResponse {
     NeedsRuntime {
         kind: &'static str,
         name: String,
+        #[serde(rename = "sizeBytes")]
         size_bytes: u64,
     },
     Applied(bool),
@@ -468,6 +469,22 @@ mod tests {
 
     use std::sync::Arc;
     use std::time::Duration;
+
+    #[test]
+    fn needs_runtime_wire_shape_uses_camel_case_size_bytes_field() {
+        // Same regression class as install.rs's equivalent test — see that
+        // comment for why `rename_all` on the enum isn't enough here.
+        let response = McpSetEnabledOutcomeResponse::from(EnableOutcome::NeedsRuntime {
+            name: "uv".to_string(),
+            size_bytes: 47_185_920,
+        });
+        let value: serde_json::Value = serde_json::to_value(&response).unwrap();
+        assert_eq!(value["sizeBytes"], 47_185_920);
+        assert!(
+            value.get("size_bytes").is_none(),
+            "must not also serialize the raw snake_case field name"
+        );
+    }
 
     struct MockSucceedFactory;
 
