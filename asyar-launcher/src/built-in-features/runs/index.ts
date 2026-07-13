@@ -1,7 +1,11 @@
 import type { Extension, ExtensionContext } from 'asyar-sdk/contracts';
+import { ActionContext } from 'asyar-sdk/contracts';
 import RunView from './RunView.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { runService } from '../../services/run/runService.svelte';
+import { actionService, type ApplicationAction } from '../../services/action/actionService.svelte';
+
+const CLEAR_RECENT_ACTION_ID = 'runs:clear-recent';
 
 class RunsExtension implements Extension {
   private inView = false;
@@ -28,11 +32,24 @@ class RunsExtension implements Extension {
   async viewActivated(_viewPath: string): Promise<void> {
     this.inView = true;
     window.addEventListener('keydown', this.handleKeydownBound);
+
+    actionService.registerAction({
+      id: CLEAR_RECENT_ACTION_ID,
+      label: 'Clear Recent',
+      icon: 'icon:trash',
+      extensionId: 'runs',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        await runService.clearHistory();
+      },
+      visible: () => runService.recent.length > 0,
+    } as ApplicationAction);
   }
 
   async viewDeactivated(_viewPath: string): Promise<void> {
     window.removeEventListener('keydown', this.handleKeydownBound);
     this.inView = false;
+    actionService.unregisterAction(CLEAR_RECENT_ACTION_ID);
   }
 
   private handleKeydown(event: KeyboardEvent): void {

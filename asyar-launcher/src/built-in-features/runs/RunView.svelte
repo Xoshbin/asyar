@@ -74,10 +74,6 @@
     runService.selectedRunId = id;
   }
 
-  async function handleClearHistory() {
-    await runService.clearHistory();
-  }
-
   async function handleCancel() {
     if (selectedRun && selectedRun.status === 'running' && selectedRun.cancellable) {
       await runService.cancelById(selectedRun.id);
@@ -106,11 +102,6 @@
           message="No runs yet"
           description="Runs from AI chat or shell scripts will appear here."
         />
-      {/if}
-      {#if runService.recent.length > 0}
-        <div class="runs-list-footer">
-          <Button onclick={handleClearHistory}>Clear Recent</Button>
-        </div>
       {/if}
     </div>
   {/snippet}
@@ -209,10 +200,6 @@
     padding: var(--space-2);
     height: 100%;
     overflow-y: auto;
-  }
-
-  .runs-list-footer {
-    padding: var(--space-3) var(--space-2);
   }
 
   .run-detail {
