@@ -26,6 +26,7 @@ export { default as LoadingState } from './feedback/LoadingState.svelte';
 export { default as WarningBanner } from './feedback/WarningBanner.svelte';
 export { default as EntitlementGate } from './feedback/EntitlementGate.svelte';
 export { default as DialogHost } from './feedback/DialogHost.svelte';
+export { default as FeedbackMessage } from './feedback/FeedbackMessage.svelte';
 
 // Layout
 export { default as ActionFooter } from './layout/ActionFooter.svelte';

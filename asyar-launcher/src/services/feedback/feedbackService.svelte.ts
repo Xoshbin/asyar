@@ -146,7 +146,7 @@ class FeedbackService implements IFeedbackService {
       succeed: (title) => feedbackCommands.finishProgress(feedbackId, 'success', title),
       fail: (title, developerDetail) =>
         feedbackCommands.finishProgress(feedbackId, 'error', title, developerDetail),
-      dismiss: () => feedbackCommands.dismiss(feedbackId),
+      dismiss: () => this.dismissOwned(feedbackId, extensionId),
     };
   }
 
@@ -216,7 +216,7 @@ class FeedbackService implements IFeedbackService {
   }
 
   dismissForExtension(extensionId: string, feedbackId: string): Promise<void> {
-    return feedbackCommands.dismiss(feedbackId, extensionId);
+    return this.dismissOwned(feedbackId, extensionId);
   }
 
   onAnnouncementClicked(): void {
@@ -233,7 +233,16 @@ class FeedbackService implements IFeedbackService {
   }
 
   dismiss(feedbackId = this.current?.id): Promise<void> {
-    return feedbackId ? feedbackCommands.dismiss(feedbackId) : Promise.resolve();
+    return feedbackId ? this.dismissOwned(feedbackId) : Promise.resolve();
+  }
+
+  private async dismissOwned(feedbackId: string, expectedExtensionId?: string): Promise<void> {
+    const next = expectedExtensionId
+      ? await feedbackCommands.dismiss(feedbackId, expectedExtensionId)
+      : await feedbackCommands.dismiss(feedbackId);
+    if (this.current?.id === feedbackId) {
+      this.current = next;
+    }
   }
 
   registerRetry(fn: () => Promise<void>): string {

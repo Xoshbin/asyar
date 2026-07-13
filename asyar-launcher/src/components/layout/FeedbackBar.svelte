@@ -1,17 +1,12 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { DIAGNOSTIC_MESSAGES } from '../../services/diagnostics/messages';
   import type { DiagnosticKind } from '../../services/diagnostics/kinds';
   import FeedbackDetailsDialog from '../feedback/FeedbackDetailsDialog.svelte';
-  import { KeyboardHint, StatusDot } from '../index';
-  import { getFeedbackTextMotion } from './feedbackBarMotion';
+  import { FeedbackMessage, KeyboardHint, StatusDot } from '../index';
 
   let current = $derived(feedbackService.current);
   let detailsOpen = $state(false);
-  let viewport: HTMLDivElement | undefined = $state();
-  let text: HTMLSpanElement | undefined = $state();
-  let motion = $state<{ distancePx: number; durationMs: number } | null>(null);
 
   let dotColor = $derived.by<'success' | 'warning' | 'danger' | 'info'>(() => {
     switch (current?.severity) {
@@ -36,28 +31,19 @@
   });
   let showDetails = $derived(current?.severity !== 'progress');
 
-  function measure() {
-    if (!viewport || !text) return;
-    motion = getFeedbackTextMotion(text.scrollWidth, viewport.clientWidth);
-  }
-
-  onMount(() => {
-    const observer = new ResizeObserver(measure);
-    if (viewport) observer.observe(viewport);
-    if (text) observer.observe(text);
-    measure();
-    return () => observer.disconnect();
-  });
-
-  $effect(() => {
-    message;
-    queueMicrotask(measure);
-  });
-
   async function onRetry() {
     if (!current?.retryActionId) return;
     await feedbackService.triggerRetry(current.retryActionId);
     await feedbackService.dismiss(current.id);
+  }
+
+  async function onDismiss() {
+    if (!current) return;
+    await feedbackService.dismiss(current.id);
+  }
+
+  function onOpenDetails() {
+    detailsOpen = true;
   }
 </script>
 
@@ -68,22 +54,9 @@
     {:else}
       <StatusDot color={dotColor} />
     {/if}
-    <div class="message-viewport" bind:this={viewport} title={message}>
-      <span
-        class="message"
-        class:scrolling={motion !== null}
-        bind:this={text}
-        style:--scroll-distance={`${motion?.distancePx ?? 0}px`}
-        style:--scroll-duration={`${motion?.durationMs ?? 0}ms`}>{message}</span
-      >
-    </div>
+    <FeedbackMessage {message} interactive={showDetails} onclick={onOpenDetails} />
     {#if current.progress?.completed !== undefined && current.progress.total !== undefined}
       <span class="progress-count">{current.progress.completed}/{current.progress.total}</span>
-    {/if}
-    {#if showDetails}
-      <button type="button" class="feedback-action" onclick={() => (detailsOpen = true)}>
-        Details
-      </button>
     {/if}
     {#if current.retryable && current.retryActionId}
       <button type="button" class="feedback-action" onclick={onRetry}>
@@ -91,13 +64,7 @@
       </button>
     {/if}
     {#if current.severity === 'error'}
-      <button
-        type="button"
-        class="feedback-action"
-        onclick={() => feedbackService.dismiss(current.id)}
-      >
-        Dismiss
-      </button>
+      <button type="button" class="feedback-action" onclick={onDismiss}> Dismiss </button>
     {/if}
   </div>
   {#if detailsOpen}
@@ -124,23 +91,6 @@
   .feedback[data-severity='error'],
   .feedback[data-severity='fatal'] {
     color: var(--accent-danger);
-  }
-  .message-viewport {
-    min-width: 0;
-    overflow: hidden;
-    flex: 1;
-  }
-  .message {
-    display: inline-block;
-    min-width: max-content;
-    white-space: nowrap;
-  }
-  .message.scrolling {
-    animation: feedback-scroll var(--scroll-duration) ease-in-out infinite;
-  }
-  .message-viewport:hover .message,
-  .message-viewport:focus-within .message {
-    animation-play-state: paused;
   }
   .progress-count {
     flex-shrink: 0;
@@ -171,23 +121,12 @@
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
-  @keyframes feedback-scroll {
-    0%,
-    15% {
-      transform: translateX(0);
-    }
-    85%,
-    100% {
-      transform: translateX(calc(-1 * var(--scroll-distance)));
-    }
-  }
   @keyframes spin {
     to {
       transform: rotate(360deg);
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .message.scrolling,
     .spinner {
       animation: none;
     }

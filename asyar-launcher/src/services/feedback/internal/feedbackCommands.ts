@@ -56,8 +56,11 @@ export async function finishProgress(
   });
 }
 
-export async function dismiss(feedbackId: string, expectedExtensionId?: string): Promise<void> {
-  await invoke('feedback_dismiss', { feedbackId, expectedExtensionId });
+export function dismiss(
+  feedbackId: string,
+  expectedExtensionId?: string,
+): Promise<FeedbackItem | null> {
+  return invoke<FeedbackItem | null>('feedback_dismiss', { feedbackId, expectedExtensionId });
 }
 
 export function acceptAnnouncement(extensionId: string, announcementId: string): Promise<boolean> {

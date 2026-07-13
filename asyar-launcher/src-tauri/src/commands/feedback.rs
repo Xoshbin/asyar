@@ -113,15 +113,17 @@ pub fn feedback_dismiss(
     state: State<'_, FeedbackChannelState>,
     feedback_id: String,
     expected_extension_id: Option<String>,
-) -> Result<(), AppError> {
+) -> Result<Option<FeedbackItem>, AppError> {
     state
         .dismiss_owned(&feedback_id, expected_extension_id.as_deref())
         .map_err(|_| AppError::Lock)?;
-    emit_current(&app, &state)?;
-    if let Some(next) = state.current().map_err(|_| AppError::Lock)? {
-        schedule_expiry(app, next.id, next.severity);
+    let current = state.current().map_err(|_| AppError::Lock)?;
+    app.emit("feedback:changed", current.clone())
+        .map_err(|error| AppError::Other(error.to_string()))?;
+    if let Some(next) = current.as_ref() {
+        schedule_expiry(app, next.id.clone(), next.severity);
     }
-    Ok(())
+    Ok(current)
 }
 
 #[tauri::command]

@@ -11,7 +11,7 @@ vi.mock('./internal/feedbackCommands', () => ({
   getCurrent: vi.fn(async () => null),
   updateProgress: vi.fn(async () => {}),
   finishProgress: vi.fn(async () => {}),
-  dismiss: vi.fn(async () => {}),
+  dismiss: vi.fn(async () => null),
   acceptAnnouncement: vi.fn(async () => true),
 }));
 vi.mock('../notification/notificationService', () => ({
@@ -31,10 +31,37 @@ beforeEach(() => {
   vi.clearAllMocks();
   feedbackService.reset();
   vi.mocked(feedbackCommands.publish).mockResolvedValue('feedback-1');
+  vi.mocked(feedbackCommands.dismiss).mockResolvedValue(null);
   vi.mocked(feedbackCommands.acceptAnnouncement).mockResolvedValue(true);
 });
 
 describe('feedback bar lifecycle', () => {
+  it('replaces stale local state with Rust authoritative state after dismissal', async () => {
+    const current = {
+      id: 'feedback-error',
+      source: 'extension' as const,
+      kind: 'playground_error',
+      severity: 'error' as const,
+      retryable: false,
+      context: { message: 'Stuck error' },
+    };
+    const promoted = {
+      id: 'feedback-progress',
+      source: 'extension' as const,
+      kind: 'progress',
+      severity: 'progress' as const,
+      retryable: false,
+      context: {},
+      progress: { title: 'Downloading' },
+    };
+    feedbackService.current = current;
+    vi.mocked(feedbackCommands.dismiss).mockResolvedValueOnce(promoted);
+
+    await feedbackService.dismiss(current.id);
+
+    expect(feedbackService.current).toEqual(promoted);
+  });
+
   it('publishes normal feedback to the Rust channel', async () => {
     await feedbackService.report({
       source: 'frontend',
