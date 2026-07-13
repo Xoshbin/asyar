@@ -129,6 +129,15 @@ describe('mcpService.install', () => {
     expect(cmds.mcpListServers).toHaveBeenCalled();
     expect(svc.servers).toContainEqual(refreshed);
   });
+
+  it('clears any stale installError from a previous attempt at the start of a new call', async () => {
+    (cmds.mcpInstallServer as ReturnType<typeof vi.fn>).mockResolvedValue(makeSummary());
+    (cmds.mcpListServers as ReturnType<typeof vi.fn>).mockResolvedValue([makeSummary()]);
+    const svc = new McpService();
+    (svc as unknown as { installError: string | null }).installError = 'stale error';
+    await svc.install(makeInput());
+    expect(svc.installError).toBeNull();
+  });
 });
 
 describe('mcpService.setEnabled', () => {
@@ -159,6 +168,46 @@ describe('mcpService.setEnabled', () => {
 // must add them. These tests fail against current behavior until then.
 
 describe('mcpService.install runtime consent flow', () => {
+  it('leaves installError null when the user declines the download — not an error', async () => {
+    (cmds.mcpInstallServer as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      kind: 'needsRuntime',
+      name: 'bun',
+      sizeBytes: 42_000_000,
+    } as never);
+
+    const svc = new McpService();
+    const installPromise = svc.install(makeInput());
+    await Promise.resolve();
+    await Promise.resolve();
+    svc.handleRuntimeConsentDecision(false);
+    const result = await installPromise;
+
+    expect(result).toBeNull();
+    expect(svc.installError).toBeNull();
+    expect(cmds.mcpInstallServer).toHaveBeenCalledTimes(1);
+  });
+
+  it('sets a distinct installError when the retry after a successful download still fails', async () => {
+    // Simulates a real handshake failure (bad command/args) — the runtime
+    // download itself succeeds, but the server can't actually be reached,
+    // so the retry `mcpInstallServer` call resolves null (invokeSafe's
+    // failure sentinel) rather than a summary or another needsRuntime.
+    (cmds.mcpInstallServer as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ kind: 'needsRuntime', name: 'bun', sizeBytes: 42_000_000 } as never)
+      .mockResolvedValueOnce(null as never);
+
+    const svc = new McpService();
+    const installPromise = svc.install(makeInput());
+    await Promise.resolve();
+    await Promise.resolve();
+    svc.handleRuntimeConsentDecision(true);
+    const result = await installPromise;
+
+    expect(result).toBeNull();
+    expect(cmds.mcpInstallServer).toHaveBeenCalledTimes(2);
+    expect(svc.installError).toMatch(/could not (be )?install/i);
+  });
+
   it('prompts for runtime consent, downloads, and retries install on approval', async () => {
     const installed = makeSummary({ id: 'srv-1' });
     (cmds.mcpInstallServer as ReturnType<typeof vi.fn>)
@@ -259,6 +308,7 @@ describe('mcpService runtime consent flow: download failure', () => {
     expect(diagnosticsService.report).toHaveBeenCalledWith(
       expect.objectContaining({ context: expect.objectContaining({ runtime: 'bun' }) }),
     );
+    expect(svc.installError).toMatch(/download/i);
   });
 });
 

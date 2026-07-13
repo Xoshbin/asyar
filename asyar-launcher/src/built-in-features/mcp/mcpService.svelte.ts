@@ -62,6 +62,15 @@ export class McpService {
     sizeBytes: number;
     resolve: (approved: boolean) => void;
   } | null>(null);
+  /** Human-readable reason the last `install()` call didn't produce a
+   * server, set only for genuine failures (download failed, or the retry
+   * after a successful download still failed — e.g. a bad command/args
+   * that can't actually be reached). Left `null` when the user simply
+   * declined the download, since that's an intentional choice, not an
+   * error — a caller UI shouldn't show it as one. */
+  installError = $state<string | null>(null);
+  /** Same shape as `installError`, for `setEnabled()`. */
+  enableError = $state<string | null>(null);
 
   private statusUnlisten: UnlistenFn | null = null;
 
@@ -126,15 +135,23 @@ export class McpService {
   }
 
   async install(input: McpServerInstallInput): Promise<McpServerSummary | null> {
+    this.installError = null;
     let result = await mcpInstallServer(input);
     if (isRuntimeConsentNeeded(result)) {
       if (this.runtimeConsentPrompt) return null; // a consent prompt is already in progress
       const approved = await this.requestRuntimeConsent(result.name, result.sizeBytes);
-      if (!approved) return null;
-      if (!(await this.downloadRuntimeOrReportFailure(result.name))) return null;
+      if (!approved) return null; // an intentional decline, not an error
+      if (!(await this.downloadRuntimeOrReportFailure(result.name))) {
+        this.installError = `Failed to download ${result.name}. Try again from the install form.`;
+        return null;
+      }
       result = await mcpInstallServer(input);
     }
-    if (result === null || isRuntimeConsentNeeded(result)) return null;
+    if (result === null || isRuntimeConsentNeeded(result)) {
+      this.installError =
+        'Could not install this MCP server — check its command/arguments and try again.';
+      return null;
+    }
     await this.refreshServers();
     return result;
   }
@@ -144,15 +161,24 @@ export class McpService {
   }
 
   async setEnabled(serverId: string, enabled: boolean): Promise<void> {
+    this.enableError = null;
     let result = await mcpSetServerEnabled(serverId, enabled);
     if (isRuntimeConsentNeeded(result)) {
       if (this.runtimeConsentPrompt) return; // a consent prompt is already in progress
       const approved = await this.requestRuntimeConsent(result.name, result.sizeBytes);
-      if (!approved) return;
-      if (!(await this.downloadRuntimeOrReportFailure(result.name))) return;
+      if (!approved) return; // an intentional decline, not an error
+      if (!(await this.downloadRuntimeOrReportFailure(result.name))) {
+        this.enableError = `Failed to download ${result.name}. Try again from here.`;
+        return;
+      }
       result = await mcpSetServerEnabled(serverId, enabled);
     }
-    if (result === true) await this.refreshServers();
+    if (result === true) {
+      await this.refreshServers();
+    } else {
+      this.enableError =
+        'Could not enable this MCP server — check its configuration and try again.';
+    }
   }
 
   private requestRuntimeConsent(name: string, sizeBytes: number): Promise<boolean> {
