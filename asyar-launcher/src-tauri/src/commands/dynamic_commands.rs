@@ -13,7 +13,7 @@
 
 /// Extension ids that may bypass the `background.main` worker gate.
 /// Only first-party built-ins belong here.
-const BUILTIN_DYNAMIC_COMMAND_ALLOWLIST: &[&str] = &["scripts", "agents"];
+const BUILTIN_DYNAMIC_COMMAND_ALLOWLIST: &[&str] = &["scripts", "agents", "system"];
 
 use crate::error::AppError;
 use crate::extensions::dynamic_commands::{

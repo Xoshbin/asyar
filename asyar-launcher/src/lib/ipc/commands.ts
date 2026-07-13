@@ -1848,3 +1848,18 @@ export async function sendPendingUsage(day: string): Promise<void> {
 export async function sendUsageNow(): Promise<number | null> {
   return invokeSafe('send_usage_now');
 }
+
+// ── System actions ────────────────────────────────────────────────────────────
+
+/** Mirrors the Rust `SystemAction` enum (serde camelCase). */
+export type SystemActionId =
+  'sleep' | 'hibernate' | 'lockScreen' | 'logOut' | 'restart' | 'shutDown';
+
+/** Actions the current machine supports, in display order. */
+export async function systemActionsSupported(): Promise<SystemActionId[]> {
+  return (await invokeSafe<SystemActionId[]>('system_actions_supported')) ?? [];
+}
+
+export async function systemActionRun(action: SystemActionId): Promise<boolean> {
+  return invokeSafeVoid('system_action_run', { action });
+}
