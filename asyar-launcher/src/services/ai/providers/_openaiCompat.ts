@@ -1,3 +1,4 @@
+import { encodeToolIdForWire } from '../IProviderPlugin';
 import type { LoopMessage, ChatParams, ToolStreamEvent } from '../IProviderPlugin';
 
 export interface OpenAIToolDescriptor {
@@ -23,7 +24,9 @@ export function openAIToolsMessages(messages: LoopMessage[]): unknown[] {
             id: tu.id,
             type: 'function',
             function: {
-              name: tu.name,
+              // tu.name holds the original FQID (e.g. `builtin:calculator`);
+              // encode it so it matches the wire-safe name declared in `tools`.
+              name: encodeToolIdForWire(tu.name),
               arguments: JSON.stringify(tu.input),
             },
           })),

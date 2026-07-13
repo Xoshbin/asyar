@@ -64,6 +64,38 @@ describe('openAIToolsMessages', () => {
 
     expect(result).toEqual([{ role: 'tool', tool_call_id: 'call_1', content: '42' }]);
   });
+
+  it('openaiCompat_messages_encodes_fqid_in_historical_tool_calls', () => {
+    // agentLoop.ts stores the resolved FQID (e.g. "builtin:calculator") as
+    // `toolUse[].name`, not the wire-safe id. On turn 2+ of a tool
+    // conversation, that FQID gets replayed as history — it must be
+    // re-encoded so it matches the wire-safe name declared in `tools`,
+    // otherwise OpenAI-compatible providers reject the invalid characters.
+    const messages: LoopMessage[] = [
+      {
+        role: 'assistant',
+        content: 'thinking',
+        toolUse: [{ id: 'call_1', name: 'builtin:calculator', input: { x: 1 } }],
+      },
+    ];
+
+    const result = openAIToolsMessages(messages);
+
+    expect(result).toContainEqual({
+      role: 'assistant',
+      content: 'thinking',
+      tool_calls: [
+        {
+          id: 'call_1',
+          type: 'function',
+          function: {
+            name: 'builtin__calculator',
+            arguments: JSON.stringify({ x: 1 }),
+          },
+        },
+      ],
+    });
+  });
 });
 
 // ─── buildOpenAIToolsBody ─────────────────────────────────────────────────────

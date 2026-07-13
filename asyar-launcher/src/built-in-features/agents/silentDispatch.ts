@@ -33,7 +33,7 @@ import { logService } from '../../services/log/logService';
 import { extractErrorMessage } from '../../lib/errors';
 import { agentService } from './agentService.svelte';
 import { invokeTool } from './toolDispatch';
-import { encodeToolIdForWire } from './agentLoop';
+import { encodeToolIdForWire } from '../../services/ai/IProviderPlugin';
 import type { AgentDef, SilentInputSource, SilentOutputAction } from './types';
 import type {
   IProviderPlugin,

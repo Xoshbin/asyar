@@ -1,4 +1,5 @@
 import { fetch } from '@tauri-apps/plugin-http';
+import { encodeToolIdForWire } from '../IProviderPlugin';
 import type {
   IProviderPlugin,
   ModelInfo,
@@ -109,7 +110,14 @@ export const anthropicPlugin: IProviderPlugin = {
         }
         if (msg.toolUse && msg.toolUse.length > 0) {
           for (const tu of msg.toolUse) {
-            contentBlocks.push({ type: 'tool_use', id: tu.id, name: tu.name, input: tu.input });
+            // tu.name holds the original FQID (e.g. `builtin:calculator`);
+            // encode it so it matches the wire-safe name declared in `tools` below.
+            contentBlocks.push({
+              type: 'tool_use',
+              id: tu.id,
+              name: encodeToolIdForWire(tu.name),
+              input: tu.input,
+            });
           }
         }
         anthropicMessages.push({ role: 'assistant', content: contentBlocks });

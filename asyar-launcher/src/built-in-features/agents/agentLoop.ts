@@ -11,6 +11,7 @@ import { logService } from '../../services/log/logService';
 import { extractErrorMessage } from '../../lib/errors';
 import type { LocalRunHandle } from '../../services/run/runService.svelte';
 import type { AgentDef, MessageDef } from './types';
+import { encodeToolIdForWire } from '../../services/ai/IProviderPlugin';
 import type {
   IProviderPlugin,
   ChatMessage,
@@ -587,18 +588,4 @@ export function coalesceConsecutiveSameRole(messages: LoopMessage[]): LoopMessag
     }
   }
   return out;
-}
-
-/**
- * Anthropic (and likely other) tool name regex: `^[a-zA-Z0-9_-]{1,64}$`.
- * Our FQIDs use `:` to separate source from id and `.` inside extension ids,
- * both of which the API rejects. Encode for the wire and keep a per-request
- * map (in `runToolLoop`) for exact-match decode of incoming `tool_use.name`.
- *
- * Encoding: `:` → `__`, `.` → `--`. Both are wire-safe characters. Decoding
- * is map-based (not transform-based) so any naturally-occurring `__` or `--`
- * in a tool id can't cause collisions.
- */
-export function encodeToolIdForWire(fullyQualifiedId: string): string {
-  return fullyQualifiedId.replace(/:/g, '__').replace(/\./g, '--');
 }
