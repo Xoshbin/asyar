@@ -108,6 +108,7 @@
   <FormField label="Name" id="portal-name">
     <Input
       unstyled
+      textIntent="natural"
       id="portal-name"
       class="field-input"
       type="text"
@@ -122,6 +123,7 @@
       <div class="url-input-row">
         <Input
           unstyled
+          textIntent="exact"
           id="portal-url"
           class="field-input"
           type="text"
@@ -147,6 +149,7 @@
   <FormField label="Icon" id="portal-icon">
     <Input
       unstyled
+      textIntent="exact"
       id="portal-icon"
       class="field-input"
       type="text"

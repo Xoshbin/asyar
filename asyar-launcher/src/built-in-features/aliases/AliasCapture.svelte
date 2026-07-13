@@ -101,6 +101,7 @@
 
       <FormField label="Alias" hint="1–10 lowercase letters or digits" error={error ?? undefined}>
         <Input
+          textIntent="exact"
           bind:value
           placeholder="e.g. c, s, app"
           disabled={saving}

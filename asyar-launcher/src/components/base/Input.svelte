@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { HTMLInputAttributes } from 'svelte/elements';
+  import { getTextIntentAttributes, type TextIntent } from './textIntent';
 
   let {
     value = $bindable(''),
@@ -9,18 +10,20 @@
     ref = $bindable(),
     class: className = '',
     unstyled = false,
+    textIntent = 'natural',
     ...rest
   }: HTMLInputAttributes & {
     value?: string;
     ref?: HTMLInputElement | null;
     unstyled?: boolean;
+    textIntent?: TextIntent;
   } = $props();
+
+  let textIntentAttributes = $derived(getTextIntentAttributes(textIntent));
 </script>
 
 <input
-  autocapitalize="none"
-  autocorrect="off"
-  spellcheck="false"
+  {...textIntentAttributes}
   bind:this={ref}
   {type}
   {placeholder}

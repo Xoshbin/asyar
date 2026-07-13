@@ -226,6 +226,7 @@
     >
       <div class="accessory-filter-row">
         <Input
+          textIntent="exact"
           bind:ref={filterInputRef}
           bind:value={filterQuery}
           type="text"

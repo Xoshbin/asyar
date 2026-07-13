@@ -81,6 +81,7 @@
       </p>
       <Textarea
         unstyled
+        textIntent="exact"
         class="phrase-textarea"
         bind:value={phraseInput}
         placeholder="abandon ability able about ..."
@@ -118,6 +119,7 @@
       <div class="flex-col">
         <div class="input-gap">
           <Input
+            textIntent="exact"
             type="password"
             placeholder="New passphrase (12+ characters)"
             bind:value={newPass}
@@ -126,6 +128,7 @@
         </div>
         <div class="input-gap">
           <Input
+            textIntent="exact"
             type="password"
             placeholder="Confirm new passphrase"
             bind:value={confirmNew}

@@ -80,6 +80,7 @@
       <h2 id="phrase-title" class="dialog-title">View recovery phrase</h2>
       <p class="dialog-body">Enter your current passphrase to view your 24-word recovery phrase.</p>
       <Input
+        textIntent="exact"
         type="password"
         placeholder="Passphrase"
         bind:value={passphrase}

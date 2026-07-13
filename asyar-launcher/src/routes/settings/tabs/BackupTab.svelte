@@ -52,6 +52,7 @@
 
     <SettingsFormRow label="Password (optional)">
       <Input
+        textIntent="exact"
         id="export-password"
         type="password"
         placeholder="Leave blank to strip sensitive fields"
@@ -109,7 +110,12 @@
     {#if backup.importNeedsPassword}
       <SettingsFormRow label="Password">
         <div class="import-password-row">
-          <Input type="password" placeholder="Backup password" bind:value={backup.importPassword} />
+          <Input
+            textIntent="exact"
+            type="password"
+            placeholder="Backup password"
+            bind:value={backup.importPassword}
+          />
           <Button
             onclick={() => backup.handleFileWithPassword()}
             disabled={backup.importStatus === 'importing'}

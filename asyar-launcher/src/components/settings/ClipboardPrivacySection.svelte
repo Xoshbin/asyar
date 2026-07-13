@@ -67,7 +67,7 @@
   >
     {#snippet children()}
       <div class="add-row">
-        <Input bind:value={newEntry} placeholder="com.example.YourVault" />
+        <Input textIntent="exact" bind:value={newEntry} placeholder="com.example.YourVault" />
         <Button onclick={handleAdd} disabled={newEntry.trim().length === 0}>Add</Button>
       </div>
     {/snippet}

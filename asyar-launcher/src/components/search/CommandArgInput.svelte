@@ -49,6 +49,7 @@
     </select>
   {:else}
     <Input
+      textIntent="exact"
       bind:ref={inputRef as HTMLInputElement}
       class="arg-input"
       type={arg.type === 'password' ? 'password' : arg.type === 'number' ? 'number' : 'text'}

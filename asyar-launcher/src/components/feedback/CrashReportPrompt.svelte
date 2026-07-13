@@ -17,6 +17,7 @@
 
     <div class="crash-prompt-email">
       <Input
+        textIntent="exact"
         bind:value={crashPromptState.email}
         type="email"
         placeholder="Email (optional — leave blank to send anonymously)"

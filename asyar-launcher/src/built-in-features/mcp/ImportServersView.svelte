@@ -161,6 +161,7 @@
       <div class="paste-section">
         <Textarea
           unstyled
+          textIntent="exact"
           class="field-textarea paste-area"
           placeholder="Paste MCP config JSON here"
           bind:value={pasteJson}

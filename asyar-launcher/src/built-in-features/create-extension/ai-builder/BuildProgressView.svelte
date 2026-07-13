@@ -239,6 +239,7 @@
         >
           <Textarea
             unstyled
+            textIntent="natural"
             bind:value={prompt}
             placeholder="Create an extension for…"
             rows={4}
@@ -292,6 +293,7 @@
           <FormField label={job.pendingQuestion.prompt}>
             {#if job.pendingQuestion.inputKind === 'secret'}
               <Input
+                textIntent="exact"
                 type="password"
                 bind:value={answer}
                 placeholder={job.pendingQuestion.placeholder ?? ''}
@@ -302,6 +304,7 @@
               />
             {:else}
               <Input
+                textIntent="exact"
                 bind:value={answer}
                 placeholder={job.pendingQuestion.placeholder ?? ''}
                 autocomplete="off"
