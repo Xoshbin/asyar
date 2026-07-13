@@ -50,7 +50,7 @@ export function buildOpenAIToolsBody(
     tools: tools.map((t) => ({
       type: 'function',
       function: {
-        name: t.name,
+        name: t.id,
         description: t.description,
         parameters: t.parameters,
       },

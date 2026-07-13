@@ -124,7 +124,7 @@ export const googlePlugin: IProviderPlugin = {
       tools: [
         {
           functionDeclarations: tools.map((t) => ({
-            name: t.name,
+            name: t.id,
             description: t.description,
             parameters: t.parameters,
           })),

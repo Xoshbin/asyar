@@ -103,6 +103,27 @@ describe('buildOpenAIToolsBody', () => {
     expect(body.stream).toBe(true);
     expect(body.model).toBe(fakeParams.modelId);
   });
+
+  it('openaiCompat_buildToolsBody_uses_wire_safe_id_not_display_name', () => {
+    // Built-in tools have human-readable display names with spaces (e.g.
+    // "Search Launcher Index"). OpenAI's function name validation rejects
+    // spaces, and the wire-safe `id` is also what `wireToFqid` in
+    // agentLoop.ts uses to resolve tool_calls back to the original tool.
+    const messages: LoopMessage[] = [{ role: 'user', content: 'search for files' }];
+    const tools = [
+      {
+        id: 'builtin__search-launcher-index',
+        name: 'Search Launcher Index',
+        description: 'Searches the launcher index',
+        parameters: { type: 'object', properties: {} } as Record<string, unknown>,
+      },
+    ];
+
+    const body = buildOpenAIToolsBody(messages, fakeParams, tools) as Record<string, unknown>;
+    const toolsArray = body.tools as Array<{ function: { name: string } }>;
+
+    expect(toolsArray[0].function.name).toBe('builtin__search-launcher-index');
+  });
 });
 
 // ─── parseOpenAIToolStream ────────────────────────────────────────────────────

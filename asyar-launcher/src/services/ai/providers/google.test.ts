@@ -182,6 +182,31 @@ describe('googlePlugin.buildToolRequest', () => {
       },
     ]);
   });
+
+  it('google_buildToolRequest_uses_wire_safe_id_not_display_name', () => {
+    // Built-in tools have human-readable display names with spaces (e.g.
+    // "Search Launcher Index"), which Gemini's function name validation
+    // rejects (must match ^[a-zA-Z_][a-zA-Z0-9_.-]*$). The wire-safe `id`
+    // (e.g. "builtin__search-launcher-index") must be sent instead — it's
+    // also what `wireToFqid` in agentLoop.ts uses to resolve tool_use
+    // blocks back to the original tool.
+    const messages: LoopMessage[] = [{ role: 'user', content: 'search for files' }];
+    const tools = [
+      {
+        id: 'builtin__search-launcher-index',
+        name: 'Search Launcher Index',
+        description: 'Searches the launcher index',
+        parameters: { type: 'object', properties: {} } as Record<string, unknown>,
+      },
+    ];
+
+    const spec = googlePlugin.buildToolRequest(messages, fakeConfig, fakeParams, tools);
+    const body = spec.body as Record<string, unknown>;
+    const declarations = (body.tools as Array<{ functionDeclarations: Array<{ name: string }> }>)[0]
+      .functionDeclarations;
+
+    expect(declarations[0].name).toBe('builtin__search-launcher-index');
+  });
 });
 
 // ─── parseToolStream ──────────────────────────────────────────────────────────
