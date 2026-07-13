@@ -48,6 +48,7 @@ vi.mock('./agentsManager.svelte', () => ({
     currentAgentId: null,
     currentThreadId: null,
     sending: false,
+    streamingText: '',
     start: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue(undefined),
     refresh: vi.fn().mockResolvedValue(undefined),
@@ -117,16 +118,52 @@ import { contextModeService } from '../../services/context/contextModeService.sv
 import { openAgentForTab } from './threadOpener';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { decideTabDestination } from './tabRouter';
+import { agentsManager } from './agentsManager.svelte';
+import { agentService } from './agentService.svelte';
+import { runAgent } from './agentLoop';
+import { ensureThread } from './agentChatView.helpers';
 
 describe('AgentsExtension', () => {
   let mockExtensionManager: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    agentsManager.currentAgentId = null;
+    agentsManager.currentThreadId = null;
+    agentsManager.sending = false;
+    agentsManager.streamingText = '';
+    agentsManager.activeAbortController = null;
     mockExtensionManager = {
       navigateToView: vi.fn(),
       setActiveViewSubtitle: vi.fn(),
     };
+  });
+
+  describe('chat submission', () => {
+    it('replaces a stale selected thread before sending', async () => {
+      agentsManager.currentAgentId = 'agent-1';
+      agentsManager.currentThreadId = 'deleted-thread';
+      vi.mocked(agentService.listThreads).mockResolvedValue([] as never);
+      vi.mocked(ensureThread).mockResolvedValue({
+        id: 'fresh-thread',
+        agentId: 'agent-1',
+        title: '',
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      vi.mocked(runAgent).mockResolvedValue(undefined);
+
+      await agentsExtension.onViewSubmit?.('hello');
+
+      expect(agentsManager.currentThreadId).toBe('fresh-thread');
+      expect(runAgent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentId: 'agent-1',
+          threadId: 'fresh-thread',
+          userText: 'hello',
+        }),
+      );
+    });
   });
 
   describe('initialize', () => {

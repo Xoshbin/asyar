@@ -17,6 +17,7 @@ export const googlePlugin: IProviderPlugin = {
   requiresApiKey: true,
   requiresBaseUrl: false,
   supportsTools: true,
+  reasoningEfforts: ['minimal', 'low', 'medium', 'high'],
 
   async getModels(config: ProviderConfig): Promise<ModelInfo[]> {
     // Security fix: API key in Authorization header, NOT in URL
@@ -56,6 +57,9 @@ export const googlePlugin: IProviderPlugin = {
         generationConfig: {
           temperature: params.temperature,
           maxOutputTokens: params.maxTokens,
+          ...(config.reasoningEffort && {
+            thinkingConfig: { thinkingLevel: config.reasoningEffort },
+          }),
         },
       },
     };
@@ -139,6 +143,9 @@ export const googlePlugin: IProviderPlugin = {
       generationConfig: {
         ...(params.temperature !== undefined && { temperature: params.temperature }),
         ...(params.maxTokens !== undefined && { maxOutputTokens: params.maxTokens }),
+        ...(config.reasoningEffort && {
+          thinkingConfig: { thinkingLevel: config.reasoningEffort },
+        }),
       },
     };
     if (systemText) body.systemInstruction = { parts: [{ text: systemText }] };

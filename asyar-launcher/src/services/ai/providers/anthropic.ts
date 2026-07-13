@@ -17,6 +17,7 @@ export const anthropicPlugin: IProviderPlugin = {
   requiresApiKey: true,
   requiresBaseUrl: false,
   supportsTools: true,
+  reasoningEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 
   async getModels(config: ProviderConfig): Promise<ModelInfo[]> {
     const res = await fetch('https://api.anthropic.com/v1/models?limit=100', {
@@ -48,6 +49,9 @@ export const anthropicPlugin: IProviderPlugin = {
       body: {
         model: params.modelId,
         max_tokens: params.maxTokens,
+        ...(config.reasoningEffort && {
+          output_config: { effort: config.reasoningEffort },
+        }),
         system: systemPrompt,
         stream: true,
         messages: filtered.map((m) => ({ role: m.role, content: m.content })),
@@ -155,6 +159,9 @@ export const anthropicPlugin: IProviderPlugin = {
       body: {
         model: params.modelId,
         max_tokens: params.maxTokens,
+        ...(config.reasoningEffort && {
+          output_config: { effort: config.reasoningEffort },
+        }),
         system: systemPrompt,
         stream: true,
         tools: anthropicTools,

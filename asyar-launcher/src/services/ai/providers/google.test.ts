@@ -64,6 +64,28 @@ const fakeParams: ChatParams = { modelId: 'gemini-2.0-flash', temperature: 0.7, 
 // ─── buildToolRequest ─────────────────────────────────────────────────────────
 
 describe('googlePlugin.buildToolRequest', () => {
+  it('maps configured effort to Gemini thinkingLevel for plain and tool requests', () => {
+    const config: ProviderConfig = { ...fakeConfig, reasoningEffort: 'low' };
+    const plain = googlePlugin.buildRequest(
+      [{ id: 'm1', role: 'user', content: 'Hello', timestamp: 0 }],
+      config,
+      fakeParams,
+    );
+    const tool = googlePlugin.buildToolRequest(
+      [{ role: 'user', content: 'Hello' }],
+      config,
+      fakeParams,
+      [],
+    );
+
+    expect(plain.body).toMatchObject({
+      generationConfig: { thinkingConfig: { thinkingLevel: 'low' } },
+    });
+    expect(tool.body).toMatchObject({
+      generationConfig: { thinkingConfig: { thinkingLevel: 'low' } },
+    });
+  });
+
   it('google_buildToolRequest_hoists_system_to_systemInstruction', () => {
     const messages: LoopMessage[] = [
       { role: 'system', content: 'You are helpful' },

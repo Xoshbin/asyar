@@ -66,6 +66,24 @@ const fakeParams: ChatParams = { modelId: 'claude-3-haiku', temperature: 0.5, ma
 // ─── buildToolRequest ─────────────────────────────────────────────────────────
 
 describe('anthropicPlugin.buildToolRequest', () => {
+  it('maps configured effort for plain and tool-capable requests', () => {
+    const config: ProviderConfig = { ...fakeConfig, reasoningEffort: 'medium' };
+    const plain = anthropicPlugin.buildRequest(
+      [{ id: 'm1', role: 'user', content: 'Hello', timestamp: 0 }],
+      config,
+      fakeParams,
+    );
+    const tool = anthropicPlugin.buildToolRequest(
+      [{ role: 'user', content: 'Hello' }],
+      config,
+      fakeParams,
+      [],
+    );
+
+    expect(plain.body).toMatchObject({ output_config: { effort: 'medium' } });
+    expect(tool.body).toMatchObject({ output_config: { effort: 'medium' } });
+  });
+
   it('anthropic_buildToolRequest_emits_tool_use_blocks_for_assistant_with_toolUse', () => {
     const messages: LoopMessage[] = [
       {

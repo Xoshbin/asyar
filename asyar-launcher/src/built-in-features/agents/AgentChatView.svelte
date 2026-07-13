@@ -29,6 +29,7 @@
   const selectedThreadId = $derived(agentsManager.currentThreadId);
   const sending = $derived(agentsManager.sending);
   const streamingText = $derived(agentsManager.streamingText);
+  const streamingStatus = $derived(agentsManager.streamingStatus);
 
   // Load agent + threads when currentAgentId changes
   $effect(() => {
@@ -58,6 +59,13 @@
       agentsManager.sending;
       if (!tid) {
         messages = [];
+        if (agentId) {
+          try {
+            threads = await agentService.listThreads(agentId);
+          } catch (err) {
+            logService.warn(`[agents] listThreads failed: ${err}`);
+          }
+        }
         return;
       }
       try {
@@ -76,15 +84,17 @@
     messages.length;
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     streamingText;
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    streamingStatus;
     if (!userScrolledUp) scrollToBottom();
   });
 
   function scrollToBottom() {
-    if (messagesEl) {
-      requestAnimationFrame(() => {
-        messagesEl!.scrollTop = messagesEl!.scrollHeight;
-      });
-    }
+    const element = messagesEl;
+    if (!element) return;
+    requestAnimationFrame(() => {
+      element.scrollTop = element.scrollHeight;
+    });
   }
 
   function handleScroll() {
@@ -273,6 +283,14 @@
                     <span class="streaming-cursor">▊</span>
                   </div>
                 </div>
+              {:else if sending && streamingStatus === 'searching'}
+                <div class="message-row assistant">
+                  <div class="avatar assistant-avatar">AI</div>
+                  <div class="message-bubble assistant activity-status">
+                    <span class="activity-label">Searching…</span>
+                    <span class="streaming-cursor">▊</span>
+                  </div>
+                </div>
               {:else if sending}
                 <div class="message-row assistant">
                   <div class="avatar assistant-avatar">AI</div>
@@ -379,6 +397,7 @@
 
   .message-bubble {
     position: relative;
+    min-width: 0;
     max-width: 85%;
     padding: var(--space-4) var(--space-6);
     border-radius: var(--radius-xl);
@@ -444,6 +463,12 @@
     color: var(--accent-primary);
     font-weight: bold;
     animation: blink 0.8s step-end infinite;
+  }
+  .activity-status {
+    color: var(--text-tertiary);
+  }
+  .activity-label {
+    font-style: italic;
   }
   @keyframes blink {
     0%,

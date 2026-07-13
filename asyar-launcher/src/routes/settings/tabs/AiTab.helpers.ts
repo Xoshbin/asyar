@@ -1,4 +1,9 @@
-import type { IProviderPlugin, ProviderConfig } from '../../../services/ai/IProviderPlugin';
+import type {
+  IProviderPlugin,
+  ModelInfo,
+  ProviderConfig,
+  ReasoningEffort,
+} from '../../../services/ai/IProviderPlugin';
 
 /**
  * Returns all registered plugins NOT in the given set of existing provider IDs.
@@ -25,4 +30,37 @@ export function canTestAndFetch(
   if (plugin.requiresApiKey && !config.apiKey?.trim()) return false;
   if (plugin.requiresBaseUrl && !config.baseUrl?.trim()) return false;
   return true;
+}
+
+export function configForNewProvider(
+  plugin: IProviderPlugin | null | undefined,
+  config: ProviderConfig,
+): ProviderConfig {
+  return {
+    ...config,
+    enabled: true,
+    ...(plugin?.supportsOpenAIApiMode ? { openAIApiMode: 'responses' as const } : {}),
+  };
+}
+
+export function reasoningEffortsForModel(
+  plugin: IProviderPlugin | null | undefined,
+  models: ModelInfo[],
+  selectedModelId: string | undefined,
+): readonly ReasoningEffort[] {
+  const model = models.find((candidate) => candidate.id === selectedModelId);
+  if (model?.reasoningEfforts !== undefined) return model.reasoningEfforts;
+  return plugin?.reasoningEfforts ?? [];
+}
+
+export function reasoningEffortAfterModelChange(
+  plugin: IProviderPlugin | null | undefined,
+  models: ModelInfo[],
+  modelId: string | undefined,
+  currentEffort: ReasoningEffort | undefined,
+): ReasoningEffort | undefined {
+  if (!currentEffort) return undefined;
+  return reasoningEffortsForModel(plugin, models, modelId).includes(currentEffort)
+    ? currentEffort
+    : undefined;
 }

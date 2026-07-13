@@ -18,6 +18,7 @@ import type {
   LoopMessage,
   ProviderConfig,
   ToolCall,
+  ChatStreamStatus,
 } from '../../services/ai/IProviderPlugin';
 
 export interface RunAgentInput {
@@ -37,6 +38,7 @@ export interface RunAgentInput {
    * `accumulated` is the full text seen so far for the current turn.
    */
   onAssistantTextDelta?: (delta: string, accumulated: string) => void;
+  onAssistantStatus?: (status: ChatStreamStatus | null) => void;
   /**
    * Fired after each turn's assistant message has been persisted. The chat
    * view refreshes the message list and clears any streaming buffer.
@@ -60,8 +62,30 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
 
   const settings = settingsService.getSettings();
   const config = settings.ai.providers[agent.providerId as keyof typeof settings.ai.providers];
-  if (!config?.apiKey) {
+  if (!config) {
+    const msg = `Provider '${agent.providerId}' is not configured`;
+    await diagnosticsService.report({
+      source: 'frontend',
+      kind: 'manual',
+      severity: 'error',
+      retryable: false,
+      context: { message: msg },
+    });
+    throw new Error(msg);
+  }
+  if (plugin.requiresApiKey && !config.apiKey?.trim()) {
     const msg = `API key for provider '${agent.providerId}' is not configured`;
+    await diagnosticsService.report({
+      source: 'frontend',
+      kind: 'manual',
+      severity: 'error',
+      retryable: false,
+      context: { message: msg },
+    });
+    throw new Error(msg);
+  }
+  if (plugin.requiresBaseUrl && !config.baseUrl?.trim()) {
+    const msg = `Base URL for provider '${agent.providerId}' is not configured`;
     await diagnosticsService.report({
       source: 'frontend',
       kind: 'manual',
@@ -168,7 +192,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
 
       // Build initial conversation history as LoopMessages
       const history = await agentService.listMessages(input.threadId);
-      const currentMessages = buildLoopMessages(agent, history);
+      const currentMessages = buildLoopMessages(agent, history, config);
 
       await runToolLoop(
         input,
@@ -227,7 +251,7 @@ async function runTextOnly(
   isCancelled: () => boolean,
 ): Promise<void> {
   const history = await agentService.listMessages(input.threadId);
-  const chatMessages = buildChatMessages(agent, history);
+  const chatMessages = buildChatMessages(agent, history, config);
 
   const streamId = `agent-${input.agentId}-${Date.now()}`;
 
@@ -249,6 +273,7 @@ async function runTextOnly(
         maxTokens: settings.ai.maxTokens,
       },
       {
+        onStatus: (status) => input.onAssistantStatus?.(status),
         onToken: (token: string) => {
           accumulated += token;
           input.onAssistantTextDelta?.(token, accumulated);
@@ -380,14 +405,24 @@ async function runToolLoop(
 
     // Parse the tool stream
     let accumText = '';
+    let activeStatus: ChatStreamStatus | null = null;
     const toolUses: ToolCall[] = [];
+    const providerContext: unknown[] = [];
 
     try {
       for await (const ev of plugin.parseToolStream(
         reader as ReadableStreamDefaultReader<Uint8Array>,
+        config,
       )) {
         if (isCancelled()) break;
-        if (ev.type === 'text') {
+        if (ev.type === 'status') {
+          activeStatus = ev.status;
+          input.onAssistantStatus?.(ev.status);
+        } else if (ev.type === 'text') {
+          if (activeStatus) {
+            activeStatus = null;
+            input.onAssistantStatus?.(null);
+          }
           accumText += ev.text;
           input.onAssistantTextDelta?.(ev.text, accumText);
           void handle.write(ev.text).catch(() => {});
@@ -402,12 +437,15 @@ async function runToolLoop(
           void handle
             .write(`\n[tool] ${resolvedFqid} ${JSON.stringify(ev.input)}\n`)
             .catch(() => {});
+        } else if (ev.type === 'provider_context') {
+          providerContext.push(ev.item);
         } else if (ev.type === 'message_stop') {
           break;
         }
       }
     } finally {
       reader?.releaseLock();
+      if (activeStatus) input.onAssistantStatus?.(null);
     }
 
     // Persist the assistant message (with optional toolUse) BEFORE invoking tools
@@ -432,6 +470,9 @@ async function runToolLoop(
     };
     if (toolUses.length > 0) {
       assistantLoopMsg.toolUse = toolUses;
+    }
+    if (providerContext.length > 0) {
+      assistantLoopMsg.providerContext = providerContext;
     }
     currentMessages.push(assistantLoopMsg);
 
@@ -501,13 +542,40 @@ async function loadAgent(agentId: string): Promise<AgentDef> {
   return fetched;
 }
 
-function buildChatMessages(agent: AgentDef, history: MessageDef[]): ChatMessage[] {
+export function buildChatSystemPrompt(
+  basePrompt: string,
+  config: ProviderConfig,
+  now = new Date(),
+): string {
+  const prompt = basePrompt.trim();
+  const displayGuidance =
+    'The available horizontal display space is 400px. Format responses for this width and avoid unnecessarily wide content.';
+  if (!config.hostedWebSearch) {
+    return [displayGuidance, prompt].filter(Boolean).join('\n\n');
+  }
+
+  const today = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(now);
+  const searchGuidance = `Today is ${today}. Use web search for facts that may have changed, especially current events, schedules, sports, prices, availability, laws, and public roles. For ambiguous current-event queries, search first and use the most prominent current interpretation; ask only when no interpretation is clearly more likely. Do not search for stable facts or ordinary writing tasks.`;
+
+  return [displayGuidance, prompt, searchGuidance].filter(Boolean).join('\n\n');
+}
+
+function buildChatMessages(
+  agent: AgentDef,
+  history: MessageDef[],
+  config: ProviderConfig,
+): ChatMessage[] {
   const out: ChatMessage[] = [];
-  if (agent.systemPrompt) {
+  const systemPrompt = buildChatSystemPrompt(agent.systemPrompt, config);
+  if (systemPrompt) {
     out.push({
       id: `system-${agent.id}`,
       role: 'system',
-      content: agent.systemPrompt,
+      content: systemPrompt,
       timestamp: 0,
     });
   }
@@ -523,11 +591,16 @@ function buildChatMessages(agent: AgentDef, history: MessageDef[]): ChatMessage[
   return out;
 }
 
-function buildLoopMessages(agent: AgentDef, history: MessageDef[]): LoopMessage[] {
+function buildLoopMessages(
+  agent: AgentDef,
+  history: MessageDef[],
+  config: ProviderConfig,
+): LoopMessage[] {
   const out: LoopMessage[] = [];
 
-  if (agent.systemPrompt) {
-    out.push({ role: 'system', content: agent.systemPrompt });
+  const systemPrompt = buildChatSystemPrompt(agent.systemPrompt, config);
+  if (systemPrompt) {
+    out.push({ role: 'system', content: systemPrompt });
   }
 
   for (const msg of history) {

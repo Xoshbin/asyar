@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
-import { openaiPlugin } from './openai';
+import { openaiPlugin, openAIReasoningEfforts } from './openai';
 import type { LoopMessage, ChatParams, ProviderConfig } from '../IProviderPlugin';
 
 // getModels must route through the Tauri HTTP plugin (Rust/reqwest), not the WebView's
@@ -29,7 +29,28 @@ describe('openaiPlugin.getModels transport', () => {
     expect(tauriFetch).toHaveBeenCalledTimes(1);
     expect(vi.mocked(tauriFetch).mock.calls[0][0]).toBe('https://api.openai.com/v1/models');
     expect(webViewFetch).not.toHaveBeenCalled();
-    expect(models).toEqual([{ id: 'gpt-4o', label: 'gpt-4o' }]);
+    expect(models).toEqual([{ id: 'gpt-4o', label: 'gpt-4o', reasoningEfforts: [] }]);
+  });
+});
+
+describe('openAIReasoningEfforts', () => {
+  it('does not advertise reasoning for non-reasoning models', () => {
+    expect(openAIReasoningEfforts('gpt-4o')).toEqual([]);
+  });
+
+  it('uses the documented levels for each known model family', () => {
+    expect(openAIReasoningEfforts('gpt-5')).toEqual(['minimal', 'low', 'medium', 'high']);
+    expect(openAIReasoningEfforts('gpt-5.1')).toEqual(['none', 'low', 'medium', 'high']);
+    expect(openAIReasoningEfforts('gpt-5.2')).toEqual(['none', 'low', 'medium', 'high', 'xhigh']);
+    expect(openAIReasoningEfforts('gpt-5.4-pro')).toEqual(['medium', 'high', 'xhigh']);
+    expect(openAIReasoningEfforts('gpt-5.6-sol')).toEqual([
+      'none',
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max',
+    ]);
   });
 });
 
@@ -52,6 +73,7 @@ const fakeConfig: ProviderConfig = {
   enabled: true,
   apiKey: 'sk-test',
   baseUrl: 'https://api.openai.com',
+  openAIApiMode: 'chat-completions',
 };
 
 const fakeParams: ChatParams = { modelId: 'gpt-4o', temperature: 0.5, maxTokens: 1024 };
@@ -72,6 +94,24 @@ const fakeTools = [
 // ─── openaiPlugin.buildToolRequest ───────────────────────────────────────────
 
 describe('openaiPlugin.buildToolRequest', () => {
+  it('uses the Responses API when explicitly configured', () => {
+    const messages: LoopMessage[] = [{ role: 'user', content: 'Hello' }];
+
+    const spec = openaiPlugin.buildToolRequest(
+      messages,
+      { enabled: true, apiKey: 'sk-test', openAIApiMode: 'responses' },
+      fakeParams,
+      fakeTools,
+    );
+
+    expect(spec.url).toBe('https://api.openai.com/v1/responses');
+    expect(spec.body).toMatchObject({
+      input: [{ role: 'user', content: 'Hello' }],
+      tools: [{ type: 'function', name: 'calc' }],
+      store: false,
+    });
+  });
+
   it('openai_buildToolRequest_targets_v1_chat_completions_with_baseUrl', () => {
     const messages: LoopMessage[] = [{ role: 'user', content: 'Hello' }];
 
@@ -88,6 +128,21 @@ describe('openaiPlugin.buildToolRequest', () => {
     expect(spec.headers['Authorization']).toBe('Bearer sk-test');
     expect(spec.headers['Content-Type']).toBe('application/json');
   });
+
+  it('maps configured reasoning effort in Chat Completions requests', () => {
+    const config = { ...fakeConfig, reasoningEffort: 'low' as const };
+    const messages: LoopMessage[] = [{ role: 'user', content: 'Hello' }];
+
+    const plain = openaiPlugin.buildRequest(
+      [{ id: 'm1', role: 'user', content: 'Hello', timestamp: 0 }],
+      config,
+      fakeParams,
+    );
+    const tool = openaiPlugin.buildToolRequest(messages, config, fakeParams, fakeTools);
+
+    expect(plain.body).toMatchObject({ reasoning_effort: 'low' });
+    expect(tool.body).toMatchObject({ reasoning_effort: 'low' });
+  });
 });
 
 // ─── openaiPlugin.parseToolStream ────────────────────────────────────────────
@@ -103,7 +158,7 @@ describe('openaiPlugin.parseToolStream', () => {
 
     const reader = readerFromChunks(chunks);
     const events = [];
-    for await (const event of openaiPlugin.parseToolStream(reader)) {
+    for await (const event of openaiPlugin.parseToolStream(reader, fakeConfig)) {
       events.push(event);
     }
 

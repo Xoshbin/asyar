@@ -4,11 +4,19 @@
   import { listProviders } from '../../../services/ai/providerRegistry';
   import { agentService } from '../../../built-in-features/agents/agentService.svelte';
   import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
-  import { availableProvidersForNewRow, canTestAndFetch } from './AiTab.helpers';
+  import {
+    availableProvidersForNewRow,
+    canTestAndFetch,
+    configForNewProvider,
+    reasoningEffortAfterModelChange,
+    reasoningEffortsForModel,
+  } from './AiTab.helpers';
   import type {
     IProviderPlugin,
     ModelInfo,
+    OpenAIApiMode,
     ProviderConfig,
+    ReasoningEffort,
   } from '../../../services/ai/IProviderPlugin';
   import type { ProviderId } from '../../../services/settings/types/AppSettingsType';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
@@ -85,6 +93,14 @@
     });
   }
 
+  function reasoningEffortLabel(effort: ReasoningEffort): string {
+    if (effort === 'none') return 'Off';
+    if (effort === 'minimal') return 'Minimal';
+    if (effort === 'xhigh') return 'X-high';
+    if (effort === 'max') return 'Maximum';
+    return `${effort[0].toUpperCase()}${effort.slice(1)}`;
+  }
+
   async function fetchModels(plugin: IProviderPlugin) {
     fetchingModels = { ...fetchingModels, [plugin.id]: true };
     fetchErrors = { ...fetchErrors, [plugin.id]: '' };
@@ -92,6 +108,17 @@
       const models = await plugin.getModels(getConfig(plugin.id));
       modelCache = { ...modelCache, [plugin.id]: models };
       fetchErrors = { ...fetchErrors, [plugin.id]: '' };
+      const config = getConfig(plugin.id);
+      const modelId = config.lastModelId ?? models[0]?.id;
+      const reasoningEffort = reasoningEffortAfterModelChange(
+        plugin,
+        models,
+        modelId,
+        config.reasoningEffort,
+      );
+      if (reasoningEffort !== config.reasoningEffort) {
+        updateProviderConfig(plugin.id, { reasoningEffort });
+      }
     } catch (e: unknown) {
       fetchErrors = {
         ...fetchErrors,
@@ -205,7 +232,7 @@
     settingsService.updateSettings('ai', {
       providers: {
         ...settings.providers,
-        [val]: { ...getConfig(val), enabled: true },
+        [val]: configForNewProvider(getPlugin(val), getConfig(val)),
       },
     });
     // Auto-expand the newly added row so the user can configure it immediately
@@ -274,6 +301,9 @@
         {@const defaultRow = isDefault(providerId)}
         {@const hasModel = !!config.lastModelId}
         {@const useCustomInput = customModelMode[providerId] ?? false}
+        {@const openAIApiMode = config.openAIApiMode ?? 'chat-completions'}
+        {@const selectedModelId = config.lastModelId ?? cachedModels[0]?.id}
+        {@const reasoningEfforts = reasoningEffortsForModel(plugin, cachedModels, selectedModelId)}
 
         {@const expanded = isExpanded(providerId)}
         <div class="provider-row" class:is-default={defaultRow}>
@@ -367,6 +397,52 @@
                 </div>
               {/if}
 
+              {#if plugin?.supportsOpenAIApiMode}
+                <div class="card-field">
+                  <label class="field-label" for="openai-api-mode-{providerId}">API format</label>
+                  <select
+                    class="card-select"
+                    id="openai-api-mode-{providerId}"
+                    value={openAIApiMode}
+                    onchange={(e) =>
+                      updateProviderConfig(providerId, {
+                        openAIApiMode: (e.currentTarget as HTMLSelectElement)
+                          .value as OpenAIApiMode,
+                      })}
+                  >
+                    <option value="responses">Responses (recommended)</option>
+                    <option value="chat-completions">Chat Completions (widely compatible)</option>
+                  </select>
+                  <p class="field-description">
+                    Responses supports hosted tools and typed streaming. Use Chat Completions when
+                    an endpoint does not implement <code>/responses</code>.
+                  </p>
+                </div>
+              {/if}
+
+              {#if plugin?.supportsHostedWebSearch && (providerId !== 'openai' || openAIApiMode === 'responses')}
+                <div class="hosted-search-setting">
+                  <div class="hosted-search-heading">
+                    <label class="field-label" for="hosted-web-search-{providerId}">
+                      OpenAI Hosted Web Search
+                    </label>
+                    <Toggle
+                      id="hosted-web-search-{providerId}"
+                      checked={config.hostedWebSearch === true}
+                      onchange={(e) =>
+                        updateProviderConfig(providerId, {
+                          hostedWebSearch: (e.currentTarget as HTMLInputElement).checked,
+                        })}
+                    />
+                  </div>
+                  <p class="field-description">
+                    Lets compatible OpenAI/Codex proxy endpoints search the live web. No separate
+                    search API key is needed; unsupported endpoints may reject requests while this
+                    is enabled.
+                  </p>
+                </div>
+              {/if}
+
               <!-- Test & Fetch button -->
               <div class="card-actions">
                 <Button
@@ -395,7 +471,15 @@
                         customModelMode = { ...customModelMode, [providerId]: true };
                         return;
                       }
-                      updateProviderConfig(providerId, { lastModelId: val });
+                      updateProviderConfig(providerId, {
+                        lastModelId: val,
+                        reasoningEffort: reasoningEffortAfterModelChange(
+                          plugin,
+                          cachedModels,
+                          val,
+                          config.reasoningEffort,
+                        ),
+                      });
                       if (isDefault(providerId)) {
                         try {
                           await agentService.upsertDefaultAgent(providerId, val);
@@ -439,7 +523,15 @@
                       onblur={async (e) => {
                         const val = (e.currentTarget as HTMLInputElement).value.trim();
                         if (val) {
-                          updateProviderConfig(providerId, { lastModelId: val });
+                          updateProviderConfig(providerId, {
+                            lastModelId: val,
+                            reasoningEffort: reasoningEffortAfterModelChange(
+                              plugin,
+                              cachedModels,
+                              val,
+                              config.reasoningEffort,
+                            ),
+                          });
                           if (isDefault(providerId)) {
                             try {
                               await agentService.upsertDefaultAgent(providerId, val);
@@ -469,6 +561,32 @@
                       </button>
                     {/if}
                   </div>
+                </div>
+              {/if}
+
+              {#if reasoningEfforts.length > 0 && selectedModelId}
+                <div class="card-field">
+                  <label class="field-label" for="reasoning-effort-{providerId}">Reasoning</label>
+                  <select
+                    class="card-select"
+                    id="reasoning-effort-{providerId}"
+                    value={config.reasoningEffort ?? ''}
+                    onchange={(e) => {
+                      const value = (e.currentTarget as HTMLSelectElement).value;
+                      updateProviderConfig(providerId, {
+                        reasoningEffort: value ? (value as ReasoningEffort) : undefined,
+                      });
+                    }}
+                  >
+                    <option value="">Model default</option>
+                    {#each reasoningEfforts as effort (effort)}
+                      <option value={effort}>{reasoningEffortLabel(effort)}</option>
+                    {/each}
+                  </select>
+                  <p class="field-description">
+                    Higher levels can improve difficult answers but usually take longer. Available
+                    levels depend on the selected model.
+                  </p>
                 </div>
               {/if}
             </div>
@@ -718,6 +836,27 @@
   .field-hint {
     color: var(--text-tertiary);
     font-weight: 400;
+  }
+
+  .hosted-search-setting {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-2) 0;
+  }
+
+  .hosted-search-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .field-description {
+    margin: 0;
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+    line-height: 1.4;
   }
 
   :global(.card-input) {

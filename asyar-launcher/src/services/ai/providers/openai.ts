@@ -8,9 +8,54 @@ import type {
   ChatMessage,
   LoopMessage,
   ToolStreamEvent,
+  ChatStreamEvent,
+  ReasoningEffort,
 } from '../IProviderPlugin';
 import { buildOpenAIToolsBody, parseOpenAIToolStream } from './_openaiCompat';
 import type { OpenAIToolDescriptor } from './_openaiCompat';
+import {
+  buildOpenAIResponsesChatBody,
+  buildOpenAIResponsesToolBody,
+  parseOpenAIResponsesStream,
+  parseOpenAIResponsesToolStream,
+  usesOpenAIResponses,
+} from './_openaiResponses';
+
+const EFFORTS_BY_MODEL_FAMILY: Array<[families: string[], efforts: ReasoningEffort[]]> = [
+  [['gpt-5-pro'], ['high']],
+  [
+    ['gpt-5.2-pro', 'gpt-5.4-pro', 'gpt-5.5-pro'],
+    ['medium', 'high', 'xhigh'],
+  ],
+  [
+    ['gpt-5.2-codex', 'gpt-5.3-codex'],
+    ['low', 'medium', 'high', 'xhigh'],
+  ],
+  [
+    ['gpt-5.6', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'],
+    ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+  ],
+  [
+    ['gpt-5.2', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano', 'gpt-5.5'],
+    ['none', 'low', 'medium', 'high', 'xhigh'],
+  ],
+  [['gpt-5.1'], ['none', 'low', 'medium', 'high']],
+  [
+    ['gpt-5', 'gpt-5-mini', 'gpt-5-nano'],
+    ['minimal', 'low', 'medium', 'high'],
+  ],
+];
+
+function isModelOrSnapshot(modelId: string, model: string): boolean {
+  return modelId === model || modelId.startsWith(`${model}-20`);
+}
+
+export function openAIReasoningEfforts(modelId: string): ReasoningEffort[] {
+  for (const [families, efforts] of EFFORTS_BY_MODEL_FAMILY) {
+    if (families.some((family) => isModelOrSnapshot(modelId, family))) return [...efforts];
+  }
+  return [];
+}
 
 export const openaiPlugin: IProviderPlugin = {
   id: 'openai',
@@ -18,6 +63,8 @@ export const openaiPlugin: IProviderPlugin = {
   requiresApiKey: true,
   requiresBaseUrl: false,
   supportsTools: true,
+  supportsOpenAIApiMode: true,
+  supportsHostedWebSearch: true,
 
   async getModels(config: ProviderConfig): Promise<ModelInfo[]> {
     const base = config.baseUrl?.replace(/\/$/, '') || 'https://api.openai.com';
@@ -37,7 +84,7 @@ export const openaiPlugin: IProviderPlugin = {
           id.startsWith('o2'),
       )
       .sort()
-      .map((id) => ({ id, label: id }));
+      .map((id) => ({ id, label: id, reasoningEfforts: openAIReasoningEfforts(id) }));
   },
 
   buildRequest(messages: ChatMessage[], config: ProviderConfig, params: ChatParams): RequestSpec {
@@ -45,6 +92,18 @@ export const openaiPlugin: IProviderPlugin = {
     const systemPrompt = params.systemPrompt?.trim() ?? '';
     const filtered = messages.filter((m) => m.role !== 'system');
     const msgs = systemPrompt ? [{ role: 'system', content: systemPrompt }, ...filtered] : filtered;
+
+    if (usesOpenAIResponses(config)) {
+      return {
+        url: `${base}/v1/responses`,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${config.apiKey ?? ''}`,
+        },
+        body: buildOpenAIResponsesChatBody(messages, config, params),
+      };
+    }
+
     return {
       url: `${base}/v1/chat/completions`,
       headers: {
@@ -55,13 +114,22 @@ export const openaiPlugin: IProviderPlugin = {
         model: params.modelId,
         max_tokens: params.maxTokens,
         temperature: params.temperature,
+        ...(config.reasoningEffort && { reasoning_effort: config.reasoningEffort }),
         stream: true,
         messages: msgs.map((m) => ({ role: m.role, content: m.content })),
       },
     };
   },
 
-  async *parseStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<string> {
+  async *parseStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    config?: ProviderConfig,
+  ): AsyncGenerator<ChatStreamEvent> {
+    if (usesOpenAIResponses(config)) {
+      yield* parseOpenAIResponsesStream(reader);
+      return;
+    }
+
     const decoder = new TextDecoder();
     let buffer = '';
     while (true) {
@@ -93,20 +161,35 @@ export const openaiPlugin: IProviderPlugin = {
     tools: OpenAIToolDescriptor[],
   ): RequestSpec {
     const base = config.baseUrl?.replace(/\/$/, '') || 'https://api.openai.com';
-    const body = buildOpenAIToolsBody(messages, params, tools);
+
+    if (usesOpenAIResponses(config)) {
+      return {
+        url: `${base}/v1/responses`,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${config.apiKey ?? ''}`,
+        },
+        body: buildOpenAIResponsesToolBody(messages, config, params, tools),
+      };
+    }
+
+    const body = buildOpenAIToolsBody(messages, params, tools) as Record<string, unknown>;
+    if (config.reasoningEffort) body.reasoning_effort = config.reasoningEffort;
     return {
       url: `${base}/v1/chat/completions`,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${config.apiKey ?? ''}`,
       },
-      body: JSON.stringify(body),
+      body,
     };
   },
 
   parseToolStream(
     reader: ReadableStreamDefaultReader<Uint8Array>,
+    config?: ProviderConfig,
   ): AsyncGenerator<ToolStreamEvent> {
+    if (usesOpenAIResponses(config)) return parseOpenAIResponsesToolStream(reader);
     return parseOpenAIToolStream(reader);
   },
 };

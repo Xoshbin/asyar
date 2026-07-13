@@ -1,10 +1,17 @@
 import { fetch } from '@tauri-apps/plugin-http';
-import type { IProviderPlugin, ProviderConfig, ChatParams, ChatMessage } from './IProviderPlugin';
+import type {
+  IProviderPlugin,
+  ProviderConfig,
+  ChatParams,
+  ChatMessage,
+  ChatStreamStatus,
+} from './IProviderPlugin';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface StreamHandlers {
   onToken: (token: string) => void;
+  onStatus?: (status: ChatStreamStatus | null) => void;
   onDone: () => void;
   onError: (error: string) => void;
 }
@@ -29,11 +36,28 @@ export function _clearAllStreamsForTesting(): void {
 
 // ─── Main stream function ─────────────────────────────────────────────────────
 
-const TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 30_000;
+const HOSTED_WEB_SEARCH_TIMEOUT_MS = 120_000;
+
+export function requestTimeoutMs(config: ProviderConfig): number {
+  return config.hostedWebSearch ? HOSTED_WEB_SEARCH_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
+}
+
+export function resolveChatParams(messages: ChatMessage[], params: ChatParams): ChatParams {
+  if (params.systemPrompt?.trim()) return params;
+
+  const systemPrompt = messages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+    .join('\n\n');
+
+  return systemPrompt ? { ...params, systemPrompt } : params;
+}
 
 /**
  * Provider-agnostic streaming engine.
- * - 30 s timeout merged with external signal
+ * - 30 s timeout for normal requests; 120 s when hosted web search is enabled
  * - HTTP 429 → onError('rate_limited: ...')
  * - Non-2xx → reads error body, calls onError
  * - Stream failure mid-response → onError (partial tokens already delivered are kept)
@@ -53,11 +77,10 @@ export async function streamChat(
     throw new Error(`streamChat: streamId already active: ${streamId}`);
   }
 
-  // Merge external signal + 30 s timeout
   const controller = new AbortController();
   activeControllers.set(streamId, controller);
 
-  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), requestTimeoutMs(config));
 
   // When external signal aborts, forward to our controller
   const onExternalAbort = () => controller.abort();
@@ -66,7 +89,7 @@ export async function streamChat(
   const mergedSignal = controller.signal;
 
   try {
-    const spec = plugin.buildRequest(messages, config, params);
+    const spec = plugin.buildRequest(messages, config, resolveChatParams(messages, params));
 
     const response = await fetch(spec.url, {
       method: 'POST',
@@ -101,10 +124,21 @@ export async function streamChat(
     const reader = response.body.getReader();
 
     try {
-      for await (const token of plugin.parseStream(reader)) {
+      let hasActiveStatus = false;
+      for await (const event of plugin.parseStream(reader, config)) {
         if (mergedSignal.aborted) break;
-        handlers.onToken(token);
+        if (typeof event === 'string') {
+          if (hasActiveStatus) {
+            handlers.onStatus?.(null);
+            hasActiveStatus = false;
+          }
+          handlers.onToken(event);
+        } else if (event.type === 'status') {
+          hasActiveStatus = true;
+          handlers.onStatus?.(event.status);
+        }
       }
+      if (hasActiveStatus) handlers.onStatus?.(null);
     } finally {
       reader.releaseLock();
     }
