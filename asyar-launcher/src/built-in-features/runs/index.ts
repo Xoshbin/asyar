@@ -41,9 +41,15 @@ class RunsExtension implements Extension {
       context: ActionContext.EXTENSION_VIEW,
       execute: async () => {
         await runService.clearHistory();
+        actionService.refreshFiltered();
       },
-      visible: () => runService.recent.length > 0,
+      visible: () => (runService.recent?.length ?? 0) > 0,
     } as ApplicationAction);
+
+    // Initial history load might complete after registerAction
+    runService.loadHistory().then(() => {
+      actionService.refreshFiltered();
+    });
   }
 
   async viewDeactivated(_viewPath: string): Promise<void> {
