@@ -29,7 +29,7 @@ export async function checkAndNotifyWhatsNew(): Promise<void> {
     const shouldShow = await appUpdaterShouldShowWhatsNew(lastSeen, currentVersion);
     if (!shouldShow) return;
 
-    const releaseNotesUrl = `https://github.com/Xoshbin/asyar-launcher/releases/tag/v${currentVersion}`;
+    const releaseNotesUrl = `https://github.com/Xoshbin/asyar/releases/tag/v${currentVersion}`;
     await feedbackService.announceFromHost({
       id: `whats-new-${currentVersion}`,
       title: `Updated to v${currentVersion}`,

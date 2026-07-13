@@ -11,14 +11,15 @@ import * as commands from '../../lib/ipc/commands';
 import * as feedbackCommands from './internal/feedbackCommands';
 import type { NotificationOptions } from 'asyar-sdk/contracts';
 import { notificationService } from '../notification/notificationService';
+import { openerService } from '../opener/openerService';
 
 interface ActiveAnnouncement {
   id: string;
   title: string;
   message?: string;
   extensionId: string;
-  onClick?: () => void;
-  onDismiss?: () => void;
+  onClick?: () => void | Promise<void>;
+  onDismiss?: () => void | Promise<void>;
 }
 
 export interface HostAnnouncementOptions extends FeedbackAnnouncement {
@@ -160,7 +161,13 @@ class FeedbackService implements IFeedbackService {
   ): Promise<void> {
     if (this.activeAnnouncement) return;
     if (!(await feedbackCommands.acceptAnnouncement(extensionId, announcement.id))) return;
-    this.activeAnnouncement = { ...announcement, extensionId };
+    const { action, ...content } = announcement;
+    this.activeAnnouncement = {
+      ...content,
+      extensionId,
+      onClick:
+        action?.type === 'open-url' ? () => openerService.open(extensionId, action.url) : undefined,
+    };
   }
 
   announce(announcement: FeedbackAnnouncement): Promise<void> {
@@ -223,11 +230,11 @@ class FeedbackService implements IFeedbackService {
     return this.dismissOwned(feedbackId, extensionId);
   }
 
-  onAnnouncementClicked(): void {
+  async onAnnouncementClicked(): Promise<void> {
     const announcement = this.activeAnnouncement;
     if (!announcement?.onClick) return;
     this.activeAnnouncement = null;
-    announcement.onClick();
+    await announcement.onClick();
   }
 
   onAnnouncementDismissed(): void {

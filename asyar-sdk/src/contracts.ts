@@ -39,6 +39,7 @@ export type {
   BackgroundFeedbackOptions,
   Feedback,
   FeedbackAnnouncement,
+  FeedbackAnnouncementAction,
   FeedbackProgressHandle,
   FeedbackProgressOptions,
   FeedbackReport,

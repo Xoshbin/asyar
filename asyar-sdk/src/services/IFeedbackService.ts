@@ -33,11 +33,19 @@ export interface FeedbackProgressHandle {
 }
 
 /** Rare, host-controlled popup announcement. Not for operation feedback. */
+export type FeedbackAnnouncementAction = {
+  type: 'open-url';
+  /** Requires the extension to declare `shell:open-url`. */
+  url: string;
+};
+
 export interface FeedbackAnnouncement {
   /** Stable identifier used to suppress repeats. */
   id: string;
   title: string;
   message?: string;
+  /** Optional host-executed action for the clickable announcement body. */
+  action?: FeedbackAnnouncementAction;
 }
 
 export interface ConfirmAlertOptions {

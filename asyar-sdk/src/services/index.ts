@@ -38,6 +38,7 @@ export type {
   BackgroundFeedbackOptions,
   ConfirmAlertOptions,
   FeedbackAnnouncement,
+  FeedbackAnnouncementAction,
   Feedback,
   FeedbackProgressHandle,
   FeedbackProgressOptions,

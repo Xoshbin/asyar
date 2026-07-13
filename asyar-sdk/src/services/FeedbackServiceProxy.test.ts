@@ -80,7 +80,12 @@ describe('FeedbackServiceProxy', () => {
 
   it('announce uses the intentionally constrained announcement method', async () => {
     const { proxy, mockInvoke } = makeProxy();
-    const announcement = { id: 'v4.3', title: "What's new", message: 'New commands' };
+    const announcement = {
+      id: 'v4.3',
+      title: "What's new",
+      message: 'New commands',
+      action: { type: 'open-url' as const, url: 'https://example.com/releases/v4.3' },
+    };
     await proxy.announce(announcement);
     expect(mockInvoke).toHaveBeenCalledWith(
       'feedback:announce',

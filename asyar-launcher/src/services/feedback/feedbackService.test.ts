@@ -22,9 +22,13 @@ vi.mock('../notification/notificationService', () => ({
     requestPermission: vi.fn(async () => true),
   },
 }));
+vi.mock('../opener/openerService', () => ({
+  openerService: { open: vi.fn(async () => {}) },
+}));
 
 import * as commands from '../../lib/ipc/commands';
 import * as feedbackCommands from './internal/feedbackCommands';
+import { openerService } from '../opener/openerService';
 import { feedbackService } from './feedbackService.svelte';
 
 beforeEach(() => {
@@ -138,6 +142,22 @@ describe('feedback bar lifecycle', () => {
     feedbackService.onAnnouncementClicked();
     expect(onClick).toHaveBeenCalledOnce();
     expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it('opens a Tier 2 announcement URL through the caller-scoped opener', async () => {
+    await feedbackService.announceForExtension('extension.test', {
+      id: 'v3',
+      title: "What's new",
+      action: { type: 'open-url', url: 'https://example.com/releases/v3' },
+    });
+
+    expect(openerService.open).not.toHaveBeenCalled();
+    await feedbackService.onAnnouncementClicked();
+
+    expect(openerService.open).toHaveBeenCalledWith(
+      'extension.test',
+      'https://example.com/releases/v3',
+    );
   });
 
   it('registers and consumes retry handlers', async () => {
