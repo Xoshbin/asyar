@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Textarea } from '../../components';
   import { agentService } from './agentService.svelte';
   import { agentsManager } from './agentsManager.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
@@ -139,12 +140,14 @@
 
     <div class="form-field">
       <label class="field-label" for="agent-system-prompt">System prompt</label>
-      <textarea
+      <Textarea
+        unstyled
         id="agent-system-prompt"
-        class="field-textarea"
+        class="agent-field-textarea"
         bind:value={form.systemPrompt}
         rows={6}
-        placeholder="You are a helpful assistant."></textarea>
+        placeholder="You are a helpful assistant."
+      ></Textarea>
     </div>
 
     <div class="form-field">
@@ -297,7 +300,7 @@
     color: var(--text-secondary);
   }
 
-  .field-textarea {
+  :global(.agent-field-textarea) {
     padding: var(--space-2);
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
@@ -311,7 +314,7 @@
     transition: border-color var(--transition-smooth);
   }
 
-  .field-textarea:focus {
+  :global(.agent-field-textarea):focus {
     outline: none;
     border-color: var(--accent-primary);
   }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Input, Textarea } from '../../components';
   import { mcpService } from './mcpService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
@@ -132,7 +133,8 @@
     <!-- ID -->
     <div class="field">
       <label for="srv-id" class="field-label">ID <span class="required">*</span></label>
-      <input
+      <Input
+        unstyled
         id="srv-id"
         class="field-input"
         type="text"
@@ -144,7 +146,8 @@
     <!-- Display Name -->
     <div class="field">
       <label for="srv-name" class="field-label">Display Name <span class="required">*</span></label>
-      <input
+      <Input
+        unstyled
         id="srv-name"
         class="field-input"
         type="text"
@@ -156,12 +159,14 @@
     <!-- Description -->
     <div class="field">
       <label for="srv-desc" class="field-label">Description</label>
-      <textarea
+      <Textarea
+        unstyled
         id="srv-desc"
         class="field-input"
         placeholder="Optional description"
         rows={2}
-        bind:value={form.description}></textarea>
+        bind:value={form.description}
+      ></Textarea>
     </div>
 
     <!-- Transport Kind -->
@@ -174,7 +179,8 @@
       <!-- Command -->
       <div class="field">
         <label for="srv-cmd" class="field-label">Command <span class="required">*</span></label>
-        <input
+        <Input
+          unstyled
           id="srv-cmd"
           class="field-input"
           type="text"
@@ -188,7 +194,8 @@
         <span class="field-label">Arguments</span>
         {#each form.args as arg, i (i)}
           <div class="array-row">
-            <input
+            <Input
+              unstyled
               class="field-input"
               type="text"
               placeholder="arg"
@@ -211,14 +218,16 @@
         <span class="field-label">Environment Variables</span>
         {#each form.env as row, i (i)}
           <div class="kv-row">
-            <input
+            <Input
+              unstyled
               class="field-input kv-key"
               type="text"
               placeholder="KEY"
               value={row.key}
               oninput={(e) => updateEnvRow(i, 'key', (e.target as HTMLInputElement).value)}
             />
-            <input
+            <Input
+              unstyled
               class="field-input kv-val"
               type="text"
               placeholder="value"
@@ -239,7 +248,8 @@
       <!-- CWD -->
       <div class="field">
         <label for="srv-cwd" class="field-label">Working Directory</label>
-        <input
+        <Input
+          unstyled
           id="srv-cwd"
           class="field-input"
           type="text"
@@ -251,7 +261,8 @@
       <!-- URL -->
       <div class="field">
         <label for="srv-url" class="field-label">URL <span class="required">*</span></label>
-        <input
+        <Input
+          unstyled
           id="srv-url"
           class="field-input"
           type="url"
@@ -265,14 +276,16 @@
         <span class="field-label">Headers</span>
         {#each form.headers as row, i (i)}
           <div class="kv-row">
-            <input
+            <Input
+              unstyled
               class="field-input kv-key"
               type="text"
               placeholder="Header-Name"
               value={row.key}
               oninput={(e) => updateHeader(i, 'key', (e.target as HTMLInputElement).value)}
             />
-            <input
+            <Input
+              unstyled
               class="field-input kv-val"
               type="text"
               placeholder="value"
@@ -367,11 +380,11 @@
     margin-bottom: var(--space-1);
   }
 
-  .kv-key {
+  :global(.kv-key) {
     flex: 0 0 40%;
   }
 
-  .kv-val {
+  :global(.kv-val) {
     flex: 1;
   }
 

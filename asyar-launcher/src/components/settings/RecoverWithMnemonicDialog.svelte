@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Textarea } from '..';
   import Modal from '../base/Modal.svelte';
   import { Button, Input } from '../index';
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
@@ -78,14 +79,15 @@
       <p class="dialog-body">
         Paste your recovery phrase below. Words can be separated by spaces or new lines.
       </p>
-      <textarea
+      <Textarea
+        unstyled
         class="phrase-textarea"
         bind:value={phraseInput}
         placeholder="abandon ability able about ..."
         rows="5"
         autocomplete="off"
-        spellcheck="false"
-        autofocus></textarea>
+        autofocus
+      ></Textarea>
       <div class="phrase-status">
         {#if parsed.words.length === 0}
           <span class="text-caption">0 / 24 words</span>
@@ -176,7 +178,7 @@
     margin-top: var(--space-4);
   }
 
-  .phrase-textarea {
+  :global(.phrase-textarea) {
     width: 100%;
     background: var(--bg-tertiary);
     color: var(--text-primary);
@@ -190,7 +192,7 @@
     outline: none;
   }
 
-  .phrase-textarea:focus {
+  :global(.phrase-textarea):focus {
     border-color: var(--accent);
   }
 

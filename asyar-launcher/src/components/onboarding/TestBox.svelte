@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Input, Textarea } from '..';
   let {
     label,
     placeholder = '',
@@ -23,10 +24,17 @@
 <div class="testbox" class:testbox--disabled={!enabled}>
   <p class="testbox__label">{label}</p>
   {#if multiline}
-    <textarea class="testbox__input" rows="3" {placeholder} bind:value disabled={!enabled}
-    ></textarea>
+    <Textarea unstyled class="testbox__input" rows="3" {placeholder} bind:value disabled={!enabled}
+    ></Textarea>
   {:else}
-    <input class="testbox__input" type="text" {placeholder} bind:value disabled={!enabled} />
+    <Input
+      unstyled
+      class="testbox__input"
+      type="text"
+      {placeholder}
+      bind:value
+      disabled={!enabled}
+    />
   {/if}
   <p class="testbox__hint">{enabled ? enabledHint : disabledHint}</p>
 </div>
@@ -46,7 +54,7 @@
     font-size: var(--font-size-md);
     color: var(--text-secondary);
   }
-  .testbox__input {
+  :global(.testbox__input) {
     width: 100%;
     box-sizing: border-box;
     background: var(--bg-primary);

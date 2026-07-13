@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Textarea } from '../../../components';
   import { buildJobStore } from './buildJobStore.svelte';
   import { startBuild } from './orchestrator';
   import { submitAnswer } from './questionBridge';
@@ -236,17 +237,17 @@
           label="What should this extension do?"
           hint="e.g. Create an extension for Notion that lets me search my pages"
         >
-          <textarea
+          <Textarea
+            unstyled
             bind:value={prompt}
             placeholder="Create an extension for…"
             rows={4}
-            autocapitalize="none"
             autocomplete="off"
-            spellcheck={false}
             onfocus={handleFocus}
             onblur={handleBlur}
             onkeydown={handlePromptKeydown}
-            class="field-textarea"></textarea>
+            class="field-textarea prompt-textarea"
+          ></Textarea>
         </FormField>
 
         {#if startError}
@@ -303,9 +304,7 @@
               <Input
                 bind:value={answer}
                 placeholder={job.pendingQuestion.placeholder ?? ''}
-                autocapitalize="none"
                 autocomplete="off"
-                spellcheck={false}
                 onfocus={handleFocus}
                 onblur={handleBlur}
                 onkeydown={handleAnswerKeydown}
@@ -437,7 +436,7 @@
   }
 
   /* ── prompt textarea ───────────────────────────────────────────────────── */
-  .field-textarea {
+  :global(.prompt-textarea) {
     resize: vertical;
     min-height: 96px;
   }

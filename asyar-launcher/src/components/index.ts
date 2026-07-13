@@ -6,6 +6,7 @@ export { default as Icon } from './base/Icon.svelte';
 export { default as IconBox } from './base/IconBox.svelte';
 export { default as IconButton } from './base/IconButton.svelte';
 export { default as Input } from './base/Input.svelte';
+export { default as Textarea } from './base/Textarea.svelte';
 export { default as MeterBar } from './base/MeterBar.svelte';
 export { default as Modal } from './base/Modal.svelte';
 export { default as StatTile } from './base/StatTile.svelte';

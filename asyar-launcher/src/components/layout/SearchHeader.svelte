@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Input } from '..';
   import { tick } from 'svelte';
   import { SearchBarAccessoryDropdown } from '../../components';
   import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
@@ -173,13 +174,13 @@
             aria-label="Exit context mode">×</button
           >
         </span>
-        <input
-          bind:this={ref}
+        <Input
+          bind:ref
           type="text"
           bind:value={contextQuery}
           placeholder="Query..."
           autocomplete="off"
-          spellcheck="false"
+          unstyled
           class="context-query-input"
           oninput={handleContextInput}
           {onkeydown}
@@ -187,14 +188,14 @@
       </div>
     {:else}
       <div class="search-input-row">
-        <input
-          bind:this={ref}
+        <Input
+          bind:ref
           type="text"
           {placeholder}
           disabled={!searchable}
           bind:value
           autocomplete="off"
-          spellcheck="false"
+          unstyled
           class="search-input-clean"
           {oninput}
           {onkeydown}
@@ -242,7 +243,7 @@
     height: 100%;
     position: relative;
   }
-  .search-input-clean {
+  :global(.search-input-clean) {
     flex: 1;
     min-width: 0;
     border: none;
@@ -258,7 +259,7 @@
     font-weight: 600;
     padding: 0;
   }
-  .search-input-clean::placeholder {
+  :global(.search-input-clean::placeholder) {
     color: color-mix(in srgb, var(--text-primary) 50%, var(--bg-secondary-full-opacity) 50%);
     font-weight: 500;
   }
@@ -360,7 +361,7 @@
     color: white;
     background: rgba(255, 255, 255, 0.15);
   }
-  .context-query-input {
+  :global(.context-query-input) {
     flex: 1;
     border: none;
     outline: none;
@@ -376,7 +377,7 @@
     padding: 0;
     min-width: 0;
   }
-  .context-query-input::placeholder {
+  :global(.context-query-input::placeholder) {
     color: color-mix(in srgb, var(--text-primary) 35%, var(--bg-secondary-full-opacity) 65%);
   }
 </style>

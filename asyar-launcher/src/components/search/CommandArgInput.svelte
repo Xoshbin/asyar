@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Input } from '..';
   import { tick } from 'svelte';
   import type { CommandArgument } from 'asyar-sdk/contracts';
 
@@ -47,16 +48,16 @@
       {/each}
     </select>
   {:else}
-    <input
-      bind:this={inputRef as HTMLInputElement}
+    <Input
+      bind:ref={inputRef as HTMLInputElement}
       class="arg-input"
       type={arg.type === 'password' ? 'password' : arg.type === 'number' ? 'number' : 'text'}
       placeholder={arg.placeholder ?? ''}
       {value}
+      unstyled
       oninput={handleInput}
       onkeydown={onKeydown}
       autocomplete="off"
-      spellcheck={arg.type === 'text' ? 'false' : undefined}
       inputmode={arg.type === 'number' ? 'decimal' : undefined}
       aria-label={arg.placeholder ?? arg.name}
     />
@@ -84,7 +85,7 @@
     border-color: var(--accent-primary);
     box-shadow: var(--shadow-focus);
   }
-  .arg-input {
+  :global(.arg-input) {
     border: none;
     outline: none;
     background: transparent;
@@ -95,13 +96,13 @@
     min-width: 0;
     width: 120px;
   }
-  .arg-input:focus {
+  :global(.arg-input:focus) {
     outline: none;
   }
   .arg-select {
     cursor: pointer;
   }
-  .arg-input::placeholder {
+  :global(.arg-input::placeholder) {
     color: var(--text-tertiary);
   }
   .arg-required {

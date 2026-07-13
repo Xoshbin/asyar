@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Input, Textarea } from '../../components';
   import { onMount } from 'svelte';
   import { snippetStore, type Snippet } from './snippetStore.svelte';
   import { snippetService, enabledPersistence, redactSnippetExpansion } from './snippetService';
@@ -292,14 +293,12 @@
           </div>
           <div class="form-body custom-scrollbar">
             <FormField label="Name" id="form-name">
-              <input
+              <Input
+                unstyled
                 id="form-name"
                 class="field-input"
                 type="text"
-                autocapitalize="none"
                 autocomplete="off"
-                autocorrect="off"
-                spellcheck="false"
                 bind:value={formName}
                 placeholder="e.g. My Email"
               />
@@ -309,14 +308,12 @@
               id="form-keyword"
               hint="Use a prefix like ; or /. Lowercase letters and symbols only."
             >
-              <input
+              <Input
+                unstyled
                 id="form-keyword"
                 class="field-input"
                 type="text"
-                autocapitalize="none"
                 autocomplete="off"
-                autocorrect="off"
-                spellcheck="false"
                 bind:value={formKeyword}
                 placeholder="e.g. ;email"
               />
@@ -324,18 +321,17 @@
             <FormField label="Expansion" id="form-expansion">
               <div style="position: relative">
                 <div class="textarea-wrapper">
-                  <textarea
+                  <Textarea
+                    unstyled
                     id="form-expansion"
                     class="field-textarea"
-                    autocapitalize="none"
                     autocomplete="off"
-                    autocorrect="off"
-                    spellcheck="false"
                     bind:value={formExpansion}
-                    bind:this={formExpansionEl}
+                    bind:ref={formExpansionEl}
                     oninput={handleExpansionInput}
                     placeholder="e.g. hello@example.com"
-                    rows="5"></textarea>
+                    rows="5"
+                  ></Textarea>
                   <Button
                     class="picker-toggle"
                     title="Insert placeholder"
@@ -539,7 +535,7 @@
     gap: var(--space-3);
     align-items: flex-start;
   }
-  .textarea-wrapper .field-textarea {
+  :global(.textarea-wrapper .field-textarea) {
     flex: 1;
     font-family: var(--font-mono);
     line-height: 1.5;

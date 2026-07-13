@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Input } from '../../components';
   import { open } from '@tauri-apps/plugin-dialog';
   import { generateExtension, type ExtensionType } from './scaffoldService';
   import { logService } from '../../services/log/logService';
@@ -175,18 +176,15 @@
       </FormField>
 
       <FormField label="Extension Name" error={nameError}>
-        <input
+        <Input
+          unstyled
           type="text"
           bind:value={extName}
           placeholder="My Awesome Tool"
-          autocapitalize="none"
           autocomplete="off"
-          autocorrect="off"
-          spellcheck="false"
           onfocus={handleFocus}
           onblur={handleBlur}
-          class="field-input"
-          class:error={!!nameError}
+          class="field-input {nameError ? 'error' : ''}"
         />
       </FormField>
 
@@ -195,18 +193,15 @@
         hint="Unique dot-notation identifier — e.g. com.author.my-tool"
         error={idError}
       >
-        <input
+        <Input
+          unstyled
           type="text"
           bind:value={extId}
           placeholder="com.myname.awesome-tool"
-          autocapitalize="none"
           autocomplete="off"
-          autocorrect="off"
-          spellcheck="false"
           onfocus={handleFocus}
           onblur={handleBlur}
-          class="field-input text-mono"
-          class:error={!!idError}
+          class="field-input text-mono {idError ? 'error' : ''}"
         />
       </FormField>
 
@@ -215,24 +210,22 @@
         hint="Optional — shown in search results (10–200 chars)"
         error={descError}
       >
-        <input
+        <Input
+          unstyled
           type="text"
           bind:value={extDesc}
           placeholder="What does your extension do?"
-          autocapitalize="none"
           autocomplete="off"
-          autocorrect="off"
-          spellcheck="false"
           onfocus={handleFocus}
           onblur={handleBlur}
-          class="field-input"
-          class:error={!!descError}
+          class="field-input {descError ? 'error' : ''}"
         />
       </FormField>
 
       <FormField label="Save Location">
         <div class="location-row">
-          <input
+          <Input
+            unstyled
             type="text"
             value={finalSaveLocation || saveLocation}
             readonly
@@ -342,7 +335,7 @@
     line-height: 1.4;
   }
 
-  .field-input.error {
+  :global(.field-input.error) {
     border-color: var(--accent-danger);
   }
 
@@ -351,7 +344,7 @@
     gap: 8px;
   }
 
-  .location-row .field-input {
+  :global(.location-row .field-input) {
     flex: 1;
     opacity: 0.75;
     cursor: not-allowed;

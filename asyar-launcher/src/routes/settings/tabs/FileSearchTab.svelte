@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Input } from '../../../components';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { open } from '@tauri-apps/plugin-dialog';
   import { Button, Icon, Toggle, Badge } from '../../../components';
@@ -208,7 +209,8 @@
     </p>
 
     <div class="add-row exclude-add-row">
-      <input
+      <Input
+        unstyled
         type="text"
         class="exclude-input"
         placeholder="e.g. *.tmp"
@@ -301,7 +303,7 @@
     align-self: stretch;
   }
 
-  .exclude-input {
+  :global(.exclude-input) {
     flex: 1;
     min-width: 0;
     padding: var(--space-2) var(--space-3);

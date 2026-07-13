@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Input } from '../../../components';
   import {
     SplitView,
     Toggle,
@@ -298,7 +299,8 @@
             >
               <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
             </svg>
-            <input
+            <Input
+              unstyled
               class="search-input"
               type="text"
               placeholder="Search…"
@@ -726,7 +728,7 @@
     flex-shrink: 0;
   }
 
-  .search-input {
+  :global(.search-input) {
     flex: 1;
     min-width: 0;
     background: transparent;
@@ -740,7 +742,7 @@
     padding: 0;
   }
 
-  .search-input::placeholder {
+  :global(.search-input)::placeholder {
     color: var(--text-tertiary);
   }
 
