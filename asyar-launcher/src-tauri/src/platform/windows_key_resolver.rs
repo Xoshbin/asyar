@@ -277,8 +277,8 @@ mod tests {
             let got = GetKeyboardLayoutList(Some(before.as_mut_slice())).max(0) as usize;
             before.truncate(got);
 
-            let hkl = LoadKeyboardLayoutW(PCWSTR(wide.as_ptr()), KLF_NOTELLSHELL)
-                .expect("layout load");
+            let hkl =
+                LoadKeyboardLayoutW(PCWSTR(wide.as_ptr()), KLF_NOTELLSHELL).expect("layout load");
             let _unloader = Unloader((!before.contains(&hkl)).then_some(hkl));
             f(hkl);
         }
