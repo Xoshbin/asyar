@@ -7,11 +7,23 @@ vi.mock('../../services/extension/viewManager.svelte', () => ({
 
 vi.mock('../../services/run/runService.svelte', () => ({
   runService: {
-    loadHistory: vi.fn(),
+    loadHistory: vi.fn().mockResolvedValue(undefined),
     selectedRunId: null,
     combined: [] as Array<{ id: string }>,
     moveSelection: vi.fn(),
   },
+}));
+
+vi.mock('../../services/action/actionService.svelte', () => ({
+  actionService: {
+    registerAction: vi.fn(),
+    unregisterAction: vi.fn(),
+    refreshFiltered: vi.fn(),
+  },
+}));
+
+vi.mock('asyar-sdk/contracts', () => ({
+  ActionContext: { EXTENSION_VIEW: 'extension_view' },
 }));
 
 vi.mock('./RunView.svelte', () => ({ default: {} }));
