@@ -104,19 +104,21 @@ pub(crate) fn validate_runtime_name(name: &str) -> Result<(), AppError> {
             "Runtime name '{name}' contains invalid characters"
         )));
     }
-    // NOT `is_absolute()`: on Windows that requires a drive prefix AND a
-    // root, so it misses both unix-absolute names (`/etc`) and
-    // drive-prefixed ones (`C:evil`, which `Path::join` would let replace
-    // the whole runtimes root). `has_root` + an explicit prefix check
-    // cover all three forms on every platform.
-    let path = Path::new(name);
-    if path.has_root()
-        || path
-            .components()
-            .any(|c| matches!(c, std::path::Component::Prefix(_)))
-    {
+    // A runtime name must be exactly one plain path component. NOT
+    // `is_absolute()`: on Windows that requires a drive prefix AND a root,
+    // so it misses unix-absolute names (`/etc`) and drive-prefixed ones
+    // (`C:evil`, which `Path::join` would let replace the whole runtimes
+    // root). The single-component rule also rejects `.` — which
+    // `remove_from_root` would otherwise resolve to the runtimes root
+    // itself and `remove_dir_all` every installed runtime — and any
+    // separator-containing name.
+    let mut components = Path::new(name).components();
+    if !matches!(
+        (components.next(), components.next()),
+        (Some(std::path::Component::Normal(_)), None)
+    ) {
         return Err(AppError::Validation(format!(
-            "Runtime name '{name}' must not be an absolute or drive-prefixed path"
+            "Runtime name '{name}' must be a single plain directory name"
         )));
     }
     Ok(())
@@ -927,9 +929,17 @@ mod tests {
 
     #[test]
     fn validate_runtime_name_rejects_absolute_path() {
-        // `has_root` (not `is_absolute`) so this rejects on Windows too,
-        // where "/etc" has a root but no drive prefix.
+        // Component check (not `is_absolute`) so this rejects on Windows
+        // too, where "/etc" has a root but no drive prefix.
         assert!(validate_runtime_name("/etc").is_err());
+    }
+
+    #[test]
+    fn validate_runtime_name_rejects_dot_and_multi_component_names() {
+        // "." would make remove_from_root target the runtimes root itself.
+        assert!(validate_runtime_name(".").is_err());
+        assert!(validate_runtime_name("./bun").is_err());
+        assert!(validate_runtime_name("bun/sub").is_err());
     }
 
     #[cfg(windows)]
