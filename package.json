@@ -15,27 +15,7 @@
   },
   "engines": {
     "node": ">=20",
-    "pnpm": ">=9"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "keytar"
-    ],
-    "supportedArchitectures": {
-      "cpu": [
-        "arm64",
-        "x64"
-      ],
-      "os": [
-        "win32",
-        "darwin",
-        "linux"
-      ]
-    },
-    "overrides": {
-      "vite": "6.4.3",
-      "asyar-sdk": "workspace:*"
-    }
+    "pnpm": ">=10.26"
   },
   "devDependencies": {
     "@testing-library/svelte": "^5.3.1",
