@@ -32,11 +32,6 @@ class PortalsExtension implements Extension {
       this.extensionManager?.navigateToView('portals/DefaultView');
       return { type: 'view', viewPath: 'portals/DefaultView' };
     }
-    if (commandId === 'new-portal') {
-      portalsUiState.openMode = 'new';
-      this.extensionManager?.navigateToView('portals/DefaultView');
-      return { type: 'view', viewPath: 'portals/DefaultView' };
-    }
     // Dynamic portal fallback
     const portal = portalStore.getById(commandId);
     if (portal) {

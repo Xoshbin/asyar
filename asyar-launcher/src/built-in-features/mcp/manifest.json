@@ -16,22 +16,6 @@
       "description": "Open the MCP server manager",
       "mode": "view",
       "component": "ManageServersView"
-    },
-    {
-      "id": "import",
-      "name": "Import MCP Servers",
-      "icon": "icon:download",
-      "description": "Import MCP servers from existing configs or JSON",
-      "mode": "view",
-      "component": "ImportServersView"
-    },
-    {
-      "id": "install",
-      "name": "Install MCP Server",
-      "icon": "icon:plus",
-      "description": "Install a new MCP server",
-      "mode": "view",
-      "component": "InstallServerView"
     }
   ]
 }

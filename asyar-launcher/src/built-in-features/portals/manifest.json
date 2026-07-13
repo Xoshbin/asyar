@@ -15,14 +15,6 @@
       "description": "Manage your saved portals",
       "mode": "view",
       "component": "DefaultView"
-    },
-    {
-      "id": "new-portal",
-      "name": "New Portal",
-      "icon": "icon:plus",
-      "description": "Add a new portal URL shortcut",
-      "mode": "view",
-      "component": "DefaultView"
     }
   ]
 }
