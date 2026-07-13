@@ -114,7 +114,7 @@ export function buildServiceRegistry(deps: {
       report: (extensionId: string, feedback: FeedbackReport) =>
         feedbackService.report({ ...feedback, source: 'extension', extensionId }),
       showProgress: (extensionId: string, options: FeedbackProgressOptions) =>
-        feedbackService.showProgressForExtension(extensionId, options),
+        feedbackService.startProgressForExtension(extensionId, options),
       updateProgress: (_extensionId: string, feedbackId: string, update: FeedbackProgressOptions) =>
         feedbackService.updateProgressForExtension(_extensionId, feedbackId, update),
       finishProgress: (

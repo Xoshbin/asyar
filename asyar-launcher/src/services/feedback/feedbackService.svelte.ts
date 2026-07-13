@@ -117,22 +117,23 @@ class FeedbackService implements IFeedbackService {
   }
 
   async showProgress(options: FeedbackProgressOptions): Promise<FeedbackProgressHandle> {
-    return this.showProgressForSource('frontend', undefined, options);
+    const feedbackId = await this.startProgressForSource('frontend', undefined, options);
+    return this.createProgressHandle(feedbackId);
   }
 
-  async showProgressForExtension(
+  startProgressForExtension(
     extensionId: string,
     options: FeedbackProgressOptions,
-  ): Promise<FeedbackProgressHandle> {
-    return this.showProgressForSource('extension', extensionId, options);
+  ): Promise<string> {
+    return this.startProgressForSource('extension', extensionId, options);
   }
 
-  private async showProgressForSource(
+  private startProgressForSource(
     source: 'frontend' | 'extension',
     extensionId: string | undefined,
     options: FeedbackProgressOptions,
-  ): Promise<FeedbackProgressHandle> {
-    const feedbackId = await feedbackCommands.publish({
+  ): Promise<string> {
+    return feedbackCommands.publish({
       source,
       kind: 'progress',
       severity: 'progress',
@@ -141,12 +142,15 @@ class FeedbackService implements IFeedbackService {
       extensionId,
       progress: options,
     });
+  }
+
+  private createProgressHandle(feedbackId: string): FeedbackProgressHandle {
     return {
       update: (update) => feedbackCommands.updateProgress(feedbackId, update),
       succeed: (title) => feedbackCommands.finishProgress(feedbackId, 'success', title),
       fail: (title, developerDetail) =>
         feedbackCommands.finishProgress(feedbackId, 'error', title, developerDetail),
-      dismiss: () => this.dismissOwned(feedbackId, extensionId),
+      dismiss: () => this.dismissOwned(feedbackId),
     };
   }
 
