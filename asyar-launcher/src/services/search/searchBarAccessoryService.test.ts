@@ -4,8 +4,8 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
-vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 vi.mock('../extension/extensionIframeManager.svelte', () => ({
   extensionIframeManager: { sendFilterChangeToView: vi.fn() },
@@ -14,7 +14,7 @@ vi.mock('../extension/extensionIframeManager.svelte', () => ({
 import { invoke } from '@tauri-apps/api/core';
 import { searchBarAccessoryService } from './searchBarAccessoryService.svelte';
 import { extensionIframeManager } from '../extension/extensionIframeManager.svelte';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 
 const EXT = 'org.test.ext';
 const CMD = 'show';
@@ -54,7 +54,7 @@ describe('searchBarAccessoryService', () => {
       ],
       default: 'all',
     });
-    expect(diagnosticsService.report).toHaveBeenCalledWith(
+    expect(feedbackService.report).toHaveBeenCalledWith(
       expect.objectContaining({ severity: 'error' }),
     );
     expect(searchBarAccessoryService.active?.value).toBe('all');

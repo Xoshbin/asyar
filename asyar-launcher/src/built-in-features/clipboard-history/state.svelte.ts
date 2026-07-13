@@ -10,7 +10,7 @@ import {
 } from 'asyar-sdk/contracts';
 import { shiftIndex } from '../../lib/listSelection.svelte';
 import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
 export class ClipboardViewStateClass {
   searchQuery = $state('');
@@ -234,7 +234,7 @@ export class ClipboardViewStateClass {
       }
     } catch (error) {
       this.logService?.error(`Failed to paste as plain text: ${error}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'clipboard/paste-failed',
         severity: 'error',
@@ -273,7 +273,7 @@ export class ClipboardViewStateClass {
       }
     } catch (error) {
       this.logService?.error(`Failed to handle item action: ${error}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'clipboard/paste-failed',
         severity: 'error',
@@ -318,7 +318,7 @@ export async function onViewActivated(): Promise<void> {
       await clipboardHistoryStore.loadInitial(100);
     }
   } catch (err) {
-    diagnosticsService.report({
+    feedbackService.report({
       source: 'frontend',
       kind: 'clipboard/load-failed',
       severity: 'error',
@@ -338,7 +338,7 @@ export async function onSearchChanged(query: string): Promise<void> {
     }
     await clipboardHistoryStore.search(trimmed, 200);
   } catch (err) {
-    diagnosticsService.report({
+    feedbackService.report({
       source: 'frontend',
       kind: 'clipboard/search-failed',
       severity: 'error',
@@ -356,7 +356,7 @@ export async function onScrolledToEnd(): Promise<void> {
     if (!clipboardHistoryStore.nextOlderCursor) return;
     await clipboardHistoryStore.loadOlder(200);
   } catch (err) {
-    diagnosticsService.report({
+    feedbackService.report({
       source: 'frontend',
       kind: 'clipboard/load-older-failed',
       severity: 'error',
@@ -371,7 +371,7 @@ export async function fetchFullItemForId(id: string) {
   try {
     return await clipboardHistoryStore.fetchFullItem(id);
   } catch (err) {
-    diagnosticsService.report({
+    feedbackService.report({
       source: 'frontend',
       kind: 'clipboard/get-item-failed',
       severity: 'error',

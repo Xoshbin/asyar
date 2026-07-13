@@ -5,12 +5,10 @@ import type {
   IExtensionManager,
   IFeedbackService,
   ILogService,
-  INotificationService,
   ExtensionAction,
 } from 'asyar-sdk/contracts';
 // Import the placeholder and the initializer function
 import { storeViewState, initializeStore, type ApiExtension } from './state.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 import * as commands from '../../lib/ipc/commands';
 import DefaultView from './DefaultView.svelte'; // Import component
 import DetailView from './DetailView.svelte'; // Import component
@@ -45,7 +43,6 @@ class StoreExtension implements Extension {
   private extensionManager?: IExtensionManager;
   private feedbackService?: IFeedbackService;
   private logService?: ILogService;
-  private notificationService?: INotificationService;
   private listViewActionSubscription: (() => void) | null = null; // To hold the unsubscribe function
   private inView: boolean = false;
   private currentView: string | null = null;
@@ -65,7 +62,6 @@ class StoreExtension implements Extension {
     this.logService = context.getService<ILogService>('log');
     this.extensionManager = context.getService<IExtensionManager>('extensions');
     this.feedbackService = context.getService<IFeedbackService>('feedback');
-    this.notificationService = context.getService<INotificationService>('notifications');
 
     // Initialize the store *after* getting services needed by the store itself
     initializeStore(); // Create the store instance
@@ -90,7 +86,7 @@ class StoreExtension implements Extension {
     if (!slug) {
       this.logService?.error('Install function called without a slug.');
       if (!import.meta.env.DEV) {
-        this.notificationService?.send({
+        this.feedbackService?.sendBackground({
           title: 'Install Failed',
           body: 'Could not determine which extension to install.',
         });
@@ -129,9 +125,8 @@ class StoreExtension implements Extension {
     store?.setInstallingSlug(slug);
 
     this.logService?.info(`Install action triggered for slug: ${slug}`);
-    const installToast = await this.feedbackService?.showToast({
+    const installProgress = await this.feedbackService?.showProgress({
       title: `Installing ${displayName}`,
-      style: 'animated',
     });
     try {
       // 1. Get install info
@@ -181,7 +176,7 @@ class StoreExtension implements Extension {
         `Installation command invoked successfully for ${displayName}. App might reload extensions.`,
       );
       if (!import.meta.env.DEV) {
-        this.notificationService?.send({
+        this.feedbackService?.sendBackground({
           title: 'Installation Started',
           body: `Installation for ${displayName} initiated. App may reload.`,
         });
@@ -228,33 +223,13 @@ class StoreExtension implements Extension {
           detail: { slug, id: installInfo.extensionId },
         }),
       );
-      if (installToast) {
-        await this.feedbackService?.hideToast(installToast);
-      }
-      await diagnosticsService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'success',
-        retryable: false,
-        context: { message: `${displayName} installed` },
-      });
+      await installProgress?.succeed(`${displayName} installed`);
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : e?.message || String(e);
       this.logService?.error(`Installation failed for ${displayName}: ${errorMessage}`);
-      if (installToast) {
-        await this.feedbackService?.hideToast(installToast);
-      }
-      await diagnosticsService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'error',
-        retryable: false,
-        context: {
-          message: `Failed to install ${displayName}${errorMessage ? ' — ' + errorMessage : ''}`,
-        },
-      });
+      await installProgress?.fail(`Failed to install ${displayName}`, errorMessage);
       if (!import.meta.env.DEV) {
-        this.notificationService?.send({
+        this.feedbackService?.sendBackground({
           title: 'Installation Failed',
           body: `Could not install ${displayName}. ${errorMessage}`,
         });
@@ -284,15 +259,14 @@ class StoreExtension implements Extension {
     store?.setUninstallingSlug(slug);
 
     this.logService?.info(`Uninstall action triggered for slug: ${slug}, id: ${extensionId}`);
-    const uninstallToast = await this.feedbackService?.showToast({
+    const uninstallProgress = await this.feedbackService?.showProgress({
       title: `Uninstalling ${displayName}`,
-      style: 'animated',
     });
     try {
       await commands.uninstallExtension(extensionId.toString());
       this.logService?.info(`Uninstall command invoked successfully for ${displayName}.`);
       if (!import.meta.env.DEV) {
-        this.notificationService?.send({
+        this.feedbackService?.sendBackground({
           title: 'Uninstall Complete',
           body: `${displayName} has been removed.`,
         });
@@ -308,33 +282,13 @@ class StoreExtension implements Extension {
       window.dispatchEvent(
         new CustomEvent('store-extension-uninstalled', { detail: { slug, id: extensionId } }),
       );
-      if (uninstallToast) {
-        await this.feedbackService?.hideToast(uninstallToast);
-      }
-      await diagnosticsService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'success',
-        retryable: false,
-        context: { message: `${displayName} uninstalled` },
-      });
+      await uninstallProgress?.succeed(`${displayName} uninstalled`);
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : e?.message || String(e);
       this.logService?.error(`Uninstall failed for ${displayName}: ${errorMessage}`);
-      if (uninstallToast) {
-        await this.feedbackService?.hideToast(uninstallToast);
-      }
-      await diagnosticsService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'error',
-        retryable: false,
-        context: {
-          message: `Failed to uninstall ${displayName}${errorMessage ? ' — ' + errorMessage : ''}`,
-        },
-      });
+      await uninstallProgress?.fail(`Failed to uninstall ${displayName}`, errorMessage);
       if (!import.meta.env.DEV) {
-        this.notificationService?.send({
+        this.feedbackService?.sendBackground({
           title: 'Uninstall Failed',
           body: `Could not uninstall ${displayName}. ${errorMessage}`,
         });
@@ -363,9 +317,8 @@ class StoreExtension implements Extension {
       return;
     }
     const displayName = name || slug;
-    const updateToast = await this.feedbackService?.showToast({
+    const updateProgress = await this.feedbackService?.showProgress({
       title: `Updating ${displayName}`,
-      style: 'animated',
     });
     try {
       const success = await extensionUpdateService.updateSingle(update, async () => {
@@ -378,39 +331,19 @@ class StoreExtension implements Extension {
           new CustomEvent('store-extension-updated', { detail: { slug, id: extensionId } }),
         );
         if (!import.meta.env.DEV) {
-          this.notificationService?.send({
+          this.feedbackService?.sendBackground({
             title: 'Update Complete',
             body: `${displayName} updated to v${update.latestVersion}.`,
           });
         }
-        if (updateToast) {
-          await this.feedbackService?.hideToast(updateToast);
-        }
-        await diagnosticsService.report({
-          source: 'frontend',
-          kind: 'manual',
-          severity: 'success',
-          retryable: false,
-          context: { message: `${displayName} updated to v${update.latestVersion}` },
-        });
-      } else if (updateToast) {
-        await this.feedbackService?.hideToast(updateToast);
+        await updateProgress?.succeed(`${displayName} updated to v${update.latestVersion}`);
+      } else {
+        await updateProgress?.fail(`Failed to update ${displayName}`);
       }
     } catch (e: any) {
       const errorMessage = typeof e === 'string' ? e : e?.message || String(e);
       this.logService?.error(`Update failed for ${displayName}: ${errorMessage}`);
-      if (updateToast) {
-        await this.feedbackService?.hideToast(updateToast);
-      }
-      await diagnosticsService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'error',
-        retryable: false,
-        context: {
-          message: `Failed to update ${displayName}${errorMessage ? ' — ' + errorMessage : ''}`,
-        },
-      });
+      await updateProgress?.fail(`Failed to update ${displayName}`, errorMessage);
     } finally {
       if (this.currentView === `${EXTENSION_ID}/DetailView`) {
         this.unregisterDetailViewActions();
@@ -728,7 +661,7 @@ class StoreExtension implements Extension {
                   this.logService?.warn(
                     'Uninstall selected action executed, but no item is selected in state anymore.',
                   );
-                  this.notificationService?.send({
+                  this.feedbackService?.sendBackground({
                     title: 'Uninstall Failed',
                     body: 'No extension selected.',
                   });
@@ -762,7 +695,7 @@ class StoreExtension implements Extension {
                   this.logService?.warn(
                     'Install selected action executed, but no item is selected in state anymore.',
                   );
-                  this.notificationService?.send({
+                  this.feedbackService?.sendBackground({
                     title: 'Install Failed',
                     body: 'No extension selected.',
                   });

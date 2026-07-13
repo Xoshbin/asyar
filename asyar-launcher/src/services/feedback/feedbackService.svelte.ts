@@ -1,37 +1,37 @@
-import type { IFeedbackService, ShowToastOptions, ConfirmAlertOptions } from 'asyar-sdk/contracts';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import type {
+  ConfirmAlertOptions,
+  FeedbackAnnouncement,
+  FeedbackProgressHandle,
+  FeedbackProgressOptions,
+  FeedbackReport,
+  IFeedbackService,
+} from 'asyar-sdk/contracts';
 import * as commands from '../../lib/ipc/commands';
+import * as feedbackCommands from './internal/feedbackCommands';
+import type { NotificationOptions } from 'asyar-sdk/contracts';
+import { notificationService } from '../notification/notificationService';
 
-interface ActiveToast {
+interface ActiveAnnouncement {
   id: string;
   title: string;
   message?: string;
-  style: 'animated' | 'success' | 'failure' | 'warning';
-  /** When set, the toast renders as a button; clicking runs this and dismisses. */
+  extensionId: string;
   onClick?: () => void;
-  /** Runs when the ✕ is clicked (not when `onClick` fires). */
   onDismiss?: () => void;
 }
 
-export interface NoticeOptions {
+export interface HostAnnouncementOptions extends FeedbackAnnouncement {
   title: string;
   message?: string;
-  /**
-   * `success`/`failure` report an operation's outcome; `warning` flags an
-   * attention-required state (e.g. permissions awaiting review).
-   */
-  style: 'success' | 'failure' | 'warning';
-  /** Auto-dismiss delay. Defaults to 6000ms. Ignored when `onClick` is set. */
-  durationMs?: number;
-  /**
-   * Makes the notice actionable: clicking the toast runs this and dismisses.
-   * Actionable notices are sticky — they stay until clicked or explicitly
-   * dismissed via the ✕ (a timed popup for something the user must act on is
-   * a race against the timer).
-   */
   onClick?: () => void;
-  /** Runs when the ✕ is clicked (not when `onClick` fires). */
   onDismiss?: () => void;
 }
+
+export type HostFeedbackReport = FeedbackReport & {
+  source?: 'rust' | 'frontend' | 'extension';
+  extensionId?: string;
+};
 
 interface ActiveDialog {
   title: string;
@@ -63,83 +63,200 @@ export interface HudSpinnerHandle {
 }
 
 class FeedbackService implements IFeedbackService {
-  activeToast = $state<ActiveToast | null>(null);
+  current = $state<feedbackCommands.FeedbackItem | null>(null);
+  activeAnnouncement = $state<ActiveAnnouncement | null>(null);
   activeDialog = $state<ActiveDialog | null>(null);
 
-  private toastIdCounter = 0;
   private dialogResolver: ((result: boolean) => void) | null = null;
+  private retryRegistry = new Map<string, () => Promise<void>>();
+  private reportRegistry = new Map<string, () => Promise<void>>();
+  private actionSequence = 0;
+  private unlisten: UnlistenFn | null = null;
 
-  reset(): void {
-    this.activeToast = null;
-    this.activeDialog = null;
-    this.dialogResolver = null;
-    this.toastIdCounter = 0;
+  async initialize(): Promise<void> {
+    if (this.unlisten) return;
+    try {
+      this.current = await feedbackCommands.getCurrent();
+      this.unlisten = await listen<feedbackCommands.FeedbackItem | null>(
+        'feedback:changed',
+        ({ payload }) => {
+          this.current = payload;
+        },
+      );
+    } catch {
+      // Feedback must never break the operation it describes.
+    }
   }
 
-  async showToast(options: ShowToastOptions): Promise<string> {
-    const id = `toast-${++this.toastIdCounter}`;
-    this.activeToast = {
-      id,
-      title: options.title,
-      message: options.message,
-      style: 'animated',
+  reset(): void {
+    this.current = null;
+    this.activeAnnouncement = null;
+    this.activeDialog = null;
+    this.dialogResolver = null;
+    this.retryRegistry.clear();
+    this.reportRegistry.clear();
+    this.actionSequence = 0;
+  }
+
+  async report(feedback: HostFeedbackReport): Promise<void> {
+    try {
+      await feedbackCommands.publish({
+        source: feedback.source ?? 'frontend',
+        kind: feedback.kind,
+        severity: feedback.severity,
+        retryable: feedback.retryable,
+        context: feedback.context ?? {},
+        developerDetail: feedback.developerDetail,
+        extensionId: feedback.extensionId,
+        retryActionId: feedback.retryActionId,
+        reportActionId: feedback.reportActionId,
+      });
+    } catch {
+      // Feedback must never break the operation it describes.
+    }
+  }
+
+  async showProgress(options: FeedbackProgressOptions): Promise<FeedbackProgressHandle> {
+    return this.showProgressForSource('frontend', undefined, options);
+  }
+
+  async showProgressForExtension(
+    extensionId: string,
+    options: FeedbackProgressOptions,
+  ): Promise<FeedbackProgressHandle> {
+    return this.showProgressForSource('extension', extensionId, options);
+  }
+
+  private async showProgressForSource(
+    source: 'frontend' | 'extension',
+    extensionId: string | undefined,
+    options: FeedbackProgressOptions,
+  ): Promise<FeedbackProgressHandle> {
+    const feedbackId = await feedbackCommands.publish({
+      source,
+      kind: 'progress',
+      severity: 'progress',
+      retryable: false,
+      context: {},
+      extensionId,
+      progress: options,
+    });
+    return {
+      update: (update) => feedbackCommands.updateProgress(feedbackId, update),
+      succeed: (title) => feedbackCommands.finishProgress(feedbackId, 'success', title),
+      fail: (title, developerDetail) =>
+        feedbackCommands.finishProgress(feedbackId, 'error', title, developerDetail),
+      dismiss: () => feedbackCommands.dismiss(feedbackId),
     };
+  }
+
+  async announceForExtension(
+    extensionId: string,
+    announcement: FeedbackAnnouncement,
+  ): Promise<void> {
+    if (this.activeAnnouncement) return;
+    if (!(await feedbackCommands.acceptAnnouncement(extensionId, announcement.id))) return;
+    this.activeAnnouncement = { ...announcement, extensionId };
+  }
+
+  announce(announcement: FeedbackAnnouncement): Promise<void> {
+    return this.announceForExtension('asyar', announcement);
+  }
+
+  async announceFromHost(options: HostAnnouncementOptions): Promise<void> {
+    if (this.activeAnnouncement) return;
+    if (!(await feedbackCommands.acceptAnnouncement('asyar', options.id))) return;
+    this.activeAnnouncement = { ...options, extensionId: 'asyar' };
+  }
+
+  sendBackground(options: NotificationOptions): Promise<string> {
+    return this.sendBackgroundForSource('asyar', options);
+  }
+
+  sendBackgroundForSource(sourceId: string, options: NotificationOptions): Promise<string> {
+    return notificationService.send(sourceId, options);
+  }
+
+  dismissBackground(feedbackId: string): Promise<void> {
+    return this.dismissBackgroundForSource('asyar', feedbackId);
+  }
+
+  dismissBackgroundForSource(sourceId: string, feedbackId: string): Promise<void> {
+    return notificationService.dismiss(sourceId, feedbackId);
+  }
+
+  checkBackgroundPermission(): Promise<boolean> {
+    return notificationService.checkPermission();
+  }
+
+  requestBackgroundPermission(): Promise<boolean> {
+    return notificationService.requestPermission();
+  }
+
+  updateProgressForExtension(
+    extensionId: string,
+    feedbackId: string,
+    update: FeedbackProgressOptions,
+  ): Promise<void> {
+    return feedbackCommands.updateProgress(feedbackId, update, extensionId);
+  }
+
+  finishProgressForExtension(
+    extensionId: string,
+    feedbackId: string,
+    outcome: { severity: 'success' | 'error'; title: string; developerDetail?: string },
+  ): Promise<void> {
+    return feedbackCommands.finishProgress(
+      feedbackId,
+      outcome.severity,
+      outcome.title,
+      outcome.developerDetail,
+      extensionId,
+    );
+  }
+
+  dismissForExtension(extensionId: string, feedbackId: string): Promise<void> {
+    return feedbackCommands.dismiss(feedbackId, extensionId);
+  }
+
+  onAnnouncementClicked(): void {
+    const announcement = this.activeAnnouncement;
+    if (!announcement?.onClick) return;
+    this.activeAnnouncement = null;
+    announcement.onClick();
+  }
+
+  onAnnouncementDismissed(): void {
+    const announcement = this.activeAnnouncement;
+    this.activeAnnouncement = null;
+    announcement?.onDismiss?.();
+  }
+
+  dismiss(feedbackId = this.current?.id): Promise<void> {
+    return feedbackId ? feedbackCommands.dismiss(feedbackId) : Promise.resolve();
+  }
+
+  registerRetry(fn: () => Promise<void>): string {
+    const id = `retry-${++this.actionSequence}`;
+    this.retryRegistry.set(id, fn);
     return id;
   }
 
-  /**
-   * Host-only transient notice: symbol style (✓/✕, no spinner) with
-   * auto-dismiss. Unlike the SDK `showToast` contract — whose only style is
-   * `animated` and whose callers are expected to `hideToast` when their
-   * operation finishes — this is fire-and-forget for one-off notifications.
-   * An `onClick` makes the toast clickable (it dismisses after running).
-   */
-  notice(options: NoticeOptions): void {
-    const id = `toast-${++this.toastIdCounter}`;
-    this.activeToast = {
-      id,
-      title: options.title,
-      message: options.message,
-      style: options.style,
-      onClick: options.onClick,
-      onDismiss: options.onDismiss,
-    };
-    if (options.onClick) return; // actionable notices are sticky
-    setTimeout(() => {
-      if (this.activeToast?.id === id) {
-        this.activeToast = null;
-      }
-    }, options.durationMs ?? 6000);
+  async triggerRetry(id: string): Promise<void> {
+    const retry = this.retryRegistry.get(id);
+    if (!retry) return;
+    this.retryRegistry.delete(id);
+    await retry();
   }
 
-  /** Called by `<ToastHost />` when a clickable toast is activated. */
-  onToastClicked(): void {
-    const toast = this.activeToast;
-    if (!toast?.onClick) return;
-    this.activeToast = null;
-    toast.onClick();
+  registerReport(fn: () => Promise<void>): string {
+    const id = `report-${++this.actionSequence}`;
+    this.reportRegistry.set(id, fn);
+    return id;
   }
 
-  /** Called by `<ToastHost />` when a sticky toast's ✕ is clicked. */
-  onToastDismissed(): void {
-    const toast = this.activeToast;
-    this.activeToast = null;
-    toast?.onDismiss?.();
-  }
-
-  async updateToast(toastId: string, options: Partial<ShowToastOptions>): Promise<void> {
-    if (this.activeToast === null || this.activeToast.id !== toastId) return;
-    this.activeToast = {
-      ...this.activeToast,
-      title: options.title ?? this.activeToast.title,
-      message: 'message' in options ? options.message : this.activeToast.message,
-      style: 'animated',
-    };
-  }
-
-  async hideToast(toastId: string): Promise<void> {
-    if (this.activeToast === null || this.activeToast.id !== toastId) return;
-    this.activeToast = null;
+  async triggerReport(id: string): Promise<void> {
+    await this.reportRegistry.get(id)?.();
   }
 
   async showHUD(title: string): Promise<void> {

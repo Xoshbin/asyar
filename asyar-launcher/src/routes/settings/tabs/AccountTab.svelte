@@ -14,7 +14,7 @@
   import { cloudSyncService } from '../../../services/sync/cloudSyncService.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { entitlementService } from '../../../services/auth/entitlementService.svelte';
-  import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { logService } from '../../../services/log/logService';
   import { syncEncryptionService } from '../../../services/sync/syncEncryptionService.svelte';
   import EncryptionEnrolmentDialog from '../../../components/settings/EncryptionEnrolmentDialog.svelte';
@@ -26,7 +26,7 @@
 
   function reportSyncFailure(err: unknown): void {
     logService.error(`[AccountTab] cloud sync failed: ${err}`);
-    diagnosticsService.report({
+    feedbackService.report({
       source: 'frontend',
       kind: 'manual',
       severity: 'error',

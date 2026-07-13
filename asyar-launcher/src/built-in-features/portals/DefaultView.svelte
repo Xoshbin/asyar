@@ -14,7 +14,6 @@
     EmptyState,
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
 
@@ -128,7 +127,7 @@
         if (idx >= 0) portalsUiState.selectedIndex = idx;
       }
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',
@@ -151,7 +150,7 @@
     try {
       await deletePortal(portal.id);
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'warning',
@@ -172,7 +171,7 @@
     try {
       await syncPortalToIndex(dup);
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'warning',

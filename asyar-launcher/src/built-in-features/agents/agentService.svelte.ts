@@ -11,7 +11,7 @@ import {
   agentsMessageInsert,
 } from '../../lib/ipc/commands';
 import { listen } from '@tauri-apps/api/event';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { buildDefaultAgentInput, buildGrammarFixAgentInput } from './defaultAgent';
 import { logService } from '../../services/log/logService';
@@ -51,7 +51,7 @@ export class AgentService {
   async refresh(): Promise<void> {
     const list = await agentsList();
     if (list === null) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'agents_load_failed',
         severity: 'error',
@@ -67,7 +67,7 @@ export class AgentService {
     if (this.initialized) return;
     const list = await agentsList();
     if (list === null) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'agents_load_failed',
         severity: 'error',
@@ -83,7 +83,7 @@ export class AgentService {
   async create(input: AgentCreateInput): Promise<AgentDef> {
     const row = await agentsCreate(input);
     if (row === null) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'agents_create_failed',
         severity: 'error',
@@ -99,7 +99,7 @@ export class AgentService {
   async update(input: AgentUpdateInput): Promise<AgentDef> {
     const row = await agentsUpdate(input);
     if (row === null) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'agents_update_failed',
         severity: 'error',
@@ -115,7 +115,7 @@ export class AgentService {
   async delete(id: string): Promise<void> {
     const ok = await agentsDelete(id);
     if (!ok) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'agents_delete_failed',
         severity: 'error',

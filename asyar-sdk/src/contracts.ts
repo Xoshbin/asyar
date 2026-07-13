@@ -29,7 +29,6 @@ export type { HostDispatcher, IPCMessage, IPCResponse } from './ipc/MessageBroke
 export type {
   IExtensionManager,
   ILogService,
-  INotificationService,
   IClipboardHistoryService,
   ICommandService,
   IStatusBarService,
@@ -37,9 +36,15 @@ export type {
   ISettingsService,
   IEntitlementService,
   IFeedbackService,
-  ShowToastOptions,
+  BackgroundFeedbackOptions,
+  Feedback,
+  FeedbackAnnouncement,
+  FeedbackProgressHandle,
+  FeedbackProgressOptions,
+  FeedbackReport,
+  FeedbackSeverity,
+  FeedbackSource,
   ConfirmAlertOptions,
-  ToastStyle,
   ISelectionService,
   SelectionError,
   SelectionErrorCode,
@@ -110,12 +115,6 @@ export type {
 } from './types/SearchBarAccessoryType';
 export { SearchBarAccessoryServiceProxy } from './services/SearchBarAccessoryServiceProxy';
 
-export type {
-  Diagnostic,
-  DiagnosticSource,
-  IDiagnosticsService,
-  Severity,
-} from './contracts/diagnostics';
 export type {
   Run,
   RunHandle,

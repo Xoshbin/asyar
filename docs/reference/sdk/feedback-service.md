@@ -1,123 +1,88 @@
-### 8.13 `FeedbackService` — Toast / HUD / Confirm Dialog
+# Feedback service
 
-**Runs in:** view only. Toasts, HUDs, and confirm dialogs are user-facing
-UI primitives — they belong with the view's lifecycle.
+`FeedbackService` is the single path for user-visible operation feedback from built-ins and Tier 2 extensions.
 
-**Permission required:** None.
+HUD, announcement, notification, dialog, and bar presenters are private implementation details. Launcher features import only `feedbackService`; Tier 2 extensions obtain only the `feedback` SDK proxy over IPC. Architecture tests and restricted imports reject direct child access.
 
-Three primitives for user-facing feedback, modeled after Raycast. Use the right primitive for the situation:
+| Situation                                                                    | Surface            |
+| ---------------------------------------------------------------------------- | ------------------ |
+| Progress, information, success, warning, or error while the launcher is open | Feedback Bar       |
+| Field validation in a form                                                   | Inline field error |
+| A view cannot render its primary content                                     | Inline view state  |
+| Immediate confirmation after the launcher closes                             | HUD                |
+| Background, delayed, or scheduled completion                                 | OS notification    |
+| Unrecoverable launcher failure                                               | Fatal dialog       |
+| Rare product or extension announcement                                       | `announce()` popup |
 
-| Primitive               | What it is                                                                                                                                                                                                                                | When to use                                                                                                                                                                          |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `showToast(options)`    | Small non-blocking message at the bottom of the **launcher window**. Three styles: `'animated'` (loading, no auto-dismiss), `'success'`, `'failure'`. Auto-dismisses after `durationMs` for non-animated styles. The launcher stays open. | "Saved", "Copied", "Failed to fetch". Progress that the user should watch: start as `'animated'`, then `updateToast(...)` to `'success'` or `'failure'` when the operation finishes. |
-| `showHUD(title)`        | Compact pill at the bottom of the **screen** (a separate transparent always-on-top window). **Simultaneously closes the launcher window.** No actions, no styles, just a string. Auto-dismisses after ~1.5s.                              | Fire-and-forget actions: "Brightness up", "Window snapped left", "Sent to Slack". The user wants the launcher gone but needs a confirmation it worked.                               |
-| `confirmAlert(options)` | Blocking modal with primary/cancel buttons and an optional `'danger'` variant. Resolves with `true` or `false`.                                                                                                                           | Before destructive actions: "Delete this snippet?", "Overwrite file?".                                                                                                               |
+## Normal feedback
 
-```typescript
-type ToastStyle = 'animated' | 'success' | 'failure';
-
-interface ShowToastOptions {
-  title: string;
-  message?: string; // optional second line
-  style?: ToastStyle; // default 'animated'
-  durationMs?: number; // default 2500; ignored when style === 'animated'
-}
-
-interface ConfirmAlertOptions {
-  title: string;
-  message: string;
-  confirmText?: string; // default 'Confirm'
-  cancelText?: string; // default 'Cancel'
-  variant?: 'default' | 'danger';
-}
-
-interface IFeedbackService {
-  showToast(options: ShowToastOptions): Promise<string>;
-  updateToast(toastId: string, options: Partial<ShowToastOptions>): Promise<void>;
-  hideToast(toastId: string): Promise<void>;
-  showHUD(title: string): Promise<void>;
-  confirmAlert(options: ConfirmAlertOptions): Promise<boolean>;
-}
+```ts
+await feedback.report({
+  kind: 'network_failure',
+  severity: 'error',
+  retryable: false,
+  developerDetail: String(error),
+});
 ```
 
-**Toast — the canonical loading → success/failure pattern:**
+The launcher decides ordering, lifetime, deduplication, colors, and whether a Details button is shown. Long text stays in the fixed-height bar and slowly scrolls when it does not fit.
 
-```typescript
-const feedback = context.getService<IFeedbackService>('feedback');
+## Progress
 
-async function syncBookmarks() {
-  const toast = await feedback.showToast({
-    title: 'Syncing bookmarks',
-    style: 'animated',
-  });
-  try {
-    const count = await api.sync();
-    await feedback.updateToast(toast, {
-      title: `Synced ${count} bookmarks`,
-      style: 'success',
-    });
-  } catch (err) {
-    await feedback.updateToast(toast, {
-      title: 'Sync failed',
-      message: err instanceof Error ? err.message : String(err),
-      style: 'failure',
-      durationMs: 4000,
-    });
-  }
+```ts
+const progress = await feedback.showProgress({ title: 'Downloading extension' });
+
+try {
+  await download();
+  await progress.succeed('Extension installed');
+} catch (error) {
+  await progress.fail('Installation failed', String(error));
 }
 ```
 
-**Confirm dialog — Promise-returning, no callbacks:**
+Use the returned handle to update a stage or determinate count:
 
-```typescript
-async function deleteBookmark(id: string, name: string) {
-  const confirmed = await feedback.confirmAlert({
-    title: 'Delete bookmark',
-    message: `Delete "${name}"? This cannot be undone.`,
-    confirmText: 'Delete',
-    variant: 'danger',
-  });
-  if (!confirmed) return;
-  await api.delete(id);
-  await feedback.showToast({ title: 'Bookmark deleted', style: 'success' });
-}
+```ts
+await progress.update({ title: 'Installing', completed: 2, total: 3 });
 ```
 
-**HUD — fire-and-forget, closes the launcher:**
+## Rare announcements
 
-```typescript
-async function increaseBrightness() {
-  await api.brightnessUp();
-  await feedback.showHUD('Brightness ↑');
-  // The launcher window is now closed; the HUD pill is visible at the
-  // bottom of the active monitor for ~1.5s and then hides itself.
-}
+`announce()` is intentionally not named `showToast`. It is not an operation-feedback API.
+
+```ts
+await feedback.announce({
+  id: 'whats-new-2',
+  title: "What's new",
+  message: 'This extension now supports profiles.',
+});
 ```
 
-**Picking the right primitive — flowchart:**
+Tier 2 extensions must declare `feedback:announce`. The host controls the appearance, permits at most one announcement from an extension per launcher session, and may suppress a request. Extensions cannot set severity, progress, custom colors, duration, or arbitrary click handlers.
 
-```
-Need to ask the user to confirm something destructive?
-└─ Yes  → confirmAlert
-└─ No
-   ├─ Should the launcher CLOSE while the message is visible?
-   │  └─ Yes  → showHUD
-   │  └─ No
-   │     ├─ Loading state that may take a while?
-   │     │  └─ Yes  → showToast({ style: 'animated' }) then updateToast(...) on completion
-   │     ├─ Success or failure of an action?
-   │     │  └─ showToast({ style: 'success' | 'failure' })
-   │     └─ Persistent metadata about the active view (e.g. provider/model label)?
-   │        └─ NOT a feedback primitive — use ExtensionManager.setActiveViewSubtitle (§8.9)
+## HUD and confirmation
+
+Use `showHUD()` only when the launcher closes as part of the action:
+
+```ts
+await clipboard.writeText(value);
+await feedback.showHUD('Copied');
 ```
 
-**Constraints to be aware of:**
+Use `confirmAlert()` for a blocking decision before a destructive or sensitive action. HUDs and confirmation dialogs are not replacements for Feedback Bar messages.
 
-- Only one toast and one dialog can be active at a time. Calling `showToast` while another toast is visible **replaces** it (and cancels its auto-dismiss timer). Calling `confirmAlert` while another dialog is open resolves the new call with `false` and leaves the existing dialog unchanged — callers don't need a try/catch for the race.
-- `confirmAlert` resolves with `false` for any non-confirm exit (cancel button, Escape, backdrop click, or a concurrent call that couldn't show its dialog). It never rejects.
-- `showHUD` returns immediately after dispatching the show command. It does not wait for the HUD to auto-hide.
-- The HUD is rendered in its own Tauri webview window (label `"hud"`, declared in `tauri.conf.json`). Both Tier 1 built-in features and Tier 2 sandboxed extensions go through the same SDK proxy → IPC router → Rust `show_hud` command path. There is no special privileged path.
+## Notifications
 
-> **Don't reach for `NotificationService` when you mean `showToast`.** OS notifications (`NotificationService`) leave the launcher entirely and hit the system notification center. They're heavyweight, intrusive, require the `notifications:send` permission, and are appropriate for "your download finished" _after the user has moved on_. For "I just did X inside the launcher and want to confirm it worked", `showToast` and `showHUD` are the right answer.
+OS notifications are for background or delayed work whose completion time is unknown and does not require the launcher to remain open. Do not send a notification for an operation the user is currently watching in the launcher.
 
----
+```ts
+const feedbackId = await feedback.sendBackground({
+  title: 'Export complete',
+  body: 'Your archive is ready.',
+});
+
+// If the result becomes irrelevant before the user sees it:
+await feedback.dismissBackground(feedbackId);
+```
+
+Background delivery requires `notifications:send`, but it still travels through the `feedback` facade and the `feedback:*` IPC namespace. There is no public notification service.

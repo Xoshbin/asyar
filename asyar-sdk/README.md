@@ -153,7 +153,7 @@ not need (or want) a role assertion.
 ```typescript
 // src/main.worker.ts — loaded by worker.html
 import { ExtensionContext, extensionBridge } from 'asyar-sdk/worker';
-import type { ILogService, INotificationService } from 'asyar-sdk/contracts';
+import type { ILogService } from 'asyar-sdk/contracts';
 
 const extensionId = window.location.hostname;
 const context = new ExtensionContext();

@@ -5,8 +5,11 @@ const mockNotify = vi.hoisted(() => vi.fn().mockResolvedValue('notif-id'));
 const mockFinalize = vi.hoisted(() => vi.fn().mockResolvedValue({ leaked: false }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }));
-vi.mock('../../../services/notification/notificationService', () => ({
-  notificationService: { send: mockNotify },
+vi.mock('../../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: {
+    report: vi.fn().mockResolvedValue(undefined),
+    sendBackgroundForSource: mockNotify,
+  },
 }));
 vi.mock('./finalizeBuild', () => ({ finalizeBuild: mockFinalize }));
 

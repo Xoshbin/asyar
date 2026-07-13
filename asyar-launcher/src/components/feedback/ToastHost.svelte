@@ -3,54 +3,41 @@
   import { fadeIn } from '$lib/transitions';
 </script>
 
-{#snippet toastBody(toast: NonNullable<typeof feedbackService.activeToast>)}
+{#snippet announcementBody(announcement: NonNullable<typeof feedbackService.activeAnnouncement>)}
   <span class="toast-icon" aria-hidden="true">
-    {#if toast.style === 'animated'}
-      <span class="spinner"></span>
-    {:else if toast.style === 'success'}
-      <span class="symbol">✓</span>
-    {:else if toast.style === 'failure'}
-      <span class="symbol">✕</span>
-    {:else if toast.style === 'warning'}
-      <span class="symbol">!</span>
-    {/if}
+    <span class="symbol">✦</span>
   </span>
   <div class="toast-text">
-    <span class="toast-title">{toast.title}</span>
-    {#if toast.message}
-      <span class="toast-message">{toast.message}</span>
+    <span class="toast-title">{announcement.title}</span>
+    {#if announcement.message}
+      <span class="toast-message">{announcement.message}</span>
     {/if}
   </div>
 {/snippet}
 
-{#if feedbackService.activeToast}
-  {@const toast = feedbackService.activeToast}
-  {#if toast.onClick}
+{#if feedbackService.activeAnnouncement}
+  {@const announcement = feedbackService.activeAnnouncement}
+  {#if announcement.onClick}
     <div
       class="toast-host toast-clickable"
       transition:fadeIn={{ duration: 150 }}
-      data-style={toast.style}
+      role="status"
+      aria-live="polite"
     >
-      <button class="toast-action" onclick={() => feedbackService.onToastClicked()}>
-        {@render toastBody(toast)}
+      <button class="toast-action" onclick={() => feedbackService.onAnnouncementClicked()}>
+        {@render announcementBody(announcement)}
       </button>
       <button
         class="toast-dismiss"
-        aria-label="Dismiss notification"
-        onclick={() => feedbackService.onToastDismissed()}
+        aria-label="Dismiss announcement"
+        onclick={() => feedbackService.onAnnouncementDismissed()}
       >
         ✕
       </button>
     </div>
   {:else}
-    <div
-      class="toast-host"
-      role="status"
-      aria-live="polite"
-      transition:fadeIn={{ duration: 150 }}
-      data-style={toast.style}
-    >
-      {@render toastBody(toast)}
+    <div class="toast-host" role="status" aria-live="polite" transition:fadeIn={{ duration: 150 }}>
+      {@render announcementBody(announcement)}
     </div>
   {/if}
 {/if}
@@ -130,17 +117,8 @@
     justify-content: center;
   }
 
-  .toast-host[data-style='animated'] .toast-icon {
-    color: var(--text-secondary);
-  }
-  .toast-host[data-style='success'] .toast-icon {
-    color: var(--accent-success);
-  }
-  .toast-host[data-style='failure'] .toast-icon {
-    color: var(--accent-danger);
-  }
-  .toast-host[data-style='warning'] .toast-icon {
-    color: var(--accent-warning);
+  .toast-icon {
+    color: var(--accent-primary);
   }
 
   .toast-text {
@@ -160,16 +138,6 @@
     text-overflow: ellipsis;
   }
 
-  .toast-host[data-style='success'] .toast-title {
-    color: var(--accent-success);
-  }
-  .toast-host[data-style='failure'] .toast-title {
-    color: var(--accent-danger);
-  }
-  .toast-host[data-style='warning'] .toast-title {
-    color: var(--accent-warning);
-  }
-
   .toast-message {
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
@@ -183,21 +151,5 @@
     font-size: 13px;
     font-weight: 700;
     line-height: 1;
-  }
-
-  .spinner {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border: 1.5px solid currentColor;
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
   }
 </style>

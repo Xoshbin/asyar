@@ -32,7 +32,7 @@ interface MutableDeps {
   activeContext: unknown;
   localSearchValue: string;
   isSearchLoading: boolean;
-  currentDiagnosticSeverity: import('asyar-sdk/contracts').Severity | null;
+  currentDiagnosticSeverity: import('asyar-sdk/contracts').FeedbackSeverity | null;
   lastCompletedQuery: string | null;
 }
 

@@ -4,7 +4,7 @@ import { agentsGet, agentsToolsList } from '../../lib/ipc/commands';
 import { getProvider } from '../../services/ai/providerRegistry';
 import { streamChat } from '../../services/ai/aiEngine';
 import { settingsService } from '../../services/settings/settingsService.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { invokeTool } from './toolDispatch';
 import { runService } from '../../services/run/runService.svelte';
 import { logService } from '../../services/log/logService';
@@ -62,7 +62,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
   const config = settings.ai.providers[agent.providerId as keyof typeof settings.ai.providers];
   if (!config?.apiKey) {
     const msg = `API key for provider '${agent.providerId}' is not configured`;
-    await diagnosticsService.report({
+    await feedbackService.report({
       source: 'frontend',
       kind: 'manual',
       severity: 'error',
@@ -273,7 +273,7 @@ async function runTextOnly(
               .catch(() => {});
           }
           void Promise.resolve(
-            diagnosticsService.report({
+            feedbackService.report({
               source: 'frontend',
               kind: 'manual',
               severity: 'error',
@@ -447,7 +447,7 @@ async function runToolLoop(
         output = await invokeTool(tu.name, tu.input, agent.id);
       } catch (err) {
         const detail = extractErrorMessage(err);
-        await diagnosticsService.report({
+        await feedbackService.report({
           source: 'frontend',
           kind: 'manual',
           severity: 'error',
@@ -481,7 +481,7 @@ async function runToolLoop(
 
   // Loop guard exceeded
   const guardMsg = `Agent loop exceeded max turns (${MAX_TURNS})`;
-  await diagnosticsService.report({
+  await feedbackService.report({
     source: 'frontend',
     kind: 'manual',
     severity: 'error',

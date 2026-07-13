@@ -2,7 +2,6 @@ import type { SidecarEvent } from './buildProtocol';
 import { parseSidecarEvent } from './buildProtocol';
 import { buildJobStore } from './buildJobStore.svelte';
 import { presentQuestion } from './questionBridge';
-import { notificationService } from '../../../services/notification/notificationService';
 import { finalizeBuild } from './finalizeBuild';
 import { sidecarClient } from './sidecarClient';
 import { resolveCapabilitySpecDir } from './buildPaths';
@@ -12,7 +11,7 @@ import { logService } from '../../../services/log/logService';
 import { extBuilderCheckRuntimes } from '../../../lib/ipc/extensionBuilderCommands';
 import { extBuilderRuntimeConsentStore } from './runtimeConsentStore.svelte';
 import { runtimeService } from '../../../services/runtime/runtimeService.svelte';
-import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
 
 const CALLER_EXT_ID = 'create-extension';
 
@@ -21,7 +20,7 @@ export async function handleEvent(ev: SidecarEvent): Promise<void> {
     case 'verdict': {
       if (!ev.possible) {
         buildJobStore.finishFailed({ step: 'feasibility', error: ev.reason, log: ev.reason });
-        await notificationService.send(CALLER_EXT_ID, {
+        await feedbackService.sendBackgroundForSource(CALLER_EXT_ID, {
           title: "Asyar can't build that",
           body: ev.reason,
         });
@@ -50,7 +49,7 @@ export async function handleEvent(ev: SidecarEvent): Promise<void> {
             error: `Refused: hardcoded secret found in ${scan.path}`,
             log: `Secret found at ${scan.path}`,
           });
-          await notificationService.send(CALLER_EXT_ID, {
+          await feedbackService.sendBackgroundForSource(CALLER_EXT_ID, {
             title: 'Build blocked',
             body: 'A secret was hardcoded; refusing to ship.',
           });
@@ -61,7 +60,7 @@ export async function handleEvent(ev: SidecarEvent): Promise<void> {
           path: ev.path,
           smokeSummary: ev.smokeSummary,
         });
-        await notificationService.send(CALLER_EXT_ID, {
+        await feedbackService.sendBackgroundForSource(CALLER_EXT_ID, {
           title: '✅ Extension ready',
           body: `${ev.extensionId} built and verified (${ev.smokeSummary}).`,
           actions: [
@@ -75,7 +74,7 @@ export async function handleEvent(ev: SidecarEvent): Promise<void> {
         });
       } catch (err) {
         buildJobStore.finishFailed({ step: 'finalize', error: String(err), log: String(err) });
-        await notificationService.send(CALLER_EXT_ID, {
+        await feedbackService.sendBackgroundForSource(CALLER_EXT_ID, {
           title: 'Build failed',
           body: `finalize: ${String(err)}`,
         });
@@ -84,7 +83,7 @@ export async function handleEvent(ev: SidecarEvent): Promise<void> {
     }
     case 'fail':
       buildJobStore.finishFailed({ step: ev.step, error: ev.error, log: ev.log });
-      await notificationService.send(CALLER_EXT_ID, {
+      await feedbackService.sendBackgroundForSource(CALLER_EXT_ID, {
         title: 'Build failed',
         body: `${ev.step}: ${ev.error}`,
       });
@@ -131,7 +130,7 @@ async function ensureRuntimesReady(): Promise<{ ok: true } | { ok: false; reason
   for (const r of missing) {
     const ok = await runtimeService.download(r.name);
     if (!ok) {
-      void diagnosticsService.report({
+      void feedbackService.report({
         source: 'frontend',
         kind: 'ext_builder_runtime_download_failed',
         severity: 'error',

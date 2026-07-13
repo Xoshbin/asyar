@@ -95,10 +95,7 @@ async function summarise() {
   }
 
   let summary = '';
-  let toastId: string | undefined;
-
-  const toast = await feedback.showToast({ title: 'Summarising…', style: 'animated' });
-  toastId = toast.id;
+  const progress = await feedback.showProgress({ title: 'Summarising…' });
 
   ai.stream(
     { messages: [{ role: 'user', content: `Summarise in one sentence:\n\n${text}` }] },
@@ -107,7 +104,7 @@ async function summarise() {
         summary += token;
       },
       async onDone() {
-        await feedback.updateToast(toastId!, { title: summary, style: 'success' });
+        await progress.succeed(summary);
       },
       async onError(err) {
         const msg =
@@ -116,7 +113,7 @@ async function summarise() {
             : err.code === 'ai_disabled_by_user'
               ? 'AI disabled for extensions'
               : `AI error: ${err.message}`;
-        await feedback.updateToast(toastId!, { title: msg, style: 'failure' });
+        await progress.fail(msg, err.message);
       },
     },
   );

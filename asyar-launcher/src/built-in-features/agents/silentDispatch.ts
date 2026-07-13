@@ -21,12 +21,10 @@ import { agentsGet, agentsToolsList, simulatePaste } from '../../lib/ipc/command
 import { getProvider } from '../../services/ai/providerRegistry';
 import { streamChat } from '../../services/ai/aiEngine';
 import { settingsService } from '../../services/settings/settingsService.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 import {
   feedbackService,
   type HudSpinnerHandle,
 } from '../../services/feedback/feedbackService.svelte';
-import { notificationService } from '../../services/notification/notificationService';
 import { windowService } from '../../services/window/windowService';
 import { selectionService } from '../../services/selection/selectionService';
 import { logService } from '../../services/log/logService';
@@ -73,7 +71,7 @@ export interface SilentDispatchInput {
   /**
    * Optional callback fired with the agent's final assistant message text
    * once the run completes. Errors thrown by this callback are caught and
-   * reported via diagnosticsService — they do not affect the run.
+   * reported via feedbackService — they do not affect the run.
    */
   onFinalText?: (text: string) => void | Promise<void>;
 }
@@ -129,7 +127,7 @@ export async function dispatchSilentAgentCommand(input: SilentDispatchInput): Pr
         try {
           await input.onFinalText('');
         } catch (e) {
-          await diagnosticsService.report({
+          await feedbackService.report({
             source: 'frontend',
             kind: 'silent_agent_failed',
             severity: 'warning',
@@ -154,7 +152,7 @@ export async function dispatchSilentAgentCommand(input: SilentDispatchInput): Pr
       try {
         await input.onFinalText(result);
       } catch (e) {
-        await diagnosticsService.report({
+        await feedbackService.report({
           source: 'frontend',
           kind: 'silent_agent_failed',
           severity: 'warning',
@@ -556,7 +554,7 @@ async function loadAgent(agentId: string): Promise<AgentDef> {
 
 async function reportFailure(agent: Pick<AgentDef, 'id' | 'name'>, detail: string): Promise<void> {
   try {
-    await diagnosticsService.report({
+    await feedbackService.report({
       source: 'frontend',
       kind: 'silent_agent_failed',
       severity: 'warning',
@@ -569,7 +567,7 @@ async function reportFailure(agent: Pick<AgentDef, 'id' | 'name'>, detail: strin
   }
 
   try {
-    await notificationService.send('agents', {
+    await feedbackService.sendBackgroundForSource('agents', {
       title: agent.name,
       body: detail,
     });

@@ -18,8 +18,8 @@ vi.mock('../../services/log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn(async () => {}) },
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn(async () => {}) },
 }));
 
 vi.mock('../../services/extension/commandService.svelte', () => ({
@@ -29,7 +29,7 @@ vi.mock('../../services/extension/commandService.svelte', () => ({
 import { scriptsManager } from './scriptsManager.svelte';
 import * as commands from '../../lib/ipc/commands';
 import { listen } from '@tauri-apps/api/event';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { commandService } from '../../services/extension/commandService.svelte';
 import type { ScannedScript } from './types';
 
@@ -243,8 +243,8 @@ describe('ScriptsManager', () => {
     // emphasises grouped, non-spammy diagnostics).
     await scriptsManager['refresh']();
 
-    expect(diagnosticsService.report).toHaveBeenCalledTimes(1);
-    const [call] = vi.mocked(diagnosticsService.report).mock.calls;
+    expect(feedbackService.report).toHaveBeenCalledTimes(1);
+    const [call] = vi.mocked(feedbackService.report).mock.calls;
     expect(call[0]).toMatchObject({
       kind: 'inline_script_clamped',
       severity: 'warning',
@@ -263,7 +263,7 @@ describe('ScriptsManager', () => {
     await scriptsManager.start();
 
     const capCall = vi
-      .mocked(diagnosticsService.report)
+      .mocked(feedbackService.report)
       .mock.calls.find((c) => c[0].kind === 'inline_script_capped');
     expect(capCall).toBeTruthy();
     expect(capCall![0].severity).toBe('warning');

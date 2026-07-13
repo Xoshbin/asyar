@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 vi.mock('../../lib/ipc/fileSearchCommands', () => ({
   fileSearch: vi.fn(),

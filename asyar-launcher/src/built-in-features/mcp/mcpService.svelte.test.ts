@@ -47,8 +47,8 @@ vi.mock('../../services/runtime/runtimeService.svelte', () => ({
   },
 }));
 
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: {
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: {
     report: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -290,8 +290,7 @@ describe('mcpService runtime consent flow: download failure', () => {
     } as never);
 
     const { runtimeService } = await import('../../services/runtime/runtimeService.svelte');
-    const { diagnosticsService } =
-      await import('../../services/diagnostics/diagnosticsService.svelte');
+    const { feedbackService } = await import('../../services/feedback/feedbackService.svelte');
     (runtimeService.download as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
 
     const svc = new McpService();
@@ -305,7 +304,7 @@ describe('mcpService runtime consent flow: download failure', () => {
 
     expect(result).toBeNull();
     expect(cmds.mcpInstallServer).toHaveBeenCalledTimes(1);
-    expect(diagnosticsService.report).toHaveBeenCalledWith(
+    expect(feedbackService.report).toHaveBeenCalledWith(
       expect.objectContaining({ context: expect.objectContaining({ runtime: 'bun' }) }),
     );
     expect(svc.installError).toMatch(/download/i);

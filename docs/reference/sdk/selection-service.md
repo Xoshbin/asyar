@@ -59,10 +59,11 @@ async function translateSelection() {
   } catch (err) {
     const sel = err as SelectionError;
     if (sel.code === 'ACCESSIBILITY_PERMISSION_REQUIRED') {
-      await feedback.showToast({
-        title: 'Accessibility permission required',
-        message: 'Grant Asyar access in System Settings to read selected text.',
-        style: 'failure',
+      await feedback.report({
+        kind: 'permission_denied',
+        severity: 'warning',
+        retryable: false,
+        context: { permission: 'Accessibility access in System Settings' },
       });
       return;
     }
@@ -75,7 +76,12 @@ async function translateSelection() {
   }
 
   const translated = await translate(text);
-  await feedback.showToast({ title: translated, style: 'success' });
+  await feedback.report({
+    kind: 'manual',
+    severity: 'success',
+    retryable: false,
+    context: { message: translated },
+  });
 }
 ```
 
@@ -89,9 +95,11 @@ async function compressSelectedFiles() {
     return;
   }
   await api.compress(paths);
-  await feedback.showToast({
-    title: `Compressed ${paths.length} file${paths.length === 1 ? '' : 's'}`,
-    style: 'success',
+  await feedback.report({
+    kind: 'manual',
+    severity: 'success',
+    retryable: false,
+    context: { message: `Compressed ${paths.length} file${paths.length === 1 ? '' : 's'}` },
   });
 }
 ```

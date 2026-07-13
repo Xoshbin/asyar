@@ -3,7 +3,7 @@
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { listProviders } from '../../../services/ai/providerRegistry';
   import { agentService } from '../../../built-in-features/agents/agentService.svelte';
-  import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { availableProvidersForNewRow, canTestAndFetch } from './AiTab.helpers';
   import type {
     IProviderPlugin,
@@ -115,7 +115,7 @@
     try {
       await agentService.upsertDefaultAgent(id, modelId);
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',
@@ -141,7 +141,7 @@
     try {
       await agentService.upsertDefaultAgent(id, modelId);
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'warning',
@@ -175,7 +175,7 @@
           try {
             await agentService.upsertDefaultAgent(nextId, nextModel);
           } catch (err) {
-            diagnosticsService.report({
+            feedbackService.report({
               source: 'frontend',
               kind: 'manual',
               severity: 'error',
@@ -400,7 +400,7 @@
                         try {
                           await agentService.upsertDefaultAgent(providerId, val);
                         } catch (err) {
-                          diagnosticsService.report({
+                          feedbackService.report({
                             source: 'frontend',
                             kind: 'manual',
                             severity: 'error',
@@ -444,7 +444,7 @@
                             try {
                               await agentService.upsertDefaultAgent(providerId, val);
                             } catch (err) {
-                              diagnosticsService.report({
+                              feedbackService.report({
                                 source: 'frontend',
                                 kind: 'manual',
                                 severity: 'error',

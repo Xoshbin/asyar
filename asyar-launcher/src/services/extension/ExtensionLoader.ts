@@ -166,14 +166,18 @@ export class ExtensionLoader {
             logService.warn(
               `[PermissionRegistry] Permissions withheld for ${extensionId}: awaiting user consent`,
             );
-            whenWindowVisible(() =>
-              feedbackService.notice({
-                title: `${extensionName} needs a permission review`,
-                message: 'Click to review and allow its permissions in Settings.',
-                style: 'warning',
-                onClick: () => void commands.showSettingsWindow('extensions', extensionId),
-              }),
-            );
+            whenWindowVisible(() => {
+              void feedbackService.report({
+                source: 'frontend',
+                kind: 'permission_denied',
+                severity: 'warning',
+                retryable: false,
+                context: {
+                  permission: `${extensionName} needs a permission review in Settings`,
+                },
+                developerDetail: `Review ${extensionId} in Settings > Extensions.`,
+              });
+            });
           })
           .catch((err: unknown) => {
             logService.warn(`[PermissionRegistry] Failed to register ${extensionId}: ${err}`);

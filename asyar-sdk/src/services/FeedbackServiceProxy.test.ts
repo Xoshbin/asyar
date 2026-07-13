@@ -25,32 +25,94 @@ function makeProxy() {
 describe('FeedbackServiceProxy', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('showToast → "feedback:showToast" with options', async () => {
+  it('report → "feedback:report" with feedback', async () => {
     const { proxy, mockInvoke } = makeProxy();
-    mockInvoke.mockResolvedValue('toast-id-1');
-    const opts = { title: 'Done', style: 'animated' as const };
-    const result = await proxy.showToast(opts);
-    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'feedback:showToast');
+    const feedback = {
+      kind: 'network_failure',
+      severity: 'error' as const,
+      retryable: false,
+      developerDetail: 'Connection refused',
+    };
+    await proxy.report(feedback);
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'feedback:report');
     expect(call).toBeDefined();
-    expect(call![1]).toMatchObject({ options: opts });
-    expect(result).toBe('toast-id-1');
+    expect(call![1]).toEqual({ feedback });
   });
 
-  it('updateToast → "feedback:updateToast" with toastId and options', async () => {
+  it('showProgress returns a handle that captures this proxy broker', async () => {
     const { proxy, mockInvoke } = makeProxy();
-    const opts = { title: 'Updated' };
-    await proxy.updateToast('toast-1', opts);
-    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'feedback:updateToast');
-    expect(call).toBeDefined();
-    expect(call![1]).toMatchObject({ toastId: 'toast-1', options: opts });
+    mockInvoke.mockResolvedValueOnce('feedback-1');
+
+    const handle = await proxy.showProgress({ title: 'Downloading' });
+    await handle.update({ title: 'Installing', completed: 1, total: 2 });
+    await handle.succeed('Installed');
+
+    expect(mockInvoke).toHaveBeenNthCalledWith(
+      1,
+      'feedback:showProgress',
+      {
+        options: { title: 'Downloading' },
+      },
+      'ext.test',
+      undefined,
+    );
+    expect(mockInvoke).toHaveBeenNthCalledWith(
+      2,
+      'feedback:updateProgress',
+      {
+        feedbackId: 'feedback-1',
+        update: { title: 'Installing', completed: 1, total: 2 },
+      },
+      'ext.test',
+      undefined,
+    );
+    expect(mockInvoke).toHaveBeenNthCalledWith(
+      3,
+      'feedback:finishProgress',
+      {
+        feedbackId: 'feedback-1',
+        outcome: { severity: 'success', title: 'Installed' },
+      },
+      'ext.test',
+      undefined,
+    );
   });
 
-  it('hideToast → "feedback:hideToast" with toastId', async () => {
+  it('announce uses the intentionally constrained announcement method', async () => {
     const { proxy, mockInvoke } = makeProxy();
-    await proxy.hideToast('toast-1');
-    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'feedback:hideToast');
-    expect(call).toBeDefined();
-    expect(call![1]).toMatchObject({ toastId: 'toast-1' });
+    const announcement = { id: 'v4.3', title: "What's new", message: 'New commands' };
+    await proxy.announce(announcement);
+    expect(mockInvoke).toHaveBeenCalledWith(
+      'feedback:announce',
+      { announcement },
+      'ext.test',
+      undefined,
+    );
+  });
+
+  it('routes background delivery through the feedback namespace', async () => {
+    const { proxy, mockInvoke } = makeProxy();
+    mockInvoke.mockResolvedValueOnce('background-1');
+
+    await expect(proxy.sendBackground({ title: 'Finished', body: 'Done' })).resolves.toBe(
+      'background-1',
+    );
+    await proxy.dismissBackground('background-1');
+
+    expect(mockInvoke).toHaveBeenNthCalledWith(
+      1,
+      'feedback:sendBackground',
+      { options: { title: 'Finished', body: 'Done' } },
+      'ext.test',
+      undefined,
+    );
+    expect(mockInvoke).toHaveBeenNthCalledWith(
+      2,
+      'feedback:dismissBackground',
+      { feedbackId: 'background-1' },
+      'ext.test',
+      undefined,
+    );
   });
 
   it('showHUD → "feedback:showHUD" with title', async () => {

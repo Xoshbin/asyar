@@ -3,10 +3,9 @@
   import SettingsForm from './SettingsForm.svelte';
   import SettingsFormRow from './SettingsFormRow.svelte';
   import { runtimeService } from '../../services/runtime/runtimeService.svelte';
-  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { describeRuntimeRemovalWarning } from '../../services/runtime/runtimeRemovalGuard';
   import { formatBytes } from '../../services/action/actionService.svelte';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
   import type { InstalledRuntimeInfo } from '../../lib/ipc/runtimeCommands';
 
@@ -19,7 +18,7 @@
       runtimes = await runtimeService.list();
     } catch (e) {
       logService.error(`Failed to load installed runtimes: ${e}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'warning',
@@ -50,7 +49,7 @@
       await loadRuntimes();
     } catch (e) {
       logService.error(`Failed to remove runtime "${name}": ${e}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',

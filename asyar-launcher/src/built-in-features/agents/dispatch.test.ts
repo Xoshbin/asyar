@@ -30,8 +30,8 @@ vi.mock('../../services/extension/viewManager.svelte', () => ({
   viewManager: { navigateToView: vi.fn() },
 }));
 
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 
 // Mock the silent dispatcher so this test focuses purely on the routing

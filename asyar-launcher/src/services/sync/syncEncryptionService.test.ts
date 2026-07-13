@@ -10,8 +10,8 @@ vi.mock('../../lib/ipc/commands', () => ({
   syncE2eeShowRecoveryPhrase: vi.fn(),
 }));
 
-vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 
 vi.mock('../log/logService', () => ({
@@ -20,7 +20,7 @@ vi.mock('../log/logService', () => ({
 
 import * as cmd from '../../lib/ipc/commands';
 import { syncEncryptionService } from './syncEncryptionService.svelte';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 
 describe('syncEncryptionService', () => {
   beforeEach(() => {
@@ -82,7 +82,7 @@ describe('syncEncryptionService', () => {
     it('emits e2ee_enrollment_failed on backend error and re-throws', async () => {
       vi.mocked(cmd.syncE2eeEnrol).mockResolvedValueOnce(null);
       await expect(syncEncryptionService.enrol('correct horse battery staple')).rejects.toThrow();
-      expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect(feedbackService.report).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: 'e2ee_enrollment_failed',
           severity: 'error',
@@ -107,7 +107,7 @@ describe('syncEncryptionService', () => {
     it('emits e2ee_passphrase_required on incorrect passphrase and re-throws', async () => {
       vi.mocked(cmd.syncE2eeUnlock).mockResolvedValueOnce(false);
       await expect(syncEncryptionService.unlock('wrong')).rejects.toThrow();
-      expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect(feedbackService.report).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: 'e2ee_passphrase_required',
           severity: 'warning',

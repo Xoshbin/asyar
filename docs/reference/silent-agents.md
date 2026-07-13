@@ -70,7 +70,7 @@ bypass the normal `shellService.spawn` promotion so a 30 s clock
 script doesn't pin a kept-Done row every tick.
 
 Failures (provider error, missing API key, empty model response) are
-the only thing surfaced — through `diagnosticsService.report({ kind:
+the only thing surfaced — through `feedbackService.report({ kind:
 'silent_agent_failed', severity: 'warning' })` plus a system
 notification carrying the agent name and the error message. Success
 is fully silent.

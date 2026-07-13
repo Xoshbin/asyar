@@ -4,15 +4,15 @@ vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
 import { SearchService } from './SearchService';
 import { invoke } from '@tauri-apps/api/core';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 
 function getInstance() {
   return new SearchService();
@@ -20,7 +20,7 @@ function getInstance() {
 
 function resetMocks() {
   vi.mocked(invoke).mockClear();
-  vi.mocked(diagnosticsService.report).mockClear();
+  vi.mocked(feedbackService.report).mockClear();
 }
 
 // ── performSearch ─────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ describe('performSearch', () => {
   it('reports an error diagnostic when search fails', async () => {
     vi.mocked(invoke).mockRejectedValueOnce(new Error('backend error'));
     await getInstance().performSearch('x');
-    expect(diagnosticsService.report).toHaveBeenCalledWith(
+    expect(feedbackService.report).toHaveBeenCalledWith(
       expect.objectContaining({
         source: 'frontend',
         kind: 'search/perform-failed',
@@ -64,7 +64,7 @@ describe('performSearch', () => {
     const secret = 'sk-live-supersecret-do-not-leak';
     await getInstance().performSearch(secret);
 
-    const reported = vi.mocked(diagnosticsService.report).mock.calls[0][0];
+    const reported = vi.mocked(feedbackService.report).mock.calls[0][0];
     expect(JSON.stringify(reported)).not.toContain(secret);
     expect(reported.context).toEqual(
       expect.objectContaining({ queryLength: String(secret.length) }),
@@ -95,7 +95,7 @@ describe('indexItem', () => {
   it('reports a warning diagnostic when indexing fails', async () => {
     vi.mocked(invoke).mockRejectedValueOnce(new Error('fail'));
     await getInstance().indexItem({ objectId: 'x', name: 'x', category: 'app' } as any);
-    expect(diagnosticsService.report).toHaveBeenCalledWith(
+    expect(feedbackService.report).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'search/index-failed', severity: 'warning' }),
     );
   });

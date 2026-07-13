@@ -15,7 +15,7 @@
   import ThreadListSidebar from './ThreadListSidebar.svelte';
   import type { AgentDef, ThreadDef, MessageDef } from './types';
   import { showSettingsWindow } from '../../lib/ipc/commands';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { isAnyModalOpen } from '../../components/base/Modal.logic';
 
   const agentId = $derived(agentsManager.currentAgentId);
@@ -143,7 +143,7 @@
     try {
       await showSettingsWindow('ai');
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',

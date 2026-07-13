@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { extensionManager } from '../../services/extension/extensionManager.svelte';
   import { shellListTrusted, shellRevokeTrust, type TrustedBinary } from '../../lib/ipc/commands';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
 
   interface GroupedTrust {
@@ -49,7 +49,7 @@
         }
       } catch (e) {
         logService.error(`Failed to load trust for ${record.manifest.id}: ${e}`);
-        diagnosticsService.report({
+        feedbackService.report({
           source: 'frontend',
           kind: 'manual',
           severity: 'warning',
@@ -81,7 +81,7 @@
         .filter((group) => group.binaries.length > 0);
     } catch (e) {
       logService.error(`Failed to revoke shell trust for ${extensionId} (${binaryPath}): ${e}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',

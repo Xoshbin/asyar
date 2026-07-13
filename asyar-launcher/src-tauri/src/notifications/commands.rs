@@ -12,7 +12,7 @@ use serde::Deserialize;
 use tauri::Runtime;
 use uuid::Uuid;
 
-/// Wire shape coming in from the TS `NotificationServiceProxy.send()`.
+/// Wire shape coming from the feedback facade's background delivery path.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionInput {

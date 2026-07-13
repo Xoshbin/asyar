@@ -9,8 +9,8 @@ const mockReport = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.mock('@tauri-apps/plugin-shell', () => ({ Command: { create: mockCreate } }));
 vi.mock('@tauri-apps/plugin-opener', () => ({ openPath: mockOpenPath }));
 vi.mock('@tauri-apps/plugin-os', () => ({ platform: mockPlatform }));
-vi.mock('../../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: mockReport },
+vi.mock('../../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: mockReport },
 }));
 
 import { openInEditor } from './openInEditor';

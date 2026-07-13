@@ -13,7 +13,7 @@
     "cache:write",
     "clipboard:read",
     "clipboard:write",
-    "diagnostics:report",
+    "feedback:announce",
     "entitlements:read",
     "extension:invoke",
     "fs:read",

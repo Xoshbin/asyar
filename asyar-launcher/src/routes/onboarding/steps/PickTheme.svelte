@@ -10,7 +10,7 @@
   import { applyTheme, removeTheme } from '../../../services/theme/themeService';
   import { discoverExtensions } from '../../../lib/ipc/commands';
   import { logService } from '../../../services/log/logService';
-  import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
 
   let themes = $state<ApiExtension[]>([]);
   let loading = $state(true);
@@ -62,7 +62,7 @@
         logService.warn(
           `[onboarding] installed theme not found in registry after install: ${theme.name}`,
         );
-        diagnosticsService.report({
+        feedbackService.report({
           source: 'frontend',
           kind: 'manual',
           severity: 'warning',
@@ -79,7 +79,7 @@
       // store write completes.
     } catch (err) {
       logService.error(`[onboarding] failed to install/apply theme ${theme.name}: ${err}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',
@@ -107,7 +107,7 @@
       // activeThemeId is $derived — auto-updates from settingsService.
     } catch (err) {
       logService.error(`[onboarding] failed to revert to default theme: ${err}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',

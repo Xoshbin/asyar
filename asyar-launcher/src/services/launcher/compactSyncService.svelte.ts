@@ -33,7 +33,7 @@ export interface CompactSyncDeps {
   getActiveContext: () => unknown;
   getLocalSearchValue: () => string;
   getIsSearchLoading: () => boolean;
-  getCurrentDiagnosticSeverity: () => import('asyar-sdk/contracts').Severity | null;
+  getCurrentDiagnosticSeverity: () => import('asyar-sdk/contracts').FeedbackSeverity | null;
   getLastCompletedQuery: () => string | null;
 }
 

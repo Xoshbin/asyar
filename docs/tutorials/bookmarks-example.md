@@ -10,7 +10,7 @@ A complete production-ready extension demonstrating:
 - A **no-view command** (save today's date as a bookmark).
 - **In-view search** (filter bookmarks as the user types).
 - A **⌘K action** (clear all non-favorite bookmarks).
-- **Notification feedback** via `NotificationService`.
+- **Background feedback** via `FeedbackService`.
 - Svelte 5 Runes throughout.
 
 ### `manifest.json`
@@ -51,7 +51,7 @@ A complete production-ready extension demonstrating:
 ```typescript
 import { mount } from 'svelte';
 import BookmarksView from './BookmarksView.svelte';
-import { ExtensionContext, type IActionService, type INotificationService } from 'asyar-sdk';
+import { ExtensionContext, type IActionService, type IFeedbackService } from 'asyar-sdk';
 
 const extensionId = window.location.hostname || 'com.yourname.bookmarks';
 
@@ -83,7 +83,7 @@ window.addEventListener('keydown', (event) => {
 });
 
 // 4. Resolve services once.
-const notifService = context.getService<INotificationService>('notifications');
+const feedbackService = context.getService<IFeedbackService>('feedback');
 const actionService = context.getService<IActionService>('actions');
 
 // 5. Handle no-view command (add-today) invoked by the host.
@@ -101,7 +101,7 @@ window.addEventListener('message', async (event) => {
     const stored: string[] = JSON.parse(localStorage.getItem('bookmarks') ?? '[]');
     stored.unshift(entry);
     localStorage.setItem('bookmarks', JSON.stringify(stored));
-    await notifService.send({ title: 'Bookmark Added', body: entry });
+    await feedbackService.sendBackground({ title: 'Bookmark Added', body: entry });
   }
 });
 
@@ -111,7 +111,7 @@ const viewName = new URLSearchParams(window.location.search).get('view') || 'Boo
 if (viewName === 'BookmarksView') {
   mount(BookmarksView, {
     target: document.getElementById('app')!,
-    props: { actionService, notifService },
+    props: { actionService, feedbackService },
   });
 }
 ```
@@ -122,13 +122,13 @@ if (viewName === 'BookmarksView') {
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { ActionContext, ActionCategory } from 'asyar-sdk';
-  import type { IActionService, INotificationService } from 'asyar-sdk';
+  import type { IActionService, IFeedbackService } from 'asyar-sdk';
 
   interface Props {
     actionService: IActionService;
-    notifService: INotificationService;
+    feedbackService: IFeedbackService;
   }
-  let { actionService, notifService }: Props = $props();
+  let { actionService, feedbackService }: Props = $props();
 
   let bookmarks = $state<string[]>([]);
   let query = $state('');
@@ -190,7 +190,7 @@ if (viewName === 'BookmarksView') {
   async function clearNonFavorites() {
     bookmarks = [];
     localStorage.removeItem('bookmarks');
-    await notifService.send({
+    await feedbackService.sendBackground({
       title: 'Bookmarks Cleared',
       body: 'All bookmarks have been removed.',
     });

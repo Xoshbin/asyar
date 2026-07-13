@@ -2,7 +2,7 @@
   import { Input, Textarea } from '../../components';
   import { mcpService } from './mcpService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import {
     validateInstallForm,
     buildInstallInput,
@@ -112,7 +112,7 @@
     try {
       const result = await mcpService.install(buildInstallInput(form));
       if (result !== null) {
-        void diagnosticsService.report({
+        void feedbackService.report({
           source: 'frontend',
           kind: 'mcp_server_installed',
           severity: 'success',

@@ -3,7 +3,7 @@
   import { listen } from '@tauri-apps/api/event';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { browserService } from '../../../services/browser/browserService';
-  import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import {
     browserListPendingPairings,
     browserResolvePairing,
@@ -24,7 +24,7 @@
     try {
       await openUrl(CHROME_STORE_URL);
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'browser:settings.install-link-failed',
         severity: 'error',
@@ -57,7 +57,7 @@
   async function resolve(id: string, decision: 'allow' | 'deny') {
     const ok = await browserResolvePairing(id, decision);
     if (!ok) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'browser:settings.resolve-failed',
         severity: 'error',
@@ -72,7 +72,7 @@
   async function revoke(family: string, variant: string) {
     const ok = await browserRevokePairing(family, variant);
     if (!ok) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'browser:settings.revoke-failed',
         severity: 'error',

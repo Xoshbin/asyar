@@ -89,16 +89,16 @@ The `args` object includes `{ scheduledTick: true }` so you can tell the differe
 
 ```typescript
 import type { Extension, ExtensionContext } from 'asyar-sdk';
-import type { INetworkService, INotificationService } from 'asyar-sdk';
+import type { INetworkService, IFeedbackService } from 'asyar-sdk';
 
 class DeployMonitor implements Extension {
   private network!: INetworkService;
-  private notifications!: INotificationService;
+  private feedback!: IFeedbackService;
   private lastSeenDeployId: string | null = null;
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.network = context.getService<INetworkService>('network');
-    this.notifications = context.getService<INotificationService>('notifications');
+    this.feedback = context.getService<IFeedbackService>('feedback');
   }
 
   async activate(): Promise<void> {}
@@ -120,7 +120,7 @@ class DeployMonitor implements Extension {
 
     if (latestId && latestId !== this.lastSeenDeployId) {
       this.lastSeenDeployId = latestId;
-      await this.notifications.notify({
+      await this.feedback.sendBackground({
         title: 'New Deployment',
         body: `${data.deploy.environment}: ${data.deploy.commit_message}`,
       });

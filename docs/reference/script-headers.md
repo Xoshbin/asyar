@@ -256,7 +256,7 @@ open "$URL"
 | `inline_script_clamped` | A script declared `@asyar.refreshTime` below 10s. Fired once per script.                                  | `warning` — value raised to 10s, ticking proceeds.                          |
 | `inline_script_capped`  | More than 10 inline scripts present after a rescan. Fired once per newly-overflowed script.               | `warning` — capped scripts still run on manual Enter, just don't auto-tick. |
 
-All three flow through the unified `diagnosticsService` channel — they
+All three flow through the unified `feedbackService` channel — they
 appear as toast banners alongside other launcher diagnostics.
 
 ## Relationship to dynamic commands and Run Tracker

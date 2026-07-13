@@ -10,8 +10,7 @@ import type { NotificationAction, NotificationOptions } from 'asyar-sdk/contract
  *
  * The `callerExtensionId` first argument is injected automatically by
  * `ExtensionIpcRouter` (via `INJECTS_EXTENSION_ID`); the host dispatch
- * shape therefore differs from the SDK's `INotificationService` (which
- * is what extensions see), so we don't declare `implements` here.
+ * shape includes the caller identity injected by the feedback facade.
  */
 export class NotificationService {
   async checkPermission(): Promise<boolean> {

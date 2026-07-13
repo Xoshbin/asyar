@@ -3,7 +3,7 @@ import DefaultView from './DefaultView.svelte'; // Import renamed component
 import { actionService } from '../../services/action/actionService.svelte';
 import { logService } from '../../services/log/logService';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 
@@ -48,7 +48,7 @@ async function assertTextSendable(actionTitle: string): Promise<string | null> {
 
   if (item.type === ClipboardItemType.Image || item.type === ClipboardItemType.Files) {
     const typeName = item.type === ClipboardItemType.Image ? 'Image' : 'File';
-    await diagnosticsService.report({
+    await feedbackService.report({
       source: 'frontend',
       kind: 'manual',
       severity: 'error',
@@ -122,7 +122,7 @@ class ClipboardHistoryExtension implements Extension {
         this.registerViewActions();
         this.refreshClipboardData().catch((e) => {
           this.logService?.error(`refreshClipboardData failed: ${e}`);
-          diagnosticsService.report({
+          feedbackService.report({
             source: 'frontend',
             kind: 'manual',
             severity: 'warning',

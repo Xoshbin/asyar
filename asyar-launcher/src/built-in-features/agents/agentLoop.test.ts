@@ -33,8 +33,8 @@ vi.mock('./toolDispatch', () => ({
   invokeTool: vi.fn(),
 }));
 
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 
 vi.mock('../../services/run/runService.svelte', () => ({
@@ -59,7 +59,7 @@ import { streamChat } from '../../services/ai/aiEngine';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { agentService } from './agentService.svelte';
 import * as commands from '../../lib/ipc/commands';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { invokeTool } from './toolDispatch';
 import { runService } from '../../services/run/runService.svelte';
 import type { LocalRunHandle } from '../../services/run/runService.svelte';
@@ -271,7 +271,7 @@ describe('runAgent', () => {
     vi.mocked(settingsService.getSettings).mockReturnValue(makeSettings('') as never);
 
     await expect(runAgent({ agentId: 'a1', threadId: 't1', userText: 'hi' })).rejects.toThrow();
-    expect(diagnosticsService.report).toHaveBeenCalled();
+    expect(feedbackService.report).toHaveBeenCalled();
   });
 
   // 5 ── Includes systemPrompt as system message ─────────────────────────────
@@ -349,7 +349,7 @@ describe('runAgent', () => {
     expect(assistantCall).toBeDefined();
     expect((assistantCall![0].content as { text: string }).text).toBe('first-token');
 
-    expect(diagnosticsService.report).toHaveBeenCalled();
+    expect(feedbackService.report).toHaveBeenCalled();
   });
 
   // 8 ── Does not persist assistant message when no tokens received ──────────
@@ -528,7 +528,7 @@ describe('runAgent', () => {
 
     await expect(runAgent({ agentId: 'a1', threadId: 't1', userText: 'run it' })).rejects.toThrow();
 
-    expect(diagnosticsService.report).toHaveBeenCalled();
+    expect(feedbackService.report).toHaveBeenCalled();
 
     // tool result message must NOT be persisted
     const calls = vi.mocked(agentService.insertMessage).mock.calls;
@@ -610,7 +610,7 @@ describe('runAgent', () => {
     expect(vi.mocked(invokeTool).mock.calls.length).toBeLessThanOrEqual(20);
     // Must not run indefinitely — guard must kick in
     expect(vi.mocked(invokeTool).mock.calls.length).toBeGreaterThan(0);
-    expect(diagnosticsService.report).toHaveBeenCalled();
+    expect(feedbackService.report).toHaveBeenCalled();
   });
 
   // 18 ── Prior tool messages included in history passed to provider ──────────
@@ -1080,7 +1080,7 @@ describe('runAgent', () => {
 
     expect(runService.startLocal).not.toHaveBeenCalled();
     expect(agentService.insertMessage).not.toHaveBeenCalled();
-    expect(diagnosticsService.report).not.toHaveBeenCalled();
+    expect(feedbackService.report).not.toHaveBeenCalled();
   });
 
   // 33 ── abort mid-loop: done() and fail() are NOT called ──────────────────

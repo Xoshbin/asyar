@@ -103,11 +103,7 @@ const shell = context.getService<IShellService>('shell');
 const feedback = context.getService<IFeedbackService>('feedback');
 
 async function convertVideo(inputPath: string, outputPath: string) {
-  const toast = await feedback.showToast({
-    title: 'Converting…',
-    message: 'Starting ffmpeg',
-    style: 'animated',
-  });
+  const progress = await feedback.showProgress({ title: 'Starting ffmpeg' });
 
   const handle = shell.spawn({
     program: 'ffmpeg',
@@ -117,7 +113,7 @@ async function convertVideo(inputPath: string, outputPath: string) {
   // ffmpeg writes progress to stderr
   handle.onChunk(({ stream, data }) => {
     if (stream === 'stderr' && data.startsWith('frame=')) {
-      feedback.updateToast(toast.id, { message: data.trim() });
+      void progress.update({ title: data.trim() });
     }
   });
 
@@ -125,17 +121,13 @@ async function convertVideo(inputPath: string, outputPath: string) {
     if (exitCode === 0) {
       feedback.showHUD('Conversion complete');
     } else {
-      feedback.updateToast(toast.id, {
-        title: 'Conversion failed',
-        message: `ffmpeg exited with code ${exitCode}`,
-        style: 'failure',
-      });
+      void progress.fail('Conversion failed', `ffmpeg exited with code ${exitCode}`);
     }
   });
 
   handle.onError(({ code, message }) => {
     if (code === 'ABORTED') return; // user cancelled
-    feedback.updateToast(toast.id, { title: 'Error', message, style: 'failure' });
+    void progress.fail('Conversion failed', message);
   });
 
   // Optionally abort if the user navigates away

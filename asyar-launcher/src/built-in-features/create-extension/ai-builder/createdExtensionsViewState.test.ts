@@ -8,8 +8,8 @@ vi.mock('./createdExtensions', () => ({
   listCreatedExtensions: mockList,
   searchCreatedExtensions: mockSearch,
 }));
-vi.mock('../../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: mockReport },
+vi.mock('../../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: mockReport },
 }));
 
 import { createdExtensionsViewState } from './createdExtensionsViewState.svelte';

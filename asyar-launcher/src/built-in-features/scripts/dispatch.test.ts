@@ -4,8 +4,8 @@ vi.mock('../../services/shell/shellService.svelte', () => ({
   shellService: { spawn: vi.fn(async () => ({ streaming: true })) },
 }));
 
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn(async () => {}) },
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn(async () => {}) },
 }));
 
 vi.mock('./scriptsManager.svelte', () => ({
@@ -16,7 +16,7 @@ vi.mock('./scriptsManager.svelte', () => ({
 
 import { dispatchScriptCommand } from './dispatch';
 import { shellService } from '../../services/shell/shellService.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { scriptsManager } from './scriptsManager.svelte';
 import type { ScannedScript } from './types';
 
@@ -53,7 +53,7 @@ describe('dispatchScriptCommand', () => {
       'cmd_scripts_dyn_dyn123',
       'My Script',
     );
-    expect(diagnosticsService.report).not.toHaveBeenCalled();
+    expect(feedbackService.report).not.toHaveBeenCalled();
   });
 
   it('dispatch_passes_script_title_as_run_label', async () => {
@@ -98,7 +98,7 @@ describe('dispatchScriptCommand', () => {
 
     await dispatchScriptCommand('ghost', undefined);
 
-    expect(diagnosticsService.report).toHaveBeenCalledWith(
+    expect(feedbackService.report).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'action_failed' }),
     );
     expect(shellService.spawn).not.toHaveBeenCalled();

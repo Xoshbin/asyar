@@ -8,12 +8,12 @@ owns its own `ExtensionContext`. Services are accessed through
 ```typescript
 // Worker iframe — src/main.worker.ts
 import { ExtensionContext } from 'asyar-sdk/worker';
-import type { INotificationService } from 'asyar-sdk/contracts';
+import type { IFeedbackService } from 'asyar-sdk/contracts';
 
 const context = new ExtensionContext();
 context.setExtensionId(extensionId);
 
-const notifications = context.getService<INotificationService>('notifications');
+const feedback = context.getService<IFeedbackService>('feedback');
 ```
 
 ```typescript
@@ -47,7 +47,6 @@ expands the placement guidance.
 | Service Name               | Interface                   | Runs in                        | Permission                                        | Primary Use                                                                                                                            |
 | -------------------------- | --------------------------- | ------------------------------ | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `LogService`               | `ILogService`               | both                           | None                                              | Structured debug/info/warn/error logging                                                                                               |
-| `NotificationService`      | `INotificationService`      | both (callbacks: worker)       | `notifications:send`                              | System notification center                                                                                                             |
 | `ClipboardHistoryService`  | `IClipboardHistoryService`  | view                           | `clipboard:read/write` (stripHtml/stripRtf: none) | Full clipboard access and history                                                                                                      |
 | `NetworkService`           | `INetworkService`           | both                           | `network`                                         | Outbound HTTP requests                                                                                                                 |
 | `SettingsService`          | `ISettingsService`          | view                           | None                                              | Persistent key-value storage (legacy — prefer `StorageService`)                                                                        |
@@ -89,7 +88,7 @@ expands the placement guidance.
 ## Service pages
 
 - **[LogService](./log-service.md)**
-- **[NotificationService](./notifications.md)**
+- **[Background feedback](./notifications.md)**
 - **[ClipboardHistoryService](./clipboard-history-service.md)**
 - **[NetworkService](./network-service.md)**
 - **[SettingsService](./settings-service.md)**

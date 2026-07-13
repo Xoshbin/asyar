@@ -8,14 +8,12 @@ import { invokeSafe } from '../../lib/ipc/invokeSafe';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 import type { CalcResult } from '../../bindings';
 
-const notificationService = { send: vi.fn() };
+const feedbackService = { sendBackground: vi.fn() };
 const logService = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
 function makeContext(prefs: Record<string, unknown> = {}) {
   return {
-    getService: vi.fn((name: string) =>
-      name === 'notifications' ? notificationService : logService,
-    ),
+    getService: vi.fn((name: string) => (name === 'feedback' ? feedbackService : logService)),
     preferences: { values: prefs },
   } as any;
 }
@@ -99,6 +97,6 @@ describe('calculator extension (thin presenter)', () => {
     await result.action?.();
 
     expect(writeText).toHaveBeenCalledWith('62.14 miles');
-    expect(notificationService.send).toHaveBeenCalled();
+    expect(feedbackService.sendBackground).toHaveBeenCalled();
   });
 });

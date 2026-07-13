@@ -518,7 +518,7 @@ describe('manifest validation — permissions', () => {
   // otherwise authors who declare the right permission can't publish.
   const launcherGatedPermissions = [
     'fs:watch',
-    'diagnostics:report',
+    'feedback:announce',
     'preferences:read',
     'preferences:write',
     'tools:register',

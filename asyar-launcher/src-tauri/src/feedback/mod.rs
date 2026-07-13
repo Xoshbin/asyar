@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
+pub mod channel;
 pub mod crash_reporter;
 
 /// The 3-state crash-report consent, read from settings.dat.

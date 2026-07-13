@@ -4,7 +4,7 @@
  * Asserts `window.__ASYAR_ROLE__ === "worker"` at module load, before any
  * proxy is instantiated. Mis-imports fail fast with a clear message.
  *
- * Does NOT re-export the full SDK surface. Feedback, selection, interop,
+ * Does NOT re-export the full SDK surface. Selection, interop,
  * clipboard-history, icons, and other DOM-dependent helpers are kept out
  * of the worker's import graph so the worker bundle stays small and is
  * mechanically incapable of touching the document.
@@ -26,7 +26,6 @@ import type { Namespace } from './ipc/namespaces';
 import type { BaseServiceProxy } from './services/BaseServiceProxy';
 
 import { LogServiceProxy } from './services/LogServiceProxy';
-import { NotificationServiceProxy } from './services/NotificationServiceProxy';
 import { StorageServiceProxy } from './services/StorageServiceProxy';
 import { CacheServiceProxy } from './services/CacheServiceProxy';
 import { SearchServiceProxy } from './services/SearchServiceProxy';
@@ -46,7 +45,7 @@ import { StatusBarServiceProxy } from './services/StatusBarServiceProxy';
 import { CommandServiceProxy } from './services/CommandServiceProxy';
 import { ExtensionStateProxy } from './services/ExtensionStateProxy';
 import { ActionServiceProxy } from './services/ActionServiceProxy';
-import { DiagnosticsServiceProxy } from './services/DiagnosticsServiceProxy';
+import { FeedbackServiceProxy } from './services/FeedbackServiceProxy';
 import { OnboardingServiceProxy } from './services/OnboardingServiceProxy';
 import { RunServiceProxy } from './services/RunServiceProxy';
 import { ToolsServiceProxy } from './services/ToolsServiceProxy';
@@ -60,7 +59,6 @@ import { ExtensionContextCore } from './ExtensionContextCore';
 function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
   return {
     log: new LogServiceProxy(),
-    notifications: new NotificationServiceProxy(),
     storage: new StorageServiceProxy(),
     cache: new CacheServiceProxy(),
     search: new SearchServiceProxy(),
@@ -79,7 +77,7 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     statusBar: new StatusBarServiceProxy(),
     commands: new CommandServiceProxy(),
     state: new ExtensionStateProxy(),
-    diagnostics: new DiagnosticsServiceProxy(),
+    feedback: new FeedbackServiceProxy(),
     onboarding: new OnboardingServiceProxy(),
     runs: new RunServiceProxy(),
     tools: new ToolsServiceProxy(),
@@ -167,7 +165,7 @@ if (typeof window !== 'undefined' && window.parent !== window) {
   window.addEventListener('error', (e: ErrorEvent) => {
     window.parent.postMessage(
       {
-        type: 'asyar:diagnostics:uncaught',
+        type: 'asyar:feedback:uncaught',
         payload: {
           kind: 'iframe_uncaught',
           developerDetail: e.error?.stack ?? String(e.message),
@@ -179,7 +177,7 @@ if (typeof window !== 'undefined' && window.parent !== window) {
   window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
     window.parent.postMessage(
       {
-        type: 'asyar:diagnostics:uncaught',
+        type: 'asyar:feedback:uncaught',
         payload: {
           kind: 'iframe_unhandled_rejection',
           developerDetail: String(e.reason),

@@ -2,7 +2,6 @@ import type { Namespace } from './ipc/namespaces';
 import type { BaseServiceProxy } from './services/BaseServiceProxy';
 import {
   LogServiceProxy,
-  NotificationServiceProxy,
   ClipboardHistoryServiceProxy,
   ExtensionManagerProxy,
   CommandServiceProxy,
@@ -30,7 +29,6 @@ import { ProcessServiceProxy } from './services/ProcessServiceProxy';
 import { SystemEventsServiceProxy } from './services/SystemEventsServiceProxy';
 import { TimerServiceProxy } from './services/TimerServiceProxy';
 import { ExtensionStateProxy } from './services/ExtensionStateProxy';
-import { DiagnosticsServiceProxy } from './services/DiagnosticsServiceProxy';
 import { OnboardingServiceProxy } from './services/OnboardingServiceProxy';
 import { BrowserServiceProxy } from './services/BrowserServiceProxy';
 import { FilesServiceProxy } from './services/FilesServiceProxy';
@@ -49,7 +47,6 @@ export type { ExtensionContextRole } from './ExtensionContextCore';
 function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
   return {
     log: new LogServiceProxy(),
-    notifications: new NotificationServiceProxy(),
     clipboard: new ClipboardHistoryServiceProxy(),
     extensions: new ExtensionManagerProxy(),
     commands: new CommandServiceProxy(),
@@ -76,7 +73,6 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     systemEvents: new SystemEventsServiceProxy(),
     timers: new TimerServiceProxy(),
     state: new ExtensionStateProxy(),
-    diagnostics: new DiagnosticsServiceProxy(),
     onboarding: new OnboardingServiceProxy(),
     browser: new BrowserServiceProxy(),
     files: new FilesServiceProxy(),
@@ -102,7 +98,7 @@ export class ExtensionContext extends ExtensionContextCore {
       window.addEventListener('error', (e: ErrorEvent) => {
         window.parent.postMessage(
           {
-            type: 'asyar:diagnostics:uncaught',
+            type: 'asyar:feedback:uncaught',
             payload: {
               kind: 'iframe_uncaught',
               developerDetail: e.error?.stack ?? String(e.message),
@@ -114,7 +110,7 @@ export class ExtensionContext extends ExtensionContextCore {
       window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
         window.parent.postMessage(
           {
-            type: 'asyar:diagnostics:uncaught',
+            type: 'asyar:feedback:uncaught',
             payload: {
               kind: 'iframe_unhandled_rejection',
               developerDetail: String(e.reason),

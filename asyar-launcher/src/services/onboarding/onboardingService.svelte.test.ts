@@ -4,8 +4,8 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
-vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 
 import { onboardingService } from './onboardingService.svelte';
@@ -71,10 +71,10 @@ describe('onboardingService', () => {
   });
 
   it('reports diagnostics on load failure', async () => {
-    const { diagnosticsService } = await import('../diagnostics/diagnosticsService.svelte');
+    const { feedbackService } = await import('../feedback/feedbackService.svelte');
     vi.mocked(invoke).mockRejectedValueOnce(new Error('boom'));
     await onboardingService.load();
-    expect(diagnosticsService.report).toHaveBeenCalled();
+    expect(feedbackService.report).toHaveBeenCalled();
   });
 });
 

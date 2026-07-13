@@ -151,8 +151,7 @@ describe('scanPathsSync', () => {
 
     expect(() => initScanPathsSync()).not.toThrow();
     await flush();
-    // Nothing to assert on invoke count beyond "it was called"; the
-    // rejection is handled and does not crash the subscriber chain.
-    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(invoke).toHaveBeenLastCalledWith('feedback_publish', expect.any(Object));
   });
 });

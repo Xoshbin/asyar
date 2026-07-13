@@ -8,7 +8,6 @@
   import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
   import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
   import { logService } from '../../services/log/logService';
   import * as commands from '../../lib/ipc/commands';
   import { getRuntimeDownloadSizes, type RuntimeDownload } from '../../lib/ipc/runtimeCommands';
@@ -200,7 +199,7 @@
       await extensionPreferencesService.set(id, command?.cmd.id ?? null, name, value);
     } catch (err) {
       logService.error(`Failed to save preference ${name} for ${id}: ${err}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',

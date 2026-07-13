@@ -9,7 +9,7 @@
     ActionFooter,
   } from '../../components';
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
   import {
     fileSearchViewState,
@@ -203,7 +203,7 @@
     try {
       await recordSelectionForCurrentQuery(item.fileId);
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'file-search/record-selection-failed',
         severity: 'warning',
@@ -214,7 +214,7 @@
     try {
       await openPath(item.path);
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'file-search/open-failed',
         severity: 'error',

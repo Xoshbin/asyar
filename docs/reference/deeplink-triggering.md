@@ -106,7 +106,7 @@ class TaskManager implements Extension {
     const link = this.context.createDeeplink('open-task', { id: taskId });
     // link = "asyar://extensions/com.example.tasks/open-task?id=abc123"
 
-    await this.context.proxies.notifications.notify({
+    await this.context.proxies.feedback.sendBackground({
       title: 'Task created',
       body: `Click to open: ${link}`,
     });

@@ -1,24 +1,43 @@
-/**
- * Visual style for a toast.
- *
- * - `animated` — loading state, no auto-dismiss; the caller is expected to
- *   call `hideToast` once the underlying operation finishes, or report the
- *   outcome via `diagnosticsService.report({ severity: 'success' | 'error', kind: 'manual', ... })`.
- */
-export type ToastStyle = 'animated';
+import type { NotificationOptions } from '../types/NotificationType';
 
-export interface ShowToastOptions {
-  /** Primary message. Required. */
+export type FeedbackSeverity = 'info' | 'success' | 'warning' | 'error' | 'fatal';
+export type FeedbackSource = 'rust' | 'frontend' | 'extension';
+
+export interface FeedbackReport {
+  kind: string;
+  severity: FeedbackSeverity;
+  retryable: boolean;
+  context?: Record<string, string>;
+  developerDetail?: string;
+  retryActionId?: string;
+  reportActionId?: string;
+}
+
+/** Host-stamped feedback shape used by Rust and launcher presenters. */
+export interface Feedback extends FeedbackReport {
+  source: FeedbackSource;
+  extensionId?: string;
+}
+
+export interface FeedbackProgressOptions {
   title: string;
-  /** Optional second line (e.g. error details, secondary info). */
+  completed?: number;
+  total?: number;
+}
+
+export interface FeedbackProgressHandle {
+  update(update: FeedbackProgressOptions): Promise<void>;
+  succeed(title: string): Promise<void>;
+  fail(title: string, developerDetail?: string): Promise<void>;
+  dismiss(): Promise<void>;
+}
+
+/** Rare, host-controlled popup announcement. Not for operation feedback. */
+export interface FeedbackAnnouncement {
+  /** Stable identifier used to suppress repeats. */
+  id: string;
+  title: string;
   message?: string;
-  /** Visual style. Defaults to `animated` (loading look, no auto-dismiss). */
-  style?: ToastStyle;
-  /**
-   * Auto-dismiss in ms. Currently unused (the only style is `'animated'`,
-   * which never auto-dismisses). Reserved for future use.
-   */
-  durationMs?: number;
 }
 
 export interface ConfirmAlertOptions {
@@ -37,37 +56,29 @@ export interface ConfirmAlertOptions {
   variant?: 'default' | 'danger';
 }
 
+export type BackgroundFeedbackOptions = NotificationOptions;
+
 /**
- * Unified in-launcher feedback service.
- *
- * Exposes the three Raycast-style primitives — toast, HUD, confirm dialog —
- * to both Tier 1 built-in features and Tier 2 sandboxed extensions through
- * the same SDK proxy interface.
- *
- * The host service maintains the active toast/dialog and renders them
- * through `<ToastHost />` and `<DialogHost />` mounted at the launcher root.
- * The HUD is rendered in a dedicated transient Tauri window so it survives
- * the main launcher window being hidden.
+ * Unified feedback surface for built-ins and sandboxed extensions.
  */
 export interface IFeedbackService {
-  /**
-   * Show a non-blocking toast at the bottom of the launcher window.
-   * Returns the toast id so the caller can update or hide it later.
-   * Multiple successive calls REPLACE the current toast (only one toast
-   * at a time).
-   */
-  showToast(options: ShowToastOptions): Promise<string>;
+  /** Show normal information, success, warning, or failure in the feedback bar. */
+  report(feedback: FeedbackReport): Promise<void>;
+
+  /** Show a host-managed progress item in the feedback bar. */
+  showProgress(options: FeedbackProgressOptions): Promise<FeedbackProgressHandle>;
 
   /**
-   * Update an existing toast in place (e.g. change the title while still
-   * loading). No-op if the toast id no longer matches the active toast.
+   * Request a rare popup announcement, such as What's New.
+   * Requires `feedback:announce`; the host may suppress the request.
    */
-  updateToast(toastId: string, options: Partial<ShowToastOptions>): Promise<void>;
+  announce(announcement: FeedbackAnnouncement): Promise<void>;
 
-  /**
-   * Dismiss a toast immediately. No-op if not the active toast.
-   */
-  hideToast(toastId: string): Promise<void>;
+  /** Deliver feedback for work that is not attached to a visible Asyar window. */
+  sendBackground(options: BackgroundFeedbackOptions): Promise<string>;
+
+  /** Dismiss background feedback that is no longer relevant. */
+  dismissBackground(feedbackId: string): Promise<void>;
 
   /**
    * Show a HUD message at the bottom of the active screen AND close the

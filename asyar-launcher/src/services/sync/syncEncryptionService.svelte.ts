@@ -7,7 +7,7 @@ import {
   syncE2eeShowRecoveryPhrase,
   syncE2eeUnlock,
 } from '../../lib/ipc/commands';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 import { logService } from '../log/logService';
 
 /**
@@ -73,7 +73,7 @@ export class SyncEncryptionService implements ISyncEncryptionService {
     if (result === null) {
       const err = new Error('sync_e2ee_enrol failed');
       logService.warn(`e2ee enrol failed: ${String(err)}`);
-      await diagnosticsService.report({
+      await feedbackService.report({
         source: 'frontend',
         kind: 'e2ee_enrollment_failed',
         severity: 'error',
@@ -91,7 +91,7 @@ export class SyncEncryptionService implements ISyncEncryptionService {
     if (!ok) {
       const err = new Error('Incorrect passphrase or unlock failed');
       logService.warn(`e2ee unlock failed: ${String(err)}`);
-      await diagnosticsService.report({
+      await feedbackService.report({
         source: 'frontend',
         kind: 'e2ee_passphrase_required',
         severity: 'warning',

@@ -46,10 +46,10 @@ Declare only the verbs you use — a read-only inspection extension can declare 
 #### Example: Pomodoro timer with a notification that reschedules a 5-minute snooze
 
 ```typescript
-import type { INotificationService, ITimerService } from 'asyar-sdk';
+import type { IFeedbackService, ITimerService } from 'asyar-sdk';
 
 const timers = context.getService<ITimerService>('timers');
-const notifications = context.getService<INotificationService>('notifications');
+const feedback = context.getService<IFeedbackService>('feedback');
 
 export async function startPomodoro(): Promise<void> {
   const fireAt = Date.now() + 25 * 60 * 1000;
@@ -57,7 +57,7 @@ export async function startPomodoro(): Promise<void> {
 }
 
 export async function pomodoroEnd(args: Record<string, unknown>): Promise<void> {
-  await notifications.send({
+  await feedback.sendBackground({
     title: 'Pomodoro done',
     body: 'Take a break.',
     actions: [{ id: 'snooze', title: 'Snooze 5 min', commandId: 'pomodoro.start-snooze' }],

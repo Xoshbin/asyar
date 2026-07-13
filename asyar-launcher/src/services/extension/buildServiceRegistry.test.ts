@@ -54,9 +54,6 @@ vi.mock('../storage/extensionCacheService', () => ({
 vi.mock('../feedback/feedbackService.svelte', () => ({
   feedbackService: {},
 }));
-vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: {},
-}));
 vi.mock('../selection/selectionService', () => ({
   selectionService: {},
 }));

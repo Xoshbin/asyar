@@ -15,7 +15,7 @@ import { streamDispatcher } from './streamDispatcher.svelte';
 import { messageBroker, type Namespace } from 'asyar-sdk/contracts';
 import type { ServiceRegistry } from './defineServiceRegistry';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
 
 const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
@@ -60,7 +60,6 @@ export const INJECTS_EXTENSION_ID = new Set<Namespace>([
   'interop',
   'cache',
   'preferences',
-  'notifications',
   'power',
   'screen',
   'process',
@@ -70,7 +69,7 @@ export const INJECTS_EXTENSION_ID = new Set<Namespace>([
   'fsWatcher',
   'state',
   'searchBar',
-  'diagnostics',
+  'feedback',
   'onboarding',
   'runs',
   'tools',
@@ -144,11 +143,11 @@ export class ExtensionIpcRouter {
       // Auto-fault reporting: worker iframes post this envelope directly to the
       // launcher window (not through the SDK proxy bag), so it must be handled
       // before the permission gate and the extensionId validation below.
-      if (type === 'asyar:diagnostics:uncaught') {
+      if (type === 'asyar:feedback:uncaught') {
         const faultExtensionId = this.findExtensionIdForSource(event.source);
         const faultRole = this.findIframeRoleForSource(event.source);
         if (faultExtensionId) {
-          void diagnosticsService.report({
+          void feedbackService.report({
             source: 'extension',
             kind:
               payload?.kind === 'iframe_unhandled_rejection'
@@ -200,7 +199,7 @@ export class ExtensionIpcRouter {
             },
             '*',
           );
-          void diagnosticsService.report({
+          void feedbackService.report({
             source: 'extension',
             kind: classifyProxyError(type, unknownError),
             severity: 'warning',
@@ -228,7 +227,7 @@ export class ExtensionIpcRouter {
             },
             '*',
           );
-          void diagnosticsService.report({
+          void feedbackService.report({
             source: 'extension',
             kind: classifyProxyError(type, permError),
             severity: 'warning',
@@ -348,7 +347,7 @@ export class ExtensionIpcRouter {
           '*',
         );
         if (!(error instanceof HandledDispatchError)) {
-          void diagnosticsService.report({
+          void feedbackService.report({
             source: 'extension',
             kind: classifyProxyError(type, catchError),
             severity: 'warning',

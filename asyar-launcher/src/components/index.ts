@@ -22,11 +22,9 @@ export { default as Select } from './base/Select.svelte';
 // Feedback
 export { default as EmptyState } from './feedback/EmptyState.svelte';
 export { default as ErrorState } from './feedback/ErrorState.svelte';
-export { default as FatalErrorDialog } from './feedback/FatalErrorDialog.svelte';
 export { default as LoadingState } from './feedback/LoadingState.svelte';
 export { default as WarningBanner } from './feedback/WarningBanner.svelte';
 export { default as EntitlementGate } from './feedback/EntitlementGate.svelte';
-export { default as ToastHost } from './feedback/ToastHost.svelte';
 export { default as DialogHost } from './feedback/DialogHost.svelte';
 
 // Layout

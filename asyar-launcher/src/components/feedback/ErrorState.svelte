@@ -1,11 +1,11 @@
 <script lang="ts">
-  import type { Diagnostic } from 'asyar-sdk/contracts';
+  import type { FeedbackItem } from '../../lib/ipc/commands';
   import { DIAGNOSTIC_MESSAGES } from '../../services/diagnostics/messages';
   import type { DiagnosticKind } from '../../services/diagnostics/kinds';
   import { Button, Icon } from '../index';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
-  let { status }: { status: Diagnostic | null } = $props();
+  let { status }: { status: FeedbackItem | null } = $props();
 
   let message = $derived.by(() => {
     if (!status) return '';
@@ -15,7 +15,7 @@
 
   async function onRetry() {
     if (status?.retryable && status?.retryActionId) {
-      await diagnosticsService.triggerRetry(status.retryActionId);
+      await feedbackService.triggerRetry(status.retryActionId);
     }
   }
 </script>

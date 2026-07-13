@@ -22,8 +22,8 @@ vi.mock('../agents/agentService.svelte', () => ({
   },
 }));
 
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn().mockResolvedValue(undefined) },
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn().mockResolvedValue(undefined) },
 }));
 
 const SAMPLE: EmojiFallbackPayload = {

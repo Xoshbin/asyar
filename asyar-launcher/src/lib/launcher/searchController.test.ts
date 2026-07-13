@@ -37,8 +37,8 @@ vi.mock('../../services/extension/extensionManager.svelte', () => ({
   },
 }));
 
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn(), dismiss: vi.fn() },
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn(), dismiss: vi.fn() },
 }));
 
 import { nextContextHint } from './searchController.svelte';

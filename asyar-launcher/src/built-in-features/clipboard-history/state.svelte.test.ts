@@ -20,8 +20,8 @@ vi.mock('../../services/clipboard/stores/clipboardHistoryStore.svelte', () => ({
   },
 }));
 
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 
 vi.mock('../../services/log/logService', () => ({

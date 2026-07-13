@@ -18,19 +18,19 @@ vi.mock('../../services/action/actionService.svelte', () => ({
   actionService: { registerAction: vi.fn(), unregisterAction: vi.fn() },
 }));
 
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 
 import { getUsageStats, sendUsageNow } from '../../lib/ipc/commands';
 import { actionService } from '../../services/action/actionService.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import extension from './index';
 
 const mockRegister = actionService.registerAction as ReturnType<typeof vi.fn>;
 const mockUnregister = actionService.unregisterAction as ReturnType<typeof vi.fn>;
 const mockSendUsageNow = sendUsageNow as ReturnType<typeof vi.fn>;
-const mockReport = diagnosticsService.report as ReturnType<typeof vi.fn>;
+const mockReport = feedbackService.report as ReturnType<typeof vi.fn>;
 
 function mockContext() {
   return {

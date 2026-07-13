@@ -8,7 +8,6 @@
   import { actionService } from '../../services/action/actionService.svelte';
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
   import { filterActions } from './actionFilter';
   import { scrollSelectedIntoView } from '../../lib/listScroll';
   import { useListSelection } from '../../lib/listSelection.svelte';
@@ -104,7 +103,7 @@
 
     try {
       await actionService.executeAction(actionId);
-      await diagnosticsService.report({
+      await feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'success',
@@ -114,7 +113,7 @@
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       logService.error(`[ActionListPopup] Failed to execute action ${actionId}: ${error}`);
-      await diagnosticsService.report({
+      await feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',

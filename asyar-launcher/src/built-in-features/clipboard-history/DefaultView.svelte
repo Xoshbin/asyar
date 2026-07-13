@@ -26,7 +26,7 @@
     IconButton,
   } from '../../components';
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
 
   const detailDateFormat = new Intl.DateTimeFormat('en-US', {
@@ -122,7 +122,7 @@
         }
       })
       .catch((err) => {
-        diagnosticsService.report({
+        feedbackService.report({
           source: 'frontend',
           kind: 'clipboard/get-item-failed',
           severity: 'error',
@@ -178,7 +178,7 @@
           if (q) void onSearchChanged(q);
         });
       } catch (err) {
-        diagnosticsService.report({
+        feedbackService.report({
           source: 'frontend',
           kind: 'clipboard/fts-listener-failed',
           severity: 'error',
@@ -302,7 +302,7 @@
         await clipboardViewState.handleItemAction(full as unknown as ClipboardHistoryItem, 'paste');
       }
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'clipboard/paste-failed',
         severity: 'error',
@@ -377,7 +377,7 @@
       await revealItemInDir(path);
     } catch (error) {
       logService.error(`Failed to reveal file ${path}: ${error}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',

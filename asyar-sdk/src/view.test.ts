@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const VIEW_PROXY_NAMESPACES = [
   'log',
-  'notifications',
   'clipboard',
   'extensions',
   'commands',
@@ -30,7 +29,6 @@ const VIEW_PROXY_NAMESPACES = [
   'systemEvents',
   'timers',
   'state',
-  'diagnostics',
   'onboarding',
   'browser',
   'files',

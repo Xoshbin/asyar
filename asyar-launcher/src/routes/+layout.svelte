@@ -4,8 +4,8 @@
   import { listen } from '@tauri-apps/api/event';
   import { logService } from '../services/log/logService';
   import PreferencesPromptHost from '../components/settings/PreferencesPromptHost.svelte';
-  import { diagnosticsService } from '../services/diagnostics/diagnosticsService.svelte';
-  import type { Diagnostic } from 'asyar-sdk/contracts';
+  import { feedbackService } from '../services/feedback/feedbackService.svelte';
+  import type { HostFeedbackReport } from '../services/feedback/feedbackService.svelte';
   import { settingsService } from '../services/settings/settingsService.svelte';
   import { applyThemePreference } from '../services/theme/themeMode';
   import { mcpService } from '../built-in-features/mcp/mcpService.svelte';
@@ -37,9 +37,10 @@
   });
 
   onMount(() => {
+    void feedbackService.initialize();
     const errorHandler = (e: ErrorEvent) => {
       const detail = e.error?.stack ?? extractErrorMessage(e.message);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'uncaught_exception',
         severity: 'error',
@@ -52,7 +53,7 @@
     };
     const rejectHandler = (e: PromiseRejectionEvent) => {
       const detail = extractErrorMessage(e.reason);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'unhandled_rejection',
         severity: 'error',
@@ -63,8 +64,8 @@
     };
     window.addEventListener('error', errorHandler);
     window.addEventListener('unhandledrejection', rejectHandler);
-    const unlistenPromise = listen<Diagnostic>('diagnostics:report', (event) => {
-      diagnosticsService.report(event.payload);
+    const unlistenPromise = listen<HostFeedbackReport>('feedback:report', (event) => {
+      feedbackService.report(event.payload);
     });
     return () => {
       window.removeEventListener('error', errorHandler);
@@ -76,7 +77,7 @@
 
 <svelte:boundary
   onerror={(err: unknown) =>
-    diagnosticsService.report({
+    feedbackService.report({
       source: 'frontend',
       kind: 'render_error',
       severity: 'error',
