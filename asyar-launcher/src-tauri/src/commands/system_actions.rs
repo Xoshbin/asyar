@@ -11,13 +11,19 @@ use tauri::State;
 
 /// Actions the current machine supports, in display order. Drives which
 /// dynamic commands the `system` built-in feature registers in search.
+///
+/// Both commands are `async` so the blocking platform work (D-Bus calls on
+/// Linux, process spawns on macOS, `SetSuspendState` blocking until resume
+/// on Windows) runs on Tauri's thread pool instead of the main thread.
 #[tauri::command]
-pub fn system_actions_supported(state: State<'_, SystemActionsState>) -> Vec<SystemAction> {
-    state.supported()
+pub async fn system_actions_supported(
+    state: State<'_, SystemActionsState>,
+) -> Result<Vec<SystemAction>, AppError> {
+    Ok(state.supported())
 }
 
 #[tauri::command]
-pub fn system_action_run(
+pub async fn system_action_run(
     state: State<'_, SystemActionsState>,
     action: SystemAction,
 ) -> Result<(), AppError> {

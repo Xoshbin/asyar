@@ -4,10 +4,12 @@
 //! frameworks:
 //!
 //! - Sleep: `pmset sleepnow` — no TCC consent needed.
-//! - Lock: `CGSession -suspend` — returns to the login window (the
-//!   session keeps running; visually and security-wise equivalent to a
-//!   lock). Avoids the private `SACLockScreenImmediate` API and the
-//!   Accessibility consent that the ⌃⌘Q keystroke route would require.
+//! - Lock: `pmset displaysleepnow` — sleeps the display, which locks the
+//!   session under the default "require password after display sleep"
+//!   security setting. No TCC consent needed. (The historical
+//!   `CGSession -suspend` binary was removed in macOS 11; a hard lock
+//!   without it needs either the private `SACLockScreenImmediate` API or
+//!   an Accessibility-consented ⌃⌘Q keystroke — deliberately avoided.)
 //! - Log out / Restart / Shut down: `osascript` telling System Events —
 //!   same graceful semantics as the Apple-menu items (apps may prompt to
 //!   save). First use triggers a one-time Automation consent prompt for
@@ -19,9 +21,6 @@
 use crate::error::AppError;
 use crate::system_actions::{SystemAction, SystemActionsBackend};
 use std::process::Command;
-
-const CGSESSION: &str =
-    "/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession";
 
 pub struct MacSystemActionsBackend;
 
@@ -78,8 +77,8 @@ impl SystemActionsBackend for MacSystemActionsBackend {
                 run_checked("pmset sleepnow", Command::new("pmset").arg("sleepnow"))
             }
             SystemAction::LockScreen => run_checked(
-                "CGSession -suspend",
-                Command::new(CGSESSION).arg("-suspend"),
+                "pmset displaysleepnow",
+                Command::new("pmset").arg("displaysleepnow"),
             ),
             SystemAction::LogOut => system_events("log out"),
             SystemAction::Restart => system_events("restart"),
