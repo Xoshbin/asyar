@@ -18,7 +18,7 @@
   import { openInEditor } from './openInEditor';
   import { publishExtension } from './publishExtension';
   import { runtimeService } from '../../../services/runtime/runtimeService.svelte';
-  import { formatRuntimeDownloadStatus } from './runtimeDownloadStatus';
+  import { formatRuntimeDownloadStatus } from '../../../services/runtime/runtimeDownloadStatus';
 
   // ── local reactive state ──────────────────────────────────────────────────
   let prompt = $state('');

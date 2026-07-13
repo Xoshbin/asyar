@@ -11,9 +11,14 @@
   import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
   import { logService } from '../../services/log/logService';
   import * as commands from '../../lib/ipc/commands';
-  import { getRuntimeDownloadSizes } from '../../lib/ipc/runtimeCommands';
+  import { getRuntimeDownloadSizes, type RuntimeDownload } from '../../lib/ipc/runtimeCommands';
   import { downloadDeclaredRuntimes } from '../../services/extension/runtimeDownloads';
   import extensionManager from '../../services/extension/extensionManager.svelte';
+  import { runtimeService } from '../../services/runtime/runtimeService.svelte';
+  import {
+    formatRuntimeDownloadStatus,
+    describeMissingRuntimesForConfirm,
+  } from '../../services/runtime/runtimeDownloadStatus';
 
   let {
     extension = null,
@@ -43,6 +48,13 @@
   let needsPermissionReview = $state(false);
   let isDownloadingRuntime = $state(false);
   let needsRuntimeDownload = $state(false);
+  let missingRuntimes = $state<RuntimeDownload[]>([]);
+
+  const runtimeDownloadLabel = $derived(
+    isDownloadingRuntime
+      ? formatRuntimeDownloadStatus(runtimeService.downloadProgress, 'Downloading…')
+      : 'Download runtime',
+  );
 
   // Settings is a separate webview from the main window (see the consent
   // effect below), so it can't see the main window's in-memory
@@ -54,18 +66,23 @@
     const status = await commands.checkExtensionConsent(extensionId);
     const declared = status?.declaredRuntimes ?? [];
     if (declared.length === 0) {
-      if (extension?.id === extensionId) needsRuntimeDownload = false;
+      if (extension?.id === extensionId) {
+        needsRuntimeDownload = false;
+        missingRuntimes = [];
+      }
       return;
     }
     const missing = await getRuntimeDownloadSizes(declared);
     if (extension?.id === extensionId) {
       needsRuntimeDownload = missing.length > 0;
+      missingRuntimes = missing;
     }
   }
 
   $effect(() => {
     const ext = extension;
     needsRuntimeDownload = false;
+    missingRuntimes = [];
     if (ext?.id && !ext.isBuiltIn) {
       refreshRuntimeStatus(ext.id);
     }
@@ -74,6 +91,19 @@
   async function retryRuntimeDownload() {
     const ext = extension;
     if (!ext?.id) return;
+    // No silent downloads — confirm before pulling potentially hundreds of
+    // MB, same principle the Store install flow already follows. The badge
+    // already told the user *that* something's missing; this confirms
+    // *what* and *how big* before actually starting.
+    if (missingRuntimes.length > 0) {
+      const { title, message } = describeMissingRuntimesForConfirm(missingRuntimes);
+      const confirmed = await feedbackService.confirmAlert({
+        title,
+        message,
+        confirmText: 'Download',
+      });
+      if (!confirmed) return;
+    }
     isDownloadingRuntime = true;
     try {
       await downloadDeclaredRuntimes(ext.id);
@@ -298,7 +328,7 @@
             onclick={retryRuntimeDownload}
             disabled={isDownloadingRuntime}
           >
-            {isDownloadingRuntime ? 'Downloading…' : 'Download runtime'}
+            {runtimeDownloadLabel}
           </button>
         </div>
         <p class="panel-desc">

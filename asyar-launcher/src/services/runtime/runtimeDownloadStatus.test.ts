@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { formatRuntimeDownloadStatus } from './runtimeDownloadStatus';
+import {
+  formatRuntimeDownloadStatus,
+  describeMissingRuntimesForConfirm,
+} from './runtimeDownloadStatus';
 
 describe('formatRuntimeDownloadStatus', () => {
   it('returns the fallback when there is no progress yet', () => {
@@ -18,7 +21,7 @@ describe('formatRuntimeDownloadStatus', () => {
       'Starting…',
     );
     // 12_300_000 / 1024² ≈ 11.7 MiB, 60_200_000 / 1024² ≈ 57.4 MiB — this
-    // formatter matches RuntimeBatchConsentDialog's binary (1024-based) MB.
+    // formatter matches the confirm-dialog's binary (1024-based) MB.
     expect(result).toBe('Downloading… 11.7 MB / 57.4 MB');
   });
 
@@ -54,5 +57,25 @@ describe('formatRuntimeDownloadStatus', () => {
     expect(
       formatRuntimeDownloadStatus({ status: 'failed', error: 'network error' }, 'Starting…'),
     ).toBe('Download failed');
+  });
+});
+
+describe('describeMissingRuntimesForConfirm', () => {
+  it('describes a single missing runtime with a singular title', () => {
+    const result = describeMissingRuntimesForConfirm([{ name: 'uv', sizeBytes: 45_000_000 }]);
+    expect(result.title).toBe('Download required runtime?');
+    expect(result.message).toContain('uv (42.9 MB)');
+    expect(result.message).toContain('totaling 42.9 MB');
+  });
+
+  it('describes multiple missing runtimes with a plural title and combined total', () => {
+    const result = describeMissingRuntimesForConfirm([
+      { name: 'bun', sizeBytes: 60_000_000 },
+      { name: 'claude', sizeBytes: 240_000_000 },
+    ]);
+    expect(result.title).toBe('Download required runtimes?');
+    expect(result.message).toContain('bun (57.2 MB)');
+    expect(result.message).toContain('claude (228.9 MB)');
+    expect(result.message).toContain('totaling 286.1 MB');
   });
 });
