@@ -1,6 +1,7 @@
 <script lang="ts">
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { fadeIn } from '$lib/transitions';
+  import { IconButton } from '../index';
 </script>
 
 {#snippet announcementBody(announcement: NonNullable<typeof feedbackService.activeAnnouncement>)}
@@ -17,29 +18,30 @@
 
 {#if feedbackService.activeAnnouncement}
   {@const announcement = feedbackService.activeAnnouncement}
-  {#if announcement.onClick}
-    <div
-      class="toast-host toast-clickable"
-      transition:fadeIn={{ duration: 150 }}
-      role="status"
-      aria-live="polite"
-    >
+  <div
+    class="toast-host"
+    class:toast-clickable={Boolean(announcement.onClick)}
+    transition:fadeIn={{ duration: 150 }}
+    role="status"
+    aria-live="polite"
+  >
+    {#if announcement.onClick}
       <button class="toast-action" onclick={() => feedbackService.onAnnouncementClicked()}>
         {@render announcementBody(announcement)}
       </button>
-      <button
-        class="toast-dismiss"
-        aria-label="Dismiss announcement"
-        onclick={() => feedbackService.onAnnouncementDismissed()}
-      >
-        ✕
-      </button>
-    </div>
-  {:else}
-    <div class="toast-host" role="status" aria-live="polite" transition:fadeIn={{ duration: 150 }}>
+    {:else}
       {@render announcementBody(announcement)}
-    </div>
-  {/if}
+    {/if}
+    <IconButton
+      class="toast-dismiss"
+      ariaLabel="Dismiss announcement"
+      title="Dismiss announcement"
+      size="sm"
+      onclick={() => feedbackService.onAnnouncementDismissed()}
+    >
+      ×
+    </IconButton>
+  </div>
 {/if}
 
 <style>
@@ -59,17 +61,12 @@
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-popup);
     z-index: 60;
-    pointer-events: none;
+    pointer-events: auto;
   }
 
   :global(html[data-platform='linux']) .toast-host {
     backdrop-filter: none;
     background-color: var(--bg-popup);
-  }
-
-  /* Actionable variant: body button runs the action, ✕ dismisses. */
-  .toast-clickable {
-    pointer-events: auto;
   }
 
   .toast-clickable:hover {
@@ -88,24 +85,6 @@
     color: inherit;
     text-align: left;
     cursor: pointer;
-  }
-
-  .toast-dismiss {
-    flex-shrink: 0;
-    background: none;
-    border: none;
-    padding: 2px 5px;
-    border-radius: var(--radius-xs);
-    font-size: 11px;
-    line-height: 1;
-    color: var(--text-tertiary);
-    cursor: pointer;
-    transition: var(--transition-fast);
-  }
-
-  .toast-dismiss:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
   }
 
   .toast-icon {
