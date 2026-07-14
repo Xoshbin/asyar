@@ -191,6 +191,38 @@ impl FeedbackChannel {
         false
     }
 
+    /// Remove the item from its current slot (current or queue) and re-insert it
+    /// using the full priority-displacement logic, without the transient coalescing
+    /// guard. Use this when an item's severity changes after it was admitted.
+    pub fn replace_sorted(&mut self, item: FeedbackItem) -> bool {
+        let id = item.id.clone();
+        let was_current = self.current.as_ref().is_some_and(|c| c.id == id);
+        if was_current {
+            self.current = self.queued.pop_front();
+        } else if self.queued.iter().any(|q| q.id == id) {
+            self.queued.retain(|q| q.id != id);
+        } else {
+            return false;
+        }
+        let Some(current) = self.current.as_ref() else {
+            self.current = Some(item);
+            return true;
+        };
+        if item.severity.priority() > current.severity.priority() {
+            if let Some(displaced) = self.current.replace(item) {
+                self.queued.push_front(displaced);
+            }
+        } else {
+            let position = self
+                .queued
+                .iter()
+                .position(|q| item.severity.priority() > q.severity.priority())
+                .unwrap_or(self.queued.len());
+            self.queued.insert(position, item);
+        }
+        true
+    }
+
     pub fn accept_announcement(&mut self, extension_id: &str, _announcement_id: &str) -> bool {
         self.announcers_seen.insert(extension_id.to_string())
     }
@@ -286,7 +318,7 @@ impl FeedbackChannelState {
         item.developer_detail = developer_detail;
         item.progress = None;
         item.context.insert("message".into(), title);
-        Ok(channel.replace(item))
+        Ok(channel.replace_sorted(item))
     }
 
     pub fn accept_announcement(
@@ -467,5 +499,38 @@ mod tests {
             serde_json::to_value(FeedbackSeverity::Fatal).unwrap(),
             serde_json::json!("fatal")
         );
+    }
+
+    #[test]
+    fn queued_item_escalating_severity_displaces_lower_priority_current() {
+        let mut channel = FeedbackChannel::default();
+        // "warning" is current; "progress" is queued behind it.
+        channel.publish(item("warning", FeedbackSeverity::Warning), 0);
+        channel.publish(item("progress", FeedbackSeverity::Progress), 1);
+
+        assert_eq!(channel.current().map(|i| i.id.as_str()), Some("warning"));
+        assert_eq!(channel.queued_len(), 1);
+
+        // "progress" finishes and escalates to Fatal — must displace "warning".
+        let mut escalated = item("progress", FeedbackSeverity::Fatal);
+        escalated.progress = None;
+        let replaced = channel.replace_sorted(escalated);
+
+        assert!(replaced);
+        assert_eq!(channel.current().map(|i| i.id.as_str()), Some("progress"));
+        assert_eq!(channel.queued_len(), 1);
+        assert_eq!(
+            channel.queued.front().map(|i| i.id.as_str()),
+            Some("warning")
+        );
+    }
+
+    #[test]
+    fn replace_sorted_returns_false_for_unknown_id() {
+        let mut channel = FeedbackChannel::default();
+        channel.publish(item("a", FeedbackSeverity::Info), 0);
+
+        assert!(!channel.replace_sorted(item("unknown", FeedbackSeverity::Fatal)));
+        assert_eq!(channel.current().map(|i| i.id.as_str()), Some("a"));
     }
 }
