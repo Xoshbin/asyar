@@ -107,9 +107,18 @@ impl KeyringTokenStore {
         });
 
         let mut paired = Vec::new();
+        let mut cache_updates = Vec::new();
         for key in known_keys {
-            if let Ok(Some(_)) = self.backend.read(&account_for(&key)) {
+            if let Ok(Some(token)) = self.backend.read(&account_for(&key)) {
+                cache_updates.push((key.clone(), Some(token)));
                 paired.push(key);
+            }
+        }
+
+        if !cache_updates.is_empty() {
+            let mut cache = self.cache.write().unwrap();
+            for (key, val) in cache_updates {
+                cache.insert(key, val);
             }
         }
 
