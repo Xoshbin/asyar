@@ -23,7 +23,7 @@ describe('feedback facade boundary', () => {
   it('is the only launcher module allowed to access native feedback children', () => {
     const allowed = new Set(['services/feedback/feedbackService.svelte.ts']);
     const directChildAccess =
-      /services\/notification\/notificationService|\bcommands\.(?:showHud|hideHud|feedback(?:Publish|GetCurrent|UpdateProgress|FinishProgress|Dismiss|AcceptAnnouncement))\b|\bfeedback(?:Publish|GetCurrent|UpdateProgress|FinishProgress|Dismiss|AcceptAnnouncement)\s*\(/;
+      /services\/(?:diagnostics\/diagnosticsService|notification\/notificationService)|\bdiagnosticsService\.|\bcommands\.(?:showHud|hideHud|feedback(?:Publish|GetCurrent|UpdateProgress|FinishProgress|Dismiss|AcceptAnnouncement))\b|\bfeedback(?:Publish|GetCurrent|UpdateProgress|FinishProgress|Dismiss|AcceptAnnouncement)\s*\(/;
 
     expect(violations(directChildAccess, allowed)).toEqual([]);
   });

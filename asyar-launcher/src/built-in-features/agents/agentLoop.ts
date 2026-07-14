@@ -64,7 +64,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
   const config = settings.ai.providers[agent.providerId as keyof typeof settings.ai.providers];
   if (!config) {
     const msg = `Provider '${agent.providerId}' is not configured`;
-    await diagnosticsService.report({
+    await feedbackService.report({
       source: 'frontend',
       kind: 'manual',
       severity: 'error',
@@ -86,7 +86,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
   }
   if (plugin.requiresBaseUrl && !config.baseUrl?.trim()) {
     const msg = `Base URL for provider '${agent.providerId}' is not configured`;
-    await diagnosticsService.report({
+    await feedbackService.report({
       source: 'frontend',
       kind: 'manual',
       severity: 'error',

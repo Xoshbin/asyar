@@ -441,7 +441,7 @@ describe('dispatchSilentAgentCommand — failures', () => {
 
     expect(streamChat).toHaveBeenCalled();
     expect(writeText).toHaveBeenCalledWith('Current result');
-    expect(notificationService.send).not.toHaveBeenCalled();
+    expect(feedbackService.report).not.toHaveBeenCalled();
   });
 });
 

@@ -275,6 +275,51 @@ describe('runAgent', () => {
     expect(feedbackService.report).toHaveBeenCalled();
   });
 
+  it('runAgent_reports_when_provider_config_missing', async () => {
+    vi.mocked(settingsService.getSettings).mockReturnValue({
+      ai: { providers: {}, temperature: 0.7, maxTokens: 2048 },
+    } as never);
+
+    await expect(runAgent({ agentId: 'a1', threadId: 't1', userText: 'hi' })).rejects.toThrow(
+      /not configured/,
+    );
+    expect(feedbackService.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'error',
+        context: { message: "Provider 'openai' is not configured" },
+      }),
+    );
+  });
+
+  it('runAgent_reports_when_required_baseUrl_missing', async () => {
+    vi.mocked(agentService.getById).mockReturnValue(makeAgent({ providerId: 'custom' }) as never);
+    vi.mocked(getProvider).mockReturnValue({
+      ...makePlugin(),
+      id: 'custom',
+      name: 'Custom',
+      requiresApiKey: false,
+      optionalApiKey: true,
+      requiresBaseUrl: true,
+    } as never);
+    vi.mocked(settingsService.getSettings).mockReturnValue({
+      ai: {
+        providers: { custom: { enabled: true } },
+        temperature: 0.7,
+        maxTokens: 2048,
+      },
+    } as never);
+
+    await expect(runAgent({ agentId: 'a1', threadId: 't1', userText: 'hi' })).rejects.toThrow(
+      /Base URL/,
+    );
+    expect(feedbackService.report).toHaveBeenCalledWith(
+      expect.objectContaining({
+        severity: 'error',
+        context: { message: "Base URL for provider 'custom' is not configured" },
+      }),
+    );
+  });
+
   it('runAgent_allows_custom_provider_without_apiKey', async () => {
     vi.mocked(agentService.getById).mockReturnValue(makeAgent({ providerId: 'custom' }) as never);
     vi.mocked(getProvider).mockReturnValue({
