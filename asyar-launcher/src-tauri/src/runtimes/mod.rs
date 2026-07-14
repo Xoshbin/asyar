@@ -89,10 +89,8 @@ pub(crate) enum EnsureResult {
     NeedsDownload { size_bytes: u64 },
 }
 
-/// Rejects runtime names that could escape the runtimes root once joined
-/// into a filesystem path: empty, containing `..`, or already absolute
-/// (`Path::join` discards the base entirely when the RHS is absolute, so an
-/// unvalidated absolute name silently redirects the join outside the root).
+/// Accepts only a single plain directory name, rejecting empty names, path
+/// separators, traversal components, roots, and platform-specific prefixes.
 pub(crate) fn validate_runtime_name(name: &str) -> Result<(), AppError> {
     if name.trim().is_empty() {
         return Err(AppError::Validation(
@@ -104,9 +102,24 @@ pub(crate) fn validate_runtime_name(name: &str) -> Result<(), AppError> {
             "Runtime name '{name}' contains invalid characters"
         )));
     }
-    if Path::new(name).is_absolute() {
+    // A runtime name must be exactly one plain path component. NOT
+    // `is_absolute()`: on Windows that requires a drive prefix AND a root,
+    // so it misses unix-absolute names (`/etc`) and drive-prefixed ones
+    // (`C:evil`, which `Path::join` would let replace the whole runtimes
+    // root). The single-component rule also rejects `.` — which
+    // `remove_from_root` would otherwise resolve to the runtimes root
+    // itself and `remove_dir_all` every installed runtime — and any
+    // separator-containing name.
+    let contains_path_separator = name.chars().any(|c| matches!(c, '/' | '\\'));
+    let mut components = Path::new(name).components();
+    if contains_path_separator
+        || !matches!(
+            (components.next(), components.next()),
+            (Some(std::path::Component::Normal(_)), None)
+        )
+    {
         return Err(AppError::Validation(format!(
-            "Runtime name '{name}' must not be an absolute path"
+            "Runtime name '{name}' must be a single plain directory name"
         )));
     }
     Ok(())
@@ -839,7 +852,8 @@ mod tests {
         let root = tmp.path().join("runtimes");
         let bun_dir = root.join("bun").join("1.1.0");
         std::fs::create_dir_all(&bun_dir).unwrap();
-        std::fs::write(bun_dir.join("bun"), b"binary").unwrap();
+        // binary_file_name, not a literal: the lookup expects `bun.exe` on Windows.
+        std::fs::write(bun_dir.join(binary_file_name("bun")), b"binary").unwrap();
 
         assert!(installed_binary_path(&root, "bun").is_some());
 
@@ -916,7 +930,39 @@ mod tests {
 
     #[test]
     fn validate_runtime_name_rejects_absolute_path() {
+        // Component check (not `is_absolute`) so this rejects on Windows
+        // too, where "/etc" has a root but no drive prefix.
         assert!(validate_runtime_name("/etc").is_err());
+    }
+
+    #[test]
+    fn validate_runtime_name_rejects_dot_and_multi_component_names() {
+        // "." would make remove_from_root target the runtimes root itself.
+        assert!(validate_runtime_name(".").is_err());
+        assert!(validate_runtime_name("./bun").is_err());
+        assert!(validate_runtime_name("bun/sub").is_err());
+    }
+
+    #[test]
+    fn validate_runtime_name_rejects_separator_aliases() {
+        // Path::components normalizes these to one Normal("bun") component,
+        // but runtime names are identifiers, not alternate path spellings.
+        for name in ["bun/", "bun//", "bun/.", "bun\\", "bun\\."] {
+            assert!(
+                validate_runtime_name(name).is_err(),
+                "runtime name {name:?} must be rejected"
+            );
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn validate_runtime_name_rejects_drive_prefixed_and_rootful_names_on_windows() {
+        assert!(validate_runtime_name(r"C:\evil").is_err());
+        // Drive-relative: no root, but `Path::join` would still replace the
+        // runtimes root with it.
+        assert!(validate_runtime_name("C:evil").is_err());
+        assert!(validate_runtime_name(r"\etc").is_err());
     }
 
     #[test]
@@ -972,6 +1018,19 @@ mod tests {
 
         assert!(result.is_ok());
         assert!(!root.join("bun").exists());
+    }
+
+    #[test]
+    fn remove_from_root_rejects_separator_alias_and_leaves_runtime_untouched() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path().join("runtimes");
+        let runtime_dir = root.join("bun");
+        std::fs::create_dir_all(&runtime_dir).unwrap();
+
+        let result = remove_from_root(&root, "bun/");
+
+        assert!(result.is_err());
+        assert!(runtime_dir.exists());
     }
 
     #[test]
