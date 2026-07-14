@@ -89,10 +89,8 @@ pub(crate) enum EnsureResult {
     NeedsDownload { size_bytes: u64 },
 }
 
-/// Rejects runtime names that could escape the runtimes root once joined
-/// into a filesystem path: empty, containing `..`, or already absolute
-/// (`Path::join` discards the base entirely when the RHS is absolute, so an
-/// unvalidated absolute name silently redirects the join outside the root).
+/// Accepts only a single plain directory name, rejecting empty names, path
+/// separators, traversal components, roots, and platform-specific prefixes.
 pub(crate) fn validate_runtime_name(name: &str) -> Result<(), AppError> {
     if name.trim().is_empty() {
         return Err(AppError::Validation(
@@ -112,11 +110,14 @@ pub(crate) fn validate_runtime_name(name: &str) -> Result<(), AppError> {
     // `remove_from_root` would otherwise resolve to the runtimes root
     // itself and `remove_dir_all` every installed runtime — and any
     // separator-containing name.
+    let contains_path_separator = name.chars().any(|c| matches!(c, '/' | '\\'));
     let mut components = Path::new(name).components();
-    if !matches!(
-        (components.next(), components.next()),
-        (Some(std::path::Component::Normal(_)), None)
-    ) {
+    if contains_path_separator
+        || !matches!(
+            (components.next(), components.next()),
+            (Some(std::path::Component::Normal(_)), None)
+        )
+    {
         return Err(AppError::Validation(format!(
             "Runtime name '{name}' must be a single plain directory name"
         )));
@@ -942,6 +943,18 @@ mod tests {
         assert!(validate_runtime_name("bun/sub").is_err());
     }
 
+    #[test]
+    fn validate_runtime_name_rejects_separator_aliases() {
+        // Path::components normalizes these to one Normal("bun") component,
+        // but runtime names are identifiers, not alternate path spellings.
+        for name in ["bun/", "bun//", "bun/.", "bun\\", "bun\\."] {
+            assert!(
+                validate_runtime_name(name).is_err(),
+                "runtime name {name:?} must be rejected"
+            );
+        }
+    }
+
     #[cfg(windows)]
     #[test]
     fn validate_runtime_name_rejects_drive_prefixed_and_rootful_names_on_windows() {
@@ -1005,6 +1018,19 @@ mod tests {
 
         assert!(result.is_ok());
         assert!(!root.join("bun").exists());
+    }
+
+    #[test]
+    fn remove_from_root_rejects_separator_alias_and_leaves_runtime_untouched() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path().join("runtimes");
+        let runtime_dir = root.join("bun");
+        std::fs::create_dir_all(&runtime_dir).unwrap();
+
+        let result = remove_from_root(&root, "bun/");
+
+        assert!(result.is_err());
+        assert!(runtime_dir.exists());
     }
 
     #[test]
