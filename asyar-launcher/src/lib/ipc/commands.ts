@@ -1782,6 +1782,16 @@ export async function agentsInvokeBuiltinTool(id: string, args: unknown): Promis
   return invokeSafe('agents_invoke_builtin_tool', { id, args });
 }
 
+export async function aiStreamChat(
+  providerId: string,
+  config: ProviderConfig,
+  messages: ChatMessage[],
+  params: ChatParams,
+  streamId: string,
+): Promise<void> {
+  await invokeSafe('ai_stream_chat', { providerId, config, messages, params, streamId });
+}
+
 // ── Feedback submission ───────────────────────────────────────────────────────
 
 export interface FeedbackInput {

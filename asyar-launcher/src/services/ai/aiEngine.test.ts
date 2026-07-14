@@ -1,6 +1,20 @@
-import { describe, expect, it } from 'vitest';
-import { requestTimeoutMs, resolveChatParams } from './aiEngine';
+import { vi, describe, expect, it, beforeEach } from 'vitest';
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(),
+}));
+
+let mockListener: (event: any) => void = () => {};
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn((_eventName, cb) => {
+    mockListener = cb;
+    return Promise.resolve(() => {});
+  }),
+}));
+
+import { requestTimeoutMs, resolveChatParams, streamChat } from './aiEngine';
 import type { ChatMessage, ChatParams } from './IProviderPlugin';
+import { invoke } from '@tauri-apps/api/core';
 
 describe('requestTimeoutMs', () => {
   it('keeps the normal chat timeout at 30 seconds', () => {
@@ -38,5 +52,70 @@ describe('resolveChatParams', () => {
     ];
 
     expect(resolveChatParams(messages, explicit)).toBe(explicit);
+  });
+});
+
+describe('streamChat via Rust', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('delegates streaming to the Rust tauri command and listens to events', async () => {
+    const onToken = vi.fn();
+    const onDone = vi.fn();
+    const onError = vi.fn();
+
+    const mockPlugin = {
+      id: 'openai' as any,
+      name: 'OpenAI',
+      requiresApiKey: true,
+      requiresBaseUrl: false,
+      supportsTools: true as const,
+      getModels: vi.fn(),
+      buildRequest: vi.fn(),
+      parseStream: vi.fn(),
+      buildToolRequest: vi.fn(),
+      parseToolStream: vi.fn(),
+    };
+
+    const streamPromise = streamChat(
+      mockPlugin,
+      { enabled: true, apiKey: 'test' },
+      [{ id: '1', role: 'user', content: 'hello', timestamp: 0 }],
+      { modelId: 'gpt-4o', temperature: 0.7, maxTokens: 100 },
+      { onToken, onDone, onError },
+      new AbortController().signal,
+      'stream-123',
+    );
+
+    // Verify it invokes the tauri command
+    expect(invoke).toHaveBeenCalledWith('ai_stream_chat', expect.any(Object));
+
+    // Simulate events from Rust
+    mockListener({
+      payload: {
+        streamId: 'stream-123',
+        event: { type: 'token', token: 'hello ' },
+      },
+    });
+    mockListener({
+      payload: {
+        streamId: 'stream-123',
+        event: { type: 'token', token: 'world' },
+      },
+    });
+    mockListener({
+      payload: {
+        streamId: 'stream-123',
+        event: { type: 'done' },
+      },
+    });
+
+    await streamPromise;
+
+    expect(onToken).toHaveBeenCalledWith('hello ');
+    expect(onToken).toHaveBeenCalledWith('world');
+    expect(onDone).toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
   });
 });

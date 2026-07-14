@@ -362,7 +362,13 @@ mod bindings_export {
             .register::<crate::file_index::types::IndexStateKind>()
             .register::<crate::file_index::types::WorkMeter>()
             .register::<crate::calculator::CalcResult>()
-            .register::<crate::calculator::CalcKind>();
+            .register::<crate::calculator::CalcKind>()
+            .register::<crate::ai::types::ChatMessage>()
+            .register::<crate::ai::types::ProviderConfig>()
+            .register::<crate::ai::types::ChatParams>()
+            .register::<crate::ai::types::ChatStreamEvent>()
+            .register::<crate::ai::types::StreamEventPayload>()
+            .register::<crate::ai::types::ChatStreamEventPayload>();
 
         Typescript::default()
             .bigint(BigIntExportBehavior::Number)

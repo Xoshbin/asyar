@@ -1,4 +1,6 @@
-import { fetch } from '@tauri-apps/plugin-http';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import type { StreamEventPayload } from '../../bindings';
 import type {
   IProviderPlugin,
   ProviderConfig,
@@ -57,11 +59,7 @@ export function resolveChatParams(messages: ChatMessage[], params: ChatParams): 
 
 /**
  * Provider-agnostic streaming engine.
- * - 30 s timeout for normal requests; 120 s when hosted web search is enabled
- * - HTTP 429 → onError('rate_limited: ...')
- * - Non-2xx → reads error body, calls onError
- * - Stream failure mid-response → onError (partial tokens already delivered are kept)
- * - Clean abort (signal cancelled) → call onDone, NOT onError
+ * Delegates streaming and SSE parsing to the Rust Tauri command.
  */
 export async function streamChat(
   plugin: IProviderPlugin,
@@ -80,86 +78,61 @@ export async function streamChat(
   const controller = new AbortController();
   activeControllers.set(streamId, controller);
 
-  const timeoutId = setTimeout(() => controller.abort(), requestTimeoutMs(config));
-
-  // When external signal aborts, forward to our controller
+  // Setup abort handling
   const onExternalAbort = () => controller.abort();
   signal.addEventListener('abort', onExternalAbort, { once: true });
 
-  const mergedSignal = controller.signal;
+  let resolveStream: () => void;
+  const streamFinishedPromise = new Promise<void>((resolve) => {
+    resolveStream = resolve;
+  });
+
+  const unlistenPromise = listen('ai-stream-event', (event) => {
+    const payload = event.payload as StreamEventPayload;
+    if (payload.streamId !== streamId) return;
+
+    if (controller.signal.aborted) return;
+
+    const ev = payload.event;
+    if (ev.type === 'token') {
+      handlers.onToken(ev.token);
+    } else if (ev.type === 'status') {
+      handlers.onStatus?.(ev.status as any);
+    } else if (ev.type === 'done') {
+      resolveStream();
+    } else if (ev.type === 'error') {
+      handlers.onError(ev.error);
+      resolveStream();
+    }
+  });
+
+  controller.signal.addEventListener('abort', () => resolveStream(), { once: true });
 
   try {
-    const spec = plugin.buildRequest(messages, config, resolveChatParams(messages, params));
+    const resolved = resolveChatParams(messages, params);
 
-    const response = await fetch(spec.url, {
-      method: 'POST',
-      headers: spec.headers,
-      body: JSON.stringify(spec.body),
-      signal: mergedSignal,
+    await invoke('ai_stream_chat', {
+      providerId: plugin.id,
+      config,
+      messages,
+      params: resolved,
+      streamId,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => `HTTP ${response.status}`);
-      let friendlyError: string;
-      try {
-        const errJson = JSON.parse(errorText);
-        friendlyError = errJson.error?.message ?? errJson.message ?? errorText;
-      } catch {
-        friendlyError = errorText || `HTTP ${response.status}`;
-      }
+    await streamFinishedPromise;
 
-      if (response.status === 429) {
-        handlers.onError(`rate_limited: ${friendlyError}`);
-      } else {
-        handlers.onError(`API error: ${friendlyError}`);
-      }
-      return;
-    }
-
-    if (!response.body) {
-      handlers.onError('No response body received.');
-      return;
-    }
-
-    const reader = response.body.getReader();
-
-    try {
-      let hasActiveStatus = false;
-      for await (const event of plugin.parseStream(reader, config)) {
-        if (mergedSignal.aborted) break;
-        if (typeof event === 'string') {
-          if (hasActiveStatus) {
-            handlers.onStatus?.(null);
-            hasActiveStatus = false;
-          }
-          handlers.onToken(event);
-        } else if (event.type === 'status') {
-          hasActiveStatus = true;
-          handlers.onStatus?.(event.status);
-        }
-      }
-      if (hasActiveStatus) handlers.onStatus?.(null);
-    } finally {
-      reader.releaseLock();
-    }
-
-    if (!mergedSignal.aborted) {
-      handlers.onDone();
-    } else if (signal.aborted) {
-      // External abort — call onDone (clean shutdown)
+    if (!signal.aborted) {
       handlers.onDone();
     }
-    // else: timeout abort — let catch handle it
-  } catch (err: unknown) {
-    if ((err as Error)?.name === 'AbortError') {
-      // Clean abort (external signal or timeout)
+  } catch (err: any) {
+    if (signal.aborted) {
       handlers.onDone();
     } else {
-      handlers.onError((err as Error)?.message ?? 'Unknown error');
+      handlers.onError(err?.message ?? 'Unknown error');
     }
   } finally {
-    clearTimeout(timeoutId);
     signal.removeEventListener('abort', onExternalAbort);
     activeControllers.delete(streamId);
+    unlistenPromise.then((unlisten) => unlisten());
   }
 }

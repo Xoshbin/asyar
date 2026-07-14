@@ -42,6 +42,24 @@ export type CalcResult = {
 	kind: CalcKind,
 };
 
+export type ChatMessage = {
+	id: string,
+	role: string,
+	content: string,
+	timestamp: number,
+};
+
+export type ChatParams = {
+	modelId: string,
+	temperature: number,
+	maxTokens: number,
+	systemPrompt: string | null,
+};
+
+export type ChatStreamEvent = { type: "token"; token: string } | { type: "status"; status: string };
+
+export type ChatStreamEventPayload = { type: "token"; token: string } | { type: "status"; status: string } | { type: "done" } | { type: "error"; error: string };
+
 export type Command = {
 	id: string,
 	name: string,
@@ -157,6 +175,16 @@ export type MergedSearchResponse = {
 	aliasMatch?: AliasMatch | null,
 };
 
+export type ProviderConfig = {
+	enabled: boolean,
+	apiKey: string | null,
+	baseUrl: string | null,
+	lastModelId: string | null,
+	openAiApiMode: string | null,
+	hostedWebSearch: boolean | null,
+	reasoningEffort: string | null,
+};
+
 /**
  *  A frontend-supplied item to be ranked against a query. The `id` is opaque
  *  to Rust — it is returned verbatim, best-match first, so the caller can map
@@ -195,6 +223,11 @@ export type SearchResult = {
 };
 
 export type SearchableItem = { category: "application" } & Application | { category: "command" } & Command;
+
+export type StreamEventPayload = {
+	streamId: string,
+	event: ChatStreamEventPayload,
+};
 
 // Per-item tier classification result, returned by `classify_many`.
 export type TierResult = {

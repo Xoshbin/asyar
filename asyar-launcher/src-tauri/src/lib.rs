@@ -656,6 +656,7 @@ pub fn run() {
             commands::agents::agents_backfill_thread_titles,
             commands::agents::agents_message_insert,
             commands::agents::agents_messages_list,
+            ai::commands::ai_stream_chat,
             // Agent tools registry
             agents::tools::agents_tools_list,
             agents::tools::agents_tools_register_tier2,
