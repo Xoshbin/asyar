@@ -8,7 +8,24 @@ export interface OpenAIToolDescriptor {
   parameters: Record<string, unknown>;
 }
 
-export function openAIToolsMessages(messages: LoopMessage[]): unknown[] {
+export interface ToolsMessagesOptions {
+  /**
+   * How to encode a prior tool call's `arguments` when echoing it back in the
+   * conversation history. The OpenAI Chat Completions wire format (and the
+   * providers that speak it — openai, openrouter, custom) expects a JSON
+   * *string*. Ollama's native `/api/chat`, however, expects a JSON *object*
+   * and rejects a string with `400 "Value looks like object, but can't find
+   * closing '}' symbol"`, which breaks every multi-turn tool loop. Default
+   * `true` preserves OpenAI behavior; Ollama passes `false`.
+   */
+  stringifyToolArgs?: boolean;
+}
+
+export function openAIToolsMessages(
+  messages: LoopMessage[],
+  opts: ToolsMessagesOptions = {},
+): unknown[] {
+  const { stringifyToolArgs = true } = opts;
   const result: unknown[] = [];
   for (const msg of messages) {
     if (msg.role === 'system') {
@@ -26,7 +43,7 @@ export function openAIToolsMessages(messages: LoopMessage[]): unknown[] {
           type: 'function',
           function: {
             name: encodeToolIdForWire(tu.name),
-            arguments: JSON.stringify(tu.input),
+            arguments: stringifyToolArgs ? JSON.stringify(tu.input) : tu.input,
           },
         }));
       }
@@ -43,11 +60,12 @@ export function buildOpenAIToolsBody(
   messages: LoopMessage[],
   params: ChatParams,
   tools: OpenAIToolDescriptor[],
+  opts: ToolsMessagesOptions = {},
 ): unknown {
   const body: Record<string, unknown> = {
     model: params.modelId,
     stream: true,
-    messages: openAIToolsMessages(messages),
+    messages: openAIToolsMessages(messages, opts),
     tools: tools.map((t) => ({
       type: 'function',
       function: {
