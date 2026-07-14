@@ -320,6 +320,66 @@ mod tests {
     use notify::event::{AccessKind, AccessMode, CreateKind, Flag, ModifyKind, RemoveKind};
     use std::fs;
 
+    /// Exclusion set with only `pattern`, mirroring `build_exclusion_set`'s
+    /// glob shape. The real-FS tests below use this instead of the full
+    /// default set: the OS temp dir on Windows lives under `AppData/Local`
+    /// — itself a default-ignored pattern — so `build_exclusion_set(&[])`
+    /// would match the test's own watched root and drop every event, which
+    /// is exactly why these tests passed on Linux (`/tmp`) but not Windows.
+    /// The default patterns are verified by the pure-coalescer unit tests.
+    fn exclude_only(pattern: &str) -> GlobSet {
+        let mut b = GlobSetBuilder::new();
+        b.add(Glob::new(&format!("**/{pattern}")).unwrap());
+        b.add(Glob::new(&format!("**/{pattern}/**")).unwrap());
+        b.build().unwrap()
+    }
+
+    fn no_exclusions() -> GlobSet {
+        GlobSetBuilder::new().build().unwrap()
+    }
+
+    /// Upper bound the real-filesystem watcher tests below wait for an
+    /// expected event before giving up. Backend delivery latency varies by
+    /// platform (inotify vs `ReadDirectoryChangesW`); a bounded poll stays
+    /// fast in the common case and only spends the full budget on failure.
+    const WATCHER_EVENT_BUDGET: Duration = Duration::from_secs(10);
+
+    /// Poll `cond` until it holds or `budget` elapses. Returns the final
+    /// value of `cond`.
+    fn wait_until(budget: Duration, mut cond: impl FnMut() -> bool) -> bool {
+        let start = std::time::Instant::now();
+        while start.elapsed() < budget {
+            if cond() {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        cond()
+    }
+
+    /// Confirm the watcher is actually delivering events before the test's
+    /// real writes. On Linux `watch()` arms inotify synchronously, but on
+    /// Windows `ReadDirectoryChangesW` is issued asynchronously by the
+    /// notify backend thread, so a write that races the arming is silently
+    /// missed. Rather than guess a fixed warmup, actively probe: write a
+    /// throwaway file until an event for *anything* lands, then clear it.
+    /// Panics if nothing is ever delivered — that would be a real backend
+    /// failure, not a flaky race. (Production never hits the race: it arms
+    /// once at startup and watches for the process lifetime.)
+    fn await_armed(root: &Path, received: &Arc<Mutex<Vec<IndexUpdate>>>) {
+        let probe = root.join(".asyar-arm-probe");
+        let armed = wait_until(WATCHER_EVENT_BUDGET, || {
+            let _ = fs::write(&probe, b"1");
+            !received.lock().unwrap().is_empty()
+        });
+        assert!(
+            armed,
+            "watcher never delivered a probe event — backend not arming"
+        );
+        let _ = fs::remove_file(&probe);
+        received.lock().unwrap().clear();
+    }
+
     fn ev(kind: EventKind, path: &Path) -> notify::Event {
         notify::Event::new(kind).add_path(path.to_path_buf())
     }
@@ -527,7 +587,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(root.join("node_modules")).unwrap();
 
-        let exclusions = build_exclusion_set(&[]);
+        let exclusions = exclude_only("node_modules");
         let received: Arc<Mutex<Vec<IndexUpdate>>> = Arc::new(Mutex::new(Vec::new()));
         let received_cb = received.clone();
         let rescans = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -542,14 +602,23 @@ mod tests {
             },
         )
         .expect("watcher starts");
+        await_armed(&root, &received);
 
         // Excluded: must never surface.
         fs::write(root.join("node_modules/pkg.json"), "{}").unwrap();
         // Not excluded: must surface.
         fs::write(root.join("keep.txt"), "hi").unwrap();
 
-        // Give the coalesce window (500ms) time to flush.
-        std::thread::sleep(Duration::from_millis(1200));
+        let has_kept = || {
+            received.lock().unwrap().iter().any(|u| match u {
+                IndexUpdate::Upserted(e) => e.path.ends_with("keep.txt"),
+                IndexUpdate::Removed(p) => p.ends_with("keep.txt"),
+            })
+        };
+        wait_until(WATCHER_EVENT_BUDGET, has_kept);
+        // Give any excluded event that was going to leak a flush window to
+        // arrive, so the negative assertion isn't merely racing it.
+        std::thread::sleep(Duration::from_millis(600));
         drop(watcher);
 
         let updates = received.lock().unwrap();
@@ -557,15 +626,17 @@ mod tests {
             IndexUpdate::Upserted(e) => e.path.to_string_lossy().contains("node_modules"),
             IndexUpdate::Removed(p) => p.to_string_lossy().contains("node_modules"),
         });
-        let has_kept = updates.iter().any(|u| match u {
-            IndexUpdate::Upserted(e) => e.path.ends_with("keep.txt"),
-            IndexUpdate::Removed(p) => p.ends_with("keep.txt"),
-        });
         assert!(
             !has_excluded,
             "node_modules event must be dropped, got {updates:?}"
         );
-        assert!(has_kept, "non-excluded event must surface, got {updates:?}");
+        assert!(
+            updates.iter().any(|u| match u {
+                IndexUpdate::Upserted(e) => e.path.ends_with("keep.txt"),
+                IndexUpdate::Removed(p) => p.ends_with("keep.txt"),
+            }),
+            "non-excluded event must surface, got {updates:?}"
+        );
         assert_eq!(rescans.load(std::sync::atomic::Ordering::SeqCst), 0);
 
         let _ = fs::remove_dir_all(&root);
@@ -584,16 +655,30 @@ mod tests {
         let received_cb = received.clone();
         let watcher = start_watcher(
             std::slice::from_ref(&root),
-            build_exclusion_set(&[]),
+            no_exclusions(),
             move |updates| received_cb.lock().unwrap().extend(updates),
             || {},
         )
         .expect("watcher starts");
+        await_armed(&root, &received);
 
         let new = root.join("new-name.txt");
         fs::rename(&old, &new).unwrap();
 
-        std::thread::sleep(Duration::from_millis(1200));
+        let old_removed = || {
+            received
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|u| matches!(u, IndexUpdate::Removed(p) if p.ends_with("old-name.txt")))
+        };
+        let new_upserted =
+            || {
+                received.lock().unwrap().iter().any(
+                    |u| matches!(u, IndexUpdate::Upserted(e) if e.path.ends_with("new-name.txt")),
+                )
+            };
+        wait_until(WATCHER_EVENT_BUDGET, || old_removed() && new_upserted());
         drop(watcher);
 
         let updates = received.lock().unwrap();
