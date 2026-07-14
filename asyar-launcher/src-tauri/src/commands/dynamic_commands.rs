@@ -6,14 +6,9 @@
 //! before invoking these commands — never trust an `extension_id`
 //! coming from a user-supplied payload.
 //!
-//! `replace_dynamic_commands_builtin` is a gate-bypass variant for
-//! first-party built-in extensions (e.g. `scripts`) that have
-//! no worker iframe and therefore cannot pass the `background.main` check.
-//! Only extension ids on `BUILTIN_DYNAMIC_COMMAND_ALLOWLIST` are accepted.
-
-/// Extension ids that may bypass the `background.main` worker gate.
-/// Only first-party built-ins belong here.
-const BUILTIN_DYNAMIC_COMMAND_ALLOWLIST: &[&str] = &["scripts", "agents"];
+//! `replace_dynamic_commands_builtin` is a gate-bypass variant for trusted
+//! first-party built-ins that have no worker iframe and therefore cannot pass
+//! the `background.main` check.
 
 use crate::error::AppError;
 use crate::extensions::dynamic_commands::{
@@ -154,9 +149,8 @@ pub async fn replace_dynamic_commands(
 /// Inner logic for `replace_dynamic_commands_builtin`. Accepts explicit
 /// dependencies so tests can exercise it without a Tauri runtime.
 ///
-/// Gate: rejects `extension_id`s not in `BUILTIN_DYNAMIC_COMMAND_ALLOWLIST`
-/// with `AppError::Validation`. Does NOT check `background.main` — built-in
-/// extensions have no worker iframe by design.
+/// Does not check `background.main` — the Tauri wrapper verifies trusted
+/// built-in provenance before calling this implementation.
 pub(crate) fn replace_dynamic_commands_builtin_impl(
     dynamic_registry: &DynamicCommandRegistry,
     search_state: &crate::search_engine::SearchState,
@@ -168,13 +162,6 @@ pub(crate) fn replace_dynamic_commands_builtin_impl(
         return Err(AppError::Validation(
             "extension_id must not be empty".into(),
         ));
-    }
-
-    if !BUILTIN_DYNAMIC_COMMAND_ALLOWLIST.contains(&extension_id) {
-        return Err(AppError::Validation(format!(
-            "extension '{}' is not in the built-in dynamic commands allowlist",
-            extension_id
-        )));
     }
 
     // Validate every registration before touching any state.
@@ -231,17 +218,38 @@ pub(crate) fn replace_dynamic_commands_builtin_impl(
 /// Replace a built-in extension's dynamic command list, bypassing the
 /// `background.main` worker check.
 ///
-/// Accepts only extension ids declared in `BUILTIN_DYNAMIC_COMMAND_ALLOWLIST`.
+/// Accepts only ids resolved from the trusted built-in extension registry.
 /// All other steps (validation, registry replace, search sync, persistence GC)
 /// are identical to `replace_dynamic_commands`.
+fn ensure_builtin_dynamic_registration(
+    registry_state: &ExtensionRegistryState,
+    extension_id: &str,
+) -> Result<(), AppError> {
+    let guard = registry_state
+        .extensions
+        .lock()
+        .map_err(|_| AppError::Lock)?;
+    let record = guard
+        .get(extension_id)
+        .ok_or_else(|| AppError::NotFound(format!("Extension not found: {extension_id}")))?;
+    if !record.is_built_in {
+        return Err(AppError::Validation(format!(
+            "extension '{extension_id}' is not a built-in feature"
+        )));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn replace_dynamic_commands_builtin(
     extension_id: String,
     regs: Vec<RegisteredCommand>,
+    registry_state: State<'_, ExtensionRegistryState>,
     dynamic_registry: State<'_, DynamicCommandRegistry>,
     search_state: State<'_, std::sync::Arc<crate::search_engine::SearchState>>,
     data_store: State<'_, crate::storage::DataStore>,
 ) -> Result<(), AppError> {
+    ensure_builtin_dynamic_registration(&registry_state, &extension_id)?;
     let conn = data_store.conn()?;
     replace_dynamic_commands_builtin_impl(
         &dynamic_registry,
@@ -302,6 +310,9 @@ pub fn parse_dynamic_object_id(object_id: &str) -> Option<(String, String)> {
 mod tests {
     use super::*;
     use crate::extensions::dynamic_commands::RegisteredCommand;
+    use crate::extensions::{
+        CompatibilityStatus, ExtensionManifest, ExtensionRecord, ExtensionRegistryState,
+    };
     use crate::search_engine::SearchState;
 
     fn make_db_conn() -> rusqlite::Connection {
@@ -320,9 +331,34 @@ mod tests {
         }
     }
 
-    // 9. allowlisted id is accepted and registrations land in registry
+    fn extension_registry_with(id: &str, is_built_in: bool) -> ExtensionRegistryState {
+        let registry = ExtensionRegistryState::new();
+        let manifest: ExtensionManifest = serde_json::from_value(serde_json::json!({
+            "id": id,
+            "name": "Test",
+            "version": "1.0.0",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "commands": []
+        }))
+        .unwrap();
+        registry.extensions.lock().unwrap().insert(
+            id.to_string(),
+            ExtensionRecord {
+                manifest,
+                enabled: true,
+                is_built_in,
+                path: String::new(),
+                compatibility: CompatibilityStatus::Compatible,
+                first_view_component: None,
+            },
+        );
+        registry
+    }
+
+    // 9. trusted built-in registrations land in the registry
     #[test]
-    fn replace_builtin_accepts_allowlisted_id() {
+    fn replace_builtin_registers_commands_after_the_trust_gate() {
         let registry = DynamicCommandRegistry::new();
         let search = SearchState::new_for_test();
         let conn = make_db_conn();
@@ -336,7 +372,7 @@ mod tests {
         );
         assert!(
             result.is_ok(),
-            "allowlisted id must be accepted, got {result:?}"
+            "trusted built-in id must be accepted, got {result:?}"
         );
 
         let stored = registry.get_meta("scripts", "script-1").unwrap();
@@ -347,23 +383,14 @@ mod tests {
         assert_eq!(stored.unwrap().name, "Run Alpha");
     }
 
-    // 10. non-allowlisted id is rejected with AppError::Validation
+    // 10. installed extensions cannot use the built-in bypass
     #[test]
     fn replace_builtin_rejects_unknown_id() {
-        let registry = DynamicCommandRegistry::new();
-        let search = SearchState::new_for_test();
-        let conn = make_db_conn();
-
-        let result = replace_dynamic_commands_builtin_impl(
-            &registry,
-            &search,
-            &conn,
-            "com.example.notbuiltin",
-            vec![rc("x", "X")],
-        );
+        let registry = extension_registry_with("com.example.notbuiltin", false);
+        let result = ensure_builtin_dynamic_registration(&registry, "com.example.notbuiltin");
         assert!(
             matches!(result, Err(AppError::Validation(_))),
-            "non-allowlisted id must return Err(AppError::Validation), got {result:?}"
+            "installed extension must return Err(AppError::Validation), got {result:?}"
         );
     }
 
@@ -462,16 +489,13 @@ mod tests {
     }
 
     #[test]
-    fn builtin_allowlist_contains_agents() {
-        assert!(
-            BUILTIN_DYNAMIC_COMMAND_ALLOWLIST.contains(&"agents"),
-            "'agents' must be in BUILTIN_DYNAMIC_COMMAND_ALLOWLIST so the \
-             built-in feature can bypass the background.main worker gate"
-        );
+    fn builtin_gate_accepts_any_trusted_builtin() {
+        let registry = extension_registry_with("future-built-in", true);
+        assert!(ensure_builtin_dynamic_registration(&registry, "future-built-in").is_ok());
     }
 
     #[test]
-    fn replace_builtin_accepts_agents_id() {
+    fn replace_builtin_impl_accepts_agents_id_after_the_trust_gate() {
         let registry = DynamicCommandRegistry::new();
         let search = SearchState::new_for_test();
         let conn = make_db_conn();
@@ -485,7 +509,7 @@ mod tests {
         );
         assert!(
             result.is_ok(),
-            "allowlisted 'agents' id must be accepted, got {result:?}"
+            "trusted 'agents' id must be accepted, got {result:?}"
         );
     }
 }

@@ -131,6 +131,7 @@ pub mod shell;
 mod snippets;
 pub mod storage;
 pub mod sync;
+pub mod system_actions;
 pub mod system_events;
 pub mod thumbnail;
 pub mod timers;
@@ -249,6 +250,9 @@ pub fn run() {
         .manage(extensions::onboarding_intercept::StashRegistry::default())
         .manage(app_updater::AppUpdaterState::new())
         .manage(power::PowerRegistry::new(power::default_backend()))
+        .manage(std::sync::Arc::new(
+            system_actions::SystemActionsState::new(system_actions::default_backend()),
+        ))
         .manage(std::sync::Arc::new(system_events::SystemEventsHub::new()))
         .manage(std::sync::Arc::new(app_events::AppEventsHub::new()))
         .manage(std::sync::Arc::new(index_events::IndexEventsHub::new()))
@@ -569,6 +573,8 @@ pub fn run() {
             commands::power_keep_awake,
             commands::power_release,
             commands::power_list,
+            commands::system_actions_supported,
+            commands::system_action_run,
             commands::screen_pick_color,
             commands::process::process_list,
             commands::process::process_kill,
