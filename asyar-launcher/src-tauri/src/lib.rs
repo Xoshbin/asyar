@@ -1920,8 +1920,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         use std::sync::Arc;
         use tauri::Emitter;
 
+        let token_store = Arc::new(KeyringTokenStore::new());
+        let token_store_clone = token_store.clone();
+        std::thread::spawn(move || {
+            token_store_clone.load_paired_from_backend();
+        });
+
         let bridge_state = BridgeState {
-            tokens: Arc::new(KeyringTokenStore::new()),
+            tokens: token_store,
             pairing: Arc::new(PairingRegistry::new()),
             connections: Arc::new(CompanionRegistry::new()),
             cache: Arc::new(TabSnapshotCache::new()),

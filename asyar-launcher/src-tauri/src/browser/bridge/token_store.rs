@@ -80,6 +80,50 @@ impl KeyringTokenStore {
     pub fn seed_index(&self, known: Vec<BrowserKey>) {
         *self.index.write().unwrap() = known;
     }
+
+    pub fn load_paired_from_backend(&self) {
+        let mut known_keys = Vec::new();
+
+        // 1. Chromium variants
+        for variant in crate::browser::paths::chromium_variants() {
+            known_keys.push(BrowserKey {
+                family: BrowserFamily::Chromium,
+                variant: variant.id.to_string(),
+            });
+        }
+
+        // 2. Firefox variants
+        for variant in crate::browser::paths::firefox_variants() {
+            known_keys.push(BrowserKey {
+                family: BrowserFamily::Firefox,
+                variant: variant.id.to_string(),
+            });
+        }
+
+        // 3. Safari
+        known_keys.push(BrowserKey {
+            family: BrowserFamily::Safari,
+            variant: "safari".to_string(),
+        });
+
+        let mut paired = Vec::new();
+        let mut cache_updates = Vec::new();
+        for key in known_keys {
+            if let Ok(Some(token)) = self.backend.read(&account_for(&key)) {
+                cache_updates.push((key.clone(), Some(token)));
+                paired.push(key);
+            }
+        }
+
+        if !cache_updates.is_empty() {
+            let mut cache = self.cache.write().unwrap();
+            for (key, val) in cache_updates {
+                cache.insert(key, val);
+            }
+        }
+
+        *self.index.write().unwrap() = paired;
+    }
 }
 
 impl Default for KeyringTokenStore {
@@ -111,6 +155,12 @@ impl TokenStore for KeyringTokenStore {
             .write()
             .unwrap()
             .insert(key.clone(), value.clone());
+        if value.is_some() {
+            let mut idx = self.index.write().unwrap();
+            if !idx.contains(key) {
+                idx.push(key.clone());
+            }
+        }
         Ok(value)
     }
 
@@ -333,5 +383,21 @@ mod tests {
         assert!(token
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'));
+    }
+
+    #[test]
+    fn load_paired_from_backend_populates_index() {
+        let backend = Arc::new(CountingBackend::default());
+        let key = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        backend.write(&account_for(&key), "tok").unwrap();
+
+        let store = KeyringTokenStore::with_backend(backend);
+        assert!(store.list_paired().unwrap().is_empty());
+
+        store.load_paired_from_backend();
+        assert_eq!(store.list_paired().unwrap(), vec![key]);
     }
 }
