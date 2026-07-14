@@ -114,14 +114,21 @@ pub fn feedback_dismiss(
     feedback_id: String,
     expected_extension_id: Option<String>,
 ) -> Result<Option<FeedbackItem>, AppError> {
+    let was_current = state
+        .current()
+        .ok()
+        .flatten()
+        .is_some_and(|current| current.id == feedback_id);
     state
         .dismiss_owned(&feedback_id, expected_extension_id.as_deref())
         .map_err(|_| AppError::Lock)?;
     let current = state.current().map_err(|_| AppError::Lock)?;
     app.emit("feedback:changed", current.clone())
         .map_err(|error| AppError::Other(error.to_string()))?;
-    if let Some(next) = current.as_ref() {
-        schedule_expiry(app, next.id.clone(), next.severity);
+    if was_current {
+        if let Some(next) = current.as_ref() {
+            schedule_expiry(app, next.id.clone(), next.severity);
+        }
     }
     Ok(current)
 }
