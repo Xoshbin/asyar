@@ -7,7 +7,18 @@
 
 use crate::error::AppError;
 use crate::system_actions::{SystemAction, SystemActionsState};
+use std::sync::Arc;
 use tauri::State;
+
+async fn spawn_blocking_result<T, F>(work: F) -> Result<T, AppError>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|e| AppError::Other(format!("system action task failed: {e}")))
+}
 
 /// Actions the current machine supports, in display order. Drives which
 /// dynamic commands the `system` built-in feature registers in search.
@@ -17,21 +28,24 @@ use tauri::State;
 /// on Windows) runs on Tauri's thread pool instead of the main thread.
 #[tauri::command]
 pub async fn system_actions_supported(
-    state: State<'_, SystemActionsState>,
+    state: State<'_, Arc<SystemActionsState>>,
 ) -> Result<Vec<SystemAction>, AppError> {
-    Ok(state.supported())
+    let state = Arc::clone(state.inner());
+    spawn_blocking_result(move || state.supported()).await
 }
 
 #[tauri::command]
 pub async fn system_action_run(
-    state: State<'_, SystemActionsState>,
+    state: State<'_, Arc<SystemActionsState>>,
     action: SystemAction,
 ) -> Result<(), AppError> {
-    state.run(action)
+    let state = Arc::clone(state.inner());
+    spawn_blocking_result(move || state.run(action)).await?
 }
 
 #[cfg(test)]
 mod tests {
+    use super::spawn_blocking_result;
     use crate::system_actions::fake::FakeBackend;
     use crate::system_actions::{SystemAction, SystemActionsState};
 
@@ -53,5 +67,14 @@ mod tests {
         let state = SystemActionsState::new(Box::new(fake.clone()));
         assert!(state.run(SystemAction::ShutDown).is_err());
         assert!(fake.ran.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn blocking_helper_runs_work_off_the_async_thread() {
+        let caller = std::thread::current().id();
+        let worker = spawn_blocking_result(|| std::thread::current().id())
+            .await
+            .expect("blocking task");
+        assert_ne!(caller, worker);
     }
 }

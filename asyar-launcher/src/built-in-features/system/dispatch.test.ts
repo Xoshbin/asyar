@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../lib/ipc/commands', () => ({
   hideWindow: vi.fn(async () => {}),
+  showWindow: vi.fn(async () => {}),
   setFocusLock: vi.fn(async () => {}),
   systemActionRun: vi.fn(async () => true),
 }));
@@ -65,5 +66,14 @@ describe('dispatchSystemCommand', () => {
 
     expect(logService.warn).toHaveBeenCalled();
     expect(commands.systemActionRun).not.toHaveBeenCalled();
+  });
+
+  it('restores the launcher when the platform action fails', async () => {
+    vi.mocked(commands.systemActionRun).mockResolvedValueOnce(false);
+
+    await dispatchSystemCommand('sleep');
+
+    expect(commands.hideWindow).toHaveBeenCalledTimes(1);
+    expect(commands.showWindow).toHaveBeenCalledTimes(1);
   });
 });

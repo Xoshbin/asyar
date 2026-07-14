@@ -1,6 +1,6 @@
 import { platform } from '@tauri-apps/plugin-os';
 import type { SystemActionId } from '../../lib/ipc/commands';
-import { hideWindow, setFocusLock, systemActionRun } from '../../lib/ipc/commands';
+import { hideWindow, setFocusLock, showWindow, systemActionRun } from '../../lib/ipc/commands';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { logService } from '../../services/log/logService';
 import { systemActionSpecs } from './actions';
@@ -38,5 +38,8 @@ export async function dispatchSystemCommand(dynamicId: string): Promise<void> {
   }
 
   await hideWindow();
-  await systemActionRun(spec.id);
+  const succeeded = await systemActionRun(spec.id);
+  if (!succeeded) {
+    await showWindow();
+  }
 }

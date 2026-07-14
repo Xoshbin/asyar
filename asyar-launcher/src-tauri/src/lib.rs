@@ -250,8 +250,8 @@ pub fn run() {
         .manage(extensions::onboarding_intercept::StashRegistry::default())
         .manage(app_updater::AppUpdaterState::new())
         .manage(power::PowerRegistry::new(power::default_backend()))
-        .manage(system_actions::SystemActionsState::new(
-            system_actions::default_backend(),
+        .manage(std::sync::Arc::new(
+            system_actions::SystemActionsState::new(system_actions::default_backend()),
         ))
         .manage(std::sync::Arc::new(system_events::SystemEventsHub::new()))
         .manage(std::sync::Arc::new(app_events::AppEventsHub::new()))

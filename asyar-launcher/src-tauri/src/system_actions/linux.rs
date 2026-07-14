@@ -13,7 +13,7 @@
 //!   logout flow with save prompts.
 
 use crate::error::AppError;
-use crate::system_actions::{SystemAction, SystemActionsBackend};
+use crate::system_actions::{session_actions_for_capabilities, SystemAction, SystemActionsBackend};
 use zbus::blocking::Connection;
 
 const LOGIND_DEST: &str = "org.freedesktop.login1";
@@ -56,6 +56,30 @@ fn logind_can(conn: &Connection, method: &str) -> bool {
     .and_then(|reply| reply.body().deserialize::<String>().ok())
     .map(|answer| answer == "yes" || answer == "challenge")
     .unwrap_or(false)
+}
+
+fn has_logind_session(conn: &Connection) -> bool {
+    conn.call_method(
+        Some(LOGIND_DEST),
+        SESSION_AUTO_PATH,
+        Some("org.freedesktop.DBus.Peer"),
+        "Ping",
+        &(),
+    )
+    .is_ok()
+}
+
+fn has_screensaver() -> bool {
+    let Ok(conn) = Connection::session() else {
+        return false;
+    };
+    let Ok(proxy) = zbus::blocking::fdo::DBusProxy::new(&conn) else {
+        return false;
+    };
+    let Ok(name) = "org.freedesktop.ScreenSaver".try_into() else {
+        return false;
+    };
+    proxy.name_has_owner(name).unwrap_or(false)
 }
 
 fn logind_manager_call(method: &str) -> Result<(), AppError> {
@@ -109,9 +133,10 @@ impl SystemActionsBackend for LinuxSystemActionsBackend {
                 if logind_can(&conn, "CanHibernate") {
                     actions.push(SystemAction::Hibernate);
                 }
-                // Session-scoped actions need no polkit authorization.
-                actions.push(SystemAction::LockScreen);
-                actions.push(SystemAction::LogOut);
+                actions.extend(session_actions_for_capabilities(
+                    has_logind_session(&conn),
+                    has_screensaver(),
+                ));
                 if logind_can(&conn, "CanReboot") {
                     actions.push(SystemAction::Restart);
                 }
@@ -122,9 +147,7 @@ impl SystemActionsBackend for LinuxSystemActionsBackend {
             Err(_) => {
                 // Non-systemd setup: the ScreenSaver interface is the only
                 // action we can still offer.
-                if Connection::session().is_ok() {
-                    actions.push(SystemAction::LockScreen);
-                }
+                actions.extend(session_actions_for_capabilities(false, has_screensaver()));
             }
         }
         actions

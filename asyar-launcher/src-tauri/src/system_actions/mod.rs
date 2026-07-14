@@ -56,6 +56,21 @@ pub trait SystemActionsBackend: Send + Sync {
     fn run(&self, action: SystemAction) -> Result<(), AppError>;
 }
 
+#[cfg(any(target_os = "linux", test))]
+pub(crate) fn session_actions_for_capabilities(
+    has_logind_session: bool,
+    has_screensaver: bool,
+) -> Vec<SystemAction> {
+    let mut actions = Vec::new();
+    if has_logind_session || has_screensaver {
+        actions.push(SystemAction::LockScreen);
+    }
+    if has_logind_session {
+        actions.push(SystemAction::LogOut);
+    }
+    actions
+}
+
 /// Tauri managed state wrapping the platform backend.
 pub struct SystemActionsState {
     backend: Box<dyn SystemActionsBackend>,
@@ -199,5 +214,18 @@ mod tests {
         );
         let round: SystemAction = serde_json::from_str("\"logOut\"").unwrap();
         assert_eq!(round, SystemAction::LogOut);
+    }
+
+    #[test]
+    fn linux_session_actions_require_real_capabilities() {
+        assert_eq!(session_actions_for_capabilities(false, false), vec![]);
+        assert_eq!(
+            session_actions_for_capabilities(false, true),
+            vec![SystemAction::LockScreen]
+        );
+        assert_eq!(
+            session_actions_for_capabilities(true, false),
+            vec![SystemAction::LockScreen, SystemAction::LogOut]
+        );
     }
 }
