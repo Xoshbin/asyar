@@ -48,7 +48,7 @@
       { background?: { main?: string } } | undefined;
     const ok = await forceRemountWorker(extensionId, !!manifest?.background?.main);
     if (ok) {
-      feedbackService.report({
+      void feedbackService.report({
         kind: 'manual',
         severity: 'success',
         retryable: false,
@@ -56,7 +56,7 @@
       });
     } else {
       logService.error(`Failed to hot-reload ${extensionId}`);
-      feedbackService.report({
+      void feedbackService.report({
         kind: 'manual',
         severity: 'error',
         retryable: false,
@@ -82,7 +82,7 @@
       // but in the actual implementation of register_dev_extension, it might be
       // handled by the SDK. For now, we follow the plan and refresh.
       await loadDevExtensions();
-      feedbackService.report({
+      void feedbackService.report({
         kind: 'manual',
         severity: 'success',
         retryable: false,
