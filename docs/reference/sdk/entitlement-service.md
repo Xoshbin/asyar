@@ -43,7 +43,7 @@ const entitlements = context.getService<IEntitlementService>('entitlements');
 if (await entitlements.check('ai:chat')) {
   // proceed with AI call
 } else {
-  await notifications.notify({
+  await feedback.sendBackground({
     title: 'Upgrade required',
     body: 'AI chat requires an active subscription.'
   });

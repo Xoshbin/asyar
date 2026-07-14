@@ -4,8 +4,8 @@ const mockSend = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockNotify = vi.hoisted(() => vi.fn().mockResolvedValue('notif-1'));
 
 vi.mock('./sidecarClient', () => ({ sidecarClient: { send: mockSend } }));
-vi.mock('../../../services/notification/notificationService', () => ({
-  notificationService: { send: mockNotify },
+vi.mock('../../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { sendBackgroundForSource: mockNotify },
 }));
 vi.mock('../../../services/log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },

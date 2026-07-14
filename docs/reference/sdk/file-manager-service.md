@@ -49,10 +49,12 @@ async function revealDownload(path: string) {
   try {
     await fm.showInFileManager(path);
   } catch (err) {
-    await feedback.showToast({
-      title: 'File not found',
-      message: String(err),
-      style: 'failure',
+    await feedback.report({
+      kind: 'not_found',
+      severity: 'error',
+      retryable: false,
+      context: { target: path },
+      developerDetail: String(err),
     });
   }
 }

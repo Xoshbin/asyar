@@ -3,7 +3,7 @@ import type {
   ExtensionContext,
   ExtensionResult,
   ILogService,
-  INotificationService,
+  IFeedbackService,
 } from 'asyar-sdk/contracts';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 
@@ -26,13 +26,13 @@ const KIND_ICONS: Record<CalcResult['kind'], string> = {
 
 class CalculatorExtension implements Extension {
   private logService?: ILogService;
-  private notificationService?: INotificationService;
+  private feedbackService?: IFeedbackService;
 
   onUnload: any;
 
   async initialize(context: ExtensionContext): Promise<void> {
     this.logService = context.getService<ILogService>('log');
-    this.notificationService = context.getService<INotificationService>('notifications');
+    this.feedbackService = context.getService<IFeedbackService>('feedback');
 
     // Forward preferences to Rust, which owns the exchange-rate cache,
     // its TTL policy, and the implicit-conversion target currency.
@@ -84,7 +84,7 @@ class CalculatorExtension implements Extension {
         const copyValue = r.value.replace(/^≈ /, '');
         try {
           await writeText(copyValue);
-          this.notificationService?.send({
+          this.feedbackService?.sendBackground({
             title: 'Calculator',
             body: `Copied: ${copyValue}`,
           });

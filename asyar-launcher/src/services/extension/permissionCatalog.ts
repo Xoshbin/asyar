@@ -158,9 +158,9 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     title: 'Write preferences',
     description: "Change the extension's own preference values.",
   },
-  'diagnostics:report': {
-    title: 'Report diagnostics',
-    description: 'Send diagnostic reports.',
+  'feedback:announce': {
+    title: 'Show rare announcements',
+    description: "Request a host-controlled announcement such as What's New.",
   },
   'tools:register': {
     title: 'Register agent tools',

@@ -84,29 +84,30 @@ describe('checkPermission', () => {
     });
   });
 
-  // ── Notifications ─────────────────────────────────────────────────────────
+  // ── Background feedback ───────────────────────────────────────────────────
 
-  describe('notifications:send', () => {
+  describe('feedback background delivery', () => {
     it('allows send when notifications:send is declared', () => {
       expect(
-        checkPermission('ext', 'asyar:api:notifications:send', ['notifications:send']).allowed,
+        checkPermission('ext', 'asyar:api:feedback:sendBackground', ['notifications:send']).allowed,
       ).toBe(true);
     });
 
     it('allows dismiss when notifications:send is declared', () => {
       expect(
-        checkPermission('ext', 'asyar:api:notifications:dismiss', ['notifications:send']).allowed,
+        checkPermission('ext', 'asyar:api:feedback:dismissBackground', ['notifications:send'])
+          .allowed,
       ).toBe(true);
     });
 
     it('denies send when not declared', () => {
-      const result = checkPermission('ext', 'asyar:api:notifications:send', []);
+      const result = checkPermission('ext', 'asyar:api:feedback:sendBackground', []);
       expect(result.allowed).toBe(false);
       expect(result.requiredPermission).toBe('notifications:send');
     });
 
     it('denies dismiss when not declared', () => {
-      const result = checkPermission('ext', 'asyar:api:notifications:dismiss', []);
+      const result = checkPermission('ext', 'asyar:api:feedback:dismissBackground', []);
       expect(result.allowed).toBe(false);
       expect(result.requiredPermission).toBe('notifications:send');
     });

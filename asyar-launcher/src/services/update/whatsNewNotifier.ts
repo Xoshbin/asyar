@@ -29,11 +29,11 @@ export async function checkAndNotifyWhatsNew(): Promise<void> {
     const shouldShow = await appUpdaterShouldShowWhatsNew(lastSeen, currentVersion);
     if (!shouldShow) return;
 
-    const releaseNotesUrl = `https://github.com/Xoshbin/asyar-launcher/releases/tag/v${currentVersion}`;
-    feedbackService.notice({
+    const releaseNotesUrl = `https://github.com/Xoshbin/asyar/releases/tag/v${currentVersion}`;
+    await feedbackService.announceFromHost({
+      id: `whats-new-${currentVersion}`,
       title: `Updated to v${currentVersion}`,
       message: 'Click to see what changed',
-      style: 'success',
       onClick: async () => {
         await openUrl(releaseNotesUrl);
         await markSeen(currentVersion);

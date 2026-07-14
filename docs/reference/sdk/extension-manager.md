@@ -47,7 +47,7 @@ manager.setActiveViewSubtitle('openai · gpt-4o');
 manager.setActiveViewSubtitle(null); // clear when leaving the view
 ```
 
-> **`setActiveViewSubtitle` is for persistent metadata, not progress.** If you want to show a transient "Saving...", "Saved", or "Failed to fetch" message, use `FeedbackService.showToast(...)` (§8.13). The subtitle has no auto-dismiss; the toast does.
+> **`setActiveViewSubtitle` is for persistent metadata, not progress.** If you want to show transient progress or an outcome, use `FeedbackService.showProgress(...)` or `FeedbackService.report(...)` (§8.13). The subtitle has no lifecycle management; the Feedback Bar does.
 
 **View navigation format:**
 

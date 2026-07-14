@@ -6,7 +6,6 @@ describe('NAMESPACES', () => {
     expect(NAMESPACES).toEqual([
       'log',
       'extensions',
-      'notifications',
       'clipboard',
       'commands',
       'actions',
@@ -19,7 +18,6 @@ describe('NAMESPACES', () => {
       'storage',
       'cache',
       'feedback',
-      'diagnostics',
       'selection',
       'ai',
       'oauth',

@@ -1,11 +1,11 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { shortcutUpsert, shortcutGetAll, shortcutRemove } from '../../lib/ipc/commands';
 import { logService } from '../../services/log/logService';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
 function reportPersistenceFailure(action: string, err: unknown): void {
   logService.error(`[ShortcutStore] ${action}: ${err}`);
-  diagnosticsService.report({
+  feedbackService.report({
     source: 'frontend',
     kind: 'manual',
     severity: 'warning',

@@ -1,20 +1,20 @@
 <script lang="ts">
   import ConfirmDialog from '../base/ConfirmDialog.svelte';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { DIAGNOSTIC_MESSAGES } from '../../services/diagnostics/messages';
   import type { DiagnosticKind } from '../../services/diagnostics/kinds';
 
-  let isOpen = $derived(diagnosticsService.current?.severity === 'fatal');
+  let isOpen = $derived(feedbackService.current?.severity === 'fatal');
   let title = $derived('Asyar encountered a fatal error');
   let message = $derived.by(() => {
-    const c = diagnosticsService.current;
+    const c = feedbackService.current;
     if (!c) return '';
     const t = DIAGNOSTIC_MESSAGES[c.kind as DiagnosticKind];
     return t ? t(c.context ?? {}) : (c.developerDetail ?? 'Unknown error');
   });
 
   function onClose() {
-    diagnosticsService.dismiss();
+    void feedbackService.dismiss();
   }
 </script>
 

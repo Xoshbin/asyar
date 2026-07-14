@@ -57,10 +57,6 @@ vi.mock('./toolDispatch', () => ({
   invokeTool: vi.fn(),
 }));
 
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
-}));
-
 const mockSpinnerReplace = vi.hoisted(() => vi.fn(async () => {}));
 const mockSpinnerDismiss = vi.hoisted(() => vi.fn(async () => {}));
 const mockShowHUDSpinning = vi.hoisted(() =>
@@ -69,13 +65,11 @@ const mockShowHUDSpinning = vi.hoisted(() =>
 
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: {
+    report: vi.fn(),
     showHUD: vi.fn(async () => {}),
     showHUDSpinning: mockShowHUDSpinning,
+    sendBackgroundForSource: vi.fn(async () => 'background-1'),
   },
-}));
-
-vi.mock('../../services/notification/notificationService', () => ({
-  notificationService: { send: vi.fn() },
 }));
 
 vi.mock('../../services/window/windowService', () => ({
@@ -111,13 +105,11 @@ import { streamChat } from '../../services/ai/aiEngine';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { agentService } from './agentService.svelte';
 import * as commands from '../../lib/ipc/commands';
-import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-import { notificationService } from '../../services/notification/notificationService';
 import { windowService } from '../../services/window/windowService';
 import { selectionService } from '../../services/selection/selectionService';
 import { runService } from '../../services/run/runService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { readText, writeText } from 'tauri-plugin-clipboard-x-api';
 import type { AgentDef } from './types';
 
@@ -394,15 +386,15 @@ describe('dispatchSilentAgentCommand — failures', () => {
       dispatchSilentAgentCommand({ agentId: 'agent-1', userText: 'x' }),
     ).resolves.toBeUndefined();
 
-    expect(diagnosticsService.report).toHaveBeenCalled();
-    const reportCall = vi.mocked(diagnosticsService.report).mock.calls[0]?.[0] as {
+    expect(feedbackService.report).toHaveBeenCalled();
+    const reportCall = vi.mocked(feedbackService.report).mock.calls[0]?.[0] as {
       kind?: string;
       severity?: string;
     };
     expect(reportCall?.kind).toBe('silent_agent_failed');
     expect(reportCall?.severity).toBe('warning');
 
-    expect(notificationService.send).toHaveBeenCalled();
+    expect(feedbackService.sendBackgroundForSource).toHaveBeenCalled();
   });
 
   it('reports_failure_when_api_key_is_missing', async () => {
@@ -413,7 +405,7 @@ describe('dispatchSilentAgentCommand — failures', () => {
 
     await dispatchSilentAgentCommand({ agentId: 'agent-1', userText: 'x' });
 
-    expect(notificationService.send).toHaveBeenCalled();
+    expect(feedbackService.sendBackgroundForSource).toHaveBeenCalled();
     // No clipboard work should have happened.
     expect(writeText).not.toHaveBeenCalled();
   });
@@ -449,7 +441,7 @@ describe('dispatchSilentAgentCommand — failures', () => {
 
     expect(streamChat).toHaveBeenCalled();
     expect(writeText).toHaveBeenCalledWith('Current result');
-    expect(notificationService.send).not.toHaveBeenCalled();
+    expect(feedbackService.report).not.toHaveBeenCalled();
   });
 });
 
@@ -553,7 +545,7 @@ describe('dispatchSilentAgentCommand — onFinalText callback', () => {
     // The callback was still invoked
     expect(onFinalText).toHaveBeenCalledTimes(1);
     // Failure surfaced to diagnostics, not thrown
-    expect(diagnosticsService.report).toHaveBeenCalledWith(
+    expect(feedbackService.report).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'silent_agent_failed', severity: 'warning' }),
     );
   });
@@ -579,8 +571,8 @@ describe('dispatchSilentAgentCommand — onFinalText callback', () => {
     // No warning toast was shown — caller owns UX.
     expect(mockSpinnerReplace).not.toHaveBeenCalledWith('⚠️ Empty response', expect.anything());
     // No failure was reported — empty is legitimate when caller is wired.
-    expect(diagnosticsService.report).not.toHaveBeenCalled();
-    expect(notificationService.send).not.toHaveBeenCalled();
+    expect(feedbackService.report).not.toHaveBeenCalled();
+    expect(feedbackService.sendBackgroundForSource).not.toHaveBeenCalled();
   });
 
   it('still_shows_warning_toast_on_empty_result_when_no_onFinalText_wired', async () => {
@@ -599,7 +591,7 @@ describe('dispatchSilentAgentCommand — onFinalText callback', () => {
       '⚠️ Empty response',
       expect.objectContaining({ spinning: false }),
     );
-    expect(diagnosticsService.report).toHaveBeenCalledWith(
+    expect(feedbackService.report).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'silent_agent_failed' }),
     );
   });

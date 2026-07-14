@@ -1,4 +1,4 @@
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 
 class ExtensionDegradedState {
   private toastedThisSession = new Set<string>();
@@ -6,7 +6,7 @@ class ExtensionDegradedState {
   noticeForUser(extensionId: string, displayName: string, strikes: number): void {
     if (this.toastedThisSession.has(extensionId)) return;
     this.toastedThisSession.add(extensionId);
-    void diagnosticsService.report({
+    void feedbackService.report({
       source: 'frontend',
       kind: 'manual',
       severity: 'error',

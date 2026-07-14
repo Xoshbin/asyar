@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NAMESPACES } from 'asyar-sdk/contracts';
 
+const mockStartProgressForExtension = vi.hoisted(() => vi.fn());
+
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
 // Mock all service dependencies BEFORE importing the module under test
@@ -52,10 +54,9 @@ vi.mock('../storage/extensionCacheService', () => ({
   extensionCacheService: {},
 }));
 vi.mock('../feedback/feedbackService.svelte', () => ({
-  feedbackService: {},
-}));
-vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: {},
+  feedbackService: {
+    startProgressForExtension: mockStartProgressForExtension,
+  },
 }));
 vi.mock('../selection/selectionService', () => ({
   selectionService: {},
@@ -170,6 +171,23 @@ describe('buildServiceRegistry search entry', () => {
 
     expect(invoke).toHaveBeenCalledWith('rank_items', { query: 'ban', items });
     expect(result).toEqual(['b']);
+  });
+});
+
+describe('buildServiceRegistry feedback entry', () => {
+  it('returns only the clone-safe progress ID to Tier 2 callers', async () => {
+    mockStartProgressForExtension.mockResolvedValueOnce('feedback-1');
+    const registry = makeRegistry() as any;
+
+    const result = await registry.feedback.showProgress('ext.test', {
+      title: 'Downloading',
+    });
+
+    expect(result).toBe('feedback-1');
+    expect(structuredClone(result)).toBe('feedback-1');
+    expect(mockStartProgressForExtension).toHaveBeenCalledWith('ext.test', {
+      title: 'Downloading',
+    });
   });
 });
 

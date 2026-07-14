@@ -21,7 +21,7 @@ Used for building the primary user interface.
 
 ### asyar-sdk
 
-A universal bridge SDK mapped into an npm package (`asyar-sdk`). It exports `ExtensionContext`, `ExtensionBridge`, `MessageBroker`, and proxies for standard host services (`LogService`, `NotificationService`, `ClipboardHistoryService`, `FeedbackService`, etc.). Its role is to emulate local service access inside an iframe by serializing method calls over `postMessage` IPC back to the privileged host context.
+A universal bridge SDK mapped into an npm package (`asyar-sdk`). It exports `ExtensionContext`, `ExtensionBridge`, `MessageBroker`, and proxies for standard host services (`LogService`, `ClipboardHistoryService`, `FeedbackService`, etc.). Its role is to emulate local service access inside an iframe by serializing method calls over `postMessage` IPC back to the privileged host context.
 
 ### The `asyar-extension://` Custom Protocol
 

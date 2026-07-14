@@ -1,7 +1,7 @@
 import { Command } from '@tauri-apps/plugin-shell';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { platform } from '@tauri-apps/plugin-os';
-import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
 
 export type TerminalCommand = { program: string; args: string[] } | { fallback: true };
 
@@ -66,7 +66,7 @@ export async function openTerminalAt(dir: string, command: string): Promise<void
   const tc = buildTerminalCommand(platform(), dir, command);
   if ('fallback' in tc) {
     await openPath(dir).catch(() => {});
-    await diagnosticsService.report({
+    await feedbackService.report({
       source: 'frontend',
       kind: 'manual',
       severity: 'info',
@@ -79,7 +79,7 @@ export async function openTerminalAt(dir: string, command: string): Promise<void
     await Command.create(tc.program, tc.args).execute();
   } catch {
     await openPath(dir).catch(() => {});
-    await diagnosticsService.report({
+    await feedbackService.report({
       source: 'frontend',
       kind: 'manual',
       severity: 'warning',

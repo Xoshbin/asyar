@@ -5,7 +5,7 @@ import {
   type OnboardingState,
 } from '../../lib/ipc/commands';
 import { logService } from '../log/logService';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 
 class OnboardingServiceClass {
   state = $state<OnboardingState | null>(null);
@@ -18,7 +18,7 @@ class OnboardingServiceClass {
       this.state = await onboardingCommands.getState();
     } catch (err) {
       logService.warn(`[onboardingService] load failed: ${err}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'onboarding-load-failed',
         severity: 'error',
@@ -34,7 +34,7 @@ class OnboardingServiceClass {
     try {
       this.state = await onboardingCommands.advance();
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'onboarding-advance-failed',
         severity: 'error',
@@ -48,7 +48,7 @@ class OnboardingServiceClass {
     try {
       this.state = await onboardingCommands.goBack();
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'onboarding-go-back-failed',
         severity: 'error',
@@ -62,7 +62,7 @@ class OnboardingServiceClass {
     try {
       await onboardingCommands.complete();
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'onboarding-complete-failed',
         severity: 'error',
@@ -76,7 +76,7 @@ class OnboardingServiceClass {
     try {
       await onboardingCommands.dismiss();
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'onboarding-dismiss-failed',
         severity: 'error',
@@ -95,7 +95,7 @@ class OnboardingServiceClass {
       this.aiCompleted = result;
     } catch (err) {
       logService.warn(`Failed to load AI onboarding state: ${err}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'warning',
@@ -111,7 +111,7 @@ class OnboardingServiceClass {
         await this.advance();
       }
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',
@@ -127,7 +127,7 @@ class OnboardingServiceClass {
       this.aiCompleted = true;
     } catch (err) {
       logService.warn(`Failed to mark AI onboarding complete: ${err}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',

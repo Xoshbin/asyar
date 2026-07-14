@@ -1,14 +1,14 @@
 <script lang="ts">
   import AiTab from '../../settings/tabs/AiTab.svelte';
   import { onboardingService } from '../../../services/onboarding/onboardingService.svelte';
-  import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { onboardingNav } from '../onboardingNav.svelte';
 
   async function handleAiSetupDone() {
     try {
       await onboardingService.completeAi();
     } catch {
-      // completeAi already reports via diagnosticsService
+      // completeAi already reports via feedbackService
     }
     await onboardingService.advance();
   }
@@ -17,7 +17,7 @@
     try {
       await onboardingService.skipAiSetup();
     } catch (err) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'warning',

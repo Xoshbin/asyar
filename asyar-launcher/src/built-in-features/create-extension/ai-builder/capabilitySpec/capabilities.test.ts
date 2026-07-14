@@ -63,7 +63,7 @@ const GET_REQUIRED_PERMISSIONS = [
 ];
 
 const LAUNCHER_GATED_PERMISSIONS = [
-  'diagnostics:report',
+  'feedback:announce',
   'runs:track',
   'store:read',
   'store:write',

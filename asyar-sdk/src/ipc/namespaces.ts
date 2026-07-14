@@ -1,7 +1,6 @@
 export const NAMESPACES = [
   'log',
   'extensions',
-  'notifications',
   'clipboard',
   'commands',
   'actions',
@@ -14,7 +13,6 @@ export const NAMESPACES = [
   'storage',
   'cache',
   'feedback',
-  'diagnostics',
   'selection',
   'ai',
   'oauth',

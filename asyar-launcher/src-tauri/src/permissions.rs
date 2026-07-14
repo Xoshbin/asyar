@@ -150,8 +150,9 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:clipboard:deleteItem" => Some("clipboard:write"),
         "asyar:api:clipboard:clearNonFavorites" => Some("clipboard:write"),
         // Notifications
-        "asyar:api:notifications:send" => Some("notifications:send"),
-        "asyar:api:notifications:dismiss" => Some("notifications:send"),
+        "asyar:api:feedback:sendBackground" => Some("notifications:send"),
+        "asyar:api:feedback:dismissBackground" => Some("notifications:send"),
+        "asyar:api:feedback:announce" => Some("feedback:announce"),
         // Raw Tauri invoke
         "asyar:api:invoke" => Some("shell:spawn"),
         // Network
@@ -636,6 +637,27 @@ mod tests {
         assert_eq!(
             get_required_permission("asyar:api:clipboard:writeToClipboard"),
             Some("clipboard:write")
+        );
+    }
+
+    #[test]
+    fn only_rare_feedback_announcements_require_permission() {
+        assert_eq!(
+            get_required_permission("asyar:api:feedback:announce"),
+            Some("feedback:announce")
+        );
+        assert_eq!(get_required_permission("asyar:api:feedback:report"), None);
+        assert_eq!(
+            get_required_permission("asyar:api:feedback:showProgress"),
+            None
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:feedback:sendBackground"),
+            Some("notifications:send")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:feedback:dismissBackground"),
+            Some("notifications:send")
         );
     }
 

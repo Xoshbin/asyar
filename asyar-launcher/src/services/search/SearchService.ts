@@ -1,5 +1,5 @@
 import { logService } from '../log/logService';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 import type { SearchResult } from './interfaces/SearchResult';
 import type { SearchableItem } from './types/SearchableItem';
 import * as commands from '../../lib/ipc/commands';
@@ -9,7 +9,7 @@ export class SearchService {
     const results = await commands.searchItems(query, { silent: true });
     if (results === null) {
       logService.error('Search failed');
-      void diagnosticsService.report({
+      void feedbackService.report({
         source: 'frontend',
         kind: 'search/perform-failed',
         severity: 'error',
@@ -33,7 +33,7 @@ export class SearchService {
     const ok = await commands.indexItem(item);
     if (!ok) {
       logService.error(`Failed indexing item ${item.name}`);
-      void diagnosticsService.report({
+      void feedbackService.report({
         source: 'frontend',
         kind: 'search/index-failed',
         severity: 'warning',
@@ -56,7 +56,7 @@ export class SearchService {
       await commands.batchIndexItems(items);
     } catch (error) {
       logService.error(`Failed batch indexing ${items.length} items: ${error}`);
-      void diagnosticsService.report({
+      void feedbackService.report({
         source: 'frontend',
         kind: 'search/batch-index-failed',
         severity: 'warning',
@@ -76,7 +76,7 @@ export class SearchService {
       await commands.deleteItem(objectId);
     } catch (error) {
       logService.error(`Failed deleting item ${objectId}: ${error}`);
-      void diagnosticsService.report({
+      void feedbackService.report({
         source: 'frontend',
         kind: 'search/delete-failed',
         severity: 'warning',
@@ -113,7 +113,7 @@ export class SearchService {
       return filteredIds;
     } catch (error) {
       logService.error(`Failed to get indexed object IDs: ${error}`);
-      void diagnosticsService.report({
+      void feedbackService.report({
         source: 'frontend',
         kind: 'search/list-ids-failed',
         severity: 'warning',
@@ -130,7 +130,7 @@ export class SearchService {
     const ok = await commands.resetSearchIndex();
     if (!ok) {
       logService.error('Failed to reset search index');
-      void diagnosticsService.report({
+      void feedbackService.report({
         source: 'frontend',
         kind: 'search/reset-failed',
         severity: 'error',
@@ -150,7 +150,7 @@ export class SearchService {
     const ok = await commands.saveSearchIndex();
     if (!ok) {
       logService.error('Failed to save search index');
-      void diagnosticsService.report({
+      void feedbackService.report({
         source: 'frontend',
         kind: 'search/save-failed',
         severity: 'warning',

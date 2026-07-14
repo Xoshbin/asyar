@@ -27,7 +27,7 @@ import type { ClipboardDeleteResult, ClipboardClearResult } from '../../lib/ipc/
 import { getFrontmostApplication } from '../../lib/ipc/applicationCommands';
 import { clipboardStripHtml, clipboardStripRtf } from '../../lib/ipc/clipboardCommands';
 import { v4 as uuidv4 } from 'uuid';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 import { clipboardHistoryStore } from './stores/clipboardHistoryStore.svelte';
 import { clipboardPrivacyService } from '../privacy/clipboardPrivacyService.svelte';
 import { secretRedactionService } from '../privacy/secretRedactionService.svelte';
@@ -429,7 +429,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       // window would already be hidden so the user would never see the failure.
       if (!(await commands.checkAccessibilityPermission())) {
         await commands.openAccessibilityPreferences();
-        void diagnosticsService.report({
+        void feedbackService.report({
           source: 'frontend',
           kind: 'manual',
           severity: 'warning',
@@ -604,7 +604,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       const items = [...clipboardHistoryStore.favorites, ...clipboardHistoryStore.recent];
       return items as unknown as ClipboardHistoryItem[];
     } catch (err) {
-      void diagnosticsService.report({
+      void feedbackService.report({
         source: 'frontend',
         kind: 'clipboard/load-failed',
         severity: 'error',
@@ -639,7 +639,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       }
       return true;
     } catch (err) {
-      void diagnosticsService.report({
+      void feedbackService.report({
         source: 'frontend',
         kind: 'clipboard/delete-failed',
         severity: 'error',
@@ -661,7 +661,7 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       }
       return true;
     } catch (err) {
-      void diagnosticsService.report({
+      void feedbackService.report({
         source: 'frontend',
         kind: 'clipboard/clear-failed',
         severity: 'error',

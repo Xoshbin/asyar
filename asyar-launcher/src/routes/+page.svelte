@@ -25,7 +25,7 @@
   import { pushShowMoreBarHuds } from '../services/launcher/compactHudBridge';
   import { aggregateKindCounts } from '../services/launcher/itemStatusLogic';
   import { runService } from '../services/run/runService.svelte';
-  import { diagnosticsService } from '../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../services/feedback/feedbackService.svelte';
   import { logService } from '../services/log/logService';
   import { shellConsentService } from '../services/shell/shellConsentService.svelte';
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
@@ -70,7 +70,10 @@
     getActiveContext: () => controller.activeContext,
     getLocalSearchValue: () => controller.localSearchValue,
     getIsSearchLoading: () => controller.isSearchLoadingVal,
-    getCurrentDiagnosticSeverity: () => diagnosticsService.current?.severity ?? null,
+    getCurrentDiagnosticSeverity: () => {
+      const severity = feedbackService.current?.severity;
+      return severity === 'progress' ? null : (severity ?? null);
+    },
     getLastCompletedQuery: () => searchOrchestrator.lastCompletedQuery,
   });
   registerCompactSyncService(compactSync);
@@ -268,7 +271,7 @@
       // surface a user-visible diagnostic and keep argument mode open so
       // the user can retry or Esc out.
       logService.error(`[argumentMode] submit failed: ${err}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'action_failed',
         severity: 'error',

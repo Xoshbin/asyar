@@ -1,10 +1,17 @@
 import { defineServiceRegistry, type ServiceRegistry } from './defineServiceRegistry';
 import { rankItemsCommand } from '../../lib/ipc/searchAccessoryCommands';
-import type { IExtensionManager, RankableItem } from 'asyar-sdk/contracts';
+import type {
+  ConfirmAlertOptions,
+  BackgroundFeedbackOptions,
+  FeedbackAnnouncement,
+  FeedbackProgressOptions,
+  FeedbackReport,
+  IExtensionManager,
+  RankableItem,
+} from 'asyar-sdk/contracts';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { logService } from '../log/logService';
 import { settingsService } from '../settings/settingsService.svelte';
-import { notificationService } from '../notification/notificationService';
 import { clipboardHistoryService } from '../clipboard/clipboardHistoryService';
 import { commandService } from './commandService.svelte';
 import { actionService } from '../action/actionService.svelte';
@@ -36,8 +43,6 @@ import { fsWatcherService } from '../fsWatcher/fsWatcherService';
 import { browserService } from '../browser/browserService';
 import { filesService } from '../files/filesService';
 import { extensionStateService } from '../extensionState/extensionStateService';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
-import type { Diagnostic } from 'asyar-sdk/contracts';
 import { runService } from '../run/runService.svelte';
 import { agentsToolsRegisterTier2, agentsToolsList } from '../../lib/ipc/commands';
 import { completeExtensionOnboarding } from '../../lib/ipc/extensionLifecycleCommands';
@@ -56,7 +61,6 @@ export function buildServiceRegistry(deps: {
   return defineServiceRegistry({
     log: logService,
     extensions: deps.extensionManager,
-    notifications: notificationService,
     clipboard: clipboardHistoryService,
     commands: commandService,
     actions: actionService,
@@ -106,17 +110,29 @@ export function buildServiceRegistry(deps: {
       rank: async (query: string, items: RankableItem[]) =>
         (await rankItemsCommand(query, items)) ?? [],
     },
-    feedback: feedbackService,
-    // The IPC dispatcher spreads payload values via `Object.values` (see
-    // ExtensionIpcRouter.dispatchApiCall). The SDK proxy wraps the
-    // diagnostic in a single-keyed envelope `{ d }` so the spread yields
-    // [d] and stays in stable order; INJECTS_EXTENSION_ID prepends the
-    // calling extension id, so the host receives `(extensionId, d)`.
-    // The shim re-stamps `source: 'extension'` and `extensionId` per the
-    // host-injection contract — extensions cannot spoof either.
-    diagnostics: {
-      report: (extensionId: string, d: Omit<Diagnostic, 'source' | 'extensionId'>) =>
-        diagnosticsService.report({ ...d, source: 'extension', extensionId }),
+    feedback: {
+      report: (extensionId: string, feedback: FeedbackReport) =>
+        feedbackService.report({ ...feedback, source: 'extension', extensionId }),
+      showProgress: (extensionId: string, options: FeedbackProgressOptions) =>
+        feedbackService.startProgressForExtension(extensionId, options),
+      updateProgress: (_extensionId: string, feedbackId: string, update: FeedbackProgressOptions) =>
+        feedbackService.updateProgressForExtension(_extensionId, feedbackId, update),
+      finishProgress: (
+        _extensionId: string,
+        feedbackId: string,
+        outcome: { severity: 'success' | 'error'; title: string; developerDetail?: string },
+      ) => feedbackService.finishProgressForExtension(_extensionId, feedbackId, outcome),
+      dismiss: (_extensionId: string, feedbackId: string) =>
+        feedbackService.dismissForExtension(_extensionId, feedbackId),
+      announce: (extensionId: string, announcement: FeedbackAnnouncement) =>
+        feedbackService.announceForExtension(extensionId, announcement),
+      sendBackground: (extensionId: string, options: BackgroundFeedbackOptions) =>
+        feedbackService.sendBackgroundForSource(extensionId, options),
+      dismissBackground: (extensionId: string, feedbackId: string) =>
+        feedbackService.dismissBackgroundForSource(extensionId, feedbackId),
+      showHUD: (_extensionId: string, title: string) => feedbackService.showHUD(title),
+      confirmAlert: (_extensionId: string, options: ConfirmAlertOptions) =>
+        feedbackService.confirmAlert(options),
     },
     selection: selectionService,
     oauth: extensionOAuthService,

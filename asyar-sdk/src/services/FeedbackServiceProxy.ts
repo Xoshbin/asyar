@@ -1,4 +1,12 @@
-import type { IFeedbackService, ShowToastOptions, ConfirmAlertOptions } from './IFeedbackService';
+import type {
+  BackgroundFeedbackOptions,
+  ConfirmAlertOptions,
+  FeedbackAnnouncement,
+  FeedbackProgressHandle,
+  FeedbackProgressOptions,
+  FeedbackReport,
+  IFeedbackService,
+} from './IFeedbackService';
 import { BaseServiceProxy } from './BaseServiceProxy';
 
 /**
@@ -18,19 +26,40 @@ export class FeedbackServiceProxy extends BaseServiceProxy implements IFeedbackS
   /** Default IPC timeout for confirm dialogs — users may take time. */
   private static readonly CONFIRM_TIMEOUT_MS = 5 * 60 * 1000;
 
-  showToast(options: ShowToastOptions): Promise<string> {
-    return this.broker.invoke<string>('feedback:showToast', { options });
+  report(feedback: FeedbackReport): Promise<void> {
+    return this.broker.invoke<void>('feedback:report', { feedback });
   }
 
-  updateToast(toastId: string, options: Partial<ShowToastOptions>): Promise<void> {
-    return this.broker.invoke<void>('feedback:updateToast', {
-      toastId,
-      options,
-    });
+  async showProgress(options: FeedbackProgressOptions): Promise<FeedbackProgressHandle> {
+    const broker = this.broker;
+    const feedbackId = await broker.invoke<string>('feedback:showProgress', { options });
+
+    return {
+      update: (update) => broker.invoke<void>('feedback:updateProgress', { feedbackId, update }),
+      succeed: (title) =>
+        broker.invoke<void>('feedback:finishProgress', {
+          feedbackId,
+          outcome: { severity: 'success', title },
+        }),
+      fail: (title, developerDetail) =>
+        broker.invoke<void>('feedback:finishProgress', {
+          feedbackId,
+          outcome: { severity: 'error', title, developerDetail },
+        }),
+      dismiss: () => broker.invoke<void>('feedback:dismiss', { feedbackId }),
+    };
   }
 
-  hideToast(toastId: string): Promise<void> {
-    return this.broker.invoke<void>('feedback:hideToast', { toastId });
+  announce(announcement: FeedbackAnnouncement): Promise<void> {
+    return this.broker.invoke<void>('feedback:announce', { announcement });
+  }
+
+  sendBackground(options: BackgroundFeedbackOptions): Promise<string> {
+    return this.broker.invoke<string>('feedback:sendBackground', { options });
+  }
+
+  dismissBackground(feedbackId: string): Promise<void> {
+    return this.broker.invoke<void>('feedback:dismissBackground', { feedbackId });
   }
 
   showHUD(title: string): Promise<void> {

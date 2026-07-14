@@ -15,15 +15,15 @@ vi.mock('./extensionDelivery', () => ({
   post: (iframe: HTMLIFrameElement, m: unknown) => postSpy(iframe, m),
 }));
 
-vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: {
+vi.mock('../feedback/feedbackService.svelte', () => ({
+  feedbackService: {
     report: vi.fn(),
     registerRetry: vi.fn(() => 'retry-x'),
   },
 }));
 
 import { iframeDeliveryListener } from './iframeDeliveryListener.svelte';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 
 function makeIframe(extensionId: string, role: string, id: string): HTMLIFrameElement {
   const el = document.createElement('iframe');
@@ -38,7 +38,7 @@ describe('iframeDeliveryListener', () => {
   beforeEach(() => {
     listeners.clear();
     postSpy.mockClear();
-    vi.mocked(diagnosticsService.report).mockClear();
+    vi.mocked(feedbackService.report).mockClear();
     while (document.body.firstChild) {
       document.body.removeChild(document.body.firstChild);
     }
@@ -90,8 +90,8 @@ describe('iframeDeliveryListener', () => {
       },
     });
     expect(postSpy).not.toHaveBeenCalled();
-    expect(diagnosticsService.report).toHaveBeenCalledTimes(1);
-    expect(diagnosticsService.report).toHaveBeenCalledWith({
+    expect(feedbackService.report).toHaveBeenCalledTimes(1);
+    expect(feedbackService.report).toHaveBeenCalledWith({
       source: 'frontend',
       kind: 'extension-runtime/scheduler-deliver-no-iframe',
       severity: 'warning',

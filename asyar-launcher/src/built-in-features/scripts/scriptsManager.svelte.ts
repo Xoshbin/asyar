@@ -8,7 +8,7 @@ import {
 } from '../../lib/ipc/commands';
 import { logService } from '../../services/log/logService';
 import { commandService } from '../../services/extension/commandService.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import type { ScannedScript } from './types';
 import type { DynamicCommandRegistration } from 'asyar-sdk/contracts';
 
@@ -117,7 +117,7 @@ export class ScriptsManager {
       if (s.header.refreshTimeClamped && !this.clampWarned.has(s.dynamicId)) {
         this.clampWarned.add(s.dynamicId);
         const name = s.header.title ?? deriveFilenameTitle(s.absolutePath);
-        await diagnosticsService.report({
+        await feedbackService.report({
           source: 'frontend',
           kind: 'inline_script_clamped',
           severity: 'warning',
@@ -154,7 +154,7 @@ export class ScriptsManager {
         const s = inlineScripts.find((x) => x.dynamicId === id);
         return s?.header.title ?? (s ? deriveFilenameTitle(s.absolutePath) : id);
       });
-      await diagnosticsService.report({
+      await feedbackService.report({
         source: 'frontend',
         kind: 'inline_script_capped',
         severity: 'warning',

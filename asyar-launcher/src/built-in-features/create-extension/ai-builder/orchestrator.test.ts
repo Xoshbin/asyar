@@ -12,9 +12,6 @@ const mockDownload = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 const mockDiagnosticsReport = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('./questionBridge', () => ({ presentQuestion: mockPresentQuestion }));
-vi.mock('../../../services/notification/notificationService', () => ({
-  notificationService: { send: mockNotify },
-}));
 vi.mock('./finalizeBuild', () => ({ finalizeBuild: mockFinalize }));
 vi.mock('./sidecarClient', () => ({ sidecarClient: { start: mockSidecarStart } }));
 vi.mock('./buildPaths', () => ({ resolveCapabilitySpecDir: mockResolveSpec }));
@@ -32,8 +29,11 @@ vi.mock('../../../lib/ipc/extensionBuilderCommands', () => ({
 vi.mock('../../../services/runtime/runtimeService.svelte', () => ({
   runtimeService: { download: mockDownload },
 }));
-vi.mock('../../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: mockDiagnosticsReport },
+vi.mock('../../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: {
+    report: mockDiagnosticsReport,
+    sendBackgroundForSource: mockNotify,
+  },
 }));
 
 import { buildJobStore } from './buildJobStore.svelte';

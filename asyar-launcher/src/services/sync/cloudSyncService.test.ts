@@ -37,8 +37,8 @@ vi.mock('../settings/settingsService.svelte', () => ({
   },
 }));
 
-vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: {
+vi.mock('../feedback/feedbackService.svelte', () => ({
+  feedbackService: {
     report: vi.fn(),
   },
 }));
@@ -59,7 +59,7 @@ import { profileService } from '../profile/profileService';
 import { authService } from '../auth/authService.svelte';
 import { entitlementService } from '../auth/entitlementService.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 import type { ISyncProvider, SyncChangeEvent, Unsubscribe } from '../profile/types';
 import type { AppSettings } from '../settings/types/AppSettingsType';
 
@@ -375,7 +375,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       await cloudSyncService.syncNow();
 
       expect(cloudSyncService.status).toBe('error');
-      expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect(feedbackService.report).toHaveBeenCalledWith(
         expect.objectContaining({
           severity: 'warning',
           kind: expect.any(String),
@@ -453,7 +453,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
 
       await cloudSyncService.syncNow();
 
-      expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect(feedbackService.report).toHaveBeenCalledWith(
         expect.objectContaining({
           severity: 'warning',
           kind: 'sync.item-overwritten',

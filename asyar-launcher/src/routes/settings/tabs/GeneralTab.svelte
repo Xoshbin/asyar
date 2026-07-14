@@ -17,7 +17,7 @@
   import { discoverExtensions } from '../../../lib/ipc/commands';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { emit } from '@tauri-apps/api/event';
-  import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { logService } from '../../../services/log/logService';
 
   let {
@@ -45,7 +45,7 @@
       activeThemeId = handler.settings?.appearance?.activeTheme ?? null;
     } catch (e) {
       logService.error(`Failed to load theme extensions: ${e}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'warning',
@@ -90,7 +90,7 @@
       await onboardingCommands.reset();
     } catch (e) {
       logService.error(`Failed to re-run onboarding: ${e}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',
@@ -112,7 +112,7 @@
       await emit('asyar:theme-changed', { themeId });
     } catch (error) {
       logService.error(`Failed to apply theme ${themeId}: ${error}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',

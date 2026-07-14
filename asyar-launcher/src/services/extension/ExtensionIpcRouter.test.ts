@@ -16,8 +16,8 @@ vi.mock('../../lib/ipc/commands', () => ({
   checkExtensionPermission: vi.fn(),
 }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
-vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 vi.mock('../settings/developerSettingsService.svelte', () => ({
   developerSettingsService: { isDeveloperMode: false, tracing: false },

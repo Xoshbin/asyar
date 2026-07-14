@@ -1,5 +1,4 @@
 export * from './LogService';
-export * from './INotificationService';
 export * from './IClipboardHistoryService';
 export * from './IExtensionManager';
 export * from './ICommandService';
@@ -7,7 +6,6 @@ export * from './ISettingsService';
 
 export * from './BaseServiceProxy';
 export * from './LogServiceProxy';
-export * from './NotificationServiceProxy';
 export * from './ClipboardHistoryServiceProxy';
 export * from './ExtensionManagerProxy';
 export { CommandServiceProxy } from './CommandServiceProxy';
@@ -37,9 +35,16 @@ export { SearchServiceProxy } from './SearchServiceProxy';
 
 export type {
   IFeedbackService,
-  ShowToastOptions,
+  BackgroundFeedbackOptions,
   ConfirmAlertOptions,
-  ToastStyle,
+  FeedbackAnnouncement,
+  FeedbackAnnouncementAction,
+  Feedback,
+  FeedbackProgressHandle,
+  FeedbackProgressOptions,
+  FeedbackReport,
+  FeedbackSeverity,
+  FeedbackSource,
 } from './IFeedbackService';
 export { FeedbackServiceProxy } from './FeedbackServiceProxy';
 export type { ISelectionService, SelectionError, SelectionErrorCode } from './ISelectionService';

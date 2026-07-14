@@ -8,7 +8,7 @@ import { setupSearchEffects, createSearchHandlers } from './searchController.sve
 import { setupSelectionEffects } from './selectionEffects.svelte';
 import extensionManager from '../../services/extension/extensionManager.svelte';
 import { commandArgumentsService } from '../../services/search/commandArguments';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { scrollSelectedIntoView } from '../listScroll';
 
 export class LauncherController {
@@ -167,7 +167,7 @@ export class LauncherController {
         }
       } catch (error) {
         logService.error(`Action error: ${error}`);
-        diagnosticsService.report({
+        feedbackService.report({
           source: 'frontend',
           kind: 'action_failed',
           severity: 'error',

@@ -1,7 +1,7 @@
 import { Command } from '@tauri-apps/plugin-shell';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { platform } from '@tauri-apps/plugin-os';
-import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
 
 export async function openInEditor(path: string): Promise<void> {
   // Resolve at call-time, not module load — mirrors openTerminal.ts.
@@ -13,7 +13,7 @@ export async function openInEditor(path: string): Promise<void> {
     try {
       await openPath(path);
     } catch {
-      await diagnosticsService.report({
+      await feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'info',

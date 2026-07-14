@@ -5,7 +5,7 @@
   import type { ExtensionManifest } from 'asyar-sdk/contracts';
   import { collectThemeVariables } from '../../lib/themeVariables';
   import { buildFontFaceCSS } from '../../lib/themeFonts';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
   let {
     extensionId,
@@ -31,7 +31,7 @@
   let mountToken = $derived(viewRegistry.getEntry(extensionId)?.mountToken);
 
   function handleIframeError() {
-    diagnosticsService.report({
+    feedbackService.report({
       source: 'extension',
       kind: 'extension_crash',
       severity: 'error',
@@ -44,8 +44,8 @@
   function handleMessage(event: MessageEvent) {
     if (!iframeElement || event.source !== iframeElement.contentWindow) return;
     const { type, payload } = event.data;
-    if (type === 'asyar:diagnostics:uncaught') {
-      diagnosticsService.report({
+    if (type === 'asyar:feedback:uncaught') {
+      feedbackService.report({
         source: 'extension',
         kind:
           payload?.kind === 'iframe_unhandled_rejection'

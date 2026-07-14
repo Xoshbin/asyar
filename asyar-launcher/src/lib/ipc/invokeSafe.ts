@@ -1,20 +1,20 @@
 import { invoke } from '@tauri-apps/api/core';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { logService } from '../../services/log/logService';
-import type { Diagnostic } from 'asyar-sdk/contracts';
+import type { Feedback } from 'asyar-sdk/contracts';
 
 interface InvokeSafeOpts {
   silent?: boolean;
   retry?: () => Promise<void>;
 }
 
-function isDiagnosticShape(raw: unknown): raw is Diagnostic {
+function isFeedbackShape(raw: unknown): raw is Feedback {
   return (
     typeof raw === 'object' && raw !== null && 'kind' in raw && 'severity' in raw && 'source' in raw
   );
 }
 
-function fallback(cmd: string, raw: unknown): Diagnostic {
+function fallback(cmd: string, raw: unknown): Feedback {
   return {
     source: 'frontend',
     kind: 'invoke_unknown',
@@ -33,15 +33,15 @@ export async function invokeSafe<T>(
   try {
     return await invoke<T>(cmd, args);
   } catch (raw) {
-    const d: Diagnostic = isDiagnosticShape(raw) ? { ...raw } : fallback(cmd, raw);
+    const d: Feedback = isFeedbackShape(raw) ? { ...raw } : fallback(cmd, raw);
     logService.error(`[invokeSafe] ${cmd}: ${d.developerDetail ?? String(raw)}`);
     if (opts?.retry) {
-      const id = diagnosticsService.registerRetry(opts.retry);
+      const id = feedbackService.registerRetry(opts.retry);
       d.retryActionId = id;
       d.retryable = true;
     }
     if (!opts?.silent) {
-      void diagnosticsService.report(d);
+      void feedbackService.report(d);
     }
     return null;
   }
@@ -64,15 +64,15 @@ export async function invokeSafeVoid(
     await invoke(cmd, args);
     return true;
   } catch (raw) {
-    const d: Diagnostic = isDiagnosticShape(raw) ? { ...raw } : fallback(cmd, raw);
+    const d: Feedback = isFeedbackShape(raw) ? { ...raw } : fallback(cmd, raw);
     logService.error(`[invokeSafe] ${cmd}: ${d.developerDetail ?? String(raw)}`);
     if (opts?.retry) {
-      const id = diagnosticsService.registerRetry(opts.retry);
+      const id = feedbackService.registerRetry(opts.retry);
       d.retryActionId = id;
       d.retryable = true;
     }
     if (!opts?.silent) {
-      void diagnosticsService.report(d);
+      void feedbackService.report(d);
     }
     return false;
   }
@@ -108,15 +108,15 @@ export async function invokeSafeOption<T>(
     const value = await invoke<T | null>(cmd, args);
     return { ok: true, value };
   } catch (raw) {
-    const d: Diagnostic = isDiagnosticShape(raw) ? { ...raw } : fallback(cmd, raw);
+    const d: Feedback = isFeedbackShape(raw) ? { ...raw } : fallback(cmd, raw);
     logService.error(`[invokeSafe] ${cmd}: ${d.developerDetail ?? String(raw)}`);
     if (opts?.retry) {
-      const id = diagnosticsService.registerRetry(opts.retry);
+      const id = feedbackService.registerRetry(opts.retry);
       d.retryActionId = id;
       d.retryable = true;
     }
     if (!opts?.silent) {
-      void diagnosticsService.report(d);
+      void feedbackService.report(d);
     }
     return { ok: false };
   }

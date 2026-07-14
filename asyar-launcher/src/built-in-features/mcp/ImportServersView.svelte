@@ -2,7 +2,7 @@
   import { Textarea } from '../../components';
   import { mcpService } from './mcpService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { runtimeService } from '../../services/runtime/runtimeService.svelte';
   import { formatRuntimeDownloadStatus } from '../../services/runtime/runtimeDownloadStatus';
   import { importServers, type ImportOutcome } from './importServersView.helpers';
@@ -62,7 +62,7 @@
       const failed = outcomes.length - succeeded;
 
       if (succeeded > 0) {
-        void diagnosticsService.report({
+        void feedbackService.report({
           source: 'frontend',
           kind: 'mcp_servers_imported',
           severity: 'success',
@@ -72,7 +72,7 @@
         });
       }
       if (failed > 0) {
-        void diagnosticsService.report({
+        void feedbackService.report({
           source: 'frontend',
           kind: 'mcp_servers_import_failed',
           severity: 'warning',

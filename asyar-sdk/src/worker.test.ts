@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const WORKER_PROXY_NAMESPACES = [
   'log',
-  'notifications',
   'storage',
   'cache',
   'search',
@@ -23,7 +22,7 @@ const WORKER_PROXY_NAMESPACES = [
   'commands',
   'state',
   'actions',
-  'diagnostics',
+  'feedback',
   'onboarding',
   'runs',
   'tools',
@@ -32,7 +31,7 @@ const WORKER_PROXY_NAMESPACES = [
   'files',
 ] as const;
 
-const VIEW_ONLY_NAMESPACES = ['feedback', 'selection', 'interop', 'clipboard'] as const;
+const VIEW_ONLY_NAMESPACES = ['selection', 'interop', 'clipboard'] as const;
 
 function setRole(role: string | undefined) {
   if (role === undefined) {

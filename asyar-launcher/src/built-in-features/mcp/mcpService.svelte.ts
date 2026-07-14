@@ -27,7 +27,7 @@ import {
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../../services/log/logService';
 import { runtimeService } from '../../services/runtime/runtimeService.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
 interface StatusChangedEvent {
   serverId: string;
@@ -193,7 +193,7 @@ export class McpService {
   private async downloadRuntimeOrReportFailure(name: string): Promise<boolean> {
     const ok = await runtimeService.download(name);
     if (!ok) {
-      void diagnosticsService.report({
+      void feedbackService.report({
         source: 'frontend',
         kind: 'mcp_runtime_download_failed',
         severity: 'error',

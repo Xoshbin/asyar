@@ -1,7 +1,6 @@
 import { logService } from '../../services/log/logService';
 import { windowManagementService } from '../../services/windowManagement/windowManagementService';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
 import { windowManagementState } from './state.svelte';
 import { getPresetBounds, PRESET_IDS } from './presets';
@@ -64,7 +63,7 @@ class WindowManagementExtension implements Extension {
       await feedbackService.showHUD(label);
     } catch (err: any) {
       logService.error(`[WindowManagement] applyPreset failed: ${err}`);
-      await diagnosticsService.report({
+      await feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',
@@ -77,7 +76,7 @@ class WindowManagementExtension implements Extension {
   private async restorePreviousBounds(): Promise<void> {
     const prev = windowManagementState.previousBounds;
     if (!prev) {
-      await diagnosticsService.report({
+      await feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',
@@ -90,7 +89,7 @@ class WindowManagementExtension implements Extension {
       await windowManagementService.setWindowBounds(prev);
       await feedbackService.showHUD('Restored');
     } catch (err: any) {
-      await diagnosticsService.report({
+      await feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',
@@ -126,7 +125,7 @@ class WindowManagementExtension implements Extension {
       await windowManagementService.setWindowBounds(layout.bounds);
       await feedbackService.showHUD(layout.name);
     } catch (err: any) {
-      await diagnosticsService.report({
+      await feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',
@@ -173,7 +172,7 @@ class WindowManagementExtension implements Extension {
       await windowManagementState.addCustomLayout(name, bounds, this.store);
       await feedbackService.showHUD(`Saved "${name}"`);
     } catch (err: any) {
-      await diagnosticsService.report({
+      await feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',

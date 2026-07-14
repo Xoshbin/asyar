@@ -48,10 +48,20 @@
       { background?: { main?: string } } | undefined;
     const ok = await forceRemountWorker(extensionId, !!manifest?.background?.main);
     if (ok) {
-      feedbackService.showToast({ title: `Reloaded ${extensionId}` });
+      void feedbackService.report({
+        kind: 'manual',
+        severity: 'success',
+        retryable: false,
+        context: { message: `Reloaded ${extensionId}` },
+      });
     } else {
       logService.error(`Failed to hot-reload ${extensionId}`);
-      feedbackService.showToast({ title: 'Reload failed' });
+      void feedbackService.report({
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: 'Reload failed' },
+      });
     }
     reloadingExt = null;
   }
@@ -72,7 +82,12 @@
       // but in the actual implementation of register_dev_extension, it might be
       // handled by the SDK. For now, we follow the plan and refresh.
       await loadDevExtensions();
-      feedbackService.showToast({ title: `Detached ${extensionId}` });
+      void feedbackService.report({
+        kind: 'manual',
+        severity: 'success',
+        retryable: false,
+        context: { message: `Detached ${extensionId}` },
+      });
     } catch (err) {
       logService.error(`Failed to detach dev extension: ${err}`);
     } finally {

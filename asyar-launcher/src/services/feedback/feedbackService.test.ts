@@ -1,274 +1,210 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
 vi.mock('../../lib/ipc/commands', () => ({
   showHud: vi.fn(async () => {}),
   hideHud: vi.fn(async () => {}),
+  hideWindow: vi.fn(async () => {}),
+}));
+vi.mock('./internal/feedbackCommands', () => ({
+  publish: vi.fn(async () => 'feedback-1'),
+  getCurrent: vi.fn(async () => null),
+  updateProgress: vi.fn(async () => {}),
+  finishProgress: vi.fn(async () => {}),
+  dismiss: vi.fn(async () => null),
+  acceptAnnouncement: vi.fn(async () => true),
+}));
+vi.mock('../notification/notificationService', () => ({
+  notificationService: {
+    send: vi.fn(async () => 'background-1'),
+    dismiss: vi.fn(async () => {}),
+    checkPermission: vi.fn(async () => true),
+    requestPermission: vi.fn(async () => true),
+  },
+}));
+vi.mock('../opener/openerService', () => ({
+  openerService: { open: vi.fn(async () => {}) },
 }));
 
+import * as commands from '../../lib/ipc/commands';
+import * as feedbackCommands from './internal/feedbackCommands';
+import { openerService } from '../opener/openerService';
 import { feedbackService } from './feedbackService.svelte';
 
 beforeEach(() => {
+  vi.clearAllMocks();
   feedbackService.reset();
+  vi.mocked(feedbackCommands.publish).mockResolvedValue('feedback-1');
+  vi.mocked(feedbackCommands.dismiss).mockResolvedValue(null);
+  vi.mocked(feedbackCommands.acceptAnnouncement).mockResolvedValue(true);
 });
 
-describe('showToast', () => {
-  it('sets activeToast immediately and returns an id', async () => {
-    const id = await feedbackService.showToast({ title: 'Saved' });
-    expect(typeof id).toBe('string');
-    expect(id.length).toBeGreaterThan(0);
-    expect(feedbackService.activeToast).not.toBeNull();
-    expect(feedbackService.activeToast?.title).toBe('Saved');
-    expect(feedbackService.activeToast?.id).toBe(id);
+describe('feedback bar lifecycle', () => {
+  it('replaces stale local state with Rust authoritative state after dismissal', async () => {
+    const current = {
+      id: 'feedback-error',
+      source: 'extension' as const,
+      kind: 'playground_error',
+      severity: 'error' as const,
+      retryable: false,
+      context: { message: 'Stuck error' },
+    };
+    const promoted = {
+      id: 'feedback-progress',
+      source: 'extension' as const,
+      kind: 'progress',
+      severity: 'progress' as const,
+      retryable: false,
+      context: {},
+      progress: { title: 'Downloading' },
+    };
+    feedbackService.current = current;
+    vi.mocked(feedbackCommands.dismiss).mockResolvedValueOnce(promoted);
+
+    await feedbackService.dismiss(current.id);
+
+    expect(feedbackService.current).toEqual(promoted);
   });
 
-  it('always uses "animated" style', async () => {
-    await feedbackService.showToast({ title: 'Loading' });
-    expect(feedbackService.activeToast?.style).toBe('animated');
+  it('publishes normal feedback to the Rust channel', async () => {
+    await feedbackService.report({
+      source: 'frontend',
+      kind: 'network_failure',
+      severity: 'error',
+      retryable: false,
+      developerDetail: 'Connection refused',
+    });
+
+    expect(feedbackCommands.publish).toHaveBeenCalledWith({
+      source: 'frontend',
+      kind: 'network_failure',
+      severity: 'error',
+      retryable: false,
+      context: {},
+      developerDetail: 'Connection refused',
+      extensionId: undefined,
+      retryActionId: undefined,
+      reportActionId: undefined,
+    });
   });
 
-  it('does NOT auto-dismiss (animated is the only style)', async () => {
-    await feedbackService.showToast({ title: 'Loading', style: 'animated' });
-    // No timer should fire; toast stays indefinitely until hideToast is called
-    expect(feedbackService.activeToast).not.toBeNull();
+  it('returns a progress handle backed by the Rust lifecycle', async () => {
+    const handle = await feedbackService.showProgress({ title: 'Downloading' });
+    await handle.update({ title: 'Installing', completed: 1, total: 2 });
+    await handle.succeed('Installed');
+    await handle.fail('Install failed', 'Checksum mismatch');
+    await handle.dismiss();
+
+    expect(feedbackCommands.updateProgress).toHaveBeenCalledWith('feedback-1', {
+      title: 'Installing',
+      completed: 1,
+      total: 2,
+    });
+    expect(feedbackCommands.finishProgress).toHaveBeenCalledWith(
+      'feedback-1',
+      'success',
+      'Installed',
+    );
+    expect(feedbackCommands.finishProgress).toHaveBeenCalledWith(
+      'feedback-1',
+      'error',
+      'Install failed',
+      'Checksum mismatch',
+    );
+    expect(feedbackCommands.dismiss).toHaveBeenCalledWith('feedback-1');
   });
 
-  it('replaces the active toast when called again (only one at a time)', async () => {
-    const firstId = await feedbackService.showToast({ title: 'First', style: 'animated' });
-    const secondId = await feedbackService.showToast({ title: 'Second', style: 'animated' });
-    expect(secondId).not.toBe(firstId);
-    expect(feedbackService.activeToast?.id).toBe(secondId);
-    expect(feedbackService.activeToast?.title).toBe('Second');
-  });
-});
+  it('shows only announcements accepted by the host limiter', async () => {
+    await feedbackService.announceForExtension('extension.test', {
+      id: 'v2',
+      title: "What's new",
+    });
+    expect(feedbackService.activeAnnouncement?.title).toBe("What's new");
 
-describe('notice', () => {
-  it('shows a symbol-style toast and auto-dismisses after durationMs', () => {
-    vi.useFakeTimers();
-    try {
-      feedbackService.notice({
-        title: 'Ext needs review',
-        message: 'Open Settings',
-        style: 'failure',
-        durationMs: 5000,
-      });
-      expect(feedbackService.activeToast?.style).toBe('failure');
-      expect(feedbackService.activeToast?.title).toBe('Ext needs review');
-      vi.advanceTimersByTime(5000);
-      expect(feedbackService.activeToast).toBeNull();
-    } finally {
-      vi.useRealTimers();
-    }
+    feedbackService.reset();
+    vi.mocked(feedbackCommands.acceptAnnouncement).mockResolvedValue(false);
+    await feedbackService.announceForExtension('extension.test', {
+      id: 'v2',
+      title: 'Repeated',
+    });
+    expect(feedbackService.activeAnnouncement).toBeNull();
   });
 
-  it('does not dismiss a newer toast that replaced it', () => {
-    vi.useFakeTimers();
-    try {
-      feedbackService.notice({ title: 'First', style: 'failure', durationMs: 5000 });
-      feedbackService.notice({ title: 'Second', style: 'success', durationMs: 10000 });
-      vi.advanceTimersByTime(5000); // first toast's timer fires
-      expect(feedbackService.activeToast?.title).toBe('Second');
-      vi.advanceTimersByTime(5000);
-      expect(feedbackService.activeToast).toBeNull();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('actionable notices are sticky — no auto-dismiss', () => {
-    vi.useFakeTimers();
-    try {
-      feedbackService.notice({ title: 'Clickable', style: 'warning', onClick: vi.fn() });
-      vi.advanceTimersByTime(60_000);
-      expect(feedbackService.activeToast?.title).toBe('Clickable');
-      expect(feedbackService.activeToast?.style).toBe('warning');
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('onToastClicked runs onClick and dismisses', () => {
+  it('runs announcement actions only when clicked', async () => {
     const onClick = vi.fn();
-    feedbackService.notice({ title: 'Clickable', style: 'failure', onClick });
-    feedbackService.onToastClicked();
+    const onDismiss = vi.fn();
+    await feedbackService.announceFromHost({
+      id: 'v2',
+      title: "What's new",
+      onClick,
+      onDismiss,
+    });
+    feedbackService.onAnnouncementClicked();
     expect(onClick).toHaveBeenCalledOnce();
-    expect(feedbackService.activeToast).toBeNull();
-  });
-
-  it('onToastDismissed clears without running onClick', () => {
-    const onClick = vi.fn();
-    feedbackService.notice({ title: 'Clickable', style: 'failure', onClick });
-    feedbackService.onToastDismissed();
-    expect(onClick).not.toHaveBeenCalled();
-    expect(feedbackService.activeToast).toBeNull();
-  });
-
-  it('onToastDismissed runs onDismiss when provided', () => {
-    const onDismiss = vi.fn();
-    feedbackService.notice({ title: 'Clickable', style: 'failure', onClick: vi.fn(), onDismiss });
-    feedbackService.onToastDismissed();
-    expect(onDismiss).toHaveBeenCalledOnce();
-    expect(feedbackService.activeToast).toBeNull();
-  });
-
-  it('onToastClicked does not run onDismiss', () => {
-    const onDismiss = vi.fn();
-    feedbackService.notice({ title: 'Clickable', style: 'failure', onClick: vi.fn(), onDismiss });
-    feedbackService.onToastClicked();
     expect(onDismiss).not.toHaveBeenCalled();
   });
 
-  it('onToastClicked is a no-op for toasts without onClick', () => {
-    feedbackService.notice({ title: 'Plain', style: 'success' });
-    feedbackService.onToastClicked();
-    expect(feedbackService.activeToast?.title).toBe('Plain');
-  });
-});
+  it('opens a Tier 2 announcement URL through the caller-scoped opener', async () => {
+    await feedbackService.announceForExtension('extension.test', {
+      id: 'v3',
+      title: "What's new",
+      action: { type: 'open-url', url: 'https://example.com/releases/v3' },
+    });
 
-describe('updateToast', () => {
-  it('updates title in place when id matches', async () => {
-    const id = await feedbackService.showToast({ title: 'Loading', style: 'animated' });
-    await feedbackService.updateToast(id, { title: 'Still loading…' });
-    expect(feedbackService.activeToast?.id).toBe(id);
-    expect(feedbackService.activeToast?.title).toBe('Still loading…');
-    expect(feedbackService.activeToast?.style).toBe('animated');
-  });
+    expect(openerService.open).not.toHaveBeenCalled();
+    await feedbackService.onAnnouncementClicked();
 
-  it('is a no-op when toast id does not match the active toast', async () => {
-    await feedbackService.showToast({ title: 'Loading', style: 'animated' });
-    const before = { ...feedbackService.activeToast! };
-    await feedbackService.updateToast('toast-999', { title: 'Hijack' });
-    expect(feedbackService.activeToast?.title).toBe(before.title);
-    expect(feedbackService.activeToast?.style).toBe(before.style);
+    expect(openerService.open).toHaveBeenCalledWith(
+      'extension.test',
+      'https://example.com/releases/v3',
+    );
   });
 
-  it('does not crash when no toast is active', async () => {
-    expect(feedbackService.activeToast).toBeNull();
-    await expect(feedbackService.updateToast('toast-1', { title: 'x' })).resolves.toBeUndefined();
-    expect(feedbackService.activeToast).toBeNull();
-  });
-});
-
-describe('hideToast', () => {
-  it('clears activeToast when id matches', async () => {
-    const id = await feedbackService.showToast({ title: 'Saved', style: 'animated' });
-    await feedbackService.hideToast(id);
-    expect(feedbackService.activeToast).toBeNull();
-  });
-
-  it('is a no-op when id does not match the active toast', async () => {
-    const id = await feedbackService.showToast({ title: 'Loading', style: 'animated' });
-    await feedbackService.hideToast('toast-999');
-    expect(feedbackService.activeToast?.id).toBe(id);
+  it('registers and consumes retry handlers', async () => {
+    const retry = vi.fn(async () => {});
+    const id = feedbackService.registerRetry(retry);
+    await feedbackService.triggerRetry(id);
+    await feedbackService.triggerRetry(id);
+    expect(retry).toHaveBeenCalledOnce();
   });
 });
 
 describe('confirmAlert', () => {
-  it('resolves true when onDialogConfirmed is called', async () => {
-    const promise = feedbackService.confirmAlert({ title: 'Delete?', message: 'Sure?' });
-    expect(feedbackService.activeDialog).not.toBeNull();
-    expect(feedbackService.activeDialog?.title).toBe('Delete?');
+  it('resolves true when confirmed', async () => {
+    const result = feedbackService.confirmAlert({ title: 'Delete?', message: 'Sure?' });
     feedbackService.onDialogConfirmed();
-    await expect(promise).resolves.toBe(true);
-    expect(feedbackService.activeDialog).toBeNull();
+    await expect(result).resolves.toBe(true);
   });
 
-  it('resolves false when onDialogCancelled is called', async () => {
-    const promise = feedbackService.confirmAlert({ title: 'Delete?', message: 'Sure?' });
-    feedbackService.onDialogCancelled();
-    await expect(promise).resolves.toBe(false);
-    expect(feedbackService.activeDialog).toBeNull();
-  });
-
-  it('exposes confirmText, cancelText, and variant on activeDialog', async () => {
-    const promise = feedbackService.confirmAlert({
-      title: 'Uninstall',
-      message: 'Sure?',
-      confirmText: 'Yeet',
-      cancelText: 'Nope',
-      variant: 'danger',
-    });
-    expect(feedbackService.activeDialog?.confirmText).toBe('Yeet');
-    expect(feedbackService.activeDialog?.cancelText).toBe('Nope');
-    expect(feedbackService.activeDialog?.variant).toBe('danger');
-    feedbackService.onDialogCancelled();
-    await promise;
-  });
-
-  it('returns false for a second concurrent call when a dialog is already open', async () => {
+  it('rejects a second concurrent dialog without replacing the first', async () => {
     const first = feedbackService.confirmAlert({ title: 'A', message: 'a' });
-    expect(feedbackService.activeDialog?.title).toBe('A');
-    // The second call must NOT throw — it resolves to false so callers
-    // don't have to wrap confirmAlert in try/catch for a race condition.
     await expect(feedbackService.confirmAlert({ title: 'B', message: 'b' })).resolves.toBe(false);
-    // The first dialog must still be active and unchanged.
     expect(feedbackService.activeDialog?.title).toBe('A');
     feedbackService.onDialogCancelled();
     await expect(first).resolves.toBe(false);
   });
 });
 
-describe('showHUD', () => {
-  it('invokes commands.showHud with the title, a default duration, and spinning:false', async () => {
-    const commands = await import('../../lib/ipc/commands');
-    const showHud = commands.showHud as ReturnType<typeof vi.fn>;
-    showHud.mockClear();
-    await feedbackService.showHUD('Brightness up');
-    expect(showHud).toHaveBeenCalledTimes(1);
-    const arg = showHud.mock.calls[0][0];
-    expect(arg.title).toBe('Brightness up');
-    expect(typeof arg.durationMs).toBe('number');
-    expect(arg.durationMs).toBeGreaterThan(0);
-    expect(arg.spinning).toBe(false);
-  });
-});
-
-describe('showHUDSpinning', () => {
-  it('immediately calls showHud with spinning:true and no auto-hide duration', async () => {
-    const commands = await import('../../lib/ipc/commands');
-    const showHud = commands.showHud as ReturnType<typeof vi.fn>;
-    showHud.mockClear();
-    feedbackService.showHUDSpinning('Asking Grammar Fix…');
-    // Allow the fire-and-forget showHud call to settle.
-    await Promise.resolve();
-    expect(showHud).toHaveBeenCalledTimes(1);
-    const arg = showHud.mock.calls[0][0];
-    expect(arg.title).toBe('Asking Grammar Fix…');
-    expect(arg.spinning).toBe(true);
-    // durationMs is irrelevant when spinning, but the IPC contract still
-    // requires a number — assert a defined value to pin the schema.
-    expect(typeof arg.durationMs).toBe('number');
+describe('HUD', () => {
+  it('shows immediate feedback and hides the launcher', async () => {
+    await feedbackService.showHUD('Copied');
+    expect(commands.showHud).toHaveBeenCalledWith({
+      title: 'Copied',
+      durationMs: expect.any(Number),
+      spinning: false,
+    });
+    expect(commands.hideWindow).toHaveBeenCalledOnce();
   });
 
-  it('handle.replace flips to a non-spinning HUD that auto-hides after the default duration', async () => {
-    const commands = await import('../../lib/ipc/commands');
-    const showHud = commands.showHud as ReturnType<typeof vi.fn>;
-    const handle = feedbackService.showHUDSpinning('Asking…');
-    await Promise.resolve();
-    showHud.mockClear();
-    await handle.replace('✓ Copied');
-    expect(showHud).toHaveBeenCalledTimes(1);
-    const arg = showHud.mock.calls[0][0];
-    expect(arg.title).toBe('✓ Copied');
-    expect(arg.spinning).toBe(false);
-    expect(arg.durationMs).toBeGreaterThan(0);
-  });
-
-  it('handle.replace honors an explicit spinning:true override (multi-phase progress)', async () => {
-    const commands = await import('../../lib/ipc/commands');
-    const showHud = commands.showHud as ReturnType<typeof vi.fn>;
-    const handle = feedbackService.showHUDSpinning('Reading…');
-    await Promise.resolve();
-    showHud.mockClear();
-    await handle.replace('Thinking…', { spinning: true });
-    expect(showHud.mock.calls[0][0].spinning).toBe(true);
-  });
-
-  it('handle.dismiss calls hideHud', async () => {
-    const commands = await import('../../lib/ipc/commands');
-    const hideHud = commands.hideHud as ReturnType<typeof vi.fn>;
-    hideHud.mockClear();
-    const handle = feedbackService.showHUDSpinning('Asking…');
+  it('supports a spinning HUD for headless work', async () => {
+    const handle = feedbackService.showHUDSpinning('Working');
+    await handle.replace('Done');
     await handle.dismiss();
-    expect(hideHud).toHaveBeenCalledTimes(1);
+    expect(commands.showHud).toHaveBeenCalledWith({
+      title: 'Working',
+      durationMs: 0,
+      spinning: true,
+    });
+    expect(commands.hideHud).toHaveBeenCalledOnce();
   });
 });

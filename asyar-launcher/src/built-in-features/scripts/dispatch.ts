@@ -1,5 +1,5 @@
 import { shellService } from '../../services/shell/shellService.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { scriptsManager } from './scriptsManager.svelte';
 
 const SCRIPTS_EXTENSION_ID = 'scripts';
@@ -15,7 +15,7 @@ export async function dispatchScriptCommand(
 ): Promise<void> {
   const script = scriptsManager.getScriptByDynamicId(dynamicId);
   if (!script) {
-    diagnosticsService.report({
+    feedbackService.report({
       kind: 'action_failed',
       severity: 'warning',
       retryable: false,

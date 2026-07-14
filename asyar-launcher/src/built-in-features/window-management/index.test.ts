@@ -17,11 +17,6 @@ vi.mock('../../services/windowManagement/windowManagementService', () => ({
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: {
     showHUD: vi.fn(),
-    showToast: vi.fn(),
-  },
-}));
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: {
     report: vi.fn(),
   },
 }));
@@ -46,7 +41,6 @@ vi.mock('./ManageView.svelte', () => ({ default: {} }));
 import extension from './index';
 import { windowManagementService } from '../../services/windowManagement/windowManagementService';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
 import { windowManagementState } from './state.svelte';
 import type { ExtensionContext } from 'asyar-sdk/contracts';
 
@@ -98,9 +92,9 @@ describe('WindowManagementExtension', () => {
       vi.mocked(windowManagementService.getWindowBounds).mockRejectedValue(
         new Error('Accessibility permission required'),
       );
-      vi.mocked(diagnosticsService.report).mockResolvedValue();
+      vi.mocked(feedbackService.report).mockResolvedValue();
       await extension.executeCommand('left-half');
-      expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect(feedbackService.report).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: 'manual',
           severity: 'error',
@@ -134,9 +128,9 @@ describe('WindowManagementExtension', () => {
         value: null,
         configurable: true,
       });
-      vi.mocked(diagnosticsService.report).mockResolvedValue();
+      vi.mocked(feedbackService.report).mockResolvedValue();
       await extension.executeCommand('restore');
-      expect(diagnosticsService.report).toHaveBeenCalledWith(
+      expect(feedbackService.report).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: 'manual',
           severity: 'error',

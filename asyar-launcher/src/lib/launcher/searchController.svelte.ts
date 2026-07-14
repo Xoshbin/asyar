@@ -6,7 +6,7 @@ import { contextModeService } from '../../services/context/contextModeService.sv
 import { contextActivationId } from '../../services/context/contextModeService.svelte';
 import { searchOrchestrator } from '../../services/search/searchOrchestrator.svelte';
 import type { LauncherState } from './launcherState.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import type { ContextHint, ActiveContext } from '../../services/context/contextModeService.svelte';
 
 /**
@@ -89,7 +89,7 @@ export function createSearchHandlers(state: LauncherState) {
       const value = (event.target as HTMLInputElement).value;
       state.localSearchValue = value;
       searchStores.query = value;
-      diagnosticsService.dismiss();
+      feedbackService.dismiss();
     },
 
     handleContextDismiss(_clearAll = false) {

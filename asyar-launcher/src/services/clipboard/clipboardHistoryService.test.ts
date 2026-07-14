@@ -74,15 +74,15 @@ vi.mock('../privacy/secretRedactionService.svelte', () => ({
   },
 }));
 
-vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: {
+vi.mock('../feedback/feedbackService.svelte', () => ({
+  feedbackService: {
     report: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
 import { ClipboardHistoryService } from './clipboardHistoryService';
 import { invoke } from '@tauri-apps/api/core';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 import { ClipboardItemType, type ClipboardHistoryItem } from 'asyar-sdk/contracts';
 import { clipboardPrivacyService } from '../privacy/clipboardPrivacyService.svelte';
 import { secretRedactionService } from '../privacy/secretRedactionService.svelte';
@@ -880,7 +880,7 @@ describe('pasteItem', () => {
     expect(invoke).toHaveBeenCalledWith('open_accessibility_preferences', undefined);
 
     // Surfaces a guiding diagnostic mentioning Accessibility.
-    expect(diagnosticsService.report).toHaveBeenCalledWith(
+    expect(feedbackService.report).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: 'manual',
         severity: 'warning',

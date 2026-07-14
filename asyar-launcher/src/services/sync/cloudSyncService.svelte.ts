@@ -3,7 +3,7 @@ import { authService } from '../auth/authService.svelte';
 import { entitlementService } from '../auth/entitlementService.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import { logService } from '../log/logService';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 import * as commands from '../../lib/ipc/commands';
 import type { ISyncProvider, SyncChangeEvent, Unsubscribe } from '../profile/types';
 
@@ -246,7 +246,7 @@ class CloudSyncService {
         // didn't complete." `developerDetail` carries the user-facing
         // copy because the kind is frontend-namespaced and not in the
         // auto-generated DIAGNOSTIC_MESSAGES registry.
-        await diagnosticsService.report({
+        await feedbackService.report({
           source: 'frontend',
           kind: 'sync.run-failed',
           severity: 'warning',
@@ -353,7 +353,7 @@ class CloudSyncService {
         logService.warn(
           `Cloud sync: provider '${record.categoryId}' failed to apply ${record.itemId}: ${detail}`,
         );
-        await diagnosticsService.report({
+        await feedbackService.report({
           source: 'frontend',
           kind: 'sync.apply-failed',
           severity: 'warning',
@@ -376,7 +376,7 @@ class CloudSyncService {
   private surfaceWarnings(report: commands.SyncRunReport): void {
     if (report.lwwWarnings.length > 0) {
       const count = report.lwwWarnings.length;
-      diagnosticsService
+      feedbackService
         .report({
           source: 'frontend',
           kind: 'sync.item-overwritten',
@@ -400,7 +400,7 @@ class CloudSyncService {
       logService.warn(`Cloud sync had ${report.failed.length} failed items: ${detail}`);
       // Mirror the failure into the diagnostic bar so the user sees it
       // alongside other sync warnings.
-      diagnosticsService
+      feedbackService
         .report({
           source: 'frontend',
           kind: 'sync.apply-failed',

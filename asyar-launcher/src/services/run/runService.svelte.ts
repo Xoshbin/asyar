@@ -2,7 +2,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { invokeSafe } from '../../lib/ipc/invokeSafe';
 import type { Run, RunKind } from 'asyar-sdk/contracts';
 
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 import { pickExtensionIframe } from '../extension/extensionIframeSelector';
 import { shiftIndex } from '../../lib/listSelection.svelte';
 
@@ -183,7 +183,7 @@ export class RunService {
       this.recent = [run, ...this.recent].slice(0, 50);
 
       if (run.status === 'failed') {
-        diagnosticsService.report({
+        feedbackService.report({
           kind: 'run_failed',
           severity: 'warning',
           retryable: true,

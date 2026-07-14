@@ -18,7 +18,7 @@ import type {
   ExtensionContext,
   ExtensionResult,
   ILogService,
-  INotificationService,
+  IFeedbackService,
 } from 'asyar-sdk/contracts';
 
 import manifest from '../manifest.json';
@@ -31,12 +31,12 @@ const SAMPLE_ACTIONS = [
 class WorkerExtension implements Extension {
   private context?: ExtensionContext;
   private logger?: ILogService;
-  private notifications?: INotificationService;
+  private feedback?: IFeedbackService;
 
   async initialize(ctx: ExtensionContext): Promise<void> {
     this.context = ctx;
     this.logger = ctx.getService<ILogService>('log');
-    this.notifications = ctx.getService<INotificationService>('notifications');
+    this.feedback = ctx.getService<IFeedbackService>('feedback');
   }
 
   async activate(): Promise<void> {}
@@ -59,7 +59,7 @@ class WorkerExtension implements Extension {
       this.logger?.info('{{EXTENSION_NAME}}: run command triggered');
       const shouldNotify = Boolean(this.context?.preferences.notifyOnComplete);
       if (shouldNotify) {
-        await this.notifications?.notify({
+        await this.feedback?.sendBackground({
           title: '{{EXTENSION_NAME}}',
           body: 'Run command completed.',
         });

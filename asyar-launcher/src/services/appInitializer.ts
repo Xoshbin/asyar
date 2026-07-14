@@ -49,7 +49,7 @@ import { workerRegistry } from './extension/workerRegistry.svelte';
 import { extensionReadinessListener } from './extension/extensionReadinessListener';
 import { iframeDeliveryListener } from './extension/iframeDeliveryListener.svelte';
 import { restoreWorkers } from '../lib/ipc/iframeLifecycleCommands';
-import { diagnosticsService } from './diagnostics/diagnosticsService.svelte';
+import { feedbackService } from './feedback/feedbackService.svelte';
 import type { EmojiFallbackPayload } from '../built-in-features/ai/inlineEmojiFallback';
 
 // Flag to prevent multiple initializations
@@ -218,7 +218,7 @@ export const appInitializer = {
       // rather than a quiet log.
       restoreWorkers().then((result) => {
         if (result === null) {
-          void diagnosticsService.report({
+          void feedbackService.report({
             source: 'frontend',
             kind: 'extension-runtime/restore-workers-failed',
             severity: 'error',

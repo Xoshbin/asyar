@@ -11,8 +11,8 @@ vi.mock('../../../lib/ipc/commands', () => ({
   clipboardClearNonFavorites: vi.fn(),
 }));
 
-vi.mock('../../diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../../feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 
 vi.mock('../../log/logService', () => ({

@@ -19,8 +19,8 @@ vi.mock('../../services/log/logService', () => ({
   logService: { warn: vi.fn() },
 }));
 
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 
 vi.mock('../../lib/ipc/commands', () => ({

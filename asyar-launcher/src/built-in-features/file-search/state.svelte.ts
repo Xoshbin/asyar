@@ -7,7 +7,7 @@ import {
   deepSearch,
   deepSearchAvailability,
 } from '../../lib/ipc/fileSearchCommands';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import type { FileHit, FileType } from 'asyar-sdk/contracts';
 
 export type TypeFilter = 'all' | FileType;
@@ -72,7 +72,7 @@ export async function loadPinnedFiles(): Promise<void> {
   try {
     fileSearchViewState.pinnedFiles = (await fileSearchListPinned()) ?? [];
   } catch (err) {
-    diagnosticsService.report({
+    feedbackService.report({
       source: 'frontend',
       kind: 'file-search/load-pinned-failed',
       severity: 'warning',
@@ -92,7 +92,7 @@ export async function togglePin(fileId: string, path: string): Promise<void> {
     }
     await loadPinnedFiles();
   } catch (err) {
-    diagnosticsService.report({
+    feedbackService.report({
       source: 'frontend',
       kind: 'file-search/pin-failed',
       severity: 'error',
@@ -150,7 +150,7 @@ export async function runDeepSearch(): Promise<void> {
     const existing = new Set(fileSearchViewState.results.map((r) => r.fileId));
     fileSearchViewState.deepResults = hits.filter((h) => !existing.has(h.fileId));
   } catch (err) {
-    diagnosticsService.report({
+    feedbackService.report({
       source: 'frontend',
       kind: 'file-search/deep-search-failed',
       severity: 'warning',

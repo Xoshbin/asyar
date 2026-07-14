@@ -7,7 +7,7 @@ import { writeText } from 'tauri-plugin-clipboard-x-api';
 import { actionService } from '../../services/action/actionService.svelte';
 import { fileManagerService } from '../../services/fileManager/fileManagerService';
 import { searchStores } from '../../services/search/stores/search.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { logService } from '../../services/log/logService';
 import {
   openInTerminal,
@@ -216,7 +216,7 @@ class FileSearchExtension implements Extension {
               (r) => r.fileId !== f.fileId,
             );
           } catch (err) {
-            diagnosticsService.report({
+            feedbackService.report({
               source: 'frontend',
               kind: 'file-search/trash-failed',
               severity: 'error',

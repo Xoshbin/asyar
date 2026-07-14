@@ -8,7 +8,7 @@ import {
 } from '../../lib/launcher/launcherGeometry';
 
 export interface SearchSettledInputs {
-  currentDiagnosticSeverity: import('asyar-sdk/contracts').Severity | null;
+  currentDiagnosticSeverity: import('asyar-sdk/contracts').FeedbackSeverity | null;
   localSearchValue: string;
   isSearchLoading: boolean;
   lastCompletedQuery: string | null;

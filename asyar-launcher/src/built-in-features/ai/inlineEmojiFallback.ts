@@ -2,7 +2,7 @@ import { recordInlineEmojiFallbackOutcome } from '../../lib/ipc/shortcodeCommand
 import { dispatchSilentAgentCommand } from '../agents/silentDispatch';
 import { buildEmojiFallbackAgent } from '../agents/defaultAgent';
 import { agentService } from '../agents/agentService.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
 export interface EmojiFallbackPayload {
   agentId: 'emoji-fallback';
@@ -50,7 +50,7 @@ export async function handleEmojiFallback(p: EmojiFallbackPayload): Promise<void
       },
     });
   } catch (e) {
-    await diagnosticsService.report({
+    await feedbackService.report({
       source: 'frontend',
       kind: 'silent_agent_failed',
       severity: 'warning',

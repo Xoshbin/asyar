@@ -17,8 +17,8 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn().mockResolvedValue(() => {}),
 }));
 
-vi.mock('../../services/diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../../services/feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 
 vi.mock('../../services/settings/settingsService.svelte', () => ({
@@ -65,7 +65,7 @@ vi.mock('../../services/log/logService', () => ({
 import { AgentService } from './agentService.svelte';
 import * as commands from '../../lib/ipc/commands';
 import * as tauriEvent from '@tauri-apps/api/event';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { buildDefaultAgentInput } from './defaultAgent';
 
@@ -242,7 +242,7 @@ describe('AgentService', () => {
     vi.mocked(commands.agentsCreate).mockResolvedValueOnce(null as never);
 
     await expect(service.create(makeCreateInput())).rejects.toThrow();
-    expect(diagnosticsService.report).toHaveBeenCalled();
+    expect(feedbackService.report).toHaveBeenCalled();
   });
 
   it('update_reports_diagnostic_and_rethrows_on_failure', async () => {
@@ -253,7 +253,7 @@ describe('AgentService', () => {
     vi.mocked(commands.agentsUpdate).mockResolvedValueOnce(null as never);
 
     await expect(service.update(makeUpdateInput('a1'))).rejects.toThrow();
-    expect(diagnosticsService.report).toHaveBeenCalled();
+    expect(feedbackService.report).toHaveBeenCalled();
   });
 
   it('delete_reports_diagnostic_and_rethrows_on_failure', async () => {
@@ -264,7 +264,7 @@ describe('AgentService', () => {
     vi.mocked(commands.agentsDelete).mockResolvedValueOnce(false);
 
     await expect(service.delete('a1')).rejects.toThrow();
-    expect(diagnosticsService.report).toHaveBeenCalled();
+    expect(feedbackService.report).toHaveBeenCalled();
   });
 });
 

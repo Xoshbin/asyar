@@ -3,8 +3,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }));
 vi.mock('../../lib/ipc/invokeSafe', () => ({ invokeSafe: vi.fn() }));
-vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn() },
+vi.mock('../feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn() },
 }));
 vi.mock('../extension/extensionIframeSelector', () => ({
   pickExtensionIframe: vi.fn(),
@@ -13,7 +13,7 @@ vi.mock('../extension/extensionIframeSelector', () => ({
 import { runService } from './runService.svelte';
 import { invokeSafe } from '../../lib/ipc/invokeSafe';
 import { listen } from '@tauri-apps/api/event';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 import { pickExtensionIframe } from '../extension/extensionIframeSelector';
 import type { Run } from 'asyar-sdk/contracts';
 
@@ -201,10 +201,10 @@ describe('onStateChanged', () => {
     expect(runService.active.some((r) => r.id === 'r2')).toBe(false);
   });
 
-  it('state_changed_failed_routes_through_diagnostics', async () => {
+  it('state_changed_failed_routes_through_feedback', async () => {
     const run = makeRun({ id: 'r1', status: 'failed', errorMessage: 'boom' });
     await runService['onStateChanged'](run);
-    expect(diagnosticsService.report).toHaveBeenCalledWith(
+    expect(feedbackService.report).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: 'run_failed',
         severity: 'warning',

@@ -8,7 +8,7 @@ import { ActionContext } from 'asyar-sdk/contracts';
 import { usageStatsState } from './usageStatsState.svelte';
 import DefaultView from './DefaultView.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { sendUsageNow } from '../../lib/ipc/commands';
 
 const VIEW_PATH = 'usage-stats/DefaultView';
@@ -48,7 +48,7 @@ class UsageStatsExtension implements Extension {
       execute: async () => {
         try {
           const count = await sendUsageNow();
-          diagnosticsService.report({
+          feedbackService.report({
             source: 'frontend',
             kind: 'manual',
             severity: 'success',
@@ -56,7 +56,7 @@ class UsageStatsExtension implements Extension {
             context: { message: `Usage sent (${count} ${count === 1 ? 'event' : 'events'})` },
           });
         } catch (e) {
-          diagnosticsService.report({
+          feedbackService.report({
             source: 'frontend',
             kind: 'manual',
             severity: 'error',

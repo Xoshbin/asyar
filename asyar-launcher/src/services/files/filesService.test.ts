@@ -7,8 +7,8 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }));
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
-vi.mock('../diagnostics/diagnosticsService.svelte', () => ({
-  diagnosticsService: { report: vi.fn(), registerRetry: vi.fn() },
+vi.mock('../feedback/feedbackService.svelte', () => ({
+  feedbackService: { report: vi.fn(), registerRetry: vi.fn() },
 }));
 
 import { filesService } from './filesService';

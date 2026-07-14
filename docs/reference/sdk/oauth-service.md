@@ -97,7 +97,12 @@ async function fetchGitHubUser() {
     });
   } catch (err: any) {
     // err.message contains the OAuthError code + description
-    await feedback.showToast({ title: 'Authorization failed', style: 'failure' });
+    await feedback.report({
+      kind: 'oauth_failure',
+      severity: 'error',
+      retryable: false,
+      developerDetail: String(err),
+    });
     return;
   }
 

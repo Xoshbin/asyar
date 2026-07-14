@@ -3,7 +3,7 @@
   import { getScheduledTasks, type ScheduledTaskInfo } from '../../lib/ipc/commands';
   import SettingsForm from './SettingsForm.svelte';
   import SettingsFormRow from './SettingsFormRow.svelte';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
 
   let tasks = $state<ScheduledTaskInfo[]>([]);
@@ -21,7 +21,7 @@
       tasks = (await getScheduledTasks()) ?? [];
     } catch (e) {
       logService.error(`Failed to load scheduled tasks: ${e}`);
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'warning',

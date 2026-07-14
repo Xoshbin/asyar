@@ -2,7 +2,7 @@
   import { workerRegistry } from '../../services/extension/workerRegistry.svelte';
   import extensionManager from '../../services/extension/extensionManager.svelte';
   import { computeBackgroundIframeSet } from './backgroundIframeSet';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
   let toMount = $derived(
     computeBackgroundIframeSet(workerRegistry.entries, extensionManager.extensionRecords, null),
@@ -12,7 +12,7 @@
     typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('windows');
 
   function handleWorkerError(extensionId: string) {
-    diagnosticsService.report({
+    feedbackService.report({
       source: 'extension',
       kind: 'extension_crash',
       severity: 'error',

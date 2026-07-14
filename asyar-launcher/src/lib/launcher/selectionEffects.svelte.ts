@@ -8,7 +8,7 @@ import type { ItemShortcut } from '../../built-in-features/shortcuts/shortcutSto
 import type { LauncherState } from './launcherState.svelte';
 import { commandService } from '../../services/extension/commandService.svelte';
 import { warmIfTier2 } from '../../services/search/searchOrchestrator.svelte';
-import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { aliasStore } from '../../built-in-features/aliases/aliasStore.svelte';
 import { runService } from '../../services/run/runService.svelte';
 
@@ -76,7 +76,7 @@ export function setupSelectionEffects(state: LauncherState) {
       runTiers: runTierMap,
       query: state.localSearchValue,
       onError: (msg) =>
-        diagnosticsService.report({
+        feedbackService.report({
           source: 'frontend',
           kind: 'action_failed',
           severity: 'error',

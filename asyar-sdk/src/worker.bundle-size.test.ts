@@ -80,7 +80,6 @@ describe('asyar-sdk/worker — bundle size cap', () => {
     const graph = walkGraph(ENTRY);
     const files = Array.from(graph.keys()).map((p) => p.replace(/\\/g, '/'));
     const forbidden = [
-      '/services/FeedbackServiceProxy.ts',
       '/services/SelectionServiceProxy.ts',
       '/services/ClipboardHistoryServiceProxy.ts',
       '/services/InteropServiceProxy.ts',

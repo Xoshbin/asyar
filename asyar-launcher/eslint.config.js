@@ -81,6 +81,39 @@ export default defineConfig([
       'no-inner-declarations': 'off',
     },
   },
+  {
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '**/services/notification/notificationService',
+                '**/components/feedback/ToastHost.svelte',
+                '**/components/feedback/FatalErrorDialog.svelte',
+                '**/components/feedback/FeedbackDetailsDialog.svelte',
+                '**/components/layout/FeedbackBar.svelte',
+              ],
+              message: 'Feedback children are private. Use feedbackService instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: [
+      'src/services/feedback/**',
+      'src/components/layout/BottomActionBar.svelte',
+      'src/components/layout/FeedbackBar.svelte',
+      'src/routes/+page.svelte',
+      'src/services/notification/notificationService.test.ts',
+    ],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
   // Must come last: turns off stylistic rules (quotes, semi, indent, ...)
   // that would otherwise fight Prettier, which now owns all formatting.
   prettier,

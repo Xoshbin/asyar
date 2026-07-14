@@ -13,7 +13,7 @@ vi.mock('../settings/settingsService.svelte', () => ({
   },
 }));
 vi.mock('../feedback/feedbackService.svelte', () => ({
-  feedbackService: { notice: vi.fn() },
+  feedbackService: { announceFromHost: vi.fn() },
 }));
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -38,14 +38,14 @@ describe('checkAndNotifyWhatsNew', () => {
     expect(settingsService.updateSettings).toHaveBeenCalledWith('updates', {
       lastSeenVersion: '0.1.1',
     });
-    expect(feedbackService.notice).not.toHaveBeenCalled();
+    expect(feedbackService.announceFromHost).not.toHaveBeenCalled();
   });
 
   it('shows no notice when the version has not changed', async () => {
     settingsService.currentSettings.updates!.lastSeenVersion = '0.1.1';
     vi.mocked(appUpdaterShouldShowWhatsNew).mockResolvedValue(false);
     await checkAndNotifyWhatsNew();
-    expect(feedbackService.notice).not.toHaveBeenCalled();
+    expect(feedbackService.announceFromHost).not.toHaveBeenCalled();
   });
 
   it('shows a sticky success notice when the version changed, without persisting yet', async () => {
@@ -53,9 +53,9 @@ describe('checkAndNotifyWhatsNew', () => {
     vi.mocked(appUpdaterShouldShowWhatsNew).mockResolvedValue(true);
     await checkAndNotifyWhatsNew();
 
-    expect(feedbackService.notice).toHaveBeenCalledOnce();
-    const options = vi.mocked(feedbackService.notice).mock.calls[0][0];
-    expect(options.style).toBe('success');
+    expect(feedbackService.announceFromHost).toHaveBeenCalledOnce();
+    const options = vi.mocked(feedbackService.announceFromHost).mock.calls[0][0];
+    expect(options.id).toBe('whats-new-0.1.1');
     expect(options.title).toContain('0.1.1');
     expect(typeof options.onClick).toBe('function');
     expect(typeof options.onDismiss).toBe('function');
@@ -68,12 +68,10 @@ describe('checkAndNotifyWhatsNew', () => {
     vi.mocked(appUpdaterShouldShowWhatsNew).mockResolvedValue(true);
     await checkAndNotifyWhatsNew();
 
-    const options = vi.mocked(feedbackService.notice).mock.calls[0][0];
+    const options = vi.mocked(feedbackService.announceFromHost).mock.calls[0][0];
     await options.onClick!();
 
-    expect(openUrl).toHaveBeenCalledWith(
-      'https://github.com/Xoshbin/asyar-launcher/releases/tag/v0.1.1',
-    );
+    expect(openUrl).toHaveBeenCalledWith('https://github.com/Xoshbin/asyar/releases/tag/v0.1.1');
     expect(settingsService.updateSettings).toHaveBeenCalledWith('updates', {
       lastSeenVersion: '0.1.1',
     });
@@ -84,7 +82,7 @@ describe('checkAndNotifyWhatsNew', () => {
     vi.mocked(appUpdaterShouldShowWhatsNew).mockResolvedValue(true);
     await checkAndNotifyWhatsNew();
 
-    const options = vi.mocked(feedbackService.notice).mock.calls[0][0];
+    const options = vi.mocked(feedbackService.announceFromHost).mock.calls[0][0];
     await options.onDismiss!();
 
     expect(openUrl).not.toHaveBeenCalled();

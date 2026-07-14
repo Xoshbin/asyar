@@ -4,7 +4,7 @@
   import EmptyState from '../feedback/EmptyState.svelte';
   import { ErrorState } from '../index';
   import { logService } from '../../services/log/logService';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
   const SEARCH_FATAL_KINDS = new Set(['search_lock_poisoned', 'search_io_failure', 'search_other']);
 
@@ -31,8 +31,8 @@
 
 <div class="min-h-full flex flex-col">
   <div bind:this={listContainer}>
-    {#if diagnosticsService.current && SEARCH_FATAL_KINDS.has(diagnosticsService.current.kind)}
-      <ErrorState status={diagnosticsService.current} />
+    {#if feedbackService.current && SEARCH_FATAL_KINDS.has(feedbackService.current.kind)}
+      <ErrorState status={feedbackService.current} />
     {:else if items.length > 0}
       {#if showSections}
         <SectionedResultsList

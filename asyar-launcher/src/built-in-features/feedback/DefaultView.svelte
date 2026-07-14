@@ -5,7 +5,7 @@
   import { feedbackViewState } from './feedbackState.svelte';
   import { feedbackSubmitService } from '../../services/feedback/feedbackSubmitService';
   import { authService } from '../../services/auth/authService.svelte';
-  import { diagnosticsService } from '../../services/diagnostics/diagnosticsService.svelte';
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
   const categories: { id: string; label: string }[] = [
     { id: 'idea', label: 'Idea' },
@@ -22,7 +22,7 @@
     feedbackViewState.submitting = true;
     try {
       await feedbackSubmitService.submit(feedbackViewState.toInput());
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'success',
@@ -31,7 +31,7 @@
       });
       feedbackViewState.reset();
     } catch (e) {
-      diagnosticsService.report({
+      feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'error',

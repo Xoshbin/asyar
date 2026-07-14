@@ -1,7 +1,7 @@
 import { listen } from '@tauri-apps/api/event';
 import { post } from './extensionDelivery';
 import type { IpcPendingMessage } from '../../lib/ipc/iframeLifecycleCommands';
-import { diagnosticsService } from '../diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
 
 interface DeliverPayload {
   extensionId: string;
@@ -20,7 +20,7 @@ export class IframeDeliveryListener {
         `iframe[data-extension-id="${extensionId}"][data-role="${role}"]`,
       );
       if (!iframe) {
-        void diagnosticsService.report({
+        void feedbackService.report({
           source: 'frontend',
           kind: 'extension-runtime/scheduler-deliver-no-iframe',
           severity: 'warning',

@@ -183,7 +183,7 @@ export const VALID_PERMISSIONS = [
   'timers:list',
   'preferences:read',
   'preferences:write',
-  'diagnostics:report',
+  'feedback:announce',
   'tools:register',
   'snippets:contribute',
   'runs:track',

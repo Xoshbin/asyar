@@ -4,7 +4,7 @@ import {
   type CreatedExtension,
 } from './createdExtensions';
 import { useListSelection } from '../../../lib/listSelection.svelte';
-import { diagnosticsService } from '../../../services/diagnostics/diagnosticsService.svelte';
+import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
 
 class CreatedExtensionsViewState {
   // The currently displayed list. Rust owns scanning and filtering; this always
@@ -19,7 +19,7 @@ class CreatedExtensionsViewState {
       this.items = await listCreatedExtensions();
     } catch (err) {
       this.items = [];
-      await diagnosticsService.report({
+      await feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'warning',
@@ -47,7 +47,7 @@ class CreatedExtensionsViewState {
       this.items = await searchCreatedExtensions(q);
     } catch (err) {
       this.items = [];
-      await diagnosticsService.report({
+      await feedbackService.report({
         source: 'frontend',
         kind: 'manual',
         severity: 'warning',

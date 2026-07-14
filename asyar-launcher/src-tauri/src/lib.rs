@@ -270,6 +270,7 @@ pub fn run() {
         .manage(ext_builder::ExtBuilderState::default())
         .manage(calculator::CalculatorState::default())
         .manage(runtimes::RuntimeManager::new())
+        .manage(feedback::channel::FeedbackChannelState::default())
         .manage(AppState {
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -293,6 +294,12 @@ pub fn run() {
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
             commands::set_focus_lock,
+            commands::feedback_publish,
+            commands::feedback_get_current,
+            commands::feedback_update_progress,
+            commands::feedback_finish_progress,
+            commands::feedback_dismiss,
+            commands::feedback_accept_announcement,
             commands::set_launcher_keep_expanded,
             commands::set_launcher_height,
             commands::confirm_launcher_paint,
@@ -850,7 +857,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     tray::setup_tray(app)?;
 
-    // Install a panic hook that emits a `diagnostics:report` event before
+    // Install a panic hook that emits a `feedback:report` event before
     // the process unwinds.  Only `app_handle` is captured (cheap clone) so
     // the closure is `Send + 'static`.
     {
@@ -869,7 +876,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 "context": { "location": location },
                 "developerDetail": detail,
             });
-            let _ = tauri::Emitter::emit(&app_handle, "diagnostics:report", payload);
+            let _ = tauri::Emitter::emit(&app_handle, "feedback:report", payload);
             log::error!("panic: {info}");
         }));
     }

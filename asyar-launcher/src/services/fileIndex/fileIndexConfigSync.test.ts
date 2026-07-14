@@ -129,6 +129,7 @@ describe('fileIndexConfigSync', () => {
 
     expect(() => initFileIndexConfigSync()).not.toThrow();
     await flush();
-    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(invoke).toHaveBeenLastCalledWith('feedback_publish', expect.any(Object));
   });
 });
