@@ -73,3 +73,57 @@ jobs:
         working-directory: asyar-launcher/src-tauri
         env:
           RUSTDOCFLAGS: '-D warnings'
+
+  # Windows-only Rust test run. Deliberately lean — no frontend/pnpm/lint/doc
+  # steps (those are platform-agnostic and covered by `test-and-lint` above),
+  # just `cargo test` — so the extra PR-check cost is one Windows compile of
+  # the test harness, cached across runs. Guards the Windows-specific test
+  # fixes (path semantics, shell, file-index, uninstall) from regressing, and
+  # runs the keyboard-resolver matrix that skips locally when its layouts
+  # aren't installed (see the layout-install step below).
+  test-rust-windows:
+    name: Rust tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust 1.97.0
+        uses: dtolnay/rust-toolchain@1.97.0
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: asyar-launcher/src-tauri -> target
+
+      # windows_key_resolver tests resolve only against already-loaded
+      # keyboard layouts and skip the rest, so they never mutate a developer's
+      # input settings. This throwaway runner is the environment reserved for
+      # the full matrix: pre-install French (AZERTY, 0x040C), German (QWERTZ,
+      # 0x0407), and the US-International keyboard (0x00020409) so
+      # GetKeyboardLayoutList reports them and the AZERTY/QWERTZ/dead-key
+      # assertions run instead of skipping. Whether the runner's session picks
+      # these up is verified by the diagnostic step below; if it doesn't, the
+      # tests simply skip and the job still guards the rest of the suite.
+      - name: Install keyboard layouts for the resolver matrix
+        shell: pwsh
+        run: |
+          $list = New-WinUserLanguageList -Language en-US
+          $list[0].InputMethodTips.Clear()
+          $list[0].InputMethodTips.Add('0409:00000409') # US
+          $list[0].InputMethodTips.Add('0409:00020409') # US-International
+          $list.Add('fr-FR')                             # AZERTY 0000040C
+          $list.Add('de-DE')                             # QWERTZ 00000407
+          Set-WinUserLanguageList -LanguageList $list -Force
+
+      - name: Show whether the layout matrix loaded (diagnostic)
+        shell: pwsh
+        working-directory: asyar-launcher/src-tauri
+        # eprintln! "skipping: … not loaded" lines reveal which layouts the
+        # session actually exposes to GetKeyboardLayoutList. If AZERTY/QWERTZ
+        # skip here, the install step needs adjusting — the full `cargo test`
+        # below still passes either way.
+        run: cargo test windows_key_resolver -- --nocapture
+
+      - name: Run Rust tests
+        run: cargo test
+        working-directory: asyar-launcher/src-tauri
