@@ -279,6 +279,7 @@ jobs:
           path: |
             asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage/*.AppImage
             asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage/*.AppImage.sig
+            asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/deb/*.deb
 
   publish:
     needs: [build-macos, build-windows, build-linux]
@@ -324,6 +325,7 @@ jobs:
             artifacts/**/*.msi.sig
             artifacts/**/*.AppImage
             artifacts/**/*.AppImage.sig
+            artifacts/**/*.deb
           draft: false
           prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
           generate_release_notes: true
