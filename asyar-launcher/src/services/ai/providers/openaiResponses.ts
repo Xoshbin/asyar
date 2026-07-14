@@ -7,7 +7,7 @@ import type {
   ProviderConfig,
   ToolStreamEvent,
 } from '../IProviderPlugin';
-import type { OpenAIToolDescriptor } from './_openaiCompat';
+import type { OpenAIToolDescriptor } from './openaiCompat';
 
 export const HOSTED_WEB_SEARCH_TOOL = {
   type: 'web_search',

@@ -9,8 +9,8 @@ import type {
   LoopMessage,
   ToolStreamEvent,
 } from '../IProviderPlugin';
-import { buildOpenAIToolsBody } from './_openaiCompat';
-import type { OpenAIToolDescriptor } from './_openaiCompat';
+import { buildOpenAIToolsBody } from './openaiCompat';
+import type { OpenAIToolDescriptor } from './openaiCompat';
 
 export const ollamaPlugin: IProviderPlugin = {
   id: 'ollama',
@@ -79,7 +79,12 @@ export const ollamaPlugin: IProviderPlugin = {
     tools: OpenAIToolDescriptor[],
   ): RequestSpec {
     const base = config.baseUrl?.replace(/\/$/, '') || 'http://localhost:11434';
-    const body = buildOpenAIToolsBody(messages, params, tools) as Record<string, unknown>;
+    // Ollama's native /api/chat wants tool-call `arguments` as a JSON object,
+    // not the OpenAI-style JSON string — otherwise echoing a prior tool call
+    // back in the history 400s and breaks the multi-turn loop.
+    const body = buildOpenAIToolsBody(messages, params, tools, {
+      stringifyToolArgs: false,
+    }) as Record<string, unknown>;
     if (config.reasoningEffort) body.think = config.reasoningEffort;
     return {
       // Ollama uses /api/chat, not /v1/chat/completions

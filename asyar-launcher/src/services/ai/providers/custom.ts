@@ -10,8 +10,8 @@ import type {
   ToolStreamEvent,
   ChatStreamEvent,
 } from '../IProviderPlugin';
-import { buildOpenAIToolsBody, parseOpenAIToolStream } from './_openaiCompat';
-import type { OpenAIToolDescriptor } from './_openaiCompat';
+import { buildOpenAIToolsBody, parseOpenAIToolStream } from './openaiCompat';
+import type { OpenAIToolDescriptor } from './openaiCompat';
 import {
   HOSTED_WEB_SEARCH_TOOL,
   buildOpenAIResponsesChatBody,
@@ -19,7 +19,7 @@ import {
   parseOpenAIResponsesStream,
   parseOpenAIResponsesToolStream,
   usesOpenAIResponses,
-} from './_openaiResponses';
+} from './openaiResponses';
 
 /**
  * Normalise the user-supplied base URL so the same launcher works whether the

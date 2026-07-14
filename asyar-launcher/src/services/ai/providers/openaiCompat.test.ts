@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { openAIToolsMessages, buildOpenAIToolsBody, parseOpenAIToolStream } from './_openaiCompat';
+import { openAIToolsMessages, buildOpenAIToolsBody, parseOpenAIToolStream } from './openaiCompat';
 import type { LoopMessage, ChatParams } from '../IProviderPlugin';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -55,6 +55,52 @@ describe('openAIToolsMessages', () => {
         },
       ],
     });
+  });
+
+  it('openaiCompat_messages_emits_object_arguments_when_stringify_disabled', () => {
+    // Ollama's native /api/chat wants `arguments` as an object, not a JSON
+    // string; passing a string 400s and breaks the multi-turn tool loop.
+    const messages: LoopMessage[] = [
+      {
+        role: 'assistant',
+        content: 'thinking',
+        toolUse: [{ id: 'call_1', name: 'calc', input: { x: 1 } }],
+      },
+    ];
+
+    const result = openAIToolsMessages(messages, { stringifyToolArgs: false });
+
+    expect(result).toContainEqual({
+      role: 'assistant',
+      content: 'thinking',
+      tool_calls: [
+        {
+          id: 'call_1',
+          type: 'function',
+          function: {
+            name: 'calc',
+            arguments: { x: 1 },
+          },
+        },
+      ],
+    });
+  });
+
+  it('openaiCompat_object_arguments_fall_back_to_empty_object_for_nullish_input', () => {
+    const messages: LoopMessage[] = [
+      {
+        role: 'assistant',
+        content: '',
+        // A no-argument tool call whose input never got populated.
+        toolUse: [{ id: 'call_1', name: 'clipboard-read', input: undefined as never }],
+      },
+    ];
+
+    const result = openAIToolsMessages(messages, { stringifyToolArgs: false }) as Array<{
+      tool_calls?: Array<{ function: { arguments: unknown } }>;
+    }>;
+
+    expect(result[0].tool_calls?.[0].function.arguments).toEqual({});
   });
 
   it('openaiCompat_messages_emits_tool_role_with_tool_call_id', () => {

@@ -101,6 +101,30 @@ describe('ollamaPlugin.buildToolRequest', () => {
     // Ollama runs locally without auth — no Authorization header expected
     expect(spec.headers.Authorization).toBeUndefined();
   });
+
+  it('ollama_buildToolRequest_echoes_prior_tool_call_arguments_as_object', () => {
+    // Regression: a prior assistant tool call in the history must serialize
+    // `arguments` as a JSON object, not a JSON string. Ollama's native
+    // /api/chat rejects the string form with `400 "Value looks like object,
+    // but can't find closing '}' symbol"`, which broke every multi-turn loop
+    // (single-turn "worked" only because the failure is on the follow-up).
+    const history: LoopMessage[] = [
+      { role: 'user', content: 'what is 47823 * 918?' },
+      {
+        role: 'assistant',
+        content: '',
+        toolUse: [{ id: 'call_1', name: 'builtin:calculator', input: { expression: '47823*918' } }],
+      },
+      { role: 'tool', content: '43901514', toolUseId: 'call_1' },
+    ];
+
+    const spec = ollamaPlugin.buildToolRequest(history, fakeConfig, fakeParams, fakeTools);
+    const body = spec.body as { messages: Array<{ role: string; tool_calls?: any[] }> };
+    const assistant = body.messages.find((m) => m.role === 'assistant');
+
+    expect(assistant?.tool_calls?.[0].function.arguments).toEqual({ expression: '47823*918' });
+    expect(typeof assistant?.tool_calls?.[0].function.arguments).toBe('object');
+  });
 });
 
 // ─── parseToolStream ──────────────────────────────────────────────────────────
