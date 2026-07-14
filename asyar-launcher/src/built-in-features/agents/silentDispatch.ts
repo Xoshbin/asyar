@@ -248,8 +248,14 @@ async function runSilentAgentTurn(
 
   const settings = settingsService.getSettings();
   const config = settings.ai.providers[agent.providerId as keyof typeof settings.ai.providers];
-  if (!config?.apiKey) {
+  if (!config) {
+    throw new Error(`Provider '${agent.providerId}' is not configured`);
+  }
+  if (plugin.requiresApiKey && !config.apiKey?.trim()) {
     throw new Error(`API key for provider '${agent.providerId}' is not set`);
+  }
+  if (plugin.requiresBaseUrl && !config.baseUrl?.trim()) {
+    throw new Error(`Base URL for provider '${agent.providerId}' is not set`);
   }
 
   const controller = new AbortController();
@@ -420,14 +426,17 @@ async function runToolLoopSilent(
     const reader = response.body.getReader();
     let accumText = '';
     const toolUses: ToolCall[] = [];
+    const providerContext: unknown[] = [];
     try {
-      for await (const ev of plugin.parseToolStream(reader)) {
+      for await (const ev of plugin.parseToolStream(reader, config)) {
         if (isCancelled()) break;
         if (ev.type === 'text') {
           accumText += ev.text;
         } else if (ev.type === 'tool_use') {
           const resolvedFqid = wireToFqid.get(ev.name) ?? ev.name;
           toolUses.push({ id: ev.id, name: resolvedFqid, input: ev.input });
+        } else if (ev.type === 'provider_context') {
+          providerContext.push(ev.item);
         } else if (ev.type === 'message_stop') {
           break;
         }
@@ -439,6 +448,7 @@ async function runToolLoopSilent(
     finalText = accumText;
     const assistantLoopMsg: LoopMessage = { role: 'assistant', content: accumText };
     if (toolUses.length > 0) assistantLoopMsg.toolUse = toolUses;
+    if (providerContext.length > 0) assistantLoopMsg.providerContext = providerContext;
     currentMessages.push(assistantLoopMsg);
 
     if (toolUses.length === 0) {

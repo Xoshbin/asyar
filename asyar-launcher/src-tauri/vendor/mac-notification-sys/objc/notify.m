@@ -144,7 +144,7 @@ NSDictionary* sendNotification(NSString* title, NSString* subtitle, NSString* me
         // notifications-with-actions), turning this wait into a hot spin.
         // Park a dummy port so each poll sleeps until its deadline.
         NSRunLoop* waitLoop = [NSRunLoop currentRunLoop];
-        NSMachPort* wakePort = [NSMachPort port];
+        NSPort* wakePort = [NSMachPort port];
         [waitLoop addPort:wakePort forMode:NSDefaultRunLoopMode];
         while (ncDelegate.keepRunning) {
             [waitLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];

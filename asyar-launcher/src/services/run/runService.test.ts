@@ -201,11 +201,15 @@ describe('onStateChanged', () => {
     expect(runService.active.some((r) => r.id === 'r2')).toBe(false);
   });
 
-  it('state_changed_failed_routes_through_diagnostics', async () => {
+  it('state_changed_failed_routes_through_feedback', async () => {
     const run = makeRun({ id: 'r1', status: 'failed', errorMessage: 'boom' });
     await runService['onStateChanged'](run);
     expect(feedbackService.report).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'run_failed', severity: 'warning' }),
+      expect.objectContaining({
+        kind: 'run_failed',
+        severity: 'warning',
+        context: { id: 'r1', message: 'boom' },
+      }),
     );
   });
 

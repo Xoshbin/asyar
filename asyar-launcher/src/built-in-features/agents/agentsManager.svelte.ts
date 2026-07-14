@@ -4,6 +4,7 @@ import { logService } from '../../services/log/logService';
 import type { DynamicCommandRegistration } from 'asyar-sdk/contracts';
 import type { AgentService } from './agentService.svelte';
 import { agentService as defaultAgentService } from './agentService.svelte';
+import type { ChatStreamStatus } from '../../services/ai/IProviderPlugin';
 
 const AGENTS_EXTENSION_ID = 'agents';
 
@@ -21,6 +22,7 @@ export class AgentsManager {
    * when the turn is persisted (real message takes over).
    */
   streamingText = $state<string>('');
+  streamingStatus = $state<ChatStreamStatus | null>(null);
   /** True while a `runAgent` invocation is in-flight for the active thread. */
   sending = $state<boolean>(false);
   /**

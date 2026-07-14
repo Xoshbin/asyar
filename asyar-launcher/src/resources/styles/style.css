@@ -1428,6 +1428,8 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     border: 1px solid var(--border-color);
     padding: 10px 14px;
     text-align: left;
+    word-break: normal;
+    overflow-wrap: normal;
   }
   .md-content th {
     background-color: var(--bg-secondary);

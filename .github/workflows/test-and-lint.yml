@@ -28,7 +28,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
         with:
-          version: 10
+          version: 10.26.0
 
       - name: Install Rust 1.97.0
         uses: dtolnay/rust-toolchain@1.97.0
@@ -46,6 +46,9 @@ jobs:
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Test workspace setup version checks
+        run: pnpm test:setup
 
       - name: Check Prettier formatting
         run: pnpm format:check

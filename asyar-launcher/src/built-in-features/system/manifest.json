@@ -1,0 +1,13 @@
+{
+  "id": "system",
+  "name": "System",
+  "icon": "icon:power",
+  "version": "1.0.0",
+  "description": "System commands: sleep, lock screen, restart, shut down",
+  "type": "extension",
+  "searchable": false,
+  "commands": [],
+  "background": {
+    "main": "dist/worker.js"
+  }
+}

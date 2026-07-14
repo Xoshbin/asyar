@@ -595,6 +595,22 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
+    /// Forward-slash string form of a path, for building *declared* glob
+    /// patterns. Extensions declare `files:read` globs with forward slashes
+    /// (the documented convention, e.g. `C:/Steam/**`), and globset treats
+    /// `\` as an escape — so a pattern built from a Windows path's native
+    /// backslashes would never match. Requested paths (not patterns) stay
+    /// native; the product normalizes those itself.
+    ///
+    /// Roots feeding patterns are canonicalized with `dunce`, not
+    /// `std::fs::canonicalize`, elsewhere in these tests: the latter yields a
+    /// verbatim `\\?\C:\…` prefix on Windows whose `?` is a glob
+    /// metacharacter, which breaks both pattern matching and the
+    /// literal-prefix parse `files:glob` relies on.
+    fn slashes(p: &std::path::Path) -> String {
+        p.to_string_lossy().replace('\\', "/")
+    }
+
     #[tokio::test]
     async fn test_write_and_read_roundtrip() {
         let app = tauri::test::mock_app();
@@ -774,12 +790,12 @@ mod tests {
     /// canonicalized root so macOS `/var` → `/private/var` tempdir
     /// indirection can't skew starts_with / glob comparisons.
     fn files_read_setup(tmp: &TempDir) -> (ExtensionPermissionRegistry, PathBuf) {
-        let root = tmp.path().canonicalize().unwrap();
+        let root = dunce::canonicalize(tmp.path()).unwrap();
         let perms = ExtensionPermissionRegistry::default();
         let mut args = HashMap::new();
         args.insert(
             "files:read".to_string(),
-            serde_json::json!([format!("{}/**", root.to_string_lossy())]),
+            serde_json::json!([format!("{}/**", slashes(&root))]),
         );
         perms.register("ext.a", HashSet::from(["files:read".to_string()]), args);
         (perms, root)
@@ -812,7 +828,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = files_read_setup(&tmp);
         let outside = TempDir::new().unwrap();
-        let target = outside.path().canonicalize().unwrap().join("a.txt");
+        let target = dunce::canonicalize(outside.path()).unwrap().join("a.txt");
         std::fs::write(&target, "hi").unwrap();
         let err =
             files_read_text_inner(&perms, "ext.a", target.to_str().unwrap(), None, &root, &[])
@@ -849,7 +865,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = files_read_setup(&tmp);
         let outside = TempDir::new().unwrap();
-        let outside_root = outside.path().canonicalize().unwrap();
+        let outside_root = dunce::canonicalize(outside.path()).unwrap();
         let secret = outside_root.join("secret.txt");
         std::fs::write(&secret, "secret").unwrap();
         // `<root>/../<outside-basename>/secret.txt` — textually starts
@@ -924,12 +940,12 @@ mod tests {
         // `<home>/docs/link` → `<home>/.ssh/secret` is caught by the
         // post-canonicalization deny re-check.
         let tmp = TempDir::new().unwrap();
-        let home = tmp.path().canonicalize().unwrap();
+        let home = dunce::canonicalize(tmp.path()).unwrap();
         let perms = ExtensionPermissionRegistry::default();
         let mut args = HashMap::new();
         args.insert(
             "files:read".to_string(),
-            serde_json::json!([format!("{}/docs/**", home.to_string_lossy())]),
+            serde_json::json!([format!("{}/docs/**", slashes(&home))]),
         );
         perms.register("ext.a", HashSet::from(["files:read".to_string()]), args);
 
@@ -958,7 +974,9 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = files_read_setup(&tmp);
         let outside = TempDir::new().unwrap();
-        let secret = outside.path().canonicalize().unwrap().join("private.txt");
+        let secret = dunce::canonicalize(outside.path())
+            .unwrap()
+            .join("private.txt");
         std::fs::write(&secret, "private").unwrap();
         let link = root.join("innocent.txt");
         std::os::unix::fs::symlink(&secret, &link).unwrap();
@@ -975,7 +993,7 @@ mod tests {
         // `<real home>/.ssh` must still be denied: the deny roots are
         // rebuilt from the CANONICAL home for the post-resolution check.
         let tmp = TempDir::new().unwrap();
-        let base = tmp.path().canonicalize().unwrap();
+        let base = dunce::canonicalize(tmp.path()).unwrap();
         let real_home = base.join("real-home");
         std::fs::create_dir_all(real_home.join(".ssh")).unwrap();
         std::fs::write(real_home.join(".ssh/secret"), "PRIVATE").unwrap();
@@ -989,10 +1007,7 @@ mod tests {
         let mut args = HashMap::new();
         args.insert(
             "files:read".to_string(),
-            serde_json::json!([
-                "~/docs/**",
-                format!("{}/docs/**", real_home.to_string_lossy())
-            ]),
+            serde_json::json!(["~/docs/**", format!("{}/docs/**", slashes(&real_home))]),
         );
         perms.register("ext.a", HashSet::from(["files:read".to_string()]), args);
 
@@ -1063,7 +1078,7 @@ mod tests {
         // the hex name precisely.
         let pattern = format!(
             "{}/appcache/librarycache/105600/{}.jpg",
-            root.to_string_lossy(),
+            slashes(&root),
             "?".repeat(40)
         );
         let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
@@ -1075,7 +1090,7 @@ mod tests {
     fn files_glob_results_are_sorted_and_capped() {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = glob_setup(&tmp);
-        let pattern = format!("{}/appcache/**", root.to_string_lossy());
+        let pattern = format!("{}/appcache/**", slashes(&root));
         let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
         assert_eq!(hits.len(), 2);
         assert!(hits[0] < hits[1], "expected sorted results: {hits:?}");
@@ -1087,7 +1102,7 @@ mod tests {
     fn files_glob_rejects_without_permission() {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = glob_setup(&tmp);
-        let pattern = format!("{}/**", root.to_string_lossy());
+        let pattern = format!("{}/**", slashes(&root));
         let err = files_glob_inner(&perms, "ext.other", &pattern, None, &root, &[]).unwrap_err();
         assert!(
             format!("{err}").to_lowercase().contains("permission")
@@ -1109,7 +1124,7 @@ mod tests {
     fn files_glob_rejects_traversal_pattern() {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = glob_setup(&tmp);
-        let pattern = format!("{}/sub/../**", root.to_string_lossy());
+        let pattern = format!("{}/sub/../**", slashes(&root));
         let err = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap_err();
         assert!(format!("{err}").contains(".."), "got: {err}");
     }
@@ -1118,11 +1133,9 @@ mod tests {
     fn files_glob_rejects_out_of_scope_prefix_without_walking() {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = glob_setup(&tmp);
-        let outside = TempDir::new().unwrap();
-        let pattern = format!(
-            "{}/**",
-            outside.path().canonicalize().unwrap().to_string_lossy()
-        );
+        let outside_tmp = TempDir::new().unwrap();
+        let outside = dunce::canonicalize(outside_tmp.path()).unwrap();
+        let pattern = format!("{}/**", slashes(&outside));
         let err = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap_err();
         assert!(
             format!("{err}").contains("outside the declared"),
@@ -1135,7 +1148,7 @@ mod tests {
         // A configured-but-absent library drive is normal, not an error.
         let tmp = TempDir::new().unwrap();
         let (perms, root) = glob_setup(&tmp);
-        let pattern = format!("{}/not-mounted/**", root.to_string_lossy());
+        let pattern = format!("{}/not-mounted/**", slashes(&root));
         let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
         assert!(hits.is_empty());
     }
@@ -1149,7 +1162,7 @@ mod tests {
         let ssh = root.join(".ssh");
         std::fs::create_dir_all(&ssh).unwrap();
         std::fs::write(ssh.join("id_rsa.jpg"), "not really art").unwrap();
-        let pattern = format!("{}/**/*.jpg", root.to_string_lossy());
+        let pattern = format!("{}/**/*.jpg", slashes(&root));
         let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
         assert_eq!(hits.len(), 1, "got: {hits:?}");
         assert!(!hits[0].contains(".ssh"));
@@ -1160,12 +1173,12 @@ mod tests {
         // Declared scope narrower than the walked glob: only in-scope
         // names may leave the host.
         let tmp = TempDir::new().unwrap();
-        let root = tmp.path().canonicalize().unwrap();
+        let root = dunce::canonicalize(tmp.path()).unwrap();
         let perms = ExtensionPermissionRegistry::default();
         let mut args = HashMap::new();
         args.insert(
             "files:read".to_string(),
-            serde_json::json!([format!("{}/appcache/**", root.to_string_lossy())]),
+            serde_json::json!([format!("{}/appcache/**", slashes(&root))]),
         );
         perms.register("ext.a", HashSet::from(["files:read".to_string()]), args);
         let lib = root.join("appcache");
@@ -1173,7 +1186,7 @@ mod tests {
         std::fs::write(lib.join("in-scope.jpg"), "jpg").unwrap();
         std::fs::write(root.join("out-of-scope.jpg"), "jpg").unwrap();
 
-        let pattern = format!("{}/**/*.jpg", root.to_string_lossy());
+        let pattern = format!("{}/**/*.jpg", slashes(&root));
         let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
         assert_eq!(hits.len(), 1, "got: {hits:?}");
         assert!(hits[0].ends_with("in-scope.jpg"));
@@ -1185,11 +1198,11 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = glob_setup(&tmp);
         let outside = TempDir::new().unwrap();
-        let secret_dir = outside.path().canonicalize().unwrap();
+        let secret_dir = dunce::canonicalize(outside.path()).unwrap();
         std::fs::write(secret_dir.join("secret.jpg"), "jpg").unwrap();
         std::os::unix::fs::symlink(&secret_dir, root.join("linked")).unwrap();
 
-        let pattern = format!("{}/**/*.jpg", root.to_string_lossy());
+        let pattern = format!("{}/**/*.jpg", slashes(&root));
         let hits = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap();
         assert_eq!(hits.len(), 1, "got: {hits:?}");
         assert!(!hits[0].contains("secret"));
@@ -1201,7 +1214,15 @@ mod tests {
         // enumerate to empty because the literal prefix isn't a directory.
         let tmp = TempDir::new().unwrap();
         let (perms, root) = glob_setup(&tmp);
-        let target = root.join("appcache/librarycache/105600/logo.png");
+        // Join components separately so `target` uses the native separator —
+        // the product returns native paths, so a mixed-separator expected
+        // (backslash root + forward-slash suffix) would spuriously differ on
+        // Windows.
+        let target = root
+            .join("appcache")
+            .join("librarycache")
+            .join("105600")
+            .join("logo.png");
         let hits =
             files_glob_inner(&perms, "ext.a", &target.to_string_lossy(), None, &root, &[]).unwrap();
         assert_eq!(hits, vec![target.to_string_lossy().into_owned()]);
@@ -1215,7 +1236,9 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let (perms, root) = glob_setup(&tmp);
         let outside = TempDir::new().unwrap();
-        let secret = outside.path().canonicalize().unwrap().join("secret.jpg");
+        let secret = dunce::canonicalize(outside.path())
+            .unwrap()
+            .join("secret.jpg");
         std::fs::write(&secret, "jpg").unwrap();
         let link = root.join("linked.jpg");
         std::os::unix::fs::symlink(&secret, &link).unwrap();
@@ -1233,7 +1256,7 @@ mod tests {
         let ssh = root.join(".ssh");
         std::fs::create_dir_all(&ssh).unwrap();
         std::fs::write(ssh.join("id_rsa.jpg"), "not art").unwrap();
-        let pattern = format!("{}/.ssh/**", root.to_string_lossy());
+        let pattern = format!("{}/.ssh/**", slashes(&root));
         let err = files_glob_inner(&perms, "ext.a", &pattern, None, &root, &[]).unwrap_err();
         assert!(
             format!("{err}").contains("protected location"),
@@ -1346,7 +1369,7 @@ mod tests {
         let app = mock_app_with_thumb_state();
         app.manage(perms);
         let outside = TempDir::new().unwrap();
-        let src = outside.path().canonicalize().unwrap().join("art.png");
+        let src = dunce::canonicalize(outside.path()).unwrap().join("art.png");
         write_test_png(&src);
 
         let err = files_thumbnail(

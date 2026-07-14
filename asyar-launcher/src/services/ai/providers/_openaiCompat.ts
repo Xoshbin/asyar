@@ -16,24 +16,22 @@ export function openAIToolsMessages(messages: LoopMessage[]): unknown[] {
     } else if (msg.role === 'user') {
       result.push({ role: 'user', content: msg.content });
     } else if (msg.role === 'assistant') {
+      const assistant: Record<string, unknown> = {
+        role: 'assistant',
+        content: msg.content,
+      };
       if (msg.toolUse && msg.toolUse.length > 0) {
-        result.push({
-          role: 'assistant',
-          content: msg.content,
-          tool_calls: msg.toolUse.map((tu) => ({
-            id: tu.id,
-            type: 'function',
-            function: {
-              // tu.name holds the original FQID (e.g. `builtin:calculator`);
-              // encode it so it matches the wire-safe name declared in `tools`.
-              name: encodeToolIdForWire(tu.name),
-              arguments: JSON.stringify(tu.input),
-            },
-          })),
-        });
-      } else {
-        result.push({ role: 'assistant', content: msg.content });
+        assistant.tool_calls = msg.toolUse.map((tu) => ({
+          id: tu.id,
+          type: 'function',
+          function: {
+            name: encodeToolIdForWire(tu.name),
+            arguments: JSON.stringify(tu.input),
+          },
+        }));
       }
+      if (msg.providerContext?.length) assistant.reasoning_details = msg.providerContext;
+      result.push(assistant);
     } else if (msg.role === 'tool') {
       result.push({ role: 'tool', tool_call_id: msg.toolUseId, content: msg.content });
     }
@@ -110,6 +108,7 @@ export async function* parseOpenAIToolStream(
             index?: number;
             delta?: {
               content?: string;
+              reasoning_details?: unknown[];
               tool_calls?: Array<{
                 index: number;
                 id?: string;
@@ -124,6 +123,10 @@ export async function* parseOpenAIToolStream(
         const choice = json.choices?.[0];
         if (!choice) continue;
         const delta = choice.delta;
+
+        for (const detail of delta?.reasoning_details ?? []) {
+          yield { type: 'provider_context', item: detail };
+        }
 
         if (delta?.content != null && typeof delta.content === 'string') {
           yield { type: 'text', text: delta.content };

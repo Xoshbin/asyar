@@ -51,9 +51,9 @@ vi.mock('../../services/log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { runAgent, coalesceConsecutiveSameRole } from './agentLoop';
+import { runAgent, coalesceConsecutiveSameRole, buildChatSystemPrompt } from './agentLoop';
 import { encodeToolIdForWire } from '../../services/ai/IProviderPlugin';
-import type { ToolCall } from '../../services/ai/IProviderPlugin';
+import type { LoopMessage, ToolCall } from '../../services/ai/IProviderPlugin';
 import { getProvider } from '../../services/ai/providerRegistry';
 import { streamChat } from '../../services/ai/aiEngine';
 import { settingsService } from '../../services/settings/settingsService.svelte';
@@ -131,6 +131,7 @@ const makePlugin = () => ({
 type ToolStreamEvent =
   | { type: 'text'; text: string }
   | { type: 'tool_use'; id: string; name: string; input: unknown }
+  | { type: 'provider_context'; item: unknown }
   | { type: 'message_stop' };
 
 async function* makeAsyncGen(events: ToolStreamEvent[]): AsyncGenerator<ToolStreamEvent> {
@@ -274,6 +275,31 @@ describe('runAgent', () => {
     expect(feedbackService.report).toHaveBeenCalled();
   });
 
+  it('runAgent_allows_custom_provider_without_apiKey', async () => {
+    vi.mocked(agentService.getById).mockReturnValue(makeAgent({ providerId: 'custom' }) as never);
+    vi.mocked(getProvider).mockReturnValue({
+      ...makePlugin(),
+      id: 'custom',
+      name: 'Custom',
+      requiresApiKey: false,
+      optionalApiKey: true,
+      requiresBaseUrl: true,
+    } as never);
+    vi.mocked(settingsService.getSettings).mockReturnValue({
+      ai: {
+        providers: {
+          custom: { enabled: true, baseUrl: 'http://localhost:8317/v1' },
+        },
+        temperature: 0.7,
+        maxTokens: 2048,
+      },
+    } as never);
+
+    await runAgent({ agentId: 'a1', threadId: 't1', userText: 'search the web' });
+
+    expect(streamChat).toHaveBeenCalled();
+  });
+
   // 5 ── Includes systemPrompt as system message ─────────────────────────────
 
   it('runAgent_includes_systemPrompt_as_system_message', async () => {
@@ -287,7 +313,8 @@ describe('runAgent', () => {
     const streamChatCall = vi.mocked(streamChat).mock.calls[0];
     const chatMessages = streamChatCall[2];
     expect(chatMessages[0].role).toBe('system');
-    expect(chatMessages[0].content).toBe('You are helpful');
+    expect(chatMessages[0].content).toContain('The available horizontal display space is 400px.');
+    expect(chatMessages[0].content).toContain('You are helpful');
   });
 
   // 6 ── Passes full thread history to provider in correct order ─────────────
@@ -432,6 +459,10 @@ describe('runAgent', () => {
       if (callCount === 1) {
         return makeAsyncGen([
           { type: 'text', text: 'Let me check' },
+          {
+            type: 'provider_context',
+            item: { type: 'reasoning', encrypted_content: 'opaque' },
+          },
           { type: 'tool_use', id: 'tu1', name: 'builtin:echo', input: { x: 1 } },
           { type: 'message_stop' },
         ]);
@@ -471,6 +502,14 @@ describe('runAgent', () => {
 
     expect(invokeTool).toHaveBeenCalledWith('builtin:echo', { x: 1 }, 'a1');
     expect(invokeTool).toHaveBeenCalledTimes(1);
+
+    const secondTurnMessages = vi.mocked(plugin.buildToolRequest).mock.calls[1][0] as LoopMessage[];
+    expect(secondTurnMessages).toContainEqual({
+      role: 'assistant',
+      content: 'Let me check',
+      toolUse: [{ id: 'tu1', name: 'builtin:echo', input: { x: 1 } }],
+      providerContext: [{ type: 'reasoning', encrypted_content: 'opaque' }],
+    });
   });
 
   // 14 ── Only selected tools are passed to buildToolRequest ─────────────────
@@ -1261,6 +1300,31 @@ describe('runAgent', () => {
   });
 });
 
+describe('buildChatSystemPrompt', () => {
+  it('adds display-width guidance when hosted search is disabled', () => {
+    const prompt = buildChatSystemPrompt('Be helpful.', { enabled: true });
+
+    expect(prompt).toMatch(/^The available horizontal display space is 400px\./);
+    expect(prompt).toContain('Be helpful.');
+    expect(prompt).not.toContain('Today is');
+  });
+
+  it('adds date-aware search guidance only when hosted search is enabled', () => {
+    const prompt = buildChatSystemPrompt(
+      'Be helpful.',
+      { enabled: true, hostedWebSearch: true },
+      new Date(2026, 6, 13),
+    );
+
+    expect(prompt).toMatch(/^The available horizontal display space is 400px\./);
+    expect(prompt).toContain('Today is 13 July 2026.');
+    expect(prompt).toMatch(/Use web search for facts that may have changed/i);
+    expect(prompt).toMatch(/schedules, sports, prices/i);
+    expect(prompt).toMatch(/ambiguous current-event queries, search first/i);
+    expect(prompt).toMatch(/ask only when no interpretation is clearly more likely/i);
+    expect(prompt).toMatch(/Do not search for stable facts/i);
+  });
+});
 // ── coalesceConsecutiveSameRole — guards strict role-alternation rule ─────────
 
 describe('coalesceConsecutiveSameRole', () => {

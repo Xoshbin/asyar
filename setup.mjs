@@ -16,6 +16,7 @@ import { execSync } from 'child_process';
 import { existsSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { isVersionBelow } from './scripts/setup-version.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname);
@@ -34,7 +35,7 @@ step('Checking prerequisites');
 
 const checks = [
   { cmd: 'node --version', name: 'Node.js', minVersion: '20' },
-  { cmd: 'pnpm --version', name: 'pnpm', minVersion: '9' },
+  { cmd: 'pnpm --version', name: 'pnpm', minVersion: '10.26' },
   { cmd: 'rustc --version', name: 'Rust' },
   { cmd: 'cargo --version', name: 'Cargo' },
 ];
@@ -43,8 +44,7 @@ let preflight = true;
 for (const check of checks) {
   try {
     const ver = execSync(check.cmd, { stdio: 'pipe' }).toString().trim();
-    const major = ver.match(/(\d+)/)?.[1];
-    if (check.minVersion && major && parseInt(major) < parseInt(check.minVersion)) {
+    if (check.minVersion && isVersionBelow(ver, check.minVersion)) {
       console.error(`  ✗ ${check.name}: ${ver} (need ${check.minVersion}+)`);
       preflight = false;
     } else {

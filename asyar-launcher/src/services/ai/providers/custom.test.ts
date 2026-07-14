@@ -29,14 +29,40 @@ describe('customPlugin metadata', () => {
   it('keeps requiresApiKey: false so unsecured local endpoints (LocalAI, Ollama-compatible) still pass the hasCredentials gate', () => {
     expect(customPlugin.requiresApiKey).toBe(false);
   });
+
+  it('advertises the hosted web-search setting', () => {
+    expect(customPlugin.supportsHostedWebSearch).toBe(true);
+  });
+
+  it('advertises the Responses / Chat Completions selector', () => {
+    expect(customPlugin.supportsOpenAIApiMode).toBe(true);
+  });
 });
 
 describe('customPlugin.buildRequest', () => {
+  it('keeps existing configs on Chat Completions when the API mode is missing', () => {
+    const spec = customPlugin.buildRequest(
+      [userMsg],
+      { enabled: true, baseUrl: 'https://my-llm.example/api' },
+      baseParams,
+    );
+
+    expect(spec.url).toBe('https://my-llm.example/api/v1/chat/completions');
+    expect(spec.body).toMatchObject({
+      model: 'local-model',
+      messages: [{ role: 'user', content: 'hello' }],
+      max_tokens: 1024,
+      stream: true,
+    });
+    expect(spec.body).not.toHaveProperty('input');
+  });
+
   it('adds Authorization: Bearer <key> when an apiKey is configured', () => {
     const config: ProviderConfig = {
       enabled: true,
       baseUrl: 'https://my-llm.example/api',
       apiKey: 'sk-secret',
+      openAIApiMode: 'chat-completions',
     };
 
     const spec = customPlugin.buildRequest([userMsg], config, baseParams);
@@ -44,6 +70,32 @@ describe('customPlugin.buildRequest', () => {
     expect(spec.headers.Authorization).toBe('Bearer sk-secret');
     expect(spec.headers['Content-Type']).toBe('application/json');
     expect(spec.url).toBe('https://my-llm.example/api/v1/chat/completions');
+  });
+
+  it('maps configured reasoning effort in Responses and Chat Completions modes', () => {
+    const responses = customPlugin.buildRequest(
+      [userMsg],
+      {
+        enabled: true,
+        baseUrl: 'https://my-llm.example/api',
+        reasoningEffort: 'low',
+        openAIApiMode: 'responses',
+      },
+      baseParams,
+    );
+    const chatCompletions = customPlugin.buildRequest(
+      [userMsg],
+      {
+        enabled: true,
+        baseUrl: 'https://my-llm.example/api',
+        reasoningEffort: 'low',
+        openAIApiMode: 'chat-completions',
+      },
+      baseParams,
+    );
+
+    expect(responses.body).toMatchObject({ reasoning: { effort: 'low' } });
+    expect(chatCompletions.body).toMatchObject({ reasoning_effort: 'low' });
   });
 
   // Real-world base-URL ergonomics — users paste these straight from provider docs.
@@ -72,7 +124,11 @@ describe('customPlugin.buildRequest', () => {
       'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
     ],
   ])('builds the right chat-completions URL for %s', (_name, baseUrl, expected) => {
-    const spec = customPlugin.buildRequest([userMsg], { enabled: true, baseUrl }, baseParams);
+    const spec = customPlugin.buildRequest(
+      [userMsg],
+      { enabled: true, baseUrl, openAIApiMode: 'chat-completions' },
+      baseParams,
+    );
     expect(spec.url).toBe(expected);
   });
 
@@ -116,6 +172,32 @@ describe('customPlugin.buildRequest', () => {
 
     expect(spec.headers['anthropic-dangerous-direct-browser-access']).toBe('true');
   });
+
+  it('omits tools when hosted web search is disabled', () => {
+    const spec = customPlugin.buildRequest(
+      [userMsg],
+      { enabled: true, baseUrl: 'http://localhost:8080' },
+      baseParams,
+    );
+
+    expect(spec.body).not.toHaveProperty('tools');
+  });
+
+  it('adds OpenAI hosted web search with medium context when enabled', () => {
+    const spec = customPlugin.buildRequest(
+      [userMsg],
+      {
+        enabled: true,
+        baseUrl: 'http://localhost:8080',
+        hostedWebSearch: true,
+      },
+      baseParams,
+    );
+
+    expect(spec.body).toMatchObject({
+      tools: [{ type: 'web_search', search_context_size: 'medium' }],
+    });
+  });
 });
 
 // ─── Helpers (tool-calling tests) ─────────────────────────────────────────────
@@ -153,6 +235,7 @@ describe('customPlugin tool calling', () => {
       enabled: true,
       baseUrl: 'https://my-llm.example.com',
       apiKey: 'k',
+      openAIApiMode: 'chat-completions',
     };
 
     const spec = customPlugin.buildToolRequest(toolMessages, config, toolParams, fakeTools);
@@ -167,12 +250,61 @@ describe('customPlugin tool calling', () => {
       enabled: true,
       baseUrl: 'https://my-llm.example.com',
       apiKey: '',
+      openAIApiMode: 'chat-completions',
     };
 
     const spec = customPlugin.buildToolRequest(toolMessages, config, toolParams, fakeTools);
 
     // Empty apiKey must not produce an Authorization header (matches buildRequest behavior)
     expect(spec.headers.Authorization).toBeUndefined();
+  });
+
+  it('custom_buildToolRequest_returns_an_object_for_central_request_serialization', () => {
+    const config: ProviderConfig = {
+      enabled: true,
+      baseUrl: 'https://my-llm.example.com',
+      apiKey: 'k',
+      openAIApiMode: 'chat-completions',
+    };
+
+    const spec = customPlugin.buildToolRequest(toolMessages, config, toolParams, fakeTools);
+
+    expect(typeof spec.body).toBe('object');
+    expect(spec.body).toMatchObject({
+      tools: [{ type: 'function', function: { name: 'calc' } }],
+    });
+  });
+
+  it('maps configured effort in Chat Completions tool requests', () => {
+    const config: ProviderConfig = {
+      enabled: true,
+      baseUrl: 'https://my-llm.example.com',
+      reasoningEffort: 'high',
+      openAIApiMode: 'chat-completions',
+    };
+
+    const spec = customPlugin.buildToolRequest(toolMessages, config, toolParams, fakeTools);
+
+    expect(spec.body).toMatchObject({ reasoning_effort: 'high' });
+  });
+
+  it('custom_buildToolRequest_combines_function_tools_with_hosted_web_search', () => {
+    const config: ProviderConfig = {
+      enabled: true,
+      baseUrl: 'https://my-llm.example.com',
+      apiKey: 'k',
+      hostedWebSearch: true,
+      openAIApiMode: 'chat-completions',
+    };
+
+    const spec = customPlugin.buildToolRequest(toolMessages, config, toolParams, fakeTools);
+
+    expect(spec.body).toMatchObject({
+      tools: [
+        { type: 'function', function: { name: 'calc' } },
+        { type: 'web_search', search_context_size: 'medium' },
+      ],
+    });
   });
 
   it('custom_parseToolStream_yields_tool_use_event', async () => {
@@ -186,7 +318,10 @@ describe('customPlugin tool calling', () => {
 
     const reader = readerFromChunks(chunks);
     const events: unknown[] = [];
-    for await (const event of customPlugin.parseToolStream(reader)) {
+    for await (const event of customPlugin.parseToolStream(reader, {
+      enabled: true,
+      openAIApiMode: 'chat-completions',
+    })) {
       events.push(event);
     }
 

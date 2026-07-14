@@ -2,6 +2,7 @@
   "name": "asyar",
   "private": true,
   "version": "0.0.0",
+  "packageManager": "pnpm@10.26.0",
   "scripts": {
     "setup": "node setup.mjs",
     "dev": "node scripts/dev.mjs",
@@ -10,32 +11,13 @@
     "check": "node scripts/check.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "test:setup": "node --test scripts/setup-version.test.mjs",
     "release:sdk": "pnpm --filter asyar-sdk run release",
     "prepare": "husky"
   },
   "engines": {
     "node": ">=20",
-    "pnpm": ">=9"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "keytar"
-    ],
-    "supportedArchitectures": {
-      "cpu": [
-        "arm64",
-        "x64"
-      ],
-      "os": [
-        "win32",
-        "darwin",
-        "linux"
-      ]
-    },
-    "overrides": {
-      "vite": "6.4.3",
-      "asyar-sdk": "workspace:*"
-    }
+    "pnpm": ">=10.26"
   },
   "devDependencies": {
     "@testing-library/svelte": "^5.3.1",

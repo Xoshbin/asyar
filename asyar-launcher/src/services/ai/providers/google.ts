@@ -9,7 +9,57 @@ import type {
   ChatMessage,
   LoopMessage,
   ToolStreamEvent,
+  ReasoningEffort,
 } from '../IProviderPlugin';
+
+const GEMINI_25_EFFORTS: ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
+const GEMINI_3_EFFORTS: ReasoningEffort[] = ['minimal', 'low', 'medium', 'high'];
+const GEMINI_3_PRO_EFFORTS: ReasoningEffort[] = ['low', 'medium', 'high'];
+const GEMINI_3_LEGACY_PRO_EFFORTS: ReasoningEffort[] = ['low', 'high'];
+const GEMINI_3_IMAGE_EFFORTS: ReasoningEffort[] = ['minimal', 'high'];
+const GEMINI_25_BUDGETS: Partial<Record<ReasoningEffort, number>> = {
+  minimal: 1024,
+  low: 1024,
+  medium: 8192,
+  high: 24576,
+};
+
+function geminiMajor(modelId: string): number | null {
+  const match = /^gemini-(\d+)/.exec(modelId);
+  return match ? Number(match[1]) : null;
+}
+
+export function googleReasoningEfforts(modelId: string): ReasoningEffort[] {
+  if (modelId.startsWith('gemini-2.5')) return [...GEMINI_25_EFFORTS];
+
+  const major = geminiMajor(modelId);
+  if (major === null || major < 3) return [];
+  if (modelId.includes('-image')) return [...GEMINI_3_IMAGE_EFFORTS];
+  if (modelId.startsWith('gemini-3-pro')) return [...GEMINI_3_LEGACY_PRO_EFFORTS];
+  if (modelId.includes('-pro')) return [...GEMINI_3_PRO_EFFORTS];
+  return [...GEMINI_3_EFFORTS];
+}
+
+export function googleThinkingConfig(
+  modelId: string,
+  effort: ReasoningEffort | undefined,
+): Record<string, unknown> | undefined {
+  if (!effort) return undefined;
+
+  if (modelId.startsWith('gemini-2.5')) {
+    const thinkingBudget = GEMINI_25_BUDGETS[effort];
+    return thinkingBudget === undefined ? undefined : { thinkingBudget };
+  }
+
+  const supportedEfforts = googleReasoningEfforts(modelId);
+  const thinkingLevel =
+    effort === 'minimal' && !supportedEfforts.includes('minimal')
+      ? 'low'
+      : supportedEfforts.includes(effort)
+        ? effort
+        : undefined;
+  return thinkingLevel ? { thinkingLevel } : undefined;
+}
 
 export const googlePlugin: IProviderPlugin = {
   id: 'google',
@@ -17,6 +67,7 @@ export const googlePlugin: IProviderPlugin = {
   requiresApiKey: true,
   requiresBaseUrl: false,
   supportsTools: true,
+  reasoningEfforts: ['minimal', 'low', 'medium', 'high'],
 
   async getModels(config: ProviderConfig): Promise<ModelInfo[]> {
     // Security fix: API key in Authorization header, NOT in URL
@@ -35,6 +86,7 @@ export const googlePlugin: IProviderPlugin = {
       .map((m) => ({
         id: m.name.replace('models/', ''),
         label: m.displayName ?? m.name.replace('models/', ''),
+        reasoningEfforts: googleReasoningEfforts(m.name.replace('models/', '')),
       }));
   },
 
@@ -44,6 +96,7 @@ export const googlePlugin: IProviderPlugin = {
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
+    const thinkingConfig = googleThinkingConfig(params.modelId, config.reasoningEffort);
     return {
       url: `https://generativelanguage.googleapis.com/v1beta/models/${params.modelId}:streamGenerateContent?alt=sse`,
       headers: {
@@ -56,6 +109,7 @@ export const googlePlugin: IProviderPlugin = {
         generationConfig: {
           temperature: params.temperature,
           maxOutputTokens: params.maxTokens,
+          ...(thinkingConfig && { thinkingConfig }),
         },
       },
     };
@@ -125,6 +179,7 @@ export const googlePlugin: IProviderPlugin = {
       }
     }
 
+    const thinkingConfig = googleThinkingConfig(params.modelId, config.reasoningEffort);
     const body: Record<string, unknown> = {
       contents,
       tools: [
@@ -139,6 +194,7 @@ export const googlePlugin: IProviderPlugin = {
       generationConfig: {
         ...(params.temperature !== undefined && { temperature: params.temperature }),
         ...(params.maxTokens !== undefined && { maxOutputTokens: params.maxTokens }),
+        ...(thinkingConfig && { thinkingConfig }),
       },
     };
     if (systemText) body.systemInstruction = { parts: [{ text: systemText }] };

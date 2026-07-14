@@ -409,6 +409,40 @@ describe('dispatchSilentAgentCommand — failures', () => {
     // No clipboard work should have happened.
     expect(writeText).not.toHaveBeenCalled();
   });
+
+  it('allows_custom_provider_without_api_key', async () => {
+    const agent = makeAgent({ providerId: 'custom', outputAction: 'copy' });
+    vi.mocked(agentService.getById).mockReturnValue(agent as never);
+    vi.mocked(getProvider).mockReturnValue({
+      ...makePlugin(),
+      id: 'custom',
+      name: 'Custom',
+      requiresApiKey: false,
+      optionalApiKey: true,
+      requiresBaseUrl: true,
+    } as never);
+    vi.mocked(settingsService.getSettings).mockReturnValue({
+      ai: {
+        providers: {
+          custom: { enabled: true, baseUrl: 'http://localhost:8317/v1' },
+        },
+        temperature: 0.7,
+        maxTokens: 2048,
+      },
+    } as never);
+    vi.mocked(streamChat).mockImplementation(
+      async (_plugin, _config, _messages, _params, handlers) => {
+        handlers.onToken('Current result');
+        handlers.onDone();
+      },
+    );
+
+    await dispatchSilentAgentCommand({ agentId: 'agent-1', userText: 'search the web' });
+
+    expect(streamChat).toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalledWith('Current result');
+    expect(notificationService.send).not.toHaveBeenCalled();
+  });
 });
 
 // ── agentDef direct-injection bypass ─────────────────────────────────────────

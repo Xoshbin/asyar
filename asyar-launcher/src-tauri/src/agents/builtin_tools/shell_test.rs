@@ -3,6 +3,16 @@ use crate::agents::tools::{BuiltinTool, ToolSource};
 use crate::error::AppError;
 use serde_json::json;
 
+/// Host shell and its `-c`-style flag. `ShellExecTool` spawns an executable
+/// directly (no implicit shell), so tests that need shell features —
+/// builtins like `echo`, redirection, exit codes — must name the shell
+/// explicitly. On Windows `echo`/`ls`/`sh` are cmd builtins or absent, so
+/// the POSIX spellings can't be spawned; route through `cmd /C` there.
+#[cfg(windows)]
+const SHELL: (&str, &str) = ("cmd", "/C");
+#[cfg(not(windows))]
+const SHELL: (&str, &str) = ("sh", "-c");
+
 // ── 1. descriptor_has_expected_shape ─────────────────────────────────────────
 
 #[test]
@@ -35,7 +45,7 @@ fn descriptor_has_expected_shape() {
 async fn invoke_runs_simple_command() {
     let tool = ShellExecTool::new();
     let result = tool
-        .invoke(json!({ "command": "echo", "args": ["hello"] }))
+        .invoke(json!({ "command": SHELL.0, "args": [SHELL.1, "echo hello"] }))
         .await;
 
     assert!(result.is_ok(), "expected Ok, got {result:?}");
@@ -53,7 +63,7 @@ async fn invoke_runs_simple_command() {
 async fn invoke_returns_exit_code_zero_on_success() {
     let tool = ShellExecTool::new();
     let result = tool
-        .invoke(json!({ "command": "echo", "args": ["hi"] }))
+        .invoke(json!({ "command": SHELL.0, "args": [SHELL.1, "echo hi"] }))
         .await;
 
     assert!(result.is_ok(), "expected Ok, got {result:?}");
@@ -72,7 +82,7 @@ async fn invoke_returns_exit_code_zero_on_success() {
 async fn invoke_returns_non_zero_exit_code_for_failed_command() {
     let tool = ShellExecTool::new();
     let result = tool
-        .invoke(json!({ "command": "sh", "args": ["-c", "exit 7"] }))
+        .invoke(json!({ "command": SHELL.0, "args": [SHELL.1, "exit 7"] }))
         .await;
 
     assert!(
@@ -93,8 +103,14 @@ async fn invoke_returns_non_zero_exit_code_for_failed_command() {
 #[tokio::test]
 async fn invoke_captures_stderr() {
     let tool = ShellExecTool::new();
+    // cmd needs `1>&2`; sh takes `>&2`.
+    let to_stderr = if cfg!(windows) {
+        "echo err 1>&2"
+    } else {
+        "echo err >&2"
+    };
     let result = tool
-        .invoke(json!({ "command": "sh", "args": ["-c", "echo err >&2"] }))
+        .invoke(json!({ "command": SHELL.0, "args": [SHELL.1, to_stderr] }))
         .await;
 
     assert!(result.is_ok(), "expected Ok, got {result:?}");
@@ -205,10 +221,13 @@ async fn invoke_runs_in_cwd() {
     let marker = dir.path().join("marker.txt");
     std::fs::write(&marker, "present").expect("failed to write marker file");
 
+    // `dir /B` lists bare filenames on Windows; `ls` elsewhere.
+    let listing = if cfg!(windows) { "dir /B" } else { "ls" };
     let tool = ShellExecTool::new();
     let result = tool
         .invoke(json!({
-            "command": "ls",
+            "command": SHELL.0,
+            "args": [SHELL.1, listing],
             "cwd": dir.path().to_str().unwrap()
         }))
         .await;
@@ -226,8 +245,11 @@ async fn invoke_runs_in_cwd() {
 
 #[tokio::test]
 async fn invoke_treats_args_as_omitted_when_missing() {
+    // `hostname` is a real executable (not a shell builtin) on Windows,
+    // macOS, and Linux, and exits 0 with no args — so it exercises the
+    // "args key absent → empty args, still runs" path without a shell.
     let tool = ShellExecTool::new();
-    let result = tool.invoke(json!({ "command": "echo" })).await;
+    let result = tool.invoke(json!({ "command": "hostname" })).await;
 
     assert!(
         result.is_ok(),
