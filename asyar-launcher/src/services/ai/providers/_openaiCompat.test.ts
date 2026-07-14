@@ -86,6 +86,23 @@ describe('openAIToolsMessages', () => {
     });
   });
 
+  it('openaiCompat_object_arguments_fall_back_to_empty_object_for_nullish_input', () => {
+    const messages: LoopMessage[] = [
+      {
+        role: 'assistant',
+        content: '',
+        // A no-argument tool call whose input never got populated.
+        toolUse: [{ id: 'call_1', name: 'clipboard-read', input: undefined as never }],
+      },
+    ];
+
+    const result = openAIToolsMessages(messages, { stringifyToolArgs: false }) as Array<{
+      tool_calls?: Array<{ function: { arguments: unknown } }>;
+    }>;
+
+    expect(result[0].tool_calls?.[0].function.arguments).toEqual({});
+  });
+
   it('openaiCompat_messages_emits_tool_role_with_tool_call_id', () => {
     const messages: LoopMessage[] = [{ role: 'tool', content: '42', toolUseId: 'call_1' }];
 

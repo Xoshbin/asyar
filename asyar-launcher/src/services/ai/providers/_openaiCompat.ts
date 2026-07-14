@@ -43,7 +43,9 @@ export function openAIToolsMessages(
           type: 'function',
           function: {
             name: encodeToolIdForWire(tu.name),
-            arguments: stringifyToolArgs ? JSON.stringify(tu.input) : tu.input,
+            // Object form: guard against a null/undefined input so Ollama
+            // never receives `arguments: undefined` (dropped from the body).
+            arguments: stringifyToolArgs ? JSON.stringify(tu.input) : (tu.input ?? {}),
           },
         }));
       }
