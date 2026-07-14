@@ -94,6 +94,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: asyar-launcher/src-tauri -> target
+          # Persist the cache even when tests fail, so re-runs while iterating
+          # don't re-download and re-compile the whole dependency graph.
+          cache-on-failure: true
 
       # `build.rs` reads node_modules/asyar-sdk/package.json to inject the SDK
       # version, so the workspace symlink must exist. `--ignore-scripts` skips
@@ -134,15 +137,17 @@ jobs:
           Set-WinUserLanguageList -LanguageList $list -Force
           Set-WinDefaultInputMethodOverride -InputTip '0409:00000409'  # keep US active
 
-      - name: Show whether the layout matrix loaded (diagnostic)
-        shell: pwsh
-        working-directory: asyar-launcher/src-tauri
-        # eprintln! "skipping: … not loaded" lines reveal which layouts the
-        # session actually exposes to GetKeyboardLayoutList. If AZERTY/QWERTZ
-        # skip here, the install step needs adjusting — the full `cargo test`
-        # below still passes either way.
-        run: cargo test windows_key_resolver -- --nocapture
-
+      # This is the first cargo invocation, so it bears the one-time compile;
+      # the keyboard diagnostic below reuses the artifacts and is near-instant.
       - name: Run Rust tests
         run: cargo test
         working-directory: asyar-launcher/src-tauri
+
+      - name: Show whether the layout matrix loaded (diagnostic)
+        shell: pwsh
+        working-directory: asyar-launcher/src-tauri
+        # The tests' own "skipping: … not loaded" eprintln lines reveal which
+        # layouts the session exposed to GetKeyboardLayoutList — so the trial
+        # can confirm the AZERTY/QWERTZ cases actually ran, not just passed by
+        # skipping. Reuses the compile above, so it costs only the test run.
+        run: cargo test windows_key_resolver -- --nocapture
