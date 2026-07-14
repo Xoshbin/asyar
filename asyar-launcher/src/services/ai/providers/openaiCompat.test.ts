@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { openAIToolsMessages, buildOpenAIToolsBody, parseOpenAIToolStream } from './_openaiCompat';
+import { openAIToolsMessages, buildOpenAIToolsBody, parseOpenAIToolStream } from './openaiCompat';
 import type { LoopMessage, ChatParams } from '../IProviderPlugin';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

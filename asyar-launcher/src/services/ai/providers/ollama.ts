@@ -9,8 +9,8 @@ import type {
   LoopMessage,
   ToolStreamEvent,
 } from '../IProviderPlugin';
-import { buildOpenAIToolsBody } from './_openaiCompat';
-import type { OpenAIToolDescriptor } from './_openaiCompat';
+import { buildOpenAIToolsBody } from './openaiCompat';
+import type { OpenAIToolDescriptor } from './openaiCompat';
 
 export const ollamaPlugin: IProviderPlugin = {
   id: 'ollama',

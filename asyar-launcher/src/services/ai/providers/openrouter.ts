@@ -10,8 +10,8 @@ import type {
   ToolStreamEvent,
   ReasoningEffort,
 } from '../IProviderPlugin';
-import { buildOpenAIToolsBody, parseOpenAIToolStream } from './_openaiCompat';
-import type { OpenAIToolDescriptor } from './_openaiCompat';
+import { buildOpenAIToolsBody, parseOpenAIToolStream } from './openaiCompat';
+import type { OpenAIToolDescriptor } from './openaiCompat';
 
 const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
 

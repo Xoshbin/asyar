@@ -5,7 +5,7 @@ import {
   parseOpenAIResponsesStream,
   parseOpenAIResponsesToolStream,
   usesOpenAIResponses,
-} from './_openaiResponses';
+} from './openaiResponses';
 
 function readerFromChunks(chunks: string[]): ReadableStreamDefaultReader<Uint8Array> {
   const encoder = new TextEncoder();
