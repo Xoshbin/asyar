@@ -45,7 +45,7 @@
       {#if feedback.progress}
         <div class="progress-row">
           <span class="spinner" aria-hidden="true"></span>
-          {#if feedback.progress.completed !== undefined && feedback.progress.total !== undefined}
+          {#if feedback.progress.completed != null && feedback.progress.total != null}
             <span>{feedback.progress.completed} of {feedback.progress.total}</span>
           {:else}
             <span>In progress</span>
