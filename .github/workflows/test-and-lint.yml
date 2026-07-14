@@ -131,15 +131,21 @@ jobs:
           $list.Add('fr-FR')                             # AZERTY 0000040C
           $list.Add('de-DE')                             # QWERTZ 00000407
           Set-WinUserLanguageList -LanguageList $list -Force
+          # Cheap paper trail that the matrix's precondition is met; the
+          # resolver tests themselves run as part of `cargo test` below.
+          Get-WinUserLanguageList | Format-Table LanguageTag, InputMethodTips
 
-      # This is the first cargo invocation, so it bears the one-time compile;
-      # the keyboard diagnostic below reuses the artifacts and is near-instant.
+      # Runs the whole suite, including the windows_key_resolver matrix (the
+      # AZERTY/QWERTZ cases execute here because FR/DE were installed above).
+      # A single cargo invocation — a second one re-compiles the ~2-minute
+      # `asyar` crate from scratch, so the visible --nocapture diagnostic
+      # isn't worth doubling the job time.
       #
-      # One test is skipped here: `snippets::…routes_to_windows_resolver_for_
-      # shift_colon` asserts the *active* layout resolves Shift+`;` to `:` (US)
-      # via the foreground-window layout. This runner deliberately loads
-      # FR/DE for the resolver matrix, and per-user active-layout settings do
-      # not reliably apply to the test process in a headless session — so the
+      # One test is skipped: `snippets::…routes_to_windows_resolver_for_shift_
+      # colon` asserts the *active* layout resolves Shift+`;` to `:` (US) via
+      # the foreground-window layout. This runner deliberately loads FR/DE for
+      # the resolver matrix, and per-user active-layout settings do not
+      # reliably apply to the test process in a headless session — so the
       # active layout is non-deterministic here. That test still runs on
       # developer machines (US active); the resolver logic itself is covered
       # by the windows_key_resolver matrix, which reads GetKeyboardLayoutList
@@ -147,12 +153,3 @@ jobs:
       - name: Run Rust tests
         run: cargo test -- --skip resolve_keypress_routes_to_windows_resolver_for_shift_colon
         working-directory: asyar-launcher/src-tauri
-
-      - name: Show whether the layout matrix loaded (diagnostic)
-        shell: pwsh
-        working-directory: asyar-launcher/src-tauri
-        # The tests' own "skipping: … not loaded" eprintln lines reveal which
-        # layouts the session exposed to GetKeyboardLayoutList — so the trial
-        # can confirm the AZERTY/QWERTZ cases actually ran, not just passed by
-        # skipping. Reuses the compile above, so it costs only the test run.
-        run: cargo test windows_key_resolver -- --nocapture
