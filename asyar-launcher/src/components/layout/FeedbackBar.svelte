@@ -55,7 +55,7 @@
       <StatusDot color={dotColor} />
     {/if}
     <FeedbackMessage {message} interactive={showDetails} onclick={onOpenDetails} />
-    {#if current.progress?.completed !== undefined && current.progress.total !== undefined}
+    {#if current.progress?.completed != null && current.progress.total != null}
       <span class="progress-count">{current.progress.completed}/{current.progress.total}</span>
     {/if}
     {#if current.retryable && current.retryActionId}
