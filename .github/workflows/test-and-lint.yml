@@ -114,22 +114,25 @@ jobs:
       # windows_key_resolver tests resolve only against already-loaded
       # keyboard layouts and skip the rest, so they never mutate a developer's
       # input settings. This throwaway runner is the environment reserved for
-      # the full matrix: pre-install French (AZERTY, 0x040C), German (QWERTZ,
-      # 0x0407), and the US-International keyboard (0x00020409) so
-      # GetKeyboardLayoutList reports them and the AZERTY/QWERTZ/dead-key
-      # assertions run instead of skipping. Whether the runner's session picks
-      # these up is verified by the diagnostic step below; if it doesn't, the
-      # tests simply skip and the job still guards the rest of the suite.
+      # the full matrix: add French (AZERTY, 0x040C) and German (QWERTZ,
+      # 0x0407) so GetKeyboardLayoutList reports them and the AZERTY/QWERTZ
+      # assertions run instead of skipping.
+      #
+      # en-US stays the *first* language and its default input method is
+      # explicitly re-pinned as US, because the `snippets` routing test reads
+      # the active/foreground layout and expects Shift+`;` = `:` (US). Without
+      # the override, adding other layouts left a non-US layout active and
+      # that test failed. (US-International is not added: it shares LANGID
+      # 0x0409 with plain US, so the dead-key test matches US regardless — it
+      # would only risk disturbing the active layout for no extra coverage.)
       - name: Install keyboard layouts for the resolver matrix
         shell: pwsh
         run: |
           $list = New-WinUserLanguageList -Language en-US
-          $list[0].InputMethodTips.Clear()
-          $list[0].InputMethodTips.Add('0409:00000409') # US
-          $list[0].InputMethodTips.Add('0409:00020409') # US-International
           $list.Add('fr-FR')                             # AZERTY 0000040C
           $list.Add('de-DE')                             # QWERTZ 00000407
           Set-WinUserLanguageList -LanguageList $list -Force
+          Set-WinDefaultInputMethodOverride -InputTip '0409:00000409'  # keep US active
 
       - name: Show whether the layout matrix loaded (diagnostic)
         shell: pwsh
