@@ -112,7 +112,12 @@ mod tests {
         let hit = scan_dir_for_secret(&dir, "secret-ABC-123").unwrap();
         assert_eq!(
             hit,
-            Some(dir.join("src/config.ts").to_string_lossy().into_owned())
+            Some(
+                dir.join("src")
+                    .join("config.ts")
+                    .to_string_lossy()
+                    .into_owned()
+            )
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -160,7 +165,12 @@ mod tests {
         write(&dir, "src/config.ts", "KEY=secret-ABC-123;");
         assert_eq!(
             scan_dir_for_secret(&dir, "  secret-ABC-123  ").unwrap(),
-            Some(dir.join("src/config.ts").to_string_lossy().into_owned())
+            Some(
+                dir.join("src")
+                    .join("config.ts")
+                    .to_string_lossy()
+                    .into_owned()
+            )
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
