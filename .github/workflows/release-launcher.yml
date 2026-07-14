@@ -49,7 +49,7 @@ jobs:
           node-version: '22'
       - uses: pnpm/action-setup@v5
         with:
-          version: 10
+          version: 10.26.0
       - uses: dtolnay/rust-toolchain@1.97.0
         with:
           targets: ${{ matrix.rust-target }}
@@ -148,7 +148,7 @@ jobs:
           node-version: '22'
       - uses: pnpm/action-setup@v5
         with:
-          version: 10
+          version: 10.26.0
       - uses: dtolnay/rust-toolchain@1.97.0
         with:
           targets: ${{ matrix.rust-target }}
@@ -223,7 +223,7 @@ jobs:
           node-version: '22'
       - uses: pnpm/action-setup@v5
         with:
-          version: 10
+          version: 10.26.0
       - uses: dtolnay/rust-toolchain@1.97.0
         with:
           targets: ${{ matrix.rust-target }}

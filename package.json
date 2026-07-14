@@ -2,6 +2,7 @@
   "name": "asyar",
   "private": true,
   "version": "0.0.0",
+  "packageManager": "pnpm@10.26.0",
   "scripts": {
     "setup": "node setup.mjs",
     "dev": "node scripts/dev.mjs",
@@ -10,6 +11,7 @@
     "check": "node scripts/check.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "test:setup": "node --test scripts/setup-version.test.mjs",
     "release:sdk": "pnpm --filter asyar-sdk run release",
     "prepare": "husky"
   },

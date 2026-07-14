@@ -16,6 +16,7 @@ import { execSync } from 'child_process';
 import { existsSync, mkdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { isVersionBelow } from './scripts/setup-version.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname);
@@ -31,23 +32,6 @@ function step(msg) {
 // ── Preflight checks ─────────────────────────────────────────────────────────
 
 step('Checking prerequisites');
-
-function isVersionBelow(version, minimum) {
-  const current = version
-    .match(/\d+(?:\.\d+)*/)?.[0]
-    .split('.')
-    .map(Number);
-  const required = minimum.split('.').map(Number);
-
-  if (!current) return false;
-
-  for (let i = 0; i < required.length; i++) {
-    const currentPart = current[i] ?? 0;
-    if (currentPart !== required[i]) return currentPart < required[i];
-  }
-
-  return false;
-}
 
 const checks = [
   { cmd: 'node --version', name: 'Node.js', minVersion: '20' },
