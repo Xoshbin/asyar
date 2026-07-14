@@ -1,10 +1,13 @@
 // ─── Shared Types ─────────────────────────────────────────────────────────────
 
 export type ProviderId = 'openai' | 'anthropic' | 'google' | 'ollama' | 'openrouter' | 'custom';
+export type OpenAIApiMode = 'responses' | 'chat-completions';
+export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface ModelInfo {
   id: string;
   label: string;
+  reasoningEfforts?: ReasoningEffort[];
 }
 
 export interface ProviderConfig {
@@ -12,6 +15,9 @@ export interface ProviderConfig {
   apiKey?: string;
   baseUrl?: string;
   lastModelId?: string;
+  openAIApiMode?: OpenAIApiMode;
+  hostedWebSearch?: boolean;
+  reasoningEffort?: ReasoningEffort;
 }
 
 export interface RequestSpec {
@@ -26,6 +32,9 @@ export interface ChatParams {
   maxTokens: number;
   systemPrompt?: string;
 }
+
+export type ChatStreamStatus = 'searching';
+export type ChatStreamEvent = string | { type: 'status'; status: ChatStreamStatus };
 
 // ─── Message type expected by the provider's buildRequest ─────────────────────
 
@@ -52,7 +61,11 @@ export interface ToolCall {
  * Events emitted by `parseToolStream` during a tool-capable streaming response.
  */
 export type ToolStreamEvent =
-  { type: 'text'; text: string } | ({ type: 'tool_use' } & ToolCall) | { type: 'message_stop' };
+  | { type: 'text'; text: string }
+  | { type: 'status'; status: ChatStreamStatus }
+  | ({ type: 'tool_use' } & ToolCall)
+  | { type: 'provider_context'; item: unknown }
+  | { type: 'message_stop' };
 
 /**
  * A message in the multi-turn agent loop conversation.
@@ -65,6 +78,7 @@ export interface LoopMessage {
   content: string;
   toolUse?: ToolCall[];
   toolUseId?: string;
+  providerContext?: unknown[];
 }
 
 /**
@@ -97,6 +111,10 @@ export interface IProviderPlugin {
   readonly optionalApiKey?: boolean;
   readonly requiresBaseUrl: boolean;
 
+  readonly supportsOpenAIApiMode?: boolean;
+  readonly supportsHostedWebSearch?: boolean;
+  readonly reasoningEfforts?: readonly ReasoningEffort[];
+
   /**
    * Always `true`. Reserved as a structural hint for plugin authors; the
    * registry guard enforces all three tool-related fields together.
@@ -105,7 +123,10 @@ export interface IProviderPlugin {
 
   getModels(config: ProviderConfig): Promise<ModelInfo[]>;
   buildRequest(messages: ChatMessage[], config: ProviderConfig, params: ChatParams): RequestSpec;
-  parseStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<string>;
+  parseStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    config?: ProviderConfig,
+  ): AsyncGenerator<ChatStreamEvent>;
 
   /**
    * Build the HTTP request for a tool-capable turn.
@@ -127,5 +148,8 @@ export interface IProviderPlugin {
    * Parse the SSE stream from a tool-capable response, yielding
    * `ToolStreamEvent` objects.
    */
-  parseToolStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<ToolStreamEvent>;
+  parseToolStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    config?: ProviderConfig,
+  ): AsyncGenerator<ToolStreamEvent>;
 }

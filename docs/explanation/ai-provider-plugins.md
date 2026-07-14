@@ -24,10 +24,16 @@ export interface IProviderPlugin {
   readonly optionalApiKey?: boolean;
   readonly requiresBaseUrl: boolean;
   readonly supportsTools: true;
+  readonly supportsOpenAIApiMode?: boolean;
+  readonly supportsHostedWebSearch?: boolean;
+  readonly reasoningEfforts?: readonly ReasoningEffort[];
 
   getModels(config: ProviderConfig): Promise<ModelInfo[]>;
   buildRequest(messages: ChatMessage[], config: ProviderConfig, params: ChatParams): RequestSpec;
-  parseStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<string>;
+  parseStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    config?: ProviderConfig,
+  ): AsyncGenerator<string>;
 
   buildToolRequest(
     messages: LoopMessage[],
@@ -41,7 +47,10 @@ export interface IProviderPlugin {
     }>,
   ): RequestSpec;
 
-  parseToolStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<ToolStreamEvent>;
+  parseToolStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    config?: ProviderConfig,
+  ): AsyncGenerator<ToolStreamEvent>;
 }
 ```
 
@@ -53,11 +62,14 @@ Field by field:
 - **`optionalApiKey`** — when `true`, the UI renders an optional key field that is submitted if present but not required. Only the `custom` provider uses this today.
 - **`requiresBaseUrl`** — `true` when the user must supply the server root (Ollama and Custom). `false` when the endpoint is fixed and known (the three cloud providers).
 - **`supportsTools`** — must be the literal `true`, not just any `boolean`. See the registry guard section below.
-- **`getModels(config)`** — fetches the list of available models given the user's current provider config. Returns `ModelInfo[]` (an `{ id, label }` pair). Permitted to return `[]` on error; the UI falls back to a manual text input.
+- **`supportsOpenAIApiMode`** — when `true`, the settings UI exposes the Responses / Chat Completions selector. Newly added OpenAI and Custom providers select Responses explicitly; a missing setting preserves the legacy Chat Completions behavior.
+- **`supportsHostedWebSearch`** — when `true`, the settings UI exposes the provider's hosted web-search toggle. OpenAI uses the native Responses tool; Custom supports Responses-compatible endpoints and Chat Completions proxies that translate the hosted tool.
+- **`reasoningEfforts`** — the reasoning levels understood by the provider family. The settings UI places the provider-neutral **Reasoning** selector directly below **Model** and omits the request field when the user chooses **Model default**.
+- **`getModels(config)`** — fetches the list of available models given the user's current provider config. Returns `ModelInfo[]` (an `{ id, label, reasoningEfforts? }` object). Model-specific reasoning metadata narrows the provider-level list when available; OpenAI and OpenRouter supply it. Permitted to return `[]` on error; the UI falls back to a manual text input.
 - **`buildRequest(messages, config, params)`** — builds the `RequestSpec` (URL, headers, body) for a plain streaming chat turn. `ChatMessage[]` carries the full conversation history in the launcher's internal format.
-- **`parseStream(reader)`** — parses the provider's SSE stream for a plain chat response. Yields plain `string` tokens as they arrive.
+- **`parseStream(reader, config)`** — parses the provider's SSE stream for a plain chat response. Yields plain `string` tokens as they arrive. The optional config lets a dual-format adapter choose the matching stream parser without shared mutable state.
 - **`buildToolRequest(messages, config, params, tools)`** — builds the `RequestSpec` for a tool-capable turn. Receives `LoopMessage[]` (a superset of `ChatMessage` that includes tool-result messages and assistant turns that called tools) plus the full list of available tool descriptors. Returns a `RequestSpec`.
-- **`parseToolStream(reader)`** — parses the SSE stream from a tool-capable response. Yields `ToolStreamEvent` objects.
+- **`parseToolStream(reader, config)`** — parses the SSE stream from a tool-capable response. Yields `ToolStreamEvent` objects and uses the same per-request format selection.
 
 ## What `ToolStreamEvent` looks like
 
@@ -65,7 +77,10 @@ Field by field:
 
 ```typescript
 export type ToolStreamEvent =
-  { type: 'text'; text: string } | ({ type: 'tool_use' } & ToolCall) | { type: 'message_stop' };
+  | { type: 'text'; text: string }
+  | ({ type: 'tool_use' } & ToolCall)
+  | { type: 'provider_context'; item: unknown }
+  | { type: 'message_stop' };
 ```
 
 Where `ToolCall` is:
@@ -78,13 +93,15 @@ export interface ToolCall {
 }
 ```
 
-Every `parseToolStream` implementation must produce this same shape regardless of what the wire format looks like. A `text` event carries a streamed text token. A `tool_use` event carries a fully-assembled tool call — the provider is responsible for accumulating any argument fragments across multiple SSE chunks and emitting only when the call is complete. A `message_stop` event signals that the turn is done. The agent loop never reads anything provider-specific from these events.
+Every `parseToolStream` implementation must produce this same shape regardless of what the wire format looks like. A `text` event carries a streamed text token. A `tool_use` event carries a fully-assembled tool call — the provider is responsible for accumulating any argument fragments across multiple SSE chunks and emitting only when the call is complete. `provider_context` carries opaque in-memory context that must be replayed on the next tool-loop request, such as an encrypted Responses reasoning Item or OpenRouter `reasoning_details`. A `message_stop` event signals that the turn is done. The agent loop never interprets provider context.
 
 ## What each plugin owns
 
 A provider plugin has three responsibilities.
 
 **Request shaping.** `buildRequest` and `buildToolRequest` own the translation from the launcher's internal message types to whatever JSON body the provider expects. This is where Anthropic's `tool_use` content blocks, Google's `functionDeclarations`, and OpenAI's `tools` array come from. It is also where auth headers are assembled. The result is a `RequestSpec` — just a URL, a headers map, and an opaque body. The launcher's HTTP layer issues the fetch without inspecting the body.
+
+The same boundary translates the shared `ProviderConfig.reasoningEffort` setting: OpenAI Responses and OpenRouter receive `reasoning.effort`, OpenAI-compatible Chat Completions receives `reasoning_effort`, supported Anthropic models receive `output_config.effort`, Gemini 3 receives `generationConfig.thinkingConfig.thinkingLevel`, Gemini 2.5 receives a corresponding `thinkingBudget`, and Ollama receives `think`. A missing or model-incompatible value must be omitted rather than replaced with a guessed default.
 
 **Stream parsing.** `parseStream` and `parseToolStream` own the translation from raw SSE bytes to normalised events. This includes all the edge cases: argument fragments spread across multiple delta events (OpenAI), `content_block_start` / `content_block_stop` framing (Anthropic), double-newline event separators (Google), newline-delimited JSON objects (Ollama). Callers see only the normalised stream and never touch the provider's framing.
 
@@ -123,6 +140,8 @@ The guard is the reason you can never partially implement the tool-calling inter
 
 Four of the six providers share the same wire format for tool calls: the OpenAI Chat Completions `tools` array shape, with arguments serialised as a JSON string in the function call delta, accumulated by index across multiple SSE chunks. Rather than repeating that logic, these providers delegate to `src/services/ai/providers/_openaiCompat.ts`.
 
+OpenAI and Custom also share `src/services/ai/providers/_openaiResponses.ts`. It maps Asyar messages, function calls and function results to Responses Items; adds native hosted web search when enabled; preserves encrypted reasoning Items between tool-loop turns; and normalises typed Responses SSE events back to Asyar's provider-independent stream events. New provider configurations select Responses; saved configurations without an API mode continue to use `_openaiCompat.ts` and Chat Completions.
+
 The helper exports three things:
 
 - **`buildOpenAIToolsBody(messages, params, tools)`** — builds the complete request body, including converting `LoopMessage[]` (with tool-result messages in the `tool` role and `tool_call_id` references) to the OpenAI messages array.
@@ -155,13 +174,15 @@ import { buildOpenAIToolsBody, parseOpenAIToolStream } from './_openaiCompat';
 
 buildToolRequest(messages, config, params, tools) {
   const body = buildOpenAIToolsBody(messages, params, tools);
-  return { url: '...', headers: { ... }, body: JSON.stringify(body) };
+  return { url: '...', headers: { ... }, body };
 },
 
 parseToolStream(reader) {
   return parseOpenAIToolStream(reader);
 },
 ```
+
+Return the body as an object. The shared HTTP callers serialize `RequestSpec.body` exactly once immediately before sending it.
 
 If the provider uses its own format, implement `buildToolRequest` and `parseToolStream` directly. Look at `anthropic.ts` for a model that handles content blocks with accumulation, or `google.ts` for one that maps `functionCall` parts. Document rate limits, auth header names, and model list endpoints as comments in the plugin file itself — that is the right home for provider-specific operational details.
 

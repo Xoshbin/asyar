@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { availableProvidersForNewRow, canTestAndFetch } from './AiTab.helpers';
+import {
+  availableProvidersForNewRow,
+  canTestAndFetch,
+  configForNewProvider,
+  reasoningEffortAfterModelChange,
+  reasoningEffortsForModel,
+} from './AiTab.helpers';
 import type { IProviderPlugin, ProviderConfig } from '../../../services/ai/IProviderPlugin';
 
 function makePlugin(id: string, opts: Partial<IProviderPlugin> = {}): IProviderPlugin {
@@ -8,9 +14,12 @@ function makePlugin(id: string, opts: Partial<IProviderPlugin> = {}): IProviderP
     name: id,
     requiresApiKey: false,
     requiresBaseUrl: false,
+    supportsTools: true,
     getModels: async () => [],
     buildRequest: () => ({ url: '', headers: {}, body: null }),
     parseStream: async function* () {},
+    buildToolRequest: () => ({ url: '', headers: {}, body: null }),
+    parseToolStream: async function* () {},
     ...opts,
   };
 }
@@ -65,5 +74,79 @@ describe('canTestAndFetch', () => {
     expect(canTestAndFetch(plugin, { enabled: true, baseUrl: 'https://api.example.com' })).toBe(
       true,
     );
+  });
+});
+
+describe('configForNewProvider', () => {
+  it('explicitly selects Responses for a newly added compatible provider', () => {
+    const plugin = makePlugin('custom', { supportsOpenAIApiMode: true });
+
+    expect(configForNewProvider(plugin, { enabled: false })).toEqual({
+      enabled: true,
+      openAIApiMode: 'responses',
+    });
+  });
+
+  it('does not add an API mode to other provider families', () => {
+    expect(configForNewProvider(makePlugin('anthropic'), { enabled: false })).toEqual({
+      enabled: true,
+    });
+  });
+});
+
+describe('reasoningEffortsForModel', () => {
+  const plugin = makePlugin('openrouter', {
+    reasoningEfforts: ['none', 'low', 'medium', 'high'],
+  });
+
+  it('falls back to provider-family levels without model metadata', () => {
+    expect(reasoningEffortsForModel(plugin, [], 'custom-model')).toEqual([
+      'none',
+      'low',
+      'medium',
+      'high',
+    ]);
+  });
+
+  it('uses model-specific levels when available', () => {
+    expect(
+      reasoningEffortsForModel(
+        plugin,
+        [{ id: 'reasoning-model', label: 'Reasoning', reasoningEfforts: ['low', 'high'] }],
+        'reasoning-model',
+      ),
+    ).toEqual(['low', 'high']);
+  });
+
+  it('preserves an explicit empty list for a non-reasoning model', () => {
+    expect(
+      reasoningEffortsForModel(
+        plugin,
+        [{ id: 'plain-model', label: 'Plain', reasoningEfforts: [] }],
+        'plain-model',
+      ),
+    ).toEqual([]);
+  });
+
+  it('clears an effort that the newly selected model does not support', () => {
+    expect(
+      reasoningEffortAfterModelChange(
+        plugin,
+        [{ id: 'narrow-model', label: 'Narrow', reasoningEfforts: ['low'] }],
+        'narrow-model',
+        'high',
+      ),
+    ).toBeUndefined();
+  });
+
+  it('keeps an effort supported by the newly selected model', () => {
+    expect(
+      reasoningEffortAfterModelChange(
+        plugin,
+        [{ id: 'narrow-model', label: 'Narrow', reasoningEfforts: ['low'] }],
+        'narrow-model',
+        'low',
+      ),
+    ).toBe('low');
   });
 });

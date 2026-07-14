@@ -36,11 +36,17 @@ Before you can use any agent, you need to add at least one AI provider:
 1. Open Settings (`⌘,`) and go to the **AI** tab.
 2. Click **+ Add provider** and choose from: **Anthropic**, **OpenAI**, **Google**, **Ollama**, **OpenRouter**, or **Custom**.
 3. Expand the provider row and enter your API key (and base URL if required).
-4. Click **Test & Fetch Models** to verify your credentials and load the available models.
-5. Select a model from the list (or type one manually if the list is empty).
-6. The first provider you configure becomes the default automatically. To change the default, click the star (★) on any other configured provider row.
+4. Newly added OpenAI and Custom providers use the **Responses** API format by default. Existing provider settings without an API-format choice continue using Chat Completions. If an endpoint does not implement `/responses`, choose **Chat Completions (widely compatible)**.
+5. Click **Test & Fetch Models** to verify your credentials and load the available models.
+6. Select a model from the list (or type one manually if the list is empty).
+7. Choose a **Reasoning** level below the model when you want to trade response speed for more model work. **Model default** leaves the choice to the model and is the default setting.
+8. The first provider you configure becomes the default automatically. To change the default, click the star (★) on any other configured provider row.
 
 Advanced settings (temperature and max tokens) are available under the **Advanced** section at the bottom of the AI tab.
+
+Reasoning is provider-neutral in Asyar. Each adapter translates the selected level to its native API shape for OpenAI, Anthropic, Gemini, OpenRouter, Ollama, or a compatible Custom endpoint. The levels shown are limited to those advertised by the provider or selected model. Unsupported models may still reject an explicitly selected level; switch back to **Model default** in that case.
+
+Enable **OpenAI Hosted Web Search** on an OpenAI provider, or on a Custom provider that points to a compatible OpenAI/Codex proxy. In Responses mode Asyar sends the native `web_search` tool; compatible Custom proxies may also translate it from Chat Completions mode. Search uses a medium context on every request, including requests that also contain built-in or MCP function tools. It uses the provider's existing authentication and does not require a separate search API key. Leave it off for endpoints that do not support OpenAI-hosted tools.
 
 ### Threads
 

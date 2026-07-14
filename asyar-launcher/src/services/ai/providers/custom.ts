@@ -8,9 +8,18 @@ import type {
   ChatMessage,
   LoopMessage,
   ToolStreamEvent,
+  ChatStreamEvent,
 } from '../IProviderPlugin';
 import { buildOpenAIToolsBody, parseOpenAIToolStream } from './_openaiCompat';
 import type { OpenAIToolDescriptor } from './_openaiCompat';
+import {
+  HOSTED_WEB_SEARCH_TOOL,
+  buildOpenAIResponsesChatBody,
+  buildOpenAIResponsesToolBody,
+  parseOpenAIResponsesStream,
+  parseOpenAIResponsesToolStream,
+  usesOpenAIResponses,
+} from './_openaiResponses';
 
 /**
  * Normalise the user-supplied base URL so the same launcher works whether the
@@ -25,6 +34,15 @@ function normalizeOpenAIBase(rawBase: string): string {
   return `${trimmed}/v1`;
 }
 
+function withHostedWebSearch(body: Record<string, unknown>, config: ProviderConfig) {
+  if (!config.hostedWebSearch) return body;
+  const existingTools = Array.isArray(body.tools) ? body.tools : [];
+  return {
+    ...body,
+    tools: [...existingTools, HOSTED_WEB_SEARCH_TOOL],
+  };
+}
+
 export const customPlugin: IProviderPlugin = {
   id: 'custom',
   name: 'Custom (OpenAI-compatible)',
@@ -32,6 +50,9 @@ export const customPlugin: IProviderPlugin = {
   optionalApiKey: true,
   requiresBaseUrl: true,
   supportsTools: true,
+  supportsOpenAIApiMode: true,
+  supportsHostedWebSearch: true,
+  reasoningEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
 
   async getModels(config: ProviderConfig): Promise<ModelInfo[]> {
     if (!config.baseUrl) return [];
@@ -63,20 +84,42 @@ export const customPlugin: IProviderPlugin = {
       'anthropic-dangerous-direct-browser-access': 'true',
     };
     if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
-    return {
-      url: `${base}/chat/completions`,
-      headers,
-      body: {
+
+    if (usesOpenAIResponses(config)) {
+      return {
+        url: `${base}/responses`,
+        headers,
+        body: buildOpenAIResponsesChatBody(messages, config, params),
+      };
+    }
+
+    const body = withHostedWebSearch(
+      {
         model: params.modelId,
         max_tokens: params.maxTokens,
         temperature: params.temperature,
+        ...(config.reasoningEffort && { reasoning_effort: config.reasoningEffort }),
         stream: true,
         messages: msgs.map((m) => ({ role: m.role, content: m.content })),
       },
+      config,
+    );
+    return {
+      url: `${base}/chat/completions`,
+      headers,
+      body,
     };
   },
 
-  async *parseStream(reader: ReadableStreamDefaultReader<Uint8Array>): AsyncGenerator<string> {
+  async *parseStream(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    config?: ProviderConfig,
+  ): AsyncGenerator<ChatStreamEvent> {
+    if (usesOpenAIResponses(config)) {
+      yield* parseOpenAIResponsesStream(reader);
+      return;
+    }
+
     const decoder = new TextDecoder();
     let buffer = '';
     while (true) {
@@ -108,7 +151,6 @@ export const customPlugin: IProviderPlugin = {
     tools: OpenAIToolDescriptor[],
   ): RequestSpec {
     const base = normalizeOpenAIBase(config.baseUrl ?? '');
-    const body = buildOpenAIToolsBody(messages, params, tools);
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       // Required when the user points Custom at Anthropic's OpenAI-compat endpoint;
@@ -116,16 +158,30 @@ export const customPlugin: IProviderPlugin = {
       'anthropic-dangerous-direct-browser-access': 'true',
     };
     if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
+
+    if (usesOpenAIResponses(config)) {
+      return {
+        url: `${base}/responses`,
+        headers,
+        body: buildOpenAIResponsesToolBody(messages, config, params, tools),
+      };
+    }
+
+    const compatibleBody = buildOpenAIToolsBody(messages, params, tools) as Record<string, unknown>;
+    if (config.reasoningEffort) compatibleBody.reasoning_effort = config.reasoningEffort;
+    const body = withHostedWebSearch(compatibleBody, config);
     return {
       url: `${base}/chat/completions`,
       headers,
-      body: JSON.stringify(body),
+      body,
     };
   },
 
   parseToolStream(
     reader: ReadableStreamDefaultReader<Uint8Array>,
+    config?: ProviderConfig,
   ): AsyncGenerator<ToolStreamEvent> {
+    if (usesOpenAIResponses(config)) return parseOpenAIResponsesToolStream(reader);
     return parseOpenAIToolStream(reader);
   },
 };

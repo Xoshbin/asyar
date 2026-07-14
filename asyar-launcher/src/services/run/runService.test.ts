@@ -205,7 +205,11 @@ describe('onStateChanged', () => {
     const run = makeRun({ id: 'r1', status: 'failed', errorMessage: 'boom' });
     await runService['onStateChanged'](run);
     expect(diagnosticsService.report).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'run_failed', severity: 'warning' }),
+      expect.objectContaining({
+        kind: 'run_failed',
+        severity: 'warning',
+        context: { id: 'r1', message: 'boom' },
+      }),
     );
   });
 

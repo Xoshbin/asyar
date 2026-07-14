@@ -29,45 +29,62 @@
   const selectedThreadId = $derived(agentsManager.currentThreadId);
   const sending = $derived(agentsManager.sending);
   const streamingText = $derived(agentsManager.streamingText);
+  const streamingStatus = $derived(agentsManager.streamingStatus);
 
-  // Load agent + threads when currentAgentId changes
+  // Ignore loads superseded by an agent, thread, or send-state change.
   $effect(() => {
+    const currentAgentId = agentId;
+    const currentThreadId = agentsManager.currentThreadId;
+    void agentsManager.sending;
+    let cancelled = false;
+
     void (async () => {
-      if (!agentId) {
+      if (!currentAgentId) {
         agent = null;
         threads = [];
         messages = [];
         return;
       }
-      agent = agentService.getById(agentId) ?? null;
-      try {
-        threads = await agentService.listThreads(agentId);
-        agentsManager.currentThreadId = resolveThreadId(agentsManager.currentThreadId, threads);
-      } catch (err) {
-        loadError = err instanceof Error ? err.message : String(err);
-      }
-    })();
-  });
 
-  // Reload messages when thread changes OR when sending toggles
-  // (so persisted assistant messages take over from the streaming buffer).
-  $effect(() => {
-    void (async () => {
-      const tid = agentsManager.currentThreadId;
-      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-      agentsManager.sending;
-      if (!tid) {
+      agent = agentService.getById(currentAgentId) ?? null;
+      loadError = null;
+
+      let nextThreads: ThreadDef[];
+      try {
+        nextThreads = await agentService.listThreads(currentAgentId);
+      } catch (err) {
+        if (cancelled) return;
+        loadError = err instanceof Error ? err.message : String(err);
+        return;
+      }
+
+      if (cancelled) return;
+      threads = nextThreads;
+
+      const resolvedThreadId = resolveThreadId(currentThreadId, nextThreads);
+      if (resolvedThreadId !== currentThreadId) {
+        agentsManager.currentThreadId = resolvedThreadId;
         messages = [];
         return;
       }
+
+      if (!resolvedThreadId) {
+        messages = [];
+        return;
+      }
+
       try {
-        messages = await agentService.listMessages(tid);
-        // Refresh threads too — title may have been auto-set on first send.
-        if (agentId) threads = await agentService.listThreads(agentId);
+        const nextMessages = await agentService.listMessages(resolvedThreadId);
+        if (!cancelled) messages = nextMessages;
       } catch (err) {
+        if (cancelled) return;
         logService.warn(`[agents] listMessages failed: ${err}`);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   });
 
   $effect(() => {
@@ -76,15 +93,17 @@
     messages.length;
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     streamingText;
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    streamingStatus;
     if (!userScrolledUp) scrollToBottom();
   });
 
   function scrollToBottom() {
-    if (messagesEl) {
-      requestAnimationFrame(() => {
-        messagesEl!.scrollTop = messagesEl!.scrollHeight;
-      });
-    }
+    const element = messagesEl;
+    if (!element) return;
+    requestAnimationFrame(() => {
+      element.scrollTop = element.scrollHeight;
+    });
   }
 
   function handleScroll() {
@@ -273,6 +292,14 @@
                     <span class="streaming-cursor">▊</span>
                   </div>
                 </div>
+              {:else if sending && streamingStatus === 'searching'}
+                <div class="message-row assistant">
+                  <div class="avatar assistant-avatar">AI</div>
+                  <div class="message-bubble assistant activity-status">
+                    <span class="activity-label">Searching…</span>
+                    <span class="streaming-cursor">▊</span>
+                  </div>
+                </div>
               {:else if sending}
                 <div class="message-row assistant">
                   <div class="avatar assistant-avatar">AI</div>
@@ -379,6 +406,7 @@
 
   .message-bubble {
     position: relative;
+    min-width: 0;
     max-width: 85%;
     padding: var(--space-4) var(--space-6);
     border-radius: var(--radius-xl);
@@ -444,6 +472,12 @@
     color: var(--accent-primary);
     font-weight: bold;
     animation: blink 0.8s step-end infinite;
+  }
+  .activity-status {
+    color: var(--text-tertiary);
+  }
+  .activity-label {
+    font-style: italic;
   }
   @keyframes blink {
     0%,

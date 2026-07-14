@@ -18,6 +18,7 @@ export const ollamaPlugin: IProviderPlugin = {
   requiresApiKey: false,
   requiresBaseUrl: true,
   supportsTools: true,
+  reasoningEfforts: ['low', 'medium', 'high'],
 
   async getModels(config: ProviderConfig): Promise<ModelInfo[]> {
     const base = config.baseUrl?.replace(/\/$/, '') || 'http://localhost:11434';
@@ -42,6 +43,7 @@ export const ollamaPlugin: IProviderPlugin = {
       body: {
         model: params.modelId,
         stream: true,
+        ...(config.reasoningEffort && { think: config.reasoningEffort }),
         messages: msgs.map((m) => ({ role: m.role, content: m.content })),
       },
     };
@@ -77,12 +79,13 @@ export const ollamaPlugin: IProviderPlugin = {
     tools: OpenAIToolDescriptor[],
   ): RequestSpec {
     const base = config.baseUrl?.replace(/\/$/, '') || 'http://localhost:11434';
-    const body = buildOpenAIToolsBody(messages, params, tools);
+    const body = buildOpenAIToolsBody(messages, params, tools) as Record<string, unknown>;
+    if (config.reasoningEffort) body.think = config.reasoningEffort;
     return {
       // Ollama uses /api/chat, not /v1/chat/completions
       url: `${base}/api/chat`,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body,
     };
   },
 

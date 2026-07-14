@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
-import { anthropicPlugin } from './anthropic';
+import { anthropicPlugin, anthropicReasoningEfforts } from './anthropic';
 import type { LoopMessage, ChatParams, ProviderConfig } from '../IProviderPlugin';
 
 // getModels must route through the Tauri HTTP plugin (Rust/reqwest), not the WebView's
@@ -33,7 +33,36 @@ describe('anthropicPlugin.getModels transport', () => {
       'https://api.anthropic.com/v1/models?limit=100',
     );
     expect(webViewFetch).not.toHaveBeenCalled();
-    expect(models).toEqual([{ id: 'claude-3-5-sonnet-latest', label: 'Claude 3.5 Sonnet' }]);
+    expect(models).toEqual([
+      {
+        id: 'claude-3-5-sonnet-latest',
+        label: 'Claude 3.5 Sonnet',
+        reasoningEfforts: [],
+      },
+    ]);
+  });
+});
+
+describe('Anthropic reasoning capabilities', () => {
+  it('uses the documented levels for supported model families', () => {
+    expect(anthropicReasoningEfforts('claude-opus-4-8')).toEqual([
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max',
+    ]);
+    expect(anthropicReasoningEfforts('claude-sonnet-4-6-20260217')).toEqual([
+      'low',
+      'medium',
+      'high',
+      'max',
+    ]);
+    expect(anthropicReasoningEfforts('claude-opus-4-5')).toEqual(['low', 'medium', 'high']);
+  });
+
+  it('does not advertise effort for unsupported older models', () => {
+    expect(anthropicReasoningEfforts('claude-3-7-sonnet-latest')).toEqual([]);
   });
 });
 
@@ -61,11 +90,48 @@ async function collectToolStreamEvents(reader: ReadableStreamDefaultReader<Uint8
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const fakeConfig: ProviderConfig = { enabled: true, apiKey: 'sk-test-key' };
-const fakeParams: ChatParams = { modelId: 'claude-3-haiku', temperature: 0.5, maxTokens: 1024 };
+const fakeParams: ChatParams = { modelId: 'claude-opus-4-8', temperature: 0.5, maxTokens: 1024 };
 
 // ─── buildToolRequest ─────────────────────────────────────────────────────────
 
 describe('anthropicPlugin.buildToolRequest', () => {
+  it('maps configured effort for plain and tool-capable requests', () => {
+    const config: ProviderConfig = { ...fakeConfig, reasoningEffort: 'medium' };
+    const plain = anthropicPlugin.buildRequest(
+      [{ id: 'm1', role: 'user', content: 'Hello', timestamp: 0 }],
+      config,
+      fakeParams,
+    );
+    const tool = anthropicPlugin.buildToolRequest(
+      [{ role: 'user', content: 'Hello' }],
+      config,
+      fakeParams,
+      [],
+    );
+
+    expect(plain.body).toMatchObject({ output_config: { effort: 'medium' } });
+    expect(tool.body).toMatchObject({ output_config: { effort: 'medium' } });
+  });
+
+  it('omits effort for models that do not support output_config', () => {
+    const config: ProviderConfig = { ...fakeConfig, reasoningEffort: 'medium' };
+    const params = { ...fakeParams, modelId: 'claude-3-7-sonnet-latest' };
+    const plain = anthropicPlugin.buildRequest(
+      [{ id: 'm1', role: 'user', content: 'Hello', timestamp: 0 }],
+      config,
+      params,
+    );
+    const tool = anthropicPlugin.buildToolRequest(
+      [{ role: 'user', content: 'Hello' }],
+      config,
+      params,
+      [],
+    );
+
+    expect(plain.body).not.toHaveProperty('output_config');
+    expect(tool.body).not.toHaveProperty('output_config');
+  });
+
   it('anthropic_buildToolRequest_emits_tool_use_blocks_for_assistant_with_toolUse', () => {
     const messages: LoopMessage[] = [
       {

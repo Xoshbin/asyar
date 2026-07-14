@@ -75,6 +75,19 @@ describe('ollamaPlugin.getModels transport', () => {
 // ─── buildToolRequest ─────────────────────────────────────────────────────────
 
 describe('ollamaPlugin.buildToolRequest', () => {
+  it('maps configured effort to Ollama think for plain and tool requests', () => {
+    const config: ProviderConfig = { ...fakeConfig, reasoningEffort: 'high' };
+    const plain = ollamaPlugin.buildRequest(
+      [{ id: 'm1', role: 'user', content: 'Hello', timestamp: 0 }],
+      config,
+      fakeParams,
+    );
+    const tool = ollamaPlugin.buildToolRequest(fakeMessages, config, fakeParams, fakeTools);
+
+    expect(plain.body).toMatchObject({ think: 'high' });
+    expect(tool.body).toMatchObject({ think: 'high' });
+  });
+
   it('ollama_buildToolRequest_uses_api_chat_path_no_v1', () => {
     const spec = ollamaPlugin.buildToolRequest(fakeMessages, fakeConfig, fakeParams, fakeTools);
 

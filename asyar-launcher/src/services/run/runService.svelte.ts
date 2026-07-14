@@ -188,7 +188,10 @@ export class RunService {
           severity: 'warning',
           retryable: true,
           source: 'frontend',
-          context: { runId: run.id },
+          context: {
+            id: run.id,
+            ...(run.errorMessage ? { message: run.errorMessage } : {}),
+          },
         });
 
         // Keep the failure surfaced in the launcher's main list for inspection.

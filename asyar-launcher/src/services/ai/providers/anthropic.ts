@@ -9,7 +9,40 @@ import type {
   ChatMessage,
   LoopMessage,
   ToolStreamEvent,
+  ReasoningEffort,
 } from '../IProviderPlugin';
+
+const EFFORTS_BY_MODEL_FAMILY: Array<[families: string[], efforts: ReasoningEffort[]]> = [
+  [
+    ['claude-fable-5', 'claude-mythos-5', 'claude-opus-4-8', 'claude-opus-4-7', 'claude-sonnet-5'],
+    ['low', 'medium', 'high', 'xhigh', 'max'],
+  ],
+  [
+    ['claude-mythos-preview', 'claude-opus-4-6', 'claude-sonnet-4-6'],
+    ['low', 'medium', 'high', 'max'],
+  ],
+  [['claude-opus-4-5'], ['low', 'medium', 'high']],
+];
+
+function isModelOrSnapshot(modelId: string, model: string): boolean {
+  return modelId === model || modelId.startsWith(`${model}-20`);
+}
+
+export function anthropicReasoningEfforts(modelId: string): ReasoningEffort[] {
+  for (const [families, efforts] of EFFORTS_BY_MODEL_FAMILY) {
+    if (families.some((family) => isModelOrSnapshot(modelId, family))) return [...efforts];
+  }
+  return [];
+}
+
+function anthropicEffortConfig(
+  modelId: string,
+  effort: ReasoningEffort | undefined,
+): { output_config: { effort: ReasoningEffort } } | Record<string, never> {
+  return effort && anthropicReasoningEfforts(modelId).includes(effort)
+    ? { output_config: { effort } }
+    : {};
+}
 
 export const anthropicPlugin: IProviderPlugin = {
   id: 'anthropic',
@@ -28,7 +61,11 @@ export const anthropicPlugin: IProviderPlugin = {
     });
     if (!res.ok) return [];
     const json = (await res.json()) as { data?: Array<{ id: string; display_name?: string }> };
-    return (json.data ?? []).map((m) => ({ id: m.id, label: m.display_name ?? m.id }));
+    return (json.data ?? []).map((m) => ({
+      id: m.id,
+      label: m.display_name ?? m.id,
+      reasoningEfforts: anthropicReasoningEfforts(m.id),
+    }));
   },
 
   buildRequest(messages: ChatMessage[], config: ProviderConfig, params: ChatParams): RequestSpec {
@@ -48,6 +85,7 @@ export const anthropicPlugin: IProviderPlugin = {
       body: {
         model: params.modelId,
         max_tokens: params.maxTokens,
+        ...anthropicEffortConfig(params.modelId, config.reasoningEffort),
         system: systemPrompt,
         stream: true,
         messages: filtered.map((m) => ({ role: m.role, content: m.content })),
@@ -155,6 +193,7 @@ export const anthropicPlugin: IProviderPlugin = {
       body: {
         model: params.modelId,
         max_tokens: params.maxTokens,
+        ...anthropicEffortConfig(params.modelId, config.reasoningEffort),
         system: systemPrompt,
         stream: true,
         tools: anthropicTools,

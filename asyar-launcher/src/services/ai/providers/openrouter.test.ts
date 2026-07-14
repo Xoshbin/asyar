@@ -29,7 +29,46 @@ describe('openrouterPlugin.getModels transport', () => {
     expect(tauriFetch).toHaveBeenCalledTimes(1);
     expect(vi.mocked(tauriFetch).mock.calls[0][0]).toBe('https://openrouter.ai/api/v1/models');
     expect(webViewFetch).not.toHaveBeenCalled();
-    expect(models).toEqual([{ id: 'openai/gpt-4o', label: 'GPT-4o' }]);
+    expect(models).toEqual([{ id: 'openai/gpt-4o', label: 'GPT-4o', reasoningEfforts: [] }]);
+  });
+
+  it('reads model-specific reasoning levels from OpenRouter metadata', async () => {
+    vi.mocked(tauriFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: 'openai/gpt-reasoning',
+            reasoning: { supported_efforts: ['high', 'medium', 'low', 'future-value'] },
+          },
+        ],
+      }),
+    } as unknown as Response);
+
+    const models = await openrouterPlugin.getModels({ enabled: true, apiKey: 'or-key' });
+
+    expect(models[0].reasoningEfforts).toEqual(['low', 'medium', 'high']);
+  });
+
+  it('treats null supported efforts as all gateway effort values', async () => {
+    vi.mocked(tauriFetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [{ id: 'gateway-reasoning-model', reasoning: { supported_efforts: null } }],
+      }),
+    } as unknown as Response);
+
+    const models = await openrouterPlugin.getModels({ enabled: true, apiKey: 'or-key' });
+
+    expect(models[0].reasoningEfforts).toEqual([
+      'none',
+      'minimal',
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max',
+    ]);
   });
 });
 
@@ -66,6 +105,19 @@ const fakeTools = [
 // ─── buildToolRequest ─────────────────────────────────────────────────────────
 
 describe('openrouterPlugin.buildToolRequest', () => {
+  it('maps configured effort to OpenRouter reasoning for plain and tool requests', () => {
+    const config: ProviderConfig = { ...fakeConfig, reasoningEffort: 'medium' };
+    const plain = openrouterPlugin.buildRequest(
+      [{ id: 'm1', role: 'user', content: 'Hello', timestamp: 0 }],
+      config,
+      fakeParams,
+    );
+    const tool = openrouterPlugin.buildToolRequest(fakeMessages, config, fakeParams, fakeTools);
+
+    expect(plain.body).toMatchObject({ reasoning: { effort: 'medium' } });
+    expect(tool.body).toMatchObject({ reasoning: { effort: 'medium' } });
+  });
+
   it('openrouter_buildToolRequest_targets_openrouter_v1_chat_completions', () => {
     const spec = openrouterPlugin.buildToolRequest(fakeMessages, fakeConfig, fakeParams, fakeTools);
 
@@ -78,6 +130,33 @@ describe('openrouterPlugin.buildToolRequest', () => {
     expect(spec.headers.Authorization).toBe('Bearer or-test');
     expect(spec.headers['HTTP-Referer']).toBe('https://asyar.app');
     expect(spec.headers['X-Title']).toBe('Asyar');
+  });
+
+  it('replays reasoning details on the assistant tool-call message', () => {
+    const reasoningDetails = [
+      {
+        type: 'reasoning.encrypted',
+        data: 'opaque',
+        id: 'reasoning-1',
+        format: 'anthropic-claude-v1',
+        index: 0,
+      },
+    ];
+    const messages: LoopMessage[] = [
+      { role: 'user', content: 'Calculate it' },
+      {
+        role: 'assistant',
+        content: '',
+        toolUse: [{ id: 'call_1', name: 'calc', input: { x: 1 } }],
+        providerContext: reasoningDetails,
+      },
+      { role: 'tool', toolUseId: 'call_1', content: '2' },
+    ];
+
+    const spec = openrouterPlugin.buildToolRequest(messages, fakeConfig, fakeParams, fakeTools);
+    const body = spec.body as { messages: Array<Record<string, unknown>> };
+
+    expect(body.messages[1].reasoning_details).toEqual(reasoningDetails);
   });
 });
 
@@ -107,5 +186,36 @@ describe('openrouterPlugin.parseToolStream', () => {
       input: { x: 1 },
     });
     expect(events[events.length - 1]).toEqual({ type: 'message_stop' });
+  });
+
+  it('preserves streamed reasoning details in their original order', async () => {
+    const first = {
+      type: 'reasoning.summary',
+      summary: 'Checking the inputs',
+      id: 'reasoning-1',
+      format: 'anthropic-claude-v1',
+      index: 0,
+    };
+    const second = {
+      type: 'reasoning.encrypted',
+      data: 'opaque',
+      id: 'reasoning-2',
+      format: 'anthropic-claude-v1',
+      index: 1,
+    };
+    const reader = readerFromChunks([
+      `data: ${JSON.stringify({ choices: [{ delta: { reasoning_details: [first] } }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [{ delta: { reasoning_details: [second] } }] })}\n\n`,
+      'data: [DONE]\n\n',
+    ]);
+
+    const events = [];
+    for await (const event of openrouterPlugin.parseToolStream(reader)) events.push(event);
+
+    expect(events).toEqual([
+      { type: 'provider_context', item: first },
+      { type: 'provider_context', item: second },
+      { type: 'message_stop' },
+    ]);
   });
 });

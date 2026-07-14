@@ -22,4 +22,10 @@ describe('DIAGNOSTIC_MESSAGES', () => {
       'Access to clipboard:read was denied',
     );
   });
+
+  it('renders the concrete run failure when available', () => {
+    expect(DIAGNOSTIC_MESSAGES.run_failed({ id: 'run-1', message: 'Thread disappeared' })).toBe(
+      'Run failed: Thread disappeared',
+    );
+  });
 });

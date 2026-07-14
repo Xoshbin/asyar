@@ -15,7 +15,8 @@ export const DIAGNOSTIC_MESSAGES = defineDiagnosticMessages({
   auth_failure: ({ provider }) => `Authentication failed${provider ? ` (${provider})` : ''}`,
   oauth_failure: ({ provider }) => `OAuth error${provider ? ` (${provider})` : ''}`,
   power_failure: () => 'Power management error',
-  run_failed: ({ id }) => `Run ${id ?? 'unknown'} failed`,
+  run_failed: ({ id, message }) =>
+    message ? `Run failed: ${message}` : `Run ${id ?? 'unknown'} failed`,
   io_failure: () => 'I/O error',
   json_failure: () => 'Data format error',
   unknown: ({ message }) => message ?? 'Unexpected error',

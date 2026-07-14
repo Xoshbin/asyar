@@ -18,6 +18,7 @@ import AgentListView from './AgentListView.svelte';
 import AgentEditView from './AgentEditView.svelte';
 import AgentChatView from './AgentChatView.svelte';
 import { registerBuiltinDynamicDispatcher } from '../../services/extension/builtinDynamicDispatchers';
+import type { ThreadDef } from './types';
 
 export { AgentListView, AgentEditView, AgentChatView };
 
@@ -307,22 +308,26 @@ class AgentsExtension implements Extension {
     if (!agentId) return;
     if (agentsManager.sending) return;
 
-    // Ensure a thread exists; create on first send if none.
-    let threadId = agentsManager.currentThreadId;
-    if (!threadId) {
-      try {
-        const thread = await ensureThread(agentId, { service: agentService });
-        threadId = thread.id;
-        agentsManager.currentThreadId = threadId;
-      } catch (err) {
-        logService.warn(`[agents] ensureThread failed: ${err}`);
-        return;
+    let thread: ThreadDef | undefined;
+    try {
+      const threads = await agentService.listThreads(agentId);
+      thread = threads.find((candidate) => candidate.id === agentsManager.currentThreadId);
+      if (!thread) {
+        thread = await ensureThread(agentId, { service: agentService });
+        agentsManager.currentThreadId = thread.id;
       }
+    } catch (err) {
+      logService.warn(`[agents] ensureThread failed: ${err}`);
+      return;
     }
 
+    await this.submitToThread(agentId, thread, text);
+  }
+
+  private async submitToThread(agentId: string, thread: ThreadDef, text: string): Promise<void> {
+    const threadId = thread.id;
     // Auto-derive a title on the first user message of an unnamed thread.
-    const thread = (await agentService.listThreads(agentId)).find((t) => t.id === threadId);
-    if (thread && (!thread.title || thread.title.trim() === '')) {
+    if (!thread.title || thread.title.trim() === '') {
       try {
         await agentService.updateThreadTitle(threadId, deriveThreadTitle(text));
       } catch (err) {
@@ -334,6 +339,7 @@ class AgentsExtension implements Extension {
     agentsManager.activeAbortController = controller;
     agentsManager.sending = true;
     agentsManager.streamingText = '';
+    agentsManager.streamingStatus = null;
 
     try {
       await runAgent({
@@ -345,12 +351,18 @@ class AgentsExtension implements Extension {
           // Chat view watches `agentsManager.sending` + listens for refresh
           // via its own effect against listMessages, so just nudge here.
           agentsManager.streamingText = '';
+          agentsManager.streamingStatus = null;
+        },
+        onAssistantStatus: (status) => {
+          agentsManager.streamingStatus = status;
         },
         onAssistantTextDelta: (_delta, accumulated) => {
+          agentsManager.streamingStatus = null;
           agentsManager.streamingText = accumulated;
         },
         onAssistantTurnPersisted: () => {
           agentsManager.streamingText = '';
+          agentsManager.streamingStatus = null;
         },
       });
     } catch (err) {
@@ -359,6 +371,7 @@ class AgentsExtension implements Extension {
       agentsManager.sending = false;
       agentsManager.activeAbortController = null;
       agentsManager.streamingText = '';
+      agentsManager.streamingStatus = null;
     }
   }
 }

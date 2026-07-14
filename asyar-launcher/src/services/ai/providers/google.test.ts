@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
-import { googlePlugin } from './google';
+import { googlePlugin, googleReasoningEfforts, googleThinkingConfig } from './google';
 import type { LoopMessage, ChatParams, ProviderConfig } from '../IProviderPlugin';
 
 // getModels must route through the Tauri HTTP plugin (Rust/reqwest), not the WebView's
@@ -39,7 +39,45 @@ describe('googlePlugin.getModels transport', () => {
       'https://generativelanguage.googleapis.com/v1beta/models',
     );
     expect(webViewFetch).not.toHaveBeenCalled();
-    expect(models).toEqual([{ id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }]);
+    expect(models).toEqual([
+      { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', reasoningEfforts: [] },
+    ]);
+  });
+});
+
+describe('Gemini reasoning capabilities', () => {
+  it('advertises reasoning only for thinking-model families', () => {
+    expect(googleReasoningEfforts('gemini-2.0-flash')).toEqual([]);
+    expect(googleReasoningEfforts('gemini-2.5-flash')).toEqual([
+      'minimal',
+      'low',
+      'medium',
+      'high',
+    ]);
+    expect(googleReasoningEfforts('gemini-3-flash-preview')).toEqual([
+      'minimal',
+      'low',
+      'medium',
+      'high',
+    ]);
+    expect(googleReasoningEfforts('gemini-3.1-pro-preview')).toEqual(['low', 'medium', 'high']);
+    expect(googleReasoningEfforts('gemini-3-pro-preview')).toEqual(['low', 'high']);
+  });
+
+  it('uses token budgets for Gemini 2.5 and levels for Gemini 3', () => {
+    expect(googleThinkingConfig('gemini-2.5-flash', 'minimal')).toEqual({
+      thinkingBudget: 1024,
+    });
+    expect(googleThinkingConfig('gemini-2.5-flash', 'medium')).toEqual({
+      thinkingBudget: 8192,
+    });
+    expect(googleThinkingConfig('gemini-2.5-pro', 'high')).toEqual({
+      thinkingBudget: 24576,
+    });
+    expect(googleThinkingConfig('gemini-3-flash-preview', 'medium')).toEqual({
+      thinkingLevel: 'medium',
+    });
+    expect(googleThinkingConfig('gemini-2.0-flash', 'high')).toBeUndefined();
   });
 });
 
@@ -64,6 +102,65 @@ const fakeParams: ChatParams = { modelId: 'gemini-2.0-flash', temperature: 0.7, 
 // ─── buildToolRequest ─────────────────────────────────────────────────────────
 
 describe('googlePlugin.buildToolRequest', () => {
+  it('maps configured effort to Gemini 3 thinkingLevel for plain and tool requests', () => {
+    const config: ProviderConfig = { ...fakeConfig, reasoningEffort: 'low' };
+    const params = { ...fakeParams, modelId: 'gemini-3-flash-preview' };
+    const plain = googlePlugin.buildRequest(
+      [{ id: 'm1', role: 'user', content: 'Hello', timestamp: 0 }],
+      config,
+      params,
+    );
+    const tool = googlePlugin.buildToolRequest(
+      [{ role: 'user', content: 'Hello' }],
+      config,
+      params,
+      [],
+    );
+
+    expect(plain.body).toMatchObject({
+      generationConfig: { thinkingConfig: { thinkingLevel: 'low' } },
+    });
+    expect(tool.body).toMatchObject({
+      generationConfig: { thinkingConfig: { thinkingLevel: 'low' } },
+    });
+  });
+
+  it('maps configured effort to Gemini 2.5 thinkingBudget for plain and tool requests', () => {
+    const config: ProviderConfig = { ...fakeConfig, reasoningEffort: 'high' };
+    const params = { ...fakeParams, modelId: 'gemini-2.5-flash' };
+    const plain = googlePlugin.buildRequest(
+      [{ id: 'm1', role: 'user', content: 'Hello', timestamp: 0 }],
+      config,
+      params,
+    );
+    const tool = googlePlugin.buildToolRequest(
+      [{ role: 'user', content: 'Hello' }],
+      config,
+      params,
+      [],
+    );
+
+    expect(plain.body).toMatchObject({
+      generationConfig: { thinkingConfig: { thinkingBudget: 24576 } },
+    });
+    expect(tool.body).toMatchObject({
+      generationConfig: { thinkingConfig: { thinkingBudget: 24576 } },
+    });
+  });
+
+  it('omits thinkingConfig for pre-2.5 models', () => {
+    const config: ProviderConfig = { ...fakeConfig, reasoningEffort: 'high' };
+    const plain = googlePlugin.buildRequest(
+      [{ id: 'm1', role: 'user', content: 'Hello', timestamp: 0 }],
+      config,
+      fakeParams,
+    );
+    const generationConfig = (plain.body as { generationConfig: Record<string, unknown> })
+      .generationConfig;
+
+    expect(generationConfig).not.toHaveProperty('thinkingConfig');
+  });
+
   it('google_buildToolRequest_hoists_system_to_systemInstruction', () => {
     const messages: LoopMessage[] = [
       { role: 'system', content: 'You are helpful' },
