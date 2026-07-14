@@ -58,7 +58,14 @@ pub fn feedback_publish(
         }
     }
     emit_current(&app, &state)?;
-    schedule_expiry(app, id.clone(), severity);
+    if state
+        .current()
+        .ok()
+        .flatten()
+        .is_some_and(|current| current.id == id)
+    {
+        schedule_expiry(app, id.clone(), severity);
+    }
     Ok(id)
 }
 
