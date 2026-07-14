@@ -73,3 +73,83 @@ jobs:
         working-directory: asyar-launcher/src-tauri
         env:
           RUSTDOCFLAGS: '-D warnings'
+
+  # Windows-only Rust test run. Deliberately lean — no frontend/pnpm/lint/doc
+  # steps (those are platform-agnostic and covered by `test-and-lint` above),
+  # just `cargo test` — so the extra PR-check cost is one Windows compile of
+  # the test harness, cached across runs. Guards the Windows-specific test
+  # fixes (path semantics, shell, file-index, uninstall) from regressing, and
+  # runs the keyboard-resolver matrix that skips locally when its layouts
+  # aren't installed (see the layout-install step below).
+  test-rust-windows:
+    name: Rust tests (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust 1.97.0
+        uses: dtolnay/rust-toolchain@1.97.0
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: asyar-launcher/src-tauri -> target
+          # Persist the cache even when tests fail, so re-runs while iterating
+          # don't re-download and re-compile the whole dependency graph.
+          cache-on-failure: true
+
+      # `build.rs` reads node_modules/asyar-sdk/package.json to inject the SDK
+      # version, so the workspace symlink must exist. `--ignore-scripts` skips
+      # the native (keytar) builds the Rust tests don't need, keeping this fast.
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.26.0
+
+      - name: Install workspace dependencies (for build.rs SDK-version read)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # windows_key_resolver tests resolve only against already-loaded
+      # keyboard layouts and skip the rest, so they never mutate a developer's
+      # input settings. This throwaway runner is the environment reserved for
+      # the full matrix: add French (AZERTY, 0x040C) and German (QWERTZ,
+      # 0x0407) so GetKeyboardLayoutList reports them and the AZERTY/QWERTZ
+      # assertions run instead of skipping.
+      #
+      # US-International is not added: it shares LANGID 0x0409 with plain US, so
+      # the dead-key test matches US regardless — adding it only risks
+      # disturbing the active layout for no extra coverage.
+      - name: Install keyboard layouts for the resolver matrix
+        shell: pwsh
+        run: |
+          $list = New-WinUserLanguageList -Language en-US
+          $list.Add('fr-FR')                             # AZERTY 0000040C
+          $list.Add('de-DE')                             # QWERTZ 00000407
+          Set-WinUserLanguageList -LanguageList $list -Force
+          # Cheap paper trail that the matrix's precondition is met; the
+          # resolver tests themselves run as part of `cargo test` below.
+          Get-WinUserLanguageList | Format-Table LanguageTag, InputMethodTips
+
+      # Runs the whole suite, including the windows_key_resolver matrix (the
+      # AZERTY/QWERTZ cases execute here because FR/DE were installed above).
+      # A single cargo invocation — a second one re-compiles the ~2-minute
+      # `asyar` crate from scratch, so the visible --nocapture diagnostic
+      # isn't worth doubling the job time.
+      #
+      # One test is skipped: `snippets::…routes_to_windows_resolver_for_shift_
+      # colon` asserts the *active* layout resolves Shift+`;` to `:` (US) via
+      # the foreground-window layout. This runner deliberately loads FR/DE for
+      # the resolver matrix, and per-user active-layout settings do not
+      # reliably apply to the test process in a headless session — so the
+      # active layout is non-deterministic here. That test still runs on
+      # developer machines (US active); the resolver logic itself is covered
+      # by the windows_key_resolver matrix, which reads GetKeyboardLayoutList
+      # rather than the active layout.
+      - name: Run Rust tests
+        run: cargo test -- --skip resolve_keypress_routes_to_windows_resolver_for_shift_colon
+        working-directory: asyar-launcher/src-tauri
