@@ -119,9 +119,9 @@ pub fn resolve_keypress(rdev_key: rdev::Key, shift_held: bool) -> Option<char> {
 }
 
 /// Core resolution against an explicit keyboard layout. Split out from
-/// [`resolve_keypress`] so tests can drive a specific layout by its `HKL`
-/// (obtained via `LoadKeyboardLayoutW`) *without activating it on the
-/// desktop* — activation would mutate the user's input list / language bar.
+/// [`resolve_keypress`] so tests can drive an already-loaded layout by its
+/// `HKL` (found via `GetKeyboardLayoutList`) without loading or activating
+/// anything — either would mutate the user's input list / language bar.
 fn resolve_with_hkl(rdev_key: rdev::Key, shift_held: bool, hkl: HKL) -> Option<char> {
     let scan = scan_code_for(rdev_key)?;
 
@@ -162,33 +162,72 @@ mod tests {
     use super::*;
     use rdev::Key;
 
+    // LANGIDs (the low word of an `HKL`) for the layouts under test.
+    const LANGID_US: u16 = 0x0409;
+    const LANGID_FR_FR: u16 = 0x040C;
+    const LANGID_DE_DE: u16 = 0x0407;
+
+    /// Returns an *already-loaded* keyboard layout whose LANGID (the low word
+    /// of the `HKL`) matches `langid`, or `None` if none is currently loaded.
+    ///
+    /// Deliberately does NOT load anything: `LoadKeyboardLayoutW` can alter
+    /// the desktop's input list on Windows 8+ (it may activate the layout
+    /// when the caller owns the focused window; `KLF_NOTELLSHELL` only
+    /// suppresses the shell notification), so a developer running the suite
+    /// must never have their input configuration touched. Tests skip when
+    /// their layout isn't present; the full matrix is exercised in a
+    /// disposable Windows CI where the layouts are pre-installed. Reading the
+    /// list and querying `ToUnicodeEx` with an explicit HKL are both
+    /// side-effect-free, so no locking is needed despite concurrent tests.
+    fn loaded_hkl_for_langid(langid: u16) -> Option<HKL> {
+        use windows::Win32::UI::Input::KeyboardAndMouse::GetKeyboardLayoutList;
+        unsafe {
+            let count = GetKeyboardLayoutList(None).max(0) as usize;
+            let mut list = vec![HKL::default(); count];
+            let got = GetKeyboardLayoutList(Some(list.as_mut_slice())).max(0) as usize;
+            list.truncate(got);
+            list.into_iter()
+                .find(|hkl| (hkl.0 as usize & 0xFFFF) as u16 == langid)
+        }
+    }
+
+    /// Binds `hkl` to an already-loaded layout for `langid`, or returns from
+    /// the test with a skip note when that layout isn't installed.
+    macro_rules! hkl_or_skip {
+        ($langid:expr, $name:literal) => {
+            match loaded_hkl_for_langid($langid) {
+                Some(hkl) => hkl,
+                None => {
+                    eprintln!("skipping: {} layout not loaded on this machine", $name);
+                    return;
+                }
+            }
+        };
+    }
+
     #[test]
     fn resolves_lowercase_letter_on_us_layout() {
-        with_layout_hkl(LAYOUT_US, |hkl| {
-            assert_eq!(resolve_with_hkl(Key::KeyA, false, hkl), Some('a'));
-        });
+        let hkl = hkl_or_skip!(LANGID_US, "US");
+        assert_eq!(resolve_with_hkl(Key::KeyA, false, hkl), Some('a'));
     }
 
     #[test]
     fn resolves_uppercase_with_shift_on_us_layout() {
-        with_layout_hkl(LAYOUT_US, |hkl| {
-            assert_eq!(resolve_with_hkl(Key::KeyA, true, hkl), Some('A'));
-        });
+        let hkl = hkl_or_skip!(LANGID_US, "US");
+        assert_eq!(resolve_with_hkl(Key::KeyA, true, hkl), Some('A'));
     }
 
     #[test]
     fn resolves_colon_with_shift_on_us_layout() {
         // The bug the refactor fixes: `:` is Shift+`;` on US, currently dropped.
-        with_layout_hkl(LAYOUT_US, |hkl| {
-            assert_eq!(resolve_with_hkl(Key::SemiColon, true, hkl), Some(':'));
-        });
+        let hkl = hkl_or_skip!(LANGID_US, "US");
+        assert_eq!(resolve_with_hkl(Key::SemiColon, true, hkl), Some(':'));
     }
 
     #[test]
     fn resolves_underscore_with_shift_on_us_layout() {
-        with_layout_hkl(LAYOUT_US, |hkl| {
-            assert_eq!(resolve_with_hkl(Key::Minus, true, hkl), Some('_'));
-        });
+        let hkl = hkl_or_skip!(LANGID_US, "US");
+        assert_eq!(resolve_with_hkl(Key::Minus, true, hkl), Some('_'));
     }
 
     #[test]
@@ -203,84 +242,31 @@ mod tests {
     fn resolves_colon_on_azerty_layout() {
         // On French AZERTY the US-`.` physical key is `:` unshifted (and `/`
         // shifted) — unlike German QWERTZ below, where `:` is Shift+`.`.
-        with_layout_hkl(LAYOUT_FR_FR, |hkl| {
-            assert_eq!(resolve_with_hkl(Key::Dot, false, hkl), Some(':'));
-        });
+        let hkl = hkl_or_skip!(LANGID_FR_FR, "French (AZERTY)");
+        assert_eq!(resolve_with_hkl(Key::Dot, false, hkl), Some(':'));
     }
 
     #[test]
     fn resolves_colon_on_qwertz_layout() {
-        with_layout_hkl(LAYOUT_DE_DE, |hkl| {
-            assert_eq!(resolve_with_hkl(Key::Dot, true, hkl), Some(':'));
-        });
+        let hkl = hkl_or_skip!(LANGID_DE_DE, "German (QWERTZ)");
+        assert_eq!(resolve_with_hkl(Key::Dot, true, hkl), Some(':'));
     }
 
     #[test]
     fn dead_key_query_leaves_no_kernel_state() {
         // Shift+6 on US-International is the `^` dead key. Per the resolver's
         // contract it doesn't commit a standalone glyph (ToUnicodeEx returns a
-        // negative dead-key result → None). The load-bearing guarantee this
-        // test protects is the no-change-state flag (wFlags bit 2): querying
-        // the dead key must NOT leave composition state in the kernel layout
-        // buffer, so a subsequent unrelated keypress in any window resolves to
-        // itself rather than composing.
-        with_layout_hkl(LAYOUT_US_INTL, |hkl| {
-            let _ = resolve_with_hkl(Key::Num6, true, hkl); // ^ dead key: no commit
-            let e = resolve_with_hkl(Key::KeyE, false, hkl);
-            assert_eq!(e, Some('e')); // Just 'e' — not the composed 'ê'.
-        });
-    }
-
-    const LAYOUT_US: &str = "00000409";
-    const LAYOUT_FR_FR: &str = "0000040C";
-    const LAYOUT_DE_DE: &str = "00000407";
-    const LAYOUT_US_INTL: &str = "00020409";
-
-    /// Load `layout_id`, hand its `HKL` to `f`, then unload it — **without
-    /// ever activating it on the desktop**. The previous `with_layout` used
-    /// `LoadKeyboardLayoutW(KLF_ACTIVATE)` + `ActivateKeyboardLayout`, which
-    /// (a) mutated the user's real input list / language bar and left the
-    /// loaded layouts behind (only the *active* one was restored), and
-    /// (b) didn't even work — `resolve_keypress` reads the *foreground
-    /// window's* layout, not the test thread's, so activating on the test
-    /// thread had no effect. Here we load with `KLF_NOTELLSHELL` (no shell
-    /// notification, no activation), drive `resolve_with_hkl` against the
-    /// returned HKL directly, and `UnloadKeyboardLayout` it — but only if it
-    /// wasn't already loaded, so a layout the user actually installed is
-    /// never removed. Net effect on the OS: none.
-    fn with_layout_hkl<F: FnOnce(HKL)>(layout_id: &str, f: F) {
-        use windows::core::PCWSTR;
-        use windows::Win32::UI::Input::KeyboardAndMouse::{
-            GetKeyboardLayoutList, LoadKeyboardLayoutW, UnloadKeyboardLayout, KLF_NOTELLSHELL,
-        };
-
-        /// Unloads the layout on scope exit — including a panic unwind from a
-        /// failed assertion in `f`, so a failing test can never leak the
-        /// layout into the user's input list. `None` when the layout was
-        /// already loaded (we didn't add it, so we must not remove it).
-        struct Unloader(Option<HKL>);
-        impl Drop for Unloader {
-            fn drop(&mut self) {
-                if let Some(hkl) = self.0 {
-                    unsafe {
-                        let _ = UnloadKeyboardLayout(hkl);
-                    }
-                }
-            }
-        }
-
-        let wide: Vec<u16> = layout_id.encode_utf16().chain(std::iter::once(0)).collect();
-        unsafe {
-            // Snapshot already-loaded layouts so we only unload one we add.
-            let count = GetKeyboardLayoutList(None).max(0) as usize;
-            let mut before = vec![HKL::default(); count];
-            let got = GetKeyboardLayoutList(Some(before.as_mut_slice())).max(0) as usize;
-            before.truncate(got);
-
-            let hkl =
-                LoadKeyboardLayoutW(PCWSTR(wide.as_ptr()), KLF_NOTELLSHELL).expect("layout load");
-            let _unloader = Unloader((!before.contains(&hkl)).then_some(hkl));
-            f(hkl);
-        }
+        // negative dead-key result → None). The guarantee this test protects
+        // is the no-change-state flag (wFlags bit 2): querying the dead key
+        // must NOT leave composition state in the kernel layout buffer, so a
+        // subsequent unrelated keypress resolves to itself, not a composed
+        // glyph. US-International shares LANGID 0x0409 with plain US, so we
+        // can't single it out from an already-loaded HKL without activating a
+        // layout; we run against whichever US-English layout is loaded. The
+        // invariant (`e` stays `e`) holds on both — the actual dead-key path
+        // is exercised when US-International is the loaded 0x0409 layout (CI).
+        let hkl = hkl_or_skip!(LANGID_US, "US-English");
+        let _ = resolve_with_hkl(Key::Num6, true, hkl); // ^ dead key: no commit
+        assert_eq!(resolve_with_hkl(Key::KeyE, false, hkl), Some('e'));
     }
 }
