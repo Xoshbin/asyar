@@ -290,9 +290,25 @@ impl ToolRegistry {
 
     /// Returns the descriptor of any tool matching the fully-qualified ID.
     pub fn get_tool_descriptor(&self, fqid: &str) -> Option<ToolDescriptor> {
-        self.list_all()
-            .into_iter()
-            .find(|t| t.fully_qualified_id == fqid)
+        if let Some(id) = fqid.strip_prefix("builtin:") {
+            let builtins = self.builtins.read().unwrap_or_else(|e| e.into_inner());
+            if let Some(tool) = builtins.get(id) {
+                let mut descriptor = tool.descriptor();
+                descriptor.fully_qualified_id = format!("builtin:{}", descriptor.id);
+                if descriptor.fully_qualified_id == fqid {
+                    return Some(descriptor);
+                }
+            }
+        }
+
+        let tier2 = self.tier2.read().unwrap_or_else(|e| e.into_inner());
+        if let Some(descriptor) = tier2.get(fqid) {
+            return Some(descriptor.clone());
+        }
+        drop(tier2);
+
+        let mcp = self.mcp.read().unwrap_or_else(|e| e.into_inner());
+        mcp.get(fqid).cloned()
     }
 }
 

@@ -2,12 +2,20 @@ use crate::agents::tools::{
     agents_tools_list_impl, BuiltinTool, ManifestTool, ToolDescriptor, ToolRegistry, ToolSource,
 };
 use crate::error::AppError;
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 
 // ── Test fixture ──────────────────────────────────────────────────────────────
 
 struct EchoTool {
     id: String,
+}
+
+struct CountingTool {
+    id: String,
+    descriptor_calls: Arc<AtomicUsize>,
 }
 
 #[async_trait::async_trait]
@@ -28,8 +36,34 @@ impl BuiltinTool for EchoTool {
     }
 }
 
+#[async_trait::async_trait]
+impl BuiltinTool for CountingTool {
+    fn descriptor(&self) -> ToolDescriptor {
+        self.descriptor_calls.fetch_add(1, Ordering::Relaxed);
+        ToolDescriptor {
+            id: self.id.clone(),
+            name: format!("Counting ({})", self.id),
+            description: "Counts descriptor reads.".to_string(),
+            parameters: serde_json::json!({}),
+            source: ToolSource::Builtin,
+            fully_qualified_id: format!("builtin:{}", self.id),
+        }
+    }
+
+    async fn invoke(&self, args: serde_json::Value) -> Result<serde_json::Value, AppError> {
+        Ok(args)
+    }
+}
+
 fn echo(id: &str) -> Arc<dyn BuiltinTool> {
     Arc::new(EchoTool { id: id.to_string() })
+}
+
+fn counting(id: &str, descriptor_calls: Arc<AtomicUsize>) -> Arc<dyn BuiltinTool> {
+    Arc::new(CountingTool {
+        id: id.to_string(),
+        descriptor_calls,
+    })
 }
 
 fn manifest_tool(id: &str) -> ManifestTool {
@@ -105,6 +139,61 @@ fn get_builtin_returns_none_for_unknown() {
         registry.get_builtin("missing").is_none(),
         "get_builtin must return None for unknown id"
     );
+}
+
+#[test]
+fn get_tool_descriptor_only_materializes_the_requested_builtin() {
+    let registry = ToolRegistry::new();
+    let requested_calls = Arc::new(AtomicUsize::new(0));
+    let unrelated_calls = Arc::new(AtomicUsize::new(0));
+    registry
+        .register_builtin(counting("requested", Arc::clone(&requested_calls)))
+        .unwrap();
+    registry
+        .register_builtin(counting("unrelated", Arc::clone(&unrelated_calls)))
+        .unwrap();
+    requested_calls.store(0, Ordering::Relaxed);
+    unrelated_calls.store(0, Ordering::Relaxed);
+
+    let descriptor = registry
+        .get_tool_descriptor("builtin:requested")
+        .expect("requested descriptor must resolve");
+
+    assert_eq!(descriptor.id, "requested");
+    assert_eq!(requested_calls.load(Ordering::Relaxed), 1);
+    assert_eq!(unrelated_calls.load(Ordering::Relaxed), 0);
+}
+
+#[test]
+fn get_tool_descriptor_resolves_every_registered_source() {
+    let registry = ToolRegistry::new();
+    registry.register_builtin(echo("echo")).unwrap();
+    registry
+        .register_tier2("ext.foo", vec![manifest_tool("tier2-tool")])
+        .unwrap();
+    registry
+        .register_mcp("srv-acme", vec![manifest_tool("mcp-tool")])
+        .unwrap();
+
+    assert_eq!(
+        registry
+            .get_tool_descriptor("builtin:echo")
+            .map(|descriptor| descriptor.source),
+        Some(ToolSource::Builtin)
+    );
+    assert_eq!(
+        registry
+            .get_tool_descriptor("ext.foo:tier2-tool")
+            .map(|descriptor| descriptor.source),
+        Some(ToolSource::Tier2("ext.foo".to_string()))
+    );
+    assert_eq!(
+        registry
+            .get_tool_descriptor("mcp:srv-acme:mcp-tool")
+            .map(|descriptor| descriptor.source),
+        Some(ToolSource::Mcp("srv-acme".to_string()))
+    );
+    assert!(registry.get_tool_descriptor("missing").is_none());
 }
 
 // ── 6. register_tier2_inserts_tools ──────────────────────────────────────────
