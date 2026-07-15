@@ -1,7 +1,9 @@
 // asyar-launcher/src/lib/ipc/commands.ts
 import { invoke } from '@tauri-apps/api/core';
-import { invokeSafe, invokeSafeVoid } from './invokeSafe';
+import { invokeRaw, invokeSafe, invokeSafeVoid } from './invokeSafe';
+import type { ProviderConfig, ChatMessage, ChatParams } from '../../services/ai/IProviderPlugin';
 import type {
+  AgentRunConfig as AgentRunConfigContract,
   SearchableItem,
   SearchResult,
   Application,
@@ -1872,4 +1874,53 @@ export async function systemActionsSupported(): Promise<SystemActionId[]> {
 
 export async function systemActionRun(action: SystemActionId): Promise<boolean> {
   return invokeSafeVoid('system_action_run', { action });
+}
+
+export interface AgentRunConfig extends Omit<AgentRunConfigContract, 'provider'> {
+  provider: ProviderConfig;
+}
+
+export async function agentsRunThread(
+  agentId: string,
+  threadId: string,
+  userText: string,
+  runId: string | null,
+  config: AgentRunConfig,
+  streamId: string,
+): Promise<void> {
+  await invokeRaw('agents_run_thread', { agentId, threadId, userText, runId, config, streamId });
+}
+
+export async function agentsRunSilent(
+  agentId: string,
+  userText: string,
+  config: AgentRunConfig,
+  streamId: string,
+  agent?: import('../../built-in-features/agents/types').AgentDef,
+): Promise<string> {
+  return invokeRaw<string>('agents_run_silent', {
+    agentId,
+    userText,
+    config,
+    streamId,
+    agent: agent ?? null,
+  });
+}
+
+export async function agentsReportToolResult(
+  streamId: string,
+  toolCallId: string,
+  result: unknown,
+  error?: string,
+): Promise<void> {
+  await invokeRaw('agents_report_tool_result', {
+    streamId,
+    toolCallId,
+    result,
+    error: error ?? null,
+  });
+}
+
+export async function agentsCancelRun(streamId: string): Promise<void> {
+  await invokeRaw('agents_cancel_run', { streamId });
 }

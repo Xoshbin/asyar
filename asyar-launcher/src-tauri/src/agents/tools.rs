@@ -288,6 +288,13 @@ impl ToolRegistry {
         let map = self.builtins.read().unwrap_or_else(|e| e.into_inner());
         map.get(id).cloned()
     }
+
+    /// Returns the descriptor of any tool matching the fully-qualified ID.
+    pub fn get_tool_descriptor(&self, fqid: &str) -> Option<ToolDescriptor> {
+        self.list_all()
+            .into_iter()
+            .find(|t| t.fully_qualified_id == fqid)
+    }
 }
 
 impl Default for ToolRegistry {

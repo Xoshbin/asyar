@@ -85,6 +85,13 @@ impl DataStore {
         })
     }
 
+    #[cfg(test)]
+    pub fn from_conn(conn: Connection) -> Self {
+        Self {
+            db: Arc::new(Mutex::new(conn)),
+        }
+    }
+
     pub fn conn(&self) -> Result<std::sync::MutexGuard<'_, Connection>, AppError> {
         self.db.lock().map_err(|_| AppError::Lock)
     }

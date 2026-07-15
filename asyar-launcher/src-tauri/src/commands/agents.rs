@@ -1,14 +1,50 @@
+use crate::agents::runner::{
+    AgentRunConfig, AgentRunnerState, AgentStreamEvent, AgentStreamEventPayload,
+    ExternalToolRequest,
+};
+use crate::agents::tools::ToolRegistryState;
 use crate::error::AppError;
 use crate::storage::agents::{
-    backfill_thread_titles, delete_agent, delete_thread, find_run_origin, get_agent, insert_agent,
-    insert_message, insert_thread, list_agents, list_messages_for_thread, list_threads_for_agent,
-    update_agent, update_thread_title, AgentRow, MessageRole, MessageRow, RunOrigin,
-    SilentInputSource, SilentOutputAction, ThreadRow,
+    backfill_thread_titles, delete_agent, delete_thread, find_run_origin, get_agent, get_thread,
+    insert_agent, insert_message, insert_thread, list_agents, list_messages_for_thread,
+    list_threads_for_agent, update_agent, update_thread_title, AgentRow, MessageRole, MessageRow,
+    RunOrigin, SilentInputSource, SilentOutputAction, ThreadRow,
 };
 use crate::storage::DataStore;
 use rusqlite::Connection;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, State};
+
+async fn dispatch_external_agent_tool(
+    app: AppHandle,
+    runner_state: AgentRunnerState,
+    stream_id: String,
+    request: ExternalToolRequest,
+) -> Result<serde_json::Value, AppError> {
+    let receiver = runner_state.begin_tool_call(&stream_id, &request)?;
+    if let Err(error) = app.emit(
+        "agent-stream-event",
+        &AgentStreamEventPayload {
+            stream_id: stream_id.clone(),
+            event: AgentStreamEvent::ToolDispatch {
+                tool_call_id: request.tool_call_id,
+                tool_id: request.tool_id,
+                arguments: request.arguments,
+            },
+        },
+    ) {
+        runner_state.cancel_tool_call(&stream_id)?;
+        return Err(AppError::Other(error.to_string()));
+    }
+
+    match receiver.await {
+        Ok(Ok(result)) => Ok(result),
+        Ok(Err(error)) => Err(AppError::Other(error)),
+        Err(_) => Err(AppError::Other(
+            "agent tool result channel closed before a result arrived".to_string(),
+        )),
+    }
+}
 
 fn now_ms() -> i64 {
     SystemTime::now()
@@ -361,42 +397,152 @@ pub async fn agents_messages_list(
     agents_messages_list_impl(&conn, thread_id)
 }
 
-// ── Private helper ────────────────────────────────────────────────────────────
+#[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri injects state alongside the typed wire arguments.
+pub async fn agents_run_thread(
+    app: AppHandle,
+    store: State<'_, DataStore>,
+    registry: State<'_, ToolRegistryState>,
+    runner_state: State<'_, AgentRunnerState>,
+    agent_id: String,
+    thread_id: String,
+    user_text: String,
+    run_id: Option<String>,
+    config: AgentRunConfig,
+    stream_id: String,
+) -> Result<(), AppError> {
+    let cancellation = runner_state.begin_run(&stream_id)?;
+    let app_clone = app.clone();
+    let stream_id_clone = stream_id.clone();
 
-fn get_thread(conn: &Connection, id: &str) -> Result<Option<ThreadRow>, AppError> {
-    use rusqlite::params;
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, agent_id, title, created_at, updated_at
-             FROM threads
-             WHERE id = ?1",
+    let on_event = move |event: AgentStreamEvent| {
+        let payload = AgentStreamEventPayload {
+            stream_id: stream_id_clone.clone(),
+            event,
+        };
+        let _ = app_clone.emit("agent-stream-event", &payload);
+    };
+    let dispatch_app = app.clone();
+    let dispatch_stream_id = stream_id.clone();
+    let dispatch_state = runner_state.inner().clone();
+    let dispatch_external = move |request: ExternalToolRequest| {
+        dispatch_external_agent_tool(
+            dispatch_app.clone(),
+            dispatch_state.clone(),
+            dispatch_stream_id.clone(),
+            request,
         )
-        .map_err(|e| AppError::Database(e.to_string()))?;
+    };
 
-    let mut rows = stmt
-        .query_map(params![id], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, Option<String>>(2)?,
-                row.get::<_, Option<i64>>(3)?,
-                row.get::<_, Option<i64>>(4)?,
-            ))
-        })
-        .map_err(|e| AppError::Database(e.to_string()))?;
+    let result = crate::agents::runner::run_thread_loop_impl(
+        &store,
+        &registry,
+        &agent_id,
+        &thread_id,
+        user_text,
+        run_id,
+        config,
+        on_event,
+        dispatch_external,
+        Some(cancellation),
+    )
+    .await;
+    let cleanup = runner_state.finish_run(&stream_id);
+    result.and(cleanup)
+}
 
-    match rows.next() {
-        None => Ok(None),
-        Some(row) => {
-            let (id, agent_id, title, created_at, updated_at) =
-                row.map_err(|e| AppError::Database(e.to_string()))?;
-            Ok(Some(ThreadRow {
-                id,
-                agent_id,
-                title,
-                created_at,
-                updated_at,
-            }))
-        }
+#[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri injects state alongside the typed wire arguments.
+pub async fn agents_run_silent(
+    app: AppHandle,
+    store: State<'_, DataStore>,
+    registry: State<'_, ToolRegistryState>,
+    runner_state: State<'_, AgentRunnerState>,
+    agent_id: String,
+    user_text: String,
+    config: AgentRunConfig,
+    stream_id: String,
+    agent: Option<AgentRow>,
+) -> Result<String, AppError> {
+    if agent.as_ref().is_some_and(|agent| agent.id != agent_id) {
+        return Err(AppError::Validation(format!(
+            "agent override id '{}' does not match requested agent '{agent_id}'",
+            agent
+                .as_ref()
+                .map(|agent| agent.id.as_str())
+                .unwrap_or_default()
+        )));
     }
+    let cancellation = runner_state.begin_run(&stream_id)?;
+    let app_for_events = app.clone();
+    let event_stream_id = stream_id.clone();
+    let on_event = move |event: AgentStreamEvent| {
+        let _ = app_for_events.emit(
+            "agent-stream-event",
+            &AgentStreamEventPayload {
+                stream_id: event_stream_id.clone(),
+                event,
+            },
+        );
+    };
+    let dispatch_state = runner_state.inner().clone();
+    let dispatch_app = app;
+    let dispatch_stream_id = stream_id.clone();
+    let dispatch_external = move |request: ExternalToolRequest| {
+        dispatch_external_agent_tool(
+            dispatch_app.clone(),
+            dispatch_state.clone(),
+            dispatch_stream_id.clone(),
+            request,
+        )
+    };
+
+    let result = if let Some(agent) = agent {
+        crate::agents::runner::run_silent_agent_loop_impl(
+            &agent,
+            &registry,
+            user_text,
+            config,
+            on_event,
+            dispatch_external,
+            Some(cancellation),
+        )
+        .await
+    } else {
+        crate::agents::runner::run_silent_loop_impl(
+            &store,
+            &registry,
+            &agent_id,
+            user_text,
+            config,
+            on_event,
+            dispatch_external,
+            Some(cancellation),
+        )
+        .await
+    };
+    let cleanup = runner_state.finish_run(&stream_id);
+    match (result, cleanup) {
+        (Err(error), _) | (Ok(_), Err(error)) => Err(error),
+        (Ok(text), Ok(())) => Ok(text),
+    }
+}
+
+#[tauri::command]
+pub async fn agents_report_tool_result(
+    runner_state: State<'_, AgentRunnerState>,
+    stream_id: String,
+    tool_call_id: String,
+    result: serde_json::Value,
+    error: Option<String>,
+) -> Result<(), AppError> {
+    runner_state.report_tool_result(&stream_id, &tool_call_id, result, error)
+}
+
+#[tauri::command]
+pub async fn agents_cancel_run(
+    runner_state: State<'_, AgentRunnerState>,
+    stream_id: String,
+) -> Result<(), AppError> {
+    runner_state.cancel_run(&stream_id)
 }

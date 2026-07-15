@@ -7,6 +7,26 @@ use crate::error::AppError;
 use futures_util::StreamExt;
 use tauri::{AppHandle, Emitter};
 
+fn emit_stream_event<F>(event: crate::ai::types::ChatStreamEvent, on_event: &F)
+where
+    F: Fn(ChatStreamEventPayload),
+{
+    match event {
+        crate::ai::types::ChatStreamEvent::Token { token } => {
+            on_event(ChatStreamEventPayload::Token { token });
+        }
+        crate::ai::types::ChatStreamEvent::Status { status } => {
+            on_event(ChatStreamEventPayload::Status { status });
+        }
+        crate::ai::types::ChatStreamEvent::ToolCall { id, name, input } => {
+            on_event(ChatStreamEventPayload::ToolCall { id, name, input });
+        }
+        crate::ai::types::ChatStreamEvent::ProviderContext { item } => {
+            on_event(ChatStreamEventPayload::ProviderContext { item });
+        }
+    }
+}
+
 pub async fn ai_stream_chat_impl<F>(
     provider_id: &str,
     config: ProviderConfig,
@@ -58,6 +78,7 @@ where
 
     let mut stream = res.bytes_stream();
     let mut line_buffer = LineBuffer::new();
+    let mut parser = providers::ProviderStreamParser::new(provider_id, &config);
 
     while let Some(chunk_result) = stream.next().await {
         let chunk = match chunk_result {
@@ -72,30 +93,20 @@ where
 
         let lines = line_buffer.feed(&chunk);
         for line in lines {
-            if let Some(event) = providers::parse_stream_line(provider_id, &config, &line) {
-                match event {
-                    crate::ai::types::ChatStreamEvent::Token { token } => {
-                        on_event(ChatStreamEventPayload::Token { token });
-                    }
-                    crate::ai::types::ChatStreamEvent::Status { status } => {
-                        on_event(ChatStreamEventPayload::Status { status });
-                    }
-                }
+            for event in parser.push_line(&line)? {
+                emit_stream_event(event, &on_event);
             }
         }
     }
 
     if let Some(line) = line_buffer.flush() {
-        if let Some(event) = providers::parse_stream_line(provider_id, &config, &line) {
-            match event {
-                crate::ai::types::ChatStreamEvent::Token { token } => {
-                    on_event(ChatStreamEventPayload::Token { token });
-                }
-                crate::ai::types::ChatStreamEvent::Status { status } => {
-                    on_event(ChatStreamEventPayload::Status { status });
-                }
-            }
+        for event in parser.push_line(&line)? {
+            emit_stream_event(event, &on_event);
         }
+    }
+
+    for event in parser.finish()? {
+        emit_stream_event(event, &on_event);
     }
 
     on_event(ChatStreamEventPayload::Done);
@@ -178,12 +189,16 @@ mod tests {
                 role: "user".to_string(),
                 content: "Hello".to_string(),
                 timestamp: 0,
+                tool_calls: None,
+                tool_call_id: None,
+                provider_context: None,
             }],
             ChatParams {
                 model_id: "test".to_string(),
                 temperature: 0.7,
                 max_tokens: 100,
                 system_prompt: None,
+                tools: None,
             },
             "stream-123".to_string(),
             move |ev| {

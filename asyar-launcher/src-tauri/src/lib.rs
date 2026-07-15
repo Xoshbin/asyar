@@ -265,6 +265,7 @@ pub fn run() {
         ))
         .manage(std::sync::Arc::new(agents::tools::ToolRegistry::new())
             as agents::tools::ToolRegistryState)
+        .manage(agents::runner::AgentRunnerState::default())
         .manage(mcp_supervisor)
         .manage(mcp_runtime_resolver)
         .manage(ext_builder::ExtBuilderState::default())
@@ -656,6 +657,10 @@ pub fn run() {
             commands::agents::agents_backfill_thread_titles,
             commands::agents::agents_message_insert,
             commands::agents::agents_messages_list,
+            commands::agents::agents_run_thread,
+            commands::agents::agents_run_silent,
+            commands::agents::agents_report_tool_result,
+            commands::agents::agents_cancel_run,
             ai::commands::ai_stream_chat,
             // Agent tools registry
             agents::tools::agents_tools_list,
