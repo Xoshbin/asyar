@@ -10,6 +10,9 @@ vi.mock('./invokeSafe', () => ({
 import { invokeRaw } from './invokeSafe';
 import {
   agentsCancelRun,
+  agentsEditorLoad,
+  agentsEditorListModels,
+  agentsEditorSave,
   agentsGetBuiltinProfile,
   agentsReportMcpPermission,
   agentsReportToolResult,
@@ -143,5 +146,74 @@ describe('agent runner commands', () => {
     await agentsCancelRun('stream-1');
 
     expect(invokeRaw).toHaveBeenCalledWith('agents_cancel_run', { streamId: 'stream-1' });
+  });
+
+  it('asks Rust for presentation-ready agent editor providers and tool groups', async () => {
+    const configs = {
+      openai: { enabled: true, apiKey: 'secret' },
+    } as any;
+    const providers = [
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        requiresApiKey: true,
+        requiresBaseUrl: false,
+        getModels: vi.fn(),
+      },
+    ] as any;
+    vi.mocked(invokeRaw).mockResolvedValueOnce({ providers: [], toolGroups: [] });
+
+    await agentsEditorLoad(null, providers, configs);
+
+    expect(invokeRaw).toHaveBeenCalledWith('agents_editor_load', {
+      agentId: null,
+      providers: [
+        {
+          id: 'openai',
+          name: 'OpenAI',
+          requiresApiKey: true,
+          requiresBaseUrl: false,
+        },
+      ],
+      configs,
+    });
+  });
+
+  it('submits the editor form to Rust for validation and persistence', async () => {
+    const form = {
+      name: 'Agent',
+      description: '',
+      systemPrompt: 'Help',
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      toolSelection: [],
+      silent: false,
+      inputSource: 'argument' as const,
+      outputAction: 'replaceSelection' as const,
+    };
+    vi.mocked(invokeRaw).mockResolvedValueOnce(agent);
+
+    await agentsEditorSave(null, form);
+
+    expect(invokeRaw).toHaveBeenCalledWith('agents_editor_save', { agentId: null, form });
+  });
+
+  it('asks Rust to discover models and choose the editor default', async () => {
+    vi.mocked(invokeRaw).mockResolvedValueOnce({
+      models: [{ id: 'gpt-4o', label: 'GPT-4o', reasoningEfforts: null }],
+      selectedModelId: 'gpt-4o',
+    });
+
+    await expect(
+      agentsEditorListModels('openai', { enabled: true, apiKey: 'secret' }, ''),
+    ).resolves.toEqual({
+      models: [{ id: 'gpt-4o', label: 'GPT-4o', reasoningEfforts: undefined }],
+      selectedModelId: 'gpt-4o',
+    });
+    expect(invokeRaw).toHaveBeenCalledWith('agents_editor_list_models', {
+      providerId: 'openai',
+      config: { enabled: true, apiKey: 'secret' },
+      currentModelId: '',
+    });
   });
 });

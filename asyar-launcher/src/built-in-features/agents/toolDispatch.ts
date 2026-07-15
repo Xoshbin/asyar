@@ -1,6 +1,7 @@
 /** Browser-only Tier 2 tool bridge. Tool routing and execution policy live in Rust. */
 import { pickExtensionIframe } from '../../services/extension/extensionIframeSelector';
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
+import { TIER2_TOOL_RESPONSE_TYPE } from '../../lib/ipc/extensionMessageProtocol';
 
 let messageIdCounter = 0;
 
@@ -32,7 +33,7 @@ function ensureResponseListener(): void {
   window.addEventListener('message', (event: MessageEvent) => {
     const message = event.data as Record<string, unknown> | null;
     if (!message || typeof message !== 'object') return;
-    if (message.type !== 'asyar:tools:invoke:response') return;
+    if (message.type !== TIER2_TOOL_RESPONSE_TYPE) return;
     const messageId = typeof message.messageId === 'string' ? message.messageId : null;
     if (!messageId) return;
 

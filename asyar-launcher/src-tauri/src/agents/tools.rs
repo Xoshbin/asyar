@@ -15,9 +15,8 @@ use crate::error::AppError;
 /// - `Mcp("srv1")` → JSON object `{ "mcpServerId": "srv1" }`
 ///
 /// Default serde tagging produces a `{ "kind": ... }` discriminator which
-/// doesn't match the SDK shape; the TS `groupDescriptorsBySource` helper
-/// would silently drop every descriptor and the agent edit view would render
-/// an empty tool picker. Custom impls keep both sides aligned.
+/// doesn't match the SDK shape. Custom impls keep both sides aligned while
+/// Rust prepares the grouped editor catalog in `agents::editor`.
 #[derive(Debug, Clone, PartialEq, Type)]
 pub enum ToolSource {
     Builtin,

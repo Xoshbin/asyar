@@ -17,6 +17,7 @@ import type { ServiceRegistry } from './defineServiceRegistry';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
+import { isExternallyConsumedExtensionResponse } from '../../lib/ipc/extensionMessageProtocol';
 
 const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
   search_items: (args) => commands.searchItems(args?.query ?? ''),
@@ -115,6 +116,11 @@ export class ExtensionIpcRouter {
 
       // Ignore responses sent to extensions from the main process to prevent infinite loops
       if (type === 'asyar:response') return;
+
+      // Dedicated bridges validate and consume these response envelopes. They
+      // are not extension requests, so they must not enter permission/dispatch
+      // handling or receive another response from the generic router.
+      if (isExternallyConsumedExtensionResponse(type)) return;
 
       // Dev-only: route dev-inspector diagnostic logs (from both view and
       // worker iframes). Gated by `import.meta.env.DEV` OR runtime developer mode.
@@ -374,7 +380,8 @@ export class ExtensionIpcRouter {
   private findExtensionIdForSource(source: MessageEventSource | null): string | undefined {
     if (!source || typeof document === 'undefined') return undefined;
     const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe[data-extension-id]');
-    for (const frame of iframes) {
+    for (let index = 0; index < iframes.length; index += 1) {
+      const frame = iframes.item(index);
       if (frame.contentWindow === source) {
         return frame.dataset.extensionId;
       }
@@ -394,7 +401,8 @@ export class ExtensionIpcRouter {
   ): 'view' | 'worker' | undefined {
     if (!source || typeof document === 'undefined') return undefined;
     const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe[data-extension-id]');
-    for (const frame of iframes) {
+    for (let index = 0; index < iframes.length; index += 1) {
+      const frame = iframes.item(index);
       if (frame.contentWindow === source) {
         const role = frame.dataset.role;
         return role === 'view' || role === 'worker' ? role : undefined;

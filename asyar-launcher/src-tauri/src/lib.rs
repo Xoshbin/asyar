@@ -667,6 +667,9 @@ pub fn run() {
             commands::agents::agents_report_mcp_permission,
             commands::agents::agents_cancel_run,
             ai::models::ai_list_models,
+            agents::editor::agents_editor_load,
+            agents::editor::agents_editor_list_models,
+            agents::editor::agents_editor_save,
             // Agent tools registry
             agents::tools::agents_tools_list,
             agents::tools::agents_tools_register_tier2,

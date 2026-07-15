@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { toggleToolSelection, type ToolGroup } from './agentEditView.helpers';
+  import { toggleToolSelection } from './agentEditView.helpers';
+  import type { AgentToolGroup } from '../../lib/ipc/commands';
   import Checkbox from '../../components/base/Checkbox.svelte';
   import { mcpService } from '../mcp/mcpService.svelte';
 
@@ -8,20 +9,20 @@
     selectedIds,
     onChange,
   }: {
-    groups: ToolGroup[];
-    selectedIds: Set<string>;
-    onChange: (s: Set<string>) => void;
+    groups: AgentToolGroup[];
+    selectedIds: string[];
+    onChange: (ids: string[]) => void;
   } = $props();
 
   let collapsed = $state<Record<string, boolean>>({});
 
-  function groupKey(g: ToolGroup): string {
+  function groupKey(g: AgentToolGroup): string {
     if (g.kind === 'builtin') return 'builtin';
     if (g.kind === 'tier2') return `tier2:${g.extensionId}`;
     return `mcp:${g.serverId}`;
   }
 
-  function groupLabel(g: ToolGroup): string {
+  function groupLabel(g: AgentToolGroup): string {
     if (g.kind === 'builtin') return 'Built-in';
     if (g.kind === 'tier2') return g.extensionId;
     const server = mcpService.servers.find((s) => s.id === g.serverId);
@@ -41,7 +42,7 @@
         {#each group.tools as tool (tool.fullyQualifiedId)}
           <label class="tool-row" title={tool.description}>
             <Checkbox
-              checked={selectedIds.has(tool.fullyQualifiedId)}
+              checked={selectedIds.includes(tool.fullyQualifiedId)}
               onchange={() => onChange(toggleToolSelection(selectedIds, tool.fullyQualifiedId))}
             />
             <span>{tool.name}</span>

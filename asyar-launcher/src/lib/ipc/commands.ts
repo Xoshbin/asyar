@@ -1,7 +1,13 @@
 // asyar-launcher/src/lib/ipc/commands.ts
 import { invoke } from '@tauri-apps/api/core';
 import { invokeRaw, invokeSafe, invokeSafeVoid } from './invokeSafe';
-import type { ModelInfo, ProviderConfig, ReasoningEffort } from '../../services/ai/IProviderPlugin';
+import type {
+  IProviderPlugin,
+  ModelInfo,
+  ProviderConfig,
+  ProviderId,
+  ReasoningEffort,
+} from '../../services/ai/IProviderPlugin';
 import type {
   AgentRunConfig as AgentRunConfigContract,
   SearchableItem,
@@ -1782,6 +1788,90 @@ export async function agentsToolsList(): Promise<
   import('asyar-sdk/contracts').ToolDescriptor[] | null
 > {
   return invokeSafe('agents_tools_list');
+}
+
+export type AgentToolGroup =
+  | { kind: 'builtin'; tools: import('asyar-sdk/contracts').ToolDescriptor[] }
+  | {
+      kind: 'tier2';
+      extensionId: string;
+      tools: import('asyar-sdk/contracts').ToolDescriptor[];
+    }
+  | {
+      kind: 'mcp';
+      serverId: string;
+      tools: import('asyar-sdk/contracts').ToolDescriptor[];
+    };
+
+export interface AgentProviderOption {
+  id: string;
+  name: string;
+}
+
+export interface AgentEditorForm {
+  name: string;
+  description: string;
+  systemPrompt: string;
+  providerId: string;
+  modelId: string;
+  toolSelection: string[];
+  silent: boolean;
+  inputSource: import('../../built-in-features/agents/types').SilentInputSource;
+  outputAction: import('../../built-in-features/agents/types').SilentOutputAction;
+}
+
+export interface AgentEditorViewModel {
+  form: AgentEditorForm;
+  providers: AgentProviderOption[];
+  toolGroups: AgentToolGroup[];
+}
+
+export interface AgentEditorModelOptions {
+  models: ModelInfo[];
+  selectedModelId: string;
+}
+
+export async function agentsEditorLoad(
+  agentId: string | null,
+  providers: IProviderPlugin[],
+  configs: Record<ProviderId, ProviderConfig>,
+): Promise<AgentEditorViewModel> {
+  return invokeRaw('agents_editor_load', {
+    agentId,
+    providers: providers.map(({ id, name, requiresApiKey, requiresBaseUrl }) => ({
+      id,
+      name,
+      requiresApiKey,
+      requiresBaseUrl,
+    })),
+    configs,
+  });
+}
+
+export async function agentsEditorSave(
+  agentId: string | null,
+  form: AgentEditorForm,
+): Promise<import('../../built-in-features/agents/types').AgentDef> {
+  return invokeRaw('agents_editor_save', { agentId, form });
+}
+
+export async function agentsEditorListModels(
+  providerId: string,
+  config: ProviderConfig,
+  currentModelId: string,
+): Promise<AgentEditorModelOptions> {
+  const result = await invokeRaw<{
+    models: ModelInfoContract[];
+    selectedModelId: string;
+  }>('agents_editor_list_models', { providerId, config, currentModelId });
+  return {
+    models: result.models.map((model) => ({
+      id: model.id,
+      label: model.label,
+      reasoningEfforts: (model.reasoningEfforts as ReasoningEffort[] | null) ?? undefined,
+    })),
+    selectedModelId: result.selectedModelId,
+  };
 }
 
 export async function agentsInvokeBuiltinTool(id: string, args: unknown): Promise<unknown | null> {
