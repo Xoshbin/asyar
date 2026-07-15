@@ -1,12 +1,21 @@
+use crate::agents::lifecycle::{BuiltinAgentProfile, SilentAgentTarget};
+use crate::agents::runner::{
+    AgentRunConfig, AgentRunnerState, AgentStreamEvent, AgentStreamEventPayload,
+    ExternalToolRequest, McpPermissionChoice,
+};
+use crate::agents::tool_executor::{execute_agent_tool, TauriAgentToolRuntime};
+use crate::agents::tools::ToolRegistryState;
 use crate::error::AppError;
+use crate::mcp::McpSupervisor;
 use crate::storage::agents::{
-    backfill_thread_titles, delete_agent, delete_thread, find_run_origin, get_agent, insert_agent,
-    insert_message, insert_thread, list_agents, list_messages_for_thread, list_threads_for_agent,
-    update_agent, update_thread_title, AgentRow, MessageRole, MessageRow, RunOrigin,
-    SilentInputSource, SilentOutputAction, ThreadRow,
+    backfill_thread_titles, delete_agent, delete_thread, find_run_origin, get_agent, get_thread,
+    insert_agent, insert_message, insert_thread, list_agents, list_messages_for_thread,
+    list_threads_for_agent, update_agent, update_thread_title, AgentRow, MessageRole, MessageRow,
+    RunOrigin, SilentInputSource, SilentOutputAction, ThreadRow,
 };
 use crate::storage::DataStore;
 use rusqlite::Connection;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, State};
 
@@ -295,6 +304,61 @@ pub async fn agents_get(
 }
 
 #[tauri::command]
+pub async fn agents_resolve_default(
+    db: State<'_, DataStore>,
+    default_agent_id: Option<String>,
+) -> Result<Option<AgentRow>, AppError> {
+    let conn = db.conn()?;
+    crate::agents::lifecycle::resolve_default_agent(&conn, default_agent_id.as_deref())
+}
+
+#[tauri::command]
+pub async fn agents_upsert_default(
+    app: AppHandle,
+    db: State<'_, DataStore>,
+    default_agent_id: Option<String>,
+    provider_id: String,
+    model_id: String,
+) -> Result<AgentRow, AppError> {
+    let conn = db.conn()?;
+    let row = crate::agents::lifecycle::upsert_default_agent(
+        &conn,
+        default_agent_id.as_deref(),
+        &provider_id,
+        &model_id,
+    )?;
+    let _ = app.emit("agents:changed", ());
+    Ok(row)
+}
+
+#[tauri::command]
+pub async fn agents_seed_grammar_fix(
+    app: AppHandle,
+    db: State<'_, DataStore>,
+    provider_id: String,
+    model_id: String,
+) -> Result<AgentRow, AppError> {
+    let conn = db.conn()?;
+    let row = crate::agents::lifecycle::seed_grammar_fix_agent(&conn, &provider_id, &model_id)?;
+    let _ = app.emit("agents:changed", ());
+    Ok(row)
+}
+
+#[tauri::command]
+pub async fn agents_get_builtin_profile(
+    db: State<'_, DataStore>,
+    profile: BuiltinAgentProfile,
+    default_agent_id: Option<String>,
+) -> Result<AgentRow, AppError> {
+    let conn = db.conn()?;
+    crate::agents::lifecycle::resolve_builtin_agent_profile(
+        &conn,
+        profile,
+        default_agent_id.as_deref(),
+    )
+}
+
+#[tauri::command]
 pub async fn agents_thread_create(
     db: State<'_, DataStore>,
     input: ThreadCreateInput,
@@ -361,42 +425,152 @@ pub async fn agents_messages_list(
     agents_messages_list_impl(&conn, thread_id)
 }
 
-// ── Private helper ────────────────────────────────────────────────────────────
+#[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri injects state alongside the typed wire arguments.
+pub async fn agents_run_thread(
+    app: AppHandle,
+    store: State<'_, DataStore>,
+    registry: State<'_, ToolRegistryState>,
+    runner_state: State<'_, AgentRunnerState>,
+    supervisor: State<'_, Arc<McpSupervisor>>,
+    agent_id: String,
+    thread_id: String,
+    user_text: String,
+    run_id: Option<String>,
+    config: AgentRunConfig,
+    stream_id: String,
+) -> Result<(), AppError> {
+    let cancellation = runner_state.begin_run(&stream_id)?;
+    let app_clone = app.clone();
+    let stream_id_clone = stream_id.clone();
 
-fn get_thread(conn: &Connection, id: &str) -> Result<Option<ThreadRow>, AppError> {
-    use rusqlite::params;
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, agent_id, title, created_at, updated_at
-             FROM threads
-             WHERE id = ?1",
-        )
-        .map_err(|e| AppError::Database(e.to_string()))?;
+    let on_event = move |event: AgentStreamEvent| {
+        let payload = AgentStreamEventPayload {
+            stream_id: stream_id_clone.clone(),
+            event,
+        };
+        let _ = app_clone.emit("agent-stream-event", &payload);
+    };
+    let tool_runtime = TauriAgentToolRuntime::new(
+        app.clone(),
+        runner_state.inner().clone(),
+        stream_id.clone(),
+        supervisor.inner().clone(),
+        store.inner().clone(),
+    );
+    let dispatch_registry = registry.inner().clone();
+    let dispatch_agent_id = agent_id.clone();
+    let dispatch_external = move |request: ExternalToolRequest| {
+        let runtime = tool_runtime.clone();
+        let registry = dispatch_registry.clone();
+        let agent_id = dispatch_agent_id.clone();
+        async move { execute_agent_tool(&registry, &runtime, &agent_id, &request).await }
+    };
 
-    let mut rows = stmt
-        .query_map(params![id], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, Option<String>>(2)?,
-                row.get::<_, Option<i64>>(3)?,
-                row.get::<_, Option<i64>>(4)?,
-            ))
-        })
-        .map_err(|e| AppError::Database(e.to_string()))?;
+    let result = crate::agents::runner::run_thread_loop_impl(
+        &store,
+        &registry,
+        &agent_id,
+        &thread_id,
+        user_text,
+        run_id,
+        config,
+        on_event,
+        dispatch_external,
+        Some(cancellation),
+    )
+    .await;
+    let cleanup = runner_state.finish_run(&stream_id);
+    result.and(cleanup)
+}
 
-    match rows.next() {
-        None => Ok(None),
-        Some(row) => {
-            let (id, agent_id, title, created_at, updated_at) =
-                row.map_err(|e| AppError::Database(e.to_string()))?;
-            Ok(Some(ThreadRow {
-                id,
-                agent_id,
-                title,
-                created_at,
-                updated_at,
-            }))
-        }
+#[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri injects state alongside the typed wire arguments.
+pub async fn agents_run_silent(
+    app: AppHandle,
+    store: State<'_, DataStore>,
+    registry: State<'_, ToolRegistryState>,
+    runner_state: State<'_, AgentRunnerState>,
+    supervisor: State<'_, Arc<McpSupervisor>>,
+    target: SilentAgentTarget,
+    user_text: String,
+    config: AgentRunConfig,
+    stream_id: String,
+) -> Result<String, AppError> {
+    let agent = {
+        let conn = store.conn()?;
+        crate::agents::lifecycle::resolve_silent_agent_target(&conn, &target)?
+    };
+    let cancellation = runner_state.begin_run(&stream_id)?;
+    let app_for_events = app.clone();
+    let event_stream_id = stream_id.clone();
+    let on_event = move |event: AgentStreamEvent| {
+        let _ = app_for_events.emit(
+            "agent-stream-event",
+            &AgentStreamEventPayload {
+                stream_id: event_stream_id.clone(),
+                event,
+            },
+        );
+    };
+    let tool_runtime = TauriAgentToolRuntime::new(
+        app,
+        runner_state.inner().clone(),
+        stream_id.clone(),
+        supervisor.inner().clone(),
+        store.inner().clone(),
+    );
+    let dispatch_registry = registry.inner().clone();
+    let dispatch_agent_id = agent.id.clone();
+    let dispatch_external = move |request: ExternalToolRequest| {
+        let runtime = tool_runtime.clone();
+        let registry = dispatch_registry.clone();
+        let agent_id = dispatch_agent_id.clone();
+        async move { execute_agent_tool(&registry, &runtime, &agent_id, &request).await }
+    };
+
+    let result = crate::agents::runner::run_silent_agent_loop_impl(
+        &agent,
+        &registry,
+        user_text,
+        config,
+        on_event,
+        dispatch_external,
+        Some(cancellation),
+    )
+    .await;
+    let cleanup = runner_state.finish_run(&stream_id);
+    match (result, cleanup) {
+        (Err(error), _) | (Ok(_), Err(error)) => Err(error),
+        (Ok(text), Ok(())) => Ok(text),
     }
+}
+
+#[tauri::command]
+pub async fn agents_report_tool_result(
+    runner_state: State<'_, AgentRunnerState>,
+    stream_id: String,
+    tool_call_id: String,
+    result: serde_json::Value,
+    error: Option<String>,
+) -> Result<(), AppError> {
+    runner_state.report_tool_result(&stream_id, &tool_call_id, result, error)
+}
+
+#[tauri::command]
+pub async fn agents_report_mcp_permission(
+    runner_state: State<'_, AgentRunnerState>,
+    stream_id: String,
+    tool_call_id: String,
+    decision: McpPermissionChoice,
+) -> Result<(), AppError> {
+    runner_state.report_mcp_permission(&stream_id, &tool_call_id, decision)
+}
+
+#[tauri::command]
+pub async fn agents_cancel_run(
+    runner_state: State<'_, AgentRunnerState>,
+    stream_id: String,
+) -> Result<(), AppError> {
+    runner_state.cancel_run(&stream_id)
 }

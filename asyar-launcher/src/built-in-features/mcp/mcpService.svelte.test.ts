@@ -396,18 +396,13 @@ describe('mcpService.requestPermission', () => {
 });
 
 describe('mcpService.handlePermissionDecision', () => {
-  it('sets server permission via mcpSetPermission for non-cancel decisions', async () => {
+  it('only resolves the browser prompt; Rust persists agent permission decisions', async () => {
     (cmds.mcpSetPermission as ReturnType<typeof vi.fn>).mockResolvedValue(true);
     const svc = new McpService();
     const promise = svc.requestPermission('srv-1', 'create_user', 'agent-1');
     svc.handlePermissionDecision('allow_always');
     await promise;
-    expect(cmds.mcpSetPermission).toHaveBeenCalledWith(
-      'srv-1',
-      'create_user',
-      'agent-1',
-      'allow_always',
-    );
+    expect(cmds.mcpSetPermission).not.toHaveBeenCalled();
   });
 
   it('does NOT call mcpSetPermission on cancel', async () => {
@@ -417,6 +412,17 @@ describe('mcpService.handlePermissionDecision', () => {
     svc.handlePermissionDecision('cancel');
     await promise;
     expect(cmds.mcpSetPermission).not.toHaveBeenCalled();
+  });
+
+  it('resolves cancel and clears the prompt when its abort signal fires', async () => {
+    const svc = new McpService();
+    const controller = new AbortController();
+    const promise = svc.requestPermission('srv-1', 'create_user', 'agent-1', controller.signal);
+
+    controller.abort();
+
+    await expect(promise).resolves.toBe('cancel');
+    expect(svc.permissionPrompt).toBeNull();
   });
 });
 

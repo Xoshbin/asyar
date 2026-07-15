@@ -4,7 +4,7 @@ import type { IOAuthService, OAuthConfig, OAuthToken, OAuthError } from './IOAut
 /**
  * SDK proxy for the OAuthService.
  *
- * Mirrors the AIServiceProxy "fire-and-forget" pattern:
+ * Uses a fire-and-forget broker request pattern:
  * - Registers a window message listener BEFORE calling broker.invoke() to
  *   prevent a race condition where the result arrives before we are listening.
  * - broker.invoke() returns either a cached OAuthToken (resolve immediately)

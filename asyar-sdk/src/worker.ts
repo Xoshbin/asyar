@@ -31,7 +31,6 @@ import { CacheServiceProxy } from './services/CacheServiceProxy';
 import { SearchServiceProxy } from './services/SearchServiceProxy';
 import { NetworkServiceProxy } from './services/NetworkServiceProxy';
 import { ShellServiceProxy } from './services/ShellServiceProxy';
-import { AIServiceProxy } from './services/AIServiceProxy';
 import { OAuthServiceProxy } from './services/OAuthServiceProxy';
 import { FileManagerServiceProxy } from './services/FileManagerServiceProxy';
 import { ApplicationServiceProxy } from './services/ApplicationService';
@@ -64,7 +63,6 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     search: new SearchServiceProxy(),
     network: new NetworkServiceProxy(),
     shell: new ShellServiceProxy(),
-    ai: new AIServiceProxy(),
     oauth: new OAuthServiceProxy(),
     fs: new FileManagerServiceProxy(),
     application: new ApplicationServiceProxy(),

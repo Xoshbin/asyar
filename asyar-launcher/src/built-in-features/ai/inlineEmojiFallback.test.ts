@@ -12,16 +12,6 @@ vi.mock('../../services/log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock('../agents/agentService.svelte', () => ({
-  agentService: {
-    getDefaultAgent: vi.fn(() => ({
-      id: 'default-agent',
-      providerId: 'anthropic',
-      modelId: 'claude-haiku-4-5-20251001',
-    })),
-  },
-}));
-
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: { report: vi.fn().mockResolvedValue(undefined) },
 }));
@@ -43,9 +33,8 @@ describe('handleEmojiFallback', () => {
     await handleEmojiFallback(SAMPLE);
     expect(dispatchSilentAgentCommand).toHaveBeenCalledWith(
       expect.objectContaining({
-        agentId: 'emoji-fallback',
+        builtinProfile: 'inline_emoji',
         userText: 'burnout',
-        agentDef: expect.objectContaining({ id: 'emoji-fallback' }),
         onFinalText: expect.any(Function),
       }),
     );
@@ -66,8 +55,7 @@ describe('handleEmojiFallback', () => {
 
     expect(invoke).toHaveBeenCalledWith('record_inline_emoji_fallback_outcome', {
       shortcode: ':burnout:',
-      outcome: 'hit',
-      emoji: '🎉',
+      text: '🎉',
     });
   });
 
@@ -85,8 +73,7 @@ describe('handleEmojiFallback', () => {
 
     expect(invoke).toHaveBeenCalledWith('record_inline_emoji_fallback_outcome', {
       shortcode: ':burnout:',
-      outcome: 'miss',
-      emoji: undefined,
+      text: '',
     });
   });
 
@@ -104,8 +91,7 @@ describe('handleEmojiFallback', () => {
 
     expect(invoke).toHaveBeenCalledWith('record_inline_emoji_fallback_outcome', {
       shortcode: ':burnout:',
-      outcome: 'miss',
-      emoji: undefined,
+      text: '  no idea  ',
     });
   });
 });

@@ -265,6 +265,7 @@ pub fn run() {
         ))
         .manage(std::sync::Arc::new(agents::tools::ToolRegistry::new())
             as agents::tools::ToolRegistryState)
+        .manage(agents::runner::AgentRunnerState::default())
         .manage(mcp_supervisor)
         .manage(mcp_runtime_resolver)
         .manage(ext_builder::ExtBuilderState::default())
@@ -648,6 +649,10 @@ pub fn run() {
             commands::agents::agents_delete,
             commands::agents::agents_list,
             commands::agents::agents_get,
+            commands::agents::agents_resolve_default,
+            commands::agents::agents_upsert_default,
+            commands::agents::agents_seed_grammar_fix,
+            commands::agents::agents_get_builtin_profile,
             commands::agents::agents_thread_create,
             commands::agents::agents_thread_delete,
             commands::agents::agents_thread_update_title,
@@ -656,6 +661,15 @@ pub fn run() {
             commands::agents::agents_backfill_thread_titles,
             commands::agents::agents_message_insert,
             commands::agents::agents_messages_list,
+            commands::agents::agents_run_thread,
+            commands::agents::agents_run_silent,
+            commands::agents::agents_report_tool_result,
+            commands::agents::agents_report_mcp_permission,
+            commands::agents::agents_cancel_run,
+            ai::models::ai_list_models,
+            agents::editor::agents_editor_load,
+            agents::editor::agents_editor_list_models,
+            agents::editor::agents_editor_save,
             // Agent tools registry
             agents::tools::agents_tools_list,
             agents::tools::agents_tools_register_tier2,

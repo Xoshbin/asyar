@@ -44,7 +44,6 @@ export const PERMISSION_MAP: Record<string, string> = {
   'asyar:api:shell:spawn': 'shell:spawn',
   'asyar:api:selection:getSelectedText': 'selection:read',
   'asyar:api:selection:getSelectedFinderItems': 'selection:read',
-  'asyar:api:ai:streamChat': 'ai:use',
   // OAuth PKCE for extensions
   'asyar:api:oauth:authorize': 'oauth:use',
   'asyar:api:oauth:revokeToken': 'oauth:use',

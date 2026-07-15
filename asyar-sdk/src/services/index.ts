@@ -50,9 +50,6 @@ export { FeedbackServiceProxy } from './FeedbackServiceProxy';
 export type { ISelectionService, SelectionError, SelectionErrorCode } from './ISelectionService';
 export { SelectionServiceProxy } from './SelectionServiceProxy';
 
-export * from './IAIService';
-export { AIServiceProxy } from './AIServiceProxy';
-
 export type { IOAuthService, OAuthConfig, OAuthToken, OAuthError } from './IOAuthService';
 export { OAuthServiceProxy } from './OAuthServiceProxy';
 

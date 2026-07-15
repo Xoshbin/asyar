@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { checkPermission, PERMISSION_MAP } from './permissionGate';
 
 describe('checkPermission', () => {
+  it('does not advertise the removed extension AI streaming contract', () => {
+    expect(PERMISSION_MAP).not.toHaveProperty('asyar:api:ai:streamChat');
+  });
+
   // ── Unknown / unmapped call types ────────────────────────────────────────
 
   describe('unmapped call types', () => {

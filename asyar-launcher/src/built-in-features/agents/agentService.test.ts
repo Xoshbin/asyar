@@ -11,6 +11,9 @@ vi.mock('../../lib/ipc/commands', () => ({
   agentsThreadsList: vi.fn(),
   agentsMessageInsert: vi.fn(),
   agentsMessagesList: vi.fn(),
+  agentsResolveDefault: vi.fn(),
+  agentsUpsertDefault: vi.fn(),
+  agentsSeedGrammarFix: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({
@@ -30,29 +33,6 @@ vi.mock('../../services/settings/settingsService.svelte', () => ({
   },
 }));
 
-vi.mock('./defaultAgent', () => ({
-  buildDefaultAgentInput: vi.fn((providerId: string, modelId: string) => ({
-    name: 'Asyar Assistant',
-    description: 'Your built-in AI assistant',
-    systemPrompt: 'You are Asyar Assistant...',
-    providerId,
-    modelId,
-    toolSelection: [],
-  })),
-  buildGrammarFixAgentInput: vi.fn((providerId: string, modelId: string) => ({
-    name: 'Grammar Fix',
-    description: 'Silent grammar-fix agent',
-    systemPrompt: 'You are a grammar...',
-    providerId,
-    modelId,
-    toolSelection: [],
-    silent: true,
-    inputSource: 'selection',
-    outputAction: 'replaceSelection',
-  })),
-  DEFAULT_GRAMMAR_FIX_HOTKEY: { modifier: 'Cmd+Shift', key: 'L' },
-}));
-
 const mockShortcutRegister = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true }));
 vi.mock('../shortcuts/shortcutService', () => ({
   shortcutService: { register: mockShortcutRegister },
@@ -67,7 +47,6 @@ import * as commands from '../../lib/ipc/commands';
 import * as tauriEvent from '@tauri-apps/api/event';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { settingsService } from '../../services/settings/settingsService.svelte';
-import { buildDefaultAgentInput } from './defaultAgent';
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -303,222 +282,50 @@ describe('agents:changed event sync', () => {
   });
 });
 
-// ── default agent helpers ──────────────────────────────────────────────────────
-
-describe('default agent helpers', () => {
+describe('Rust-owned agent lifecycle', () => {
   let service: AgentService;
   const svcSettings = settingsService as any;
 
-  const agentA = makeAgent({ id: 'a', name: 'Agent A' });
-  const agentB = makeAgent({ id: 'b', name: 'Agent B' });
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    // Reset the mocked settings shape before each test
-    svcSettings.currentSettings = { ai: { defaultAgentId: null } };
-    service = new AgentService();
-  });
-
-  it('getDefaultAgent returns null when no agents and no defaultAgentId', () => {
-    svcSettings.currentSettings.ai.defaultAgentId = null;
-    service.agents = [];
-
-    const result = service.getDefaultAgent();
-
-    expect(result).toBeNull();
-  });
-
-  it('getDefaultAgent falls back to first agent when defaultAgentId is null but agents exist', () => {
-    svcSettings.currentSettings.ai.defaultAgentId = null;
-    service.agents = [agentA, agentB] as any;
-
-    const result = service.getDefaultAgent();
-
-    expect(result).toEqual(agentA);
-  });
-
-  it('getDefaultAgent falls back to first agent when defaultAgentId points to a deleted agent', () => {
-    svcSettings.currentSettings.ai.defaultAgentId = 'ghost';
-    service.agents = [agentA] as any;
-
-    const result = service.getDefaultAgent();
-
-    expect(result).toEqual(agentA);
-  });
-
-  it('getDefaultAgent returns the row matching defaultAgentId when present', () => {
-    svcSettings.currentSettings.ai.defaultAgentId = 'b';
-    service.agents = [agentA, agentB] as any;
-
-    const result = service.getDefaultAgent();
-
-    expect(result).toEqual(agentB);
-  });
-
-  it('getOrCreateDefaultAgent creates a new agent and writes settings.defaultAgentId when none exists', async () => {
-    svcSettings.currentSettings.ai.defaultAgentId = null;
-    service.agents = [];
-
-    const newRow = makeAgent({ id: 'new-id', name: 'Asyar Assistant' });
-    vi.mocked(commands.agentsCreate).mockResolvedValueOnce(newRow as never);
-
-    const result = await service.getOrCreateDefaultAgent('openai', 'gpt-4o-mini');
-
-    expect(result).toEqual(newRow);
-    expect(buildDefaultAgentInput).toHaveBeenCalledWith('openai', 'gpt-4o-mini');
-    expect(vi.mocked(settingsService.updateSettings)).toHaveBeenCalledWith('ai', {
-      defaultAgentId: 'new-id',
-    });
-  });
-
-  it('getOrCreateDefaultAgent returns existing default without mutating settings', async () => {
-    svcSettings.currentSettings.ai.defaultAgentId = 'a';
-    service.agents = [agentA] as any;
-
-    const result = await service.getOrCreateDefaultAgent('openai', 'gpt-4o-mini');
-
-    expect(result).toEqual(agentA);
-    expect(commands.agentsCreate).not.toHaveBeenCalled();
-    expect(settingsService.updateSettings).not.toHaveBeenCalled();
-  });
-});
-
-// ── upsertDefaultAgent ────────────────────────────────────────────────────────
-
-describe('upsertDefaultAgent', () => {
-  let service: AgentService;
-  const svcSettings = settingsService as any;
-
-  const agentA = makeAgent({
-    id: 'a',
-    name: 'Asyar Assistant',
-    providerId: 'openai',
-    modelId: 'gpt-4',
-  });
-  const agentB = makeAgent({
-    id: 'b',
-    name: 'Other Agent',
-    providerId: 'anthropic',
-    modelId: 'claude-3',
-  });
-
   beforeEach(() => {
     vi.clearAllMocks();
     svcSettings.currentSettings = { ai: { defaultAgentId: null } };
     service = new AgentService();
   });
 
-  it('creates new agent and sets defaultAgentId when none exists', async () => {
-    svcSettings.currentSettings.ai.defaultAgentId = null;
-    service.agents = [];
+  it('loads the default selection from Rust instead of selecting from the TS array', async () => {
+    const defaultAgent = makeAgent({ id: 'b' });
+    vi.mocked(commands.agentsList).mockResolvedValue([
+      makeAgent({ id: 'a' }),
+      defaultAgent,
+    ] as never);
+    vi.mocked(commands.agentsResolveDefault).mockResolvedValue(defaultAgent as never);
 
-    const newRow = makeAgent({
-      id: 'new-id',
-      name: 'Asyar Assistant',
-      providerId: 'anthropic',
-      modelId: 'claude-3-5-sonnet',
+    await service.init();
+
+    expect(commands.agentsResolveDefault).toHaveBeenCalledWith(null);
+    expect(service.getDefaultAgent()).toEqual(defaultAgent);
+  });
+
+  it('delegates default upsert to Rust and stores the returned id in settings', async () => {
+    const row = makeAgent({ id: 'default-1', providerId: 'anthropic', modelId: 'claude-sonnet' });
+    vi.mocked(commands.agentsUpsertDefault).mockResolvedValue(row as never);
+
+    const result = await service.upsertDefaultAgent('anthropic', 'claude-sonnet');
+
+    expect(commands.agentsUpsertDefault).toHaveBeenCalledWith(null, 'anthropic', 'claude-sonnet');
+    expect(settingsService.updateSettings).toHaveBeenCalledWith('ai', {
+      defaultAgentId: 'default-1',
     });
-    vi.mocked(commands.agentsCreate).mockResolvedValueOnce(newRow as never);
-
-    const result = await service.upsertDefaultAgent('anthropic', 'claude-3-5-sonnet');
-
-    expect(result).toEqual(newRow);
-    expect(commands.agentsCreate).toHaveBeenCalled();
-    expect(vi.mocked(settingsService.updateSettings)).toHaveBeenCalledWith('ai', {
-      defaultAgentId: 'new-id',
-    });
+    expect(service.getDefaultAgent()).toEqual(row);
+    expect(result).toEqual(row);
   });
 
-  it('updates existing default agent providerId and modelId', async () => {
-    svcSettings.currentSettings.ai.defaultAgentId = 'a';
-    service.agents = [agentA, agentB] as any;
+  it('delegates idempotent Grammar Fix seeding to Rust', async () => {
+    const row = makeAgent({ id: 'grammar-1', name: 'Grammar Fix', silent: true });
+    vi.mocked(commands.agentsSeedGrammarFix).mockResolvedValue(row as never);
 
-    const updatedRow = makeAgent({
-      id: 'a',
-      name: 'Asyar Assistant',
-      providerId: 'anthropic',
-      modelId: 'claude-3-5-sonnet',
-    });
-    vi.mocked(commands.agentsUpdate).mockResolvedValueOnce(updatedRow as never);
+    await expect(service.seedGrammarFixAgent('openai', 'gpt-4o')).resolves.toEqual(row);
 
-    const result = await service.upsertDefaultAgent('anthropic', 'claude-3-5-sonnet');
-
-    expect(result).toEqual(updatedRow);
-    expect(commands.agentsUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'a', providerId: 'anthropic', modelId: 'claude-3-5-sonnet' }),
-    );
-    expect(commands.agentsCreate).not.toHaveBeenCalled();
-    expect(settingsService.updateSettings).not.toHaveBeenCalled();
-  });
-
-  it('does not touch non-default agents', async () => {
-    svcSettings.currentSettings.ai.defaultAgentId = 'a';
-    service.agents = [agentA, agentB] as any;
-
-    const updatedRow = makeAgent({
-      id: 'a',
-      name: 'Asyar Assistant',
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-    });
-    vi.mocked(commands.agentsUpdate).mockResolvedValueOnce(updatedRow as never);
-
-    await service.upsertDefaultAgent('openai', 'gpt-4o');
-
-    // agentB is untouched
-    expect(service.agents.find((ag) => ag.id === 'b')).toEqual(agentB);
-    expect(commands.agentsUpdate).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('seedGrammarFixAgent', () => {
-  let service: AgentService;
-  const svcSettings = settingsService as unknown as {
-    currentSettings: { ai: { defaultAgentId: string | null } };
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockShortcutRegister.mockResolvedValue({ ok: true });
-    svcSettings.currentSettings = { ai: { defaultAgentId: null } };
-    service = new AgentService();
-    service.agents = [];
-  });
-
-  it('creates the Grammar Fix agent with silent + selection + replaceSelection fields', async () => {
-    const newRow = makeAgent({ id: 'gf-1', name: 'Grammar Fix' });
-    vi.mocked(commands.agentsCreate).mockResolvedValueOnce(newRow as never);
-
-    const result = await service.seedGrammarFixAgent('anthropic', 'claude-haiku-4');
-
-    expect(result).toEqual(newRow);
-    expect(commands.agentsCreate).toHaveBeenCalledTimes(1);
-    const arg = vi.mocked(commands.agentsCreate).mock.calls[0][0];
-    expect(arg.name).toBe('Grammar Fix');
-    expect(arg.silent).toBe(true);
-    expect(arg.inputSource).toBe('selection');
-    expect(arg.outputAction).toBe('replaceSelection');
-  });
-
-  it('is idempotent — returns existing Grammar Fix without re-creating', async () => {
-    const existing = makeAgent({ id: 'gf-existing', name: 'Grammar Fix' });
-    service.agents = [existing as any];
-
-    const result = await service.seedGrammarFixAgent('openai', 'gpt-5');
-
-    expect(result).toEqual(existing);
-    expect(commands.agentsCreate).not.toHaveBeenCalled();
-  });
-
-  it('returns the new agent row so the caller can bind a hotkey to cmd_agents_dyn_<id>', async () => {
-    const newRow = makeAgent({ id: 'gf-2', name: 'Grammar Fix' });
-    vi.mocked(commands.agentsCreate).mockResolvedValueOnce(newRow as never);
-
-    const result = await service.seedGrammarFixAgent('openai', 'gpt-5');
-
-    expect(result).toEqual(newRow);
-    expect(result.id).toBe('gf-2');
-    // The caller (onboarding step or settings flow) is responsible for
-    // calling shortcutService.register with `cmd_agents_dyn_${result.id}`.
+    expect(commands.agentsSeedGrammarFix).toHaveBeenCalledWith('openai', 'gpt-4o');
   });
 });

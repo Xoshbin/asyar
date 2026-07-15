@@ -1,33 +1,28 @@
 <script lang="ts">
   import { Textarea } from '../../components';
-  import { agentService } from './agentService.svelte';
   import { agentsManager } from './agentsManager.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
-  import { agentsToolsList } from '../../lib/ipc/commands';
-  import { listProviders, getProvider } from '../../services/ai/providerRegistry';
-  import { settingsService } from '../../services/settings/settingsService.svelte';
   import {
-    buildInitialFormState,
-    validateForm,
-    handleSave,
-    groupDescriptorsBySource,
-    toggleToolSelection,
-    filterAvailableProviders,
-    selectInitialModelId,
-    type EditFormState,
-  } from './agentEditView.helpers';
-  import type { ToolDescriptor } from 'asyar-sdk/contracts';
+    agentsEditorLoad,
+    agentsEditorListModels,
+    agentsEditorSave,
+    type AgentEditorForm,
+    type AgentProviderOption,
+    type AgentToolGroup,
+  } from '../../lib/ipc/commands';
+  import { providerRegistry } from '../../services/ai/providerRegistry';
+  import { settingsService } from '../../services/settings/settingsService.svelte';
   import type { ModelInfo, ProviderId } from '../../services/ai/IProviderPlugin';
+  import { extractErrorMessage } from '../../lib/errors';
   import ToolPickerTree from './ToolPickerTree.svelte';
   import Button from '../../components/base/Button.svelte';
   import Input from '../../components/base/Input.svelte';
 
   const editAgentId = $derived(agentsManager.currentAgentId);
-  const initialAgent = $derived(editAgentId ? (agentService.getById(editAgentId) ?? null) : null);
 
-  let form = $state<EditFormState>(buildInitialFormState(null));
-  let descLocal = $state('');
-  let descriptors = $state<ToolDescriptor[]>([]);
+  let form = $state<AgentEditorForm | null>(null);
+  let groups = $state<AgentToolGroup[]>([]);
+  let providers = $state<AgentProviderOption[]>([]);
   let validationError = $state<string | null>(null);
   let saving = $state(false);
 
@@ -38,49 +33,43 @@
   let modelFetchError = $state<Record<string, string | null>>({});
 
   $effect(() => {
-    const built = buildInitialFormState(initialAgent);
-    form = built;
-    descLocal = built.description ?? '';
-  });
-
-  $effect(() => {
-    form.description = descLocal === '' ? null : descLocal;
-  });
-
-  $effect(() => {
+    const agentId = editAgentId;
+    const configs = settingsService.getSettings().ai.providers;
+    const providerDescriptors = providerRegistry.list();
     void (async () => {
       try {
-        descriptors = (await agentsToolsList()) ?? [];
+        const viewModel = await agentsEditorLoad(agentId, providerDescriptors, configs);
+        form = viewModel.form;
+        groups = viewModel.toolGroups;
+        providers = viewModel.providers;
       } catch {
-        descriptors = [];
+        form = null;
+        groups = [];
+        providers = [];
       }
     })();
   });
 
-  const groups = $derived(groupDescriptorsBySource(descriptors));
-  const providers = $derived(
-    filterAvailableProviders(listProviders(), settingsService.getSettings().ai.providers),
-  );
-  const modelsForProvider = $derived(form.providerId ? (modelCache[form.providerId] ?? []) : []);
-  const isFetchingModels = $derived(form.providerId ? !!fetchingModels[form.providerId] : false);
+  const modelsForProvider = $derived(form?.providerId ? (modelCache[form.providerId] ?? []) : []);
+  const isFetchingModels = $derived(form?.providerId ? !!fetchingModels[form.providerId] : false);
   const modelFetchErrorForProvider = $derived(
-    form.providerId ? (modelFetchError[form.providerId] ?? null) : null,
+    form?.providerId ? (modelFetchError[form.providerId] ?? null) : null,
   );
 
   async function fetchModelsForProvider(providerId: string): Promise<void> {
-    if (fetchingModels[providerId]) return;
-    const plugin = getProvider(providerId as ProviderId);
+    if (!form || fetchingModels[providerId]) return;
     const config = settingsService.getSettings().ai.providers[providerId as ProviderId];
-    if (!plugin || !config) return;
+    if (!config) return;
     fetchingModels = { ...fetchingModels, [providerId]: true };
     modelFetchError = { ...modelFetchError, [providerId]: null };
     try {
-      const models = await plugin.getModels(config);
+      const { models, selectedModelId } = await agentsEditorListModels(
+        providerId,
+        config,
+        form.modelId,
+      );
       modelCache = { ...modelCache, [providerId]: models };
-      // After fetch lands, default the modelId if it's still empty.
-      const last = config.lastModelId ?? '';
-      const next = selectInitialModelId(form.modelId, last, models);
-      if (next !== form.modelId) form.modelId = next;
+      if (selectedModelId !== form.modelId) form.modelId = selectedModelId;
     } catch (err) {
       modelFetchError = {
         ...modelFetchError,
@@ -93,25 +82,21 @@
 
   // Auto-fetch when provider changes and we don't yet have a cached list.
   $effect(() => {
-    const pid = form.providerId;
+    const pid = form?.providerId;
     if (!pid) return;
     if (modelCache[pid] || fetchingModels[pid]) return;
     void fetchModelsForProvider(pid);
   });
 
   async function onSave() {
-    const result = validateForm(form);
-    if (!result.ok) {
-      validationError = result.error;
-      return;
-    }
+    if (!form) return;
     validationError = null;
     saving = true;
     try {
-      await handleSave(form, {
-        agentId: editAgentId ?? undefined,
-        deps: { service: agentService, manager: agentsManager, viewManager },
-      });
+      await agentsEditorSave(editAgentId, form);
+      viewManager.goBack();
+    } catch (cause) {
+      validationError = extractErrorMessage(cause);
     } finally {
       saving = false;
     }
@@ -127,93 +112,100 @@
     <h2>{editAgentId ? 'Edit agent' : 'New agent'}</h2>
   </header>
 
-  <div class="agent-edit-form">
-    <div class="form-field">
-      <label class="field-label" for="agent-name">Name</label>
-      <Input textIntent="natural" id="agent-name" bind:value={form.name} placeholder="My Agent" />
-    </div>
-
-    <div class="form-field">
-      <label class="field-label" for="agent-description">Description</label>
-      <Input
-        textIntent="natural"
-        id="agent-description"
-        bind:value={descLocal}
-        placeholder="(optional)"
-      />
-    </div>
-
-    <div class="form-field">
-      <label class="field-label" for="agent-system-prompt">System prompt</label>
-      <Textarea
-        unstyled
-        textIntent="natural"
-        id="agent-system-prompt"
-        class="agent-field-textarea"
-        bind:value={form.systemPrompt}
-        rows={6}
-        placeholder="You are a helpful assistant."
-      ></Textarea>
-    </div>
-
-    <div class="form-field">
-      <label class="field-label" for="agent-provider">Provider</label>
-      {#if providers.length === 0}
-        <p class="field-hint">
-          No AI providers configured. Add an API key in Settings → AI before creating an agent.
-        </p>
-      {:else}
-        <select id="agent-provider" class="field-select" bind:value={form.providerId}>
-          <option value="">Select…</option>
-          {#each providers as p (p.id)}
-            <option value={p.id}>{p.name}</option>
-          {/each}
-        </select>
-      {/if}
-    </div>
-
-    <div class="form-field">
-      <label class="field-label" for="agent-model">Model</label>
-      {#if !form.providerId}
-        <p class="field-hint">Pick a provider above to load its models.</p>
-      {:else if isFetchingModels}
-        <p class="field-hint">Loading models…</p>
-      {:else if modelFetchErrorForProvider}
-        <p class="field-error">{modelFetchErrorForProvider}</p>
-        <Button onclick={() => fetchModelsForProvider(form.providerId)}>Retry</Button>
-      {:else if modelsForProvider.length === 0}
-        <p class="field-hint">No models returned by this provider.</p>
-        <Button onclick={() => fetchModelsForProvider(form.providerId)}>Refresh</Button>
-      {:else}
-        <div class="model-row">
-          <select id="agent-model" class="field-select" bind:value={form.modelId}>
-            <option value="">Select…</option>
-            {#each modelsForProvider as m (m.id)}
-              <option value={m.id}>{m.label}</option>
-            {/each}
-            {#if form.modelId && !modelsForProvider.some((m) => m.id === form.modelId)}
-              <option value={form.modelId}>{form.modelId} (custom)</option>
-            {/if}
-          </select>
-          <Button onclick={() => fetchModelsForProvider(form.providerId)}>Refresh</Button>
-        </div>
-      {/if}
-    </div>
-
-    {#if groups.length > 0}
+  {#if form}
+    {@const activeForm = form}
+    <div class="agent-edit-form">
       <div class="form-field">
-        <span class="field-label">Tools</span>
-        <ToolPickerTree
-          {groups}
-          selectedIds={form.toolSelection}
-          onChange={(s) => {
-            form.toolSelection = s;
-          }}
+        <label class="field-label" for="agent-name">Name</label>
+        <Input
+          textIntent="natural"
+          id="agent-name"
+          bind:value={activeForm.name}
+          placeholder="My Agent"
         />
       </div>
-    {/if}
 
-    <!--
+      <div class="form-field">
+        <label class="field-label" for="agent-description">Description</label>
+        <Input
+          textIntent="natural"
+          id="agent-description"
+          bind:value={activeForm.description}
+          placeholder="(optional)"
+        />
+      </div>
+
+      <div class="form-field">
+        <label class="field-label" for="agent-system-prompt">System prompt</label>
+        <Textarea
+          unstyled
+          textIntent="natural"
+          id="agent-system-prompt"
+          class="agent-field-textarea"
+          bind:value={activeForm.systemPrompt}
+          rows={6}
+          placeholder="You are a helpful assistant."
+        ></Textarea>
+      </div>
+
+      <div class="form-field">
+        <label class="field-label" for="agent-provider">Provider</label>
+        {#if providers.length === 0}
+          <p class="field-hint">
+            No AI providers configured. Add an API key in Settings → AI before creating an agent.
+          </p>
+        {:else}
+          <select id="agent-provider" class="field-select" bind:value={activeForm.providerId}>
+            <option value="">Select…</option>
+            {#each providers as p (p.id)}
+              <option value={p.id}>{p.name}</option>
+            {/each}
+          </select>
+        {/if}
+      </div>
+
+      <div class="form-field">
+        <label class="field-label" for="agent-model">Model</label>
+        {#if !activeForm.providerId}
+          <p class="field-hint">Pick a provider above to load its models.</p>
+        {:else if isFetchingModels}
+          <p class="field-hint">Loading models…</p>
+        {:else if modelFetchErrorForProvider}
+          <p class="field-error">{modelFetchErrorForProvider}</p>
+          <Button onclick={() => fetchModelsForProvider(activeForm.providerId)}>Retry</Button>
+        {:else if modelsForProvider.length === 0}
+          <p class="field-hint">No models returned by this provider.</p>
+          <Button onclick={() => fetchModelsForProvider(activeForm.providerId)}>Refresh</Button>
+        {:else}
+          <div class="model-row">
+            <select id="agent-model" class="field-select" bind:value={activeForm.modelId}>
+              <option value="">Select…</option>
+              {#each modelsForProvider as m (m.id)}
+                <option value={m.id}>{m.label}</option>
+              {/each}
+              {#if activeForm.modelId && !modelsForProvider.some((m) => m.id === activeForm.modelId)}
+                <option value={activeForm.modelId}>{activeForm.modelId} (custom)</option>
+              {/if}
+            </select>
+            <Button onclick={() => fetchModelsForProvider(activeForm.providerId)}>Refresh</Button>
+          </div>
+        {/if}
+      </div>
+
+      {#if groups.length > 0}
+        <div class="form-field">
+          <span class="field-label">Tools</span>
+          <ToolPickerTree
+            {groups}
+            selectedIds={activeForm.toolSelection}
+            onChange={(s) => {
+              activeForm.toolSelection = s;
+            }}
+          />
+        </div>
+      {/if}
+
+      <!--
       Silent AI command settings. When `silent` is off, the agent opens the
       chat view on dispatch (default behavior). When it's on, the agent runs
       headlessly, takes its input from `inputSource`, and applies
@@ -221,56 +213,57 @@
       the two extra fields even when silent is off, so the user doesn't
       lose their picks when toggling.
     -->
-    <div class="form-field">
-      <label class="silent-toggle">
-        <input type="checkbox" bind:checked={form.silent} />
-        <span>Run silently (no chat view)</span>
-      </label>
-      <p class="field-hint silent-hint">
-        Silent agents run in the background and put the result back wherever you triggered them
-        from. Useful for one-shot tasks like grammar fixes or translations.
-      </p>
-    </div>
+      <div class="form-field">
+        <label class="silent-toggle">
+          <input type="checkbox" bind:checked={activeForm.silent} />
+          <span>Run silently (no chat view)</span>
+        </label>
+        <p class="field-hint silent-hint">
+          Silent agents run in the background and put the result back wherever you triggered them
+          from. Useful for one-shot tasks like grammar fixes or translations.
+        </p>
+      </div>
 
-    <div class="form-field" class:disabled={!form.silent}>
-      <label class="field-label" for="agent-input-source">Input from</label>
-      <select
-        id="agent-input-source"
-        class="field-select"
-        bind:value={form.inputSource}
-        disabled={!form.silent}
-      >
-        <option value="argument">Argument (typed in the launcher bar)</option>
-        <option value="selection">Selected text in the active app</option>
-        <option value="clipboard">Clipboard contents</option>
-        <option value="none">Nothing (use the system prompt alone)</option>
-      </select>
-    </div>
+      <div class="form-field" class:disabled={!activeForm.silent}>
+        <label class="field-label" for="agent-input-source">Input from</label>
+        <select
+          id="agent-input-source"
+          class="field-select"
+          bind:value={activeForm.inputSource}
+          disabled={!activeForm.silent}
+        >
+          <option value="argument">Argument (typed in the launcher bar)</option>
+          <option value="selection">Selected text in the active app</option>
+          <option value="clipboard">Clipboard contents</option>
+          <option value="none">Nothing (use the system prompt alone)</option>
+        </select>
+      </div>
 
-    <div class="form-field" class:disabled={!form.silent}>
-      <label class="field-label" for="agent-output-action">Then</label>
-      <select
-        id="agent-output-action"
-        class="field-select"
-        bind:value={form.outputAction}
-        disabled={!form.silent}
-      >
-        <option value="replaceSelection">Replace the selection with the result</option>
-        <option value="paste">Paste the result at the cursor</option>
-        <option value="copy">Copy the result to the clipboard</option>
-        <option value="hud">Show the result as a HUD message</option>
-      </select>
-    </div>
+      <div class="form-field" class:disabled={!activeForm.silent}>
+        <label class="field-label" for="agent-output-action">Then</label>
+        <select
+          id="agent-output-action"
+          class="field-select"
+          bind:value={activeForm.outputAction}
+          disabled={!activeForm.silent}
+        >
+          <option value="replaceSelection">Replace the selection with the result</option>
+          <option value="paste">Paste the result at the cursor</option>
+          <option value="copy">Copy the result to the clipboard</option>
+          <option value="hud">Show the result as a HUD message</option>
+        </select>
+      </div>
 
-    {#if validationError}
-      <p class="field-error">{validationError}</p>
-    {/if}
+      {#if validationError}
+        <p class="field-error">{validationError}</p>
+      {/if}
 
-    <div class="agent-edit-actions">
-      <Button onclick={onCancel} disabled={saving}>Cancel</Button>
-      <Button onclick={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+      <div class="agent-edit-actions">
+        <Button onclick={onCancel} disabled={saving}>Cancel</Button>
+        <Button onclick={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+      </div>
     </div>
-  </div>
+  {/if}
 </div>
 
 <style>

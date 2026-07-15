@@ -8,7 +8,6 @@ const WORKER_PROXY_NAMESPACES = [
   'search',
   'network',
   'shell',
-  'ai',
   'oauth',
   'fs',
   'fsWatcher',

@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { messageBroker } from 'asyar-sdk/contracts';
 
 vi.mock('../log/logService', () => ({
@@ -27,6 +27,35 @@ import { invoke } from '@tauri-apps/api/core';
 import * as commands from '../../lib/ipc/commands';
 import { ExtensionIpcRouter } from './ExtensionIpcRouter';
 import type { ServiceRegistry } from './defineServiceRegistry';
+import { logService } from '../log/logService';
+
+describe('ExtensionIpcRouter — externally consumed responses', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('leaves Tier 2 tool responses to the agent bridge without warning or replying', async () => {
+    const postMessage = vi.spyOn(window, 'postMessage').mockImplementation(() => {});
+    const router = new ExtensionIpcRouter({} as ServiceRegistry, vi.fn(), vi.fn(), vi.fn());
+    router.setup();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: window,
+        data: {
+          type: 'asyar:tools:invoke:response',
+          messageId: 'tool-1',
+          result: { words: 5 },
+        },
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(logService.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('Unhandled message type'),
+    );
+    expect(postMessage).not.toHaveBeenCalled();
+    postMessage.mockRestore();
+  });
+});
 
 describe('ExtensionIpcRouter — host dispatcher integration', () => {
   beforeEach(() => {

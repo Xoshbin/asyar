@@ -12,6 +12,7 @@ vi.mock('../../lib/ipc/commands', () => ({
   agentsMessagesList: vi.fn(),
   agentsMessageInsert: vi.fn(),
   agentsBackfillThreadTitles: vi.fn().mockResolvedValue(0),
+  agentsResolveDefault: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../../services/extension/viewManager.svelte', () => ({

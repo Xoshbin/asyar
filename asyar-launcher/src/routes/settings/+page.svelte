@@ -26,7 +26,7 @@
   import '../../resources/styles/style.css';
 
   // Settings is a separate webview window — register AI providers locally
-  // before AiTab calls listProviders().
+  // before AiTab reads the provider registry.
   initProviders();
 
   const handler = new SettingsHandler();

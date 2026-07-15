@@ -217,7 +217,7 @@ StreamDispatcher → Extension iframe:
 5. onChunk / onDone / onError callbacks fire in extension
 ```
 
-The host never awaits the process — `spawn()` returns `{ streaming: true }` immediately and output flows as a unidirectional message stream. This is the same `asyar:stream:*` protocol used by `AIService`.
+The host never awaits the process — `spawn()` returns `{ streaming: true }` immediately and output flows through the generic `asyar:stream:*` unidirectional message protocol.
 
 #### Aborting a process
 

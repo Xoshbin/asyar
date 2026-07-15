@@ -17,7 +17,6 @@ import {
   mcpListAudit,
   mcpDetectExistingConfigs,
   mcpParseConfigJson,
-  mcpSetPermission,
   mcpListServerTools,
   mcpListPermissions,
   mcpDeletePermission,
@@ -250,20 +249,31 @@ export class McpService {
     serverId: string,
     toolId: string,
     agentId: string,
+    signal?: AbortSignal,
   ): Promise<'allow_once' | 'allow_always' | 'never' | 'cancel'> {
     return new Promise((resolve) => {
-      this.permissionPrompt = { serverId, toolId, agentId, resolve };
+      let settled = false;
+      const finish = (decision: 'allow_once' | 'allow_always' | 'never' | 'cancel'): void => {
+        if (settled) return;
+        settled = true;
+        signal?.removeEventListener('abort', onAbort);
+        if (this.permissionPrompt?.resolve === finish) this.permissionPrompt = null;
+        resolve(decision);
+      };
+      const onAbort = (): void => finish('cancel');
+      this.permissionPrompt = { serverId, toolId, agentId, resolve: finish };
+      if (signal?.aborted) {
+        finish('cancel');
+      } else {
+        signal?.addEventListener('abort', onAbort, { once: true });
+      }
     });
   }
 
   handlePermissionDecision(decision: 'allow_once' | 'allow_always' | 'never' | 'cancel'): void {
     const p = this.permissionPrompt;
     if (!p) return;
-    if (decision !== 'cancel') {
-      void mcpSetPermission(p.serverId, p.toolId, p.agentId, decision);
-    }
     p.resolve(decision);
-    this.permissionPrompt = null;
   }
 }
 

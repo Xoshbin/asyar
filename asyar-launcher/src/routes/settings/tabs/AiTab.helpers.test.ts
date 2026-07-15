@@ -14,12 +14,7 @@ function makePlugin(id: string, opts: Partial<IProviderPlugin> = {}): IProviderP
     name: id,
     requiresApiKey: false,
     requiresBaseUrl: false,
-    supportsTools: true,
     getModels: async () => [],
-    buildRequest: () => ({ url: '', headers: {}, body: null }),
-    parseStream: async function* () {},
-    buildToolRequest: () => ({ url: '', headers: {}, body: null }),
-    parseToolStream: async function* () {},
     ...opts,
   };
 }

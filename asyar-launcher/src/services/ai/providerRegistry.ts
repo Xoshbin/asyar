@@ -1,36 +1,24 @@
 import type { IProviderPlugin, ProviderId } from './IProviderPlugin';
 
-const registry = new Map<ProviderId, IProviderPlugin>();
+export class ProviderRegistry {
+  private readonly providers = new Map<ProviderId, IProviderPlugin>();
 
-/** Register a provider plugin. Replaces any existing registration for the same id. */
-export function registerProvider(plugin: IProviderPlugin): void {
-  if (typeof plugin.buildToolRequest !== 'function') {
-    throw new Error(
-      `registerProvider: plugin "${plugin.id}" is missing required method buildToolRequest`,
-    );
+  /** Register a provider descriptor. Replaces an existing entry with the same id. */
+  register(plugin: IProviderPlugin): void {
+    this.providers.set(plugin.id, plugin);
   }
-  if (typeof plugin.parseToolStream !== 'function') {
-    throw new Error(
-      `registerProvider: plugin "${plugin.id}" is missing required method parseToolStream`,
-    );
+
+  get(id: ProviderId): IProviderPlugin | undefined {
+    return this.providers.get(id);
   }
-  if (plugin.supportsTools !== true) {
-    throw new Error(`registerProvider: plugin "${plugin.id}" must declare supportsTools: true`);
+
+  list(): IProviderPlugin[] {
+    return Array.from(this.providers.values());
   }
-  registry.set(plugin.id, plugin);
+
+  clearForTesting(): void {
+    this.providers.clear();
+  }
 }
 
-/** Get a provider plugin by id. Returns undefined if not registered. */
-export function getProvider(id: ProviderId): IProviderPlugin | undefined {
-  return registry.get(id);
-}
-
-/** List all registered provider plugins, in registration order. */
-export function listProviders(): IProviderPlugin[] {
-  return Array.from(registry.values());
-}
-
-/** Clear all registered providers — for testing only. */
-export function _clearRegistryForTesting(): void {
-  registry.clear();
-}
+export const providerRegistry = new ProviderRegistry();

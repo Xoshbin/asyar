@@ -93,10 +93,6 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     description:
       'Read the currently selected text or file-manager items from the frontmost application.',
   },
-  'ai:use': {
-    title: 'Use AI',
-    description: "Stream responses from the user's configured AI provider.",
-  },
   'oauth:use': {
     title: 'Sign in to services',
     description: 'Run OAuth authorization flows with third-party providers.',

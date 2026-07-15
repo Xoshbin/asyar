@@ -1,14 +1,26 @@
 // asyar-launcher/src/lib/ipc/commands.ts
 import { invoke } from '@tauri-apps/api/core';
-import { invokeSafe, invokeSafeVoid } from './invokeSafe';
+import { invokeRaw, invokeSafe, invokeSafeVoid } from './invokeSafe';
 import type {
+  IProviderPlugin,
+  ModelInfo,
+  ProviderConfig,
+  ProviderId,
+  ReasoningEffort,
+} from '../../services/ai/IProviderPlugin';
+import type {
+  AgentRunConfig as AgentRunConfigContract,
   SearchableItem,
   SearchResult,
   Application,
   ItemAlias,
   AliasConflict,
   MergedSearchResponse,
+  BuiltinAgentProfile,
+  SilentAgentTarget,
+  ModelInfo as ModelInfoContract,
 } from '../../bindings';
+export type { BuiltinAgentProfile, SilentAgentTarget } from '../../bindings';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 export * from './extensionPreferencesCommands';
@@ -1778,8 +1790,104 @@ export async function agentsToolsList(): Promise<
   return invokeSafe('agents_tools_list');
 }
 
+export type AgentToolGroup =
+  | { kind: 'builtin'; tools: import('asyar-sdk/contracts').ToolDescriptor[] }
+  | {
+      kind: 'tier2';
+      extensionId: string;
+      tools: import('asyar-sdk/contracts').ToolDescriptor[];
+    }
+  | {
+      kind: 'mcp';
+      serverId: string;
+      tools: import('asyar-sdk/contracts').ToolDescriptor[];
+    };
+
+export interface AgentProviderOption {
+  id: string;
+  name: string;
+}
+
+export interface AgentEditorForm {
+  name: string;
+  description: string;
+  systemPrompt: string;
+  providerId: string;
+  modelId: string;
+  toolSelection: string[];
+  silent: boolean;
+  inputSource: import('../../built-in-features/agents/types').SilentInputSource;
+  outputAction: import('../../built-in-features/agents/types').SilentOutputAction;
+}
+
+export interface AgentEditorViewModel {
+  form: AgentEditorForm;
+  providers: AgentProviderOption[];
+  toolGroups: AgentToolGroup[];
+}
+
+export interface AgentEditorModelOptions {
+  models: ModelInfo[];
+  selectedModelId: string;
+}
+
+export async function agentsEditorLoad(
+  agentId: string | null,
+  providers: IProviderPlugin[],
+  configs: Record<ProviderId, ProviderConfig>,
+): Promise<AgentEditorViewModel> {
+  return invokeRaw('agents_editor_load', {
+    agentId,
+    providers: providers.map(({ id, name, requiresApiKey, requiresBaseUrl }) => ({
+      id,
+      name,
+      requiresApiKey,
+      requiresBaseUrl,
+    })),
+    configs,
+  });
+}
+
+export async function agentsEditorSave(
+  agentId: string | null,
+  form: AgentEditorForm,
+): Promise<import('../../built-in-features/agents/types').AgentDef> {
+  return invokeRaw('agents_editor_save', { agentId, form });
+}
+
+export async function agentsEditorListModels(
+  providerId: string,
+  config: ProviderConfig,
+  currentModelId: string,
+): Promise<AgentEditorModelOptions> {
+  const result = await invokeRaw<{
+    models: ModelInfoContract[];
+    selectedModelId: string;
+  }>('agents_editor_list_models', { providerId, config, currentModelId });
+  return {
+    models: result.models.map((model) => ({
+      id: model.id,
+      label: model.label,
+      reasoningEfforts: (model.reasoningEfforts as ReasoningEffort[] | null) ?? undefined,
+    })),
+    selectedModelId: result.selectedModelId,
+  };
+}
+
 export async function agentsInvokeBuiltinTool(id: string, args: unknown): Promise<unknown | null> {
   return invokeSafe('agents_invoke_builtin_tool', { id, args });
+}
+
+export async function aiListModels(
+  providerId: string,
+  config: ProviderConfig,
+): Promise<ModelInfo[]> {
+  const models = await invokeRaw<ModelInfoContract[]>('ai_list_models', { providerId, config });
+  return models.map((model) => ({
+    id: model.id,
+    label: model.label,
+    reasoningEfforts: (model.reasoningEfforts as ReasoningEffort[] | null) ?? undefined,
+  }));
 }
 
 // ── Feedback submission ───────────────────────────────────────────────────────
@@ -1862,4 +1970,101 @@ export async function systemActionsSupported(): Promise<SystemActionId[]> {
 
 export async function systemActionRun(action: SystemActionId): Promise<boolean> {
   return invokeSafeVoid('system_action_run', { action });
+}
+
+export interface AgentRunConfig extends Omit<AgentRunConfigContract, 'provider'> {
+  provider: ProviderConfig;
+}
+
+export async function agentsRunThread(
+  agentId: string,
+  threadId: string,
+  userText: string,
+  runId: string | null,
+  config: AgentRunConfig,
+  streamId: string,
+): Promise<void> {
+  await invokeRaw('agents_run_thread', { agentId, threadId, userText, runId, config, streamId });
+}
+
+export async function agentsRunSilent(
+  target: SilentAgentTarget,
+  userText: string,
+  config: AgentRunConfig,
+  streamId: string,
+): Promise<string> {
+  return invokeRaw<string>('agents_run_silent', {
+    target,
+    userText,
+    config,
+    streamId,
+  });
+}
+
+export async function agentsResolveDefault(
+  defaultAgentId: string | null,
+): Promise<import('../../built-in-features/agents/types').AgentDef | null> {
+  return invokeRaw<import('../../built-in-features/agents/types').AgentDef | null>(
+    'agents_resolve_default',
+    { defaultAgentId },
+  );
+}
+
+export async function agentsUpsertDefault(
+  defaultAgentId: string | null,
+  providerId: string,
+  modelId: string,
+): Promise<import('../../built-in-features/agents/types').AgentDef> {
+  return invokeRaw<import('../../built-in-features/agents/types').AgentDef>(
+    'agents_upsert_default',
+    { defaultAgentId, providerId, modelId },
+  );
+}
+
+export async function agentsSeedGrammarFix(
+  providerId: string,
+  modelId: string,
+): Promise<import('../../built-in-features/agents/types').AgentDef> {
+  return invokeRaw<import('../../built-in-features/agents/types').AgentDef>(
+    'agents_seed_grammar_fix',
+    { providerId, modelId },
+  );
+}
+
+export async function agentsGetBuiltinProfile(
+  profile: BuiltinAgentProfile,
+  defaultAgentId: string | null,
+): Promise<import('../../built-in-features/agents/types').AgentDef> {
+  return invokeRaw<import('../../built-in-features/agents/types').AgentDef>(
+    'agents_get_builtin_profile',
+    { profile, defaultAgentId },
+  );
+}
+
+export async function agentsReportToolResult(
+  streamId: string,
+  toolCallId: string,
+  result: unknown,
+  error?: string,
+): Promise<void> {
+  await invokeRaw('agents_report_tool_result', {
+    streamId,
+    toolCallId,
+    result,
+    error: error ?? null,
+  });
+}
+
+export type McpPermissionChoice = 'allow_once' | 'allow_always' | 'never' | 'cancel';
+
+export async function agentsReportMcpPermission(
+  streamId: string,
+  toolCallId: string,
+  decision: McpPermissionChoice,
+): Promise<void> {
+  await invokeRaw('agents_report_mcp_permission', { streamId, toolCallId, decision });
+}
+
+export async function agentsCancelRun(streamId: string): Promise<void> {
+  await invokeRaw('agents_cancel_run', { streamId });
 }

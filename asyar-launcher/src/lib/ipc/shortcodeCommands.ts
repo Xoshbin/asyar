@@ -40,8 +40,7 @@ export async function setInlineEmojiFallbackEnabled(enabled: boolean): Promise<b
 
 export async function recordInlineEmojiFallbackOutcome(
   shortcode: string,
-  outcome: 'hit' | 'miss',
-  emoji: string | undefined,
+  text: string,
 ): Promise<boolean> {
-  return invokeSafeVoid('record_inline_emoji_fallback_outcome', { shortcode, outcome, emoji });
+  return invokeSafeVoid('record_inline_emoji_fallback_outcome', { shortcode, text });
 }

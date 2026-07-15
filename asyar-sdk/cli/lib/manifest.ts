@@ -166,7 +166,6 @@ export const VALID_PERMISSIONS = [
   'selection:read',
   'storage:read',
   'storage:write',
-  'ai:use',
   'oauth:use',
   'extension:invoke',
   'cache:read',

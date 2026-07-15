@@ -1,6 +1,5 @@
 {
   "permissions": [
-    "ai:use",
     "app:frontmost-watch",
     "application:read",
     "browser:bookmarks.read",

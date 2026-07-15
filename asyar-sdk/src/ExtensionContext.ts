@@ -18,7 +18,6 @@ import {
   SearchServiceProxy,
   ApplicationServiceProxy,
 } from './services';
-import { AIServiceProxy } from './services/AIServiceProxy';
 import { OAuthServiceProxy } from './services/OAuthServiceProxy';
 import { FileManagerServiceProxy } from './services/FileManagerServiceProxy';
 import { InteropServiceProxy } from './services/InteropServiceProxy';
@@ -58,7 +57,6 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     storage: new StorageServiceProxy(),
     feedback: new FeedbackServiceProxy(),
     selection: new SelectionServiceProxy(),
-    ai: new AIServiceProxy(),
     oauth: new OAuthServiceProxy(),
     shell: new ShellServiceProxy(),
     fs: new FileManagerServiceProxy(),

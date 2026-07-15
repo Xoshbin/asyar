@@ -433,6 +433,33 @@ pub fn insert_thread(conn: &Connection, thread: &ThreadRow) -> Result<(), AppErr
     Ok(())
 }
 
+/// Return a single thread by id, or `None` if not found.
+pub fn get_thread(conn: &Connection, id: &str) -> Result<Option<ThreadRow>, AppError> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, agent_id, title, created_at, updated_at
+             FROM threads
+             WHERE id = ?1",
+        )
+        .map_err(|error| AppError::Database(error.to_string()))?;
+
+    let mut rows = stmt
+        .query_map(params![id], |row| {
+            Ok(ThreadRow {
+                id: row.get(0)?,
+                agent_id: row.get(1)?,
+                title: row.get(2)?,
+                created_at: row.get(3)?,
+                updated_at: row.get(4)?,
+            })
+        })
+        .map_err(|error| AppError::Database(error.to_string()))?;
+
+    rows.next()
+        .transpose()
+        .map_err(|error| AppError::Database(error.to_string()))
+}
+
 /// Delete a thread by id. Cascades to messages when FK is enabled.
 /// Deleting an unknown id is a no-op.
 pub fn delete_thread(conn: &Connection, id: &str) -> Result<(), AppError> {
