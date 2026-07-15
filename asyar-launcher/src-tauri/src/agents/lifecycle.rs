@@ -202,16 +202,18 @@ pub fn derive_thread_title(user_text: &str) -> String {
         return "New thread".to_string();
     }
     let chars = collapsed.chars().collect::<Vec<_>>();
-    const LIMIT: usize = 40;
-    if chars.len() <= LIMIT {
+    const TITLE_LIMIT: usize = 40;
+    // Prefer the hard limit when the only word boundary is in the title's first half.
+    const MIN_WORD_BOUNDARY_INDEX: usize = TITLE_LIMIT / 2;
+    if chars.len() <= TITLE_LIMIT {
         return collapsed;
     }
-    let window_end = (LIMIT + 1).min(chars.len());
+    let window_end = (TITLE_LIMIT + 1).min(chars.len());
     let cut = chars[..window_end]
         .iter()
         .rposition(|character| character.is_whitespace())
-        .filter(|index| *index > 20)
-        .unwrap_or(LIMIT);
+        .filter(|index| *index > MIN_WORD_BOUNDARY_INDEX)
+        .unwrap_or(TITLE_LIMIT);
     format!("{}…", chars[..cut].iter().collect::<String>().trim_end())
 }
 
