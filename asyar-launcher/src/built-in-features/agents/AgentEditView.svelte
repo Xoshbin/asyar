@@ -4,7 +4,7 @@
   import { agentsManager } from './agentsManager.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { agentsToolsList } from '../../lib/ipc/commands';
-  import { listProviders, getProvider } from '../../services/ai/providerRegistry';
+  import { providerRegistry } from '../../services/ai/providerRegistry';
   import { settingsService } from '../../services/settings/settingsService.svelte';
   import {
     buildInitialFormState,
@@ -59,7 +59,7 @@
 
   const groups = $derived(groupDescriptorsBySource(descriptors));
   const providers = $derived(
-    filterAvailableProviders(listProviders(), settingsService.getSettings().ai.providers),
+    filterAvailableProviders(providerRegistry.list(), settingsService.getSettings().ai.providers),
   );
   const modelsForProvider = $derived(form.providerId ? (modelCache[form.providerId] ?? []) : []);
   const isFetchingModels = $derived(form.providerId ? !!fetchingModels[form.providerId] : false);
@@ -69,7 +69,7 @@
 
   async function fetchModelsForProvider(providerId: string): Promise<void> {
     if (fetchingModels[providerId]) return;
-    const plugin = getProvider(providerId as ProviderId);
+    const plugin = providerRegistry.get(providerId as ProviderId);
     const config = settingsService.getSettings().ai.providers[providerId as ProviderId];
     if (!plugin || !config) return;
     fetchingModels = { ...fetchingModels, [providerId]: true };

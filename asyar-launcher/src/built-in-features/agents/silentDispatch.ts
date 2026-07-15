@@ -7,7 +7,15 @@
  */
 import { readText, writeText } from 'tauri-plugin-clipboard-x-api';
 import { extractErrorMessage } from '../../lib/errors';
-import { agentsCancelRun, agentsGet, agentsRunSilent, simulatePaste } from '../../lib/ipc/commands';
+import {
+  agentsCancelRun,
+  agentsGet,
+  agentsGetBuiltinProfile,
+  agentsRunSilent,
+  simulatePaste,
+  type BuiltinAgentProfile,
+  type SilentAgentTarget,
+} from '../../lib/ipc/commands';
 import type { ProviderConfig } from '../../services/ai/IProviderPlugin';
 import {
   feedbackService,
@@ -23,13 +31,17 @@ import type { AgentDef, SilentInputSource, SilentOutputAction } from './types';
 
 const CLIPBOARD_RESTORE_DELAY_MS = 200;
 
-export interface SilentDispatchInput {
-  agentId: string;
+interface SilentDispatchOptions {
   userText?: string;
   abortSignal?: AbortSignal;
-  agentDef?: AgentDef;
   onFinalText?: (text: string) => void | Promise<void>;
 }
+
+export type SilentDispatchInput = SilentDispatchOptions &
+  (
+    | { agentId: string; builtinProfile?: never }
+    | { builtinProfile: BuiltinAgentProfile; agentId?: never }
+  );
 
 /**
  * Runs a silent command without creating a thread or a tracked Run. Failures
@@ -45,12 +57,14 @@ export async function dispatchSilentAgentCommand(input: SilentDispatchInput): Pr
   let removeAbortListener: (() => void) | undefined;
 
   try {
-    if (input.agentDef && input.agentDef.id !== input.agentId) {
-      logService.warn(
-        `[silentDispatch] agentId mismatch: input.agentId="${input.agentId}" but agentDef.id="${input.agentDef.id}". Using agentDef.`,
-      );
-    }
-    const agent = input.agentDef ?? (await loadAgent(input.agentId));
+    const settings = settingsService.getSettings();
+    const defaultAgentId = settings.ai.defaultAgentId ?? null;
+    const target: SilentAgentTarget = input.builtinProfile
+      ? { type: 'builtin', profile: input.builtinProfile, defaultAgentId }
+      : { type: 'stored', agentId: input.agentId };
+    const agent = input.builtinProfile
+      ? await agentsGetBuiltinProfile(input.builtinProfile, defaultAgentId)
+      : await loadAgent(input.agentId);
     resolvedAgent = agent;
 
     spinner = feedbackService.showHUDSpinning(`✨ ${agent.name}…`);
@@ -61,7 +75,6 @@ export async function dispatchSilentAgentCommand(input: SilentDispatchInput): Pr
       return;
     }
 
-    const settings = settingsService.getSettings();
     const config = settings.ai.providers[agent.providerId as keyof typeof settings.ai.providers] as
       ProviderConfig | undefined;
     if (!config) throw new Error(`Provider '${agent.providerId}' is not configured`);
@@ -93,7 +106,7 @@ export async function dispatchSilentAgentCommand(input: SilentDispatchInput): Pr
       return;
     }
 
-    const result = await agentsRunSilent(agent.id, userText, runConfig, streamId, input.agentDef);
+    const result = await agentsRunSilent(target, userText, runConfig, streamId);
     if (bridgeError) throw bridgeError;
     if (input.abortSignal?.aborted) {
       await spinner.dismiss();
@@ -128,7 +141,7 @@ export async function dispatchSilentAgentCommand(input: SilentDispatchInput): Pr
     logService.warn(`[silent-agents] dispatch failed: ${detail}`);
     const target: Pick<AgentDef, 'id' | 'name'> = resolvedAgent
       ? { id: resolvedAgent.id, name: resolvedAgent.name }
-      : { id: input.agentId, name: 'AI command' };
+      : { id: input.agentId ?? `builtin-profile:${input.builtinProfile}`, name: 'AI command' };
     if (spinner) {
       await spinner.replace(`⚠️ ${target.name} failed`, { spinning: false, durationMs: 3000 });
       spinner = null;
@@ -153,7 +166,7 @@ async function callFinalText(input: SilentDispatchInput, text: string): Promise<
       developerDetail: String(cause),
       context: {
         message: text.length === 0 ? 'onFinalText threw on empty result' : 'onFinalText threw',
-        agentId: input.agentId,
+        agentId: input.agentId ?? input.builtinProfile,
       },
     });
   }

@@ -4,7 +4,7 @@ import { dispatchAgentCommand } from './dispatch';
 import { agentsManager } from './agentsManager.svelte';
 import { agentService } from './agentService.svelte';
 import { runAgent } from './agentLoop';
-import { deriveThreadTitle, ensureThread } from './agentChatView.helpers';
+import { ensureThread } from './agentChatView.helpers';
 import { actionService } from '../../services/action/actionService.svelte';
 import { runService } from '../../services/run/runService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
@@ -326,15 +326,6 @@ class AgentsExtension implements Extension {
 
   private async submitToThread(agentId: string, thread: ThreadDef, text: string): Promise<void> {
     const threadId = thread.id;
-    // Auto-derive a title on the first user message of an unnamed thread.
-    if (!thread.title || thread.title.trim() === '') {
-      try {
-        await agentService.updateThreadTitle(threadId, deriveThreadTitle(text));
-      } catch (err) {
-        logService.warn(`[agents] updateThreadTitle failed: ${err}`);
-      }
-    }
-
     const controller = new AbortController();
     agentsManager.activeAbortController = controller;
     agentsManager.sending = true;

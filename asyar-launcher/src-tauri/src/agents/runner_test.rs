@@ -96,6 +96,52 @@ async fn test_runner_state_reports_only_matching_tool_result() {
 }
 
 #[tokio::test]
+async fn test_runner_state_reports_only_matching_mcp_permission_decision() {
+    let state = AgentRunnerState::default();
+    let receiver = state.begin_mcp_permission("stream-1", "call-1").unwrap();
+
+    let mismatch = state.report_mcp_permission(
+        "stream-1",
+        "wrong-call",
+        crate::agents::runner::McpPermissionChoice::AllowOnce,
+    );
+    assert!(mismatch.is_err());
+
+    state
+        .report_mcp_permission(
+            "stream-1",
+            "call-1",
+            crate::agents::runner::McpPermissionChoice::AllowAlways,
+        )
+        .unwrap();
+    assert_eq!(
+        receiver.await.unwrap(),
+        crate::agents::runner::McpPermissionChoice::AllowAlways
+    );
+}
+
+#[test]
+fn test_mcp_permission_event_serializes_as_typed_frontend_contract() {
+    let event = AgentStreamEvent::McpPermissionRequest {
+        tool_call_id: "call-1".to_string(),
+        server_id: "linear".to_string(),
+        tool_id: "create_issue".to_string(),
+        agent_id: "agent-1".to_string(),
+    };
+
+    assert_eq!(
+        serde_json::to_value(event).unwrap(),
+        json!({
+            "type": "mcp_permission_request",
+            "tool_call_id": "call-1",
+            "server_id": "linear",
+            "tool_id": "create_issue",
+            "agent_id": "agent-1",
+        })
+    );
+}
+
+#[tokio::test]
 async fn test_runner_state_cancels_active_stream() {
     let state = AgentRunnerState::default();
     let mut cancellation = state.begin_run("stream-cancel").unwrap();
@@ -291,7 +337,7 @@ async fn test_run_thread_loop_text_only() {
         &ThreadRow {
             id: thread_id.clone(),
             agent_id: agent_id.clone(),
-            title: Some("Title".to_string()),
+            title: None,
             created_at: Some(now),
             updated_at: Some(now),
         },
@@ -352,6 +398,14 @@ async fn test_run_thread_loop_text_only() {
 
     assert_eq!(msgs[1].role, MessageRole::Assistant);
     assert_eq!(msgs[1].content["text"].as_str().unwrap(), "Hello world!");
+    assert_eq!(
+        crate::storage::agents::get_thread(&store.conn().unwrap(), &thread_id)
+            .unwrap()
+            .unwrap()
+            .title
+            .as_deref(),
+        Some("Hello")
+    );
 
     let final_tokens = tokens_clone.lock().unwrap();
     assert_eq!(final_tokens.join(""), "Hello world!");
@@ -614,6 +668,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
                 .unwrap()
                 .push(AgentStreamEvent::ToolDispatch {
                     tool_call_id: request.tool_call_id.clone(),
+                    extension_id: "extension".to_string(),
                     tool_id: request.tool_id.clone(),
                     arguments: request.arguments.clone(),
                 });
@@ -651,6 +706,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
             tool_call_id,
             tool_id,
             arguments,
+            ..
         } if tool_call_id == "call-xyz"
             && tool_id == "extension:mytool"
             && arguments == &json!({ "param": "value" })

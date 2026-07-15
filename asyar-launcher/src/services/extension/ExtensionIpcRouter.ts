@@ -54,7 +54,6 @@ class HandledDispatchError extends Error {}
  */
 export const INJECTS_EXTENSION_ID = new Set<Namespace>([
   'storage',
-  'ai',
   'oauth',
   'shell',
   'interop',

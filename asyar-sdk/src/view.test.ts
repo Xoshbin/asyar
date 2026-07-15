@@ -14,7 +14,6 @@ const VIEW_PROXY_NAMESPACES = [
   'storage',
   'feedback',
   'selection',
-  'ai',
   'oauth',
   'shell',
   'fs',

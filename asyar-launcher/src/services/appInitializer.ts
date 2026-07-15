@@ -82,7 +82,7 @@ export const appInitializer = {
     try {
       logService.info(`Application starting initialization...`);
 
-      // Register AI provider plugins before any service that may call listProviders()
+      // Register AI provider descriptors before any settings view reads the registry.
       initProviders();
 
       // Initialize auth (load cached token + background entitlement refresh)

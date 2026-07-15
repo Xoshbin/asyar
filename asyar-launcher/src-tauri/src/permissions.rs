@@ -183,7 +183,6 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // Selection
         "asyar:api:selection:getSelectedText" => Some("selection:read"),
         "asyar:api:selection:getSelectedFinderItems" => Some("selection:read"),
-        "asyar:api:ai:streamChat" => Some("ai:use"),
         // OAuth PKCE for extensions
         "asyar:api:oauth:authorize" => Some("oauth:use"),
         "asyar:api:oauth:revokeToken" => Some("oauth:use"),
@@ -785,11 +784,8 @@ mod tests {
     }
 
     #[test]
-    fn ai_stream_chat_maps_to_ai_use() {
-        assert_eq!(
-            get_required_permission("asyar:api:ai:streamChat"),
-            Some("ai:use")
-        );
+    fn removed_ai_stream_chat_wire_type_is_not_registered() {
+        assert_eq!(get_required_permission("asyar:api:ai:streamChat"), None);
     }
 
     #[test]

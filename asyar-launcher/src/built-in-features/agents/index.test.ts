@@ -62,7 +62,6 @@ vi.mock('./agentService.svelte', () => ({
     createThread: vi.fn(),
     deleteThread: vi.fn(),
     listThreads: vi.fn().mockResolvedValue([]),
-    updateThreadTitle: vi.fn(),
   },
 }));
 
@@ -75,7 +74,6 @@ vi.mock('./agentLoop', () => ({
 }));
 
 vi.mock('./agentChatView.helpers', () => ({
-  deriveThreadTitle: vi.fn((t: string) => t),
   ensureThread: vi.fn(),
 }));
 

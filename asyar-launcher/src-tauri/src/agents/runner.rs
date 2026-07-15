@@ -4,8 +4,8 @@ use crate::ai::types::{
 };
 use crate::error::AppError;
 use crate::storage::agents::{
-    get_agent, get_thread, insert_message, list_messages_for_thread, AgentRow, MessageRole,
-    MessageRow,
+    get_agent, get_thread, insert_message, list_messages_for_thread, update_thread_title, AgentRow,
+    MessageRole, MessageRow,
 };
 use crate::storage::DataStore;
 use serde::{Deserialize, Serialize};
@@ -32,9 +32,22 @@ pub enum AgentStreamEvent {
     AssistantTurnPersisted,
     ToolDispatch {
         tool_call_id: String,
+        extension_id: String,
         tool_id: String,
         #[specta(type = specta_typescript::Any)]
         arguments: Value,
+    },
+    ToolDispatchCancelled {
+        tool_call_id: String,
+    },
+    McpPermissionRequest {
+        tool_call_id: String,
+        server_id: String,
+        tool_id: String,
+        agent_id: String,
+    },
+    McpPermissionCancelled {
+        tool_call_id: String,
     },
     Error {
         message: String,
@@ -65,14 +78,29 @@ pub struct ExternalToolRequest {
     pub arguments: Value,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum McpPermissionChoice {
+    AllowOnce,
+    AllowAlways,
+    Never,
+    Cancel,
+}
+
 struct PendingToolResult {
     tool_call_id: String,
     sender: oneshot::Sender<Result<Value, String>>,
 }
 
+struct PendingMcpPermission {
+    tool_call_id: String,
+    sender: oneshot::Sender<McpPermissionChoice>,
+}
+
 #[derive(Clone, Default)]
 pub struct AgentRunnerState {
     pending: Arc<Mutex<HashMap<String, PendingToolResult>>>,
+    pending_mcp_permissions: Arc<Mutex<HashMap<String, PendingMcpPermission>>>,
     cancellations: Arc<Mutex<HashMap<String, watch::Sender<bool>>>>,
     pre_cancelled: Arc<Mutex<HashSet<String>>>,
 }
@@ -113,7 +141,7 @@ impl AgentRunnerState {
             .lock()
             .map_err(|_| AppError::Lock)?
             .remove(stream_id);
-        self.cancel_tool_call(stream_id)
+        self.cancel_pending_requests(stream_id)
     }
 
     pub fn cancel_run(&self, stream_id: &str) -> Result<(), AppError> {
@@ -133,7 +161,7 @@ impl AgentRunnerState {
                 .map_err(|_| AppError::Lock)?
                 .insert(stream_id.to_string());
         }
-        self.cancel_tool_call(stream_id)
+        self.cancel_pending_requests(stream_id)
     }
 
     pub fn begin_tool_call(
@@ -184,12 +212,77 @@ impl AgentRunnerState {
             .map_err(|_| AppError::Other("agent runner stopped before tool result arrived".into()))
     }
 
+    pub fn begin_mcp_permission(
+        &self,
+        stream_id: &str,
+        tool_call_id: &str,
+    ) -> Result<oneshot::Receiver<McpPermissionChoice>, AppError> {
+        let (sender, receiver) = oneshot::channel();
+        let mut pending = self
+            .pending_mcp_permissions
+            .lock()
+            .map_err(|_| AppError::Lock)?;
+        if pending.contains_key(stream_id) {
+            return Err(AppError::Validation(format!(
+                "agent stream '{stream_id}' already has a pending MCP permission request"
+            )));
+        }
+        pending.insert(
+            stream_id.to_string(),
+            PendingMcpPermission {
+                tool_call_id: tool_call_id.to_string(),
+                sender,
+            },
+        );
+        Ok(receiver)
+    }
+
+    pub fn report_mcp_permission(
+        &self,
+        stream_id: &str,
+        tool_call_id: &str,
+        decision: McpPermissionChoice,
+    ) -> Result<(), AppError> {
+        let mut pending = self
+            .pending_mcp_permissions
+            .lock()
+            .map_err(|_| AppError::Lock)?;
+        let expected = pending.get(stream_id).ok_or_else(|| {
+            AppError::NotFound(format!(
+                "agent stream '{stream_id}' has no pending MCP permission request"
+            ))
+        })?;
+        if expected.tool_call_id != tool_call_id {
+            return Err(AppError::Validation(format!(
+                "MCP permission result id '{tool_call_id}' does not match pending call '{}'",
+                expected.tool_call_id
+            )));
+        }
+        let pending = pending.remove(stream_id).expect("checked above");
+        pending.sender.send(decision).map_err(|_| {
+            AppError::Other("agent runner stopped before MCP permission arrived".into())
+        })
+    }
+
     pub fn cancel_tool_call(&self, stream_id: &str) -> Result<(), AppError> {
         self.pending
             .lock()
             .map_err(|_| AppError::Lock)?
             .remove(stream_id);
         Ok(())
+    }
+
+    pub fn cancel_mcp_permission(&self, stream_id: &str) -> Result<(), AppError> {
+        self.pending_mcp_permissions
+            .lock()
+            .map_err(|_| AppError::Lock)?
+            .remove(stream_id);
+        Ok(())
+    }
+
+    fn cancel_pending_requests(&self, stream_id: &str) -> Result<(), AppError> {
+        self.cancel_tool_call(stream_id)?;
+        self.cancel_mcp_permission(stream_id)
     }
 }
 
@@ -684,6 +777,12 @@ where
     }
     let run_id = run_id.unwrap_or_else(|| Uuid::new_v4().to_string());
     if !user_text.trim().is_empty() {
+        let derived_title = thread
+            .title
+            .as_deref()
+            .filter(|title| !title.trim().is_empty())
+            .is_none()
+            .then(|| crate::agents::lifecycle::derive_thread_title(&user_text));
         insert_message(
             &*store.conn()?,
             &MessageRow {
@@ -695,6 +794,14 @@ where
                 run_id: Some(run_id.clone()),
             },
         )?;
+        if let Some(title) = derived_title {
+            update_thread_title(
+                &*store.conn()?,
+                thread_id,
+                &title,
+                chrono::Utc::now().timestamp_millis(),
+            )?;
+        }
         on_event(AgentStreamEvent::UserMessagePersisted);
     }
 

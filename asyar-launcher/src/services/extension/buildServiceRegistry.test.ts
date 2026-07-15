@@ -115,7 +115,7 @@ vi.mock('../../lib/ipc/commands', async (importOriginal) => {
 import { buildServiceRegistry } from './buildServiceRegistry';
 
 describe('buildServiceRegistry', () => {
-  it('returns a registry with every NAMESPACES key present except the removed ai namespace', () => {
+  it('returns a registry with every bound namespace and no removed ai service', () => {
     const mockExtensionManager = {} as any;
     const mockGetManifestById = vi.fn();
     const mockHandleCommandAction = vi.fn();
@@ -129,12 +129,11 @@ describe('buildServiceRegistry', () => {
     const registryKeys = Object.keys(registry);
     // Namespaces deliberately not wired into the JS-side registry.
     //
-    // 'ai'       — IAIService was removed with the AI Chat feature.
     // 'snippets' — Shortcode contributions flow Tauri-direct via the
     //              snippets:registerShortcodes / unregisterShortcodes IPC
     //              topics handled by the launcher's extension IPC router,
     //              not through the JS service registry.
-    const UNBOUND_NAMESPACES = new Set(['ai', 'snippets']);
+    const UNBOUND_NAMESPACES = new Set(['snippets']);
     expect(registryKeys, `'ai' must NOT be in registry`).not.toContain('ai');
     expect(registryKeys, `'snippets' must NOT be in registry`).not.toContain('snippets');
     for (const ns of NAMESPACES) {

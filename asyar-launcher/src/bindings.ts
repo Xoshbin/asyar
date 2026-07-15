@@ -5,7 +5,7 @@ export type AgentRunConfig = {
 	maxTokens: number,
 };
 
-export type AgentStreamEvent = { type: "user_message_persisted" } | { type: "text_delta"; delta: string; accumulated: string } | { type: "status"; status: string | null } | { type: "assistant_turn_persisted" } | { type: "tool_dispatch"; tool_call_id: string; tool_id: string; arguments: any } | { type: "error"; message: string } | { type: "completed" } | { type: "cancelled" };
+export type AgentStreamEvent = { type: "user_message_persisted" } | { type: "text_delta"; delta: string; accumulated: string } | { type: "status"; status: string | null } | { type: "assistant_turn_persisted" } | { type: "tool_dispatch"; tool_call_id: string; extension_id: string; tool_id: string; arguments: any } | { type: "tool_dispatch_cancelled"; tool_call_id: string } | { type: "mcp_permission_request"; tool_call_id: string; server_id: string; tool_id: string; agent_id: string } | { type: "mcp_permission_cancelled"; tool_call_id: string } | { type: "error"; message: string } | { type: "completed" } | { type: "cancelled" };
 
 export type AgentStreamEventPayload = {
 	streamId: string,
@@ -42,6 +42,8 @@ export type Application = {
 	 */
 	bundleId?: string | null,
 };
+
+export type BuiltinAgentProfile = "inline_emoji";
 
 // Category of a calculator answer. Drives icon selection in the UI.
 export type CalcKind = "math" | "unit" | "currency" | "date" | "time" | "base" | "color" | "percent" | "ratio";
@@ -192,6 +194,12 @@ export type MergedSearchResponse = {
 	aliasMatch?: AliasMatch | null,
 };
 
+export type ModelInfo = {
+	id: string,
+	label: string,
+	reasoningEfforts: string[] | null,
+};
+
 export type ProviderConfig = {
 	enabled: boolean,
 	apiKey: string | null,
@@ -240,6 +248,8 @@ export type SearchResult = {
 };
 
 export type SearchableItem = { category: "application" } & Application | { category: "command" } & Command;
+
+export type SilentAgentTarget = { type: "stored"; agentId: string } | { type: "builtin"; profile: BuiltinAgentProfile; defaultAgentId: string | null };
 
 export type StreamEventPayload = {
 	streamId: string,

@@ -6,7 +6,7 @@ order: 12
 
 Eight Tier 1 tools are registered at launcher startup and are available to any agent running on a tool-capable provider. Their fully-qualified IDs follow the pattern `builtin:<bare-id>`.
 
-**Wire encoding.** Provider APIs (including Anthropic) restrict tool names to `^[a-zA-Z0-9_-]{1,64}$`. The agent loop encodes FQIDs before sending them: `:` becomes `__` and `.` becomes `--`. A per-request map decodes incoming `tool_use.name` values back to FQIDs before invocation. Source: `src/built-in-features/agents/agentLoop.ts`, `encodeToolIdForWire` (line 556).
+**Wire encoding.** Provider APIs (including Anthropic) restrict tool names to `^[a-zA-Z0-9_-]{1,64}$`. The Rust provider layer encodes FQIDs before sending them: `:` becomes `__` and `.` becomes `--`. A per-request map decodes incoming tool names back to FQIDs before invocation. Source: `asyar-launcher/src-tauri/src/ai/providers.rs`.
 
 Example: `builtin:calculator` is sent to Anthropic as `builtin__calculator`.
 

@@ -1,7 +1,7 @@
 // asyar-launcher/src/lib/ipc/commands.ts
 import { invoke } from '@tauri-apps/api/core';
 import { invokeRaw, invokeSafe, invokeSafeVoid } from './invokeSafe';
-import type { ProviderConfig, ChatMessage, ChatParams } from '../../services/ai/IProviderPlugin';
+import type { ModelInfo, ProviderConfig, ReasoningEffort } from '../../services/ai/IProviderPlugin';
 import type {
   AgentRunConfig as AgentRunConfigContract,
   SearchableItem,
@@ -10,7 +10,11 @@ import type {
   ItemAlias,
   AliasConflict,
   MergedSearchResponse,
+  BuiltinAgentProfile,
+  SilentAgentTarget,
+  ModelInfo as ModelInfoContract,
 } from '../../bindings';
+export type { BuiltinAgentProfile, SilentAgentTarget } from '../../bindings';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 export * from './extensionPreferencesCommands';
@@ -1784,14 +1788,16 @@ export async function agentsInvokeBuiltinTool(id: string, args: unknown): Promis
   return invokeSafe('agents_invoke_builtin_tool', { id, args });
 }
 
-export async function aiStreamChat(
+export async function aiListModels(
   providerId: string,
   config: ProviderConfig,
-  messages: ChatMessage[],
-  params: ChatParams,
-  streamId: string,
-): Promise<void> {
-  await invokeSafe('ai_stream_chat', { providerId, config, messages, params, streamId });
+): Promise<ModelInfo[]> {
+  const models = await invokeRaw<ModelInfoContract[]>('ai_list_models', { providerId, config });
+  return models.map((model) => ({
+    id: model.id,
+    label: model.label,
+    reasoningEfforts: (model.reasoningEfforts as ReasoningEffort[] | null) ?? undefined,
+  }));
 }
 
 // ── Feedback submission ───────────────────────────────────────────────────────
@@ -1892,19 +1898,57 @@ export async function agentsRunThread(
 }
 
 export async function agentsRunSilent(
-  agentId: string,
+  target: SilentAgentTarget,
   userText: string,
   config: AgentRunConfig,
   streamId: string,
-  agent?: import('../../built-in-features/agents/types').AgentDef,
 ): Promise<string> {
   return invokeRaw<string>('agents_run_silent', {
-    agentId,
+    target,
     userText,
     config,
     streamId,
-    agent: agent ?? null,
   });
+}
+
+export async function agentsResolveDefault(
+  defaultAgentId: string | null,
+): Promise<import('../../built-in-features/agents/types').AgentDef | null> {
+  return invokeRaw<import('../../built-in-features/agents/types').AgentDef | null>(
+    'agents_resolve_default',
+    { defaultAgentId },
+  );
+}
+
+export async function agentsUpsertDefault(
+  defaultAgentId: string | null,
+  providerId: string,
+  modelId: string,
+): Promise<import('../../built-in-features/agents/types').AgentDef> {
+  return invokeRaw<import('../../built-in-features/agents/types').AgentDef>(
+    'agents_upsert_default',
+    { defaultAgentId, providerId, modelId },
+  );
+}
+
+export async function agentsSeedGrammarFix(
+  providerId: string,
+  modelId: string,
+): Promise<import('../../built-in-features/agents/types').AgentDef> {
+  return invokeRaw<import('../../built-in-features/agents/types').AgentDef>(
+    'agents_seed_grammar_fix',
+    { providerId, modelId },
+  );
+}
+
+export async function agentsGetBuiltinProfile(
+  profile: BuiltinAgentProfile,
+  defaultAgentId: string | null,
+): Promise<import('../../built-in-features/agents/types').AgentDef> {
+  return invokeRaw<import('../../built-in-features/agents/types').AgentDef>(
+    'agents_get_builtin_profile',
+    { profile, defaultAgentId },
+  );
 }
 
 export async function agentsReportToolResult(
@@ -1919,6 +1963,16 @@ export async function agentsReportToolResult(
     result,
     error: error ?? null,
   });
+}
+
+export type McpPermissionChoice = 'allow_once' | 'allow_always' | 'never' | 'cancel';
+
+export async function agentsReportMcpPermission(
+  streamId: string,
+  toolCallId: string,
+  decision: McpPermissionChoice,
+): Promise<void> {
+  await invokeRaw('agents_report_mcp_permission', { streamId, toolCallId, decision });
 }
 
 export async function agentsCancelRun(streamId: string): Promise<void> {

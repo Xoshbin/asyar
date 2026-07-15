@@ -58,7 +58,6 @@ expands the placement guidance.
 | `StorageService`           | `IStorageService`           | both                           | `storage:read/write`                              | Scoped key-value persistence                                                                                                           |
 | `SelectionService`         | `ISelectionService`         | view                           | `selection:read`                                  | Read selected text / selected file-manager items from the frontmost app                                                                |
 | `FeedbackService`          | `IFeedbackService`          | view                           | None                                              | Toast, HUD, and confirm dialog primitives                                                                                              |
-| `AIService`                | `IAIService`                | both                           | `ai:use`                                          | Stream responses from the user's configured AI provider                                                                                |
 | `ToolsService`             | `IToolsService`             | worker                         | `tools:register`                                  | Register tools your extension exports to the agent runtime                                                                             |
 | `SnippetsService`          | `ISnippetsService`          | worker                         | `snippets:contribute`                             | Contribute `:shortcode:` → expansion pairs to the global keystroke matcher (system-wide replacement)                                   |
 | `OAuthService`             | `IOAuthService`             | both                           | `oauth:use`                                       | OAuth 2.0 PKCE flow — authorize with third-party providers, cache & revoke tokens                                                      |
@@ -101,7 +100,6 @@ expands the placement guidance.
 - **[StorageService](./storage-service.md)**
 - **[FeedbackService](./feedback-service.md)**
 - **[SelectionService](./selection-service.md)**
-- **[AIService](./ai-service.md)**
 - **[ToolsService](./tools-service.md)**
 - **[SnippetsService](./snippets-service.md)**
 - **[OAuthService](./oauth-service.md)**

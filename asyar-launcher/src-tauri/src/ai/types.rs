@@ -45,6 +45,14 @@ pub struct ProviderConfig {
     pub reasoning_effort: Option<String>, // "none", "minimal", "low", etc.
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelInfo {
+    pub id: String,
+    pub label: String,
+    pub reasoning_efforts: Option<Vec<String>>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatParams {

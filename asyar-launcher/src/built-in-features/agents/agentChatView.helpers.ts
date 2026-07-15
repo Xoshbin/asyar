@@ -109,21 +109,3 @@ export function resolveThreadId(
   if (!currentThreadId) return null;
   return threads.some((t) => t.id === currentThreadId) ? currentThreadId : null;
 }
-
-// ── deriveThreadTitle ─────────────────────────────────────────────────────────
-
-/**
- * Derive a thread title from the first user message. Mirrors OpenAI / Gemini
- * behavior of using the first user message as the thread label until a better
- * one is computed. Truncates at a word boundary to roughly 40 chars.
- */
-export function deriveThreadTitle(userText: string): string {
-  const collapsed = userText.replace(/\s+/g, ' ').trim();
-  if (collapsed.length === 0) return 'New thread';
-  const limit = 40;
-  if (collapsed.length <= limit) return collapsed;
-  const window = collapsed.slice(0, limit + 1);
-  const lastSpace = window.lastIndexOf(' ');
-  const cut = lastSpace > 20 ? lastSpace : limit;
-  return collapsed.slice(0, cut).trimEnd() + '…';
-}

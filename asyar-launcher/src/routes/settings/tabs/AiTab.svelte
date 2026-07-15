@@ -1,7 +1,7 @@
 <script lang="ts">
   import { SettingsForm, SettingsFormRow, Toggle, Button, Input } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
-  import { listProviders } from '../../../services/ai/providerRegistry';
+  import { providerRegistry } from '../../../services/ai/providerRegistry';
   import { agentService } from '../../../built-in-features/agents/agentService.svelte';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import {
@@ -67,7 +67,7 @@
     });
   });
 
-  let allPlugins = $derived(listProviders());
+  let allPlugins = $derived(providerRegistry.list());
 
   /** Provider IDs that have enabled: true in settings */
   let configuredIds = $derived(

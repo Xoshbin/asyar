@@ -33,6 +33,7 @@ const DB_FILE_NAME: &str = "asyar_data.db";
 ///
 /// Each table supports row-level CRUD — individual inserts, updates, and deletes
 /// instead of full-table rewrites.
+#[derive(Clone)]
 pub struct DataStore {
     db: Arc<Mutex<Connection>>,
 }

@@ -18,6 +18,23 @@ pub enum CacheEntry {
     Miss,
 }
 
+pub fn classify_agent_output(text: &str) -> CacheEntry {
+    use unicode_segmentation::UnicodeSegmentation;
+
+    let trimmed = text.trim();
+    if trimmed.is_empty()
+        || UnicodeSegmentation::graphemes(trimmed, true).count() != 1
+        || trimmed
+            .chars()
+            .next()
+            .is_none_or(|character| character.is_ascii())
+    {
+        CacheEntry::Miss
+    } else {
+        CacheEntry::Hit(trimmed.to_string())
+    }
+}
+
 pub struct InlineEmojiFallbackState {
     cache: Mutex<HashMap<String, (CacheEntry, Instant)>>,
     cache_order: Mutex<VecDeque<String>>,
@@ -200,6 +217,17 @@ pub fn install_shortcode_miss_listener(app: AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn classifies_agent_output_before_caching() {
+        assert_eq!(
+            classify_agent_output("  🎉  "),
+            CacheEntry::Hit("🎉".into())
+        );
+        assert_eq!(classify_agent_output(""), CacheEntry::Miss);
+        assert_eq!(classify_agent_output("no idea"), CacheEntry::Miss);
+        assert_eq!(classify_agent_output("🎉🎊"), CacheEntry::Miss);
+    }
 
     #[test]
     fn first_miss_dispatches() {

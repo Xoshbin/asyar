@@ -1,3 +1,4 @@
+#[derive(Default)]
 pub struct LineBuffer {
     buffer: Vec<u8>,
 }

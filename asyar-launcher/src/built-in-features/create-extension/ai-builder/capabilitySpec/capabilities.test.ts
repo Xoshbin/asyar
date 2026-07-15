@@ -20,10 +20,9 @@ import capabilities from './capabilities.json';
 //      CLI validator enforces — it REJECTS any slug not present there) and
 //      asyar-launcher/src/services/permissionGate.ts PERMISSION_MAP.
 //
-// Their union is exactly the master VALID_PERMISSIONS list (42 entries) — the
+// Their union is exactly the master VALID_PERMISSIONS list — the
 // definitive set of permissions an extension may legally declare in manifest.json.
 const GET_REQUIRED_PERMISSIONS = [
-  'ai:use',
   'app:frontmost-watch',
   'application:read',
   'browser:bookmarks.read',

@@ -10,9 +10,14 @@ vi.mock('./invokeSafe', () => ({
 import { invokeRaw } from './invokeSafe';
 import {
   agentsCancelRun,
+  agentsGetBuiltinProfile,
+  agentsReportMcpPermission,
   agentsReportToolResult,
+  agentsResolveDefault,
   agentsRunSilent,
   agentsRunThread,
+  agentsSeedGrammarFix,
+  agentsUpsertDefault,
 } from './commands';
 import type { AgentDef } from '../../built-in-features/agents/types';
 import type { AgentRunConfig } from './commands';
@@ -57,19 +62,55 @@ describe('agent runner commands', () => {
     });
   });
 
-  it('starts an ephemeral Rust run and forwards an optional agent override', async () => {
+  it('starts an ephemeral Rust run from a typed stored-agent target', async () => {
     vi.mocked(invokeRaw).mockResolvedValueOnce('answer');
 
-    await expect(agentsRunSilent('agent-1', 'hello', config, 'stream-2', agent)).resolves.toBe(
-      'answer',
-    );
+    await expect(
+      agentsRunSilent({ type: 'stored', agentId: 'agent-1' }, 'hello', config, 'stream-2'),
+    ).resolves.toBe('answer');
     expect(invokeRaw).toHaveBeenCalledWith('agents_run_silent', {
-      agentId: 'agent-1',
+      target: { type: 'stored', agentId: 'agent-1' },
       userText: 'hello',
       config,
       streamId: 'stream-2',
-      agent,
     });
+  });
+
+  it('starts a built-in silent profile without accepting a frontend AgentDef', async () => {
+    vi.mocked(invokeRaw).mockResolvedValueOnce('🎉');
+
+    await agentsRunSilent(
+      { type: 'builtin', profile: 'inline_emoji', defaultAgentId: 'default-1' },
+      'party',
+      config,
+      'stream-3',
+    );
+
+    expect(invokeRaw).toHaveBeenCalledWith('agents_run_silent', {
+      target: { type: 'builtin', profile: 'inline_emoji', defaultAgentId: 'default-1' },
+      userText: 'party',
+      config,
+      streamId: 'stream-3',
+    });
+  });
+
+  it('delegates default resolution and bundled profile lifecycle to Rust', async () => {
+    vi.mocked(invokeRaw).mockResolvedValue(agent);
+
+    await agentsResolveDefault('default-1');
+    await agentsUpsertDefault('default-1', 'openai', 'gpt-4o');
+    await agentsSeedGrammarFix('openai', 'gpt-4o');
+    await agentsGetBuiltinProfile('inline_emoji', 'default-1');
+
+    expect(vi.mocked(invokeRaw).mock.calls).toEqual([
+      ['agents_resolve_default', { defaultAgentId: 'default-1' }],
+      [
+        'agents_upsert_default',
+        { defaultAgentId: 'default-1', providerId: 'openai', modelId: 'gpt-4o' },
+      ],
+      ['agents_seed_grammar_fix', { providerId: 'openai', modelId: 'gpt-4o' }],
+      ['agents_get_builtin_profile', { profile: 'inline_emoji', defaultAgentId: 'default-1' }],
+    ]);
   });
 
   it('reports tool success and failure through the four-field resume contract', async () => {
@@ -86,6 +127,16 @@ describe('agent runner commands', () => {
         { streamId: 'stream-1', toolCallId: 'call-2', result: null, error: 'tool failed' },
       ],
     ]);
+  });
+
+  it('reports an MCP permission decision to the suspended Rust executor', async () => {
+    await agentsReportMcpPermission('stream-1', 'call-1', 'allow_always');
+
+    expect(invokeRaw).toHaveBeenCalledWith('agents_report_mcp_permission', {
+      streamId: 'stream-1',
+      toolCallId: 'call-1',
+      decision: 'allow_always',
+    });
   });
 
   it('cancels the Rust runner by stream id', async () => {

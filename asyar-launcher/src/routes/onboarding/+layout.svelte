@@ -10,7 +10,7 @@
 
   // The onboarding window is a separate Tauri webview and does not run the
   // launcher's appInitializer, so AI provider plugins must be registered
-  // locally before any AI step calls listProviders().
+  // locally before any AI step reads the provider registry.
   initProviders();
 
   let { children } = $props();

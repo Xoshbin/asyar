@@ -8,7 +8,6 @@ import {
   extractToolUsesFromMessage,
   messageBubbleVariant,
   handleCancelSend,
-  deriveThreadTitle,
   resolveThreadId,
 } from './agentChatView.helpers';
 
@@ -240,37 +239,6 @@ describe('handleCancelSend', () => {
 
   it('handleCancelSend_noop_when_controller_null', () => {
     expect(() => handleCancelSend({ abortController: null })).not.toThrow();
-  });
-});
-
-// ── deriveThreadTitle ─────────────────────────────────────────────────────────
-
-describe('deriveThreadTitle', () => {
-  it('returns short message verbatim', () => {
-    expect(deriveThreadTitle('Hello world')).toBe('Hello world');
-  });
-
-  it('returns "New thread" for empty input', () => {
-    expect(deriveThreadTitle('')).toBe('New thread');
-    expect(deriveThreadTitle('   ')).toBe('New thread');
-  });
-
-  it('truncates long messages at word boundary with ellipsis', () => {
-    const long = 'This is a long message that should be truncated at a word boundary near forty';
-    const result = deriveThreadTitle(long);
-    expect(result.length).toBeLessThanOrEqual(45);
-    expect(result.endsWith('…')).toBe(true);
-    expect(result).not.toContain('truncated…');
-  });
-
-  it('hard-cuts at limit when no late word boundary exists', () => {
-    const long = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbb';
-    const result = deriveThreadTitle(long);
-    expect(result.endsWith('…')).toBe(true);
-  });
-
-  it('collapses internal whitespace', () => {
-    expect(deriveThreadTitle('hello\n\n  world')).toBe('hello world');
   });
 });
 

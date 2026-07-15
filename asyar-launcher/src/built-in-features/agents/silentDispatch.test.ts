@@ -16,6 +16,7 @@ vi.mock('./agentService.svelte', () => ({
 
 vi.mock('../../lib/ipc/commands', () => ({
   agentsGet: vi.fn(),
+  agentsGetBuiltinProfile: vi.fn(),
   agentsRunSilent: vi.fn(),
   agentsCancelRun: vi.fn(),
   simulatePaste: vi.fn(),
@@ -130,11 +131,10 @@ describe('dispatchSilentAgentCommand', () => {
     await dispatchSilentAgentCommand({ agentId: 'agent-1', userText: 'helo' });
 
     expect(commands.agentsRunSilent).toHaveBeenCalledWith(
-      'agent-1',
+      { type: 'stored', agentId: 'agent-1' },
       'helo',
       runConfig,
       expect.any(String),
-      undefined,
     );
     expect(bridgeMock.options).toEqual(
       expect.objectContaining({ agentId: 'agent-1', streamId: expect.any(String) }),
@@ -152,11 +152,10 @@ describe('dispatchSilentAgentCommand', () => {
     await dispatchSilentAgentCommand({ agentId: 'agent-1' });
 
     expect(commands.agentsRunSilent).toHaveBeenCalledWith(
-      'agent-1',
+      { type: 'stored', agentId: 'agent-1' },
       'selected words',
       runConfig,
       expect.any(String),
-      undefined,
     );
   });
 
@@ -202,17 +201,18 @@ describe('dispatchSilentAgentCommand', () => {
     expect(spinnerMock.replace).toHaveBeenCalledWith('final line', { spinning: false });
   });
 
-  it('passes an inline agent definition through the typed Rust command', async () => {
-    const inline = makeAgent({ id: 'inline-agent', outputAction: 'hud' });
+  it('loads and runs a built-in profile defined by Rust', async () => {
+    const inline = makeAgent({ id: 'builtin-profile:inline-emoji', outputAction: 'hud' });
+    vi.mocked(commands.agentsGetBuiltinProfile).mockResolvedValue(inline);
 
-    await dispatchSilentAgentCommand({ agentId: 'inline-agent', agentDef: inline, userText: 'x' });
+    await dispatchSilentAgentCommand({ builtinProfile: 'inline_emoji', userText: 'x' });
 
+    expect(commands.agentsGetBuiltinProfile).toHaveBeenCalledWith('inline_emoji', null);
     expect(commands.agentsRunSilent).toHaveBeenCalledWith(
-      'inline-agent',
+      { type: 'builtin', profile: 'inline_emoji', defaultAgentId: null },
       'x',
       runConfig,
       expect.any(String),
-      inline,
     );
   });
 

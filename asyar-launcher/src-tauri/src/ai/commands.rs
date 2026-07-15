@@ -1,11 +1,8 @@
 use crate::ai::providers;
 use crate::ai::sse::LineBuffer;
-use crate::ai::types::{
-    ChatMessage, ChatParams, ChatStreamEventPayload, ProviderConfig, StreamEventPayload,
-};
+use crate::ai::types::{ChatMessage, ChatParams, ChatStreamEventPayload, ProviderConfig};
 use crate::error::AppError;
 use futures_util::StreamExt;
-use tauri::{AppHandle, Emitter};
 
 fn emit_stream_event<F>(event: crate::ai::types::ChatStreamEvent, on_event: &F)
 where
@@ -111,32 +108,6 @@ where
 
     on_event(ChatStreamEventPayload::Done);
     Ok(())
-}
-
-#[tauri::command]
-pub async fn ai_stream_chat(
-    app: AppHandle,
-    provider_id: String,
-    config: ProviderConfig,
-    messages: Vec<ChatMessage>,
-    params: ChatParams,
-    stream_id: String,
-) -> Result<(), AppError> {
-    ai_stream_chat_impl(
-        &provider_id,
-        config,
-        messages,
-        params,
-        stream_id.clone(),
-        move |event| {
-            let payload = StreamEventPayload {
-                stream_id: stream_id.clone(),
-                event,
-            };
-            let _ = app.emit("ai-stream-event", payload);
-        },
-    )
-    .await
 }
 
 #[cfg(test)]

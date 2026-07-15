@@ -16,14 +16,24 @@ vi.mock('@tauri-apps/api/event', () => ({
 
 vi.mock('../../lib/ipc/commands', () => ({
   agentsReportToolResult: vi.fn(),
+  agentsReportMcpPermission: vi.fn(),
   agentsCancelRun: vi.fn(),
 }));
 
-vi.mock('./toolDispatch', () => ({ invokeTool: vi.fn() }));
+vi.mock('./toolDispatch', () => ({ invokeExtensionTool: vi.fn() }));
+
+vi.mock('../mcp/mcpService.svelte', () => ({
+  mcpService: { requestPermission: vi.fn() },
+}));
 
 import { listenToAgentStream } from './agentStreamBridge';
-import { agentsCancelRun, agentsReportToolResult } from '../../lib/ipc/commands';
-import { invokeTool } from './toolDispatch';
+import {
+  agentsCancelRun,
+  agentsReportMcpPermission,
+  agentsReportToolResult,
+} from '../../lib/ipc/commands';
+import { invokeExtensionTool } from './toolDispatch';
+import { mcpService } from '../mcp/mcpService.svelte';
 
 function emit(payload: AgentStreamEventPayload): void {
   eventMock.handler?.({ payload } as Event<AgentStreamEventPayload>);
@@ -34,6 +44,7 @@ describe('listenToAgentStream', () => {
     vi.clearAllMocks();
     eventMock.handler = undefined;
     vi.mocked(agentsReportToolResult).mockResolvedValue(undefined);
+    vi.mocked(agentsReportMcpPermission).mockResolvedValue(undefined);
     vi.mocked(agentsCancelRun).mockResolvedValue(undefined);
   });
 
@@ -56,7 +67,7 @@ describe('listenToAgentStream', () => {
   });
 
   it('executes a dispatched iframe tool and reports the result to Rust', async () => {
-    vi.mocked(invokeTool).mockResolvedValue({ answer: 42 });
+    vi.mocked(invokeExtensionTool).mockResolvedValue({ answer: 42 });
     await listenToAgentStream({ streamId: 'stream-1', agentId: 'agent-1' });
 
     emit({
@@ -64,18 +75,24 @@ describe('listenToAgentStream', () => {
       event: {
         type: 'tool_dispatch',
         tool_call_id: 'call-1',
-        tool_id: 'org.example:lookup',
+        extension_id: 'org.example',
+        tool_id: 'lookup',
         arguments: { query: 'x' },
       },
-    });
+    } as AgentStreamEventPayload);
     await vi.waitFor(() => expect(agentsReportToolResult).toHaveBeenCalledOnce());
 
-    expect(invokeTool).toHaveBeenCalledWith('org.example:lookup', { query: 'x' }, 'agent-1');
+    expect(invokeExtensionTool).toHaveBeenCalledWith(
+      'org.example',
+      'lookup',
+      { query: 'x' },
+      expect.any(AbortSignal),
+    );
     expect(agentsReportToolResult).toHaveBeenCalledWith('stream-1', 'call-1', { answer: 42 });
   });
 
   it('reports tool errors so the suspended Rust runner is unblocked', async () => {
-    vi.mocked(invokeTool).mockRejectedValue(new Error('extension failed'));
+    vi.mocked(invokeExtensionTool).mockRejectedValue(new Error('extension failed'));
     await listenToAgentStream({ streamId: 'stream-1', agentId: 'agent-1' });
 
     emit({
@@ -83,10 +100,11 @@ describe('listenToAgentStream', () => {
       event: {
         type: 'tool_dispatch',
         tool_call_id: 'call-1',
-        tool_id: 'org.example:lookup',
+        extension_id: 'org.example',
+        tool_id: 'lookup',
         arguments: {},
       },
-    });
+    } as AgentStreamEventPayload);
     await vi.waitFor(() => expect(agentsReportToolResult).toHaveBeenCalledOnce());
 
     expect(agentsReportToolResult).toHaveBeenCalledWith(
@@ -99,7 +117,7 @@ describe('listenToAgentStream', () => {
 
   it('cancels the Rust runner if reporting a tool result itself fails', async () => {
     const onBridgeError = vi.fn();
-    vi.mocked(invokeTool).mockResolvedValue('ok');
+    vi.mocked(invokeExtensionTool).mockResolvedValue('ok');
     vi.mocked(agentsReportToolResult).mockRejectedValue(new Error('resume failed'));
     await listenToAgentStream({
       streamId: 'stream-1',
@@ -112,14 +130,68 @@ describe('listenToAgentStream', () => {
       event: {
         type: 'tool_dispatch',
         tool_call_id: 'call-1',
-        tool_id: 'org.example:lookup',
+        extension_id: 'org.example',
+        tool_id: 'lookup',
         arguments: {},
       },
-    });
+    } as AgentStreamEventPayload);
     await vi.waitFor(() => expect(agentsCancelRun).toHaveBeenCalledWith('stream-1'));
 
     expect(onBridgeError).toHaveBeenCalledWith(
       expect.objectContaining({ message: 'resume failed' }),
     );
+  });
+
+  it('reports MCP permission decisions to Rust without invoking MCP in TypeScript', async () => {
+    vi.mocked(mcpService.requestPermission).mockResolvedValue('allow_once');
+    await listenToAgentStream({ streamId: 'stream-1', agentId: 'agent-1' });
+
+    emit({
+      streamId: 'stream-1',
+      event: {
+        type: 'mcp_permission_request',
+        tool_call_id: 'call-1',
+        server_id: 'linear',
+        tool_id: 'create_issue',
+        agent_id: 'agent-1',
+      },
+    } as AgentStreamEventPayload);
+
+    await vi.waitFor(() => expect(agentsReportMcpPermission).toHaveBeenCalledOnce());
+    expect(mcpService.requestPermission).toHaveBeenCalledWith(
+      'linear',
+      'create_issue',
+      'agent-1',
+      expect.any(AbortSignal),
+    );
+    expect(agentsReportMcpPermission).toHaveBeenCalledWith('stream-1', 'call-1', 'allow_once');
+  });
+
+  it('aborts a pending iframe invocation when Rust cancels that dispatch', async () => {
+    let dispatchSignal: AbortSignal | undefined;
+    vi.mocked(invokeExtensionTool).mockImplementation(
+      async (_extensionId, _toolId, _args, signal) => {
+        dispatchSignal = signal;
+        return new Promise(() => undefined);
+      },
+    );
+    await listenToAgentStream({ streamId: 'stream-1', agentId: 'agent-1' });
+
+    emit({
+      streamId: 'stream-1',
+      event: {
+        type: 'tool_dispatch',
+        tool_call_id: 'call-1',
+        extension_id: 'org.example',
+        tool_id: 'lookup',
+        arguments: {},
+      },
+    } as AgentStreamEventPayload);
+    emit({
+      streamId: 'stream-1',
+      event: { type: 'tool_dispatch_cancelled', tool_call_id: 'call-1' },
+    } as AgentStreamEventPayload);
+
+    expect(dispatchSignal?.aborted).toBe(true);
   });
 });

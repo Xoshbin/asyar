@@ -129,27 +129,22 @@ pub(crate) fn revoke_shortcodes_inner(
 #[tauri::command]
 pub fn record_inline_emoji_fallback_outcome(
     shortcode: String,
-    outcome: String,
-    emoji: Option<String>,
+    text: String,
     state: tauri::State<'_, AppState>,
     app_handle: AppHandle,
 ) -> Result<(), AppError> {
-    let entry = match outcome.as_str() {
-        "hit" => {
-            let e = emoji.ok_or_else(|| AppError::Platform("hit requires emoji".into()))?;
-            let kw_len = shortcode.chars().count();
-            let _ = app_handle.emit_to(
-                crate::SPOTLIGHT_LABEL,
-                "expand-snippet",
-                serde_json::json!({
-                    "keywordLen": kw_len,
-                    "expansion": e,
-                }),
-            );
-            CacheEntry::Hit(e)
-        }
-        _ => CacheEntry::Miss,
-    };
+    let entry = crate::ai::inline_emoji_fallback::classify_agent_output(&text);
+    if let CacheEntry::Hit(emoji) = &entry {
+        let kw_len = shortcode.chars().count();
+        let _ = app_handle.emit_to(
+            crate::SPOTLIGHT_LABEL,
+            "expand-snippet",
+            serde_json::json!({
+                "keywordLen": kw_len,
+                "expansion": emoji,
+            }),
+        );
+    }
     state
         .inline_emoji_fallback
         .record_outcome(&shortcode, entry, std::time::Instant::now());

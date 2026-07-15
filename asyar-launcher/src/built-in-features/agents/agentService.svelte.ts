@@ -9,12 +9,13 @@ import {
   agentsThreadUpdateTitle,
   agentsMessagesList,
   agentsMessageInsert,
+  agentsResolveDefault,
+  agentsUpsertDefault,
+  agentsSeedGrammarFix,
 } from '../../lib/ipc/commands';
 import { listen } from '@tauri-apps/api/event';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { settingsService } from '../../services/settings/settingsService.svelte';
-import { buildDefaultAgentInput, buildGrammarFixAgentInput } from './defaultAgent';
-import { logService } from '../../services/log/logService';
 import type {
   AgentDef,
   AgentCreateInput,
@@ -37,6 +38,7 @@ export function getCurrentAgentService(): AgentService {
 
 export class AgentService {
   agents = $state<AgentDef[]>([]);
+  defaultAgent = $state<AgentDef | null>(null);
   private initialized = false;
 
   constructor() {
@@ -61,6 +63,9 @@ export class AgentService {
       return;
     }
     this.agents = list;
+    this.defaultAgent = await agentsResolveDefault(
+      settingsService.currentSettings.ai.defaultAgentId,
+    );
   }
 
   async init(): Promise<void> {
@@ -77,6 +82,9 @@ export class AgentService {
       throw new Error('Failed to load agents');
     }
     this.agents = list;
+    this.defaultAgent = await agentsResolveDefault(
+      settingsService.currentSettings.ai.defaultAgentId,
+    );
     this.initialized = true;
   }
 
@@ -132,23 +140,7 @@ export class AgentService {
   }
 
   getDefaultAgent(): AgentDef | null {
-    const id = settingsService.currentSettings.ai.defaultAgentId;
-    if (id) {
-      const match = this.getById(id);
-      if (match) return match;
-    }
-    return this.agents[0] ?? null;
-  }
-
-  async getOrCreateDefaultAgent(providerId: string, modelId: string): Promise<AgentDef> {
-    const existingId = settingsService.currentSettings.ai.defaultAgentId;
-    if (existingId) {
-      const existing = this.getById(existingId);
-      if (existing) return existing;
-    }
-    const created = await this.create(buildDefaultAgentInput(providerId, modelId));
-    await settingsService.updateSettings('ai', { defaultAgentId: created.id });
-    return created;
+    return this.defaultAgent;
   }
 
   /**
@@ -158,23 +150,12 @@ export class AgentService {
    */
   async upsertDefaultAgent(providerId: string, modelId: string): Promise<AgentDef> {
     const existingId = settingsService.currentSettings.ai.defaultAgentId;
-    if (existingId) {
-      const existing = this.getById(existingId);
-      if (existing) {
-        return this.update({
-          id: existing.id,
-          name: existing.name,
-          description: existing.description ?? null,
-          systemPrompt: existing.systemPrompt,
-          providerId,
-          modelId,
-          toolSelection: existing.toolSelection,
-        });
-      }
+    const row = await agentsUpsertDefault(existingId, providerId, modelId);
+    this.defaultAgent = row;
+    if (existingId !== row.id) {
+      await settingsService.updateSettings('ai', { defaultAgentId: row.id });
     }
-    const created = await this.create(buildDefaultAgentInput(providerId, modelId));
-    await settingsService.updateSettings('ai', { defaultAgentId: created.id });
-    return created;
+    return row;
   }
 
   /**
@@ -189,12 +170,7 @@ export class AgentService {
    * record is returned untouched and no new SQLite row is written.
    */
   async seedGrammarFixAgent(providerId: string, modelId: string): Promise<AgentDef> {
-    const existing = this.agents.find((a) => a.name === 'Grammar Fix');
-    if (existing) {
-      logService.debug('[agents] Grammar Fix already seeded; skipping');
-      return existing;
-    }
-    return this.create(buildGrammarFixAgentInput(providerId, modelId));
+    return agentsSeedGrammarFix(providerId, modelId);
   }
 
   async listThreads(agentId: string): Promise<ThreadDef[]> {

@@ -81,6 +81,7 @@ tauri-plugin-deep-link = "2"
 arboard = "3.6.1"
 trash = "5"
 regex = "1"
+unicode-segmentation = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 notify = "8"                       # Filesystem watcher — drives auto-rescan of the app index
 notify-debouncer-full = "0.7"      # Debounce for app-index/fs-watch. ALWAYS NoCache: default FileIdMap stat-walks whole watched roots

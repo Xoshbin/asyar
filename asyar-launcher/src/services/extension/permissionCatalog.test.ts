@@ -35,7 +35,6 @@ describe('permissionCatalog', () => {
       'cache:read',
       'cache:write',
       'selection:read',
-      'ai:use',
       'oauth:use',
       'extension:invoke',
       'application:read',
