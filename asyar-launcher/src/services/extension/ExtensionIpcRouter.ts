@@ -381,8 +381,8 @@ export class ExtensionIpcRouter {
     if (!source || typeof document === 'undefined') return undefined;
     const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe[data-extension-id]');
     for (let index = 0; index < iframes.length; index += 1) {
-      const frame = iframes.item(index);
-      if (frame.contentWindow === source) {
+      const frame = iframes[index];
+      if (frame?.contentWindow === source) {
         return frame.dataset.extensionId;
       }
     }
@@ -402,8 +402,8 @@ export class ExtensionIpcRouter {
     if (!source || typeof document === 'undefined') return undefined;
     const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe[data-extension-id]');
     for (let index = 0; index < iframes.length; index += 1) {
-      const frame = iframes.item(index);
-      if (frame.contentWindow === source) {
+      const frame = iframes[index];
+      if (frame?.contentWindow === source) {
         const role = frame.dataset.role;
         return role === 'view' || role === 'worker' ? role : undefined;
       }
