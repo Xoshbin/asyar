@@ -60,7 +60,7 @@ async function assertTextSendable(actionTitle: string): Promise<string | null> {
     return null;
   }
 
-  const text = clipboardViewState.getPlainText(item);
+  const text = await clipboardViewState.getPlainText(item);
   if (!text.trim()) return null;
   return text;
 }
@@ -280,7 +280,7 @@ class ClipboardHistoryExtension implements Extension {
         const item = clipboardViewState.selectedItem;
         if (!item || item.type === ClipboardItemType.Image || item.type === ClipboardItemType.Files)
           return;
-        snippetUiState.prefillExpansion = clipboardViewState.getPlainText(item);
+        snippetUiState.prefillExpansion = await clipboardViewState.getPlainText(item);
         snippetUiState.editorTrigger = 'add';
         this.extensionManager?.navigateToView('snippets/DefaultView');
       },

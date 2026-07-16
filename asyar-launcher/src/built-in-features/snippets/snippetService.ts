@@ -12,18 +12,21 @@ export const enabledPersistence = createPersistence<boolean>(
 );
 
 /**
- * Run the secret redactor over a snippet's expansion text.
+ * Run the secret detector over a snippet's expansion text.
  *
- * Returns `{ expansion, redactedKinds? }` ready to splice onto a
- * [`Snippet`] payload. When the redactor is disabled or finds no match,
- * `redactedKinds` is `undefined` and `expansion` is the input verbatim.
+ * When secrets are detected, the original expansion is preserved and tagged
+ * with the matched kinds. The Rust snippet store encrypts the expansion before
+ * writing it to SQLite and decrypts it when loading snippets.
+ *
+ * When the redactor is disabled or finds no match, `redactedKinds` is
+ * `undefined` and `expansion` is the input verbatim.
  */
-export async function redactSnippetExpansion(
+export async function processSnippetExpansion(
   expansion: string,
 ): Promise<{ expansion: string; redactedKinds?: string[] }> {
   const r = await secretRedactionService.redactIfEnabled('snippets', expansion);
   if (r && r.kinds.length > 0) {
-    return { expansion: r.content, redactedKinds: r.kinds };
+    return { expansion, redactedKinds: r.kinds };
   }
   return { expansion };
 }

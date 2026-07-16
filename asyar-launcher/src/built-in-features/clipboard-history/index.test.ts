@@ -729,7 +729,7 @@ describe('Ask AI about this action', () => {
       favorite: false,
     };
 
-    vi.mocked(mockState.clipboardViewState.getPlainText).mockImplementationOnce(() => '   ');
+    vi.mocked(mockState.clipboardViewState.getPlainText).mockResolvedValueOnce('   ');
 
     const { actionService } = await import('../../services/action/actionService.svelte');
     const askAction = vi

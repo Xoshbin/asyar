@@ -2,7 +2,7 @@
   import { Input, Textarea } from '../../components';
   import { onMount } from 'svelte';
   import { snippetStore, type Snippet } from './snippetStore.svelte';
-  import { snippetService, enabledPersistence, redactSnippetExpansion } from './snippetService';
+  import { snippetService, enabledPersistence, processSnippetExpansion } from './snippetService';
   import { snippetUiState } from './snippetUiState.svelte';
   import { snippetViewState } from './snippetViewState.svelte';
   import {
@@ -95,7 +95,7 @@
     } else if (snippetViewState.mode === 'edit' && snippetViewState.editingSnippet) {
       const s = snippetViewState.editingSnippet;
       formName = s.name;
-      formKeyword = s.keyword;
+      formKeyword = s.keyword ?? '';
       formExpansion = s.expansion;
       formError = null;
       formId = s.id;
@@ -140,13 +140,13 @@
       return;
     }
 
-    const { expansion: redactedExpansion, redactedKinds } =
-      await redactSnippetExpansion(formExpansion);
+    const { expansion: processedExpansion, redactedKinds } =
+      await processSnippetExpansion(formExpansion);
     const payload: Snippet = {
       id: formId,
       name: formName.trim(),
       keyword: formKeyword.trim().toLowerCase(),
-      expansion: redactedExpansion,
+      expansion: processedExpansion,
       createdAt: snippetViewState.editingSnippet?.createdAt ?? Date.now(),
       redactedKinds,
     };
@@ -384,7 +384,16 @@
               <Badge text={selectedSnippet.keyword} variant="default" mono />
             </div>
           {/if}
-          <pre class="snippet-expansion">{selectedSnippet.expansion}</pre>
+          {#if selectedSnippet.redactedKinds?.length}
+            <div class="flex items-center gap-3 p-6">
+              <Badge text="Encrypted secret" variant="warning" />
+              <span class="text-caption">
+                {selectedSnippet.redactedKinds.join(', ')} — expands to the original value
+              </span>
+            </div>
+          {:else}
+            <pre class="snippet-expansion">{selectedSnippet.expansion}</pre>
+          {/if}
         </div>
         <ActionFooter>
           {#snippet left()}
@@ -401,9 +410,11 @@
                 </svg>
                 {dateFormat.format(selectedSnippet.createdAt)}
               </span>
-              <span class="text-caption" style="color: var(--text-tertiary)"
-                >{selectedSnippet.expansion.length} chars</span
-              >
+              {#if !selectedSnippet.redactedKinds?.length}
+                <span class="text-caption" style="color: var(--text-tertiary)"
+                  >{selectedSnippet.expansion.length} chars</span
+                >
+              {/if}
             </div>
           {/snippet}
         </ActionFooter>

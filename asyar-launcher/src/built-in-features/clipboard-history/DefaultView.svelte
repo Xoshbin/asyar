@@ -107,7 +107,8 @@
     }
   });
 
-  // Full item (content decrypted) fetched lazily when selection changes
+  // Full item fetched lazily when selection changes. Rust decrypts the stored
+  // content; secret-tagged rows remain masked by the detail renderer below.
   let selectedFullItem = $state<StoredClipboardItem | null>(null);
   $effect(() => {
     const id = clipboardViewState.selectedItemId;
@@ -222,7 +223,7 @@
   // Fetch URL content when a URL item is selected
   $effect(() => {
     const item = selectedFullItem;
-    if (!item || !isUrl(item.content) || !showRenderedHtml) {
+    if (!item || item.redactedKinds?.length || !isUrl(item.content) || !showRenderedHtml) {
       if (currentFetchedUrl) {
         if (urlBlobUrl) {
           URL.revokeObjectURL(urlBlobUrl);
@@ -531,7 +532,7 @@
 
       {#snippet detail()}
         {#if selectedId}
-          {#if showRenderedHtml && isUrl(selectedFullItem?.content) && urlBlobUrl}
+          {#if !selectedFullItem?.redactedKinds?.length && showRenderedHtml && isUrl(selectedFullItem?.content) && urlBlobUrl}
             <iframe src={urlBlobUrl} class="url-iframe" sandbox="allow-scripts" title="URL preview"
             ></iframe>
           {:else}
@@ -540,6 +541,11 @@
                 <span style="color: var(--text-tertiary)">Loading…</span>
               {:else if !selectedFullItem.content}
                 <span style="color: var(--text-tertiary)">No preview available</span>
+              {:else if selectedFullItem.redactedKinds?.length}
+                <div class="flex items-center gap-3 p-6">
+                  <Badge text="Encrypted secret" variant="warning" />
+                  <span class="text-caption">Pasting uses the original value</span>
+                </div>
               {:else if selectedFullItem.type === 'image'}
                 <div
                   class="image-container w-full h-full flex flex-col items-center justify-center p-4"
@@ -723,7 +729,7 @@
                     >
                     {formatDetailDate(selectedFullItem.createdAt)}
                   </span>
-                  {#if getMetadataText(selectedFullItem)}
+                  {#if !selectedFullItem.redactedKinds?.length && getMetadataText(selectedFullItem)}
                     <span class="text-caption opacity-70">
                       {getMetadataText(selectedFullItem)}
                     </span>

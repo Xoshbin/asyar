@@ -436,7 +436,7 @@ describe('handleClipboardChange', () => {
       vi.clearAllMocks();
     });
 
-    it('redacts text content when redactor returns kinds', async () => {
+    it('preserves matched text for Rust at-rest encryption', async () => {
       vi.mocked(secretRedactionService.redactIfEnabled).mockResolvedValueOnce({
         content: 'token=[redacted: aws_access_key] end',
         kinds: ['aws_access_key'],
@@ -452,7 +452,8 @@ describe('handleClipboardChange', () => {
       expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
         expect.objectContaining({
           type: ClipboardItemType.Text,
-          content: 'token=[redacted: aws_access_key] end',
+          content: 'token=AKIAIOSFODNN7EXAMPLE end',
+          preview: '[Encrypted secret]',
           redactedKinds: ['aws_access_key'],
         }),
       );
@@ -489,7 +490,7 @@ describe('handleClipboardChange', () => {
       expect(arg.redactedKinds).toBeUndefined();
     });
 
-    it('redacts HTML content', async () => {
+    it('preserves matched HTML for Rust at-rest encryption', async () => {
       vi.mocked(secretRedactionService.redactIfEnabled).mockResolvedValueOnce({
         content: '<p>[redacted: jwt]</p>',
         kinds: ['jwt'],
@@ -505,13 +506,14 @@ describe('handleClipboardChange', () => {
       expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
         expect.objectContaining({
           type: ClipboardItemType.Html,
-          content: '<p>[redacted: jwt]</p>',
+          content: '<p>eyJhbGciOiJIUzI1NiJ9...</p>',
+          preview: '[Encrypted secret]',
           redactedKinds: ['jwt'],
         }),
       );
     });
 
-    it('redacts RTF content', async () => {
+    it('preserves matched RTF for Rust at-rest encryption', async () => {
       vi.mocked(secretRedactionService.redactIfEnabled).mockResolvedValueOnce({
         content: '{\\rtf1 [redacted: aws_access_key]}',
         kinds: ['aws_access_key'],
@@ -526,6 +528,8 @@ describe('handleClipboardChange', () => {
 
       const arg = vi.mocked(clipboardHistoryStore.addHistoryItem).mock.calls[0][0];
       expect(arg.type).toBe(ClipboardItemType.Rtf);
+      expect(arg.content).toBe('{\\rtf1 AKIAIOSFODNN7EXAMPLE}');
+      expect(arg.preview).toBe('[Encrypted secret]');
       expect(arg.redactedKinds).toEqual(['aws_access_key']);
     });
 

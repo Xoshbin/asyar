@@ -196,13 +196,18 @@ export class ClipboardViewStateClass {
     }
   }
 
-  getPlainText(item: ClipboardHistoryItem): string {
-    if (item.type === ClipboardItemType.Html) {
-      return stripHtml(item.content || '');
-    } else if (item.type === ClipboardItemType.Rtf) {
-      return stripRtf(item.content || '');
+  async getPlainText(item: ClipboardHistoryItem): Promise<string> {
+    const source = item.content
+      ? item
+      : ((await clipboardHistoryStore.fetchFullItem(item.id)) as ClipboardHistoryItem | null);
+    if (!source) return '';
+
+    if (source.type === ClipboardItemType.Html) {
+      return stripHtml(source.content || '');
+    } else if (source.type === ClipboardItemType.Rtf) {
+      return stripRtf(source.content || '');
     }
-    return item.content || '';
+    return source.content || '';
   }
 
   async pasteAsPlainText() {
@@ -211,9 +216,7 @@ export class ClipboardViewStateClass {
 
     try {
       if (item.content) {
-        // Path A: content present — keep $state.snapshot inline so the
-        // compiler emits the proxy-stripping clone.
-        const plainText = this.getPlainText(item);
+        const plainText = await this.getPlainText(item);
         await this.clipboardService.pasteItem({
           ...($state.snapshot(item) as ClipboardHistoryItem),
           type: ClipboardItemType.Text as any,
@@ -224,7 +227,7 @@ export class ClipboardViewStateClass {
         const full = await clipboardHistoryStore.fetchFullItem(item.id);
         if (full) {
           const source = full as unknown as ClipboardHistoryItem;
-          const plainText = this.getPlainText(source);
+          const plainText = await this.getPlainText(source);
           await this.clipboardService.pasteItem({
             ...source,
             type: ClipboardItemType.Text as any,
@@ -258,8 +261,7 @@ export class ClipboardViewStateClass {
           if (item.content) {
             await this.clipboardService.pasteItem($state.snapshot(item) as ClipboardHistoryItem);
           } else {
-            // Path B: list-row payload — fetch the full row first to decrypt
-            // content, then paste.
+            // Path B: list-row payload — fetch the full row first to get content.
             const full = await clipboardHistoryStore.fetchFullItem(item.id);
             if (full) {
               await this.clipboardService.pasteItem(full as unknown as ClipboardHistoryItem);

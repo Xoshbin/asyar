@@ -62,7 +62,7 @@ vi.mock('../../services/privacy/secretRedactionService.svelte', () => ({
 import { ClipboardItemType } from 'asyar-sdk/contracts';
 import { selectionService } from '../../services/selection/selectionService';
 import { clipboardHistoryService } from '../../services/clipboard/clipboardHistoryService';
-import { snippetService, redactSnippetExpansion } from './snippetService';
+import { snippetService, processSnippetExpansion } from './snippetService';
 
 const mockReadCurrentClipboard = vi.mocked(clipboardHistoryService.readCurrentClipboard);
 
@@ -315,10 +315,10 @@ describe('pasteSnippet', () => {
     });
   });
 
-  describe('redactSnippetExpansion', () => {
+  describe('processSnippetExpansion', () => {
     it('returns expansion verbatim when redactor returns null (disabled)', async () => {
       mockRedactIfEnabled.mockResolvedValueOnce(null);
-      const r = await redactSnippetExpansion('plain expansion');
+      const r = await processSnippetExpansion('plain expansion');
       expect(r.expansion).toBe('plain expansion');
       expect(r.redactedKinds).toBeUndefined();
     });
@@ -329,25 +329,25 @@ describe('pasteSnippet', () => {
         kinds: [],
         oversizedUnscanned: false,
       });
-      const r = await redactSnippetExpansion('plain expansion');
+      const r = await processSnippetExpansion('plain expansion');
       expect(r.expansion).toBe('plain expansion');
       expect(r.redactedKinds).toBeUndefined();
     });
 
-    it('returns redacted content when matches found', async () => {
+    it('preserves matched content for Rust at-rest encryption', async () => {
       mockRedactIfEnabled.mockResolvedValueOnce({
         content: 'token=[redacted: aws_access_key]',
         kinds: ['aws_access_key'],
         oversizedUnscanned: false,
       });
-      const r = await redactSnippetExpansion('token=AKIAIOSFODNN7EXAMPLE');
-      expect(r.expansion).toBe('token=[redacted: aws_access_key]');
+      const r = await processSnippetExpansion('token=AKIAIOSFODNN7EXAMPLE');
+      expect(r.expansion).toBe('token=AKIAIOSFODNN7EXAMPLE');
       expect(r.redactedKinds).toEqual(['aws_access_key']);
     });
 
     it('passes the snippets category to the redactor', async () => {
       mockRedactIfEnabled.mockResolvedValueOnce(null);
-      await redactSnippetExpansion('hello');
+      await processSnippetExpansion('hello');
       expect(mockRedactIfEnabled).toHaveBeenCalledWith('snippets', 'hello');
     });
   });

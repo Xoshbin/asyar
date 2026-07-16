@@ -27,9 +27,8 @@ export interface Snippet {
   createdAt: number;
   pinned?: boolean;
   /**
-   * Set when the secret redactor matched on save. Each entry is a kind name
-   * from the bundled detector catalog. The original (pre-redaction) value
-   * of `expansion` is not stored.
+   * Set when the secret detector matched on save. The Rust store encrypts the
+   * original expansion at rest and returns it decrypted for use and editing.
    */
   redactedKinds?: string[];
 }
