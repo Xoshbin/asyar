@@ -3,6 +3,7 @@ import {
   availableProvidersForNewRow,
   canTestAndFetch,
   configForNewProvider,
+  modelSelectionAfterFetch,
   reasoningEffortAfterModelChange,
   reasoningEffortsForModel,
 } from './AiTab.helpers';
@@ -143,5 +144,49 @@ describe('reasoningEffortsForModel', () => {
         'low',
       ),
     ).toBe('low');
+  });
+});
+
+// ── modelSelectionAfterFetch ───────────────────────────────────────────────────
+
+describe('modelSelectionAfterFetch', () => {
+  const plugin = makePlugin('ollama');
+  const models = [
+    { id: 'llama3.2', label: 'Llama 3.2' },
+    { id: 'qwen2.5', label: 'Qwen 2.5' },
+  ];
+
+  it('adopts the first fetched model when none is selected yet', () => {
+    // The <select> only shows the first model — it never fires onchange, so the
+    // config must be seeded here or the ★ default button stays disabled.
+    const result = modelSelectionAfterFetch(plugin, models, { enabled: true });
+    expect(result.configPatch.lastModelId).toBe('llama3.2');
+    expect(result.newlySelectedModelId).toBe('llama3.2');
+  });
+
+  it('keeps the user-chosen model and does not re-trigger auto-default', () => {
+    const result = modelSelectionAfterFetch(plugin, models, {
+      enabled: true,
+      lastModelId: 'qwen2.5',
+    });
+    expect(result.configPatch.lastModelId).toBeUndefined();
+    expect(result.newlySelectedModelId).toBeUndefined();
+  });
+
+  it('makes no selection when the provider returns no models', () => {
+    const result = modelSelectionAfterFetch(plugin, [], { enabled: true });
+    expect(result.configPatch.lastModelId).toBeUndefined();
+    expect(result.newlySelectedModelId).toBeUndefined();
+  });
+
+  it('clears a reasoning effort the auto-selected model does not support', () => {
+    const reasoningPlugin = makePlugin('ollama', { reasoningEfforts: ['low', 'high'] });
+    const result = modelSelectionAfterFetch(
+      reasoningPlugin,
+      [{ id: 'plain', label: 'Plain', reasoningEfforts: [] }],
+      { enabled: true, reasoningEffort: 'high' },
+    );
+    expect(result.configPatch.reasoningEffort).toBeUndefined();
+    expect('reasoningEffort' in result.configPatch).toBe(true);
   });
 });
