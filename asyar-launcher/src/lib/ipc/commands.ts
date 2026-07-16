@@ -1632,9 +1632,13 @@ export async function scriptsPickDirectory(): Promise<string | null> {
 }
 
 export async function scriptsRescan(): Promise<
-  import('../../built-in-features/scripts/types').ScannedScript[] | null
+  import('../../built-in-features/scripts/types').ScriptScanReport | null
 > {
   return invokeSafe('scripts_rescan');
+}
+
+export async function scriptsMakeExecutable(path: string): Promise<void> {
+  await invokeSafe('scripts_make_executable', { path });
 }
 
 /**

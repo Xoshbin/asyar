@@ -4,11 +4,6 @@ import { scriptsManager } from './scriptsManager.svelte';
 
 const SCRIPTS_EXTENSION_ID = 'scripts';
 
-function deriveFilenameTitle(absolutePath: string): string {
-  const base = absolutePath.split(/[\\/]/).pop() ?? absolutePath;
-  return base.replace(/\.[^.]+$/, '') || base;
-}
-
 export async function dispatchScriptCommand(
   dynamicId: string,
   args: Record<string, unknown> | undefined,
@@ -37,7 +32,7 @@ export async function dispatchScriptCommand(
 
   const spawnId = crypto.randomUUID();
   const subjectId = `cmd_scripts_dyn_${dynamicId}`;
-  const label = script.header.title ?? deriveFilenameTitle(script.absolutePath);
+  const label = script.displayName;
   await shellService.spawn(
     SCRIPTS_EXTENSION_ID,
     script.absolutePath,

@@ -8,4 +8,7 @@ pub use inline_scheduler::{
     clear_inline_scripts, set_inline_scripts, InlineSchedulerState, InlineScriptSpec,
     InlineTickPayload, SetInlineScriptsOutcome,
 };
-pub use scanner::{scan_directories, ScannedScript};
+pub use scanner::{
+    scan_directories, ScannedScript, ScriptScanIssue, ScriptScanIssueFix, ScriptScanIssueReason,
+    ScriptScanReport,
+};

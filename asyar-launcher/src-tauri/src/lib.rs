@@ -390,6 +390,7 @@ pub fn run() {
             commands::scripts::scripts_list_directories,
             commands::scripts::scripts_pick_directory,
             commands::scripts::scripts_rescan,
+            commands::scripts::scripts_make_executable,
             commands::scripts::scripts_set_inline_scripts,
             commands::calculator::calculator_evaluate,
             commands::calculator::calculator_configure,

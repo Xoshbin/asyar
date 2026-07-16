@@ -10,12 +10,12 @@
   "permissions": ["shell:spawn"],
   "commands": [
     {
-      "id": "manage-scripts",
-      "name": "Manage Scripts",
+      "id": "script-library",
+      "name": "Script Library",
       "icon": "icon:terminal",
-      "description": "Open Scripts manager",
+      "description": "Inspect, run, and troubleshoot scripts",
       "mode": "view",
-      "component": "ScriptsManagerView"
+      "component": "ScriptLibraryView"
     }
   ]
 }

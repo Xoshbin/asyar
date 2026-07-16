@@ -1,6 +1,9 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
   scriptsRescan,
+  scriptsMakeExecutable,
+  scriptsPickDirectory,
+  scriptsAddDirectory,
   scriptsSetInlineScripts,
   replaceDynamicCommandsBuiltin,
   type InlineScriptSpec,
@@ -9,7 +12,7 @@ import {
 import { logService } from '../../services/log/logService';
 import { commandService } from '../../services/extension/commandService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-import type { ScannedScript } from './types';
+import type { ScannedScript, ScriptScanIssue } from './types';
 import type { DynamicCommandRegistration } from 'asyar-sdk/contracts';
 
 const SCRIPTS_EXTENSION_ID = 'scripts';
@@ -21,8 +24,11 @@ const SCRIPT_COMMAND_OBJECT_PREFIX = 'cmd_scripts_dyn_';
 
 export class ScriptsManager {
   scripts = $state<ScannedScript[]>([]);
+  issues = $state<ScriptScanIssue[]>([]);
+  selectedEntryId = $state<string | null>(null);
   private unlistenScriptsChanged: UnlistenFn | null = null;
   private unlistenInlineTick: UnlistenFn | null = null;
+  private refreshPromise: Promise<void> | null = null;
   /** Dynamic ids we've already surfaced a clamp diagnostic for. */
   private clampWarned = new Set<string>();
   /** Dynamic ids we've already surfaced a cap-overflow diagnostic for. */
@@ -68,6 +74,8 @@ export class ScriptsManager {
     }
     await replaceDynamicCommandsBuiltin(SCRIPTS_EXTENSION_ID, []);
     this.scripts = [];
+    this.issues = [];
+    this.selectedEntryId = null;
     this.clampWarned.clear();
     this.cappedWarned.clear();
   }
@@ -76,8 +84,63 @@ export class ScriptsManager {
     return this.scripts.find((s) => s.dynamicId === id);
   }
 
+  get selectedScript(): ScannedScript | undefined {
+    if (!this.selectedEntryId?.startsWith('script:')) return undefined;
+    return this.getScriptByDynamicId(this.selectedEntryId.slice('script:'.length));
+  }
+
+  get selectedIssue(): ScriptScanIssue | undefined {
+    if (!this.selectedEntryId?.startsWith('issue:')) return undefined;
+    const path = this.selectedEntryId.slice('issue:'.length);
+    return this.issues.find((issue) => issue.absolutePath === path);
+  }
+
+  get selectedPath(): string | undefined {
+    return this.selectedScript?.absolutePath ?? this.selectedIssue?.absolutePath;
+  }
+
+  selectEntry(id: string): void {
+    if (this.entryIds().includes(id)) this.selectedEntryId = id;
+  }
+
+  moveSelection(direction: 1 | -1): void {
+    const ids = this.entryIds();
+    if (ids.length === 0) {
+      this.selectedEntryId = null;
+      return;
+    }
+    const currentIndex = this.selectedEntryId ? ids.indexOf(this.selectedEntryId) : -1;
+    const nextIndex =
+      currentIndex === -1
+        ? direction === 1
+          ? 0
+          : ids.length - 1
+        : Math.max(0, Math.min(ids.length - 1, currentIndex + direction));
+    this.selectedEntryId = ids[nextIndex];
+  }
+
+  async rescan(): Promise<void> {
+    await this.refresh();
+  }
+
+  async makeSelectedExecutable(): Promise<void> {
+    const issue = this.selectedIssue;
+    if (issue?.fix !== 'makeExecutable') return;
+    await scriptsMakeExecutable(issue.absolutePath);
+    await this.refresh();
+  }
+
+  async addDirectory(): Promise<void> {
+    const path = await scriptsPickDirectory();
+    if (!path) return;
+    await scriptsAddDirectory(path);
+    await this.refresh();
+  }
+
   reset(): void {
     this.scripts = [];
+    this.issues = [];
+    this.selectedEntryId = null;
     this.unlistenScriptsChanged = null;
     this.unlistenInlineTick = null;
     this.clampWarned.clear();
@@ -85,23 +148,55 @@ export class ScriptsManager {
   }
 
   private async refresh(): Promise<void> {
-    const fresh = await scriptsRescan();
-    if (fresh === null) {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    const activeRefresh = this.performRefresh();
+    this.refreshPromise = activeRefresh;
+    try {
+      await activeRefresh;
+    } finally {
+      if (this.refreshPromise === activeRefresh) {
+        this.refreshPromise = null;
+      }
+    }
+  }
+
+  private async performRefresh(): Promise<void> {
+    const report = await scriptsRescan();
+    if (report === null) {
       throw new Error('Failed to rescan scripts');
     }
-    const regs: DynamicCommandRegistration[] = fresh.map((s) => ({
+    const regs: DynamicCommandRegistration[] = report.scripts.map((s) => ({
       id: s.dynamicId,
-      name: s.header.title ?? deriveFilenameTitle(s.absolutePath),
+      name: s.displayName,
       icon: s.header.icon ?? 'icon:terminal',
       arguments: s.header.arguments,
     }));
     await replaceDynamicCommandsBuiltin(SCRIPTS_EXTENSION_ID, regs);
-    this.scripts = fresh;
+    this.scripts = report.scripts;
+    this.issues = report.issues;
+    this.reconcileSelection();
 
     // Inline-mode plumbing: collect specs, surface clamp diagnostics once
     // per script, push to Rust scheduler, surface cap-overflow diagnostics,
     // clear subtitles for dropped ids.
-    await this.syncInlineScripts(fresh);
+    await this.syncInlineScripts(report.scripts);
+  }
+
+  private entryIds(): string[] {
+    return [
+      ...this.scripts.map((script) => `script:${script.dynamicId}`),
+      ...this.issues.map((issue) => `issue:${issue.absolutePath}`),
+    ];
+  }
+
+  private reconcileSelection(): void {
+    const ids = this.entryIds();
+    if (!this.selectedEntryId || !ids.includes(this.selectedEntryId)) {
+      this.selectedEntryId = ids[0] ?? null;
+    }
   }
 
   private async syncInlineScripts(scripts: ScannedScript[]): Promise<void> {
@@ -116,7 +211,7 @@ export class ScriptsManager {
     for (const s of inlineScripts) {
       if (s.header.refreshTimeClamped && !this.clampWarned.has(s.dynamicId)) {
         this.clampWarned.add(s.dynamicId);
-        const name = s.header.title ?? deriveFilenameTitle(s.absolutePath);
+        const name = s.displayName;
         await feedbackService.report({
           source: 'frontend',
           kind: 'inline_script_clamped',
@@ -152,7 +247,7 @@ export class ScriptsManager {
       }
       const cappedScripts = newlyCapped.map((id) => {
         const s = inlineScripts.find((x) => x.dynamicId === id);
-        return s?.header.title ?? (s ? deriveFilenameTitle(s.absolutePath) : id);
+        return s?.displayName ?? id;
       });
       await feedbackService.report({
         source: 'frontend',
@@ -198,11 +293,6 @@ export class ScriptsManager {
     delete next[objectId];
     commandService.liveSubtitles = next;
   }
-}
-
-function deriveFilenameTitle(absolutePath: string): string {
-  const base = absolutePath.split(/[\\/]/).pop() ?? absolutePath;
-  return base.replace(/\.[^.]+$/, '') || base;
 }
 
 export const scriptsManager = new ScriptsManager();

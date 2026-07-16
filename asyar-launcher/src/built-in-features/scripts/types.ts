@@ -22,7 +22,34 @@ export interface ParsedScriptHeader {
 
 export interface ScannedScript {
   absolutePath: string;
+  directoryPath: string;
+  fileName: string;
+  displayName: string;
   dynamicId: string;
   header: ParsedScriptHeader;
   executable: boolean;
+}
+
+export type ScriptScanIssueReason =
+  | 'directoryUnreadable'
+  | 'metadataUnreadable'
+  | 'pathUnavailable'
+  | 'notExecutable'
+  | 'contentUnreadable'
+  | 'invalidHeader';
+
+export type ScriptScanIssueFix = 'makeExecutable';
+
+export interface ScriptScanIssue {
+  absolutePath: string;
+  directoryPath: string;
+  fileName: string;
+  reason: ScriptScanIssueReason;
+  message: string;
+  fix: ScriptScanIssueFix | null;
+}
+
+export interface ScriptScanReport {
+  scripts: ScannedScript[];
+  issues: ScriptScanIssue[];
 }

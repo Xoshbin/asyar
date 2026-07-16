@@ -22,6 +22,9 @@ import type { ScannedScript } from './types';
 
 const mockScript: ScannedScript = {
   absolutePath: '/foo/bar.sh',
+  directoryPath: '/foo',
+  fileName: 'bar.sh',
+  displayName: 'My Script',
   dynamicId: 'dyn123',
   header: {
     title: 'My Script',
@@ -70,6 +73,9 @@ describe('dispatchScriptCommand', () => {
     const scriptNoTitle: ScannedScript = {
       ...mockScript,
       absolutePath: '/Users/me/scripts/sync-hosts.sh',
+      directoryPath: '/Users/me/scripts',
+      fileName: 'sync-hosts.sh',
+      displayName: 'sync-hosts',
       header: { ...mockScript.header, title: null },
     };
     vi.mocked(scriptsManager.getScriptByDynamicId).mockReturnValue(scriptNoTitle);
