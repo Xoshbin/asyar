@@ -43,6 +43,46 @@ export function configForNewProvider(
   };
 }
 
+export interface FetchModelsOutcome {
+  /** Config fields to persist after a fetch (may be empty). */
+  configPatch: Partial<ProviderConfig>;
+  /** The model id to auto-adopt as default, set only on a first-time selection. */
+  newlySelectedModelId: string | undefined;
+}
+
+/**
+ * Decides what to persist after models are fetched for a provider.
+ *
+ * The model <select> shows `config.lastModelId ?? models[0].id`, so an
+ * untouched dropdown displays the first model but fires no onchange — the id
+ * would never persist, leaving `lastModelId` unset and the ★ default button
+ * disabled. This seeds the effective model so the button works and the first
+ * provider can auto-default.
+ */
+export function modelSelectionAfterFetch(
+  plugin: IProviderPlugin | null | undefined,
+  models: ModelInfo[],
+  config: ProviderConfig,
+): FetchModelsOutcome {
+  const effectiveModelId = config.lastModelId ?? models[0]?.id;
+  const reasoningEffort = reasoningEffortAfterModelChange(
+    plugin,
+    models,
+    effectiveModelId,
+    config.reasoningEffort,
+  );
+  const isNewSelection = !config.lastModelId && effectiveModelId !== undefined;
+
+  const configPatch: Partial<ProviderConfig> = {};
+  if (isNewSelection) configPatch.lastModelId = effectiveModelId;
+  if (reasoningEffort !== config.reasoningEffort) configPatch.reasoningEffort = reasoningEffort;
+
+  return {
+    configPatch,
+    newlySelectedModelId: isNewSelection ? effectiveModelId : undefined,
+  };
+}
+
 export function reasoningEffortsForModel(
   plugin: IProviderPlugin | null | undefined,
   models: ModelInfo[],

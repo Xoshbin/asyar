@@ -8,6 +8,7 @@
     availableProvidersForNewRow,
     canTestAndFetch,
     configForNewProvider,
+    modelSelectionAfterFetch,
     reasoningEffortAfterModelChange,
     reasoningEffortsForModel,
   } from './AiTab.helpers';
@@ -109,15 +110,18 @@
       modelCache = { ...modelCache, [plugin.id]: models };
       fetchErrors = { ...fetchErrors, [plugin.id]: '' };
       const config = getConfig(plugin.id);
-      const modelId = config.lastModelId ?? models[0]?.id;
-      const reasoningEffort = reasoningEffortAfterModelChange(
+      // Seed the effective model so the ★ default button is enabled even when
+      // the user keeps the pre-selected first entry (which fires no onchange).
+      const { configPatch, newlySelectedModelId } = modelSelectionAfterFetch(
         plugin,
         models,
-        modelId,
-        config.reasoningEffort,
+        config,
       );
-      if (reasoningEffort !== config.reasoningEffort) {
-        updateProviderConfig(plugin.id, { reasoningEffort });
+      if (Object.keys(configPatch).length > 0) {
+        updateProviderConfig(plugin.id, configPatch);
+      }
+      if (newlySelectedModelId) {
+        await maybeAutoSetAsDefault(plugin.id, newlySelectedModelId);
       }
     } catch (e: unknown) {
       fetchErrors = {
@@ -135,10 +139,15 @@
     return agent?.providerId === id;
   }
 
-  async function setAsDefault(id: ProviderId) {
+  // Make a provider the sole default. `fallbackModelId` is the first fetched
+  // model, used when the user hasn't explicitly picked one yet (an untouched
+  // dropdown fires no onchange). The resolved model is persisted so the row and
+  // the default agent always agree.
+  async function setAsDefault(id: ProviderId, fallbackModelId?: string) {
     const config = getConfig(id);
-    const modelId = config.lastModelId;
+    const modelId = config.lastModelId ?? fallbackModelId;
     if (!modelId) return;
+    if (!config.lastModelId) updateProviderConfig(id, { lastModelId: modelId });
     try {
       await agentService.upsertDefaultAgent(id, modelId);
     } catch (err) {
@@ -299,7 +308,7 @@
         {@const isFetching = !!fetchingModels[providerId]}
         {@const fetchError = fetchErrors[providerId] ?? ''}
         {@const defaultRow = isDefault(providerId)}
-        {@const hasModel = !!config.lastModelId}
+        {@const canBeDefault = !!config.lastModelId || cachedModels.length > 0}
         {@const useCustomInput = customModelMode[providerId] ?? false}
         {@const openAIApiMode = config.openAIApiMode ?? 'chat-completions'}
         {@const selectedModelId = config.lastModelId ?? cachedModels[0]?.id}
@@ -326,13 +335,13 @@
               <button
                 class="star-btn"
                 class:is-filled={defaultRow}
-                disabled={!hasModel}
-                title={hasModel
+                disabled={!canBeDefault}
+                title={canBeDefault
                   ? defaultRow
                     ? 'Default provider'
                     : 'Set as default'
-                  : 'Pick a model first'}
-                onclick={() => setAsDefault(providerId)}
+                  : 'Fetch a model first'}
+                onclick={() => setAsDefault(providerId, selectedModelId)}
                 aria-label={defaultRow ? 'Default provider' : 'Set as default'}
               >
                 {defaultRow ? '★' : '☆'}

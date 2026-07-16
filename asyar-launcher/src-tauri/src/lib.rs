@@ -2024,13 +2024,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     {
         let db = app.state::<crate::storage::DataStore>();
         if let Ok(conn) = db.conn() {
-            if let Ok(Some(default_agent)) =
-                crate::agents::lifecycle::resolve_default_agent(&conn, None)
-            {
+            if let Ok(Some(template_agent)) = crate::agents::lifecycle::first_agent(&conn) {
                 let _ = crate::agents::lifecycle::seed_emoji_fallback_agent(
                     &conn,
-                    &default_agent.provider_id,
-                    &default_agent.model_id,
+                    &template_agent.provider_id,
+                    &template_agent.model_id,
                 );
             }
         };

@@ -49,15 +49,29 @@ fn default_agent(provider_id: &str, model_id: &str) -> AgentRow {
     }
 }
 
+/// Resolve the user's chosen default agent by id.
+///
+/// Returns `None` when no id is stored or the stored id no longer points at a
+/// live agent. It deliberately does NOT fall back to "the first agent in the
+/// DB" — that fallback made a provider the user never picked appear as the ★
+/// default (e.g. a leftover Anthropic agent from onboarding). A default is
+/// shown only when it was explicitly chosen.
 pub fn resolve_default_agent(
     conn: &Connection,
     default_agent_id: Option<&str>,
 ) -> Result<Option<AgentRow>, AppError> {
-    if let Some(id) = default_agent_id.filter(|id| !id.trim().is_empty()) {
-        if let Some(agent) = get_agent(conn, id)? {
-            return Ok(Some(agent));
-        }
+    match default_agent_id.filter(|id| !id.trim().is_empty()) {
+        Some(id) => get_agent(conn, id),
+        None => Ok(None),
     }
+}
+
+/// The earliest-inserted agent, or `None` when there are no agents.
+///
+/// Used only where "any existing agent" is a sensible template (e.g. seeding
+/// the emoji fallback agent's provider/model at startup) — never for resolving
+/// the user-facing default.
+pub fn first_agent(conn: &Connection) -> Result<Option<AgentRow>, AppError> {
     Ok(list_agents(conn)?.into_iter().next())
 }
 
@@ -281,21 +295,36 @@ mod tests {
     }
 
     #[test]
-    fn resolve_default_uses_registered_id_then_database_order_fallback() {
+    fn resolve_default_returns_the_registered_agent_or_none() {
         let conn = conn();
         let first = existing_agent("a", "First");
         let second = existing_agent("b", "Second");
         insert_agent(&conn, &first).unwrap();
         insert_agent(&conn, &second).unwrap();
 
+        // A valid id resolves to that exact agent.
         assert_eq!(
             resolve_default_agent(&conn, Some("b")).unwrap(),
             Some(second)
         );
-        assert_eq!(
-            resolve_default_agent(&conn, Some("missing")).unwrap(),
-            Some(first)
-        );
+        // A dangling id resolves to None — never a silent fall back to another
+        // agent, so the UI only shows a ★ default the user actually chose.
+        assert_eq!(resolve_default_agent(&conn, Some("missing")).unwrap(), None);
+        // No id at all means no default has been chosen yet.
+        assert_eq!(resolve_default_agent(&conn, None).unwrap(), None);
+    }
+
+    #[test]
+    fn first_agent_returns_earliest_by_db_order_or_none_when_empty() {
+        let conn = conn();
+        assert_eq!(first_agent(&conn).unwrap(), None);
+
+        let first = existing_agent("a", "First");
+        let second = existing_agent("b", "Second");
+        insert_agent(&conn, &first).unwrap();
+        insert_agent(&conn, &second).unwrap();
+
+        assert_eq!(first_agent(&conn).unwrap(), Some(first));
     }
 
     #[test]
