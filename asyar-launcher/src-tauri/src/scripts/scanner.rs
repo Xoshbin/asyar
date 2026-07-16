@@ -202,10 +202,14 @@ fn scan_issue(
     message: String,
     fix: Option<ScriptScanIssueFix>,
 ) -> ScriptScanIssue {
-    let directory_path = absolute_path
-        .parent()
-        .unwrap_or_else(|| Path::new(""))
-        .to_path_buf();
+    let directory_path = if reason == ScriptScanIssueReason::DirectoryUnreadable {
+        absolute_path.clone()
+    } else {
+        absolute_path
+            .parent()
+            .unwrap_or_else(|| Path::new(""))
+            .to_path_buf()
+    };
     let file_name = file_name(&absolute_path);
     ScriptScanIssue {
         absolute_path,
@@ -551,6 +555,22 @@ mod tests {
         let result =
             scan_directories(&[PathBuf::from("/this/does/not/exist/asyar_test_dir_12345")]);
         assert!(result.scripts.is_empty());
+    }
+
+    #[test]
+    fn unreadable_directory_issue_groups_under_the_watched_directory() {
+        let parent = TempDir::new().unwrap();
+        let watched_directory = parent.path().join("missing-scripts");
+
+        let report = scan_directories(std::slice::from_ref(&watched_directory));
+
+        assert_eq!(report.issues.len(), 1);
+        assert_eq!(report.issues[0].absolute_path, watched_directory);
+        assert_eq!(report.issues[0].directory_path, watched_directory);
+        assert_eq!(
+            report.issues[0].reason,
+            ScriptScanIssueReason::DirectoryUnreadable
+        );
     }
 
     // 10. same directory listed twice — deduplicated by absolute_path
