@@ -63,7 +63,7 @@ fn test_coalesce_consecutive_user_messages() {
 
 #[tokio::test]
 async fn test_system_prompt_adds_hosted_search_date_guidance() {
-    let prompt = build_system_prompt(" Be concise. ", true, None).await;
+    let prompt = build_system_prompt(" Be concise. ", true, None, None).await;
 
     assert!(prompt.starts_with("The available horizontal display space is 400px."));
     assert!(prompt.contains("Be concise."));

@@ -477,6 +477,7 @@ pub(crate) async fn build_system_prompt(
     base_prompt: &str,
     hosted_web_search: bool,
     trigger: Option<&str>,
+    query: Option<&str>,
 ) -> String {
     let mut sections = vec![
         "The available horizontal display space is 400px. Format responses for this width and avoid unnecessarily wide content."
@@ -485,8 +486,8 @@ pub(crate) async fn build_system_prompt(
     if !base_prompt.trim().is_empty() {
         let prompt = base_prompt.trim().to_string();
         let ctx = crate::templating::TemplateContext {
+            query: query.map(|s| s.to_string()),
             trigger: trigger.map(|s| s.to_string()),
-            ..Default::default()
         };
         let resolved = crate::templating::resolve_template(&prompt, &ctx)
             .await
@@ -501,7 +502,11 @@ pub(crate) async fn build_system_prompt(
 
     // Resolve any remaining placeholders like {date} injected above
     let joined = sections.join("\n\n");
-    crate::templating::resolve_template(&joined, &Default::default())
+    let final_ctx = crate::templating::TemplateContext {
+        query: query.map(|s| s.to_string()),
+        trigger: trigger.map(|s| s.to_string()),
+    };
+    crate::templating::resolve_template(&joined, &final_ctx)
         .await
         .unwrap_or(joined)
 }
@@ -586,6 +591,7 @@ async fn run_loop<F, D, Fut>(
     on_event: F,
     dispatch_external: D,
     mut cancellation: Option<watch::Receiver<bool>>,
+    query: Option<&str>,
 ) -> Result<Option<String>, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
@@ -599,6 +605,7 @@ where
         &agent.system_prompt,
         config.provider.hosted_web_search.unwrap_or(false),
         Some(&agent.shortcode_trigger),
+        query,
     )
     .await;
 
@@ -831,6 +838,7 @@ where
         on_event.clone(),
         dispatch_external,
         cancellation,
+        Some(&user_text),
     )
     .await?;
     on_event(if result.is_some() {
@@ -880,6 +888,7 @@ where
         on_event.clone(),
         dispatch_external,
         cancellation,
+        Some(&user_text),
     )
     .await?;
     match result {
