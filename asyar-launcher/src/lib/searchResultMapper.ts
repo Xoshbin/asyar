@@ -9,8 +9,7 @@ import { aliasStore } from '../built-in-features/aliases/aliasStore.svelte';
 import type { Run } from 'asyar-sdk/contracts';
 import { runService } from '../services/run/runService.svelte';
 import { viewManager } from '../services/extension/viewManager.svelte';
-import { agentsManager } from '../built-in-features/agents/agentsManager.svelte';
-import { agentsFindRunOrigin } from './ipc/commands';
+import { openAgentRunInChat } from '../built-in-features/agents/runNavigation';
 import { searchOrchestrator } from '../services/search/searchOrchestrator.svelte';
 import { windowService } from '../services/window/windowService';
 
@@ -128,19 +127,8 @@ function buildRunAction(runId: string, runKind: string): () => Promise<void> {
   if (runKind === 'agent' || runKind === 'ai-chat') {
     return async () => {
       logService.debug(`[searchResultMapper] Opening agent chat for run: ${runId}`);
-      try {
-        const origin = await agentsFindRunOrigin(runId);
-        if (!origin) {
-          logService.warn(`[searchResultMapper] no thread found for run ${runId}`);
-          runService.selectedRunId = runId;
-          viewManager.navigateToView('runs/RunView');
-          return;
-        }
-        agentsManager.currentAgentId = origin.agentId;
-        agentsManager.currentThreadId = origin.threadId;
-        viewManager.navigateToView('agents/AgentChatView');
-      } catch (err) {
-        logService.warn(`[searchResultMapper] navigation to thread failed: ${err}`);
+      const opened = await openAgentRunInChat(runId);
+      if (!opened) {
         runService.selectedRunId = runId;
         viewManager.navigateToView('runs/RunView');
       }

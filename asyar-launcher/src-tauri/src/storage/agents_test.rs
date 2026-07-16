@@ -1,8 +1,9 @@
 #[allow(unused_imports)]
 use crate::storage::agents::{
-    delete_agent, delete_thread, get_agent, init_table, insert_agent, insert_message,
-    insert_thread, list_agents, list_messages_for_thread, list_threads_for_agent, update_agent,
-    AgentRow, MessageRole, MessageRow, SilentInputSource, SilentOutputAction, ThreadRow,
+    delete_agent, delete_thread, find_run_origin, get_agent, init_table, insert_agent,
+    insert_message, insert_thread, list_agents, list_messages_for_thread, list_threads_for_agent,
+    update_agent, AgentRow, MessageRole, MessageRow, SilentInputSource, SilentOutputAction,
+    ThreadRow,
 };
 use rusqlite::Connection;
 
@@ -251,6 +252,20 @@ fn messages_content_json_round_trips() {
     let msgs = list_messages_for_thread(&conn, "t1").unwrap();
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0].content, expected);
+}
+
+#[test]
+fn find_run_origin_rejects_empty_identifiers() {
+    for (agent_id, thread_id) in [("", "t1"), ("a1", "")] {
+        let conn = make_conn();
+        insert_agent(&conn, &agent(agent_id, 1000)).unwrap();
+        insert_thread(&conn, &thread(thread_id, agent_id, 1000)).unwrap();
+        let mut msg = message("m1", thread_id, MessageRole::Assistant, 1000);
+        msg.run_id = Some("run-1".to_string());
+        insert_message(&conn, &msg).unwrap();
+
+        assert_eq!(find_run_origin(&conn, "run-1").unwrap(), None);
+    }
 }
 
 // ── Silent AI command columns ────────────────────────────────────────────────

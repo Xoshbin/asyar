@@ -522,6 +522,8 @@ pub fn find_run_origin(conn: &Connection, run_id: &str) -> Result<Option<RunOrig
              FROM messages m
              JOIN threads t ON t.id = m.thread_id
              WHERE m.run_id = ?1
+               AND trim(t.id) <> ''
+               AND trim(t.agent_id) <> ''
              LIMIT 1",
         )
         .map_err(|e| AppError::Database(e.to_string()))?;

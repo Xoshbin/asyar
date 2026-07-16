@@ -19,6 +19,7 @@ vi.mock('../../services/action/actionService.svelte', () => ({
     registerAction: vi.fn(),
     unregisterAction: vi.fn(),
     refreshFiltered: vi.fn(),
+    executeAction: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -28,9 +29,15 @@ vi.mock('asyar-sdk/contracts', () => ({
 
 vi.mock('./RunView.svelte', () => ({ default: {} }));
 
+vi.mock('../agents/runNavigation', () => ({
+  openAgentRunInChat: vi.fn().mockResolvedValue(true),
+}));
+
 import RunsExtension from './index';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { runService } from '../../services/run/runService.svelte';
+import { actionService } from '../../services/action/actionService.svelte';
+import { openAgentRunInChat } from '../agents/runNavigation';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -58,6 +65,35 @@ describe('RunsExtension.executeCommand', () => {
 });
 
 describe('RunsExtension keyboard navigation', () => {
+  it('registers the agent conversation action for the lifetime of the Runs view', async () => {
+    await RunsExtension.viewActivated!('runs/RunView');
+
+    expect(actionService.registerAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'agents:open-run-in-chat',
+        extensionId: 'runs',
+      }),
+    );
+
+    await RunsExtension.viewDeactivated!('runs/RunView');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:open-run-in-chat');
+  });
+
+  it('the registered conversation action opens the selected agent run', async () => {
+    (runService as any).combined = [{ id: 'agent-run-1', kind: 'agent' }];
+    (runService as any).selectedRunId = 'agent-run-1';
+    await RunsExtension.viewActivated!('runs/RunView');
+
+    const action = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.map(([registered]) => registered)
+      .find((registered) => registered.id === 'agents:open-run-in-chat');
+    await action?.execute();
+
+    expect(openAgentRunInChat).toHaveBeenCalledWith('agent-run-1');
+    await RunsExtension.viewDeactivated!('runs/RunView');
+  });
+
   it('ArrowDown after viewActivated invokes moveSelection("down")', async () => {
     (runService as any).combined = [{ id: 'a1' }, { id: 'a2' }];
     await RunsExtension.viewActivated!('runs/RunView');
@@ -96,6 +132,48 @@ describe('RunsExtension keyboard navigation', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
     expect((runService as any).moveSelection).not.toHaveBeenCalled();
+    expect(actionService.executeAction).not.toHaveBeenCalled();
+    await RunsExtension.viewDeactivated!('runs/RunView');
+  });
+
+  it('Enter with no selection does not read the combined run list', async () => {
+    const combinedGetter = vi.fn(() => []);
+    Object.defineProperty(runService, 'combined', {
+      configurable: true,
+      get: combinedGetter,
+    });
+
+    try {
+      await RunsExtension.viewActivated!('runs/RunView');
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+
+      expect(combinedGetter).not.toHaveBeenCalled();
+    } finally {
+      await RunsExtension.viewDeactivated!('runs/RunView');
+      Object.defineProperty(runService, 'combined', {
+        configurable: true,
+        writable: true,
+        value: [],
+      });
+    }
+  });
+
+  it('Enter opens the conversation for the selected agent run', async () => {
+    (runService as any).combined = [
+      { id: 'agent-run-1', kind: 'agent' },
+      { id: 'script-run-1', kind: 'shell-script' },
+    ];
+    (runService as any).selectedRunId = 'agent-run-1';
+    await RunsExtension.viewActivated!('runs/RunView');
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      cancelable: true,
+    });
+    window.dispatchEvent(event);
+
+    expect(actionService.executeAction).toHaveBeenCalledWith('agents:open-run-in-chat');
+    expect(event.defaultPrevented).toBe(true);
     await RunsExtension.viewDeactivated!('runs/RunView');
   });
 });

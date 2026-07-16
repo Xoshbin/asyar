@@ -6,9 +6,6 @@ import { agentService } from './agentService.svelte';
 import { runAgent } from './agentLoop';
 import { ensureThread } from './agentChatView.helpers';
 import { actionService } from '../../services/action/actionService.svelte';
-import { runService } from '../../services/run/runService.svelte';
-import { viewManager } from '../../services/extension/viewManager.svelte';
-import { agentsFindRunOrigin } from '../../lib/ipc/commands';
 import { logService } from '../../services/log/logService';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
 import { settingsService } from '../../services/settings/settingsService.svelte';
@@ -30,7 +27,6 @@ const ACTION_DELETE_AGENT = 'agents:delete-agent';
 const ACTION_NEW_THREAD = 'agents:new-thread';
 const ACTION_DELETE_THREAD = 'agents:delete-thread';
 const ACTION_CANCEL_SEND = 'agents:cancel-send';
-const ACTION_OPEN_RUN_IN_CHAT = 'agents:open-run-in-chat';
 
 class AgentsExtension implements Extension {
   private extensionManager?: IExtensionManager;
@@ -79,43 +75,6 @@ class AgentsExtension implements Extension {
         );
       },
       onDeactivate: () => {},
-    });
-
-    // Cross-view action: visible whenever the user has selected an agent run
-    // in the Runs view. Lets them jump from the run row to the chat thread
-    // that produced it.
-    actionService.registerAction({
-      id: ACTION_OPEN_RUN_IN_CHAT,
-      label: 'View Conversation',
-      icon: '💬',
-      description: 'Jump to the agent chat thread that produced this run',
-      category: 'Agents',
-      extensionId: 'agents',
-      context: ActionContext.EXTENSION_VIEW,
-      visible: () => {
-        if (viewManager.activeView !== 'runs/RunView') return false;
-        const id = runService.selectedRunId;
-        if (!id) return false;
-        const all = [...runService.active, ...runService.recent];
-        const run = all.find((r) => r.id === id);
-        return run?.kind === 'agent' || run?.kind === 'ai-chat';
-      },
-      execute: async () => {
-        const id = runService.selectedRunId;
-        if (!id) return;
-        try {
-          const origin = await agentsFindRunOrigin(id);
-          if (!origin) {
-            logService.warn(`[agents] no thread found for run ${id}`);
-            return;
-          }
-          agentsManager.currentAgentId = origin.agentId;
-          agentsManager.currentThreadId = origin.threadId;
-          this.extensionManager?.navigateToView('agents/AgentChatView');
-        } catch (err) {
-          logService.warn(`[agents] open-run-in-chat failed: ${err}`);
-        }
-      },
     });
   }
 
