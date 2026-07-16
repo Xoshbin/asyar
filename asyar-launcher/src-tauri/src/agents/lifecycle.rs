@@ -82,12 +82,26 @@ pub fn upsert_default_agent(
     model_id: &str,
 ) -> Result<AgentRow, AppError> {
     validate_provider_model(provider_id, model_id)?;
-    if let Some(mut existing) = default_agent_id
+
+    let by_id = default_agent_id
         .filter(|id| !id.trim().is_empty())
         .map(|id| get_agent(conn, id))
         .transpose()?
-        .flatten()
-    {
+        .flatten();
+
+    // Falls back to the well-known name when `default_agent_id` is absent or
+    // dangling (e.g. settings hadn't loaded yet, or the id was lost) — the
+    // same idempotency pattern `seed_grammar_fix_agent` and
+    // `seed_emoji_fallback_agent` use, so a missing id reuses the existing
+    // built-in assistant instead of minting a duplicate.
+    let existing = match by_id {
+        Some(agent) => Some(agent),
+        None => list_agents(conn)?
+            .into_iter()
+            .find(|agent| agent.name == "Asyar Assistant"),
+    };
+
+    if let Some(mut existing) = existing {
         existing.provider_id = provider_id.to_string();
         existing.model_id = model_id.to_string();
         existing.updated_at = Some(now_ms());
@@ -459,5 +473,31 @@ mod tests {
             get_agent(&conn, "default-1").unwrap().unwrap().model_id,
             "gpt-new"
         );
+    }
+
+    #[test]
+    fn upsert_default_does_not_duplicate_when_id_is_repeatedly_missing() {
+        let conn = conn();
+
+        let first = upsert_default_agent(&conn, None, "anthropic", "claude-sonnet").unwrap();
+        let second = upsert_default_agent(&conn, None, "openai", "gpt-4o").unwrap();
+
+        assert_eq!(first.id, second.id);
+        assert_eq!(second.provider_id, "openai");
+        assert_eq!(second.model_id, "gpt-4o");
+        assert_eq!(list_agents(&conn).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn upsert_default_recovers_via_name_when_stored_id_is_dangling() {
+        let conn = conn();
+        let first = upsert_default_agent(&conn, None, "anthropic", "claude-sonnet").unwrap();
+
+        let second =
+            upsert_default_agent(&conn, Some("stale-id-not-in-db"), "openai", "gpt-4o").unwrap();
+
+        assert_eq!(first.id, second.id);
+        assert_eq!(second.provider_id, "openai");
+        assert_eq!(list_agents(&conn).unwrap().len(), 1);
     }
 }
