@@ -106,71 +106,104 @@ pub async fn resolve_template(
     let mut result = template.to_string();
 
     // {trigger}
-    if result.contains("{trigger}") {
+    if result.contains("{trigger}") || result.contains("{Trigger}") {
         if let Some(t) = &context.trigger {
-            result = result.replace("{trigger}", t);
+            result = result.replace("{trigger}", t).replace("{Trigger}", t);
         }
     }
 
     // {query}
-    if result.contains("{query}") {
+    if result.contains("{query}") || result.contains("{Query}") || result.contains("{Argument}") {
         if let Some(q) = &context.query {
-            result = result.replace("{query}", q);
+            result = result
+                .replace("{query}", q)
+                .replace("{Query}", q)
+                .replace("{Argument}", q);
         }
     }
 
     // {uuid}
-    if result.contains("{uuid}") {
-        if let Some(q) = &context.query {
+    if result.contains("{uuid}") || result.contains("{UUID}") {
+        let uuid_val = if let Some(q) = &context.query {
             if is_uuid(q) {
-                result = result.replace("{uuid}", q);
+                q.clone()
             } else {
-                result = result.replace("{uuid}", &uuid::Uuid::new_v4().to_string());
+                uuid::Uuid::new_v4().to_string()
             }
         } else {
-            result = result.replace("{uuid}", &uuid::Uuid::new_v4().to_string());
-        }
+            uuid::Uuid::new_v4().to_string()
+        };
+        result = result
+            .replace("{uuid}", &uuid_val)
+            .replace("{UUID}", &uuid_val);
     }
 
     // Time-based placeholders
     if result.contains("{date}")
+        || result.contains("{Date}")
         || result.contains("{time}")
+        || result.contains("{Time}")
         || result.contains("{date-time}")
+        || result.contains("{Date & Time}")
         || result.contains("{weekday}")
+        || result.contains("{Weekday}")
     {
         let now = chrono::Local::now();
-        if result.contains("{date}") {
-            result = result.replace("{date}", &now.format("%-m/%-d/%Y").to_string());
+        if result.contains("{date}") || result.contains("{Date}") {
+            let formatted = now.format("%-m/%-d/%Y").to_string();
+            result = result
+                .replace("{date}", &formatted)
+                .replace("{Date}", &formatted);
         }
-        if result.contains("{time}") {
-            result = result.replace("{time}", &now.format("%-I:%M:%S %p").to_string());
+        if result.contains("{time}") || result.contains("{Time}") {
+            let formatted = now.format("%-I:%M:%S %p").to_string();
+            result = result
+                .replace("{time}", &formatted)
+                .replace("{Time}", &formatted);
         }
-        if result.contains("{date-time}") {
-            result = result.replace(
-                "{date-time}",
-                &now.format("%-m/%-d/%Y, %-I:%M:%S %p").to_string(),
-            );
+        if result.contains("{date-time}") || result.contains("{Date & Time}") {
+            let formatted = now.format("%-m/%-d/%Y, %-I:%M:%S %p").to_string();
+            result = result
+                .replace("{date-time}", &formatted)
+                .replace("{Date & Time}", &formatted);
         }
-        if result.contains("{weekday}") {
-            result = result.replace("{weekday}", &now.format("%A").to_string());
+        if result.contains("{weekday}") || result.contains("{Weekday}") {
+            let formatted = now.format("%A").to_string();
+            result = result
+                .replace("{weekday}", &formatted)
+                .replace("{Weekday}", &formatted);
         }
     }
 
-    // {clipboard-text} and {clipboard}
-    if result.contains("{clipboard-text}") || result.contains("{clipboard}") {
+    // {clipboard-text}, {Clipboard Text}, {clipboard}, {Clipboard}
+    if result.contains("{clipboard-text}")
+        || result.contains("{Clipboard Text}")
+        || result.contains("{clipboard}")
+        || result.contains("{Clipboard}")
+    {
         if let Ok(mut cb) = arboard::Clipboard::new() {
             if let Ok(text) = cb.get_text() {
-                result = result.replace("{clipboard-text}", &text);
-                result = result.replace("{clipboard}", &text);
+                result = result
+                    .replace("{clipboard-text}", &text)
+                    .replace("{Clipboard Text}", &text)
+                    .replace("{clipboard}", &text)
+                    .replace("{Clipboard}", &text);
             }
         }
     }
 
-    // {selected-text} and {selection}
-    if result.contains("{selected-text}") || result.contains("{selection}") {
+    // {selected-text}, {Selected Text}, {selection}, {Selection}
+    if result.contains("{selected-text}")
+        || result.contains("{Selected Text}")
+        || result.contains("{selection}")
+        || result.contains("{Selection}")
+    {
         if let Ok(Some(text)) = crate::selection::service::get_selected_text().await {
-            result = result.replace("{selected-text}", &text);
-            result = result.replace("{selection}", &text);
+            result = result
+                .replace("{selected-text}", &text)
+                .replace("{Selected Text}", &text)
+                .replace("{selection}", &text)
+                .replace("{Selection}", &text);
         }
     }
 
