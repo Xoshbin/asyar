@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../lib/ipc/commands', () => ({
-  scriptsRescan: vi.fn(async () => []),
+  scriptsRescan: vi.fn(async () => ({ scripts: [], issues: [] })),
+  scriptsMakeExecutable: vi.fn(async () => {}),
+  scriptsPickDirectory: vi.fn(async () => null),
+  scriptsAddDirectory: vi.fn(async () => {}),
   replaceDynamicCommandsBuiltin: vi.fn(async () => {}),
   scriptsSetInlineScripts: vi.fn(async () => ({
     accepted: [],
@@ -31,10 +34,13 @@ import * as commands from '../../lib/ipc/commands';
 import { listen } from '@tauri-apps/api/event';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { commandService } from '../../services/extension/commandService.svelte';
-import type { ScannedScript } from './types';
+import type { ScannedScript, ScriptScanIssue, ScriptScanReport } from './types';
 
 const mockScript: ScannedScript = {
   absolutePath: '/home/user/scripts/deploy.sh',
+  directoryPath: '/home/user/scripts',
+  fileName: 'deploy.sh',
+  displayName: 'Deploy',
   dynamicId: 'dyn-abc123',
   header: {
     title: 'Deploy',
@@ -46,6 +52,19 @@ const mockScript: ScannedScript = {
   },
   executable: true,
 };
+
+const mockIssue: ScriptScanIssue = {
+  absolutePath: '/home/user/scripts/broken.sh',
+  directoryPath: '/home/user/scripts',
+  fileName: 'broken.sh',
+  reason: 'notExecutable',
+  message: 'Script is not executable',
+  fix: 'makeExecutable',
+};
+
+function report(scripts: ScannedScript[], issues: ScriptScanIssue[] = []): ScriptScanReport {
+  return { scripts, issues };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -62,6 +81,9 @@ function makeInlineScript(
   const { headerOverrides, ...rest } = overrides;
   return {
     absolutePath: '/scripts/clock.sh',
+    directoryPath: '/scripts',
+    fileName: 'clock.sh',
+    displayName: 'Clock',
     dynamicId: 'inl-001',
     header: {
       title: 'Clock',
@@ -85,7 +107,7 @@ describe('ScriptsManager', () => {
   });
 
   it('start_calls_initial_rescan_and_registers', async () => {
-    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([mockScript]);
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce(report([mockScript]));
 
     await scriptsManager.start();
 
@@ -123,7 +145,7 @@ describe('ScriptsManager', () => {
       ...mockScript,
       header: { ...mockScript.header, title: 'Deploy' },
     };
-    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([titled]);
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce(report([titled]));
 
     await scriptsManager.start();
 
@@ -135,9 +157,11 @@ describe('ScriptsManager', () => {
     const untitled: ScannedScript = {
       ...mockScript,
       absolutePath: '/home/user/scripts/my_backup.sh',
+      fileName: 'my_backup.sh',
+      displayName: 'my_backup',
       header: { ...mockScript.header, title: null },
     };
-    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([untitled]);
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce(report([untitled]));
 
     await scriptsManager.start();
 
@@ -153,7 +177,7 @@ describe('ScriptsManager', () => {
       ...mockScript,
       header: { ...mockScript.header, icon: 'icon:cloud-upload' },
     };
-    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([withIcon]);
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce(report([withIcon]));
 
     await scriptsManager.start();
 
@@ -162,7 +186,7 @@ describe('ScriptsManager', () => {
   });
 
   it('start_falls_back_to_terminal_icon_when_script_omits_one', async () => {
-    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([mockScript]);
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce(report([mockScript]));
 
     await scriptsManager.start();
 
@@ -191,7 +215,7 @@ describe('ScriptsManager', () => {
 
   it('inline_script_passed_to_set_inline_scripts_after_refresh', async () => {
     const inline = makeInlineScript();
-    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([inline]);
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce(report([inline]));
 
     await scriptsManager.start();
 
@@ -213,7 +237,7 @@ describe('ScriptsManager', () => {
       dynamicId: 'sil-1',
       headerOverrides: { mode: 'silent', refreshTimeSeconds: null },
     });
-    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([compact, silent]);
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce(report([compact, silent]));
 
     await scriptsManager.start();
 
@@ -224,7 +248,7 @@ describe('ScriptsManager', () => {
     const inlineNoRefresh = makeInlineScript({
       headerOverrides: { refreshTimeSeconds: null },
     });
-    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([inlineNoRefresh]);
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce(report([inlineNoRefresh]));
 
     await scriptsManager.start();
 
@@ -235,7 +259,7 @@ describe('ScriptsManager', () => {
     const clamped = makeInlineScript({
       headerOverrides: { refreshTimeClamped: true },
     });
-    vi.mocked(commands.scriptsRescan).mockResolvedValue([clamped]);
+    vi.mocked(commands.scriptsRescan).mockResolvedValue(report([clamped]));
 
     await scriptsManager.start();
     // Trigger a second refresh through the same dynamicId — the warning
@@ -253,7 +277,7 @@ describe('ScriptsManager', () => {
 
   it('capped_inline_scripts_report_grouped_diagnostic', async () => {
     const inline = makeInlineScript();
-    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([inline]);
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce(report([inline]));
     vi.mocked(commands.scriptsSetInlineScripts).mockResolvedValueOnce({
       accepted: [],
       capped: [inline.dynamicId],
@@ -275,7 +299,7 @@ describe('ScriptsManager', () => {
     commandService.liveSubtitles = {
       cmd_scripts_dyn_inl_orphan: 'stale 11:22:33',
     };
-    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([inline]);
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce(report([inline]));
     vi.mocked(commands.scriptsSetInlineScripts).mockResolvedValueOnce({
       accepted: [inline.dynamicId],
       capped: [],
@@ -332,7 +356,7 @@ describe('ScriptsManager', () => {
   });
 
   it('getScriptByDynamicId_returns_script_when_present', async () => {
-    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce([mockScript]);
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce(report([mockScript]));
     await scriptsManager.start();
 
     const result = scriptsManager.getScriptByDynamicId(mockScript.dynamicId);
@@ -344,5 +368,51 @@ describe('ScriptsManager', () => {
 
     const result = scriptsManager.getScriptByDynamicId('ghost-id');
     expect(result).toBeUndefined();
+  });
+
+  it('stores_scan_issues_and_selects_the_first_library_item', async () => {
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce(report([mockScript], [mockIssue]));
+
+    await scriptsManager.start();
+
+    expect(scriptsManager.issues).toEqual([mockIssue]);
+    expect(scriptsManager.selectedEntryId).toBe(`script:${mockScript.dynamicId}`);
+    expect(scriptsManager.selectedScript).toEqual(mockScript);
+  });
+
+  it('moves_selection_between_scripts_and_issues', async () => {
+    vi.mocked(commands.scriptsRescan).mockResolvedValueOnce(report([mockScript], [mockIssue]));
+    await scriptsManager.start();
+
+    scriptsManager.moveSelection(1);
+
+    expect(scriptsManager.selectedEntryId).toBe(`issue:${mockIssue.absolutePath}`);
+    expect(scriptsManager.selectedIssue).toEqual(mockIssue);
+  });
+
+  it('repairs_the_selected_issue_and_rescans', async () => {
+    vi.mocked(commands.scriptsRescan)
+      .mockResolvedValueOnce(report([], [mockIssue]))
+      .mockResolvedValueOnce(report([mockScript]));
+    await scriptsManager.start();
+
+    await scriptsManager.makeSelectedExecutable();
+
+    expect(commands.scriptsMakeExecutable).toHaveBeenCalledWith(mockIssue.absolutePath);
+    expect(scriptsManager.issues).toEqual([]);
+    expect(scriptsManager.scripts).toEqual([mockScript]);
+  });
+
+  it('adds_a_picked_directory_and_rescans_the_library', async () => {
+    vi.mocked(commands.scriptsPickDirectory).mockResolvedValueOnce('/home/user/new-scripts');
+    vi.mocked(commands.scriptsRescan)
+      .mockResolvedValueOnce(report([]))
+      .mockResolvedValueOnce(report([mockScript]));
+    await scriptsManager.start();
+
+    await scriptsManager.addDirectory();
+
+    expect(commands.scriptsAddDirectory).toHaveBeenCalledWith('/home/user/new-scripts');
+    expect(scriptsManager.scripts).toEqual([mockScript]);
   });
 });

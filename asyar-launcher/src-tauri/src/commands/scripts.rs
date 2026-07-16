@@ -7,7 +7,7 @@
 
 use crate::error::AppError;
 use crate::scripts::{
-    InlineSchedulerState, InlineScriptSpec, ScannedScript, SetInlineScriptsOutcome,
+    InlineSchedulerState, InlineScriptSpec, ScriptScanReport, SetInlineScriptsOutcome,
 };
 use crate::storage::DataStore;
 use rusqlite::Connection;
@@ -52,10 +52,45 @@ pub(crate) fn scripts_list_directories_impl(conn: &Connection) -> Result<Vec<Str
 }
 
 /// Read configured directories from SQLite and scan them for scripts.
-pub(crate) fn scripts_rescan_impl(conn: &Connection) -> Result<Vec<ScannedScript>, AppError> {
+pub(crate) fn scripts_rescan_impl(conn: &Connection) -> Result<ScriptScanReport, AppError> {
     let dirs = crate::storage::script_directories::list(conn)?;
     let paths: Vec<std::path::PathBuf> = dirs.into_iter().map(std::path::PathBuf::from).collect();
     Ok(crate::scripts::scan_directories(&paths))
+}
+
+pub(crate) fn scripts_make_executable_impl(
+    conn: &Connection,
+    path: String,
+) -> Result<(), AppError> {
+    let candidate = std::path::PathBuf::from(path).canonicalize()?;
+    if !candidate.is_file() {
+        return Err(AppError::Validation(
+            "Script path must point to a file".to_string(),
+        ));
+    }
+
+    let watched_directories = crate::storage::script_directories::list(conn)?;
+    let is_direct_child = watched_directories.iter().any(|directory| {
+        std::path::PathBuf::from(directory)
+            .canonicalize()
+            .ok()
+            .is_some_and(|watched| candidate.parent() == Some(watched.as_path()))
+    });
+    if !is_direct_child {
+        return Err(AppError::Permission(
+            "Scripts can only be repaired inside a watched directory".to_string(),
+        ));
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(&candidate)?.permissions();
+        permissions.set_mode(permissions.mode() | 0o111);
+        std::fs::set_permissions(candidate, permissions)?;
+    }
+
+    Ok(())
 }
 
 // ── Tauri command wrappers ──────────────────────────────────────────────────
@@ -112,9 +147,21 @@ pub async fn scripts_pick_directory(app: tauri::AppHandle) -> Result<Option<Stri
 /// Read the configured directories from SQLite and rescan them, returning
 /// every discovered script.
 #[tauri::command]
-pub async fn scripts_rescan(db: State<'_, DataStore>) -> Result<Vec<ScannedScript>, AppError> {
+pub async fn scripts_rescan(db: State<'_, DataStore>) -> Result<ScriptScanReport, AppError> {
     let conn = db.conn()?;
     scripts_rescan_impl(&conn)
+}
+
+#[tauri::command]
+pub async fn scripts_make_executable(
+    app: AppHandle,
+    path: String,
+    db: State<'_, DataStore>,
+) -> Result<(), AppError> {
+    let conn = db.conn()?;
+    scripts_make_executable_impl(&conn, path)?;
+    let _ = app.emit("scripts:changed", ());
+    Ok(())
 }
 
 /// Replace the active set of inline-mode tick timers. Called by the TS
@@ -244,10 +291,10 @@ mod tests {
     #[test]
     fn rescan_with_empty_dirs_returns_empty() {
         let (conn, _watcher) = make_test_env();
-        let scripts = scripts_rescan_impl(&conn).unwrap();
+        let report = scripts_rescan_impl(&conn).unwrap();
         assert!(
-            scripts.is_empty(),
-            "rescan with no dirs must return empty Vec, got {scripts:?}"
+            report.scripts.is_empty(),
+            "rescan with no dirs must return no scripts, got {report:?}"
         );
     }
 
@@ -266,14 +313,14 @@ mod tests {
         scripts_add_directory_impl(&conn, &watcher, dir.path().to_string_lossy().to_string())
             .unwrap();
 
-        let scripts = scripts_rescan_impl(&conn).unwrap();
+        let report = scripts_rescan_impl(&conn).unwrap();
         assert_eq!(
-            scripts.len(),
+            report.scripts.len(),
             1,
-            "rescan must return 1 script, got {scripts:?}"
+            "rescan must return 1 script, got {report:?}"
         );
         assert_eq!(
-            scripts[0].header.title,
+            report.scripts[0].header.title,
             Some("My Script".to_string()),
             "script title must match the @asyar.title header"
         );
@@ -304,15 +351,18 @@ mod tests {
         scripts_add_directory_impl(&conn, &watcher, dir2.path().to_string_lossy().to_string())
             .unwrap();
 
-        let scripts = scripts_rescan_impl(&conn).unwrap();
+        let report = scripts_rescan_impl(&conn).unwrap();
         assert_eq!(
-            scripts.len(),
+            report.scripts.len(),
             2,
-            "rescan must aggregate scripts from both dirs, got {scripts:?}"
+            "rescan must aggregate scripts from both dirs, got {report:?}"
         );
 
-        let titles: std::collections::HashSet<Option<String>> =
-            scripts.iter().map(|s| s.header.title.clone()).collect();
+        let titles: std::collections::HashSet<Option<String>> = report
+            .scripts
+            .iter()
+            .map(|s| s.header.title.clone())
+            .collect();
         assert!(
             titles.contains(&Some("Alpha".to_string())),
             "must contain Alpha"
@@ -321,5 +371,34 @@ mod tests {
             titles.contains(&Some("Beta".to_string())),
             "must contain Beta"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn make_executable_updates_a_file_inside_a_watched_directory() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (conn, watcher) = make_test_env();
+        let dir = TempDir::new().unwrap();
+        let path = write_script(dir.path(), "repair.sh", "#!/bin/bash\n", false);
+        scripts_add_directory_impl(&conn, &watcher, dir.path().to_string_lossy().into_owned())
+            .unwrap();
+
+        scripts_make_executable_impl(&conn, path.to_string_lossy().into_owned()).unwrap();
+
+        let mode = fs::metadata(path).unwrap().permissions().mode();
+        assert_ne!(mode & 0o111, 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn make_executable_rejects_files_outside_watched_directories() {
+        let (conn, _watcher) = make_test_env();
+        let dir = TempDir::new().unwrap();
+        let path = write_script(dir.path(), "outside.sh", "#!/bin/bash\n", false);
+
+        let result = scripts_make_executable_impl(&conn, path.to_string_lossy().into_owned());
+
+        assert!(result.is_err());
     }
 }

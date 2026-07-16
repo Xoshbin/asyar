@@ -48,13 +48,24 @@ Available header directives:
 - `@asyar.refreshTime` — for `inline` mode, how often to re-run the script and update its subtitle (e.g. `30s`, `5m`, `2h`, `1d`). Minimum is 10 seconds.
 - `@asyar.argument:1` through `@asyar.argument:3` — up to three typed inputs for the script.
 
+## Script Library
+
+Search for **Script Library** to inspect every discovered script and any files Asyar could not
+load. The detail panel shows the selected script's path, execution mode, arguments, and inline
+refresh interval. The **Issues** section explains problems such as invalid headers, unreadable
+files, or missing executable permission.
+
+Open Actions (`⌘K`) from the library to run a script, reveal it in the file manager, copy its
+path, rescan watched directories, add a directory, or make a selected script executable.
+
 ## Shortcuts & actions
 
-| Action                   | How                                                |
-| ------------------------ | -------------------------------------------------- |
-| Run a script             | Select it and press `Enter`                        |
-| Open Manage Scripts view | Search for **Manage Scripts** and press `Enter`    |
-| Remove a watched folder  | Settings → Scripts → trash icon next to the folder |
+| Action                  | How                                                |
+| ----------------------- | -------------------------------------------------- |
+| Run a script            | Select it and press `Enter`                        |
+| Open the Script Library | Search for **Script Library** and press `Enter`    |
+| Open library actions    | Press `⌘K` inside the Script Library               |
+| Remove a watched folder | Settings → Scripts → trash icon next to the folder |
 
 ## Tips
 

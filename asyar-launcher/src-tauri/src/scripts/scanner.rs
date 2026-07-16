@@ -13,6 +13,9 @@ use crate::scripts::header::{parse_header, ParsedScriptHeader};
 pub struct ScannedScript {
     /// Canonical absolute path to the script file.
     pub absolute_path: PathBuf,
+    pub directory_path: PathBuf,
+    pub file_name: String,
+    pub display_name: String,
     /// 16-char lowercase hex prefix of SHA-256(`absolute_path.to_string_lossy()`).
     pub dynamic_id: String,
     /// Parsed metadata from the script's header comment block.
@@ -22,17 +25,61 @@ pub struct ScannedScript {
     pub executable: bool,
 }
 
-/// Scan all top-level files in each directory. Subdirectories are NOT
-/// descended into. Files without exec bit (Unix) are skipped. Files
-/// whose header fails to parse are logged and skipped.
-pub fn scan_directories(dirs: &[PathBuf]) -> Vec<ScannedScript> {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptScanReport {
+    pub scripts: Vec<ScannedScript>,
+    pub issues: Vec<ScriptScanIssue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptScanIssue {
+    pub absolute_path: PathBuf,
+    pub directory_path: PathBuf,
+    pub file_name: String,
+    pub reason: ScriptScanIssueReason,
+    pub message: String,
+    pub fix: Option<ScriptScanIssueFix>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ScriptScanIssueReason {
+    DirectoryUnreadable,
+    MetadataUnreadable,
+    PathUnavailable,
+    NotExecutable,
+    ContentUnreadable,
+    InvalidHeader,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ScriptScanIssueFix {
+    MakeExecutable,
+}
+
+/// Scan all top-level files in each directory. Subdirectories are not
+/// descended into. Files that cannot become runnable commands are returned
+/// as structured issues instead of disappearing from the library.
+pub fn scan_directories(dirs: &[PathBuf]) -> ScriptScanReport {
     let mut seen: HashSet<PathBuf> = HashSet::new();
-    let mut results: Vec<ScannedScript> = Vec::new();
+    let mut scripts: Vec<ScannedScript> = Vec::new();
+    let mut issues: Vec<ScriptScanIssue> = Vec::new();
 
     for dir in dirs {
         let entries = match fs::read_dir(dir) {
             Ok(e) => e,
-            Err(_) => continue,
+            Err(error) => {
+                issues.push(scan_issue(
+                    dir.clone(),
+                    ScriptScanIssueReason::DirectoryUnreadable,
+                    format!("Could not read watched directory: {error}"),
+                    None,
+                ));
+                continue;
+            }
         };
 
         for entry in entries.flatten() {
@@ -40,7 +87,15 @@ pub fn scan_directories(dirs: &[PathBuf]) -> Vec<ScannedScript> {
 
             let metadata = match entry.metadata() {
                 Ok(m) => m,
-                Err(_) => continue,
+                Err(error) => {
+                    issues.push(scan_issue(
+                        path,
+                        ScriptScanIssueReason::MetadataUnreadable,
+                        format!("Could not inspect file metadata: {error}"),
+                        None,
+                    ));
+                    continue;
+                }
             };
 
             if !metadata.is_file() {
@@ -49,7 +104,15 @@ pub fn scan_directories(dirs: &[PathBuf]) -> Vec<ScannedScript> {
 
             let absolute_path = match path.canonicalize() {
                 Ok(p) => p,
-                Err(_) => continue,
+                Err(error) => {
+                    issues.push(scan_issue(
+                        path,
+                        ScriptScanIssueReason::PathUnavailable,
+                        format!("Could not resolve file path: {error}"),
+                        None,
+                    ));
+                    continue;
+                }
             };
 
             if !seen.insert(absolute_path.clone()) {
@@ -60,12 +123,26 @@ pub fn scan_directories(dirs: &[PathBuf]) -> Vec<ScannedScript> {
 
             #[cfg(unix)]
             if !executable {
+                issues.push(scan_issue(
+                    absolute_path,
+                    ScriptScanIssueReason::NotExecutable,
+                    "Script is not executable".to_string(),
+                    Some(ScriptScanIssueFix::MakeExecutable),
+                ));
                 continue;
             }
 
             let content = match read_head(&absolute_path, 8192) {
                 Ok(c) => c,
-                Err(_) => continue,
+                Err(error) => {
+                    issues.push(scan_issue(
+                        absolute_path,
+                        ScriptScanIssueReason::ContentUnreadable,
+                        format!("Could not read script: {error}"),
+                        None,
+                    ));
+                    continue;
+                }
             };
 
             let header = match parse_header(&content) {
@@ -76,14 +153,36 @@ pub fn scan_directories(dirs: &[PathBuf]) -> Vec<ScannedScript> {
                         absolute_path.display(),
                         e
                     );
+                    issues.push(scan_issue(
+                        absolute_path,
+                        ScriptScanIssueReason::InvalidHeader,
+                        format!("Invalid script header: {e}"),
+                        None,
+                    ));
                     continue;
                 }
             };
 
             let dynamic_id = compute_dynamic_id(&absolute_path);
+            let directory_path = absolute_path
+                .parent()
+                .unwrap_or_else(|| Path::new(""))
+                .to_path_buf();
+            let file_name = file_name(&absolute_path);
+            let display_name = header.title.clone().unwrap_or_else(|| {
+                absolute_path
+                    .file_stem()
+                    .and_then(|name| name.to_str())
+                    .filter(|name| !name.is_empty())
+                    .unwrap_or(&file_name)
+                    .to_string()
+            });
 
-            results.push(ScannedScript {
+            scripts.push(ScannedScript {
                 absolute_path,
+                directory_path,
+                file_name,
+                display_name,
                 dynamic_id,
                 header,
                 executable,
@@ -91,7 +190,39 @@ pub fn scan_directories(dirs: &[PathBuf]) -> Vec<ScannedScript> {
         }
     }
 
-    results
+    scripts.sort_by(|a, b| a.absolute_path.cmp(&b.absolute_path));
+    issues.sort_by(|a, b| a.absolute_path.cmp(&b.absolute_path));
+
+    ScriptScanReport { scripts, issues }
+}
+
+fn scan_issue(
+    absolute_path: PathBuf,
+    reason: ScriptScanIssueReason,
+    message: String,
+    fix: Option<ScriptScanIssueFix>,
+) -> ScriptScanIssue {
+    let directory_path = absolute_path
+        .parent()
+        .unwrap_or_else(|| Path::new(""))
+        .to_path_buf();
+    let file_name = file_name(&absolute_path);
+    ScriptScanIssue {
+        absolute_path,
+        directory_path,
+        file_name,
+        reason,
+        message,
+        fix,
+    }
+}
+
+fn file_name(path: &Path) -> String {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| path.to_str().unwrap_or("Unknown path"))
+        .to_string()
 }
 
 #[cfg(unix)]
@@ -168,9 +299,9 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let result = scan_directories(&[dir.path().to_path_buf()]);
         assert!(
-            result.is_empty(),
+            result.scripts.is_empty(),
             "expected empty vec, got {} scripts",
-            result.len()
+            result.scripts.len()
         );
     }
 
@@ -185,11 +316,20 @@ mod tests {
             true,
         );
         let result = scan_directories(&[dir.path().to_path_buf()]);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].header.title, Some("Hello".to_string()));
-        assert_eq!(result[0].absolute_path, file_path.canonicalize().unwrap());
+        assert_eq!(result.scripts.len(), 1);
+        assert_eq!(result.scripts[0].header.title, Some("Hello".to_string()));
+        assert_eq!(result.scripts[0].display_name, "Hello");
+        assert_eq!(result.scripts[0].file_name, "hello.sh");
+        assert_eq!(
+            result.scripts[0].directory_path,
+            dir.path().canonicalize().unwrap()
+        );
+        assert_eq!(
+            result.scripts[0].absolute_path,
+            file_path.canonicalize().unwrap()
+        );
         #[cfg(unix)]
-        assert!(result[0].executable);
+        assert!(result.scripts[0].executable);
     }
 
     // 3. dynamic_id is sha256 prefix — 16 hex chars, stable, unique per path
@@ -200,9 +340,9 @@ mod tests {
         let _file_b = write_script(dir.path(), "b.sh", "#!/bin/bash\n", true);
 
         let result = scan_directories(&[dir.path().to_path_buf()]);
-        assert_eq!(result.len(), 2);
+        assert_eq!(result.scripts.len(), 2);
 
-        for script in &result {
+        for script in &result.scripts {
             assert_eq!(
                 script.dynamic_id.len(),
                 16,
@@ -221,13 +361,16 @@ mod tests {
 
         // same scan second time — same ids
         let result2 = scan_directories(&[dir.path().to_path_buf()]);
-        let ids1: std::collections::HashSet<_> = result.iter().map(|s| &s.dynamic_id).collect();
-        let ids2: std::collections::HashSet<_> = result2.iter().map(|s| &s.dynamic_id).collect();
+        let ids1: std::collections::HashSet<_> =
+            result.scripts.iter().map(|s| &s.dynamic_id).collect();
+        let ids2: std::collections::HashSet<_> =
+            result2.scripts.iter().map(|s| &s.dynamic_id).collect();
         assert_eq!(ids1, ids2, "dynamic_ids must be stable across runs");
 
         // different paths produce different ids
         let (id_a, id_b) = {
             let mut sorted = result
+                .scripts
                 .iter()
                 .map(|s| s.dynamic_id.clone())
                 .collect::<Vec<_>>();
@@ -264,10 +407,13 @@ mod tests {
         );
 
         let result = scan_directories(&[dir.path().to_path_buf()]);
-        assert_eq!(result.len(), 3);
+        assert_eq!(result.scripts.len(), 3);
 
-        let titles: std::collections::HashSet<Option<String>> =
-            result.iter().map(|s| s.header.title.clone()).collect();
+        let titles: std::collections::HashSet<Option<String>> = result
+            .scripts
+            .iter()
+            .map(|s| s.header.title.clone())
+            .collect();
         let expected: std::collections::HashSet<Option<String>> = [
             Some("Alpha".to_string()),
             Some("Beta".to_string()),
@@ -299,8 +445,8 @@ mod tests {
         );
 
         let result = scan_directories(&[dir.path().to_path_buf()]);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].header.title, Some("Top".to_string()));
+        assert_eq!(result.scripts.len(), 1);
+        assert_eq!(result.scripts[0].header.title, Some("Top".to_string()));
     }
 
     // 6. non-executable files skipped on Unix, kept on non-Unix
@@ -324,15 +470,19 @@ mod tests {
 
         #[cfg(unix)]
         {
-            assert_eq!(result.len(), 1, "on Unix only exec scripts are returned");
-            assert_eq!(result[0].header.title, Some("Exec".to_string()));
-            assert!(result[0].executable);
+            assert_eq!(
+                result.scripts.len(),
+                1,
+                "on Unix only exec scripts are returned"
+            );
+            assert_eq!(result.scripts[0].header.title, Some("Exec".to_string()));
+            assert!(result.scripts[0].executable);
         }
 
         #[cfg(not(unix))]
         {
             assert_eq!(
-                result.len(),
+                result.scripts.len(),
                 2,
                 "on non-Unix both scripts are returned (no exec gating)"
             );
@@ -357,8 +507,12 @@ mod tests {
         );
 
         let result = scan_directories(&[dir.path().to_path_buf()]);
-        assert_eq!(result.len(), 1, "malformed script should be skipped");
-        assert_eq!(result[0].header.title, Some("Valid".to_string()));
+        assert_eq!(
+            result.scripts.len(),
+            1,
+            "malformed script should be skipped"
+        );
+        assert_eq!(result.scripts[0].header.title, Some("Valid".to_string()));
     }
 
     // 8. multiple directories are aggregated
@@ -380,10 +534,13 @@ mod tests {
         );
 
         let result = scan_directories(&[dir1.path().to_path_buf(), dir2.path().to_path_buf()]);
-        assert_eq!(result.len(), 2);
+        assert_eq!(result.scripts.len(), 2);
 
-        let titles: std::collections::HashSet<Option<String>> =
-            result.iter().map(|s| s.header.title.clone()).collect();
+        let titles: std::collections::HashSet<Option<String>> = result
+            .scripts
+            .iter()
+            .map(|s| s.header.title.clone())
+            .collect();
         assert!(titles.contains(&Some("One".to_string())));
         assert!(titles.contains(&Some("Two".to_string())));
     }
@@ -393,7 +550,7 @@ mod tests {
     fn nonexistent_directory_skipped() {
         let result =
             scan_directories(&[PathBuf::from("/this/does/not/exist/asyar_test_dir_12345")]);
-        assert!(result.is_empty());
+        assert!(result.scripts.is_empty());
     }
 
     // 10. same directory listed twice — deduplicated by absolute_path
@@ -409,7 +566,7 @@ mod tests {
 
         let result = scan_directories(&[dir.path().to_path_buf(), dir.path().to_path_buf()]);
         assert_eq!(
-            result.len(),
+            result.scripts.len(),
             1,
             "duplicate directory must not produce duplicate entries"
         );
@@ -422,10 +579,15 @@ mod tests {
         write_script(dir.path(), "bare.sh", "#!/bin/bash\necho hi\n", true);
 
         let result = scan_directories(&[dir.path().to_path_buf()]);
-        assert_eq!(result.len(), 1, "bare executable script must be included");
-        assert_eq!(result[0].header.title, None);
-        assert_eq!(result[0].header.icon, None);
-        assert!(result[0].header.arguments.is_empty());
+        assert_eq!(
+            result.scripts.len(),
+            1,
+            "bare executable script must be included"
+        );
+        assert_eq!(result.scripts[0].header.title, None);
+        assert_eq!(result.scripts[0].display_name, "bare");
+        assert_eq!(result.scripts[0].header.icon, None);
+        assert!(result.scripts[0].header.arguments.is_empty());
     }
 
     // 12. scanner does NOT set a fallback title — title stays None for no-header scripts
@@ -435,9 +597,9 @@ mod tests {
         write_script(dir.path(), "myscript.sh", "#!/bin/bash\necho hi\n", true);
 
         let result = scan_directories(&[dir.path().to_path_buf()]);
-        assert_eq!(result.len(), 1);
+        assert_eq!(result.scripts.len(), 1);
         assert_eq!(
-            result[0].header.title, None,
+            result.scripts[0].header.title, None,
             "scanner must not inject a fallback title; that is the TS-side responsibility"
         );
     }
@@ -455,10 +617,10 @@ mod tests {
         );
 
         let result = scan_directories(&[dir.path().to_path_buf()]);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].header.mode, ScriptMode::Inline);
-        assert_eq!(result[0].header.refresh_time_seconds, Some(30));
-        assert!(!result[0].header.refresh_time_clamped);
+        assert_eq!(result.scripts.len(), 1);
+        assert_eq!(result.scripts[0].header.mode, ScriptMode::Inline);
+        assert_eq!(result.scripts[0].header.refresh_time_seconds, Some(30));
+        assert!(!result.scripts[0].header.refresh_time_clamped);
     }
 
     // 13. large file — title after line 50 is NOT picked up
@@ -485,10 +647,98 @@ mod tests {
         write_script(dir.path(), "large.sh", &content, true);
 
         let result = scan_directories(&[dir.path().to_path_buf()]);
-        assert_eq!(result.len(), 1);
+        assert_eq!(result.scripts.len(), 1);
         assert_eq!(
-            result[0].header.title, None,
+            result.scripts[0].header.title, None,
             "title placed after the header section boundary must not be parsed"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn scan_report_includes_non_executable_files_as_fixable_issues() {
+        let dir = TempDir::new().unwrap();
+        let file_path = write_script(
+            dir.path(),
+            "needs-permission.sh",
+            "#!/bin/bash\necho hi\n",
+            false,
+        );
+
+        let report = scan_directories(&[dir.path().to_path_buf()]);
+
+        assert!(report.scripts.is_empty());
+        assert_eq!(report.issues.len(), 1);
+        assert_eq!(
+            report.issues[0].absolute_path,
+            file_path.canonicalize().unwrap()
+        );
+        assert_eq!(report.issues[0].file_name, "needs-permission.sh");
+        assert_eq!(
+            report.issues[0].directory_path,
+            dir.path().canonicalize().unwrap()
+        );
+        assert_eq!(
+            report.issues[0].reason,
+            ScriptScanIssueReason::NotExecutable
+        );
+        assert_eq!(
+            report.issues[0].fix,
+            Some(ScriptScanIssueFix::MakeExecutable)
+        );
+    }
+
+    #[test]
+    fn scan_report_includes_invalid_headers_with_the_parser_error() {
+        let dir = TempDir::new().unwrap();
+        write_script(
+            dir.path(),
+            "invalid.sh",
+            "#!/bin/bash\n# @asyar.argument:1 { not valid\n",
+            true,
+        );
+
+        let report = scan_directories(&[dir.path().to_path_buf()]);
+
+        assert!(report.scripts.is_empty());
+        assert_eq!(report.issues.len(), 1);
+        assert_eq!(
+            report.issues[0].reason,
+            ScriptScanIssueReason::InvalidHeader
+        );
+        assert!(report.issues[0].message.contains("argument"));
+        assert_eq!(report.issues[0].fix, None);
+    }
+
+    #[test]
+    fn scan_report_sorts_scripts_and_issues_by_absolute_path() {
+        let dir = TempDir::new().unwrap();
+        write_script(dir.path(), "z.sh", "#!/bin/bash\n", true);
+        write_script(dir.path(), "a.sh", "#!/bin/bash\n", true);
+
+        #[cfg(unix)]
+        {
+            write_script(dir.path(), "z-invalid.sh", "#!/bin/bash\n", false);
+            write_script(dir.path(), "a-invalid.sh", "#!/bin/bash\n", false);
+        }
+
+        let report = scan_directories(&[dir.path().to_path_buf()]);
+        let script_paths: Vec<_> = report
+            .scripts
+            .iter()
+            .map(|script| script.absolute_path.clone())
+            .collect();
+        let mut sorted_script_paths = script_paths.clone();
+        sorted_script_paths.sort();
+        assert_eq!(script_paths, sorted_script_paths);
+
+        let issue_paths: Vec<_> = report
+            .issues
+            .iter()
+            .map(|issue| issue.absolute_path.clone())
+            .collect();
+        let mut sorted_issue_paths = issue_paths.clone();
+        sorted_issue_paths.sort();
+        assert_eq!(issue_paths, sorted_issue_paths);
     }
 }
