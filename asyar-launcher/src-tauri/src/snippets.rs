@@ -2,9 +2,7 @@ use tauri::AppHandle;
 #[allow(unused_imports)]
 use tauri::{Emitter, Manager};
 
-use regex::Regex;
 use std::collections::HashMap;
-use std::sync::OnceLock;
 
 pub type ExtensionId = String;
 pub type ShortcodeMap = HashMap<String, String>;

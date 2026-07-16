@@ -873,7 +873,7 @@ where
         messages: vec![ChatMessage {
             id: Uuid::new_v4().to_string(),
             role: "user".to_string(),
-            content: user_text,
+            content: user_text.clone(),
             timestamp: chrono::Utc::now().timestamp_millis(),
             tool_calls: None,
             tool_call_id: None,

@@ -22,10 +22,17 @@ impl AgentResponseCache {
 
     pub fn set(&self, agent_id: &str, input: &str, output: &str) {
         let mut cache = self.cache.lock().unwrap();
-        cache
+        let inner = cache
             .entry(agent_id.to_string())
-            .or_insert_with(HashMap::new)
-            .insert(input.to_string(), output.to_string());
+            .or_insert_with(HashMap::new);
+        inner.insert(input.to_string(), output.to_string());
+
+        // Cap cache at 256 entries per agent to prevent unbounded memory growth
+        if inner.len() > 256 {
+            if let Some(key) = inner.keys().next().cloned() {
+                inner.remove(&key);
+            }
+        }
     }
 
     pub fn list(&self, agent_id: &str) -> Vec<(String, String)> {
@@ -49,5 +56,25 @@ impl AgentResponseCache {
         if let Some(m) = cache.get_mut(agent_id) {
             m.clear();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cache_eviction() {
+        let cache = AgentResponseCache::default();
+        let agent = "test-agent";
+
+        // Insert 260 items (exceeding capacity of 256)
+        for i in 0..260 {
+            cache.set(agent, &format!("input_{}", i), &format!("output_{}", i));
+        }
+
+        // Cache size must be capped at 256
+        let items = cache.list(agent);
+        assert_eq!(items.len(), 256);
     }
 }
