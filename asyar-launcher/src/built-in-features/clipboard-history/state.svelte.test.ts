@@ -34,6 +34,7 @@ vi.mock('../../services/log/logService', () => ({
 }));
 
 import { ClipboardViewStateClass } from './state.svelte';
+import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
 
 describe('ClipboardViewStateClass paste action proxy issue', () => {
   let state: ClipboardViewStateClass;
@@ -439,7 +440,7 @@ describe('getPlainText', () => {
     state = new ClipboardViewStateClass();
   });
 
-  it('returns stripped plain text for html items', () => {
+  it('returns stripped plain text for html items', async () => {
     const item = {
       id: '1',
       content: '<b>bold</b> and <i>italic</i>',
@@ -447,11 +448,11 @@ describe('getPlainText', () => {
       createdAt: 1,
       favorite: false,
     } as any;
-    const plainText = (state as any).getPlainText(item);
+    const plainText = await state.getPlainText(item);
     expect(plainText).toBe('bold and italic');
   });
 
-  it('returns stripped plain text for rtf items', () => {
+  it('returns stripped plain text for rtf items', async () => {
     const item = {
       id: '1',
       content: '{\\rtf1\\b hello }world',
@@ -459,13 +460,13 @@ describe('getPlainText', () => {
       createdAt: 1,
       favorite: false,
     } as any;
-    const plainText = (state as any).getPlainText(item);
+    const plainText = await state.getPlainText(item);
     expect(plainText).not.toContain('\\rtf');
     expect(plainText).toContain('hello');
     expect(plainText).toBe('hello world');
   });
 
-  it('returns content unchanged for text items', () => {
+  it('returns content unchanged for text items', async () => {
     const item = {
       id: '1',
       content: 'plain text',
@@ -473,8 +474,31 @@ describe('getPlainText', () => {
       createdAt: 1,
       favorite: false,
     } as any;
-    const plainText = (state as any).getPlainText(item);
+    const plainText = await state.getPlainText(item);
     expect(plainText).toBe('plain text');
+  });
+
+  it('fetches the Rust-decrypted full row when given a list item', async () => {
+    vi.mocked(clipboardHistoryStore.fetchFullItem).mockResolvedValueOnce({
+      id: '1',
+      content: 'token=AKIAIOSFODNN7EXAMPLE',
+      preview: '[Encrypted secret]',
+      redactedKinds: ['aws_access_key'],
+      type: 'text',
+      createdAt: 1,
+      favorite: false,
+    });
+    const item = {
+      id: '1',
+      preview: '[Encrypted secret]',
+      redactedKinds: ['aws_access_key'],
+      type: 'text' as any,
+      createdAt: 1,
+      favorite: false,
+    } as any;
+
+    await expect(state.getPlainText(item)).resolves.toBe('token=AKIAIOSFODNN7EXAMPLE');
+    expect(clipboardHistoryStore.fetchFullItem).toHaveBeenCalledWith('1');
   });
 });
 

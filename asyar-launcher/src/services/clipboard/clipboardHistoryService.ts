@@ -220,14 +220,17 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       if (!text) return;
 
       const redaction = await secretRedactionService.redactIfEnabled('clipboard', text);
-      const finalContent = redaction?.content ?? text;
+      // Rust encrypts content and preview before inserting the row into SQLite.
       const redactedKinds = redaction?.kinds.length ? redaction.kinds : undefined;
 
       const item: ClipboardHistoryItem = {
         id: uuidv4(),
         type: ClipboardItemType.Text,
-        content: finalContent,
-        preview: this.createPreview(finalContent, ClipboardItemType.Text),
+        content: text,
+        preview: this.createPreview(
+          redactedKinds ? '[Encrypted secret]' : text,
+          ClipboardItemType.Text,
+        ),
         createdAt: Date.now(),
         favorite: false,
         sourceApp,
@@ -248,14 +251,16 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       if (!html) return;
 
       const redaction = await secretRedactionService.redactIfEnabled('clipboard', html);
-      const finalContent = redaction?.content ?? html;
       const redactedKinds = redaction?.kinds.length ? redaction.kinds : undefined;
 
       const item: ClipboardHistoryItem = {
         id: uuidv4(),
         type: ClipboardItemType.Html,
-        content: finalContent,
-        preview: this.createPreview(finalContent, ClipboardItemType.Html),
+        content: html,
+        preview: this.createPreview(
+          redactedKinds ? '[Encrypted secret]' : html,
+          ClipboardItemType.Html,
+        ),
         createdAt: Date.now(),
         favorite: false,
         sourceApp,
@@ -315,14 +320,13 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       if (!rtf) return;
 
       const redaction = await secretRedactionService.redactIfEnabled('clipboard', rtf);
-      const finalContent = redaction?.content ?? rtf;
       const redactedKinds = redaction?.kinds.length ? redaction.kinds : undefined;
 
       const item: ClipboardHistoryItem = {
         id: uuidv4(),
         type: ClipboardItemType.Rtf,
-        content: finalContent,
-        preview: this.truncateText(stripRtf(finalContent)),
+        content: rtf,
+        preview: this.truncateText(redactedKinds ? '[Encrypted secret]' : stripRtf(rtf)),
         createdAt: Date.now(),
         favorite: false,
         sourceApp,
