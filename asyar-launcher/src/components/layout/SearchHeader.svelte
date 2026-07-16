@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { Input } from '..';
+  import { Badge, Input, SearchBarAccessoryDropdown } from '..';
   import { tick } from 'svelte';
-  import { SearchBarAccessoryDropdown } from '../../components';
+  import { developmentBuildIndicator } from '../../lib/developmentBuild';
   import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
@@ -232,6 +232,15 @@
           />
         {/if}
       </div>
+    {/if}
+    {#if developmentBuildIndicator}
+      <span
+        class="shrink-0"
+        title={developmentBuildIndicator.title}
+        aria-label={developmentBuildIndicator.title}
+      >
+        <Badge text={developmentBuildIndicator.text} variant="warning" mono bordered />
+      </span>
     {/if}
   </div>
 </div>
