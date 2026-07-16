@@ -136,6 +136,28 @@ describe('RunsExtension keyboard navigation', () => {
     await RunsExtension.viewDeactivated!('runs/RunView');
   });
 
+  it('Enter with no selection does not read the combined run list', async () => {
+    const combinedGetter = vi.fn(() => []);
+    Object.defineProperty(runService, 'combined', {
+      configurable: true,
+      get: combinedGetter,
+    });
+
+    try {
+      await RunsExtension.viewActivated!('runs/RunView');
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+
+      expect(combinedGetter).not.toHaveBeenCalled();
+    } finally {
+      await RunsExtension.viewDeactivated!('runs/RunView');
+      Object.defineProperty(runService, 'combined', {
+        configurable: true,
+        writable: true,
+        value: [],
+      });
+    }
+  });
+
   it('Enter opens the conversation for the selected agent run', async () => {
     (runService as any).combined = [
       { id: 'agent-run-1', kind: 'agent' },

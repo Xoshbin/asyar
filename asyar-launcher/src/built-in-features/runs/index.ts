@@ -77,7 +77,9 @@ class RunsExtension implements Extension {
   }
 
   private selectedAgentRunId(): string | null {
-    const selectedRun = runService.combined.find((run) => run.id === runService.selectedRunId);
+    const selectedRunId = runService.selectedRunId;
+    if (!selectedRunId) return null;
+    const selectedRun = runService.combined.find((run) => run.id === selectedRunId);
     return selectedRun?.kind === 'agent' || selectedRun?.kind === 'ai-chat' ? selectedRun.id : null;
   }
 
