@@ -176,7 +176,7 @@ pub fn start_listener(app_handle: AppHandle) {
                                 }
                             };
                             for trigger in triggers {
-                                if trigger.chars().last() == Some(c) {
+                                if trigger.ends_with(c) {
                                     if let Some(candidate) =
                                         crate::snippets::detect_completed_shortcode_at_end(
                                             &current, &trigger,
