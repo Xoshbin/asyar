@@ -8,6 +8,13 @@ pub type ExtensionId = String;
 pub type ShortcodeMap = HashMap<String, String>;
 pub type ContributedSnippets = HashMap<ExtensionId, ShortcodeMap>;
 
+/// Canonical shortcode pattern shared with the SDK.
+///
+/// This string is the single source of truth for the cross-language contract
+/// test in `extensions/emoji/src/shortcode-pattern.contract.test.ts`.
+/// Do NOT change it without updating `SHORTCODE_PATTERN` in `asyar-sdk`.
+///
+/// Equivalent Rust regex (not compiled at runtime): r"^:[a-z0-9_+-]{1,32}:$"
 pub fn is_valid_shortcode_key(s: &str, trigger: &str) -> bool {
     if !s.starts_with(trigger) || !s.ends_with(trigger) {
         return false;
