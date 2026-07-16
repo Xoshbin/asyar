@@ -2021,20 +2021,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         app.manage(bridge_state);
     }
 
-    {
-        let db = app.state::<crate::storage::DataStore>();
-        if let Ok(conn) = db.conn() {
-            if let Ok(Some(template_agent)) = crate::agents::lifecycle::first_agent(&conn) {
-                if let Err(e) = crate::agents::lifecycle::seed_emoji_fallback_agent(
-                    &conn,
-                    &template_agent.provider_id,
-                    &template_agent.model_id,
-                ) {
-                    log::error!("Failed to seed emoji fallback agent: {e}");
-                }
-            }
-        };
-    }
     Ok(())
 }
 

@@ -217,6 +217,86 @@ async fn test_silent_runner_rejects_non_silent_agent() {
         .contains("is not configured for silent execution"));
 }
 
+fn shortcode_miss_agent() -> AgentRow {
+    AgentRow {
+        id: "agent-emoji-fallback".to_string(),
+        name: "Inline Emoji Fallback".to_string(),
+        description: None,
+        system_prompt: "resolve emoji".to_string(),
+        provider_id: "openai".to_string(),
+        model_id: "gpt-4o".to_string(),
+        tool_selection: vec![],
+        silent: true,
+        input_source: crate::storage::agents::SilentInputSource::ShortcodeMiss,
+        output_action: crate::storage::agents::SilentOutputAction::Paste,
+        cache_responses: true,
+        shortcode_trigger: ":".to_string(),
+        created_at: None,
+        updated_at: None,
+    }
+}
+
+async fn run_shortcode_miss_with_mocked_reply(reply_chunks: &[&str]) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+
+    let body = reply_chunks
+        .iter()
+        .map(|chunk| format!("data: {{\"choices\":[{{\"delta\":{{\"content\":{chunk}}}}}]}}\n\n"))
+        .collect::<String>();
+    tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut buf = [0; 4096];
+        let _ = tokio::io::AsyncReadExt::read(&mut socket, &mut buf)
+            .await
+            .unwrap();
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\n{body}data: [DONE]\n\n"
+        );
+        socket.write_all(response.as_bytes()).await.unwrap();
+    });
+
+    let provider = crate::ai::types::ProviderConfig {
+        enabled: true,
+        api_key: Some("test-key".to_string()),
+        base_url: Some(format!("http://127.0.0.1:{port}")),
+        last_model_id: None,
+        open_ai_api_mode: None,
+        hosted_web_search: None,
+        reasoning_effort: None,
+    };
+
+    run_silent_agent_loop_impl(
+        &shortcode_miss_agent(),
+        &ToolRegistry::new(),
+        "party".to_string(),
+        run_config(provider, 0.7, 2048),
+        |_| {},
+        |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
+        None,
+    )
+    .await
+    .unwrap()
+}
+
+#[tokio::test]
+async fn test_silent_runner_sanitizes_shortcode_miss_prose_to_empty() {
+    let result =
+        run_shortcode_miss_with_mocked_reply(&["\"Here are some \"", "\"party ideas!\""]).await;
+
+    assert_eq!(
+        result, "",
+        "prose from a ShortcodeMiss agent must be sanitized to empty, not pasted verbatim"
+    );
+}
+
+#[tokio::test]
+async fn test_silent_runner_passes_through_a_single_emoji_for_shortcode_miss() {
+    let result = run_shortcode_miss_with_mocked_reply(&["\"🎉\""]).await;
+
+    assert_eq!(result, "🎉");
+}
+
 #[tokio::test]
 async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
     let conn = make_conn();

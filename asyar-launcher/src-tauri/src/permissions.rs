@@ -229,7 +229,6 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:snippets:promoteLearnedShortcode" => Some("snippets:contribute"),
         "asyar:api:snippets:forgetLearnedShortcode" => Some("snippets:contribute"),
         "asyar:api:snippets:clearLearnedShortcodes" => Some("snippets:contribute"),
-        "asyar:api:snippets:setInlineFallbackEnabled" => Some("snippets:contribute"),
         // Browser bridge — tabs (read = list/inspect, write = act/open/search).
         "asyar:api:browser:listTabs" => Some("browser:tabs.read"),
         "asyar:api:browser:getActiveTab" => Some("browser:tabs.read"),
@@ -1019,7 +1018,6 @@ mod tests {
             "asyar:api:snippets:promoteLearnedShortcode",
             "asyar:api:snippets:forgetLearnedShortcode",
             "asyar:api:snippets:clearLearnedShortcodes",
-            "asyar:api:snippets:setInlineFallbackEnabled",
         ] {
             assert_eq!(get_required_permission(method), Some("snippets:contribute"));
         }

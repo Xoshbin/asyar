@@ -1,8 +1,7 @@
 import { invokeSafe, invokeSafeVoid } from './invokeSafe';
 
-// `contribute_shortcodes`/`revoke_shortcodes`/`promote_learned_to_snippet`/
-// `set_inline_emoji_fallback_enabled`/`record_inline_emoji_fallback_outcome`
-// are all `Result<(), AppError>` on the Rust side — Ok(()) and invokeSafe's
+// `contribute_shortcodes`/`revoke_shortcodes`/`promote_learned_to_snippet` are
+// all `Result<(), AppError>` on the Rust side — Ok(()) and invokeSafe's
 // failure sentinel both serialize to `null`, so these use invokeSafeVoid's
 // boolean signal instead. `list_learned_shortcodes`/`forget_learned_shortcode`/
 // `clear_learned_shortcodes` are plain (non-Result) commands and keep invokeSafe.
@@ -32,8 +31,4 @@ export async function forgetLearnedShortcode(shortcode: string): Promise<void> {
 
 export async function clearLearnedShortcodes(): Promise<void> {
   await invokeSafe('clear_learned_shortcodes');
-}
-
-export async function setInlineEmojiFallbackEnabled(enabled: boolean): Promise<boolean> {
-  return invokeSafeVoid('set_inline_emoji_fallback_enabled', { enabled });
 }

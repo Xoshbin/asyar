@@ -187,6 +187,25 @@ pub fn find_shortcode_miss_agent(conn: &Connection) -> Result<Option<AgentRow>, 
         .find(|agent| agent.input_source == SilentInputSource::ShortcodeMiss))
 }
 
+/// Reduces a `ShortcodeMiss` agent's raw reply to a single emoji, or an empty
+/// string if the model ignored its instructions and answered conversationally
+/// instead of calling `emoji_find`. Only a reply that trims to exactly one
+/// non-ASCII grapheme is trusted — anything else (prose, punctuation, plain
+/// ASCII) is treated the same as "no match" rather than pasted verbatim.
+pub fn sanitize_emoji_fallback_output(text: &str) -> String {
+    use unicode_segmentation::UnicodeSegmentation;
+
+    let trimmed = text.trim();
+    let is_single_non_ascii_grapheme = UnicodeSegmentation::graphemes(trimmed, true).count() == 1
+        && trimmed.chars().next().is_some_and(|c| !c.is_ascii());
+
+    if is_single_non_ascii_grapheme {
+        trimmed.to_string()
+    } else {
+        String::new()
+    }
+}
+
 /// Resolve a stored silent-agent target to its `AgentRow`.
 pub fn resolve_silent_agent_target(
     conn: &Connection,
@@ -363,6 +382,38 @@ mod tests {
             found.as_ref().map(|a| a.id.as_str()),
             Some(seeded.id.as_str())
         );
+    }
+
+    #[test]
+    fn sanitize_emoji_fallback_output_passes_through_a_single_emoji() {
+        assert_eq!(sanitize_emoji_fallback_output("🎉"), "🎉");
+    }
+
+    #[test]
+    fn sanitize_emoji_fallback_output_trims_surrounding_whitespace() {
+        assert_eq!(sanitize_emoji_fallback_output("  🎉\n"), "🎉");
+    }
+
+    #[test]
+    fn sanitize_emoji_fallback_output_rejects_prose() {
+        assert_eq!(
+            sanitize_emoji_fallback_output(
+                "# Party Suggestions\n\nHere are some ideas for \"party\":"
+            ),
+            ""
+        );
+    }
+
+    #[test]
+    fn sanitize_emoji_fallback_output_rejects_empty_or_whitespace_only() {
+        assert_eq!(sanitize_emoji_fallback_output(""), "");
+        assert_eq!(sanitize_emoji_fallback_output("   \n  "), "");
+    }
+
+    #[test]
+    fn sanitize_emoji_fallback_output_rejects_a_single_ascii_character() {
+        assert_eq!(sanitize_emoji_fallback_output("x"), "");
+        assert_eq!(sanitize_emoji_fallback_output(":"), "");
     }
 
     #[test]

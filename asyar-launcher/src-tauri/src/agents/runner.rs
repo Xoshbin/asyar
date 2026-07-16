@@ -5,7 +5,7 @@ use crate::ai::types::{
 use crate::error::AppError;
 use crate::storage::agents::{
     get_agent, get_thread, insert_message, list_messages_for_thread, update_thread_title, AgentRow,
-    MessageRole, MessageRow,
+    MessageRole, MessageRow, SilentInputSource,
 };
 use crate::storage::DataStore;
 use serde::{Deserialize, Serialize};
@@ -895,6 +895,11 @@ where
     match result {
         Some(result) => {
             on_event(AgentStreamEvent::Completed);
+            let result = if agent.input_source == SilentInputSource::ShortcodeMiss {
+                crate::agents::lifecycle::sanitize_emoji_fallback_output(&result)
+            } else {
+                result
+            };
             Ok(result)
         }
         None => {
