@@ -11,6 +11,15 @@ const mockHideWindow = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockSimulatePaste = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }));
+vi.mock('../../lib/placeholders', () => ({
+  resolveTemplate: vi.fn().mockImplementation((template: string) => {
+    let res = template;
+    res = res.replace(/{UUID}/g, '12345678-1234-1234-1234-1234567890ab');
+    res = res.replace(/{query}/g, '');
+    res = res.replace(/{Date}/g, '4/7/2026');
+    return Promise.resolve(res);
+  }),
+}));
 vi.mock('tauri-plugin-clipboard-x-api', () => ({ writeText: mockWriteText }));
 vi.mock('../../services/selection/selectionService', () => ({
   selectionService: { getSelectedText: vi.fn() },

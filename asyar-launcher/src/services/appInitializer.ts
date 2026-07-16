@@ -330,7 +330,7 @@ export const appInitializer = {
             userText = userText.slice(trigger.length, -trigger.length);
           } else {
             // Fallback for edge cases
-            userText = userText.replace(/:/g, '');
+            userText = userText.replaceAll(trigger, '');
           }
 
           void dispatchSilentAgentCommand({
