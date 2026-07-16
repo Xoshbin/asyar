@@ -86,7 +86,7 @@
   }
 
   function updateProviderConfig(id: ProviderId, partial: Partial<ProviderConfig>) {
-    settingsService.updateSettings('ai', {
+    return settingsService.updateSettings('ai', {
       providers: {
         ...settings.providers,
         [id]: { ...getConfig(id), ...partial },
@@ -118,7 +118,7 @@
         config,
       );
       if (Object.keys(configPatch).length > 0) {
-        updateProviderConfig(plugin.id, configPatch);
+        await updateProviderConfig(plugin.id, configPatch);
       }
       if (newlySelectedModelId) {
         await maybeAutoSetAsDefault(plugin.id, newlySelectedModelId);
@@ -147,7 +147,7 @@
     const config = getConfig(id);
     const modelId = config.lastModelId ?? fallbackModelId;
     if (!modelId) return;
-    if (!config.lastModelId) updateProviderConfig(id, { lastModelId: modelId });
+    if (!config.lastModelId) await updateProviderConfig(id, { lastModelId: modelId });
     try {
       await agentService.upsertDefaultAgent(id, modelId);
     } catch (err) {

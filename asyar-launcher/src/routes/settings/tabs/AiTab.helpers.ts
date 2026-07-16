@@ -71,7 +71,7 @@ export function modelSelectionAfterFetch(
     effectiveModelId,
     config.reasoningEffort,
   );
-  const isNewSelection = !config.lastModelId && effectiveModelId !== undefined;
+  const isNewSelection = !config.lastModelId && effectiveModelId != null;
 
   const configPatch: Partial<ProviderConfig> = {};
   if (isNewSelection) configPatch.lastModelId = effectiveModelId;
