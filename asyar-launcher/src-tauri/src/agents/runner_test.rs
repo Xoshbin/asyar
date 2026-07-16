@@ -61,13 +61,13 @@ fn test_coalesce_consecutive_user_messages() {
     assert_eq!(coalesced[1].content, "answer");
 }
 
-#[test]
-fn test_system_prompt_adds_hosted_search_date_guidance() {
-    let prompt = build_system_prompt(" Be concise. ", true, "15 July 2026");
+#[tokio::test]
+async fn test_system_prompt_adds_hosted_search_date_guidance() {
+    let prompt = build_system_prompt(" Be concise. ", true, None, None).await;
 
     assert!(prompt.starts_with("The available horizontal display space is 400px."));
     assert!(prompt.contains("Be concise."));
-    assert!(prompt.contains("Today is 15 July 2026."));
+    assert!(prompt.contains("Today is "));
     assert!(prompt.contains("Use web search for facts that may have changed"));
 }
 
@@ -185,6 +185,8 @@ async fn test_silent_runner_rejects_non_silent_agent() {
         silent: false,
         input_source: crate::storage::agents::SilentInputSource::Argument,
         output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+        cache_responses: false,
+        shortcode_trigger: ":".to_string(),
         created_at: None,
         updated_at: None,
     };
@@ -233,6 +235,8 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
                 silent: false,
                 input_source: crate::storage::agents::SilentInputSource::Argument,
                 output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+                cache_responses: false,
+                shortcode_trigger: ":".to_string(),
                 created_at: Some(now),
                 updated_at: Some(now),
             },
@@ -326,6 +330,8 @@ async fn test_run_thread_loop_text_only() {
             silent: false,
             input_source: crate::storage::agents::SilentInputSource::Argument,
             output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
             created_at: Some(now),
             updated_at: Some(now),
         },
@@ -458,6 +464,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
             silent: false,
             input_source: crate::storage::agents::SilentInputSource::Argument,
             output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
             created_at: Some(now),
             updated_at: Some(now),
         },
@@ -600,6 +608,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
             silent: false,
             input_source: crate::storage::agents::SilentInputSource::Argument,
             output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
             created_at: Some(now),
             updated_at: Some(now),
         },
@@ -745,6 +755,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
             silent: true,
             input_source: crate::storage::agents::SilentInputSource::Argument,
             output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
             created_at: Some(now),
             updated_at: Some(now),
         },

@@ -1,4 +1,5 @@
 pub mod builtin_tools;
+pub mod cache;
 pub mod editor;
 pub mod lifecycle;
 pub mod runner;

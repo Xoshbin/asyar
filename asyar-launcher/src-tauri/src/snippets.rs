@@ -2,42 +2,42 @@ use tauri::AppHandle;
 #[allow(unused_imports)]
 use tauri::{Emitter, Manager};
 
-use regex::Regex;
 use std::collections::HashMap;
-use std::sync::OnceLock;
 
 pub type ExtensionId = String;
 pub type ShortcodeMap = HashMap<String, String>;
 pub type ContributedSnippets = HashMap<ExtensionId, ShortcodeMap>;
 
-static SHORTCODE_RE: OnceLock<Regex> = OnceLock::new();
-
-#[allow(dead_code)]
-pub fn shortcode_pattern() -> &'static Regex {
-    SHORTCODE_RE.get_or_init(|| Regex::new(r"^:[a-z0-9_+-]{1,32}:$").unwrap())
+/// Canonical shortcode pattern shared with the SDK.
+///
+/// This string is the single source of truth for the cross-language contract
+/// test in `extensions/emoji/src/shortcode-pattern.contract.test.ts`.
+/// Do NOT change it without updating `SHORTCODE_PATTERN` in `asyar-sdk`.
+///
+/// Equivalent Rust regex (not compiled at runtime): r"^:[a-z0-9_+-]{1,32}:$"
+pub fn is_valid_shortcode_key(s: &str, trigger: &str) -> bool {
+    if !s.starts_with(trigger) || !s.ends_with(trigger) {
+        return false;
+    }
+    let trigger_len = trigger.len();
+    if s.len() < trigger_len * 2 + 1 || s.len() > trigger_len * 2 + 32 {
+        return false;
+    }
+    let middle = &s[trigger_len..s.len() - trigger_len];
+    middle
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '+' || c == '-')
 }
 
-#[allow(dead_code)]
-pub fn is_valid_shortcode_key(s: &str) -> bool {
-    shortcode_pattern().is_match(s)
-}
-
-/// Detects a completed `:shortcode:` ending at the buffer tail.
-///
-/// Returns the matched `:xxx:` substring (including the colons) if the
-/// buffer ends with a valid shortcode pattern; `None` otherwise.
-///
-/// The buffer is the rolling rdev keystroke buffer. The function is called
-/// each time a `:` is appended and is responsible for finding the most
-/// recent paired-colon substring.
-pub(crate) fn detect_completed_shortcode_at_end(buf: &str) -> Option<String> {
-    if !buf.ends_with(':') {
+/// Detects a completed `:shortcode:` ending at the buffer tail with the given trigger.
+pub(crate) fn detect_completed_shortcode_at_end(buf: &str, trigger: &str) -> Option<String> {
+    if !buf.ends_with(trigger) {
         return None;
     }
-    let head = &buf[..buf.len() - 1];
-    let open = head.rfind(':')?;
+    let head = &buf[..buf.len() - trigger.len()];
+    let open = head.rfind(trigger)?;
     let key = &buf[open..];
-    if is_valid_shortcode_key(key) {
+    if is_valid_shortcode_key(key, trigger) {
         Some(key.to_string())
     } else {
         None
@@ -168,17 +168,29 @@ pub fn start_listener(app_handle: AppHandle) {
                                     return;
                                 }
                             }
-                            if c == ':' {
-                                if let Some(candidate) =
-                                    crate::snippets::detect_completed_shortcode_at_end(&current)
-                                {
-                                    if !merged.contains_key(&candidate) {
-                                        let _ = app_handle.emit_to(
-                                            crate::SPOTLIGHT_LABEL,
-                                            "shortcode-miss",
-                                            serde_json::json!({ "shortcode": candidate }),
-                                        );
-                                        buffer.clear();
+                            let triggers = {
+                                if let Ok(guard) = state.shortcode_triggers.lock() {
+                                    guard.clone()
+                                } else {
+                                    vec![":".to_string()]
+                                }
+                            };
+                            for trigger in triggers {
+                                if trigger.ends_with(c) {
+                                    if let Some(candidate) =
+                                        crate::snippets::detect_completed_shortcode_at_end(
+                                            &current, &trigger,
+                                        )
+                                    {
+                                        if !merged.contains_key(&candidate) {
+                                            let _ = app_handle.emit_to(
+                                                crate::SPOTLIGHT_LABEL,
+                                                "shortcode-miss",
+                                                serde_json::json!({ "shortcode": candidate }),
+                                            );
+                                            buffer.clear();
+                                            break;
+                                        }
                                     }
                                 }
                             }
@@ -212,7 +224,7 @@ mod tests {
     fn detects_completed_shortcode_at_end_of_buffer() {
         let s = "hello :party:".to_string();
         assert_eq!(
-            super::detect_completed_shortcode_at_end(&s),
+            super::detect_completed_shortcode_at_end(&s, ":"),
             Some(":party:".to_string())
         );
     }
@@ -220,20 +232,20 @@ mod tests {
     #[test]
     fn does_not_detect_when_no_closing_colon() {
         let s = "hello :party".to_string();
-        assert_eq!(super::detect_completed_shortcode_at_end(&s), None);
+        assert_eq!(super::detect_completed_shortcode_at_end(&s, ":"), None);
     }
 
     #[test]
     fn does_not_detect_invalid_shape() {
         let s = "hello :PARTY:".to_string();
-        assert_eq!(super::detect_completed_shortcode_at_end(&s), None);
+        assert_eq!(super::detect_completed_shortcode_at_end(&s, ":"), None);
     }
 
     #[test]
     fn detects_minimal_one_char_shortcode() {
         let s = ":a:".to_string();
         assert_eq!(
-            super::detect_completed_shortcode_at_end(&s),
+            super::detect_completed_shortcode_at_end(&s, ":"),
             Some(":a:".to_string())
         );
     }
@@ -241,7 +253,7 @@ mod tests {
     #[test]
     fn does_not_detect_orphan_colon_pair() {
         let s = "::".to_string();
-        assert_eq!(super::detect_completed_shortcode_at_end(&s), None);
+        assert_eq!(super::detect_completed_shortcode_at_end(&s, ":"), None);
     }
 
     #[test]
@@ -316,13 +328,13 @@ mod tests {
 
     #[test]
     fn pattern_shape_rejects_malformed_keys() {
-        assert!(super::is_valid_shortcode_key(":party:"));
-        assert!(super::is_valid_shortcode_key(":a-b:"));
-        assert!(super::is_valid_shortcode_key(":+1:"));
-        assert!(!super::is_valid_shortcode_key("party"));
-        assert!(!super::is_valid_shortcode_key(":Party:"));
-        assert!(!super::is_valid_shortcode_key(":party!:"));
+        assert!(super::is_valid_shortcode_key(":party:", ":"));
+        assert!(super::is_valid_shortcode_key(":a-b:", ":"));
+        assert!(super::is_valid_shortcode_key(":+1:", ":"));
+        assert!(!super::is_valid_shortcode_key("party", ":"));
+        assert!(!super::is_valid_shortcode_key(":Party:", ":"));
+        assert!(!super::is_valid_shortcode_key(":party!:", ":"));
         let too_long = ":".to_string() + &"a".repeat(33) + ":";
-        assert!(!super::is_valid_shortcode_key(&too_long));
+        assert!(!super::is_valid_shortcode_key(&too_long, ":"));
     }
 }

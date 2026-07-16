@@ -4,7 +4,11 @@ import { searchService } from '../../services/search/SearchService';
 import { commandService } from '../../services/extension/commandService.svelte';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
 import { shortcutService } from '../shortcuts/shortcutService';
-import { resolveTemplate, PLACEHOLDERS } from '../../lib/placeholders';
+import {
+  resolveTemplate,
+  fetchPlaceholders,
+  type PlaceholderDefinition,
+} from '../../lib/placeholders';
 
 export async function syncPortalToIndex(portal: Portal): Promise<void> {
   await searchService.indexItem({
@@ -70,10 +74,27 @@ function getPortalTokens(portalUrl: string): string[] {
  * activating them (via Tab or an alias) must wait for input rather than
  * firing immediately.
  */
+let cachedPlaceholders: PlaceholderDefinition[] = [];
+
+// Initialize placeholder metadata cache asynchronously
+void fetchPlaceholders().then((list) => {
+  if (list) {
+    cachedPlaceholders = list;
+  }
+});
+
+/**
+ * Determine if a portal URL requires user query input before firing.
+ * Driven by the query placeholders.
+ */
 function portalNeedsQuery(portalUrl: string): boolean {
-  return getPortalTokens(portalUrl).some((t) =>
-    PLACEHOLDERS.some((p) => p.id === 'query' && (p.token === t || p.aliases?.includes(t))),
-  );
+  const queryTokens =
+    cachedPlaceholders.length > 0
+      ? cachedPlaceholders
+          .filter((p) => p.id === 'query')
+          .flatMap((p) => [p.token, ...(p.aliases || [])])
+      : ['query', 'Argument'];
+  return getPortalTokens(portalUrl).some((t) => queryTokens.includes(t));
 }
 
 /**
@@ -89,8 +110,11 @@ async function resolveChipPrefill(portalUrl: string): Promise<string> {
 
   // Resolve and return the first known placeholder's value.
   for (const tokenText of getPortalTokens(portalUrl)) {
-    const def = PLACEHOLDERS.find((p) => p.token === tokenText || p.aliases?.includes(tokenText));
-    if (def) return def.resolve({});
+    const rawToken = `{${tokenText}}`;
+    const resolved = await resolveTemplate(rawToken, {});
+    if (resolved !== rawToken) {
+      return resolved;
+    }
   }
   return '';
 }

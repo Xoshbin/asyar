@@ -43,7 +43,6 @@ export type Application = {
 	bundleId?: string | null,
 };
 
-export type BuiltinAgentProfile = "inline_emoji";
 
 // Category of a calculator answer. Drives icon selection in the UI.
 export type CalcKind = "math" | "unit" | "currency" | "date" | "time" | "base" | "color" | "percent" | "ratio";
@@ -249,7 +248,6 @@ export type SearchResult = {
 
 export type SearchableItem = { category: "application" } & Application | { category: "command" } & Command;
 
-export type SilentAgentTarget = { type: "stored"; agentId: string } | { type: "builtin"; profile: BuiltinAgentProfile; defaultAgentId: string | null };
 
 export type StreamEventPayload = {
 	streamId: string,

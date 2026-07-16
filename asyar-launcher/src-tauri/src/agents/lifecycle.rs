@@ -9,31 +9,7 @@ pub const DEFAULT_AGENT_SYSTEM_PROMPT: &str = "You are Asyar Assistant, a friend
 
 pub const GRAMMAR_FIX_SYSTEM_PROMPT: &str = "You rewrite English text with corrected grammar, spelling, and phrasing.\nPreserve the original tone, voice, language, register, and formatting.\n\nOutput rules:\n- Output the corrected text only. Match the input's length — a short\n  input gets a short output, a long input gets a long output.\n- No preamble. No explanation. No alternatives. No quotation marks\n  around the output. No \"Here is...\" or \"Sure, ...\".\n- If the input is already correct, output it unchanged.\n\nExamples:\n\nInput: the cat sit on mat\nOutput: The cat sits on the mat.\n\nInput: i recieved you're message yesterday and ill respond asap\nOutput: I received your message yesterday and I'll respond ASAP.\n\nInput: We was going too the store wen it started raining\nOutput: We were going to the store when it started raining.\n\nInput: This is a perfectly fine sentence already.\nOutput: This is a perfectly fine sentence already.\n\nNow correct the user's next message the same way.";
 
-const INLINE_EMOJI_SYSTEM_PROMPT: &str = "You are an inline emoji resolver. The user just typed a :shortcode: pattern that did not match any known shortcode. Call the emoji_find tool with the inner word as the description. Reply with exactly one emoji character if confident, or empty string if not. No prose, no quotes.";
-const INLINE_EMOJI_FALLBACK_PROVIDER_ID: &str = "anthropic";
-const INLINE_EMOJI_FALLBACK_MODEL_ID: &str = "claude-haiku-4-5-20251001";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
-pub enum BuiltinAgentProfile {
-    InlineEmoji,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(
-    tag = "type",
-    rename_all = "snake_case",
-    rename_all_fields = "camelCase"
-)]
-pub enum SilentAgentTarget {
-    Stored {
-        agent_id: String,
-    },
-    Builtin {
-        profile: BuiltinAgentProfile,
-        default_agent_id: Option<String>,
-    },
-}
+const INLINE_EMOJI_SYSTEM_PROMPT: &str = "You are an inline emoji resolver. The user just typed a {trigger}shortcode{trigger} pattern that did not match any known shortcode. Call the emoji_find tool with the inner word as the description. Reply with exactly one emoji character if confident, or empty string if not. No prose, no quotes.";
 
 fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
@@ -66,6 +42,8 @@ fn default_agent(provider_id: &str, model_id: &str) -> AgentRow {
         silent: false,
         input_source: SilentInputSource::Argument,
         output_action: SilentOutputAction::ReplaceSelection,
+        cache_responses: false,
+        shortcode_trigger: ":".to_string(),
         created_at: Some(now),
         updated_at: Some(now),
     }
@@ -134,6 +112,8 @@ pub fn seed_grammar_fix_agent(
         silent: true,
         input_source: SilentInputSource::Selection,
         output_action: SilentOutputAction::ReplaceSelection,
+        cache_responses: false,
+        shortcode_trigger: ":".to_string(),
         created_at: Some(now),
         updated_at: Some(now),
     };
@@ -141,59 +121,65 @@ pub fn seed_grammar_fix_agent(
     Ok(agent)
 }
 
-pub fn build_builtin_agent_profile(
-    profile: BuiltinAgentProfile,
+/// Seed the inline emoji fallback agent if it does not already exist.
+///
+/// The agent uses `input_source: ShortcodeMiss` — it is woken by the Rust
+/// shortcode-miss listener rather than direct user dispatch. It is stored in
+/// the DB like any other agent so the user can edit its model, system prompt,
+/// and tools. Returns the existing agent unchanged if one with this name
+/// already exists.
+pub fn seed_emoji_fallback_agent(
+    conn: &Connection,
     provider_id: &str,
     model_id: &str,
-) -> AgentRow {
-    match profile {
-        BuiltinAgentProfile::InlineEmoji => AgentRow {
-            id: "builtin-profile:inline-emoji".to_string(),
-            name: "Inline emoji fallback".to_string(),
-            description: Some(
-                "Resolves unknown :shortcode: patterns to a single emoji.".to_string(),
-            ),
-            system_prompt: INLINE_EMOJI_SYSTEM_PROMPT.to_string(),
-            provider_id: provider_id.to_string(),
-            model_id: model_id.to_string(),
-            tool_selection: vec!["org.asyar.emoji:emoji_find".to_string()],
-            silent: true,
-            input_source: SilentInputSource::Argument,
-            output_action: SilentOutputAction::Paste,
-            created_at: None,
-            updated_at: None,
-        },
-    }
-}
-
-pub fn resolve_builtin_agent_profile(
-    conn: &Connection,
-    profile: BuiltinAgentProfile,
-    default_agent_id: Option<&str>,
 ) -> Result<AgentRow, AppError> {
-    let default = resolve_default_agent(conn, default_agent_id)?;
-    let (provider_id, model_id) = default
-        .as_ref()
-        .map(|agent| (agent.provider_id.as_str(), agent.model_id.as_str()))
-        .unwrap_or((
-            INLINE_EMOJI_FALLBACK_PROVIDER_ID,
-            INLINE_EMOJI_FALLBACK_MODEL_ID,
-        ));
-    Ok(build_builtin_agent_profile(profile, provider_id, model_id))
+    validate_provider_model(provider_id, model_id)?;
+    if let Some(existing) = list_agents(conn)?
+        .into_iter()
+        .find(|agent| agent.name == "Inline Emoji Fallback")
+    {
+        return Ok(existing);
+    }
+    let now = now_ms();
+    let agent = AgentRow {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: "Inline Emoji Fallback".to_string(),
+        description: Some(
+            "Resolves unknown :shortcode: patterns to a single emoji. \
+             Triggered automatically on shortcode-miss events."
+                .to_string(),
+        ),
+        system_prompt: INLINE_EMOJI_SYSTEM_PROMPT.to_string(),
+        provider_id: provider_id.to_string(),
+        model_id: model_id.to_string(),
+        tool_selection: vec!["org.asyar.emoji:emoji_find".to_string()],
+        silent: true,
+        input_source: SilentInputSource::ShortcodeMiss,
+        output_action: SilentOutputAction::Paste,
+        cache_responses: true,
+        shortcode_trigger: ":".to_string(),
+        created_at: Some(now),
+        updated_at: Some(now),
+    };
+    insert_agent(conn, &agent)?;
+    Ok(agent)
 }
 
+/// Looks up the first stored agent whose `input_source` is `ShortcodeMiss`.
+/// Returns `None` if no such agent has been seeded yet.
+pub fn find_shortcode_miss_agent(conn: &Connection) -> Result<Option<AgentRow>, AppError> {
+    Ok(list_agents(conn)?
+        .into_iter()
+        .find(|agent| agent.input_source == SilentInputSource::ShortcodeMiss))
+}
+
+/// Resolve a stored silent-agent target to its `AgentRow`.
 pub fn resolve_silent_agent_target(
     conn: &Connection,
-    target: &SilentAgentTarget,
+    agent_id: &str,
 ) -> Result<AgentRow, AppError> {
-    match target {
-        SilentAgentTarget::Stored { agent_id } => get_agent(conn, agent_id)?
-            .ok_or_else(|| AppError::NotFound(format!("agent '{agent_id}' not found"))),
-        SilentAgentTarget::Builtin {
-            profile,
-            default_agent_id,
-        } => resolve_builtin_agent_profile(conn, *profile, default_agent_id.as_deref()),
-    }
+    get_agent(conn, agent_id)?
+        .ok_or_else(|| AppError::NotFound(format!("agent '{agent_id}' not found")))
 }
 
 pub fn derive_thread_title(user_text: &str) -> String {
@@ -241,6 +227,8 @@ mod tests {
             silent: false,
             input_source: crate::storage::agents::SilentInputSource::Argument,
             output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
             created_at: Some(1),
             updated_at: Some(1),
         }
@@ -311,39 +299,61 @@ mod tests {
     }
 
     #[test]
-    fn inline_emoji_profile_is_defined_in_rust() {
-        let profile = build_builtin_agent_profile(
-            BuiltinAgentProfile::InlineEmoji,
-            "anthropic",
-            "claude-haiku",
-        );
+    fn emoji_fallback_seed_is_idempotent_in_sqlite() {
+        let conn = conn();
 
-        assert_eq!(profile.id, "builtin-profile:inline-emoji");
-        assert_eq!(profile.tool_selection, vec!["org.asyar.emoji:emoji_find"]);
-        assert!(profile.silent);
+        let first = seed_emoji_fallback_agent(&conn, "openai", "gpt-4o-mini").unwrap();
+        let second = seed_emoji_fallback_agent(&conn, "anthropic", "claude-haiku").unwrap();
+
+        assert_eq!(first.id, second.id);
+        // Idempotent: provider from the first call is retained.
+        assert_eq!(second.provider_id, "openai");
+        assert!(second.silent);
         assert_eq!(
-            profile.output_action,
+            second.input_source,
+            crate::storage::agents::SilentInputSource::ShortcodeMiss
+        );
+        assert_eq!(
+            second.output_action,
             crate::storage::agents::SilentOutputAction::Paste
+        );
+        assert_eq!(second.tool_selection, vec!["org.asyar.emoji:emoji_find"]);
+        assert_eq!(list_agents(&conn).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn find_shortcode_miss_agent_returns_seeded_agent() {
+        let conn = conn();
+
+        assert!(find_shortcode_miss_agent(&conn).unwrap().is_none());
+
+        let seeded = seed_emoji_fallback_agent(&conn, "anthropic", "claude-haiku").unwrap();
+        let found = find_shortcode_miss_agent(&conn).unwrap();
+
+        assert_eq!(
+            found.as_ref().map(|a| a.id.as_str()),
+            Some(seeded.id.as_str())
         );
     }
 
     #[test]
-    fn builtin_profile_uses_rust_resolved_default_provider() {
+    fn resolve_silent_agent_target_returns_stored_agent() {
         let conn = conn();
-        let mut default = existing_agent("default-1", "Assistant");
-        default.provider_id = "openrouter".to_string();
-        default.model_id = "fast-model".to_string();
-        insert_agent(&conn, &default).unwrap();
+        let mut stored = existing_agent("silent-1", "Stored");
+        stored.silent = true;
+        insert_agent(&conn, &stored).unwrap();
 
-        let profile = resolve_builtin_agent_profile(
-            &conn,
-            BuiltinAgentProfile::InlineEmoji,
-            Some("default-1"),
-        )
-        .unwrap();
+        assert_eq!(
+            resolve_silent_agent_target(&conn, "silent-1").unwrap(),
+            stored
+        );
+    }
 
-        assert_eq!(profile.provider_id, "openrouter");
-        assert_eq!(profile.model_id, "fast-model");
+    #[test]
+    fn resolve_silent_agent_target_errors_on_missing_id() {
+        let conn = conn();
+        let result = resolve_silent_agent_target(&conn, "nonexistent");
+        assert!(matches!(result, Err(crate::error::AppError::NotFound(_))));
     }
 
     #[test]
@@ -368,37 +378,6 @@ mod tests {
         assert_eq!(
             get_agent(&conn, "default-1").unwrap().unwrap().model_id,
             "gpt-new"
-        );
-    }
-
-    #[test]
-    fn resolves_typed_silent_targets_without_frontend_agent_overrides() {
-        let conn = conn();
-        let mut stored = existing_agent("silent-1", "Stored");
-        stored.silent = true;
-        insert_agent(&conn, &stored).unwrap();
-
-        assert_eq!(
-            resolve_silent_agent_target(
-                &conn,
-                &SilentAgentTarget::Stored {
-                    agent_id: "silent-1".to_string(),
-                },
-            )
-            .unwrap(),
-            stored
-        );
-        assert_eq!(
-            resolve_silent_agent_target(
-                &conn,
-                &SilentAgentTarget::Builtin {
-                    profile: BuiltinAgentProfile::InlineEmoji,
-                    default_agent_id: None,
-                },
-            )
-            .unwrap()
-            .id,
-            "builtin-profile:inline-emoji"
         );
     }
 }

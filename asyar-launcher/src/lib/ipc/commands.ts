@@ -16,11 +16,8 @@ import type {
   ItemAlias,
   AliasConflict,
   MergedSearchResponse,
-  BuiltinAgentProfile,
-  SilentAgentTarget,
   ModelInfo as ModelInfoContract,
 } from '../../bindings';
-export type { BuiltinAgentProfile, SilentAgentTarget } from '../../bindings';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 export * from './extensionPreferencesCommands';
@@ -1988,13 +1985,13 @@ export async function agentsRunThread(
 }
 
 export async function agentsRunSilent(
-  target: SilentAgentTarget,
+  agentId: string,
   userText: string,
   config: AgentRunConfig,
   streamId: string,
 ): Promise<string> {
   return invokeRaw<string>('agents_run_silent', {
-    target,
+    agentId,
     userText,
     config,
     streamId,
@@ -2031,13 +2028,13 @@ export async function agentsSeedGrammarFix(
   );
 }
 
-export async function agentsGetBuiltinProfile(
-  profile: BuiltinAgentProfile,
-  defaultAgentId: string | null,
+export async function agentsSeedEmojiFallback(
+  providerId: string,
+  modelId: string,
 ): Promise<import('../../built-in-features/agents/types').AgentDef> {
   return invokeRaw<import('../../built-in-features/agents/types').AgentDef>(
-    'agents_get_builtin_profile',
-    { profile, defaultAgentId },
+    'agents_seed_emoji_fallback',
+    { providerId, modelId },
   );
 }
 
@@ -2067,4 +2064,20 @@ export async function agentsReportMcpPermission(
 
 export async function agentsCancelRun(streamId: string): Promise<void> {
   await invokeRaw('agents_cancel_run', { streamId });
+}
+
+export async function agentsListCached(agentId: string): Promise<[string, string][]> {
+  return invokeRaw<[string, string][]>('agents_list_cached', { agentId });
+}
+
+export async function agentsForgetCached(agentId: string, input: string): Promise<void> {
+  await invokeRaw('agents_forget_cached', { agentId, input });
+}
+
+export async function agentsClearCached(agentId: string): Promise<void> {
+  await invokeRaw('agents_clear_cached', { agentId });
+}
+
+export async function agentsPromoteCached(agentId: string, input: string): Promise<void> {
+  await invokeRaw('agents_promote_cached', { agentId, input });
 }

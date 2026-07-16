@@ -1,4 +1,3 @@
-use crate::agents::lifecycle::{BuiltinAgentProfile, SilentAgentTarget};
 use crate::agents::runner::{
     AgentRunConfig, AgentRunnerState, AgentStreamEvent, AgentStreamEventPayload,
     ExternalToolRequest, McpPermissionChoice,
@@ -59,6 +58,10 @@ pub struct AgentCreateInput {
     pub input_source: Option<SilentInputSource>,
     #[serde(default)]
     pub output_action: Option<SilentOutputAction>,
+    #[serde(default)]
+    pub cache_responses: Option<bool>,
+    #[serde(default)]
+    pub shortcode_trigger: Option<String>,
 }
 
 #[derive(serde::Deserialize, specta::Type)]
@@ -77,6 +80,10 @@ pub struct AgentUpdateInput {
     pub input_source: Option<SilentInputSource>,
     #[serde(default)]
     pub output_action: Option<SilentOutputAction>,
+    #[serde(default)]
+    pub cache_responses: Option<bool>,
+    #[serde(default)]
+    pub shortcode_trigger: Option<String>,
 }
 
 #[derive(serde::Deserialize, specta::Type)]
@@ -119,6 +126,8 @@ pub fn agents_create_impl(
         output_action: input
             .output_action
             .unwrap_or(SilentOutputAction::ReplaceSelection),
+        cache_responses: input.cache_responses.unwrap_or(false),
+        shortcode_trigger: input.shortcode_trigger.unwrap_or_else(|| ":".to_string()),
         created_at: Some(now),
         updated_at: Some(now),
     };
@@ -152,6 +161,10 @@ pub fn agents_update_impl(
         silent: input.silent.unwrap_or(existing.silent),
         input_source: input.input_source.unwrap_or(existing.input_source),
         output_action: input.output_action.unwrap_or(existing.output_action),
+        cache_responses: input.cache_responses.unwrap_or(existing.cache_responses),
+        shortcode_trigger: input
+            .shortcode_trigger
+            .unwrap_or(existing.shortcode_trigger),
         created_at: existing.created_at,
         updated_at: Some(now_ms()),
     };
@@ -258,8 +271,10 @@ pub async fn agents_create(
     db: State<'_, DataStore>,
     input: AgentCreateInput,
 ) -> Result<AgentRow, AppError> {
-    let conn = db.conn()?;
-    let row = agents_create_impl(&conn, input)?;
+    let row = {
+        let conn = db.conn()?;
+        agents_create_impl(&conn, input)?
+    };
     let _ = app.emit("agents:changed", ());
     Ok(row)
 }
@@ -270,8 +285,10 @@ pub async fn agents_update(
     db: State<'_, DataStore>,
     input: AgentUpdateInput,
 ) -> Result<AgentRow, AppError> {
-    let conn = db.conn()?;
-    let row = agents_update_impl(&conn, input)?;
+    let row = {
+        let conn = db.conn()?;
+        agents_update_impl(&conn, input)?
+    };
     let _ = app.emit("agents:changed", ());
     Ok(row)
 }
@@ -282,8 +299,10 @@ pub async fn agents_delete(
     db: State<'_, DataStore>,
     id: String,
 ) -> Result<(), AppError> {
-    let conn = db.conn()?;
-    agents_delete_impl(&conn, id)?;
+    {
+        let conn = db.conn()?;
+        agents_delete_impl(&conn, id)?;
+    }
     let _ = app.emit("agents:changed", ());
     Ok(())
 }
@@ -320,13 +339,15 @@ pub async fn agents_upsert_default(
     provider_id: String,
     model_id: String,
 ) -> Result<AgentRow, AppError> {
-    let conn = db.conn()?;
-    let row = crate::agents::lifecycle::upsert_default_agent(
-        &conn,
-        default_agent_id.as_deref(),
-        &provider_id,
-        &model_id,
-    )?;
+    let row = {
+        let conn = db.conn()?;
+        crate::agents::lifecycle::upsert_default_agent(
+            &conn,
+            default_agent_id.as_deref(),
+            &provider_id,
+            &model_id,
+        )?
+    };
     let _ = app.emit("agents:changed", ());
     Ok(row)
 }
@@ -338,24 +359,27 @@ pub async fn agents_seed_grammar_fix(
     provider_id: String,
     model_id: String,
 ) -> Result<AgentRow, AppError> {
-    let conn = db.conn()?;
-    let row = crate::agents::lifecycle::seed_grammar_fix_agent(&conn, &provider_id, &model_id)?;
+    let row = {
+        let conn = db.conn()?;
+        crate::agents::lifecycle::seed_grammar_fix_agent(&conn, &provider_id, &model_id)?
+    };
     let _ = app.emit("agents:changed", ());
     Ok(row)
 }
 
 #[tauri::command]
-pub async fn agents_get_builtin_profile(
+pub async fn agents_seed_emoji_fallback(
+    app: AppHandle,
     db: State<'_, DataStore>,
-    profile: BuiltinAgentProfile,
-    default_agent_id: Option<String>,
+    provider_id: String,
+    model_id: String,
 ) -> Result<AgentRow, AppError> {
-    let conn = db.conn()?;
-    crate::agents::lifecycle::resolve_builtin_agent_profile(
-        &conn,
-        profile,
-        default_agent_id.as_deref(),
-    )
+    let row = {
+        let conn = db.conn()?;
+        crate::agents::lifecycle::seed_emoji_fallback_agent(&conn, &provider_id, &model_id)?
+    };
+    let _ = app.emit("agents:changed", ());
+    Ok(row)
 }
 
 #[tauri::command]
@@ -492,15 +516,26 @@ pub async fn agents_run_silent(
     registry: State<'_, ToolRegistryState>,
     runner_state: State<'_, AgentRunnerState>,
     supervisor: State<'_, Arc<McpSupervisor>>,
-    target: SilentAgentTarget,
+    agent_id: String,
     user_text: String,
     config: AgentRunConfig,
     stream_id: String,
 ) -> Result<String, AppError> {
     let agent = {
         let conn = store.conn()?;
-        crate::agents::lifecycle::resolve_silent_agent_target(&conn, &target)?
+        crate::agents::lifecycle::resolve_silent_agent_target(&conn, &agent_id)?
     };
+
+    use tauri::Manager;
+    if agent.cache_responses {
+        if let Some(cache) = app.try_state::<crate::agents::cache::AgentResponseCache>() {
+            if let Some(cached_output) = cache.get(&agent.id, &user_text) {
+                return Ok(cached_output);
+            }
+        }
+    }
+
+    let cache_key = user_text.clone();
     let cancellation = runner_state.begin_run(&stream_id)?;
     let app_for_events = app.clone();
     let event_stream_id = stream_id.clone();
@@ -513,8 +548,9 @@ pub async fn agents_run_silent(
             },
         );
     };
+
     let tool_runtime = TauriAgentToolRuntime::new(
-        app,
+        app.clone(),
         runner_state.inner().clone(),
         stream_id.clone(),
         supervisor.inner().clone(),
@@ -540,6 +576,15 @@ pub async fn agents_run_silent(
     )
     .await;
     let cleanup = runner_state.finish_run(&stream_id);
+
+    if let Ok(ref text) = result {
+        if agent.cache_responses {
+            if let Some(cache) = app.try_state::<crate::agents::cache::AgentResponseCache>() {
+                cache.set(&agent.id, &cache_key, text);
+            }
+        }
+    }
+
     match (result, cleanup) {
         (Err(error), _) | (Ok(_), Err(error)) => Err(error),
         (Ok(text), Ok(())) => Ok(text),
@@ -573,4 +618,56 @@ pub async fn agents_cancel_run(
     stream_id: String,
 ) -> Result<(), AppError> {
     runner_state.cancel_run(&stream_id)
+}
+
+#[tauri::command]
+pub fn agents_list_cached(
+    agent_id: String,
+    cache: State<'_, crate::agents::cache::AgentResponseCache>,
+) -> Vec<(String, String)> {
+    cache.list(&agent_id)
+}
+
+#[tauri::command]
+pub fn agents_forget_cached(
+    agent_id: String,
+    input: String,
+    cache: State<'_, crate::agents::cache::AgentResponseCache>,
+) {
+    cache.forget(&agent_id, &input);
+}
+
+#[tauri::command]
+pub fn agents_clear_cached(
+    agent_id: String,
+    cache: State<'_, crate::agents::cache::AgentResponseCache>,
+) {
+    cache.clear(&agent_id);
+}
+
+#[tauri::command]
+pub fn agents_promote_cached(
+    agent_id: String,
+    input: String,
+    cache: State<'_, crate::agents::cache::AgentResponseCache>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), AppError> {
+    let output = cache.get(&agent_id, &input).ok_or_else(|| {
+        AppError::Platform(format!(
+            "Input \"{}\" is not in the cache for agent \"{}\"",
+            input, agent_id
+        ))
+    })?;
+
+    cache.forget(&agent_id, &input);
+
+    let _ = app_handle.emit_to(
+        crate::SPOTLIGHT_LABEL,
+        "snippet:promote-from-cache",
+        serde_json::json!({
+            "keyword": input,
+            "expansion": output,
+        }),
+    );
+    Ok(())
 }

@@ -16,7 +16,6 @@ vi.mock('./agentService.svelte', () => ({
 
 vi.mock('../../lib/ipc/commands', () => ({
   agentsGet: vi.fn(),
-  agentsGetBuiltinProfile: vi.fn(),
   agentsRunSilent: vi.fn(),
   agentsCancelRun: vi.fn(),
   simulatePaste: vi.fn(),
@@ -131,7 +130,7 @@ describe('dispatchSilentAgentCommand', () => {
     await dispatchSilentAgentCommand({ agentId: 'agent-1', userText: 'helo' });
 
     expect(commands.agentsRunSilent).toHaveBeenCalledWith(
-      { type: 'stored', agentId: 'agent-1' },
+      'agent-1',
       'helo',
       runConfig,
       expect.any(String),
@@ -152,7 +151,7 @@ describe('dispatchSilentAgentCommand', () => {
     await dispatchSilentAgentCommand({ agentId: 'agent-1' });
 
     expect(commands.agentsRunSilent).toHaveBeenCalledWith(
-      { type: 'stored', agentId: 'agent-1' },
+      'agent-1',
       'selected words',
       runConfig,
       expect.any(String),
@@ -201,16 +200,20 @@ describe('dispatchSilentAgentCommand', () => {
     expect(spinnerMock.replace).toHaveBeenCalledWith('final line', { spinning: false });
   });
 
-  it('loads and runs a built-in profile defined by Rust', async () => {
-    const inline = makeAgent({ id: 'builtin-profile:inline-emoji', outputAction: 'hud' });
-    vi.mocked(commands.agentsGetBuiltinProfile).mockResolvedValue(inline);
+  it('passes the userText directly for a shortcodeMiss input source', async () => {
+    const emojiAgent = makeAgent({
+      id: 'emoji-agent-uuid',
+      inputSource: 'shortcodeMiss',
+      outputAction: 'paste',
+    });
+    vi.mocked(agentService.getById).mockReturnValue(emojiAgent);
+    vi.mocked(commands.agentsRunSilent).mockResolvedValue('🎉');
 
-    await dispatchSilentAgentCommand({ builtinProfile: 'inline_emoji', userText: 'x' });
+    await dispatchSilentAgentCommand({ agentId: 'emoji-agent-uuid', userText: 'party' });
 
-    expect(commands.agentsGetBuiltinProfile).toHaveBeenCalledWith('inline_emoji', null);
     expect(commands.agentsRunSilent).toHaveBeenCalledWith(
-      { type: 'builtin', profile: 'inline_emoji', defaultAgentId: null },
-      'x',
+      'emoji-agent-uuid',
+      'party',
       runConfig,
       expect.any(String),
     );

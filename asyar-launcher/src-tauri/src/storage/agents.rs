@@ -19,6 +19,11 @@ pub enum SilentInputSource {
     Argument,
     /// Empty string — the prompt itself is fully self-contained.
     None,
+    /// Triggered by an ambient `shortcode-miss` event; the input text is
+    /// supplied by the event payload (the inner shortcode word) rather than
+    /// captured at dispatch time. Used by the inline emoji fallback agent
+    /// and any future ambient-event-driven silent agents.
+    ShortcodeMiss,
 }
 
 impl SilentInputSource {
@@ -28,6 +33,7 @@ impl SilentInputSource {
             SilentInputSource::Clipboard => "clipboard",
             SilentInputSource::Argument => "argument",
             SilentInputSource::None => "none",
+            SilentInputSource::ShortcodeMiss => "shortcodeMiss",
         }
     }
 
@@ -36,6 +42,7 @@ impl SilentInputSource {
             "selection" => SilentInputSource::Selection,
             "clipboard" => SilentInputSource::Clipboard,
             "none" => SilentInputSource::None,
+            "shortcodeMiss" => SilentInputSource::ShortcodeMiss,
             _ => SilentInputSource::Argument,
         }
     }
@@ -101,6 +108,10 @@ pub struct AgentRow {
     /// What the silent dispatcher does with the LLM's final text. Ignored
     /// when `silent == false`.
     pub output_action: SilentOutputAction,
+    /// When true, cached responses are returned immediately for matched user text.
+    pub cache_responses: bool,
+    /// Delimiter/trigger pattern (e.g. ":", ";") for shortcode miss event activation.
+    pub shortcode_trigger: String,
     pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
 }
@@ -156,6 +167,8 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
             silent          INTEGER NOT NULL DEFAULT 0,
             input_source    TEXT    NOT NULL DEFAULT 'argument',
             output_action   TEXT    NOT NULL DEFAULT 'replaceSelection',
+            cache_responses INTEGER NOT NULL DEFAULT 0,
+            shortcode_trigger TEXT  NOT NULL DEFAULT ':',
             created_at      INTEGER NOT NULL,
             updated_at      INTEGER NOT NULL
         );
@@ -216,6 +229,20 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
     }
+    if !cols.contains(&"cache_responses".to_string()) {
+        conn.execute(
+            "ALTER TABLE agents ADD COLUMN cache_responses INTEGER NOT NULL DEFAULT 0",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    }
+    if !cols.contains(&"shortcode_trigger".to_string()) {
+        conn.execute(
+            "ALTER TABLE agents ADD COLUMN shortcode_trigger TEXT NOT NULL DEFAULT ':'",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    }
     Ok(())
 }
 
@@ -225,9 +252,9 @@ pub fn insert_agent(conn: &Connection, agent: &AgentRow) -> Result<(), AppError>
         .map_err(|e| AppError::Database(format!("serialize tool_selection: {e}")))?;
     conn.execute(
         "INSERT INTO agents (id, name, description, system_prompt, provider_id, model_id,
-                             tool_selection, silent, input_source, output_action,
-                             created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                             tool_selection, silent, input_source, output_action, cache_responses,
+                             shortcode_trigger, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         params![
             agent.id,
             agent.name,
@@ -239,6 +266,8 @@ pub fn insert_agent(conn: &Connection, agent: &AgentRow) -> Result<(), AppError>
             agent.silent as i64,
             agent.input_source.as_str(),
             agent.output_action.as_str(),
+            agent.cache_responses as i64,
+            agent.shortcode_trigger,
             agent.created_at,
             agent.updated_at,
         ],
@@ -254,7 +283,7 @@ pub fn update_agent(conn: &Connection, agent: &AgentRow) -> Result<(), AppError>
     conn.execute(
         "UPDATE agents SET name=?2, description=?3, system_prompt=?4, provider_id=?5,
          model_id=?6, tool_selection=?7, silent=?8, input_source=?9, output_action=?10,
-         updated_at=?11 WHERE id=?1",
+         cache_responses=?11, shortcode_trigger=?12, updated_at=?13 WHERE id=?1",
         params![
             agent.id,
             agent.name,
@@ -266,6 +295,8 @@ pub fn update_agent(conn: &Connection, agent: &AgentRow) -> Result<(), AppError>
             agent.silent as i64,
             agent.input_source.as_str(),
             agent.output_action.as_str(),
+            agent.cache_responses as i64,
+            agent.shortcode_trigger,
             agent.updated_at,
         ],
     )
@@ -286,8 +317,8 @@ pub fn list_agents(conn: &Connection) -> Result<Vec<AgentRow>, AppError> {
     let mut stmt = conn
         .prepare(
             "SELECT id, name, description, system_prompt, provider_id, model_id,
-                    tool_selection, silent, input_source, output_action,
-                    created_at, updated_at
+                    tool_selection, silent, input_source, output_action, cache_responses,
+                    shortcode_trigger, created_at, updated_at
              FROM agents
              ORDER BY created_at ASC",
         )
@@ -306,8 +337,10 @@ pub fn list_agents(conn: &Connection) -> Result<Vec<AgentRow>, AppError> {
                 row.get::<_, i64>(7)?,
                 row.get::<_, String>(8)?,
                 row.get::<_, String>(9)?,
-                row.get::<_, Option<i64>>(10)?,
-                row.get::<_, Option<i64>>(11)?,
+                row.get::<_, i64>(10)?,
+                row.get::<_, String>(11)?,
+                row.get::<_, Option<i64>>(12)?,
+                row.get::<_, Option<i64>>(13)?,
             ))
         })
         .map_err(|e| AppError::Database(e.to_string()))?;
@@ -325,6 +358,8 @@ pub fn list_agents(conn: &Connection) -> Result<Vec<AgentRow>, AppError> {
             silent_int,
             input_str,
             output_str,
+            cache_resp_int,
+            shortcode_trigger,
             created_at,
             updated_at,
         ) = row.map_err(|e| AppError::Database(e.to_string()))?;
@@ -341,6 +376,8 @@ pub fn list_agents(conn: &Connection) -> Result<Vec<AgentRow>, AppError> {
             silent: silent_int != 0,
             input_source: SilentInputSource::parse(&input_str),
             output_action: SilentOutputAction::parse(&output_str),
+            cache_responses: cache_resp_int != 0,
+            shortcode_trigger,
             created_at,
             updated_at,
         });
@@ -353,8 +390,8 @@ pub fn get_agent(conn: &Connection, id: &str) -> Result<Option<AgentRow>, AppErr
     let mut stmt = conn
         .prepare(
             "SELECT id, name, description, system_prompt, provider_id, model_id,
-                    tool_selection, silent, input_source, output_action,
-                    created_at, updated_at
+                    tool_selection, silent, input_source, output_action, cache_responses,
+                    shortcode_trigger, created_at, updated_at
              FROM agents
              WHERE id = ?1",
         )
@@ -373,8 +410,10 @@ pub fn get_agent(conn: &Connection, id: &str) -> Result<Option<AgentRow>, AppErr
                 row.get::<_, i64>(7)?,
                 row.get::<_, String>(8)?,
                 row.get::<_, String>(9)?,
-                row.get::<_, Option<i64>>(10)?,
-                row.get::<_, Option<i64>>(11)?,
+                row.get::<_, i64>(10)?,
+                row.get::<_, String>(11)?,
+                row.get::<_, Option<i64>>(12)?,
+                row.get::<_, Option<i64>>(13)?,
             ))
         })
         .map_err(|e| AppError::Database(e.to_string()))?;
@@ -393,6 +432,8 @@ pub fn get_agent(conn: &Connection, id: &str) -> Result<Option<AgentRow>, AppErr
                 silent_int,
                 input_str,
                 output_str,
+                cache_resp_int,
+                shortcode_trigger,
                 created_at,
                 updated_at,
             ) = row.map_err(|e| AppError::Database(e.to_string()))?;
@@ -409,6 +450,8 @@ pub fn get_agent(conn: &Connection, id: &str) -> Result<Option<AgentRow>, AppErr
                 silent: silent_int != 0,
                 input_source: SilentInputSource::parse(&input_str),
                 output_action: SilentOutputAction::parse(&output_str),
+                cache_responses: cache_resp_int != 0,
+                shortcode_trigger,
                 created_at,
                 updated_at,
             }))

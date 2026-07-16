@@ -14,9 +14,9 @@
     WarningBanner,
     FormField,
     Button,
+    PlaceholderPicker,
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-  import PlaceholderPicker from '../portals/PlaceholderPicker.svelte';
 
   let permissionGranted = $state(true);
   let prefillExpansion = $state<string | null>(null);

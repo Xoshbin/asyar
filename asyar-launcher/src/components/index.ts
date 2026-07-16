@@ -71,6 +71,7 @@ export { default as ExtensionPreferencesForm } from './settings/ExtensionPrefere
 
 // Form
 export { default as FormField } from './form/FormField.svelte';
+export { default as PlaceholderPicker } from './form/PlaceholderPicker.svelte';
 
 // Onboarding
 export { default as GuidanceStep } from './onboarding/GuidanceStep.svelte';

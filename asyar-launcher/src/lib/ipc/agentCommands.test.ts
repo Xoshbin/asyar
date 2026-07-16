@@ -13,7 +13,7 @@ import {
   agentsEditorLoad,
   agentsEditorListModels,
   agentsEditorSave,
-  agentsGetBuiltinProfile,
+  agentsSeedEmojiFallback,
   agentsReportMcpPermission,
   agentsReportToolResult,
   agentsResolveDefault,
@@ -65,35 +65,15 @@ describe('agent runner commands', () => {
     });
   });
 
-  it('starts an ephemeral Rust run from a typed stored-agent target', async () => {
+  it('starts an ephemeral Rust run using the stored agent id', async () => {
     vi.mocked(invokeRaw).mockResolvedValueOnce('answer');
 
-    await expect(
-      agentsRunSilent({ type: 'stored', agentId: 'agent-1' }, 'hello', config, 'stream-2'),
-    ).resolves.toBe('answer');
+    await expect(agentsRunSilent('agent-1', 'hello', config, 'stream-2')).resolves.toBe('answer');
     expect(invokeRaw).toHaveBeenCalledWith('agents_run_silent', {
-      target: { type: 'stored', agentId: 'agent-1' },
+      agentId: 'agent-1',
       userText: 'hello',
       config,
       streamId: 'stream-2',
-    });
-  });
-
-  it('starts a built-in silent profile without accepting a frontend AgentDef', async () => {
-    vi.mocked(invokeRaw).mockResolvedValueOnce('🎉');
-
-    await agentsRunSilent(
-      { type: 'builtin', profile: 'inline_emoji', defaultAgentId: 'default-1' },
-      'party',
-      config,
-      'stream-3',
-    );
-
-    expect(invokeRaw).toHaveBeenCalledWith('agents_run_silent', {
-      target: { type: 'builtin', profile: 'inline_emoji', defaultAgentId: 'default-1' },
-      userText: 'party',
-      config,
-      streamId: 'stream-3',
     });
   });
 
@@ -103,7 +83,7 @@ describe('agent runner commands', () => {
     await agentsResolveDefault('default-1');
     await agentsUpsertDefault('default-1', 'openai', 'gpt-4o');
     await agentsSeedGrammarFix('openai', 'gpt-4o');
-    await agentsGetBuiltinProfile('inline_emoji', 'default-1');
+    await agentsSeedEmojiFallback('openai', 'gpt-4o');
 
     expect(vi.mocked(invokeRaw).mock.calls).toEqual([
       ['agents_resolve_default', { defaultAgentId: 'default-1' }],
@@ -112,7 +92,7 @@ describe('agent runner commands', () => {
         { defaultAgentId: 'default-1', providerId: 'openai', modelId: 'gpt-4o' },
       ],
       ['agents_seed_grammar_fix', { providerId: 'openai', modelId: 'gpt-4o' }],
-      ['agents_get_builtin_profile', { profile: 'inline_emoji', defaultAgentId: 'default-1' }],
+      ['agents_seed_emoji_fallback', { providerId: 'openai', modelId: 'gpt-4o' }],
     ]);
   });
 
