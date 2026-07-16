@@ -22,9 +22,7 @@ impl AgentResponseCache {
 
     pub fn set(&self, agent_id: &str, input: &str, output: &str) {
         let mut cache = self.cache.lock().unwrap();
-        let inner = cache
-            .entry(agent_id.to_string())
-            .or_insert_with(HashMap::new);
+        let inner = cache.entry(agent_id.to_string()).or_default();
         inner.insert(input.to_string(), output.to_string());
 
         // Cap cache at 256 entries per agent to prevent unbounded memory growth

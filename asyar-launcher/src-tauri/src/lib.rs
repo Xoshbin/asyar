@@ -2308,11 +2308,9 @@ pub fn sync_shortcode_triggers(app: &tauri::AppHandle) -> Result<(), AppError> {
         .map_err(|e| AppError::Database(e.to_string()))?;
 
     let mut triggers: Vec<String> = Vec::new();
-    for row in rows {
-        if let Ok(trigger) = row {
-            if !trigger.trim().is_empty() && !triggers.contains(&trigger) {
-                triggers.push(trigger);
-            }
+    for trigger in rows.flatten() {
+        if !trigger.trim().is_empty() && !triggers.contains(&trigger) {
+            triggers.push(trigger);
         }
     }
 

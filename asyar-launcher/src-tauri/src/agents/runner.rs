@@ -495,9 +495,9 @@ pub(crate) async fn build_system_prompt(
         sections.push(resolved);
     }
     if hosted_web_search {
-        sections.push(format!(
-            "Today is {{date}}. Use web search for facts that may have changed, especially current events, schedules, sports, prices, availability, laws, and public roles. For ambiguous current-event queries, search first and use the most prominent current interpretation; ask only when no interpretation is clearly more likely. Do not search for stable facts or ordinary writing tasks."
-        ));
+        sections.push(
+            "Today is {date}. Use web search for facts that may have changed, especially current events, schedules, sports, prices, availability, laws, and public roles. For ambiguous current-event queries, search first and use the most prominent current interpretation; ask only when no interpretation is clearly more likely. Do not search for stable facts or ordinary writing tasks.".to_string(),
+        );
     }
 
     // Resolve any remaining placeholders like {date} injected above
@@ -583,6 +583,7 @@ fn resolve_tools(
     Ok((definitions, wire_to_fqid))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_loop<F, D, Fut>(
     agent: &AgentRow,
     registry: &ToolRegistry,
