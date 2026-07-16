@@ -28,6 +28,7 @@ export class ScriptsManager {
   selectedEntryId = $state<string | null>(null);
   private unlistenScriptsChanged: UnlistenFn | null = null;
   private unlistenInlineTick: UnlistenFn | null = null;
+  private refreshPromise: Promise<void> | null = null;
   /** Dynamic ids we've already surfaced a clamp diagnostic for. */
   private clampWarned = new Set<string>();
   /** Dynamic ids we've already surfaced a cap-overflow diagnostic for. */
@@ -147,6 +148,22 @@ export class ScriptsManager {
   }
 
   private async refresh(): Promise<void> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    const activeRefresh = this.performRefresh();
+    this.refreshPromise = activeRefresh;
+    try {
+      await activeRefresh;
+    } finally {
+      if (this.refreshPromise === activeRefresh) {
+        this.refreshPromise = null;
+      }
+    }
+  }
+
+  private async performRefresh(): Promise<void> {
     const report = await scriptsRescan();
     if (report === null) {
       throw new Error('Failed to rescan scripts');

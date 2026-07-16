@@ -140,6 +140,33 @@ describe('ScriptsManager', () => {
     expect(commands.scriptsRescan).toHaveBeenCalledTimes(2);
   });
 
+  it('deduplicates_overlapping_refreshes', async () => {
+    let capturedHandler: (() => void) | null = null;
+    vi.mocked(listen).mockImplementation(async (event, handler) => {
+      if (event === 'scripts:changed') {
+        capturedHandler = handler as () => void;
+      }
+      return () => {};
+    });
+
+    await scriptsManager.start();
+
+    let resolveScan!: (value: ScriptScanReport | null) => void;
+    const pendingScan = new Promise<ScriptScanReport | null>((resolve) => {
+      resolveScan = resolve;
+    });
+    vi.mocked(commands.scriptsRescan).mockReturnValueOnce(pendingScan);
+
+    const manualRefresh = scriptsManager.rescan();
+    capturedHandler!();
+    await Promise.resolve();
+
+    expect(commands.scriptsRescan).toHaveBeenCalledTimes(2);
+
+    resolveScan(report([mockScript]));
+    await manualRefresh;
+  });
+
   it('start_with_titled_script_uses_title_as_command_name', async () => {
     const titled: ScannedScript = {
       ...mockScript,
