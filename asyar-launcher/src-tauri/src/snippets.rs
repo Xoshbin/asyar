@@ -11,13 +11,17 @@ pub type ShortcodeMap = HashMap<String, String>;
 pub type ContributedSnippets = HashMap<ExtensionId, ShortcodeMap>;
 
 pub fn is_valid_shortcode_key(s: &str, trigger: &str) -> bool {
-    let esc = regex::escape(trigger);
-    let pattern = format!("^{}[a-z0-9_+-]{{1,32}}{}$", esc, esc);
-    if let Ok(re) = Regex::new(&pattern) {
-        re.is_match(s)
-    } else {
-        false
+    if !s.starts_with(trigger) || !s.ends_with(trigger) {
+        return false;
     }
+    let trigger_len = trigger.len();
+    if s.len() < trigger_len * 2 + 1 || s.len() > trigger_len * 2 + 32 {
+        return false;
+    }
+    let middle = &s[trigger_len..s.len() - trigger_len];
+    middle
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '+' || c == '-')
 }
 
 /// Detects a completed `:shortcode:` ending at the buffer tail with the given trigger.
