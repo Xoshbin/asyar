@@ -282,7 +282,7 @@ pub fn state_rpc_request(
     extension_id: String,
     id: String,
     correlation_id: String,
-    payload: Value,
+    payload: Option<Value>,
     mgr: State<'_, Arc<ExtensionRuntimeManager>>,
 ) -> Result<IpcDispatchOutcome, AppError> {
     let emitter = TauriEventEmitter { app };
@@ -292,7 +292,7 @@ pub fn state_rpc_request(
         &extension_id,
         id,
         correlation_id,
-        payload,
+        payload.unwrap_or(Value::Null),
         Instant::now(),
     )
 }

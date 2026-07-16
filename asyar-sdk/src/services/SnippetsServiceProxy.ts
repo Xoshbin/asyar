@@ -41,8 +41,4 @@ export class SnippetsServiceProxy extends BaseServiceProxy implements ISnippetsS
   async clearLearnedShortcodes(): Promise<void> {
     await this.broker.invoke('snippets:clearLearnedShortcodes', {});
   }
-
-  async setInlineFallbackEnabled(enabled: boolean): Promise<void> {
-    await this.broker.invoke('snippets:setInlineFallbackEnabled', { enabled });
-  }
 }

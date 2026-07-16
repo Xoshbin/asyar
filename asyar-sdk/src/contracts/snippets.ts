@@ -51,11 +51,4 @@ export interface ISnippetsService {
 
   /** Clear all AI-learned shortcode cache entries. */
   clearLearnedShortcodes(): Promise<void>;
-
-  /**
-   * Enable or disable the launcher's inline AI fallback for unmatched
-   * `:shortcodes:`. When disabled, the dispatcher silently no-ops on every
-   * shortcode-miss event. Requires the `snippets:contribute` permission.
-   */
-  setInlineFallbackEnabled(enabled: boolean): Promise<void>;
 }

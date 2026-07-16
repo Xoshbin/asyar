@@ -7,7 +7,6 @@ import {
   promoteLearnedToSnippet,
   forgetLearnedShortcode,
   clearLearnedShortcodes,
-  setInlineEmojiFallbackEnabled,
 } from '../../lib/ipc/shortcodeCommands';
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
@@ -472,13 +471,6 @@ export class ExtensionIpcRouter {
 
     if (type === 'asyar:api:snippets:clearLearnedShortcodes') {
       return clearLearnedShortcodes();
-    }
-
-    if (type === 'asyar:api:snippets:setInlineFallbackEnabled') {
-      const { enabled } = payload as { enabled: boolean };
-      const ok = await setInlineEmojiFallbackEnabled(enabled);
-      if (!ok) throw new HandledDispatchError('set_inline_emoji_fallback_enabled failed');
-      return undefined;
     }
 
     const ns = serviceName as Namespace;
