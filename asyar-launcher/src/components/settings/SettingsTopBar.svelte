@@ -1,5 +1,6 @@
 <script lang="ts">
-  import Icon from '../base/Icon.svelte';
+  import { Badge, Icon } from '..';
+  import { developmentBuildIndicator } from '../../lib/developmentBuild';
 
   let {
     tabs,
@@ -10,32 +11,54 @@
   } = $props();
 </script>
 
-<div class="settings-top-bar" role="tablist">
-  {#each tabs as tab}
-    <button
-      class="tab-item"
-      class:active={activeTab === tab.id}
-      role="tab"
-      aria-selected={activeTab === tab.id}
-      onclick={() => (activeTab = tab.id)}
+<div class="settings-top-bar">
+  <div class="settings-tabs" role="tablist">
+    {#each tabs as tab}
+      <button
+        class="tab-item"
+        class:active={activeTab === tab.id}
+        role="tab"
+        aria-selected={activeTab === tab.id}
+        onclick={() => (activeTab = tab.id)}
+      >
+        <div class="icon-container">
+          <Icon name={tab.icon} size={22} />
+        </div>
+        <span class="label">{tab.label}</span>
+      </button>
+    {/each}
+  </div>
+  {#if developmentBuildIndicator}
+    <span
+      class="development-build-indicator"
+      title={developmentBuildIndicator.title}
+      aria-label={developmentBuildIndicator.title}
     >
-      <div class="icon-container">
-        <Icon name={tab.icon} size={22} />
-      </div>
-      <span class="label">{tab.label}</span>
-    </button>
-  {/each}
+      <Badge text={developmentBuildIndicator.text} variant="warning" mono bordered />
+    </span>
+  {/if}
 </div>
 
 <style>
   .settings-top-bar {
+    position: relative;
+    padding: var(--space-4) var(--space-6);
+    border-bottom: 1px solid var(--separator);
+    background: var(--bg-primary);
+  }
+
+  .settings-tabs {
     display: flex;
     justify-content: center;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-4) var(--space-6);
-    border-bottom: 1px solid var(--separator);
-    background: var(--bg-primary);
+  }
+
+  .development-build-indicator {
+    position: absolute;
+    inset-inline-end: var(--space-4);
+    top: 50%;
+    transform: translateY(-50%);
   }
 
   .tab-item {
