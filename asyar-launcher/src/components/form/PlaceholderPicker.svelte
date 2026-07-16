@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { PLACEHOLDERS } from '../../lib/placeholders';
+  import {
+    fetchPlaceholders,
+    type PlaceholderDefinition,
+  } from '../../lib/placeholders/placeholderResolver';
 
   let {
     onInsert,
@@ -11,12 +14,17 @@
   } = $props();
 
   let highlightedIndex = $state(0);
+  let placeholders = $state<PlaceholderDefinition[]>([]);
+
+  onMount(async () => {
+    placeholders = await fetchPlaceholders();
+  });
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       e.stopPropagation();
-      highlightedIndex = Math.min(highlightedIndex + 1, PLACEHOLDERS.length - 1);
+      highlightedIndex = Math.min(highlightedIndex + 1, Math.max(0, placeholders.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       e.stopPropagation();
@@ -24,7 +32,7 @@
     } else if (e.key === 'Enter') {
       e.preventDefault();
       e.stopPropagation();
-      const p = PLACEHOLDERS[highlightedIndex];
+      const p = placeholders[highlightedIndex];
       if (p) {
         onInsert(p.token);
         onClose();
@@ -47,16 +55,17 @@
 <div class="placeholder-picker">
   <div class="picker-header">Insert Placeholder</div>
   <ul class="picker-list custom-scrollbar" role="listbox">
-    {#each PLACEHOLDERS as placeholder, i (placeholder.id)}
+    {#each placeholders as placeholder, i (placeholder.id)}
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <li
-        class="picker-item"
-        class:highlighted={i === highlightedIndex}
+        class="picker-item {i === highlightedIndex ? 'highlighted' : ''}"
         role="option"
         aria-selected={i === highlightedIndex}
+        onclick={() => handleItemClick(placeholder.token)}
         onmouseenter={() => {
           highlightedIndex = i;
         }}
-        onclick={() => handleItemClick(placeholder.token)}
       >
         <span class="picker-label">{placeholder.label}</span>
         {#if placeholder.description}

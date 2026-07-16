@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { Input } from '../../components';
+  import { onMount } from 'svelte';
+  import { FormField, Input, PlaceholderPicker } from '../../components';
   import type { Portal } from './portalStore.svelte';
-  import { FormField } from '../../components';
-  import PlaceholderPicker from './PlaceholderPicker.svelte';
-  import { PLACEHOLDERS } from '../../lib/placeholders';
+  import { fetchPlaceholders } from '../../lib/placeholders/placeholderResolver';
 
   let {
     portal = {},
@@ -99,7 +98,12 @@
   }
 
   // Build the help text listing all tokens
-  const tokenList = PLACEHOLDERS.map((p) => `{${p.token}}`).join(', ');
+  let tokenList = $state('');
+
+  onMount(async () => {
+    const placeholders = await fetchPlaceholders();
+    tokenList = placeholders.map((p) => `{${p.token}}`).join(', ');
+  });
 </script>
 
 <svelte:window onkeydown={handleKeydown} />

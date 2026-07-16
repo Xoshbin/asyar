@@ -50,7 +50,6 @@ import { extensionReadinessListener } from './extension/extensionReadinessListen
 import { iframeDeliveryListener } from './extension/iframeDeliveryListener.svelte';
 import { restoreWorkers } from '../lib/ipc/iframeLifecycleCommands';
 import { feedbackService } from './feedback/feedbackService.svelte';
-import type { EmojiFallbackPayload } from '../built-in-features/ai/inlineEmojiFallback';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -318,9 +317,28 @@ export const appInitializer = {
         },
       );
 
-      listen<EmojiFallbackPayload>('emoji-fallback', async (event) => {
-        const { handleEmojiFallback } = await import('../built-in-features/ai/inlineEmojiFallback');
-        void handleEmojiFallback(event.payload);
+      listen<{ shortcode: string }>('shortcode-miss', async (event) => {
+        const { agentService } = await import('../built-in-features/agents/agentService.svelte');
+        const agent = agentService.agents.find((a) => a.inputSource === 'shortcodeMiss');
+        if (agent) {
+          const { dispatchSilentAgentCommand } =
+            await import('../built-in-features/agents/silentDispatch');
+          const rawShortcode = event.payload.shortcode.trim();
+          const trigger = agent.shortcodeTrigger || ':';
+          let userText = rawShortcode;
+          if (userText.startsWith(trigger) && userText.endsWith(trigger)) {
+            userText = userText.slice(trigger.length, -trigger.length);
+          } else {
+            // Fallback for edge cases
+            userText = userText.replace(/:/g, '');
+          }
+
+          void dispatchSilentAgentCommand({
+            agentId: agent.id,
+            userText,
+            rawInputLength: rawShortcode.length,
+          });
+        }
       });
 
       // Apply theme changes triggered from the Settings window

@@ -73,6 +73,8 @@ pub struct AgentEditorForm {
     pub silent: bool,
     pub input_source: SilentInputSource,
     pub output_action: SilentOutputAction,
+    pub cache_responses: bool,
+    pub shortcode_trigger: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
@@ -172,6 +174,8 @@ fn editor_form(agent: Option<&AgentRow>) -> AgentEditorForm {
             silent: agent.silent,
             input_source: agent.input_source,
             output_action: agent.output_action,
+            cache_responses: agent.cache_responses,
+            shortcode_trigger: agent.shortcode_trigger.clone(),
         },
         None => AgentEditorForm {
             name: String::new(),
@@ -183,6 +187,8 @@ fn editor_form(agent: Option<&AgentRow>) -> AgentEditorForm {
             silent: false,
             input_source: SilentInputSource::Argument,
             output_action: SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
         },
     }
 }
@@ -225,6 +231,8 @@ pub fn agents_editor_save_impl(
                 silent: Some(form.silent),
                 input_source: Some(form.input_source),
                 output_action: Some(form.output_action),
+                cache_responses: Some(form.cache_responses),
+                shortcode_trigger: Some(form.shortcode_trigger.clone()),
             },
         ),
         None => agents_create_impl(
@@ -239,6 +247,8 @@ pub fn agents_editor_save_impl(
                 silent: Some(form.silent),
                 input_source: Some(form.input_source),
                 output_action: Some(form.output_action),
+                cache_responses: Some(form.cache_responses),
+                shortcode_trigger: Some(form.shortcode_trigger),
             },
         ),
     }
@@ -286,8 +296,10 @@ pub fn agents_editor_save(
     agent_id: Option<String>,
     form: AgentEditorForm,
 ) -> Result<AgentRow, AppError> {
-    let conn = db.conn()?;
-    let row = agents_editor_save_impl(&conn, agent_id, form)?;
+    let row = {
+        let conn = db.conn()?;
+        agents_editor_save_impl(&conn, agent_id, form)?
+    };
     let _ = app.emit("agents:changed", ());
     Ok(row)
 }

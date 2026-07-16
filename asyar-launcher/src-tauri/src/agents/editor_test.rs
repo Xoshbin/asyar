@@ -205,6 +205,7 @@ fn editor_view_model_uses_rust_owned_defaults_for_new_agents() {
         view.form.output_action,
         SilentOutputAction::ReplaceSelection
     );
+    assert!(!view.form.cache_responses);
 }
 
 #[test]
@@ -222,6 +223,8 @@ fn editor_save_validates_and_persists_the_frontend_form() {
         silent: true,
         input_source: SilentInputSource::Selection,
         output_action: SilentOutputAction::ReplaceSelection,
+        cache_responses: true,
+        shortcode_trigger: ":".to_string(),
     };
 
     let row = agents_editor_save_impl(&conn, None, form).unwrap();
@@ -230,6 +233,7 @@ fn editor_save_validates_and_persists_the_frontend_form() {
     assert_eq!(row.description, None);
     assert_eq!(row.system_prompt, "Be useful.");
     assert!(row.silent);
+    assert!(row.cache_responses);
     assert!(crate::storage::agents::get_agent(&conn, &row.id)
         .unwrap()
         .is_some());
@@ -250,6 +254,8 @@ fn editor_save_rejects_invalid_forms_in_rust() {
         silent: false,
         input_source: SilentInputSource::Argument,
         output_action: SilentOutputAction::ReplaceSelection,
+        cache_responses: false,
+        shortcode_trigger: ":".to_string(),
     };
 
     assert!(matches!(

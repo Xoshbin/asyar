@@ -1,3 +1,4 @@
+use crate::error::AppError;
 #[allow(unused_imports)]
 use tauri::{Emitter, Listener, Manager};
 
@@ -34,6 +35,8 @@ pub struct AppState {
     /// active matcher view at lookup time. User-created snippets in
     /// `active_snippets` shadow these on key collision.
     pub contributed_snippets: Mutex<crate::snippets::ContributedSnippets>,
+    /// Active trigger characters/delimiters for shortcode miss events.
+    pub shortcode_triggers: Mutex<Vec<String>>,
     /// Guards against registering the global event listener more than once.
     pub listener_started: AtomicBool,
     /// Handle to the previously focused window, restored when the launcher hides (Windows only).
@@ -44,8 +47,6 @@ pub struct AppState {
     pub linux_prev_window_id: Mutex<u64>,
     /// Set during snippet expansion to suppress the monitor from re-triggering.
     pub is_expanding: AtomicBool,
-    /// Rate-limit, dedup, and hit/miss cache for the inline AI emoji fallback.
-    pub inline_emoji_fallback: crate::ai::inline_emoji_fallback::InlineEmojiFallbackState,
 }
 
 /// Adapts the managed `runtimes::RuntimeManager` to
@@ -133,6 +134,7 @@ pub mod storage;
 pub mod sync;
 pub mod system_actions;
 pub mod system_events;
+pub mod templating;
 pub mod thumbnail;
 pub mod timers;
 pub mod tray;
@@ -272,6 +274,7 @@ pub fn run() {
         .manage(calculator::CalculatorState::default())
         .manage(runtimes::RuntimeManager::new())
         .manage(feedback::channel::FeedbackChannelState::default())
+        .manage(crate::agents::cache::AgentResponseCache::default())
         .manage(AppState {
             focus_locked: AtomicBool::new(false),
             user_shortcuts: Mutex::new(HashMap::new()),
@@ -281,13 +284,13 @@ pub fn run() {
             launcher_keep_expanded: AtomicBool::new(false),
             active_snippets: Mutex::new(HashMap::new()),
             contributed_snippets: Mutex::new(HashMap::new()),
+            shortcode_triggers: Mutex::new(vec![":".to_string()]),
             listener_started: AtomicBool::new(false),
             #[cfg(target_os = "windows")]
             previous_hwnd: Mutex::new(0),
             #[cfg(target_os = "linux")]
             linux_prev_window_id: Mutex::new(0),
             is_expanding: AtomicBool::new(false),
-            inline_emoji_fallback: Default::default(),
         })
         .manage(crate::onboarding::commands::OnboardingCursor::new(cfg!(
             target_os = "macos"
@@ -445,12 +448,6 @@ pub fn run() {
             commands::open_accessibility_preferences,
             commands::contribute_shortcodes,
             commands::revoke_shortcodes,
-            commands::record_inline_emoji_fallback_outcome,
-            commands::list_learned_shortcodes,
-            commands::forget_learned_shortcode,
-            commands::clear_learned_shortcodes,
-            commands::promote_learned_to_snippet,
-            commands::set_inline_emoji_fallback_enabled,
             permissions::register_extension_permissions,
             permissions::check_extension_permission,
             extensions::consent::check_extension_consent,
@@ -643,6 +640,8 @@ pub fn run() {
             commands::runs::runs_get_output,
             commands::runs::runs_dismiss,
             commands::runs::runs_upsert_bucket,
+            commands::templating::resolve_template,
+            commands::templating::get_available_placeholders,
             // Agent CRUD
             commands::agents::agents_create,
             commands::agents::agents_update,
@@ -652,7 +651,7 @@ pub fn run() {
             commands::agents::agents_resolve_default,
             commands::agents::agents_upsert_default,
             commands::agents::agents_seed_grammar_fix,
-            commands::agents::agents_get_builtin_profile,
+            commands::agents::agents_seed_emoji_fallback,
             commands::agents::agents_thread_create,
             commands::agents::agents_thread_delete,
             commands::agents::agents_thread_update_title,
@@ -666,6 +665,10 @@ pub fn run() {
             commands::agents::agents_report_tool_result,
             commands::agents::agents_report_mcp_permission,
             commands::agents::agents_cancel_run,
+            commands::agents::agents_list_cached,
+            commands::agents::agents_forget_cached,
+            commands::agents::agents_clear_cached,
+            commands::agents::agents_promote_cached,
             ai::models::ai_list_models,
             agents::editor::agents_editor_load,
             agents::editor::agents_editor_list_models,
@@ -1444,6 +1447,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         app.manage(alias_state);
     }
 
+    {
+        let app_handle_for_agents = app.handle().clone();
+        let _ = sync_shortcode_triggers(&app_handle_for_agents);
+        app.listen("agents:changed", move |_event| {
+            let _ = sync_shortcode_triggers(&app_handle_for_agents);
+        });
+    }
+
     // Startup backlog: fire any timers whose fire_at elapsed while the app
     // was quit. Staggered so 50 overdue timers don't slam the bridge in
     // one tick (see timers::startup::stagger_startup_fires).
@@ -2009,8 +2020,20 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         app.manage(bridge_state);
     }
 
-    crate::ai::inline_emoji_fallback::install_shortcode_miss_listener(app.handle().clone());
-
+    {
+        let db = app.state::<crate::storage::DataStore>();
+        if let Ok(conn) = db.conn() {
+            if let Ok(Some(default_agent)) =
+                crate::agents::lifecycle::resolve_default_agent(&conn, None)
+            {
+                let _ = crate::agents::lifecycle::seed_emoji_fallback_agent(
+                    &conn,
+                    &default_agent.provider_id,
+                    &default_agent.model_id,
+                );
+            }
+        };
+    }
     Ok(())
 }
 
@@ -2267,6 +2290,41 @@ mod link_audit_tests {
              dynamic-linking against /opt/homebrew/.../liblzma.5.dylib. See issue #345."
         );
     }
+}
+
+pub fn sync_shortcode_triggers(app: &tauri::AppHandle) -> Result<(), AppError> {
+    let store = app.state::<storage::DataStore>();
+    let conn = store.conn()?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT DISTINCT shortcode_trigger 
+         FROM agents 
+         WHERE silent = 1 AND input_source = 'shortcodeMiss'",
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+    let mut triggers: Vec<String> = Vec::new();
+    for row in rows {
+        if let Ok(trigger) = row {
+            if !trigger.trim().is_empty() && !triggers.contains(&trigger) {
+                triggers.push(trigger);
+            }
+        }
+    }
+
+    if triggers.is_empty() {
+        triggers.push(":".to_string());
+    }
+
+    let state = app.state::<AppState>();
+    if let Ok(mut guard) = state.shortcode_triggers.lock() {
+        *guard = triggers;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { Textarea } from '../../components';
   import { agentsManager } from './agentsManager.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
@@ -6,6 +7,10 @@
     agentsEditorLoad,
     agentsEditorListModels,
     agentsEditorSave,
+    agentsListCached,
+    agentsForgetCached,
+    agentsClearCached,
+    agentsPromoteCached,
     type AgentEditorForm,
     type AgentProviderOption,
     type AgentToolGroup,
@@ -17,6 +22,8 @@
   import ToolPickerTree from './ToolPickerTree.svelte';
   import Button from '../../components/base/Button.svelte';
   import Input from '../../components/base/Input.svelte';
+  import { PlaceholderPicker } from '../../components';
+  import { fetchPlaceholders } from '../../lib/placeholders/placeholderResolver';
 
   const editAgentId = $derived(agentsManager.currentAgentId);
 
@@ -88,6 +95,54 @@
     void fetchModelsForProvider(pid);
   });
 
+  import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+
+  let cachedItems = $state<[string, string][]>([]);
+
+  async function loadCache() {
+    if (editAgentId && form?.silent && form?.cacheResponses) {
+      const items = await agentsListCached(editAgentId);
+      cachedItems = items || [];
+    }
+  }
+
+  $effect(() => {
+    if (editAgentId && form?.silent && form?.cacheResponses) {
+      void loadCache();
+    }
+  });
+
+  async function promoteItem(input: string) {
+    if (!editAgentId) return;
+    try {
+      await agentsPromoteCached(editAgentId, input);
+      await feedbackService.showHUD('✓ Promoted to snippet');
+      await loadCache();
+    } catch {
+      await feedbackService.showHUD('Failed to promote');
+    }
+  }
+
+  async function deleteItem(input: string) {
+    if (!editAgentId) return;
+    try {
+      await agentsForgetCached(editAgentId, input);
+      await loadCache();
+    } catch {
+      await feedbackService.showHUD('Failed to delete');
+    }
+  }
+
+  async function clearCache() {
+    if (!editAgentId) return;
+    try {
+      await agentsClearCached(editAgentId);
+      await loadCache();
+    } catch {
+      await feedbackService.showHUD('Failed to clear');
+    }
+  }
+
   async function onSave() {
     if (!form) return;
     validationError = null;
@@ -104,6 +159,49 @@
 
   function onCancel() {
     viewManager.goBack();
+  }
+
+  let tokenList = $state('');
+
+  onMount(async () => {
+    const placeholders = await fetchPlaceholders();
+    tokenList = placeholders.map((p) => `{${p.token}}`).join(', ');
+  });
+
+  let pickerOpen = $state(false);
+  let promptTextareaEl = $state<HTMLTextAreaElement | null>(null);
+
+  function openPickerViaButton() {
+    pickerOpen = true;
+  }
+
+  function closePicker() {
+    pickerOpen = false;
+    promptTextareaEl?.focus();
+  }
+
+  function handleInsert(token: string) {
+    if (!form) return;
+    const el = promptTextareaEl;
+    if (el) {
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const t = `{${token}}`;
+      form.systemPrompt = form.systemPrompt.slice(0, start) + t + form.systemPrompt.slice(end);
+      setTimeout(() => {
+        el.focus();
+        el.setSelectionRange(start + t.length, start + t.length);
+      }, 0);
+    } else {
+      form.systemPrompt += `{${token}}`;
+    }
+  }
+
+  function handlePromptInput(e: Event) {
+    const el = e.target as HTMLTextAreaElement;
+    if (el.value.endsWith('{')) {
+      pickerOpen = true;
+    }
   }
 </script>
 
@@ -135,17 +233,41 @@
         />
       </div>
 
-      <div class="form-field">
-        <label class="field-label" for="agent-system-prompt">System prompt</label>
+      <div class="form-field" style="position: relative">
+        <label class="field-label" for="agent-system-prompt">
+          System prompt
+          <button
+            class="picker-toggle"
+            type="button"
+            title="Insert placeholder"
+            onclick={openPickerViaButton}
+            style="margin-left: auto; padding: 2px 6px; font-size: 11px; background: var(--bg-hover); border-radius: var(--radius-xs); border: 1px solid var(--border-color); cursor: pointer;"
+            >{'{ }'}</button
+          >
+        </label>
         <Textarea
           unstyled
           textIntent="natural"
           id="agent-system-prompt"
           class="agent-field-textarea"
           bind:value={activeForm.systemPrompt}
+          bind:ref={promptTextareaEl}
+          oninput={handlePromptInput}
           rows={6}
           placeholder="You are a helpful assistant."
         ></Textarea>
+
+        {#if pickerOpen}
+          <PlaceholderPicker onInsert={handleInsert} onClose={closePicker} />
+        {/if}
+        <p class="field-hint" style="margin-top: 4px;">
+          Type <code
+            class="code-inline"
+            style="background: var(--bg-hover); padding: 1px 4px; border-radius: var(--radius-xs);"
+            >let</code
+          >
+          or use placeholders: {tokenList}
+        </p>
       </div>
 
       <div class="form-field">
@@ -236,8 +358,25 @@
           <option value="selection">Selected text in the active app</option>
           <option value="clipboard">Clipboard contents</option>
           <option value="none">Nothing (use the system prompt alone)</option>
+          <option value="shortcodeMiss">Shortcode miss event</option>
         </select>
       </div>
+
+      {#if activeForm.silent && activeForm.inputSource === 'shortcodeMiss'}
+        <div class="form-field">
+          <label class="field-label" for="agent-shortcode-trigger">Shortcode trigger</label>
+          <Input
+            textIntent="natural"
+            id="agent-shortcode-trigger"
+            bind:value={activeForm.shortcodeTrigger}
+            placeholder="e.g. : or ;"
+          />
+          <p class="field-hint">
+            The character(s) that must wrap the word to trigger this agent. For example, ":" for
+            ":party:" or "/" for "/fix/".
+          </p>
+        </div>
+      {/if}
 
       <div class="form-field" class:disabled={!activeForm.silent}>
         <label class="field-label" for="agent-output-action">Then</label>
@@ -253,6 +392,52 @@
           <option value="hud">Show the result as a HUD message</option>
         </select>
       </div>
+
+      {#if activeForm.silent}
+        <div class="form-field">
+          <label class="silent-toggle">
+            <input type="checkbox" bind:checked={activeForm.cacheResponses} />
+            <span>Cache and learn responses</span>
+          </label>
+          <p class="field-hint silent-hint">
+            Remembers previous outputs for identical inputs to avoid repeated LLM calls.
+          </p>
+        </div>
+
+        {#if activeForm.cacheResponses && editAgentId}
+          <div class="cache-manager">
+            <label class="field-label">Cached Responses ({cachedItems.length})</label>
+            {#if cachedItems.length > 0}
+              <div class="cache-list">
+                {#each cachedItems as item}
+                  <div class="cache-item">
+                    <div class="cache-content">
+                      <span class="cache-input" title={item[0]}>{item[0]}</span>
+                      <span class="cache-arrow">→</span>
+                      <span class="cache-output" title={item[1]}>{item[1]}</span>
+                    </div>
+                    <div class="cache-actions">
+                      <button
+                        class="icon-button"
+                        onclick={() => promoteItem(item[0])}
+                        title="Promote to permanent snippet">✨</button
+                      >
+                      <button
+                        class="icon-button"
+                        onclick={() => deleteItem(item[0])}
+                        title="Delete cache entry">🗑️</button
+                      >
+                    </div>
+                  </div>
+                {/each}
+              </div>
+              <button class="clear-button" onclick={clearCache}>Clear Cache</button>
+            {:else}
+              <p class="empty-cache">No responses cached yet.</p>
+            {/if}
+          </div>
+        {/if}
+      {/if}
 
       {#if validationError}
         <p class="field-error">{validationError}</p>
@@ -382,5 +567,112 @@
 
   .field-select:disabled {
     cursor: not-allowed;
+  }
+
+  .cache-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    padding: var(--space-3);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+  }
+
+  .cache-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+  }
+
+  .cache-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .cache-item:last-child {
+    border-bottom: none;
+  }
+
+  .cache-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+    overflow: hidden;
+    font-family: monospace;
+    font-size: var(--font-size-xs);
+  }
+
+  .cache-input {
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 150px;
+  }
+
+  .cache-arrow {
+    color: var(--text-secondary);
+  }
+
+  .cache-output {
+    color: var(--accent-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 150px;
+  }
+
+  .cache-actions {
+    display: flex;
+    gap: var(--space-1);
+  }
+
+  .icon-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    padding: var(--space-1);
+    border-radius: var(--radius-sm);
+    transition: background 0.15s ease;
+  }
+
+  .icon-button:hover {
+    background: var(--bg-secondary);
+  }
+
+  .clear-button {
+    align-self: flex-end;
+    background: none;
+    border: 1px solid var(--accent-danger);
+    color: var(--accent-danger);
+    font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .clear-button:hover {
+    background: var(--accent-danger);
+    color: white;
+  }
+
+  .empty-cache {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    margin: 0;
+    font-style: italic;
   }
 </style>

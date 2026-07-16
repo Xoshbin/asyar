@@ -12,6 +12,7 @@ import {
   agentsResolveDefault,
   agentsUpsertDefault,
   agentsSeedGrammarFix,
+  agentsSeedEmojiFallback,
 } from '../../lib/ipc/commands';
 import { listen } from '@tauri-apps/api/event';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -171,6 +172,10 @@ export class AgentService {
    */
   async seedGrammarFixAgent(providerId: string, modelId: string): Promise<AgentDef> {
     return agentsSeedGrammarFix(providerId, modelId);
+  }
+
+  async seedEmojiFallbackAgent(providerId: string, modelId: string): Promise<AgentDef> {
+    return agentsSeedEmojiFallback(providerId, modelId);
   }
 
   async listThreads(agentId: string): Promise<ThreadDef[]> {

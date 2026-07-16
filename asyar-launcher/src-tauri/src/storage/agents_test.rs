@@ -25,6 +25,8 @@ fn agent(id: &str, created_at: i64) -> AgentRow {
         silent: false,
         input_source: SilentInputSource::Argument,
         output_action: SilentOutputAction::ReplaceSelection,
+        cache_responses: false,
+        shortcode_trigger: ":".to_string(),
         created_at: Some(created_at),
         updated_at: Some(created_at),
     }

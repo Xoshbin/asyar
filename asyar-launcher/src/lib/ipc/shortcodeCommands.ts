@@ -37,10 +37,3 @@ export async function clearLearnedShortcodes(): Promise<void> {
 export async function setInlineEmojiFallbackEnabled(enabled: boolean): Promise<boolean> {
   return invokeSafeVoid('set_inline_emoji_fallback_enabled', { enabled });
 }
-
-export async function recordInlineEmojiFallbackOutcome(
-  shortcode: string,
-  text: string,
-): Promise<boolean> {
-  return invokeSafeVoid('record_inline_emoji_fallback_outcome', { shortcode, text });
-}

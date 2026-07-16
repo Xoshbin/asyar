@@ -372,9 +372,7 @@ mod bindings_export {
             .register::<crate::ai::types::ChatStreamEventPayload>()
             .register::<crate::agents::runner::AgentRunConfig>()
             .register::<crate::agents::runner::AgentStreamEvent>()
-            .register::<crate::agents::runner::AgentStreamEventPayload>()
-            .register::<crate::agents::lifecycle::BuiltinAgentProfile>()
-            .register::<crate::agents::lifecycle::SilentAgentTarget>();
+            .register::<crate::agents::runner::AgentStreamEventPayload>();
 
         Typescript::default()
             .bigint(BigIntExportBehavior::Number)

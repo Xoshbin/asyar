@@ -4,7 +4,7 @@ export type MessageRole = 'user' | 'assistant' | 'tool';
  * Where the silent-AI dispatcher pulls the input text from before calling
  * the LLM. Meaningless when `AgentDef.silent === false`.
  */
-export type SilentInputSource = 'selection' | 'clipboard' | 'argument' | 'none';
+export type SilentInputSource = 'selection' | 'clipboard' | 'argument' | 'none' | 'shortcodeMiss';
 
 /**
  * What the silent-AI dispatcher does with the LLM's final assistant message.
@@ -29,6 +29,10 @@ export interface AgentDef {
   inputSource: SilentInputSource;
   /** What to do with the LLM's final text. Ignored when silent=false. */
   outputAction: SilentOutputAction;
+  /** When true, cached responses are returned immediately for matched user text. */
+  cacheResponses: boolean;
+  /** Trigger delimiter used when inputSource is shortcodeMiss. */
+  shortcodeTrigger: string;
   createdAt: number | null;
   updatedAt: number | null;
 }
@@ -63,6 +67,8 @@ export interface AgentCreateInput {
   inputSource?: SilentInputSource;
   /** Optional. Defaults to `'replaceSelection'` in the Rust layer when omitted. */
   outputAction?: SilentOutputAction;
+  cacheResponses?: boolean;
+  shortcodeTrigger?: string;
 }
 
 export interface AgentUpdateInput extends AgentCreateInput {

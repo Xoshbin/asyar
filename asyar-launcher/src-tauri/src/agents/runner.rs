@@ -473,24 +473,37 @@ pub(crate) fn coalesce_consecutive_messages(messages: Vec<ChatMessage>) -> Vec<C
     output
 }
 
-pub(crate) fn build_system_prompt(
+pub(crate) async fn build_system_prompt(
     base_prompt: &str,
     hosted_web_search: bool,
-    today: &str,
+    trigger: Option<&str>,
 ) -> String {
     let mut sections = vec![
         "The available horizontal display space is 400px. Format responses for this width and avoid unnecessarily wide content."
             .to_string(),
     ];
     if !base_prompt.trim().is_empty() {
-        sections.push(base_prompt.trim().to_string());
+        let prompt = base_prompt.trim().to_string();
+        let ctx = crate::templating::TemplateContext {
+            trigger: trigger.map(|s| s.to_string()),
+            ..Default::default()
+        };
+        let resolved = crate::templating::resolve_template(&prompt, &ctx)
+            .await
+            .unwrap_or(prompt);
+        sections.push(resolved);
     }
     if hosted_web_search {
         sections.push(format!(
-            "Today is {today}. Use web search for facts that may have changed, especially current events, schedules, sports, prices, availability, laws, and public roles. For ambiguous current-event queries, search first and use the most prominent current interpretation; ask only when no interpretation is clearly more likely. Do not search for stable facts or ordinary writing tasks."
+            "Today is {{date}}. Use web search for facts that may have changed, especially current events, schedules, sports, prices, availability, laws, and public roles. For ambiguous current-event queries, search first and use the most prominent current interpretation; ask only when no interpretation is clearly more likely. Do not search for stable facts or ordinary writing tasks."
         ));
     }
-    sections.join("\n\n")
+
+    // Resolve any remaining placeholders like {date} injected above
+    let joined = sections.join("\n\n");
+    crate::templating::resolve_template(&joined, &Default::default())
+        .await
+        .unwrap_or(joined)
 }
 
 fn validate_provider_config(provider_id: &str, config: &ProviderConfig) -> Result<(), AppError> {
@@ -582,12 +595,12 @@ where
     validate_provider_config(&agent.provider_id, &config.provider)?;
     let (tool_definitions, wire_to_fqid) = resolve_tools(agent, registry)?;
     let tools = (!tool_definitions.is_empty()).then_some(tool_definitions);
-    let today = chrono::Utc::now().format("%-d %B %Y").to_string();
     let system_prompt = build_system_prompt(
         &agent.system_prompt,
         config.provider.hosted_web_search.unwrap_or(false),
-        &today,
-    );
+        Some(&agent.shortcode_trigger),
+    )
+    .await;
 
     for _ in 0..MAX_TURNS {
         if cancellation.as_ref().is_some_and(|signal| *signal.borrow()) {

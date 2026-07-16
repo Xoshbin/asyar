@@ -28,6 +28,8 @@ fn valid_create_input() -> AgentCreateInput {
         silent: None,
         input_source: None,
         output_action: None,
+        cache_responses: None,
+        shortcode_trigger: None,
     }
 }
 
@@ -66,6 +68,8 @@ fn agents_create_impl_rejects_empty_name() {
         silent: None,
         input_source: None,
         output_action: None,
+        cache_responses: None,
+        shortcode_trigger: None,
     };
     let result = agents_create_impl(&conn, input);
     assert!(
@@ -87,6 +91,8 @@ fn agents_create_impl_rejects_empty_system_prompt() {
         silent: None,
         input_source: None,
         output_action: None,
+        cache_responses: None,
+        shortcode_trigger: None,
     };
     let result = agents_create_impl(&conn, input);
     assert!(
@@ -108,6 +114,8 @@ fn agents_create_impl_rejects_empty_provider_id() {
         silent: None,
         input_source: None,
         output_action: None,
+        cache_responses: None,
+        shortcode_trigger: None,
     };
     let result = agents_create_impl(&conn, input);
     assert!(
@@ -129,6 +137,8 @@ fn agents_create_impl_rejects_empty_model_id() {
         silent: None,
         input_source: None,
         output_action: None,
+        cache_responses: None,
+        shortcode_trigger: None,
     };
     let result = agents_create_impl(&conn, input);
     assert!(
@@ -155,6 +165,8 @@ fn agents_update_impl_updates_existing() {
         silent: None,
         input_source: None,
         output_action: None,
+        cache_responses: None,
+        shortcode_trigger: None,
     };
     let updated = agents_update_impl(&conn, update_input).unwrap();
 
@@ -183,6 +195,8 @@ fn agents_update_impl_errors_when_id_unknown() {
         silent: None,
         input_source: None,
         output_action: None,
+        cache_responses: None,
+        shortcode_trigger: None,
     };
     let result = agents_update_impl(&conn, input);
     assert!(
@@ -222,6 +236,8 @@ fn agents_list_impl_returns_all() {
         silent: None,
         input_source: None,
         output_action: None,
+        cache_responses: None,
+        shortcode_trigger: None,
     };
     let input2 = AgentCreateInput {
         name: "Second".to_string(),
@@ -233,6 +249,8 @@ fn agents_list_impl_returns_all() {
         silent: None,
         input_source: None,
         output_action: None,
+        cache_responses: None,
+        shortcode_trigger: None,
     };
     agents_create_impl(&conn, input1).unwrap();
     agents_create_impl(&conn, input2).unwrap();
@@ -450,6 +468,8 @@ fn agents_create_impl_persists_silent_fields_when_provided() {
         silent: Some(true),
         input_source: Some(SilentInputSource::Selection),
         output_action: Some(SilentOutputAction::ReplaceSelection),
+        cache_responses: Some(true),
+        shortcode_trigger: Some(":".to_string()),
     };
     let row = agents_create_impl(&conn, input).unwrap();
     assert!(row.silent);
@@ -476,6 +496,8 @@ fn agents_update_impl_preserves_silent_fields_when_unspecified() {
             silent: Some(true),
             input_source: Some(SilentInputSource::Clipboard),
             output_action: Some(SilentOutputAction::Copy),
+            cache_responses: Some(true),
+            shortcode_trigger: Some(":".to_string()),
         },
     )
     .unwrap();
@@ -494,6 +516,8 @@ fn agents_update_impl_preserves_silent_fields_when_unspecified() {
             silent: None,
             input_source: None,
             output_action: None,
+            cache_responses: None,
+            shortcode_trigger: None,
         },
     )
     .unwrap();
@@ -523,6 +547,8 @@ fn agents_update_impl_overrides_silent_fields_when_specified() {
             silent: Some(true),
             input_source: Some(SilentInputSource::Selection),
             output_action: Some(SilentOutputAction::Hud),
+            cache_responses: Some(false),
+            shortcode_trigger: Some(":".to_string()),
         },
     )
     .unwrap();

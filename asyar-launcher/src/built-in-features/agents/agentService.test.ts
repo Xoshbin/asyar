@@ -14,6 +14,7 @@ vi.mock('../../lib/ipc/commands', () => ({
   agentsResolveDefault: vi.fn(),
   agentsUpsertDefault: vi.fn(),
   agentsSeedGrammarFix: vi.fn(),
+  agentsSeedEmojiFallback: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({
@@ -327,5 +328,14 @@ describe('Rust-owned agent lifecycle', () => {
     await expect(service.seedGrammarFixAgent('openai', 'gpt-4o')).resolves.toEqual(row);
 
     expect(commands.agentsSeedGrammarFix).toHaveBeenCalledWith('openai', 'gpt-4o');
+  });
+
+  it('delegates idempotent Emoji Fallback seeding to Rust', async () => {
+    const row = makeAgent({ id: 'emoji-1', name: 'Inline Emoji Fallback', silent: true });
+    vi.mocked(commands.agentsSeedEmojiFallback).mockResolvedValue(row as never);
+
+    await expect(service.seedEmojiFallbackAgent('openai', 'gpt-4o')).resolves.toEqual(row);
+
+    expect(commands.agentsSeedEmojiFallback).toHaveBeenCalledWith('openai', 'gpt-4o');
   });
 });

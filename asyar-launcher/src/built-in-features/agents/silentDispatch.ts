@@ -7,15 +7,7 @@
  */
 import { readText, writeText } from 'tauri-plugin-clipboard-x-api';
 import { extractErrorMessage } from '../../lib/errors';
-import {
-  agentsCancelRun,
-  agentsGet,
-  agentsGetBuiltinProfile,
-  agentsRunSilent,
-  simulatePaste,
-  type BuiltinAgentProfile,
-  type SilentAgentTarget,
-} from '../../lib/ipc/commands';
+import { agentsCancelRun, agentsGet, agentsRunSilent, simulatePaste } from '../../lib/ipc/commands';
 import type { ProviderConfig } from '../../services/ai/IProviderPlugin';
 import {
   feedbackService,
@@ -33,15 +25,14 @@ const CLIPBOARD_RESTORE_DELAY_MS = 200;
 
 interface SilentDispatchOptions {
   userText?: string;
+  rawInputLength?: number;
   abortSignal?: AbortSignal;
   onFinalText?: (text: string) => void | Promise<void>;
 }
 
-export type SilentDispatchInput = SilentDispatchOptions &
-  (
-    | { agentId: string; builtinProfile?: never }
-    | { builtinProfile: BuiltinAgentProfile; agentId?: never }
-  );
+export interface SilentDispatchInput extends SilentDispatchOptions {
+  agentId: string;
+}
 
 /**
  * Runs a silent command without creating a thread or a tracked Run. Failures
@@ -58,13 +49,7 @@ export async function dispatchSilentAgentCommand(input: SilentDispatchInput): Pr
 
   try {
     const settings = settingsService.getSettings();
-    const defaultAgentId = settings.ai.defaultAgentId ?? null;
-    const target: SilentAgentTarget = input.builtinProfile
-      ? { type: 'builtin', profile: input.builtinProfile, defaultAgentId }
-      : { type: 'stored', agentId: input.agentId };
-    const agent = input.builtinProfile
-      ? await agentsGetBuiltinProfile(input.builtinProfile, defaultAgentId)
-      : await loadAgent(input.agentId);
+    const agent = await loadAgent(input.agentId);
     resolvedAgent = agent;
 
     spinner = feedbackService.showHUDSpinning(`✨ ${agent.name}…`);
@@ -106,7 +91,7 @@ export async function dispatchSilentAgentCommand(input: SilentDispatchInput): Pr
       return;
     }
 
-    const result = await agentsRunSilent(target, userText, runConfig, streamId);
+    const result = await agentsRunSilent(agent.id, userText, runConfig, streamId);
     if (bridgeError) throw bridgeError;
     if (input.abortSignal?.aborted) {
       await spinner.dismiss();
@@ -127,7 +112,14 @@ export async function dispatchSilentAgentCommand(input: SilentDispatchInput): Pr
       return;
     }
 
-    await applyOutputAction(agent.outputAction, result, spinner);
+    await applyOutputAction(
+      agent.outputAction,
+      result,
+      spinner,
+      agent.inputSource,
+      userText,
+      input.rawInputLength,
+    );
     spinner = null;
     await callFinalText(input, result);
   } catch (cause) {
@@ -139,14 +131,14 @@ export async function dispatchSilentAgentCommand(input: SilentDispatchInput): Pr
 
     const detail = extractErrorMessage(cause);
     logService.warn(`[silent-agents] dispatch failed: ${detail}`);
-    const target: Pick<AgentDef, 'id' | 'name'> = resolvedAgent
+    const errorTarget: Pick<AgentDef, 'id' | 'name'> = resolvedAgent
       ? { id: resolvedAgent.id, name: resolvedAgent.name }
-      : { id: input.agentId ?? `builtin-profile:${input.builtinProfile}`, name: 'AI command' };
+      : { id: input.agentId, name: 'AI command' };
     if (spinner) {
-      await spinner.replace(`⚠️ ${target.name} failed`, { spinning: false, durationMs: 3000 });
+      await spinner.replace(`⚠️ ${errorTarget.name} failed`, { spinning: false, durationMs: 3000 });
       spinner = null;
     }
-    await reportFailure(target, detail);
+    await reportFailure(errorTarget, detail);
   } finally {
     removeAbortListener?.();
     unlisten?.();
@@ -207,7 +199,12 @@ async function captureInput(
       }
     case 'argument':
     case 'none':
-      return '';
+    case 'shortcodeMiss':
+      // For shortcodeMiss, the input text is supplied externally via
+      // SilentDispatchOptions.userText and has already been passed as the
+      // overrideUserText argument; fall through to the empty-string default
+      // so a missing override doesn't block dispatch.
+      return overrideUserText?.length ? overrideUserText : '';
   }
 }
 
@@ -215,7 +212,18 @@ async function applyOutputAction(
   action: SilentOutputAction,
   result: string,
   spinner: HudSpinnerHandle,
+  inputSource?: SilentInputSource,
+  userText?: string,
+  rawInputLength?: number,
 ): Promise<void> {
+  if (inputSource === 'shortcodeMiss' && userText) {
+    await spinner.dismiss();
+    const { snippetService } = await import('../snippets/snippetService');
+    const deleteLen = rawInputLength ?? userText.length + 2;
+    await snippetService.expandSnippet(deleteLen, result);
+    return;
+  }
+
   switch (action) {
     case 'replaceSelection':
     case 'paste':

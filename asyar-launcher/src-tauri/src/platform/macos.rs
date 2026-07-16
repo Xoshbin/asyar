@@ -1490,17 +1490,27 @@ pub fn register_snippet_monitor(app_handle: AppHandle) {
                     return;
                 }
             }
-            if current.ends_with(':') {
-                if let Some(candidate) =
-                    crate::snippets::detect_completed_shortcode_at_end(&current)
-                {
-                    if !merged.contains_key(&candidate) {
-                        let _ = app.emit_to(
-                            crate::SPOTLIGHT_LABEL,
-                            "shortcode-miss",
-                            serde_json::json!({ "shortcode": candidate }),
-                        );
-                        buffer.clear();
+            let triggers = {
+                if let Ok(guard) = state.shortcode_triggers.lock() {
+                    guard.clone()
+                } else {
+                    vec![":".to_string()]
+                }
+            };
+            for trigger in triggers {
+                if current.ends_with(&trigger) {
+                    if let Some(candidate) =
+                        crate::snippets::detect_completed_shortcode_at_end(&current, &trigger)
+                    {
+                        if !merged.contains_key(&candidate) {
+                            let _ = app.emit_to(
+                                crate::SPOTLIGHT_LABEL,
+                                "shortcode-miss",
+                                serde_json::json!({ "shortcode": candidate }),
+                            );
+                            buffer.clear();
+                            break;
+                        }
                     }
                 }
             }

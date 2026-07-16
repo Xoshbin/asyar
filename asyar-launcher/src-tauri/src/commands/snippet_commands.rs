@@ -3,11 +3,10 @@
 //! Syncs snippet definitions to the Rust listener, enables/disables
 //! expansion, and checks macOS Accessibility permissions.
 
-use crate::ai::inline_emoji_fallback::CacheEntry;
 use crate::error::AppError;
 use crate::AppState;
 use std::sync::atomic::Ordering;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 /// Syncs the active snippet definitions from the frontend into the Rust listener.
 #[tauri::command]
@@ -86,7 +85,7 @@ pub(crate) fn contribute_shortcodes_inner(
     state: &AppState,
 ) -> Result<(), AppError> {
     for k in map.keys() {
-        if !crate::snippets::is_valid_shortcode_key(k) {
+        if !crate::snippets::is_valid_shortcode_key(k, ":") {
             return Err(AppError::Platform(format!(
                 "Invalid shortcode key \"{}\" (must match :[a-z0-9_+-]{{1,32}}:)",
                 k
@@ -122,135 +121,6 @@ pub(crate) fn revoke_shortcodes_inner(
     Ok(())
 }
 
-/// Records the outcome of an inline emoji fallback agent run.
-///
-/// On a hit, also emits `expand-snippet` so the existing paste-replace
-/// pathway fires identically to a normal snippet expansion.
-#[tauri::command]
-pub fn record_inline_emoji_fallback_outcome(
-    shortcode: String,
-    text: String,
-    state: tauri::State<'_, AppState>,
-    app_handle: AppHandle,
-) -> Result<(), AppError> {
-    let entry = crate::ai::inline_emoji_fallback::classify_agent_output(&text);
-    if let CacheEntry::Hit(emoji) = &entry {
-        let kw_len = shortcode.chars().count();
-        let _ = app_handle.emit_to(
-            crate::SPOTLIGHT_LABEL,
-            "expand-snippet",
-            serde_json::json!({
-                "keywordLen": kw_len,
-                "expansion": emoji,
-            }),
-        );
-    }
-    state
-        .inline_emoji_fallback
-        .record_outcome(&shortcode, entry, std::time::Instant::now());
-    Ok(())
-}
-
-/// Returns all learned shortcode → emoji hit pairs for the settings UI.
-#[tauri::command]
-pub fn list_learned_shortcodes(state: tauri::State<'_, AppState>) -> Vec<(String, String)> {
-    list_learned_shortcodes_inner(&state)
-}
-
-pub(crate) fn list_learned_shortcodes_inner(state: &AppState) -> Vec<(String, String)> {
-    state.inline_emoji_fallback.snapshot_hits()
-}
-
-/// Removes a single cached shortcode entry.
-#[tauri::command]
-pub fn forget_learned_shortcode(shortcode: String, state: tauri::State<'_, AppState>) {
-    forget_learned_shortcode_inner(shortcode, &state);
-}
-
-pub(crate) fn forget_learned_shortcode_inner(shortcode: String, state: &AppState) {
-    state.inline_emoji_fallback.forget(&shortcode);
-}
-
-/// Clears all cached shortcode entries.
-#[tauri::command]
-pub fn clear_learned_shortcodes(state: tauri::State<'_, AppState>) {
-    clear_learned_shortcodes_inner(&state);
-}
-
-pub(crate) fn clear_learned_shortcodes_inner(state: &AppState) {
-    state.inline_emoji_fallback.clear();
-}
-
-/// Enables or disables the inline AI emoji fallback dispatcher.
-///
-/// When disabled, every `shortcode-miss` event is silently dropped without
-/// consuming rate-limit budget or touching the cache.
-#[tauri::command]
-pub fn set_inline_emoji_fallback_enabled(
-    enabled: bool,
-    state: tauri::State<'_, AppState>,
-) -> Result<(), AppError> {
-    set_inline_emoji_fallback_enabled_inner(enabled, &state);
-    Ok(())
-}
-
-pub(crate) fn set_inline_emoji_fallback_enabled_inner(enabled: bool, state: &AppState) {
-    state
-        .inline_emoji_fallback
-        .enabled
-        .store(enabled, std::sync::atomic::Ordering::Relaxed);
-}
-
-pub struct PromotedSnippet {
-    pub keyword: String,
-    pub expansion: String,
-}
-
-pub(crate) fn promote_learned_to_snippet_inner(
-    shortcode: String,
-    state: &AppState,
-) -> Result<PromotedSnippet, AppError> {
-    let hits = state.inline_emoji_fallback.snapshot_hits();
-    let (_, emoji) = hits
-        .into_iter()
-        .find(|(k, _)| k == &shortcode)
-        .ok_or_else(|| {
-            AppError::Platform(format!(
-                "Shortcode \"{}\" is not in the AI cache",
-                shortcode
-            ))
-        })?;
-
-    state.inline_emoji_fallback.forget(&shortcode);
-    Ok(PromotedSnippet {
-        keyword: shortcode,
-        expansion: emoji,
-    })
-}
-
-/// Promotes a learned AI-shortcode to a permanent user snippet.
-///
-/// Reads the emoji from the AI fallback cache, drops the cache entry, then
-/// emits `snippet:promote-from-cache` so the frontend snippets service can
-/// persist it via its existing SQLite path.
-#[tauri::command]
-pub fn promote_learned_to_snippet(
-    shortcode: String,
-    state: tauri::State<'_, AppState>,
-    app_handle: tauri::AppHandle,
-) -> Result<(), AppError> {
-    let promoted = promote_learned_to_snippet_inner(shortcode, &state)?;
-    let _ = app_handle.emit_to(
-        crate::SPOTLIGHT_LABEL,
-        "snippet:promote-from-cache",
-        serde_json::json!({
-            "keyword": promoted.keyword,
-            "expansion": promoted.expansion,
-        }),
-    );
-    Ok(())
-}
-
 #[cfg(test)]
 mod contribute_tests {
     use super::*;
@@ -269,71 +139,14 @@ mod contribute_tests {
             launcher_keep_expanded: AtomicBool::new(false),
             active_snippets: Mutex::new(HashMap::new()),
             contributed_snippets: Mutex::new(HashMap::new()),
+            shortcode_triggers: Mutex::new(vec![]),
             listener_started: AtomicBool::new(false),
             #[cfg(target_os = "windows")]
             previous_hwnd: Mutex::new(0),
             #[cfg(target_os = "linux")]
             linux_prev_window_id: Mutex::new(0),
             is_expanding: AtomicBool::new(false),
-            inline_emoji_fallback: Default::default(),
         }
-    }
-
-    #[test]
-    fn list_learned_shortcodes_returns_only_hits() {
-        let state = fresh_state();
-        let now = std::time::Instant::now();
-        state.inline_emoji_fallback.record_outcome(
-            ":hit:",
-            crate::ai::inline_emoji_fallback::CacheEntry::Hit("✨".into()),
-            now,
-        );
-        state.inline_emoji_fallback.record_outcome(
-            ":miss:",
-            crate::ai::inline_emoji_fallback::CacheEntry::Miss,
-            now,
-        );
-        let result = list_learned_shortcodes_inner(&state);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0], (":hit:".to_string(), "✨".to_string()));
-    }
-
-    #[test]
-    fn forget_learned_shortcode_drops_specific_entry() {
-        let state = fresh_state();
-        let now = std::time::Instant::now();
-        state.inline_emoji_fallback.record_outcome(
-            ":a:",
-            crate::ai::inline_emoji_fallback::CacheEntry::Hit("A".into()),
-            now,
-        );
-        state.inline_emoji_fallback.record_outcome(
-            ":b:",
-            crate::ai::inline_emoji_fallback::CacheEntry::Hit("B".into()),
-            now,
-        );
-        forget_learned_shortcode_inner(":a:".to_string(), &state);
-        let result = list_learned_shortcodes_inner(&state);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].0, ":b:");
-    }
-
-    #[test]
-    fn clear_learned_shortcodes_drops_everything() {
-        let state = fresh_state();
-        let now = std::time::Instant::now();
-        state.inline_emoji_fallback.record_outcome(
-            ":a:",
-            crate::ai::inline_emoji_fallback::CacheEntry::Hit("A".into()),
-            now,
-        );
-        state.inline_emoji_fallback.record_outcome(
-            ":b:",
-            crate::ai::inline_emoji_fallback::CacheEntry::Hit("B".into()),
-            now,
-        );
-        clear_learned_shortcodes_inner(&state);
-        assert!(list_learned_shortcodes_inner(&state).is_empty());
     }
 
     #[test]
@@ -382,53 +195,5 @@ mod contribute_tests {
         assert!(res.is_err());
         let contributed = state.contributed_snippets.lock().unwrap();
         assert!(contributed.get("ext.x").is_none());
-    }
-
-    #[test]
-    fn promote_learned_writes_to_snippet_store_and_drops_cache() {
-        let state = fresh_state();
-        let now = std::time::Instant::now();
-        state.inline_emoji_fallback.record_outcome(
-            ":burnout:",
-            crate::ai::inline_emoji_fallback::CacheEntry::Hit("😮‍💨".into()),
-            now,
-        );
-        assert_eq!(
-            state.inline_emoji_fallback.snapshot_hits(),
-            vec![(":burnout:".to_string(), "😮‍💨".to_string())]
-        );
-
-        let payload = promote_learned_to_snippet_inner(":burnout:".to_string(), &state)
-            .expect("promote_inner ok");
-        assert_eq!(payload.keyword, ":burnout:");
-        assert_eq!(payload.expansion, "😮‍💨");
-
-        assert!(state.inline_emoji_fallback.snapshot_hits().is_empty());
-    }
-
-    #[test]
-    fn promote_learned_returns_err_when_shortcode_not_cached() {
-        let state = fresh_state();
-        let res = promote_learned_to_snippet_inner(":unknown:".to_string(), &state);
-        assert!(res.is_err());
-    }
-
-    #[test]
-    fn set_inline_emoji_fallback_enabled_updates_the_atomic() {
-        let state = fresh_state();
-        assert!(state
-            .inline_emoji_fallback
-            .enabled
-            .load(std::sync::atomic::Ordering::Relaxed));
-        set_inline_emoji_fallback_enabled_inner(false, &state);
-        assert!(!state
-            .inline_emoji_fallback
-            .enabled
-            .load(std::sync::atomic::Ordering::Relaxed));
-        set_inline_emoji_fallback_enabled_inner(true, &state);
-        assert!(state
-            .inline_emoji_fallback
-            .enabled
-            .load(std::sync::atomic::Ordering::Relaxed));
     }
 }
