@@ -264,7 +264,7 @@
           Type <code
             class="code-inline"
             style="background: var(--bg-hover); padding: 1px 4px; border-radius: var(--radius-xs);"
-            >let</code
+            >{'{'}</code
           >
           or use placeholders: {tokenList}
         </p>
