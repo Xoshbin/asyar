@@ -135,6 +135,23 @@ fn has_non_blank(value: Option<&String>) -> bool {
     value.is_some_and(|value| !value.trim().is_empty())
 }
 
+/// Availability policy for a provider: enabled, and carrying whatever
+/// credentials its descriptor says it requires. Shared by the Agent editor's
+/// provider dropdown (`agents_editor_catalog_impl`) and by agent-run
+/// resolution (`agents::lifecycle::resolve_runnable_agent`), so both consult
+/// the same rule instead of drifting apart.
+pub fn is_provider_usable(
+    provider: &AgentProviderDescriptor,
+    config: Option<&ProviderConfig>,
+) -> bool {
+    let Some(config) = config else {
+        return false;
+    };
+    config.enabled
+        && (!provider.requires_api_key || has_non_blank(config.api_key.as_ref()))
+        && (!provider.requires_base_url || has_non_blank(config.base_url.as_ref()))
+}
+
 pub fn agents_editor_catalog_impl(
     registry: &ToolRegistry,
     providers: &[AgentProviderDescriptor],
@@ -142,14 +159,7 @@ pub fn agents_editor_catalog_impl(
 ) -> Result<AgentEditorCatalog, AppError> {
     let providers = providers
         .iter()
-        .filter(|provider| {
-            let Some(config) = configs.get(&provider.id) else {
-                return false;
-            };
-            config.enabled
-                && (!provider.requires_api_key || has_non_blank(config.api_key.as_ref()))
-                && (!provider.requires_base_url || has_non_blank(config.base_url.as_ref()))
-        })
+        .filter(|provider| is_provider_usable(provider, configs.get(&provider.id)))
         .map(|provider| AgentProviderOption {
             id: provider.id.clone(),
             name: provider.name.clone(),

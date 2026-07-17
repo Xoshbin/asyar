@@ -6,18 +6,19 @@ vi.mock('./agentService.svelte', () => ({
   agentService: { getById: vi.fn() },
 }));
 
+vi.mock('../../services/ai/providerRegistry', () => ({
+  providerRegistry: { list: vi.fn() },
+}));
+
 vi.mock('../../lib/ipc/commands', () => ({
   agentsGet: vi.fn(),
   agentsRunThread: vi.fn(),
   agentsCancelRun: vi.fn(),
+  toAgentProviderDescriptors: vi.fn((providers) => providers),
 }));
 
 vi.mock('../../services/settings/settingsService.svelte', () => ({
   settingsService: { getSettings: vi.fn() },
-}));
-
-vi.mock('../../services/feedback/feedbackService.svelte', () => ({
-  feedbackService: { report: vi.fn() },
 }));
 
 vi.mock('../../services/run/runService.svelte', () => ({
@@ -47,8 +48,8 @@ import { runAgent } from './agentLoop';
 import { agentService } from './agentService.svelte';
 import { agentsCancelRun, agentsRunThread } from '../../lib/ipc/commands';
 import { settingsService } from '../../services/settings/settingsService.svelte';
-import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { runService } from '../../services/run/runService.svelte';
+import { providerRegistry } from '../../services/ai/providerRegistry';
 
 type FakeHandle = LocalRunHandle & { fireExternalCancel: () => void };
 
@@ -79,12 +80,21 @@ const agent = {
   silent: false,
   inputSource: 'argument' as const,
   outputAction: 'hud' as const,
+  cacheResponses: false,
+  shortcodeTrigger: ':',
   createdAt: 1,
   updatedAt: 1,
 };
 
 const config = { enabled: true, apiKey: 'sk-test' };
-const runConfig = { provider: config, temperature: 0.7, maxTokens: 2048 };
+const providers = [{ id: 'openai', name: 'OpenAI', requiresApiKey: true, requiresBaseUrl: false }];
+const runConfig = {
+  providers,
+  configs: { openai: config },
+  defaultAgentId: null,
+  temperature: 0.7,
+  maxTokens: 2048,
+};
 
 describe('runAgent', () => {
   let handle: FakeHandle;
@@ -97,10 +107,12 @@ describe('runAgent', () => {
     vi.mocked(settingsService.getSettings).mockReturnValue({
       ai: {
         providers: { openai: config },
+        defaultAgentId: null,
         temperature: 0.7,
         maxTokens: 2048,
       },
     } as never);
+    vi.mocked(providerRegistry.list).mockReturnValue(providers as never);
     vi.mocked(runService.startLocal).mockResolvedValue(handle);
     vi.mocked(agentsRunThread).mockResolvedValue(undefined);
     vi.mocked(agentsCancelRun).mockResolvedValue(undefined);
@@ -229,16 +241,16 @@ describe('runAgent', () => {
     expect(agentsRunThread).not.toHaveBeenCalled();
   });
 
-  it('reports a missing provider configuration before creating a run', async () => {
-    vi.mocked(settingsService.getSettings).mockReturnValue({
-      ai: { providers: {}, temperature: 0.7, maxTokens: 2048 },
-    } as never);
+  it('builds the run config from the current provider registry and settings', async () => {
+    await runAgent({ agentId: 'agent-1', threadId: 'thread-1', userText: 'hello' });
 
-    await expect(
-      runAgent({ agentId: 'agent-1', threadId: 'thread-1', userText: 'hello' }),
-    ).rejects.toThrow("Provider 'openai' is not configured");
-
-    expect(feedbackService.report).toHaveBeenCalledOnce();
-    expect(runService.startLocal).not.toHaveBeenCalled();
+    expect(agentsRunThread).toHaveBeenCalledWith(
+      'agent-1',
+      'thread-1',
+      'hello',
+      'run-1',
+      runConfig,
+      expect.any(String),
+    );
   });
 });

@@ -220,13 +220,58 @@ pub fn sanitize_emoji_fallback_output(text: &str) -> String {
     }
 }
 
-/// Resolve a stored silent-agent target to its `AgentRow`.
-pub fn resolve_silent_agent_target(
+fn provider_is_usable(
+    provider_id: &str,
+    providers: &[crate::agents::editor::AgentProviderDescriptor],
+    configs: &std::collections::HashMap<String, crate::ai::types::ProviderConfig>,
+) -> bool {
+    providers
+        .iter()
+        .find(|provider| provider.id == provider_id)
+        .is_some_and(|provider| {
+            crate::agents::editor::is_provider_usable(provider, configs.get(provider_id))
+        })
+}
+
+/// Resolves the agent that should actually run for `agent_id`. If the
+/// agent's own provider is unusable (disabled, missing, or missing required
+/// credentials) and the current default agent's provider IS usable, persists
+/// the correction on the row and returns the healed agent — so a stale
+/// reference (e.g. a silent agent seeded against a provider the user later
+/// removed) self-heals instead of failing every run. Returns `(agent, true)`
+/// when a correction was persisted, `(agent, false)` otherwise.
+///
+/// Leaves the agent untouched when there's nothing sane to fall back to: no
+/// default agent, the broken agent IS the default agent, or the default
+/// agent's own provider is also unusable. Callers keep their existing
+/// provider-validation error handling for that case.
+pub fn resolve_runnable_agent(
     conn: &Connection,
     agent_id: &str,
-) -> Result<AgentRow, AppError> {
-    get_agent(conn, agent_id)?
-        .ok_or_else(|| AppError::NotFound(format!("agent '{agent_id}' not found")))
+    default_agent_id: Option<&str>,
+    providers: &[crate::agents::editor::AgentProviderDescriptor],
+    configs: &std::collections::HashMap<String, crate::ai::types::ProviderConfig>,
+) -> Result<(AgentRow, bool), AppError> {
+    let agent = get_agent(conn, agent_id)?
+        .ok_or_else(|| AppError::NotFound(format!("agent '{agent_id}' not found")))?;
+
+    if provider_is_usable(&agent.provider_id, providers, configs) {
+        return Ok((agent, false));
+    }
+
+    let Some(fallback) = resolve_default_agent(conn, default_agent_id)? else {
+        return Ok((agent, false));
+    };
+    if fallback.id == agent.id || !provider_is_usable(&fallback.provider_id, providers, configs) {
+        return Ok((agent, false));
+    }
+
+    let mut healed = agent;
+    healed.provider_id = fallback.provider_id;
+    healed.model_id = fallback.model_id;
+    healed.updated_at = Some(now_ms());
+    update_agent(conn, &healed)?;
+    Ok((healed, true))
 }
 
 pub fn derive_thread_title(user_text: &str) -> String {
@@ -255,6 +300,7 @@ mod tests {
     use super::*;
     use crate::storage::agents::{get_agent, insert_agent, list_agents, AgentRow};
     use rusqlite::Connection;
+    use std::collections::HashMap;
 
     fn conn() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
@@ -431,26 +477,6 @@ mod tests {
     }
 
     #[test]
-    fn resolve_silent_agent_target_returns_stored_agent() {
-        let conn = conn();
-        let mut stored = existing_agent("silent-1", "Stored");
-        stored.silent = true;
-        insert_agent(&conn, &stored).unwrap();
-
-        assert_eq!(
-            resolve_silent_agent_target(&conn, "silent-1").unwrap(),
-            stored
-        );
-    }
-
-    #[test]
-    fn resolve_silent_agent_target_errors_on_missing_id() {
-        let conn = conn();
-        let result = resolve_silent_agent_target(&conn, "nonexistent");
-        assert!(matches!(result, Err(crate::error::AppError::NotFound(_))));
-    }
-
-    #[test]
     fn derives_a_compact_title_from_the_first_message() {
         assert_eq!(derive_thread_title("  hello\n\n world  "), "hello world");
         assert_eq!(derive_thread_title("   "), "New thread");
@@ -499,5 +525,243 @@ mod tests {
         assert_eq!(first.id, second.id);
         assert_eq!(second.provider_id, "openai");
         assert_eq!(list_agents(&conn).unwrap().len(), 1);
+    }
+
+    fn provider(
+        id: &str,
+        requires_api_key: bool,
+        requires_base_url: bool,
+    ) -> crate::agents::editor::AgentProviderDescriptor {
+        crate::agents::editor::AgentProviderDescriptor {
+            id: id.into(),
+            name: id.into(),
+            requires_api_key,
+            requires_base_url,
+        }
+    }
+
+    fn provider_config(
+        enabled: bool,
+        api_key: Option<&str>,
+        base_url: Option<&str>,
+    ) -> crate::ai::types::ProviderConfig {
+        crate::ai::types::ProviderConfig {
+            enabled,
+            api_key: api_key.map(str::to_owned),
+            base_url: base_url.map(str::to_owned),
+            last_model_id: None,
+            open_ai_api_mode: None,
+            hosted_web_search: None,
+            reasoning_effort: None,
+        }
+    }
+
+    fn emoji_fallback_agent() -> AgentRow {
+        AgentRow {
+            id: "emoji-agent".to_string(),
+            name: "Inline Emoji Fallback".to_string(),
+            description: None,
+            system_prompt: "resolve emoji".to_string(),
+            provider_id: "ollama".to_string(),
+            model_id: "qwen2.5:7b".to_string(),
+            tool_selection: vec!["org.asyar.emoji:emoji_find".to_string()],
+            silent: true,
+            input_source: crate::storage::agents::SilentInputSource::ShortcodeMiss,
+            output_action: crate::storage::agents::SilentOutputAction::Paste,
+            cache_responses: true,
+            shortcode_trigger: ":".to_string(),
+            created_at: Some(1),
+            updated_at: Some(1),
+        }
+    }
+
+    #[test]
+    fn resolve_runnable_agent_returns_agent_unchanged_when_its_own_provider_is_usable() {
+        let conn = conn();
+        let mut agent = emoji_fallback_agent();
+        agent.provider_id = "anthropic".to_string();
+        agent.model_id = "claude-sonnet-5".to_string();
+        insert_agent(&conn, &agent).unwrap();
+        let providers = vec![provider("anthropic", true, false)];
+        let configs = HashMap::from([(
+            "anthropic".to_string(),
+            provider_config(true, Some("sk-ant"), None),
+        )]);
+
+        let (resolved, healed) =
+            resolve_runnable_agent(&conn, &agent.id, None, &providers, &configs).unwrap();
+
+        assert_eq!(resolved, agent);
+        assert!(!healed);
+    }
+
+    #[test]
+    fn resolve_runnable_agent_falls_back_and_persists_when_own_provider_is_disabled() {
+        let conn = conn();
+        let agent = emoji_fallback_agent();
+        insert_agent(&conn, &agent).unwrap();
+        let default_agent =
+            upsert_default_agent(&conn, None, "anthropic", "claude-sonnet-5").unwrap();
+        let providers = vec![
+            provider("ollama", false, true),
+            provider("anthropic", true, false),
+        ];
+        let configs = HashMap::from([
+            ("ollama".to_string(), provider_config(false, None, None)),
+            (
+                "anthropic".to_string(),
+                provider_config(true, Some("sk-ant"), None),
+            ),
+        ]);
+
+        let (resolved, healed) = resolve_runnable_agent(
+            &conn,
+            &agent.id,
+            Some(&default_agent.id),
+            &providers,
+            &configs,
+        )
+        .unwrap();
+
+        assert!(healed);
+        assert_eq!(resolved.provider_id, "anthropic");
+        assert_eq!(resolved.model_id, "claude-sonnet-5");
+        assert_eq!(resolved.id, agent.id);
+        assert_eq!(resolved.name, "Inline Emoji Fallback");
+        let persisted = get_agent(&conn, &agent.id).unwrap().unwrap();
+        assert_eq!(persisted.provider_id, "anthropic");
+        assert_eq!(persisted.model_id, "claude-sonnet-5");
+    }
+
+    #[test]
+    fn resolve_runnable_agent_falls_back_when_own_provider_has_no_config_entry() {
+        let conn = conn();
+        let mut agent = emoji_fallback_agent();
+        agent.provider_id = "openrouter".to_string();
+        agent.model_id = "openrouter/free".to_string();
+        insert_agent(&conn, &agent).unwrap();
+        let default_agent =
+            upsert_default_agent(&conn, None, "anthropic", "claude-sonnet-5").unwrap();
+        let providers = vec![provider("anthropic", true, false)];
+        let configs = HashMap::from([(
+            "anthropic".to_string(),
+            provider_config(true, Some("sk-ant"), None),
+        )]);
+
+        let (resolved, healed) = resolve_runnable_agent(
+            &conn,
+            &agent.id,
+            Some(&default_agent.id),
+            &providers,
+            &configs,
+        )
+        .unwrap();
+
+        assert!(healed);
+        assert_eq!(resolved.provider_id, "anthropic");
+    }
+
+    #[test]
+    fn resolve_runnable_agent_falls_back_when_missing_required_api_key() {
+        let conn = conn();
+        let mut agent = emoji_fallback_agent();
+        agent.provider_id = "anthropic".to_string();
+        agent.model_id = "claude-old".to_string();
+        insert_agent(&conn, &agent).unwrap();
+        let default_agent =
+            upsert_default_agent(&conn, None, "openrouter", "openrouter/free").unwrap();
+        let providers = vec![
+            provider("anthropic", true, false),
+            provider("openrouter", true, false),
+        ];
+        let configs = HashMap::from([
+            (
+                "anthropic".to_string(),
+                provider_config(true, Some("   "), None),
+            ),
+            (
+                "openrouter".to_string(),
+                provider_config(true, Some("sk-or"), None),
+            ),
+        ]);
+
+        let (resolved, healed) = resolve_runnable_agent(
+            &conn,
+            &agent.id,
+            Some(&default_agent.id),
+            &providers,
+            &configs,
+        )
+        .unwrap();
+
+        assert!(healed);
+        assert_eq!(resolved.provider_id, "openrouter");
+    }
+
+    #[test]
+    fn resolve_runnable_agent_does_not_fall_back_onto_itself() {
+        let conn = conn();
+        let mut agent = emoji_fallback_agent();
+        agent.id = "default-agent".to_string();
+        insert_agent(&conn, &agent).unwrap();
+        let providers = vec![provider("ollama", false, true)];
+        let configs = HashMap::from([("ollama".to_string(), provider_config(false, None, None))]);
+
+        let (resolved, healed) =
+            resolve_runnable_agent(&conn, &agent.id, Some(&agent.id), &providers, &configs)
+                .unwrap();
+
+        assert!(!healed);
+        assert_eq!(resolved, agent);
+    }
+
+    #[test]
+    fn resolve_runnable_agent_leaves_unchanged_when_no_default_agent() {
+        let conn = conn();
+        let agent = emoji_fallback_agent();
+        insert_agent(&conn, &agent).unwrap();
+        let providers = vec![provider("ollama", false, true)];
+        let configs = HashMap::from([("ollama".to_string(), provider_config(false, None, None))]);
+
+        let (resolved, healed) =
+            resolve_runnable_agent(&conn, &agent.id, None, &providers, &configs).unwrap();
+
+        assert!(!healed);
+        assert_eq!(resolved, agent);
+    }
+
+    #[test]
+    fn resolve_runnable_agent_leaves_unchanged_when_default_is_also_unusable() {
+        let conn = conn();
+        let agent = emoji_fallback_agent();
+        insert_agent(&conn, &agent).unwrap();
+        let default_agent = upsert_default_agent(&conn, None, "openai", "gpt-4o").unwrap();
+        let providers = vec![
+            provider("ollama", false, true),
+            provider("openai", true, false),
+        ];
+        let configs = HashMap::from([
+            ("ollama".to_string(), provider_config(false, None, None)),
+            ("openai".to_string(), provider_config(false, None, None)),
+        ]);
+
+        let (resolved, healed) = resolve_runnable_agent(
+            &conn,
+            &agent.id,
+            Some(&default_agent.id),
+            &providers,
+            &configs,
+        )
+        .unwrap();
+
+        assert!(!healed);
+        assert_eq!(resolved, agent);
+    }
+
+    #[test]
+    fn resolve_runnable_agent_errors_on_missing_agent_id() {
+        let conn = conn();
+        let result = resolve_runnable_agent(&conn, "nonexistent", None, &[], &HashMap::new());
+        assert!(matches!(result, Err(crate::error::AppError::NotFound(_))));
     }
 }
