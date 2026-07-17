@@ -199,7 +199,7 @@ describe('agent runner commands', () => {
     });
   });
 
-  it('asks Rust which agents would be stranded by removing a provider', async () => {
+  it('asks Rust for the reason a provider removal is blocked, ready to display', async () => {
     const configs = {
       openai: { enabled: true, apiKey: 'secret' },
     } as any;
@@ -212,11 +212,13 @@ describe('agent runner commands', () => {
         getModels: vi.fn(),
       },
     ] as any;
-    vi.mocked(invokeRaw).mockResolvedValueOnce([{ id: 'agent-1', name: 'Asyar Assistant' }]);
+    vi.mocked(invokeRaw).mockResolvedValueOnce(
+      "Can't remove OpenAI — it's the last configured provider and these agents still use it: Asyar Assistant. Reassign or delete them first.",
+    );
 
-    await expect(agentsProviderRemovalBlockers('openai', providers, configs)).resolves.toEqual([
-      { id: 'agent-1', name: 'Asyar Assistant' },
-    ]);
+    await expect(agentsProviderRemovalBlockers('openai', providers, configs)).resolves.toBe(
+      "Can't remove OpenAI — it's the last configured provider and these agents still use it: Asyar Assistant. Reassign or delete them first.",
+    );
 
     expect(invokeRaw).toHaveBeenCalledWith('agents_provider_removal_blockers', {
       providerId: 'openai',

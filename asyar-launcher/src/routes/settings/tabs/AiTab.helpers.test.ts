@@ -4,7 +4,6 @@ import {
   canTestAndFetch,
   configForNewProvider,
   modelSelectionAfterFetch,
-  providerRemovalBlockedMessage,
   reasoningEffortAfterModelChange,
   reasoningEffortsForModel,
 } from './AiTab.helpers';
@@ -189,27 +188,5 @@ describe('modelSelectionAfterFetch', () => {
     );
     expect(result.configPatch.reasoningEffort).toBeUndefined();
     expect('reasoningEffort' in result.configPatch).toBe(true);
-  });
-});
-
-// ── providerRemovalBlockedMessage ──────────────────────────────────────────────
-
-describe('providerRemovalBlockedMessage', () => {
-  it('names the provider and lists every blocking agent', () => {
-    const message = providerRemovalBlockedMessage('Anthropic', [
-      { id: 'a1', name: 'Grammar Fix' },
-      { id: 'a2', name: 'Emoji Fallback' },
-    ]);
-    expect(message).toContain('Anthropic');
-    expect(message).toContain('Grammar Fix');
-    expect(message).toContain('Emoji Fallback');
-  });
-
-  it('still produces a readable message for a single blocking agent', () => {
-    const message = providerRemovalBlockedMessage('Anthropic', [
-      { id: 'a1', name: 'Asyar Assistant' },
-    ]);
-    expect(message).toContain('Anthropic');
-    expect(message).toContain('Asyar Assistant');
   });
 });

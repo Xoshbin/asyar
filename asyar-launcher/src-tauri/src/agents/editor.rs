@@ -205,6 +205,34 @@ pub fn agents_stranded_by_provider_removal(
         .collect()
 }
 
+/// User-facing explanation for a blocked provider removal, or `None` when
+/// removal is safe. Owns the wording so Settings stays pure display —
+/// `stranded` is expected to be the output of
+/// `agents_stranded_by_provider_removal`.
+pub fn provider_removal_blocked_message(
+    provider_id: &str,
+    providers: &[AgentProviderDescriptor],
+    stranded: &[AgentRow],
+) -> Option<String> {
+    if stranded.is_empty() {
+        return None;
+    }
+    let provider_name = providers
+        .iter()
+        .find(|provider| provider.id == provider_id)
+        .map(|provider| provider.name.as_str())
+        .unwrap_or(provider_id);
+    let agent_names = stranded
+        .iter()
+        .map(|agent| agent.name.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    Some(format!(
+        "Can't remove {provider_name} — it's the last configured provider and these agents \
+         still use it: {agent_names}. Reassign or delete them first."
+    ))
+}
+
 /// Builds the blank-form default: the default agent's provider/model, but
 /// only when that provider is still usable. An unusable default leaves the
 /// picker blank rather than pre-selecting something the user can't run —
@@ -370,22 +398,23 @@ pub fn agents_editor_load(
     )
 }
 
-/// Settings-tab guard: which agents (if any) would be stranded by removing
-/// `provider_id`. An empty result means the removal is safe to apply.
+/// Settings-tab guard: the reason removing `provider_id` should be blocked,
+/// or `None` when it's safe to apply. The message is fully formed here so
+/// Settings only ever needs to display it.
 #[tauri::command]
 pub fn agents_provider_removal_blockers(
     db: tauri::State<'_, DataStore>,
     provider_id: String,
     providers: Vec<AgentProviderDescriptor>,
     configs: HashMap<String, ProviderConfig>,
-) -> Result<Vec<AgentRow>, AppError> {
+) -> Result<Option<String>, AppError> {
     let conn = db.conn()?;
     let agents = crate::commands::agents::agents_list_impl(&conn)?;
-    Ok(agents_stranded_by_provider_removal(
+    let stranded = agents_stranded_by_provider_removal(&provider_id, &agents, &providers, &configs);
+    Ok(provider_removal_blocked_message(
         &provider_id,
-        &agents,
         &providers,
-        &configs,
+        &stranded,
     ))
 }
 

@@ -1,5 +1,12 @@
 <script lang="ts">
-  import { SettingsForm, SettingsFormRow, Toggle, Button, Input } from '../../../components';
+  import {
+    SettingsForm,
+    SettingsFormRow,
+    Toggle,
+    Button,
+    Input,
+    InlineError,
+  } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { providerRegistry } from '../../../services/ai/providerRegistry';
   import { agentService } from '../../../built-in-features/agents/agentService.svelte';
@@ -9,7 +16,6 @@
     canTestAndFetch,
     configForNewProvider,
     modelSelectionAfterFetch,
-    providerRemovalBlockedMessage,
     reasoningEffortAfterModelChange,
     reasoningEffortsForModel,
   } from './AiTab.helpers';
@@ -192,20 +198,18 @@
 
   async function removeProvider(id: ProviderId) {
     removeErrors = { ...removeErrors, [id]: '' };
+    let blockedReason: string | null;
     try {
-      const blockers = await agentsProviderRemovalBlockers(id, allPlugins, settings.providers);
-      if (blockers.length > 0) {
-        removeErrors = {
-          ...removeErrors,
-          [id]: providerRemovalBlockedMessage(getPlugin(id)?.name ?? id, blockers),
-        };
-        return;
-      }
+      blockedReason = await agentsProviderRemovalBlockers(id, allPlugins, settings.providers);
     } catch {
       removeErrors = {
         ...removeErrors,
         [id]: 'Could not check whether this provider is safe to remove.',
       };
+      return;
+    }
+    if (blockedReason) {
+      removeErrors = { ...removeErrors, [id]: blockedReason };
       return;
     }
 
@@ -374,10 +378,14 @@
           </div>
 
           {#if removeError}
-            <p class="fetch-error row-banner-error">{removeError}</p>
+            <div class="row-banner">
+              <InlineError message={removeError} />
+            </div>
           {/if}
           {#if defaultAgentError}
-            <p class="fetch-error row-banner-error">{defaultAgentError}</p>
+            <div class="row-banner">
+              <InlineError message={defaultAgentError} />
+            </div>
           {/if}
 
           {#if expanded}
@@ -485,7 +493,7 @@
               </div>
 
               {#if fetchError}
-                <p class="fetch-error">{fetchError}</p>
+                <InlineError message={fetchError} />
               {/if}
 
               <!-- Model picker -->
@@ -916,16 +924,10 @@
     gap: var(--space-2);
   }
 
-  .fetch-error {
-    font-size: var(--font-size-xs);
-    color: var(--color-error, #ef4444);
-    margin: 0;
-  }
-
   /* Sits between the row header and the (possibly collapsed) row body, so a
      blocked removal or a default-agent update failure is visible without
      expanding the row. */
-  .row-banner-error {
+  .row-banner {
     padding: 0 var(--space-3) var(--space-2);
   }
 

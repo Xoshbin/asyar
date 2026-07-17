@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use crate::agents::editor::{
     agents_editor_catalog_impl, agents_editor_save_impl, agents_stranded_by_provider_removal,
-    build_editor_view_model, select_initial_model_id, AgentEditorForm, AgentProviderDescriptor,
-    AgentToolGroup,
+    build_editor_view_model, provider_removal_blocked_message, select_initial_model_id,
+    AgentEditorForm, AgentProviderDescriptor, AgentToolGroup,
 };
 use crate::agents::tools::{BuiltinTool, ManifestTool, ToolDescriptor, ToolRegistry, ToolSource};
 use crate::ai::types::{ModelInfo, ProviderConfig};
@@ -370,6 +370,42 @@ fn stranded_by_provider_removal_is_empty_when_the_provider_being_removed_is_alre
     let stranded = agents_stranded_by_provider_removal("anthropic", &agents, &providers, &configs);
 
     assert!(stranded.is_empty());
+}
+
+#[test]
+fn provider_removal_blocked_message_is_none_when_nothing_is_stranded() {
+    let providers = vec![provider("anthropic", true, false)];
+
+    let message = provider_removal_blocked_message("anthropic", &providers, &[]);
+
+    assert_eq!(message, None);
+}
+
+#[test]
+fn provider_removal_blocked_message_uses_the_providers_display_name() {
+    let providers = vec![AgentProviderDescriptor {
+        id: "anthropic".into(),
+        name: "Anthropic".into(),
+        requires_api_key: true,
+        requires_base_url: false,
+    }];
+    let stranded = vec![agent("agent-1", "anthropic", "claude-sonnet-5")];
+
+    let message = provider_removal_blocked_message("anthropic", &providers, &stranded)
+        .expect("should be blocked");
+
+    assert!(message.contains("Anthropic"));
+    assert!(message.contains("Asyar Assistant"));
+}
+
+#[test]
+fn provider_removal_blocked_message_falls_back_to_the_raw_id_when_the_provider_is_unknown() {
+    let stranded = vec![agent("agent-1", "openrouter", "openrouter/free")];
+
+    let message =
+        provider_removal_blocked_message("openrouter", &[], &stranded).expect("should be blocked");
+
+    assert!(message.contains("openrouter"));
 }
 
 #[test]
