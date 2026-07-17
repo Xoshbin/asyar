@@ -13,6 +13,7 @@ import {
   agentsEditorLoad,
   agentsEditorListModels,
   agentsEditorSave,
+  agentsProviderRemovalBlockers,
   agentsSeedEmojiFallback,
   agentsReportMcpPermission,
   agentsReportToolResult,
@@ -143,10 +144,11 @@ describe('agent runner commands', () => {
     ] as any;
     vi.mocked(invokeRaw).mockResolvedValueOnce({ providers: [], toolGroups: [] });
 
-    await agentsEditorLoad(null, providers, configs);
+    await agentsEditorLoad(null, 'default-agent-1', providers, configs);
 
     expect(invokeRaw).toHaveBeenCalledWith('agents_editor_load', {
       agentId: null,
+      defaultAgentId: 'default-agent-1',
       providers: [
         {
           id: 'openai',
@@ -194,6 +196,41 @@ describe('agent runner commands', () => {
       providerId: 'openai',
       config: { enabled: true, apiKey: 'secret' },
       currentModelId: '',
+    });
+  });
+
+  it('asks Rust for the reason a provider removal is blocked, ready to display', async () => {
+    const configs = {
+      openai: { enabled: true, apiKey: 'secret' },
+    } as any;
+    const providers = [
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        requiresApiKey: true,
+        requiresBaseUrl: false,
+        getModels: vi.fn(),
+      },
+    ] as any;
+    vi.mocked(invokeRaw).mockResolvedValueOnce(
+      "Can't remove OpenAI — it's the last configured provider and these agents still use it: Asyar Assistant. Reassign or delete them first.",
+    );
+
+    await expect(agentsProviderRemovalBlockers('openai', providers, configs)).resolves.toBe(
+      "Can't remove OpenAI — it's the last configured provider and these agents still use it: Asyar Assistant. Reassign or delete them first.",
+    );
+
+    expect(invokeRaw).toHaveBeenCalledWith('agents_provider_removal_blockers', {
+      providerId: 'openai',
+      providers: [
+        {
+          id: 'openai',
+          name: 'OpenAI',
+          requiresApiKey: true,
+          requiresBaseUrl: false,
+        },
+      ],
+      configs,
     });
   });
 });

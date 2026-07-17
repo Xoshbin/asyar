@@ -41,11 +41,18 @@
 
   $effect(() => {
     const agentId = editAgentId;
-    const configs = settingsService.getSettings().ai.providers;
+    const ai = settingsService.getSettings().ai;
+    const configs = ai.providers;
+    const defaultAgentId = ai.defaultAgentId;
     const providerDescriptors = providerRegistry.list();
     void (async () => {
       try {
-        const viewModel = await agentsEditorLoad(agentId, providerDescriptors, configs);
+        const viewModel = await agentsEditorLoad(
+          agentId,
+          defaultAgentId,
+          providerDescriptors,
+          configs,
+        );
         form = viewModel.form;
         groups = viewModel.toolGroups;
         providers = viewModel.providers;

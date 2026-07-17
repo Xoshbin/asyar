@@ -172,7 +172,87 @@ pub fn agents_editor_catalog_impl(
     })
 }
 
-fn editor_form(agent: Option<&AgentRow>) -> AgentEditorForm {
+/// Agents that would be left with no usable provider if `provider_id` were
+/// removed from Settings. Empty whenever at least one *other* usable
+/// provider remains — those agents self-heal onto the default provider on
+/// their next run instead (`agents::lifecycle::resolve_runnable_agent`).
+/// Also empty when `provider_id` is already unusable itself (disabled or
+/// missing credentials): removing an already-broken row doesn't newly
+/// strand anything — those agents couldn't self-heal before this removal
+/// either. Non-empty only when `provider_id` is both currently usable and
+/// the last one, so removing it would strand every agent still pointed at
+/// it with nothing to fall back to. Settings should block the removal and
+/// surface this list rather than silently leaving those agents unrunnable.
+pub fn agents_stranded_by_provider_removal(
+    provider_id: &str,
+    agents: &[AgentRow],
+    providers: &[AgentProviderDescriptor],
+    configs: &HashMap<String, ProviderConfig>,
+) -> Vec<AgentRow> {
+    let provider_usable = providers.iter().any(|provider| {
+        provider.id == provider_id && is_provider_usable(provider, configs.get(provider_id))
+    });
+    let other_usable_remains = providers.iter().any(|provider| {
+        provider.id != provider_id && is_provider_usable(provider, configs.get(&provider.id))
+    });
+    if !provider_usable || other_usable_remains {
+        return Vec::new();
+    }
+    agents
+        .iter()
+        .filter(|agent| agent.provider_id == provider_id)
+        .cloned()
+        .collect()
+}
+
+/// User-facing explanation for a blocked provider removal, or `None` when
+/// removal is safe. Owns the wording so Settings stays pure display —
+/// `stranded` is expected to be the output of
+/// `agents_stranded_by_provider_removal`.
+pub fn provider_removal_blocked_message(
+    provider_id: &str,
+    providers: &[AgentProviderDescriptor],
+    stranded: &[AgentRow],
+) -> Option<String> {
+    if stranded.is_empty() {
+        return None;
+    }
+    let provider_name = providers
+        .iter()
+        .find(|provider| provider.id == provider_id)
+        .map(|provider| provider.name.as_str())
+        .unwrap_or(provider_id);
+    let agent_names = stranded
+        .iter()
+        .map(|agent| agent.name.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    Some(format!(
+        "Can't remove {provider_name} — it's the last configured provider and these agents \
+         still use it: {agent_names}. Reassign or delete them first."
+    ))
+}
+
+/// Builds the blank-form default: the default agent's provider/model, but
+/// only when that provider is still usable. An unusable default leaves the
+/// picker blank rather than pre-selecting something the user can't run —
+/// same rule `agents::lifecycle::resolve_runnable_agent` uses to decide
+/// whether a fallback is "sane".
+fn new_agent_provider_and_model(
+    default_agent: Option<&AgentRow>,
+    usable_providers: &[AgentProviderOption],
+) -> (String, String) {
+    default_agent
+        .filter(|agent| usable_providers.iter().any(|p| p.id == agent.provider_id))
+        .map(|agent| (agent.provider_id.clone(), agent.model_id.clone()))
+        .unwrap_or_default()
+}
+
+fn editor_form(
+    agent: Option<&AgentRow>,
+    default_agent: Option<&AgentRow>,
+    usable_providers: &[AgentProviderOption],
+) -> AgentEditorForm {
     match agent {
         Some(agent) => AgentEditorForm {
             name: agent.name.clone(),
@@ -187,31 +267,36 @@ fn editor_form(agent: Option<&AgentRow>) -> AgentEditorForm {
             cache_responses: agent.cache_responses,
             shortcode_trigger: agent.shortcode_trigger.clone(),
         },
-        None => AgentEditorForm {
-            name: String::new(),
-            description: String::new(),
-            system_prompt: String::new(),
-            provider_id: String::new(),
-            model_id: String::new(),
-            tool_selection: Vec::new(),
-            silent: false,
-            input_source: SilentInputSource::Argument,
-            output_action: SilentOutputAction::ReplaceSelection,
-            cache_responses: false,
-            shortcode_trigger: ":".to_string(),
-        },
+        None => {
+            let (provider_id, model_id) =
+                new_agent_provider_and_model(default_agent, usable_providers);
+            AgentEditorForm {
+                name: String::new(),
+                description: String::new(),
+                system_prompt: String::new(),
+                provider_id,
+                model_id,
+                tool_selection: Vec::new(),
+                silent: false,
+                input_source: SilentInputSource::Argument,
+                output_action: SilentOutputAction::ReplaceSelection,
+                cache_responses: false,
+                shortcode_trigger: ":".to_string(),
+            }
+        }
     }
 }
 
 pub fn build_editor_view_model(
     registry: &ToolRegistry,
     agent: Option<&AgentRow>,
+    default_agent: Option<&AgentRow>,
     providers: &[AgentProviderDescriptor],
     configs: &HashMap<String, ProviderConfig>,
 ) -> Result<AgentEditorViewModel, AppError> {
     let catalog = agents_editor_catalog_impl(registry, providers, configs)?;
     Ok(AgentEditorViewModel {
-        form: editor_form(agent),
+        form: editor_form(agent, default_agent, &catalog.providers),
         providers: catalog.providers,
         tool_groups: catalog.tool_groups,
     })
@@ -286,6 +371,7 @@ pub fn agents_editor_load(
     state: tauri::State<'_, crate::agents::tools::ToolRegistryState>,
     db: tauri::State<'_, DataStore>,
     agent_id: Option<String>,
+    default_agent_id: Option<String>,
     providers: Vec<AgentProviderDescriptor>,
     configs: HashMap<String, ProviderConfig>,
 ) -> Result<AgentEditorViewModel, AppError> {
@@ -296,7 +382,40 @@ pub fn agents_editor_load(
         }
         None => None,
     };
-    build_editor_view_model(&state, agent.as_ref(), &providers, &configs)
+    // Only worth resolving when we're actually pre-filling a blank form —
+    // editing an existing agent ignores it anyway (see `editor_form`).
+    let default_agent = if agent.is_none() {
+        crate::agents::lifecycle::resolve_default_agent(&conn, default_agent_id.as_deref())?
+    } else {
+        None
+    };
+    build_editor_view_model(
+        &state,
+        agent.as_ref(),
+        default_agent.as_ref(),
+        &providers,
+        &configs,
+    )
+}
+
+/// Settings-tab guard: the reason removing `provider_id` should be blocked,
+/// or `None` when it's safe to apply. The message is fully formed here so
+/// Settings only ever needs to display it.
+#[tauri::command]
+pub fn agents_provider_removal_blockers(
+    db: tauri::State<'_, DataStore>,
+    provider_id: String,
+    providers: Vec<AgentProviderDescriptor>,
+    configs: HashMap<String, ProviderConfig>,
+) -> Result<Option<String>, AppError> {
+    let conn = db.conn()?;
+    let agents = crate::commands::agents::agents_list_impl(&conn)?;
+    let stranded = agents_stranded_by_provider_removal(&provider_id, &agents, &providers, &configs);
+    Ok(provider_removal_blocked_message(
+        &provider_id,
+        &providers,
+        &stranded,
+    ))
 }
 
 #[tauri::command]

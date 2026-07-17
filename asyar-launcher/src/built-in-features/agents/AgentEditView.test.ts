@@ -16,7 +16,9 @@ vi.mock('../../services/ai/providerRegistry', () => ({
 }));
 vi.mock('../../services/settings/settingsService.svelte', () => ({
   settingsService: {
-    getSettings: vi.fn().mockReturnValue({ ai: { providers: {} } }),
+    getSettings: vi
+      .fn()
+      .mockReturnValue({ ai: { providers: {}, defaultAgentId: 'default-agent-1' } }),
   },
 }));
 vi.mock('../../lib/ipc/commands', () => ({
@@ -66,6 +68,13 @@ describe('AgentEditView', () => {
       ),
     );
     expect(viewManager.goBack).toHaveBeenCalled();
+  });
+
+  it('passes the settings default agent id so Rust can pre-fill a new agent', async () => {
+    render(AgentEditView);
+    await screen.findByDisplayValue('Rust Agent');
+
+    expect(agentsEditorLoad).toHaveBeenCalledWith(null, 'default-agent-1', [], {});
   });
 
   it('renders an authoritative Rust validation error without navigating', async () => {

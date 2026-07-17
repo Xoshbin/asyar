@@ -1847,11 +1847,13 @@ export function toAgentProviderDescriptors(
 
 export async function agentsEditorLoad(
   agentId: string | null,
+  defaultAgentId: string | null,
   providers: IProviderPlugin[],
   configs: Record<ProviderId, ProviderConfig>,
 ): Promise<AgentEditorViewModel> {
   return invokeRaw('agents_editor_load', {
     agentId,
+    defaultAgentId,
     providers: toAgentProviderDescriptors(providers),
     configs,
   });
@@ -1862,6 +1864,23 @@ export async function agentsEditorSave(
   form: AgentEditorForm,
 ): Promise<import('../../built-in-features/agents/types').AgentDef> {
   return invokeRaw('agents_editor_save', { agentId, form });
+}
+
+/**
+ * Reason removing `providerId` should be blocked, or `null` when it's safe
+ * (Rust decides via `agents_stranded_by_provider_removal` and formats the
+ * message via `provider_removal_blocked_message`) — ready to display as-is.
+ */
+export async function agentsProviderRemovalBlockers(
+  providerId: string,
+  providers: IProviderPlugin[],
+  configs: Record<ProviderId, ProviderConfig>,
+): Promise<string | null> {
+  return invokeRaw('agents_provider_removal_blockers', {
+    providerId,
+    providers: toAgentProviderDescriptors(providers),
+    configs,
+  });
 }
 
 export async function agentsEditorListModels(
