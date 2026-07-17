@@ -419,3 +419,65 @@ jobs:
             -H "Content-Type: application/json" \
             -H "X-Asyar-Update-Token: $ASYAR_UPDATE_TOKEN" \
             -d "$PAYLOAD"
+
+      - name: Update Homebrew Cask
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          # Requires the one-time tap setup in RELEASING.md. Skip quietly until
+          # HOMEBREW_TAP_TOKEN exists so this step can't block a release.
+          if [[ -z "$HOMEBREW_TAP_TOKEN" ]]; then
+            echo "HOMEBREW_TAP_TOKEN not set — skipping Homebrew cask update."
+            exit 0
+          fi
+
+          VERSION="${REF_NAME#v}"
+
+          MAC_AARCH64_DMG_PATH=$(find artifacts/macos-arm64-artifacts -name "*.dmg" | head -n 1)
+          MAC_X64_DMG_PATH=$(find artifacts/macos-x64-artifacts -name "*.dmg" | head -n 1)
+          SHA_ARM64=$(sha256sum "$MAC_AARCH64_DMG_PATH" | cut -d' ' -f1)
+          SHA_X64=$(sha256sum "$MAC_X64_DMG_PATH" | cut -d' ' -f1)
+
+          git clone --depth 1 "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/Xoshbin/homebrew-asyar.git" tap
+          mkdir -p tap/Casks
+
+          cat > tap/Casks/asyar.rb <<EOF
+          cask "asyar" do
+            arch arm: "aarch64", intel: "x64"
+
+            version "${VERSION}"
+            sha256 arm:   "${SHA_ARM64}",
+                   intel: "${SHA_X64}"
+
+            url "https://github.com/Xoshbin/asyar/releases/download/v#{version}/asyar_#{version}_#{arch}.dmg"
+            name "Asyar"
+            desc "Extensible launcher and productivity toolbox"
+            homepage "https://asyar.org/"
+
+            auto_updates true
+            depends_on macos: :ventura
+
+            app "asyar.app"
+
+            zap trash: [
+              "~/Library/Application Support/org.asyar.app",
+              "~/Library/Caches/org.asyar.app",
+              "~/Library/HTTPStorages/org.asyar.app",
+              "~/Library/Preferences/org.asyar.app.plist",
+              "~/Library/Saved Application State/org.asyar.app.savedState",
+              "~/Library/WebKit/org.asyar.app",
+            ]
+          end
+          EOF
+
+          cd tap
+          git config user.name "asyar-release-bot"
+          git config user.email "actions@github.com"
+          git add Casks/asyar.rb
+          if git diff --cached --quiet; then
+            echo "Cask already up to date for ${VERSION}."
+            exit 0
+          fi
+          git commit -m "asyar ${VERSION}"
+          git push origin HEAD:main
