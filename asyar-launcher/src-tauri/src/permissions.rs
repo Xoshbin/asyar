@@ -225,10 +225,6 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // Snippets — extension contributes shortcodes to the snippets service
         "asyar:api:snippets:registerShortcodes" => Some("snippets:contribute"),
         "asyar:api:snippets:unregisterShortcodes" => Some("snippets:contribute"),
-        "asyar:api:snippets:listLearnedShortcodes" => Some("snippets:contribute"),
-        "asyar:api:snippets:promoteLearnedShortcode" => Some("snippets:contribute"),
-        "asyar:api:snippets:forgetLearnedShortcode" => Some("snippets:contribute"),
-        "asyar:api:snippets:clearLearnedShortcodes" => Some("snippets:contribute"),
         // Browser bridge — tabs (read = list/inspect, write = act/open/search).
         "asyar:api:browser:listTabs" => Some("browser:tabs.read"),
         "asyar:api:browser:getActiveTab" => Some("browser:tabs.read"),
@@ -1009,18 +1005,6 @@ mod tests {
             get_required_permission("asyar:api:snippets:unregisterShortcodes"),
             Some("snippets:contribute"),
         );
-    }
-
-    #[test]
-    fn learned_shortcode_methods_require_contribute_permission() {
-        for method in &[
-            "asyar:api:snippets:listLearnedShortcodes",
-            "asyar:api:snippets:promoteLearnedShortcode",
-            "asyar:api:snippets:forgetLearnedShortcode",
-            "asyar:api:snippets:clearLearnedShortcodes",
-        ] {
-            assert_eq!(get_required_permission(method), Some("snippets:contribute"));
-        }
     }
 
     #[test]

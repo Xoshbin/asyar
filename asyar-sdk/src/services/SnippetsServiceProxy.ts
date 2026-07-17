@@ -25,20 +25,4 @@ export class SnippetsServiceProxy extends BaseServiceProxy implements ISnippetsS
     const broker = this.broker;
     await broker.invoke('snippets:unregisterShortcodes', {});
   }
-
-  async listLearnedShortcodes(): Promise<Array<[string, string]>> {
-    return this.broker.invoke<Array<[string, string]>>('snippets:listLearnedShortcodes', {});
-  }
-
-  async promoteLearnedShortcode(shortcode: string): Promise<void> {
-    await this.broker.invoke('snippets:promoteLearnedShortcode', { shortcode });
-  }
-
-  async forgetLearnedShortcode(shortcode: string): Promise<void> {
-    await this.broker.invoke('snippets:forgetLearnedShortcode', { shortcode });
-  }
-
-  async clearLearnedShortcodes(): Promise<void> {
-    await this.broker.invoke('snippets:clearLearnedShortcodes', {});
-  }
 }

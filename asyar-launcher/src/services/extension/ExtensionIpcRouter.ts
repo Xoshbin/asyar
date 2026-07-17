@@ -1,13 +1,6 @@
 import { logService } from '../log/logService';
 import * as commands from '../../lib/ipc/commands';
-import {
-  contributeShortcodes,
-  revokeShortcodes,
-  listLearnedShortcodes,
-  promoteLearnedToSnippet,
-  forgetLearnedShortcode,
-  clearLearnedShortcodes,
-} from '../../lib/ipc/shortcodeCommands';
+import { contributeShortcodes, revokeShortcodes } from '../../lib/ipc/shortcodeCommands';
 import { extensionIframeManager } from './extensionIframeManager.svelte';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { streamDispatcher } from './streamDispatcher.svelte';
@@ -449,28 +442,6 @@ export class ExtensionIpcRouter {
       const ok = await revokeShortcodes(extensionId);
       if (!ok) throw new HandledDispatchError('revoke_shortcodes failed');
       return undefined;
-    }
-
-    if (type === 'asyar:api:snippets:listLearnedShortcodes') {
-      const result = await listLearnedShortcodes();
-      if (result === null) throw new HandledDispatchError('list_learned_shortcodes failed');
-      return result;
-    }
-
-    if (type === 'asyar:api:snippets:promoteLearnedShortcode') {
-      const { shortcode } = payload as { shortcode: string };
-      const ok = await promoteLearnedToSnippet(shortcode);
-      if (!ok) throw new HandledDispatchError('promote_learned_to_snippet failed');
-      return undefined;
-    }
-
-    if (type === 'asyar:api:snippets:forgetLearnedShortcode') {
-      const { shortcode } = payload as { shortcode: string };
-      return forgetLearnedShortcode(shortcode);
-    }
-
-    if (type === 'asyar:api:snippets:clearLearnedShortcodes') {
-      return clearLearnedShortcodes();
     }
 
     const ns = serviceName as Namespace;
