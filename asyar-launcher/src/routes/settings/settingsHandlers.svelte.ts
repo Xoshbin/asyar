@@ -1,4 +1,5 @@
 import { onMount } from 'svelte';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { updateShortcut } from '../../utils/shortcutManager';
 import { goto } from '$app/navigation';
 import {
@@ -130,6 +131,8 @@ export class SettingsHandler {
 
   private unsubscribe: (() => void) | null = null;
   private unlistenPreferencesChanged: (() => void) | null = null;
+  private unlistenExtensionsUpdated: (() => void) | null = null;
+  private unlistenWindowFocus: (() => void) | null = null;
   /**
    * Bumped whenever an `asyar:preferences-changed` Tauri event arrives.
    * The ExtensionDetailPanel consumes this as a reactive dependency in
@@ -201,6 +204,34 @@ export class SettingsHandler {
       } catch (err) {
         logService.warn(`Failed to subscribe to asyar:preferences-changed: ${err}`);
       }
+
+      // Cross-webview install/uninstall/update notifications. The Rust side
+      // emits this after every extension install/uninstall/update, but it
+      // only reaches windows that are actually listening for it.
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        this.unlistenExtensionsUpdated = await listen('extensions_updated', () => {
+          void this.loadExtensions();
+        });
+      } catch (err) {
+        logService.warn(`Failed to subscribe to extensions_updated: ${err}`);
+      }
+
+      // The settings window is a persistent hidden webview — it's shown/
+      // hidden rather than destroyed/recreated on close, so `onMount` (and
+      // its one-shot `loadExtensions()` call above) never runs again after
+      // the first open. Extensions installed via `asyar link` bypass the
+      // running app entirely (no Tauri event at all), so the only reliable
+      // way to pick those up is a fresh rescan whenever this window regains
+      // focus, i.e. whenever the user reopens Settings.
+      try {
+        const unlisten = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+          if (focused) void this.loadExtensions();
+        });
+        this.unlistenWindowFocus = unlisten;
+      } catch (err) {
+        logService.warn(`Failed to subscribe to settings window focus: ${err}`);
+      }
     }
   }
 
@@ -220,9 +251,19 @@ export class SettingsHandler {
     }
     this.unlistenPreferencesChanged?.();
     this.unlistenPreferencesChanged = null;
+    this.unlistenExtensionsUpdated?.();
+    this.unlistenExtensionsUpdated = null;
+    this.unlistenWindowFocus?.();
+    this.unlistenWindowFocus = null;
   }
 
   async loadExtensions() {
+    // extensions_updated and window-focus can fire close together (e.g.
+    // installing from the store while Settings is visible, then refocusing
+    // it) — skip a redundant overlapping rescan rather than racing two
+    // invoke() calls against each other.
+    if (this.isLoadingExtensions) return;
+
     this.isLoadingExtensions = true;
     this.extensionError = '';
 

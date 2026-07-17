@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SettingsHandler, DEFAULT_SETTINGS } from './settingsHandlers.svelte';
 
@@ -6,6 +7,16 @@ const { mockGetAll } = vi.hoisted(() => ({ mockGetAll: vi.fn() }));
 vi.mock('../../services/extension/extensionManager.svelte', () => ({
   default: { getAllExtensionsWithState: mockGetAll },
 }));
+const { listenMock, onFocusChangedMock, getCurrentWindowMock } = vi.hoisted(() => {
+  const onFocusChangedMock = vi.fn();
+  return {
+    listenMock: vi.fn(),
+    onFocusChangedMock,
+    getCurrentWindowMock: vi.fn(() => ({ onFocusChanged: onFocusChangedMock })),
+  };
+});
+vi.mock('@tauri-apps/api/event', () => ({ listen: listenMock }));
+vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow: getCurrentWindowMock }));
 const { mockUpdateSettings } = vi.hoisted(() => ({
   mockUpdateSettings: vi.fn().mockResolvedValue(true),
 }));
@@ -94,6 +105,106 @@ describe('SettingsHandler.loadExtensions', () => {
     await handler.loadExtensions();
 
     expect(handler.extensions).toHaveLength(1);
+  });
+
+  it('ignores a call that starts while a previous call is still in flight', async () => {
+    let resolveFirst: (value: unknown[]) => void = () => {};
+    mockGetAll.mockReset().mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFirst = resolve;
+      }),
+    );
+
+    const handler = new SettingsHandler();
+    const firstCall = handler.loadExtensions();
+    const secondCall = handler.loadExtensions();
+
+    resolveFirst([]);
+    await Promise.all([firstCall, secondCall]);
+
+    expect(mockGetAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows a new call once the previous one has finished', async () => {
+    mockGetAll.mockReset().mockResolvedValue([]);
+
+    const handler = new SettingsHandler();
+    await handler.loadExtensions();
+    await handler.loadExtensions();
+
+    expect(mockGetAll).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('SettingsHandler.init — extension list freshness', () => {
+  beforeEach(() => {
+    mockGetAll.mockReset().mockResolvedValue([]);
+    listenMock.mockClear().mockImplementation(() => Promise.resolve(() => {}));
+    onFocusChangedMock.mockClear().mockImplementation(() => Promise.resolve(() => {}));
+  });
+
+  it('reloads extensions when an extensions_updated event fires', async () => {
+    let onExtensionsUpdated: (() => void) | undefined;
+    listenMock.mockImplementation((eventName: string, cb: () => void) => {
+      if (eventName === 'extensions_updated') onExtensionsUpdated = cb;
+      return Promise.resolve(() => {});
+    });
+
+    const handler = new SettingsHandler();
+    await handler.init();
+    expect(mockGetAll).toHaveBeenCalledTimes(1);
+
+    onExtensionsUpdated?.();
+    await vi.waitFor(() => expect(mockGetAll).toHaveBeenCalledTimes(2));
+  });
+
+  it('reloads extensions when the settings window regains focus', async () => {
+    let onFocusChanged: ((e: { payload: boolean }) => void) | undefined;
+    onFocusChangedMock.mockImplementation((cb: (e: { payload: boolean }) => void) => {
+      onFocusChanged = cb;
+      return Promise.resolve(() => {});
+    });
+
+    const handler = new SettingsHandler();
+    await handler.init();
+    expect(mockGetAll).toHaveBeenCalledTimes(1);
+
+    onFocusChanged?.({ payload: true });
+    await vi.waitFor(() => expect(mockGetAll).toHaveBeenCalledTimes(2));
+  });
+
+  it('does not reload extensions when the settings window loses focus', async () => {
+    let onFocusChanged: ((e: { payload: boolean }) => void) | undefined;
+    onFocusChangedMock.mockImplementation((cb: (e: { payload: boolean }) => void) => {
+      onFocusChanged = cb;
+      return Promise.resolve(() => {});
+    });
+
+    const handler = new SettingsHandler();
+    await handler.init();
+    expect(mockGetAll).toHaveBeenCalledTimes(1);
+
+    onFocusChanged?.({ payload: false });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockGetAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('destroy() unsubscribes the extensions_updated and window-focus listeners', async () => {
+    const unlistenExtensionsUpdated = vi.fn();
+    const unlistenFocus = vi.fn();
+    listenMock.mockImplementation((eventName: string) =>
+      eventName === 'extensions_updated'
+        ? Promise.resolve(unlistenExtensionsUpdated)
+        : Promise.resolve(() => {}),
+    );
+    onFocusChangedMock.mockResolvedValue(unlistenFocus);
+
+    const handler = new SettingsHandler();
+    await handler.init();
+    handler.destroy();
+
+    expect(unlistenExtensionsUpdated).toHaveBeenCalledOnce();
+    expect(unlistenFocus).toHaveBeenCalledOnce();
   });
 });
 
