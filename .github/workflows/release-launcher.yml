@@ -481,3 +481,42 @@ jobs:
           fi
           git commit -m "asyar ${VERSION}"
           git push origin HEAD:main
+
+      - name: Check winget eligibility
+        id: winget_check
+        env:
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          REF_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          # Requires the one-time winget-pkgs setup in RELEASING.md. Skip quietly
+          # until WINGET_TOKEN exists so this step can't block a release.
+          if [[ -z "$WINGET_TOKEN" ]]; then
+            echo "WINGET_TOKEN not set — skipping winget manifest update."
+            exit 0
+          fi
+
+          VERSION="${REF_NAME#v}"
+
+          # winget-pkgs policy: a package's default manifest must track a stable
+          # release, not a prerelease-only channel. Every Asyar release today is a
+          # numeric pre-release (hyphenated), so skip until the first stable tag.
+          if [[ "$VERSION" == *-* ]]; then
+            echo "$VERSION is a pre-release — winget-pkgs doesn't accept pre-release-only manifests. Skipping."
+            exit 0
+          fi
+
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+
+      # Runs as its own step (not a run: block like the Homebrew one above)
+      # because submitting to winget-pkgs needs Komac's MSI/manifest handling,
+      # not something worth reimplementing in bash. Deliberately kept in this
+      # same job rather than a separate `on: release` workflow: action-gh-release
+      # above publishes using the default GITHUB_TOKEN, and GitHub does not
+      # cascade a second workflow run off events created by that token.
+      - name: Update winget manifest
+        if: steps.winget_check.outputs.eligible == 'true'
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: Xoshbin.Asyar
+          token: ${{ secrets.WINGET_TOKEN }}
+          release-tag: ${{ github.event.inputs.tag || github.ref_name }}
