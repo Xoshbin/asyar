@@ -358,6 +358,21 @@ fn stranded_by_provider_removal_is_empty_when_no_agents_reference_it() {
 }
 
 #[test]
+fn stranded_by_provider_removal_is_empty_when_the_provider_being_removed_is_already_unusable() {
+    // "anthropic" is the only configured provider, but its API key was
+    // cleared — it's already broken. Agents still reference it from
+    // before it broke. Removing this dead row changes nothing for them
+    // (self-heal already can't save them), so it must not be blocked.
+    let providers = vec![provider("anthropic", true, false)];
+    let configs = HashMap::from([("anthropic".into(), config(true, None, None))]);
+    let agents = vec![agent("agent-1", "anthropic", "claude-sonnet-5")];
+
+    let stranded = agents_stranded_by_provider_removal("anthropic", &agents, &providers, &configs);
+
+    assert!(stranded.is_empty());
+}
+
+#[test]
 fn editor_save_validates_and_persists_the_frontend_form() {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute("PRAGMA foreign_keys = ON", []).unwrap();

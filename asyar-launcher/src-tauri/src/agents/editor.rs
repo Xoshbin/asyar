@@ -176,20 +176,26 @@ pub fn agents_editor_catalog_impl(
 /// removed from Settings. Empty whenever at least one *other* usable
 /// provider remains — those agents self-heal onto the default provider on
 /// their next run instead (`agents::lifecycle::resolve_runnable_agent`).
-/// Non-empty only when `provider_id` is the last usable provider, so
-/// removing it would strand every agent still pointed at it with nothing to
-/// fall back to. Settings should block the removal and surface this list
-/// rather than silently leaving those agents unrunnable.
+/// Also empty when `provider_id` is already unusable itself (disabled or
+/// missing credentials): removing an already-broken row doesn't newly
+/// strand anything — those agents couldn't self-heal before this removal
+/// either. Non-empty only when `provider_id` is both currently usable and
+/// the last one, so removing it would strand every agent still pointed at
+/// it with nothing to fall back to. Settings should block the removal and
+/// surface this list rather than silently leaving those agents unrunnable.
 pub fn agents_stranded_by_provider_removal(
     provider_id: &str,
     agents: &[AgentRow],
     providers: &[AgentProviderDescriptor],
     configs: &HashMap<String, ProviderConfig>,
 ) -> Vec<AgentRow> {
+    let provider_usable = providers.iter().any(|provider| {
+        provider.id == provider_id && is_provider_usable(provider, configs.get(provider_id))
+    });
     let other_usable_remains = providers.iter().any(|provider| {
         provider.id != provider_id && is_provider_usable(provider, configs.get(&provider.id))
     });
-    if other_usable_remains {
+    if !provider_usable || other_usable_remains {
         return Vec::new();
     }
     agents
