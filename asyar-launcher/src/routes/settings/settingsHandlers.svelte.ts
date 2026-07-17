@@ -258,6 +258,12 @@ export class SettingsHandler {
   }
 
   async loadExtensions() {
+    // extensions_updated and window-focus can fire close together (e.g.
+    // installing from the store while Settings is visible, then refocusing
+    // it) — skip a redundant overlapping rescan rather than racing two
+    // invoke() calls against each other.
+    if (this.isLoadingExtensions) return;
+
     this.isLoadingExtensions = true;
     this.extensionError = '';
 

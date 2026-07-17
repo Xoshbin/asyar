@@ -106,6 +106,34 @@ describe('SettingsHandler.loadExtensions', () => {
 
     expect(handler.extensions).toHaveLength(1);
   });
+
+  it('ignores a call that starts while a previous call is still in flight', async () => {
+    let resolveFirst: (value: unknown[]) => void = () => {};
+    mockGetAll.mockReset().mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFirst = resolve;
+      }),
+    );
+
+    const handler = new SettingsHandler();
+    const firstCall = handler.loadExtensions();
+    const secondCall = handler.loadExtensions();
+
+    resolveFirst([]);
+    await Promise.all([firstCall, secondCall]);
+
+    expect(mockGetAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows a new call once the previous one has finished', async () => {
+    mockGetAll.mockReset().mockResolvedValue([]);
+
+    const handler = new SettingsHandler();
+    await handler.loadExtensions();
+    await handler.loadExtensions();
+
+    expect(mockGetAll).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('SettingsHandler.init — extension list freshness', () => {
