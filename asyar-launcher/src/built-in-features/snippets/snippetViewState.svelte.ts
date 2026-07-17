@@ -8,7 +8,6 @@ class SnippetViewStateClass {
   searchQuery = $state('');
   mode = $state<SnippetEditMode>('view');
   editingSnippet = $state<Snippet | null>(null);
-  pendingDeleteId = $state<string | null>(null); // set by triggerDelete(), watched by DefaultView
 
   // Ids of the current search results, best-match first, as ranked by Rust.
   // `null` means no active search (show the full list). Held as ids — not item
@@ -111,17 +110,12 @@ class SnippetViewStateClass {
     this.editingSnippet = null;
   }
 
-  triggerDelete() {
-    this.pendingDeleteId = this.selectedSnippet?.id ?? null;
-  }
-
   reset() {
     this.searchQuery = '';
     this.rankedIds = null;
     this.selection.setIndex(0);
     this.mode = 'view';
     this.editingSnippet = null;
-    this.pendingDeleteId = null;
   }
 }
 

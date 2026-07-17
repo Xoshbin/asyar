@@ -31,17 +31,6 @@
     }
   });
 
-  // Watch pendingDeleteId from state (set by keyboard Cmd+Backspace in index.ts)
-  $effect(() => {
-    if (snippetViewState.pendingDeleteId) {
-      const id = snippetViewState.pendingDeleteId;
-      const s = snippetStore.snippets.find((s) => s.id === id);
-      // Reset eagerly so the effect doesn't re-trigger if the user dismisses then re-presses.
-      snippetViewState.pendingDeleteId = null;
-      void confirmDeleteSnippet(id, s?.name ?? null);
-    }
-  });
-
   // Inline form state
   let formName = $state('');
   let formKeyword = $state('');
