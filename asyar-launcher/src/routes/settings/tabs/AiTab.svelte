@@ -3,12 +3,13 @@
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { providerRegistry } from '../../../services/ai/providerRegistry';
   import { agentService } from '../../../built-in-features/agents/agentService.svelte';
-  import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
+  import { agentsProviderRemovalBlockers } from '../../../lib/ipc/commands';
   import {
     availableProvidersForNewRow,
     canTestAndFetch,
     configForNewProvider,
     modelSelectionAfterFetch,
+    providerRemovalBlockedMessage,
     reasoningEffortAfterModelChange,
     reasoningEffortsForModel,
   } from './AiTab.helpers';
@@ -33,6 +34,14 @@
   let fetchErrors = $state<Record<string, string>>({});
   // Track custom-model-id input mode per provider
   let customModelMode = $state<Record<string, boolean>>({});
+  // Why a provider removal was refused, keyed by provider id. Shown inline
+  // in the row — the Settings window is a separate webview from the
+  // launcher, so feedbackService's bottom bar never renders here.
+  let removeErrors = $state<Record<string, string>>({});
+  // Why setting/updating a provider's default agent failed, keyed by the
+  // provider id that was being made (or already is) the default. Same
+  // inline-in-the-row reasoning as removeErrors.
+  let defaultAgentErrors = $state<Record<string, string>>({});
 
   // Advanced settings local state
   let maxTokensStr = $state(String(settings.maxTokens));
@@ -148,17 +157,14 @@
     const modelId = config.lastModelId ?? fallbackModelId;
     if (!modelId) return;
     if (!config.lastModelId) await updateProviderConfig(id, { lastModelId: modelId });
+    defaultAgentErrors = { ...defaultAgentErrors, [id]: '' };
     try {
       await agentService.upsertDefaultAgent(id, modelId);
-    } catch (err) {
-      feedbackService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'error',
-        retryable: true,
-        context: { message: 'Could not set default AI agent.' },
-        developerDetail: String(err),
-      });
+    } catch {
+      defaultAgentErrors = {
+        ...defaultAgentErrors,
+        [id]: 'Could not set this as the default AI agent.',
+      };
     }
   }
 
@@ -176,22 +182,33 @@
     if (agentService.getDefaultAgent()) return;
     try {
       await agentService.upsertDefaultAgent(id, modelId);
-    } catch (err) {
-      feedbackService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'warning',
-        retryable: false,
-        context: {
-          message:
-            'Could not auto-set the default AI agent. You can pick it manually with the star.',
-        },
-        developerDetail: String(err),
-      });
+    } catch {
+      defaultAgentErrors = {
+        ...defaultAgentErrors,
+        [id]: 'Could not auto-set the default AI agent. You can pick it manually with the star.',
+      };
     }
   }
 
   async function removeProvider(id: ProviderId) {
+    removeErrors = { ...removeErrors, [id]: '' };
+    try {
+      const blockers = await agentsProviderRemovalBlockers(id, allPlugins, settings.providers);
+      if (blockers.length > 0) {
+        removeErrors = {
+          ...removeErrors,
+          [id]: providerRemovalBlockedMessage(getPlugin(id)?.name ?? id, blockers),
+        };
+        return;
+      }
+    } catch {
+      removeErrors = {
+        ...removeErrors,
+        [id]: 'Could not check whether this provider is safe to remove.',
+      };
+      return;
+    }
+
     const wasDefault = isDefault(id);
     // Clear config for this provider
     settingsService.updateSettings('ai', {
@@ -210,15 +227,11 @@
         if (nextModel) {
           try {
             await agentService.upsertDefaultAgent(nextId, nextModel);
-          } catch (err) {
-            feedbackService.report({
-              source: 'frontend',
-              kind: 'manual',
-              severity: 'error',
-              retryable: true,
-              context: { message: 'Could not update default agent after removing provider.' },
-              developerDetail: String(err),
-            });
+          } catch {
+            defaultAgentErrors = {
+              ...defaultAgentErrors,
+              [nextId]: 'Could not update the default agent after removing its previous provider.',
+            };
           }
         }
       } else {
@@ -307,6 +320,8 @@
         {@const cachedModels = modelCache[providerId] ?? []}
         {@const isFetching = !!fetchingModels[providerId]}
         {@const fetchError = fetchErrors[providerId] ?? ''}
+        {@const removeError = removeErrors[providerId] ?? ''}
+        {@const defaultAgentError = defaultAgentErrors[providerId] ?? ''}
         {@const defaultRow = isDefault(providerId)}
         {@const canBeDefault = !!config.lastModelId || cachedModels.length > 0}
         {@const useCustomInput = customModelMode[providerId] ?? false}
@@ -357,6 +372,13 @@
               </button>
             </div>
           </div>
+
+          {#if removeError}
+            <p class="fetch-error row-banner-error">{removeError}</p>
+          {/if}
+          {#if defaultAgentError}
+            <p class="fetch-error row-banner-error">{defaultAgentError}</p>
+          {/if}
 
           {#if expanded}
             <div class="row-body" id="row-body-{providerId}">
@@ -492,15 +514,11 @@
                       if (isDefault(providerId)) {
                         try {
                           await agentService.upsertDefaultAgent(providerId, val);
-                        } catch (err) {
-                          feedbackService.report({
-                            source: 'frontend',
-                            kind: 'manual',
-                            severity: 'error',
-                            retryable: true,
-                            context: { message: 'Could not update the default AI agent.' },
-                            developerDetail: String(err),
-                          });
+                        } catch {
+                          defaultAgentErrors = {
+                            ...defaultAgentErrors,
+                            [providerId]: 'Could not update the default AI agent.',
+                          };
                         }
                       } else {
                         await maybeAutoSetAsDefault(providerId, val);
@@ -544,15 +562,11 @@
                           if (isDefault(providerId)) {
                             try {
                               await agentService.upsertDefaultAgent(providerId, val);
-                            } catch (err) {
-                              feedbackService.report({
-                                source: 'frontend',
-                                kind: 'manual',
-                                severity: 'error',
-                                retryable: true,
-                                context: { message: 'Could not update the default AI agent.' },
-                                developerDetail: String(err),
-                              });
+                            } catch {
+                              defaultAgentErrors = {
+                                ...defaultAgentErrors,
+                                [providerId]: 'Could not update the default AI agent.',
+                              };
                             }
                           } else {
                             await maybeAutoSetAsDefault(providerId, val);
@@ -906,6 +920,13 @@
     font-size: var(--font-size-xs);
     color: var(--color-error, #ef4444);
     margin: 0;
+  }
+
+  /* Sits between the row header and the (possibly collapsed) row body, so a
+     blocked removal or a default-agent update failure is visible without
+     expanding the row. */
+  .row-banner-error {
+    padding: 0 var(--space-3) var(--space-2);
   }
 
   /* Draft row */

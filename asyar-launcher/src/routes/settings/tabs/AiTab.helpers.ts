@@ -83,6 +83,26 @@ export function modelSelectionAfterFetch(
   };
 }
 
+/** Minimal shape needed to name an agent in the removal-blocked message. */
+export interface BlockingAgent {
+  id: string;
+  name: string;
+}
+
+/**
+ * Message shown when Settings refuses to remove a provider because Rust
+ * found agents that would be left without any usable provider (it's the
+ * last one left). Lists every blocking agent by name so the user knows
+ * exactly what to reassign or delete first.
+ */
+export function providerRemovalBlockedMessage(
+  providerName: string,
+  blockers: BlockingAgent[],
+): string {
+  const names = blockers.map((agent) => agent.name).join(', ');
+  return `Can't remove ${providerName} — it's the last configured provider and these agents still use it: ${names}. Reassign or delete them first.`;
+}
+
 export function reasoningEffortsForModel(
   plugin: IProviderPlugin | null | undefined,
   models: ModelInfo[],

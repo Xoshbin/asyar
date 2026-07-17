@@ -674,6 +674,7 @@ pub fn run() {
             agents::editor::agents_editor_load,
             agents::editor::agents_editor_list_models,
             agents::editor::agents_editor_save,
+            agents::editor::agents_provider_removal_blockers,
             // Agent tools registry
             agents::tools::agents_tools_list,
             agents::tools::agents_tools_register_tier2,

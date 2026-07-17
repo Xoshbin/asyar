@@ -2,13 +2,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::agents::editor::{
-    agents_editor_catalog_impl, agents_editor_save_impl, build_editor_view_model,
-    select_initial_model_id, AgentEditorForm, AgentProviderDescriptor, AgentToolGroup,
+    agents_editor_catalog_impl, agents_editor_save_impl, agents_stranded_by_provider_removal,
+    build_editor_view_model, select_initial_model_id, AgentEditorForm, AgentProviderDescriptor,
+    AgentToolGroup,
 };
 use crate::agents::tools::{BuiltinTool, ManifestTool, ToolDescriptor, ToolRegistry, ToolSource};
 use crate::ai::types::{ModelInfo, ProviderConfig};
 use crate::error::AppError;
-use crate::storage::agents::{SilentInputSource, SilentOutputAction};
+use crate::storage::agents::{AgentRow, SilentInputSource, SilentOutputAction};
 use rusqlite::Connection;
 
 struct TestBuiltin;
@@ -49,6 +50,25 @@ fn config(enabled: bool, api_key: Option<&str>, base_url: Option<&str>) -> Provi
         open_ai_api_mode: None,
         hosted_web_search: None,
         reasoning_effort: None,
+    }
+}
+
+fn agent(id: &str, provider_id: &str, model_id: &str) -> AgentRow {
+    AgentRow {
+        id: id.to_string(),
+        name: "Asyar Assistant".to_string(),
+        description: None,
+        system_prompt: "You are helpful.".to_string(),
+        provider_id: provider_id.to_string(),
+        model_id: model_id.to_string(),
+        tool_selection: Vec::new(),
+        silent: false,
+        input_source: SilentInputSource::Argument,
+        output_action: SilentOutputAction::ReplaceSelection,
+        cache_responses: false,
+        shortcode_trigger: ":".to_string(),
+        created_at: Some(1),
+        updated_at: Some(1),
     }
 }
 
@@ -191,7 +211,7 @@ fn initial_model_selection_is_owned_by_rust() {
 fn editor_view_model_uses_rust_owned_defaults_for_new_agents() {
     let registry = ToolRegistry::new();
 
-    let view = build_editor_view_model(&registry, None, &[], &HashMap::new()).unwrap();
+    let view = build_editor_view_model(&registry, None, None, &[], &HashMap::new()).unwrap();
 
     assert_eq!(view.form.name, "");
     assert_eq!(view.form.description, "");
@@ -206,6 +226,135 @@ fn editor_view_model_uses_rust_owned_defaults_for_new_agents() {
         SilentOutputAction::ReplaceSelection
     );
     assert!(!view.form.cache_responses);
+}
+
+#[test]
+fn new_agent_form_defaults_to_the_default_agents_provider_and_model_when_usable() {
+    let registry = ToolRegistry::new();
+    let providers = vec![provider("anthropic", true, false)];
+    let configs = HashMap::from([("anthropic".into(), config(true, Some("sk-ant"), None))]);
+    let default_agent = agent("default-agent", "anthropic", "claude-sonnet-5");
+
+    let view = build_editor_view_model(&registry, None, Some(&default_agent), &providers, &configs)
+        .unwrap();
+
+    assert_eq!(view.form.provider_id, "anthropic");
+    assert_eq!(view.form.model_id, "claude-sonnet-5");
+}
+
+#[test]
+fn new_agent_form_stays_blank_when_default_agents_provider_is_unusable() {
+    let registry = ToolRegistry::new();
+    // Default agent points at a provider that is no longer configured/usable.
+    let providers = vec![provider("anthropic", true, false)];
+    let configs = HashMap::from([("anthropic".into(), config(true, None, None))]);
+    let default_agent = agent("default-agent", "anthropic", "claude-sonnet-5");
+
+    let view = build_editor_view_model(&registry, None, Some(&default_agent), &providers, &configs)
+        .unwrap();
+
+    assert_eq!(view.form.provider_id, "");
+    assert_eq!(view.form.model_id, "");
+}
+
+#[test]
+fn new_agent_form_stays_blank_when_there_is_no_default_agent() {
+    let registry = ToolRegistry::new();
+    let providers = vec![provider("anthropic", true, false)];
+    let configs = HashMap::from([("anthropic".into(), config(true, Some("sk-ant"), None))]);
+
+    let view = build_editor_view_model(&registry, None, None, &providers, &configs).unwrap();
+
+    assert_eq!(view.form.provider_id, "");
+    assert_eq!(view.form.model_id, "");
+}
+
+#[test]
+fn editing_an_existing_agent_ignores_the_default_agent() {
+    let registry = ToolRegistry::new();
+    let providers = vec![
+        provider("anthropic", true, false),
+        provider("openai", true, false),
+    ];
+    let configs = HashMap::from([
+        ("anthropic".into(), config(true, Some("sk-ant"), None)),
+        ("openai".into(), config(true, Some("sk-oai"), None)),
+    ]);
+    let existing = agent("agent-1", "openai", "gpt-5");
+    let default_agent = agent("default-agent", "anthropic", "claude-sonnet-5");
+
+    let view = build_editor_view_model(
+        &registry,
+        Some(&existing),
+        Some(&default_agent),
+        &providers,
+        &configs,
+    )
+    .unwrap();
+
+    assert_eq!(view.form.provider_id, "openai");
+    assert_eq!(view.form.model_id, "gpt-5");
+}
+
+#[test]
+fn stranded_by_provider_removal_is_empty_when_another_usable_provider_remains() {
+    let providers = vec![
+        provider("anthropic", true, false),
+        provider("openai", true, false),
+    ];
+    let configs = HashMap::from([
+        ("anthropic".into(), config(true, Some("sk-ant"), None)),
+        ("openai".into(), config(true, Some("sk-oai"), None)),
+    ]);
+    let agents = vec![agent("agent-1", "openai", "gpt-5")];
+
+    let stranded = agents_stranded_by_provider_removal("openai", &agents, &providers, &configs);
+
+    assert!(stranded.is_empty());
+}
+
+#[test]
+fn stranded_by_provider_removal_lists_agents_when_it_is_the_last_usable_provider() {
+    let providers = vec![provider("anthropic", true, false)];
+    let configs = HashMap::from([("anthropic".into(), config(true, Some("sk-ant"), None))]);
+    let agents = vec![
+        agent("agent-1", "anthropic", "claude-sonnet-5"),
+        agent("agent-2", "anthropic", "claude-sonnet-5"),
+    ];
+
+    let stranded = agents_stranded_by_provider_removal("anthropic", &agents, &providers, &configs);
+
+    assert_eq!(
+        stranded.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(),
+        vec!["agent-1", "agent-2"]
+    );
+}
+
+#[test]
+fn stranded_by_provider_removal_ignores_agents_already_on_other_providers() {
+    let providers = vec![provider("anthropic", true, false)];
+    let configs = HashMap::from([("anthropic".into(), config(true, Some("sk-ant"), None))]);
+    let agents = vec![
+        agent("agent-1", "anthropic", "claude-sonnet-5"),
+        agent("agent-2", "already-stale-provider", "some-model"),
+    ];
+
+    let stranded = agents_stranded_by_provider_removal("anthropic", &agents, &providers, &configs);
+
+    assert_eq!(
+        stranded.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(),
+        vec!["agent-1"]
+    );
+}
+
+#[test]
+fn stranded_by_provider_removal_is_empty_when_no_agents_reference_it() {
+    let providers = vec![provider("anthropic", true, false)];
+    let configs = HashMap::from([("anthropic".into(), config(true, Some("sk-ant"), None))]);
+
+    let stranded = agents_stranded_by_provider_removal("anthropic", &[], &providers, &configs);
+
+    assert!(stranded.is_empty());
 }
 
 #[test]
