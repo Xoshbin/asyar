@@ -118,6 +118,50 @@ The SDK release workflow needs `NPM_TOKEN` configured at **Settings → Secrets 
 
 ---
 
+## Distributing via Homebrew
+
+Every launcher release also pushes an updated Cask to a personal tap,
+[`Xoshbin/homebrew-asyar`](https://github.com/Xoshbin/homebrew-asyar), so users can:
+
+```bash
+brew tap Xoshbin/asyar
+brew install --cask asyar
+```
+
+This is a self-owned tap, not the official `homebrew-cask` repo — submitting there
+later requires clearing Homebrew's notability bar, which isn't worth blocking on yet.
+
+### One-time setup (not done yet)
+
+1. Create an empty public GitHub repo named exactly `homebrew-asyar` under the
+   `Xoshbin` account (the `homebrew-` prefix is what makes `brew tap Xoshbin/asyar`
+   resolve to it).
+2. Seed it with `Casks/asyar.rb` — grab the current version of that file from the
+   most recent `Update Homebrew Cask` CI run, or generate one by hand for the
+   current release (see the step's heredoc in `.github/workflows/release-launcher.yml`
+   for the exact template).
+3. Generate a fine-grained GitHub PAT scoped to **only** the `homebrew-asyar` repo
+   with `Contents: Read and write` permission.
+4. Add it as a secret named `HOMEBREW_TAP_TOKEN` on the `Xoshbin/asyar` repo
+   (Settings → Secrets and variables → Actions).
+
+Once the secret exists, the `Update Homebrew Cask` step in `release-launcher.yml`
+starts firing on every future `v*` release — no further action needed. Until then it
+detects the missing secret and skips itself without failing the release.
+
+### Notes
+
+- Every launcher release today is a numeric pre-release (`v0.1.1-N`); since this is
+  a personal tap, the Cask tracks those too — there's no separate "stable" filter.
+  A `livecheck` block for `brew bump-cask-pr`-style automation isn't included
+  because Homebrew's `github_latest` strategy only resolves GitHub's `/releases/latest`,
+  which excludes prereleases entirely — it would find nothing.
+- `auto_updates true` is set because Asyar has its own updater (the asyar.org feed).
+  Brew is the _install_ channel; the app's own updater is the _stay current_ channel.
+  This also means plain `brew upgrade` skips it — that's intentional, not a bug.
+- Only the two macOS `.dmg` artifacts are needed (Homebrew Cask is macOS-only);
+  Linux/Windows package managers (winget, Flatpak, AUR, …) are tracked separately.
+
 ## When a release fails
 
 Every step is re-runnable without burning a version number. If a CI run fails
@@ -130,14 +174,15 @@ safe.
 
 ### Symptom → recovery
 
-| Scenario                                                           | What's safe                                                        | Recovery                                                                                                                                           |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SDK `npm publish` fails (bad token / version exists / network)     | Tag + bump on the release branch/PR; npm unchanged                 | Fix the cause → re-run **release-sdk.yml** via _Run workflow_ with the same tag. Publish is idempotent: it skips if the version is already on npm. |
-| One launcher build target fails (flaky notarization / runner down) | Other artifacts built; nothing published yet                       | Re-run **release-launcher.yml** via _Run workflow_ with the same tag — no new version. The concurrency guard prevents races.                       |
-| Website notify fails (asyar.org down / bad token)                  | GitHub Release already created; updater feed stale                 | The job **fails loudly** (red). Re-run via _Run workflow_; the notify endpoint upserts by version, so it's safe to repeat.                         |
-| Tag pushed by mistake / wrong version                              | —                                                                  | `git push --delete origin <tag>`, delete the GitHub release, then re-release. The duplicate-tag guard otherwise blocks a duplicate version.        |
-| Launcher release while npm is down                                 | N/A                                                                | Not a failure mode — the launcher reads the SDK version from local `asyar-sdk/package.json`.                                                       |
-| A release script half-finished locally (Ctrl-C / error mid-run)    | The script cleans up its leftover local branch/tag on the next run | Run it again (`--dry-run` first to preview); the duplicate-tag guard blocks an accidental re-release of the same version.                          |
+| Scenario                                                           | What's safe                                                        | Recovery                                                                                                                                                                                               |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SDK `npm publish` fails (bad token / version exists / network)     | Tag + bump on the release branch/PR; npm unchanged                 | Fix the cause → re-run **release-sdk.yml** via _Run workflow_ with the same tag. Publish is idempotent: it skips if the version is already on npm.                                                     |
+| One launcher build target fails (flaky notarization / runner down) | Other artifacts built; nothing published yet                       | Re-run **release-launcher.yml** via _Run workflow_ with the same tag — no new version. The concurrency guard prevents races.                                                                           |
+| Website notify fails (asyar.org down / bad token)                  | GitHub Release already created; updater feed stale                 | The job **fails loudly** (red). Re-run via _Run workflow_; the notify endpoint upserts by version, so it's safe to repeat.                                                                             |
+| Homebrew cask push fails (bad token / tap repo down)               | GitHub Release + website notify already done; tap just stale       | Re-run via _Run workflow_ with the same tag — the step overwrites `Casks/asyar.rb` unconditionally, so it's safe to repeat. If `HOMEBREW_TAP_TOKEN` isn't set yet, the step no-ops instead of failing. |
+| Tag pushed by mistake / wrong version                              | —                                                                  | `git push --delete origin <tag>`, delete the GitHub release, then re-release. The duplicate-tag guard otherwise blocks a duplicate version.                                                            |
+| Launcher release while npm is down                                 | N/A                                                                | Not a failure mode — the launcher reads the SDK version from local `asyar-sdk/package.json`.                                                                                                           |
+| A release script half-finished locally (Ctrl-C / error mid-run)    | The script cleans up its leftover local branch/tag on the next run | Run it again (`--dry-run` first to preview); the duplicate-tag guard blocks an accidental re-release of the same version.                                                                              |
 
 **Notes**
 
