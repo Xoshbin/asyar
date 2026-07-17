@@ -1,7 +1,14 @@
 //! Factory-reset command.
 //!
 //! Wipes everything Asyar persists (SQLite DB, settings store, installed
-//! extensions, OAuth/auth tokens, onboarding state, alias data, ...).
+//! extensions, OAuth/auth tokens, onboarding state, alias data, ...) plus
+//! the OS-keychain secrets that live outside `app_data_dir` entirely: the
+//! at-rest encryption master key, the cached E2EE sync seed, and any paired
+//! browser-bridge tokens. The frontend is responsible for clearing
+//! `localStorage` before invoking this command — see the `factory_reset`
+//! action in `actionService.svelte.ts` — since `lib/persistence/extensionStore.ts`
+//! mirrors some Tauri-store data into localStorage and would otherwise
+//! resurrect it into the freshly wiped store on next load.
 //!
 //! Implementation note: the actual wipe runs at boot, not at command time.
 //! `factory_reset` writes a sentinel file into `app_data_dir` and exits the
@@ -18,6 +25,8 @@
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
+use crate::browser::bridge::token_store::TokenStore;
+use crate::crypto::keystore::KeyStore;
 use crate::error::AppError;
 
 const SENTINEL_FILE_NAME: &str = "pending_factory_reset";
@@ -80,6 +89,35 @@ pub async fn factory_reset(app: AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Best-effort deletion of every OS-keychain secret Asyar owns. These live
+/// outside `app_data_dir` (Keychain Services / Credential Manager / Secret
+/// Service), so `wipe_dir_contents` can never reach them. `keyring` has no
+/// "delete everything for this service" call, so each known account is
+/// cleared individually. Failures are logged and swallowed: a keychain
+/// glitch must never block the rest of the wipe, and the sentinel itself
+/// lives inside `app_data_dir` so it's already gone regardless.
+fn clear_keychain_secrets(key_store: &dyn KeyStore, token_store: &dyn TokenStore) {
+    for account in [
+        crate::crypto::keystore::KEYCHAIN_ACCOUNT,
+        crate::sync::e2ee::service::KEYCHAIN_SLOT,
+    ] {
+        if let Err(e) = key_store.delete_slot(account) {
+            log::warn!("[factory_reset] failed to clear keychain slot {account:?}: {e}");
+        }
+    }
+
+    match token_store.list_paired() {
+        Ok(paired) => {
+            for key in paired {
+                if let Err(e) = token_store.delete(&key) {
+                    log::warn!("[factory_reset] failed to clear browser bridge token {key:?}: {e}");
+                }
+            }
+        }
+        Err(e) => log::warn!("[factory_reset] failed to list paired browser bridge tokens: {e}"),
+    }
+}
+
 /// Boot-time hook. If the sentinel file exists, wipe `app_data_dir` (and
 /// `app_local_data_dir` when distinct) entirely, then continue boot. The wipe
 /// removes the sentinel as a side effect. Returns `true` when a wipe was
@@ -113,6 +151,11 @@ pub fn perform_pending_factory_reset_if_marked(app: &AppHandle) -> bool {
             }
         }
     }
+
+    let os_keystore = crate::crypto::keystore::OsKeyStore::new();
+    let bridge_token_store = crate::browser::bridge::token_store::KeyringTokenStore::new();
+    bridge_token_store.load_paired_from_backend();
+    clear_keychain_secrets(&os_keystore, &bridge_token_store);
 
     log::warn!("[factory_reset] wipe complete");
     true
@@ -207,6 +250,61 @@ mod tests {
         }
     }
 
+    #[test]
+    fn clear_keychain_secrets_deletes_both_crypto_slots() {
+        use crate::browser::bridge::token_store::InMemoryTokenStore;
+        use crate::crypto::keystore::{InMemoryKeyStore, KeyStore, KEYCHAIN_ACCOUNT};
+        use crate::sync::e2ee::service::KEYCHAIN_SLOT;
+
+        let key_store = InMemoryKeyStore::new();
+        key_store
+            .write_slot(KEYCHAIN_ACCOUNT, b"master-key")
+            .unwrap();
+        key_store.write_slot(KEYCHAIN_SLOT, b"e2ee-seed").unwrap();
+        let token_store = InMemoryTokenStore::new();
+
+        clear_keychain_secrets(&key_store, &token_store);
+
+        assert!(key_store.read_slot(KEYCHAIN_ACCOUNT).unwrap().is_none());
+        assert!(key_store.read_slot(KEYCHAIN_SLOT).unwrap().is_none());
+    }
+
+    #[test]
+    fn clear_keychain_secrets_deletes_every_paired_browser_token() {
+        use crate::browser::bridge::token_store::{InMemoryTokenStore, TokenStore};
+        use crate::browser::types::{BrowserFamily, BrowserKey};
+        use crate::crypto::keystore::InMemoryKeyStore;
+
+        let key_store = InMemoryKeyStore::new();
+        let token_store = InMemoryTokenStore::new();
+        let chrome = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        let firefox = BrowserKey {
+            family: BrowserFamily::Firefox,
+            variant: "firefox".to_string(),
+        };
+        token_store.set(&chrome, "tok-1").unwrap();
+        token_store.set(&firefox, "tok-2").unwrap();
+
+        clear_keychain_secrets(&key_store, &token_store);
+
+        assert!(token_store.list_paired().unwrap().is_empty());
+    }
+
+    #[test]
+    fn clear_keychain_secrets_is_noop_when_nothing_is_stored() {
+        use crate::browser::bridge::token_store::InMemoryTokenStore;
+        use crate::crypto::keystore::InMemoryKeyStore;
+
+        let key_store = InMemoryKeyStore::new();
+        let token_store = InMemoryTokenStore::new();
+
+        // Must not panic on empty stores.
+        clear_keychain_secrets(&key_store, &token_store);
+    }
+
     /// Mirrors the boot-time path: write a sentinel, then "perform reset" by
     /// wiping the dir. We can't drive `perform_pending_factory_reset_if_marked`
     /// without an `AppHandle`, so this test exercises the same primitives in
@@ -231,6 +329,47 @@ mod tests {
         assert!(!sentinel_exists_at_path(&sentinel));
         assert!(!app_data_dir.join("asyar_data.db").exists());
         assert!(!app_data_dir.join("extensions").exists());
+    }
+
+    /// Same boot-time mirror as above, but also proves the OS-keychain
+    /// secrets (encryption master key, e2ee seed, browser-bridge pairing
+    /// tokens) get cleared alongside the directory wipe — these live
+    /// outside `app_data_dir` so `wipe_dir_contents` alone can't reach them.
+    #[test]
+    fn boot_time_flow_also_clears_keychain_secrets() {
+        use crate::browser::bridge::token_store::{InMemoryTokenStore, TokenStore};
+        use crate::browser::types::{BrowserFamily, BrowserKey};
+        use crate::crypto::keystore::{InMemoryKeyStore, KeyStore, KEYCHAIN_ACCOUNT};
+        use crate::sync::e2ee::service::KEYCHAIN_SLOT;
+
+        let tmp = make_temp_dir();
+        let app_data_dir = tmp.path();
+        fs::write(app_data_dir.join("asyar_data.db"), b"sqlite").unwrap();
+
+        let key_store = InMemoryKeyStore::new();
+        key_store
+            .write_slot(KEYCHAIN_ACCOUNT, b"master-key")
+            .unwrap();
+        key_store.write_slot(KEYCHAIN_SLOT, b"e2ee-seed").unwrap();
+        let token_store = InMemoryTokenStore::new();
+        let paired = BrowserKey {
+            family: BrowserFamily::Chromium,
+            variant: "chrome".to_string(),
+        };
+        token_store.set(&paired, "bridge-tok").unwrap();
+
+        let sentinel = sentinel_path_for_dir(app_data_dir);
+        write_sentinel_to_path(&sentinel).unwrap();
+
+        // Next boot: wipe dir + clear keychain, same order as
+        // `perform_pending_factory_reset_if_marked`.
+        wipe_dir_contents(app_data_dir).unwrap();
+        clear_keychain_secrets(&key_store, &token_store);
+
+        assert!(!app_data_dir.join("asyar_data.db").exists());
+        assert!(key_store.read_slot(KEYCHAIN_ACCOUNT).unwrap().is_none());
+        assert!(key_store.read_slot(KEYCHAIN_SLOT).unwrap().is_none());
+        assert!(token_store.list_paired().unwrap().is_empty());
     }
 
     #[test]
