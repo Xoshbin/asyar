@@ -14,11 +14,16 @@ vi.mock('./agentService.svelte', () => ({
   },
 }));
 
+vi.mock('../../services/ai/providerRegistry', () => ({
+  providerRegistry: { list: vi.fn() },
+}));
+
 vi.mock('../../lib/ipc/commands', () => ({
   agentsGet: vi.fn(),
   agentsRunSilent: vi.fn(),
   agentsCancelRun: vi.fn(),
   simulatePaste: vi.fn(),
+  toAgentProviderDescriptors: vi.fn((providers) => providers),
 }));
 
 const spinnerMock = vi.hoisted(() => ({
@@ -72,10 +77,18 @@ import { feedbackService } from '../../services/feedback/feedbackService.svelte'
 import { selectionService } from '../../services/selection/selectionService';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { windowService } from '../../services/window/windowService';
+import { providerRegistry } from '../../services/ai/providerRegistry';
 import { readText, writeText } from 'tauri-plugin-clipboard-x-api';
 
 const config = { enabled: true, apiKey: 'sk-test' };
-const runConfig = { provider: config, temperature: 0.7, maxTokens: 2048 };
+const providers = [{ id: 'openai', name: 'OpenAI', requiresApiKey: true, requiresBaseUrl: false }];
+const runConfig = {
+  providers,
+  configs: { openai: config },
+  defaultAgentId: null,
+  temperature: 0.7,
+  maxTokens: 2048,
+};
 
 function makeAgent(overrides: Partial<AgentDef> = {}): AgentDef {
   return {
@@ -89,6 +102,8 @@ function makeAgent(overrides: Partial<AgentDef> = {}): AgentDef {
     silent: true,
     inputSource: 'argument',
     outputAction: 'replaceSelection',
+    cacheResponses: false,
+    shortcodeTrigger: ':',
     createdAt: 1,
     updatedAt: 1,
     ...overrides,
@@ -112,8 +127,14 @@ describe('dispatchSilentAgentCommand', () => {
     bridgeMock.options = undefined;
     vi.mocked(agentService.getById).mockReturnValue(makeAgent());
     vi.mocked(settingsService.getSettings).mockReturnValue({
-      ai: { providers: { openai: config }, temperature: 0.7, maxTokens: 2048 },
+      ai: {
+        providers: { openai: config },
+        defaultAgentId: null,
+        temperature: 0.7,
+        maxTokens: 2048,
+      },
     } as never);
+    vi.mocked(providerRegistry.list).mockReturnValue(providers as never);
     vi.mocked(commands.agentsRunSilent).mockResolvedValue('Corrected text');
     vi.mocked(commands.agentsCancelRun).mockResolvedValue(undefined);
     vi.mocked(readText).mockResolvedValue('previous clipboard');
@@ -193,8 +214,14 @@ describe('dispatchSilentAgentCommand', () => {
     vi.clearAllMocks();
     vi.mocked(agentService.getById).mockReturnValue(makeAgent({ outputAction: 'hud' }));
     vi.mocked(settingsService.getSettings).mockReturnValue({
-      ai: { providers: { openai: config }, temperature: 0.7, maxTokens: 2048 },
+      ai: {
+        providers: { openai: config },
+        defaultAgentId: null,
+        temperature: 0.7,
+        maxTokens: 2048,
+      },
     } as never);
+    vi.mocked(providerRegistry.list).mockReturnValue(providers as never);
     vi.mocked(commands.agentsRunSilent).mockResolvedValue('first\nfinal line\n');
     await dispatchSilentAgentCommand({ agentId: 'agent-1', userText: 'hello' });
     expect(spinnerMock.replace).toHaveBeenCalledWith('final line', { spinning: false });

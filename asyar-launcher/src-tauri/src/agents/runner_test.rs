@@ -1,7 +1,7 @@
 use crate::agents::runner::{
-    build_system_prompt, coalesce_consecutive_messages, run_silent_agent_loop_impl,
-    run_silent_loop_impl, run_thread_loop_impl, AgentRunConfig, AgentRunnerState, AgentStreamEvent,
-    ExternalToolRequest,
+    build_system_prompt, coalesce_consecutive_messages, resolve_provider_config,
+    run_silent_agent_loop_impl, run_silent_loop_impl, run_thread_loop_impl, AgentRunConfig,
+    AgentRunnerState, AgentStreamEvent, ExternalToolRequest,
 };
 use crate::agents::tools::ToolRegistry;
 use crate::error::AppError;
@@ -34,12 +34,20 @@ fn chat_message(role: &str, content: &str) -> crate::ai::types::ChatMessage {
 }
 
 fn run_config(
+    provider_id: &str,
     provider: crate::ai::types::ProviderConfig,
     temperature: f64,
     max_tokens: u32,
 ) -> AgentRunConfig {
     AgentRunConfig {
-        provider,
+        providers: vec![crate::agents::editor::AgentProviderDescriptor {
+            id: provider_id.to_string(),
+            name: provider_id.to_string(),
+            requires_api_key: false,
+            requires_base_url: false,
+        }],
+        configs: std::collections::HashMap::from([(provider_id.to_string(), provider)]),
+        default_agent_id: None,
         temperature,
         max_tokens,
     }
@@ -204,7 +212,7 @@ async fn test_silent_runner_rejects_non_silent_agent() {
         &agent,
         &ToolRegistry::new(),
         "hello".to_string(),
-        run_config(provider, 0.7, 2048),
+        run_config("openai", provider, 0.7, 2048),
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
         None,
@@ -270,7 +278,7 @@ async fn run_shortcode_miss_with_mocked_reply(reply_chunks: &[&str]) -> String {
         &shortcode_miss_agent(),
         &ToolRegistry::new(),
         "party".to_string(),
-        run_config(provider, 0.7, 2048),
+        run_config("openai", provider, 0.7, 2048),
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
         None,
@@ -352,7 +360,7 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
         "thread-2",
         "hello".to_string(),
         None,
-        run_config(provider, 0.7, 2048),
+        run_config("openai", provider, 0.7, 2048),
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
         None,
@@ -461,7 +469,7 @@ async fn test_run_thread_loop_text_only() {
         &thread_id,
         "Hello".to_string(),
         None,
-        run_config(config, 0.25, 123),
+        run_config("openai", config, 0.25, 123),
         on_event,
         |_| async {
             Err(AppError::Other(
@@ -609,7 +617,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
         &thread_id,
         "Calculate".to_string(),
         None,
-        run_config(config, 0.7, 2048),
+        run_config("openai", config, 0.7, 2048),
         on_event,
         |_| async {
             Err(AppError::Other(
@@ -750,7 +758,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
         &thread_id,
         "Run extension".to_string(),
         None,
-        run_config(config, 0.7, 2048),
+        run_config("openai", config, 0.7, 2048),
         on_event,
         move |request| {
             events_for_dispatch
@@ -874,7 +882,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
         &registry,
         &agent_id,
         "helo".to_string(),
-        run_config(config, 0.7, 2048),
+        run_config("openai", config, 0.7, 2048),
         |_| {},
         |_| async {
             Err(AppError::Other(
@@ -905,4 +913,72 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
         after, before,
         "silent execution must not write threads or messages"
     );
+}
+
+fn valid_openai_config() -> crate::ai::types::ProviderConfig {
+    crate::ai::types::ProviderConfig {
+        enabled: true,
+        api_key: Some("sk-test".to_string()),
+        base_url: None,
+        last_model_id: None,
+        open_ai_api_mode: None,
+        hosted_web_search: None,
+        reasoning_effort: None,
+    }
+}
+
+#[test]
+fn resolve_provider_config_succeeds_for_a_fully_configured_provider() {
+    let configs = std::collections::HashMap::from([("openai".to_string(), valid_openai_config())]);
+    let resolved = resolve_provider_config("openai", &configs).unwrap();
+    assert_eq!(resolved.api_key.as_deref(), Some("sk-test"));
+}
+
+#[test]
+fn resolve_provider_config_errors_when_provider_has_no_config_entry() {
+    let configs = std::collections::HashMap::new();
+    let error = resolve_provider_config("openai", &configs).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("provider 'openai' is not configured"));
+}
+
+#[test]
+fn resolve_provider_config_errors_when_disabled() {
+    let mut config = valid_openai_config();
+    config.enabled = false;
+    let configs = std::collections::HashMap::from([("openai".to_string(), config)]);
+    let error = resolve_provider_config("openai", &configs).unwrap_err();
+    assert!(error.to_string().contains("provider 'openai' is disabled"));
+}
+
+#[test]
+fn resolve_provider_config_errors_for_an_unregistered_provider_id() {
+    let configs = std::collections::HashMap::from([("made-up".to_string(), valid_openai_config())]);
+    let error = resolve_provider_config("made-up", &configs).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("provider 'made-up' is not registered"));
+}
+
+#[test]
+fn resolve_provider_config_errors_when_api_key_is_missing() {
+    let mut config = valid_openai_config();
+    config.api_key = Some("   ".to_string());
+    let configs = std::collections::HashMap::from([("anthropic".to_string(), config)]);
+    let error = resolve_provider_config("anthropic", &configs).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("API key for provider 'anthropic' is not configured"));
+}
+
+#[test]
+fn resolve_provider_config_errors_when_base_url_is_missing() {
+    let mut config = valid_openai_config();
+    config.base_url = None;
+    let configs = std::collections::HashMap::from([("ollama".to_string(), config)]);
+    let error = resolve_provider_config("ollama", &configs).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("Base URL for provider 'ollama' is not configured"));
 }

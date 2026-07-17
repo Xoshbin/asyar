@@ -1,10 +1,12 @@
+use crate::agents::editor::AgentProviderDescriptor;
+use crate::agents::lifecycle::resolve_runnable_agent;
 use crate::agents::tools::ToolRegistry;
 use crate::ai::types::{
     ChatMessage, ChatParams, ChatStreamEventPayload, ProviderConfig, ToolCall, ToolDefinition,
 };
 use crate::error::AppError;
 use crate::storage::agents::{
-    get_agent, get_thread, insert_message, list_messages_for_thread, update_thread_title, AgentRow,
+    get_thread, insert_message, list_messages_for_thread, update_thread_title, AgentRow,
     MessageRole, MessageRow, SilentInputSource,
 };
 use crate::storage::DataStore;
@@ -63,10 +65,18 @@ pub struct AgentStreamEventPayload {
     pub event: AgentStreamEvent,
 }
 
+/// Everything Rust needs to resolve *and* validate an agent's provider for a
+/// run, without owning the settings store itself: the frontend still owns
+/// `settings.ai.providers`/`defaultAgentId` and passes them through as data
+/// on every run. Rust is the one that decides what's usable and, when the
+/// agent's own provider isn't, which fallback to apply and persist — see
+/// `agents::lifecycle::resolve_runnable_agent`.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRunConfig {
-    pub provider: ProviderConfig,
+    pub providers: Vec<AgentProviderDescriptor>,
+    pub configs: HashMap<String, ProviderConfig>,
+    pub default_agent_id: Option<String>,
     pub temperature: f64,
     pub max_tokens: u32,
 }
@@ -511,7 +521,20 @@ pub(crate) async fn build_system_prompt(
         .unwrap_or(joined)
 }
 
-fn validate_provider_config(provider_id: &str, config: &ProviderConfig) -> Result<(), AppError> {
+/// Looks up `provider_id` in the run's provider configs and validates it,
+/// returning the resolved config on success. Combines what the frontend used
+/// to check (does a config entry even exist) with what always lived here
+/// (is it enabled, registered, and carrying required credentials) into one
+/// Rust-side gate.
+pub(crate) fn resolve_provider_config<'a>(
+    provider_id: &str,
+    configs: &'a HashMap<String, ProviderConfig>,
+) -> Result<&'a ProviderConfig, AppError> {
+    let Some(config) = configs.get(provider_id) else {
+        return Err(AppError::Validation(format!(
+            "provider '{provider_id}' is not configured"
+        )));
+    };
     if !config.enabled {
         return Err(AppError::Validation(format!(
             "provider '{provider_id}' is disabled"
@@ -551,7 +574,7 @@ fn validate_provider_config(provider_id: &str, config: &ProviderConfig) -> Resul
             "Base URL for provider '{provider_id}' is not configured"
         )));
     }
-    Ok(())
+    Ok(config)
 }
 
 fn resolve_tools(
@@ -599,12 +622,12 @@ where
     D: Fn(ExternalToolRequest) -> Fut + Send + Sync,
     Fut: Future<Output = Result<Value, AppError>> + Send,
 {
-    validate_provider_config(&agent.provider_id, &config.provider)?;
+    let provider_config = resolve_provider_config(&agent.provider_id, &config.configs)?.clone();
     let (tool_definitions, wire_to_fqid) = resolve_tools(agent, registry)?;
     let tools = (!tool_definitions.is_empty()).then_some(tool_definitions);
     let system_prompt = build_system_prompt(
         &agent.system_prompt,
-        config.provider.hosted_web_search.unwrap_or(false),
+        provider_config.hosted_web_search.unwrap_or(false),
         Some(&agent.shortcode_trigger),
         query,
     )
@@ -627,7 +650,7 @@ where
         let on_stream_event = on_event.clone();
         let stream_future = crate::ai::commands::ai_stream_chat_impl(
             &agent.provider_id,
-            config.provider.clone(),
+            provider_config.clone(),
             messages,
             params,
             Uuid::new_v4().to_string(),
@@ -777,19 +800,24 @@ pub async fn run_thread_loop_impl<F, D, Fut>(
     on_event: F,
     dispatch_external: D,
     cancellation: Option<watch::Receiver<bool>>,
-) -> Result<(), AppError>
+) -> Result<bool, AppError>
 where
     F: Fn(AgentStreamEvent) + Clone + Send + Sync + 'static,
     D: Fn(ExternalToolRequest) -> Fut + Send + Sync,
     Fut: Future<Output = Result<Value, AppError>> + Send,
 {
-    let (agent, thread) = {
+    let (agent, healed, thread) = {
         let conn = store.conn()?;
-        let agent = get_agent(&conn, agent_id)?
-            .ok_or_else(|| AppError::NotFound(format!("agent '{agent_id}' not found")))?;
+        let (agent, healed) = resolve_runnable_agent(
+            &conn,
+            agent_id,
+            config.default_agent_id.as_deref(),
+            &config.providers,
+            &config.configs,
+        )?;
         let thread = get_thread(&conn, thread_id)?
             .ok_or_else(|| AppError::NotFound(format!("thread '{thread_id}' not found")))?;
-        (agent, thread)
+        (agent, healed, thread)
     };
     if thread.agent_id != agent_id {
         return Err(AppError::Validation(format!(
@@ -847,7 +875,7 @@ where
     } else {
         AgentStreamEvent::Cancelled
     });
-    Ok(())
+    Ok(healed)
 }
 
 pub async fn run_silent_agent_loop_impl<F, D, Fut>(
@@ -925,8 +953,13 @@ where
     D: Fn(ExternalToolRequest) -> Fut + Send + Sync,
     Fut: Future<Output = Result<Value, AppError>> + Send,
 {
-    let agent = get_agent(&*store.conn()?, agent_id)?
-        .ok_or_else(|| AppError::NotFound(format!("agent '{agent_id}' not found")))?;
+    let (agent, _healed) = resolve_runnable_agent(
+        &*store.conn()?,
+        agent_id,
+        config.default_agent_id.as_deref(),
+        &config.providers,
+        &config.configs,
+    )?;
     run_silent_agent_loop_impl(
         &agent,
         registry,

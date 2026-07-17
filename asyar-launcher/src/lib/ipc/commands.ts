@@ -9,6 +9,7 @@ import type {
   ReasoningEffort,
 } from '../../services/ai/IProviderPlugin';
 import type {
+  AgentProviderDescriptor,
   AgentRunConfig as AgentRunConfigContract,
   SearchableItem,
   SearchResult,
@@ -1832,6 +1833,18 @@ export interface AgentEditorModelOptions {
   selectedModelId: string;
 }
 
+/** Strips an `IProviderPlugin` down to the wire shape Rust's availability policy needs. */
+export function toAgentProviderDescriptors(
+  providers: IProviderPlugin[],
+): AgentProviderDescriptor[] {
+  return providers.map(({ id, name, requiresApiKey, requiresBaseUrl }) => ({
+    id,
+    name,
+    requiresApiKey,
+    requiresBaseUrl,
+  }));
+}
+
 export async function agentsEditorLoad(
   agentId: string | null,
   providers: IProviderPlugin[],
@@ -1839,12 +1852,7 @@ export async function agentsEditorLoad(
 ): Promise<AgentEditorViewModel> {
   return invokeRaw('agents_editor_load', {
     agentId,
-    providers: providers.map(({ id, name, requiresApiKey, requiresBaseUrl }) => ({
-      id,
-      name,
-      requiresApiKey,
-      requiresBaseUrl,
-    })),
+    providers: toAgentProviderDescriptors(providers),
     configs,
   });
 }
@@ -1973,8 +1981,8 @@ export async function systemActionRun(action: SystemActionId): Promise<boolean> 
   return invokeSafeVoid('system_action_run', { action });
 }
 
-export interface AgentRunConfig extends Omit<AgentRunConfigContract, 'provider'> {
-  provider: ProviderConfig;
+export interface AgentRunConfig extends Omit<AgentRunConfigContract, 'configs'> {
+  configs: Record<string, ProviderConfig>;
 }
 
 export async function agentsRunThread(

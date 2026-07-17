@@ -504,8 +504,11 @@ pub async fn agents_run_thread(
         Some(cancellation),
     )
     .await;
+    if matches!(&result, Ok(true)) {
+        let _ = app.emit("agents:changed", ());
+    }
     let cleanup = runner_state.finish_run(&stream_id);
-    result.and(cleanup)
+    result.map(|_healed| ()).and(cleanup)
 }
 
 #[tauri::command]
@@ -523,7 +526,17 @@ pub async fn agents_run_silent(
 ) -> Result<String, AppError> {
     let agent = {
         let conn = store.conn()?;
-        crate::agents::lifecycle::resolve_silent_agent_target(&conn, &agent_id)?
+        let (agent, healed) = crate::agents::lifecycle::resolve_runnable_agent(
+            &conn,
+            &agent_id,
+            config.default_agent_id.as_deref(),
+            &config.providers,
+            &config.configs,
+        )?;
+        if healed {
+            let _ = app.emit("agents:changed", ());
+        }
+        agent
     };
 
     use tauri::Manager;

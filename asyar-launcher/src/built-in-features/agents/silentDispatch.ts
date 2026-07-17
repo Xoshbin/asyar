@@ -7,8 +7,14 @@
  */
 import { readText, writeText } from 'tauri-plugin-clipboard-x-api';
 import { extractErrorMessage } from '../../lib/errors';
-import { agentsCancelRun, agentsGet, agentsRunSilent, simulatePaste } from '../../lib/ipc/commands';
-import type { ProviderConfig } from '../../services/ai/IProviderPlugin';
+import {
+  agentsCancelRun,
+  agentsGet,
+  agentsRunSilent,
+  simulatePaste,
+  toAgentProviderDescriptors,
+} from '../../lib/ipc/commands';
+import { providerRegistry } from '../../services/ai/providerRegistry';
 import {
   feedbackService,
   type HudSpinnerHandle,
@@ -60,13 +66,11 @@ export async function dispatchSilentAgentCommand(input: SilentDispatchInput): Pr
       return;
     }
 
-    const config = settings.ai.providers[agent.providerId as keyof typeof settings.ai.providers] as
-      ProviderConfig | undefined;
-    if (!config) throw new Error(`Provider '${agent.providerId}' is not configured`);
-
     const streamId = `silent-agent-${agent.id}-${crypto.randomUUID()}`;
     const runConfig = {
-      provider: config,
+      providers: toAgentProviderDescriptors(providerRegistry.list()),
+      configs: settings.ai.providers,
+      defaultAgentId: settings.ai.defaultAgentId,
       temperature: settings.ai.temperature,
       maxTokens: settings.ai.maxTokens,
     };

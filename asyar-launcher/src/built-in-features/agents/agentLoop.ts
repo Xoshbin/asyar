@@ -1,8 +1,13 @@
 import type { AgentStreamEvent } from '../../bindings';
 import { extractErrorMessage } from '../../lib/errors';
-import { agentsCancelRun, agentsGet, agentsRunThread } from '../../lib/ipc/commands';
-import type { ChatStreamStatus, ProviderConfig } from '../../services/ai/IProviderPlugin';
-import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+import {
+  agentsCancelRun,
+  agentsGet,
+  agentsRunThread,
+  toAgentProviderDescriptors,
+} from '../../lib/ipc/commands';
+import { providerRegistry } from '../../services/ai/providerRegistry';
+import type { ChatStreamStatus } from '../../services/ai/IProviderPlugin';
 import { runService } from '../../services/run/runService.svelte';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { agentService } from './agentService.svelte';
@@ -62,20 +67,6 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
 
   const agent = await loadAgent(input.agentId);
   const settings = settingsService.getSettings();
-  const config = settings.ai.providers[agent.providerId as keyof typeof settings.ai.providers] as
-    ProviderConfig | undefined;
-
-  if (!config) {
-    const message = `Provider '${agent.providerId}' is not configured`;
-    await feedbackService.report({
-      source: 'frontend',
-      kind: 'manual',
-      severity: 'error',
-      retryable: false,
-      context: { message },
-    });
-    throw new Error(message);
-  }
 
   const handle = await runService.startLocal({
     label: `${agent.name}: ${input.userText.slice(0, 50)}`,
@@ -86,7 +77,9 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
   });
   const streamId = `agent-${input.agentId}-${crypto.randomUUID()}`;
   const runConfig = {
-    provider: config,
+    providers: toAgentProviderDescriptors(providerRegistry.list()),
+    configs: settings.ai.providers,
+    defaultAgentId: settings.ai.defaultAgentId,
     temperature: settings.ai.temperature,
     maxTokens: settings.ai.maxTokens,
   };

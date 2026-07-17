@@ -370,6 +370,7 @@ mod bindings_export {
             .register::<crate::ai::types::ChatStreamEvent>()
             .register::<crate::ai::types::StreamEventPayload>()
             .register::<crate::ai::types::ChatStreamEventPayload>()
+            .register::<crate::agents::editor::AgentProviderDescriptor>()
             .register::<crate::agents::runner::AgentRunConfig>()
             .register::<crate::agents::runner::AgentStreamEvent>()
             .register::<crate::agents::runner::AgentStreamEventPayload>();
