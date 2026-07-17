@@ -416,6 +416,12 @@ export class ActionService implements IActionService {
           variant: 'danger',
         });
         if (!confirmed) return;
+        // Rust wipes app_data_dir + the OS keychain, but localStorage lives
+        // outside app_data_dir and lib/persistence/extensionStore.ts mirrors
+        // some Tauri-store data (portals, snippets-enabled) into it with a
+        // migrate-back-on-load fallback — clear it here or "erased" data
+        // resurrects itself on next launch.
+        localStorage.clear();
         // Rust writes a sentinel and calls app.exit(0); the wipe runs at the
         // next cold start before any DB connection is opened. The promise
         // does not resolve on this page because the process exits.

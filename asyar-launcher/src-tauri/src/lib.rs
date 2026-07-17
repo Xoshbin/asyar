@@ -869,6 +869,26 @@ fn register_builtin_tools(
 }
 
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    // Honor any pending factory-reset request from the previous session
+    // FIRST, before literally anything else touches `app_data_dir` —
+    // including the crash-marker check and `read_appearance_theme` /
+    // `read_launch_view` / `read_onboarding_completed` further down, all of
+    // which call `tauri_plugin_store::StoreExt::store("settings.dat")`.
+    // That plugin caches the loaded `Store` in its own `StoreCollection`
+    // Tauri-managed state, keyed by path. If any of those run before the
+    // wipe, they load the pre-wipe file into that cache; the wipe then
+    // deletes the file on disk but the in-memory cache is untouched, so
+    // every later read (including the frontend's `load("settings.dat")`)
+    // reuses the stale cached copy instead of the fresh empty file —
+    // silently resurrecting old settings (AI providers, the
+    // onboarding-completed flag, ...). Running this before any `app.store`
+    // call is the only way to guarantee the cache starts clean. The
+    // sentinel is dropped as part of the wipe, so this is naturally
+    // one-shot.
+    if commands::perform_pending_factory_reset_if_marked(app.handle()) {
+        log::warn!("[setup_app] factory reset performed; continuing fresh boot");
+    }
+
     // Must run before any window/webview is created — WKWebView reads this
     // default when it builds its NSTextInputContext.
     #[cfg(target_os = "macos")]
@@ -1170,13 +1190,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(target_os = "linux")]
     let _ = crate::platform::linux::setup_spotlight_window(&window);
-
-    // Honor any pending factory-reset request from the previous session
-    // BEFORE any subsystem opens a file inside `app_data_dir`. The sentinel
-    // is dropped as part of the wipe, so this is naturally one-shot.
-    if commands::perform_pending_factory_reset_if_marked(app.handle()) {
-        log::warn!("[setup_app] factory reset performed; continuing fresh boot");
-    }
 
     // Initialize the search state when the app starts
     let state = search_engine::initialize_search_state(app.handle())?;

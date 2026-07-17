@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ActionService, type ApplicationAction } from './actionService.svelte';
 import { ActionContext } from 'asyar-sdk/contracts';
 
@@ -1044,9 +1044,17 @@ describe('uninstall_application built-in action', () => {
 // ── factory_reset action ──────────────────────────────────────────────────────
 
 describe('factory_reset built-in action', () => {
+  let localStorageClearMock: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     mockDeveloperSettingsService.isDeveloperMode = false;
     mockFeedbackService.confirmAlert.mockReset().mockResolvedValue(true);
+    localStorageClearMock = vi.fn();
+    vi.stubGlobal('localStorage', { clear: localStorageClearMock });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('is registered with the expected destructive metadata', () => {
@@ -1110,5 +1118,38 @@ describe('factory_reset built-in action', () => {
     await svc.executeAction('factory_reset');
 
     expect(invoke).not.toHaveBeenCalledWith('factory_reset');
+  });
+
+  it('execute clears localStorage before invoking the factory_reset command, so the frontend cannot resurrect wiped data (e.g. portals) on next boot', async () => {
+    mockDeveloperSettingsService.isDeveloperMode = true;
+    mockFeedbackService.confirmAlert.mockResolvedValueOnce(true);
+    const { invoke } = await import('@tauri-apps/api/core');
+    const calls: string[] = [];
+    localStorageClearMock.mockImplementation(() => calls.push('clear'));
+    vi.mocked(invoke)
+      .mockReset()
+      .mockImplementation(() => {
+        calls.push('invoke');
+        return Promise.resolve(undefined);
+      });
+    const svc = freshService();
+
+    await svc.executeAction('factory_reset');
+
+    expect(localStorageClearMock).toHaveBeenCalledOnce();
+    expect(invoke).toHaveBeenCalledWith('factory_reset', undefined);
+    expect(calls).toEqual(['clear', 'invoke']);
+  });
+
+  it('execute does not clear localStorage when the user cancels the confirm dialog', async () => {
+    mockDeveloperSettingsService.isDeveloperMode = true;
+    mockFeedbackService.confirmAlert.mockResolvedValueOnce(false);
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockReset();
+    const svc = freshService();
+
+    await svc.executeAction('factory_reset');
+
+    expect(localStorageClearMock).not.toHaveBeenCalled();
   });
 });
