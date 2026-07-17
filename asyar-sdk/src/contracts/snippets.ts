@@ -31,24 +31,4 @@ export interface ISnippetsService {
 
   /** Remove the calling extension's entire contribution. Idempotent. */
   unregisterShortcodes(): Promise<void>;
-
-  /**
-   * Return all AI-learned shortcode → emoji pairs that are currently cached
-   * (i.e. shortcodes the inline emoji fallback resolved at least once).
-   * Requires the `snippets:contribute` permission.
-   */
-  listLearnedShortcodes(): Promise<Array<[string, string]>>;
-
-  /**
-   * Promote an AI-learned shortcode to a permanent user snippet and remove it
-   * from the learned cache. The launcher emits `snippet:promote-from-cache` and
-   * the main window persists the entry via the existing snippets storage path.
-   */
-  promoteLearnedShortcode(shortcode: string): Promise<void>;
-
-  /** Remove a single cached AI-learned shortcode entry. */
-  forgetLearnedShortcode(shortcode: string): Promise<void>;
-
-  /** Clear all AI-learned shortcode cache entries. */
-  clearLearnedShortcodes(): Promise<void>;
 }

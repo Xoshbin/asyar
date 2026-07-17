@@ -837,22 +837,5 @@ describe('checkPermission', () => {
       );
       expect(allowed.allowed).toBe(true);
     });
-
-    it('requires snippets:contribute for the 4 learned-shortcode methods', () => {
-      for (const method of [
-        'listLearnedShortcodes',
-        'promoteLearnedShortcode',
-        'forgetLearnedShortcode',
-        'clearLearnedShortcodes',
-      ]) {
-        const denied = checkPermission('any.ext', `asyar:api:snippets:${method}`, []);
-        expect(denied.allowed).toBe(false);
-        expect(denied.requiredPermission).toBe('snippets:contribute');
-        const allowed = checkPermission('org.asyar.emoji', `asyar:api:snippets:${method}`, [
-          'snippets:contribute',
-        ]);
-        expect(allowed.allowed).toBe(true);
-      }
-    });
   });
 });
