@@ -266,6 +266,59 @@ on pre-releases and on any release before step 5 is done.
   (`manifests/x/Xoshbin/Asyar/`) doesn't already exist in winget-pkgs (checked via the GitHub
   API). Treat the first real submission as the actual test.
 
+## Distributing via a CLI install script
+
+Closes the original ask in [discussion #315](https://github.com/Xoshbin/asyar/discussions/315)
+("can I install Asyar from the CLI?"). macOS and Linux users can run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Xoshbin/asyar/main/install.sh | sh
+```
+
+This downloads and runs [`install.sh`](install.sh) from the repo root, which detects the
+OS/arch, queries the GitHub Releases API for the newest release, downloads the matching
+asset, and installs it — no Homebrew, no `brew trust` step, no manual `.dmg`/`.AppImage`
+handling. To pin a specific version instead of the newest one:
+
+```bash
+ASYAR_VERSION=0.1.1-38 curl -fsSL https://raw.githubusercontent.com/Xoshbin/asyar/main/install.sh | sh
+```
+
+### Scope decisions
+
+- **macOS + Linux only, no `install.ps1`.** Windows already has an ad hoc PowerShell snippet
+  from discussion #315 and a real package-manager path (winget, once a stable release ships).
+  macOS + Linux had no package-manager-free CLI path before this — Homebrew exists but is
+  macOS-only and needs the extra `brew trust` step (see above). If a Windows one-liner is
+  wanted later, it's a separate `install.ps1`, not part of this script.
+- **Linux: AppImage only, no `.deb` detection.** The release also publishes `.deb` assets, but
+  adding distro detection (`apt` vs. not), sudo escalation for `dpkg -i`, and a different
+  install location would roughly double the script's surface for marginal gain — the
+  AppImage is distro-agnostic by design (the same reason discussion #315's original answer
+  picked it), needs no root, and already covers both `aarch64`/`amd64`. It's installed to
+  `~/.local/bin/asyar` (override with `ASYAR_INSTALL_DIR`), with a PATH check that prints the
+  `export PATH=...` line to add if `~/.local/bin` isn't already on it.
+- **No update-checking, always (re)installs.** Asyar already has its own auto-updater, so this
+  script's job is first-install, not staying current — the same reasoning the Homebrew section
+  gives for `auto_updates true`. If an install already exists (`/Applications/asyar.app` on
+  macOS, `~/.local/bin/asyar` on Linux) the script prints its detected version and replaces it
+  rather than prompting; a `curl | sh` pipe has no interactive terminal to prompt against
+  safely, and re-running to force a clean reinstall is itself a reasonable use case.
+- **GitHub's `/releases/latest` isn't used.** Every Asyar release so far is a numeric
+  pre-release (`v0.1.1-N`, hyphenated tag), and `/releases/latest` explicitly excludes
+  pre-releases — it 404s today. The script queries the plain release list with `per_page=1`
+  and takes the newest entry instead, with no `jq` dependency (asset URLs are pulled out of
+  the JSON with `grep`/`sed`, matched against the confirmed real asset names — macOS:
+  `asyar_{version}_aarch64.dmg` / `asyar_{version}_x64.dmg`; Linux: `asyar_{version}_aarch64.AppImage`
+  / `asyar_{version}_amd64.AppImage` — note the arch-naming inconsistency between the two:
+  macOS uses `x64`, Linux AppImage uses `amd64`, and the Linux `.deb` assets use `arm64`
+  rather than `aarch64`).
+- Written in POSIX `sh`, not bash — the documented invocation pipes into `sh`, which is
+  `dash` on Debian/Ubuntu, not bash. No arrays, no `[[ ]]`, no bashisms. Checked with
+  `shellcheck -s sh install.sh` (clean); `shfmt` isn't installed in this repo so there's no
+  auto-formatter for it, matching the "no existing shell lint convention" state noted when
+  this was scoped.
+
 ## When a release fails
 
 Every step is re-runnable without burning a version number. If a CI run fails
@@ -278,16 +331,17 @@ safe.
 
 ### Symptom → recovery
 
-| Scenario                                                           | What's safe                                                                              | Recovery                                                                                                                                                                                                                                            |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SDK `npm publish` fails (bad token / version exists / network)     | Tag + bump on the release branch/PR; npm unchanged                                       | Fix the cause → re-run **release-sdk.yml** via _Run workflow_ with the same tag. Publish is idempotent: it skips if the version is already on npm.                                                                                                  |
-| One launcher build target fails (flaky notarization / runner down) | Other artifacts built; nothing published yet                                             | Re-run **release-launcher.yml** via _Run workflow_ with the same tag — no new version. The concurrency guard prevents races.                                                                                                                        |
-| Website notify fails (asyar.org down / bad token)                  | GitHub Release already created; updater feed stale                                       | The job **fails loudly** (red). Re-run via _Run workflow_; the notify endpoint upserts by version, so it's safe to repeat.                                                                                                                          |
-| Homebrew cask push fails (bad token / tap repo down)               | GitHub Release + website notify already done; tap just stale                             | Re-run via _Run workflow_ with the same tag — the step overwrites `Casks/asyar.rb` unconditionally, so it's safe to repeat. If `HOMEBREW_TAP_TOKEN` isn't set yet, the step no-ops instead of failing.                                              |
-| winget manifest step fails (bad token / Komac error / stale fork)  | GitHub Release + website notify + Homebrew already done; winget-pkgs untouched or mid-PR | Check the `Xoshbin` winget-pkgs fork for an already-open PR for this version first (avoid duplicates), then re-run via _Run workflow_ with the same tag. Skips quietly (not a failure) if `WINGET_TOKEN` isn't set yet or the tag is a pre-release. |
-| Tag pushed by mistake / wrong version                              | —                                                                                        | `git push --delete origin <tag>`, delete the GitHub release, then re-release. The duplicate-tag guard otherwise blocks a duplicate version.                                                                                                         |
-| Launcher release while npm is down                                 | N/A                                                                                      | Not a failure mode — the launcher reads the SDK version from local `asyar-sdk/package.json`.                                                                                                                                                        |
-| A release script half-finished locally (Ctrl-C / error mid-run)    | The script cleans up its leftover local branch/tag on the next run                       | Run it again (`--dry-run` first to preview); the duplicate-tag guard blocks an accidental re-release of the same version.                                                                                                                           |
+| Scenario                                                                           | What's safe                                                                              | Recovery                                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SDK `npm publish` fails (bad token / version exists / network)                     | Tag + bump on the release branch/PR; npm unchanged                                       | Fix the cause → re-run **release-sdk.yml** via _Run workflow_ with the same tag. Publish is idempotent: it skips if the version is already on npm.                                                                                                                                                      |
+| One launcher build target fails (flaky notarization / runner down)                 | Other artifacts built; nothing published yet                                             | Re-run **release-launcher.yml** via _Run workflow_ with the same tag — no new version. The concurrency guard prevents races.                                                                                                                                                                            |
+| Website notify fails (asyar.org down / bad token)                                  | GitHub Release already created; updater feed stale                                       | The job **fails loudly** (red). Re-run via _Run workflow_; the notify endpoint upserts by version, so it's safe to repeat.                                                                                                                                                                              |
+| Homebrew cask push fails (bad token / tap repo down)                               | GitHub Release + website notify already done; tap just stale                             | Re-run via _Run workflow_ with the same tag — the step overwrites `Casks/asyar.rb` unconditionally, so it's safe to repeat. If `HOMEBREW_TAP_TOKEN` isn't set yet, the step no-ops instead of failing.                                                                                                  |
+| winget manifest step fails (bad token / Komac error / stale fork)                  | GitHub Release + website notify + Homebrew already done; winget-pkgs untouched or mid-PR | Check the `Xoshbin` winget-pkgs fork for an already-open PR for this version first (avoid duplicates), then re-run via _Run workflow_ with the same tag. Skips quietly (not a failure) if `WINGET_TOKEN` isn't set yet or the tag is a pre-release.                                                     |
+| `install.sh` fails for a user (asset match broken, network, GitHub API rate limit) | Not part of the release pipeline — nothing published is affected, no version to re-tag   | Fix `install.sh` directly on `main`; no tag/version bump needed, since the raw URL always serves current `main`. If it's GitHub's unauthenticated API rate limit (60 req/hr per IP), the workaround is downloading the matching asset from the Releases page directly instead of re-running the script. |
+| Tag pushed by mistake / wrong version                                              | —                                                                                        | `git push --delete origin <tag>`, delete the GitHub release, then re-release. The duplicate-tag guard otherwise blocks a duplicate version.                                                                                                                                                             |
+| Launcher release while npm is down                                                 | N/A                                                                                      | Not a failure mode — the launcher reads the SDK version from local `asyar-sdk/package.json`.                                                                                                                                                                                                            |
+| A release script half-finished locally (Ctrl-C / error mid-run)                    | The script cleans up its leftover local branch/tag on the next run                       | Run it again (`--dry-run` first to preview); the duplicate-tag guard blocks an accidental re-release of the same version.                                                                                                                                                                               |
 
 **Notes**
 
