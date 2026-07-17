@@ -582,3 +582,64 @@ describe('ExtensionIpcRouter — identity spoofing prevention', () => {
     unknownIframe.remove();
   });
 });
+
+describe('ExtensionIpcRouter — AppError-shaped rejection messages', () => {
+  // Regression: files:glob/read/thumbnail call Tauri's `invoke()` directly
+  // (not invokeSafe) so scope/validation failures reject instead of
+  // collapsing to null. Those rejections carry the raw serialized AppError
+  // object (`{ source, kind, severity, retryable, context, developerDetail }`),
+  // not an Error instance. The catch block's `String(error)` fallback turned
+  // that into the useless literal "[object Object]" instead of surfacing
+  // developerDetail, which is what a caller actually needs to see.
+  beforeEach(() => vi.clearAllMocks());
+
+  it('surfaces developerDetail instead of "[object Object]" for a plain AppError-shaped throw', async () => {
+    const postMessage = vi.spyOn(window, 'postMessage').mockImplementation(() => {});
+    const glob = vi.fn(async () => {
+      throw {
+        source: 'rust',
+        kind: 'validation_failure',
+        severity: 'warning',
+        retryable: false,
+        context: {},
+        developerDetail:
+          "files:glob pattern must begin with an absolute literal prefix to enumerate from (e.g. 'C:/Steam/appcache/**'), got: 'bad'",
+      };
+    });
+    const registry = { files: { glob } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+    router.setup();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: window,
+        data: {
+          type: 'asyar:api:files:glob',
+          extensionId: 'org.asyar.demo',
+          payload: { pattern: 'bad' },
+          messageId: 'glob-1',
+        },
+      }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // Other test cases in this file each construct their own
+    // ExtensionIpcRouter and call setup(), which registers a
+    // window-level `message` listener that is never torn down. All of
+    // them receive this dispatch too, but only this test's router has a
+    // `files` service registered, so its reply is the only one with a
+    // populated `error` field — filter for that rather than assuming
+    // position.
+    const response = postMessage.mock.calls
+      .map((call) => call[0] as { type?: string; messageId?: string; error?: string })
+      .find((msg) => msg?.messageId === 'glob-1' && msg?.error);
+
+    expect(response?.error).not.toBe('[object Object]');
+    expect(response?.error).toContain(
+      'files:glob pattern must begin with an absolute literal prefix',
+    );
+
+    postMessage.mockRestore();
+  });
+});

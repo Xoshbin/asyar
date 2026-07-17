@@ -10,6 +10,7 @@ import type { ExtendedManifest } from '../../types/ExtendedManifest';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
 import { isExternallyConsumedExtensionResponse } from '../../lib/ipc/extensionMessageProtocol';
+import { isFeedbackShape } from '../../lib/ipc/invokeSafe';
 
 const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
   search_items: (args) => commands.searchItems(args?.query ?? ''),
@@ -333,8 +334,8 @@ export class ExtensionIpcRouter {
           '*',
         );
       } catch (error) {
-        logService.error(`[Main] IPC handling error for ${extensionId}: ${error}`);
-        const catchError = error instanceof Error ? error.message : String(error);
+        const catchError = extractErrorMessage(error);
+        logService.error(`[Main] IPC handling error for ${extensionId}: ${catchError}`);
         (event.source as Window)?.postMessage(
           {
             type: 'asyar:response',
@@ -473,6 +474,20 @@ export class ExtensionIpcRouter {
     }
     return await (method as (...a: unknown[]) => unknown).apply(service, args);
   }
+}
+
+/**
+ * Rust commands that reject via raw `invoke()` (files:read/glob/thumbnail,
+ * invokeRaw callers) surface a serialized `AppError` — a plain object shaped
+ * like `Feedback` (`{ source, kind, severity, retryable, context,
+ * developerDetail }`), not an `Error` instance. `String()` on that object
+ * yields the useless "[object Object]"; `developerDetail` carries the actual
+ * message.
+ */
+function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (isFeedbackShape(error)) return error.developerDetail ?? String(error);
+  return String(error);
 }
 
 function classifyProxyError(
