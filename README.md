@@ -29,6 +29,27 @@ Built with [Tauri v2](https://tauri.app/) + Rust and [Svelte 5](https://svelte.d
 
 ---
 
+## Installation
+
+**macOS / Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Xoshbin/asyar/main/install.sh | sh
+```
+
+**macOS, via Homebrew:**
+
+```bash
+brew tap Xoshbin/asyar
+brew trust --tap xoshbin/asyar   # one-time — Homebrew 6+ requires trusting third-party taps
+brew install --cask asyar
+```
+
+**Windows, or a manual download for any OS:** grab the installer for your platform from
+[Releases](https://github.com/Xoshbin/asyar/releases).
+
+---
+
 ## Asyar vs. The Alternatives
 
 |                                                              | **Asyar** |      Raycast      |     Alfred     |
@@ -66,16 +87,16 @@ Asyar is built with **Tauri + Rust** instead of Electron. That means:
 
 <!-- benchmarks:start -->
 
-| Metric                                 | Asyar 0.1.1-35 | Raycast 1.104.21 | Raycast Beta 0.67.1.0 |
+| Metric                                 | Asyar 0.1.1-38 | Raycast 1.104.23 | Raycast Beta 0.69.0.0 |
 | -------------------------------------- | -------------: | ---------------: | --------------------: |
-| Hotkey → window visible (median of 15) |        14.9 ms |          18.6 ms |               21.1 ms |
-| Hotkey → window visible (p95)          |        19.2 ms |          20.3 ms |               25.2 ms |
-| Cold start → usable                    |         451 ms |          1097 ms |               1392 ms |
-| Memory footprint, idle (all processes) |       486.6 MB |         244.4 MB |              543.3 MB |
-| CPU while idle (30s average)           |         0.30 % |           6.63 % |                4.45 % |
-| App size on disk                       |         391 MB |           133 MB |                178 MB |
+| Hotkey → window visible (median of 15) |        12.0 ms |          21.7 ms |               17.1 ms |
+| Hotkey → window visible (p95)          |        14.7 ms |          24.0 ms |               27.0 ms |
+| Cold start → usable                    |         572 ms |           888 ms |               1012 ms |
+| Memory footprint, idle (all processes) |       435.6 MB |         272.6 MB |              463.9 MB |
+| CPU while idle (30s average)           |         3.20 % |           0.04 % |                1.45 % |
+| App size on disk                       |          64 MB |           209 MB |                179 MB |
 
-<sub>Measured 2026-07-09 on a Apple M4 Max (36 GB RAM), macOS 26.5.2, each app
+<sub>Measured 2026-07-17 on a Apple M4 Max (36 GB RAM), macOS 26.5.2, each app
 as installed, summoned by its own registered global hotkey, one at a time on a
 quiet machine. Black-box measurement: synthetic hotkey press → launcher window
 on screen. Reproduce with [`benchmarks/bench.sh`](benchmarks/README.md).</sub>
@@ -343,15 +364,6 @@ An active context is shown as a chip in the search bar. Press `Escape` to exit t
 
 ---
 
-## Snippets
-
-Define reusable text snippets and expand them anywhere:
-
-- **In-launcher** — search for a snippet and paste it into the focused app
-- **Background expansion** — type a snippet keyword in any app and it expands automatically, without opening the launcher (requires Accessibility permissions on macOS)
-
----
-
 ## File Search
 
 A dedicated file search, not a thin wrapper around the OS's own tool — file lookups get the same speed guarantees as the rest of the launcher.
@@ -376,20 +388,6 @@ Asyar includes a built-in window management extension that lets you snap and res
 - **Cross-platform** — uses native accessibility APIs on macOS, HWND positioning on Windows, and X11 window IDs on Linux
 
 Invoke any layout preset by name from the launcher — no mouse required.
-
----
-
-## Deep Links
-
-Any extension command can be triggered from outside Asyar via the `asyar://` URL scheme:
-
-```
-asyar://extensions/{extensionId}/{commandId}?param=value
-```
-
-This lets you wire up browser bookmarklets, terminal aliases, Alfred/Raycast migration scripts, or any automation tool to drive Asyar commands directly. Arguments are passed as query parameters and forwarded to the command handler as-is.
-
-Deep link inputs are validated (character allowlist, path-traversal prevention) before any command is executed.
 
 ---
 
