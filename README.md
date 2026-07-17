@@ -29,6 +29,27 @@ Built with [Tauri v2](https://tauri.app/) + Rust and [Svelte 5](https://svelte.d
 
 ---
 
+## Installation
+
+**macOS / Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Xoshbin/asyar/main/install.sh | sh
+```
+
+**macOS, via Homebrew:**
+
+```bash
+brew tap Xoshbin/asyar
+brew trust --tap xoshbin/asyar   # one-time — Homebrew 6+ requires trusting third-party taps
+brew install --cask asyar
+```
+
+**Windows, or a manual download for any OS:** grab the installer for your platform from
+[Releases](https://github.com/Xoshbin/asyar/releases).
+
+---
+
 ## Asyar vs. The Alternatives
 
 |                                                              | **Asyar** |      Raycast      |     Alfred     |
@@ -343,15 +364,6 @@ An active context is shown as a chip in the search bar. Press `Escape` to exit t
 
 ---
 
-## Snippets
-
-Define reusable text snippets and expand them anywhere:
-
-- **In-launcher** — search for a snippet and paste it into the focused app
-- **Background expansion** — type a snippet keyword in any app and it expands automatically, without opening the launcher (requires Accessibility permissions on macOS)
-
----
-
 ## File Search
 
 A dedicated file search, not a thin wrapper around the OS's own tool — file lookups get the same speed guarantees as the rest of the launcher.
@@ -376,20 +388,6 @@ Asyar includes a built-in window management extension that lets you snap and res
 - **Cross-platform** — uses native accessibility APIs on macOS, HWND positioning on Windows, and X11 window IDs on Linux
 
 Invoke any layout preset by name from the launcher — no mouse required.
-
----
-
-## Deep Links
-
-Any extension command can be triggered from outside Asyar via the `asyar://` URL scheme:
-
-```
-asyar://extensions/{extensionId}/{commandId}?param=value
-```
-
-This lets you wire up browser bookmarklets, terminal aliases, Alfred/Raycast migration scripts, or any automation tool to drive Asyar commands directly. Arguments are passed as query parameters and forwarded to the command handler as-is.
-
-Deep link inputs are validated (character allowlist, path-traversal prevention) before any command is executed.
 
 ---
 
