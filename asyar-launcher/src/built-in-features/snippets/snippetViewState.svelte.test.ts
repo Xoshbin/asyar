@@ -250,7 +250,6 @@ describe('snippetViewState', () => {
       snippetViewState.selectItem(2);
       snippetViewState.mode = 'edit';
       snippetViewState.editingSnippet = mockSnippets[0];
-      snippetViewState.pendingDeleteId = '123';
 
       snippetViewState.reset();
 
@@ -258,7 +257,6 @@ describe('snippetViewState', () => {
       expect(snippetViewState.selectedIndex).toBe(0);
       expect(snippetViewState.mode).toBe('view');
       expect(snippetViewState.editingSnippet).toBe(null);
-      expect(snippetViewState.pendingDeleteId).toBe(null);
       // After reset, the full list is shown again with no active search.
       expect(snippetViewState.getFilteredSnippets()).toHaveLength(3);
     });

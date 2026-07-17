@@ -40,11 +40,6 @@ class SnippetsExtension implements Extension {
       snippetViewState.moveSelection(e.key === 'ArrowUp' ? 'up' : 'down');
       return;
     }
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Backspace') {
-      e.preventDefault();
-      snippetViewState.triggerDelete();
-      return;
-    }
     if (e.key === 'Enter' && snippetViewState.selectedSnippet) {
       e.preventDefault();
       await snippetService.pasteSnippet(snippetViewState.selectedSnippet.expansion);
@@ -111,7 +106,6 @@ class SnippetsExtension implements Extension {
       context: ActionContext.EXTENSION_VIEW,
       confirm: true,
       destructive: true,
-      shortcut: 'Super+Backspace',
       execute: async () => {
         const s = snippetViewState.selectedSnippet;
         if (s) {
