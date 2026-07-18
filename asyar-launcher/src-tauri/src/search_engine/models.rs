@@ -428,7 +428,8 @@ mod bindings_export {
             .register::<crate::agents::editor::AgentProviderDescriptor>()
             .register::<crate::agents::runner::AgentRunConfig>()
             .register::<crate::agents::runner::AgentStreamEvent>()
-            .register::<crate::agents::runner::AgentStreamEventPayload>();
+            .register::<crate::agents::runner::AgentStreamEventPayload>()
+            .register::<crate::system_actions::SystemAction>();
 
         Typescript::default()
             .bigint(BigIntExportBehavior::Number)

@@ -20,5 +20,7 @@ asyar-launcher/src/services/search/types/Command.ts
 asyar-launcher/src/services/search/types/SearchableItem.ts
 asyar-launcher/src/services/diagnostics/kinds.ts
 asyar-launcher/src/services/extension/gatedPermissions.ts
+asyar-sdk/cli/lib/knownRuntimes.ts
+asyar-sdk/cli/lib/gatedPermissions.ts
 asyar-launcher/src-tauri/resources/ext-builder/sidecar.js
 asyar-launcher/src-tauri/gen/

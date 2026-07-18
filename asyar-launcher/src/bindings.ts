@@ -273,6 +273,8 @@ export type StreamEventPayload = {
 	event: ChatStreamEventPayload,
 };
 
+export type SystemAction = "sleep" | "hibernate" | "lockScreen" | "logOut" | "restart" | "shutDown";
+
 // Per-item tier classification result, returned by `classify_many`.
 export type TierResult = {
 	id: string,
