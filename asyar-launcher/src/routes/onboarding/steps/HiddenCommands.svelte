@@ -80,7 +80,7 @@
         prefill="i has a apple and it are very tasty"
         multiline
         enabled={ready}
-        enabledHint={`Select the text and press ${modifier}+${key} — also works in any other app`}
+        enabledHint={`Select the text and press ${modifier}+${key} — also works in any other app. Taking too long? Press it again to cancel.`}
         disabledHint="Finish the 3 setup steps to try it here"
       />
     {/if}

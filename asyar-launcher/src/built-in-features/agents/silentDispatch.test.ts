@@ -264,6 +264,33 @@ describe('dispatchSilentAgentCommand', () => {
     expect(feedbackService.report).not.toHaveBeenCalled();
   });
 
+  it('cancels an in-flight run instead of starting a second one for a repeat trigger', async () => {
+    let releaseFirstRun = () => {};
+    let markStarted = () => {};
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      releaseFirstRun = resolve;
+    });
+    vi.mocked(commands.agentsRunSilent).mockImplementation(async () => {
+      markStarted();
+      await blocked;
+      throw new Error('agent run cancelled');
+    });
+
+    const firstDispatch = dispatchSilentAgentCommand({ agentId: 'agent-1', userText: 'hello' });
+    await started;
+
+    await dispatchSilentAgentCommand({ agentId: 'agent-1', userText: 'hello again' });
+
+    expect(commands.agentsCancelRun).toHaveBeenCalledWith(bridgeMock.options?.streamId);
+    expect(commands.agentsRunSilent).toHaveBeenCalledTimes(1);
+
+    releaseFirstRun();
+    await firstDispatch;
+  });
+
   it('reports Rust command failures without throwing into the hotkey caller', async () => {
     vi.mocked(commands.agentsRunSilent).mockRejectedValue(new Error('provider unavailable'));
 

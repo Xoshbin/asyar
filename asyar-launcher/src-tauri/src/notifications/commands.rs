@@ -27,9 +27,16 @@ pub struct ActionInput {
 ///
 /// Returns the generated notification id back to the caller so they can
 /// `dismiss()` it later.
+///
+/// `async` + `spawn_blocking`: synchronous Tauri commands execute on the
+/// main thread (see the identical fix in `commands/process.rs`), and
+/// `NotificationBackend::send` can call into native OS notification APIs —
+/// on macOS, `mac_notification_sys::set_application` runs its one-time
+/// process-wide registration inline. Left on the main thread, a slow or
+/// wedged first call there freezes the entire app, not just the caller.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
-pub fn send_notification<R: Runtime>(
+pub async fn send_notification<R: Runtime>(
     app: tauri::AppHandle<R>,
     title: String,
     #[allow(non_snake_case)] body: Option<String>,
@@ -58,7 +65,14 @@ pub fn send_notification<R: Runtime>(
         extension_id,
     };
 
-    populate_registry_and_send(registry.inner(), backend.inner().as_ref(), request)?;
+    let registry = registry.inner().clone();
+    let backend = backend.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        populate_registry_and_send(&registry, backend.as_ref(), request)
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("notification send task failed: {e}")))??;
+
     Ok(notification_id)
 }
 
