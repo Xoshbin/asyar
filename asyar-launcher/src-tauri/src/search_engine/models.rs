@@ -169,16 +169,34 @@ impl SearchableItem {
     }
 }
 
-// Helper function to generate a stable ID from path (keep this)
-#[allow(dead_code)]
-pub fn generate_app_id_from_path(path: &str) -> String {
-    // Use a simple hash or keep your Sha256 implementation
-    // Example using a basic hash:
+/// Max length the cloud-sync backend accepts for an item id
+/// (`items.*.id` `max:64` in `CloudSyncController::pushItems`).
+const MAX_APP_ID_LEN: usize = 64;
+
+/// Builds a stable `app_` id for an application, guaranteed to fit within
+/// `MAX_APP_ID_LEN`. `unique_key` is whatever makes the app unique on this
+/// machine (its absolute path on macOS/Linux, its AUMID on Windows).
+///
+/// Deeply nested paths (e.g. macOS system utilities) would otherwise produce
+/// an id over the server's length limit and get the whole sync batch
+/// rejected, so those fall back to a short deterministic hash of `unique_key`.
+pub fn build_app_id(name: &str, unique_key: &str) -> String {
+    let sanitized_name = name.replace([' ', '/'], "_");
+    let sanitized_key = unique_key.replace([' ', '/'], "_");
+    let full = format!("app_{sanitized_name}_{sanitized_key}");
+    if full.chars().count() <= MAX_APP_ID_LEN {
+        return full;
+    }
+
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
     let mut hasher = DefaultHasher::new();
-    path.hash(&mut hasher);
-    format!("app_{:x}", hasher.finish())
+    unique_key.hash(&mut hasher);
+    let hash = format!("{:x}", hasher.finish());
+
+    let budget = MAX_APP_ID_LEN.saturating_sub("app_".len() + "_".len() + hash.len());
+    let truncated_name: String = sanitized_name.chars().take(budget).collect();
+    format!("app_{truncated_name}_{hash}")
 }
 
 #[cfg(test)]
@@ -213,8 +231,8 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_app_id_starts_with_app_prefix() {
-        let id = generate_app_id_from_path("/Applications/Finder.app");
+    fn test_build_app_id_starts_with_app_prefix() {
+        let id = build_app_id("Finder", "/Applications/Finder.app");
         assert!(
             id.starts_with("app_"),
             "Expected 'app_' prefix, got: {}",
@@ -223,19 +241,56 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_app_id_is_deterministic() {
+    fn test_build_app_id_is_deterministic() {
         let path = "/Applications/Safari.app";
-        assert_eq!(
-            generate_app_id_from_path(path),
-            generate_app_id_from_path(path)
+        assert_eq!(build_app_id("Safari", path), build_app_id("Safari", path));
+    }
+
+    #[test]
+    fn test_build_app_id_differs_for_different_paths() {
+        assert_ne!(
+            build_app_id("Chrome", "/Applications/Chrome.app"),
+            build_app_id("Firefox", "/Applications/Firefox.app")
         );
     }
 
     #[test]
-    fn test_generate_app_id_differs_for_different_paths() {
+    fn test_build_app_id_readable_for_short_paths() {
+        assert_eq!(
+            build_app_id("Slack", "/Applications/Slack.app"),
+            "app_Slack__Applications_Slack.app"
+        );
+    }
+
+    #[test]
+    fn test_build_app_id_never_exceeds_max_len_for_deeply_nested_paths() {
+        let long_path = "/System/Applications/Utilities/Activity Monitor.app";
+        let id = build_app_id("Activity Monitor", long_path);
+        assert!(
+            id.chars().count() <= MAX_APP_ID_LEN,
+            "id exceeds {} chars ({}): {}",
+            MAX_APP_ID_LEN,
+            id.chars().count(),
+            id
+        );
+    }
+
+    #[test]
+    fn test_build_app_id_stable_and_prefixed_for_long_paths() {
+        let long_path = "/System/Applications/Utilities/Activity Monitor.app";
+        let id = build_app_id("Activity Monitor", long_path);
+        assert!(id.starts_with("app_"));
+        assert_eq!(id, build_app_id("Activity Monitor", long_path));
+    }
+
+    #[test]
+    fn test_build_app_id_differs_for_different_long_paths() {
         assert_ne!(
-            generate_app_id_from_path("/Applications/Chrome.app"),
-            generate_app_id_from_path("/Applications/Firefox.app")
+            build_app_id(
+                "Activity Monitor",
+                "/System/Applications/Utilities/Activity Monitor.app"
+            ),
+            build_app_id("Console", "/System/Applications/Utilities/Console.app")
         );
     }
 
