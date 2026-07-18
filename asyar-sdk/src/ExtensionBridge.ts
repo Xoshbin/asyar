@@ -397,19 +397,36 @@ export class ExtensionBridge {
     }
   }
 
-  // Deactivate all registered extensions
-  async deactivateExtensions(): Promise<void> {
+  // Deactivate all registered extensions. Each deactivate() is time-boxed —
+  // the host awaits this call in its unload/reload pipeline, so one
+  // extension that never settles would wedge every extension reload.
+  // Returns the ids that failed or timed out so the host can log them.
+  async deactivateExtensions(): Promise<string[]> {
+    const failed: string[] = [];
     for (const [id, extension] of this.extensionImplementations.entries()) {
       const manifest = this.extensionManifests.get(id);
       if (!manifest) continue;
 
       console.debug(`[asyar-sdk] Deactivating extension: ${manifest.id}`);
+      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        await extension.deactivate();
+        await Promise.race([
+          Promise.resolve(extension.deactivate()),
+          new Promise((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error('deactivate() timed out after 5000ms')),
+              5000,
+            );
+          }),
+        ]);
       } catch (error) {
         console.error(`[asyar-sdk] Failed to deactivate extension ${manifest.id}: ${error}`);
+        failed.push(manifest.id);
+      } finally {
+        clearTimeout(timer);
       }
     }
+    return failed;
   }
 
   // Get all registered extension manifests

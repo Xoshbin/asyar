@@ -14,6 +14,9 @@ interface EventSubscriptionDeps {
 export class ExtensionEventSubscriptions {
   private unlistenScheduler: (() => void) | null = null;
   private unlistenPreferencesChanged: (() => void) | null = null;
+  private unlistenEnabledChanged: (() => void) | null = null;
+  private enabledChangeReloadInFlight = false;
+  private enabledChangeReloadQueued = false;
 
   async subscribe(deps: EventSubscriptionDeps): Promise<void> {
     this.unlistenScheduler = await listen<{ extensionId: string; commandId: string }>(
@@ -51,6 +54,33 @@ export class ExtensionEventSubscriptions {
         }
       },
     );
+
+    // Enable/disable is toggled from the settings window, but this window
+    // owns the extension host — Rust broadcasts the change so the host
+    // reloads to match. Coalesced: a toggle burst runs one reload plus at
+    // most one trailing reload.
+    this.unlistenEnabledChanged = await listen<{ extensionId: string; enabled: boolean }>(
+      'asyar:extension-enabled-changed',
+      async () => {
+        if (this.enabledChangeReloadInFlight) {
+          this.enabledChangeReloadQueued = true;
+          return;
+        }
+        this.enabledChangeReloadInFlight = true;
+        try {
+          do {
+            this.enabledChangeReloadQueued = false;
+            try {
+              await deps.reloadExtensions();
+            } catch (err) {
+              logService.error(`Failed to reload extensions after enabled-change: ${err}`);
+            }
+          } while (this.enabledChangeReloadQueued);
+        } finally {
+          this.enabledChangeReloadInFlight = false;
+        }
+      },
+    );
   }
 
   unsubscribe(): void {
@@ -58,6 +88,8 @@ export class ExtensionEventSubscriptions {
     this.unlistenScheduler = null;
     this.unlistenPreferencesChanged?.();
     this.unlistenPreferencesChanged = null;
+    this.unlistenEnabledChanged?.();
+    this.unlistenEnabledChanged = null;
   }
 
   private async handleScheduledTick(

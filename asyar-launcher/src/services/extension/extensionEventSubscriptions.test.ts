@@ -55,15 +55,16 @@ describe('ExtensionEventSubscriptions', () => {
   });
 
   describe('subscribe', () => {
-    it('registers both Tauri event listeners', async () => {
+    it('registers all Tauri event listeners', async () => {
       const unlistenSpy = vi.fn();
       vi.mocked(listen).mockResolvedValue(unlistenSpy);
 
       await subs.subscribe(deps);
 
-      expect(listen).toHaveBeenCalledTimes(2);
+      expect(listen).toHaveBeenCalledTimes(3);
       expect(listen).toHaveBeenCalledWith('asyar:scheduler:tick', expect.any(Function));
       expect(listen).toHaveBeenCalledWith('asyar:preferences-changed', expect.any(Function));
+      expect(listen).toHaveBeenCalledWith('asyar:extension-enabled-changed', expect.any(Function));
     });
   });
 
@@ -180,6 +181,63 @@ describe('ExtensionEventSubscriptions', () => {
       await capturedHandler!({ payload: {} });
 
       expect(extensionPreferencesService.invalidateCache).not.toHaveBeenCalled();
+    });
+
+    it('reloads extensions when an enabled-changed event arrives', async () => {
+      let capturedHandler: ((event: any) => void) | undefined;
+      vi.mocked(listen).mockImplementation(async (eventName: string, handler: any) => {
+        if (eventName === 'asyar:extension-enabled-changed') capturedHandler = handler;
+        return vi.fn();
+      });
+
+      await subs.subscribe(deps);
+      await capturedHandler!({ payload: { extensionId: 'com.test', enabled: false } });
+
+      expect(deps.reloadExtensions).toHaveBeenCalledTimes(1);
+    });
+
+    it('coalesces an enabled-changed burst into one reload plus one trailing reload', async () => {
+      let capturedHandler: ((event: any) => Promise<void>) | undefined;
+      vi.mocked(listen).mockImplementation(async (eventName: string, handler: any) => {
+        if (eventName === 'asyar:extension-enabled-changed') capturedHandler = handler;
+        return vi.fn();
+      });
+
+      let releaseFirstReload!: () => void;
+      deps.reloadExtensions.mockImplementationOnce(
+        () => new Promise<void>((resolve) => (releaseFirstReload = resolve)),
+      );
+
+      await subs.subscribe(deps);
+
+      const first = capturedHandler!({ payload: { extensionId: 'a', enabled: false } });
+      // Two more events land while the first reload is still running.
+      await capturedHandler!({ payload: { extensionId: 'a', enabled: true } });
+      await capturedHandler!({ payload: { extensionId: 'b', enabled: true } });
+      expect(deps.reloadExtensions).toHaveBeenCalledTimes(1);
+
+      releaseFirstReload();
+      await first;
+
+      // One trailing reload covers everything that queued during the first.
+      expect(deps.reloadExtensions).toHaveBeenCalledTimes(2);
+    });
+
+    it('an enabled-changed reload failure does not break subsequent events', async () => {
+      let capturedHandler: ((event: any) => Promise<void>) | undefined;
+      vi.mocked(listen).mockImplementation(async (eventName: string, handler: any) => {
+        if (eventName === 'asyar:extension-enabled-changed') capturedHandler = handler;
+        return vi.fn();
+      });
+      deps.reloadExtensions.mockRejectedValueOnce(new Error('boom'));
+
+      await subs.subscribe(deps);
+      await expect(
+        capturedHandler!({ payload: { extensionId: 'x', enabled: true } }),
+      ).resolves.not.toThrow();
+
+      await capturedHandler!({ payload: { extensionId: 'x', enabled: false } });
+      expect(deps.reloadExtensions).toHaveBeenCalledTimes(2);
     });
 
     it('ignores events for unknown extensions (no manifest)', async () => {

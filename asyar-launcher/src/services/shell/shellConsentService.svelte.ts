@@ -9,13 +9,15 @@ interface ConsentRequest {
 
 class ShellConsentService {
   activeRequest = $state<ConsentRequest | null>(null);
+  private queue: ConsentRequest[] = [];
   private pendingRequests = new Map<string, Promise<boolean>>();
 
   /**
    * Requests user consent to run a binary for a specific extension.
    * If the binary is already trusted, returns true immediately.
    * Otherwise, shows a dialog and waits for user decision.
-   * Concurrent requests for the same extension+binary are deduplicated.
+   * Concurrent requests for the same extension+binary are deduplicated;
+   * requests for different pairs are FIFO-queued behind the open dialog.
    */
   async requestConsent(
     extensionId: string,
@@ -29,21 +31,20 @@ class ShellConsentService {
 
     // 2. Deduplicate concurrent requests for the same (extension, binary) pair
     const key = `${extensionId}:${resolvedPath}`;
-    if (this.pendingRequests.has(key)) {
-      return this.pendingRequests.get(key)!;
-    }
+    const pending = this.pendingRequests.get(key);
+    if (pending) return pending;
 
     const promise = new Promise<boolean>((resolve) => {
-      this.activeRequest = {
+      this.queue.push({
         extensionId,
         program,
         resolvedPath,
         resolve: (allowed: boolean) => {
-          this.activeRequest = null;
           this.pendingRequests.delete(key);
           resolve(allowed);
         },
-      };
+      });
+      this.pump();
     });
 
     this.pendingRequests.set(key, promise);
@@ -54,19 +55,31 @@ class ShellConsentService {
    * Grants trust to the binary and resolves the active request.
    */
   async approveCurrent() {
-    if (!this.activeRequest) return;
+    const request = this.activeRequest;
+    if (!request) return;
 
-    const { extensionId, resolvedPath, resolve } = this.activeRequest;
-    const ok = await shellGrantTrust(extensionId, resolvedPath);
-    resolve(ok);
+    const ok = await shellGrantTrust(request.extensionId, request.resolvedPath);
+    this.settle(request, ok);
   }
 
   /**
    * Denies trust and resolves the active request.
    */
   async denyCurrent() {
-    if (!this.activeRequest) return;
-    this.activeRequest.resolve(false);
+    const request = this.activeRequest;
+    if (!request) return;
+    this.settle(request, false);
+  }
+
+  private pump(): void {
+    if (this.activeRequest !== null) return;
+    this.activeRequest = this.queue.shift() ?? null;
+  }
+
+  private settle(request: ConsentRequest, allowed: boolean): void {
+    this.activeRequest = null;
+    request.resolve(allowed);
+    this.pump();
   }
 }
 

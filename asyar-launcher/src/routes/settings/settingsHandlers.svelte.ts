@@ -357,11 +357,15 @@ export class SettingsHandler {
         if (!consented) return;
       }
 
-      const success = await extensionManager.toggleExtensionState(extension.title, newState);
+      // Rust's set_extension_enabled is keyed by manifest id, not display title.
+      const success = await extensionManager.toggleExtensionState(
+        extension.id ?? extension.title,
+        newState,
+      );
 
       if (success) {
         extension.enabled = newState;
-        this.saveMessage = 'Extension settings updated. Restart Asyar to apply changes.';
+        this.saveMessage = 'Extension settings updated.';
         this.saveError = false;
 
         setTimeout(() => {
