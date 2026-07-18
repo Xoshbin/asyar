@@ -14,7 +14,7 @@ use crate::extensions::{ExtensionRecord, ExtensionRegistryState};
 use crate::permissions::ExtensionPermissionRegistry;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_store::StoreExt;
 
 /// Flag under `settings.extensions` marking that the one-shot grandfather
@@ -22,6 +22,30 @@ use tauri_plugin_store::StoreExt;
 /// surface shipped" (recorded by the migration) from "fresh install that never
 /// got consent" (flag set, no record → prompted).
 const GRANDFATHER_FLAG: &str = "consentGrandfathered";
+
+/// Event payload broadcast to all webview windows after a consent write.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConsentChangedPayload {
+    extension_id: String,
+}
+
+/// Fire `asyar:consent-changed` so all webview windows (main launcher,
+/// settings window, any future windows) can re-derive their local
+/// needs-review state — mirrors `asyar:preferences-changed`. Without this,
+/// a grant/revoke recorded from one webview (e.g. Store install in the main
+/// window) leaves another webview's "needs review" badge stale.
+fn emit_consent_changed<R: tauri::Runtime>(app_handle: &AppHandle<R>, extension_id: &str) {
+    let payload = ConsentChangedPayload {
+        extension_id: extension_id.to_string(),
+    };
+    if let Err(e) = app_handle.emit("asyar:consent-changed", payload) {
+        warn!(
+            "Failed to emit asyar:consent-changed for {}: {}",
+            extension_id, e
+        );
+    }
+}
 
 /// A user-approved permission set for one extension.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -362,7 +386,9 @@ pub fn set_extension_consent(
         consented_at: now_ms(),
         grandfathered: false,
     };
-    set_consent(&app_handle, &extension_id, &record)
+    set_consent(&app_handle, &extension_id, &record)?;
+    emit_consent_changed(&app_handle, &extension_id);
+    Ok(())
 }
 
 /// Remove `extension_id`'s entry from `settings.extensions.consent`, if
@@ -429,6 +455,7 @@ pub fn revoke_extension_consent(
     }
     clear_consent(&app_handle, &extension_id)?;
     registry.unregister(&extension_id);
+    emit_consent_changed(&app_handle, &extension_id);
     Ok(())
 }
 
@@ -763,5 +790,53 @@ mod tests {
     fn remove_consent_errors_on_corrupt_settings_root() {
         let mut settings = serde_json::json!("corrupt");
         assert!(remove_consent(&mut settings, "ext.a").is_err());
+    }
+
+    // ---- emit_consent_changed (cross-window "needs review" sync) ----
+
+    #[test]
+    fn emit_consent_changed_broadcasts_the_extension_id() {
+        use std::sync::{Arc, Mutex};
+        use tauri::Listener;
+
+        let app = tauri::test::mock_app();
+        let received: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+        let received_clone = Arc::clone(&received);
+        app.listen("asyar:consent-changed", move |event| {
+            *received_clone.lock().unwrap() = Some(event.payload().to_string());
+        });
+
+        emit_consent_changed(app.handle(), "ext.test");
+
+        let payload = received
+            .lock()
+            .unwrap()
+            .clone()
+            .expect("event was not emitted");
+        assert!(payload.contains("ext.test"));
+    }
+
+    #[test]
+    fn emit_consent_changed_fires_for_every_call_on_a_persistent_listener() {
+        use std::sync::{Arc, Mutex};
+        use tauri::Listener;
+
+        let app = tauri::test::mock_app();
+        let received: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let received_clone = Arc::clone(&received);
+        app.listen("asyar:consent-changed", move |event| {
+            received_clone
+                .lock()
+                .unwrap()
+                .push(event.payload().to_string());
+        });
+
+        emit_consent_changed(app.handle(), "ext.one");
+        emit_consent_changed(app.handle(), "ext.two");
+
+        let payloads = received.lock().unwrap().clone();
+        assert_eq!(payloads.len(), 2);
+        assert!(payloads[0].contains("ext.one"));
+        assert!(payloads[1].contains("ext.two"));
     }
 }

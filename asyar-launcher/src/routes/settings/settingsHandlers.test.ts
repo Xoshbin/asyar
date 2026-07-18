@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SettingsHandler, DEFAULT_SETTINGS } from './settingsHandlers.svelte';
+import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
 
 const { mockGetAll } = vi.hoisted(() => ({ mockGetAll: vi.fn() }));
 
@@ -205,6 +206,45 @@ describe('SettingsHandler.init — extension list freshness', () => {
 
     expect(unlistenExtensionsUpdated).toHaveBeenCalledOnce();
     expect(unlistenFocus).toHaveBeenCalledOnce();
+  });
+});
+
+describe('SettingsHandler.init — consent cross-window sync', () => {
+  beforeEach(() => {
+    mockGetAll.mockReset().mockResolvedValue([]);
+    listenMock.mockClear().mockImplementation(() => Promise.resolve(() => {}));
+    onFocusChangedMock.mockClear().mockImplementation(() => Promise.resolve(() => {}));
+  });
+
+  it('bumps permissionConsentService.consentVersion when asyar:consent-changed fires', async () => {
+    let onConsentChanged: ((event: { payload: { extensionId: string } }) => void) | undefined;
+    listenMock.mockImplementation((eventName: string, cb: any) => {
+      if (eventName === 'asyar:consent-changed') onConsentChanged = cb;
+      return Promise.resolve(() => {});
+    });
+
+    const handler = new SettingsHandler();
+    await handler.init();
+
+    const before = permissionConsentService.consentVersion;
+    onConsentChanged?.({ payload: { extensionId: 'ext.a' } });
+
+    expect(permissionConsentService.consentVersion).toBe(before + 1);
+  });
+
+  it('destroy() unsubscribes the asyar:consent-changed listener', async () => {
+    const unlistenConsentChanged = vi.fn();
+    listenMock.mockImplementation((eventName: string) =>
+      eventName === 'asyar:consent-changed'
+        ? Promise.resolve(unlistenConsentChanged)
+        : Promise.resolve(() => {}),
+    );
+
+    const handler = new SettingsHandler();
+    await handler.init();
+    handler.destroy();
+
+    expect(unlistenConsentChanged).toHaveBeenCalledOnce();
   });
 });
 
