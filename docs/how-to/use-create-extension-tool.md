@@ -59,7 +59,10 @@ Open Asyar → type **"Build Extension with AI"** → describe what you want
 
 - An **Anthropic API key** in **Settings → AI → Anthropic** (the feature uses your
   own key; it refuses to start without one).
-- The bundled coding runtime ships with Asyar — no separate install.
+- The coding runtime (the `claude` binary the builder drives) is **not** bundled with
+  Asyar. The first time you run the AI builder it downloads the runtime on demand, once,
+  behind a consent dialog that shows the download size — no manual install, and later
+  builds reuse it.
 
 **What happens**
 
