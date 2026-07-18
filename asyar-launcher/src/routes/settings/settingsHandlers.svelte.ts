@@ -131,6 +131,7 @@ export class SettingsHandler {
 
   private unsubscribe: (() => void) | null = null;
   private unlistenPreferencesChanged: (() => void) | null = null;
+  private unlistenConsentChanged: (() => void) | null = null;
   private unlistenExtensionsUpdated: (() => void) | null = null;
   private unlistenWindowFocus: (() => void) | null = null;
   /**
@@ -205,6 +206,21 @@ export class SettingsHandler {
         logService.warn(`Failed to subscribe to asyar:preferences-changed: ${err}`);
       }
 
+      // Consent granted/revoked in another webview (e.g. Store install in
+      // the main window) must still clear this window's "needs review" badge.
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        this.unlistenConsentChanged = await listen<{ extensionId: string }>(
+          'asyar:consent-changed',
+          (event) => {
+            if (!event.payload?.extensionId) return;
+            permissionConsentService.consentVersion += 1;
+          },
+        );
+      } catch (err) {
+        logService.warn(`Failed to subscribe to asyar:consent-changed: ${err}`);
+      }
+
       // Cross-webview install/uninstall/update notifications. The Rust side
       // emits this after every extension install/uninstall/update, but it
       // only reaches windows that are actually listening for it.
@@ -251,6 +267,8 @@ export class SettingsHandler {
     }
     this.unlistenPreferencesChanged?.();
     this.unlistenPreferencesChanged = null;
+    this.unlistenConsentChanged?.();
+    this.unlistenConsentChanged = null;
     this.unlistenExtensionsUpdated?.();
     this.unlistenExtensionsUpdated = null;
     this.unlistenWindowFocus?.();
