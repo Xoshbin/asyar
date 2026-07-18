@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { PERMISSION_CATALOG, describePermission } from './permissionCatalog';
+import { GATED_PERMISSIONS } from './gatedPermissions';
 
 describe('permissionCatalog', () => {
   it('describes a known permission with catalog metadata', () => {
@@ -16,51 +17,12 @@ describe('permissionCatalog', () => {
   });
 
   it('covers every permission the Rust gate can require', () => {
-    // Mirror of the permission strings mapped in src-tauri/src/permissions.rs
-    // get_required_permission. If this fails, a permission became requirable
-    // without display copy — add it to PERMISSION_CATALOG.
-    const gatedPermissions = [
-      'clipboard:read',
-      'clipboard:write',
-      'notifications:send',
-      'network',
-      'shell:open-url',
-      'fs:read',
-      'fs:write',
-      'fs:watch',
-      'shell:spawn',
-      'entitlements:read',
-      'storage:read',
-      'storage:write',
-      'cache:read',
-      'cache:write',
-      'selection:read',
-      'oauth:use',
-      'extension:invoke',
-      'application:read',
-      'window:manage',
-      'preferences:read',
-      'preferences:write',
-      'power:inhibit',
-      'process:read',
-      'process:kill',
-      'systemEvents:read',
-      'app:frontmost-watch',
-      'timers:schedule',
-      'timers:cancel',
-      'timers:list',
-      'snippets:contribute',
-      'browser:tabs.read',
-      'browser:tabs.write',
-      'browser:bookmarks.read',
-      'browser:history.read',
-      'browser:page.read',
-      'browser:page.write',
-      'files:search',
-      'files:read',
-      'screen:pick-color',
-    ];
-    for (const permission of gatedPermissions) {
+    // GATED_PERMISSIONS is generated from src-tauri/src/permissions.rs
+    // get_required_permission (see scripts/generate-permission-catalog.mjs)
+    // so this can't silently drift from the real Rust source. If this
+    // fails, a permission became requirable without display copy — add it
+    // to PERMISSION_CATALOG, then run `pnpm gen:permission-catalog`.
+    for (const permission of GATED_PERMISSIONS) {
       expect(describePermission(permission).known, `missing catalog entry: ${permission}`).toBe(
         true,
       );
