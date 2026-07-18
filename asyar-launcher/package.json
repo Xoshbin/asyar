@@ -15,8 +15,12 @@
     "release": "node scripts/release.js",
     "test": "vitest",
     "test:run": "vitest run",
+    "pretest": "pnpm gen:all",
+    "pretest:run": "pnpm gen:all",
     "gen:diagnostic-kinds": "node scripts/generate-diagnostic-kinds.mjs",
-    "prebuild": "pnpm gen:diagnostic-kinds"
+    "gen:permission-catalog": "node scripts/generate-permission-catalog.mjs",
+    "gen:all": "pnpm gen:diagnostic-kinds && pnpm gen:permission-catalog",
+    "prebuild": "pnpm gen:all"
   },
   "author": "Khoshbin Ali",
   "license": "AGPL-3.0",

@@ -60,6 +60,17 @@ jobs:
       - name: Run workspace tests (SDK + launcher frontend)
         run: pnpm -r --if-present test:run
 
+      # `test:run`'s `pretest:run` hook (asyar-launcher/package.json) just
+      # regenerated these from their Rust source as a side effect of the step
+      # above. If the committed files don't match, someone edited the Rust
+      # source (permissions.rs / error.rs / search_engine/mod.rs) without
+      # re-running `pnpm gen:all` — fail loudly instead of merging stale copies.
+      - name: Verify generated Rust-derived files are up to date
+        run: |
+          git diff --exit-code -- \
+            asyar-launcher/src/services/diagnostics/kinds.ts \
+            asyar-launcher/src/services/extension/gatedPermissions.ts
+
       - name: Run Rust tests
         run: cargo test
         working-directory: asyar-launcher/src-tauri
