@@ -8,7 +8,7 @@ interface InvokeSafeOpts {
   retry?: () => Promise<void>;
 }
 
-function isFeedbackShape(raw: unknown): raw is Feedback {
+export function isFeedbackShape(raw: unknown): raw is Feedback {
   return (
     typeof raw === 'object' && raw !== null && 'kind' in raw && 'severity' in raw && 'source' in raw
   );
