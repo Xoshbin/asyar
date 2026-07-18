@@ -289,6 +289,14 @@
     clipboardViewState.selectedItemId = id;
   }
 
+  function handleRowClick(e: MouseEvent, id: string) {
+    if (e.metaKey || e.ctrlKey) {
+      clipboardViewState.toggleMultiSelect(id);
+    } else {
+      selectItem(id);
+    }
+  }
+
   function handleListScroll(e: Event) {
     const el = e.currentTarget as HTMLElement;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200) {
@@ -470,7 +478,8 @@
         <LauncherListRow
           data-index={index}
           selected={selectedIndex === index}
-          onclick={() => selectItem(item.id)}
+          multiSelected={clipboardViewState.isMultiSelected(item.id)}
+          onclick={(e: MouseEvent) => handleRowClick(e, item.id)}
           ondblclick={() => pasteItemById(item.id)}
           title={getItemTitle(item)}
           subtitle={clipboardViewState.searchQuery && 'score' in item
@@ -478,7 +487,19 @@
             : undefined}
         >
           {#snippet leading()}
-            <div class="mr-1 flex-shrink-0 flex items-center justify-center opacity-60">
+            <div class="mr-1 flex-shrink-0 relative flex items-center justify-center opacity-60">
+              {#if clipboardViewState.isMultiSelected(item.id)}
+                <div class="multi-select-checkmark">
+                  <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    ><path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="3"
+                      d="M5 13l4 4L19 7"
+                    /></svg
+                  >
+                </div>
+              {/if}
               {#if item.type === 'image'}
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                   ><path
@@ -716,7 +737,11 @@
           <ActionFooter>
             {#snippet left()}
               <div class="flex items-center space-x-3">
-                {#if selectedFullItem}
+                {#if clipboardViewState.selectedIds.length > 1}
+                  <span class="text-caption"
+                    >{clipboardViewState.selectedIds.length} items selected · Enter to merge &amp; paste</span
+                  >
+                {:else if selectedFullItem}
                   <Badge text={selectedFullItem.type} variant="default" mono />
                   <span class="flex items-center gap-1 text-caption">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -802,6 +827,21 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
+  }
+
+  .multi-select-checkmark {
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    width: 12px;
+    height: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    color: #fff;
+    z-index: 1;
   }
 
   .indexing-hint {

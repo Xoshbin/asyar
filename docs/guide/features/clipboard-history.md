@@ -21,15 +21,19 @@ Asyar also records which app each item came from, so you can see the source appl
 4. To narrow by content type, click the dropdown in the search bar (or press `⌘P`) and choose **All Types**, **Text**, **Images**, or **Files**.
 5. Press `Enter` to paste the selected item into the app that was in focus before you opened Asyar.
 6. Press `⇧Enter` to paste as plain text, stripping any formatting.
+7. To paste several items at once, `⌘Click` (or `Ctrl+Click` on Windows/Linux) each item you want, or hold `⌘`/`Ctrl` and press `↑`/`↓` to sweep through a range — then press `Enter` to merge them into a single paste.
 
 ## Shortcuts & actions
 
-| Action              | How      |
-| ------------------- | -------- |
-| Paste               | `Enter`  |
-| Paste as Plain Text | `⇧Enter` |
-| Delete item         | `⌘⌫`     |
-| Open action panel   | `⌘K`     |
+| Action                          | How         |
+| ------------------------------- | ----------- |
+| Paste                           | `Enter`     |
+| Paste as Plain Text             | `⇧Enter`    |
+| Toggle an item in the selection | `⌘Click`    |
+| Extend the selection            | `⌘↑` / `⌘↓` |
+| Merge & paste the selection     | `Enter`     |
+| Delete item                     | `⌘⌫`        |
+| Open action panel               | `⌘K`        |
 
 **Action panel (⌘K) entries while the list is open:**
 
@@ -39,6 +43,7 @@ Asyar also records which app each item came from, so you can see the source appl
 - **Open in Browser** — opens a selected URL item in your default browser.
 - **Save as Snippet** — sends the selected text item directly to the Snippets editor so you can give it a keyword.
 - **Delete** — removes the selected item permanently (`⌘⌫`).
+- **Clear Selection** — deselects all multi-selected items, without leaving the view. Only appears while a selection is active.
 - **Ask AI about this** — opens AI Chat with the selected text pre-filled.
 - **Clear Clipboard History** — removes all non-favourited items (available from the root search bar too, without opening the view).
 
@@ -48,6 +53,7 @@ Asyar also records which app each item came from, so you can see the source appl
 - **Double-click to paste** — clicking an item selects it; double-clicking pastes it immediately.
 - **RTF items** — Asyar stores the rich format but "Paste as Plain Text" strips it, which is handy for pasting into apps that don't accept rich text.
 - **Large text is truncated in the preview** — the full content is always pasted correctly; the preview just caps at 50,000 characters to keep the UI fast.
+- **Merged paste is plain text, in selection order** — `⌘Click`/`⌘↑`/`⌘↓` build an ordered multi-selection independent of the normal cursor, so browsing around with plain clicks or arrow keys never loses it. Pressing `Enter` joins every selected item's text with a newline and pastes it as one block, in the order you selected them. Images and files can't be merged as text and are skipped (you'll see a toast if any were).
 
 ## Related
 

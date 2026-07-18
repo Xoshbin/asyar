@@ -885,6 +885,18 @@ export async function clipboardGetItem(id: string): Promise<StoredClipboardItem 
   return invokeSafe<StoredClipboardItem | null>('clipboard_get_item', { id });
 }
 
+export interface MergedClipboardText {
+  text: string;
+  skippedCount: number;
+}
+
+/** Fetch, decrypt, strip HTML/RTF, and join multiple items' text server-side
+ *  (in the given order). Image/Files items are skipped and counted. Used by
+ *  the clipboard-history multi-select merge-paste flow. */
+export async function clipboardGetMergedText(ids: string[]): Promise<MergedClipboardText | null> {
+  return invokeSafe<MergedClipboardText>('clipboard_get_merged_text', { ids });
+}
+
 export async function clipboardExportForSync(
   cursor: ClipboardCursor | undefined,
   limit: number,

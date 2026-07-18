@@ -9,6 +9,7 @@
 
   let {
     selected = false,
+    multiSelected = false,
     onclick,
     ondblclick,
     icon,
@@ -24,6 +25,9 @@
     ...rest
   }: {
     selected?: boolean;
+    /** Independent of `selected` (the keyboard cursor) — marks this row as
+     *  part of a multi-item selection (e.g. clipboard-history's merge-paste). */
+    multiSelected?: boolean;
     onclick?: (e: MouseEvent) => void;
     ondblclick?: (e: MouseEvent) => void;
     icon?: string;
@@ -50,6 +54,7 @@
   type="button"
   class="result-item"
   class:selected-result={selected}
+  class:multi-selected-result={multiSelected}
   {onclick}
   {ondblclick}
   {...rest}

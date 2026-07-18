@@ -581,6 +581,48 @@ pub fn get_item(
     }
 }
 
+/// Result of [`get_merged_text`]: the joined plain text and how many of the
+/// requested items couldn't be represented as text and were left out.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MergedText {
+    pub text: String,
+    pub skipped_count: u32,
+}
+
+/// Fetch items by id in the given order, decrypt, strip HTML/RTF markup to
+/// plain text, and join with `\n`. Image/Files items can't be represented as
+/// text — they're skipped and counted rather than erroring, so a mixed
+/// selection still merges its text-representable members. Missing ids are
+/// silently skipped without affecting `skipped_count` (they were never a
+/// text-representable item to begin with).
+pub fn get_merged_text(
+    conn: &Connection,
+    ids: &[String],
+    master_key: &[u8; 32],
+) -> Result<MergedText, AppError> {
+    let mut parts = Vec::new();
+    let mut skipped_count = 0u32;
+    for id in ids {
+        let Some(item) = get_item(conn, id, master_key)? else {
+            continue;
+        };
+        let Some(content) = item.content else {
+            continue;
+        };
+        match item.item_type.as_str() {
+            "text" => parts.push(content),
+            "html" => parts.push(crate::clipboard_markup::strip_html(&content)),
+            "rtf" => parts.push(crate::clipboard_markup::strip_rtf(&content)),
+            _ => skipped_count += 1,
+        }
+    }
+    Ok(MergedText {
+        text: parts.join("\n"),
+        skipped_count,
+    })
+}
+
 /// Total and favorites-only counts. Cheap (two `COUNT(*)` queries with
 /// indexed lookups) and used by sync provider summaries to avoid
 /// materialising the whole table.
@@ -2250,5 +2292,90 @@ mod tests {
         let res = search(&conn, &fts, "anything", 20, &key).unwrap();
         assert_eq!(res.index_state, "indexing");
         assert!(res.items.is_empty());
+    }
+
+    fn make_typed_item(id: &str, item_type: &str, content: &str) -> ClipboardItem {
+        let mut item = make_item(id, content, false);
+        item.item_type = item_type.to_string();
+        item
+    }
+
+    #[test]
+    fn get_merged_text_joins_text_items_in_given_order() {
+        let conn = setup();
+        let key = test_key();
+        add_item(&conn, &make_item("1", "first", false), &key).unwrap();
+        add_item(&conn, &make_item("2", "second", false), &key).unwrap();
+        add_item(&conn, &make_item("3", "third", false), &key).unwrap();
+
+        // Order passed in, not created_at/id order.
+        let ids = vec!["3".to_string(), "1".to_string(), "2".to_string()];
+        let result = get_merged_text(&conn, &ids, &key).unwrap();
+
+        assert_eq!(result.text, "third\nfirst\nsecond");
+        assert_eq!(result.skipped_count, 0);
+    }
+
+    #[test]
+    fn get_merged_text_strips_html_and_rtf_to_plain_text() {
+        let conn = setup();
+        let key = test_key();
+        add_item(&conn, &make_typed_item("1", "text", "plain"), &key).unwrap();
+        add_item(
+            &conn,
+            &make_typed_item("2", "html", "<b>bold</b> text"),
+            &key,
+        )
+        .unwrap();
+
+        let ids = vec!["1".to_string(), "2".to_string()];
+        let result = get_merged_text(&conn, &ids, &key).unwrap();
+
+        assert_eq!(result.text, "plain\nbold text");
+        assert_eq!(result.skipped_count, 0);
+    }
+
+    #[test]
+    fn get_merged_text_skips_image_and_files_items_and_counts_them() {
+        let conn = setup();
+        let key = test_key();
+        add_item(&conn, &make_typed_item("1", "text", "kept"), &key).unwrap();
+        add_item(&conn, &make_typed_item("2", "image", "/tmp/pic.png"), &key).unwrap();
+        add_item(
+            &conn,
+            &make_typed_item("3", "files", "[\"/tmp/a.txt\"]"),
+            &key,
+        )
+        .unwrap();
+
+        let ids = vec!["1".to_string(), "2".to_string(), "3".to_string()];
+        let result = get_merged_text(&conn, &ids, &key).unwrap();
+
+        assert_eq!(result.text, "kept");
+        assert_eq!(result.skipped_count, 2);
+    }
+
+    #[test]
+    fn get_merged_text_ignores_missing_ids() {
+        let conn = setup();
+        let key = test_key();
+        add_item(&conn, &make_item("1", "present", false), &key).unwrap();
+
+        let ids = vec!["1".to_string(), "does-not-exist".to_string()];
+        let result = get_merged_text(&conn, &ids, &key).unwrap();
+
+        assert_eq!(result.text, "present");
+        assert_eq!(result.skipped_count, 0);
+    }
+
+    #[test]
+    fn get_merged_text_empty_ids_returns_empty_result() {
+        let conn = setup();
+        let key = test_key();
+
+        let result = get_merged_text(&conn, &[], &key).unwrap();
+
+        assert_eq!(result.text, "");
+        assert_eq!(result.skipped_count, 0);
     }
 }
