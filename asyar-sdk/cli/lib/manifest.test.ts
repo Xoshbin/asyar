@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { validateManifest, type AsyarManifest } from './manifest';
+import { GATED_PERMISSIONS } from './gatedPermissions';
 
 vi.mock('node:fs', () => ({
   existsSync: vi.fn().mockReturnValue(true),
@@ -513,20 +514,11 @@ describe('manifest validation — searchBarAccessory', () => {
 });
 
 describe('manifest validation — permissions', () => {
-  // Mirror of the launcher's permissionGate.ts and Rust permissions.rs gates.
-  // If the launcher gates a permission slug, the validator must accept it —
-  // otherwise authors who declare the right permission can't publish.
-  const launcherGatedPermissions = [
-    'fs:watch',
-    'feedback:announce',
-    'preferences:read',
-    'preferences:write',
-    'tools:register',
-    'snippets:contribute',
-    'runs:track',
-  ];
-
-  for (const perm of launcherGatedPermissions) {
+  // GATED_PERMISSIONS is generated from the launcher's Rust permissions.rs
+  // gate (see scripts/generate-gated-permissions.mjs). If the launcher gates
+  // a permission slug, the validator must accept it — otherwise authors who
+  // declare the right permission can't publish.
+  for (const perm of GATED_PERMISSIONS) {
     it(`accepts the launcher-gated permission "${perm}"`, () => {
       const m: AsyarManifest = {
         ...viewOnly,

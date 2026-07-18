@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as semver from 'semver';
+import { KNOWN_RUNTIMES } from './knownRuntimes';
 
 export type CommandMode = 'view' | 'background';
 
@@ -200,8 +201,12 @@ export const VALID_PERMISSIONS = [
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const;
 
-/** Mirrors `runtimes::catalog::known_names()` (Rust) — kept in sync by hand. */
-export const VALID_RUNTIMES = ['bun', 'uv', 'claude'] as const;
+/**
+ * Generated from asyar-launcher's runtimes/catalog.fallback.json — see
+ * scripts/generate-known-runtimes.mjs. Mirrors Rust's
+ * `runtimes::catalog::known_names()`, which reads the same file.
+ */
+export const VALID_RUNTIMES = KNOWN_RUNTIMES;
 
 export function readManifest(cwd: string): AsyarManifest {
   const manifestPath = path.join(cwd, 'manifest.json');

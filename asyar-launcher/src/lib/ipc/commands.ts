@@ -18,6 +18,7 @@ import type {
   AliasConflict,
   MergedSearchResponse,
   ModelInfo as ModelInfoContract,
+  SystemAction,
 } from '../../bindings';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
@@ -1987,9 +1988,8 @@ export async function sendUsageNow(): Promise<number | null> {
 
 // ── System actions ────────────────────────────────────────────────────────────
 
-/** Mirrors the Rust `SystemAction` enum (serde camelCase). */
-export type SystemActionId =
-  'sleep' | 'hibernate' | 'lockScreen' | 'logOut' | 'restart' | 'shutDown';
+/** Generated from Rust's `SystemAction` enum — see `../../bindings`. */
+export type SystemActionId = SystemAction;
 
 /** Actions the current machine supports, in display order. */
 export async function systemActionsSupported(): Promise<SystemActionId[]> {

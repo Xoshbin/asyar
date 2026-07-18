@@ -60,20 +60,34 @@ jobs:
       - name: Run workspace tests (SDK + launcher frontend)
         run: pnpm -r --if-present test:run
 
-      # `test:run`'s `pretest:run` hook (asyar-launcher/package.json) just
+      # `test:run`'s `pretest:run` hook (each package's package.json) just
       # regenerated these from their Rust source as a side effect of the step
       # above. If the committed files don't match, someone edited the Rust
-      # source (permissions.rs / error.rs / search_engine/mod.rs) without
-      # re-running `pnpm gen:all` — fail loudly instead of merging stale copies.
+      # source (permissions.rs / error.rs / search_engine/mod.rs /
+      # runtimes/catalog.fallback.json) without re-running the matching
+      # `gen:*` script — fail loudly instead of merging stale copies.
       - name: Verify generated Rust-derived files are up to date
         run: |
           git diff --exit-code -- \
             asyar-launcher/src/services/diagnostics/kinds.ts \
-            asyar-launcher/src/services/extension/gatedPermissions.ts
+            asyar-launcher/src/services/extension/gatedPermissions.ts \
+            asyar-sdk/cli/lib/knownRuntimes.ts \
+            asyar-sdk/cli/lib/gatedPermissions.ts
 
       - name: Run Rust tests
         run: cargo test
         working-directory: asyar-launcher/src-tauri
+
+      # Regenerates src/bindings.ts (specta) from the Rust types registered in
+      # search_engine/models.rs::export_bindings — normally run manually, so
+      # this is the only thing that catches "added/changed a #[derive(Type)]
+      # struct and forgot to regenerate."
+      - name: Regenerate TypeScript bindings from Rust types
+        run: cargo test export_bindings -- --ignored
+        working-directory: asyar-launcher/src-tauri
+
+      - name: Verify bindings.ts is up to date
+        run: git diff --exit-code -- asyar-launcher/src/bindings.ts
 
       - name: Run Clippy
         run: cargo clippy --all-targets -- -D warnings
