@@ -355,6 +355,36 @@ pub struct PermissionRegistrationResult {
     pub needs_consent: bool,
 }
 
+/// Resolves the declared permission set trusted by `register_extension_permissions`.
+/// When the extension is already discovered, its manifest on disk is
+/// authoritative and the caller-supplied `permissions`/`permission_args` are
+/// ignored entirely — this is what stops a compromised caller from forging a
+/// larger permission set than the extension's own manifest declares. The
+/// caller-supplied values are only trusted when no discovery record exists.
+fn resolve_declared_permissions(
+    extensions: &HashMap<String, crate::extensions::ExtensionRecord>,
+    extension_id: &str,
+    caller_permissions: Vec<String>,
+    caller_permission_args: Option<serde_json::Map<String, serde_json::Value>>,
+) -> (
+    bool,
+    Vec<String>,
+    serde_json::Map<String, serde_json::Value>,
+) {
+    match extensions.get(extension_id) {
+        Some(record) => (
+            record.is_built_in,
+            record.manifest.permissions.clone().unwrap_or_default(),
+            record.manifest.permission_args.clone().unwrap_or_default(),
+        ),
+        None => (
+            false,
+            caller_permissions,
+            caller_permission_args.unwrap_or_default(),
+        ),
+    }
+}
+
 /// Called by extensionManager.ts when an extension loads. Stores the extension's
 /// declared permission strings + their sidecar arguments so sensitive Rust
 /// commands can check them.
@@ -382,14 +412,7 @@ pub fn register_extension_permissions(
 
     let (is_built_in, declared_perms, declared_args) = {
         let reg = extensions.extensions.lock().map_err(|_| AppError::Lock)?;
-        match reg.get(&extension_id) {
-            Some(record) => (
-                record.is_built_in,
-                record.manifest.permissions.clone().unwrap_or_default(),
-                record.manifest.permission_args.clone().unwrap_or_default(),
-            ),
-            None => (false, permissions, permission_args.unwrap_or_default()),
-        }
+        resolve_declared_permissions(&reg, &extension_id, permissions, permission_args)
     };
 
     let consent = crate::extensions::consent::get_consent(&app_handle, &extension_id)?;
@@ -1016,5 +1039,78 @@ mod tests {
         reg.unregister("ext.a");
         assert!(reg.check(&Some("ext.a".to_string()), "fs:watch").is_err());
         assert!(reg.args_for("ext.a", "fs:watch").is_none());
+    }
+
+    // ---- resolve_declared_permissions (register_extension_permissions'
+    // forged-input resistance) ----
+
+    fn make_record(
+        id: &str,
+        is_built_in: bool,
+        permissions: Option<Vec<String>>,
+    ) -> crate::extensions::ExtensionRecord {
+        crate::extensions::ExtensionRecord {
+            manifest: crate::extensions::ExtensionManifest {
+                id: id.to_string(),
+                name: id.to_string(),
+                version: "1.0.0".to_string(),
+                description: String::new(),
+                author: None,
+                extension_type: None,
+                background: None,
+                searchable: None,
+                icon: None,
+                commands: vec![],
+                permissions,
+                permission_args: None,
+                min_app_version: None,
+                asyar_sdk: None,
+                platforms: None,
+                preferences: None,
+                actions: None,
+                onboarding: None,
+                tools: None,
+                runtimes: None,
+            },
+            enabled: true,
+            is_built_in,
+            path: format!("/tmp/{id}"),
+            compatibility: crate::extensions::CompatibilityStatus::Unknown,
+            first_view_component: None,
+        }
+    }
+
+    #[test]
+    fn register_extension_permissions_ignores_forged_permissions_for_known_extension() {
+        let mut extensions = HashMap::new();
+        extensions.insert(
+            "org.asyar.known".to_string(),
+            make_record(
+                "org.asyar.known",
+                false,
+                Some(vec!["clipboard:read".to_string()]),
+            ),
+        );
+
+        // A compromised caller tries to smuggle a permission its manifest
+        // never declared.
+        let forged = vec!["shell:spawn".to_string(), "clipboard:read".to_string()];
+        let (is_built_in, declared_perms, _declared_args) =
+            resolve_declared_permissions(&extensions, "org.asyar.known", forged, None);
+
+        assert!(!is_built_in);
+        assert_eq!(declared_perms, vec!["clipboard:read".to_string()]);
+    }
+
+    #[test]
+    fn resolve_declared_permissions_trusts_caller_when_extension_is_not_discovered() {
+        let extensions: HashMap<String, crate::extensions::ExtensionRecord> = HashMap::new();
+        let supplied = vec!["network".to_string()];
+
+        let (is_built_in, declared_perms, _declared_args) =
+            resolve_declared_permissions(&extensions, "org.asyar.unknown", supplied.clone(), None);
+
+        assert!(!is_built_in);
+        assert_eq!(declared_perms, supplied);
     }
 }
