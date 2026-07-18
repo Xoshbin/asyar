@@ -40,12 +40,42 @@ export interface SilentDispatchInput extends SilentDispatchOptions {
   agentId: string;
 }
 
+/** Agent id -> the controller driving its currently in-flight silent run. */
+const activeRuns = new Map<string, AbortController>();
+
 /**
  * Runs a silent command without creating a thread or a tracked Run. Failures
  * are surfaced through diagnostics because hotkey callers cannot render a
  * rejected promise.
+ *
+ * A repeat trigger for the same agent (hotkey pressed again, shortcode
+ * retyped) while a run is still in flight cancels that run instead of
+ * stacking a second one — otherwise a slow or stuck call had no way to be
+ * interrupted short of force-quitting the app.
  */
 export async function dispatchSilentAgentCommand(input: SilentDispatchInput): Promise<void> {
+  const inFlight = activeRuns.get(input.agentId);
+  if (inFlight) {
+    inFlight.abort();
+    return;
+  }
+
+  const controller = new AbortController();
+  if (input.abortSignal) {
+    if (input.abortSignal.aborted) controller.abort();
+    else input.abortSignal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+  activeRuns.set(input.agentId, controller);
+  try {
+    await runSilentAgentCommand({ ...input, abortSignal: controller.signal });
+  } finally {
+    if (activeRuns.get(input.agentId) === controller) {
+      activeRuns.delete(input.agentId);
+    }
+  }
+}
+
+async function runSilentAgentCommand(input: SilentDispatchInput): Promise<void> {
   if (input.abortSignal?.aborted) return;
 
   let resolvedAgent: AgentDef | null = null;
@@ -162,7 +192,7 @@ async function callFinalText(input: SilentDispatchInput, text: string): Promise<
       developerDetail: String(cause),
       context: {
         message: text.length === 0 ? 'onFinalText threw on empty result' : 'onFinalText threw',
-        agentId: input.agentId ?? input.builtinProfile,
+        agentId: input.agentId,
       },
     });
   }
