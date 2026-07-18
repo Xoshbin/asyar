@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::search_engine::models::{Application, SearchableItem};
+use crate::search_engine::models::{build_app_id, Application, SearchableItem};
 use crate::search_engine::SearchState;
 use log::info;
 use regex::Regex;
@@ -83,9 +83,7 @@ pub fn sync_application_index<R: tauri::Runtime>(
             .unwrap_or("Unknown_App")
             .to_string();
 
-        let sanitized_name = name.replace([' ', '/'], "_");
-        let sanitized_path = path_str.replace([' ', '/'], "_");
-        let full_app_id = format!("app_{}_{}", sanitized_name, sanitized_path);
+        let full_app_id = build_app_id(&name, path_str);
 
         current_apps.insert(
             full_app_id.clone(),
@@ -103,9 +101,7 @@ pub fn sync_application_index<R: tauri::Runtime>(
 
     #[cfg(target_os = "windows")]
     for uwp in &scanner.uwp_apps {
-        let sanitized_name = uwp.name.replace([' ', '/'], "_");
-        let sanitized_aumid = uwp.aumid.replace([' ', '/'], "_");
-        let full_app_id = format!("app_{}_{}", sanitized_name, sanitized_aumid);
+        let full_app_id = build_app_id(&uwp.name, &uwp.aumid);
         let path = format!("shell:AppsFolder\\{}", uwp.aumid);
 
         current_apps.insert(
@@ -216,9 +212,7 @@ pub fn list_applications<R: tauri::Runtime>(
             .unwrap_or("Unknown_App")
             .to_string();
 
-        let sanitized_name = name.replace([' ', '/'], "_");
-        let sanitized_path = path_str.replace([' ', '/'], "_");
-        let full_app_id = format!("app_{}_{}", sanitized_name, sanitized_path);
+        let full_app_id = build_app_id(&name, path_str);
 
         applications.push(Application {
             id: full_app_id,
@@ -233,9 +227,7 @@ pub fn list_applications<R: tauri::Runtime>(
 
     #[cfg(target_os = "windows")]
     for uwp in &scanner.uwp_apps {
-        let sanitized_name = uwp.name.replace([' ', '/'], "_");
-        let sanitized_aumid = uwp.aumid.replace([' ', '/'], "_");
-        let full_app_id = format!("app_{}_{}", sanitized_name, sanitized_aumid);
+        let full_app_id = build_app_id(&uwp.name, &uwp.aumid);
         let path = format!("shell:AppsFolder\\{}", uwp.aumid);
 
         applications.push(Application {
