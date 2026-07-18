@@ -117,7 +117,7 @@ Don't take our word for it: [`benchmarks/bench.sh`](benchmarks/README.md) measur
 - **Scripts** — Run shell scripts from the launcher. Add metadata headers (`@asyar.title`, `@asyar.icon`, `@asyar.argument:N`) so your script gets a name, icon, and prompted arguments. Live progress surfaces as a run row.
 - **Run Tracking** — Long-running work — agents and scripts — shows live status dots in the launcher. Failed runs stay until dismissed; succeeded agent threads stay until you close them, so you can pick a conversation back up at any time.
 - **Calculator** — Instant math evaluation with currency conversion, directly in the search bar
-- **Clipboard History** — Search and reuse anything you've copied, with rich markdown, syntax highlighting, and LaTeX rendering for text items
+- **Clipboard History** — Search and reuse anything you've copied, with rich markdown, syntax highlighting, and LaTeX rendering for text items. Cmd/Ctrl-click (or Cmd/Ctrl+↑/↓) to select several items, then Enter merges them into a single paste
 - **File Search** — Find any file across your home folder instantly; a Rust-native index keeps per-keystroke search fast regardless of how much is indexed, with real image thumbnails and (on macOS) Quick Look-style previews for documents, videos, and archives
 - **Snippets** — Text snippet expansion, including background text expansion without opening the launcher
 - **Shortcuts** — Define and run custom keyboard-triggered commands

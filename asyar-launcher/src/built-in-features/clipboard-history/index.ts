@@ -146,6 +146,10 @@ class ClipboardHistoryExtension implements Extension {
     this.inView = true;
     this.logService?.debug(`Clipboard History view activated: ${viewPath}`);
 
+    // Fresh entry into the view should not carry over a stale multi-selection
+    // from a previous visit.
+    clipboardViewState.clearMultiSelect();
+
     // Add global key listener
     window.addEventListener('keydown', this.handleKeydownBound);
 
@@ -178,6 +182,16 @@ class ClipboardHistoryExtension implements Extension {
       return;
     }
 
+    if (
+      (event.metaKey || event.ctrlKey) &&
+      (event.key === 'ArrowUp' || event.key === 'ArrowDown')
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      clipboardViewState.moveSelectionAndExtend(event.key === 'ArrowUp' ? 'up' : 'down');
+      return;
+    }
+
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       event.preventDefault();
       event.stopPropagation();
@@ -189,7 +203,11 @@ class ClipboardHistoryExtension implements Extension {
     } else if (event.key === 'Enter' && state.selectedItem) {
       event.preventDefault();
       event.stopPropagation();
-      clipboardViewState.handleItemAction(state.selectedItem, 'paste');
+      if (state.selectedIds.length > 1) {
+        clipboardViewState.pasteMergedSelection();
+      } else {
+        clipboardViewState.handleItemAction(state.selectedItem, 'paste');
+      }
     }
   }
 
@@ -304,6 +322,20 @@ class ClipboardHistoryExtension implements Extension {
     });
 
     actionService.registerAction({
+      id: 'clipboard-history:clear-multi-selection',
+      title: 'Clear Selection',
+      description: 'Deselect all multi-selected clipboard items',
+      icon: 'icon:x',
+      category: 'clipboard-action',
+      extensionId: 'clipboard-history',
+      context: ActionContext.EXTENSION_VIEW,
+      visible: () => clipboardViewState.selectedIds.length > 0,
+      execute: () => {
+        clipboardViewState.clearMultiSelect();
+      },
+    });
+
+    actionService.registerAction({
       id: 'clipboard-history:ask-ai-about-this',
       title: 'Ask AI about this',
       description: 'Open AI Chat with this clipboard text pre-filled',
@@ -355,6 +387,7 @@ class ClipboardHistoryExtension implements Extension {
     actionService.unregisterAction('clipboard-history:open-in-browser');
     actionService.unregisterAction('clipboard-history:save-as-snippet');
     actionService.unregisterAction('clipboard-history:delete');
+    actionService.unregisterAction('clipboard-history:clear-multi-selection');
     actionService.unregisterAction('clipboard-history:ask-ai-about-this');
   }
 

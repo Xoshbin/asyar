@@ -57,6 +57,16 @@ pub fn clipboard_get_item(
 }
 
 #[tauri::command]
+pub fn clipboard_get_merged_text(
+    ids: Vec<String>,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<super::clipboard::MergedText, AppError> {
+    let conn = store.conn()?;
+    super::clipboard::get_merged_text(&conn, &ids, keystore.master_key())
+}
+
+#[tauri::command]
 pub fn clipboard_export_for_sync(
     cursor: Option<super::clipboard::Cursor>,
     limit: u32,

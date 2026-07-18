@@ -494,6 +494,7 @@ pub fn run() {
             storage::commands::clipboard_list_older,
             storage::commands::clipboard_search,
             storage::commands::clipboard_get_item,
+            storage::commands::clipboard_get_merged_text,
             storage::commands::clipboard_export_for_sync,
             storage::commands::clipboard_count,
             storage::commands::clipboard_record_capture,

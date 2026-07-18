@@ -67,7 +67,11 @@ vi.mock('./state.svelte', () => ({
     filteredItems: [],
     selectedItem: null,
     moveSelection: vi.fn(),
+    moveSelectionAndExtend: vi.fn(),
     handleItemAction: vi.fn(),
+    pasteMergedSelection: vi.fn().mockResolvedValue(undefined),
+    clearMultiSelect: vi.fn(),
+    selectedIds: [] as string[],
     deleteItem: vi.fn().mockResolvedValue(true),
     toggleFavorite: vi.fn().mockResolvedValue(true),
     pasteAsPlainText: vi.fn().mockResolvedValue(undefined),
@@ -187,6 +191,178 @@ describe('Keyboard shortcut: Cmd+Backspace to delete', () => {
   });
 });
 
+describe('Keyboard shortcut: Cmd+Arrow extends selection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(window, 'addEventListener');
+    vi.spyOn(window, 'removeEventListener');
+  });
+
+  async function activateWithHandler() {
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === 'extensions') {
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        }
+        if (name === 'clipboard') {
+          return { getRecentItems: vi.fn().mockResolvedValue([]) };
+        }
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+    await extension.initialize(mockContext as any);
+
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).items = [{ id: 'test-1', content: 'hello' }];
+    (mockState.clipboardViewState as any).filteredItems = [{ id: 'test-1', content: 'hello' }];
+    (mockState.clipboardViewState as any).selectedItem = { id: 'test-1', content: 'hello' };
+
+    await extension.viewActivated('some/path');
+    const handler = vi
+      .mocked(window.addEventListener)
+      .mock.calls.find((call) => call[0] === 'keydown')?.[1] as EventListener;
+    expect(handler).toBeDefined();
+    return { handler, mockState };
+  }
+
+  it('calls moveSelectionAndExtend("down") on Cmd+ArrowDown, not the plain moveSelection', async () => {
+    const { handler, mockState } = await activateWithHandler();
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowDown',
+      metaKey: true,
+      bubbles: true,
+    });
+    Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
+    Object.defineProperty(event, 'stopPropagation', { value: vi.fn() });
+    handler(event);
+
+    expect(mockState.clipboardViewState.moveSelectionAndExtend).toHaveBeenCalledWith('down');
+    expect(mockState.clipboardViewState.moveSelection).not.toHaveBeenCalled();
+  });
+
+  it('calls moveSelectionAndExtend("up") on Ctrl+ArrowUp', async () => {
+    const { handler, mockState } = await activateWithHandler();
+
+    const event = new KeyboardEvent('keydown', { key: 'ArrowUp', ctrlKey: true, bubbles: true });
+    Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
+    Object.defineProperty(event, 'stopPropagation', { value: vi.fn() });
+    handler(event);
+
+    expect(mockState.clipboardViewState.moveSelectionAndExtend).toHaveBeenCalledWith('up');
+  });
+
+  it('plain ArrowDown (no modifier) still calls moveSelection, not moveSelectionAndExtend', async () => {
+    const { handler, mockState } = await activateWithHandler();
+
+    const event = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true });
+    Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
+    Object.defineProperty(event, 'stopPropagation', { value: vi.fn() });
+    handler(event);
+
+    expect(mockState.clipboardViewState.moveSelection).toHaveBeenCalledWith('down');
+    expect(mockState.clipboardViewState.moveSelectionAndExtend).not.toHaveBeenCalled();
+  });
+});
+
+describe('Keyboard shortcut: Enter routes to merge-paste when multi-selected', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(window, 'addEventListener');
+    vi.spyOn(window, 'removeEventListener');
+  });
+
+  async function activateWithSelection(selectedIds: string[]) {
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === 'extensions') {
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        }
+        if (name === 'clipboard') {
+          return { getRecentItems: vi.fn().mockResolvedValue([]) };
+        }
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+    await extension.initialize(mockContext as any);
+
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).items = [{ id: 'test-1', content: 'hello' }];
+    (mockState.clipboardViewState as any).filteredItems = [{ id: 'test-1', content: 'hello' }];
+    (mockState.clipboardViewState as any).selectedItem = { id: 'test-1', content: 'hello' };
+    (mockState.clipboardViewState as any).selectedIds = selectedIds;
+
+    await extension.viewActivated('some/path');
+    const handler = vi
+      .mocked(window.addEventListener)
+      .mock.calls.find((call) => call[0] === 'keydown')?.[1] as EventListener;
+    return { handler, mockState };
+  }
+
+  it('calls pasteMergedSelection when 2+ items are selected', async () => {
+    const { handler, mockState } = await activateWithSelection(['a', 'b']);
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+    Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
+    Object.defineProperty(event, 'stopPropagation', { value: vi.fn() });
+    handler(event);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockState.clipboardViewState.pasteMergedSelection).toHaveBeenCalled();
+    expect(mockState.clipboardViewState.handleItemAction).not.toHaveBeenCalled();
+  });
+
+  it('calls handleItemAction (normal paste) when only 1 item is toggled selected', async () => {
+    const { handler, mockState } = await activateWithSelection(['test-1']);
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+    Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
+    Object.defineProperty(event, 'stopPropagation', { value: vi.fn() });
+    handler(event);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockState.clipboardViewState.handleItemAction).toHaveBeenCalledWith(
+      { id: 'test-1', content: 'hello' },
+      'paste',
+    );
+    expect(mockState.clipboardViewState.pasteMergedSelection).not.toHaveBeenCalled();
+  });
+
+  it('calls handleItemAction (normal paste) when nothing is multi-selected', async () => {
+    const { handler, mockState } = await activateWithSelection([]);
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+    Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
+    Object.defineProperty(event, 'stopPropagation', { value: vi.fn() });
+    handler(event);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockState.clipboardViewState.handleItemAction).toHaveBeenCalled();
+    expect(mockState.clipboardViewState.pasteMergedSelection).not.toHaveBeenCalled();
+  });
+});
+
+describe('viewActivated clears any stale multi-selection', () => {
+  it('calls clipboardViewState.clearMultiSelect() on view activation', async () => {
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === 'extensions') {
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        }
+        if (name === 'clipboard') {
+          return { getRecentItems: vi.fn().mockResolvedValue([]) };
+        }
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+    await extension.initialize(mockContext as any);
+    await extension.viewActivated('some/path');
+
+    const mockState = await import('./state.svelte');
+    expect(mockState.clipboardViewState.clearMultiSelect).toHaveBeenCalled();
+  });
+});
+
 describe('Action registration', () => {
   it('registers view actions on view activation', async () => {
     const mockContext = {
@@ -221,6 +397,61 @@ describe('Action registration', () => {
     expect(actionIds).toContain('clipboard-history:toggle-html-view');
     expect(actionIds).toContain('clipboard-history:toggle-favorite');
     expect(actionIds).toContain('clipboard-history:paste-as-plain-text');
+    expect(actionIds).toContain('clipboard-history:clear-multi-selection');
+  });
+
+  it('clear-multi-selection action is only visible when a selection exists, and clears it on execute', async () => {
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === 'extensions') {
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        }
+        if (name === 'clipboard') {
+          return { getRecentItems: vi.fn().mockResolvedValue([]) };
+        }
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+    await extension.initialize(mockContext as any);
+    await extension.executeCommand('show-clipboard');
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    const clearAction = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find((c) => c[0].id === 'clipboard-history:clear-multi-selection')?.[0];
+    expect(clearAction).toBeDefined();
+
+    const mockState = await import('./state.svelte');
+    (mockState.clipboardViewState as any).selectedIds = [];
+    expect((clearAction as any).visible?.()).toBe(false);
+
+    (mockState.clipboardViewState as any).selectedIds = ['a', 'b'];
+    expect((clearAction as any).visible?.()).toBe(true);
+
+    await clearAction!.execute();
+    expect(mockState.clipboardViewState.clearMultiSelect).toHaveBeenCalled();
+  });
+
+  it('clear-multi-selection action is unregistered on view deactivation', async () => {
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === 'extensions') {
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        }
+        if (name === 'clipboard') {
+          return { getRecentItems: vi.fn().mockResolvedValue([]) };
+        }
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+    await extension.initialize(mockContext as any);
+    await extension.executeCommand('show-clipboard');
+    await extension.viewDeactivated('clipboard-history/DefaultView');
+
+    const { actionService } = await import('../../services/action/actionService.svelte');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith(
+      'clipboard-history:clear-multi-selection',
+    );
   });
 });
 

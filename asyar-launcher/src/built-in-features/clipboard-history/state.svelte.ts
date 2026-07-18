@@ -11,12 +11,17 @@ import {
 import { shiftIndex } from '../../lib/listSelection.svelte';
 import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+import * as commands from '../../lib/ipc/commands';
 
 export class ClipboardViewStateClass {
   searchQuery = $state('');
   lastSearch = $state(Date.now());
   items = $state<ClipboardHistoryItem[]>([]);
   selectedItemId = $state<string | null>(null);
+  /** Ordered multi-selection (Cmd/Ctrl+Click, Cmd/Ctrl+Arrow) — append-on-add,
+   *  independent of the single `selectedItemId` cursor above. Used by
+   *  `pasteMergedSelection` to merge-paste in selection order. */
+  selectedIds = $state<string[]>([]);
 
   // Search is now Rust-FTS-backed in the store; `this.items` is mirrored
   // from the store (favorites + recent when not searching, searchResults
@@ -43,6 +48,15 @@ export class ClipboardViewStateClass {
   });
 
   selectedItem = $derived(this.filteredItems[this.selectedIndex] ?? null);
+
+  /** `selectedIds` resolved against the current `filteredItems`, in
+   *  selection order. Ids that scrolled out of the loaded window or were
+   *  filtered out simply drop — no extra sync effect needed. */
+  multiSelectedItems = $derived.by(() => {
+    return this.selectedIds
+      .map((id) => this.filteredItems.find((i) => i.id === id))
+      .filter((i): i is ClipboardHistoryItem => i != null);
+  });
   isLoading = $state(true);
   loadError = $state(false);
   errorMessage = $state('');
@@ -106,6 +120,7 @@ export class ClipboardViewStateClass {
     this.searchQuery = '';
     this.lastSearch = Date.now();
     this.selectedItemId = null;
+    this.selectedIds = [];
     this.isLoading = true;
     this.loadError = false;
     this.errorMessage = '';
@@ -138,6 +153,41 @@ export class ClipboardViewStateClass {
     if (!items.length) return;
     const next = shiftIndex(this.selectedIndex, items.length, direction);
     this.selectedItemId = items[next].id;
+  }
+
+  /** Toggle a row into/out of the multi-selection (Cmd/Ctrl+Click) and move
+   *  the cursor/detail pane to it. */
+  toggleMultiSelect(id: string) {
+    if (this.selectedIds.includes(id)) {
+      this.selectedIds = this.selectedIds.filter((x) => x !== id);
+    } else {
+      this.selectedIds = [...this.selectedIds, id];
+    }
+    this.selectedItemId = id;
+  }
+
+  isMultiSelected(id: string): boolean {
+    return this.selectedIds.includes(id);
+  }
+
+  clearMultiSelect() {
+    this.selectedIds = [];
+  }
+
+  /** Cmd/Ctrl+ArrowUp/Down: move the cursor and extend the multi-selection to
+   *  cover both the starting row and the newly-landed row. Add-only — moving
+   *  back over an already-selected row is a no-op, not a toggle-off, so
+   *  "selection order" stays well-defined for a Cmd+Arrow run. */
+  moveSelectionAndExtend(direction: 'up' | 'down') {
+    const items = this.filteredItems;
+    if (!items.length) return;
+    if (this.selectedItemId && !this.selectedIds.includes(this.selectedItemId)) {
+      this.selectedIds = [...this.selectedIds, this.selectedItemId];
+    }
+    this.moveSelection(direction);
+    if (this.selectedItemId && !this.selectedIds.includes(this.selectedItemId)) {
+      this.selectedIds = [...this.selectedIds, this.selectedItemId];
+    }
   }
 
   setLoading(isLoading: boolean) {
@@ -237,6 +287,90 @@ export class ClipboardViewStateClass {
       }
     } catch (error) {
       this.logService?.error(`Failed to paste as plain text: ${error}`);
+      feedbackService.report({
+        source: 'frontend',
+        kind: 'clipboard/paste-failed',
+        severity: 'error',
+        retryable: false,
+        developerDetail: String(error),
+      });
+    }
+  }
+
+  /** Merge-paste every multi-selected item's plain text, in selection order,
+   *  as a single clipboard write + single simulated paste. The
+   *  fetch/decrypt/strip/join transformation runs server-side in Rust
+   *  (`clipboardGetMergedText`) — this method only orchestrates the ordered
+   *  id list and the final write+paste step. */
+  async pasteMergedSelection() {
+    if (!this.clipboardService) {
+      this.logService?.error('Clipboard service not initialized in pasteMergedSelection');
+      return;
+    }
+    if (this.selectedIds.length < 2) return;
+
+    try {
+      // Checked up front (mirrors the internal check in
+      // clipboardHistoryService.pasteItem): a permission-denied no-op must
+      // not clear the selection the user just built.
+      if (!(await commands.checkAccessibilityPermission())) {
+        await commands.openAccessibilityPreferences();
+        feedbackService.report({
+          source: 'frontend',
+          kind: 'manual',
+          severity: 'warning',
+          retryable: false,
+          context: {
+            message:
+              'Asyar needs macOS Accessibility permission to paste. Enable Asyar under ' +
+              'System Settings → Privacy & Security → Accessibility, then try again.',
+          },
+        });
+        return;
+      }
+
+      const merged = await commands.clipboardGetMergedText(this.selectedIds);
+      const text = merged?.text ?? '';
+      const skippedCount = merged?.skippedCount ?? 0;
+
+      if (!text.trim()) {
+        if (skippedCount > 0) {
+          feedbackService.report({
+            source: 'frontend',
+            kind: 'manual',
+            severity: 'warning',
+            retryable: false,
+            context: {
+              message: `Nothing to paste — ${skippedCount} selected item(s) can't be merged as text.`,
+            },
+          });
+        }
+        return;
+      }
+
+      await this.clipboardService.pasteItem({
+        id: 'merged-selection',
+        type: ClipboardItemType.Text as any,
+        content: text,
+        createdAt: Date.now(),
+        favorite: false,
+      } as ClipboardHistoryItem);
+
+      this.clearMultiSelect();
+
+      if (skippedCount > 0) {
+        feedbackService.report({
+          source: 'frontend',
+          kind: 'manual',
+          severity: 'warning',
+          retryable: false,
+          context: {
+            message: `${skippedCount} item(s) skipped — only text/HTML/RTF can be merged.`,
+          },
+        });
+      }
+    } catch (error) {
+      this.logService?.error(`Failed to paste merged selection: ${error}`);
       feedbackService.report({
         source: 'frontend',
         kind: 'clipboard/paste-failed',

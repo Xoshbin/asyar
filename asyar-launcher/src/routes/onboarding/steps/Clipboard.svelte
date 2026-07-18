@@ -21,5 +21,9 @@
     <LauncherHint
       steps={[`Press ${mod}+${key}`, 'Type clip and press Enter', 'Pick any past item to paste it']}
     />
+    <p>
+      Need several at once? Cmd/Ctrl-click (or Cmd/Ctrl+↑/↓) to select multiple items, then press
+      Enter to <span class="onb-hl">merge them into a single paste</span>.
+    </p>
   {/snippet}
 </GuidanceStep>

@@ -33,8 +33,16 @@ vi.mock('../../services/log/logService', () => ({
   },
 }));
 
+vi.mock('../../lib/ipc/commands', () => ({
+  checkAccessibilityPermission: vi.fn().mockResolvedValue(true),
+  openAccessibilityPreferences: vi.fn().mockResolvedValue(undefined),
+  clipboardGetMergedText: vi.fn().mockResolvedValue({ text: '', skippedCount: 0 }),
+}));
+
 import { ClipboardViewStateClass } from './state.svelte';
 import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
+import * as commands from '../../lib/ipc/commands';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 
 describe('ClipboardViewStateClass paste action proxy issue', () => {
   let state: ClipboardViewStateClass;
@@ -569,5 +577,175 @@ describe('type filter (applied on top of store-mirrored items)', () => {
   it('filter "files" returns only file rows', () => {
     state.setTypeFilter('files');
     expect(state.filteredItems.map((i) => i.id)).toEqual(['4']);
+  });
+});
+
+describe('toggleMultiSelect', () => {
+  let state: ClipboardViewStateClass;
+
+  beforeEach(() => {
+    state = new ClipboardViewStateClass();
+  });
+
+  it('adds an id not yet selected and moves the cursor to it', () => {
+    state.toggleMultiSelect('a');
+    expect(state.selectedIds).toEqual(['a']);
+    expect(state.selectedItemId).toBe('a');
+  });
+
+  it('removes an id already selected', () => {
+    state.toggleMultiSelect('a');
+    state.toggleMultiSelect('b');
+    state.toggleMultiSelect('a');
+    expect(state.selectedIds).toEqual(['b']);
+  });
+
+  it('preserves add-order across toggles', () => {
+    state.toggleMultiSelect('c');
+    state.toggleMultiSelect('a');
+    state.toggleMultiSelect('b');
+    expect(state.selectedIds).toEqual(['c', 'a', 'b']);
+  });
+
+  it('isMultiSelected reflects current membership', () => {
+    state.toggleMultiSelect('a');
+    expect(state.isMultiSelected('a')).toBe(true);
+    expect(state.isMultiSelected('b')).toBe(false);
+  });
+
+  it('clearMultiSelect empties the selection', () => {
+    state.toggleMultiSelect('a');
+    state.toggleMultiSelect('b');
+    state.clearMultiSelect();
+    expect(state.selectedIds).toEqual([]);
+  });
+});
+
+describe('moveSelectionAndExtend', () => {
+  let state: ClipboardViewStateClass;
+
+  beforeEach(() => {
+    state = new ClipboardViewStateClass();
+    state.setItems([
+      { id: '1', content: 'a', type: 'text' as any, createdAt: 1, favorite: false },
+      { id: '2', content: 'b', type: 'text' as any, createdAt: 2, favorite: false },
+      { id: '3', content: 'c', type: 'text' as any, createdAt: 3, favorite: false },
+    ]);
+    // setItems auto-selects the first item ('1' after favorite-sort, since none are favorites — order preserved).
+  });
+
+  it('captures the starting cursor item then adds the newly-landed item', () => {
+    state.moveSelectionAndExtend('down');
+    // Started on '1', moved down to '2' — both should now be selected, in that order.
+    expect(state.selectedIds).toEqual(['1', '2']);
+    expect(state.selectedItemId).toBe('2');
+  });
+
+  it('keeps extending across repeated calls without duplicating', () => {
+    state.moveSelectionAndExtend('down');
+    state.moveSelectionAndExtend('down');
+    expect(state.selectedIds).toEqual(['1', '2', '3']);
+  });
+
+  it('is add-only: moving back over an already-selected item does not remove it', () => {
+    state.moveSelectionAndExtend('down'); // selects 1, 2 — cursor on 2
+    state.moveSelectionAndExtend('down'); // selects 3 — cursor on 3
+    state.moveSelectionAndExtend('up'); // cursor back to 2, already selected
+    expect(state.selectedIds).toEqual(['1', '2', '3']);
+    expect(state.selectedItemId).toBe('2');
+  });
+});
+
+describe('pasteMergedSelection', () => {
+  let state: ClipboardViewStateClass;
+  let mockClipboardService: any;
+  let mockLogService: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(commands.checkAccessibilityPermission).mockResolvedValue(true);
+    vi.mocked(commands.clipboardGetMergedText).mockResolvedValue({
+      text: 'first\nsecond',
+      skippedCount: 0,
+    });
+
+    state = new ClipboardViewStateClass();
+    mockClipboardService = {
+      pasteItem: vi.fn().mockResolvedValue(undefined),
+      hideWindow: vi.fn(),
+      getRecentItems: vi.fn().mockResolvedValue([]),
+    };
+    mockLogService = { error: vi.fn(), debug: vi.fn(), warn: vi.fn() };
+    state.initializeServices({
+      getService: (name: string) => {
+        if (name === 'clipboard') return mockClipboardService;
+        if (name === 'log') return mockLogService;
+        return null;
+      },
+    } as any);
+
+    state.toggleMultiSelect('1');
+    state.toggleMultiSelect('2');
+  });
+
+  it('does nothing when fewer than 2 items are selected', async () => {
+    state.clearMultiSelect();
+    state.toggleMultiSelect('1');
+
+    await state.pasteMergedSelection();
+
+    expect(commands.clipboardGetMergedText).not.toHaveBeenCalled();
+    expect(mockClipboardService.pasteItem).not.toHaveBeenCalled();
+  });
+
+  it('fetches merged text in selection order and pastes it as a single text item', async () => {
+    await state.pasteMergedSelection();
+
+    expect(commands.clipboardGetMergedText).toHaveBeenCalledWith(['1', '2']);
+    expect(mockClipboardService.pasteItem).toHaveBeenCalledTimes(1);
+    const arg = mockClipboardService.pasteItem.mock.calls[0][0];
+    expect(arg.type).toBe('text');
+    expect(arg.content).toBe('first\nsecond');
+  });
+
+  it('clears the selection after a successful merge paste', async () => {
+    await state.pasteMergedSelection();
+    expect(state.selectedIds).toEqual([]);
+  });
+
+  it('does not clear the selection when accessibility permission is denied', async () => {
+    vi.mocked(commands.checkAccessibilityPermission).mockResolvedValue(false);
+
+    await state.pasteMergedSelection();
+
+    expect(commands.openAccessibilityPreferences).toHaveBeenCalled();
+    expect(commands.clipboardGetMergedText).not.toHaveBeenCalled();
+    expect(mockClipboardService.pasteItem).not.toHaveBeenCalled();
+    expect(state.selectedIds).toEqual(['1', '2']);
+  });
+
+  it('reports skipped items via feedbackService without blocking the paste', async () => {
+    vi.mocked(commands.clipboardGetMergedText).mockResolvedValue({
+      text: 'first',
+      skippedCount: 1,
+    });
+
+    await state.pasteMergedSelection();
+
+    expect(mockClipboardService.pasteItem).toHaveBeenCalledTimes(1);
+    expect(feedbackService.report).toHaveBeenCalled();
+  });
+
+  it('does not paste and preserves the selection when merged text is empty', async () => {
+    vi.mocked(commands.clipboardGetMergedText).mockResolvedValue({
+      text: '',
+      skippedCount: 2,
+    });
+
+    await state.pasteMergedSelection();
+
+    expect(mockClipboardService.pasteItem).not.toHaveBeenCalled();
+    expect(state.selectedIds).toEqual(['1', '2']);
+    expect(feedbackService.report).toHaveBeenCalled();
   });
 });

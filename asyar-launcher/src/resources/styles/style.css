@@ -527,6 +527,14 @@ html[data-platform='macos'] .app-root {
     box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
   }
 
+  /* Multi-item selection (e.g. clipboard-history merge-paste) — independent
+     of .selected-result (the single keyboard cursor); a row can carry either
+     or both classes at once. */
+  .multi-selected-result {
+    background-color: var(--bg-tertiary);
+    box-shadow: inset 3px 0 0 0 var(--accent-primary);
+  }
+
   .btn {
     @apply inline-flex items-center justify-center px-4 py-1.5 text-sm font-medium outline-none;
     font-family: var(--font-ui);
