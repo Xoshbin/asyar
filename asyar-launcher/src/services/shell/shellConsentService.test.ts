@@ -5,8 +5,13 @@ vi.mock('../../lib/ipc/shellCommands', () => ({
   shellCheckTrust: vi.fn().mockResolvedValue(false),
   shellGrantTrust: vi.fn().mockResolvedValue(true),
 }));
+vi.mock('../../lib/ipc/commands', () => ({
+  showWindow: vi.fn().mockResolvedValue(undefined),
+  setFocusLock: vi.fn().mockResolvedValue(undefined),
+}));
 
 import { shellCheckTrust, shellGrantTrust } from '../../lib/ipc/shellCommands';
+import { showWindow, setFocusLock } from '../../lib/ipc/commands';
 import { shellConsentService } from './shellConsentService.svelte';
 
 const checkTrust = vi.mocked(shellCheckTrust);
@@ -28,6 +33,27 @@ describe('shellConsentService', () => {
       true,
     );
     expect(shellConsentService.activeRequest).toBeNull();
+  });
+
+  it('does not reveal or focus-lock the launcher on the already-trusted hot path', async () => {
+    checkTrust.mockResolvedValue(true);
+    await shellConsentService.requestConsent('ext.a', 'jq', '/usr/bin/jq');
+    expect(showWindow).not.toHaveBeenCalled();
+    expect(setFocusLock).not.toHaveBeenCalled();
+  });
+
+  it('reveals and focus-locks the launcher when a dialog opens, releasing on settle', async () => {
+    const promise = shellConsentService.requestConsent('ext.a', 'jq', '/usr/bin/jq');
+    await settleMicrotasks();
+    // Dialog is up: a background command may have hidden the launcher, so it
+    // is re-shown and held open.
+    expect(showWindow).toHaveBeenCalledTimes(1);
+    expect(setFocusLock).toHaveBeenLastCalledWith(true);
+
+    await shellConsentService.denyCurrent();
+    await expect(promise).resolves.toBe(false);
+    // Queue drained → the hold is released.
+    expect(setFocusLock).toHaveBeenLastCalledWith(false);
   });
 
   it('approve grants trust and resolves true', async () => {

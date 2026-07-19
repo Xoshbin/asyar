@@ -11,7 +11,6 @@
   import { extensionStateManager } from '../../../services/extension/extensionStateManager.svelte';
   import { extensionUpdateService } from '../../../services/extension/extensionUpdateService.svelte';
   import { showOpenExtensionDialog, installExtensionFromFile } from '../../../lib/ipc/commands';
-  import ShellTrustManager from '../../../components/settings/ShellTrustManager.svelte';
   import { filterExtensions, type ExtensionFilter } from './extensionFilters';
   import type { ExtensionCommand } from 'asyar-sdk/contracts';
   import { onMount } from 'svelte';
@@ -622,8 +621,6 @@
     </button>
   </div>
 {/if}
-
-<ShellTrustManager />
 
 {#if editingAliasTarget}
   <AliasCapture

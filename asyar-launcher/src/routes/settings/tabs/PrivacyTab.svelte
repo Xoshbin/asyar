@@ -5,6 +5,7 @@
   import EncryptionStatusSection from '../../../components/settings/EncryptionStatusSection.svelte';
   import CrashReportSection from '../../../components/settings/CrashReportSection.svelte';
   import UsageShareSection from '../../../components/settings/UsageShareSection.svelte';
+  import ShellTrustManager from '../../../components/settings/ShellTrustManager.svelte';
   import { clipboardPrivacyService } from '../../../services/privacy/clipboardPrivacyService.svelte';
   import { secretRedactionService } from '../../../services/privacy/secretRedactionService.svelte';
   import { encryptionService } from '../../../services/privacy/encryptionService.svelte';
@@ -26,6 +27,7 @@
   <UsageShareSection />
   <ClipboardPrivacySection />
   <SecretRedactionSection />
+  <ShellTrustManager />
 </div>
 
 <style>
