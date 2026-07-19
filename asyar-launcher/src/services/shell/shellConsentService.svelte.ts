@@ -1,4 +1,5 @@
 import { shellCheckTrust, shellGrantTrust } from '../../lib/ipc/shellCommands';
+import { showWindow, setFocusLock } from '../../lib/ipc/commands';
 
 interface ConsentRequest {
   extensionId: string;
@@ -74,12 +75,25 @@ class ShellConsentService {
   private pump(): void {
     if (this.activeRequest !== null) return;
     this.activeRequest = this.queue.shift() ?? null;
+    if (this.activeRequest !== null) {
+      // A trust dialog is opening. A background command (e.g. a worker shell
+      // spawn) hides the launcher just before this async request lands, so
+      // re-show it and hold it open — otherwise the dialog is stranded in a
+      // hidden window, or auto-hides on blur while the user reads it.
+      void showWindow();
+      void setFocusLock(true);
+    }
   }
 
   private settle(request: ConsentRequest, allowed: boolean): void {
     this.activeRequest = null;
     request.resolve(allowed);
     this.pump();
+    // Release the focus lock once the queue is fully drained so the launcher
+    // can auto-hide normally again.
+    if (this.activeRequest === null) {
+      void setFocusLock(false);
+    }
   }
 }
 

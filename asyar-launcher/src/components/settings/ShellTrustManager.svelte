@@ -1,8 +1,12 @@
 <script lang="ts">
   import SettingsSection from './SettingsSection.svelte';
   import { onMount } from 'svelte';
-  import { extensionManager } from '../../services/extension/extensionManager.svelte';
-  import { shellListTrusted, shellRevokeTrust, type TrustedBinary } from '../../lib/ipc/commands';
+  import {
+    shellListTrusted,
+    shellRevokeTrust,
+    discoverExtensions,
+    type TrustedBinary,
+  } from '../../lib/ipc/commands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
 
@@ -18,7 +22,12 @@
 
   async function loadTrustData() {
     isLoading = true;
-    const recordsWithShell = extensionManager.extensionRecords.filter((r) =>
+    // Source the list via IPC (`discover_extensions`), not
+    // `extensionManager.extensionRecords` — that in-memory array is only
+    // populated in the main launcher window, so it's empty in this settings
+    // webview and the panel would always render as empty.
+    const allRecords = (await discoverExtensions()) ?? [];
+    const recordsWithShell = allRecords.filter((r) =>
       r.manifest.permissions?.includes('shell:spawn'),
     );
 
@@ -104,9 +113,11 @@
   });
 </script>
 
-{#if !isLoading && groupedTrusts.length > 0}
-  <SettingsSection title="Terminal Trust Store">
-    <div class="px-6 pb-6 space-y-6">
+<SettingsSection title="Terminal Trust Store">
+  <div class="px-6 pb-6 space-y-6">
+    {#if isLoading}
+      <p class="text-xs text-[var(--text-tertiary)] leading-relaxed">Loading trusted programs…</p>
+    {:else if groupedTrusts.length > 0}
       <p class="text-xs text-[var(--text-secondary)] leading-relaxed">
         The following programs have been explicitly trusted for execution by specific extensions.
         Revoking trust will cause the extension to prompt for permission again on next use.
@@ -162,6 +173,11 @@
           </div>
         {/each}
       </div>
-    </div>
-  </SettingsSection>
-{/if}
+    {:else}
+      <p class="text-xs text-[var(--text-tertiary)] leading-relaxed">
+        No programs are trusted yet. When an extension runs a binary — or you approve its declared
+        binaries at install — they’ll appear here to review or revoke.
+      </p>
+    {/if}
+  </div>
+</SettingsSection>
