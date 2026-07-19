@@ -448,8 +448,11 @@ export async function discoverExtensions(): Promise<ExtensionRecord[] | null> {
   return invokeSafe<ExtensionRecord[]>('discover_extensions');
 }
 
-export async function setExtensionEnabled(extensionId: string, enabled: boolean): Promise<void> {
-  await invokeSafe('set_extension_enabled', { extensionId, enabled });
+export async function setExtensionEnabled(extensionId: string, enabled: boolean): Promise<boolean> {
+  // invokeSafeVoid, not invokeSafe: the Rust command returns Result<(), _>,
+  // whose Ok(()) is indistinguishable from invokeSafe's null failure
+  // sentinel — callers must know whether the toggle actually landed.
+  return invokeSafeVoid('set_extension_enabled', { extensionId, enabled });
 }
 
 export async function getExtension(extensionId: string): Promise<ExtensionRecord | null> {

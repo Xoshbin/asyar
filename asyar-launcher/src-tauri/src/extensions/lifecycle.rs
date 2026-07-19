@@ -937,8 +937,10 @@ pub(crate) fn set_enabled(
     extension_id: &str,
     enabled: bool,
 ) -> Result<(), AppError> {
-    // Update registry and capture whether this extension declares a worker.
+    // Update registry and capture whether this extension declares a worker,
+    // plus its manifest-command search ids for the disable-path index purge.
     let has_background_main: bool;
+    let command_object_ids: Vec<String>;
     {
         let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
         if let Some(record) = reg.get_mut(extension_id) {
@@ -954,6 +956,12 @@ pub(crate) fn set_enabled(
                 .as_ref()
                 .map(|b| !b.main.trim().is_empty())
                 .unwrap_or(false);
+            command_object_ids = record
+                .manifest
+                .commands
+                .iter()
+                .map(|cmd| format!("cmd_{}_{}", extension_id, cmd.id))
+                .collect();
         } else {
             return Err(AppError::NotFound(format!(
                 "Extension not found: {}",
@@ -1096,6 +1104,28 @@ pub(crate) fn set_enabled(
             }
         }
 
+        // Drop the extension's manifest commands from the search index, the
+        // same treatment dynamic commands get above — the frontend reload
+        // also re-syncs the index, but only if that reload actually runs.
+        // Re-enable restores the items via the normal command index sync.
+        if let Some(search_state) = crate::search_engine::try_managed_search_state(app_handle) {
+            for object_id in &command_object_ids {
+                if let Err(e) = search_state.delete(object_id) {
+                    warn!(
+                        "Failed to remove search item '{}' for disabled '{}': {}",
+                        object_id, extension_id, e
+                    );
+                }
+            }
+            if !command_object_ids.is_empty() {
+                info!(
+                    "Removed {} manifest command search item(s) for disabled extension '{}'",
+                    command_object_ids.len(),
+                    extension_id
+                );
+            }
+        }
+
         // Drop any agent tools registered by this extension so they stop
         // appearing in agent tool listings the moment it's disabled.
         run_tool_registry_sync_on_enable_change(app_handle, registry, extension_id, false);
@@ -1130,6 +1160,19 @@ pub(crate) fn set_enabled(
         // Even without a background worker, an extension may declare tools
         // for use by AI agents. Sync those into the registry on enable.
         run_tool_registry_sync_on_enable_change(app_handle, registry, extension_id, true);
+    }
+
+    // Broadcast so the main window — which owns the extension host, not the
+    // settings window driving this command — reloads to match. Handled by
+    // `extensionEventSubscriptions` frontend-side.
+    if let Err(e) = app_handle.emit(
+        "asyar:extension-enabled-changed",
+        serde_json::json!({ "extensionId": extension_id, "enabled": enabled }),
+    ) {
+        warn!(
+            "Failed to emit extension-enabled-changed for '{}': {}",
+            extension_id, e
+        );
     }
 
     info!("Extension {} set to enabled={}", extension_id, enabled);

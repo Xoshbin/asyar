@@ -12,6 +12,7 @@
 use crate::error::AppError;
 use crate::extensions::{ExtensionRecord, ExtensionRegistryState};
 use crate::permissions::ExtensionPermissionRegistry;
+use crate::storage::{shell as shell_storage, DataStore};
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
@@ -106,6 +107,28 @@ pub fn consent_covers(
         }
     }
     true
+}
+
+/// Programs declared under `permissionArgs["shell:spawn"]`. Only meaningful
+/// when `shell:spawn` itself is in the permission set — mirrors
+/// `consent_covers`, which ignores arg keys without a matching permission.
+/// Non-string entries are skipped; they just don't get a trust seed.
+pub fn declared_shell_programs(
+    permissions: &[String],
+    permission_args: &serde_json::Map<String, serde_json::Value>,
+) -> Vec<String> {
+    if !permissions.iter().any(|p| p == "shell:spawn") {
+        return Vec::new();
+    }
+    permission_args
+        .get("shell:spawn")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[derive(Debug, PartialEq)]
@@ -368,9 +391,16 @@ pub fn check_extension_consent(
 
 /// Record the user's acceptance of a permission set. Called by the host
 /// frontend after the consent dialog is accepted.
+///
+/// Acceptance also seeds the shell trust store with the programs declared
+/// under `permissionArgs["shell:spawn"]` — the list the dialog showed as
+/// chips. Best-effort: a program that fails to resolve or persist falls
+/// back to the runtime trust prompt on first spawn. Not applied to
+/// grandfathered records, whose users never saw the declared programs.
 #[tauri::command]
-pub fn set_extension_consent(
+pub async fn set_extension_consent(
     app_handle: AppHandle,
+    db: tauri::State<'_, DataStore>,
     extension_id: String,
     permissions: Vec<String>,
     permission_args: Option<serde_json::Map<String, serde_json::Value>>,
@@ -387,6 +417,36 @@ pub fn set_extension_consent(
         grandfathered: false,
     };
     set_consent(&app_handle, &extension_id, &record)?;
+
+    for program in declared_shell_programs(&record.permissions, &record.permission_args) {
+        // Bare names go through the same PATH lookup the spawn path uses,
+        // so the seeded row matches the path `is_trusted` is checked against.
+        let resolved = if std::path::Path::new(&program).is_absolute() {
+            Ok(program.clone())
+        } else {
+            crate::shell::resolve_path(&program).await
+        };
+        match resolved {
+            Ok(path) => {
+                let grant = db
+                    .conn()
+                    .and_then(|conn| shell_storage::grant_trust(&conn, &extension_id, &path));
+                if let Err(e) = grant {
+                    warn!(
+                        "Consent accepted for '{}' but seeding shell trust for '{}' failed: {}",
+                        extension_id, path, e
+                    );
+                }
+            }
+            Err(e) => {
+                warn!(
+                    "Declared shell program '{}' for '{}' did not resolve; skipping trust seed ({}). The runtime prompt will cover it once installed.",
+                    program, extension_id, e
+                );
+            }
+        }
+    }
+
     emit_consent_changed(&app_handle, &extension_id);
     Ok(())
 }
@@ -442,9 +502,13 @@ pub fn clear_consent(app_handle: &AppHandle, extension_id: &str) -> Result<(), A
 /// the consent record and immediately unregisters the extension from the
 /// live permission registry, so its gated calls fail closed right away —
 /// no restart or extension reload required.
+///
+/// Shell trust is withdrawn with it — rows seeded at acceptance and rows
+/// granted through the runtime prompt were both granted under this consent.
 #[tauri::command]
 pub fn revoke_extension_consent(
     app_handle: AppHandle,
+    db: tauri::State<'_, DataStore>,
     extension_id: String,
     registry: tauri::State<'_, ExtensionPermissionRegistry>,
 ) -> Result<(), AppError> {
@@ -455,6 +519,7 @@ pub fn revoke_extension_consent(
     }
     clear_consent(&app_handle, &extension_id)?;
     registry.unregister(&extension_id);
+    shell_storage::cleanup_extension(&*db.conn()?, &extension_id)?;
     emit_consent_changed(&app_handle, &extension_id);
     Ok(())
 }
@@ -730,6 +795,51 @@ mod tests {
         assert!(value.get("permissionArgs").is_some());
         assert!(value.get("consentedAt").is_some());
         assert!(value.get("grandfathered").is_some());
+    }
+
+    // ---- declared_shell_programs (trust seeding at consent acceptance) ----
+
+    #[test]
+    fn shell_programs_extracted_when_permission_declared() {
+        let programs = declared_shell_programs(
+            &perms(&["shell:spawn", "network"]),
+            &args(serde_json::json!({"shell:spawn": ["shortcuts", "/usr/bin/say"]})),
+        );
+        assert_eq!(programs, vec!["shortcuts", "/usr/bin/say"]);
+    }
+
+    #[test]
+    fn shell_programs_empty_without_shell_spawn_permission() {
+        let programs = declared_shell_programs(
+            &perms(&["network"]),
+            &args(serde_json::json!({"shell:spawn": ["shortcuts"]})),
+        );
+        assert!(programs.is_empty());
+    }
+
+    #[test]
+    fn shell_programs_empty_without_declared_args() {
+        let programs =
+            declared_shell_programs(&perms(&["shell:spawn"]), &args(serde_json::json!({})));
+        assert!(programs.is_empty());
+    }
+
+    #[test]
+    fn shell_programs_drops_non_string_entries() {
+        let programs = declared_shell_programs(
+            &perms(&["shell:spawn"]),
+            &args(serde_json::json!({"shell:spawn": ["shortcuts", 42, null, {"a": 1}]})),
+        );
+        assert_eq!(programs, vec!["shortcuts"]);
+    }
+
+    #[test]
+    fn shell_programs_empty_when_args_not_an_array() {
+        let programs = declared_shell_programs(
+            &perms(&["shell:spawn"]),
+            &args(serde_json::json!({"shell:spawn": "shortcuts"})),
+        );
+        assert!(programs.is_empty());
     }
 
     // ---- remove_consent (backs the Settings "Revoke" action) ----

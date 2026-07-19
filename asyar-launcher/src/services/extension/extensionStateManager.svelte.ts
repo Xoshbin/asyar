@@ -61,7 +61,12 @@ export class ExtensionStateManager {
     }
 
     try {
-      await setExtensionEnabled(extensionId, enabled);
+      const ok = await setExtensionEnabled(extensionId, enabled);
+      if (!ok) {
+        // Backend state is unchanged — don't reload and don't report success.
+        logService.error(`Failed to set extension state for '${extensionId}'`);
+        return false;
+      }
 
       logService.info(
         `Extension '${extensionId}' state set to ${

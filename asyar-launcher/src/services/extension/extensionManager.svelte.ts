@@ -379,8 +379,30 @@ export class ExtensionManager implements IExtensionManager {
       }
     });
 
-    // Deactivate extensions via bridge
-    await this.bridge.deactivateExtensions();
+    // Deactivate extensions via bridge — time-boxed per extension inside the
+    // bridge, with an outer fence here: unloadExtensions gates every
+    // extension reload (settings toggle, install, update), so one hung
+    // deactivate() must not wedge them all.
+    const deactivation = this.bridge
+      .deactivateExtensions()
+      .then((ids) => ({ timedOut: false as const, ids: ids ?? [] }));
+    let fence: ReturnType<typeof setTimeout> | undefined;
+    const result = await Promise.race([
+      deactivation,
+      new Promise<{ timedOut: true; ids: string[] }>((resolve) => {
+        fence = setTimeout(() => resolve({ timedOut: true, ids: [] }), 10_000);
+      }),
+    ]);
+    clearTimeout(fence);
+    if (result.timedOut) {
+      logService.warn(
+        'bridge.deactivateExtensions() did not finish within 10s — continuing unload; some extensions may not have deactivated cleanly',
+      );
+    } else if (result.ids.length > 0) {
+      logService.warn(
+        `Extensions failed to deactivate cleanly (hung or threw): ${result.ids.join(', ')}`,
+      );
+    }
 
     // Clear internal state
     this.extensionModulesById.clear(); // Clear modules map

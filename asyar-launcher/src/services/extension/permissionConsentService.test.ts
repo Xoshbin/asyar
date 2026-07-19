@@ -8,6 +8,10 @@ vi.mock('../../lib/ipc/commands', () => ({
     .fn()
     .mockResolvedValue({ registered: true, needsConsent: false }),
   revokeExtensionConsent: vi.fn().mockResolvedValue(true),
+  getExtension: vi.fn().mockResolvedValue(null),
+}));
+vi.mock('../../lib/ipc/devCommands', () => ({
+  forceRemountWorker: vi.fn().mockResolvedValue(true),
 }));
 vi.mock('../../lib/ipc/runtimeCommands', () => ({
   getRuntimeDownloadSizes: vi.fn().mockResolvedValue([]),
@@ -18,6 +22,7 @@ vi.mock('../log/logService', () => ({
 
 import * as commands from '../../lib/ipc/commands';
 import * as runtimeCommands from '../../lib/ipc/runtimeCommands';
+import { forceRemountWorker } from '../../lib/ipc/devCommands';
 import { permissionConsentService } from './permissionConsentService.svelte';
 
 const checkExtensionConsent = vi.mocked(commands.checkExtensionConsent);
@@ -108,6 +113,70 @@ describe('permissionConsentService', () => {
       'fs:watch': ['~/a/**'],
     });
     expect(permissionConsentService.consentVersion).toBe(versionBefore + 1);
+  });
+
+  it('acceptance remounts the worker of an enabled background extension', async () => {
+    checkExtensionConsent.mockResolvedValue({
+      needsConsent: true,
+      declaredPermissions: ['shell:spawn'],
+      declaredArgs: { 'shell:spawn': ['shortcuts'] },
+      consented: null,
+      declaredRuntimes: [],
+    });
+    vi.mocked(commands.getExtension).mockResolvedValue({
+      manifest: { id: 'ext.a', background: { main: 'dist/worker.js' } },
+      enabled: true,
+      isBuiltIn: false,
+      path: '/tmp/ext.a',
+    } as never);
+
+    const promise = permissionConsentService.ensureConsent('ext.a', 'Ext A', 'review');
+    await vi.waitFor(() => {
+      expect(permissionConsentService.activeRequest).not.toBeNull();
+    });
+    permissionConsentService.onAccepted();
+
+    await expect(promise).resolves.toBe(true);
+    expect(forceRemountWorker).toHaveBeenCalledWith('ext.a', true);
+  });
+
+  it('acceptance does not remount when the extension is disabled or has no worker', async () => {
+    checkExtensionConsent.mockResolvedValue({
+      needsConsent: true,
+      declaredPermissions: ['network'],
+      declaredArgs: {},
+      consented: null,
+      declaredRuntimes: [],
+    });
+    // Disabled at consent time — the enable flow mounts the worker itself
+    // right after; a mount emit now would strand the worker machine.
+    vi.mocked(commands.getExtension).mockResolvedValue({
+      manifest: { id: 'ext.a', background: { main: 'dist/worker.js' } },
+      enabled: false,
+      isBuiltIn: false,
+      path: '/tmp/ext.a',
+    } as never);
+
+    let promise = permissionConsentService.ensureConsent('ext.a', 'Ext A', 'enable');
+    await vi.waitFor(() => expect(permissionConsentService.activeRequest).not.toBeNull());
+    permissionConsentService.onAccepted();
+    await expect(promise).resolves.toBe(true);
+    expect(forceRemountWorker).not.toHaveBeenCalled();
+
+    // Enabled but view-only (no background.main) — permission gate is live
+    // per-call, nothing to re-activate.
+    vi.mocked(commands.getExtension).mockResolvedValue({
+      manifest: { id: 'ext.b' },
+      enabled: true,
+      isBuiltIn: false,
+      path: '/tmp/ext.b',
+    } as never);
+
+    promise = permissionConsentService.ensureConsent('ext.b', 'Ext B', 'review');
+    await vi.waitFor(() => expect(permissionConsentService.activeRequest).not.toBeNull());
+    permissionConsentService.onAccepted();
+    await expect(promise).resolves.toBe(true);
+    expect(forceRemountWorker).not.toHaveBeenCalled();
   });
 
   it('ensureConsent neither persists nor registers on decline', async () => {

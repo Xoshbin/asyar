@@ -1,5 +1,6 @@
 import * as commands from '../../lib/ipc/commands';
 import { getRuntimeDownloadSizes, type RuntimeDownload } from '../../lib/ipc/runtimeCommands';
+import { forceRemountWorker } from '../../lib/ipc/devCommands';
 import { logService } from '../log/logService';
 
 /** Why the consent dialog is being shown; drives its subtitle copy. */
@@ -153,7 +154,30 @@ class PermissionConsentService {
     );
     this.markReviewed(extensionId);
     this.consentVersion++;
+    await this.remountRunningWorker(extensionId);
     return true;
+  }
+
+  /**
+   * Bounce the worker of an already-enabled background extension after a
+   * consent acceptance: a worker that booted with its permissions withheld
+   * has already run (and failed) its activation side effects, and nothing
+   * retries them — remounting re-runs `activate()` under the granted set.
+   * Skipped when the extension is disabled or view-only: install/enable
+   * mount the worker themselves, and a mount emit for a disabled extension
+   * would strand the worker machine. Best-effort.
+   */
+  private async remountRunningWorker(extensionId: string): Promise<void> {
+    try {
+      const record = await commands.getExtension(extensionId);
+      const backgroundMain = record?.manifest.background?.main;
+      if (!record?.enabled || !backgroundMain?.trim()) return;
+      await forceRemountWorker(extensionId, true);
+    } catch (err) {
+      logService.warn(
+        `[PermissionConsent] worker remount after consent failed for ${extensionId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   /**
