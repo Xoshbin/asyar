@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../lib/ipc/commands', () => ({
   noteUpsert: vi.fn().mockResolvedValue(undefined),
@@ -98,6 +98,39 @@ describe('noteStore', () => {
 
       noteStore.add(makeNote('1', 'A', 'alpha'));
       expect(events).toEqual([]);
+    });
+  });
+
+  describe('appendToToday()', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-21T15:04:00Z'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("creates a new note titled with today's date when none exists yet", () => {
+      const note = noteStore.appendToToday('did a thing');
+      expect(note.title).toBe('2026-07-21');
+      expect(note.body).toBe('did a thing');
+      expect(noteStore.notes).toHaveLength(1);
+    });
+
+    it('appends as a new line to an existing note for today', () => {
+      noteStore.appendToToday('first thing');
+      const note = noteStore.appendToToday('second thing');
+      expect(noteStore.notes).toHaveLength(1); // same note, not a second one
+      expect(note.body).toBe('first thing\nsecond thing');
+    });
+
+    it('does not touch a note from a different day with a similar title', () => {
+      noteStore.add(makeNote('old', '2026-07-20', 'yesterday'));
+      const note = noteStore.appendToToday('today thing');
+      expect(noteStore.notes).toHaveLength(2);
+      expect(note.title).toBe('2026-07-21');
+      expect(note.body).toBe('today thing');
     });
   });
 

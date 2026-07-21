@@ -99,6 +99,34 @@ class NoteStoreClass {
     this.#notify({ type: 'upsert', itemId: id });
   }
 
+  /**
+   * Append a line to today's daily note, creating it first if it doesn't
+   * exist yet. The title is the plain local ISO date ("2026-07-21") — a
+   * stable, unambiguous key so "today's note" can be found again tomorrow
+   * without a separate id to track, and it happens to sort chronologically.
+   */
+  appendToToday(text: string): Note {
+    const d = new Date();
+    const title = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const existing = this.notes.find((n) => n.title === title);
+    if (existing) {
+      const body = existing.body.trim() ? `${existing.body}\n${text}` : text;
+      this.update(existing.id, { body });
+      return { ...existing, body, updatedAt: Date.now() };
+    }
+    const now = Date.now();
+    const note: Note = {
+      id: crypto.randomUUID(),
+      title,
+      body: text,
+      createdAt: now,
+      updatedAt: now,
+      pinned: false,
+    };
+    this.add(note);
+    return note;
+  }
+
   async reload() {
     this.#initialized = false;
     await this.init();

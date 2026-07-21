@@ -1,14 +1,46 @@
-import type { Extension, ExtensionContext, IExtensionManager } from 'asyar-sdk/contracts';
+import type {
+  CommandExecuteArgs,
+  Extension,
+  ExtensionContext,
+  IExtensionManager,
+} from 'asyar-sdk/contracts';
 // @ts-ignore
 import DefaultView from './DefaultView.svelte';
-import { noteStore } from './noteStore.svelte';
+import { noteStore, type Note } from './noteStore.svelte';
 import { noteViewState } from './noteViewState.svelte';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { actionService } from '../../services/action/actionService.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 
 function noteAsMarkdown(title: string, body: string): string {
   return title.trim() ? `# ${title}\n\n${body}` : body;
+}
+
+function toastSaved(message: string): void {
+  feedbackService.report({
+    source: 'frontend',
+    kind: 'manual',
+    severity: 'success',
+    retryable: false,
+    context: { message },
+  });
+}
+
+/** First line becomes the title (Apple Notes-style); the rest becomes the body. */
+function quickCaptureNote(text: string): Note {
+  const [firstLine, ...rest] = text.split('\n');
+  const now = Date.now();
+  const note: Note = {
+    id: crypto.randomUUID(),
+    title: firstLine.trim().slice(0, 120),
+    body: rest.join('\n'),
+    createdAt: now,
+    updatedAt: now,
+    pinned: false,
+  };
+  noteStore.add(note);
+  return note;
 }
 
 class NotesExtension implements Extension {
@@ -50,10 +82,28 @@ class NotesExtension implements Extension {
     }
   }
 
-  async executeCommand(commandId: string, _args?: Record<string, any>): Promise<any> {
+  async executeCommand(commandId: string, args?: CommandExecuteArgs): Promise<any> {
     if (commandId === 'open-notes') {
       this.extensionManager?.navigateToView('notes/DefaultView');
       return { type: 'view', viewPath: 'notes/DefaultView' };
+    }
+
+    if (commandId === 'quick-note') {
+      const text = String(args?.arguments?.text ?? '').trim();
+      if (text) {
+        quickCaptureNote(text);
+        toastSaved('Note saved');
+      }
+      return { type: 'no-view' };
+    }
+
+    if (commandId === 'append-today') {
+      const text = String(args?.arguments?.text ?? '').trim();
+      if (text) {
+        noteStore.appendToToday(text);
+        toastSaved('Added to today');
+      }
+      return { type: 'no-view' };
     }
   }
 

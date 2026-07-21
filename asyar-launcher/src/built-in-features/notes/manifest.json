@@ -26,6 +26,41 @@
       ],
       "mode": "view",
       "component": "DefaultView"
+    },
+    {
+      "id": "quick-note",
+      "name": "Quick Note",
+      "icon": "icon:plus",
+      "trigger": "note",
+      "description": "Capture a note instantly without opening the editor",
+      "mode": "background",
+      "arguments": [
+        {
+          "name": "text",
+          "type": "text",
+          "placeholder": "What's on your mind?",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "append-today",
+      "name": "Add to Today",
+      "icon": "icon:pencil",
+      "trigger": "today",
+      "description": "Append a line to today's daily note (creates it if needed)",
+      "mode": "background",
+      "arguments": [
+        {
+          "name": "text",
+          "type": "text",
+          "placeholder": "What happened?",
+          "required": true
+        }
+      ]
     }
-  ]
+  ],
+  "background": {
+    "main": "dist/worker.js"
+  }
 }
