@@ -181,27 +181,33 @@ describe('noteViewState', () => {
     });
   });
 
-  describe('pinned sorting', () => {
-    it('getFilteredNotes() returns pinned notes before unpinned ones', () => {
+  describe('ordering is Rust-owned (no frontend sort)', () => {
+    it('getFilteredNotes() returns the store array as-is (Rust already ordered it)', () => {
+      // Rust returns pinned-first, newest-first; the view must NOT re-sort.
       (noteStore as any).notes = [
-        { id: '1', title: 'A', body: 'a', createdAt: 1, updatedAt: 1, pinned: false },
         { id: '2', title: 'B', body: 'b', createdAt: 2, updatedAt: 2, pinned: true },
+        { id: '1', title: 'A', body: 'a', createdAt: 1, updatedAt: 1, pinned: false },
         { id: '3', title: 'C', body: 'c', createdAt: 3, updatedAt: 3, pinned: false },
       ];
-
-      const results = noteViewState.getFilteredNotes();
-      expect(results[0].id).toBe('2'); // Pinned
-      expect(results[1].id).toBe('1');
-      expect(results[2].id).toBe('3');
+      expect(noteViewState.getFilteredNotes().map((n) => n.id)).toEqual(['2', '1', '3']);
     });
 
-    it('pinnedCount counts pinned items in the visible result set', () => {
+    it('pinnedCount counts pinned notes in list mode', () => {
       (noteStore as any).notes = [
         { id: '1', title: 'A', body: 'a', createdAt: 1, updatedAt: 1, pinned: true },
         { id: '2', title: 'B', body: 'b', createdAt: 2, updatedAt: 2, pinned: true },
         { id: '3', title: 'C', body: 'c', createdAt: 3, updatedAt: 3, pinned: false },
       ];
       expect(noteViewState.pinnedCount).toBe(2);
+    });
+
+    it('pinnedCount is 0 during a search (no section dividers)', async () => {
+      (noteStore as any).notes = [
+        { id: '1', title: 'A', body: 'a', createdAt: 1, updatedAt: 1, pinned: true },
+      ];
+      vi.mocked(noteSearch).mockResolvedValueOnce(searchResult([mockNotes[0]]));
+      await noteViewState.setSearch('a');
+      expect(noteViewState.pinnedCount).toBe(0);
     });
   });
 });

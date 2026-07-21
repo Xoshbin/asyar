@@ -1,32 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { extractWikilinks, extractTags, getBacklinks, findWikilinkAtCursor } from './noteLinks';
-import type { Note } from './noteStore.svelte';
+import { extractTags, findWikilinkAtCursor } from './noteLinks';
 
-function makeNote(id: string, title: string, body: string): Note {
-  return { id, title, body, createdAt: 0, updatedAt: 0, pinned: false };
-}
-
-describe('extractWikilinks', () => {
-  it('extracts a single [[Title]] reference', () => {
-    expect(extractWikilinks('See [[Project Plan]] for details.')).toEqual(['Project Plan']);
-  });
-
-  it('extracts multiple references and trims whitespace', () => {
-    expect(extractWikilinks('[[ Alpha ]] and [[Beta]]')).toEqual(['Alpha', 'Beta']);
-  });
-
-  it('returns an empty array when there are no references', () => {
-    expect(extractWikilinks('just plain text')).toEqual([]);
-  });
-
-  it('does not match a single bracket or an unclosed reference', () => {
-    expect(extractWikilinks('[not a link] and [[unclosed')).toEqual([]);
-  });
-
-  it('does not span across newlines', () => {
-    expect(extractWikilinks('[[Alpha\nBeta]]')).toEqual([]);
-  });
-});
+// Wikilink extraction and backlink resolution now live in Rust
+// (storage::notes::extract_wikilinks / backlinks) and are tested there.
+// This file covers only the live-editor helpers that stay on the frontend.
 
 describe('extractTags', () => {
   it('extracts a simple #tag', () => {
@@ -51,39 +28,6 @@ describe('extractTags', () => {
 
   it('returns an empty array when there are no tags', () => {
     expect(extractTags('plain text')).toEqual([]);
-  });
-});
-
-describe('getBacklinks', () => {
-  const target = makeNote('1', 'Project Plan', 'the plan');
-  const referencer = makeNote('2', 'Meeting Notes', 'discussed [[Project Plan]] today');
-  const unrelated = makeNote('3', 'Grocery List', 'milk, eggs');
-  const caseInsensitiveReferencer = makeNote('4', 'Follow-up', 'see [[project plan]]');
-
-  it('finds notes that reference the target by title', () => {
-    const backlinks = getBacklinks(target, [target, referencer, unrelated]);
-    expect(backlinks.map((n) => n.id)).toEqual(['2']);
-  });
-
-  it('matches case-insensitively', () => {
-    const backlinks = getBacklinks(target, [target, caseInsensitiveReferencer]);
-    expect(backlinks.map((n) => n.id)).toEqual(['4']);
-  });
-
-  it('excludes the target note itself even if it self-references', () => {
-    const selfReferencing = makeNote('1', 'Project Plan', 'see [[Project Plan]] above');
-    const backlinks = getBacklinks(selfReferencing, [selfReferencing]);
-    expect(backlinks).toEqual([]);
-  });
-
-  it('returns an empty array for a note with an empty title (cannot be linked to)', () => {
-    const untitled = makeNote('5', '', 'body');
-    const linksToEmpty = makeNote('6', 'X', '[[]]');
-    expect(getBacklinks(untitled, [untitled, linksToEmpty])).toEqual([]);
-  });
-
-  it('returns an empty array when nothing references the target', () => {
-    expect(getBacklinks(target, [target, unrelated])).toEqual([]);
   });
 });
 

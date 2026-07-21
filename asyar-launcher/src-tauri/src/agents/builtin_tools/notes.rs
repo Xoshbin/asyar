@@ -41,23 +41,15 @@ fn note_to_json(note: &Note) -> serde_json::Value {
     })
 }
 
-/// Look up a note by exact id, falling back to a case-insensitive title
-/// match. Shared by `notes-get` and `notes-append` so both tools accept the
-/// same "id or title" argument the AI is likely to have on hand — a search
-/// or list result gives an id, but the user's own chat message usually
-/// names a note by title.
+/// Look up a note by id or case-insensitive title. Thin alias over the
+/// shared `storage::notes::get_by_id_or_title` so `notes-get`/`notes-append`,
+/// the SDK Notes service, and backlinks all resolve "id or title" the same way.
 fn find_note(
     conn: &rusqlite::Connection,
     master_key: &[u8; 32],
     id_or_title: &str,
 ) -> Result<Option<Note>, AppError> {
-    if let Some(note) = notes::get_by_id(conn, id_or_title, master_key)? {
-        return Ok(Some(note));
-    }
-    let needle = id_or_title.trim().to_lowercase();
-    Ok(notes::get_all(conn, master_key)?
-        .into_iter()
-        .find(|n| n.title.trim().to_lowercase() == needle))
+    notes::get_by_id_or_title(conn, id_or_title, master_key)
 }
 
 fn require_str<'a>(args: &'a serde_json::Value, field: &str) -> Result<&'a str, AppError> {

@@ -517,6 +517,8 @@ pub fn run() {
             storage::commands::note_remove,
             storage::commands::note_toggle_pin,
             storage::commands::note_search,
+            storage::commands::note_find,
+            storage::commands::note_backlinks,
             // Raycast import
             commands::raycast_import::raycast_import_parse,
             // Storage: shortcuts

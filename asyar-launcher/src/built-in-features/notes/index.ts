@@ -8,6 +8,7 @@ import type {
 import DefaultView from './DefaultView.svelte';
 import { noteStore, type Note } from './noteStore.svelte';
 import { noteViewState } from './noteViewState.svelte';
+import { splitQuickCapture } from './quickCapture';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { actionService } from '../../services/action/actionService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -27,14 +28,11 @@ function toastSaved(message: string): void {
   });
 }
 
-/** First line becomes the title (Apple Notes-style); the rest becomes the body. */
 function quickCaptureNote(text: string): Note {
-  const [firstLine, ...rest] = text.split('\n');
   const now = Date.now();
   const note: Note = {
     id: crypto.randomUUID(),
-    title: firstLine.trim().slice(0, 120),
-    body: rest.join('\n'),
+    ...splitQuickCapture(text),
     createdAt: now,
     updatedAt: now,
     pinned: false,

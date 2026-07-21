@@ -78,19 +78,19 @@
   .wikilink-picker {
     position: absolute;
     z-index: 50;
-    bottom: calc(100% + 4px);
+    bottom: calc(100% + var(--space-1));
     left: 0;
     min-width: 240px;
     max-width: 360px;
     background: var(--bg-popup);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
-    box-shadow: 0 8px 24px var(--shadow-color);
+    box-shadow: var(--shadow-popup);
     overflow: hidden;
   }
 
   .picker-header {
-    padding: 6px 12px;
+    padding: var(--space-2) var(--space-5);
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
     font-weight: 600;
@@ -108,13 +108,13 @@
   .picker-list {
     list-style: none;
     margin: 0;
-    padding: 4px 0;
+    padding: var(--space-1) 0;
     max-height: 240px;
     overflow-y: auto;
   }
 
   .picker-item {
-    padding: 6px 12px;
+    padding: var(--space-2) var(--space-5);
     min-height: 32px;
     display: flex;
     align-items: center;

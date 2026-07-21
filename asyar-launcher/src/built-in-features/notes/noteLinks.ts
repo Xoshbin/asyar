@@ -1,18 +1,16 @@
-import type { Note } from './noteStore.svelte';
+// Live-editing helpers only. Anything that scans the persisted note corpus —
+// backlinks, resolving links across notes — lives in Rust (storage::notes).
+// These two run against the actively-typed textarea buffer every keystroke,
+// which is exactly the sub-frame UI-feedback / cursor-and-keyboard work the
+// rust-first skill keeps on the frontend.
 
-const WIKILINK_RE = /\[\[([^[\]\n]+)\]\]/g;
 // A tag starts with a letter (so "#123" and a "###" divider don't count) and
-// is not preceded by another word char or '#' (so "issue#123" and Markdown
-// headings like "# Heading" — which have a space, not a word char, right
-// after '#' — don't match either).
+// is not preceded by a word char or '#' (so "issue#123" and "# Heading" — a
+// space after '#', not a word char — don't match).
 const TAG_RE = /(?<![\w#])#([a-zA-Z][\w-]*)/g;
+const WIKILINK_RE = /\[\[([^[\]\n]+)\]\]/g;
 
-/** Every `[[Title]]` reference in a note body, trimmed, in order of appearance. */
-export function extractWikilinks(body: string): string[] {
-  return [...body.matchAll(WIKILINK_RE)].map((m) => m[1].trim());
-}
-
-/** Every distinct `#tag` in a note body, first-seen order, without the `#`. */
+/** Distinct `#tag`s in the live editor buffer, first-seen order, without `#`. */
 export function extractTags(body: string): string[] {
   const seen = new Set<string>();
   for (const m of body.matchAll(TAG_RE)) seen.add(m[1]);
@@ -20,25 +18,8 @@ export function extractTags(body: string): string[] {
 }
 
 /**
- * Notes that reference `target` by title via a `[[Title]]` link, matched
- * case-insensitively (Obsidian-style: links resolve by name, not by a
- * stable id, so renaming a note can retroactively resolve or break links —
- * that's expected wikilink behavior, not a bug). A note with an empty title
- * can't meaningfully be the target of a link, so it always yields no
- * backlinks. `target` itself is never included even if it self-references.
- */
-export function getBacklinks(target: Note, allNotes: Note[]): Note[] {
-  const title = target.title.trim().toLowerCase();
-  if (!title) return [];
-  return allNotes.filter(
-    (n) => n.id !== target.id && extractWikilinks(n.body).some((l) => l.toLowerCase() === title),
-  );
-}
-
-/**
- * The title of the `[[Title]]` reference the cursor sits inside (or
- * immediately after the closing `]]` of), or `null` if the cursor isn't
- * within/adjacent to one. Used by the "follow link under cursor" shortcut.
+ * Title of the `[[Title]]` reference the cursor sits inside (or just after the
+ * closing `]]`), or null. Drives the ⌘Enter "follow link under cursor" key.
  */
 export function findWikilinkAtCursor(body: string, cursorPos: number): string | null {
   for (const m of body.matchAll(WIKILINK_RE)) {

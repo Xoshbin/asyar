@@ -94,17 +94,24 @@ class NoteStoreClass {
   }
 
   togglePin(id: string) {
+    // Optimistic flag flip for an instant checkbox; the actual list REORDER
+    // (pinned notes lead the list) is Rust's — refetch the ordered rows once
+    // the toggle persists rather than re-sorting on the frontend.
     this.notes = this.notes.map((n) => (n.id === id ? { ...n, pinned: !n.pinned } : n));
-    noteTogglePin(id).catch((err) => reportPersistenceFailure('Failed to toggle pin', err));
+    noteTogglePin(id)
+      .then(() => this.#reorderFromRust())
+      .catch((err) => reportPersistenceFailure('Failed to toggle pin', err));
     this.#notify({ type: 'upsert', itemId: id });
   }
 
-  /**
-   * Append a line to today's daily note, creating it first if it doesn't
-   * exist yet. The title is the plain local ISO date ("2026-07-21") — a
-   * stable, unambiguous key so "today's note" can be found again tomorrow
-   * without a separate id to track, and it happens to sort chronologically.
-   */
+  async #reorderFromRust() {
+    const fresh = await noteGetAll();
+    if (fresh) this.notes = fresh;
+  }
+
+  // Append a line to today's daily note, creating it if absent. Title is the
+  // local ISO date ("2026-07-21") — a stable key that re-finds the note
+  // tomorrow with no separate id to track.
   appendToToday(text: string): Note {
     const d = new Date();
     const title = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

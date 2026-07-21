@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../lib/ipc/commands', () => ({
   noteUpsert: vi.fn().mockResolvedValue(undefined),
-  noteGetAll: vi.fn(async () => []),
+  // Default null so togglePin's post-persist reorder (which calls noteGetAll)
+  // is a no-op in tests that don't exercise it; tests that do override it.
+  noteGetAll: vi.fn(async () => null),
   noteRemove: vi.fn().mockResolvedValue(undefined),
   noteTogglePin: vi.fn().mockResolvedValue(undefined),
   noteUpdate: vi.fn().mockResolvedValue(undefined),
@@ -43,13 +45,28 @@ describe('noteStore', () => {
     expect(noteStore.notes[0].id).toBe('2');
   });
 
-  it('togglePin() flips pinned state', () => {
+  it('togglePin() flips pinned state optimistically', () => {
     noteStore.add(makeNote('1', 'A', 'alpha'));
     expect(noteStore.notes[0].pinned).toBe(false);
     noteStore.togglePin('1');
     expect(noteStore.notes[0].pinned).toBe(true);
     noteStore.togglePin('1');
     expect(noteStore.notes[0].pinned).toBe(false);
+  });
+
+  it('togglePin() reorders the list from Rust after the toggle persists', async () => {
+    noteStore.notes = [makeNote('1', 'A', 'a'), makeNote('2', 'B', 'b')];
+    // Rust returns the reordered rows — pinned '2' now leads.
+    vi.mocked(noteGetAll).mockResolvedValueOnce([
+      { ...makeNote('2', 'B', 'b'), pinned: true },
+      makeNote('1', 'A', 'a'),
+    ]);
+
+    noteStore.togglePin('2');
+    await new Promise((r) => setTimeout(r, 0)); // flush toggle IPC + reorder refetch
+
+    expect(noteStore.notes.map((n) => n.id)).toEqual(['2', '1']);
+    expect(noteStore.notes[0].pinned).toBe(true);
   });
 
   it('update() merges changes and stamps updatedAt', () => {

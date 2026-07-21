@@ -274,6 +274,29 @@ pub fn note_search(
     )
 }
 
+/// Resolve a note by id or exact (case-insensitive) title. Returns `None`
+/// when nothing matches.
+#[tauri::command]
+pub fn note_find(
+    id_or_title: String,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<Option<super::notes::Note>, AppError> {
+    let conn = store.conn()?;
+    super::notes::get_by_id_or_title(&conn, &id_or_title, keystore.master_key())
+}
+
+/// Notes that link to the target (resolved by id or title) via `[[Title]]`.
+#[tauri::command]
+pub fn note_backlinks(
+    id_or_title: String,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<Vec<super::notes::Note>, AppError> {
+    let conn = store.conn()?;
+    super::notes::backlinks(&conn, &id_or_title, keystore.master_key())
+}
+
 // ── Extension Key-Value Storage ───────────────────────────────────────────────
 
 #[tauri::command]

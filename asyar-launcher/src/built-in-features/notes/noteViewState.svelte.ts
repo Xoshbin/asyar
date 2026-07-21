@@ -22,25 +22,22 @@ class NoteViewStateClass {
     return this.selection.selectedIndex;
   }
 
+  // Display-only selection — no sorting here. Ordering is Rust's job:
+  // `note_get_all` returns pinned-first, newest-first; `note_search` returns
+  // bm25 rank order. This just picks which Rust-ordered set to show.
   getFilteredNotes(): Note[] {
     const all = noteStore.notes || [];
-    const q = this.searchQuery.trim();
-
-    let searched: Note[];
-    if (!q || this.rankedIds === null) {
-      searched = all;
-    } else {
-      const byId = new Map(all.map((n) => [n.id, n]));
-      searched = this.rankedIds.map((id) => byId.get(id)).filter((n): n is Note => n !== undefined);
-    }
-
-    const pinned = searched.filter((n) => n.pinned);
-    const rest = searched.filter((n) => !n.pinned);
-    return [...pinned, ...rest];
+    if (!this.searchQuery.trim() || this.rankedIds === null) return all;
+    const byId = new Map(all.map((n) => [n.id, n]));
+    return this.rankedIds.map((id) => byId.get(id)).filter((n): n is Note => n !== undefined);
   }
 
+  // List mode only: Rust puts pinned notes first, so the leading `pinnedCount`
+  // rows are the pinned ones — what the section dividers rely on. 0 while
+  // searching (no dividers there).
   get pinnedCount(): number {
-    return this.getFilteredNotes().filter((n) => n.pinned).length;
+    if (this.searchQuery.trim()) return 0;
+    return (noteStore.notes || []).filter((n) => n.pinned).length;
   }
 
   get selectedNote(): Note | null {

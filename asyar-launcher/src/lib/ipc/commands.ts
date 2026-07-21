@@ -1014,6 +1014,14 @@ export async function noteSearch(query: string, limit = 50): Promise<NoteSearchR
   return invokeSafe<NoteSearchResult>('note_search', { query, limit });
 }
 
+export async function noteFind(idOrTitle: string): Promise<StoredNote | null> {
+  return invokeSafe<StoredNote | null>('note_find', { idOrTitle });
+}
+
+export async function noteBacklinks(idOrTitle: string): Promise<StoredNote[] | null> {
+  return invokeSafe<StoredNote[]>('note_backlinks', { idOrTitle });
+}
+
 // ── Storage: Shortcuts ───────────────────────────────────────────────────────
 
 export interface StoredItemShortcut {

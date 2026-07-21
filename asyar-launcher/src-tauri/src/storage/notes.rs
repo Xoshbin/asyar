@@ -162,6 +162,81 @@ pub fn get_all(conn: &Connection, master_key: &[u8; 32]) -> Result<Vec<Note>, Ap
     Ok(items)
 }
 
+/// Every `[[Title]]` reference in a note body, trimmed, in order of
+/// appearance. Titles may not span a `]`, `[`, or newline.
+pub fn extract_wikilinks(body: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let bytes = body.as_bytes();
+    let mut i = 0;
+    while i + 1 < bytes.len() {
+        if bytes[i] == b'[' && bytes[i + 1] == b'[' {
+            let start = i + 2;
+            let mut j = start;
+            while j + 1 < bytes.len() {
+                let c = bytes[j];
+                if c == b'\n' || c == b'[' || c == b']' {
+                    break;
+                }
+                j += 1;
+            }
+            if j + 1 < bytes.len() && bytes[j] == b']' && bytes[j + 1] == b']' {
+                let title = body[start..j].trim();
+                if !title.is_empty() {
+                    out.push(title.to_string());
+                }
+                i = j + 2;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Look up a note by exact id, falling back to a case-insensitive title
+/// match. Shared by the AI tools, the SDK Notes service, and backlinks so
+/// they all accept the same "id or title" argument.
+pub fn get_by_id_or_title(
+    conn: &Connection,
+    id_or_title: &str,
+    master_key: &[u8; 32],
+) -> Result<Option<Note>, AppError> {
+    if let Some(note) = get_by_id(conn, id_or_title, master_key)? {
+        return Ok(Some(note));
+    }
+    let needle = id_or_title.trim().to_lowercase();
+    Ok(get_all(conn, master_key)?
+        .into_iter()
+        .find(|n| n.title.trim().to_lowercase() == needle))
+}
+
+/// Notes that reference `id_or_title` (resolved to a note, then matched by
+/// its title) via a `[[Title]]` link, case-insensitively. Excludes the
+/// target itself. A note with an empty title cannot be linked to and so has
+/// no backlinks. Returns notes in `get_all` order (pinned, then newest).
+pub fn backlinks(
+    conn: &Connection,
+    id_or_title: &str,
+    master_key: &[u8; 32],
+) -> Result<Vec<Note>, AppError> {
+    let Some(target) = get_by_id_or_title(conn, id_or_title, master_key)? else {
+        return Ok(Vec::new());
+    };
+    let title = target.title.trim().to_lowercase();
+    if title.is_empty() {
+        return Ok(Vec::new());
+    }
+    Ok(get_all(conn, master_key)?
+        .into_iter()
+        .filter(|n| {
+            n.id != target.id
+                && extract_wikilinks(&n.body)
+                    .iter()
+                    .any(|l| l.trim().to_lowercase() == title)
+        })
+        .collect())
+}
+
 /// Get a single note by id, decrypting `title`/`body` under `master_key`.
 pub fn get_by_id(
     conn: &Connection,
@@ -301,6 +376,92 @@ mod tests {
             updated_at,
             pinned: false,
         }
+    }
+
+    #[test]
+    fn test_extract_wikilinks() {
+        assert_eq!(
+            extract_wikilinks("See [[Project Plan]] for details."),
+            vec!["Project Plan".to_string()]
+        );
+        assert_eq!(
+            extract_wikilinks("[[ Alpha ]] and [[Beta]]"),
+            vec!["Alpha".to_string(), "Beta".to_string()]
+        );
+        assert!(extract_wikilinks("just plain text").is_empty());
+        assert!(extract_wikilinks("[not a link] and [[unclosed").is_empty());
+        assert!(extract_wikilinks("[[Alpha\nBeta]]").is_empty());
+    }
+
+    #[test]
+    fn test_get_by_id_or_title() {
+        let conn = setup();
+        let key = test_key();
+        upsert(&conn, &make_note("1", "Grocery List", "milk", 1000.0), &key).unwrap();
+
+        assert_eq!(
+            get_by_id_or_title(&conn, "1", &key).unwrap().unwrap().id,
+            "1"
+        );
+        // case-insensitive title fallback
+        assert_eq!(
+            get_by_id_or_title(&conn, "grocery list", &key)
+                .unwrap()
+                .unwrap()
+                .id,
+            "1"
+        );
+        assert!(get_by_id_or_title(&conn, "nope", &key).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_backlinks() {
+        let conn = setup();
+        let key = test_key();
+        upsert(
+            &conn,
+            &make_note("1", "Project Plan", "the plan", 1000.0),
+            &key,
+        )
+        .unwrap();
+        upsert(
+            &conn,
+            &make_note(
+                "2",
+                "Meeting Notes",
+                "discussed [[Project Plan]] today",
+                2000.0,
+            ),
+            &key,
+        )
+        .unwrap();
+        upsert(
+            &conn,
+            &make_note("3", "Unrelated", "nothing here", 1500.0),
+            &key,
+        )
+        .unwrap();
+        upsert(
+            &conn,
+            &make_note("4", "Follow-up", "see [[project plan]]", 3000.0),
+            &key,
+        )
+        .unwrap();
+
+        // Resolve target by id; match linkers case-insensitively.
+        let links = backlinks(&conn, "1", &key).unwrap();
+        let ids: Vec<&str> = links.iter().map(|n| n.id.as_str()).collect();
+        assert!(ids.contains(&"2"));
+        assert!(ids.contains(&"4")); // "[[project plan]]" matches "Project Plan"
+        assert!(!ids.contains(&"3"));
+        assert!(!ids.contains(&"1")); // never itself
+
+        // Resolve target by title too.
+        assert_eq!(backlinks(&conn, "project plan", &key).unwrap().len(), 2);
+
+        // A self-referencing note is not its own backlink.
+        upsert(&conn, &make_note("5", "Solo", "see [[Solo]]", 1000.0), &key).unwrap();
+        assert!(backlinks(&conn, "5", &key).unwrap().is_empty());
     }
 
     #[test]

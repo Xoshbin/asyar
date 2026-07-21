@@ -10,19 +10,18 @@
     Button,
     Badge,
   } from '../../components';
-  import { noteStore } from './noteStore.svelte';
+  import { noteStore, type Note } from './noteStore.svelte';
   import { noteViewState } from './noteViewState.svelte';
-  import { extractTags, getBacklinks, findWikilinkAtCursor } from './noteLinks';
+  import { extractTags, findWikilinkAtCursor } from './noteLinks';
+  import { noteBacklinks } from '../../lib/ipc/commands';
   import WikilinkPicker from './WikilinkPicker.svelte';
 
   let filteredNotes = $derived(noteViewState.getFilteredNotes());
   let selectedIndex = $derived(noteViewState.selectedIndex);
   let selectedNote = $derived(noteViewState.selectedNote);
 
-  // Local, directly-editable copies of the selected note's fields. Kept in
-  // sync with the store only when the *selection* changes (by id) — never
-  // on every store mutation — so our own debounced autosave round trip
-  // never clobbers what the user is mid-typing.
+  // Directly-editable copies, reloaded only when the selection changes (by
+  // id), so our own debounced autosave never clobbers what's being typed.
   let formTitle = $state('');
   let formBody = $state('');
   let loadedNoteId = $state<string | null>(null);
@@ -50,7 +49,22 @@
   });
 
   let tags = $derived(extractTags(formBody));
-  let backlinks = $derived(selectedNote ? getBacklinks(selectedNote, noteStore.notes) : []);
+
+  // Backlinks are a corpus scan → Rust (note_backlinks). Fetch only when the
+  // selected note's id changes (a note's backlinks don't depend on its own
+  // body, so editing it must not re-query); guard against stale responses.
+  let selectedId = $derived(selectedNote?.id ?? null);
+  let backlinks = $state<Note[]>([]);
+  $effect(() => {
+    const id = selectedId;
+    if (!id) {
+      backlinks = [];
+      return;
+    }
+    noteBacklinks(id).then((rows) => {
+      if (selectedId === id) backlinks = rows ?? [];
+    });
+  });
   let wikilinkCandidates = $derived(
     wikilinkPickerOpen
       ? noteStore.notes
