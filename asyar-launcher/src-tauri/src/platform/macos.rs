@@ -1452,6 +1452,19 @@ pub fn register_cmdq_monitor(app_handle: AppHandle) {
                     return std::ptr::null_mut();
                 }
             }
+            // Same treatment for a focused sticky note: Cmd+Q should take that
+            // one note off the desktop, not quit Asyar out from under the user.
+            // Routed through `sticky_window::close` so it unsticks exactly like
+            // the note's own × button (hide + drop the pin).
+            for (label, window) in app.webview_windows() {
+                let Some(note_id) = crate::sticky_window::note_id_from_label(&label) else {
+                    continue;
+                };
+                if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
+                    let _ = crate::sticky_window::close(&app, note_id);
+                    return std::ptr::null_mut();
+                }
+            }
         }
         event
     });

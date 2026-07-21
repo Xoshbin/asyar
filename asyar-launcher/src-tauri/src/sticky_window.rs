@@ -194,17 +194,23 @@ fn build_window(app: &AppHandle, sticky: &StickyNote, focus: bool) -> Result<(),
         }
     }
 
-    // Remember where the user puts it. Debounced so a drag is one write.
     {
         let app_handle = app.clone();
         let note_id = sticky.note_id.clone();
-        _window.on_window_event(move |event| {
-            if matches!(
-                event,
-                tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_)
-            ) {
+        _window.on_window_event(move |event| match event {
+            // Mirrors the settings window: never let a window actually be
+            // destroyed — intercept every OS-initiated close and unstick
+            // instead. Destroying an NSPanel-converted window aborts the
+            // process (see `close`), so this closes off that path entirely.
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                api.prevent_close();
+                let _ = close(&app_handle, &note_id);
+            }
+            // Remember where the user puts it. Debounced so a drag is one write.
+            tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
                 schedule_geometry_save(&app_handle, &note_id);
             }
+            _ => {}
         });
     }
 
