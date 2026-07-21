@@ -1022,6 +1022,12 @@ export async function noteBacklinks(idOrTitle: string): Promise<StoredNote[] | n
   return invokeSafe<StoredNote[]>('note_backlinks', { idOrTitle });
 }
 
+/** Save a note as a .md file (prompts for location) and reveal it. Returns
+ *  the saved path, or null if the user cancelled the dialog. */
+export async function noteExportMarkdown(id: string): Promise<string | null> {
+  return invokeSafe<string | null>('note_export_markdown', { id });
+}
+
 // ── Storage: Shortcuts ───────────────────────────────────────────────────────
 
 export interface StoredItemShortcut {

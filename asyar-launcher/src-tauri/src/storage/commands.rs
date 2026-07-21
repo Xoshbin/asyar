@@ -297,6 +297,45 @@ pub fn note_backlinks(
     super::notes::backlinks(&conn, &id_or_title, keystore.master_key())
 }
 
+/// Export a note as a real `.md` file: prompt for a location (default name
+/// derived from the title), write the Markdown, and reveal it in the OS file
+/// manager. Returns the saved path, or `None` if the user cancels the dialog.
+#[tauri::command]
+pub async fn note_export_markdown(
+    id: String,
+    app_handle: AppHandle,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<Option<String>, AppError> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let note = {
+        let conn = store.conn()?;
+        super::notes::get_by_id(&conn, &id, keystore.master_key())?
+    }
+    .ok_or_else(|| AppError::NotFound(format!("note {id} not found")))?;
+
+    let default_name = format!("{}.md", crate::notes_export::sanitize_filename(&note.title));
+    let dest = app_handle
+        .dialog()
+        .file()
+        .set_file_name(&default_name)
+        .add_filter("Markdown", &["md"])
+        .blocking_save_file();
+    let Some(dest) = dest else {
+        return Ok(None); // user cancelled
+    };
+    let path = dest.to_string();
+
+    let markdown = crate::notes_export::note_to_markdown(&note.title, &note.body);
+    std::fs::write(&path, markdown)
+        .map_err(|e| AppError::Other(format!("Failed to write note file: {e}")))?;
+
+    // Best-effort reveal — the export already succeeded if we got here.
+    let _ = crate::commands::file_manager::reveal_in_file_manager(&path);
+    Ok(Some(path))
+}
+
 // ── Extension Key-Value Storage ───────────────────────────────────────────────
 
 #[tauri::command]

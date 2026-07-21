@@ -9,6 +9,7 @@ import DefaultView from './DefaultView.svelte';
 import { noteStore, type Note } from './noteStore.svelte';
 import { noteViewState } from './noteViewState.svelte';
 import { splitQuickCapture } from './quickCapture';
+import { noteExportMarkdown } from '../../lib/ipc/commands';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { actionService } from '../../services/action/actionService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -173,6 +174,21 @@ class NotesExtension implements Extension {
       },
     });
     actionService.registerAction({
+      id: 'notes:export-markdown',
+      label: 'Export as Markdown…',
+      icon: 'icon:download',
+      description: 'Save the selected note as a .md file and reveal it',
+      category: 'Notes',
+      extensionId: 'notes',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        const n = noteViewState.selectedNote;
+        if (!n) return;
+        const path = await noteExportMarkdown(n.id);
+        if (path) toastSaved('Note exported');
+      },
+    });
+    actionService.registerAction({
       id: 'notes:delete',
       label: 'Delete Note',
       icon: 'icon:trash',
@@ -197,6 +213,7 @@ class NotesExtension implements Extension {
     actionService.unregisterAction('notes:toggle-pin');
     actionService.unregisterAction('notes:duplicate');
     actionService.unregisterAction('notes:copy-markdown');
+    actionService.unregisterAction('notes:export-markdown');
     actionService.unregisterAction('notes:delete');
   }
 

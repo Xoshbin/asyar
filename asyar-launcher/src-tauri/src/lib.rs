@@ -112,6 +112,7 @@ pub mod hud_window;
 pub mod index_events;
 pub mod mcp;
 pub mod network;
+mod notes_export;
 pub mod notifications;
 pub mod oauth;
 pub mod onboarding;
@@ -519,6 +520,7 @@ pub fn run() {
             storage::commands::note_search,
             storage::commands::note_find,
             storage::commands::note_backlinks,
+            storage::commands::note_export_markdown,
             // Raycast import
             commands::raycast_import::raycast_import_parse,
             // Storage: shortcuts
