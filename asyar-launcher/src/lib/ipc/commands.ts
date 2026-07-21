@@ -960,6 +960,60 @@ export async function snippetClearAll(): Promise<void> {
   await invokeSafe('snippet_clear_all');
 }
 
+// ── Storage: Notes ───────────────────────────────────────────────────────────
+
+export interface StoredNote {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: number;
+  updatedAt: number;
+  pinned: boolean;
+}
+
+export interface NoteSearchResult {
+  items: StoredNote[];
+  indexState: 'ready' | 'indexing';
+}
+
+export async function noteUpsert(note: StoredNote): Promise<void> {
+  await invokeSafe('note_upsert', { note });
+}
+
+export async function noteGetAll(): Promise<StoredNote[] | null> {
+  return invokeSafe<StoredNote[]>('note_get_all');
+}
+
+export async function noteGetById(id: string): Promise<StoredNote | null> {
+  return invokeSafe<StoredNote | null>('note_get_by_id', { id });
+}
+
+export async function noteUpdate(
+  id: string,
+  changes: { title?: string; body?: string; pinned?: boolean },
+  updatedAt: number,
+): Promise<void> {
+  await invokeSafe('note_update', {
+    id,
+    title: changes.title ?? null,
+    body: changes.body ?? null,
+    pinned: changes.pinned ?? null,
+    updatedAt,
+  });
+}
+
+export async function noteRemove(id: string): Promise<void> {
+  await invokeSafe('note_remove', { id });
+}
+
+export async function noteTogglePin(id: string): Promise<boolean | null> {
+  return invokeSafe<boolean>('note_toggle_pin', { id });
+}
+
+export async function noteSearch(query: string, limit = 50): Promise<NoteSearchResult | null> {
+  return invokeSafe<NoteSearchResult>('note_search', { query, limit });
+}
+
 // ── Storage: Shortcuts ───────────────────────────────────────────────────────
 
 export interface StoredItemShortcut {

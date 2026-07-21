@@ -15,6 +15,8 @@ pub mod mcp_audit;
 pub mod mcp_permissions;
 pub mod mcp_servers;
 pub mod mcp_settings;
+pub mod notes;
+pub mod notes_fts;
 pub mod runs_history;
 pub mod script_directories;
 pub mod searchbar_accessory;
@@ -57,6 +59,7 @@ impl DataStore {
         // Create all tables
         clipboard::init_table(&conn)?;
         snippets::init_table(&conn)?;
+        notes::init_table(&conn)?;
         shortcuts::init_table(&conn)?;
         extension_kv::init_table(&conn)?;
         extension_preferences::init_table(&conn)?;
@@ -115,6 +118,7 @@ pub fn create_test_store() -> DataStore {
     conn.execute_batch("PRAGMA journal_mode=WAL;").unwrap();
     clipboard::init_table(&conn).unwrap();
     snippets::init_table(&conn).unwrap();
+    notes::init_table(&conn).unwrap();
     shortcuts::init_table(&conn).unwrap();
     extension_kv::init_table(&conn).unwrap();
     extension_preferences::init_table(&conn).unwrap();

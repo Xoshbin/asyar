@@ -1,4 +1,5 @@
 use super::clipboard_fts::ClipboardFts;
+use super::notes_fts::NotesFts;
 use super::DataStore;
 use crate::crypto::keystore::KeystoreState;
 use crate::error::AppError;
@@ -180,6 +181,97 @@ pub fn snippet_toggle_pin(id: String, store: State<'_, DataStore>) -> Result<boo
 pub fn snippet_clear_all(store: State<'_, DataStore>) -> Result<(), AppError> {
     let conn = store.conn()?;
     super::snippets::clear_all(&conn)
+}
+
+// ── Notes ────────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn note_upsert(
+    note: super::notes::Note,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+    fts: State<'_, Arc<NotesFts>>,
+) -> Result<(), AppError> {
+    let conn = store.conn()?;
+    super::notes::upsert_with_fts(&conn, &note, keystore.master_key(), fts.inner())
+}
+
+#[tauri::command]
+pub fn note_get_all(
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<Vec<super::notes::Note>, AppError> {
+    let conn = store.conn()?;
+    super::notes::get_all(&conn, keystore.master_key())
+}
+
+#[tauri::command]
+pub fn note_get_by_id(
+    id: String,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<Option<super::notes::Note>, AppError> {
+    let conn = store.conn()?;
+    super::notes::get_by_id(&conn, &id, keystore.master_key())
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn note_update(
+    id: String,
+    title: Option<String>,
+    body: Option<String>,
+    pinned: Option<bool>,
+    updated_at: f64,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+    fts: State<'_, Arc<NotesFts>>,
+) -> Result<(), AppError> {
+    let conn = store.conn()?;
+    super::notes::update_with_fts(
+        &conn,
+        &id,
+        title.as_deref(),
+        body.as_deref(),
+        pinned,
+        updated_at,
+        keystore.master_key(),
+        fts.inner(),
+    )
+}
+
+#[tauri::command]
+pub fn note_remove(
+    id: String,
+    store: State<'_, DataStore>,
+    fts: State<'_, Arc<NotesFts>>,
+) -> Result<(), AppError> {
+    let conn = store.conn()?;
+    super::notes::remove_with_fts(&conn, &id, fts.inner())
+}
+
+#[tauri::command]
+pub fn note_toggle_pin(id: String, store: State<'_, DataStore>) -> Result<bool, AppError> {
+    let conn = store.conn()?;
+    super::notes::toggle_pin(&conn, &id)
+}
+
+#[tauri::command]
+pub fn note_search(
+    query: String,
+    limit: u32,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+    fts: State<'_, Arc<NotesFts>>,
+) -> Result<super::notes::NoteSearchResult, AppError> {
+    let conn = store.conn()?;
+    super::notes::search(
+        &conn,
+        fts.inner(),
+        &query,
+        limit as usize,
+        keystore.master_key(),
+    )
 }
 
 // ── Extension Key-Value Storage ───────────────────────────────────────────────

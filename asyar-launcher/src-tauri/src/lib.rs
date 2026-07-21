@@ -509,6 +509,14 @@ pub fn run() {
             storage::commands::snippet_remove,
             storage::commands::snippet_toggle_pin,
             storage::commands::snippet_clear_all,
+            // Storage: notes
+            storage::commands::note_upsert,
+            storage::commands::note_get_all,
+            storage::commands::note_get_by_id,
+            storage::commands::note_update,
+            storage::commands::note_remove,
+            storage::commands::note_toggle_pin,
+            storage::commands::note_search,
             // Raycast import
             commands::raycast_import::raycast_import_parse,
             // Storage: shortcuts
@@ -1390,6 +1398,42 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             if result {
                 crate::storage::clipboard_fts::mark_ready();
                 let _ = app_handle.emit("clipboard:fts-ready", ());
+            }
+        });
+    }
+
+    // Notes FTS: same in-memory-index-plus-background-rebuild pattern as
+    // clipboard above, and for the same reason — the on-disk `notes` table
+    // stays opaque ciphertext while search still works. Emits
+    // `notes:fts-ready` when done so the frontend can flip from an
+    // "indexing" state to live search results.
+    {
+        let fts = std::sync::Arc::new(
+            crate::storage::notes_fts::NotesFts::new_in_memory()
+                .expect("Notes FTS in-memory DB must initialise"),
+        );
+        app.manage(fts.clone());
+
+        let conn_arc = app.state::<storage::DataStore>().conn_arc();
+        let master_key: [u8; 32] = *app
+            .state::<crate::crypto::keystore::KeystoreState>()
+            .master_key();
+        let app_handle = app.handle().clone();
+        let fts_for_task = fts.clone();
+        tauri::async_runtime::spawn(async move {
+            let result = tokio::task::spawn_blocking(move || {
+                let conn = match conn_arc.lock() {
+                    Ok(c) => c,
+                    Err(_) => return false,
+                };
+                crate::storage::notes_fts::rebuild_from_disk(&conn, &fts_for_task, &master_key)
+                    .is_ok()
+            })
+            .await
+            .unwrap_or(false);
+            if result {
+                crate::storage::notes_fts::mark_ready();
+                let _ = app_handle.emit("notes:fts-ready", ());
             }
         });
     }

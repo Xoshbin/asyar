@@ -1,0 +1,31 @@
+{
+  "id": "notes",
+  "name": "Notes",
+  "icon": "icon:type",
+  "description": "Write and organize Markdown notes without leaving your keyboard",
+  "version": "1.0.0",
+  "author": "Asyar",
+  "type": "extension",
+  "searchable": true,
+  "commands": [
+    {
+      "id": "open-notes",
+      "name": "Open Notes",
+      "icon": "icon:type",
+      "trigger": "notes",
+      "description": "Browse, search, and write notes",
+      "actions": [
+        {
+          "id": "add",
+          "title": "New Note",
+          "description": "Create a new note",
+          "icon": "icon:plus",
+          "shortcut": "⌘N",
+          "category": "Notes"
+        }
+      ],
+      "mode": "view",
+      "component": "DefaultView"
+    }
+  ]
+}
