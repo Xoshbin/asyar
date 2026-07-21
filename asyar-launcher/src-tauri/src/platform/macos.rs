@@ -310,14 +310,21 @@ pub fn setup_sticky_window<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Resu
 
     let flags = sticky_panel_flags();
     panel.set_level(flags.level);
-    // Same reason as the launcher/HUD: `set_collection_behaviour` takes a
-    // single variant, so OR the bits straight onto the NSWindow.
     unsafe {
         let ns_window = window.ns_window().unwrap() as *mut AnyObject;
+        // Same reason as the launcher/HUD: `set_collection_behaviour` takes a
+        // single variant, so OR the bits straight onto the NSWindow.
         let _: () = msg_send![
             ns_window,
             setCollectionBehavior: flags.collection_behavior_bits
         ];
+        // Load-bearing: without this, closing a sticky aborts the whole app.
+        // `releasedWhenClosed` defaults to YES, so AppKit deallocates the
+        // NSWindow on close while tao still holds it — the next delegate
+        // callback touches freed memory and raises an Obj-C exception, which
+        // Rust cannot unwind ("Rust cannot catch foreign exceptions,
+        // aborting"). Letting tao own the lifetime instead keeps close safe.
+        let _: () = msg_send![ns_window, setReleasedWhenClosed: Bool::NO];
     }
 
     panel.set_style_mask(flags.style_mask);

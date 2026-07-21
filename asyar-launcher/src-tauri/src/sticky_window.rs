@@ -139,7 +139,15 @@ fn schedule_geometry_save(app: &AppHandle, note_id: &str) {
 }
 
 /// Build the webview window for an already-persisted sticky row.
-fn build_window(app: &AppHandle, sticky: &StickyNote) -> Result<(), AppError> {
+///
+/// `focus` distinguishes the two callers. A user-opened sticky wants focus and
+/// the macOS flash-free reveal (built hidden, shown on WebKit's first painted
+/// frame). Restored stickies want neither: they're built visible and unfocused,
+/// because N windows each running the reveal handshake and grabbing focus at
+/// startup race each other — which left all but one invisible.
+fn build_window(app: &AppHandle, sticky: &StickyNote, focus: bool) -> Result<(), AppError> {
+    // Only the focused (user-initiated) path does the hidden-then-reveal dance.
+    let deferred_reveal = cfg!(target_os = "macos") && focus;
     let label = window_label(&sticky.note_id);
     let url = format!("{WINDOW_URL_BASE}?id={}", sticky.note_id);
 
@@ -171,10 +179,8 @@ fn build_window(app: &AppHandle, sticky: &StickyNote) -> Result<(), AppError> {
         .transparent(true)
         .shadow(false)
         .skip_taskbar(true)
-        // macOS: build hidden and reveal on the first painted frame, same
-        // cold-open flash fix the onboarding window uses.
-        .visible(cfg!(not(target_os = "macos")))
-        .focused(cfg!(not(target_os = "macos")))
+        .visible(!deferred_reveal)
+        .focused(focus && !deferred_reveal)
         .build()
         .map_err(|e| AppError::Other(format!("create sticky window: {e}")))?;
 
@@ -183,7 +189,9 @@ fn build_window(app: &AppHandle, sticky: &StickyNote) -> Result<(), AppError> {
         // Float over fullscreen Spaces while still being able to take focus
         // for typing (unlike the HUD, which is deliberately non-activating).
         let _ = crate::platform::macos::setup_sticky_window(&_window);
-        crate::platform::macos::reveal_window_after_first_paint(&_window, REVEAL_FALLBACK_MS);
+        if deferred_reveal {
+            crate::platform::macos::reveal_window_after_first_paint(&_window, REVEAL_FALLBACK_MS);
+        }
     }
 
     // Remember where the user puts it. Debounced so a drag is one write.
@@ -205,15 +213,7 @@ fn build_window(app: &AppHandle, sticky: &StickyNote) -> Result<(), AppError> {
 
 /// Pin a note to the desktop: persist it (if new) and open/focus its window.
 pub fn open(app: &AppHandle, note_id: &str) -> Result<(), AppError> {
-    if let Some(existing) = app.get_webview_window(&window_label(note_id)) {
-        existing
-            .show()
-            .map_err(|e| AppError::Other(format!("show sticky: {e}")))?;
-        existing
-            .set_focus()
-            .map_err(|e| AppError::Other(format!("focus sticky: {e}")))?;
-        return Ok(());
-    }
+    let existing = app.get_webview_window(&window_label(note_id));
 
     // Scope the DB lock so it isn't held while the window is being created.
     let sticky = {
@@ -230,14 +230,39 @@ pub fn open(app: &AppHandle, note_id: &str) -> Result<(), AppError> {
         }
     };
 
-    build_window(app, &sticky)
+    if let Some(window) = existing {
+        // Re-sticking a note whose (hidden) window we kept around.
+        window
+            .show()
+            .map_err(|e| AppError::Other(format!("show sticky: {e}")))?;
+        window
+            .set_focus()
+            .map_err(|e| AppError::Other(format!("focus sticky: {e}")))?;
+        // The row above was just recreated with default geometry while the
+        // window is still wherever the user left it — sync the row to reality.
+        persist_geometry(app, note_id);
+        return Ok(());
+    }
+
+    build_window(app, &sticky, true)
 }
 
-/// Unpin: close the window and drop the row.
+/// Unpin: take the sticky off the desktop and drop the row.
+///
+/// The window is *hidden*, not destroyed. Destroying an `NSPanel`-converted
+/// window aborts the whole process: AppKit tears the window down and then
+/// reshuffles which window is key, and that delegate callback lands on
+/// freed state, raising an Obj-C exception Rust cannot unwind ("Rust cannot
+/// catch foreign exceptions, aborting"). Hiding is visually identical, and
+/// [`open`] reuses the window if the note is stuck again.
+///
+/// Cost: a hidden webview is retained per note unstuck this session (reclaimed
+/// on quit). Bounded by distinct notes stuck, and re-sticking reuses rather
+/// than adds.
 pub fn close(app: &AppHandle, note_id: &str) -> Result<(), AppError> {
     if let Some(w) = app.get_webview_window(&window_label(note_id)) {
-        w.close()
-            .map_err(|e| AppError::Other(format!("close sticky: {e}")))?;
+        w.hide()
+            .map_err(|e| AppError::Other(format!("hide sticky: {e}")))?;
     }
     let store = app.state::<DataStore>();
     let conn = store.conn()?;
@@ -255,10 +280,16 @@ pub fn restore_all(app: &AppHandle) -> Result<(), AppError> {
         sticky_notes::list(&conn)?
     };
 
-    for sticky in rows {
-        if let Err(e) = build_window(app, &sticky) {
-            log::warn!("[sticky] restore failed for {}: {e}", sticky.note_id);
+    log::info!("[sticky] restoring {} pinned note(s)", rows.len());
+    let mut restored = 0usize;
+    for sticky in &rows {
+        match build_window(app, sticky, false) {
+            Ok(()) => restored += 1,
+            Err(e) => log::warn!("[sticky] restore failed for {}: {e}", sticky.note_id),
         }
+    }
+    if restored != rows.len() {
+        log::warn!("[sticky] restored {restored}/{} windows", rows.len());
     }
     Ok(())
 }
