@@ -1,4 +1,5 @@
 use super::clipboard_fts::ClipboardFts;
+use super::notes_fts::NotesFts;
 use super::DataStore;
 use crate::crypto::keystore::KeystoreState;
 use crate::error::AppError;
@@ -180,6 +181,159 @@ pub fn snippet_toggle_pin(id: String, store: State<'_, DataStore>) -> Result<boo
 pub fn snippet_clear_all(store: State<'_, DataStore>) -> Result<(), AppError> {
     let conn = store.conn()?;
     super::snippets::clear_all(&conn)
+}
+
+// ── Notes ────────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn note_upsert(
+    note: super::notes::Note,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+    fts: State<'_, Arc<NotesFts>>,
+) -> Result<(), AppError> {
+    let conn = store.conn()?;
+    super::notes::upsert_with_fts(&conn, &note, keystore.master_key(), fts.inner())
+}
+
+#[tauri::command]
+pub fn note_get_all(
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<Vec<super::notes::Note>, AppError> {
+    let conn = store.conn()?;
+    super::notes::get_all(&conn, keystore.master_key())
+}
+
+#[tauri::command]
+pub fn note_get_by_id(
+    id: String,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<Option<super::notes::Note>, AppError> {
+    let conn = store.conn()?;
+    super::notes::get_by_id(&conn, &id, keystore.master_key())
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn note_update(
+    id: String,
+    title: Option<String>,
+    body: Option<String>,
+    pinned: Option<bool>,
+    updated_at: f64,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+    fts: State<'_, Arc<NotesFts>>,
+) -> Result<(), AppError> {
+    let conn = store.conn()?;
+    super::notes::update_with_fts(
+        &conn,
+        &id,
+        title.as_deref(),
+        body.as_deref(),
+        pinned,
+        updated_at,
+        keystore.master_key(),
+        fts.inner(),
+    )
+}
+
+#[tauri::command]
+pub fn note_remove(
+    id: String,
+    store: State<'_, DataStore>,
+    fts: State<'_, Arc<NotesFts>>,
+) -> Result<(), AppError> {
+    let conn = store.conn()?;
+    super::notes::remove_with_fts(&conn, &id, fts.inner())
+}
+
+#[tauri::command]
+pub fn note_toggle_pin(id: String, store: State<'_, DataStore>) -> Result<bool, AppError> {
+    let conn = store.conn()?;
+    super::notes::toggle_pin(&conn, &id)
+}
+
+#[tauri::command]
+pub fn note_search(
+    query: String,
+    limit: u32,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+    fts: State<'_, Arc<NotesFts>>,
+) -> Result<super::notes::NoteSearchResult, AppError> {
+    let conn = store.conn()?;
+    super::notes::search(
+        &conn,
+        fts.inner(),
+        &query,
+        limit as usize,
+        keystore.master_key(),
+    )
+}
+
+/// Resolve a note by id or exact (case-insensitive) title. Returns `None`
+/// when nothing matches.
+#[tauri::command]
+pub fn note_find(
+    id_or_title: String,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<Option<super::notes::Note>, AppError> {
+    let conn = store.conn()?;
+    super::notes::get_by_id_or_title(&conn, &id_or_title, keystore.master_key())
+}
+
+/// Notes that link to the target (resolved by id or title) via `[[Title]]`.
+#[tauri::command]
+pub fn note_backlinks(
+    id_or_title: String,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<Vec<super::notes::Note>, AppError> {
+    let conn = store.conn()?;
+    super::notes::backlinks(&conn, &id_or_title, keystore.master_key())
+}
+
+/// Export a note as a real `.md` file: prompt for a location (default name
+/// derived from the title), write the Markdown, and reveal it in the OS file
+/// manager. Returns the saved path, or `None` if the user cancels the dialog.
+#[tauri::command]
+pub async fn note_export_markdown(
+    id: String,
+    app_handle: AppHandle,
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<Option<String>, AppError> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let note = {
+        let conn = store.conn()?;
+        super::notes::get_by_id(&conn, &id, keystore.master_key())?
+    }
+    .ok_or_else(|| AppError::NotFound(format!("note {id} not found")))?;
+
+    let default_name = format!("{}.md", crate::notes_export::sanitize_filename(&note.title));
+    let dest = app_handle
+        .dialog()
+        .file()
+        .set_file_name(&default_name)
+        .add_filter("Markdown", &["md"])
+        .blocking_save_file();
+    let Some(dest) = dest else {
+        return Ok(None); // user cancelled
+    };
+    let path = dest.to_string();
+
+    let markdown = crate::notes_export::note_to_markdown(&note.title, &note.body);
+    std::fs::write(&path, markdown)
+        .map_err(|e| AppError::Other(format!("Failed to write note file: {e}")))?;
+
+    // Best-effort reveal — the export already succeeded if we got here.
+    let _ = crate::commands::file_manager::reveal_in_file_manager(&path);
+    Ok(Some(path))
 }
 
 // ── Extension Key-Value Storage ───────────────────────────────────────────────

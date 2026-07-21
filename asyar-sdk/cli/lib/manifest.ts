@@ -197,6 +197,8 @@ export const VALID_PERMISSIONS = [
   'process:kill',
   'files:search',
   'files:read',
+  'notes:read',
+  'notes:write',
 ] as const;
 
 export const VALID_PLATFORMS = ['macos', 'windows', 'linux'] as const;

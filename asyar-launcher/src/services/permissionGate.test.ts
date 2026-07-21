@@ -838,4 +838,28 @@ describe('checkPermission', () => {
       expect(allowed.allowed).toBe(true);
     });
   });
+
+  describe('notes:read / notes:write', () => {
+    it('requires notes:read for search/list/get', () => {
+      for (const call of [
+        'asyar:api:notes:search',
+        'asyar:api:notes:list',
+        'asyar:api:notes:get',
+      ]) {
+        const denied = checkPermission('any.ext', call, []);
+        expect(denied.allowed).toBe(false);
+        expect(denied.requiredPermission).toBe('notes:read');
+        expect(checkPermission('any.ext', call, ['notes:read']).allowed).toBe(true);
+      }
+    });
+
+    it('requires notes:write for create/append, and notes:read alone is not enough', () => {
+      for (const call of ['asyar:api:notes:create', 'asyar:api:notes:append']) {
+        const denied = checkPermission('any.ext', call, ['notes:read']);
+        expect(denied.allowed).toBe(false);
+        expect(denied.requiredPermission).toBe('notes:write');
+        expect(checkPermission('any.ext', call, ['notes:write']).allowed).toBe(true);
+      }
+    });
+  });
 });

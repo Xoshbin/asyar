@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const WORKER_PROXY_NAMESPACES = [
   'log',
   'storage',
+  'notes',
   'cache',
   'search',
   'network',

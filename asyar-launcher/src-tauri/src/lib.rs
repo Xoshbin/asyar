@@ -112,6 +112,7 @@ pub mod hud_window;
 pub mod index_events;
 pub mod mcp;
 pub mod network;
+mod notes_export;
 pub mod notifications;
 pub mod oauth;
 pub mod onboarding;
@@ -509,6 +510,17 @@ pub fn run() {
             storage::commands::snippet_remove,
             storage::commands::snippet_toggle_pin,
             storage::commands::snippet_clear_all,
+            // Storage: notes
+            storage::commands::note_upsert,
+            storage::commands::note_get_all,
+            storage::commands::note_get_by_id,
+            storage::commands::note_update,
+            storage::commands::note_remove,
+            storage::commands::note_toggle_pin,
+            storage::commands::note_search,
+            storage::commands::note_find,
+            storage::commands::note_backlinks,
+            storage::commands::note_export_markdown,
             // Raycast import
             commands::raycast_import::raycast_import_parse,
             // Storage: shortcuts
@@ -865,6 +877,59 @@ fn register_builtin_tools(
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     registry
         .register_builtin(Arc::new(SearchTool::new(search_state)))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    Ok(())
+}
+
+/// Registers the Notes AI tools. Split out from `register_builtin_tools`
+/// because it needs the `DataStore` / master key / `NotesFts` that only
+/// exist after the notes-FTS setup block runs, well after
+/// `register_builtin_tools`'s call site near the top of `setup_app`.
+fn register_notes_tools(
+    app_handle: &tauri::AppHandle,
+    fts: std::sync::Arc<crate::storage::notes_fts::NotesFts>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use crate::agents::builtin_tools::notes::{
+        NotesAppendTool, NotesCreateTool, NotesGetTool, NotesListTool, NotesSearchTool,
+    };
+    use std::sync::Arc;
+    use tauri::Manager;
+
+    let registry = app_handle
+        .try_state::<crate::agents::tools::ToolRegistryState>()
+        .ok_or("ToolRegistry not managed")?;
+    let data_store = app_handle
+        .try_state::<storage::DataStore>()
+        .ok_or("DataStore not managed")?
+        .inner()
+        .clone();
+    let master_key: [u8; 32] = *app_handle
+        .try_state::<crate::crypto::keystore::KeystoreState>()
+        .ok_or("KeystoreState not managed")?
+        .master_key();
+
+    registry
+        .register_builtin(Arc::new(NotesSearchTool::new(
+            data_store.clone(),
+            master_key,
+            fts.clone(),
+        )))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry
+        .register_builtin(Arc::new(NotesListTool::new(data_store.clone(), master_key)))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry
+        .register_builtin(Arc::new(NotesGetTool::new(data_store.clone(), master_key)))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry
+        .register_builtin(Arc::new(NotesCreateTool::new(
+            data_store.clone(),
+            master_key,
+            fts.clone(),
+        )))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry
+        .register_builtin(Arc::new(NotesAppendTool::new(data_store, master_key, fts)))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     Ok(())
 }
@@ -1392,6 +1457,48 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 let _ = app_handle.emit("clipboard:fts-ready", ());
             }
         });
+    }
+
+    // Notes FTS: same in-memory-index-plus-background-rebuild pattern as
+    // clipboard above, and for the same reason — the on-disk `notes` table
+    // stays opaque ciphertext while search still works. Emits
+    // `notes:fts-ready` when done so the frontend can flip from an
+    // "indexing" state to live search results.
+    {
+        let fts = std::sync::Arc::new(
+            crate::storage::notes_fts::NotesFts::new_in_memory()
+                .expect("Notes FTS in-memory DB must initialise"),
+        );
+        app.manage(fts.clone());
+
+        let conn_arc = app.state::<storage::DataStore>().conn_arc();
+        let master_key: [u8; 32] = *app
+            .state::<crate::crypto::keystore::KeystoreState>()
+            .master_key();
+        let app_handle = app.handle().clone();
+        let fts_for_task = fts.clone();
+        tauri::async_runtime::spawn(async move {
+            let result = tokio::task::spawn_blocking(move || {
+                let conn = match conn_arc.lock() {
+                    Ok(c) => c,
+                    Err(_) => return false,
+                };
+                crate::storage::notes_fts::rebuild_from_disk(&conn, &fts_for_task, &master_key)
+                    .is_ok()
+            })
+            .await
+            .unwrap_or(false);
+            if result {
+                crate::storage::notes_fts::mark_ready();
+                let _ = app_handle.emit("notes:fts-ready", ());
+            }
+        });
+
+        // Notes AI tools registered here (not in `register_builtin_tools`,
+        // called much earlier at setup start) because they need this
+        // block's `DataStore`/master key/`NotesFts` — registering earlier
+        // would mean these three don't exist yet.
+        register_notes_tools(app.handle(), fts)?;
     }
 
     // MCP: wire the runtime resolver to the now-available AppHandle before

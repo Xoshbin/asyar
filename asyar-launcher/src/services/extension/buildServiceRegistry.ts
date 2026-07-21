@@ -20,6 +20,7 @@ import { searchBarAccessoryService } from '../search/searchBarAccessoryService.s
 import type { SearchBarAccessoryDropdownOption } from 'asyar-sdk/contracts';
 import { entitlementService } from '../auth/entitlementService.svelte';
 import { extensionStorageService } from '../storage/extensionStorageService';
+import { notesService } from './notesService';
 import { extensionPreferencesService } from './extensionPreferencesService.svelte';
 import { extensionCacheService } from '../storage/extensionCacheService';
 import { feedbackService } from '../feedback/feedbackService.svelte';
@@ -90,6 +91,7 @@ export function buildServiceRegistry(deps: {
       getAll: () => entitlementService.getAll(),
     },
     storage: extensionStorageService,
+    notes: notesService,
     preferences: {
       getAll: (extensionId: string) =>
         extensionPreferencesService.getEffectivePreferences(extensionId),

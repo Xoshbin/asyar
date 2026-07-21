@@ -27,6 +27,7 @@ import type { BaseServiceProxy } from './services/BaseServiceProxy';
 
 import { LogServiceProxy } from './services/LogServiceProxy';
 import { StorageServiceProxy } from './services/StorageServiceProxy';
+import { NotesServiceProxy } from './services/NotesServiceProxy';
 import { CacheServiceProxy } from './services/CacheServiceProxy';
 import { SearchServiceProxy } from './services/SearchServiceProxy';
 import { NetworkServiceProxy } from './services/NetworkServiceProxy';
@@ -59,6 +60,7 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
   return {
     log: new LogServiceProxy(),
     storage: new StorageServiceProxy(),
+    notes: new NotesServiceProxy(),
     cache: new CacheServiceProxy(),
     search: new SearchServiceProxy(),
     network: new NetworkServiceProxy(),

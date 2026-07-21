@@ -42,6 +42,7 @@ describe('NAMESPACES', () => {
       'search',
       'files',
       'screen',
+      'notes',
     ]);
   });
 

@@ -1,6 +1,7 @@
 pub mod calculator;
 pub mod clipboard;
 pub mod fs;
+pub mod notes;
 pub mod search;
 pub mod shell;
 pub mod web_fetch;
@@ -11,6 +12,8 @@ mod calculator_test;
 mod clipboard_test;
 #[cfg(test)]
 mod fs_test;
+#[cfg(test)]
+mod notes_test;
 #[cfg(test)]
 mod search_test;
 #[cfg(test)]

@@ -1,0 +1,66 @@
+{
+  "id": "notes",
+  "name": "Notes",
+  "icon": "icon:type",
+  "description": "Write and organize Markdown notes without leaving your keyboard",
+  "version": "1.0.0",
+  "author": "Asyar",
+  "type": "extension",
+  "searchable": true,
+  "commands": [
+    {
+      "id": "open-notes",
+      "name": "Open Notes",
+      "icon": "icon:type",
+      "trigger": "notes",
+      "description": "Browse, search, and write notes",
+      "actions": [
+        {
+          "id": "add",
+          "title": "New Note",
+          "description": "Create a new note",
+          "icon": "icon:plus",
+          "shortcut": "⌘N",
+          "category": "Notes"
+        }
+      ],
+      "mode": "view",
+      "component": "DefaultView"
+    },
+    {
+      "id": "quick-note",
+      "name": "Quick Note",
+      "icon": "icon:plus",
+      "trigger": "note",
+      "description": "Capture a note instantly without opening the editor",
+      "mode": "background",
+      "arguments": [
+        {
+          "name": "text",
+          "type": "text",
+          "placeholder": "What's on your mind?",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "append-today",
+      "name": "Add to Today",
+      "icon": "icon:pencil",
+      "trigger": "today",
+      "description": "Append a line to today's daily note (creates it if needed)",
+      "mode": "background",
+      "arguments": [
+        {
+          "name": "text",
+          "type": "text",
+          "placeholder": "What happened?",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "background": {
+    "main": "dist/worker.js"
+  }
+}

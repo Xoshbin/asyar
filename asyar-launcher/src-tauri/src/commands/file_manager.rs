@@ -50,16 +50,16 @@ fn validate_trash_path(path_str: &str, home_dir: &Path) -> Result<(), AppError> 
     Ok(())
 }
 
-/// Reveals the specified file or directory in the OS file manager.
-#[tauri::command]
-pub async fn show_in_file_manager(path_str: String) -> Result<(), AppError> {
-    validate_show_path(&path_str)?;
-
+/// Reveal a file/directory in the OS file manager (selecting it where the
+/// platform supports it). No path validation — callers that just wrote the
+/// file (e.g. note export) don't need it; `show_in_file_manager` validates
+/// first for the untrusted-path case.
+pub(crate) fn reveal_in_file_manager(path_str: &str) -> Result<(), AppError> {
     #[cfg(target_os = "macos")]
     {
         Command::new("open")
             .arg("-R")
-            .arg(&path_str)
+            .arg(path_str)
             .spawn()
             .map_err(|e| AppError::Other(format!("Failed to reveal path in Finder: {}", e)))?;
     }
@@ -74,7 +74,7 @@ pub async fn show_in_file_manager(path_str: String) -> Result<(), AppError> {
 
     #[cfg(target_os = "linux")]
     {
-        let parent_dir = Path::new(&path_str)
+        let parent_dir = Path::new(path_str)
             .parent()
             .ok_or_else(|| AppError::Other("Cannot get parent directory".to_string()))?;
         Command::new("xdg-open")
@@ -86,6 +86,13 @@ pub async fn show_in_file_manager(path_str: String) -> Result<(), AppError> {
     }
 
     Ok(())
+}
+
+/// Reveals the specified file or directory in the OS file manager.
+#[tauri::command]
+pub async fn show_in_file_manager(path_str: String) -> Result<(), AppError> {
+    validate_show_path(&path_str)?;
+    reveal_in_file_manager(&path_str)
 }
 
 /// Moves the specified file or directory to the OS trash.

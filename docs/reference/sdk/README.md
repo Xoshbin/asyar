@@ -56,6 +56,7 @@ expands the placement guidance.
 | `ExtensionManager`         | `IExtensionManager`         | view                           | None                                              | Navigation, panel control                                                                                                              |
 | `EntitlementService`       | `IEntitlementService`       | view                           | `entitlements:read`                               | Subscription feature gating                                                                                                            |
 | `StorageService`           | `IStorageService`           | both                           | `storage:read/write`                              | Scoped key-value persistence                                                                                                           |
+| `NotesService`             | `INotesService`             | both                           | `notes:read/write`                                | Search, read, create, and append to the user's Notes — never overwrite or delete an existing note                                      |
 | `SelectionService`         | `ISelectionService`         | view                           | `selection:read`                                  | Read selected text / selected file-manager items from the frontmost app                                                                |
 | `FeedbackService`          | `IFeedbackService`          | view                           | None                                              | Toast, HUD, and confirm dialog primitives                                                                                              |
 | `ToolsService`             | `IToolsService`             | worker                         | `tools:register`                                  | Register tools your extension exports to the agent runtime                                                                             |
@@ -100,6 +101,7 @@ expands the placement guidance.
 - **[SearchService](./search-service.md)**
 - **[EntitlementService](./entitlement-service.md)**
 - **[StorageService](./storage-service.md)**
+- **[NotesService](./notes-service.md)**
 - **[FeedbackService](./feedback-service.md)**
 - **[SelectionService](./selection-service.md)**
 - **[ToolsService](./tools-service.md)**
