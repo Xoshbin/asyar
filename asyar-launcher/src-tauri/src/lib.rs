@@ -877,6 +877,59 @@ fn register_builtin_tools(
     Ok(())
 }
 
+/// Registers the Notes AI tools. Split out from `register_builtin_tools`
+/// because it needs the `DataStore` / master key / `NotesFts` that only
+/// exist after the notes-FTS setup block runs, well after
+/// `register_builtin_tools`'s call site near the top of `setup_app`.
+fn register_notes_tools(
+    app_handle: &tauri::AppHandle,
+    fts: std::sync::Arc<crate::storage::notes_fts::NotesFts>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use crate::agents::builtin_tools::notes::{
+        NotesAppendTool, NotesCreateTool, NotesGetTool, NotesListTool, NotesSearchTool,
+    };
+    use std::sync::Arc;
+    use tauri::Manager;
+
+    let registry = app_handle
+        .try_state::<crate::agents::tools::ToolRegistryState>()
+        .ok_or("ToolRegistry not managed")?;
+    let data_store = app_handle
+        .try_state::<storage::DataStore>()
+        .ok_or("DataStore not managed")?
+        .inner()
+        .clone();
+    let master_key: [u8; 32] = *app_handle
+        .try_state::<crate::crypto::keystore::KeystoreState>()
+        .ok_or("KeystoreState not managed")?
+        .master_key();
+
+    registry
+        .register_builtin(Arc::new(NotesSearchTool::new(
+            data_store.clone(),
+            master_key,
+            fts.clone(),
+        )))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry
+        .register_builtin(Arc::new(NotesListTool::new(data_store.clone(), master_key)))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry
+        .register_builtin(Arc::new(NotesGetTool::new(data_store.clone(), master_key)))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry
+        .register_builtin(Arc::new(NotesCreateTool::new(
+            data_store.clone(),
+            master_key,
+            fts.clone(),
+        )))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry
+        .register_builtin(Arc::new(NotesAppendTool::new(data_store, master_key, fts)))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    Ok(())
+}
+
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Honor any pending factory-reset request from the previous session
     // FIRST, before literally anything else touches `app_data_dir` —
@@ -1436,6 +1489,12 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 let _ = app_handle.emit("notes:fts-ready", ());
             }
         });
+
+        // Notes AI tools registered here (not in `register_builtin_tools`,
+        // called much earlier at setup start) because they need this
+        // block's `DataStore`/master key/`NotesFts` — registering earlier
+        // would mean these three don't exist yet.
+        register_notes_tools(app.handle(), fts)?;
     }
 
     // MCP: wire the runtime resolver to the now-available AppHandle before

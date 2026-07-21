@@ -258,6 +258,16 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // the byte read files:read already grants.
         "asyar:api:files:glob" => Some("files:read"),
         "asyar:api:files:thumbnail" => Some("files:read"),
+        // Notes SDK service — third-party extensions can search/read/create/
+        // append to the user's Notes (never update-in-place or delete an
+        // arbitrary note by id, so a buggy or malicious extension cannot
+        // silently corrupt or destroy the user's own notes; see
+        // NotesServiceProxy for the full rationale).
+        "asyar:api:notes:search" => Some("notes:read"),
+        "asyar:api:notes:list" => Some("notes:read"),
+        "asyar:api:notes:get" => Some("notes:read"),
+        "asyar:api:notes:create" => Some("notes:write"),
+        "asyar:api:notes:append" => Some("notes:write"),
         // browser:listAvailableBrowsers / isCompanionInstalled are intentionally
         // permission-free (discovery, low blast radius) → fall through to None.
         // search:rank is intentionally permission-free: the caller supplies its
@@ -496,6 +506,30 @@ mod tests {
         assert_eq!(
             get_required_permission("asyar:api:files:thumbnail"),
             Some("files:read")
+        );
+    }
+
+    #[test]
+    fn test_get_required_permission_notes() {
+        assert_eq!(
+            get_required_permission("asyar:api:notes:search"),
+            Some("notes:read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:notes:list"),
+            Some("notes:read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:notes:get"),
+            Some("notes:read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:notes:create"),
+            Some("notes:write")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:notes:append"),
+            Some("notes:write")
         );
     }
 

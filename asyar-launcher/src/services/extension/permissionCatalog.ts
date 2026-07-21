@@ -75,6 +75,15 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     description:
       'Read the text contents, list the file names, and render thumbnails of files matching the declared path patterns. Credential stores and OS locations are always excluded.',
   },
+  'notes:read': {
+    title: 'Search and read your notes',
+    description: 'Search your Notes and read the full content of any note.',
+  },
+  'notes:write': {
+    title: 'Create and append to notes',
+    description:
+      "Create new notes and add text to the end of existing ones. Cannot overwrite or delete a note's existing content.",
+  },
   'shell:spawn': {
     title: 'Run programs',
     description: 'Spawn OS processes and read their output. Grants broad system access.',

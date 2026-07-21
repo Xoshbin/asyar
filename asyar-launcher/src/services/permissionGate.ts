@@ -155,6 +155,13 @@ export const PERMISSION_MAP: Record<string, string> = {
   // both are strictly less information than the byte read already granted.
   'asyar:api:files:glob': 'files:read',
   'asyar:api:files:thumbnail': 'files:read',
+  // Notes SDK service — search/list/get are read-only; create/append are
+  // additive-only (no update-in-place or delete of an arbitrary note by id).
+  'asyar:api:notes:search': 'notes:read',
+  'asyar:api:notes:list': 'notes:read',
+  'asyar:api:notes:get': 'notes:read',
+  'asyar:api:notes:create': 'notes:write',
+  'asyar:api:notes:append': 'notes:write',
 };
 
 /**

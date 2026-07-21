@@ -23,6 +23,8 @@ export { EntitlementServiceProxy } from './EntitlementServiceProxy';
 
 export type { IStorageService } from './IStorageService';
 export { StorageServiceProxy } from './StorageServiceProxy';
+export type { INotesService, NoteSearchHit, NoteDetail } from './INotesService';
+export { NotesServiceProxy } from './NotesServiceProxy';
 
 export type { IPreferencesService, PreferenceValue } from './IPreferencesService';
 export { PreferencesServiceProxy } from './PreferencesServiceProxy';

@@ -12,6 +12,7 @@ const VIEW_PROXY_NAMESPACES = [
   'statusBar',
   'entitlements',
   'storage',
+  'notes',
   'feedback',
   'selection',
   'oauth',
