@@ -23,6 +23,7 @@ pub mod searchbar_accessory;
 pub mod shell;
 pub mod shortcuts;
 pub mod snippets;
+pub mod sticky_notes;
 pub mod timers;
 
 use crate::error::AppError;
@@ -60,6 +61,7 @@ impl DataStore {
         clipboard::init_table(&conn)?;
         snippets::init_table(&conn)?;
         notes::init_table(&conn)?;
+        sticky_notes::init_table(&conn)?;
         shortcuts::init_table(&conn)?;
         extension_kv::init_table(&conn)?;
         extension_preferences::init_table(&conn)?;
@@ -119,6 +121,7 @@ pub fn create_test_store() -> DataStore {
     clipboard::init_table(&conn).unwrap();
     snippets::init_table(&conn).unwrap();
     notes::init_table(&conn).unwrap();
+    sticky_notes::init_table(&conn).unwrap();
     shortcuts::init_table(&conn).unwrap();
     extension_kv::init_table(&conn).unwrap();
     extension_preferences::init_table(&conn).unwrap();

@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "sticky",
+  "description": "Minimal capability for sticky-note windows. Labels are dynamic (`sticky-<note_id>`), so this matches by glob rather than an explicit list. Grants only what `routes/sticky/+page.svelte` needs: invoke for the note/sticky custom commands (allowed by `core:default`) and listening for the app-defined `notes:changed` event (`core:event:allow-listen` — `core:default` does NOT cover app events in Tauri 2). Window moving, closing and creation all go through custom `sticky_*` commands rather than core window permissions: dragging is done manually because the native `startDragging` path is unreliable for these NSPanel-converted windows on macOS, and `sticky_close` also unpins the note. No filesystem, shell, or notification access.",
+  "windows": ["sticky-*"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}

@@ -248,6 +248,83 @@ pub fn setup_hud_window<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<
     Ok(panel)
 }
 
+/// Bit pattern applied to a sticky-note NSPanel. Raw integers so the unit
+/// test can assert the exact flags without AppKit at test time.
+#[derive(Debug, Clone, Copy)]
+pub struct StickyPanelFlags {
+    /// OR'd `NSWindowCollectionBehavior` bits.
+    pub collection_behavior_bits: u64,
+    /// `NSWindowStyleMask` value for the panel.
+    pub style_mask: i32,
+    /// `NSWindowLevel`. `cocoa::appkit` doesn't re-export
+    /// `NSFloatingWindowLevel`, so the documented AppKit value is inlined —
+    /// the same approach this file already takes for the style-mask bits.
+    pub level: i32,
+}
+
+/// Flags used by [`setup_sticky_window`].
+///
+/// `NonActivatingPanel` is deliberate and is NOT a "cannot be focused" flag —
+/// it means the panel takes keyboard focus *without activating the app*, which
+/// is exactly how the launcher's own search field accepts typing. A sticky
+/// needs the same: click it, type in it, without yanking app activation away
+/// from whatever you were doing.
+pub fn sticky_panel_flags() -> StickyPanelFlags {
+    // 1 << 0: NSWindowCollectionBehaviorCanJoinAllSpaces — a sticky should be
+    //         on whichever Space you're looking at, like a real sticky note.
+    // 1 << 8: NSWindowCollectionBehaviorFullScreenAuxiliary — and visible over
+    //         fullscreen apps.
+    let collection_behavior_bits: u64 = (1 << 0) | (1 << 8);
+    // `set_style_mask` REPLACES the mask, so the resizable bit has to be OR'd
+    // back in — the builder's `.resizable(true)` is otherwise undone here and
+    // the sticky becomes fixed-size.
+    // 1 << 3: NSWindowStyleMaskResizable
+    // 1 << 7: NSWindowStyleMaskNonActivatingPanel
+    let style_mask: i32 = (1 << 3) | (1 << 7);
+    // NSFloatingWindowLevel. Above ordinary app windows (NSNormalWindowLevel
+    // = 0), far below the launcher panel (NSMainMenuWindowLevel = 24, +1) and
+    // the HUD (+2) so summoning the launcher always overlays stickies.
+    let level: i32 = 3;
+    StickyPanelFlags {
+        collection_behavior_bits,
+        style_mask,
+        level,
+    }
+}
+
+/// Configures a sticky-note window: floats over other apps and across Spaces,
+/// and can be typed into.
+///
+/// Level sits deliberately *below* both the launcher panel and the HUD (which
+/// sit at `NSMainMenuWindowLevel` plus 1 and 2 respectively) — summoning the
+/// launcher must still overlay every sticky, not duck underneath them.
+///
+/// Unlike the launcher this does NOT set `becomes_key_only_if_needed`: the
+/// launcher uses that to stop a stray app activation from keying its parked,
+/// invisible panel, whereas a sticky is a real visible window that should key
+/// on click.
+pub fn setup_sticky_window<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<Panel> {
+    let panel = window
+        .to_panel()
+        .map_err(|_| tauri::Error::FailedToReceiveMessage)?;
+
+    let flags = sticky_panel_flags();
+    panel.set_level(flags.level);
+    // Same reason as the launcher/HUD: `set_collection_behaviour` takes a
+    // single variant, so OR the bits straight onto the NSWindow.
+    unsafe {
+        let ns_window = window.ns_window().unwrap() as *mut AnyObject;
+        let _: () = msg_send![
+            ns_window,
+            setCollectionBehavior: flags.collection_behavior_bits
+        ];
+    }
+
+    panel.set_style_mask(flags.style_mask);
+
+    Ok(panel)
+}
+
 pub fn get_window_frame<R: Runtime>(window: &WebviewWindow<R>) -> NSRect {
     let window_handle = window.ns_window().unwrap() as *const AnyObject;
     unsafe { msg_send![window_handle, frame] }
@@ -2724,6 +2801,67 @@ mod tests {
         assert_eq!(
             flags.style_mask, NON_ACTIVATING_PANEL,
             "HUD style mask must be NSWindowStyleMaskNonActivatingPanel so showing it never steals focus from a fullscreen app",
+        );
+    }
+
+    /// Sticky notes float across Spaces and over fullscreen apps, and are
+    /// typable (NonActivatingPanel lets a panel take key focus *without*
+    /// activating the app — it is not a "cannot be focused" flag).
+    #[test]
+    fn sticky_panel_flags_float_across_spaces_and_allow_typing() {
+        let flags = sticky_panel_flags();
+
+        const CAN_JOIN_ALL_SPACES: u64 = 1 << 0;
+        const FULL_SCREEN_AUXILIARY: u64 = 1 << 8;
+        const RESIZABLE: i32 = 1 << 3;
+        const NON_ACTIVATING_PANEL: i32 = 1 << 7;
+
+        assert!(
+            flags.collection_behavior_bits & CAN_JOIN_ALL_SPACES != 0,
+            "a sticky should appear on whichever Space the user is on (got bits={:#x})",
+            flags.collection_behavior_bits,
+        );
+        assert!(
+            flags.collection_behavior_bits & FULL_SCREEN_AUXILIARY != 0,
+            "a sticky should stay visible over fullscreen apps (got bits={:#x})",
+            flags.collection_behavior_bits,
+        );
+        assert!(
+            flags.style_mask & NON_ACTIVATING_PANEL != 0,
+            "sticky takes key focus for typing without activating Asyar",
+        );
+        // `set_style_mask` replaces rather than merges, so losing this bit
+        // silently undoes the builder's `.resizable(true)`.
+        assert!(
+            flags.style_mask & RESIZABLE != 0,
+            "sticky must stay resizable after the panel conversion (got {:#x})",
+            flags.style_mask,
+        );
+    }
+
+    /// The launcher must always overlay stickies when summoned, so a sticky's
+    /// window level has to stay below the launcher panel's.
+    #[test]
+    fn sticky_panel_level_sits_below_the_launcher_and_hud() {
+        // Documented AppKit values (cocoa::appkit doesn't re-export them all).
+        const NS_NORMAL_WINDOW_LEVEL: i32 = 0;
+        const NS_MAIN_MENU_WINDOW_LEVEL: i32 = 24;
+        let launcher_level = NS_MAIN_MENU_WINDOW_LEVEL + 1;
+        let hud_level = NS_MAIN_MENU_WINDOW_LEVEL + 2;
+
+        let sticky_level = sticky_panel_flags().level;
+
+        assert!(
+            sticky_level > NS_NORMAL_WINDOW_LEVEL,
+            "a sticky must float above ordinary app windows (got {sticky_level})",
+        );
+        assert!(
+            sticky_level < launcher_level,
+            "summoning the launcher must overlay stickies (sticky={sticky_level}, launcher={launcher_level})",
+        );
+        assert!(
+            sticky_level < hud_level,
+            "the HUD must overlay stickies (sticky={sticky_level}, hud={hud_level})",
         );
     }
 

@@ -185,15 +185,27 @@ pub fn snippet_clear_all(store: State<'_, DataStore>) -> Result<(), AppError> {
 
 // ── Notes ────────────────────────────────────────────────────────────────────
 
+/// Tell every window a note changed. Each Asyar window is its own webview with
+/// its own JS module instances, so in-process store subscribers never cross the
+/// window boundary — the launcher view and each sticky window rely on this.
+pub(crate) fn emit_note_changed(app: &AppHandle, id: &str) {
+    let _ = app.emit("notes:changed", serde_json::json!({ "id": id }));
+}
+
 #[tauri::command]
 pub fn note_upsert(
     note: super::notes::Note,
+    app: AppHandle,
     store: State<'_, DataStore>,
     keystore: State<'_, KeystoreState>,
     fts: State<'_, Arc<NotesFts>>,
 ) -> Result<(), AppError> {
-    let conn = store.conn()?;
-    super::notes::upsert_with_fts(&conn, &note, keystore.master_key(), fts.inner())
+    {
+        let conn = store.conn()?;
+        super::notes::upsert_with_fts(&conn, &note, keystore.master_key(), fts.inner())?;
+    }
+    emit_note_changed(&app, &note.id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -223,37 +235,58 @@ pub fn note_update(
     body: Option<String>,
     pinned: Option<bool>,
     updated_at: f64,
+    app: AppHandle,
     store: State<'_, DataStore>,
     keystore: State<'_, KeystoreState>,
     fts: State<'_, Arc<NotesFts>>,
 ) -> Result<(), AppError> {
-    let conn = store.conn()?;
-    super::notes::update_with_fts(
-        &conn,
-        &id,
-        title.as_deref(),
-        body.as_deref(),
-        pinned,
-        updated_at,
-        keystore.master_key(),
-        fts.inner(),
-    )
+    {
+        let conn = store.conn()?;
+        super::notes::update_with_fts(
+            &conn,
+            &id,
+            title.as_deref(),
+            body.as_deref(),
+            pinned,
+            updated_at,
+            keystore.master_key(),
+            fts.inner(),
+        )?;
+    }
+    emit_note_changed(&app, &id);
+    Ok(())
 }
 
 #[tauri::command]
 pub fn note_remove(
     id: String,
+    app: AppHandle,
     store: State<'_, DataStore>,
     fts: State<'_, Arc<NotesFts>>,
 ) -> Result<(), AppError> {
-    let conn = store.conn()?;
-    super::notes::remove_with_fts(&conn, &id, fts.inner())
+    {
+        let conn = store.conn()?;
+        super::notes::remove_with_fts(&conn, &id, fts.inner())?;
+    }
+    // Cascade: a deleted note must not leave a sticky window (or its row)
+    // behind. Best-effort — the note itself is already gone.
+    let _ = crate::sticky_window::close(&app, &id);
+    emit_note_changed(&app, &id);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn note_toggle_pin(id: String, store: State<'_, DataStore>) -> Result<bool, AppError> {
-    let conn = store.conn()?;
-    super::notes::toggle_pin(&conn, &id)
+pub fn note_toggle_pin(
+    id: String,
+    app: AppHandle,
+    store: State<'_, DataStore>,
+) -> Result<bool, AppError> {
+    let pinned = {
+        let conn = store.conn()?;
+        super::notes::toggle_pin(&conn, &id)?
+    };
+    emit_note_changed(&app, &id);
+    Ok(pinned)
 }
 
 #[tauri::command]

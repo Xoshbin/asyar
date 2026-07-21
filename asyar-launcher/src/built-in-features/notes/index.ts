@@ -9,11 +9,18 @@ import DefaultView from './DefaultView.svelte';
 import { noteStore, type Note } from './noteStore.svelte';
 import { noteViewState } from './noteViewState.svelte';
 import { splitQuickCapture } from './quickCapture';
-import { noteExportMarkdown } from '../../lib/ipc/commands';
+import {
+  noteExportMarkdown,
+  stickyOpen,
+  stickyClose,
+  stickyIsStuck,
+  stickyNew,
+} from '../../lib/ipc/commands';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { actionService } from '../../services/action/actionService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 function noteAsMarkdown(title: string, body: string): string {
   return title.trim() ? `# ${title}\n\n${body}` : body;
@@ -46,6 +53,7 @@ class NotesExtension implements Extension {
   onUnload = () => {};
   private extensionManager?: IExtensionManager;
   private inView = false;
+  private unlistenNotesChanged: UnlistenFn | null = null;
   private handleKeydownBound = (e: KeyboardEvent) => this.handleKeydown(e);
 
   async initialize(context: ExtensionContext): Promise<void> {
@@ -96,6 +104,11 @@ class NotesExtension implements Extension {
       return { type: 'no-view' };
     }
 
+    if (commandId === 'new-sticky') {
+      await stickyNew();
+      return { type: 'no-view' };
+    }
+
     if (commandId === 'append-today') {
       const text = String(args?.arguments?.text ?? '').trim();
       if (text) {
@@ -110,6 +123,12 @@ class NotesExtension implements Extension {
     this.inView = true;
     window.addEventListener('keydown', this.handleKeydownBound);
     await noteStore.reload();
+
+    // Sticky windows are separate webviews with their own noteStore, so their
+    // edits only reach this view through the Rust-emitted event.
+    this.unlistenNotesChanged = await listen('notes:changed', () => {
+      void noteStore.reload();
+    });
 
     actionService.registerAction({
       id: 'notes:add',
@@ -174,6 +193,27 @@ class NotesExtension implements Extension {
       },
     });
     actionService.registerAction({
+      id: 'notes:stick-to-desktop',
+      label: 'Stick to Desktop',
+      icon: 'icon:pin',
+      description: 'Pin this note to your desktop as a floating window',
+      category: 'Notes',
+      extensionId: 'notes',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        const n = noteViewState.selectedNote;
+        if (!n) return;
+        // One toggle: unstick if it's already on the desktop.
+        if (await stickyIsStuck(n.id)) {
+          await stickyClose(n.id);
+          toastSaved('Unstuck from desktop');
+        } else {
+          await stickyOpen(n.id);
+          toastSaved('Stuck to desktop');
+        }
+      },
+    });
+    actionService.registerAction({
       id: 'notes:export-markdown',
       label: 'Export as Markdown…',
       icon: 'icon:download',
@@ -208,11 +248,14 @@ class NotesExtension implements Extension {
   async viewDeactivated(_viewId: string): Promise<void> {
     this.inView = false;
     window.removeEventListener('keydown', this.handleKeydownBound);
+    this.unlistenNotesChanged?.();
+    this.unlistenNotesChanged = null;
     noteViewState.reset();
     actionService.unregisterAction('notes:add');
     actionService.unregisterAction('notes:toggle-pin');
     actionService.unregisterAction('notes:duplicate');
     actionService.unregisterAction('notes:copy-markdown');
+    actionService.unregisterAction('notes:stick-to-desktop');
     actionService.unregisterAction('notes:export-markdown');
     actionService.unregisterAction('notes:delete');
   }
