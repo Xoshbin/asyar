@@ -27,6 +27,7 @@ import { profileService } from './profile/profileService';
 import { extensionUpdateService } from './extension/extensionUpdateService.svelte';
 import { extensionOAuthService } from './oauth/extensionOAuthService.svelte';
 import { SnippetsSyncProvider } from './profile/providers/snippetsSyncProvider';
+import { NotesSyncProvider } from './profile/providers/notesSyncProvider';
 import { ShortcutsSyncProvider } from './profile/providers/shortcutsSyncProvider';
 import { PortalsSyncProvider } from './profile/providers/portalsSyncProvider';
 import { SettingsSyncProvider } from './profile/providers/settingsSyncProvider';
@@ -62,6 +63,7 @@ export function registerProfileProviders(): void {
   if (profileService.getProviders().length > 0) return;
   profileService.registerProvider(new SettingsSyncProvider());
   profileService.registerProvider(new SnippetsSyncProvider());
+  profileService.registerProvider(new NotesSyncProvider());
   profileService.registerProvider(new ShortcutsSyncProvider());
   profileService.registerProvider(new PortalsSyncProvider());
   profileService.registerProvider(new ClipboardSyncProvider());

@@ -72,6 +72,35 @@ describe('noteStore', () => {
     expect(noteStore.getAll()).toHaveLength(2);
   });
 
+  describe('subscribe()', () => {
+    it('notifies subscribers of upsert on add/update/togglePin, and delete on remove', () => {
+      const events: Array<{ type: string; itemId: string }> = [];
+      const unsub = noteStore.subscribe((ev) => events.push(ev));
+
+      noteStore.add(makeNote('1', 'A', 'alpha'));
+      noteStore.update('1', { body: 'updated' });
+      noteStore.togglePin('1');
+      noteStore.remove('1');
+
+      expect(events).toEqual([
+        { type: 'upsert', itemId: '1' },
+        { type: 'upsert', itemId: '1' },
+        { type: 'upsert', itemId: '1' },
+        { type: 'delete', itemId: '1' },
+      ]);
+      unsub();
+    });
+
+    it('stops receiving events after unsubscribing', () => {
+      const events: Array<{ type: string; itemId: string }> = [];
+      const unsub = noteStore.subscribe((ev) => events.push(ev));
+      unsub();
+
+      noteStore.add(makeNote('1', 'A', 'alpha'));
+      expect(events).toEqual([]);
+    });
+  });
+
   describe('reload()', () => {
     it('re-fetches from DB and replaces stale in-memory state', async () => {
       noteStore.notes = [makeNote('stale', 'Stale', 'old')];
