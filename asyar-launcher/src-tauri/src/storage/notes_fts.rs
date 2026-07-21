@@ -118,15 +118,19 @@ impl NotesFts {
 }
 
 /// Turn a free-form user query into an FTS5 MATCH expression that does
-/// prefix matching on every token. Identical logic to
-/// `clipboard_fts::sanitize_for_fts5` — see that function's doc comment
-/// for the full rationale (as-you-type prefix matching + FTS5
-/// syntax-injection guarding).
+/// prefix matching on every token. Based on `clipboard_fts::sanitize_for_fts5`
+/// — see that function's doc comment for the shared rationale (as-you-type
+/// prefix matching + FTS5 syntax-injection guarding) — with one addition:
+/// `#` is stripped too. The `unicode61` tokenizer already treats `#` as a
+/// separator when indexing content, so a note body containing "#work" is
+/// indexed under the plain token "work"; without stripping `#` here, a user
+/// typing "#work" to find their tagged notes would search for the token
+/// "#work", which never matches anything and silently returns nothing.
 fn sanitize_for_fts5(query: &str) -> String {
     query
         .chars()
         .map(|c| match c {
-            '"' | '*' | '(' | ')' | ':' | '\'' => ' ',
+            '"' | '*' | '(' | ')' | ':' | '\'' | '#' => ' ',
             _ => c,
         })
         .collect::<String>()
@@ -160,6 +164,19 @@ mod tests {
             fts.search("quarterly", 10).unwrap(),
             vec!["id-2".to_string()]
         );
+    }
+
+    #[test]
+    fn hashtag_body_text_is_findable_by_the_bare_word() {
+        // unicode61 (the tokenizer this index uses) treats '#' as a
+        // separator, not a token character — so "#work" tokenizes to the
+        // same term as "work". This means #tags need no special indexing:
+        // searching "work" already finds a note containing "#work".
+        let fts = NotesFts::new_in_memory().unwrap();
+        fts.upsert("id-1", "T", "todo #work #urgent").unwrap();
+        assert_eq!(fts.search("work", 10).unwrap(), vec!["id-1".to_string()]);
+        assert_eq!(fts.search("urgent", 10).unwrap(), vec!["id-1".to_string()]);
+        assert_eq!(fts.search("#work", 10).unwrap(), vec!["id-1".to_string()]);
     }
 
     #[test]

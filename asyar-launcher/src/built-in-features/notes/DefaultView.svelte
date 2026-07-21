@@ -8,9 +8,12 @@
     ActionFooter,
     EmptyState,
     Button,
+    Badge,
   } from '../../components';
   import { noteStore } from './noteStore.svelte';
   import { noteViewState } from './noteViewState.svelte';
+  import { extractTags, getBacklinks, findWikilinkAtCursor } from './noteLinks';
+  import WikilinkPicker from './WikilinkPicker.svelte';
 
   let filteredNotes = $derived(noteViewState.getFilteredNotes());
   let selectedIndex = $derived(noteViewState.selectedIndex);
@@ -24,6 +27,11 @@
   let formBody = $state('');
   let loadedNoteId = $state<string | null>(null);
   let titleEl: HTMLInputElement | undefined = $state();
+  let bodyEl: HTMLTextAreaElement | undefined = $state();
+
+  let wikilinkPickerOpen = $state(false);
+  let wikilinkTriggerPos = $state(-1);
+  let wikilinkQuery = $state('');
 
   $effect(() => {
     const n = selectedNote;
@@ -31,6 +39,7 @@
       formTitle = n.title;
       formBody = n.body;
       loadedNoteId = n.id;
+      wikilinkPickerOpen = false;
       if (noteViewState.justCreatedId === n.id) {
         noteViewState.justCreatedId = null;
         requestAnimationFrame(() => titleEl?.focus());
@@ -39,6 +48,21 @@
       loadedNoteId = null;
     }
   });
+
+  let tags = $derived(extractTags(formBody));
+  let backlinks = $derived(selectedNote ? getBacklinks(selectedNote, noteStore.notes) : []);
+  let wikilinkCandidates = $derived(
+    wikilinkPickerOpen
+      ? noteStore.notes
+          .filter(
+            (n) =>
+              n.id !== loadedNoteId &&
+              n.title.trim() &&
+              n.title.toLowerCase().includes(wikilinkQuery.trim().toLowerCase()),
+          )
+          .slice(0, 8)
+      : [],
+  );
 
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -60,6 +84,64 @@
   }
 
   onDestroy(flushSave);
+
+  function jumpToNote(id: string) {
+    flushSave();
+    void noteViewState.selectAfterMutation(id);
+  }
+
+  // Typing "[[" opens a note-title picker; keep typing to filter it, "]" or
+  // a newline abandons it, Enter/click inserts "Title]]" at the cursor (the
+  // "[[" the user already typed stays as-is).
+  function handleBodyInput(e: Event) {
+    scheduleSave();
+    const input = e.target as HTMLTextAreaElement;
+    const cursorPos = input.selectionStart ?? input.value.length;
+
+    if (wikilinkPickerOpen) {
+      if (cursorPos < wikilinkTriggerPos) {
+        wikilinkPickerOpen = false;
+        return;
+      }
+      const slice = input.value.slice(wikilinkTriggerPos, cursorPos);
+      if (slice.includes(']') || slice.includes('\n')) {
+        wikilinkPickerOpen = false;
+      } else {
+        wikilinkQuery = slice;
+      }
+      return;
+    }
+
+    const before = input.value.slice(Math.max(0, cursorPos - 2), cursorPos);
+    if (before === '[[') {
+      wikilinkTriggerPos = cursorPos;
+      wikilinkQuery = '';
+      wikilinkPickerOpen = true;
+    }
+  }
+
+  function handleWikilinkInsert(title: string) {
+    if (!bodyEl) return;
+    const cursorPos = bodyEl.selectionStart ?? wikilinkTriggerPos;
+    bodyEl.setRangeText(title + ']]', wikilinkTriggerPos, cursorPos, 'end');
+    formBody = bodyEl.value;
+    wikilinkPickerOpen = false;
+    scheduleSave();
+    bodyEl.focus();
+  }
+
+  // ⌘Enter follows the [[link]] the cursor is inside/adjacent to.
+  function handleBodyKeydown(e: KeyboardEvent) {
+    if (!((e.metaKey || e.ctrlKey) && e.key === 'Enter')) return;
+    e.preventDefault();
+    const cursorPos = bodyEl?.selectionStart ?? 0;
+    const title = findWikilinkAtCursor(formBody, cursorPos);
+    if (!title) return;
+    const target = noteStore.notes.find(
+      (n) => n.id !== loadedNoteId && n.title.trim().toLowerCase() === title.trim().toLowerCase(),
+    );
+    if (target) jumpToNote(target.id);
+  }
 
   function previewOf(body: string): string {
     const firstLine = body.split('\n').find((l) => l.trim().length > 0);
@@ -134,16 +216,45 @@
           onblur={flushSave}
           placeholder="Untitled Note"
         />
-        <Textarea
-          unstyled
-          textIntent="verbatim"
-          class="note-body-input custom-scrollbar"
-          autocomplete="off"
-          bind:value={formBody}
-          oninput={scheduleSave}
-          onblur={flushSave}
-          placeholder="Start writing…"
-        ></Textarea>
+        {#if tags.length > 0}
+          <div class="tag-row">
+            {#each tags as tag (tag)}
+              <Badge text={'#' + tag} variant="default" />
+            {/each}
+          </div>
+        {/if}
+        <div class="body-wrapper">
+          <Textarea
+            unstyled
+            textIntent="verbatim"
+            class="note-body-input custom-scrollbar"
+            autocomplete="off"
+            bind:ref={bodyEl}
+            bind:value={formBody}
+            oninput={handleBodyInput}
+            onkeydown={handleBodyKeydown}
+            onblur={flushSave}
+            placeholder="Start writing… ⌘Enter follows a [[link]] under the cursor."
+          ></Textarea>
+          {#if wikilinkPickerOpen}
+            <WikilinkPicker
+              candidates={wikilinkCandidates}
+              query={wikilinkQuery}
+              onInsert={handleWikilinkInsert}
+              onClose={() => (wikilinkPickerOpen = false)}
+            />
+          {/if}
+        </div>
+        {#if backlinks.length > 0}
+          <div class="backlinks-section custom-scrollbar">
+            <div class="backlinks-header">Linked Mentions</div>
+            {#each backlinks as n (n.id)}
+              <button class="backlink-item" onclick={() => jumpToNote(n.id)}>
+                {n.title || 'Untitled Note'}
+              </button>
+            {/each}
+          </div>
+        {/if}
       </div>
       <ActionFooter>
         {#snippet left()}
@@ -223,5 +334,50 @@
     font-size: var(--font-size-md);
     line-height: 1.7;
     padding: 0 0 var(--space-6);
+  }
+
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  .body-wrapper {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  .backlinks-section {
+    flex-shrink: 0;
+    max-height: 140px;
+    overflow-y: auto;
+    padding: var(--space-3) 0 var(--space-6);
+    border-top: 1px solid var(--separator);
+  }
+  .backlinks-header {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+    margin-bottom: var(--space-2);
+  }
+  .backlink-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    padding: var(--space-2) 0;
+    font-size: var(--font-size-sm);
+    color: var(--accent-primary);
+    cursor: pointer;
+  }
+  .backlink-item:hover {
+    text-decoration: underline;
   }
 </style>
