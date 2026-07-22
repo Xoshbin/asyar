@@ -1,6 +1,6 @@
 {
   "name": "asyar-sdk",
-  "version": "4.5.0",
+  "version": "4.6.0",
   "main": "dist/index.js",
   "bin": {
     "asyar": "./dist/cli/index.js"
