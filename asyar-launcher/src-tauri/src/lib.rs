@@ -131,6 +131,7 @@ pub mod secret_detection;
 pub mod selection;
 pub mod shell;
 mod snippets;
+pub mod sticky_window;
 pub mod storage;
 pub mod sync;
 pub mod system_actions;
@@ -521,6 +522,16 @@ pub fn run() {
             storage::commands::note_find,
             storage::commands::note_backlinks,
             storage::commands::note_export_markdown,
+            // Sticky notes (one always-on-top window per pinned note)
+            sticky_window::sticky_open,
+            sticky_window::sticky_close,
+            sticky_window::sticky_new,
+            sticky_window::sticky_drag_start,
+            sticky_window::sticky_drag_move,
+            sticky_window::sticky_drag_end,
+            sticky_window::sticky_is_stuck,
+            sticky_window::sticky_list,
+            sticky_window::sticky_save_geometry,
             // Raycast import
             commands::raycast_import::raycast_import_parse,
             // Storage: shortcuts
@@ -729,14 +740,26 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app_handle, event| {
+        .run(|app_handle, event| match event {
+            // Closing a window must NEVER quit Asyar — it lives in the tray and
+            // is summoned by hotkey, so windows come and go (sticky notes,
+            // settings, onboarding). Tauri's default is to exit once the last
+            // window closes; every intentional quit path (tray menu, the Quit
+            // command, factory reset) calls `app.exit(0)` instead, which
+            // carries an exit code. Only those are allowed through.
+            tauri::RunEvent::ExitRequested {
+                code: None, api, ..
+            } => {
+                api.prevent_exit();
+            }
             // Clear the run marker on graceful exit so the next launch does not
             // mistake a clean shutdown for a crash.
-            if let tauri::RunEvent::Exit = event {
+            tauri::RunEvent::Exit => {
                 if let Ok(data_dir) = app_handle.path().app_data_dir() {
                     feedback::crash_reporter::remove_marker(&data_dir);
                 }
             }
+            _ => {}
         });
 }
 
@@ -1499,6 +1522,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         // block's `DataStore`/master key/`NotesFts` — registering earlier
         // would mean these three don't exist yet.
         register_notes_tools(app.handle(), fts)?;
+    }
+
+    // Re-open every pinned note's sticky window. Runs after the DataStore is
+    // managed (it reads `sticky_notes`) and is fail-soft: a sticky that can't
+    // be restored must never block startup.
+    if let Err(e) = sticky_window::restore_all(app.handle()) {
+        log::warn!("[sticky] restore_all failed: {e}");
     }
 
     // MCP: wire the runtime resolver to the now-available AppHandle before

@@ -44,6 +44,14 @@
       ]
     },
     {
+      "id": "new-sticky",
+      "name": "New Sticky Note",
+      "icon": "icon:pin",
+      "trigger": "sticky",
+      "description": "Create a blank note pinned to your desktop",
+      "mode": "background"
+    },
+    {
       "id": "append-today",
       "name": "Add to Today",
       "icon": "icon:pencil",
