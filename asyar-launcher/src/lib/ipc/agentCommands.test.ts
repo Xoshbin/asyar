@@ -25,6 +25,8 @@ import {
 } from './commands';
 import type { AgentDef } from '../../built-in-features/agents/types';
 import type { AgentRunConfig } from './commands';
+import type { Channel } from '@tauri-apps/api/core';
+import type { AgentStreamEvent } from '../../bindings';
 
 const config: AgentRunConfig = {
   provider: { enabled: true, apiKey: 'test-key' },
@@ -54,7 +56,8 @@ describe('agent runner commands', () => {
   });
 
   it('starts a persistent Rust agent run with the complete contract', async () => {
-    await agentsRunThread('agent-1', 'thread-1', 'hello', 'run-1', config, 'stream-1');
+    const onEvent = {} as Channel<AgentStreamEvent>;
+    await agentsRunThread('agent-1', 'thread-1', 'hello', 'run-1', config, 'stream-1', onEvent);
 
     expect(invokeRaw).toHaveBeenCalledWith('agents_run_thread', {
       agentId: 'agent-1',
@@ -63,18 +66,23 @@ describe('agent runner commands', () => {
       runId: 'run-1',
       config,
       streamId: 'stream-1',
+      onEvent,
     });
   });
 
   it('starts an ephemeral Rust run using the stored agent id', async () => {
     vi.mocked(invokeRaw).mockResolvedValueOnce('answer');
 
-    await expect(agentsRunSilent('agent-1', 'hello', config, 'stream-2')).resolves.toBe('answer');
+    const onEvent = {} as Channel<AgentStreamEvent>;
+    await expect(agentsRunSilent('agent-1', 'hello', config, 'stream-2', onEvent)).resolves.toBe(
+      'answer',
+    );
     expect(invokeRaw).toHaveBeenCalledWith('agents_run_silent', {
       agentId: 'agent-1',
       userText: 'hello',
       config,
       streamId: 'stream-2',
+      onEvent,
     });
   });
 

@@ -58,13 +58,6 @@ pub enum AgentStreamEvent {
     Cancelled,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentStreamEventPayload {
-    pub stream_id: String,
-    pub event: AgentStreamEvent,
-}
-
 /// Everything Rust needs to resolve *and* validate an agent's provider for a
 /// run, without owning the settings store itself: the frontend still owns
 /// `settings.ai.providers`/`defaultAgentId` and passes them through as data

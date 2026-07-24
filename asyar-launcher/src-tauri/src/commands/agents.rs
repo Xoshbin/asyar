@@ -1,6 +1,5 @@
 use crate::agents::runner::{
-    AgentRunConfig, AgentRunnerState, AgentStreamEvent, AgentStreamEventPayload,
-    ExternalToolRequest, McpPermissionChoice,
+    AgentRunConfig, AgentRunnerState, AgentStreamEvent, ExternalToolRequest, McpPermissionChoice,
 };
 use crate::agents::tool_executor::{execute_agent_tool, TauriAgentToolRuntime};
 use crate::agents::tools::ToolRegistryState;
@@ -16,6 +15,7 @@ use crate::storage::DataStore;
 use rusqlite::Connection;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, State};
 
 fn now_ms() -> i64 {
@@ -463,22 +463,20 @@ pub async fn agents_run_thread(
     run_id: Option<String>,
     config: AgentRunConfig,
     stream_id: String,
+    on_event: Channel<AgentStreamEvent>,
 ) -> Result<(), AppError> {
     let cancellation = runner_state.begin_run(&stream_id)?;
-    let app_clone = app.clone();
-    let stream_id_clone = stream_id.clone();
 
-    let on_event = move |event: AgentStreamEvent| {
-        let payload = AgentStreamEventPayload {
-            stream_id: stream_id_clone.clone(),
-            event,
-        };
-        let _ = app_clone.emit("agent-stream-event", &payload);
+    // Per-caller event sink: the channel is scoped to the invoking view,
+    // replacing the broadcast "agent-stream-event" bus + streamId filter.
+    let events = on_event.clone();
+    let emit_event = move |event: AgentStreamEvent| {
+        let _ = events.send(event);
     };
     let tool_runtime = TauriAgentToolRuntime::new(
-        app.clone(),
         runner_state.inner().clone(),
         stream_id.clone(),
+        on_event,
         supervisor.inner().clone(),
         store.inner().clone(),
     );
@@ -499,7 +497,7 @@ pub async fn agents_run_thread(
         user_text,
         run_id,
         config,
-        on_event,
+        emit_event,
         dispatch_external,
         Some(cancellation),
     )
@@ -523,6 +521,7 @@ pub async fn agents_run_silent(
     user_text: String,
     config: AgentRunConfig,
     stream_id: String,
+    on_event: Channel<AgentStreamEvent>,
 ) -> Result<String, AppError> {
     let agent = {
         let conn = store.conn()?;
@@ -550,22 +549,17 @@ pub async fn agents_run_silent(
 
     let cache_key = user_text.clone();
     let cancellation = runner_state.begin_run(&stream_id)?;
-    let app_for_events = app.clone();
-    let event_stream_id = stream_id.clone();
-    let on_event = move |event: AgentStreamEvent| {
-        let _ = app_for_events.emit(
-            "agent-stream-event",
-            &AgentStreamEventPayload {
-                stream_id: event_stream_id.clone(),
-                event,
-            },
-        );
+
+    // Per-caller event sink (see agents_run_thread).
+    let events = on_event.clone();
+    let emit_event = move |event: AgentStreamEvent| {
+        let _ = events.send(event);
     };
 
     let tool_runtime = TauriAgentToolRuntime::new(
-        app.clone(),
         runner_state.inner().clone(),
         stream_id.clone(),
+        on_event,
         supervisor.inner().clone(),
         store.inner().clone(),
     );
@@ -583,7 +577,7 @@ pub async fn agents_run_silent(
         &registry,
         user_text,
         config,
-        on_event,
+        emit_event,
         dispatch_external,
         Some(cancellation),
     )

@@ -1,8 +1,13 @@
 // asyar-launcher/src/lib/ipc/systemActionCommands.ts
 // Tauri command wrappers, re-exported through ./commands (the barrel).
+import type { Channel } from '@tauri-apps/api/core';
 import { invokeSafe, invokeSafeVoid, invokeRaw } from './invokeSafe';
 import type { ProviderConfig } from '../../services/ai/IProviderPlugin';
-import type { AgentRunConfig as AgentRunConfigContract, SystemAction } from '../../bindings';
+import type {
+  AgentRunConfig as AgentRunConfigContract,
+  AgentStreamEvent,
+  SystemAction,
+} from '../../bindings';
 
 // ── System actions ────────────────────────────────────────────────────────────
 
@@ -29,8 +34,17 @@ export async function agentsRunThread(
   runId: string | null,
   config: AgentRunConfig,
   streamId: string,
+  onEvent: Channel<AgentStreamEvent>,
 ): Promise<void> {
-  await invokeRaw('agents_run_thread', { agentId, threadId, userText, runId, config, streamId });
+  await invokeRaw('agents_run_thread', {
+    agentId,
+    threadId,
+    userText,
+    runId,
+    config,
+    streamId,
+    onEvent,
+  });
 }
 
 export async function agentsRunSilent(
@@ -38,12 +52,14 @@ export async function agentsRunSilent(
   userText: string,
   config: AgentRunConfig,
   streamId: string,
+  onEvent: Channel<AgentStreamEvent>,
 ): Promise<string> {
   return invokeRaw<string>('agents_run_silent', {
     agentId,
     userText,
     config,
     streamId,
+    onEvent,
   });
 }
 
