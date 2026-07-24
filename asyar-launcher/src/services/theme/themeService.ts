@@ -1,6 +1,6 @@
 import { getThemeDefinition } from '../../lib/ipc/commands';
 import type { ThemeDefinition } from '../../lib/ipc/commands';
-import { THEME_VAR_NAMES } from '../../lib/themeVariables';
+import { THEMEABLE_VAR_NAMES } from '../../lib/themeVariables';
 import { syncNativeBarStyle } from './nativeBarSync';
 
 export const THEME_STYLE_ID = 'asyar-theme-fonts';
@@ -30,7 +30,7 @@ export async function applyTheme(themeId: string): Promise<void> {
     throw new Error(`get_theme_definition failed for ${themeId}`);
   }
 
-  const allowedSet = new Set(THEME_VAR_NAMES);
+  const allowedSet = new Set(THEMEABLE_VAR_NAMES);
   for (const [name, value] of Object.entries(definition.variables)) {
     if (allowedSet.has(name)) {
       document.documentElement.style.setProperty(name, value);
@@ -56,6 +56,13 @@ export async function applyTheme(themeId: string): Promise<void> {
     document.head.appendChild(styleEl);
   }
 
+  // Marker for CSS: while a custom theme is active, the .settings-page opaque
+  // overrides (which force system light/dark surfaces) step aside so the
+  // theme's full palette — text and accents included — flows through. Without
+  // this the settings page keeps system backgrounds but inherits the theme's
+  // text colors, producing unreadable low-contrast text.
+  document.documentElement.dataset.customTheme = themeId;
+
   queueNativeBarResync();
 }
 
@@ -72,6 +79,8 @@ export function removeTheme(): void {
   if (existing) {
     existing.remove();
   }
+
+  delete document.documentElement.dataset.customTheme;
 
   queueNativeBarResync();
 }

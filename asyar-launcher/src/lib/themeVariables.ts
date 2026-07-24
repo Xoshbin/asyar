@@ -66,6 +66,21 @@ export const THEME_VAR_NAMES: readonly string[] = [
 ];
 
 /**
+ * The subset of design tokens a custom theme extension is allowed to override.
+ *
+ * A theme recolors the app — it must never resize its layout. The spacing
+ * scale (`--space-*`) and type scale (`--font-size-*`) are design-system-owned:
+ * a third-party theme shipping its own (larger, or incomplete) values would
+ * reflow and overflow real UI like the Settings tab row. Those tokens are
+ * still collected for iframe injection via `THEME_VAR_NAMES`, but `applyTheme`
+ * filters overrides through this narrower list so themes can only change
+ * color, shadow, radius, font family, and transition tokens.
+ */
+export const THEMEABLE_VAR_NAMES: readonly string[] = THEME_VAR_NAMES.filter(
+  (name) => !name.startsWith('--space-') && !name.startsWith('--font-size-'),
+);
+
+/**
  * Reads the current computed values of all Asyar design token CSS variables
  * from the given element (should be document.documentElement).
  * Returns a plain object mapping variable name → computed value string.
