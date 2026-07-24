@@ -779,13 +779,18 @@ pub fn pin_launcher_webview<R: Runtime>(window: &WebviewWindow<R>) {
         let content_view: *mut AnyObject = msg_send![nsw, contentView];
         let content_frame: NSRect = msg_send![content_view, frame];
 
-        // Clip contentView to a 15px rounded rect so all subviews share the
-        // same mask — window_vibrancy only rounds the vibrancy view, and once
-        // the webview is pinned on top its square corners cover vibrancy's.
+        // Clip contentView to a rounded rect so all subviews share the same
+        // mask — window_vibrancy only rounds the vibrancy view, and once the
+        // webview is pinned on top its square corners cover vibrancy's.
+        //
+        // Must match the CSS shell radius (`--radius` shell / `:root`
+        // border-radius in style.css). The webview paints the dark fill rounded
+        // at that radius; if this clip is smaller, the fill recedes inside the
+        // mask and each corner leaks a wallpaper crescent.
         let _: () = msg_send![content_view, setWantsLayer: true];
         let layer: *mut AnyObject = msg_send![content_view, layer];
         if !layer.is_null() {
-            let _: () = msg_send![layer, setCornerRadius: 15.0_f64];
+            let _: () = msg_send![layer, setCornerRadius: 20.0_f64];
             let _: () = msg_send![layer, setMasksToBounds: Bool::YES];
         }
 
