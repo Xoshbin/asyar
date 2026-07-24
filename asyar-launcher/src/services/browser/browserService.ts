@@ -138,7 +138,8 @@ export class BrowserService {
   }
 
   // — Per-kind subscribe methods. Each hard-codes `eventTypes` so the wire payload
-  // cannot side-channel a different kind. See permissionGate.ts for the per-kind gates.
+  // cannot side-channel a different kind. Per-kind permissions are enforced in
+  // src-tauri/src/permissions.rs (get_required_permission).
   async subscribeTabsChanged(callerExtensionId: string | null): Promise<string> {
     return (await browserSubscribeTabsChanged()) ?? '';
   }
