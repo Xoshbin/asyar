@@ -9,7 +9,6 @@
 use crate::shell::{now_millis, ShellProcessRegistry};
 use log::info;
 use std::time::Duration;
-use tauri::async_runtime;
 
 const STARTUP_DELAY_SECS: u64 = 60;
 const PRUNE_INTERVAL_SECS: u64 = 60;
@@ -17,19 +16,26 @@ const PRUNE_INTERVAL_SECS: u64 = 60;
 /// resolve the stored exit_code before the GC collects them.
 pub const PRUNE_AGE_MILLIS: u64 = 10 * 60 * 1000;
 
-pub fn start(registry: ShellProcessRegistry) {
-    async_runtime::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(STARTUP_DELAY_SECS)).await;
+/// Prune finished shell entries past their linger window. One tick of the GC.
+fn run_prune(registry: &ShellProcessRegistry) {
+    match registry.prune_finished(PRUNE_AGE_MILLIS, now_millis()) {
+        Ok(n) if n > 0 => info!("[shell] pruned {n} finished entries"),
+        Ok(_) => {}
+        Err(e) => log::warn!("[shell] prune error: {e}"),
+    }
+}
 
-        loop {
-            match registry.prune_finished(PRUNE_AGE_MILLIS, now_millis()) {
-                Ok(n) if n > 0 => info!("[shell] pruned {n} finished entries"),
-                Ok(_) => {}
-                Err(e) => log::warn!("[shell] prune error: {e}"),
-            }
-            tokio::time::sleep(Duration::from_secs(PRUNE_INTERVAL_SECS)).await;
-        }
-    });
+/// Scheduler job: prune finished shell entries 60s after launch, then every 60s.
+pub fn job(registry: ShellProcessRegistry) -> crate::scheduler::Job {
+    crate::scheduler::Job::fixed_interval(
+        "shell-gc",
+        Duration::from_secs(STARTUP_DELAY_SECS),
+        Duration::from_secs(PRUNE_INTERVAL_SECS),
+        move || {
+            let registry = registry.clone();
+            async move { run_prune(&registry) }
+        },
+    )
 }
 
 #[cfg(test)]
