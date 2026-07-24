@@ -125,6 +125,7 @@ pub mod profile;
 pub mod raycast_import;
 pub mod runs;
 pub mod runtimes;
+mod scheduler;
 pub mod scripts;
 mod search_engine;
 pub mod secret_detection;
@@ -259,6 +260,7 @@ pub fn run() {
         )))
         .manage(extensions::onboarding_intercept::StashRegistry::default())
         .manage(app_updater::AppUpdaterState::new())
+        .manage(scheduler::Scheduler::new())
         .manage(power::PowerRegistry::new(power::default_backend()))
         .manage(std::sync::Arc::new(
             system_actions::SystemActionsState::new(system_actions::default_backend()),
@@ -306,6 +308,7 @@ pub fn run() {
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
             deeplink::flush_pending_deeplinks,
+            scheduler::get_scheduler_snapshot,
             commands::set_focus_lock,
             commands::feedback_publish,
             commands::feedback_get_current,
@@ -1126,9 +1129,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             app.handle().clone(),
             Arc::clone(&registry),
         );
-        // Hourly GC for entries whose owning notification the OS closed
-        // without telling us. Same shape as app_updater::scheduler::start.
-        crate::notifications::scheduler::start(Arc::clone(&registry));
         app.manage(registry);
         app.manage(backend);
     }
@@ -1799,19 +1799,25 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Setup global shortcut with default configuration
     setup_global_shortcut(handle);
 
-    // Spawn background app update scheduler
-    crate::app_updater::scheduler::start(app.handle().clone());
-
-    // Spawn background shell-registry GC. Drops finished entries older than
-    // PRUNE_AGE_MILLIS so reattach-right-after-exit still resolves the
-    // stored exit_code within the window.
+    // Central background scheduler: one registry of fixed-interval jobs,
+    // replacing the per-feature copy-pasted spawn-loop daemons. Adding a
+    // periodic job is one register() call with a cadence + work closure.
     {
-        let registry: tauri::State<'_, shell::ShellProcessRegistry> = app.state();
-        crate::shell::scheduler::start(registry.inner().clone());
+        let sched = app.state::<crate::scheduler::Scheduler>();
+        let handle = app.handle();
+        sched.register(crate::app_updater::scheduler::job(handle.clone()));
+        sched.register(crate::extensions::update_scheduler::job(handle.clone()));
+        sched.register(crate::shell::scheduler::job(
+            app.state::<crate::shell::ShellProcessRegistry>()
+                .inner()
+                .clone(),
+        ));
+        sched.register(crate::notifications::scheduler::job(
+            app.state::<std::sync::Arc<crate::notifications::NotificationActionRegistry>>()
+                .inner()
+                .clone(),
+        ));
     }
-
-    // Spawn background extension update scheduler (emits asyar:extension-update:tick hourly)
-    crate::extensions::update_scheduler::start(app.handle().clone());
 
     // Wire the system-events hub emitter to Tauri's AppHandle and start the
     // per-platform watcher. The hub is a singleton for the app lifetime.

@@ -10,27 +10,30 @@ use crate::notifications::NotificationActionRegistry;
 use log::info;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::async_runtime;
 
 const STARTUP_DELAY_SECS: u64 = 60;
 const PURGE_INTERVAL_SECS: u64 = 3600; // 1 hour
 const TTL_SECS: u64 = 86_400; // 24 h — matches NotificationActionRegistry::DEFAULT_TTL
 
-/// Spawn a background tokio task that drops action entries older than the
-/// registry TTL every hour. Fires once after `STARTUP_DELAY_SECS`, then
-/// every `PURGE_INTERVAL_SECS`.
-pub fn start(registry: Arc<NotificationActionRegistry>) {
-    async_runtime::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(STARTUP_DELAY_SECS)).await;
+/// Drop action entries older than the registry TTL. One tick of the GC job.
+fn run_purge(registry: &NotificationActionRegistry) {
+    let removed = registry.purge_expired(Instant::now(), Duration::from_secs(TTL_SECS));
+    if removed > 0 {
+        info!("[notifications] purged {removed} expired action entries");
+    }
+}
 
-        loop {
-            let removed = registry.purge_expired(Instant::now(), Duration::from_secs(TTL_SECS));
-            if removed > 0 {
-                info!("[notifications] purged {removed} expired action entries");
-            }
-            tokio::time::sleep(Duration::from_secs(PURGE_INTERVAL_SECS)).await;
-        }
-    });
+/// Scheduler job: purge expired action entries 60s after launch, then hourly.
+pub fn job(registry: Arc<NotificationActionRegistry>) -> crate::scheduler::Job {
+    crate::scheduler::Job::fixed_interval(
+        "notification-gc",
+        Duration::from_secs(STARTUP_DELAY_SECS),
+        Duration::from_secs(PURGE_INTERVAL_SECS),
+        move || {
+            let registry = Arc::clone(&registry);
+            async move { run_purge(&registry) }
+        },
+    )
 }
 
 #[cfg(test)]

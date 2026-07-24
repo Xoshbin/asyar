@@ -1,5 +1,6 @@
 use log::info;
-use tauri::{async_runtime, AppHandle, Emitter};
+use std::time::Duration;
+use tauri::{AppHandle, Emitter};
 
 const STARTUP_DELAY_SECS: u64 = 60;
 const CHECK_INTERVAL_SECS: u64 = 3600; // 1 hour
@@ -23,27 +24,28 @@ fn read_auto_update_setting(app: &AppHandle) -> bool {
         .unwrap_or(DEFAULT_AUTO_UPDATE)
 }
 
-/// Spawn a background tokio task that periodically emits `asyar:extension-update:tick`
-/// so the frontend's `ExtensionUpdateService` can run `checkAndAutoApply`.
-///
-/// Fires once after `STARTUP_DELAY_SECS`, then every `CHECK_INTERVAL_SECS`,
-/// but only when `settings.extensions.autoUpdate` is enabled.
-pub fn start(app: AppHandle) {
-    async_runtime::spawn(async move {
-        // Wait a bit after launch before the first tick, so startup isn't slowed down.
-        tokio::time::sleep(tokio::time::Duration::from_secs(STARTUP_DELAY_SECS)).await;
+/// Emit `asyar:extension-update:tick` so the frontend's `ExtensionUpdateService`
+/// can run `checkAndAutoApply`, when `settings.extensions.autoUpdate` is on.
+fn run_tick(app: &AppHandle) {
+    if read_auto_update_setting(app) {
+        info!("extension_updater: scheduled check running...");
+        let _ = app.emit("asyar:extension-update:tick", serde_json::json!({}));
+    } else {
+        info!("extension_updater: auto-update is disabled, skipping scheduled tick");
+    }
+}
 
-        loop {
-            if read_auto_update_setting(&app) {
-                info!("extension_updater: scheduled check running...");
-                let _ = app.emit("asyar:extension-update:tick", serde_json::json!({}));
-            } else {
-                info!("extension_updater: auto-update is disabled, skipping scheduled tick");
-            }
-
-            tokio::time::sleep(tokio::time::Duration::from_secs(CHECK_INTERVAL_SECS)).await;
-        }
-    });
+/// Scheduler job: emit the extension-update tick 60s after launch, then hourly.
+pub fn job(app: AppHandle) -> crate::scheduler::Job {
+    crate::scheduler::Job::fixed_interval(
+        "extension-update-check",
+        Duration::from_secs(STARTUP_DELAY_SECS),
+        Duration::from_secs(CHECK_INTERVAL_SECS),
+        move || {
+            let app = app.clone();
+            async move { run_tick(&app) }
+        },
+    )
 }
 
 #[cfg(test)]

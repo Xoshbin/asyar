@@ -1,5 +1,6 @@
 use log::{error, info};
-use tauri::{async_runtime, AppHandle, Emitter};
+use std::time::Duration;
+use tauri::{AppHandle, Emitter};
 
 const STARTUP_DELAY_SECS: u64 = 60;
 const CHECK_INTERVAL_SECS: u64 = 6 * 3600; // 6 hours
@@ -47,35 +48,38 @@ fn read_update_settings(app: &AppHandle) -> UpdateSettings {
     }
 }
 
-/// Spawn a background tokio task that periodically checks for app updates.
-/// The task respects the user's `autoCheck` and `channel` settings from `settings.dat`.
-pub fn start(app: AppHandle) {
-    async_runtime::spawn(async move {
-        // Wait a bit after launch before the first check, so startup isn't slowed down.
-        tokio::time::sleep(tokio::time::Duration::from_secs(STARTUP_DELAY_SECS)).await;
+/// Run one scheduled update check, respecting the user's `autoCheck` and
+/// `channel` settings from `settings.dat`.
+async fn run_check(app: &AppHandle) {
+    let settings = read_update_settings(app);
 
-        loop {
-            let settings = read_update_settings(&app);
-
-            if settings.auto_check {
-                info!("app_updater: scheduled check running...");
-                if let Err(e) =
-                    crate::app_updater::service::check_and_maybe_download(&app, &settings.channel)
-                        .await
-                {
-                    error!("app_updater: scheduled check failed: {}", e);
-                    let _ = app.emit(
-                        "asyar:app-update:error",
-                        serde_json::json!({ "message": e }),
-                    );
-                }
-            } else {
-                info!("app_updater: auto-check is disabled, skipping scheduled check");
-            }
-
-            tokio::time::sleep(tokio::time::Duration::from_secs(CHECK_INTERVAL_SECS)).await;
+    if settings.auto_check {
+        info!("app_updater: scheduled check running...");
+        if let Err(e) =
+            crate::app_updater::service::check_and_maybe_download(app, &settings.channel).await
+        {
+            error!("app_updater: scheduled check failed: {}", e);
+            let _ = app.emit(
+                "asyar:app-update:error",
+                serde_json::json!({ "message": e }),
+            );
         }
-    });
+    } else {
+        info!("app_updater: auto-check is disabled, skipping scheduled check");
+    }
+}
+
+/// Scheduler job: check for app updates 60s after launch, then every 6h.
+pub fn job(app: AppHandle) -> crate::scheduler::Job {
+    crate::scheduler::Job::fixed_interval(
+        "app-update-check",
+        Duration::from_secs(STARTUP_DELAY_SECS),
+        Duration::from_secs(CHECK_INTERVAL_SECS),
+        move || {
+            let app = app.clone();
+            async move { run_check(&app).await }
+        },
+    )
 }
 
 #[cfg(test)]
