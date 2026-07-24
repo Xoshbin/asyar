@@ -60,13 +60,13 @@ vi.mock('../../services/log/logService', () => ({
 const bridgeMock = vi.hoisted(() => ({
   options: undefined as
     { streamId: string; agentId: string; onBridgeError?: (error: Error) => void } | undefined,
-  unlisten: vi.fn(),
+  dispose: vi.fn(),
 }));
 
 vi.mock('./agentStreamBridge', () => ({
-  listenToAgentStream: vi.fn(async (options) => {
+  createAgentStreamChannel: vi.fn((options) => {
     bridgeMock.options = options;
-    return bridgeMock.unlisten;
+    return { channel: {}, dispose: bridgeMock.dispose };
   }),
 }));
 
@@ -155,6 +155,7 @@ describe('dispatchSilentAgentCommand', () => {
       'helo',
       runConfig,
       expect.any(String),
+      expect.anything(),
     );
     expect(bridgeMock.options).toEqual(
       expect.objectContaining({ agentId: 'agent-1', streamId: expect.any(String) }),
@@ -162,7 +163,7 @@ describe('dispatchSilentAgentCommand', () => {
     expect(agentService.insertMessage).not.toHaveBeenCalled();
     expect(agentService.createThread).not.toHaveBeenCalled();
     expect(agentService.listMessages).not.toHaveBeenCalled();
-    expect(bridgeMock.unlisten).toHaveBeenCalledOnce();
+    expect(bridgeMock.dispose).toHaveBeenCalledOnce();
   });
 
   it('captures selected text in Svelte before invoking Rust', async () => {
@@ -176,6 +177,7 @@ describe('dispatchSilentAgentCommand', () => {
       'selected words',
       runConfig,
       expect.any(String),
+      expect.anything(),
     );
   });
 
@@ -243,6 +245,7 @@ describe('dispatchSilentAgentCommand', () => {
       'party',
       runConfig,
       expect.any(String),
+      expect.anything(),
     );
   });
 

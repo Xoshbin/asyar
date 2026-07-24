@@ -24,7 +24,7 @@ import { selectionService } from '../../services/selection/selectionService';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { windowService } from '../../services/window/windowService';
 import { agentService } from './agentService.svelte';
-import { listenToAgentStream } from './agentStreamBridge';
+import { createAgentStreamChannel } from './agentStreamBridge';
 import type { AgentDef, SilentInputSource, SilentOutputAction } from './types';
 
 const CLIPBOARD_RESTORE_DELAY_MS = 200;
@@ -80,7 +80,7 @@ async function runSilentAgentCommand(input: SilentDispatchInput): Promise<void> 
 
   let resolvedAgent: AgentDef | null = null;
   let spinner: HudSpinnerHandle | null = null;
-  let unlisten: (() => void) | undefined;
+  let dispose: (() => void) | undefined;
   let removeAbortListener: (() => void) | undefined;
 
   try {
@@ -105,13 +105,14 @@ async function runSilentAgentCommand(input: SilentDispatchInput): Promise<void> 
       maxTokens: settings.ai.maxTokens,
     };
     let bridgeError: Error | null = null;
-    unlisten = await listenToAgentStream({
+    const stream = createAgentStreamChannel({
       streamId,
       agentId: agent.id,
       onBridgeError: (error) => {
         bridgeError = error;
       },
     });
+    dispose = stream.dispose;
 
     const onAbort = (): void => {
       void agentsCancelRun(streamId).catch(() => undefined);
@@ -125,7 +126,7 @@ async function runSilentAgentCommand(input: SilentDispatchInput): Promise<void> 
       return;
     }
 
-    const result = await agentsRunSilent(agent.id, userText, runConfig, streamId);
+    const result = await agentsRunSilent(agent.id, userText, runConfig, streamId, stream.channel);
     if (bridgeError) throw bridgeError;
     if (input.abortSignal?.aborted) {
       await spinner.dismiss();
@@ -175,7 +176,7 @@ async function runSilentAgentCommand(input: SilentDispatchInput): Promise<void> 
     await reportFailure(errorTarget, detail);
   } finally {
     removeAbortListener?.();
-    unlisten?.();
+    dispose?.();
   }
 }
 

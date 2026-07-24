@@ -34,13 +34,13 @@ const streamMock = vi.hoisted(() => ({
         onBridgeError?: (error: Error) => void;
       }
     | undefined,
-  unlisten: vi.fn(),
+  dispose: vi.fn(),
 }));
 
 vi.mock('./agentStreamBridge', () => ({
-  listenToAgentStream: vi.fn(async (options) => {
+  createAgentStreamChannel: vi.fn((options) => {
     streamMock.options = options;
-    return streamMock.unlisten;
+    return { channel: {}, dispose: streamMock.dispose };
   }),
 }));
 
@@ -158,6 +158,7 @@ describe('runAgent', () => {
       'run-1',
       runConfig,
       expect.any(String),
+      expect.anything(),
     );
     expect(onUserMessagePersisted).toHaveBeenCalledOnce();
     expect(onAssistantStatus).toHaveBeenNthCalledWith(1, 'searching');
@@ -166,7 +167,7 @@ describe('runAgent', () => {
     expect(onAssistantTurnPersisted).toHaveBeenCalledOnce();
     expect(handle.write).toHaveBeenCalledWith('Hi');
     expect(handle.done).toHaveBeenCalledOnce();
-    expect(streamMock.unlisten).toHaveBeenCalledOnce();
+    expect(streamMock.dispose).toHaveBeenCalledOnce();
   });
 
   it('fails the tracked run and rethrows a Rust command error', async () => {
@@ -178,7 +179,7 @@ describe('runAgent', () => {
 
     expect(handle.fail).toHaveBeenCalledWith('provider unavailable');
     expect(handle.done).not.toHaveBeenCalled();
-    expect(streamMock.unlisten).toHaveBeenCalledOnce();
+    expect(streamMock.dispose).toHaveBeenCalledOnce();
   });
 
   it('cancels Rust and marks the run cancelled when the caller aborts', async () => {
@@ -251,6 +252,7 @@ describe('runAgent', () => {
       'run-1',
       runConfig,
       expect.any(String),
+      expect.anything(),
     );
   });
 });

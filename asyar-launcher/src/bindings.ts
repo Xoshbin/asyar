@@ -28,11 +28,6 @@ export type AgentRunConfig = {
 
 export type AgentStreamEvent = { type: "user_message_persisted" } | { type: "text_delta"; delta: string; accumulated: string } | { type: "status"; status: string | null } | { type: "assistant_turn_persisted" } | { type: "tool_dispatch"; tool_call_id: string; extension_id: string; tool_id: string; arguments: any } | { type: "tool_dispatch_cancelled"; tool_call_id: string } | { type: "mcp_permission_request"; tool_call_id: string; server_id: string; tool_id: string; agent_id: string } | { type: "mcp_permission_cancelled"; tool_call_id: string } | { type: "error"; message: string } | { type: "completed" } | { type: "cancelled" };
 
-export type AgentStreamEventPayload = {
-	streamId: string,
-	event: AgentStreamEvent,
-};
-
 export type AliasConflict = {
 	objectId: string,
 	itemName: string,

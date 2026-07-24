@@ -1,5 +1,5 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import type { AgentStreamEvent, AgentStreamEventPayload } from '../../bindings';
+import { Channel } from '@tauri-apps/api/core';
+import type { AgentStreamEvent } from '../../bindings';
 import { extractErrorMessage } from '../../lib/errors';
 import {
   agentsCancelRun,
@@ -14,6 +14,13 @@ export interface AgentStreamListenerOptions {
   agentId: string;
   onEvent?: (event: AgentStreamEvent) => void;
   onBridgeError?: (error: Error) => void;
+}
+
+export interface AgentStreamChannel {
+  /** Pass to agentsRunThread/agentsRunSilent so Rust streams events to it. */
+  channel: Channel<AgentStreamEvent>;
+  /** Abort any in-flight tool/permission dispatches. Call when the run ends. */
+  dispose: () => void;
 }
 
 async function reportToolDispatch(
@@ -64,15 +71,17 @@ async function reportMcpPermission(
 }
 
 /**
- * Browser-bound adapter for Rust runner events.
+ * Per-run event channel for a Rust agent run.
  *
- * The Rust runner owns the loop and tool-result sequencing. This module only
- * forwards presentation events and performs the one browser-only operation:
- * invoking a Tier 2 extension tool in its worker iframe.
+ * The Rust runner owns the loop and tool-result sequencing. Each run gets its
+ * own Tauri Channel — scoped to this caller, so there is no broadcast bus and
+ * no streamId filtering. This module forwards presentation events and performs
+ * the one browser-only operation: invoking a Tier 2 extension tool in its
+ * worker iframe. Pass `channel` to agentsRunThread/agentsRunSilent; call
+ * `dispose` when the run ends to abort any in-flight dispatches. (streamId is
+ * still supplied for the return commands — cancel / report tool result.)
  */
-export async function listenToAgentStream(
-  options: AgentStreamListenerOptions,
-): Promise<UnlistenFn> {
+export function createAgentStreamChannel(options: AgentStreamListenerOptions): AgentStreamChannel {
   const activeToolDispatches = new Map<string, AbortController>();
   const activePermissionRequests = new Map<string, AbortController>();
   const abortAll = (): void => {
@@ -81,36 +90,34 @@ export async function listenToAgentStream(
     activeToolDispatches.clear();
     activePermissionRequests.clear();
   };
-  const unlisten = await listen<AgentStreamEventPayload>('agent-stream-event', ({ payload }) => {
-    if (payload.streamId !== options.streamId) return;
 
-    options.onEvent?.(payload.event);
-    if (payload.event.type === 'tool_dispatch') {
-      const toolCallId = payload.event.tool_call_id;
+  const channel = new Channel<AgentStreamEvent>();
+  channel.onmessage = (event) => {
+    options.onEvent?.(event);
+    if (event.type === 'tool_dispatch') {
+      const toolCallId = event.tool_call_id;
       const controller = new AbortController();
       activeToolDispatches.set(toolCallId, controller);
-      void reportToolDispatch(options, payload.event, controller.signal).finally(() => {
+      void reportToolDispatch(options, event, controller.signal).finally(() => {
         activeToolDispatches.delete(toolCallId);
       });
-    } else if (payload.event.type === 'mcp_permission_request') {
-      const toolCallId = payload.event.tool_call_id;
+    } else if (event.type === 'mcp_permission_request') {
+      const toolCallId = event.tool_call_id;
       const controller = new AbortController();
       activePermissionRequests.set(toolCallId, controller);
-      void reportMcpPermission(options, payload.event, controller.signal).finally(() => {
+      void reportMcpPermission(options, event, controller.signal).finally(() => {
         activePermissionRequests.delete(toolCallId);
       });
-    } else if (payload.event.type === 'tool_dispatch_cancelled') {
-      activeToolDispatches.get(payload.event.tool_call_id)?.abort();
-      activeToolDispatches.delete(payload.event.tool_call_id);
-    } else if (payload.event.type === 'mcp_permission_cancelled') {
-      activePermissionRequests.get(payload.event.tool_call_id)?.abort();
-      activePermissionRequests.delete(payload.event.tool_call_id);
-    } else if (payload.event.type === 'cancelled') {
+    } else if (event.type === 'tool_dispatch_cancelled') {
+      activeToolDispatches.get(event.tool_call_id)?.abort();
+      activeToolDispatches.delete(event.tool_call_id);
+    } else if (event.type === 'mcp_permission_cancelled') {
+      activePermissionRequests.get(event.tool_call_id)?.abort();
+      activePermissionRequests.delete(event.tool_call_id);
+    } else if (event.type === 'cancelled') {
       abortAll();
     }
-  });
-  return () => {
-    abortAll();
-    unlisten();
   };
+
+  return { channel, dispose: abortAll };
 }

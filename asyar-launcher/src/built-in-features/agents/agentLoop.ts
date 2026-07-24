@@ -11,7 +11,7 @@ import type { ChatStreamStatus } from '../../services/ai/IProviderPlugin';
 import { runService } from '../../services/run/runService.svelte';
 import { settingsService } from '../../services/settings/settingsService.svelte';
 import { agentService } from './agentService.svelte';
-import { listenToAgentStream } from './agentStreamBridge';
+import { createAgentStreamChannel } from './agentStreamBridge';
 import type { AgentDef } from './types';
 
 export interface RunAgentInput {
@@ -102,9 +102,9 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
   });
   input.abortSignal?.addEventListener('abort', onAbort, { once: true });
 
-  let unlisten: (() => void) | undefined;
+  let dispose: (() => void) | undefined;
   try {
-    unlisten = await listenToAgentStream({
+    const stream = createAgentStreamChannel({
       streamId,
       agentId: input.agentId,
       onEvent: (event) => {
@@ -118,6 +118,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
         streamFailure.current = error;
       },
     });
+    dispose = stream.dispose;
 
     await agentsRunThread(
       input.agentId,
@@ -126,6 +127,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
       handle.id,
       runConfig,
       streamId,
+      stream.channel,
     );
 
     if (streamFailure.current) throw streamFailure.current;
@@ -149,6 +151,6 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
   } finally {
     input.abortSignal?.removeEventListener('abort', onAbort);
     unsubscribeCancel();
-    unlisten?.();
+    dispose?.();
   }
 }

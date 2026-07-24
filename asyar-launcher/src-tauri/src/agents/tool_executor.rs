@@ -1,11 +1,11 @@
-use crate::agents::runner::{ExternalToolRequest, McpPermissionChoice};
+use crate::agents::runner::{AgentStreamEvent, ExternalToolRequest, McpPermissionChoice};
 use crate::agents::tools::{ToolRegistry, ToolSource};
 use crate::error::AppError;
 use crate::mcp::McpSupervisor;
 use crate::storage::DataStore;
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::ipc::Channel;
 use tokio::sync::oneshot;
 
 const BROWSER_BRIDGE_TIMEOUT: Duration = Duration::from_secs(120);
@@ -139,39 +139,33 @@ async fn await_bridge_response<T>(
 
 #[derive(Clone)]
 pub struct TauriAgentToolRuntime {
-    app: AppHandle,
     runner_state: crate::agents::runner::AgentRunnerState,
     stream_id: String,
+    on_event: Channel<AgentStreamEvent>,
     supervisor: Arc<McpSupervisor>,
     store: DataStore,
 }
 
 impl TauriAgentToolRuntime {
     pub fn new(
-        app: AppHandle,
         runner_state: crate::agents::runner::AgentRunnerState,
         stream_id: String,
+        on_event: Channel<AgentStreamEvent>,
         supervisor: Arc<McpSupervisor>,
         store: DataStore,
     ) -> Self {
         Self {
-            app,
             runner_state,
             stream_id,
+            on_event,
             supervisor,
             store,
         }
     }
 
-    fn emit(&self, event: crate::agents::runner::AgentStreamEvent) -> Result<(), AppError> {
-        self.app
-            .emit(
-                "agent-stream-event",
-                &crate::agents::runner::AgentStreamEventPayload {
-                    stream_id: self.stream_id.clone(),
-                    event,
-                },
-            )
+    fn emit(&self, event: AgentStreamEvent) -> Result<(), AppError> {
+        self.on_event
+            .send(event)
             .map_err(|error| AppError::Other(error.to_string()))
     }
 }
