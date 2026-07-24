@@ -27,6 +27,8 @@ describe('RunServiceProxy', () => {
         label: 'My Script',
         cancellable: expect.any(Boolean),
       }),
+      '',
+      undefined,
     );
   });
 
@@ -54,6 +56,8 @@ describe('RunServiceProxy', () => {
     expect(invokeSpy).toHaveBeenCalledWith(
       'runs:start',
       expect.objectContaining({ cancellable: false }),
+      '',
+      undefined,
     );
   });
 
@@ -63,6 +67,8 @@ describe('RunServiceProxy', () => {
     expect(invokeSpy).toHaveBeenCalledWith(
       'runs:start',
       expect.objectContaining({ cancellable: true }),
+      '',
+      undefined,
     );
   });
 
@@ -89,6 +95,8 @@ describe('RunServiceProxy', () => {
       expect(invokeSpy).toHaveBeenCalledWith(
         'runs:write',
         expect.objectContaining({ id: handle!.id, line: 'line one' }),
+        '',
+        undefined,
       );
     });
 
@@ -99,6 +107,8 @@ describe('RunServiceProxy', () => {
       expect(invokeSpy).toHaveBeenCalledWith(
         'runs:done',
         expect.objectContaining({ id: handle!.id }),
+        '',
+        undefined,
       );
     });
 
@@ -109,6 +119,8 @@ describe('RunServiceProxy', () => {
       expect(invokeSpy).toHaveBeenCalledWith(
         'runs:fail',
         expect.objectContaining({ id: handle!.id, error: 'boom' }),
+        '',
+        undefined,
       );
     });
 
@@ -119,6 +131,8 @@ describe('RunServiceProxy', () => {
       expect(invokeSpy).toHaveBeenCalledWith(
         'runs:cancel',
         expect.objectContaining({ id: handle!.id }),
+        '',
+        undefined,
       );
     });
 
@@ -190,35 +204,28 @@ describe('RunServiceProxy', () => {
 });
 
 describe('RunServiceProxy with setExtensionId', () => {
-  it('handle methods use the per-instance broker (not global) after setExtensionId', async () => {
-    const globalInvokeSpy = vi.spyOn(messageBroker, 'invoke').mockResolvedValue(undefined);
+  it('handle methods inject the extensionId structurally after setExtensionId', async () => {
+    const invokeSpy = vi.spyOn(messageBroker, 'invoke').mockResolvedValue(undefined);
     vi.spyOn(messageBroker, 'on').mockImplementation(() => {});
 
     const proxy = new RunServiceProxy();
     proxy.setExtensionId('test.extension');
 
-    // After setExtensionId, this.broker is a clone — spy on the clone instead
-    const instanceBroker = (proxy as unknown as { broker: typeof messageBroker }).broker;
-    const instanceInvokeSpy = vi.spyOn(instanceBroker, 'invoke').mockResolvedValue(undefined);
-    vi.spyOn(instanceBroker, 'on').mockImplementation(() => {});
-    vi.spyOn(instanceBroker, 'off').mockImplementation(() => {});
-
-    // Reset global spy AFTER start() (because start() may call invoke; we only care about handle methods)
-    globalInvokeSpy.mockClear();
-
     const handle = await proxy.start({ label: 'X', kind: 'shell-script' });
-    instanceInvokeSpy.mockClear();
-    globalInvokeSpy.mockClear();
+    invokeSpy.mockClear();
 
     await handle.write('line');
 
-    expect(instanceInvokeSpy).toHaveBeenCalledWith(
+    // The handle stamps the proxy's extensionId even though it was created and
+    // called after setExtensionId — this.invoke() injects it structurally, so
+    // there is no broker to capture (correctly or incorrectly).
+    expect(invokeSpy).toHaveBeenCalledWith(
       'runs:write',
       expect.objectContaining({ id: handle.id, line: 'line' }),
+      'test.extension',
+      undefined,
     );
-    expect(globalInvokeSpy).not.toHaveBeenCalled();
 
-    instanceInvokeSpy.mockRestore();
-    globalInvokeSpy.mockRestore();
+    invokeSpy.mockRestore();
   });
 });

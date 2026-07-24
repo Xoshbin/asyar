@@ -12,12 +12,15 @@ export class RunServiceProxy extends BaseServiceProxy implements IRunService {
     const label = input.label;
     const cancellable = input.cancellable ?? false;
 
-    await this.broker.invoke('runs:start', { id, kind, label, cancellable });
+    await this.invoke('runs:start', { id, kind, label, cancellable });
 
     return this.buildHandle(id);
   }
 
   private buildHandle(id: string): RunHandle {
+    // invoke() injects extensionId structurally, so the handle can't ship
+    // without it. broker is captured only for on/off event subscriptions.
+    const invoke = this.invoke.bind(this);
     const broker = this.broker;
     let cancelled = false;
     const callbacks = new Set<() => void>();
@@ -46,25 +49,25 @@ export class RunServiceProxy extends BaseServiceProxy implements IRunService {
 
       /** Write a line of output to this run. */
       async write(line: string) {
-        await broker.invoke('runs:write', { id, line });
+        await invoke('runs:write', { id, line });
       },
 
       /** Signal that the run completed successfully. */
       async done() {
-        await broker.invoke('runs:done', { id });
+        await invoke('runs:done', { id });
         unsubscribeAll();
       },
 
       /** Signal that the run failed with the given error message. */
       async fail(error: string) {
-        await broker.invoke('runs:fail', { id, error });
+        await invoke('runs:fail', { id, error });
         unsubscribeAll();
       },
 
       /** Request cancellation of this run. */
       async cancel() {
         try {
-          await broker.invoke('runs:cancel', { id });
+          await invoke('runs:cancel', { id });
         } finally {
           // Release the cancel-event subscription regardless of whether the
           // broker call resolved. On success the launcher emits

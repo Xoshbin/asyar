@@ -17,12 +17,10 @@ export class SnippetsServiceProxy extends BaseServiceProxy implements ISnippetsS
         );
       }
     }
-    const broker = this.broker;
-    await broker.invoke('snippets:registerShortcodes', { map });
+    await this.invoke('snippets:registerShortcodes', { map });
   }
 
   async unregisterShortcodes(): Promise<void> {
-    const broker = this.broker;
-    await broker.invoke('snippets:unregisterShortcodes', {});
+    await this.invoke('snippets:unregisterShortcodes', {});
   }
 }
