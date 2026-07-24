@@ -149,9 +149,6 @@ vi.mock('./extensionIframeManager.svelte', () => ({
     handleSearchResponse: vi.fn(),
   },
 }));
-vi.mock('../permissionGate', () => ({
-  checkPermission: vi.fn().mockReturnValue({ allowed: true }),
-}));
 vi.mock('../../lib/ipc/extensionOrigin', () => ({
   getExtensionFrameOrigin: vi.fn((id: string) => `asyar-extension://${id}`),
 }));

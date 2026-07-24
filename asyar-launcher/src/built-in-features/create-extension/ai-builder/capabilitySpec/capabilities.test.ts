@@ -11,14 +11,12 @@ import capabilities from './capabilities.json';
 //      Source: src-tauri/src/permissions.rs get_required_permission()
 //
 //   2. LAUNCHER_GATED_PERMISSIONS — permissions accepted by the CLI validator
-//      and/or gated by the launcher (JS permissionGate.ts) but NOT in the Rust
-//      IPC gate above. e.g. tools:register lets an extension expose AI tools;
-//      without it the feasibility gate would wrongly reject every tool-exposing
-//      extension. store:read/store:write are inert legacy slugs the validator
-//      still accepts (no gate, no SDK service behind them).
+//      but NOT in the Rust IPC gate above. e.g. tools:register lets an extension
+//      expose AI tools; without it the feasibility gate would wrongly reject
+//      every tool-exposing extension. store:read/store:write are inert legacy
+//      slugs the validator still accepts (no gate, no SDK service behind them).
 //      Source: asyar-sdk/cli/lib/manifest.ts VALID_PERMISSIONS (master list the
-//      CLI validator enforces — it REJECTS any slug not present there) and
-//      asyar-launcher/src/services/permissionGate.ts PERMISSION_MAP.
+//      CLI validator enforces — it REJECTS any slug not present there).
 //
 // Their union is exactly the master VALID_PERMISSIONS list — the
 // definitive set of permissions an extension may legally declare in manifest.json.
