@@ -339,11 +339,32 @@ fn is_public_call(call_type: &str) -> bool {
             | "asyar:api:log:info"
             | "asyar:api:log:warn"
             | "asyar:api:log:error"
-        // UI plumbing for the extension's own surface.
+            | "asyar:api:log:custom"
+        // UI plumbing for the extension's own surface: result actions, its own
+        // view navigation/labels, the search-bar accessory, the status-bar
+        // item. All scoped to the calling extension — no host data read,
+        // nothing persisted, no cross-extension reach.
             | "asyar:api:actions:registerActionHandler"
+            | "asyar:api:actions:registerAction"
+            | "asyar:api:actions:unregisterAction"
+            | "asyar:api:actions:setContext"
             | "asyar:api:extensions:navigateToView"
+            | "asyar:api:extensions:goBack"
+            | "asyar:api:extensions:forwardKeyToActiveView"
+            | "asyar:api:extensions:setActiveViewActionLabel"
+            | "asyar:api:extensions:setActiveViewSubtitle"
             | "asyar:api:searchBar:set"
             | "asyar:api:searchBar:clear"
+            | "asyar:api:statusBar:registerItem"
+            | "asyar:api:statusBar:unregisterItem"
+            | "asyar:api:statusBar:updateItem"
+        // Dynamic commands — the extension manages its OWN command surface
+        // (registration, metadata, dynamic replacement). Scoped to the caller.
+            | "asyar:api:commands:registerCommand"
+            | "asyar:api:commands:unregisterCommand"
+            | "asyar:api:commands:replaceDynamicCommands"
+            | "asyar:api:commands:updateCommandMetadata"
+            | "asyar:api:commands:clearCommandsForExtension"
         // Pure compute — caller supplies its own input, gets a transform back.
             | "asyar:api:search:rank"
             | "asyar:api:clipboard:stripHtml"
@@ -361,10 +382,12 @@ fn is_public_call(call_type: &str) -> bool {
             | "asyar:api:browser:subscribeEvents"
             | "asyar:api:browser:unsubscribeEvents"
         // TODO(policy): `ai:streamChat` spends the user's configured AI provider
-        // credits with no permission. Preserved as public to keep current
-        // behavior; gating it needs a new `ai:*` manifest permission (owner
+        // credits with no permission, and `clipboard:stopMonitoring` toggles
+        // clipboard-history capture. Both preserved as public to keep current
+        // behavior; gating either needs a new manifest permission (owner
         // decision, tracked separately).
             | "asyar:api:ai:streamChat"
+            | "asyar:api:clipboard:stopMonitoring"
     )
 }
 
@@ -840,8 +863,13 @@ mod tests {
             "asyar:api:browser:listAvailableBrowsers",
             "asyar:api:browser:isCompanionInstalled",
             "asyar:api:actions:registerActionHandler",
+            "asyar:api:actions:registerAction",
             "asyar:api:extensions:navigateToView",
+            "asyar:api:extensions:goBack",
             "asyar:api:searchBar:set",
+            "asyar:api:statusBar:registerItem",
+            "asyar:api:commands:replaceDynamicCommands",
+            "asyar:api:log:custom",
             "asyar:api:window:getMonitors",
         ] {
             assert_eq!(
