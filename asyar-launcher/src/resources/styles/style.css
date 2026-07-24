@@ -186,6 +186,7 @@ html[data-platform='macos'] .app-root {
 
     --border-color: rgba(90, 90, 95, 0.5);
     --separator: rgba(90, 90, 95, 0.5);
+    --divider-soft: rgba(255, 255, 255, 0.04);
 
     --accent-primary: rgb(0, 122, 255);
     --accent-success: rgb(40, 205, 65);
@@ -233,7 +234,7 @@ html[data-platform='macos'] .app-root {
   /* Settings window: opaque surfaces. The launcher composites translucent
      vibrancy over the desktop; the settings window sits on macOS gray and
      needs solid elevation to read (matches System Settings). */
-  :root:not([data-theme]) .settings-page {
+  :root:not([data-theme]):not([data-custom-theme]) .settings-page {
     --bg-primary: rgb(30, 30, 32);
     --bg-secondary: rgb(37, 37, 40);
     --bg-tertiary: rgb(47, 47, 50);
@@ -264,6 +265,7 @@ html[data-platform='macos'] .app-root {
 
   --border-color: rgba(90, 90, 95, 0.5);
   --separator: rgba(90, 90, 95, 0.5);
+  --divider-soft: rgba(255, 255, 255, 0.04);
 
   --accent-primary: rgb(0, 122, 255);
   --accent-success: rgb(40, 205, 65);
@@ -307,7 +309,7 @@ html[data-platform='macos'] .app-root {
   color: rgba(160, 175, 190, 0.75);
 }
 
-:root[data-theme='dark'] .settings-page {
+:root[data-theme='dark']:not([data-custom-theme]) .settings-page {
   --bg-primary: rgb(30, 30, 32);
   --bg-secondary: rgb(37, 37, 40);
   --bg-tertiary: rgb(47, 47, 50);
@@ -383,7 +385,7 @@ html[data-platform='macos'] .app-root {
     color: rgba(55, 65, 80, 0.6);
   }
 
-  :root:not([data-theme]) .settings-page {
+  :root:not([data-theme]):not([data-custom-theme]) .settings-page {
     --bg-primary: rgb(240, 240, 245);
     --bg-secondary: rgb(230, 230, 235);
     --bg-tertiary: rgb(245, 245, 247);
@@ -458,7 +460,7 @@ html[data-platform='macos'] .app-root {
   color: rgba(55, 65, 80, 0.6);
 }
 
-:root[data-theme='light'] .settings-page {
+:root[data-theme='light']:not([data-custom-theme]) .settings-page {
   --bg-primary: rgb(240, 240, 245);
   --bg-secondary: rgb(230, 230, 235);
   --bg-tertiary: rgb(245, 245, 247);
