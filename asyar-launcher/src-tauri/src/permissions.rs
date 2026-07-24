@@ -142,6 +142,7 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
     match call_type {
         // Clipboard
         "asyar:api:clipboard:readCurrentClipboard" => Some("clipboard:read"),
+        "asyar:api:clipboard:readCurrentText" => Some("clipboard:read"),
         "asyar:api:clipboard:getRecentItems" => Some("clipboard:read"),
         "asyar:api:clipboard:writeToClipboard" => Some("clipboard:write"),
         "asyar:api:clipboard:pasteItem" => Some("clipboard:write"),
@@ -196,6 +197,7 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:window:getWindowBounds" => Some("window:manage"),
         "asyar:api:window:setWindowBounds" => Some("window:manage"),
         "asyar:api:window:setFullscreen" => Some("window:manage"),
+        "asyar:api:window:applyPreset" => Some("window:manage"),
         // Extension Preferences
         "asyar:api:preferences:getAll" => Some("preferences:read"),
         "asyar:api:preferences:set" => Some("preferences:write"),
@@ -268,8 +270,22 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:notes:get" => Some("notes:read"),
         "asyar:api:notes:create" => Some("notes:write"),
         "asyar:api:notes:append" => Some("notes:write"),
+        // Agent runs — extension-owned Tier 2 run tracking. Previously ungated
+        // (fail-open hole): any extension could start/write/cancel runs without
+        // declaring anything. Mirrors the JS PERMISSION_MAP's runs:track.
+        "asyar:api:runs:start"
+        | "asyar:api:runs:write"
+        | "asyar:api:runs:done"
+        | "asyar:api:runs:fail"
+        | "asyar:api:runs:cancel" => Some("runs:track"),
+        // Agent tools — registering/listing Tier 2 tools in the agent runtime.
+        // Previously ungated (fail-open hole). Mirrors the JS PERMISSION_MAP's
+        // tools:register.
+        "asyar:api:tools:registerTool"
+        | "asyar:api:tools:unregisterTool"
+        | "asyar:api:tools:listTools" => Some("tools:register"),
         // browser:listAvailableBrowsers / isCompanionInstalled are intentionally
-        // permission-free (discovery, low blast radius) → fall through to None.
+        // permission-free (discovery, low blast radius).
         // search:rank is intentionally permission-free: the caller supplies its
         // own already-known items and gets back an ordering — no host data is
         // read, nothing is persisted, no cross-extension exposure.
@@ -278,8 +294,87 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         // markup string and gets back plain text — the host clipboard is
         // never read (that's clipboard:read, gated separately), nothing is
         // persisted, no cross-extension exposure.
-        // Not in map = core call, always allowed
+        //
+        // A `None` here does NOT mean "always allowed" — it only means "not
+        // gated". The permission-free calls above are listed explicitly in
+        // `is_public_call`; `gate_decision` requires a `None` call to be an
+        // enumerated public call, else it is DENIED (fail closed).
         _ => None,
+    }
+}
+
+// ── Fail-closed gate classification ──────────────────────────────────────────
+//
+// Every call type an extension can invoke is exactly one of three things:
+//   1. gated  — needs a declared manifest permission (`get_required_permission`)
+//   2. public — deliberately permission-free (`is_public_call`)
+//   3. neither — a bug or a not-yet-classified new API → DENIED by default.
+//
+// This turns "someone added a privileged API and forgot to gate it" into a
+// loud denial in development instead of a silent grant in production.
+
+#[derive(Debug, PartialEq, Eq)]
+enum GateDecision {
+    /// Permission-free surface — allow without consulting the registry.
+    AllowPublic,
+    /// Requires the given manifest permission.
+    Require(&'static str),
+    /// Unrecognized call type — deny by default (fail closed).
+    Deny,
+}
+
+/// Call types deliberately exposed to extensions WITHOUT any permission:
+/// local logging, pure compute, discovery, and UI plumbing that read no host
+/// data, persist nothing, and cannot reach another extension's state.
+///
+/// This is the ONLY permission-free surface. Anything absent from both this
+/// list and `get_required_permission` is denied by `gate_decision` (fail
+/// closed), so keep it exhaustive: a new permission-free call must be added
+/// here explicitly, on purpose.
+fn is_public_call(call_type: &str) -> bool {
+    matches!(
+        call_type,
+        // Local logging — never leaves the host, reads no data.
+        "asyar:api:log:debug"
+            | "asyar:api:log:info"
+            | "asyar:api:log:warn"
+            | "asyar:api:log:error"
+        // UI plumbing for the extension's own surface.
+            | "asyar:api:actions:registerActionHandler"
+            | "asyar:api:extensions:navigateToView"
+            | "asyar:api:searchBar:set"
+            | "asyar:api:searchBar:clear"
+        // Pure compute — caller supplies its own input, gets a transform back.
+            | "asyar:api:search:rank"
+            | "asyar:api:clipboard:stripHtml"
+            | "asyar:api:clipboard:stripRtf"
+        // Discovery — low blast radius, no host data.
+            | "asyar:api:browser:listAvailableBrowsers"
+            | "asyar:api:browser:isCompanionInstalled"
+        // Read-only monitor geometry.
+            | "asyar:api:window:getMonitors"
+        // Push-subscription plumbing; the pushed payloads are themselves gated
+        // at their read sites. TODO(policy): revisit whether these warrant a
+        // scoped permission of their own.
+            | "asyar:api:applicationIndex:subscribe"
+            | "asyar:api:applicationIndex:unsubscribe"
+            | "asyar:api:browser:subscribeEvents"
+            | "asyar:api:browser:unsubscribeEvents"
+        // TODO(policy): `ai:streamChat` spends the user's configured AI provider
+        // credits with no permission. Preserved as public to keep current
+        // behavior; gating it needs a new `ai:*` manifest permission (owner
+        // decision, tracked separately).
+            | "asyar:api:ai:streamChat"
+    )
+}
+
+/// Decides how `call_type` is gated. Fail closed: a call in neither
+/// `get_required_permission` nor `is_public_call` is denied.
+fn gate_decision(call_type: &str) -> GateDecision {
+    match get_required_permission(call_type) {
+        Some(perm) => GateDecision::Require(perm),
+        None if is_public_call(call_type) => GateDecision::AllowPublic,
+        None => GateDecision::Deny,
     }
 }
 
@@ -302,16 +397,29 @@ pub fn check_extension_permission(
     call_type: String,
     registry: tauri::State<'_, ExtensionPermissionRegistry>,
 ) -> PermissionCheckResult {
-    let required = match get_required_permission(&call_type) {
-        Some(perm) => perm,
-        None => {
-            // Call type not in map — core call, always allowed
+    let required = match gate_decision(&call_type) {
+        // Deliberately permission-free call — allow without the registry.
+        GateDecision::AllowPublic => {
             return PermissionCheckResult {
                 allowed: true,
                 required_permission: None,
                 reason: None,
             };
         }
+        // Unrecognized call type — fail closed. A call that is neither gated
+        // nor on the public allowlist is refused by default, so a new
+        // privileged API that nobody classified can never be silently reached.
+        GateDecision::Deny => {
+            return PermissionCheckResult {
+                allowed: false,
+                required_permission: None,
+                reason: Some(format!(
+                    "Call \"{}\" is not a recognized extension API — refusing by default (fail closed).",
+                    call_type
+                )),
+            };
+        }
+        GateDecision::Require(perm) => perm,
     };
 
     let reg = match registry.inner.lock() {
@@ -650,6 +758,109 @@ mod tests {
         assert_eq!(
             get_required_permission("asyar:api:clipboard:stripRtf"),
             None
+        );
+    }
+
+    // ── Fail-closed gate regression tests ────────────────────────────────────
+
+    #[test]
+    fn read_current_text_requires_clipboard_read() {
+        // Reading the clipboard's text is exactly clipboard:read, same as its
+        // sibling readCurrentClipboard. Was ungated (fail-open hole).
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:readCurrentText"),
+            Some("clipboard:read")
+        );
+    }
+
+    #[test]
+    fn window_apply_preset_requires_window_manage() {
+        // applyPreset moves/resizes the focused window, same as its sibling
+        // setWindowBounds. Was ungated (fail-open hole).
+        assert_eq!(
+            get_required_permission("asyar:api:window:applyPreset"),
+            Some("window:manage")
+        );
+    }
+
+    #[test]
+    fn runs_calls_require_runs_track() {
+        for call in [
+            "asyar:api:runs:start",
+            "asyar:api:runs:write",
+            "asyar:api:runs:done",
+            "asyar:api:runs:fail",
+            "asyar:api:runs:cancel",
+        ] {
+            assert_eq!(
+                get_required_permission(call),
+                Some("runs:track"),
+                "{call} must be gated"
+            );
+        }
+    }
+
+    #[test]
+    fn tools_calls_require_tools_register() {
+        for call in [
+            "asyar:api:tools:registerTool",
+            "asyar:api:tools:unregisterTool",
+            "asyar:api:tools:listTools",
+        ] {
+            assert_eq!(
+                get_required_permission(call),
+                Some("tools:register"),
+                "{call} must be gated"
+            );
+        }
+    }
+
+    #[test]
+    fn gate_decision_denies_unrecognized_call() {
+        // The core of the fix: a call type in neither the gated map nor the
+        // public allowlist must be DENIED, not silently allowed.
+        assert_eq!(
+            gate_decision("asyar:api:totally:madeup"),
+            GateDecision::Deny
+        );
+        assert_eq!(
+            gate_decision("asyar:api:secrets:exfiltrate"),
+            GateDecision::Deny
+        );
+    }
+
+    #[test]
+    fn gate_decision_allows_enumerated_public_calls() {
+        for call in [
+            "asyar:api:log:info",
+            "asyar:api:log:error",
+            "asyar:api:search:rank",
+            "asyar:api:clipboard:stripHtml",
+            "asyar:api:clipboard:stripRtf",
+            "asyar:api:browser:listAvailableBrowsers",
+            "asyar:api:browser:isCompanionInstalled",
+            "asyar:api:actions:registerActionHandler",
+            "asyar:api:extensions:navigateToView",
+            "asyar:api:searchBar:set",
+            "asyar:api:window:getMonitors",
+        ] {
+            assert_eq!(
+                gate_decision(call),
+                GateDecision::AllowPublic,
+                "{call} should be permission-free"
+            );
+        }
+    }
+
+    #[test]
+    fn gate_decision_requires_permission_for_gated_call() {
+        assert_eq!(
+            gate_decision("asyar:api:network:fetch"),
+            GateDecision::Require("network")
+        );
+        assert_eq!(
+            gate_decision("asyar:api:clipboard:readCurrentText"),
+            GateDecision::Require("clipboard:read")
         );
     }
 

@@ -37,6 +37,7 @@ export const GATED_PERMISSIONS = [
   "preferences:write",
   "process:kill",
   "process:read",
+  "runs:track",
   "screen:pick-color",
   "selection:read",
   "shell:open-url",
@@ -48,5 +49,6 @@ export const GATED_PERMISSIONS = [
   "timers:cancel",
   "timers:list",
   "timers:schedule",
+  "tools:register",
   "window:manage"
 ] as const;
