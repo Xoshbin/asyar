@@ -182,8 +182,13 @@ pub fn run() {
     ));
 
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_notification::init())
+        // Single-instance must be the FIRST plugin: it intercepts a second
+        // launch before other plugins initialize, and (with the "deep-link"
+        // feature) forwards that instance's asyar:// URL argv into on_open_url
+        // — the only way a deep link reaches an already-running app on
+        // Windows/Linux.
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_clipboard_x::init())
         .plugin(tauri_plugin_fs::init())
@@ -244,6 +249,7 @@ pub fn run() {
         .manage(auth::state::AuthState::default())
         .manage(auth::api_client::ApiClient::new())
         .manage(oauth::OAuthPendingFlowState::new())
+        .manage(deeplink::PendingDeeplinks::default())
         .manage(hud_window::HudState::default())
         .manage(shell::ShellProcessRegistry::new())
         .manage(extensions::scheduler::SchedulerState::new())
@@ -299,6 +305,7 @@ pub fn run() {
         )))
         .setup(setup_app)
         .invoke_handler(tauri::generate_handler![
+            deeplink::flush_pending_deeplinks,
             commands::set_focus_lock,
             commands::feedback_publish,
             commands::feedback_get_current,
@@ -1144,35 +1151,37 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // "asyar" for production or "asyar-dev" for the local dev flavor (see
     // deeplink::deep_link_scheme and tauri.dev.conf.json).
     // Extension deep links ({scheme}://extensions/{extId}/{cmdId}?args) are
-    // parsed in Rust and emitted as a typed "asyar:deeplink:extension" event.
-    // All other URLs (auth, OAuth) are emitted as raw "asyar:deep-link" strings.
+    // parsed in Rust and emitted as a typed "asyar:deeplink:extension" event;
+    // all other URLs (auth, OAuth) are emitted as raw "asyar:deep-link" strings.
+    // Both the warm path and the cold-start path funnel through
+    // deeplink::dispatch_url so classification lives in exactly one place.
     {
         use tauri_plugin_deep_link::DeepLinkExt;
+        let scheme = deeplink::deep_link_scheme(app.handle());
+
+        // Warm path: links arriving while the app runs. On Windows/Linux this
+        // only fires because tauri-plugin-single-instance carries the
+        // "deep-link" feature, which forwards the second instance's URL argv.
         let handle = app.handle().clone();
-        let scheme = deeplink::deep_link_scheme(&handle);
-        let extensions_prefix = format!("{scheme}://extensions/");
         app.deep_link().on_open_url(move |event| {
-            let urls: Vec<String> = event.urls().iter().map(|u| u.to_string()).collect();
-            for url in urls {
-                if url.starts_with(&extensions_prefix) {
-                    match deeplink::parse_extension_deeplink(&url, scheme) {
-                        Some(payload) => {
-                            log::info!(
-                                "[Deeplink] Extension trigger: {}/{}",
-                                payload.extension_id,
-                                payload.command_id
-                            );
-                            let _ = handle.emit("asyar:deeplink:extension", payload);
-                        }
-                        None => {
-                            log::warn!("[Deeplink] Failed to parse extension URL: {}", url);
-                        }
-                    }
-                } else {
-                    let _ = handle.emit("asyar:deep-link", url);
-                }
+            for url in event.urls() {
+                deeplink::dispatch_url(&handle, scheme, url.as_str());
             }
         });
+
+        // Cold-start path: a link that launched the app (Windows/Linux read it
+        // from argv). Buffer it; the frontend drains via flush_pending_deeplinks
+        // once its listeners exist, so the emit can't race listener setup.
+        match app.deep_link().get_current() {
+            Ok(Some(urls)) => {
+                let pending = app.state::<deeplink::PendingDeeplinks>();
+                for url in urls {
+                    pending.push(url.to_string());
+                }
+            }
+            Ok(None) => {}
+            Err(err) => log::warn!("[Deeplink] get_current failed: {err}"),
+        }
     }
 
     #[cfg(target_os = "macos")]

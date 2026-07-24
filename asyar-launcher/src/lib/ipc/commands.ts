@@ -7,6 +7,7 @@
 export * from './extensionPreferencesCommands';
 export * from './commandArgDefaultsCommands';
 export * from './iframeLifecycleCommands';
+export * from './deeplinkCommands';
 export * from './browserCommands';
 export * from './extensionLifecycleCommands';
 export * from './shortcodeCommands';

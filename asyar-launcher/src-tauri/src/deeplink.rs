@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::collections::HashMap;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter, State};
 
 /// The custom URL scheme this running instance is registered for with the
 /// OS. Mirrors `plugins.deep-link.desktop.schemes` in the active tauri
@@ -18,7 +18,7 @@ pub fn deep_link_scheme(app: &AppHandle) -> &'static str {
 
 /// Typed payload emitted as `asyar:deeplink:extension` when a deep link
 /// targets an extension command: `{scheme}://extensions/{extensionId}/{commandId}?args`.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionDeeplinkPayload {
     pub extension_id: String,
@@ -93,6 +93,83 @@ pub fn parse_extension_deeplink(
         command_id: command_id.to_string(),
         args,
     })
+}
+
+/// Routing decision for an incoming deep link. Pure classification lives in
+/// [`classify_deeplink`]; [`dispatch_url`] performs the side-effecting emit.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DeeplinkRoute {
+    /// Targets an extension command → frontend event `asyar:deeplink:extension`.
+    Extension(ExtensionDeeplinkPayload),
+    /// Any other in-scheme URL (auth / OAuth) → frontend event `asyar:deep-link`.
+    Raw(String),
+}
+
+/// Classify an incoming URL into its route without touching the app. Returns
+/// `None` for URLs that are not this flavor's scheme, or malformed extension
+/// links (which must be dropped, never re-routed as raw).
+pub fn classify_deeplink(raw: &str, scheme: &str) -> Option<DeeplinkRoute> {
+    if !raw.starts_with(&format!("{scheme}://")) {
+        return None;
+    }
+    if raw.starts_with(&format!("{scheme}://extensions/")) {
+        // Malformed extension links must be dropped, not re-routed as raw.
+        return parse_extension_deeplink(raw, scheme).map(DeeplinkRoute::Extension);
+    }
+    Some(DeeplinkRoute::Raw(raw.to_string()))
+}
+
+/// Launch-time deep links captured before the frontend's listeners exist. The
+/// frontend drains these via `flush_pending_deeplinks` once ready, so the emit
+/// can't race listener registration (same reason `restore_workers` is pulled).
+#[derive(Default)]
+pub struct PendingDeeplinks(std::sync::Mutex<Vec<String>>);
+
+impl PendingDeeplinks {
+    /// Buffer a launch URL captured during setup.
+    pub fn push(&self, url: String) {
+        if let Ok(mut guard) = self.0.lock() {
+            guard.push(url);
+        }
+    }
+
+    /// Drain every buffered URL, leaving the buffer empty.
+    pub fn take(&self) -> Vec<String> {
+        self.0
+            .lock()
+            .map(|mut guard| std::mem::take(&mut *guard))
+            .unwrap_or_default()
+    }
+}
+
+/// Route a single incoming deep-link URL to the correct frontend event.
+/// Shared by the warm path (`on_open_url`) and the cold-start flush.
+pub fn dispatch_url(app: &AppHandle, scheme: &str, raw: &str) {
+    match classify_deeplink(raw, scheme) {
+        Some(DeeplinkRoute::Extension(payload)) => {
+            log::info!(
+                "[Deeplink] Extension trigger: {}/{}",
+                payload.extension_id,
+                payload.command_id
+            );
+            let _ = app.emit("asyar:deeplink:extension", payload);
+        }
+        Some(DeeplinkRoute::Raw(url)) => {
+            let _ = app.emit("asyar:deep-link", url);
+        }
+        None => log::warn!("[Deeplink] Ignoring unroutable deep link: {raw}"),
+    }
+}
+
+/// Drain deep links that launched the app and dispatch them now that the
+/// frontend's listeners are registered. Frontend-invoked from appInitializer
+/// so the emit can't race listener setup.
+#[tauri::command]
+pub fn flush_pending_deeplinks(app: AppHandle, pending: State<'_, PendingDeeplinks>) {
+    let scheme = deep_link_scheme(&app);
+    for url in pending.take() {
+        dispatch_url(&app, scheme, &url);
+    }
 }
 
 #[cfg(test)]
@@ -214,5 +291,57 @@ mod tests {
             parse_extension_deeplink("asyar://extensions/com.example.calc/run", "asyar-dev")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn classifies_extension_link() {
+        match classify_deeplink("asyar://extensions/com.example/run?x=1", "asyar") {
+            Some(DeeplinkRoute::Extension(p)) => {
+                assert_eq!(p.extension_id, "com.example");
+                assert_eq!(p.command_id, "run");
+            }
+            other => panic!("expected Extension route, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classifies_raw_auth_link() {
+        assert_eq!(
+            classify_deeplink("asyar://auth/callback?code=abc", "asyar"),
+            Some(DeeplinkRoute::Raw(
+                "asyar://auth/callback?code=abc".to_string()
+            )),
+        );
+    }
+
+    #[test]
+    fn drops_malformed_extension_link() {
+        // Starts with the extensions prefix but has no commandId: must be
+        // dropped, never leaked to the raw auth listeners.
+        assert_eq!(
+            classify_deeplink("asyar://extensions/onlyext", "asyar"),
+            None
+        );
+    }
+
+    #[test]
+    fn ignores_foreign_scheme() {
+        assert_eq!(classify_deeplink("https://evil.example/x", "asyar"), None);
+        assert_eq!(classify_deeplink("asyar://auth/x", "asyar-dev"), None);
+    }
+
+    #[test]
+    fn pending_deeplinks_push_then_take_drains() {
+        let pending = PendingDeeplinks::default();
+        pending.push("asyar://extensions/a/b".to_string());
+        pending.push("asyar://auth/cb".to_string());
+        assert_eq!(
+            pending.take(),
+            vec![
+                "asyar://extensions/a/b".to_string(),
+                "asyar://auth/cb".to_string()
+            ]
+        );
+        assert!(pending.take().is_empty(), "second take must be empty");
     }
 }
