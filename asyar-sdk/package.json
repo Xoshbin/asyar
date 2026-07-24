@@ -31,7 +31,7 @@
     "pretest": "npm run gen:all",
     "pretest:run": "npm run gen:all",
     "gen:known-runtimes": "node scripts/generate-known-runtimes.mjs",
-    "gen:gated-permissions": "node scripts/generate-gated-permissions.mjs",
+    "gen:gated-permissions": "node ../asyar-launcher/scripts/generate-permission-catalog.mjs",
     "gen:all": "npm run gen:known-runtimes && npm run gen:gated-permissions",
     "lint": "eslint src --ext .ts",
     "watch": "tsc --watch",
