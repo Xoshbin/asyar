@@ -50,7 +50,10 @@
   --radius-xl: 12px;
   --radius-full: 9999px;
   /* Launcher shell corner — intentionally larger than --radius-xl so the
-     outer window reads more pronounced than inner surfaces. */
+     outer window reads more pronounced than inner surfaces. On macOS this
+     MUST match the native contentView mask (pin_launcher_webview in
+     platform/macos.rs); a smaller native clip leaks a wallpaper crescent
+     at each corner. */
   border-radius: 20px;
 
   /* Typography */
