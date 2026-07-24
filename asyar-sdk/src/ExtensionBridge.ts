@@ -14,6 +14,18 @@ import type { IPCMessage, IPCResponse } from './ipc/MessageBroker';
 // `ExtensionIpcRouter` rejects them as untrusted-frame messages.
 
 // Define the bridge that will be used to communicate between extensions and the base app
+/**
+ * Build the canonical `act_<extensionId>_<actionId>` key, idempotently: if
+ * `actionId` is already prefixed it is returned unchanged, so a caller that
+ * passes the full id can't double-prefix it (which would make dispatch — which
+ * sends the single full id — miss the handler). Kept in sync with the host's
+ * builder in actionService.
+ */
+function toFullActionId(extensionId: string, actionId: string): string {
+  const prefix = `act_${extensionId}_`;
+  return actionId.startsWith(prefix) ? actionId : `${prefix}${actionId}`;
+}
+
 export class ExtensionBridge {
   private extensionManifests: Map<string, ExtensionManifest> = new Map();
   private extensionImplementations: Map<string, Extension> = new Map();
@@ -274,7 +286,7 @@ export class ExtensionBridge {
     actionId: string,
     handler: (payload?: unknown) => Promise<void> | void,
   ): void {
-    const fullActionId = `act_${extensionId}_${actionId}`;
+    const fullActionId = toFullActionId(extensionId, actionId);
     this.actionRegistry.set(fullActionId, {
       id: fullActionId,
       title: actionId,

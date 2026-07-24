@@ -1,4 +1,5 @@
 import { logService } from '../log/logService';
+import { toFullActionId } from './actionId';
 import type { ExtensionAction, IActionService } from 'asyar-sdk/contracts';
 import { ActionContext } from 'asyar-sdk/contracts';
 import * as commands from '../../lib/ipc/commands';
@@ -128,7 +129,7 @@ export class ActionService implements IActionService {
    * `act_<extensionId>_<actionId>` so lookups on dispatch are direct.
    */
   recordActionHandlerRole(extensionId: string, actionId: string, role: 'view' | 'worker'): void {
-    this.handlerRoles.set(`act_${extensionId}_${actionId}`, role);
+    this.handlerRoles.set(toFullActionId(extensionId, actionId), role);
   }
 
   getActionHandlerRole(fullActionId: string): 'view' | 'worker' | undefined {
@@ -353,7 +354,7 @@ export class ActionService implements IActionService {
     // The SDK's action registry keys handlers on the full `act_<ext>_<short>`
     // id (both registerActionHandler and the asyar:action:execute receiver),
     // so the envelope must carry the full id — callers pass the short id.
-    const fullActionId = `act_${extensionId}_${actionId}`;
+    const fullActionId = toFullActionId(extensionId, actionId);
     const role = this.handlerRoles.get(fullActionId);
     this.sendToExtension?.(extensionId, fullActionId, role ?? 'worker', payload);
     return true;
