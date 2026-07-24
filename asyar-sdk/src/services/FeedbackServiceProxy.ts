@@ -31,22 +31,21 @@ export class FeedbackServiceProxy extends BaseServiceProxy implements IFeedbackS
   }
 
   async showProgress(options: FeedbackProgressOptions): Promise<FeedbackProgressHandle> {
-    const broker = this.broker;
-    const feedbackId = await broker.invoke<string>('feedback:showProgress', { options });
+    const feedbackId = await this.invoke<string>('feedback:showProgress', { options });
 
     return {
-      update: (update) => broker.invoke<void>('feedback:updateProgress', { feedbackId, update }),
+      update: (update) => this.invoke<void>('feedback:updateProgress', { feedbackId, update }),
       succeed: (title) =>
-        broker.invoke<void>('feedback:finishProgress', {
+        this.invoke<void>('feedback:finishProgress', {
           feedbackId,
           outcome: { severity: 'success', title },
         }),
       fail: (title, developerDetail) =>
-        broker.invoke<void>('feedback:finishProgress', {
+        this.invoke<void>('feedback:finishProgress', {
           feedbackId,
           outcome: { severity: 'error', title, developerDetail },
         }),
-      dismiss: () => broker.invoke<void>('feedback:dismiss', { feedbackId }),
+      dismiss: () => this.invoke<void>('feedback:dismiss', { feedbackId }),
     };
   }
 

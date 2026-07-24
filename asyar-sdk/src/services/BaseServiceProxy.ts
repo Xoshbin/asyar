@@ -16,6 +16,21 @@ export abstract class BaseServiceProxy {
     this.broker = messageBroker;
   }
 
+  /**
+   * Invoke a wire command, always stamping this proxy's extensionId from
+   * `this.extensionId`. Prefer this in returned handles over capturing
+   * `this.broker`: the id is injected structurally, so a handle can't ship
+   * without it or bind the wrong (global) broker. `this.broker` remains for
+   * event subscriptions (`on`/`off`), which don't need the id.
+   */
+  protected invoke<T>(
+    command: WireCommand,
+    payload?: Record<string, unknown> | unknown[],
+    timeoutMs?: number,
+  ): Promise<T> {
+    return messageBroker.invoke<T>(command, payload, this.extensionId, timeoutMs);
+  }
+
   setExtensionId(id: string): void {
     this.extensionId = id;
     const originalInvoke = this.broker.invoke.bind(this.broker);
