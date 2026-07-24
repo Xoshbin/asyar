@@ -276,6 +276,11 @@ export const appInitializer = {
       await deeplinkService.init();
       logService.info('Extension deeplink service initialized.');
 
+      // Deliver any asyar:// link that cold-started the app. Safe to call now:
+      // the extension (above), auth, and OAuth deep-link listeners are all
+      // registered, so Rust's re-emit can't race listener setup.
+      await commands.flushPendingDeeplinks();
+
       // Notification action dispatch bridge. Runs on every Tauri instance
       // so clicking a button on an OS notification fires the declared
       // extension command even when the launcher window is hidden.

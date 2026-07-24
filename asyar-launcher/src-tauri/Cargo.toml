@@ -112,7 +112,7 @@ iana-time-zone = "0.1.65"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
-tauri-plugin-single-instance = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }  # deep-link feature forwards asyar:// argv to on_open_url on Windows/Linux
 
 
 [features]
