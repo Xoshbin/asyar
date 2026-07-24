@@ -1,10 +1,43 @@
 # Asyar
 
-**Local-First Cross platform open-source alternative to Raycast.**
+**Privacy-focused Local-First Cross platform open-source alternative to Raycast.**
 
-Asyar is a fast, extensible, **local-first** command launcher for macOS, Windows, and Linux. No account. No cloud. No subscription. Just a blazing-fast launcher that stays entirely on your machine.
+Asyar is a fast, extensible, **Privacy-focused local-first** command launcher for macOS, Windows, and Linux. No account. No cloud. No subscription. Just a blazing-fast launcher that stays entirely on your machine.
 
-Built with [Tauri v2](https://tauri.app/) + Rust and [Svelte 5](https://svelte.dev/) — not Electron.
+## Tiny Footprint. Native Performance.
+
+Asyar is built with **Tauri + Rust** instead of Electron. That means:
+
+- **Significantly less RAM** — no bundled Chromium, no V8 runtime sitting idle
+- **Instant startup** — the Rust backend initializes in milliseconds
+- **Real OS integration** — native APIs for app indexing, clipboard, global hotkeys, and accessibility
+- **Secure by default** — extensions run in isolated iframes; a broken extension can't crash the launcher
+
+> _Native performance, web flexibility — Rust does the heavy lifting, Svelte 5 keeps the UI snappy._
+
+### Measured against Raycast
+
+<!-- benchmarks:start -->
+
+| Metric                                 | Asyar 0.1.1-38 | Raycast 1.104.23 | Raycast Beta 0.69.0.0 |
+| -------------------------------------- | -------------: | ---------------: | --------------------: |
+| Hotkey → window visible (median of 15) |        12.0 ms |          21.7 ms |               17.1 ms |
+| Hotkey → window visible (p95)          |        14.7 ms |          24.0 ms |               27.0 ms |
+| Cold start → usable                    |         572 ms |           888 ms |               1012 ms |
+| Memory footprint, idle (all processes) |       435.6 MB |         272.6 MB |              463.9 MB |
+| CPU while idle (30s average)           |         3.20 % |           0.04 % |                1.45 % |
+| App size on disk                       |          64 MB |           209 MB |                179 MB |
+
+<sub>Measured 2026-07-17 on a Apple M4 Max (36 GB RAM), macOS 26.5.2, each app
+as installed, summoned by its own registered global hotkey, one at a time on a
+quiet machine. Black-box measurement: synthetic hotkey press → launcher window
+on screen. Reproduce with [`benchmarks/bench.sh`](benchmarks/README.md).</sub>
+
+<!-- benchmarks:end -->
+
+Don't take our word for it: [`benchmarks/bench.sh`](benchmarks/README.md) measures Asyar and Raycast (stable and beta) black-box on your own machine — hotkey-to-window latency, cold start, full-process-group memory, idle CPU, and disk size — and regenerates this table with `--update-readme`.
+
+---
 
 ![Asyar launcher](docs/images/getting-started-hero.png)
 
@@ -69,41 +102,6 @@ brew install --cask asyar
 | Background Scheduling (native Rust daemon)                   |    ✅     |        ❌         |       ❌       |
 | Reactive Live Subtitles (real-time root list updates)        |    ✅     |        ❌         |       ❌       |
 | **Silent AI Commands** (no-window in-place text replacement) |    ✅     |        ❌         |       ❌       |
-
----
-
-## Tiny Footprint. Native Performance.
-
-Asyar is built with **Tauri + Rust** instead of Electron. That means:
-
-- **Significantly less RAM** — no bundled Chromium, no V8 runtime sitting idle
-- **Instant startup** — the Rust backend initializes in milliseconds
-- **Real OS integration** — native APIs for app indexing, clipboard, global hotkeys, and accessibility
-- **Secure by default** — extensions run in isolated iframes; a broken extension can't crash the launcher
-
-> _Native performance, web flexibility — Rust does the heavy lifting, Svelte 5 keeps the UI snappy._
-
-### Measured against Raycast
-
-<!-- benchmarks:start -->
-
-| Metric                                 | Asyar 0.1.1-38 | Raycast 1.104.23 | Raycast Beta 0.69.0.0 |
-| -------------------------------------- | -------------: | ---------------: | --------------------: |
-| Hotkey → window visible (median of 15) |        12.0 ms |          21.7 ms |               17.1 ms |
-| Hotkey → window visible (p95)          |        14.7 ms |          24.0 ms |               27.0 ms |
-| Cold start → usable                    |         572 ms |           888 ms |               1012 ms |
-| Memory footprint, idle (all processes) |       435.6 MB |         272.6 MB |              463.9 MB |
-| CPU while idle (30s average)           |         3.20 % |           0.04 % |                1.45 % |
-| App size on disk                       |          64 MB |           209 MB |                179 MB |
-
-<sub>Measured 2026-07-17 on a Apple M4 Max (36 GB RAM), macOS 26.5.2, each app
-as installed, summoned by its own registered global hotkey, one at a time on a
-quiet machine. Black-box measurement: synthetic hotkey press → launcher window
-on screen. Reproduce with [`benchmarks/bench.sh`](benchmarks/README.md).</sub>
-
-<!-- benchmarks:end -->
-
-Don't take our word for it: [`benchmarks/bench.sh`](benchmarks/README.md) measures Asyar and Raycast (stable and beta) black-box on your own machine — hotkey-to-window latency, cold start, full-process-group memory, idle CPU, and disk size — and regenerates this table with `--update-readme`.
 
 ---
 

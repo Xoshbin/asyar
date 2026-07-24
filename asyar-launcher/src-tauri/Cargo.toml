@@ -34,7 +34,7 @@ tauri-plugin-log = "2"
 log = "0.4"
 tauri-plugin-fs = "2"
 tauri-plugin-store = "2"
-thiserror = "1.0.63"
+thiserror = "2"
 enigo = "0.1.3"
 rusqlite = { version = "0.31", features = ["bundled"] }
 plist = "1.7"
@@ -58,7 +58,10 @@ bip39 = { version = "2.0", default-features = false, features = ["std"] }
 rand = "0.10"
 zeroize = "1"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
-reqwest = { version = "0.12", features = ["json", "stream"] } # For downloading
+# Two HTTP stacks coexist on purpose — do NOT unify them:
+# reqwest is host-side Rust HTTP (downloads, the auth/API client, sidecar
+# fetches) that runs in the Rust process with no webview origin.
+reqwest = { version = "0.12", features = ["json", "stream"] } # host-side Rust HTTP
 zip = { version = "2.1", default-features = false, features = ["deflate"] } # For extracting zip files
 futures-util = "0.3" # For stream handling
 tokio-util = { version = "0.7", features = ["codec"] } # For async file I/O helpers
@@ -72,6 +75,11 @@ async_zip = { version = "0.0.17", features = ["full", "tokio"] } # Enable tokio 
 # Homebrew. See issue #345. Direct dep + `static` feature wins via Cargo's
 # feature unification.
 liblzma-sys = { version = "0.4", features = ["static"] }
+# The other HTTP stack (see reqwest above): the fetch client exposed to the
+# webview/extensions. Host network calls from JS MUST route through this, not
+# the WebView's own fetch(), which breaks CORS on Windows (the tauri:// origin
+# mismatches the target). Drives the SDK's network:fetch. Kept separate from
+# reqwest on purpose — unifying them would reintroduce the Windows CORS break.
 tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 tauri-plugin-dialog = "2.7"
 tauri-plugin-shell = "2.3.5"
