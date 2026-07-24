@@ -300,6 +300,24 @@ describe('ExtensionBridge registerActionHandler', () => {
     expect(found!.extensionId).toBe('com.example.github');
   });
 
+  it('does not double-prefix when given an already-full action id', async () => {
+    const { extensionBridge: bridge } = await import('./ExtensionBridge');
+    const handler = vi.fn();
+
+    // A caller passing the already-prefixed id must still key on the single
+    // full id (not act_<ext>_act_<ext>_...), or dispatch — which sends the
+    // single full id — can never find the handler.
+    bridge.registerActionHandler(
+      'com.example.github',
+      'act_com.example.github_open-browser',
+      handler,
+    );
+
+    const ids = bridge.getActions().map((a) => a.id);
+    expect(ids).toContain('act_com.example.github_open-browser');
+    expect(ids).not.toContain('act_com.example.github_act_com.example.github_open-browser');
+  });
+
   it('handler is invoked when asyar:action:execute message arrives', async () => {
     const { extensionBridge: bridge } = await import('./ExtensionBridge');
     const handler = vi.fn();
