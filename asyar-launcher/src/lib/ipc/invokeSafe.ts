@@ -1,11 +1,40 @@
 import { invoke } from '@tauri-apps/api/core';
-import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { logService } from '../../services/log/logService';
 import type { Feedback } from 'asyar-sdk/contracts';
 
 interface InvokeSafeOpts {
   silent?: boolean;
   retry?: () => Promise<void>;
+}
+
+/**
+ * Sink for invoke failures. The diagnostics UI registers itself via
+ * {@link setInvokeFailureReporter}, so this transport layer depends on an
+ * abstraction rather than importing the feedback store directly.
+ */
+export interface InvokeFailureReporter {
+  report(feedback: Feedback): void;
+  registerRetry(retry: () => Promise<void>): string;
+}
+
+let reporter: InvokeFailureReporter | null = null;
+
+/** Wire the diagnostics sink. Called once from the app's composition root. */
+export function setInvokeFailureReporter(next: InvokeFailureReporter | null): void {
+  reporter = next;
+}
+
+/** Log a failed invoke and route it to the registered diagnostics reporter. */
+function reportInvokeFailure(cmd: string, raw: unknown, opts?: InvokeSafeOpts): void {
+  const d: Feedback = isFeedbackShape(raw) ? { ...raw } : fallback(cmd, raw);
+  logService.error(`[invokeSafe] ${cmd}: ${d.developerDetail ?? String(raw)}`);
+  if (opts?.retry && reporter) {
+    d.retryActionId = reporter.registerRetry(opts.retry);
+    d.retryable = true;
+  }
+  if (!opts?.silent) {
+    reporter?.report(d);
+  }
 }
 
 export function isFeedbackShape(raw: unknown): raw is Feedback {
@@ -33,16 +62,7 @@ export async function invokeSafe<T>(
   try {
     return await invoke<T>(cmd, args);
   } catch (raw) {
-    const d: Feedback = isFeedbackShape(raw) ? { ...raw } : fallback(cmd, raw);
-    logService.error(`[invokeSafe] ${cmd}: ${d.developerDetail ?? String(raw)}`);
-    if (opts?.retry) {
-      const id = feedbackService.registerRetry(opts.retry);
-      d.retryActionId = id;
-      d.retryable = true;
-    }
-    if (!opts?.silent) {
-      void feedbackService.report(d);
-    }
+    reportInvokeFailure(cmd, raw, opts);
     return null;
   }
 }
@@ -64,16 +84,7 @@ export async function invokeSafeVoid(
     await invoke(cmd, args);
     return true;
   } catch (raw) {
-    const d: Feedback = isFeedbackShape(raw) ? { ...raw } : fallback(cmd, raw);
-    logService.error(`[invokeSafe] ${cmd}: ${d.developerDetail ?? String(raw)}`);
-    if (opts?.retry) {
-      const id = feedbackService.registerRetry(opts.retry);
-      d.retryActionId = id;
-      d.retryable = true;
-    }
-    if (!opts?.silent) {
-      void feedbackService.report(d);
-    }
+    reportInvokeFailure(cmd, raw, opts);
     return false;
   }
 }
@@ -108,16 +119,7 @@ export async function invokeSafeOption<T>(
     const value = await invoke<T | null>(cmd, args);
     return { ok: true, value };
   } catch (raw) {
-    const d: Feedback = isFeedbackShape(raw) ? { ...raw } : fallback(cmd, raw);
-    logService.error(`[invokeSafe] ${cmd}: ${d.developerDetail ?? String(raw)}`);
-    if (opts?.retry) {
-      const id = feedbackService.registerRetry(opts.retry);
-      d.retryActionId = id;
-      d.retryable = true;
-    }
-    if (!opts?.silent) {
-      void feedbackService.report(d);
-    }
+    reportInvokeFailure(cmd, raw, opts);
     return { ok: false };
   }
 }

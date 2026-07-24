@@ -38,6 +38,8 @@ vi.mock('../settings/settingsService.svelte', () => ({
 }));
 
 import { invoke } from '@tauri-apps/api/core';
+import { feedbackService } from '../feedback/feedbackService.svelte';
+import { setInvokeFailureReporter } from '../../lib/ipc/invokeSafe';
 import {
   initFileIndexConfigSync,
   __resetFileIndexConfigSyncForTest,
@@ -61,6 +63,7 @@ function cfg(overrides: Partial<typeof settingsStateHolder.current.fileSearch> =
 describe('fileIndexConfigSync', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setInvokeFailureReporter(feedbackService);
     subscribedCallbacks = [];
     settingsStateHolder.current = { fileSearch: cfg() };
     __resetFileIndexConfigSyncForTest();

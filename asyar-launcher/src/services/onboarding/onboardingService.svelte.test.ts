@@ -10,6 +10,8 @@ vi.mock('../feedback/feedbackService.svelte', () => ({
 
 import { onboardingService } from './onboardingService.svelte';
 import { invoke } from '@tauri-apps/api/core';
+import { feedbackService } from '../feedback/feedbackService.svelte';
+import { setInvokeFailureReporter } from '../../lib/ipc/invokeSafe';
 import type { MockedFunction } from 'vitest';
 
 const mockInvoke = invoke as MockedFunction<typeof invoke>;
@@ -24,6 +26,7 @@ const initialState = {
 describe('onboardingService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setInvokeFailureReporter(feedbackService);
     onboardingService.reset();
   });
 
@@ -81,6 +84,7 @@ describe('onboardingService', () => {
 describe('skipAiSetup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setInvokeFailureReporter(feedbackService);
     onboardingService.reset();
   });
 
@@ -102,6 +106,7 @@ describe('skipAiSetup', () => {
 describe('AI onboarding', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setInvokeFailureReporter(feedbackService);
     onboardingService.reset();
   });
 
