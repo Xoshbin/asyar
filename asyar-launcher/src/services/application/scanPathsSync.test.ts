@@ -38,6 +38,8 @@ vi.mock('../settings/settingsService.svelte', () => ({
 
 import { invoke } from '@tauri-apps/api/core';
 import { initScanPathsSync, __resetScanPathsSyncForTest } from './scanPathsSync.svelte';
+import { feedbackService } from '../feedback/feedbackService.svelte';
+import { setInvokeFailureReporter } from '../../lib/ipc/invokeSafe';
 
 async function flush(): Promise<void> {
   // Let microtasks drain so the fire-and-forget `invoke` call resolves.
@@ -48,6 +50,7 @@ async function flush(): Promise<void> {
 describe('scanPathsSync', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setInvokeFailureReporter(feedbackService);
     subscribedCallbacks = [];
     settingsStateHolder.current = {
       search: { additionalScanPaths: [] },

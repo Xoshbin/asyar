@@ -51,6 +51,7 @@ import { extensionReadinessListener } from './extension/extensionReadinessListen
 import { iframeDeliveryListener } from './extension/iframeDeliveryListener.svelte';
 import { restoreWorkers } from '../lib/ipc/iframeLifecycleCommands';
 import { feedbackService } from './feedback/feedbackService.svelte';
+import { setInvokeFailureReporter } from '../lib/ipc/invokeSafe';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -82,6 +83,10 @@ export const appInitializer = {
 
     try {
       logService.info(`Application starting initialization...`);
+
+      // Route invoke failures to the diagnostics UI. Wired here (composition
+      // root) so the IPC transport doesn't import the feedback store.
+      setInvokeFailureReporter(feedbackService);
 
       // Register AI provider descriptors before any settings view reads the registry.
       initProviders();

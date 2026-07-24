@@ -15,6 +15,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { searchBarAccessoryService } from './searchBarAccessoryService.svelte';
 import { extensionIframeManager } from '../extension/extensionIframeManager.svelte';
 import { feedbackService } from '../feedback/feedbackService.svelte';
+import { setInvokeFailureReporter } from '../../lib/ipc/invokeSafe';
 
 const EXT = 'org.test.ext';
 const CMD = 'show';
@@ -22,6 +23,7 @@ const CMD = 'show';
 describe('searchBarAccessoryService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setInvokeFailureReporter(feedbackService);
     searchBarAccessoryService.clear();
   });
 
