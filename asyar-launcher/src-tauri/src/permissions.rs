@@ -348,6 +348,7 @@ fn is_public_call(call_type: &str) -> bool {
             | "asyar:api:actions:registerAction"
             | "asyar:api:actions:unregisterAction"
             | "asyar:api:actions:setContext"
+            | "asyar:api:actions:executeAction"
             | "asyar:api:extensions:navigateToView"
             | "asyar:api:extensions:goBack"
             | "asyar:api:extensions:forwardKeyToActiveView"
@@ -365,6 +366,26 @@ fn is_public_call(call_type: &str) -> bool {
             | "asyar:api:commands:replaceDynamicCommands"
             | "asyar:api:commands:updateCommandMetadata"
             | "asyar:api:commands:clearCommandsForExtension"
+        // Worker<->view shared state + RPC, scoped to the calling extension
+        // (state is in INJECTS_EXTENSION_ID) — internal plumbing, no host data
+        // read, nothing persisted host-side, no cross-extension reach.
+            | "asyar:api:state:get"
+            | "asyar:api:state:set"
+            | "asyar:api:state:subscribe"
+            | "asyar:api:state:unsubscribe"
+            | "asyar:api:state:rpcRequest"
+            | "asyar:api:state:rpcReply"
+            | "asyar:api:state:rpcAbort"
+        // Ephemeral, extension-scoped feedback UI — toast / progress / HUD /
+        // confirm dialog. Transient, scoped to the caller; nothing persisted.
+        // (Notification-like feedback — announce / sendBackground — stays gated.)
+            | "asyar:api:feedback:report"
+            | "asyar:api:feedback:showProgress"
+            | "asyar:api:feedback:updateProgress"
+            | "asyar:api:feedback:finishProgress"
+            | "asyar:api:feedback:showHUD"
+            | "asyar:api:feedback:dismiss"
+            | "asyar:api:feedback:confirmAlert"
         // Pure compute — caller supplies its own input, gets a transform back.
             | "asyar:api:search:rank"
             | "asyar:api:clipboard:stripHtml"
@@ -876,6 +897,53 @@ mod tests {
                 gate_decision(call),
                 GateDecision::AllowPublic,
                 "{call} should be permission-free"
+            );
+        }
+    }
+
+    #[test]
+    fn gate_decision_allows_worker_view_state_rpc() {
+        // The state:* family is worker<->view shared-state plumbing, scoped to
+        // the calling extension (state is in INJECTS_EXTENSION_ID) — so it is
+        // permission-free like actions:* and extensions:navigateToView. Omitting
+        // these made the fail-closed gate deny any extension using shared state.
+        for call in [
+            "asyar:api:state:get",
+            "asyar:api:state:set",
+            "asyar:api:state:subscribe",
+            "asyar:api:state:unsubscribe",
+            "asyar:api:state:rpcRequest",
+            "asyar:api:state:rpcReply",
+            "asyar:api:state:rpcAbort",
+        ] {
+            assert_eq!(
+                gate_decision(call),
+                GateDecision::AllowPublic,
+                "{call} should be permission-free (worker<->view state, scoped per extension)"
+            );
+        }
+    }
+
+    #[test]
+    fn gate_decision_allows_scoped_feedback_and_action_exec() {
+        // Ephemeral, extension-scoped feedback UI (toast/progress/HUD/confirm)
+        // and the extension triggering its own action are transient and scoped
+        // to the caller — permission-free, like statusBar:* and actions:register*.
+        // (Notification-like feedback — announce/sendBackground — stays gated.)
+        for call in [
+            "asyar:api:feedback:report",
+            "asyar:api:feedback:showProgress",
+            "asyar:api:feedback:updateProgress",
+            "asyar:api:feedback:finishProgress",
+            "asyar:api:feedback:showHUD",
+            "asyar:api:feedback:dismiss",
+            "asyar:api:feedback:confirmAlert",
+            "asyar:api:actions:executeAction",
+        ] {
+            assert_eq!(
+                gate_decision(call),
+                GateDecision::AllowPublic,
+                "{call} should be permission-free (ephemeral, extension-scoped UI)"
             );
         }
     }

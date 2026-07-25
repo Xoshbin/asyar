@@ -32,12 +32,16 @@ function walkTs(dir, out = []) {
   return out;
 }
 
-// Every extension→host call the SDK can make. Each proxy calls
-// `broker.invoke('service:action')`; the MessageBroker prepends `asyar:api:`.
-// (Verified: the SDK uses only static string literals here — no dynamically
-// built call types — so this static scan is complete.)
+// Every extension→host call the SDK can make. A proxy reaches the gate three
+// ways: `broker.invoke('service:action')`, the structural `this.invoke(...)`,
+// and a captured `const invoke = this.invoke.bind(this)` inside a returned
+// handle. Any of them may carry an explicit return generic (`invoke<T>(...)`).
+// The pattern MUST therefore allow an optional `<...>` and match `invoke` with
+// or without a leading dot — missing the generic form is exactly how the whole
+// `state:*` family slipped past the gate. The first arg is always a static
+// `'service:action'` literal (no dynamically built call types).
 function sdkCallTypes() {
-  const re = /\.invoke\(\s*['"`]([a-zA-Z]+:[a-zA-Z]+)['"`]/g;
+  const re = /\binvoke\s*(?:<[^>]*>)?\s*\(\s*['"`]([a-zA-Z]+:[a-zA-Z]+)['"`]/g;
   const set = new Set();
   for (const file of walkTs(SDK_SRC)) {
     for (const m of readFileSync(file, 'utf8').matchAll(re)) set.add(`asyar:api:${m[1]}`);
@@ -65,16 +69,67 @@ function rustClassifiedCallTypes() {
   return set;
 }
 
+// Call types the SDK's ExtensionContext constructs but that are host-realm
+// operations — the fail-closed gate DENIES them for sandboxed (Tier-2)
+// extensions, which is correct (before #567's fail-closed change these were
+// silently ALLOWED — e.g. an extension could uninstall other extensions). They
+// are listed here so coverage knows they are *intentionally* unclassified
+// (denied), not forgotten. Marking any of these public/gated would hand a
+// sandboxed extension a privileged host API — the guards below enforce that.
+const HOST_REALM_ONLY = new Set([
+  'asyar:api:extensions:getAllExtensions',
+  'asyar:api:extensions:getAllExtensionsWithState',
+  'asyar:api:extensions:handleViewSearch',
+  'asyar:api:extensions:handleViewSubmit',
+  'asyar:api:extensions:init',
+  'asyar:api:extensions:loadExtensions',
+  'asyar:api:extensions:reloadExtensions',
+  'asyar:api:extensions:searchAll',
+  'asyar:api:extensions:toggleExtensionState',
+  'asyar:api:extensions:uninstallExtension',
+  'asyar:api:settings:get',
+  'asyar:api:settings:set',
+  'asyar:api:clipboard:hideWindow',
+  'asyar:api:clipboard:initialize',
+  'asyar:api:commands:executeCommand',
+  'asyar:api:onboarding:complete',
+]);
+
 describe('extension permission gate coverage', () => {
-  it('classifies every call type an extension can invoke (fail-closed gate must be exhaustive)', () => {
+  it('classifies every Tier-2-callable type (fail-closed gate must be exhaustive)', () => {
     const classified = rustClassifiedCallTypes();
-    const unclassified = [...sdkCallTypes()].filter((c) => !classified.has(c)).sort();
+    const unclassified = [...sdkCallTypes()]
+      .filter((c) => !classified.has(c) && !HOST_REALM_ONLY.has(c))
+      .sort();
     expect(
       unclassified,
       'These SDK call types reach check_extension_permission but are in neither ' +
         'get_required_permission nor is_public_call, so the fail-closed gate would DENY them. ' +
-        'Classify each in asyar-launcher/src-tauri/src/permissions.rs:\n  ' +
+        'EITHER classify each in asyar-launcher/src-tauri/src/permissions.rs (if a sandboxed ' +
+        'extension should be able to call it) OR add it to HOST_REALM_ONLY here (if it is a ' +
+        'host-only op that must stay denied for extensions):\n  ' +
         unclassified.join('\n  '),
+    ).toEqual([]);
+  });
+
+  it('never both classifies AND host-realm-flags a call (that would grant a privileged API)', () => {
+    const classified = rustClassifiedCallTypes();
+    const wronglyAllowed = [...HOST_REALM_ONLY].filter((c) => classified.has(c)).sort();
+    expect(
+      wronglyAllowed,
+      'These are on HOST_REALM_ONLY yet ALSO classified in permissions.rs, so a sandboxed ' +
+        'extension can now reach a host-only API. Remove them from is_public_call / ' +
+        'get_required_permission (or from HOST_REALM_ONLY if genuinely safe):\n  ' +
+        wronglyAllowed.join('\n  '),
+    ).toEqual([]);
+  });
+
+  it('keeps HOST_REALM_ONLY free of stale entries (each must still be a real SDK call)', () => {
+    const calls = sdkCallTypes();
+    const stale = [...HOST_REALM_ONLY].filter((c) => !calls.has(c)).sort();
+    expect(
+      stale,
+      `HOST_REALM_ONLY lists call types the SDK no longer emits:\n  ${stale.join('\n  ')}`,
     ).toEqual([]);
   });
 
