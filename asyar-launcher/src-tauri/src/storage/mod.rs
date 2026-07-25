@@ -15,6 +15,7 @@ pub mod mcp_audit;
 pub mod mcp_permissions;
 pub mod mcp_servers;
 pub mod mcp_settings;
+pub mod migrations;
 pub mod notes;
 pub mod notes_fts;
 pub mod runs_history;
@@ -57,34 +58,7 @@ impl DataStore {
         // WAL mode for better concurrent read performance
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
 
-        // Create all tables
-        clipboard::init_table(&conn)?;
-        snippets::init_table(&conn)?;
-        notes::init_table(&conn)?;
-        sticky_notes::init_table(&conn)?;
-        shortcuts::init_table(&conn)?;
-        extension_kv::init_table(&conn)?;
-        extension_preferences::init_table(&conn)?;
-        extension_cache::init_table(&conn)?;
-        extension_state::init_table(&conn)?;
-        shell::init_table(&conn)?;
-        timers::init_table(&conn)?;
-        command_arg_defaults::init_table(&conn)?;
-        searchbar_accessory::init_table(&conn)?;
-        cloud_sync_state::init_table(&conn)?;
-        cloud_sync_e2ee_local::init_table(&conn)?;
-        runs_history::init_table(&conn)?;
-        script_directories::init_table(&conn)?;
-        file_search_selections::init_table(&conn)?;
-        file_search_pinned::init_table(&conn)?;
-        agents::init_table(&conn)?;
-        mcp_servers::init_table(&conn)?;
-        mcp_audit::init_table(&conn)?;
-        mcp_permissions::init_table(&conn)?;
-        mcp_settings::init_table(&conn)?;
-        crate::aliases::init_table(&conn)?;
-        crate::oauth::token_store::init_table(&conn)?;
-        crate::extensions::onboarding_state::init_table(&conn)?;
+        migrations::run(&conn)?;
 
         Ok(Self {
             db: Arc::new(Mutex::new(conn)),
@@ -118,29 +92,7 @@ mod agents_test;
 pub fn create_test_store() -> DataStore {
     let conn = Connection::open_in_memory().expect("Failed to open in-memory DB");
     conn.execute_batch("PRAGMA journal_mode=WAL;").unwrap();
-    clipboard::init_table(&conn).unwrap();
-    snippets::init_table(&conn).unwrap();
-    notes::init_table(&conn).unwrap();
-    sticky_notes::init_table(&conn).unwrap();
-    shortcuts::init_table(&conn).unwrap();
-    extension_kv::init_table(&conn).unwrap();
-    extension_preferences::init_table(&conn).unwrap();
-    extension_state::init_table(&conn).unwrap();
-    shell::init_table(&conn).unwrap();
-    timers::init_table(&conn).unwrap();
-    command_arg_defaults::init_table(&conn).unwrap();
-    searchbar_accessory::init_table(&conn).unwrap();
-    cloud_sync_state::init_table(&conn).unwrap();
-    cloud_sync_e2ee_local::init_table(&conn).unwrap();
-    script_directories::init_table(&conn).unwrap();
-    file_search_selections::init_table(&conn).unwrap();
-    file_search_pinned::init_table(&conn).unwrap();
-    crate::aliases::init_table(&conn).unwrap();
-    crate::oauth::token_store::init_table(&conn).unwrap();
-    agents::init_table(&conn).unwrap();
-    mcp_servers::init_table(&conn).unwrap();
-    mcp_audit::init_table(&conn).unwrap();
-    mcp_permissions::init_table(&conn).unwrap();
+    migrations::run(&conn).expect("migration ledger failed on test store");
     DataStore {
         db: std::sync::Arc::new(Mutex::new(conn)),
     }

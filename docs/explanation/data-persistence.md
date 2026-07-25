@@ -24,6 +24,19 @@ Both databases use WAL mode for concurrent read performance and are stored in th
 
 **Settings, portals, and AI chat** continue to use Tauri plugin-store (JSON files) — their datasets are small and write-infrequent.
 
+### Schema migrations
+
+`asyar_data.db` has one ordered, append-only ledger in `storage/migrations.rs`, keyed on `PRAGMA user_version`. `migrations::run()` applies every entry above the database's stamped version, each in its own transaction, and is the only thing that builds the schema — both `DataStore::initialize` and `create_test_store()` call it, so the two can never drift apart.
+
+**To add a migration, in four lines:**
+
+1. Append one `Migration` to `MIGRATIONS` with the next version number (they start at 1 and must stay gapless — a test enforces this).
+2. Write its `up` as plain forward-only SQL. No `PRAGMA table_info` sniffing: the version already tells you what the database contains.
+3. Never edit, reorder, or renumber a published entry — installs in the field are already stamped with it and will not replay it.
+4. Run `cargo test storage::migrations`; the fresh-DB test's table list is the schema snapshot you update alongside a new table.
+
+Version 1 is the `baseline`: it calls the pre-ledger `init_table` functions, which are idempotent, so an existing populated database is recognised and stamped rather than rebuilt. The per-module column sniffing still living inside those functions is scheduled for removal, not part of the ledger contract.
+
 ---
 
 ## 14. Known Limitations & Future Work
