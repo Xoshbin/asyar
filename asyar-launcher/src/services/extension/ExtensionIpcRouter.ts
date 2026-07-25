@@ -1,16 +1,12 @@
 import { logService } from '../log/logService';
 import * as commands from '../../lib/ipc/commands';
 import { contributeShortcodes, revokeShortcodes } from '../../lib/ipc/shortcodeCommands';
-import { extensionIframeManager } from './extensionIframeManager.svelte';
-import { extensionPreferencesService } from './extensionPreferencesService.svelte';
-import { streamDispatcher } from './streamDispatcher.svelte';
 import { messageBroker, type Namespace } from 'asyar-sdk/contracts';
 import type { ServiceRegistry } from './defineServiceRegistry';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
-import { feedbackService } from '../feedback/feedbackService.svelte';
-import { developerSettingsService } from '../settings/developerSettingsService.svelte';
-import { isExternallyConsumedExtensionResponse } from '../../lib/ipc/extensionMessageProtocol';
-import { isFeedbackShape } from '../../lib/ipc/invokeSafe';
+import { HandledDispatchError } from './ipc/errors';
+import { runIpcPipeline } from './ipc/pipeline';
+import type { IframeRole, IpcContext, IpcDeps } from './ipc/types';
 
 const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
   search_items: (args) => commands.searchItems(args?.query ?? ''),
@@ -27,15 +23,6 @@ const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
 
 // Kept for documentation — actual dispatch uses EXTENSION_INVOKE_DISPATCH
 export const ALLOWED_EXTENSION_INVOKE_COMMANDS = new Set(Object.keys(EXTENSION_INVOKE_DISPATCH));
-
-/**
- * Every EXTENSION_INVOKE_DISPATCH handler delegates to an invokeSafe-backed
- * commands.ts wrapper, which returns null on failure instead of throwing —
- * and has already reported a diagnostic for that failure itself. Thrown to
- * signal "build the asyar:response error envelope" without making the outer
- * catch block in setup() report a second, redundant diagnostic.
- */
-class HandledDispatchError extends Error {}
 
 /**
  * Services whose first parameter is the calling extension's ID.
@@ -82,307 +69,71 @@ export const ALWAYS_INJECTS_CALLER_ID = new Set<Namespace>([
 ] as const satisfies readonly Namespace[]);
 
 export class ExtensionIpcRouter {
+  private readonly deps: IpcDeps;
+
   constructor(
     private serviceRegistry: ServiceRegistry,
-    private getManifestById: (id: string) => ExtendedManifest | undefined,
-    private goBack: () => void,
-    private saveSearchIndex: () => void,
-  ) {}
+    getManifestById: (id: string) => ExtendedManifest | undefined,
+    goBack: () => void,
+    saveSearchIndex: () => void,
+  ) {
+    this.deps = {
+      serviceRegistry,
+      getManifestById,
+      goBack,
+      saveSearchIndex,
+      findExtensionIdForSource: (source) => this.findExtensionIdForSource(source),
+      findIframeRoleForSource: (source) => this.findIframeRoleForSource(source),
+      dispatchApiCall: (type, payload, extensionId, isPrivileged, originRole) =>
+        this.dispatchApiCall(type, payload, extensionId, isPrivileged, originRole),
+    };
+  }
 
   public setup(): void {
     if (typeof window === 'undefined') return;
 
-    window.addEventListener('message', async (event: MessageEvent) => {
-      extensionIframeManager.handleSearchResponse(event);
-
-      const data = event.data;
-      const { type, payload, messageId, extensionId: msgExtensionId } = data;
-      if (!type || !type.startsWith('asyar:')) return;
-
-      // Extension requests launcher to hide
-      if (type === 'asyar:window:hide') {
-        this.goBack();
-        this.saveSearchIndex();
-        commands.hideWindow();
-        return;
-      }
-
-      // Ignore responses sent to extensions from the main process to prevent infinite loops
-      if (type === 'asyar:response') return;
-
-      // Dedicated bridges validate and consume these response envelopes. They
-      // are not extension requests, so they must not enter permission/dispatch
-      // handling or receive another response from the generic router.
-      if (isExternallyConsumedExtensionResponse(type)) return;
-
-      // Dev-only: route dev-inspector diagnostic logs (from both view and
-      // worker iframes). Gated by `import.meta.env.DEV` OR runtime developer mode.
-      const isDevActive = import.meta.env.DEV || developerSettingsService.isDeveloperMode;
-      const isTracingEnabled = import.meta.env.DEV || developerSettingsService.tracing;
-
-      if (
-        isDevActive &&
-        isTracingEnabled &&
-        (type === 'asyar:dev:rpc-log' || type === 'asyar:dev:ipc-log')
-      ) {
-        const devExtensionId = payload?.extensionId || msgExtensionId;
-        if (devExtensionId) {
-          void import('../dev/inspectorStore.svelte').then(({ inspectorStore }) => {
-            if (type === 'asyar:dev:rpc-log') {
-              inspectorStore.recordRpcLog(devExtensionId, payload);
-            } else {
-              inspectorStore.recordIpcLog(devExtensionId, payload);
-            }
-          });
-        }
-        return;
-      }
-
-      // Auto-fault reporting: worker iframes post this envelope directly to the
-      // launcher window (not through the SDK proxy bag), so it must be handled
-      // before the permission gate and the extensionId validation below.
-      if (type === 'asyar:feedback:uncaught') {
-        const faultExtensionId = this.findExtensionIdForSource(event.source);
-        const faultRole = this.findIframeRoleForSource(event.source);
-        if (faultExtensionId) {
-          void feedbackService.report({
-            source: 'extension',
-            kind:
-              payload?.kind === 'iframe_unhandled_rejection'
-                ? 'iframe_unhandled_rejection'
-                : 'iframe_uncaught',
-            severity: 'error',
-            retryable: false,
-            context: { extensionId: faultExtensionId, role: faultRole ?? 'unknown' },
-            extensionId: faultExtensionId,
-            developerDetail: payload?.developerDetail,
-          });
-        }
-        return;
-      }
-
-      const isPrivilegedHostContext = event.source === window;
-      // Derive the caller's identity from the DOM for iframe contexts.
-      // The host sets `data-extension-id` on each iframe element — the extension
-      // cannot forge this attribute.  Trusting `extensionId` from the payload
-      // (as `msgExtensionId || payload?.extensionId`) would let any extension
-      // impersonate another by sending a different ID in its message data.
-      // The privileged host context (event.source === window) has no corresponding
-      // iframe element, so it falls back to the payload-sourced value, which is
-      // already trusted in that path.
-      const extensionId = isPrivilegedHostContext
-        ? msgExtensionId || payload?.extensionId
-        : this.findExtensionIdForSource(event.source);
-
-      // Mandatory Validation only for external iframe contexts
-      if (!isPrivilegedHostContext) {
-        if (!extensionId) {
-          logService.error(
-            `[Main] Rejected IPC message: No extensionId provided by untrusted frame for type ${type}`,
-          );
-          return;
-        }
-
-        const manifest = this.getManifestById(extensionId);
-        if (!manifest) {
-          logService.error(
-            `[Main] Unauthorized: No registered manifest found for iframe extension ${extensionId}`,
-          );
-          const unknownError = `Unknown extension: ${extensionId}`;
-          (event.source as Window)?.postMessage(
-            {
-              type: 'asyar:response',
-              messageId,
-              error: unknownError,
-            },
-            '*',
-          );
-          void feedbackService.report({
-            source: 'extension',
-            kind: classifyProxyError(type, unknownError),
-            severity: 'warning',
-            retryable: false,
-            context: { method: type, error: unknownError },
-            extensionId,
-          });
-          return;
-        }
-
-        // --- Permission Gate ---
-        // Only `asyar:api:*` is a permission-bearing call surface, and it is the
-        // only surface the Rust gate classifies. Everything else on the `asyar:`
-        // channel is transport/lifecycle plumbing (`asyar:extension:loaded`,
-        // `asyar:stream:abort`, the frames other listeners consume) — it has no
-        // permission to declare and reaches no service dispatch, so running the
-        // now-fail-closed gate on it denied every one of them.
-        // Dispatch stays fail-closed regardless: the only path into a service is
-        // the `asyar:api:` branch below, which is always gated here.
-        if (type.startsWith('asyar:api:')) {
-          // Fail closed: a failed permission check (null) must deny, not crash
-          // or silently let the call through.
-          const permissionResult = await commands.checkExtensionPermission(extensionId, type);
-          if (!permissionResult?.allowed) {
-            logService.warn(
-              `[PermissionGate] BLOCKED: ${permissionResult?.reason ?? 'permission check failed'}`,
-            );
-            // Rust sets `requiredPermission` only when the call is gated on a
-            // real manifest permission. The fail-closed path (unrecognized call
-            // type — typically a stale extension bundle calling a deleted API)
-            // sends only `reason`, and a call type is not a permission name, so
-            // telling the author to declare it in manifest.json is unfollowable.
-            // The reason is already self-describing (and the call type travels
-            // separately in `context.method`), so it is surfaced verbatim —
-            // prefixing it with the type printed the same string twice.
-            const permError = permissionResult?.requiredPermission
-              ? `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
-              : (permissionResult?.reason ?? `Blocked "${type}": permission check failed`);
-            (event.source as Window)?.postMessage(
-              {
-                type: 'asyar:response',
-                messageId,
-                error: permError,
-              },
-              '*',
-            );
-            void feedbackService.report({
-              source: 'extension',
-              kind: classifyProxyError(type, permError),
-              severity: 'warning',
-              retryable: false,
-              context: { method: type, error: permError },
-              extensionId,
-            });
-            return;
-          }
-        }
-      }
-
-      logService.debug(
-        `[Main] Received IPC message${extensionId ? ` from ${extensionId}` : ' from Privileged Host Context'}: ${type}`,
-      );
-
-      try {
-        let result: any;
-
-        if (type === 'asyar:stream:abort') {
-          const streamId =
-            (payload as { streamId?: string } | undefined)?.streamId ??
-            (data as { streamId?: string }).streamId;
-          if (!streamId || typeof streamId !== 'string') {
-            logService.warn('[IpcRouter] asyar:stream:abort message missing streamId — ignoring');
-            return;
-          }
-          streamDispatcher.abort(streamId);
-          return;
-        }
-
-        // Extension iframe signals it has booted and is ready to receive
-        // its initial preferences bundle. Reply with the resolved
-        // preferences via asyar:event:preferences:set-all so the SDK's
-        // ExtensionBridge can install the frozen snapshot on the live
-        // ExtensionContext. This MUST be handled at the top level —
-        // nesting it under the asyar:api:* branch (as previously) would
-        // make the handler unreachable because this message type starts
-        // with `asyar:extension:` not `asyar:api:`.
-        if (type === 'asyar:extension:loaded') {
-          logService.info(`Extension ready: ${extensionId}`);
-          if (extensionId) {
-            const bundle = await extensionPreferencesService.getEffectivePreferences(extensionId);
-            (event.source as WindowProxy)?.postMessage(
-              {
-                type: 'asyar:event:preferences:set-all',
-                payload: {
-                  extension: bundle.extension,
-                  commands: bundle.commands,
-                },
-              },
-              '*',
-            );
-          }
-          return;
-        }
-
-        if (type === 'asyar:api:actions:registerActionHandler') {
-          // Stamp which iframe role owns the handler so
-          // sendActionExecuteToExtension can route asyar:action:execute to
-          // the right iframe. Role is read from the calling iframe's
-          // data-role attribute (trusted — set host-side on the iframe tag),
-          // never from the payload.
-          if (!isPrivilegedHostContext && extensionId) {
-            const role = this.findIframeRoleForSource(event.source);
-            const actionId =
-              typeof (payload as { actionId?: unknown })?.actionId === 'string'
-                ? (payload as { actionId: string }).actionId
-                : null;
-            if (role && actionId) {
-              const actionsService = this.serviceRegistry.actions as {
-                recordActionHandlerRole?: (
-                  extensionId: string,
-                  actionId: string,
-                  role: 'view' | 'worker',
-                ) => void;
-              };
-              actionsService.recordActionHandlerRole?.(extensionId, actionId, role);
-            }
-          }
-          // Fall through to the standard response so the SDK's broker.invoke resolves.
-          result = undefined;
-        } else if (type.startsWith('asyar:api:')) {
-          // Tagged so streaming APIs route chunks back to the originating iframe.
-          const originRole = !isPrivilegedHostContext
-            ? this.findIframeRoleForSource(event.source)
-            : undefined;
-          result = await this.dispatchApiCall(
-            type,
-            payload,
-            extensionId,
-            isPrivilegedHostContext,
-            originRole,
-          );
-        } else {
-          if (import.meta.env.DEV) {
-            logService.warn(`[IPC] Unhandled message type: ${type}`);
-          }
-        }
-
-        (event.source as WindowProxy)?.postMessage(
-          {
-            type: 'asyar:response',
-            messageId,
-            result,
-          },
-          '*',
-        );
-      } catch (error) {
-        const catchError = extractErrorMessage(error);
-        logService.error(`[Main] IPC handling error for ${extensionId}: ${catchError}`);
-        (event.source as Window)?.postMessage(
-          {
-            type: 'asyar:response',
-            messageId,
-            error: catchError,
-          },
-          '*',
-        );
-        if (!(error instanceof HandledDispatchError)) {
-          void feedbackService.report({
-            source: 'extension',
-            kind: classifyProxyError(type, catchError),
-            severity: 'warning',
-            retryable: false,
-            context: { method: type, error: catchError },
-            extensionId: extensionId ?? 'unknown',
-          });
-        }
-      }
+    window.addEventListener('message', (event: MessageEvent) => {
+      void this.handleMessage(event);
     });
 
     // Tier-1 built-ins run in the host window; dispatch their invokes
     // synchronously so nav-stack side effects land before the caller's
-    // await resumes. Iframes continue to use postMessage.
+    // await resumes. This bypasses the pipeline by design — the host is the
+    // privileged context. Iframes continue to use postMessage.
     messageBroker.setHostDispatcher((command, payload, extensionId) =>
       this.dispatchApiCall(`asyar:api:${command}`, payload, extensionId, true),
     );
+  }
+
+  /** Runs one incoming frame through the declared pipeline. */
+  public async handleMessage(event: MessageEvent): Promise<void> {
+    await runIpcPipeline(this.createContext(event));
+  }
+
+  private createContext(event: MessageEvent): IpcContext {
+    const data = event.data ?? {};
+    const source = event.source;
+    const messageId = data.messageId;
+    const post = (body: Record<string, unknown>) => {
+      (source as WindowProxy | null)?.postMessage(
+        { type: 'asyar:response', messageId, ...body },
+        '*',
+      );
+    };
+
+    return {
+      event,
+      data,
+      type: data.type,
+      payload: data.payload,
+      messageId,
+      source,
+      isPrivilegedHostContext: source === window,
+      deps: this.deps,
+      result: undefined,
+      reply: (result) => post({ result }),
+      replyError: (error) => post({ error }),
+    };
   }
 
   /**
@@ -391,15 +142,7 @@ export class ExtensionIpcRouter {
    * known Tier 2 iframe. Trusted — the attribute is host-set on the element.
    */
   private findExtensionIdForSource(source: MessageEventSource | null): string | undefined {
-    if (!source || typeof document === 'undefined') return undefined;
-    const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe[data-extension-id]');
-    for (let index = 0; index < iframes.length; index += 1) {
-      const frame = iframes[index];
-      if (frame?.contentWindow === source) {
-        return frame.dataset.extensionId;
-      }
-    }
-    return undefined;
+    return this.findFrameForSource(source)?.dataset.extensionId;
   }
 
   /**
@@ -409,17 +152,17 @@ export class ExtensionIpcRouter {
    * Tier 2 iframe. Trusted path — the attribute is set by the host when
    * the iframe is created, not by extension code.
    */
-  private findIframeRoleForSource(
-    source: MessageEventSource | null,
-  ): 'view' | 'worker' | undefined {
+  private findIframeRoleForSource(source: MessageEventSource | null): IframeRole | undefined {
+    const role = this.findFrameForSource(source)?.dataset.role;
+    return role === 'view' || role === 'worker' ? role : undefined;
+  }
+
+  private findFrameForSource(source: MessageEventSource | null): HTMLIFrameElement | undefined {
     if (!source || typeof document === 'undefined') return undefined;
     const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe[data-extension-id]');
     for (let index = 0; index < iframes.length; index += 1) {
       const frame = iframes[index];
-      if (frame?.contentWindow === source) {
-        const role = frame.dataset.role;
-        return role === 'view' || role === 'worker' ? role : undefined;
-      }
+      if (frame?.contentWindow === source) return frame;
     }
     return undefined;
   }
@@ -429,7 +172,7 @@ export class ExtensionIpcRouter {
     payload: any,
     extensionId: string | undefined,
     isPrivilegedHostContext: boolean,
-    originRole?: 'view' | 'worker',
+    originRole?: IframeRole,
   ): Promise<unknown> {
     const parts = type.split(':');
     const serviceName = parts[2];
@@ -494,28 +237,4 @@ export class ExtensionIpcRouter {
     }
     return await (method as (...a: unknown[]) => unknown).apply(service, args);
   }
-}
-
-/**
- * Rust commands that reject via raw `invoke()` (files:read/glob/thumbnail,
- * invokeRaw callers) surface a serialized `AppError` — a plain object shaped
- * like `Feedback` (`{ source, kind, severity, retryable, context,
- * developerDetail }`), not an `Error` instance. `String()` on that object
- * yields the useless "[object Object]"; `developerDetail` carries the actual
- * message.
- */
-function extractErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (isFeedbackShape(error)) return error.developerDetail ?? String(error);
-  return String(error);
-}
-
-function classifyProxyError(
-  _method: string,
-  msg: string | undefined,
-): 'permission_denied' | 'rpc_timeout' | 'extension_proxy_error' {
-  const m = (msg ?? '').toLowerCase();
-  if (m.includes('permission')) return 'permission_denied';
-  if (m.includes('timeout')) return 'rpc_timeout';
-  return 'extension_proxy_error';
 }
