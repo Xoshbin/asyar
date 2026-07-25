@@ -28,6 +28,8 @@ import * as commands from '../../lib/ipc/commands';
 import { ExtensionIpcRouter } from './ExtensionIpcRouter';
 import type { ServiceRegistry } from './defineServiceRegistry';
 import { logService } from '../log/logService';
+import { extensionPreferencesService } from './extensionPreferencesService.svelte';
+import { streamDispatcher } from './streamDispatcher.svelte';
 
 describe('ExtensionIpcRouter — externally consumed responses', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -641,5 +643,218 @@ describe('ExtensionIpcRouter — AppError-shaped rejection messages', () => {
     );
 
     postMessage.mockRestore();
+  });
+});
+
+describe('ExtensionIpcRouter — protocol frames bypass the permission gate', () => {
+  // Regression: the gate ran on EVERY `asyar:*` message from an iframe, but the
+  // Rust gate only classifies the `asyar:api:*` call surface. Once it became
+  // fail-closed, transport/lifecycle frames — which are not API calls and have
+  // no permission to declare — started being denied with
+  // `Permission denied: "asyar:extension:loaded" is required but not declared
+  // in manifest.json`, so no extension ever got its preferences bundle.
+  let iframeEl: HTMLIFrameElement;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    document.querySelectorAll('iframe[data-extension-id]').forEach((el) => el.remove());
+    // Every previously registered router shares this listener, so make the gate
+    // deny — exactly what fail-closed Rust does for a non-`asyar:api:` type.
+    vi.mocked(commands.checkExtensionPermission).mockResolvedValue({
+      allowed: false,
+      reason: 'Call is not a recognized extension API — refusing by default (fail closed).',
+    } as any);
+
+    iframeEl = document.createElement('iframe');
+    iframeEl.setAttribute('data-extension-id', 'org.asyar.demo');
+    iframeEl.setAttribute('data-role', 'view');
+    document.body.appendChild(iframeEl);
+  });
+
+  afterEach(() => iframeEl?.remove());
+
+  const getManifestById = (id: string) => (id === 'org.asyar.demo' ? ({ id } as any) : undefined);
+
+  it('answers asyar:extension:loaded with the preferences bundle instead of denying it', async () => {
+    vi.mocked(extensionPreferencesService.getEffectivePreferences).mockResolvedValue({
+      extension: { theme: 'dark' },
+      commands: {},
+    } as any);
+    const framePostMessage = vi
+      .spyOn(iframeEl.contentWindow as Window, 'postMessage')
+      .mockImplementation(() => {});
+
+    const router = new ExtensionIpcRouter(
+      {} as ServiceRegistry,
+      getManifestById as any,
+      vi.fn(),
+      vi.fn(),
+    );
+    router.setup();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'asyar:extension:loaded', extensionId: 'org.asyar.demo', role: 'view' },
+        source: iframeEl.contentWindow,
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // Routers from earlier describes share this window listener and reply
+    // "Unknown extension" (their own getManifestById mocks know nothing about
+    // org.asyar.demo), so assert on this router's reply, not on "no errors".
+    const sent = framePostMessage.mock.calls.map(
+      (call) => call[0] as { type?: string; error?: string },
+    );
+    expect(sent.some((msg) => msg?.type === 'asyar:event:preferences:set-all')).toBe(true);
+    expect(sent.some((msg) => msg?.error?.includes('Permission denied'))).toBe(false);
+    // A lifecycle frame is not an API call, so the gate must not be consulted.
+    expect(commands.checkExtensionPermission).not.toHaveBeenCalledWith(
+      'org.asyar.demo',
+      'asyar:extension:loaded',
+    );
+
+    framePostMessage.mockRestore();
+  });
+
+  it('lets asyar:stream:abort reach the stream dispatcher instead of denying it', async () => {
+    const router = new ExtensionIpcRouter(
+      {} as ServiceRegistry,
+      getManifestById as any,
+      vi.fn(),
+      vi.fn(),
+    );
+    router.setup();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'asyar:stream:abort', payload: { streamId: 'stream-7' } },
+        source: iframeEl.contentWindow,
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(streamDispatcher.abort).toHaveBeenCalledWith('stream-7');
+    expect(commands.checkExtensionPermission).not.toHaveBeenCalledWith(
+      'org.asyar.demo',
+      'asyar:stream:abort',
+    );
+  });
+
+  it('reports a fail-closed denial by its reason, not as a missing manifest permission', async () => {
+    // A call type is not a permission name, so "declare it in manifest.json" is
+    // unfollowable advice for an unrecognized call — that is what a stale
+    // extension bundle calling a DELETED api (e.g. the removed
+    // snippets:setInlineFallbackEnabled) hits. Rust sends `reason` and no
+    // `requiredPermission` in that case; surface it.
+    vi.mocked(commands.checkExtensionPermission).mockResolvedValue({
+      allowed: false,
+      reason:
+        'Call "asyar:api:snippets:setInlineFallbackEnabled" is not a recognized extension API — refusing by default (fail closed).',
+    } as any);
+    const framePostMessage = vi
+      .spyOn(iframeEl.contentWindow as Window, 'postMessage')
+      .mockImplementation(() => {});
+
+    const router = new ExtensionIpcRouter(
+      {} as ServiceRegistry,
+      getManifestById as any,
+      vi.fn(),
+      vi.fn(),
+    );
+    router.setup();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'asyar:api:snippets:setInlineFallbackEnabled',
+          payload: { enabled: true },
+          messageId: 'gone-1',
+        },
+        source: iframeEl.contentWindow,
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const errors = framePostMessage.mock.calls
+      .map((call) => call[0] as { messageId?: string; error?: string })
+      .filter((msg) => msg?.messageId === 'gone-1' && msg?.error);
+
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.every((msg) => !msg.error?.includes('manifest.json'))).toBe(true);
+    expect(errors.some((msg) => msg.error?.includes('not a recognized extension API'))).toBe(true);
+    // The reason already names the call, and the toast header shows it too —
+    // don't echo it a second time.
+    for (const msg of errors) {
+      const mentions = msg.error?.split('asyar:api:snippets:setInlineFallbackEnabled').length ?? 1;
+      expect(mentions - 1).toBeLessThanOrEqual(1);
+    }
+
+    framePostMessage.mockRestore();
+  });
+
+  it('still names the missing permission when one is genuinely undeclared', async () => {
+    vi.mocked(commands.checkExtensionPermission).mockResolvedValue({
+      allowed: false,
+      requiredPermission: 'clipboard:read',
+      reason: 'Extension "org.asyar.demo" has not declared "clipboard:read".',
+    } as any);
+    const framePostMessage = vi
+      .spyOn(iframeEl.contentWindow as Window, 'postMessage')
+      .mockImplementation(() => {});
+
+    const router = new ExtensionIpcRouter(
+      {} as ServiceRegistry,
+      getManifestById as any,
+      vi.fn(),
+      vi.fn(),
+    );
+    router.setup();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'asyar:api:clipboard:readText', messageId: 'gated-2' },
+        source: iframeEl.contentWindow,
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const errors = framePostMessage.mock.calls
+      .map((call) => call[0] as { messageId?: string; error?: string })
+      .filter((msg) => msg?.messageId === 'gated-2' && msg?.error);
+
+    expect(
+      errors.some(
+        (msg) =>
+          msg.error?.includes('clipboard:read') && msg.error?.includes('not declared in manifest'),
+      ),
+    ).toBe(true);
+
+    framePostMessage.mockRestore();
+  });
+
+  it('still gates asyar:api:* calls from the same iframe', async () => {
+    const storageGet = vi.fn(async () => 'value');
+    const registry = { storage: { get: storageGet } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, getManifestById as any, vi.fn(), vi.fn());
+    router.setup();
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'asyar:api:storage:get',
+          payload: { key: 'secret' },
+          messageId: 'gated-1',
+        },
+        source: iframeEl.contentWindow,
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(commands.checkExtensionPermission).toHaveBeenCalledWith(
+      'org.asyar.demo',
+      'asyar:api:storage:get',
+    );
+    expect(storageGet).not.toHaveBeenCalled();
   });
 });

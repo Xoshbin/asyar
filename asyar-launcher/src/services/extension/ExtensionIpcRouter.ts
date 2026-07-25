@@ -209,31 +209,51 @@ export class ExtensionIpcRouter {
         }
 
         // --- Permission Gate ---
-        // Fail closed: a failed permission check (null) must deny, not crash
-        // or silently let the call through.
-        const permissionResult = await commands.checkExtensionPermission(extensionId, type);
-        if (!permissionResult?.allowed) {
-          logService.warn(
-            `[PermissionGate] BLOCKED: ${permissionResult?.reason ?? 'permission check failed'}`,
-          );
-          const permError = `Permission denied: "${permissionResult?.requiredPermission ?? type}" is required but not declared in manifest.json`;
-          (event.source as Window)?.postMessage(
-            {
-              type: 'asyar:response',
-              messageId,
-              error: permError,
-            },
-            '*',
-          );
-          void feedbackService.report({
-            source: 'extension',
-            kind: classifyProxyError(type, permError),
-            severity: 'warning',
-            retryable: false,
-            context: { method: type, error: permError },
-            extensionId,
-          });
-          return;
+        // Only `asyar:api:*` is a permission-bearing call surface, and it is the
+        // only surface the Rust gate classifies. Everything else on the `asyar:`
+        // channel is transport/lifecycle plumbing (`asyar:extension:loaded`,
+        // `asyar:stream:abort`, the frames other listeners consume) — it has no
+        // permission to declare and reaches no service dispatch, so running the
+        // now-fail-closed gate on it denied every one of them.
+        // Dispatch stays fail-closed regardless: the only path into a service is
+        // the `asyar:api:` branch below, which is always gated here.
+        if (type.startsWith('asyar:api:')) {
+          // Fail closed: a failed permission check (null) must deny, not crash
+          // or silently let the call through.
+          const permissionResult = await commands.checkExtensionPermission(extensionId, type);
+          if (!permissionResult?.allowed) {
+            logService.warn(
+              `[PermissionGate] BLOCKED: ${permissionResult?.reason ?? 'permission check failed'}`,
+            );
+            // Rust sets `requiredPermission` only when the call is gated on a
+            // real manifest permission. The fail-closed path (unrecognized call
+            // type — typically a stale extension bundle calling a deleted API)
+            // sends only `reason`, and a call type is not a permission name, so
+            // telling the author to declare it in manifest.json is unfollowable.
+            // The reason is already self-describing (and the call type travels
+            // separately in `context.method`), so it is surfaced verbatim —
+            // prefixing it with the type printed the same string twice.
+            const permError = permissionResult?.requiredPermission
+              ? `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
+              : (permissionResult?.reason ?? `Blocked "${type}": permission check failed`);
+            (event.source as Window)?.postMessage(
+              {
+                type: 'asyar:response',
+                messageId,
+                error: permError,
+              },
+              '*',
+            );
+            void feedbackService.report({
+              source: 'extension',
+              kind: classifyProxyError(type, permError),
+              severity: 'warning',
+              retryable: false,
+              context: { method: type, error: permError },
+              extensionId,
+            });
+            return;
+          }
         }
       }
 
