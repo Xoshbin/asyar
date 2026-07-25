@@ -833,7 +833,7 @@ mod tests {
     }
 
     fn seeded_timer_registry() -> crate::timers::TimerRegistry {
-        let reg = crate::timers::TimerRegistry::in_memory();
+        let reg = crate::timers::TimerRegistry::for_test();
         // alpha has two pending + one fired; beta has one pending — verify
         // nothing of beta's survives-or-disappears accidentally.
         let a1 = reg.schedule("alpha", "bell", "{}", 2_000, 1_000).unwrap();

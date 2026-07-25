@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn schedule_without_permission_rejected() {
-        let r = TimerRegistry::in_memory();
+        let r = TimerRegistry::for_test();
         let p = grant("ext-a", &[]);
         let err = timer_schedule_inner(
             &r,
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn schedule_without_extension_id_rejected() {
-        let r = TimerRegistry::in_memory();
+        let r = TimerRegistry::for_test();
         let p = grant("ext-a", &[PERM_SCHEDULE]);
         // Core caller (None) is allowed by perms check but rejected with
         // Validation because there's no iframe to dispatch into.
@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn schedule_with_permission_persists_row_and_returns_uuid() {
-        let r = TimerRegistry::in_memory();
+        let r = TimerRegistry::for_test();
         let p = grant("ext-a", &[PERM_SCHEDULE, PERM_LIST]);
         let id = timer_schedule_inner(
             &r,
@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn cancel_without_permission_rejected() {
-        let r = TimerRegistry::in_memory();
+        let r = TimerRegistry::for_test();
         let p = grant("ext-a", &[PERM_SCHEDULE]);
         let id = timer_schedule_inner(
             &r,
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn cancel_of_own_timer_succeeds() {
-        let r = TimerRegistry::in_memory();
+        let r = TimerRegistry::for_test();
         let p = grant("ext-a", &[PERM_SCHEDULE, PERM_CANCEL, PERM_LIST]);
         let id = timer_schedule_inner(
             &r,
@@ -202,7 +202,7 @@ mod tests {
 
     #[test]
     fn list_without_permission_rejected() {
-        let r = TimerRegistry::in_memory();
+        let r = TimerRegistry::for_test();
         let p = grant("ext-a", &[]);
         let err = timer_list_inner(&r, &p, Some("ext-a".into())).unwrap_err();
         assert!(matches!(err, AppError::Permission(_)), "got: {err:?}");
@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn list_returns_only_callers_pending_timers() {
-        let r = TimerRegistry::in_memory();
+        let r = TimerRegistry::for_test();
         let p_a = grant("ext-a", &[PERM_SCHEDULE, PERM_LIST]);
         let p_b = grant("ext-b", &[PERM_SCHEDULE, PERM_LIST]);
         let _ = timer_schedule_inner(

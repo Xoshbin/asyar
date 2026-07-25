@@ -8,17 +8,13 @@ use crate::error::AppError;
 use crate::storage::agents::{
     insert_agent, insert_thread, list_messages_for_thread, AgentRow, MessageRole, ThreadRow,
 };
-use rusqlite::Connection;
 use serde_json::json;
 use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 
-fn make_conn() -> Connection {
-    let conn = Connection::open_in_memory().expect("in-memory db");
-    conn.execute("PRAGMA foreign_keys = ON", []).unwrap();
-    crate::storage::agents::init_table(&conn).unwrap();
-    conn
+fn make_store() -> crate::storage::DataStore {
+    crate::storage::create_test_store_with_foreign_keys()
 }
 
 fn chat_message(role: &str, content: &str) -> crate::ai::types::ChatMessage {
@@ -307,11 +303,11 @@ async fn test_silent_runner_passes_through_a_single_emoji_for_shortcode_miss() {
 
 #[tokio::test]
 async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
-    let conn = make_conn();
+    let store = make_store();
     let now = chrono::Utc::now().timestamp_millis();
     for id in ["agent-1", "agent-2"] {
         insert_agent(
-            &conn,
+            &store.conn().unwrap(),
             &AgentRow {
                 id: id.to_string(),
                 name: id.to_string(),
@@ -332,7 +328,7 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
         .unwrap();
     }
     insert_thread(
-        &conn,
+        &store.conn().unwrap(),
         &ThreadRow {
             id: "thread-2".to_string(),
             agent_id: "agent-2".to_string(),
@@ -351,7 +347,6 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
         hosted_web_search: None,
         reasoning_effort: None,
     };
-    let store = crate::storage::DataStore::from_conn(conn);
 
     let error = run_thread_loop_impl(
         &store,
@@ -398,7 +393,7 @@ async fn test_run_thread_loop_text_only() {
         socket.write_all(response.as_bytes()).await.unwrap();
     });
 
-    let conn = make_conn();
+    let store = make_store();
 
     // Insert mock agent & thread
     let agent_id = "agent-1".to_string();
@@ -406,7 +401,7 @@ async fn test_run_thread_loop_text_only() {
     let now = chrono::Utc::now().timestamp_millis();
 
     insert_agent(
-        &conn,
+        &store.conn().unwrap(),
         &AgentRow {
             id: agent_id.clone(),
             name: "Test Agent".to_string(),
@@ -427,7 +422,7 @@ async fn test_run_thread_loop_text_only() {
     .unwrap();
 
     insert_thread(
-        &conn,
+        &store.conn().unwrap(),
         &ThreadRow {
             id: thread_id.clone(),
             agent_id: agent_id.clone(),
@@ -459,8 +454,6 @@ async fn test_run_thread_loop_text_only() {
             }
         }
     };
-
-    let store = crate::storage::DataStore::from_conn(conn);
 
     run_thread_loop_impl(
         &store,
@@ -534,13 +527,13 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
         socket2.write_all(response_turn_1.as_bytes()).await.unwrap();
     });
 
-    let conn = make_conn();
+    let store = make_store();
     let agent_id = "agent-tool".to_string();
     let thread_id = "thread-tool".to_string();
     let now = chrono::Utc::now().timestamp_millis();
 
     insert_agent(
-        &conn,
+        &store.conn().unwrap(),
         &AgentRow {
             id: agent_id.clone(),
             name: "Tool Agent".to_string(),
@@ -561,7 +554,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
     .unwrap();
 
     insert_thread(
-        &conn,
+        &store.conn().unwrap(),
         &ThreadRow {
             id: thread_id.clone(),
             agent_id: agent_id.clone(),
@@ -607,8 +600,6 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
     let on_event = move |event| {
         e_clone.lock().unwrap().push(event);
     };
-
-    let store = crate::storage::DataStore::from_conn(conn);
 
     run_thread_loop_impl(
         &store,
@@ -678,13 +669,13 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
         socket2.write_all(response_turn_1.as_bytes()).await.unwrap();
     });
 
-    let conn = make_conn();
+    let store = make_store();
     let agent_id = "agent-suspend".to_string();
     let thread_id = "thread-suspend".to_string();
     let now = chrono::Utc::now().timestamp_millis();
 
     insert_agent(
-        &conn,
+        &store.conn().unwrap(),
         &AgentRow {
             id: agent_id.clone(),
             name: "Suspend Agent".to_string(),
@@ -705,7 +696,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
     .unwrap();
 
     insert_thread(
-        &conn,
+        &store.conn().unwrap(),
         &ThreadRow {
             id: thread_id.clone(),
             agent_id: agent_id.clone(),
@@ -748,8 +739,6 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
     let dispatched = Arc::new(std::sync::Mutex::new(Vec::new()));
     let dispatched_clone = dispatched.clone();
     let events_for_dispatch = events.clone();
-
-    let store = crate::storage::DataStore::from_conn(conn);
 
     run_thread_loop_impl(
         &store,
@@ -827,11 +816,11 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
         socket.write_all(response.as_bytes()).await.unwrap();
     });
 
-    let conn = make_conn();
+    let store = make_store();
     let agent_id = "silent-agent".to_string();
     let now = chrono::Utc::now().timestamp_millis();
     insert_agent(
-        &conn,
+        &store.conn().unwrap(),
         &AgentRow {
             id: agent_id.clone(),
             name: "Silent Agent".to_string(),
@@ -851,7 +840,6 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
     )
     .unwrap();
 
-    let store = crate::storage::DataStore::from_conn(conn);
     let registry = Arc::new(ToolRegistry::new());
     let config = crate::ai::types::ProviderConfig {
         enabled: true,

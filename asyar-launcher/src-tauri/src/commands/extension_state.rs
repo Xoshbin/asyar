@@ -330,14 +330,10 @@ mod tests {
     use super::*;
     use crate::extensions::extension_runtime::{emitter::RecordingEmitter, RuntimeConfig};
     use crate::extensions::extension_state::RecordingStateEmitter;
-    use crate::storage::extension_state as store;
-    use rusqlite::Connection;
-    use std::sync::Mutex;
-
     fn fresh_svc_with_emitter() -> (Arc<ExtensionStateService>, Arc<RecordingStateEmitter>) {
-        let conn = Connection::open_in_memory().unwrap();
-        store::init_table(&conn).unwrap();
-        let svc = Arc::new(ExtensionStateService::new(Arc::new(Mutex::new(conn))));
+        let svc = Arc::new(ExtensionStateService::new(
+            crate::storage::create_test_store(),
+        ));
         let emitter: Arc<RecordingStateEmitter> = Arc::new(RecordingStateEmitter::default());
         svc.set_emitter(Box::new(Arc::clone(&emitter)));
         (svc, emitter)

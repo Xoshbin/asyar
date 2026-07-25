@@ -15,7 +15,7 @@
 use crate::error::AppError;
 use crate::extensions::extension_runtime::types::ContextRole;
 use crate::storage::extension_state as store;
-use rusqlite::Connection;
+use crate::storage::DataStore;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -99,14 +99,16 @@ pub trait StateEventEmitter: Send + Sync {
 }
 
 pub struct ExtensionStateService {
-    data_store: Arc<Mutex<Connection>>,
+    /// The pool handle. The service is app-lifetime state, so it holds the
+    /// store and checks out a connection per operation rather than owning one.
+    data_store: DataStore,
     subscriptions: Mutex<HashMap<SubscriptionId, Subscription>>,
     next_id: AtomicU64,
     emitter: Mutex<Option<Box<dyn StateEventEmitter>>>,
 }
 
 impl ExtensionStateService {
-    pub fn new(data_store: Arc<Mutex<Connection>>) -> Self {
+    pub fn new(data_store: DataStore) -> Self {
         Self {
             data_store,
             subscriptions: Mutex::new(HashMap::new()),
@@ -123,7 +125,7 @@ impl ExtensionStateService {
     }
 
     pub fn get(&self, extension_id: &str, key: &str) -> Result<Option<Value>, AppError> {
-        let conn = self.data_store.lock().map_err(|_| AppError::Lock)?;
+        let conn = self.data_store.conn()?;
         store::get(&conn, extension_id, key)
     }
 
@@ -140,7 +142,7 @@ impl ExtensionStateService {
         now_ms: u64,
     ) -> Result<(), AppError> {
         {
-            let conn = self.data_store.lock().map_err(|_| AppError::Lock)?;
+            let conn = self.data_store.conn()?;
             store::set(&conn, extension_id, key, &value, now_ms)?;
         }
 
@@ -206,7 +208,7 @@ impl ExtensionStateService {
     /// code paths never enumerate keys, they read one at a time. Returns
     /// rows in arbitrary order; callers sort as needed.
     pub fn list_all(&self, extension_id: &str) -> Result<Vec<StateEntry>, AppError> {
-        let conn = self.data_store.lock().map_err(|_| AppError::Lock)?;
+        let conn = self.data_store.conn()?;
         store::get_all(&conn, extension_id)
     }
 
@@ -262,7 +264,7 @@ impl ExtensionStateService {
     /// down both context machines.
     pub fn clear(&self, extension_id: &str) -> Result<u64, AppError> {
         let row_count = {
-            let conn = self.data_store.lock().map_err(|_| AppError::Lock)?;
+            let conn = self.data_store.conn()?;
             store::clear(&conn, extension_id)?
         };
         let mut subs = self
@@ -347,17 +349,10 @@ impl<T: StateEventEmitter + ?Sized> StateEventEmitter for Arc<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::extension_state as store;
-    use rusqlite::Connection;
-
-    fn fresh_conn() -> Arc<Mutex<Connection>> {
-        let conn = Connection::open_in_memory().unwrap();
-        store::init_table(&conn).unwrap();
-        Arc::new(Mutex::new(conn))
-    }
+    use crate::storage::create_test_store;
 
     fn svc_with_emitter() -> (ExtensionStateService, Arc<RecordingStateEmitter>) {
-        let svc = ExtensionStateService::new(fresh_conn());
+        let svc = ExtensionStateService::new(create_test_store());
         let emitter: Arc<RecordingStateEmitter> = Arc::new(RecordingStateEmitter::default());
         svc.set_emitter(Box::new(Arc::clone(&emitter)));
         (svc, emitter)
@@ -384,16 +379,16 @@ mod tests {
 
     #[test]
     fn set_persists_across_service_restart() {
-        // Mirrors "running the launcher twice" — the underlying SQLite
-        // connection is shared, the service instance is recreated.
-        let conn = fresh_conn();
-        let svc1 = ExtensionStateService::new(Arc::clone(&conn));
+        // Mirrors "running the launcher twice" — the underlying database is
+        // shared, the service instance is recreated.
+        let store = create_test_store();
+        let svc1 = ExtensionStateService::new(store.clone());
         svc1.set("ext.a", "timer", serde_json::json!({ "running": true }), 0)
             .unwrap();
 
         // Drop & recreate the service against the same DB.
         drop(svc1);
-        let svc2 = ExtensionStateService::new(Arc::clone(&conn));
+        let svc2 = ExtensionStateService::new(store.clone());
         assert_eq!(
             svc2.get("ext.a", "timer").unwrap(),
             Some(serde_json::json!({ "running": true })),

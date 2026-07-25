@@ -3,8 +3,9 @@ pub mod models;
 
 pub use models::{validate_alias, AliasError, ItemAlias};
 
+use crate::storage::DataStore;
 use rusqlite::{params, Connection};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::RwLock;
 
 pub fn init_table(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
@@ -32,28 +33,28 @@ fn is_unique_alias_violation(err: &rusqlite::Error) -> bool {
 
 pub struct AliasState {
     pub items: RwLock<Vec<ItemAlias>>,
-    pub db: Arc<Mutex<Connection>>,
+    /// The shared store, not a connection: this state is alive for the whole
+    /// run, so it checks out a connection per query and gives it straight back.
+    pub store: DataStore,
 }
 
 impl AliasState {
-    /// Open an in-memory SQLite DB (used by tests) with the schema applied.
+    /// A throwaway file-backed store with the schema applied (used by tests).
     #[cfg(test)]
-    pub fn new_in_memory() -> Self {
-        let conn = Connection::open_in_memory().expect("open in-memory db");
-        init_table(&conn).expect("init schema");
+    pub fn new_for_test() -> Self {
         Self {
             items: RwLock::new(Vec::new()),
-            db: Arc::new(Mutex::new(conn)),
+            store: crate::storage::create_test_store(),
         }
     }
 
-    /// Build an `AliasState` sharing the DataStore SQLite connection.
+    /// Build an `AliasState` sharing the app's `DataStore`.
     /// The schema must already be initialised by `DataStore::initialize`
     /// calling `aliases::init_table`; this constructor only loads cached rows.
-    pub fn new_with_db(db: Arc<Mutex<Connection>>) -> Result<Self, AliasError> {
+    pub fn new_with_db(store: DataStore) -> Result<Self, AliasError> {
         let state = Self {
             items: RwLock::new(Vec::new()),
-            db,
+            store,
         };
         state.load_from_db()?;
         Ok(state)
@@ -61,9 +62,9 @@ impl AliasState {
 
     fn load_from_db(&self) -> Result<(), AliasError> {
         let conn = self
-            .db
-            .lock()
-            .map_err(|_| AliasError::Storage("db mutex poisoned in load_from_db".into()))?;
+            .store
+            .conn()
+            .map_err(|e| AliasError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare("SELECT object_id, alias, item_name, item_type, created_at FROM item_aliases")
             .map_err(|e| AliasError::Storage(e.to_string()))?;
@@ -128,9 +129,9 @@ impl AliasState {
         // Persist (UPSERT semantics: replace any existing row for this object_id).
         {
             let conn = self
-                .db
-                .lock()
-                .map_err(|_| AliasError::Storage("db mutex poisoned in set_alias".into()))?;
+                .store
+                .conn()
+                .map_err(|e| AliasError::Storage(e.to_string()))?;
             let exec_result = conn.execute(
                 "INSERT INTO item_aliases (object_id, alias, item_name, item_type, created_at)
                  VALUES (?1, ?2, ?3, ?4, ?5)
@@ -180,9 +181,9 @@ impl AliasState {
     pub fn unset_alias(&self, alias: &str) -> Result<(), AliasError> {
         let normalized = alias.trim().to_lowercase();
         let conn = self
-            .db
-            .lock()
-            .map_err(|_| AliasError::Storage("db mutex poisoned in unset_alias".into()))?;
+            .store
+            .conn()
+            .map_err(|e| AliasError::Storage(e.to_string()))?;
         let affected = conn
             .execute(
                 "DELETE FROM item_aliases WHERE alias = ?1",
@@ -203,9 +204,9 @@ impl AliasState {
 
     pub fn unset_for_object_id(&self, object_id: &str) -> Result<(), AliasError> {
         let conn = self
-            .db
-            .lock()
-            .map_err(|_| AliasError::Storage("db mutex poisoned in unset_for_object_id".into()))?;
+            .store
+            .conn()
+            .map_err(|e| AliasError::Storage(e.to_string()))?;
         conn.execute(
             "DELETE FROM item_aliases WHERE object_id = ?1",
             params![object_id],
@@ -287,9 +288,9 @@ impl AliasState {
         }
         {
             let conn = self
-                .db
-                .lock()
-                .map_err(|_| AliasError::Storage("db mutex poisoned in prune_orphans".into()))?;
+                .store
+                .conn()
+                .map_err(|e| AliasError::Storage(e.to_string()))?;
             for id in &to_remove {
                 conn.execute("DELETE FROM item_aliases WHERE object_id = ?1", params![id])
                     .map_err(|e| AliasError::Storage(e.to_string()))?;
@@ -321,9 +322,10 @@ impl AliasState {
             return Ok(0);
         }
         {
-            let conn = self.db.lock().map_err(|_| {
-                AliasError::Storage("db mutex poisoned in clear_for_extension".into())
-            })?;
+            let conn = self
+                .store
+                .conn()
+                .map_err(|e| AliasError::Storage(e.to_string()))?;
             for id in &to_remove {
                 conn.execute("DELETE FROM item_aliases WHERE object_id = ?1", params![id])
                     .map_err(|e| AliasError::Storage(e.to_string()))?;
@@ -345,15 +347,15 @@ mod state_tests {
 
     #[test]
     fn new_in_memory_starts_empty() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         let items = state.items.read().unwrap();
         assert!(items.is_empty());
     }
 
     #[test]
     fn schema_creates_table() {
-        let state = AliasState::new_in_memory();
-        let conn = state.db.lock().unwrap();
+        let state = AliasState::new_for_test();
+        let conn = state.store.conn().unwrap();
         let count: i64 = conn
             .query_row(
                 "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='item_aliases'",
@@ -366,8 +368,8 @@ mod state_tests {
 
     #[test]
     fn schema_enforces_alias_uniqueness() {
-        let state = AliasState::new_in_memory();
-        let conn = state.db.lock().unwrap();
+        let state = AliasState::new_for_test();
+        let conn = state.store.conn().unwrap();
         conn.execute(
             "INSERT INTO item_aliases (object_id, alias, item_name, item_type, created_at) VALUES ('id1','a','Name','application',0)",
             [],
@@ -391,7 +393,7 @@ mod state_tests {
 
     #[test]
     fn set_alias_persists_and_caches() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias("app_finder", "f", "Finder", "application", now_ms())
             .unwrap();
@@ -400,7 +402,7 @@ mod state_tests {
         assert_eq!(items[0].object_id, "app_finder");
         assert_eq!(items[0].alias, "f");
         // verify in DB too
-        let conn = state.db.lock().unwrap();
+        let conn = state.store.conn().unwrap();
         let alias: String = conn
             .query_row(
                 "SELECT alias FROM item_aliases WHERE object_id = ?1",
@@ -413,7 +415,7 @@ mod state_tests {
 
     #[test]
     fn set_alias_replaces_existing_for_same_object_id() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias("app_finder", "f", "Finder", "application", now_ms())
             .unwrap();
@@ -424,7 +426,7 @@ mod state_tests {
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].alias, "fi");
         // Confirm UPSERT replaced rather than duplicated in the DB.
-        let conn = state.db.lock().unwrap();
+        let conn = state.store.conn().unwrap();
         let count: i64 = conn
             .query_row(
                 "SELECT count(*) FROM item_aliases WHERE object_id = 'app_finder'",
@@ -445,7 +447,7 @@ mod state_tests {
 
     #[test]
     fn set_alias_validates_input() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         let err = state
             .set_alias("app_x", "no spaces", "X", "application", now_ms())
             .unwrap_err();
@@ -454,7 +456,7 @@ mod state_tests {
 
     #[test]
     fn set_alias_rejects_conflict() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias("app_finder", "f", "Finder", "application", now_ms())
             .unwrap();
@@ -466,14 +468,14 @@ mod state_tests {
 
     #[test]
     fn unset_alias_removes_from_cache_and_db() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias("app_finder", "f", "Finder", "application", now_ms())
             .unwrap();
         state.unset_alias("f").unwrap();
         let items = state.items.read().unwrap();
         assert!(items.is_empty());
-        let conn = state.db.lock().unwrap();
+        let conn = state.store.conn().unwrap();
         let count: i64 = conn
             .query_row("SELECT count(*) FROM item_aliases", [], |r| r.get(0))
             .unwrap();
@@ -482,14 +484,14 @@ mod state_tests {
 
     #[test]
     fn unset_alias_returns_not_found_for_missing() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         let err = state.unset_alias("nope").unwrap_err();
         assert!(matches!(err, AliasError::NotFound(_)));
     }
 
     #[test]
     fn unset_for_object_id_removes_when_present() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias("app_finder", "f", "Finder", "application", now_ms())
             .unwrap();
@@ -499,11 +501,11 @@ mod state_tests {
 
     #[test]
     fn unset_for_object_id_is_noop_when_absent() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state.unset_for_object_id("app_missing").unwrap();
         // Cache and DB both stay empty.
         assert!(state.items.read().unwrap().is_empty());
-        let conn = state.db.lock().unwrap();
+        let conn = state.store.conn().unwrap();
         let count: i64 = conn
             .query_row("SELECT count(*) FROM item_aliases", [], |r| r.get(0))
             .unwrap();
@@ -516,9 +518,9 @@ mod state_tests {
         // before calling set_alias. The cache check passes (cache is empty),
         // but the DB UNIQUE constraint fires and is_unique_alias_violation
         // re-classifies the rusqlite error as AliasError::Conflict.
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         {
-            let conn = state.db.lock().unwrap();
+            let conn = state.store.conn().unwrap();
             conn.execute(
                 "INSERT INTO item_aliases (object_id, alias, item_name, item_type, created_at)
                  VALUES ('app_smuggled', 'cl', 'Smuggled', 'application', 0)",
@@ -544,7 +546,7 @@ mod state_tests {
 
     #[test]
     fn find_by_alias_returns_match() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias(
                 "cmd_clip_history",
@@ -561,7 +563,7 @@ mod state_tests {
 
     #[test]
     fn find_by_alias_lowercases_input() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias(
                 "cmd_clip_history",
@@ -577,14 +579,14 @@ mod state_tests {
 
     #[test]
     fn find_by_alias_returns_none_for_unknown() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         let hit = state.find_by_alias("ghost").unwrap();
         assert!(hit.is_none());
     }
 
     #[test]
     fn find_conflict_excludes_self() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias("cmd_x", "x", "X", "command", now_ms())
             .unwrap();
@@ -595,7 +597,7 @@ mod state_tests {
 
     #[test]
     fn find_conflict_finds_other_owner() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias("cmd_x", "x", "X", "command", now_ms())
             .unwrap();
@@ -608,7 +610,7 @@ mod state_tests {
     fn find_conflict_with_no_exclusion_finds_any_owner() {
         // None means "exclude nobody" — any matching alias is reported.
         // Guards against a future refactor that flips the != to == in the predicate.
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias("cmd_x", "x", "X", "command", now_ms())
             .unwrap();
@@ -618,7 +620,7 @@ mod state_tests {
 
     #[test]
     fn list_all_returns_sorted_by_created_at_descending() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state.set_alias("a", "a", "A", "application", 100).unwrap();
         state.set_alias("b", "b", "B", "application", 200).unwrap();
         state.set_alias("c", "c", "C", "application", 50).unwrap();
@@ -629,7 +631,7 @@ mod state_tests {
 
     #[test]
     fn lookup_alias_for_returns_alias_or_none() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias("cmd_x", "xx", "X", "command", now_ms())
             .unwrap();
@@ -642,7 +644,7 @@ mod state_tests {
 
     #[test]
     fn prune_orphans_drops_aliases_for_unknown_ids() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias("app_finder", "f", "Finder", "application", now_ms())
             .unwrap();
@@ -663,7 +665,7 @@ mod state_tests {
         assert_eq!(items[0].object_id, "app_finder");
         // Verify the DELETE path actually fired against the DB, not just the cache.
         drop(items);
-        let conn = state.db.lock().unwrap();
+        let conn = state.store.conn().unwrap();
         let db_count: i64 = conn
             .query_row("SELECT count(*) FROM item_aliases", [], |r| r.get(0))
             .unwrap();
@@ -676,7 +678,7 @@ mod state_tests {
 
     #[test]
     fn prune_orphans_returns_zero_when_all_live() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias("app_finder", "f", "Finder", "application", now_ms())
             .unwrap();
@@ -687,7 +689,7 @@ mod state_tests {
 
     #[test]
     fn clear_for_extension_removes_only_that_extensions_aliases() {
-        let state = AliasState::new_in_memory();
+        let state = AliasState::new_for_test();
         state
             .set_alias(
                 "cmd_pomodoro_start",
@@ -722,7 +724,7 @@ mod state_tests {
         assert_eq!(items[0].object_id, "cmd_clip_history");
         // DB also reflects the removal.
         drop(items);
-        let conn = state.db.lock().unwrap();
+        let conn = state.store.conn().unwrap();
         let db_count: i64 = conn
             .query_row("SELECT count(*) FROM item_aliases", [], |r| r.get(0))
             .unwrap();

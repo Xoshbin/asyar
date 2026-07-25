@@ -13,9 +13,9 @@ pub mod scheduler;
 pub mod startup;
 
 use crate::error::AppError;
-use rusqlite::{params, Connection};
+use crate::storage::DataStore;
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
 
 /// Tauri event name used when a timer fires. The TS-side bridge
 /// (`timerBridge.svelte.ts`) listens for this and dispatches the
@@ -45,22 +45,24 @@ pub struct TimerFirePayload {
     pub fired_at: u64,
 }
 
+/// Holds the pool handle, not a connection: a registry outlives the app's
+/// whole run, and a connection checked out for that long would be a
+/// connection nobody else can use.
 #[derive(Clone)]
 pub struct TimerRegistry {
-    conn: Arc<Mutex<Connection>>,
+    store: DataStore,
 }
 
 impl TimerRegistry {
-    pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
-        Self { conn }
+    pub fn new(store: DataStore) -> Self {
+        Self { store }
     }
 
+    /// A registry over a throwaway file-backed test store.
     #[cfg(test)]
-    pub(crate) fn in_memory() -> Self {
-        let conn = Connection::open_in_memory().expect("in-memory SQLite");
-        crate::storage::timers::init_table(&conn).expect("init extension_timers");
+    pub(crate) fn for_test() -> Self {
         Self {
-            conn: Arc::new(Mutex::new(conn)),
+            store: crate::storage::create_test_store(),
         }
     }
 
@@ -85,7 +87,7 @@ impl TimerRegistry {
             )));
         }
         let timer_id = uuid::Uuid::new_v4().to_string();
-        let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
+        let conn = self.store.conn()?;
         conn.execute(
             "INSERT INTO extension_timers
                 (timer_id, extension_id, command_id, args_json, fire_at, created_at)
@@ -104,7 +106,7 @@ impl TimerRegistry {
     }
 
     pub fn cancel(&self, extension_id: &str, timer_id: &str) -> Result<(), AppError> {
-        let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
+        let conn = self.store.conn()?;
         let owner: Option<String> = conn
             .query_row(
                 "SELECT extension_id FROM extension_timers WHERE timer_id = ?1",
@@ -133,7 +135,7 @@ impl TimerRegistry {
     }
 
     pub fn list_pending(&self, extension_id: &str) -> Result<Vec<TimerDescriptor>, AppError> {
-        let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
+        let conn = self.store.conn()?;
         let mut stmt = conn
             .prepare(
                 "SELECT timer_id, extension_id, command_id, args_json, fire_at, created_at
@@ -153,7 +155,7 @@ impl TimerRegistry {
     }
 
     pub fn due_now(&self, now_ms: u64) -> Result<Vec<TimerDescriptor>, AppError> {
-        let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
+        let conn = self.store.conn()?;
         let mut stmt = conn
             .prepare(
                 "SELECT timer_id, extension_id, command_id, args_json, fire_at, created_at
@@ -178,7 +180,7 @@ impl TimerRegistry {
         timer_id: &str,
         fired_at: u64,
     ) -> Result<(), AppError> {
-        let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
+        let conn = self.store.conn()?;
         // Guard the update with `fired = 0` so a second mark_fired (e.g. a
         // retry after a panic mid-emit) becomes a zero-row update we can
         // detect rather than silently toggling state.
@@ -200,7 +202,7 @@ impl TimerRegistry {
     }
 
     pub fn clear_all_for_extension(&self, extension_id: &str) -> Result<usize, AppError> {
-        let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
+        let conn = self.store.conn()?;
         let n = conn
             .execute(
                 "DELETE FROM extension_timers WHERE extension_id = ?1",
@@ -211,7 +213,7 @@ impl TimerRegistry {
     }
 
     pub fn prune_old_fired(&self, older_than_ms: u64) -> Result<usize, AppError> {
-        let conn = self.conn.lock().map_err(|_| AppError::Lock)?;
+        let conn = self.store.conn()?;
         let n = conn
             .execute(
                 "DELETE FROM extension_timers
@@ -239,7 +241,7 @@ mod tests {
     use super::*;
 
     fn make() -> TimerRegistry {
-        TimerRegistry::in_memory()
+        TimerRegistry::for_test()
     }
 
     #[test]
