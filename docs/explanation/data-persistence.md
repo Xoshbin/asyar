@@ -15,6 +15,22 @@ Asyar uses two SQLite databases managed by the Rust backend:
 
 Both databases use WAL mode for concurrent read performance and are stored in the platform-specific app data directory.
 
+### The `asyar_data.db` connection pool
+
+`DataStore` owns an [r2d2](https://docs.rs/r2d2) pool of SQLite connections rather than one shared connection. `store.conn()` checks one out; the handle derefs to `rusqlite::Connection`, so every `storage::*` function keeps taking a plain `&Connection`.
+
+This exists because WAL only pays off if readers can actually run at the same time. With a single `Mutex<Connection>`, every reader queued behind every other caller, and the worst case was cold start: the clipboard and notes FTS rebuilds each scan and decrypt the full table, and while they did, no other database work in the app could proceed.
+
+Three rules come with the pool:
+
+- **One connection per transaction.** A transaction lives on the connection that began it. Never start one on a connection from one `conn()` call and finish it on another — hold a single handle for the whole transaction.
+- **A busy timeout is mandatory, and is set on every connection.** SQLite still admits exactly one writer. Writers now collide inside SQLite instead of queueing on a Rust mutex, and the loser fails immediately with `SQLITE_BUSY` unless a timeout tells it to wait. `BUSY_TIMEOUT_MS` (15s) is applied by an r2d2 connection customizer as each connection is opened, so no connection can reach a caller unconfigured. The value is set explicitly rather than left to rusqlite's own 5s default — the longest write in the app is the startup rebuild's `content_hash` backfill, one transaction covering every legacy clipboard row.
+- **Never hold a connection across `.await`.** Checked-out connections are a bounded resource (`POOL_SIZE`, 8), so a handle parked on an await point is one the rest of the app cannot use. Blocking database work belongs in `spawn_blocking`, as the two FTS rebuild tasks do. The old `MutexGuard` was `!Send` and the compiler enforced this for you; a pooled connection is `Send`, so it is now a rule you have to follow rather than one you cannot break.
+
+The pool is 8 connections: SQLite serialises writers regardless, so extra connections only buy reader concurrency, and a launcher that idles most of its life has no use for a web-server-sized pool. Migrations run on a single connection while the pool is still private to `open_at`, so two connections can never race to apply the ledger.
+
+Test stores (`create_test_store()`) are backed by a real file in a temporary directory, not `:memory:` — each connection to `:memory:` is its own separate empty database, so a pooled in-memory store would hand out connections that cannot see each other's schema or rows.
+
 **`asyar_data.db` tables:**
 
 - **`clipboard_items`** — Clipboard history (up to 1000 items). Each copy/paste is a single `INSERT`, not a full-table rewrite. Indexed on `created_at DESC` and `favorite`.

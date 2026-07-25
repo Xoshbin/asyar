@@ -1517,7 +1517,7 @@ mod service_tests {
             is_dynamic: false,
         });
         let search_state = fresh_search_state_with(vec![cmd]);
-        let alias_state = AliasState::new_in_memory();
+        let alias_state = AliasState::new_for_test();
         alias_state
             .set_alias("cmd_clip_history", "cl", "Clipboard History", "command", 1)
             .unwrap();
@@ -1544,7 +1544,7 @@ mod service_tests {
             bundle_id: None,
         });
         let search_state = fresh_search_state_with(vec![app]);
-        let alias_state = AliasState::new_in_memory();
+        let alias_state = AliasState::new_for_test();
         alias_state
             .set_alias("app_finder", "f", "Finder", "application", 1)
             .unwrap();
@@ -1560,7 +1560,7 @@ mod service_tests {
     #[test]
     fn merged_search_no_alias_match_when_query_has_no_alias() {
         let search_state = fresh_search_state_with(vec![]);
-        let alias_state = AliasState::new_in_memory();
+        let alias_state = AliasState::new_for_test();
         let resp = search_state
             .merged_search_with_aliases("nothing", vec![], 10, &alias_state, &[])
             .unwrap();
@@ -1579,7 +1579,7 @@ mod service_tests {
             bundle_id: None,
         });
         let search_state = fresh_search_state_with(vec![app]);
-        let alias_state = AliasState::new_in_memory();
+        let alias_state = AliasState::new_for_test();
         alias_state
             .set_alias("app_finder", "f", "Finder", "application", 1)
             .unwrap();
@@ -1907,7 +1907,7 @@ mod service_tests {
             is_dynamic: false,
         });
         let search_state = fresh_search_state_with(vec![other, clip_cmd]);
-        let alias_state = AliasState::new_in_memory();
+        let alias_state = AliasState::new_for_test();
         alias_state
             .set_alias("cmd_clip_history", "cl", "Clipboard History", "command", 1)
             .unwrap();
@@ -1925,7 +1925,7 @@ mod service_tests {
     #[test]
     fn merged_search_with_aliases_pin_is_noop_when_match_object_missing() {
         let search_state = fresh_search_state_with(vec![]);
-        let alias_state = AliasState::new_in_memory();
+        let alias_state = AliasState::new_for_test();
         // Orphaned alias — its object_id isn't indexed. Pin step must not
         // panic when the find-by-id comes up empty.
         alias_state

@@ -560,7 +560,7 @@ mod tests {
         state
             .index_one(make_cmd("cmd_pomodoro_start", "Start", 0))
             .unwrap();
-        let alias_state = crate::aliases::AliasState::new_in_memory();
+        let alias_state = crate::aliases::AliasState::new_for_test();
         alias_state
             .set_alias("cmd_pomodoro_start", "ps", "Start", "command", 1)
             .unwrap();

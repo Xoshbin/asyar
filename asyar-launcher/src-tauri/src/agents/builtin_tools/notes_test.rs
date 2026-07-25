@@ -5,7 +5,6 @@ use crate::agents::tools::BuiltinTool;
 use crate::storage::notes::{self, Note};
 use crate::storage::notes_fts::NotesFts;
 use crate::storage::DataStore;
-use rusqlite::Connection;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -18,9 +17,7 @@ fn test_key() -> [u8; 32] {
 }
 
 fn test_store() -> (DataStore, [u8; 32], Arc<NotesFts>) {
-    let conn = Connection::open_in_memory().unwrap();
-    notes::init_table(&conn).unwrap();
-    let store = DataStore::from_conn(conn);
+    let store = crate::storage::create_test_store();
     let fts = Arc::new(NotesFts::new_in_memory().unwrap());
     (store, test_key(), fts)
 }

@@ -1383,19 +1383,18 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let _ = storage::extension_cache::prune_all_expired(&conn);
     }
 
-    // One-shot timer registry — shares the DataStore connection via
-    // `conn_arc()`. Must be built before the backlog scan and the live
-    // scheduler so both can see the same rows.
-    let timer_registry = timers::TimerRegistry::new(data_store.conn_arc());
+    // One-shot timer registry — shares the DataStore. Must be built before
+    // the backlog scan and the live scheduler so both can see the same rows.
+    let timer_registry = timers::TimerRegistry::new(data_store.clone());
 
     // Launcher-brokered extension state store + RPC primitive.
-    // Shares the DataStore SQLite connection via `conn_arc()` so writes
-    // land in the same `asyar_data.db` file as every other launcher table.
+    // Shares the DataStore so writes land in the same `asyar_data.db` file
+    // as every other launcher table.
     // The Tauri-backed emitter is installed immediately so the first
     // `state:set` of the boot can fan out cleanly. Logs the database file
     // path so the boot log evidences the SQLite location.
     let extension_state_service = std::sync::Arc::new(
-        crate::extensions::extension_state::ExtensionStateService::new(data_store.conn_arc()),
+        crate::extensions::extension_state::ExtensionStateService::new(data_store.clone()),
     );
     extension_state_service.set_emitter(Box::new(
         crate::extensions::extension_state::TauriStateEmitter {
@@ -1467,15 +1466,19 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         );
         app.manage(fts.clone());
 
-        let conn_arc = app.state::<storage::DataStore>().conn_arc();
+        let store = app.state::<storage::DataStore>().inner().clone();
         let master_key: [u8; 32] = *app
             .state::<crate::crypto::keystore::KeystoreState>()
             .master_key();
         let app_handle = app.handle().clone();
         let fts_for_task = fts.clone();
         tauri::async_runtime::spawn(async move {
+            // The connection is checked out inside `spawn_blocking` and dropped
+            // with it — this scan reads and decrypts every row, and holding a
+            // pooled connection across an await would keep it out of circulation
+            // for the whole rebuild.
             let result = tokio::task::spawn_blocking(move || {
-                let conn = match conn_arc.lock() {
+                let conn = match store.conn() {
                     Ok(c) => c,
                     Err(_) => return false,
                 };
@@ -1503,15 +1506,17 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         );
         app.manage(fts.clone());
 
-        let conn_arc = app.state::<storage::DataStore>().conn_arc();
+        let store = app.state::<storage::DataStore>().inner().clone();
         let master_key: [u8; 32] = *app
             .state::<crate::crypto::keystore::KeystoreState>()
             .master_key();
         let app_handle = app.handle().clone();
         let fts_for_task = fts.clone();
         tauri::async_runtime::spawn(async move {
+            // Same rule as the clipboard rebuild above: the pooled connection
+            // is acquired and released entirely inside `spawn_blocking`.
             let result = tokio::task::spawn_blocking(move || {
-                let conn = match conn_arc.lock() {
+                let conn = match store.conn() {
                     Ok(c) => c,
                     Err(_) => return false,
                 };
@@ -1593,13 +1598,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         )));
     }
 
-    // Alias storage shares the DataStore SQLite connection. The schema is
-    // initialized inside DataStore::initialize via aliases::init_table; here
-    // we build the in-memory cache and prune any orphan rows whose owning
-    // search-index item disappeared while the launcher was off.
+    // Alias storage shares the DataStore. The schema is initialized inside
+    // DataStore::initialize via aliases::init_table; here we build the
+    // in-memory cache and prune any orphan rows whose owning search-index
+    // item disappeared while the launcher was off.
     {
         let alias_state =
-            aliases::AliasState::new_with_db(app.state::<storage::DataStore>().conn_arc())
+            aliases::AliasState::new_with_db(app.state::<storage::DataStore>().inner().clone())
                 .expect("init alias state");
         if let Some(search_state) = app.try_state::<std::sync::Arc<search_engine::SearchState>>() {
             if let Ok(live_ids) = search_state.all_ids() {
