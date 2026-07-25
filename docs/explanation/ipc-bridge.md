@@ -25,12 +25,10 @@ worker.html (hidden iframe)            view.html (on-demand iframe)
                               ▼
                    ExtensionIpcRouter (SvelteKit host)
                    ┌─────────────────────────────────┐
-                   │ 1. Identity gate                 │
-                   │    - findIframeRoleForSource()   │
-                   │      maps event.source → role    │
-                   │      via data-role="…"           │
-                   │ 2. Permission check              │
-                   │ 3. Service registry dispatch     │
+                   │ tap → protocolFilter →           │
+                   │ preIdentityHandlers → identify → │
+                   │ permissionGate → replyEnvelope → │
+                   │ dispatch                         │
                    └────────────────┬─────────────────┘
                                     ▼
                    Rust command / launcher service
@@ -40,6 +38,37 @@ worker.html (hidden iframe)            view.html (on-demand iframe)
 ```
 
 ## Host-side routing
+
+### The stage pipeline
+
+The router is an ordered list of stages plus a type→handler map, both exported
+as data from
+[`asyar-launcher/src/services/extension/ipc/`](../../asyar-launcher/src/services/extension/ipc/)
+so tests can assert them directly:
+
+| Stage                 | Responsibility                                                                          |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| `tap`                 | Hands every frame — `asyar:` or not — to the search-response bridge                     |
+| `protocolFilter`      | Drops non-`asyar:` frames, `asyar:response`, and response envelopes another bridge owns |
+| `preIdentityHandlers` | Terminates frames that carry no identity claim (see below)                              |
+| `identify`            | Resolves the caller's `extensionId` + `role`, then validates the manifest               |
+| `permissionGate`      | Consults the Rust gate — **only** for `asyar:api:*`                                     |
+| `replyEnvelope`       | Wraps dispatch: turns a throw into `{ error }` and reports the diagnostic               |
+| `dispatch`            | Runs the terminal handler and posts `{ result }` if that handler replies                |
+
+A stage that does not call `next()` ends the message there. Terminal handlers
+live in `IPC_HANDLERS`, keyed by exact message type, and each one **declares**
+whether it runs before identity (`beforeIdentity: true`) rather than depending
+on where it sits in a chain. `asyar:window:hide`, `asyar:feedback:uncaught`,
+and the `asyar:dev:*-log` frames declare it; `asyar:stream:abort` and
+`asyar:extension:loaded` do not. Anything under `asyar:api:` with no exact
+entry falls to the generic service-registry dispatch; any other `asyar:*` frame
+gets an empty reply so the caller never hangs.
+
+**`asyar:api:*` is the only permission-bearing surface.** Every other `asyar:`
+frame is transport or lifecycle: it has no permission to declare, and the Rust
+gate does not classify it — so running the (fail-closed) gate on one denies it.
+A new non-api frame needs a handler, not a permission.
 
 ### Message Format
 
@@ -61,17 +90,15 @@ Scenario: extension code calls `context.proxies.log.info("Hello")` from the
 
 1. **SDK Proxy Intercept:** `LogServiceProxy` calls `this.broker.invoke('log:info', { message: "Hello" })`.
 2. **PostMessage Dispatch:** `MessageBroker` prepends `'asyar:api:'` to form the type `asyar:api:log:info`, packages it alongside the payload, and calls `window.parent.postMessage(message, '*')`.
-3. **Host Reception:** `ExtensionIpcRouter` has a global `window.addEventListener('message')` trap.
-4. **Source Validation Phase:**
-   - The handler confirms the message type conforms to the `asyar:` prefix.
-   - It captures `event.source`. If `source !== window` (i.e. came from a Tier 2 iframe), it enforces that `extensionId` is provided in the message.
-   - It calls `findIframeRoleForSource(event.source)` which scans `iframe[data-extension-id]` elements and returns whichever has its `contentWindow === source` — yielding a `role: 'view' | 'worker' | undefined` on the dispatched call. Services that care which role made the call (state writes, action handler registration, RPC) read this off the dispatch context.
-5. **Security Gate:** Looks up the manifest via `getManifestById(extensionId)`. Unauthorized or unknown → drop.
-6. **Host Service Dispatch:** Splits `asyar:api:log:info` into `['asyar', 'api', 'log', 'info']`, looks up `'log'` in the service registry, and applies `Object.values(payload)` as positional arguments to the target method.
-7. **Tauri Invocation / Execution:** Native side effects fire (logging to stdout / file).
-8. **Response Packaging:** Host maps the result into `{ type: 'asyar:response', messageId, result, success: true }`.
-9. **PostMessage Return:** `event.source.postMessage(response, '*')` — replies land in **the same iframe** that made the call. Two iframes from the same extension cannot accidentally receive each other's responses.
-10. **Promise Resolution:** That iframe's `MessageBroker` matches `messageId` and resolves the awaiting promise.
+3. **Host Reception:** `ExtensionIpcRouter` has a global `window.addEventListener('message')` trap; each frame is run through the stage pipeline above.
+4. **`protocolFilter` stage:** confirms the message type carries the `asyar:` prefix and is not itself a response.
+5. **`identify` stage:** captures `event.source`. For a Tier 2 iframe (`source !== window`) it scans `iframe[data-extension-id]` elements for the one whose `contentWindow === source` and reads `data-extension-id` + `data-role` off that element. The identity is **never** taken from the message body — a payload-supplied `extensionId` would let any extension impersonate another. It then looks up the manifest via `getManifestById(extensionId)`; unknown → error reply and drop. Services that care which role made the call (state writes, action handler registration, RPC) read `role` off the dispatch context.
+6. **`permissionGate` stage:** for `asyar:api:*` only, consults the fail-closed Rust gate. A denial replies with `{ error }` and stops.
+7. **`dispatch` stage:** splits `asyar:api:log:info` into `['asyar', 'api', 'log', 'info']`, looks up `'log'` in the service registry, and applies `Object.values(payload)` as positional arguments to the target method.
+8. **Tauri Invocation / Execution:** Native side effects fire (logging to stdout / file).
+9. **Response Packaging:** the `replyEnvelope` / `dispatch` pair maps the result into `{ type: 'asyar:response', messageId, result }`, or a throw into `{ type: 'asyar:response', messageId, error }`.
+10. **PostMessage Return:** `event.source.postMessage(response, '*')` — replies land in **the same iframe** that made the call. Two iframes from the same extension cannot accidentally receive each other's responses.
+11. **Promise Resolution:** That iframe's `MessageBroker` matches `messageId` and resolves the awaiting promise.
 
 ### Role-aware iframe selection
 
@@ -206,15 +233,15 @@ User edits
 
 ### Boot delivery via `asyar:extension:loaded`
 
-Both iframes — worker and view — post `{ type: 'asyar:extension:loaded', extensionId, role }` once their `ExtensionContext` is wired. The router handles this at the **top level** of its message switch (it is NOT an `asyar:api:*` call and was hoisted out of that branch). The host treats it as the runtime ready-ack for that role's lifecycle state machine (see [extension runtime](./extension-runtime.md)) and replies with the initial preferences bundle to the iframe that posted it:
+Both iframes — worker and view — post `{ type: 'asyar:extension:loaded', extensionId, role }` once their `ExtensionContext` is wired. It is a lifecycle frame, not an `asyar:api:*` call, so it has its own entry in `IPC_HANDLERS`: identity and manifest are still required, but the permission gate is never consulted. The host treats it as the runtime ready-ack for that role's lifecycle state machine (see [extension runtime](./extension-runtime.md)) and replies with the initial preferences bundle to the iframe that posted it:
 
 ```
 iframe main.ts                          ExtensionIpcRouter
 ─────────────────                       ──────────────────
 postMessage({ type: 'asyar:extension:loaded', extensionId }, '*')
                     ──────────────────►
-                                        manifest / permission validation
-                                        (both pass — asyar:extension:loaded is a core call)
+                                        identify: manifest validated
+                                        permissionGate: skipped (not asyar:api:*)
                                         extensionPreferencesService.getEffectivePreferences(extensionId)
                                         postMessage({
                                           type: 'asyar:event:preferences:set-all',
