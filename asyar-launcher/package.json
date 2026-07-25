@@ -53,7 +53,7 @@
   "devDependencies": {
     "@eslint/js": "^9.23.0",
     "@sveltejs/adapter-static": "^3.0.6",
-    "@sveltejs/kit": "^2.9.0",
+    "@sveltejs/kit": "^2.69.1",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tauri-apps/cli": "^2.11.0",
     "@tauri-apps/cli-win32-arm64-msvc": "^2.11.0",
