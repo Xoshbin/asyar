@@ -1,8 +1,8 @@
 # Asyar
 
-**Privacy-focused Local-First Cross platform open-source alternative to Raycast.**
+**The power of Raycast. The speed of Alfred. Privacy by design.**
 
-Asyar is a fast, extensible, **Privacy-focused local-first** command launcher for macOS, Windows, and Linux. No account. No cloud. No subscription. Just a blazing-fast launcher that stays entirely on your machine.
+A fast, open-source launcher for macOS, Windows, and Linux.
 
 ## Tiny Footprint. Native Performance.
 
