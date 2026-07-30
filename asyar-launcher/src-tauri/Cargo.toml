@@ -1,7 +1,7 @@
 [package]
 name = "asyar"
 version = "0.1.1-40"
-description = "A Tauri App"
+description = "A fast, open-source launcher for macOS, Windows, and Linux."
 authors = ["Khoshbin Ali <xoshbin@gmail.com>"]
 edition = "2021"
 
