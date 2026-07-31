@@ -297,6 +297,8 @@ pub fn sync_command_index_internal_with_aliases(
                     icon: cmd_input.icon,
                     last_used_at: None,
                     subtitle: None,
+                    type_label: None,
+                    has_arguments: false,
                     is_dynamic: false,
                 }));
             }
@@ -387,6 +389,8 @@ mod tests {
             icon: None,
             last_used_at: None,
             subtitle: None,
+            type_label: None,
+            has_arguments: false,
             is_dynamic: false,
         })
     }

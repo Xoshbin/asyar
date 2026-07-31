@@ -56,14 +56,14 @@ Add an `arguments` array to a command in `manifest.json`:
 
 ### Per-argument fields
 
-| Field         | Type                                             | Required                     | Description                                                                                                                                                                   |
-| ------------- | ------------------------------------------------ | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`        | `string`                                         | ✅                           | Unique within the command. Regex: `/^[a-zA-Z_][a-zA-Z0-9_]*$/`. Becomes the key on `args.arguments`.                                                                          |
-| `type`        | `"text" \| "password" \| "dropdown" \| "number"` | ✅                           | Input type. See [Type behaviour](#type-behaviour).                                                                                                                            |
-| `placeholder` | `string`                                         | ❌                           | Chip placeholder text shown when the field is empty.                                                                                                                          |
-| `required`    | `boolean`                                        | ❌                           | Default `false`. Required arguments must be filled before `Enter` will submit.                                                                                                |
-| `default`     | `string \| number`                               | ❌                           | Pre-filled value on first invocation. Type must match the declared `type` (number default → number, everything else → string). For `dropdown`, must be one of `data[].value`. |
-| `data`        | `{ value, title }[]`                             | ❌ (required for `dropdown`) | Non-empty option list. Each option needs both `value` (returned) and `title` (displayed).                                                                                     |
+| Field         | Type                                             | Required                     | Description                                                                                                                                                                                                         |
+| ------------- | ------------------------------------------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`        | `string`                                         | ✅                           | Unique within the command. Regex: `/^[a-zA-Z_][a-zA-Z0-9_]*$/`. Becomes the key on `args.arguments`.                                                                                                                |
+| `type`        | `"text" \| "password" \| "dropdown" \| "number"` | ✅                           | Input type. See [Type behaviour](#type-behaviour).                                                                                                                                                                  |
+| `placeholder` | `string`                                         | ❌                           | Chip placeholder text shown when the field is empty.                                                                                                                                                                |
+| `required`    | `boolean`                                        | ❌                           | Default `false`. Required arguments must be filled before `Enter` will submit, unless the argument also declares a `default`.                                                                                       |
+| `default`     | `string \| number`                               | ❌                           | Value substituted when the field is left empty. Type must match the declared `type` (number default → number, everything else → string). For `dropdown`, must be one of `data[].value`, and pre-selects the option. |
+| `data`        | `{ value, title }[]`                             | ❌ (required for `dropdown`) | Non-empty option list. Each option needs both `value` (returned) and `title` (displayed).                                                                                                                           |
 
 ### Schema constraints
 
@@ -74,29 +74,80 @@ Add an `arguments` array to a command in `manifest.json`:
 ## How the user interacts with arguments
 
 1. The user searches for your command in the launcher.
-2. With the command highlighted, they press **Tab** (or **Enter** when the
-   command has at least one `required` argument — the launcher auto-enters
-   argument mode instead of executing).
-3. The command becomes a chip; its arguments render as inline inputs in the
-   search bar. Focus lands on the first field.
-4. **Tab / Shift+Tab** move between fields. **Shift+Tab on the first field**
-   exits argument mode back to search.
-5. **Enter** submits when every required argument is filled. A red `*`
-   marks required fields visually.
-6. **Escape**, or **Backspace on an empty first field**, exits argument
-   mode without running the command.
+2. Highlighting it shows one greyed-out chip per declared argument, trailing
+   the typed query. The chips are a preview: nothing is typed into them yet.
+   With the query empty, the search bar shows the command's own name in
+   placeholder grey instead of the usual prompt, and the chips trail that.
+3. **Tab** (or a click on a chip) promotes the command into argument mode and
+   focuses the first field. **Enter** does the same only when a `required`
+   argument has nothing to stand in for it — no `default`, no stored last
+   selection, nothing left from an earlier Escape. Optional arguments never
+   hold Enter up: the command runs straight away, and Tab is how the user opts
+   into filling them. It still receives everything those arguments declare or
+   remember — a `default`, a stored `dropdown` selection — so the payload is
+   the one argument mode would have sent, and anything with neither is simply
+   absent. Handle those blanks accordingly.
+4. **Tab / Shift+Tab** walk one ring over the search query and every field,
+   selecting each field's contents on arrival. Tab off the last field lands
+   back in the query; Shift+Tab off the first does the same. A command with a
+   single argument therefore toggles between the query and its one field.
+5. **Left / Right arrows** walk the same row, treating the search query as
+   the slot to the left of the first field. Right steps out of a field only
+   once the caret has reached its end; Left steps out immediately. A dropdown
+   has no caret to cross, so one press leaves it either way — its own
+   Up/Down keys are covered under
+   [Dropdown interaction](#dropdown-interaction).
+6. **Enter** submits when every required argument is filled, or has a
+   `default` to fall back on. Required fields look the same as optional ones;
+   `aria-required` carries the distinction for assistive tech. When Enter
+   cannot run the command, the bottom bar's feedback area says why — next to
+   where run failures appear. A value that cannot be parsed at all, such as
+   text in a `number` field, is named as soon as it is typed; a merely
+   unfilled required field is only reported once Enter has been pressed, and
+   the message clears on the next edit.
+7. **Escape**, or **Backspace on an empty first field**, exits argument mode
+   without running the command. An open dropdown list takes Escape first. Whatever the user typed or picked stays in the
+   chips for as long as the command remains highlighted, so Enter still runs it
+   with those values. Untouched fields are not kept. Moving the highlight, or
+   editing the query, discards everything — arrowing the result list while the
+   chips are up therefore ends argument mode, since the chips describe the row
+   that was highlighted when it started.
+
+A `background` command closes the launcher once it dispatches. A `view`
+command leaves it open, since its view has just mounted.
 
 ## Type behaviour
 
-| Type       | Input widget                          | Submitted as                                                            |
-| ---------- | ------------------------------------- | ----------------------------------------------------------------------- |
-| `text`     | Plain text input                      | `string`                                                                |
-| `password` | Masked text input (asterisks)         | `string`                                                                |
-| `number`   | Numeric input (`inputmode="decimal"`) | `number` — parsed; submit is blocked if the value isn't a finite number |
-| `dropdown` | Native `<select>` of `data[]` options | `string` — the chosen option's `value`                                  |
+| Type       | Input widget                                  | Submitted as                                                            |
+| ---------- | --------------------------------------------- | ----------------------------------------------------------------------- |
+| `text`     | Plain text input                              | `string`                                                                |
+| `password` | Masked text input (asterisks)                 | `string`                                                                |
+| `number`   | Text input, `inputmode="decimal"`, no stepper | `number` — parsed; submit is blocked if the value isn't a finite number |
+| `dropdown` | Chip with a filterable list of `data[]`       | `string` — the chosen option's `value`                                  |
 
 Dropdowns always submit one of the declared values. Numbers are coerced
 before delivery, so your handler receives `7`, not `"7"`.
+
+### Dropdown interaction
+
+A dropdown chip shows the value it was seeded with — the last selection, or
+the declared `default` — greyed, because the user has not weighed in on it
+yet. Picking a value, even the same one, renders it in full.
+
+- **Down / Up** walk the options with the list closed. Down from the seeded
+  chip takes the first option; Up off the first option returns the chip to
+  its seeded, greyed state. Neither end wraps.
+- **Typing** opens the list on that keystroke, with what was typed in its
+  search box and the options filtered by it. Deleting the query leaves the
+  list open.
+- **Click**, or **Space**, opens the list unfiltered and focuses its search
+  box; clicking again closes it. The chevron follows.
+- **Down / Up** move the highlight in an open list, and **Enter** takes it.
+  The `-` row at the top, offered whenever the search box is empty, puts the
+  chip back to its seeded state.
+- **Escape** clears the search box, then closes the list on the next press.
+  The chip keeps focus either way, so typing opens the list again; a third
+  press leaves argument mode. **Backspace** clears a value the user picked.
 
 ## Receiving arguments in your handler
 
@@ -132,23 +183,23 @@ Other keys alongside `arguments` remain the established system flags —
 `scheduledTick`, `deeplinkTrigger`. They are never mixed with user-declared
 argument values.
 
-## Persistence — last-value pre-fill
+## Persistence
 
-After the user submits, the launcher stores the non-password values per
-`(extensionId, commandId)` in the launcher's SQLite store. The next time
-the user opens argument mode for the same command, those values pre-fill
-the chip row. The user can edit them freely before submitting again.
+Only `dropdown` selections carry over between invocations. After the user
+submits, the chosen option is stored per `(extensionId, commandId)` in the
+launcher's SQLite store and pre-selected next time, shown greyed until the
+user picks something themselves.
 
-- `password` fields are **never** persisted. They start empty on every
-  invocation.
-- `default` from the manifest is used only when no persisted value exists
-  for that field yet.
-- Uninstalling the extension clears its persisted argument defaults, along
-  with its storage, preferences, and cache.
+`text`, `password`, and `number` fields start empty on every invocation,
+showing their placeholder. Their `default`, if declared, is substituted at
+submit time rather than typed into the field, so the user sees the hint
+instead of a value they have to clear.
 
-Persistence is transparent — extension authors don't opt in or out. If you
-want a field to start empty every time, declare it as `password` (when
-appropriate) or don't give it a `default`.
+- `default` seeds a dropdown only when no selection has been stored yet.
+- Uninstalling the extension clears its stored selections, along with its
+  storage, preferences, and cache.
+
+Persistence is transparent: extension authors don't opt in or out.
 
 ## Scheduled, deeplink, and notification-triggered invocations
 
@@ -173,14 +224,14 @@ iframe involved.
 
 ## Relationship to preferences
 
-|             | Arguments                                           | Preferences                                                                                 |
-| ----------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Scope       | Per invocation                                      | Per install (extension or command)                                                          |
-| UI          | Inline chip row in the search bar                   | Settings panel in Extensions tab                                                            |
-| Persistence | Last-value per `(ext, cmd, arg)`, except `password` | All values, encrypted-at-rest for `password`                                                |
-| Max count   | 3 per command                                       | No fixed limit                                                                              |
-| Types       | `text`, `password`, `dropdown`, `number`            | `textfield`, `password`, `dropdown`, `number`, `checkbox`, `appPicker`, `file`, `directory` |
-| Reached as  | `args.arguments.<name>`                             | `context.preferences.<name>` / `context.preferences.commands.<cmdId>.<name>`                |
+|             | Arguments                                         | Preferences                                                                                 |
+| ----------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Scope       | Per invocation                                    | Per install (extension or command)                                                          |
+| UI          | Inline chip row in the search bar                 | Settings panel in Extensions tab                                                            |
+| Persistence | `dropdown` selections only, per `(ext, cmd, arg)` | All values, encrypted-at-rest for `password`                                                |
+| Max count   | 3 per command                                     | No fixed limit                                                                              |
+| Types       | `text`, `password`, `dropdown`, `number`          | `textfield`, `password`, `dropdown`, `number`, `checkbox`, `appPicker`, `file`, `directory` |
+| Reached as  | `args.arguments.<name>`                           | `context.preferences.<name>` / `context.preferences.commands.<cmdId>.<name>`                |
 
 An extension can use both. Preferences configure defaults, API endpoints,
 units — things the user sets once. Arguments capture the bits that change
@@ -192,7 +243,7 @@ The arguments described on this page apply to commands declared in
 `manifest.json`. The same argument schema also applies to **dynamic
 commands** registered at runtime — the launcher resolves both through
 the same argument-mode pipeline, with one difference: dynamic command
-last-values are namespaced under `dynamic:<id>` in storage so dynamic
+selections are namespaced under `dynamic:<id>` in storage so dynamic
 ids cannot collide with manifest ids.
 
 For commands whose set is determined by the user's environment (Apple

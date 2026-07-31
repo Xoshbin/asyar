@@ -60,6 +60,11 @@ export interface DynamicCommandRegistration {
   /** Icon reference (e.g. `"icon:link"` or an emoji). */
   icon?: string;
   /**
+   * Right-side row label in root search, e.g. "Apple Shortcut" for a
+   * single shortcut item. Defaults to the extension's display name.
+   */
+  typeLabel?: string;
+  /**
    * Optional argument schema. Same rules as manifest arguments:
    * max 3 entries, required must precede optional, dropdowns need
    * non-empty `data[]`, `default` must type-match.

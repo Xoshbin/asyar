@@ -69,8 +69,18 @@ describe('start', () => {
       label: 'My Script',
       extensionId: 'ext.foo',
       cancellable: true,
+      silent: false,
       subjectId: null,
     });
+  });
+
+  it('forwards silent in the runs_start payload when the caller opts in', async () => {
+    vi.mocked(invokeSafe).mockResolvedValue(makeRun());
+    await runService.start('ext.foo', 'r1', 'shell-script', 'List refresh', false, true);
+    expect(invokeSafe).toHaveBeenCalledWith(
+      'runs_start',
+      expect.objectContaining({ silent: true }),
+    );
   });
 
   it('forwards subjectId in the runs_start payload when provided', async () => {
@@ -81,6 +91,7 @@ describe('start', () => {
       'shell-script',
       'My Script',
       true,
+      false,
       'cmd_scripts_dyn_abc',
     );
     expect(invokeSafe).toHaveBeenCalledWith(
@@ -210,6 +221,47 @@ describe('onStateChanged', () => {
         severity: 'warning',
         context: { id: 'r1', message: 'boom' },
       }),
+    );
+  });
+
+  it('a silent failure raises no feedback and claims no launcher row', async () => {
+    const run = makeRun({
+      id: 'r-silent',
+      status: 'failed',
+      errorMessage: 'boom',
+      extensionId: 'com.example.ext',
+      silent: true,
+    });
+    await runService['onStateChanged'](run);
+    expect(feedbackService.report).not.toHaveBeenCalled();
+    expect(runService.unacknowledgedFailures).toHaveLength(0);
+    // Still readable in the Runs view.
+    expect(runService.recent.some((r) => r.id === 'r-silent')).toBe(true);
+  });
+
+  it('a silent success leaves the script-results bucket alone', async () => {
+    const run = makeRun({
+      id: 'r-silent-ok',
+      status: 'succeeded',
+      endedAt: Date.now(),
+      extensionId: 'com.example.ext',
+      silent: true,
+    });
+    await runService['onStateChanged'](run);
+    expect(runService.unacknowledgedScriptResults).toHaveLength(0);
+  });
+
+  it('an extension-owned failure with no subjectId still reports when not silent', async () => {
+    const run = makeRun({
+      id: 'r-loud',
+      status: 'failed',
+      errorMessage: 'yt-dlp exited 1',
+      extensionId: 'com.example.ext',
+      subjectId: undefined,
+    });
+    await runService['onStateChanged'](run);
+    expect(feedbackService.report).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'run_failed' }),
     );
   });
 

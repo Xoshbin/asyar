@@ -101,7 +101,17 @@
   --shadow-lg: 0 8px 16px var(--shadow-color);
   --shadow-xl: 0 12px 24px var(--shadow-color);
   --shadow-popup: 0 8px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.1);
+  /* Floating launcher surfaces (.launcher-popup). Light values live here;
+     the dark themes override them with a heavier cast plus an inner rim. */
+  --shadow-launcher-popup:
+    -28px 20px 80px -20px rgba(0, 0, 0, 0.3), -14px 10px 40px -16px rgba(0, 0, 0, 0.18),
+    -4px 3px 12px -6px rgba(0, 0, 0, 0.1);
   --shadow-focus: 0 0 0 2px var(--asyar-brand-muted);
+
+  /* Corner and hairline of those surfaces. The radius matches the launcher
+     shell above, so a popup reads as the same material. */
+  --radius-popup: 20px;
+  --popup-divider: rgba(60, 60, 67, 0.11);
 
   /* Font-size scale */
   --font-size-2xs: 10px;
@@ -129,6 +139,14 @@ html[data-platform='macos'] {
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Text selection ───────────────────────────────────────
+   Derived from the text colour rather than the system accent, so the
+   highlight stays neutral and inverts with the theme on its own. */
+::selection {
+  background: color-mix(in srgb, var(--text-primary) 22%, transparent);
+  color: inherit;
 }
 
 /* ── Global focus indicator ────────────────────────────── */
@@ -174,6 +192,12 @@ html[data-platform='macos'] .app-root {
     --bg-primary: rgba(30, 30, 32, 0.65);
     --bg-popup: rgb(30, 30, 32);
     --popup-border-color: rgba(255, 255, 255, 0.18);
+    --popup-divider: rgba(255, 255, 255, 0.07);
+    /* Inner highlight + heavier cast, so a popup reads as a distinct
+       surface against the dim launcher chrome. */
+    --shadow-launcher-popup:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.04), -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
+      -14px 10px 40px -16px rgba(0, 0, 0, 0.5), -4px 3px 12px -6px rgba(0, 0, 0, 0.35);
     --bg-secondary: rgba(40, 40, 42, 0.65);
     --bg-tertiary: rgba(50, 50, 52, 0.65);
     --bg-hover: rgba(64, 64, 66, 0.55);
@@ -253,6 +277,10 @@ html[data-platform='macos'] .app-root {
   --bg-primary: rgba(30, 30, 32, 0.65);
   --bg-popup: rgb(30, 30, 32);
   --popup-border-color: rgba(255, 255, 255, 0.18);
+  --popup-divider: rgba(255, 255, 255, 0.07);
+  --shadow-launcher-popup:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04), -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
+    -14px 10px 40px -16px rgba(0, 0, 0, 0.5), -4px 3px 12px -6px rgba(0, 0, 0, 0.35);
   --bg-secondary: rgba(40, 40, 42, 0.65);
   --bg-tertiary: rgba(50, 50, 52, 0.65);
   --bg-hover: rgba(64, 64, 66, 0.55);
@@ -328,6 +356,10 @@ html[data-platform='macos'] .app-root {
     --bg-primary: rgba(240, 240, 245, 0.65);
     --bg-popup: rgb(240, 240, 245);
     --popup-border-color: rgba(60, 60, 67, 0.16);
+    --popup-divider: rgba(60, 60, 67, 0.11);
+    --shadow-launcher-popup:
+      -28px 20px 80px -20px rgba(0, 0, 0, 0.3), -14px 10px 40px -16px rgba(0, 0, 0, 0.18),
+      -4px 3px 12px -6px rgba(0, 0, 0, 0.1);
     --bg-secondary: rgba(230, 230, 235, 0.65);
     --bg-tertiary: rgba(245, 245, 247, 0.65);
     --bg-hover: rgba(220, 220, 225, 0.5);
@@ -404,6 +436,10 @@ html[data-platform='macos'] .app-root {
   --bg-primary: rgba(240, 240, 245, 0.65);
   --bg-popup: rgb(240, 240, 245);
   --popup-border-color: rgba(60, 60, 67, 0.16);
+  --popup-divider: rgba(60, 60, 67, 0.11);
+  --shadow-launcher-popup:
+    -28px 20px 80px -20px rgba(0, 0, 0, 0.3), -14px 10px 40px -16px rgba(0, 0, 0, 0.18),
+    -4px 3px 12px -6px rgba(0, 0, 0, 0.1);
   --bg-secondary: rgba(230, 230, 235, 0.65);
   --bg-tertiary: rgba(245, 245, 247, 0.65);
   --bg-hover: rgba(220, 220, 225, 0.5);
@@ -484,6 +520,61 @@ html[data-platform='macos'] .app-root {
 
   .search-header {
     @apply fixed inset-x-0 top-0 z-50;
+  }
+
+  /* The launcher's floating surfaces — the ⌘K action popup, the dropdown
+     argument list. Defined once so they cannot drift apart; each caller
+     supplies only its own position and size. */
+  .launcher-popup {
+    background: color-mix(in srgb, var(--bg-popup) 80%, transparent);
+    backdrop-filter: blur(60px) saturate(200%);
+    -webkit-backdrop-filter: blur(60px) saturate(200%);
+    border: 1px solid var(--popup-border-color);
+    border-radius: var(--radius-popup);
+    box-shadow: var(--shadow-launcher-popup);
+  }
+
+  html[data-platform='linux'] .launcher-popup {
+    backdrop-filter: none;
+    background-color: var(--bg-popup);
+  }
+
+  /* Search row of a launcher popup. Matches the launcher's own search field
+     one size down; the caller draws the hairline on whichever side its list
+     sits. */
+  .launcher-popup-search {
+    height: 41px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 var(--space-5);
+    background: transparent;
+    box-sizing: border-box;
+  }
+  .launcher-popup-search .input-wrapper,
+  .launcher-popup-search > * {
+    width: 100%;
+  }
+  .launcher-popup-search .input {
+    font-size: var(--font-size-md);
+    padding: var(--space-1) 0;
+    border: none;
+    background: transparent;
+    border-radius: 0;
+    color: var(--text-primary);
+    caret-color: color-mix(
+      in srgb,
+      var(--text-primary) 60%,
+      var(--bg-secondary-full-opacity) 40%
+    ) !important;
+  }
+  .launcher-popup-search .input::placeholder {
+    color: color-mix(in srgb, var(--text-primary) 50%, var(--bg-secondary-full-opacity) 50%);
+    font-weight: 500;
+  }
+  .launcher-popup-search .input:focus {
+    border: none;
+    box-shadow: none;
   }
 
   .search-input {

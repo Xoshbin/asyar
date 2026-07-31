@@ -327,6 +327,7 @@ mod tests {
             name: name.to_string(),
             description: None,
             icon: None,
+            type_label: None,
             arguments: vec![],
         }
     }

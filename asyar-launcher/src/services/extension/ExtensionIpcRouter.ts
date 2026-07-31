@@ -218,6 +218,23 @@ export class ExtensionIpcRouter {
       return undefined;
     }
 
+    // shell.spawn keeps Tier-1-only slots (subjectId, label) between
+    // originRole and silent, so the positional Object.values dispatch below
+    // cannot reach its tail. Build this one call explicitly.
+    if (ns === 'shell' && methodName === 'spawn') {
+      const p = (payload ?? {}) as Record<string, unknown>;
+      return await (method as (...a: unknown[]) => unknown).apply(service, [
+        extensionId,
+        p.program,
+        p.args,
+        p.spawnId,
+        originRole,
+        undefined,
+        undefined,
+        p.silent === true,
+      ]);
+    }
+
     let args: unknown[];
     if (payload === null || payload === undefined) {
       args = [];
@@ -232,7 +249,7 @@ export class ExtensionIpcRouter {
     } else if (ALWAYS_INJECTS_CALLER_ID.has(ns)) {
       args = [isPrivilegedHostContext ? null : (extensionId ?? null), ...args];
     }
-    if (ns === 'shell' && (methodName === 'spawn' || methodName === 'attach') && originRole) {
+    if (ns === 'shell' && methodName === 'attach' && originRole) {
       args = [...args, originRole];
     }
     return await (method as (...a: unknown[]) => unknown).apply(service, args);

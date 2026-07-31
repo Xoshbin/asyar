@@ -313,7 +313,53 @@ describe('ExtensionIpcRouter — originRole injection for shell streams', () => 
       'worker',
     );
 
-    expect(spawn).toHaveBeenCalledWith('ext.demo', 'ls', ['-la'], 'sp-1', 'worker');
+    // subjectId and label are Tier-1-only slots; `silent` is the tail.
+    expect(spawn).toHaveBeenCalledWith(
+      'ext.demo',
+      'ls',
+      ['-la'],
+      'sp-1',
+      'worker',
+      undefined,
+      undefined,
+      false,
+    );
+  });
+
+  it('shell:spawn forwards an opted-in silent flag past the Tier-1 slots', async () => {
+    const spawn = vi.fn(async (..._args: unknown[]) => ({ streaming: true }));
+    const registry = {
+      shell: { spawn, attach: vi.fn(), list: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:shell:spawn',
+      { program: 'sqlite3', args: ['db'], spawnId: 'sp-4', silent: true },
+      'ext.demo',
+      false,
+      'worker',
+    );
+
+    expect(spawn.mock.calls[0][7]).toBe(true);
+  });
+
+  it('shell:spawn defaults silent to false when the extension omits it', async () => {
+    const spawn = vi.fn(async (..._args: unknown[]) => ({ streaming: true }));
+    const registry = {
+      shell: { spawn, attach: vi.fn(), list: vi.fn() },
+    } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:shell:spawn',
+      { program: 'yt-dlp', args: [], spawnId: 'sp-5' },
+      'ext.demo',
+      false,
+      'worker',
+    );
+
+    expect(spawn.mock.calls[0][7]).toBe(false);
   });
 
   it('shell:attach from a view iframe receives originRole=view as the trailing argument', async () => {
@@ -334,9 +380,9 @@ describe('ExtensionIpcRouter — originRole injection for shell streams', () => 
     expect(attach).toHaveBeenCalledWith('ext.demo', 'sp-2', 'view');
   });
 
-  it('shell:spawn without originRole does not append a trailing argument', async () => {
-    // Privileged host calls pass undefined; the role must not leak as a
-    // trailing `undefined` arg into the service method.
+  it('shell:spawn without originRole leaves every later slot in place', async () => {
+    // Privileged host calls pass undefined; an absent role must not shift
+    // the arguments that follow it.
     const spawn = vi.fn(async () => ({ streaming: true }));
     const registry = {
       shell: { spawn, attach: vi.fn(), list: vi.fn() },
@@ -350,8 +396,16 @@ describe('ExtensionIpcRouter — originRole injection for shell streams', () => 
       false,
     );
 
-    expect(spawn).toHaveBeenCalledWith('ext.demo', 'ls', [], 'sp-3');
-    expect(spawn.mock.calls[0]).toHaveLength(4);
+    expect(spawn).toHaveBeenCalledWith(
+      'ext.demo',
+      'ls',
+      [],
+      'sp-3',
+      undefined,
+      undefined,
+      undefined,
+      false,
+    );
   });
 
   it('non-streaming shell methods do not receive originRole', async () => {

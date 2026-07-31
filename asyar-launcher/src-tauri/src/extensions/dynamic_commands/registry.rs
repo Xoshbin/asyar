@@ -26,6 +26,10 @@ pub struct RegisteredCommand {
     pub description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    /// Right-side row label in root search, e.g. "Apple Shortcut" for a
+    /// single shortcut item. Defaults to the extension's display name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub type_label: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub arguments: Vec<CommandArgument>,
 }
@@ -174,6 +178,7 @@ mod tests {
             name: name.to_string(),
             description: None,
             icon: None,
+            type_label: None,
             arguments: vec![],
         }
     }

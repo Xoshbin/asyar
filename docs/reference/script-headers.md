@@ -94,9 +94,10 @@ Rules:
 - Argument types are `text`, `password`, `dropdown`, `number`. Numbers
   are passed as their decimal representation (`"7"` not `7` — the shell
   has no numeric type).
-- Last-value persistence: the launcher remembers the last value per
-  `(scriptId, argName)` and pre-fills the chip on the next invocation.
-  See [Command Arguments → Persistence](./command-arguments.md#persistence--last-value-pre-fill).
+- Persistence: `dropdown` arguments remember their selection per
+  `(scriptId, argName)` and pre-select it on the next invocation. Other
+  types start empty every time.
+  See [Command Arguments → Persistence](./command-arguments.md#persistence).
 
 ### `@asyar.mode <silent | compact | fullOutput | inline>` — optional
 
@@ -264,7 +265,7 @@ appear as toast banners alongside other launcher diagnostics.
 - Scripts are registered through the dynamic-command system. See
   [Dynamic Commands](./dynamic-commands.md) for the underlying registry
   semantics; everything that applies to dynamic commands (stable ids,
-  last-value persistence, search ranking) applies to scripts too.
+  argument persistence, search ranking) applies to scripts too.
 - Manual script invocations are tracked by the [Run Tracker](../explanation/run-tracking.md)
   with `kind: shell-script` and surface as `Done · {tailOutput}` or
   `Failed · {tailOutput}` rows in the Scripts section.

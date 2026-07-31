@@ -9,6 +9,8 @@ export type MappedSearchItem = {
   /** Internal type used for action filtering (e.g. "command" vs "application") */
   type?: string;
   typeLabel?: string;
+  /** The selected row shows the search bar's "Input" hint when true. */
+  hasArguments?: boolean;
   icon?: string;
   score: number;
   /** Tier ordinal from Rust's `ranker::Tier` (0=Pinned .. 5=FrecencyOnly). */
@@ -16,5 +18,10 @@ export type MappedSearchItem = {
   style?: 'default' | 'large';
   shortcut?: string;
   alias?: string;
-  action: () => void;
+  /**
+   * Runs the row. `extra` is merged into the payload the command receives:
+   * how declared argument values reach a command Enter fired without stopping
+   * to collect them. Ignored by rows that are not commands.
+   */
+  action: (extra?: Record<string, unknown>) => void;
 };

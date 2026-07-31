@@ -1,4 +1,5 @@
 import { invokeSafe } from './invokeSafe';
+import { bumpArgumentHintVersion } from '../launcher/argumentHintVersion.svelte';
 
 /**
  * Load the last-submitted argument values for a command.
@@ -27,4 +28,6 @@ export async function commandArgDefaultsSet(
   values: Record<string, string>,
 ): Promise<void> {
   await invokeSafe('command_arg_defaults_set', { extensionId, commandId, values });
+  // The ghost chips preview these values, so they are now a version behind.
+  bumpArgumentHintVersion();
 }

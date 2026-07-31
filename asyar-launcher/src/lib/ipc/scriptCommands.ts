@@ -1,6 +1,7 @@
 // asyar-launcher/src/lib/ipc/scriptCommands.ts
 // Tauri command wrappers, re-exported through ./commands (the barrel).
 import { invokeSafe } from './invokeSafe';
+import { bumpArgumentHintVersion } from '../launcher/argumentHintVersion.svelte';
 
 // ── Scripts ───────────────────────────────────────────────────────────────────
 
@@ -80,4 +81,5 @@ export async function replaceDynamicCommandsBuiltin(
   regs: import('asyar-sdk/contracts').DynamicCommandRegistration[],
 ): Promise<void> {
   await invokeSafe('replace_dynamic_commands_builtin', { extensionId, regs });
+  bumpArgumentHintVersion();
 }

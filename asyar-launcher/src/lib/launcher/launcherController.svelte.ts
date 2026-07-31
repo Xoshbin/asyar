@@ -132,6 +132,27 @@ export class LauncherController {
     });
   }
 
+  /**
+   * Hand the collected argument values to the command. `submit()` is the
+   * authority on whether it runs at all, so a refusal is not an error and
+   * says so in the feedback bar itself; only a command that threw is reported
+   * here, with the chips left up to retry from.
+   */
+  async submitArguments(): Promise<void> {
+    try {
+      await commandArgumentsService.submit();
+    } catch (err) {
+      logService.error(`[argumentMode] submit failed: ${err}`);
+      feedbackService.report({
+        source: 'frontend',
+        kind: 'action_failed',
+        severity: 'error',
+        retryable: false,
+        context: { message: 'Could not run command with the provided arguments' },
+      });
+    }
+  }
+
   async handleEnterKey() {
     const idx = this.state.selectedIndexVal;
     if (idx < 0 || idx >= this.state.searchResultItemsMapped.length) return;
@@ -139,24 +160,50 @@ export class LauncherController {
     const selectedItem = this.state.searchResultItemsMapped[idx];
     if (!selectedItem) return;
 
-    // Raycast-style gating: Enter on a command with declared arguments promotes
-    // into argument mode before executing. The user can still press Enter
-    // again from within argument mode to run. If every declared arg is
-    // optional AND none is required, we still enter arg mode on Enter so
-    // the user can opt into passing values — Tab remains the fast path for
-    // commands where args are strictly opt-in.
-    if (selectedItem.type === 'command' && !commandArgumentsService.active) {
-      const meta = await extensionManager.getCommandArgMeta(selectedItem.object_id);
-      if (meta && meta.args.length > 0) {
-        await commandArgumentsService.enter(selectedItem.object_id);
+    // Argument mode owns running the row, so submit the chips rather than the
+    // bare command: doing the latter would ignore the `canSubmit` gate and
+    // silently drop everything the user had typed. The search bar already
+    // intercepts Enter for the chips, but a click on the row arrives here with
+    // nothing in the way, and used to be swallowed whole.
+    if (commandArgumentsService.active) {
+      if (commandArgumentsService.active.commandObjectId === selectedItem.object_id) {
+        await this.submitArguments();
         return;
+      }
+      // A different row: entry described the one it started from, so leaving
+      // for this one ends it, the same as arrowing off it does.
+      commandArgumentsService.exit();
+    }
+
+    // Raycast-style gating: Enter stops to collect arguments only when the
+    // command declares one the user must supply and nothing can stand in for
+    // it. Optional arguments never block — the command runs with whatever was
+    // declared or remembered for them, and Tab remains the way to opt into
+    // filling them.
+    let declaredArgs: Record<string, string | number> | undefined;
+    if (selectedItem.type === 'command') {
+      // Values escaped out of argument entry are showing in the row's hint
+      // chips, so running it takes the same route they were entered by:
+      // argument mode's own submit, which is what remembers a dropdown the
+      // user picked before escaping. Falls through when there is no stash, or
+      // when the command can no longer be resolved.
+      if (await commandArgumentsService.runWithStash(selectedItem.object_id)) return;
+
+      const meta = await extensionManager.getCommandArgMeta(selectedItem.object_id);
+      if (meta?.args.length) {
+        const run = await commandArgumentsService.prepareRun(selectedItem.object_id, meta);
+        if (run.needsEntry) {
+          await commandArgumentsService.enter(selectedItem.object_id);
+          return;
+        }
+        if (Object.keys(run.args).length) declaredArgs = run.args;
       }
     }
 
     if (selectedItem.action && typeof selectedItem.action === 'function') {
       const stackSizeBefore = viewManager.getNavigationStackSize();
       try {
-        await selectedItem.action();
+        await selectedItem.action(declaredArgs ? { arguments: declaredArgs } : undefined);
         // If the action navigated, navigateToView already snapshotted and
         // cleared searchStores.query; clearing again would stomp the
         // snapshot so goBack restores "" instead of the original query.

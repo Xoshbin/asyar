@@ -79,6 +79,13 @@ class ShellService {
      * omit this and get a label derived from program + args.
      */
     label?: string,
+    /**
+     * The extension declares this spawn as internal plumbing — a database
+     * read, a list refresh — so its run raises no notification, no failure
+     * toast, and no launcher row. Defaults to false: a spawn the user set
+     * off by running a command must still report when it fails.
+     */
+    silent?: boolean,
   ): Promise<{ streaming: true }> {
     const resolvedPath = await shellResolvePath(program);
     if (resolvedPath === null) {
@@ -108,6 +115,7 @@ class ShellService {
         cancellable: true,
         extensionId,
         subjectId,
+        silent: silent === true,
       });
     } catch (err) {
       logService.warn(

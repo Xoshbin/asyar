@@ -31,6 +31,13 @@
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import { actionService } from '../services/action/actionService.svelte';
   import { commandArgumentsService } from '../services/search/commandArguments';
+  import {
+    persistenceCommandKey,
+    seedArgumentValues,
+  } from '../services/search/commandArgumentsService.svelte';
+  import { commandArgDefaultsGet } from '../lib/ipc/commandArgDefaultsCommands';
+  import { argumentHintVersion } from '../lib/launcher/argumentHintVersion.svelte';
+  import type { CommandArgument } from 'asyar-sdk/contracts';
   import { developerSettingsService } from '../services/settings/developerSettingsService.svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import CrashReportPrompt from '../components/feedback/CrashReportPrompt.svelte';
@@ -250,7 +257,158 @@
   // Argument-mode derived state. Svelte 5 runes in the service propagate
   // through this $derived into the SearchHeader props.
   const argumentMode = $derived(commandArgumentsService.active);
-  const argumentCanSubmit = $derived(commandArgumentsService.canSubmit());
+  // The chips have no room to explain a bad value, so it goes to the bottom
+  // bar's feedback slot. An unfilled required field is not an error and says
+  // so with its own border instead.
+  const argumentFeedback = $derived(commandArgumentsService.feedbackMessage());
+
+  // Ghost argument affordance: the selected result declares arguments, so
+  // Tab (or a click on a hint chip) promotes it into argument mode.
+  const argumentHint = $derived.by(() => {
+    if (argumentMode || controller.activeViewVal || controller.activeContextChip) return false;
+    // The chips belong to the highlighted row, and compact idle hides the
+    // result list entirely, so there is no highlight for them to describe.
+    if (isCompactIdle) return false;
+    const idx = controller.selectedIndexVal;
+    const items = controller.searchResultItemsMapped;
+    if (idx < 0 || idx >= items.length) return false;
+    return items[idx].hasArguments === true;
+  });
+
+  const argumentHintObjectId = $derived.by(() => {
+    if (!argumentHint) return null;
+    return controller.searchResultItemsMapped[controller.selectedIndexVal]?.object_id ?? null;
+  });
+
+  // With nothing typed, the search bar stands in the command's name rather than
+  // the generic prompt, so the chips have something to trail and the row reads
+  // as one sentence. Argument mode carries its own resolved title.
+  const argumentCommandName = $derived.by(() => {
+    if (argumentMode) return argumentMode.title;
+    if (!argumentHint) return null;
+    return controller.searchResultItemsMapped[controller.selectedIndexVal]?.title ?? null;
+  });
+
+  $effect(() => {
+    commandArgumentsService.syncQuery(controller.localSearchValue);
+  });
+
+  // Argument entry belongs to the row it was started from, and so do any
+  // values escaped out of it: moving the highlight ends the one and discards
+  // the other.
+  const selectedObjectId = $derived(
+    controller.searchResultItemsMapped[controller.selectedIndexVal]?.object_id ?? null,
+  );
+  $effect(() => {
+    commandArgumentsService.syncSelection(selectedObjectId);
+  });
+
+  // Per-argument chip schema, resolved once per object id. Manifest commands
+  // resolve in a microtask; dynamic commands round-trip to the Rust registry,
+  // during which the generic "Input…" chip renders as a fallback.
+  type ArgHintSchema = {
+    args: {
+      name: string;
+      label: string;
+      type: string;
+      options?: { value: string; title: string }[];
+    }[];
+    /** What `enter()` would seed, so the chips preview what Enter sends. */
+    seeds: Record<string, string>;
+  };
+  // Only the highlighted row reads this, so a cap keeps a long session from
+  // accumulating every command the user has arrowed past.
+  const ARG_HINT_CACHE_MAX = 64;
+  let argHintById = $state<Record<string, ArgHintSchema>>({});
+
+  // A command's object id survives both a dynamic re-registration and a submit
+  // that persists new defaults, so the id alone cannot tell a live entry from
+  // a stale one — the version does.
+  $effect(() => {
+    argumentHintVersion();
+    argHintById = {};
+  });
+
+  $effect(() => {
+    const id = argumentHintObjectId;
+    if (!id || argHintById[id]) return;
+    void resolveArgHint(id);
+  });
+
+  async function resolveArgHint(id: string) {
+    const resolvedAt = argumentHintVersion();
+    try {
+      const meta = await extensionManager.getCommandArgMeta(id);
+      const declared = meta?.args ?? [];
+      // Only dropdowns are persisted, so nothing else can be waiting in
+      // storage, and the read is IPC on every row the highlight passes over,
+      // so it stays off the commands that cannot use it.
+      const persisted =
+        meta && declared.some((a) => a.type === 'dropdown')
+          ? ((await commandArgDefaultsGet(
+              meta.extensionId,
+              persistenceCommandKey(meta.commandId, meta.isDynamic === true),
+            )) ?? {})
+          : {};
+      const schema: ArgHintSchema = {
+        args: declared.map((a) => ({
+          name: a.name,
+          label: a.placeholder?.trim() || a.name,
+          type: a.type,
+          options: a.data,
+        })),
+        seeds: seedArgumentValues(declared, persisted),
+      };
+      // A bump while this was in flight already emptied the cache: what was
+      // just read is exactly what it threw away, so don't put it back.
+      if (argumentHintVersion() !== resolvedAt) return;
+      const base = Object.keys(argHintById).length >= ARG_HINT_CACHE_MAX ? {} : argHintById;
+      argHintById = { ...base, [id]: schema };
+    } catch {
+      // Leaves the fallback chip in place.
+    }
+  }
+
+  // Values stashed by an Escape win, then whatever `enter()` would seed;
+  // untouched fields fall back to their hint label.
+  const argumentHintFields = $derived.by(() => {
+    const id = argumentHintObjectId;
+    if (!id) return [];
+    const schema = argHintById[id];
+    if (!schema) return [];
+    const stash = commandArgumentsService.stashFor(id);
+    const flagged = commandArgumentsService.flaggedFor(id);
+    return schema.args.map((a) => ({
+      arg: {
+        name: a.name,
+        type: a.type,
+        placeholder: a.label,
+        data: a.options,
+      } as CommandArgument,
+      value: (stash?.[a.name] ?? schema.seeds[a.name] ?? '').trim(),
+      // Only a stashed value was actually picked; a seed is one the launcher
+      // chose, and a dropdown greys itself to say so.
+      touched: stash?.[a.name] !== undefined,
+      // Escaping out of the row does not settle what it was flagging.
+      needsValue: flagged.has(a.name),
+    }));
+  });
+
+  function handleArgHintClick(fieldIdx: number) {
+    const idx = controller.selectedIndexVal;
+    const item = controller.searchResultItemsMapped[idx];
+    if (!item) return;
+    // Same as the Tab path: the pending AI hint is left alone, since the chips
+    // already render over it and it cannot be committed from argument mode.
+    commandArgumentsService
+      .enter(item.object_id)
+      .then((ok) => {
+        if (ok && fieldIdx > 0) commandArgumentsService.focusField(fieldIdx);
+      })
+      .catch((err) => {
+        logService.error(`Failed to enter argument mode from hint: ${err}`);
+      });
+  }
 
   // Prefer the stable SearchResult.name; fall back to the rendered title
   // while the original is briefly null mid-refresh.
@@ -262,24 +420,6 @@
     if (idx >= 0 && idx < items.length) return items[idx].title ?? null;
     return null;
   });
-
-  async function handleArgSubmit() {
-    try {
-      await commandArgumentsService.submit();
-    } catch (err) {
-      // Submission errors (execute threw) are also logged by the service;
-      // surface a user-visible diagnostic and keep argument mode open so
-      // the user can retry or Esc out.
-      logService.error(`[argumentMode] submit failed: ${err}`);
-      feedbackService.report({
-        source: 'frontend',
-        kind: 'action_failed',
-        severity: 'error',
-        retryable: false,
-        context: { message: 'Could not run command with the provided arguments' },
-      });
-    }
-  }
 </script>
 
 <!--
@@ -307,17 +447,22 @@
       bind:contextQuery={controller.contextQuery}
       contextHint={controller.contextHintChip}
       {argumentMode}
-      {argumentCanSubmit}
+      {argumentHint}
+      {argumentHintFields}
+      {argumentCommandName}
+      onArgHintClick={handleArgHintClick}
       oninput={(e) => controller.handleSearchInput(e)}
       onkeydown={keyboard.handleKeydown}
       onclick={() => controller.handleBackClick()}
       oncontextDismiss={() => controller.handleChipDismiss()}
       oncontextQueryChange={(d) => controller.handleContextQueryChange(d)}
       onArgValueChange={(name, v) => commandArgumentsService.setValue(name, v)}
+      onArgValueReset={(name) => commandArgumentsService.resetValue(name)}
       onArgFocusField={(idx) => commandArgumentsService.focusField(idx)}
+      onArgFieldsBlur={() => commandArgumentsService.blurFields()}
       onArgNext={() => commandArgumentsService.next()}
       onArgPrev={() => commandArgumentsService.prev()}
-      onArgSubmit={handleArgSubmit}
+      onArgSubmit={() => controller.submitArguments()}
       onArgExit={() => commandArgumentsService.exit()}
     />
   </div>
@@ -361,6 +506,7 @@
     selectedItem={controller.currentSelectedItemOriginal}
     isActionListOpen={isActionPanelOpen}
     {isCompactIdle}
+    argumentValidationError={argumentFeedback}
     onactionListToggled={() => {
       if (isActionPanelOpen) {
         handleActionPanelClose();

@@ -92,6 +92,8 @@ The launcher keeps three kinds of post-mortem rows so the user always sees how a
 
 **Cancellations, any kind:** cancelled runs leave the active slice and enter no kept slice. The row disappears immediately. Cancellation is always user-initiated — the act of cancelling is itself the closure signal.
 
+**Silent runs skip all three.** `Run.silent` is set by the caller at start (`RunStartInput.silent`, `SpawnParams.silent`) to declare work the user did not ask for: a database read, a list refresh, a cache warm. Both `build_run_notification` in Rust and `runService.onStateChanged` in TS check the flag, so a silent run raises no notification, no failure toast, and no kept row. It still appears in the Runs view, which is where the user goes to look. The flag is live-only and is not persisted to `runs_history` — history is display-only. It defaults to `false`, because a run the user set off has to report when it fails.
+
 The three kept slices (`unacknowledgedFailures`, `keptAgents`, `unacknowledgedScriptResults`) are in-memory only and reset when the launcher restarts. The full run history (including `Run.tailOutput`) is persisted in SQLite and surfaced in the RunView recent section. The per-run `OutputBuffer` survives finalize and is dropped only by explicit `runs_dismiss` or session reset.
 
 ## Cross-references

@@ -104,6 +104,17 @@ export type Command = {
 	lastUsedAt?: number | null,
 	subtitle?: string | null,
 	/**
+	 *  Right-side row label shown in root search. `None` falls back to the
+	 *  owning extension's display name in the frontend mapper.
+	 */
+	typeLabel?: string | null,
+	/**
+	 *  `true` when the registration declares an argument schema. Set on the
+	 *  dynamic-command path only; manifest commands stay `false` and the
+	 *  frontend derives their answer from the loaded manifest instead.
+	 */
+	hasArguments?: boolean,
+	/**
 	 *  `true` for runtime-registered commands from
 	 *  `commandsService.replaceDynamicCommands(...)`. Manifest-declared
 	 *  commands always serialize as `false`. Defaults to `false` so older
@@ -251,6 +262,8 @@ export type SearchResult = {
 	icon?: string | null,
 	extensionId?: string | null,
 	description?: string | null,
+	typeLabel?: string | null,
+	hasArguments?: boolean,
 	style?: string | null,
 	alias?: string | null,
 	/**

@@ -143,7 +143,7 @@
 
 <div
   bind:this={popupRef}
-  class="action-popup"
+  class="action-popup launcher-popup"
   tabindex="-1"
   role="dialog"
   aria-modal="true"
@@ -192,7 +192,7 @@
     {/each}
   </div>
 
-  <div class="action-search">
+  <div class="action-search launcher-popup-search">
     <Input
       textIntent="exact"
       bind:value={searchQuery}
@@ -203,6 +203,8 @@
 </div>
 
 <style>
+  /* Surface (fill, blur, border, radius, shadow) comes from .launcher-popup
+     in style.css, shared with the dropdown argument list. */
   .action-popup {
     position: fixed;
     bottom: 48px; /* 40px bar height + 8px gap */
@@ -212,39 +214,9 @@
     max-height: 243px;
     display: flex;
     flex-direction: column;
-    background: color-mix(in srgb, var(--bg-popup) 80%, transparent);
-    backdrop-filter: blur(60px) saturate(200%);
-    -webkit-backdrop-filter: blur(60px) saturate(200%);
-    border: 1px solid var(--popup-border-color);
-    border-radius: 20px;
-    box-shadow:
-      -28px 20px 80px -20px rgba(0, 0, 0, 0.3),
-      -14px 10px 40px -16px rgba(0, 0, 0, 0.18),
-      -4px 3px 12px -6px rgba(0, 0, 0, 0.1);
     overflow: hidden;
     z-index: 50;
     outline: none;
-  }
-
-  /* Dark mode: inner highlight + heavier shadow so the popup reads as a
-     distinct surface against the dim launcher chrome. Border color is
-     handled by the --popup-border-color token, defined per theme in style.css. */
-  :global(html[data-theme='dark']) .action-popup {
-    box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.04),
-      -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
-      -14px 10px 40px -16px rgba(0, 0, 0, 0.5),
-      -4px 3px 12px -6px rgba(0, 0, 0, 0.35);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :global(html:not([data-theme])) .action-popup {
-      box-shadow:
-        inset 0 0 0 1px rgba(255, 255, 255, 0.04),
-        -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
-        -14px 10px 40px -16px rgba(0, 0, 0, 0.5),
-        -4px 3px 12px -6px rgba(0, 0, 0, 0.35);
-    }
   }
 
   .popup-header {
@@ -265,11 +237,6 @@
     padding: 0 var(--space-3) var(--space-3);
   }
 
-  :global(html[data-platform='linux']) .action-popup {
-    backdrop-filter: none;
-    background-color: var(--bg-popup);
-  }
-
   .group-section {
     margin-bottom: var(--space-1);
   }
@@ -280,64 +247,13 @@
     content: '';
     display: block;
     height: 1px;
-    background-color: rgba(60, 60, 67, 0.11);
+    background-color: var(--popup-divider);
     margin: var(--space-4) calc(-1 * var(--space-3));
   }
-  :global(html[data-theme='dark']) .group-section:not(.first-group)::before,
-  :global(html:not([data-theme])) .group-section:not(.first-group)::before {
-    background-color: rgba(255, 255, 255, 0.07);
-  }
-  @media (prefers-color-scheme: light) {
-    :global(html:not([data-theme])) .group-section:not(.first-group)::before {
-      background-color: rgba(60, 60, 67, 0.11);
-    }
-  }
 
+  /* Everything else about the row is .launcher-popup-search in style.css. */
   .action-search {
-    /* Matches the launcher search header height. */
-    height: 41px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    padding: 0 var(--space-5);
-    border-top: 1px solid rgba(60, 60, 67, 0.11);
-    background: transparent;
-    box-sizing: border-box;
-  }
-  .action-search :global(.input-wrapper),
-  .action-search > :global(*) {
-    width: 100%;
-  }
-  :global(html[data-theme='dark']) .action-search,
-  :global(html:not([data-theme])) .action-search {
-    border-top-color: rgba(255, 255, 255, 0.07);
-  }
-  @media (prefers-color-scheme: light) {
-    :global(html:not([data-theme])) .action-search {
-      border-top-color: rgba(60, 60, 67, 0.11);
-    }
-  }
-
-  .action-search :global(.input) {
-    font-size: var(--font-size-md);
-    padding: var(--space-1) 0;
-    border: none;
-    background: transparent;
-    border-radius: 0;
-    color: var(--text-primary);
-    caret-color: color-mix(
-      in srgb,
-      var(--text-primary) 60%,
-      var(--bg-secondary-full-opacity) 40%
-    ) !important;
-  }
-  .action-search :global(.input::placeholder) {
-    color: color-mix(in srgb, var(--text-primary) 50%, var(--bg-secondary-full-opacity) 50%);
-    font-weight: 500;
-  }
-  .action-search :global(.input:focus) {
-    border: none;
-    box-shadow: none;
+    border-top: 1px solid var(--popup-divider);
   }
 
   .action-row :global(.result-title) {

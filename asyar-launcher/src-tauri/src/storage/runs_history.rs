@@ -136,6 +136,8 @@ pub fn list_recent(conn: &Connection, limit: usize) -> Result<Vec<Run>, AppError
             cancellable: cancellable_int != 0,
             error_message,
             subject_id,
+            // Not a stored column: silencing only governs live surfacing.
+            silent: false,
             tail_output,
         });
     }
@@ -220,6 +222,7 @@ mod tests {
             cancellable: true,
             error_message: None,
             subject_id: None,
+            silent: false,
             tail_output: None,
         }
     }

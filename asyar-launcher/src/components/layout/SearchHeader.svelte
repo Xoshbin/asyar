@@ -6,6 +6,8 @@
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import ArgumentChipRow from '../search/ArgumentChipRow.svelte';
+  import CommandArgInput from '../search/CommandArgInput.svelte';
+  import type { CommandArgument } from 'asyar-sdk/contracts';
   import type { ActiveArgumentMode } from '../../services/search/commandArgumentsService.svelte';
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
   import { logService } from '../../services/log/logService';
@@ -27,12 +29,17 @@
     contextQuery = $bindable(''),
     contextHint = null,
     argumentMode = null,
-    argumentCanSubmit = false,
+    argumentHint = false,
+    argumentHintFields = [],
+    argumentCommandName = null,
+    onArgHintClick,
     onclick,
     oncontextDismiss,
     oncontextQueryChange,
     onArgValueChange,
+    onArgValueReset,
     onArgFocusField,
+    onArgFieldsBlur,
     onArgNext,
     onArgPrev,
     onArgSubmit,
@@ -51,12 +58,29 @@
     contextQuery?: string;
     contextHint?: { id: string; name: string; icon: string; type?: string } | null;
     argumentMode?: ActiveArgumentMode | null;
-    argumentCanSubmit?: boolean;
+    /** Selected result accepts input: show the ghost argument chips. */
+    argumentHint?: boolean;
+    /** One chip per declared argument, rendered with the same component
+     *  argument mode uses. Empty while a dynamic command's schema resolves.
+     *  `touched` marks a dropdown the user picked before escaping out, so the
+     *  preview greys the same values argument mode would. */
+    argumentHintFields?: {
+      arg: CommandArgument;
+      value: string;
+      touched?: boolean;
+      needsValue?: boolean;
+    }[];
+    /** Stands in for the query while it is empty, in placeholder grey. */
+    argumentCommandName?: string | null;
+    onArgHintClick?: (fieldIdx: number) => void;
     onclick?: () => void;
     oncontextDismiss?: () => void;
     oncontextQueryChange?: (detail: { query: string }) => void;
     onArgValueChange?: (name: string, value: string) => void;
+    onArgValueReset?: (name: string) => void;
     onArgFocusField?: (idx: number) => void;
+    /** The query took focus, so the chip row is no longer on any field. */
+    onArgFieldsBlur?: () => void;
     onArgNext?: () => void;
     onArgPrev?: () => void;
     onArgSubmit?: () => void;
@@ -96,6 +120,24 @@
     }
   });
 
+  // Leaving argument mode unmounts the focused chip input, dropping DOM focus
+  // to <body>. Hand it back to the search field with the query selected, so
+  // typing starts a fresh search in one keystroke.
+  let wasArgumentMode = $state(false);
+  $effect(() => {
+    const now = argumentMode != null;
+    if (wasArgumentMode && !now) {
+      tick().then(() => {
+        // Typing in the query is itself an exit path, and selecting here
+        // would wipe the keystroke that triggered it.
+        if (document.activeElement === ref) return;
+        ref?.focus();
+        ref?.select();
+      });
+    }
+    wasArgumentMode = now;
+  });
+
   function handleBackClick() {
     onclick?.();
   }
@@ -106,6 +148,79 @@
 
   function handleContextInput(e: Event) {
     oncontextQueryChange?.({ query: contextQuery });
+  }
+
+  // The chips trail the typed text by a fixed gap, so the query is mirrored
+  // into a hidden span and measured. Reading offsetWidth post-render keeps
+  // that in sync without a ResizeObserver.
+  const ARG_HINT_GAP = 12;
+  // Stand-in while a dynamic command's schema is still resolving over IPC.
+  const FALLBACK_HINT_FIELDS: NonNullable<typeof argumentHintFields> = [
+    { arg: { name: 'input', type: 'text', placeholder: 'Input…' }, value: '' },
+  ];
+  let argMeasureEl = $state<HTMLElement | null>(null);
+  let argHintTextW = $state(0);
+  // Whatever text the chips currently trail. With the query empty that is the
+  // command name standing in for it, so the gap has to be measured off that
+  // instead of collapsing to zero and sliding the chips under it.
+  const argLeadText = $derived(
+    value || ((argumentHint || argumentMode) && argumentCommandName) || '',
+  );
+  $effect(() => {
+    void argLeadText;
+    if ((argumentHint || argumentMode) && argMeasureEl) argHintTextW = argMeasureEl.offsetWidth;
+  });
+
+  let argRowRef = $state<ReturnType<typeof ArgumentChipRow> | null>(null);
+
+  function focusQuerySelected(): void {
+    ref?.focus();
+    ref?.select();
+  }
+
+  /**
+   * In argument mode the query is the leftmost slot of the arrow-key walk:
+   * Right off the end of the text enters the first field, and Left at the
+   * very start has nowhere to go. A selection collapses towards the
+   * direction of travel first.
+   */
+  function handleQueryKeydown(e: KeyboardEvent): void {
+    // Closes the Tab ring: forward from the query enters the first field,
+    // backward enters the last. Outside argument mode Tab still falls
+    // through to the global chain, which is what promotes into the mode.
+    if (argumentMode && e.key === 'Tab') {
+      e.preventDefault();
+      argRowRef?.focusFieldSelected(e.shiftKey ? argumentMode.args.length - 1 : 0);
+      return;
+    }
+    // The ring lands here too, so Enter means what it means in a chip:
+    // submit the form, never run the command bare.
+    if (argumentMode && e.key === 'Enter') {
+      e.preventDefault();
+      onArgSubmit?.();
+      return;
+    }
+    if (argumentMode && ref && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      const forward = e.key === 'ArrowRight';
+      const start = ref.selectionStart ?? 0;
+      const end = ref.selectionEnd ?? 0;
+      if (end > start) {
+        e.preventDefault();
+        const pos = forward ? end : start;
+        ref.setSelectionRange(pos, pos);
+        return;
+      }
+      if (forward && start >= ref.value.length) {
+        e.preventDefault();
+        argRowRef?.focusFieldSelected(0);
+        return;
+      }
+      if (!forward && start <= 0) {
+        e.preventDefault();
+        return;
+      }
+    }
+    onkeydown?.(e);
   }
 
   let hintLabel = $derived(contextHint?.type === 'ai' ? 'Ask AI' : 'Tab');
@@ -143,18 +258,7 @@
       </button>
     {/if}
 
-    {#if argumentMode}
-      <ArgumentChipRow
-        active={argumentMode}
-        canSubmit={argumentCanSubmit}
-        onValueChange={(name, v) => onArgValueChange?.(name, v)}
-        onFocusField={(idx) => onArgFocusField?.(idx)}
-        onNext={() => onArgNext?.()}
-        onPrev={() => onArgPrev?.()}
-        onSubmit={() => onArgSubmit?.()}
-        onExit={() => onArgExit?.()}
-      />
-    {:else if activeContext}
+    {#if activeContext && !argumentMode}
       <div class="context-search-row">
         <span class="context-chip" style="background: {chipColor}">
           <span class="chip-icon">
@@ -193,16 +297,66 @@
           textIntent="exact"
           bind:ref
           type="text"
-          {placeholder}
+          placeholder={(argumentHint || argumentMode) && !value
+            ? (argumentCommandName ?? '')
+            : placeholder}
           disabled={!searchable}
           bind:value
           autocomplete="off"
           unstyled
           class="search-input-clean"
           {oninput}
-          {onkeydown}
+          onkeydown={handleQueryKeydown}
+          onfocus={() => onArgFieldsBlur?.()}
         />
-        {#if contextHint}
+        {#if argumentHint || argumentMode}
+          <span
+            class="arg-measure"
+            class:arg-measure--placeholder={!value}
+            bind:this={argMeasureEl}
+            aria-hidden="true">{argLeadText}</span
+          >
+        {/if}
+        {#if argumentMode}
+          <div
+            class="arg-field-row"
+            style:left="min({argHintTextW + ARG_HINT_GAP}px, calc(100% - 60px))"
+            style:max-width="max(60px, calc(100% - {argHintTextW + ARG_HINT_GAP}px))"
+          >
+            <ArgumentChipRow
+              bind:this={argRowRef}
+              active={argumentMode}
+              onValueChange={(name, v) => onArgValueChange?.(name, v)}
+              onValueReset={(name) => onArgValueReset?.(name)}
+              onFocusField={(idx) => onArgFocusField?.(idx)}
+              onNext={() => onArgNext?.()}
+              onPrev={() => onArgPrev?.()}
+              onSubmit={() => onArgSubmit?.()}
+              onExit={() => onArgExit?.()}
+              onMoveToQuery={focusQuerySelected}
+            />
+          </div>
+        {:else if argumentHint}
+          <div
+            class="arg-hint-row"
+            style:left="min({argHintTextW + ARG_HINT_GAP}px, calc(100% - 60px))"
+            style:max-width="max(60px, calc(100% - {argHintTextW + ARG_HINT_GAP}px))"
+          >
+            {#each argumentHintFields.length ? argumentHintFields : FALLBACK_HINT_FIELDS as field, i}
+              <CommandArgInput
+                arg={field.arg}
+                value={field.value}
+                touched={field.touched === true}
+                needsValue={field.needsValue === true}
+                focused={false}
+                readonly
+                onInput={() => {}}
+                onKeydown={() => {}}
+                onClick={() => onArgHintClick?.(i)}
+              />
+            {/each}
+          </div>
+        {:else if contextHint}
           <span class="context-hint" class:context-hint--muted={aiHintMuted}>
             <span class="hint-text">
               <span class="hint-icon">
@@ -292,6 +446,45 @@
   .back-button-new:hover :global(kbd) {
     background: var(--bg-hover);
     color: var(--text-primary);
+  }
+  /* Mirrors .search-input-clean typography so offsetWidth matches the
+     rendered query the chips trail. */
+  .arg-measure {
+    position: absolute;
+    left: 0;
+    top: 0;
+    visibility: hidden;
+    pointer-events: none;
+    white-space: pre;
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+  }
+  /* The placeholder renders a weight lighter than typed text, so measuring it
+     at 600 would overshoot and push the chips too far right. */
+  .arg-measure--placeholder {
+    font-weight: 500;
+  }
+  /* Both rows occupy the same slot, so Tab into argument mode leaves the
+     chips exactly where they were. */
+  .arg-hint-row,
+  .arg-field-row {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  /* Click-through except on the chips themselves, so clicking the gaps still
+     focuses the query. */
+  .arg-hint-row {
+    overflow: hidden;
+    pointer-events: none;
+  }
+  /* Not clipped: a hidden overflow scrolls the row on focus and clips the
+     caret at its trailing edge. */
+  .arg-field-row {
+    overflow: visible;
   }
   .context-hint {
     display: inline-flex;

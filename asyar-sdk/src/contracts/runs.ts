@@ -21,6 +21,12 @@ export interface Run {
    */
   subjectId?: string;
   /**
+   * The caller declared this run internal plumbing rather than something
+   * the user asked for, so it raises no notification, no failure toast, and
+   * no launcher row. It still appears in the Runs view.
+   */
+  silent?: boolean;
+  /**
    * Tail of the script's captured stdout/stderr — the last lines seen before
    * the run reached a terminal status. `undefined` until Phase 3 wires
    * the capture logic; absent for non-script run kinds.
@@ -46,6 +52,13 @@ export interface RunStartInput {
   label: string;
   kind: RunKind;
   cancellable?: boolean;
+  /**
+   * Set for work the user did not ask for — a background refresh, a cache
+   * warm — so its outcome stays out of notifications, the failure toast, and
+   * the launcher list. Defaults to false: a run the user set off must still
+   * report when it fails.
+   */
+  silent?: boolean;
 }
 
 export interface IRunService {

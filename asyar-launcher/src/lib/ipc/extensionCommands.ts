@@ -1,6 +1,7 @@
 // asyar-launcher/src/lib/ipc/extensionCommands.ts
 // Tauri command wrappers, re-exported through ./commands (the barrel).
 import { invokeSafe, invokeSafeVoid } from './invokeSafe';
+import { bumpArgumentHintVersion } from '../launcher/argumentHintVersion.svelte';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 
@@ -155,6 +156,7 @@ export async function replaceDynamicCommands(
   regs: DynamicCommandRegistrationInput[],
 ): Promise<void> {
   await invokeSafe('replace_dynamic_commands', { extensionId, regs });
+  bumpArgumentHintVersion();
 }
 
 /**

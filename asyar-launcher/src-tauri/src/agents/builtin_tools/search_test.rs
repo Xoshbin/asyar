@@ -35,6 +35,8 @@ fn cmd(id: &str, name: &str) -> SearchableItem {
         icon: None,
         last_used_at: None,
         subtitle: None,
+        type_label: None,
+        has_arguments: false,
         is_dynamic: false,
     })
 }

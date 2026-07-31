@@ -52,6 +52,14 @@ pub struct Run {
     /// for an agent. `None` for ad-hoc runs (Tier 2 RunService.start, custom
     /// kinds, label-only runs).
     pub subject_id: Option<String>,
+    /// Declared by the caller at start: this run is internal plumbing, not
+    /// something the user asked for, so it raises no notification, no failure
+    /// toast, and no launcher row. It stays visible in the Runs view.
+    ///
+    /// Live-only — the Runs view lists history for display, so this is not
+    /// persisted and reloads as `false`.
+    #[serde(default)]
+    pub silent: bool,
     /// Last captured lines from the script's stdout/stderr, surfaced to the
     /// user in the run response. `None` until Phase 3 wires the capture logic.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -76,6 +84,7 @@ mod tests {
             cancellable: false,
             error_message: None,
             subject_id: None,
+            silent: false,
             tail_output: None,
         }
     }

@@ -7,6 +7,11 @@
 # Workspace dependencies
 node_modules/
 
+# Only the workspace root lockfile is real; nested ones are stray artifacts of
+# running install inside a package directory.
+pnpm-lock.yaml
+!/pnpm-lock.yaml
+
 # Local-only Claude config — never tracked, anywhere in the tree
 .claude/
 

@@ -32,6 +32,28 @@ describe('RunServiceProxy', () => {
     );
   });
 
+  it('start_defaults_silent_to_false', async () => {
+    const proxy = new RunServiceProxy();
+    await proxy.start({ label: 'My Script', kind: 'shell-script' }).catch(() => {});
+    expect(invokeSpy).toHaveBeenCalledWith(
+      'runs:start',
+      expect.objectContaining({ silent: false }),
+      '',
+      undefined,
+    );
+  });
+
+  it('start_forwards_an_opted_in_silent_flag', async () => {
+    const proxy = new RunServiceProxy();
+    await proxy.start({ label: 'Index refresh', kind: 'custom', silent: true }).catch(() => {});
+    expect(invokeSpy).toHaveBeenCalledWith(
+      'runs:start',
+      expect.objectContaining({ silent: true }),
+      '',
+      undefined,
+    );
+  });
+
   it('start_returns_handle_with_id', async () => {
     const proxy = new RunServiceProxy();
     const handle = await proxy.start({ label: 'Job', kind: 'agent' }).catch(() => null);

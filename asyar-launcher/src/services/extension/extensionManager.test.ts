@@ -935,7 +935,7 @@ describe('ExtensionManager Characterization Tests', () => {
     });
   });
 
-  describe('couldHaveArguments — sync gate for keypress decisions', () => {
+  describe('manifestCommandHasArguments: sync answer for the search row', () => {
     beforeEach(() => {
       extensionManager.manifestsById.clear();
     });
@@ -945,7 +945,7 @@ describe('ExtensionManager Characterization Tests', () => {
         id: 'ext',
         commands: [{ id: 'open', name: 'Open', arguments: [{ name: 'q', type: 'text' }] }],
       } as any);
-      expect(extensionManager.couldHaveArguments('cmd_ext_open')).toBe(true);
+      expect(extensionManager.manifestCommandHasArguments('cmd_ext_open')).toBe(true);
     });
 
     it('returns false for manifest commands without declared args', () => {
@@ -953,19 +953,20 @@ describe('ExtensionManager Characterization Tests', () => {
         id: 'ext',
         commands: [{ id: 'open', name: 'Open' }],
       } as any);
-      expect(extensionManager.couldHaveArguments('cmd_ext_open')).toBe(false);
+      expect(extensionManager.manifestCommandHasArguments('cmd_ext_open')).toBe(false);
     });
 
-    it('returns true optimistically for any dynamic-format object id', () => {
-      // No registry lookup — optimistic. The sync keypress gate cannot
-      // afford to await an IPC call.
-      expect(extensionManager.couldHaveArguments('cmd_ext_dyn_uuid-1')).toBe(true);
+    it('abstains on ids no loaded manifest claims', () => {
+      // Null, not false: a dynamic command's schema lives in the Rust
+      // registry, and its search result answers for it.
+      expect(extensionManager.manifestCommandHasArguments('cmd_ext_dyn_uuid-1')).toBeNull();
+      expect(extensionManager.manifestCommandHasArguments('cmd_absent_open')).toBeNull();
     });
 
-    it('returns false for non-cmd ids', () => {
-      expect(extensionManager.couldHaveArguments('app_safari')).toBe(false);
-      expect(extensionManager.couldHaveArguments('action_thing')).toBe(false);
-      expect(extensionManager.couldHaveArguments('')).toBe(false);
+    it('abstains on ids that are not commands at all', () => {
+      expect(extensionManager.manifestCommandHasArguments('app_safari')).toBeNull();
+      expect(extensionManager.manifestCommandHasArguments('action_thing')).toBeNull();
+      expect(extensionManager.manifestCommandHasArguments('')).toBeNull();
     });
   });
 });
