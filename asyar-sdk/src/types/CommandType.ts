@@ -70,4 +70,11 @@ export interface DynamicCommandRegistration {
    * non-empty `data[]`, `default` must type-match.
    */
   arguments?: CommandArgument[];
+  /**
+   * Argument names of which at least one must carry a user value before the
+   * command runs. Use when a command needs SOME input but no single argument
+   * can be `required` — `caffeinate-for` wants hours, minutes or seconds and
+   * does not mind which. Needs two or more names, none of them `required`.
+   */
+  requireAnyOf?: string[];
 }

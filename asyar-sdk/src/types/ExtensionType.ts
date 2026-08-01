@@ -166,6 +166,13 @@ export interface ExtensionCommand {
    */
   arguments?: import('./CommandType').CommandArgument[];
   /**
+   * Argument names of which at least one must carry a user value before the
+   * command runs. Use when a command needs SOME input but no single argument
+   * can be `required` — `caffeinate-for` wants hours, minutes or seconds and
+   * does not mind which. Needs two or more names, none of them `required`.
+   */
+  requireAnyOf?: string[];
+  /**
    * Optional per-command searchbar accessory declaration. When present
    * AND `mode === "view"`, the launcher renders a dropdown in the
    * top-right of the search bar that the active view's code reacts to

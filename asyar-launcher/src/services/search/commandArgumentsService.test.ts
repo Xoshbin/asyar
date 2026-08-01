@@ -30,6 +30,7 @@ function makeDeps(opts: {
   icon?: string;
   isBuiltIn?: boolean;
   mode?: 'view' | 'background';
+  requireAnyOf?: string[];
 }) {
   const extensionId = opts.extensionId ?? 'org.asyar.demo';
   const commandId = opts.commandId ?? 'do-thing';
@@ -55,6 +56,7 @@ function makeDeps(opts: {
       icon: opts.icon,
       args: opts.args,
       mode: opts.mode,
+      requireAnyOf: opts.requireAnyOf,
     };
   });
   return {
@@ -1155,6 +1157,99 @@ describe('CommandArgumentsService', () => {
       await svc.submit();
       // Bare commandId, no `dynamic:` prefix
       expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, { q: 'b' });
+    });
+  });
+
+  // `requireAnyOf` covers the shape `required` cannot: a command that needs
+  // SOME input but cannot name which field it has to come from. Modelled on
+  // coffee's caffeinate-for, where hours/minutes/seconds each default to 0
+  // and firing with all three at 0 is an error the user never asked for.
+  describe('requireAnyOf', () => {
+    const DURATION: CommandArgument[] = [
+      { name: 'hours', type: 'number', default: 0 },
+      { name: 'minutes', type: 'number', default: 0 },
+      { name: 'seconds', type: 'number', default: 0 },
+    ];
+
+    const GROUP = ['hours', 'minutes', 'seconds'];
+
+    // Explicit, no default parameter: `f(undefined)` would fall back to it and
+    // silently test the gated case twice.
+    function makeDurationDeps(requireAnyOf: string[] | undefined) {
+      return makeDeps({ args: DURATION, requireAnyOf });
+    }
+
+    async function prepare(d: ReturnType<typeof makeDeps>, svc: CommandArgumentsService) {
+      const meta = d.getManifestByCommandObjectId(d.commandObjectId)!;
+      return svc.prepareRun(d.commandObjectId, meta);
+    }
+
+    it('stops for input when no member carries a user value', async () => {
+      const d = makeDurationDeps(GROUP);
+      const svc = new CommandArgumentsService(d);
+      const run = await prepare(d, svc);
+      expect(run.needsEntry).toBe(true);
+    });
+
+    it('a declared default alone does not satisfy the group', async () => {
+      // Every field defaults to 0, so the payload is fully populated — and
+      // still nothing the user chose. Defaults fill blanks; they do not
+      // stand in for the decision to run.
+      const d = makeDurationDeps(GROUP);
+      const svc = new CommandArgumentsService(d);
+      const run = await prepare(d, svc);
+      expect(run.needsEntry).toBe(true);
+    });
+
+    it('runs once one member carries a user value, filling the rest from defaults', async () => {
+      const d = makeDurationDeps(GROUP);
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('minutes', '30');
+      svc.exit();
+      const run = await prepare(d, svc);
+      expect(run.needsEntry).toBe(false);
+      expect(run.args).toEqual({ hours: 0, minutes: 30, seconds: 0 });
+    });
+
+    it('leaves commands without the declaration exactly as they were', async () => {
+      const d = makeDurationDeps(undefined);
+      const svc = new CommandArgumentsService(d);
+      const run = await prepare(d, svc);
+      expect(run.needsEntry).toBe(false);
+    });
+
+    it('canSubmit() is false while the group is unsatisfied, and says which fields', async () => {
+      const d = makeDurationDeps(GROUP);
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.canSubmit()).toBe(false);
+      await svc.submit();
+      expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
+      expect(svc.feedbackMessage()).toBe('Enter at least one of hours, minutes, seconds');
+    });
+
+    it('canSubmit() flips once any member is filled in', async () => {
+      const d = makeDurationDeps(GROUP);
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('seconds', '45');
+      expect(svc.canSubmit()).toBe(true);
+      await svc.submit();
+      expect(d.dispatchTier2Argument.mock.calls[0][0].args).toEqual({
+        hours: 0,
+        minutes: 0,
+        seconds: 45,
+      });
+    });
+
+    it('clearing the last filled member blocks submit again', async () => {
+      const d = makeDurationDeps(GROUP);
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('seconds', '45');
+      svc.setValue('seconds', '');
+      expect(svc.canSubmit()).toBe(false);
     });
   });
 });

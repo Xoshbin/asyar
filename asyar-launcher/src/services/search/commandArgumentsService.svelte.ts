@@ -70,6 +70,12 @@ export interface CommandArgMeta {
    */
   mode?: 'view' | 'background';
   /**
+   * Argument names of which at least one must carry a user value before the
+   * command may run. Covers what `required` cannot: a command that needs
+   * SOME input without being able to name which field it comes from.
+   */
+  requireAnyOf?: string[];
+  /**
    * `true` when this meta describes a runtime-registered dynamic
    * command (resolved through the Rust dynamic command registry).
    * Drives the `dynamic:` namespacing for argument-default persistence
@@ -166,6 +172,42 @@ export interface ActiveArgumentMode {
    */
   submitRefused: boolean;
   mode?: 'view' | 'background';
+  /** Command-level "at least one of these" gate, verbatim from the manifest. */
+  requireAnyOf?: string[];
+  /**
+   * Fields whose seed came from the user rather than from a declared default
+   * — a persisted last selection. Together with `edited` this is what makes a
+   * field count towards `requireAnyOf`: a default fills a blank, it does not
+   * stand in for the user's decision to run.
+   */
+  seededFromUser: ReadonlySet<string>;
+}
+
+/**
+ * Values that came from the user rather than from a declared default: typed,
+ * restored from a stash, or remembered from a previous run. Empty fields drop
+ * out, so a cleared field stops counting the moment it is cleared.
+ */
+export function userSuppliedValues(active: ActiveArgumentMode): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const arg of active.args) {
+    const raw = (active.values[arg.name] ?? '').trim();
+    if (!raw) continue;
+    if (active.edited.has(arg.name) || active.seededFromUser.has(arg.name)) out[arg.name] = raw;
+  }
+  return out;
+}
+
+/**
+ * Whether a command's `requireAnyOf` gate is still unmet. Commands without the
+ * declaration are never gated by it.
+ */
+export function requireAnyOfUnsatisfied(
+  requireAnyOf: string[] | undefined,
+  userValues: Record<string, string>,
+): boolean {
+  if (!requireAnyOf?.length) return false;
+  return !requireAnyOf.some((name) => (userValues[name] ?? '').trim() !== '');
 }
 
 /**
@@ -387,12 +429,22 @@ export class CommandArgumentsService {
     const persisted = meta.args.some((arg) => arg.type === 'dropdown')
       ? await this.loadPersisted(meta)
       : {};
+    const stash = this.stashFor(commandObjectId) ?? {};
     const values = {
       ...seedArgumentValues(meta.args, persisted),
-      ...(this.stashFor(commandObjectId) ?? {}),
+      ...stash,
     };
+    // Declared defaults are deliberately absent here: they fill blanks in the
+    // payload, but they are not the user asking for anything.
+    const userValues: Record<string, string> = {};
+    for (const arg of meta.args) {
+      const supplied = stash[arg.name] ?? persisted[arg.name];
+      if (supplied !== undefined && supplied.trim() !== '') userValues[arg.name] = supplied;
+    }
     return {
-      needsEntry: unfilledRequiredArgs(meta.args, values).length > 0,
+      needsEntry:
+        unfilledRequiredArgs(meta.args, values).length > 0 ||
+        requireAnyOfUnsatisfied(meta.requireAnyOf, userValues),
       args: buildArgumentsPayload(meta.args, values),
     };
   }
@@ -412,8 +464,14 @@ export class CommandArgumentsService {
       return false;
     }
 
-    const values = seedArgumentValues(meta.args, await this.loadPersisted(meta));
+    const persisted = await this.loadPersisted(meta);
+    const values = seedArgumentValues(meta.args, persisted);
     const seeds = { ...values };
+    // A remembered selection is the user's earlier pick, so it counts towards
+    // `requireAnyOf` the way a fresh one would. A declared default does not.
+    const seededFromUser = new Set(
+      meta.args.filter((arg) => (persisted[arg.name] ?? '').trim() !== '').map((arg) => arg.name),
+    );
 
     // Values from a prior Escape win over persisted/default seeds so the
     // user resumes exactly where they left off, cleared fields included.
@@ -438,6 +496,8 @@ export class CommandArgumentsService {
       args: meta.args,
       values,
       seeds,
+      requireAnyOf: meta.requireAnyOf,
+      seededFromUser,
       edited,
       // Field 0 takes focus on entry, so it counts as seen from the start.
       visited: new Set(meta.args.length ? [meta.args[0].name] : []),
@@ -583,14 +643,27 @@ export class CommandArgumentsService {
     const active = this._active;
     const missing = active ? unfilledRequiredArgs(active.args, active.values)[0] : undefined;
     const label = missing ? missing.placeholder?.trim() || missing.name : null;
-    return label ? `Value is missing in argument ${label}` : 'Fill required fields';
+    if (label) return `Value is missing in argument ${label}`;
+    // No single field is at fault — the command needs one of several, and
+    // naming them all is the only honest way to say what is missing.
+    if (active && requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active))) {
+      const labels = active
+        .requireAnyOf!.map((name) => {
+          const arg = active.args.find((a) => a.name === name);
+          return arg?.placeholder?.trim() || name;
+        })
+        .join(', ');
+      return `Enter at least one of ${labels}`;
+    }
+    return 'Fill required fields';
   }
 
   canSubmit(): boolean {
     const active = this._active;
     if (!active) return false;
     if (this.validationError()) return false;
-    return unfilledRequiredArgs(active.args, active.values).length === 0;
+    if (unfilledRequiredArgs(active.args, active.values).length > 0) return false;
+    return !requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active));
   }
 
   async submit(): Promise<void> {

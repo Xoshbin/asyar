@@ -254,6 +254,13 @@ pub struct ExtensionCommand {
     /// in the launcher promotes it into argument-entry mode.
     #[serde(default)]
     pub arguments: Option<Vec<CommandArgument>>,
+    /// Names of arguments of which at least one must carry a user value before
+    /// the command may run. Expresses "needs SOME input" for commands where no
+    /// single argument can be marked `required` — `caffeinate-for` wants an
+    /// hours, minutes or seconds, and does not care which. Cross-validated by
+    /// [`validate_extension_command`].
+    #[serde(default)]
+    pub require_any_of: Option<Vec<String>>,
     /// Declarative search-bar accessory — an inline secondary control
     /// rendered alongside the in-view search input. Only legal on
     /// `mode: "view"` commands; cross-validated by
@@ -602,6 +609,37 @@ pub fn validate_extension_command(cmd: &ExtensionCommand) -> Result<(), String> 
     if let Some(args) = &cmd.arguments {
         dynamic_commands::validate_arguments(args)
             .map_err(|e| format!("command '{}': {e}", cmd.id))?;
+    }
+    if let Some(group) = &cmd.require_any_of {
+        validate_require_any_of(group, cmd.arguments.as_deref().unwrap_or(&[]))
+            .map_err(|e| format!("command '{}': {e}", cmd.id))?;
+    }
+    Ok(())
+}
+
+/// Cross-validate a `requireAnyOf` group against the command's declared
+/// arguments. The group means "at least one of these carries a user value", so
+/// it only makes sense over two or more real, non-`required` arguments.
+pub fn validate_require_any_of(group: &[String], args: &[CommandArgument]) -> Result<(), String> {
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for name in group {
+        let arg = args.iter().find(|a| &a.name == name).ok_or_else(|| {
+            format!("requireAnyOf names '{name}', which is not a declared argument")
+        })?;
+        if !seen.insert(name.as_str()) {
+            return Err(format!("requireAnyOf lists '{name}' more than once"));
+        }
+        if arg.required.unwrap_or(false) {
+            return Err(format!(
+                "requireAnyOf lists '{name}', which is already required — a required argument must always be filled, so it cannot be one of several alternatives"
+            ));
+        }
+    }
+    if seen.len() < 2 {
+        return Err(
+            "requireAnyOf needs at least two arguments; with one, mark it required instead"
+                .to_string(),
+        );
     }
     Ok(())
 }
@@ -1356,6 +1394,7 @@ mod tests {
             preferences: None,
             actions: None,
             arguments: None,
+            require_any_of: None,
             search_bar_accessory: Some(SearchBarAccessory::Dropdown {
                 default: None,
                 options: vec![SearchBarAccessoryDropdownOption {
@@ -1384,6 +1423,7 @@ mod tests {
             preferences: None,
             actions: None,
             arguments: Some(args),
+            require_any_of: None,
             search_bar_accessory: None,
         }
     }
@@ -1397,6 +1437,72 @@ mod tests {
             default: None,
             data: None,
         }
+    }
+
+    // `requireAnyOf` covers the shape `required` cannot: a command needing SOME
+    // input without being able to name which field it must come from.
+    #[test]
+    fn extension_command_deserializes_require_any_of() {
+        let json = r#"{
+            "id": "caffeinate-for",
+            "name": "Caffeinate For",
+            "description": "",
+            "requireAnyOf": ["hours", "minutes"],
+            "arguments": [
+                { "name": "hours", "type": "number", "default": 0 },
+                { "name": "minutes", "type": "number", "default": 0 }
+            ]
+        }"#;
+        let cmd: ExtensionCommand = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            cmd.require_any_of.as_deref(),
+            Some(["hours".to_string(), "minutes".to_string()].as_slice())
+        );
+        validate_extension_command(&cmd).expect("well-formed group should validate");
+    }
+
+    #[test]
+    fn validate_extension_command_rejects_require_any_of_naming_unknown_argument() {
+        let mut cmd = make_cmd_with_args(vec![text_arg("hours"), text_arg("minutes")]);
+        cmd.require_any_of = Some(vec!["hours".to_string(), "nope".to_string()]);
+        let err = validate_extension_command(&cmd).unwrap_err();
+        assert!(
+            err.contains("requireAnyOf") && err.contains("nope"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_extension_command_rejects_argument_both_required_and_in_the_group() {
+        // Contradictory: `required` says this exact field must be filled, the
+        // group says any one of several will do.
+        let mut required = text_arg("hours");
+        required.required = Some(true);
+        let mut cmd = make_cmd_with_args(vec![required, text_arg("minutes")]);
+        cmd.require_any_of = Some(vec!["hours".to_string(), "minutes".to_string()]);
+        let err = validate_extension_command(&cmd).unwrap_err();
+        assert!(
+            err.contains("requireAnyOf") && err.contains("required"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_extension_command_rejects_single_member_require_any_of() {
+        // One member is just `required` spelled the long way.
+        let mut cmd = make_cmd_with_args(vec![text_arg("hours")]);
+        cmd.require_any_of = Some(vec!["hours".to_string()]);
+        let err = validate_extension_command(&cmd).unwrap_err();
+        assert!(err.contains("requireAnyOf"), "got: {err}");
+    }
+
+    #[test]
+    fn validate_extension_command_rejects_require_any_of_without_arguments() {
+        let mut cmd = make_cmd_with_args(vec![]);
+        cmd.arguments = None;
+        cmd.require_any_of = Some(vec!["a".to_string(), "b".to_string()]);
+        let err = validate_extension_command(&cmd).unwrap_err();
+        assert!(err.contains("requireAnyOf"), "got: {err}");
     }
 
     #[test]

@@ -113,6 +113,15 @@ pub fn validate_arguments(args: &[CommandArgument]) -> Result<(), String> {
                             a.argument_type
                         ));
                     }
+                    // An empty string is not a value the command can run with,
+                    // it is "no default" spelled in a way that suppresses the
+                    // prompt the user needed. Mark the argument required, or
+                    // list it in the command's `requireAnyOf`.
+                    if default.as_str() == Some("") {
+                        return Err(format!(
+                            "{base}.default must not be an empty string — mark the argument required instead"
+                        ));
+                    }
                 }
                 CommandArgumentType::Dropdown => {
                     // Already checked against data[] above.
@@ -187,6 +196,31 @@ mod tests {
     fn required(mut a: CommandArgument) -> CommandArgument {
         a.required = Some(true);
         a
+    }
+
+    // An empty string is never a value a command can run with — it is a
+    // placeholder standing in for "no default", and declaring it suppresses
+    // the prompt the user needed. `open-url` shipped exactly this.
+    #[test]
+    fn rejects_an_empty_string_default() {
+        for ty in [CommandArgumentType::Text, CommandArgumentType::Password] {
+            let err = validate_arguments(&[with_default(arg("url", ty), json!(""))]).unwrap_err();
+            assert!(err.contains("default"), "got: {err}");
+        }
+    }
+
+    #[test]
+    fn still_accepts_a_meaningful_default() {
+        validate_arguments(&[with_default(
+            arg("q", CommandArgumentType::Text),
+            json!("asyar"),
+        )])
+        .expect("non-empty text default should validate");
+        validate_arguments(&[with_default(
+            arg("n", CommandArgumentType::Number),
+            json!(0),
+        )])
+        .expect("zero is a legitimate number default");
     }
 
     fn with_default(mut a: CommandArgument, v: serde_json::Value) -> CommandArgument {

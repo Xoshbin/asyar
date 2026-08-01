@@ -65,7 +65,42 @@ Add an `arguments` array to a command in `manifest.json`:
 | `default`     | `string \| number`                               | ❌                           | Value substituted when the field is left empty. Type must match the declared `type` (number default → number, everything else → string). For `dropdown`, must be one of `data[].value`, and pre-selects the option. |
 | `data`        | `{ value, title }[]`                             | ❌ (required for `dropdown`) | Non-empty option list. Each option needs both `value` (returned) and `title` (displayed).                                                                                                                           |
 
-### Schema constraints
+#### Command-level `requireAnyOf`
+
+Some commands need _some_ input without any single argument being the one that
+must supply it. `caffeinate-for` wants an hours, a minutes or a seconds and
+does not mind which. `required` cannot express that — marking all three
+required would demand all three.
+
+Declare the alternatives on the command instead:
+
+```json
+{
+  "id": "caffeinate-for",
+  "requireAnyOf": ["hours", "minutes", "seconds"],
+  "arguments": [
+    { "name": "hours", "type": "number", "default": 0 },
+    { "name": "minutes", "type": "number", "default": 0 },
+    { "name": "seconds", "type": "number", "default": 0 }
+  ]
+}
+```
+
+The two knobs then say different things: `requireAnyOf` is the **gate** (may
+this run yet?), `default` is the **fill** (what goes in the blanks?). Enter with
+`minutes` set to 30 runs the command with `{ hours: 0, minutes: 30, seconds: 0 }`;
+Enter with nothing entered opens the chips and the bottom bar reads
+_"Enter at least one of hours, minutes, seconds"_.
+
+A **declared `default` never satisfies the gate.** Defaults fill blanks; they
+are not the user asking for anything. Only a typed value, a selection restored
+from an earlier Escape, or a remembered `dropdown` choice counts.
+
+Validation rejects a group that names an argument the command does not declare,
+lists one twice, has fewer than two members (use `required`), or names an
+argument that is already `required`.
+
+## Schema constraints
 
 - **Max 3 arguments per command.** Chip-row real estate is finite; if you need more inputs, use a view.
 - **Required arguments must precede optional ones.** The manifest validator rejects `required: true` that follows `required: false`.

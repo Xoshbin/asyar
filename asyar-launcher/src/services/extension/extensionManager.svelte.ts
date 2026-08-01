@@ -471,6 +471,7 @@ export class ExtensionManager implements IExtensionManager {
     icon?: string;
     args: import('asyar-sdk/contracts').CommandArgument[];
     mode?: 'view' | 'background';
+    requireAnyOf?: string[];
     isDynamic?: boolean;
   } | null> {
     if (!commandObjectId.startsWith('cmd_')) return null;
@@ -490,6 +491,7 @@ export class ExtensionManager implements IExtensionManager {
         args:
           (cmd as { arguments?: import('asyar-sdk/contracts').CommandArgument[] }).arguments ?? [],
         mode: (cmd as { mode?: 'view' | 'background' }).mode,
+        requireAnyOf: (cmd as { requireAnyOf?: string[] }).requireAnyOf,
         isDynamic: false,
       };
     }

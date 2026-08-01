@@ -227,6 +227,53 @@ describe('manifest validation — schedule', () => {
   });
 });
 
+describe('manifest validation — requireAnyOf', () => {
+  const withGroup = (group: unknown, args: unknown): AsyarManifest =>
+    ({
+      ...backgroundOnly,
+      commands: [
+        {
+          id: 'caffeinate-for',
+          name: 'Caffeinate For',
+          description: 'Needs some duration',
+          mode: 'background',
+          requireAnyOf: group,
+          arguments: args,
+        },
+      ],
+    }) as unknown as AsyarManifest;
+
+  const DURATION = [
+    { name: 'hours', type: 'number', default: 0 },
+    { name: 'minutes', type: 'number', default: 0 },
+  ];
+
+  it('accepts a group over two optional arguments', () => {
+    const errors = validateManifest(withGroup(['hours', 'minutes'], DURATION), './');
+    expect(errors.filter((e) => e.field.includes('requireAnyOf'))).toHaveLength(0);
+  });
+
+  it('rejects a group naming an argument the command does not declare', () => {
+    const errors = validateManifest(withGroup(['hours', 'nope'], DURATION), './');
+    expect(errors.some((e) => e.field.includes('requireAnyOf') && e.message.includes('nope'))).toBe(
+      true,
+    );
+  });
+
+  it('rejects a single-member group', () => {
+    const errors = validateManifest(withGroup(['hours'], DURATION), './');
+    expect(errors.some((e) => e.field.includes('requireAnyOf'))).toBe(true);
+  });
+
+  it('rejects a member that is also required', () => {
+    const args = [{ name: 'hours', type: 'number', required: true }, DURATION[1]];
+    const errors = validateManifest(withGroup(['hours', 'minutes'], args), './');
+    expect(
+      errors.some((e) => e.field.includes('requireAnyOf') && e.message.includes('required')),
+    ).toBe(true);
+  });
+});
+
 describe('manifest validation — command arguments', () => {
   const base = (args: unknown): AsyarManifest => ({
     ...backgroundOnly,
