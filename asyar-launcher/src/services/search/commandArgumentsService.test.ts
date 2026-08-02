@@ -89,7 +89,7 @@ describe('CommandArgumentsService', () => {
     expect(svc.active).toBeNull();
   });
 
-  it('enter() loads manifest args, focuses field 0, ignores persisted text values', async () => {
+  it('enter() loads manifest args, focuses field 0, restores the last used value', async () => {
     const args: CommandArgument[] = [
       { name: 'query', type: 'text', placeholder: 'Search' },
       { name: 'max', type: 'number', placeholder: 'Max results' },
@@ -104,12 +104,12 @@ describe('CommandArgumentsService', () => {
     expect(svc.active!.extensionId).toBe(d.extensionId);
     expect(svc.active!.commandId).toBe(d.commandId);
     expect(svc.active!.args).toEqual(args);
-    expect(svc.active!.values.query).toBe('');
+    expect(svc.active!.values.query).toBe('prev-query');
     expect(svc.active!.currentFieldIdx).toBe(0);
     expect(commandArgDefaultsGet).toHaveBeenCalledWith(d.extensionId, d.commandId);
   });
 
-  it('enter() leaves text/number fields empty despite a declared default', async () => {
+  it('enter() falls back to the declared default when nothing was saved', async () => {
     const args: CommandArgument[] = [
       { name: 'hours', type: 'number', placeholder: 'Hours', default: 0 },
       { name: 'label', type: 'text', default: 'work' },
@@ -117,8 +117,8 @@ describe('CommandArgumentsService', () => {
     const d = makeDeps({ args });
     const svc = new CommandArgumentsService(d);
     await svc.enter(d.commandObjectId);
-    expect(svc.active!.values.hours).toBe('');
-    expect(svc.active!.values.label).toBe('');
+    expect(svc.active!.values.hours).toBe('0');
+    expect(svc.active!.values.label).toBe('work');
   });
 
   it('enter() restores a persisted dropdown selection over the default', async () => {
@@ -576,9 +576,11 @@ describe('CommandArgumentsService', () => {
       expect(run.needsEntry).toBe(true);
     });
 
-    it('counts a declared default as filled, and sends it', async () => {
+    // The author's suggestion is not the user agreeing to it, so a required
+    // field still stops for confirmation — but the payload carries the default.
+    it('stops on a required field even though a default exists, and still sends it', async () => {
       const run = await prepare([{ name: 'text', type: 'text', required: true, default: 'hello' }]);
-      expect(run.needsEntry).toBe(false);
+      expect(run.needsEntry).toBe(true);
       expect(run.args).toEqual({ text: 'hello' });
     });
 
@@ -800,11 +802,14 @@ describe('CommandArgumentsService', () => {
     expect(svc.canSubmit()).toBe(true);
   });
 
-  it('canSubmit() is true when a required field is empty but has a default', async () => {
+  it('canSubmit() is false for a required field showing only the declared default', async () => {
     const args: CommandArgument[] = [{ name: 'n', type: 'number', required: true, default: 0 }];
     const d = makeDeps({ args });
     const svc = new CommandArgumentsService(d);
     await svc.enter(d.commandObjectId);
+    // The chip shows 0, but it is the author's suggestion, not the user's answer.
+    expect(svc.canSubmit()).toBe(false);
+    svc.setValue('n', '0');
     expect(svc.canSubmit()).toBe(true);
   });
 
@@ -922,7 +927,7 @@ describe('CommandArgumentsService', () => {
     expect(payload.args).toEqual({ hours: 0, minutes: 15 });
   });
 
-  it('submit() never persists text or number values', async () => {
+  it('submit() persists text and number values, which seed lastUsed by default', async () => {
     const args: CommandArgument[] = [
       { name: 'hours', type: 'number', default: 0 },
       { name: 'note', type: 'text' },
@@ -934,7 +939,7 @@ describe('CommandArgumentsService', () => {
     svc.setValue('note', 'standup');
     await svc.submit();
     const persisted = commandArgDefaultsSet.mock.calls[0][2];
-    expect(persisted).toEqual({});
+    expect(persisted).toEqual({ hours: '2', note: 'standup' });
   });
 
   it('submit() for a Tier 2 command routes through dispatchTier2Argument, never executeBuiltInCommand', async () => {
@@ -995,7 +1000,7 @@ describe('CommandArgumentsService', () => {
     expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
   });
 
-  it('submit() persists only dropdown selections', async () => {
+  it('submit() persists every remembered value, never the password', async () => {
     const args: CommandArgument[] = [
       { name: 'q', type: 'text', required: true },
       { name: 'apiKey', type: 'password' },
@@ -1016,7 +1021,10 @@ describe('CommandArgumentsService', () => {
     svc.setValue('lang', 'es');
     await svc.submit();
 
-    expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, { lang: 'es' });
+    expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, {
+      q: 'hello',
+      lang: 'es',
+    });
   });
 
   it('submit() does nothing when required fields are missing', async () => {
@@ -1157,6 +1165,154 @@ describe('CommandArgumentsService', () => {
       await svc.submit();
       // Bare commandId, no `dynamic:` prefix
       expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, { q: 'b' });
+    });
+  });
+
+  // `seed` decides where a chip's starting value comes from, separately from
+  // whether the command is gated. Before it existed the argument *type* decided:
+  // dropdowns seeded, text and number never did.
+  describe('seed', () => {
+    const LANG = [
+      { value: 'en', title: 'English' },
+      { value: 'es', title: 'Spanish' },
+    ];
+
+    it('an unwritten seed means lastUsed', async () => {
+      const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+      commandArgDefaultsGet.mockResolvedValueOnce({ q: 'previous' });
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.values.q).toBe('previous');
+    });
+
+    it('lastUsed falls back to the default, then to empty', async () => {
+      const withDefault: CommandArgument[] = [{ name: 'q', type: 'text', default: 'asyar' }];
+      const d1 = makeDeps({ args: withDefault });
+      const s1 = new CommandArgumentsService(d1);
+      await s1.enter(d1.commandObjectId);
+      expect(s1.active!.values.q).toBe('asyar');
+
+      const bare: CommandArgument[] = [{ name: 'q', type: 'text' }];
+      const d2 = makeDeps({ args: bare });
+      const s2 = new CommandArgumentsService(d2);
+      await s2.enter(d2.commandObjectId);
+      expect(s2.active!.values.q).toBe('');
+    });
+
+    it('seed "none" starts empty even with a saved value and a default', async () => {
+      const args: CommandArgument[] = [{ name: 'q', type: 'text', default: 'asyar', seed: 'none' }];
+      commandArgDefaultsGet.mockResolvedValueOnce({ q: 'previous' });
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.values.q).toBe('');
+    });
+
+    it('seed "default" ignores the saved value', async () => {
+      const args: CommandArgument[] = [
+        { name: 'q', type: 'text', default: 'asyar', seed: 'default' },
+      ];
+      commandArgDefaultsGet.mockResolvedValueOnce({ q: 'previous' });
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.values.q).toBe('asyar');
+    });
+
+    it('a password is always seeded "none", even unwritten', async () => {
+      const args: CommandArgument[] = [{ name: 'secret', type: 'password' }];
+      commandArgDefaultsGet.mockResolvedValueOnce({ secret: 'leaked' });
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.values.secret).toBe('');
+    });
+
+    it('submit() saves only the arguments seeded from lastUsed', async () => {
+      const args: CommandArgument[] = [
+        { name: 'remembered', type: 'text' },
+        { name: 'oneOff', type: 'text', seed: 'none' },
+        { name: 'suggested', type: 'text', default: 'x', seed: 'default' },
+        { name: 'lang', type: 'dropdown', data: LANG },
+      ];
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('remembered', 'keep me');
+      svc.setValue('oneOff', 'forget me');
+      svc.setValue('suggested', 'y');
+      svc.setValue('lang', 'es');
+      await svc.submit();
+      expect(commandArgDefaultsSet.mock.calls[0][2]).toEqual({ remembered: 'keep me', lang: 'es' });
+    });
+
+    // A default that got seeded into a chip and submitted untouched must not
+    // come back next time looking like something the user chose — that would
+    // launder the author's suggestion into a user value and quietly satisfy
+    // the gate on every run after the first.
+    it('submit() does not persist a default the user never touched', async () => {
+      const args: CommandArgument[] = [
+        { name: 'hours', type: 'number', default: 0 },
+        { name: 'minutes', type: 'number', default: 0 },
+      ];
+      const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('minutes', '30');
+      await svc.submit();
+      expect(commandArgDefaultsSet.mock.calls[0][2]).toEqual({ minutes: '30' });
+    });
+
+    it('a run that only used defaults leaves the gate closed next time', async () => {
+      const args: CommandArgument[] = [
+        { name: 'hours', type: 'number', default: 0 },
+        { name: 'minutes', type: 'number', default: 0 },
+      ];
+      const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+      const svc = new CommandArgumentsService(d);
+      // Whatever a previous run stored, a defaulted 0 must never be in it.
+      commandArgDefaultsGet.mockResolvedValueOnce({});
+      await svc.enter(d.commandObjectId);
+      expect(svc.canSubmit()).toBe(false);
+    });
+
+    // Provenance: the launcher must tell "the author suggested this" from
+    // "the user chose this". Only the second unlocks a gated command.
+    it('required + a seeded default still blocks Enter until the user confirms', async () => {
+      const args: CommandArgument[] = [
+        { name: 'terms', type: 'text', required: true, default: '30 days', seed: 'default' },
+      ];
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      // The chip shows the suggestion...
+      expect(svc.active!.values.terms).toBe('30 days');
+      // ...but it is the author's, not the user's.
+      expect(svc.canSubmit()).toBe(false);
+      svc.setValue('terms', '30 days');
+      expect(svc.canSubmit()).toBe(true);
+    });
+
+    it('required + a restored lastUsed value runs without asking again', async () => {
+      const args: CommandArgument[] = [{ name: 'calendar', type: 'text', required: true }];
+      commandArgDefaultsGet.mockResolvedValueOnce({ calendar: 'Work' });
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.values.calendar).toBe('Work');
+      expect(svc.canSubmit()).toBe(true);
+    });
+
+    it('a seeded default does not satisfy requireAnyOf either', async () => {
+      const args: CommandArgument[] = [
+        { name: 'hours', type: 'number', default: 0, seed: 'default' },
+        { name: 'minutes', type: 'number', default: 0, seed: 'default' },
+      ];
+      const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.canSubmit()).toBe(false);
     });
   });
 
@@ -1363,13 +1519,13 @@ describe('fieldNeedsValue', () => {
     expect(fieldNeedsValue(svc.active!, 1)).toBe(false);
   });
 
-  it('never flags a required field carrying a declared default', async () => {
+  it('flags a required field the user left showing only the declared default', async () => {
     const { svc } = await enterWith([
       { name: 'a', type: 'text', required: true, default: 'x' },
       { name: 'b', type: 'text' },
     ]);
     svc.next();
-    expect(fieldNeedsValue(svc.active!, 0)).toBe(false);
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
   });
 
   it('leaves a field the user never reached alone until a submit is refused', async () => {
@@ -1405,15 +1561,15 @@ describe('seedArgumentValues', () => {
     expect(seedArgumentValues(args, {})).toEqual({ withDefault: 'a', bare: '' });
   });
 
-  it('leaves every non-dropdown type empty so its placeholder shows', () => {
+  it('seeds every type from its last used value, except the password', () => {
     const args: CommandArgument[] = [
       { name: 'q', type: 'text', default: 'stale' },
       { name: 'n', type: 'number', default: 7 },
       { name: 'p', type: 'password' },
     ];
     expect(seedArgumentValues(args, { q: 'persisted', n: '3', p: 'hunter2' })).toEqual({
-      q: '',
-      n: '',
+      q: 'persisted',
+      n: '3',
       p: '',
     });
   });

@@ -227,6 +227,49 @@ describe('manifest validation — schedule', () => {
   });
 });
 
+describe('manifest validation — seed', () => {
+  const withArgs = (args: unknown): AsyarManifest =>
+    ({
+      ...backgroundOnly,
+      commands: [
+        { id: 'do-thing', name: 'Do Thing', description: 'x', mode: 'background', arguments: args },
+      ],
+    }) as unknown as AsyarManifest;
+
+  it('accepts every seed on a normal argument', () => {
+    for (const seed of ['none', 'default', 'lastUsed']) {
+      const errors = validateManifest(withArgs([{ name: 'q', type: 'text', seed }]), './');
+      expect(errors.filter((e) => e.field.includes('arguments'))).toHaveLength(0);
+    }
+  });
+
+  it('rejects an unknown seed value', () => {
+    const errors = validateManifest(withArgs([{ name: 'q', type: 'text', seed: 'always' }]), './');
+    expect(errors.some((e) => e.message.includes('seed'))).toBe(true);
+  });
+
+  it('rejects a password that asks to be remembered', () => {
+    const errors = validateManifest(
+      withArgs([{ name: 'secret', type: 'password', seed: 'lastUsed' }]),
+      './',
+    );
+    expect(errors.some((e) => e.message.includes('password'))).toBe(true);
+  });
+
+  it('rejects a password with a default', () => {
+    const errors = validateManifest(
+      withArgs([{ name: 'secret', type: 'password', default: 'hunter2' }]),
+      './',
+    );
+    expect(errors.some((e) => e.message.includes('password'))).toBe(true);
+  });
+
+  it('accepts a password with no seed written', () => {
+    const errors = validateManifest(withArgs([{ name: 'secret', type: 'password' }]), './');
+    expect(errors.filter((e) => e.field.includes('arguments'))).toHaveLength(0);
+  });
+});
+
 describe('manifest validation — requireAnyOf', () => {
   const withGroup = (group: unknown, args: unknown): AsyarManifest =>
     ({

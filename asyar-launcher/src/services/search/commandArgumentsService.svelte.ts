@@ -1,4 +1,4 @@
-import type { CommandArgument } from 'asyar-sdk/contracts';
+import type { ArgumentSeed, CommandArgument } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
 import {
   commandArgDefaultsGet,
@@ -29,10 +29,20 @@ export function hasDeclaredDefault(arg: CommandArgument): boolean {
 }
 
 /**
- * The values a fresh `enter()` starts from. A `<select>` has no placeholder
- * state, so dropdowns need a concrete value: last-used selection, else the
- * declared default. Everything else starts empty so the placeholder hint
- * shows, and declared defaults apply at submit instead.
+ * Where an argument's starting value comes from. Omitting `seed` means
+ * `lastUsed`, which falls back to the default and then to empty — the only
+ * value that behaves sensibly for a manifest that never declared one.
+ *
+ * A password is always `none`: it is never remembered, and validation refuses
+ * a manifest that says otherwise.
+ */
+export function effectiveSeed(arg: CommandArgument): ArgumentSeed {
+  if (arg.type === 'password') return 'none';
+  return arg.seed ?? 'lastUsed';
+}
+
+/**
+ * The values a fresh `enter()` starts from.
  *
  * Shared with the ghost hint chips so the preview matches what Enter sends.
  */
@@ -42,12 +52,27 @@ export function seedArgumentValues(
 ): Record<string, string> {
   const values: Record<string, string> = {};
   for (const arg of args) {
-    values[arg.name] =
-      arg.type === 'dropdown'
-        ? (persisted[arg.name] ?? (hasDeclaredDefault(arg) ? String(arg.default) : ''))
-        : '';
+    const seed = effectiveSeed(arg);
+    if (seed === 'none') {
+      values[arg.name] = '';
+      continue;
+    }
+    const declared = hasDeclaredDefault(arg) ? String(arg.default) : '';
+    values[arg.name] = seed === 'lastUsed' ? (persisted[arg.name] ?? declared) : declared;
   }
   return values;
+}
+
+/**
+ * Whether this argument's seed came from the user's own previous run rather
+ * than from the manifest. Only a `lastUsed` argument can, and only when
+ * something was actually stored for it.
+ */
+export function seedIsUserSupplied(
+  arg: CommandArgument,
+  persisted: Record<string, string>,
+): boolean {
+  return effectiveSeed(arg) === 'lastUsed' && (persisted[arg.name] ?? '').trim() !== '';
 }
 
 export interface CommandArgMeta {
@@ -211,10 +236,10 @@ export function requireAnyOfUnsatisfied(
 }
 
 /**
- * Arguments the user still owes a value: required, with nothing to fall back
- * on. A declared default counts as filled — it lands in the payload at submit
- * time — as does anything already in `values` (a persisted selection, a
- * stashed entry, or something typed).
+ * Arguments the user still owes a value: required, with nothing of the user's
+ * own standing in for them. A declared default does NOT count — it fills the
+ * blank in the payload, but agreeing to it is the user's job. A remembered
+ * value from a previous run does count: the user chose it once already.
  *
  * The single definition of "unfilled" behind both gates: the submit gate
  * inside argument mode, and the one deciding whether Enter on a command has
@@ -222,11 +247,9 @@ export function requireAnyOfUnsatisfied(
  */
 export function unfilledRequiredArgs(
   args: CommandArgument[],
-  values: Record<string, string>,
+  userValues: Record<string, string>,
 ): CommandArgument[] {
-  return args.filter(
-    (arg) => arg.required && !hasDeclaredDefault(arg) && (values[arg.name] ?? '').trim() === '',
-  );
+  return args.filter((arg) => arg.required && (userValues[arg.name] ?? '').trim() === '');
 }
 
 /**
@@ -273,10 +296,10 @@ export interface PreparedRun {
  */
 export function fieldNeedsValue(active: ActiveArgumentMode, idx: number): boolean {
   const arg = active.args[idx];
-  if (!arg?.required || hasDeclaredDefault(arg)) return false;
+  if (!arg?.required) return false;
   if (!active.submitRefused && idx === active.currentFieldIdx) return false;
   if (!active.visited.has(arg.name)) return false;
-  return (active.values[arg.name] ?? '').trim() === '';
+  return (userSuppliedValues(active)[arg.name] ?? '').trim() === '';
 }
 
 /**
@@ -438,12 +461,13 @@ export class CommandArgumentsService {
     // payload, but they are not the user asking for anything.
     const userValues: Record<string, string> = {};
     for (const arg of meta.args) {
-      const supplied = stash[arg.name] ?? persisted[arg.name];
+      const supplied =
+        stash[arg.name] ?? (seedIsUserSupplied(arg, persisted) ? persisted[arg.name] : undefined);
       if (supplied !== undefined && supplied.trim() !== '') userValues[arg.name] = supplied;
     }
     return {
       needsEntry:
-        unfilledRequiredArgs(meta.args, values).length > 0 ||
+        unfilledRequiredArgs(meta.args, userValues).length > 0 ||
         requireAnyOfUnsatisfied(meta.requireAnyOf, userValues),
       args: buildArgumentsPayload(meta.args, values),
     };
@@ -470,7 +494,7 @@ export class CommandArgumentsService {
     // A remembered selection is the user's earlier pick, so it counts towards
     // `requireAnyOf` the way a fresh one would. A declared default does not.
     const seededFromUser = new Set(
-      meta.args.filter((arg) => (persisted[arg.name] ?? '').trim() !== '').map((arg) => arg.name),
+      meta.args.filter((arg) => seedIsUserSupplied(arg, persisted)).map((arg) => arg.name),
     );
 
     // Values from a prior Escape win over persisted/default seeds so the
@@ -641,7 +665,9 @@ export class CommandArgumentsService {
    */
   private missingArgumentNotice(): string {
     const active = this._active;
-    const missing = active ? unfilledRequiredArgs(active.args, active.values)[0] : undefined;
+    const missing = active
+      ? unfilledRequiredArgs(active.args, userSuppliedValues(active))[0]
+      : undefined;
     const label = missing ? missing.placeholder?.trim() || missing.name : null;
     if (label) return `Value is missing in argument ${label}`;
     // No single field is at fault — the command needs one of several, and
@@ -662,7 +688,7 @@ export class CommandArgumentsService {
     const active = this._active;
     if (!active) return false;
     if (this.validationError()) return false;
-    if (unfilledRequiredArgs(active.args, active.values).length > 0) return false;
+    if (unfilledRequiredArgs(active.args, userSuppliedValues(active)).length > 0) return false;
     return !requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active));
   }
 
@@ -691,12 +717,14 @@ export class CommandArgumentsService {
     // Persist non-password values BEFORE executing — the command may navigate
     // away or close the launcher, and we want the user's input preserved.
     const persist: Record<string, string> = {};
+    // Only what the user supplied, and only where the argument asked to be
+    // remembered. Storing a default that merely passed through the chip would
+    // make the author's suggestion indistinguishable from a real choice next
+    // run, and open a gate that should have stayed shut.
+    const supplied = userSuppliedValues(active);
     for (const arg of active.args) {
-      // Only dropdown selections survive across invocations, because a
-      // select needs a concrete value next time. Text and number inputs
-      // restart empty with their hint showing.
-      if (arg.type !== 'dropdown') continue;
-      const raw = (active.values[arg.name] ?? '').trim();
+      if (effectiveSeed(arg) !== 'lastUsed') continue;
+      const raw = (supplied[arg.name] ?? '').trim();
       if (!raw) continue;
       persist[arg.name] = raw;
     }

@@ -164,6 +164,21 @@ pub enum CommandArgumentType {
     Number,
 }
 
+/// Where an argument's chip value starts from, mirrors `ArgumentSeed` in
+/// asyar-sdk. Independent of whether the command is gated: `required` decides
+/// if Enter may run, `seed` decides what is already in the box.
+///
+/// Omitting it means `LastUsed`, which falls back to the declared default and
+/// then to empty — the only value that behaves sensibly for the manifests
+/// written before this existed.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum ArgumentSeed {
+    None,
+    Default,
+    LastUsed,
+}
+
 /// Mirrors CommandArgument from asyar-sdk — a single declarative input
 /// field collected inline in the search bar before a command runs.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -180,6 +195,10 @@ pub struct CommandArgument {
     pub default: Option<serde_json::Value>,
     #[serde(default)]
     pub data: Option<Vec<DropdownOption>>,
+    /// Starting value for the chip. Absent means `LastUsed`, except on a
+    /// password, which is always `ArgumentSeed::None`.
+    #[serde(default)]
+    pub seed: Option<ArgumentSeed>,
 }
 
 /// One option in a `searchBarAccessory` dropdown — mirrors the
@@ -1436,6 +1455,7 @@ mod tests {
             required: None,
             default: None,
             data: None,
+            seed: None,
         }
     }
 

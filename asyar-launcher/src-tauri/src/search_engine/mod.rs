@@ -2138,6 +2138,7 @@ mod service_tests {
             required: None,
             default: None,
             data: None,
+            seed: None,
         }];
         let without_args = rc("b", "Alpha Beta");
         state

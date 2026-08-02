@@ -14,7 +14,7 @@
 //!    must be validated on the host side, never trusted from the
 //!    sender.
 
-use crate::extensions::{CommandArgument, CommandArgumentType};
+use crate::extensions::{ArgumentSeed, CommandArgument, CommandArgumentType};
 
 pub const MAX_ARGUMENTS_PER_COMMAND: usize = 3;
 pub const MAX_DYNAMIC_ID_LEN: usize = 128;
@@ -69,6 +69,22 @@ pub fn validate_arguments(args: &[CommandArgument]) -> Result<(), String> {
         }
         if !is_required {
             saw_optional = true;
+        }
+
+        // A password is never written to storage, so it is always seeded
+        // "none". Saying otherwise in a manifest is a mistake worth refusing
+        // rather than silently ignoring. Leaving `seed` unwritten is fine.
+        if matches!(a.argument_type, CommandArgumentType::Password) {
+            if a.default.is_some() {
+                return Err(format!(
+                    "{base}.default a password is never remembered, so it cannot declare a default"
+                ));
+            }
+            if matches!(a.seed, Some(ref s) if *s != ArgumentSeed::None) {
+                return Err(format!(
+                    "{base}.seed a password is always seeded 'none' and cannot be remembered"
+                ));
+            }
         }
 
         if matches!(a.argument_type, CommandArgumentType::Dropdown) {
@@ -190,12 +206,58 @@ mod tests {
             required: None,
             default: None,
             data: None,
+            seed: None,
         }
     }
 
     fn required(mut a: CommandArgument) -> CommandArgument {
         a.required = Some(true);
         a
+    }
+
+    // A password is never remembered, so the only seed it can have is "none".
+    // An unwritten seed means "none" for it rather than an error.
+    #[test]
+    fn rejects_a_password_that_asks_to_be_remembered() {
+        let mut a = arg("secret", CommandArgumentType::Password);
+        a.seed = Some(crate::extensions::ArgumentSeed::LastUsed);
+        let err = validate_arguments(&[a]).unwrap_err();
+        assert!(
+            err.contains("seed") && err.contains("password"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn rejects_a_password_with_a_default() {
+        let a = with_default(
+            arg("secret", CommandArgumentType::Password),
+            json!("hunter2"),
+        );
+        let err = validate_arguments(&[a]).unwrap_err();
+        assert!(err.contains("password"), "got: {err}");
+    }
+
+    #[test]
+    fn accepts_a_password_with_no_seed_or_an_explicit_none() {
+        validate_arguments(&[arg("secret", CommandArgumentType::Password)])
+            .expect("an unwritten seed on a password is fine");
+        let mut a = arg("secret", CommandArgumentType::Password);
+        a.seed = Some(crate::extensions::ArgumentSeed::None);
+        validate_arguments(&[a]).expect("an explicit none on a password is fine");
+    }
+
+    #[test]
+    fn accepts_every_seed_on_a_normal_argument() {
+        for seed in [
+            crate::extensions::ArgumentSeed::None,
+            crate::extensions::ArgumentSeed::Default,
+            crate::extensions::ArgumentSeed::LastUsed,
+        ] {
+            let mut a = arg("q", CommandArgumentType::Text);
+            a.seed = Some(seed);
+            validate_arguments(&[a]).expect("text accepts any seed");
+        }
     }
 
     // An empty string is never a value a command can run with — it is a
@@ -243,6 +305,7 @@ mod tests {
             required: None,
             default: None,
             data: Some(data),
+            seed: None,
         }
     }
 

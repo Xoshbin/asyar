@@ -95,9 +95,12 @@ export interface CommandArgument {
   required?: boolean;
   default?: string | number;
   data?: CommandArgumentDropdownOption[];
+  /** 'none' | 'default' | 'lastUsed'. Absent means 'lastUsed'. */
+  seed?: string;
 }
 
 const VALID_ARGUMENT_TYPES: CommandArgumentType[] = ['text', 'password', 'dropdown', 'number'];
+const VALID_ARGUMENT_SEEDS = ['none', 'default', 'lastUsed'];
 const ARG_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const MAX_ARGUMENTS_PER_COMMAND = 3;
 
@@ -593,6 +596,29 @@ export function validateArguments(
           a.type
         }'. Must be one of: ${VALID_ARGUMENT_TYPES.join(', ')}`,
       });
+    }
+
+    const seed = (a as unknown as Record<string, unknown>).seed;
+    if (seed !== undefined && !VALID_ARGUMENT_SEEDS.includes(seed as string)) {
+      errors.push({
+        field: `${base}.seed`,
+        message: `Unknown seed '${String(seed)}'. Must be one of: ${VALID_ARGUMENT_SEEDS.join(', ')}`,
+      });
+    }
+    // A password is never written to storage, so it is always seeded 'none'.
+    if (a.type === 'password') {
+      if (a.default !== undefined) {
+        errors.push({
+          field: `${base}.default`,
+          message: 'a password is never remembered, so it cannot declare a default',
+        });
+      }
+      if (seed !== undefined && seed !== 'none') {
+        errors.push({
+          field: `${base}.seed`,
+          message: "a password is always seeded 'none' and cannot be remembered",
+        });
+      }
     }
 
     const isRequired = a.required === true;

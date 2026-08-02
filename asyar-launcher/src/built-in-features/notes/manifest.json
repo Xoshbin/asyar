@@ -39,7 +39,8 @@
           "name": "text",
           "type": "text",
           "placeholder": "What's on your mind?",
-          "required": true
+          "required": true,
+          "seed": "none"
         }
       ]
     },
@@ -63,7 +64,8 @@
           "name": "text",
           "type": "text",
           "placeholder": "What happened?",
-          "required": true
+          "required": true,
+          "seed": "none"
         }
       ]
     }

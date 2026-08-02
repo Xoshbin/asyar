@@ -65,7 +65,47 @@ Add an `arguments` array to a command in `manifest.json`:
 | `default`     | `string \| number`                               | ❌                           | Value substituted when the field is left empty. Type must match the declared `type` (number default → number, everything else → string). For `dropdown`, must be one of `data[].value`, and pre-selects the option. |
 | `data`        | `{ value, title }[]`                             | ❌ (required for `dropdown`) | Non-empty option list. Each option needs both `value` (returned) and `title` (displayed).                                                                                                                           |
 
-#### Command-level `requireAnyOf`
+#### `seed` &mdash; where a chip's starting value comes from
+
+`required` decides whether Enter may run. `seed` decides what is already in the
+box when the chips appear. They are independent.
+
+| `seed`     | The chip starts with                                                   |
+| ---------- | ---------------------------------------------------------------------- |
+| `lastUsed` | what the user submitted last time; falls back to `default`, then empty |
+| `default`  | the declared `default`, ignoring anything stored                       |
+| `none`     | always empty                                                           |
+
+**Omitting `seed` means `lastUsed`.** It degrades to `default` and then to
+empty, so a manifest written before this field existed keeps behaving the way
+its author expected. Declare `seed: "none"` for one-off input that should not
+be remembered &mdash; a note body, a search query you never repeat.
+
+Only arguments that seed from `lastUsed` are written to storage. The others are
+never saved, so `seed` is also the switch that decides what the launcher
+remembers.
+
+```json
+{ "name": "engine", "type": "dropdown", "default": "google", "seed": "lastUsed" }
+```
+
+#### Passwords
+
+A `password` is always seeded `none` and is never stored. Validation rejects a
+password that declares a `default`, or a `seed` other than `"none"`. Leaving
+`seed` unwritten on a password is fine and means `none`.
+
+#### A default is not the user agreeing to it
+
+A value the launcher put in the chip on the author's behalf does not satisfy
+`required` or `requireAnyOf`. The user has to confirm it &mdash; pressing Enter on
+the seeded value is enough, but something has to come from them.
+
+A value restored from `lastUsed` **does** count: the user chose it on a previous
+run. This is what makes `required` + `default` coherent &mdash; the chip shows the
+suggestion, and Enter stays blocked until the user accepts it.
+
+### Command-level `requireAnyOf`
 
 Some commands need _some_ input without any single argument being the one that
 must supply it. `caffeinate-for` wants an hours, a minutes or a seconds and

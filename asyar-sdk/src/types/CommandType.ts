@@ -9,6 +9,13 @@ export interface CommandArgumentDropdownOption {
   title: string;
 }
 
+/**
+ * Where a chip's starting value comes from, independent of whether the command
+ * is gated. `"lastUsed"` falls back to `default`, then to empty, so it is the
+ * sensible value when nothing is declared.
+ */
+export type ArgumentSeed = 'none' | 'default' | 'lastUsed';
+
 export interface CommandArgument {
   name: string;
   type: CommandArgumentType;
@@ -16,6 +23,13 @@ export interface CommandArgument {
   required?: boolean;
   default?: string | number;
   data?: CommandArgumentDropdownOption[];
+  /**
+   * Starting value for the chip. Omitted means `"lastUsed"` — except on
+   * `password`, which is always `"none"` and may declare neither a `default`
+   * nor `"lastUsed"`. Use `"none"` for one-off input that should not be
+   * remembered.
+   */
+  seed?: ArgumentSeed;
 }
 
 /**
