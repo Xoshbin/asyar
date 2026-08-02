@@ -136,6 +136,8 @@ export interface DynamicCommandArgumentInput {
   required?: boolean;
   default?: string | number;
   data?: { value: string; title: string }[];
+  /** Where the chip starts from. Absent means 'lastUsed'. */
+  seed?: 'none' | 'default' | 'lastUsed';
 }
 
 export interface DynamicCommandRegistrationInput {
@@ -169,6 +171,8 @@ export interface DynamicCommandMetaReply {
   commandName: string;
   icon?: string;
   args: DynamicCommandArgumentInput[];
+  /** Same "at least one of these" gate the manifest path declares. */
+  requireAnyOf?: string[];
 }
 
 /**

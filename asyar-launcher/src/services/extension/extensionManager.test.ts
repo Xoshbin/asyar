@@ -847,6 +847,27 @@ describe('ExtensionManager Characterization Tests', () => {
       );
     });
 
+    // A dynamic command has to reach the gate in the same shape a manifest one
+    // does, or apple-shortcuts could never express "needs some input".
+    it('carries requireAnyOf and argument seeds back from the registry', async () => {
+      vi.mocked(invoke).mockResolvedValueOnce({
+        extensionId: 'org.asyar.shortcuts',
+        commandId: 'uuid-1',
+        commandName: 'Set Lights',
+        icon: null,
+        args: [
+          { name: 'hours', type: 'number', default: 0, seed: 'lastUsed' },
+          { name: 'minutes', type: 'number', default: 0, seed: 'none' },
+        ],
+        requireAnyOf: ['hours', 'minutes'],
+      });
+
+      const meta = await extensionManager.getCommandArgMeta('cmd_org.asyar.shortcuts_dyn_uuid-1');
+      expect(meta?.requireAnyOf).toEqual(['hours', 'minutes']);
+      expect(meta?.args[0].seed).toBe('lastUsed');
+      expect(meta?.args[1].seed).toBe('none');
+    });
+
     it('returns manifest meta synchronously without IPC for manifest commands', async () => {
       extensionManager.manifestsById.set('ext.foo', {
         id: 'ext.foo',

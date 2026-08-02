@@ -128,6 +128,14 @@ Same rules as manifest arguments:
 - When `default` is set, it must match the declared type.
 - Only `dropdown` selections are persisted between invocations.
 
+- `seed` chooses where a chip starts: `lastUsed` (the default when omitted),
+  `default`, or `none`.
+- A command may declare `requireAnyOf` to gate Enter on "at least one of
+  these", exactly as a manifest command does.
+
+A dynamic registration carries the same argument shape as a manifest command,
+so the launcher computes the Enter gate once for both paths.
+
 See [Command Arguments](./command-arguments.md) for the full schema.
 
 ## Row labels

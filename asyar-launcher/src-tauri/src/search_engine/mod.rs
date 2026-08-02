@@ -1987,6 +1987,7 @@ mod service_tests {
             icon: None,
             type_label: None,
             arguments: vec![],
+            require_any_of: None,
         }
     }
 

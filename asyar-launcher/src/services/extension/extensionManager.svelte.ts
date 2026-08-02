@@ -509,6 +509,10 @@ export class ExtensionManager implements IExtensionManager {
         isBuiltIn: isBuiltinDynamicExtension(reply.extensionId),
         icon: reply.icon,
         args: reply.args as import('asyar-sdk/contracts').CommandArgument[],
+        // Same gate as the manifest path — a dynamic command declares its
+        // "at least one of these" the same way, so Enter behaves identically
+        // whichever way the command was registered.
+        requireAnyOf: reply.requireAnyOf,
         // Dynamic commands run through the Tier 2 worker by default. Built-in
         // dynamic extensions (registered via registerBuiltinDynamicDispatcher)
         // are routed by handleCommandAction back to their Tier 1 handler.

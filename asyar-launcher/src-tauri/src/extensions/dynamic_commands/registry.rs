@@ -32,6 +32,11 @@ pub struct RegisteredCommand {
     pub type_label: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub arguments: Vec<CommandArgument>,
+    /// Names of arguments of which at least one must carry a user value before
+    /// the command may run. Same shape and same rules as the manifest path, so
+    /// the launcher computes the Enter gate once for both.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub require_any_of: Option<Vec<String>>,
 }
 
 /// Diff returned by a `replace_for_extension` call. Callers use this
@@ -180,6 +185,7 @@ mod tests {
             icon: None,
             type_label: None,
             arguments: vec![],
+            require_any_of: None,
         }
     }
 
