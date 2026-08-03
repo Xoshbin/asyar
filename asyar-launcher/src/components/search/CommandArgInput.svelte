@@ -141,8 +141,11 @@
            its width from the placeholder it first laid out with, and the row
            reuses its elements as the highlight moves, leaving the previous
            command's hint width and clipping this one. -->
-      <span class="arg-ghost-text" class:arg-ghost-text--hint={!value} style="width: {fieldWidth}px"
-        >{displayText}</span
+      <span
+        class="arg-ghost-text"
+        class:arg-ghost-text--hint={!value}
+        class:arg-ghost-text--seeded={value && !touched}
+        style="width: {fieldWidth}px">{displayText}</span
       >
     {:else}
       <!-- Numbers render as text: selectionStart/setSelectionRange, which the
@@ -151,7 +154,7 @@
       <Input
         textIntent="exact"
         bind:ref={inputRef}
-        class="arg-input"
+        class="arg-input {value && !touched ? 'arg-input--seeded' : ''}"
         style="width: {fieldWidth}px"
         type={arg.type === 'password' ? 'password' : 'text'}
         placeholder={label}
@@ -228,6 +231,15 @@
   }
   :global(.arg-input::placeholder) {
     color: var(--text-secondary);
+  }
+  /* A value the author supplied and the user has not agreed to. Grey like the
+     placeholder, because neither is the user's — but underlined, because this
+     one is a real value that will be sent. The placeholder is only a label. */
+  :global(.arg-input--seeded),
+  .arg-ghost-text--seeded {
+    color: var(--text-secondary);
+    text-decoration: underline dotted currentColor;
+    text-underline-offset: 3px;
   }
   /* Mirrors the field's type so offsetWidth is the width the value renders
      at. Out of flow, so it cannot widen the chip it is measured inside. */

@@ -224,6 +224,22 @@ export function userSuppliedValues(active: ActiveArgumentMode): Record<string, s
 }
 
 /**
+ * Fields showing a value the author supplied and the user has not agreed to
+ * yet — a seeded default, still exactly as it was seeded. These are what a
+ * confirm step promotes.
+ */
+export function unconfirmedSeeds(active: ActiveArgumentMode): string[] {
+  return active.args
+    .filter(
+      (arg) =>
+        !active.edited.has(arg.name) &&
+        !active.seededFromUser.has(arg.name) &&
+        (active.values[arg.name] ?? '').trim() !== '',
+    )
+    .map((arg) => arg.name);
+}
+
+/**
  * Whether a command's `requireAnyOf` gate is still unmet. Commands without the
  * declaration are never gated by it.
  */
@@ -347,6 +363,12 @@ export class CommandArgumentsService {
    */
   private _blockedNotice = $state<string | null>(null);
 
+  /**
+   * Enter was pressed on a form whose only gap was unconfirmed seeds, so the
+   * next Enter runs it. Cleared by any edit, and by leaving argument mode.
+   */
+  private _awaitingConfirm = $state(false);
+
   constructor(private readonly deps: CommandArgumentsServiceDeps) {}
 
   get active(): ActiveArgumentMode | null {
@@ -397,6 +419,7 @@ export class CommandArgumentsService {
     this._active = null;
     this._stash = null;
     this._blockedNotice = null;
+    this._awaitingConfirm = false;
   }
 
   /**
@@ -534,6 +557,7 @@ export class CommandArgumentsService {
 
   exit(): void {
     this._blockedNotice = null;
+    this._awaitingConfirm = false;
     if (this._active) {
       const active = this._active;
       const { commandObjectId, args, values, edited } = active;
@@ -565,6 +589,7 @@ export class CommandArgumentsService {
     if (this._active.values[name] === value && this._active.edited.has(name)) return;
     // Any edit is an attempt to fix things: drop the stale complaint.
     this._blockedNotice = null;
+    this._awaitingConfirm = false;
     this._active = {
       ...this._active,
       values: { ...this._active.values, [name]: value },
@@ -586,6 +611,7 @@ export class CommandArgumentsService {
     const edited = new Set(active.edited);
     edited.delete(name);
     this._blockedNotice = null;
+    this._awaitingConfirm = false;
     this._active = {
       ...active,
       values: { ...active.values, [name]: seeded },
@@ -665,8 +691,12 @@ export class CommandArgumentsService {
    */
   private missingArgumentNotice(): string {
     const active = this._active;
+    // Prefer a field that is empty on screen: that is the one the user has to
+    // type into. A required field holding an unconfirmed seed is not empty,
+    // and telling them a visible value is "missing" reads as a bug.
     const missing = active
-      ? unfilledRequiredArgs(active.args, userSuppliedValues(active))[0]
+      ? (unfilledRequiredArgs(active.args, active.values)[0] ??
+        unfilledRequiredArgs(active.args, userSuppliedValues(active))[0])
       : undefined;
     const label = missing ? missing.placeholder?.trim() || missing.name : null;
     if (label) return `Value is missing in argument ${label}`;
@@ -684,6 +714,32 @@ export class CommandArgumentsService {
     return 'Fill required fields';
   }
 
+  /**
+   * Whether agreeing to every seeded value on screen would make the command
+   * runnable. False when a field is genuinely empty — there is nothing to
+   * agree to there, and the user has to type.
+   */
+  private canConfirmSeeds(): boolean {
+    const active = this._active;
+    if (!active || this.validationError()) return false;
+    const seeds = unconfirmedSeeds(active);
+    if (!seeds.length) return false;
+    const confirmed = { ...userSuppliedValues(active) };
+    for (const name of seeds) confirmed[name] = (active.values[name] ?? '').trim();
+    // `requireAnyOf` is checked against what the user actually supplied, not
+    // against what they would be agreeing to. Its whole purpose is to refuse a
+    // run made entirely of the author's defaults — caffeinate-for with 0/0/0.
+    return (
+      unfilledRequiredArgs(active.args, confirmed).length === 0 &&
+      !requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active))
+    );
+  }
+
+  /** Enter has asked the user to agree to what is on screen, and is waiting. */
+  isAwaitingConfirm(): boolean {
+    return this._awaitingConfirm;
+  }
+
   canSubmit(): boolean {
     const active = this._active;
     if (!active) return false;
@@ -698,6 +754,18 @@ export class CommandArgumentsService {
     // here rather than pre-checking, so a refusal always has somewhere to say
     // why instead of being swallowed.
     if (!this.canSubmit()) {
+      // A value the user can see is not a missing value. When agreeing to
+      // what is on screen would be enough to run, ask rather than complain —
+      // the pause is the point of `required` on a defaulted field.
+      if (this.canConfirmSeeds()) {
+        const active = this._active;
+        const edited = new Set(active.edited);
+        for (const name of unconfirmedSeeds(active)) edited.add(name);
+        this._active = { ...active, edited, submitRefused: false };
+        this._awaitingConfirm = true;
+        this._blockedNotice = 'Press Enter again to run with these values';
+        return;
+      }
       this._blockedNotice = this.validationError() ?? this.missingArgumentNotice();
       // Everything still owed is now something the user has been told about,
       // so it may flag itself in place once focus moves off it.
@@ -710,6 +778,7 @@ export class CommandArgumentsService {
       return;
     }
     this._blockedNotice = null;
+    this._awaitingConfirm = false;
 
     const active = this._active;
     const payload = buildArgumentsPayload(active.args, active.values);

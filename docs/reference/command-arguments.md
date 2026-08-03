@@ -172,14 +172,29 @@ argument that is already `required`.
    has no caret to cross, so one press leaves it either way — its own
    Up/Down keys are covered under
    [Dropdown interaction](#dropdown-interaction).
-6. **Enter** submits when every required argument is filled, or has a
-   `default` to fall back on. Required fields look the same as optional ones;
+6. **Enter** submits when every required argument holds a value the _user_
+   supplied — typed, kept from an earlier Escape, or restored from a previous
+   run. A `default` alone is not enough: it is the author's suggestion, not
+   the user's decision.
+
+   When the only thing standing in the way is a seeded value the user has not
+   agreed to, Enter **asks instead of complaining**. The first press promotes
+   the values on screen to the user's own and the bottom bar reads "Press
+   Enter again to run with these values"; the second press runs it. Nothing is
+   marked red, because nothing is wrong. Any edit cancels the prompt.
+
+   `requireAnyOf` is deliberately not satisfied this way. Its whole purpose is
+   to refuse a run assembled entirely from declared defaults, so it needs a
+   value the user actually chose.
+
+   Required fields look the same as optional ones;
    `aria-required` carries the distinction for assistive tech. When Enter
    cannot run the command, the bottom bar's feedback area says why — next to
    where run failures appear. A value that cannot be parsed at all, such as
    text in a `number` field, is named as soon as it is typed; a merely
    unfilled required field is only reported once Enter has been pressed, and
    the message clears on the next edit.
+
 7. **Escape**, or **Backspace on an empty first field**, exits argument mode
    without running the command. An open dropdown list takes Escape first. Whatever the user typed or picked stays in the
    chips for as long as the command remains highlighted, so Enter still runs it
@@ -202,6 +217,19 @@ command leaves it open, since its view has just mounted.
 
 Dropdowns always submit one of the declared values. Numbers are coerced
 before delivery, so your handler receives `7`, not `"7"`.
+
+### Reading a chip
+
+Three states, and the difference matters because two of them are grey:
+
+| What you see                | Meaning                                                                 |
+| --------------------------- | ----------------------------------------------------------------------- |
+| Grey text, no underline     | The placeholder — a field name. Nothing is sent.                        |
+| Grey text, dotted underline | A seeded value. It **will** be sent, but the user has not agreed to it. |
+| Solid text                  | The user's own value — typed, picked, or restored from a previous run.  |
+
+The underline is what separates a default from a hint: both are grey because
+neither came from the user, but only one is a real value.
 
 ### Dropdown interaction
 

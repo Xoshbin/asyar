@@ -363,6 +363,12 @@
     outline: none;
     box-shadow: none;
   }
+  /* Untouched: the author's suggestion, marked the same way a seeded text
+     chip is, so both kinds of chip read alike. */
+  .arg-trigger:not(.arg-trigger--touched) .arg-trigger-label {
+    text-decoration: underline dotted currentColor;
+    text-underline-offset: 3px;
+  }
   .arg-trigger--touched {
     color: var(--text-primary);
   }

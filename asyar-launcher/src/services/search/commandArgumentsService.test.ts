@@ -1247,6 +1247,99 @@ describe('CommandArgumentsService', () => {
       expect(commandArgDefaultsSet.mock.calls[0][2]).toEqual({ remembered: 'keep me', lang: 'es' });
     });
 
+    // A visible value the user has not agreed to is not an error — it is a
+    // question. Enter answers it, and a second Enter runs.
+    describe('confirming seeded values', () => {
+      const INVOICE: CommandArgument[] = [
+        { name: 'terms', type: 'text', required: true, default: '30 days', seed: 'default' },
+      ];
+
+      it('the first Enter confirms instead of complaining', async () => {
+        const d = makeDeps({ args: INVOICE });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+
+        expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
+        expect(svc.feedbackMessage()).toBe('Press Enter again to run with these values');
+        expect(svc.isAwaitingConfirm()).toBe(true);
+        // Nothing is wrong, so nothing is flagged as wrong.
+        expect(svc.active!.submitRefused).toBe(false);
+        expect(fieldNeedsValue(svc.active!, 0)).toBe(false);
+      });
+
+      it('the second Enter runs it, with the value the user confirmed', async () => {
+        const d = makeDeps({ args: INVOICE });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+        await svc.submit();
+
+        expect(d.dispatchTier2Argument.mock.calls[0][0].args).toEqual({ terms: '30 days' });
+        expect(svc.isAwaitingConfirm()).toBe(false);
+      });
+
+      it("confirming turns the chip into the user's own value", async () => {
+        const d = makeDeps({ args: INVOICE });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+        expect(svc.active!.edited.has('terms')).toBe(true);
+        expect(svc.canSubmit()).toBe(true);
+      });
+
+      it('an empty required field still complains, and never offers a confirm', async () => {
+        const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }];
+        const d = makeDeps({ args });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+
+        expect(svc.isAwaitingConfirm()).toBe(false);
+        expect(svc.feedbackMessage()).toBe('Value is missing in argument q');
+        expect(svc.active!.submitRefused).toBe(true);
+      });
+
+      it('a half-filled form complains rather than confirming', async () => {
+        // One seeded default, one genuinely empty required field: confirming
+        // the first would not make the command runnable, so it is not offered.
+        const args: CommandArgument[] = [
+          { name: 'terms', type: 'text', required: true, default: '30 days', seed: 'default' },
+          { name: 'client', type: 'text', required: true },
+        ];
+        const d = makeDeps({ args });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+
+        expect(svc.isAwaitingConfirm()).toBe(false);
+        expect(svc.feedbackMessage()).toBe('Value is missing in argument client');
+      });
+
+      it('editing after a confirm prompt drops the prompt', async () => {
+        const d = makeDeps({ args: INVOICE });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+        svc.setValue('terms', '60 days');
+        expect(svc.isAwaitingConfirm()).toBe(false);
+        expect(svc.feedbackMessage()).toBeNull();
+      });
+
+      it('a seeded default that is not required needs no confirming', async () => {
+        const args: CommandArgument[] = [
+          { name: 'q', type: 'text', required: true },
+          { name: 'volume', type: 'number', default: 1, seed: 'default' },
+        ];
+        const d = makeDeps({ args });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.setValue('q', 'hello');
+        await svc.submit();
+        expect(d.dispatchTier2Argument.mock.calls[0][0].args).toEqual({ q: 'hello', volume: 1 });
+      });
+    });
+
     // A default that got seeded into a chip and submitted untouched must not
     // come back next time looking like something the user chose — that would
     // launder the author's suggestion into a user value and quietly satisfy

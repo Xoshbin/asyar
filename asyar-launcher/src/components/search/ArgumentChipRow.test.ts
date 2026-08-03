@@ -25,6 +25,7 @@ function makeActive(overrides: Partial<ActiveArgumentMode> = {}): ActiveArgument
     values: { hours: '', minutes: '', seconds: '' },
     seeds: { hours: '', minutes: '', seconds: '' },
     edited: new Set<string>(),
+    seededFromUser: new Set<string>(),
     visited: new Set<string>(),
     currentFieldIdx: 0,
     submitRefused: false,

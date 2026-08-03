@@ -159,7 +159,7 @@
       value={active.values[arg.name] ?? ''}
       focused={idx === active.currentFieldIdx}
       needsValue={fieldNeedsValue(active, idx)}
-      touched={active.edited.has(arg.name)}
+      touched={active.edited.has(arg.name) || active.seededFromUser.has(arg.name)}
       onInput={(v) => onValueChange(arg.name, v)}
       onReset={() => onValueReset(arg.name)}
       onKeydown={(e) => handleFieldKeydown(idx, e)}

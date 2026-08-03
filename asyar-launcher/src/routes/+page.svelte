@@ -507,6 +507,7 @@
     isActionListOpen={isActionPanelOpen}
     {isCompactIdle}
     argumentValidationError={argumentFeedback}
+    argumentFeedbackIsConfirm={commandArgumentsService.isAwaitingConfirm()}
     onactionListToggled={() => {
       if (isActionPanelOpen) {
         handleActionPanelClose();

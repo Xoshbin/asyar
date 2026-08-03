@@ -31,6 +31,7 @@
     isActionListOpen = false,
     isCompactIdle = false,
     argumentValidationError = null,
+    argumentFeedbackIsConfirm = false,
     onactionListToggled,
     onactionListClosed,
     onexpand,
@@ -45,6 +46,12 @@
      * history, and it clears itself as soon as the value parses.
      */
     argumentValidationError?: string | null;
+    /**
+     * The message is a question, not a complaint: Enter is asking the user to
+     * agree to values that are already on screen. Rendered in the neutral
+     * accent so nothing reads as broken.
+     */
+    argumentFeedbackIsConfirm?: boolean;
     onactionListToggled: () => void;
     onactionListClosed: () => void;
     onexpand?: () => void;
@@ -108,8 +115,12 @@
     {#if argumentValidationError}
       <!-- Takes the slot while the user is mid-entry: what they just typed is
            more immediate than anything already sitting there. -->
-      <div class="arg-validation" role="status">
-        <StatusDot color="danger" />
+      <div
+        class="arg-validation"
+        class:arg-validation--confirm={argumentFeedbackIsConfirm}
+        role="status"
+      >
+        <StatusDot color={argumentFeedbackIsConfirm ? 'info' : 'danger'} />
         <span class="arg-validation-text">{argumentValidationError}</span>
       </div>
     {:else if hasFeedback}
@@ -183,6 +194,10 @@
     background: color-mix(in srgb, var(--accent-danger) 12%, transparent);
     color: var(--accent-danger);
     font-size: var(--font-size-xs);
+  }
+  .arg-validation--confirm {
+    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+    color: var(--accent-primary);
   }
   .arg-validation-text {
     overflow: hidden;
