@@ -15,17 +15,25 @@
     onFocus,
     readonly = false,
     needsValue = false,
+    needsAny = false,
     touched = false,
+    confirmed = false,
     onReset,
     onClick,
   }: {
     arg: CommandArgument;
     value: string;
     focused: boolean;
-    /** Required, already seen, and still empty: flagged in place. */
+    /** Required, walked away from, and still empty: flagged in place. */
     needsValue?: boolean;
+    /** Member of an unmet `requireAnyOf` group: the obligation is the
+     *  group's, not this field's alone, so the complaint border is dashed. */
+    needsAny?: boolean;
     /** Dropdowns only: the value is the user's pick, not a seeded one. */
     touched?: boolean;
+    /** The user has stood in this field this invocation, which is agreement:
+     *  its seeded value counts as accepted and the dashed border comes off. */
+    confirmed?: boolean;
     onInput: (value: string) => void;
     onKeydown: (e: KeyboardEvent) => void;
     /** The field took DOM focus, however it got there. */
@@ -86,7 +94,9 @@
     !value ? label : arg.type === 'password' ? '•'.repeat(value.length) : value,
   );
 
-  /** Room past the last glyph for the caret to sit in. */
+  /** Room past the last glyph for the caret to sit in. Always included, so
+   *  hint, seeded, and typed states share one geometry; the chip's right
+   *  padding is this much smaller to keep the text visually centred. */
   const CARET_ROOM = 3;
   const MAX_FIELD_WIDTH = 240;
   let measureEl = $state<HTMLElement | null>(null);
@@ -102,6 +112,29 @@
     if (!measureEl) return;
     fieldWidth = Math.min(MAX_FIELD_WIDTH, measureEl.offsetWidth + CARET_ROOM);
   });
+
+  /**
+   * Single authority on the chip border, so precedence lives here and not in
+   * cascade order. The border style carries the underlying state, so a
+   * selected group member stays dashed while it goes grey.
+   */
+  const borderState = $derived(
+    needsValue
+      ? focused
+        ? 'selected'
+        : 'needs-value'
+      : needsAny
+        ? focused
+          ? 'selected-dashed'
+          : 'needs-any'
+        : !!value && !touched && !confirmed
+          ? focused
+            ? 'selected'
+            : 'seeded'
+          : focused
+            ? 'selected'
+            : 'none',
+  );
 </script>
 
 <!-- data-no-focus-steal: the launcher hands focus back to the query on any
@@ -114,8 +147,9 @@
   bind:this={chipEl}
   class="arg-chip"
   class:arg-chip--ghost={readonly}
-  class:arg-chip--needs-value={needsValue}
+  class:arg-chip--complaint={needsValue || needsAny}
   class:arg-chip--dropdown={arg.type === 'dropdown'}
+  data-border={borderState}
   data-focused={focused}
   data-no-focus-steal
   role="presentation"
@@ -175,7 +209,9 @@
 
 <style>
   /* The transparent resting border reserves the focus ring's box, so focusing
-     a chip does not nudge the row. */
+     a chip does not nudge the row. Right padding is CARET_ROOM smaller than
+     left: the field always carries that room after its text, so this is what
+     keeps the text visually centred in every state. */
   .arg-chip {
     position: relative;
     display: inline-flex;
@@ -184,7 +220,7 @@
     background: var(--bg-selected);
     border: 1px solid transparent;
     border-radius: var(--radius-md);
-    padding: 3px var(--space-3);
+    padding: 3px calc(var(--space-3) - 3px) 3px var(--space-3);
     transition: border-color var(--transition-normal);
     min-width: 0;
   }
@@ -193,15 +229,33 @@
   .arg-chip--dropdown {
     padding: 0;
   }
-  /* Focus is carried by the border and caret alone, so the fill stays put. */
-  .arg-chip[data-focused='true'] {
+  /* Border states, resolved into `data-border` by one derivation in the
+     script: equal specificity, mutually exclusive, no cascade fights.
+     seeded = a value the author supplied, not yet agreed to (dashed grey);
+     needs-value = a required field owing a value (solid red); needs-any =
+     member of an unmet requireAnyOf group (dashed red); selected[-dashed] =
+     the field the caret is in, always the selection colour. */
+  .arg-chip[data-border='seeded'] {
+    border-style: dashed;
     border-color: var(--text-tertiary);
   }
-  /* A required field the user walked away from empty. Only ever shown once
-     they have actually left it, so it reads as a consequence rather than a
-     complaint about a field they were about to fill in. */
-  .arg-chip--needs-value {
+  .arg-chip[data-border='selected'] {
+    border-color: var(--text-tertiary);
+  }
+  .arg-chip[data-border='selected-dashed'] {
+    border-style: dashed;
+    border-color: var(--text-tertiary);
+  }
+  .arg-chip[data-border='needs-value'] {
     border-color: color-mix(in srgb, var(--accent-danger) 45%, transparent);
+  }
+  .arg-chip[data-border='needs-any'] {
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--accent-danger) 45%, transparent);
+  }
+  /* The complaint tint is orthogonal to the border: it marks the field even
+     while the caret is in it and the border shows the selection colour. */
+  .arg-chip--complaint {
     background: color-mix(in srgb, var(--accent-danger) 12%, var(--bg-selected));
   }
   /* The hint row itself is click-through so the gaps still focus the query;
@@ -232,14 +286,12 @@
   :global(.arg-input::placeholder) {
     color: var(--text-secondary);
   }
-  /* A value the author supplied and the user has not agreed to. Grey like the
-     placeholder, because neither is the user's — but underlined, because this
-     one is a real value that will be sent. The placeholder is only a label. */
+  /* A value the author supplied rather than the user. Grey like the
+     placeholder, because neither is the user's own; the chip's dashed border
+     is what says this one is a real value that will be sent. */
   :global(.arg-input--seeded),
   .arg-ghost-text--seeded {
     color: var(--text-secondary);
-    text-decoration: underline dotted currentColor;
-    text-underline-offset: 3px;
   }
   /* Mirrors the field's type so offsetWidth is the width the value renders
      at. Out of flow, so it cannot widen the chip it is measured inside. */

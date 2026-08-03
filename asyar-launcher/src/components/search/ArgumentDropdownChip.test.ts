@@ -135,6 +135,17 @@ describe('ArgumentDropdownChip', () => {
     expect(picked.highlighted()).toBe('All');
   });
 
+  it('the open list stops at both ends instead of wrapping', async () => {
+    const { trigger, filter, highlighted } = await renderChip();
+    await fireEvent.click(trigger);
+    await tick();
+    expect(highlighted()).toBe('-');
+    await fireEvent.keyDown(filter()!, { key: 'ArrowUp' });
+    expect(highlighted()).toBe('-');
+    for (let i = 0; i < 6; i++) await fireEvent.keyDown(filter()!, { key: 'ArrowDown' });
+    expect(highlighted()).toBe('Archived');
+  });
+
   it('Enter takes the highlighted option, and the "-" row resets the field', async () => {
     const { trigger, filter, onSelect } = await renderChip();
     await fireEvent.click(trigger);

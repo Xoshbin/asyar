@@ -126,7 +126,6 @@ mod tests {
             cancellable: false,
             error_message: None,
             subject_id: None,
-            silent: false,
             tail_output: None,
         }
     }

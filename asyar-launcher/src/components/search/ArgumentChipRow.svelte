@@ -3,6 +3,7 @@
   import CommandArgInput from './CommandArgInput.svelte';
   import {
     fieldNeedsValue,
+    fieldNeedsAnyOf,
     type ActiveArgumentMode,
   } from '../../services/search/commandArgumentsService.svelte';
 
@@ -159,7 +160,9 @@
       value={active.values[arg.name] ?? ''}
       focused={idx === active.currentFieldIdx}
       needsValue={fieldNeedsValue(active, idx)}
+      needsAny={fieldNeedsAnyOf(active, idx)}
       touched={active.edited.has(arg.name) || active.seededFromUser.has(arg.name)}
+      confirmed={active.confirmed.has(arg.name)}
       onInput={(v) => onValueChange(arg.name, v)}
       onReset={() => onValueReset(arg.name)}
       onKeydown={(e) => handleFieldKeydown(idx, e)}

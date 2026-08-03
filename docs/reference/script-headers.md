@@ -99,6 +99,22 @@ Rules:
   types start empty every time.
   See [Command Arguments → Persistence](./command-arguments.md#persistence).
 
+### `@asyar.requireAnyOf <json array>` — optional
+
+Gates Enter on "at least one of these arguments carries a user value",
+exactly like the manifest field of the same name (see
+[Command Arguments → Command-level `requireAnyOf`](./command-arguments.md#command-level-requireanyof)).
+The value is a JSON array of declared argument names:
+
+```bash
+# @asyar.requireAnyOf ["hours", "minutes"]
+```
+
+The same validation applies as for manifests: at least two members, all
+declared, listed once each, and none `required`. A failing group is a
+header error, so the script is skipped with a `script_header_invalid`
+diagnostic rather than registering without its gate.
+
 ### `@asyar.mode <silent | compact | fullOutput | inline>` — optional
 
 Declares how the script's output is surfaced. Defaults to `compact` when

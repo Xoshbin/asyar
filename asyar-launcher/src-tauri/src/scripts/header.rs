@@ -27,6 +27,10 @@ pub struct ParsedScriptHeader {
     pub title: Option<String>,
     pub icon: Option<String>,
     pub arguments: Vec<CommandArgument>,
+    /// Names from `@asyar.requireAnyOf`, validated against the declared
+    /// arguments with the same rules as a manifest group.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub require_any_of: Option<Vec<String>>,
     /// Declared execution mode. Defaults to `Compact` when the script
     /// omits `@asyar.mode`.
     #[serde(default)]
@@ -53,6 +57,8 @@ pub enum HeaderError {
     DuplicateArgumentIndex { index: u32 },
     #[error("invalid mode value '{value}' (expected silent | compact | fullOutput | inline)")]
     InvalidMode { value: String },
+    #[error("invalid requireAnyOf on line {line}: {message}")]
+    InvalidRequireAnyOf { line: usize, message: String },
     #[error("invalid refreshTime '{value}' (expected <N><s|m|h|d>, e.g. 30s or 5m)")]
     InvalidRefreshTime { value: String },
 }
@@ -62,6 +68,7 @@ pub fn parse_header(content: &str) -> Result<ParsedScriptHeader, HeaderError> {
     let mut header = ParsedScriptHeader::default();
     let mut seen_argument_indices: std::collections::HashSet<u32> = Default::default();
     let mut argument_pairs: Vec<(u32, CommandArgument)> = Vec::new();
+    let mut require_any_of: Option<(usize, Vec<String>)> = None;
 
     for (idx, raw_line) in content.lines().enumerate() {
         let line_no = idx + 1;
@@ -86,6 +93,14 @@ pub fn parse_header(content: &str) -> Result<ParsedScriptHeader, HeaderError> {
             header.icon = Some(value.trim().to_string());
         } else if let Some(value) = body.strip_prefix("@asyar.mode ") {
             header.mode = parse_mode(value.trim())?;
+        } else if let Some(value) = body.strip_prefix("@asyar.requireAnyOf ") {
+            let group = serde_json::from_str::<Vec<String>>(value.trim()).map_err(|e| {
+                HeaderError::InvalidRequireAnyOf {
+                    line: line_no,
+                    message: e.to_string(),
+                }
+            })?;
+            require_any_of = Some((line_no, group));
         } else if let Some(value) = body.strip_prefix("@asyar.refreshTime ") {
             let (secs, clamped) = parse_refresh_time(value.trim())?;
             header.refresh_time_seconds = Some(secs);
@@ -121,6 +136,14 @@ pub fn parse_header(content: &str) -> Result<ParsedScriptHeader, HeaderError> {
 
     argument_pairs.sort_by_key(|(i, _)| *i);
     header.arguments = argument_pairs.into_iter().map(|(_, a)| a).collect();
+
+    // Validated here rather than at registration so one bad group skips its
+    // own script with a header diagnostic instead of failing the whole batch.
+    if let Some((line, group)) = require_any_of {
+        crate::extensions::validate_require_any_of(&group, &header.arguments)
+            .map_err(|message| HeaderError::InvalidRequireAnyOf { line, message })?;
+        header.require_any_of = Some(group);
+    }
     Ok(header)
 }
 
@@ -195,11 +218,54 @@ mod tests {
                 title: None,
                 icon: None,
                 arguments: vec![],
+                require_any_of: None,
                 mode: ScriptMode::Compact,
                 refresh_time_seconds: None,
                 refresh_time_clamped: false,
             }
         );
+    }
+
+    #[test]
+    fn parses_a_valid_require_any_of_group() {
+        let content = "# @asyar.title Timer\n\
+            # @asyar.argument:1 { \"name\": \"hours\", \"type\": \"number\" }\n\
+            # @asyar.argument:2 { \"name\": \"minutes\", \"type\": \"number\" }\n\
+            # @asyar.requireAnyOf [\"hours\", \"minutes\"]\n";
+        let result = parse_header(content).unwrap();
+        assert_eq!(
+            result.require_any_of.as_deref(),
+            Some(["hours".to_string(), "minutes".to_string()].as_slice())
+        );
+    }
+
+    #[test]
+    fn require_any_of_naming_an_undeclared_argument_is_a_header_error() {
+        let content = "# @asyar.title Timer\n\
+            # @asyar.argument:1 { \"name\": \"hours\", \"type\": \"number\" }\n\
+            # @asyar.argument:2 { \"name\": \"minutes\", \"type\": \"number\" }\n\
+            # @asyar.requireAnyOf [\"hours\", \"days\"]\n";
+        let err = parse_header(content).unwrap_err();
+        assert!(matches!(err, HeaderError::InvalidRequireAnyOf { .. }));
+    }
+
+    #[test]
+    fn require_any_of_with_a_single_member_is_a_header_error() {
+        let content = "# @asyar.title Timer\n\
+            # @asyar.argument:1 { \"name\": \"hours\", \"type\": \"number\" }\n\
+            # @asyar.requireAnyOf [\"hours\"]\n";
+        let err = parse_header(content).unwrap_err();
+        assert!(matches!(err, HeaderError::InvalidRequireAnyOf { .. }));
+    }
+
+    #[test]
+    fn require_any_of_with_malformed_json_is_a_header_error() {
+        let content = "# @asyar.title Timer\n# @asyar.requireAnyOf not-json\n";
+        let err = parse_header(content).unwrap_err();
+        assert!(matches!(
+            err,
+            HeaderError::InvalidRequireAnyOf { line: 2, .. }
+        ));
     }
 
     #[test]

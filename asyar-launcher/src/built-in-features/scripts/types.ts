@@ -13,6 +13,8 @@ export interface ParsedScriptHeader {
   title: string | null;
   icon: string | null;
   arguments: CommandArgument[];
+  /** From `@asyar.requireAnyOf`, already validated by the Rust parser. */
+  requireAnyOf?: string[];
   mode: ScriptMode;
   /** Already clamped to the 10s floor by the Rust parser. */
   refreshTimeSeconds: number | null;

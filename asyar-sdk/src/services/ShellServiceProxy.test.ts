@@ -41,17 +41,6 @@ describe('ShellServiceProxy', () => {
       expect(payload).toMatchObject({ program: 'echo', args: ['hi'] });
     });
 
-    it('defaults silent to false, and forwards it when opted in', async () => {
-      const { proxy, mockInvoke } = makeProxy();
-      proxy.spawn({ program: 'yt-dlp', args: ['url'] });
-      await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
-      expect(mockInvoke.mock.calls[0][1]).toMatchObject({ silent: false });
-
-      proxy.spawn({ program: 'sqlite3', args: ['db'], silent: true });
-      await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalledTimes(2));
-      expect(mockInvoke.mock.calls[1][1]).toMatchObject({ silent: true });
-    });
-
     it('includes spawnId in the payload', async () => {
       const { proxy, mockInvoke } = makeProxy();
       proxy.spawn({ program: 'git', args: ['status'] });

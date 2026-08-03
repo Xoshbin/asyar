@@ -18,6 +18,7 @@ vi.mock('../../lib/ipc/commandArgDefaultsCommands', () => ({
 import {
   CommandArgumentsService,
   fieldNeedsValue,
+  fieldNeedsAnyOf,
   seedArgumentValues,
 } from './commandArgumentsService.svelte';
 import type { CommandArgument } from 'asyar-sdk/contracts';
@@ -247,6 +248,32 @@ describe('CommandArgumentsService', () => {
       const before = svc.active;
       svc.resetValue('scope');
       expect(svc.active).toBe(before);
+    });
+
+    it('resetValue() withdraws a remembered value, so the chip greys back', async () => {
+      const d = makeDeps({ args });
+      commandArgDefaultsGet.mockResolvedValue({ scope: 'all' });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.seededFromUser.has('scope')).toBe(true);
+      svc.resetValue('scope');
+      expect(svc.active!.seededFromUser.has('scope')).toBe(false);
+      // Still on screen, but a suggestion again rather than the user's pick.
+      expect(svc.active!.values.scope).toBe('all');
+    });
+
+    it('a withdrawn remembered value stops satisfying requireAnyOf', async () => {
+      const gated: CommandArgument[] = [
+        { name: 'hours', type: 'number' },
+        { name: 'minutes', type: 'number' },
+      ];
+      const d = makeDeps({ args: gated, requireAnyOf: ['hours', 'minutes'] });
+      commandArgDefaultsGet.mockResolvedValue({ minutes: '30' });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.canSubmit()).toBe(true);
+      svc.resetValue('minutes');
+      expect(svc.canSubmit()).toBe(false);
     });
   });
 
@@ -802,8 +829,11 @@ describe('CommandArgumentsService', () => {
     expect(svc.canSubmit()).toBe(true);
   });
 
-  it('canSubmit() is false for a required field showing only the declared default', async () => {
-    const args: CommandArgument[] = [{ name: 'n', type: 'number', required: true, default: 0 }];
+  it('canSubmit() is false while a required default sits in an unselected field', async () => {
+    const args: CommandArgument[] = [
+      { name: 'q', type: 'text' },
+      { name: 'n', type: 'number', required: true, default: 0 },
+    ];
     const d = makeDeps({ args });
     const svc = new CommandArgumentsService(d);
     await svc.enter(d.commandObjectId);
@@ -855,7 +885,7 @@ describe('CommandArgumentsService', () => {
     expect(svc.feedbackMessage()).toBeNull();
 
     await svc.submit();
-    expect(svc.feedbackMessage()).toBe('Value is missing in argument q');
+    expect(svc.feedbackMessage()).toBe('Required  q');
     expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
   });
 
@@ -865,7 +895,7 @@ describe('CommandArgumentsService', () => {
     const svc = new CommandArgumentsService(d);
     await svc.enter(d.commandObjectId);
     await svc.submit();
-    expect(svc.feedbackMessage()).toBe('Value is missing in argument q');
+    expect(svc.feedbackMessage()).toBe('Required  q');
     svc.setValue('q', 'h');
     expect(svc.feedbackMessage()).toBeNull();
   });
@@ -1247,83 +1277,262 @@ describe('CommandArgumentsService', () => {
       expect(commandArgDefaultsSet.mock.calls[0][2]).toEqual({ remembered: 'keep me', lang: 'es' });
     });
 
-    // A visible value the user has not agreed to is not an error — it is a
-    // question. Enter answers it, and a second Enter runs.
-    describe('confirming seeded values', () => {
+    // A visible value the user has not agreed to is not an error, and
+    // selection is agreement: Enter selects the first unagreed required
+    // field instead of complaining, and the next Enter moves on — or runs.
+    describe('confirming seeded values by selection', () => {
       const INVOICE: CommandArgument[] = [
+        { name: 'client', type: 'text', required: true },
         { name: 'terms', type: 'text', required: true, default: '30 days', seed: 'default' },
       ];
 
-      it('the first Enter confirms instead of complaining', async () => {
+      it('Enter selects the unagreed field instead of complaining', async () => {
         const d = makeDeps({ args: INVOICE });
         const svc = new CommandArgumentsService(d);
         await svc.enter(d.commandObjectId);
+        svc.setValue('client', 'ACME');
         await svc.submit();
 
         expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
-        expect(svc.feedbackMessage()).toBe('Press Enter again to run with these values');
-        expect(svc.isAwaitingConfirm()).toBe(true);
-        // Nothing is wrong, so nothing is flagged as wrong.
-        expect(svc.active!.submitRefused).toBe(false);
-        expect(fieldNeedsValue(svc.active!, 0)).toBe(false);
+        expect(svc.active!.currentFieldIdx).toBe(1);
+        // Nothing is wrong, so nothing is said and nothing is flagged.
+        expect(svc.feedbackMessage()).toBeNull();
+        expect(svc.active!.owed.size).toBe(0);
+        expect(fieldNeedsValue(svc.active!, 1)).toBe(false);
       });
 
-      it('the second Enter runs it, with the value the user confirmed', async () => {
+      it('the next Enter runs with the value the selection agreed to', async () => {
         const d = makeDeps({ args: INVOICE });
         const svc = new CommandArgumentsService(d);
         await svc.enter(d.commandObjectId);
+        svc.setValue('client', 'ACME');
         await svc.submit();
         await svc.submit();
 
-        expect(d.dispatchTier2Argument.mock.calls[0][0].args).toEqual({ terms: '30 days' });
-        expect(svc.isAwaitingConfirm()).toBe(false);
+        expect(d.dispatchTier2Argument.mock.calls[0][0].args).toEqual({
+          client: 'ACME',
+          terms: '30 days',
+        });
       });
 
-      it("confirming turns the chip into the user's own value", async () => {
+      it('standing in the field on the way through counts as agreement', async () => {
         const d = makeDeps({ args: INVOICE });
         const svc = new CommandArgumentsService(d);
         await svc.enter(d.commandObjectId);
+        svc.setValue('client', 'ACME');
+        svc.focusField(1);
         await svc.submit();
-        expect(svc.active!.edited.has('terms')).toBe(true);
-        expect(svc.canSubmit()).toBe(true);
+
+        expect(d.dispatchTier2Argument.mock.calls[0][0].args).toEqual({
+          client: 'ACME',
+          terms: '30 days',
+        });
       });
 
-      it('an empty required field still complains, and never offers a confirm', async () => {
-        const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }];
-        const d = makeDeps({ args });
+      it('agreement is not authorship: a merely agreed seed is not persisted', async () => {
+        const d = makeDeps({ args: INVOICE });
         const svc = new CommandArgumentsService(d);
         await svc.enter(d.commandObjectId);
+        svc.setValue('client', 'ACME');
+        await svc.submit();
         await svc.submit();
 
-        expect(svc.isAwaitingConfirm()).toBe(false);
-        expect(svc.feedbackMessage()).toBe('Value is missing in argument q');
-        expect(svc.active!.submitRefused).toBe(true);
+        expect(commandArgDefaultsSet.mock.calls[0][2]).toEqual({ client: 'ACME' });
       });
 
-      it('a half-filled form complains rather than confirming', async () => {
-        // One seeded default, one genuinely empty required field: confirming
-        // the first would not make the command runnable, so it is not offered.
+      it('a single seeded field is selected on entry, so one Enter runs it', async () => {
         const args: CommandArgument[] = [
           { name: 'terms', type: 'text', required: true, default: '30 days', seed: 'default' },
-          { name: 'client', type: 'text', required: true },
         ];
         const d = makeDeps({ args });
         const svc = new CommandArgumentsService(d);
         await svc.enter(d.commandObjectId);
         await svc.submit();
 
-        expect(svc.isAwaitingConfirm()).toBe(false);
-        expect(svc.feedbackMessage()).toBe('Value is missing in argument client');
+        expect(d.dispatchTier2Argument.mock.calls[0][0].args).toEqual({ terms: '30 days' });
       });
 
-      it('editing after a confirm prompt drops the prompt', async () => {
-        const d = makeDeps({ args: INVOICE });
+      it('an empty required field still complains, and never gets walked to', async () => {
+        const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }];
+        const d = makeDeps({ args });
         const svc = new CommandArgumentsService(d);
         await svc.enter(d.commandObjectId);
         await svc.submit();
-        svc.setValue('terms', '60 days');
-        expect(svc.isAwaitingConfirm()).toBe(false);
-        expect(svc.feedbackMessage()).toBeNull();
+
+        expect(svc.feedbackMessage()).toBe('Required  q');
+        expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+      });
+
+      it('a genuinely empty sibling forecloses the walk', async () => {
+        // Selecting seeded fields first would just delay the complaint: the
+        // empty field needs typing either way, so it is named straight away.
+        // The seeded field stays quiet — it is showing a value, not missing one.
+        const args: CommandArgument[] = [
+          { name: 'client', type: 'text', required: true },
+          { name: 'terms', type: 'text', required: true, default: '30 days', seed: 'default' },
+          { name: 'po', type: 'text', required: true },
+        ];
+        const d = makeDeps({ args });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.setValue('client', 'ACME');
+        await svc.submit();
+
+        expect(svc.feedbackMessage()).toBe('Required  po');
+        expect(fieldNeedsValue(svc.active!, 1)).toBe(false);
+      });
+
+      it('agreement does not satisfy requireAnyOf', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours', default: 0, seed: 'default' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes', default: 0, seed: 'default' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.focusField(1);
+        await svc.submit();
+
+        expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
+        expect(svc.feedbackMessage()).toBe('Required  Hours or Minutes');
+      });
+
+      it('standing in the group does not mark it, however far the tour has got', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.focusField(1);
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(false);
+      });
+
+      it('touring every member and leaving for the query marks the group', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.focusField(1);
+        svc.blurFields();
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(true);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(true);
+      });
+
+      it('leaving the group for another field marks it the same way', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+          { name: 'label', type: 'text', placeholder: 'Label' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.focusField(1);
+        svc.focusField(2);
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(true);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(true);
+        expect(fieldNeedsAnyOf(svc.active!, 2)).toBe(false);
+      });
+
+      it('leaving mid-tour marks nothing: an unseen member is still an open offer', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+          { name: 'seconds', type: 'number', placeholder: 'Seconds' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes', 'seconds'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.focusField(1);
+        svc.blurFields();
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 2)).toBe(false);
+      });
+
+      it('a member filled during the tour keeps the leave quiet', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.focusField(1);
+        svc.setValue('minutes', '5');
+        svc.blurFields();
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(false);
+      });
+
+      it('a refused Enter marks every group member in place, and only them', async () => {
+        const args: CommandArgument[] = [
+          { name: 'profile', type: 'text', placeholder: 'Profile' },
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(true);
+        expect(fieldNeedsAnyOf(svc.active!, 2)).toBe(true);
+        expect(svc.feedbackMessage()).toBe('Required  Hours or Minutes');
+      });
+
+      it('filling any member clears the whole group at once', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+        svc.setValue('minutes', '5');
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(false);
+        // Clearing it again brings the marking back without another Enter:
+        // the user has already been told once.
+        svc.setValue('minutes', '');
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(true);
+      });
+
+      it('a member that is individually required keeps the stronger marking', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours', required: true },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+
+        expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(true);
+      });
+
+      it('both fault kinds share the bar in one line', async () => {
+        const args: CommandArgument[] = [
+          { name: 'profile', type: 'text', required: true, placeholder: 'Profile' },
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+
+        expect(svc.feedbackMessage()).toBe('Required  Profile • Hours or Minutes');
       });
 
       it('a seeded default that is not required needs no confirming', async () => {
@@ -1371,9 +1580,10 @@ describe('CommandArgumentsService', () => {
     });
 
     // Provenance: the launcher must tell "the author suggested this" from
-    // "the user chose this". Only the second unlocks a gated command.
-    it('required + a seeded default still blocks Enter until the user confirms', async () => {
+    // "the user agreed to this". Selection is what turns one into the other.
+    it('required + a seeded default still blocks Enter until the user stands in it', async () => {
       const args: CommandArgument[] = [
+        { name: 'memo', type: 'text' },
         { name: 'terms', type: 'text', required: true, default: '30 days', seed: 'default' },
       ];
       const d = makeDeps({ args });
@@ -1381,9 +1591,9 @@ describe('CommandArgumentsService', () => {
       await svc.enter(d.commandObjectId);
       // The chip shows the suggestion...
       expect(svc.active!.values.terms).toBe('30 days');
-      // ...but it is the author's, not the user's.
+      // ...but it is the author's, not yet agreed to.
       expect(svc.canSubmit()).toBe(false);
-      svc.setValue('terms', '30 days');
+      svc.focusField(1);
       expect(svc.canSubmit()).toBe(true);
     });
 
@@ -1475,7 +1685,7 @@ describe('CommandArgumentsService', () => {
       expect(svc.canSubmit()).toBe(false);
       await svc.submit();
       expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
-      expect(svc.feedbackMessage()).toBe('Enter at least one of hours, minutes, seconds');
+      expect(svc.feedbackMessage()).toBe('Required  hours, minutes, or seconds');
     });
 
     it('canSubmit() flips once any member is filled in', async () => {
@@ -1527,7 +1737,7 @@ describe('a `default` of null (the shape Rust actually sends)', () => {
     await svc.enter(d.commandObjectId);
     await svc.submit();
     expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
-    expect(svc.feedbackMessage()).toBe('Value is missing in argument who');
+    expect(svc.feedbackMessage()).toBe('Required  who');
   });
 
   it('never puts the string "null" in the payload', async () => {
@@ -1595,15 +1805,31 @@ describe('fieldNeedsValue', () => {
     expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
   });
 
-  it('stops flagging the edited field as soon as it is typed into', async () => {
+  it('only a value in the field itself lifts the complaint', async () => {
     const { svc } = await enterWith([
       { name: 'who', type: 'text', required: true },
       { name: 'note', type: 'text' },
     ]);
     await svc.submit();
     expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+    // Typing elsewhere changes nothing about what this field owes.
     svc.setValue('note', 'anything');
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+    svc.setValue('who', 'Lucas');
     expect(fieldNeedsValue(svc.active!, 0)).toBe(false);
+  });
+
+  it('standing back in a flagged field keeps the complaint until it is filled', async () => {
+    // Same as an unmet group: returning to the scene does not retract the
+    // marking, a value does — and emptying it again brings it back.
+    const { svc } = await enterWith(REQUIRED);
+    svc.next();
+    svc.prev();
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+    svc.setValue('who', 'Lucas');
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(false);
+    svc.setValue('who', '');
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
   });
 
   it('never flags an optional field', async () => {
@@ -1612,13 +1838,16 @@ describe('fieldNeedsValue', () => {
     expect(fieldNeedsValue(svc.active!, 1)).toBe(false);
   });
 
-  it('flags a required field the user left showing only the declared default', async () => {
+  it('never flags a field that is showing a value, even after a refusal', async () => {
     const { svc } = await enterWith([
+      { name: 'note', type: 'text', required: true },
       { name: 'a', type: 'text', required: true, default: 'x' },
-      { name: 'b', type: 'text' },
     ]);
-    svc.next();
+    // Refused for the empty field; the seeded one is showing a value, so it
+    // stays dashed rather than turning red.
+    await svc.submit();
     expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+    expect(fieldNeedsValue(svc.active!, 1)).toBe(false);
   });
 
   it('leaves a field the user never reached alone until a submit is refused', async () => {

@@ -104,7 +104,6 @@ export class RunService {
     kind: RunKind,
     label: string,
     cancellable: boolean,
-    silent: boolean = false,
     subjectId: string | null = null,
   ): Promise<Run> {
     const run = await invokeSafe<Run>('runs_start', {
@@ -113,7 +112,6 @@ export class RunService {
       label,
       extensionId,
       cancellable,
-      silent,
       subjectId,
     });
     if (!run) {
@@ -184,9 +182,7 @@ export class RunService {
       }
       this.recent = [run, ...this.recent].slice(0, 50);
 
-      // A run the caller declared as plumbing stays in the Runs view but
-      // raises no feedback and claims no launcher row.
-      if (run.status === 'failed' && !run.silent) {
+      if (run.status === 'failed') {
         feedbackService.report({
           kind: 'run_failed',
           severity: 'warning',
@@ -214,7 +210,7 @@ export class RunService {
         this.keptAgents = await this.upsertBucket(this.keptAgents, run, 'kept-agent');
       }
 
-      if (run.status === 'succeeded' && run.kind === 'shell-script' && !run.silent) {
+      if (run.status === 'succeeded' && run.kind === 'shell-script') {
         // Scripts persist after success so the user can read the output.
         // Rust dedupes by subjectId when present so re-running the same
         // script row collapses into one entry; anonymous (no subjectId)
@@ -319,11 +315,6 @@ export class RunService {
      * can light up the originating row with a status dot.
      */
     subjectId?: string | null;
-    /**
-     * This run is internal plumbing rather than something the user asked
-     * for: no notification, no failure toast, no launcher row.
-     */
-    silent?: boolean;
   }): Promise<LocalRunHandle> {
     const id = crypto.randomUUID();
     await this.start(
@@ -332,7 +323,6 @@ export class RunService {
       input.kind,
       input.label,
       input.cancellable ?? false,
-      input.silent ?? false,
       input.subjectId ?? null,
     );
     return this.buildLocalHandle(id);

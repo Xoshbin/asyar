@@ -11,9 +11,8 @@ export class RunServiceProxy extends BaseServiceProxy implements IRunService {
     const kind = input.kind;
     const label = input.label;
     const cancellable = input.cancellable ?? false;
-    const silent = input.silent ?? false;
 
-    await this.invoke('runs:start', { id, kind, label, cancellable, silent });
+    await this.invoke('runs:start', { id, kind, label, cancellable });
 
     return this.buildHandle(id);
   }

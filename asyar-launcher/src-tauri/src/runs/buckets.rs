@@ -61,7 +61,6 @@ mod tests {
             cancellable: false,
             error_message: None,
             subject_id: subject_id.map(|s| s.to_string()),
-            silent: false,
             tail_output: None,
         }
     }

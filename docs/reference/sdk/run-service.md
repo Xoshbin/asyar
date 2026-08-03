@@ -63,13 +63,6 @@ export interface RunStartInput {
   label: string;
   kind: RunKind;
   cancellable?: boolean; // Defaults to false
-  /**
-   * Mark work the user did not ask for — a background refresh, a cache warm.
-   * Its outcome stays out of notifications, the failure toast, and the
-   * launcher list, though it still appears in the Runs view. Defaults to
-   * false: a run the user set off must still report when it fails.
-   */
-  silent?: boolean;
 }
 
 export interface IRunService {

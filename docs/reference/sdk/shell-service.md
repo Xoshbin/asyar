@@ -16,12 +16,6 @@ interface SpawnParams {
   program: string;
   /** Command-line arguments. Defaults to `[]`. */
   args?: string[];
-  /** Mark a spawn the user did not ask for — a database read, a list refresh.
-   *  Its outcome stays out of notifications, the failure toast, and the
-   *  launcher list, though it still appears in the Runs view. Defaults to
-   *  `false`: a spawn the user set off by running a command must still report
-   *  when it fails. */
-  silent?: boolean;
 }
 
 interface ShellChunk {

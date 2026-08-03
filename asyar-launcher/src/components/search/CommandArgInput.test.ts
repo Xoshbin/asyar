@@ -164,10 +164,12 @@ describe('CommandArgInput', () => {
       );
     });
 
-    it('measures the placeholder while the field is empty', async () => {
+    it('measures the placeholder while the field is empty, same formula as a value', async () => {
       stubTextWidth();
       const view = await renderChip();
       expect(view.container.querySelector('.arg-measure-text')?.textContent).toBe('Who to greet');
+      // One geometry for every state: hint or value, the box is always the
+      // measured text plus the caret room.
       expect(view.container.querySelector<HTMLInputElement>('input.arg-input')?.style.width).toBe(
         `${'Who to greet'.length * 7 + 3}px`,
       );

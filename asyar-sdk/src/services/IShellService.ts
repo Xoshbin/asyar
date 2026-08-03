@@ -1,14 +1,6 @@
 export interface SpawnParams {
   program: string;
   args?: string[];
-  /**
-   * Set for spawns the user did not ask for — a database read, a list
-   * refresh — so the outcome stays out of notifications, the failure toast,
-   * and the launcher list. It still appears in the Runs view. Defaults to
-   * false: a spawn the user set off by running a command must still report
-   * when it fails.
-   */
-  silent?: boolean;
 }
 
 export interface ShellChunk {

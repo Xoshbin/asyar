@@ -27,7 +27,6 @@ pub fn runs_start_impl(
     label: String,
     extension_id: Option<String>,
     cancellable: bool,
-    silent: bool,
     subject_id: Option<String>,
 ) -> Result<Run, AppError> {
     let run = Run {
@@ -41,7 +40,6 @@ pub fn runs_start_impl(
         cancellable,
         error_message: None,
         subject_id,
-        silent,
         tail_output: None,
     };
     registry.insert(run.clone())?;
@@ -199,10 +197,6 @@ fn truncate(text: &str, max: usize) -> String {
 }
 
 pub fn build_run_notification(run: &Run) -> Option<NotificationRequest> {
-    // Plumbing the user never asked for: no notification either way.
-    if run.silent {
-        return None;
-    }
     match run.status {
         RunStatus::Failed => {
             let body_source = run
@@ -280,7 +274,6 @@ pub async fn runs_start(
     label: String,
     extension_id: Option<String>,
     cancellable: bool,
-    silent: bool,
     subject_id: Option<String>,
 ) -> Result<Run, AppError> {
     let registry = RunRegistry::instance();
@@ -295,7 +288,6 @@ pub async fn runs_start(
         label,
         extension_id,
         cancellable,
-        silent,
         subject_id,
     )
 }
@@ -493,7 +485,6 @@ mod tests {
             "My script".to_string(),
             None,
             false,
-            false,
             None,
         )
         .unwrap();
@@ -530,7 +521,6 @@ mod tests {
             "Chat".to_string(),
             Some("org.test.ext".to_string()),
             true,
-            false,
             None,
         )
         .unwrap();
@@ -567,7 +557,6 @@ mod tests {
             "Hosts Update".to_string(),
             None,
             false,
-            false,
             Some("cmd_scripts_dyn_abc".to_string()),
         )
         .unwrap();
@@ -597,7 +586,6 @@ mod tests {
             "ad-hoc".to_string(),
             None,
             false,
-            false,
             None,
         )
         .unwrap();
@@ -619,7 +607,6 @@ mod tests {
             "First".to_string(),
             None,
             false,
-            false,
             None,
         )
         .unwrap();
@@ -632,7 +619,6 @@ mod tests {
             RunKind::Custom,
             "Duplicate".to_string(),
             None,
-            false,
             false,
             None,
         );
@@ -658,7 +644,6 @@ mod tests {
             RunKind::ShellScript,
             "Script".to_string(),
             None,
-            false,
             false,
             None,
         )
@@ -702,7 +687,6 @@ mod tests {
             RunKind::ShellScript,
             "Script".to_string(),
             None,
-            false,
             false,
             None,
         )
@@ -779,7 +763,6 @@ mod tests {
             "Chat".to_string(),
             None,
             false,
-            false,
             None,
         )
         .unwrap();
@@ -806,7 +789,6 @@ mod tests {
             RunKind::ShellScript,
             "Script".to_string(),
             None,
-            false,
             false,
             None,
         )
@@ -853,7 +835,6 @@ mod tests {
             "Agent".to_string(),
             None,
             false,
-            false,
             None,
         )
         .unwrap();
@@ -893,7 +874,6 @@ mod tests {
             RunKind::ShellScript,
             "Script".to_string(),
             None,
-            false,
             false,
             None,
         )
@@ -957,7 +937,6 @@ mod tests {
             "Chat".to_string(),
             None,
             true,
-            false,
             None,
         )
         .unwrap();
@@ -1013,7 +992,6 @@ mod tests {
             "Job".to_string(),
             None,
             false,
-            false,
             None,
         )
         .unwrap();
@@ -1043,7 +1021,6 @@ mod tests {
             "Script 1".to_string(),
             None,
             false,
-            false,
             None,
         )
         .unwrap();
@@ -1055,7 +1032,6 @@ mod tests {
             RunKind::AiChat,
             "Chat".to_string(),
             None,
-            false,
             false,
             None,
         )
@@ -1106,7 +1082,6 @@ mod tests {
             "Job".to_string(),
             None,
             false,
-            false,
             None,
         )
         .unwrap();
@@ -1137,7 +1112,6 @@ mod tests {
             RunKind::ShellScript,
             "Script".to_string(),
             None,
-            false,
             false,
             None,
         )
@@ -1172,7 +1146,6 @@ mod tests {
             "Script".to_string(),
             None,
             false,
-            false,
             None,
         )
         .unwrap();
@@ -1202,7 +1175,6 @@ mod tests {
                 RunKind::ShellScript,
                 format!("Script {i}"),
                 None,
-                false,
                 false,
                 None,
             )
@@ -1248,7 +1220,6 @@ mod tests {
                 format!("Job {i}"),
                 None,
                 false,
-                false,
                 None,
             )
             .unwrap();
@@ -1279,7 +1250,6 @@ mod tests {
             RunKind::ShellScript,
             "Script".to_string(),
             None,
-            false,
             false,
             None,
         )
@@ -1344,7 +1314,6 @@ mod tests {
             "Script".to_string(),
             None,
             false,
-            false,
             None,
         )
         .unwrap();
@@ -1394,7 +1363,6 @@ mod tests {
             RunKind::ShellScript,
             "Script".to_string(),
             None,
-            false,
             false,
             None,
         )
@@ -1448,7 +1416,6 @@ mod tests {
             "Script".to_string(),
             None,
             false,
-            false,
             None,
         )
         .unwrap();
@@ -1493,7 +1460,6 @@ mod tests {
             "Script".to_string(),
             None,
             false,
-            false,
             None,
         )
         .unwrap();
@@ -1529,7 +1495,6 @@ mod tests {
             RunKind::ShellScript,
             "Script".to_string(),
             None,
-            false,
             false,
             None,
         )
@@ -1591,7 +1556,6 @@ mod tests {
             "Chat".to_string(),
             None,
             true,
-            false,
             None,
         )
         .unwrap();
@@ -1636,7 +1600,6 @@ mod tests {
             "Script".to_string(),
             None,
             false,
-            false,
             None,
         )
         .unwrap();
@@ -1666,7 +1629,6 @@ mod tests {
             RunKind::ShellScript,
             "Script".to_string(),
             None,
-            false,
             false,
             None,
         )
@@ -1742,7 +1704,6 @@ mod tests {
             cancellable: false,
             error_message: Some("something went wrong".to_string()),
             subject_id: None,
-            silent: false,
             tail_output: None,
         };
 
@@ -1795,47 +1756,6 @@ mod tests {
     }
 
     #[test]
-    fn silent_runs_never_notify() {
-        let mut run = Run {
-            id: "run-silent".to_string(),
-            kind: RunKind::ShellScript,
-            label: "List refresh".to_string(),
-            status: RunStatus::Succeeded,
-            extension_id: Some("com.example.ext".to_string()),
-            started_at: 0,
-            ended_at: None,
-            cancellable: false,
-            error_message: Some("boom".to_string()),
-            subject_id: None,
-            silent: true,
-            tail_output: None,
-        };
-        assert!(build_run_notification(&run).is_none());
-        run.status = RunStatus::Failed;
-        assert!(build_run_notification(&run).is_none());
-
-        // The same extension-owned run still notifies when it is not silent —
-        // absence of a subject_id is not what suppresses it.
-        run.silent = false;
-        assert!(build_run_notification(&run).is_some());
-    }
-
-    #[test]
-    fn silent_defaults_to_false_when_absent_from_the_payload() {
-        let json = serde_json::json!({
-            "id": "run-1",
-            "kind": "shell-script",
-            "label": "Old payload",
-            "status": "failed",
-            "startedAt": 0,
-            "cancellable": false,
-            "subjectId": null,
-        });
-        let run: Run = serde_json::from_value(json).expect("legacy payload should deserialize");
-        assert!(!run.silent);
-    }
-
-    #[test]
     fn test_maybe_send_run_notification() {
         let registry = NotificationActionRegistry::new();
         let backend = TestBackend {
@@ -1853,7 +1773,6 @@ mod tests {
             cancellable: false,
             error_message: Some("failed agent".to_string()),
             subject_id: None,
-            silent: false,
             tail_output: None,
         };
 

@@ -98,12 +98,15 @@ password that declares a `default`, or a `seed` other than `"none"`. Leaving
 #### A default is not the user agreeing to it
 
 A value the launcher put in the chip on the author's behalf does not satisfy
-`required` or `requireAnyOf`. The user has to confirm it &mdash; pressing Enter on
-the seeded value is enough, but something has to come from them.
+`required` until the user has agreed to it. Selection is agreement: standing
+in the field at any point during the invocation &mdash; by Tab, by click, or by
+the Enter walk described under [How the user interacts with
+arguments](#how-the-user-interacts-with-arguments) &mdash; is enough, but
+something has to come from them. `requireAnyOf` is stricter still and needs a value they actually chose.
 
 A value restored from `lastUsed` **does** count: the user chose it on a previous
 run. This is what makes `required` + `default` coherent &mdash; the chip shows the
-suggestion, and Enter stays blocked until the user accepts it.
+suggestion dashed, and Enter walks the user through accepting it.
 
 ### Command-level `requireAnyOf`
 
@@ -130,7 +133,17 @@ The two knobs then say different things: `requireAnyOf` is the **gate** (may
 this run yet?), `default` is the **fill** (what goes in the blanks?). Enter with
 `minutes` set to 30 runs the command with `{ hours: 0, minutes: 30, seconds: 0 }`;
 Enter with nothing entered opens the chips and the bottom bar reads
-_"Enter at least one of hours, minutes, seconds"_.
+_"**Required**&nbsp;&nbsp;hours, minutes, or seconds"_ (the label bold) while every member of the
+group takes a **dashed red border**: the complaint colours, dashed because the
+obligation is the group's rather than any one field's. The marking also
+appears without an Enter once the user has stood in every member and then
+left the group empty-handed: walking out on a toured group is the group's
+version of leaving a required field empty. Filling any member clears the
+whole group at once. The bar's `Required` line enumerates
+everything owed in declaration order, `•`-separated: a plain item is an
+empty required field, an or-list is the group. A command with a required
+`profile` and this group would read
+_"**Required**&nbsp;&nbsp;profile • hours, minutes, or seconds"_.
 
 A **declared `default` never satisfies the gate.** Defaults fill blanks; they
 are not the user asking for anything. Only a typed value, a selection restored
@@ -172,16 +185,19 @@ argument that is already `required`.
    has no caret to cross, so one press leaves it either way — its own
    Up/Down keys are covered under
    [Dropdown interaction](#dropdown-interaction).
-6. **Enter** submits when every required argument holds a value the _user_
-   supplied — typed, kept from an earlier Escape, or restored from a previous
-   run. A `default` alone is not enough: it is the author's suggestion, not
-   the user's decision.
+6. **Enter** submits when every required argument holds a value the user has
+   supplied or agreed to. Typed, kept from an earlier Escape, or restored
+   from a previous run all count; so does a seeded value in a field the user
+   has **stood in** at some point — selection is agreement. A `default` in a
+   field they have never been near is not enough: it is the author's
+   suggestion, not the user's decision.
 
    When the only thing standing in the way is a seeded value the user has not
-   agreed to, Enter **asks instead of complaining**. The first press promotes
-   the values on screen to the user's own and the bottom bar reads "Press
-   Enter again to run with these values"; the second press runs it. Nothing is
-   marked red, because nothing is wrong. Any edit cancels the prompt.
+   agreed to, Enter **selects that field instead of complaining**. They can
+   type a new value, or press Enter again — the selection already counted as
+   agreement, so the next press moves to the next unagreed required field, or
+   runs the command when there is none left. Nothing is marked red, because
+   nothing is wrong. Tabbing through a field agrees to it the same way.
 
    `requireAnyOf` is deliberately not satisfied this way. Its whole purpose is
    to refuse a run assembled entirely from declared defaults, so it needs a
@@ -220,16 +236,26 @@ before delivery, so your handler receives `7`, not `"7"`.
 
 ### Reading a chip
 
-Three states, and the difference matters because two of them are grey:
+The border carries commitment; the text colour carries provenance:
 
-| What you see                | Meaning                                                                 |
-| --------------------------- | ----------------------------------------------------------------------- |
-| Grey text, no underline     | The placeholder — a field name. Nothing is sent.                        |
-| Grey text, dotted underline | A seeded value. It **will** be sent, but the user has not agreed to it. |
-| Solid text                  | The user's own value — typed, picked, or restored from a previous run.  |
+| What you see          | Meaning                                                                                   |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| Grey text, no border  | The placeholder — a field name. Nothing is sent.                                          |
+| **Dashed border**     | A seeded value. It **will** be sent, but the user has not agreed to it yet.               |
+| **Solid border**      | The selected field — the one the caret is in.                                             |
+| No border             | Agreed: the user has stood in the field, or the value is their own.                       |
+| Solid red border      | This field owes a value: `required`, walked away from empty, or named by a refused Enter. |
+| **Dashed red border** | One of these fields owes a value: an unmet `requireAnyOf` group.                          |
+| Solid text            | The user's own value — typed, picked, or restored from a previous run.                    |
 
-The underline is what separates a default from a hint: both are grey because
-neither came from the user, but only one is a real value.
+The dashed border is what separates a default from a hint: both are grey
+because neither came from the user, but only one is a real value. Dashed
+means "not yet committed" throughout the launcher.
+
+Both red markings persist while the user stands back in the field: the
+border goes grey to show where the caret is, the red tint stays. Only a
+value lifts the complaint — in the field itself for `required`, in any
+member for `requireAnyOf` — and only for as long as one is there.
 
 ### Dropdown interaction
 
@@ -247,7 +273,9 @@ yet. Picking a value, even the same one, renders it in full.
   box; clicking again closes it. The chevron follows.
 - **Down / Up** move the highlight in an open list, and **Enter** takes it.
   The `-` row at the top, offered whenever the search box is empty, puts the
-  chip back to its seeded state.
+  chip back to its seeded state. That withdraws a remembered value too: the
+  chip greys back to a suggestion, it stops counting for `requireAnyOf`, and
+  a run without re-picking it forgets the stored value.
 - **Escape** clears the search box, then closes the list on the next press.
   The chip keeps focus either way, so typing opens the list again; a third
   press leaves argument mode. **Backspace** clears a value the user picked.

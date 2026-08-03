@@ -179,11 +179,18 @@ export interface ActiveArgumentMode {
    */
   edited: ReadonlySet<string>;
   /**
-   * Fields that have held focus at least once, plus everything flagged by a
-   * refused submit. A required field the user has seen and left empty is
-   * marked in place; one they never reached stays neutral.
+   * Fields that have been selected at some point this invocation. Selection
+   * is agreement: a required field holding a seeded value counts as filled
+   * once the user has stood in it. Fed only by real focus, never by a
+   * refused submit.
    */
-  visited: ReadonlySet<string>;
+  confirmed: ReadonlySet<string>;
+  /**
+   * Required fields the user has walked away from empty, plus everything a
+   * refused Enter named. Membership is permanent; the red shows whenever the
+   * field is empty on screen, focused or not.
+   */
+  owed: ReadonlySet<string>;
   /**
    * The field being edited, or -1 when focus sits in the search query. The
    * query is a slot on either side of the row, so "no field" is a real
@@ -191,11 +198,11 @@ export interface ActiveArgumentMode {
    */
   currentFieldIdx: number;
   /**
-   * Enter has been pressed and refused, and nothing has been edited since.
-   * Standing in a required field is not yet failing to fill it, but once the
-   * user has asked for it to run it is, so the field stops being exempt.
+   * An Enter was refused while `requireAnyOf` was unmet, or focus left the
+   * group with every member visited and none filled. Never reset: the
+   * marking clears by satisfying the gate, not by typing elsewhere.
    */
-  submitRefused: boolean;
+  anyOfRefused: boolean;
   mode?: 'view' | 'background';
   /** Command-level "at least one of these" gate, verbatim from the manifest. */
   requireAnyOf?: string[];
@@ -224,19 +231,18 @@ export function userSuppliedValues(active: ActiveArgumentMode): Record<string, s
 }
 
 /**
- * Fields showing a value the author supplied and the user has not agreed to
- * yet — a seeded default, still exactly as it was seeded. These are what a
- * confirm step promotes.
+ * The values that satisfy `required`: everything the user supplied, plus any
+ * seeded value in a field they have selected at some point. A seed they have
+ * never been near is not agreed to and does not count.
  */
-export function unconfirmedSeeds(active: ActiveArgumentMode): string[] {
-  return active.args
-    .filter(
-      (arg) =>
-        !active.edited.has(arg.name) &&
-        !active.seededFromUser.has(arg.name) &&
-        (active.values[arg.name] ?? '').trim() !== '',
-    )
-    .map((arg) => arg.name);
+export function acknowledgedValues(active: ActiveArgumentMode): Record<string, string> {
+  const out = userSuppliedValues(active);
+  for (const arg of active.args) {
+    if (out[arg.name] !== undefined) continue;
+    const raw = (active.values[arg.name] ?? '').trim();
+    if (raw && active.confirmed.has(arg.name)) out[arg.name] = raw;
+  }
+  return out;
 }
 
 /**
@@ -297,6 +303,13 @@ export function buildArgumentsPayload(
 
 const EMPTY_FLAGGED: ReadonlySet<string> = new Set();
 
+/** "A or B" for two, "A, B, or C" beyond: the bar's either-list copy. */
+function eitherList(labels: string[]): string {
+  if (labels.length <= 1) return labels[0] ?? '';
+  if (labels.length === 2) return `${labels[0]} or ${labels[1]}`;
+  return `${labels.slice(0, -1).join(', ')}, or ${labels[labels.length - 1]}`;
+}
+
 /** What Enter on a command should do, and what it should run with. */
 export interface PreparedRun {
   /** A required argument has nothing to stand in for it: collect input first. */
@@ -307,15 +320,30 @@ export interface PreparedRun {
 
 /**
  * Whether a field should render as "you still owe me a value": required,
- * already seen, left empty, and not the one being edited right now. Pure so
- * the chip row can ask without reaching for the service singleton.
+ * in `owed`, and empty on screen. A field showing an unagreed seed stays
+ * dashed instead — it is not missing anything the user can see. Pure so the
+ * chip row can ask without reaching for the service singleton.
  */
 export function fieldNeedsValue(active: ActiveArgumentMode, idx: number): boolean {
   const arg = active.args[idx];
   if (!arg?.required) return false;
-  if (!active.submitRefused && idx === active.currentFieldIdx) return false;
-  if (!active.visited.has(arg.name)) return false;
-  return (userSuppliedValues(active)[arg.name] ?? '').trim() === '';
+  if (!active.owed.has(arg.name)) return false;
+  return (active.values[arg.name] ?? '').trim() === '';
+}
+
+/**
+ * Whether a field should render as part of an unmet `requireAnyOf` group:
+ * the user has been told (`anyOfRefused`), the gate is still unmet, and this
+ * field is a member. Clears for the whole group the moment any member holds
+ * a user value. A field individually owed a value keeps its own, stronger
+ * marking instead.
+ */
+export function fieldNeedsAnyOf(active: ActiveArgumentMode, idx: number): boolean {
+  const arg = active.args[idx];
+  if (!arg || !active.requireAnyOf?.includes(arg.name)) return false;
+  if (!active.anyOfRefused) return false;
+  if (fieldNeedsValue(active, idx)) return false;
+  return requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active));
 }
 
 /**
@@ -362,12 +390,6 @@ export class CommandArgumentsService {
    * and cleared by the next edit.
    */
   private _blockedNotice = $state<string | null>(null);
-
-  /**
-   * Enter was pressed on a form whose only gap was unconfirmed seeds, so the
-   * next Enter runs it. Cleared by any edit, and by leaving argument mode.
-   */
-  private _awaitingConfirm = $state(false);
 
   constructor(private readonly deps: CommandArgumentsServiceDeps) {}
 
@@ -419,7 +441,6 @@ export class CommandArgumentsService {
     this._active = null;
     this._stash = null;
     this._blockedNotice = null;
-    this._awaitingConfirm = false;
   }
 
   /**
@@ -546,10 +567,12 @@ export class CommandArgumentsService {
       requireAnyOf: meta.requireAnyOf,
       seededFromUser,
       edited,
-      // Field 0 takes focus on entry, so it counts as seen from the start.
-      visited: new Set(meta.args.length ? [meta.args[0].name] : []),
+      // Field 0 takes focus on entry, and selection is agreement, so its
+      // seed counts as accepted from the start.
+      confirmed: new Set(meta.args.length ? [meta.args[0].name] : []),
+      owed: new Set<string>(),
       currentFieldIdx: 0,
-      submitRefused: false,
+      anyOfRefused: false,
       mode: meta.mode,
     };
     return true;
@@ -557,7 +580,6 @@ export class CommandArgumentsService {
 
   exit(): void {
     this._blockedNotice = null;
-    this._awaitingConfirm = false;
     if (this._active) {
       const active = this._active;
       const { commandObjectId, args, values, edited } = active;
@@ -589,35 +611,69 @@ export class CommandArgumentsService {
     if (this._active.values[name] === value && this._active.edited.has(name)) return;
     // Any edit is an attempt to fix things: drop the stale complaint.
     this._blockedNotice = null;
-    this._awaitingConfirm = false;
     this._active = {
       ...this._active,
       values: { ...this._active.values, [name]: value },
       edited: new Set(this._active.edited).add(name),
-      submitRefused: false,
     };
   }
 
   /**
    * Put a field back to what `enter()` seeded it with, and forget that the
    * user touched it. A dropdown arrowed past its first option lands here, and
-   * reads as the greyed default again rather than as a deliberate pick.
+   * reads as the greyed default again rather than as a deliberate pick. A
+   * remembered value loses its user provenance too: an explicit reset says
+   * "not mine this run", so it stops counting for `requireAnyOf` and greys
+   * back to a suggestion.
    */
   resetValue(name: string): void {
     const active = this._active;
     if (!active) return;
     const seeded = active.seeds[name] ?? '';
-    if (!active.edited.has(name) && active.values[name] === seeded) return;
+    if (
+      !active.edited.has(name) &&
+      !active.seededFromUser.has(name) &&
+      active.values[name] === seeded
+    )
+      return;
     const edited = new Set(active.edited);
     edited.delete(name);
+    const seededFromUser = new Set(active.seededFromUser);
+    seededFromUser.delete(name);
     this._blockedNotice = null;
-    this._awaitingConfirm = false;
     this._active = {
       ...active,
       values: { ...active.values, [name]: seeded },
       edited,
-      submitRefused: false,
+      seededFromUser,
     };
+  }
+
+  /**
+   * Whether moving focus to `destIdx` (-1 for the query) walks out on a
+   * still-unmet `requireAnyOf` group the user has stood in every member of.
+   * Gated on `confirmed`: only real focus counts as having seen a field.
+   */
+  private leavesAnyOfUnmet(active: ActiveArgumentMode, destIdx: number): boolean {
+    const group = active.requireAnyOf;
+    if (!group?.length || active.anyOfRefused) return false;
+    const dest = destIdx === -1 ? undefined : active.args[destIdx]?.name;
+    if (dest && group.includes(dest)) return false;
+    if (!group.every((name) => active.confirmed.has(name))) return false;
+    return requireAnyOfUnsatisfied(group, userSuppliedValues(active));
+  }
+
+  /**
+   * `owed` after focus leaves the current field: leaving a required field
+   * empty on screen is what earns the marking. Escape never lands here,
+   * `exit()` runs before the query regains focus.
+   */
+  private owedAfterLeaving(active: ActiveArgumentMode): ReadonlySet<string> {
+    const departing =
+      active.currentFieldIdx === -1 ? undefined : active.args[active.currentFieldIdx];
+    if (!departing?.required || active.owed.has(departing.name)) return active.owed;
+    if ((active.values[departing.name] ?? '').trim() !== '') return active.owed;
+    return new Set(active.owed).add(departing.name);
   }
 
   focusField(idx: number): void {
@@ -629,7 +685,9 @@ export class CommandArgumentsService {
     this._active = {
       ...this._active,
       currentFieldIdx: clamped,
-      visited: arriving ? new Set(this._active.visited).add(arriving) : this._active.visited,
+      confirmed: arriving ? new Set(this._active.confirmed).add(arriving) : this._active.confirmed,
+      owed: this.owedAfterLeaving(this._active),
+      anyOfRefused: this._active.anyOfRefused || this.leavesAnyOfUnmet(this._active, clamped),
     };
   }
 
@@ -641,7 +699,12 @@ export class CommandArgumentsService {
    */
   blurFields(): void {
     if (!this._active || this._active.currentFieldIdx === -1) return;
-    this._active = { ...this._active, currentFieldIdx: -1 };
+    this._active = {
+      ...this._active,
+      currentFieldIdx: -1,
+      owed: this.owedAfterLeaving(this._active),
+      anyOfRefused: this._active.anyOfRefused || this.leavesAnyOfUnmet(this._active, -1),
+    };
   }
 
   /**
@@ -686,66 +749,66 @@ export class CommandArgumentsService {
   }
 
   /**
-   * Names the first argument still owed a value. Naming it beats a generic
-   * "fill the required fields" when a command declares three of them.
+   * One compact line naming everything still owed, in declaration order: a
+   * plain item is a required field that is empty on screen, an or-list is
+   * the unmet `requireAnyOf` group. The chips carry the pointing; the bar
+   * just enumerates. A required field holding an unconfirmed seed is not
+   * listed — it is not empty, and the Enter walk is what settles it.
    */
   private missingArgumentNotice(): string {
     const active = this._active;
-    // Prefer a field that is empty on screen: that is the one the user has to
-    // type into. A required field holding an unconfirmed seed is not empty,
-    // and telling them a visible value is "missing" reads as a bug.
-    const missing = active
-      ? (unfilledRequiredArgs(active.args, active.values)[0] ??
-        unfilledRequiredArgs(active.args, userSuppliedValues(active))[0])
-      : undefined;
-    const label = missing ? missing.placeholder?.trim() || missing.name : null;
-    if (label) return `Value is missing in argument ${label}`;
-    // No single field is at fault — the command needs one of several, and
-    // naming them all is the only honest way to say what is missing.
-    if (active && requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active))) {
-      const labels = active
-        .requireAnyOf!.map((name) => {
-          const arg = active.args.find((a) => a.name === name);
-          return arg?.placeholder?.trim() || name;
-        })
-        .join(', ');
-      return `Enter at least one of ${labels}`;
+    if (!active) return 'Fill required fields';
+    const items: Array<{ idx: number; text: string }> = [];
+    for (const arg of unfilledRequiredArgs(active.args, active.values)) {
+      items.push({
+        idx: active.args.findIndex((a) => a.name === arg.name),
+        text: arg.placeholder?.trim() || arg.name,
+      });
     }
-    return 'Fill required fields';
-  }
-
-  /**
-   * Whether agreeing to every seeded value on screen would make the command
-   * runnable. False when a field is genuinely empty — there is nothing to
-   * agree to there, and the user has to type.
-   */
-  private canConfirmSeeds(): boolean {
-    const active = this._active;
-    if (!active || this.validationError()) return false;
-    const seeds = unconfirmedSeeds(active);
-    if (!seeds.length) return false;
-    const confirmed = { ...userSuppliedValues(active) };
-    for (const name of seeds) confirmed[name] = (active.values[name] ?? '').trim();
-    // `requireAnyOf` is checked against what the user actually supplied, not
-    // against what they would be agreeing to. Its whole purpose is to refuse a
-    // run made entirely of the author's defaults — caffeinate-for with 0/0/0.
-    return (
-      unfilledRequiredArgs(active.args, confirmed).length === 0 &&
-      !requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active))
-    );
-  }
-
-  /** Enter has asked the user to agree to what is on screen, and is waiting. */
-  isAwaitingConfirm(): boolean {
-    return this._awaitingConfirm;
+    if (requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active))) {
+      const group = active.requireAnyOf!;
+      const labels = group.map((name) => {
+        const arg = active.args.find((a) => a.name === name);
+        return arg?.placeholder?.trim() || name;
+      });
+      items.push({
+        idx: active.args.findIndex((a) => a.name === group[0]),
+        text: eitherList(labels),
+      });
+    }
+    if (!items.length) return 'Fill required fields';
+    items.sort((a, b) => a.idx - b.idx);
+    // Two spaces after the label, which BottomActionBar renders bold: it
+    // string-matches this exact "Required  " prefix, so they change together.
+    return `Required  ${items.map((i) => i.text).join(' • ')}`;
   }
 
   canSubmit(): boolean {
     const active = this._active;
     if (!active) return false;
     if (this.validationError()) return false;
-    if (unfilledRequiredArgs(active.args, userSuppliedValues(active)).length > 0) return false;
+    // `required` accepts a seeded value the user has stood in; `requireAnyOf`
+    // never does. Its whole purpose is to refuse a run made entirely of the
+    // author's defaults — caffeinate-for with 0/0/0.
+    if (unfilledRequiredArgs(active.args, acknowledgedValues(active)).length > 0) return false;
     return !requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active));
+  }
+
+  /**
+   * The field Enter should select instead of running: the first required
+   * field holding a seeded value the user has not stood in yet. -1 when there
+   * is nothing to walk to, or when walking could not end in a run anyway — a
+   * genuinely empty required field or an unmet `requireAnyOf` needs typing,
+   * and selecting seeded fields first would just delay the complaint.
+   */
+  private confirmWalkTarget(): number {
+    const active = this._active;
+    if (!active || this.validationError()) return -1;
+    if (requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active))) return -1;
+    const gaps = unfilledRequiredArgs(active.args, acknowledgedValues(active));
+    if (!gaps.length) return -1;
+    if (gaps.some((arg) => (active.values[arg.name] ?? '').trim() === '')) return -1;
+    return active.args.findIndex((arg) => arg.name === gaps[0].name);
   }
 
   async submit(): Promise<void> {
@@ -754,31 +817,32 @@ export class CommandArgumentsService {
     // here rather than pre-checking, so a refusal always has somewhere to say
     // why instead of being swallowed.
     if (!this.canSubmit()) {
-      // A value the user can see is not a missing value. When agreeing to
-      // what is on screen would be enough to run, ask rather than complain —
-      // the pause is the point of `required` on a defaulted field.
-      if (this.canConfirmSeeds()) {
-        const active = this._active;
-        const edited = new Set(active.edited);
-        for (const name of unconfirmedSeeds(active)) edited.add(name);
-        this._active = { ...active, edited, submitRefused: false };
-        this._awaitingConfirm = true;
-        this._blockedNotice = 'Press Enter again to run with these values';
+      // When every gap is a seeded value the user could agree to, Enter
+      // walks instead of complaining: selection counts as agreement, so the
+      // next Enter moves on, or runs. Nothing is wrong, so nothing turns red.
+      const walkIdx = this.confirmWalkTarget();
+      if (walkIdx !== -1) {
+        this._blockedNotice = null;
+        this.focusField(walkIdx);
         return;
       }
       this._blockedNotice = this.validationError() ?? this.missingArgumentNotice();
       // Everything still owed is now something the user has been told about,
-      // so it may flag itself in place once focus moves off it.
+      // so it may flag itself in place — reached or not.
       this._active = {
         ...this._active,
-        visited: new Set(this._active.args.map((arg) => arg.name)),
-        submitRefused: true,
+        owed: new Set([
+          ...this._active.owed,
+          ...unfilledRequiredArgs(this._active.args, this._active.values).map((arg) => arg.name),
+        ]),
+        anyOfRefused:
+          this._active.anyOfRefused ||
+          requireAnyOfUnsatisfied(this._active.requireAnyOf, userSuppliedValues(this._active)),
       };
       logService.debug(`[argumentMode] submit refused: ${this._blockedNotice}`);
       return;
     }
     this._blockedNotice = null;
-    this._awaitingConfirm = false;
 
     const active = this._active;
     const payload = buildArgumentsPayload(active.args, active.values);
