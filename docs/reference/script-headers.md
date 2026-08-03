@@ -94,9 +94,26 @@ Rules:
 - Argument types are `text`, `password`, `dropdown`, `number`. Numbers
   are passed as their decimal representation (`"7"` not `7` — the shell
   has no numeric type).
-- Last-value persistence: the launcher remembers the last value per
-  `(scriptId, argName)` and pre-fills the chip on the next invocation.
-  See [Command Arguments → Persistence](./command-arguments.md#persistence--last-value-pre-fill).
+- Persistence: `dropdown` arguments remember their selection per
+  `(scriptId, argName)` and pre-select it on the next invocation. Other
+  types start empty every time.
+  See [Command Arguments → Persistence](./command-arguments.md#persistence).
+
+### `@asyar.requireAnyOf <json array>` — optional
+
+Gates Enter on "at least one of these arguments carries a user value",
+exactly like the manifest field of the same name (see
+[Command Arguments → Command-level `requireAnyOf`](./command-arguments.md#command-level-requireanyof)).
+The value is a JSON array of declared argument names:
+
+```bash
+# @asyar.requireAnyOf ["hours", "minutes"]
+```
+
+The same validation applies as for manifests: at least two members, all
+declared, listed once each, and none `required`. A failing group is a
+header error, so the script is skipped with a `script_header_invalid`
+diagnostic rather than registering without its gate.
 
 ### `@asyar.mode <silent | compact | fullOutput | inline>` — optional
 
@@ -264,7 +281,7 @@ appear as toast banners alongside other launcher diagnostics.
 - Scripts are registered through the dynamic-command system. See
   [Dynamic Commands](./dynamic-commands.md) for the underlying registry
   semantics; everything that applies to dynamic commands (stable ids,
-  last-value persistence, search ranking) applies to scripts too.
+  argument persistence, search ranking) applies to scripts too.
 - Manual script invocations are tracked by the [Run Tracker](../explanation/run-tracking.md)
   with `kind: shell-script` and surface as `Done · {tailOutput}` or
   `Failed · {tailOutput}` rows in the Scripts section.

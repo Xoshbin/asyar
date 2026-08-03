@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createKeyboardHandlers, type KeyboardDeps } from './launcherKeyboard';
 
 // Mocking dependencies
@@ -1518,6 +1518,44 @@ describe('launcherKeyboard characterization tests', () => {
     });
   });
 
+  describe('maintainSearchFocus: where a stray click leaves the caret', () => {
+    const realQuerySelector = document.querySelector;
+    afterEach(() => {
+      (document as any).querySelector = realQuerySelector;
+      (document as any)._activeElement = null;
+      vi.useRealTimers();
+    });
+
+    function clickOn(deps: KeyboardDeps) {
+      const { maintainSearchFocus } = createKeyboardHandlers(deps);
+      maintainSearchFocus({ target: { tagName: 'BUTTON', closest: () => null } } as never);
+      vi.advanceTimersByTime(20);
+    }
+
+    it('falls back to the search query when no argument field is up', () => {
+      vi.useFakeTimers();
+      const deps = createMockDeps();
+      clickOn(deps);
+      expect((deps.getSearchInput() as any).focus).toHaveBeenCalledWith({ preventScroll: true });
+    });
+
+    // Regression: pressing a result row blurs the chip, and a refused submit
+    // leaves the chips standing. Focus went to the query behind them, so the
+    // field the user was told to fill in was no longer the one they were in.
+    it('hands it back to the field being edited while the chips are up', () => {
+      vi.useFakeTimers();
+      const deps = createMockDeps();
+      const argField = { focus: vi.fn() };
+      (document as any).querySelector = (sel: string) =>
+        sel === '[data-arg-focus-target]' ? argField : null;
+
+      clickOn(deps);
+
+      expect(argField.focus).toHaveBeenCalledWith({ preventScroll: true });
+      expect((deps.getSearchInput() as any).focus).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Tab — AI chip default behavior', () => {
     const aiHint = {
       type: 'ai',
@@ -1574,6 +1612,86 @@ describe('launcherKeyboard characterization tests', () => {
       handleGlobalKeydown(event);
 
       expect(contextModeService.activate).not.toHaveBeenCalled();
+    });
+
+    it('Tab in compact idle asks AI rather than promoting the hidden selection', () => {
+      // Regression: the collapsed launcher shows no list, but the top row was
+      // still selected underneath — Tab entered its arguments instead.
+      const deps = createMockDeps({
+        getContextHint: vi.fn(() => aiHint),
+        getActiveContext: vi.fn(() => null),
+        getSelectedItem: vi.fn(
+          () =>
+            ({
+              object_id: 'cmd_org.asyar.demo_greet',
+              type: 'command',
+              hasArguments: true,
+            }) as any,
+        ),
+        isCompactIdle: vi.fn(() => true),
+      });
+      viewManager.activeView = null;
+      (commandArgumentsService as any).active = null;
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+      const event = createKeyEvent('Tab');
+
+      handleGlobalKeydown(event);
+
+      expect(commandArgumentsService.enter).not.toHaveBeenCalled();
+      expect(contextModeService.activate).toHaveBeenCalledWith('agents:default', '');
+    });
+
+    it('Tab promotes a command whose row declares arguments', () => {
+      const deps = createMockDeps({
+        getContextHint: vi.fn(() => aiHint),
+        getActiveContext: vi.fn(() => null),
+        getSelectedItem: vi.fn(
+          () =>
+            ({
+              object_id: 'cmd_org.asyar.demo_greet',
+              type: 'command',
+              hasArguments: true,
+            }) as any,
+        ),
+      });
+      viewManager.activeView = null;
+      (commandArgumentsService as any).active = null;
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+      const event = createKeyEvent('Tab');
+
+      handleGlobalKeydown(event);
+
+      expect(commandArgumentsService.enter).toHaveBeenCalledWith('cmd_org.asyar.demo_greet');
+      expect(contextModeService.activate).not.toHaveBeenCalled();
+      expect(event.preventDefault).toHaveBeenCalled();
+    });
+
+    it('Tab leaves a command with nothing to fill to the AI hint', () => {
+      // A dynamic command registered without an argument schema shows no
+      // ghost chips. Tab used to be swallowed for it anyway, on the guess
+      // that any dynamic-looking id might declare some, which quietly took
+      // Ask AI away from the row.
+      const deps = createMockDeps({
+        getContextHint: vi.fn(() => aiHint),
+        getActiveContext: vi.fn(() => null),
+        getSelectedItem: vi.fn(
+          () =>
+            ({
+              object_id: 'cmd_org.asyar.scripts_dyn_abc',
+              type: 'command',
+              hasArguments: false,
+            }) as any,
+        ),
+      });
+      viewManager.activeView = null;
+      (commandArgumentsService as any).active = null;
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+      const event = createKeyEvent('Tab');
+
+      handleGlobalKeydown(event);
+
+      expect(commandArgumentsService.enter).not.toHaveBeenCalled();
+      expect(contextModeService.activate).toHaveBeenCalledWith('agents:default', '');
     });
 
     it('Tab with already-committed activeContext does NOT call activate even with AI hint', () => {

@@ -1,4 +1,5 @@
 import { searchStores } from '../../services/search/stores/search.svelte';
+import { getCompactSyncService } from '../../services/launcher/compactSyncService.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
 import { ActionContext } from 'asyar-sdk/contracts';
 import { buildMappedItems } from '../searchResultMapper';
@@ -13,9 +14,15 @@ import { aliasStore } from '../../built-in-features/aliases/aliasStore.svelte';
 import { runService } from '../../services/run/runService.svelte';
 
 export function setupSelectionEffects(state: LauncherState) {
-  // Effect 6: Reset selected index when search items change
+  // Effect 6: Reset selected index when search items change.
+  //
+  // Compact idle has no visible list, so it has no selection either: a
+  // highlight the user cannot see still answers Tab and Enter, promoting a
+  // command they never picked. Expanding the list — Show More, arrowing
+  // down, a query that settles — hands the highlight back to the first row.
   $effect(() => {
-    searchStores.selectedIndex = state.searchItems.length > 0 ? 0 : -1;
+    const hidden = getCompactSyncService()?.isCompactIdle === true;
+    searchStores.selectedIndex = !hidden && state.searchItems.length > 0 ? 0 : -1;
   });
 
   // Effect 7: Extension view cleanup

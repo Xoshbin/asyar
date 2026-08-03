@@ -291,6 +291,20 @@ fn frecency_score(usage_count: u32, last_used_at: Option<u32>) -> f32 {
     usage_count as f32 * decay
 }
 
+fn type_label_for(item: &SearchableItem) -> Option<String> {
+    match item {
+        SearchableItem::Command(cmd) => cmd.type_label.clone(),
+        SearchableItem::Application(_) => None,
+    }
+}
+
+fn has_arguments_for(item: &SearchableItem) -> bool {
+    match item {
+        SearchableItem::Command(cmd) => cmd.has_arguments,
+        SearchableItem::Application(_) => false,
+    }
+}
+
 fn description_for(item: &SearchableItem) -> Option<String> {
     match item {
         SearchableItem::Command(cmd) => cmd.subtitle.clone(),
@@ -393,6 +407,8 @@ impl SearchState {
                         SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
                     },
                     description: description_for(item),
+                    type_label: type_label_for(item),
+                    has_arguments: has_arguments_for(item),
                     style: None,
                     alias: None,
                     // Untiered: this is the raw frecency/skim search, not the
@@ -441,6 +457,8 @@ impl SearchState {
                             SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
                         },
                         description: description_for(item),
+                        type_label: type_label_for(item),
+                        has_arguments: has_arguments_for(item),
                         style: None,
                         alias: None,
                         // Untiered: see comment on the empty-query branch above.
@@ -588,6 +606,8 @@ impl SearchState {
                 icon: reg.icon.clone(),
                 last_used_at: None,
                 subtitle: reg.description.clone(),
+                type_label: reg.type_label.clone(),
+                has_arguments: !reg.arguments.is_empty(),
                 is_dynamic: true,
             };
             self.index_one(SearchableItem::Command(cmd))?;
@@ -671,6 +691,8 @@ impl SearchState {
                     icon: ext.icon,
                     extension_id: ext.extension_id,
                     description: ext.description,
+                    type_label: None,
+                    has_arguments: false,
                     style: ext.style,
                     alias: None,
                     // Empty-query short-circuit doesn't classify by tier.
@@ -772,6 +794,8 @@ impl SearchState {
                 icon: ext.icon,
                 extension_id: ext.extension_id,
                 description: ext.description,
+                type_label: None,
+                has_arguments: false,
                 style: ext.style,
                 alias: None,
                 tier: key.tier as u8,
@@ -928,6 +952,8 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             subtitle: None,
+            type_label: None,
+            has_arguments: false,
             is_dynamic: false,
         })
     }
@@ -1269,6 +1295,8 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             subtitle: Some("72 F".to_string()),
+            type_label: None,
+            has_arguments: false,
             is_dynamic: false,
         };
         state.index_one(SearchableItem::Command(c)).unwrap();
@@ -1414,6 +1442,8 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             subtitle: Some("old subtitle".to_string()),
+            type_label: None,
+            has_arguments: false,
             is_dynamic: false,
         });
         state.index_one(item).unwrap();
@@ -1514,6 +1544,8 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             subtitle: None,
+            type_label: None,
+            has_arguments: false,
             is_dynamic: false,
         });
         let search_state = fresh_search_state_with(vec![cmd]);
@@ -1904,6 +1936,8 @@ mod service_tests {
             icon: None,
             last_used_at: None,
             subtitle: None,
+            type_label: None,
+            has_arguments: false,
             is_dynamic: false,
         });
         let search_state = fresh_search_state_with(vec![other, clip_cmd]);
@@ -1951,7 +1985,9 @@ mod service_tests {
             name: name.to_string(),
             description: None,
             icon: None,
+            type_label: None,
             arguments: vec![],
+            require_any_of: None,
         }
     }
 
@@ -2075,6 +2111,52 @@ mod service_tests {
             "renamed dynamic command should be findable by new name"
         );
         assert_eq!(found.unwrap().name, "New name");
+    }
+
+    #[test]
+    fn replace_dynamic_commands_carries_type_label() {
+        let state = make_state();
+        let mut r = rc("a", "Alpha");
+        r.type_label = Some("Apple Shortcut".to_string());
+        state.replace_dynamic_commands("ext1", &[r]).unwrap();
+
+        let results = state.search("Alpha").unwrap();
+        let found = results
+            .iter()
+            .find(|r| r.object_id == "cmd_ext1_dyn_a")
+            .unwrap();
+        assert_eq!(found.type_label.as_deref(), Some("Apple Shortcut"));
+    }
+
+    #[test]
+    fn replace_dynamic_commands_sets_has_arguments_from_the_schema() {
+        let state = make_state();
+        let mut with_args = rc("a", "Alpha");
+        with_args.arguments = vec![crate::extensions::CommandArgument {
+            name: "input".to_string(),
+            argument_type: crate::extensions::CommandArgumentType::Text,
+            placeholder: None,
+            required: None,
+            default: None,
+            data: None,
+            seed: None,
+        }];
+        let without_args = rc("b", "Alpha Beta");
+        state
+            .replace_dynamic_commands("ext1", &[with_args, without_args])
+            .unwrap();
+
+        let results = state.search("Alpha").unwrap();
+        let a = results
+            .iter()
+            .find(|r| r.object_id == "cmd_ext1_dyn_a")
+            .unwrap();
+        let b = results
+            .iter()
+            .find(|r| r.object_id == "cmd_ext1_dyn_b")
+            .unwrap();
+        assert!(a.has_arguments);
+        assert!(!b.has_arguments);
     }
 
     #[test]

@@ -9,6 +9,13 @@ export interface CommandArgumentDropdownOption {
   title: string;
 }
 
+/**
+ * Where a chip's starting value comes from, independent of whether the command
+ * is gated. `"lastUsed"` falls back to `default`, then to empty, so it is the
+ * sensible value when nothing is declared.
+ */
+export type ArgumentSeed = 'none' | 'default' | 'lastUsed';
+
 export interface CommandArgument {
   name: string;
   type: CommandArgumentType;
@@ -16,6 +23,13 @@ export interface CommandArgument {
   required?: boolean;
   default?: string | number;
   data?: CommandArgumentDropdownOption[];
+  /**
+   * Starting value for the chip. Omitted means `"lastUsed"` — except on
+   * `password`, which is always `"none"` and may declare neither a `default`
+   * nor `"lastUsed"`. Use `"none"` for one-off input that should not be
+   * remembered.
+   */
+  seed?: ArgumentSeed;
 }
 
 /**
@@ -60,9 +74,21 @@ export interface DynamicCommandRegistration {
   /** Icon reference (e.g. `"icon:link"` or an emoji). */
   icon?: string;
   /**
+   * Right-side row label in root search, e.g. "Apple Shortcut" for a
+   * single shortcut item. Defaults to the extension's display name.
+   */
+  typeLabel?: string;
+  /**
    * Optional argument schema. Same rules as manifest arguments:
    * max 3 entries, required must precede optional, dropdowns need
    * non-empty `data[]`, `default` must type-match.
    */
   arguments?: CommandArgument[];
+  /**
+   * Argument names of which at least one must carry a user value before the
+   * command runs. Use when a command needs SOME input but no single argument
+   * can be `required` — `caffeinate-for` wants hours, minutes or seconds and
+   * does not mind which. Needs two or more names, none of them `required`.
+   */
+  requireAnyOf?: string[];
 }

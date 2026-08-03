@@ -11,6 +11,7 @@
   import PrimaryActionDisplay from './PrimaryActionDisplay.svelte';
   import BottomBarButton from './BottomBarButton.svelte';
   import FeedbackBar from './FeedbackBar.svelte';
+  import StatusDot from '../base/StatusDot.svelte';
   import InformationPanel from './InformationPanel.svelte';
   import ShowMoreBarHuds from './ShowMoreBarHuds.svelte';
 
@@ -29,6 +30,7 @@
     selectedItem = null,
     isActionListOpen = false,
     isCompactIdle = false,
+    argumentValidationError = null,
     onactionListToggled,
     onactionListClosed,
     onexpand,
@@ -36,6 +38,13 @@
     selectedItem?: SearchResult | null;
     isActionListOpen: boolean;
     isCompactIdle?: boolean;
+    /**
+     * Chip-row input the user has entered wrongly. Transient UI state rather
+     * than a published diagnostic, so it renders in the feedback slot without
+     * going through feedbackService — nothing here is worth keeping in
+     * history, and it clears itself as soon as the value parses.
+     */
+    argumentValidationError?: string | null;
     onactionListToggled: () => void;
     onactionListClosed: () => void;
     onexpand?: () => void;
@@ -96,7 +105,21 @@
   style="background-color: var(--bg-secondary-full-opacity);"
 >
   <div class="flex-1 min-w-0 flex items-center gap-3">
-    {#if hasFeedback}
+    {#if argumentValidationError}
+      <!-- Takes the slot while the user is mid-entry: what they just typed is
+           more immediate than anything already sitting there. -->
+      <div class="arg-validation" role="status">
+        <StatusDot color="danger" />
+        {#if argumentValidationError.startsWith('Required  ')}
+          <!-- Prefix matches missingArgumentNotice exactly; change together. -->
+          <span class="arg-validation-text"
+            ><strong>Required</strong>{argumentValidationError.slice('Required'.length)}</span
+          >
+        {:else}
+          <span class="arg-validation-text">{argumentValidationError}</span>
+        {/if}
+      </div>
+    {:else if hasFeedback}
       <FeedbackBar />
     {:else if activeViewManifest}
       <InformationPanel {activeViewManifest} />
@@ -153,6 +176,27 @@
   }
   .show-more-bar.is-visible {
     visibility: visible;
+  }
+
+  /* Sits in the feedback slot but carries its own tinted pill: this is the
+     user's own input to fix, not a diagnostic about the app. */
+  .arg-validation {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    padding: 3px var(--space-3);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent-danger) 12%, transparent);
+    color: var(--accent-danger);
+    font-size: var(--font-size-xs);
+  }
+  /* pre, not nowrap: same single line, but the double space after the bold
+     Required label survives collapsing. */
+  .arg-validation-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: pre;
   }
 
   /* Thin vertical divider between primary action and Actions cluster. */

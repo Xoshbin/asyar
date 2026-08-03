@@ -15,7 +15,12 @@ vi.mock('../../lib/ipc/commandArgDefaultsCommands', () => ({
     commandArgDefaultsSet(ext, cmd, v),
 }));
 
-import { CommandArgumentsService } from './commandArgumentsService.svelte';
+import {
+  CommandArgumentsService,
+  fieldNeedsValue,
+  fieldNeedsAnyOf,
+  seedArgumentValues,
+} from './commandArgumentsService.svelte';
 import type { CommandArgument } from 'asyar-sdk/contracts';
 
 function makeDeps(opts: {
@@ -26,6 +31,7 @@ function makeDeps(opts: {
   icon?: string;
   isBuiltIn?: boolean;
   mode?: 'view' | 'background';
+  requireAnyOf?: string[];
 }) {
   const extensionId = opts.extensionId ?? 'org.asyar.demo';
   const commandId = opts.commandId ?? 'do-thing';
@@ -51,6 +57,7 @@ function makeDeps(opts: {
       icon: opts.icon,
       args: opts.args,
       mode: opts.mode,
+      requireAnyOf: opts.requireAnyOf,
     };
   });
   return {
@@ -83,7 +90,7 @@ describe('CommandArgumentsService', () => {
     expect(svc.active).toBeNull();
   });
 
-  it('enter() loads manifest args and defaults, focuses field 0', async () => {
+  it('enter() loads manifest args, focuses field 0, restores the last used value', async () => {
     const args: CommandArgument[] = [
       { name: 'query', type: 'text', placeholder: 'Search' },
       { name: 'max', type: 'number', placeholder: 'Max results' },
@@ -101,6 +108,37 @@ describe('CommandArgumentsService', () => {
     expect(svc.active!.values.query).toBe('prev-query');
     expect(svc.active!.currentFieldIdx).toBe(0);
     expect(commandArgDefaultsGet).toHaveBeenCalledWith(d.extensionId, d.commandId);
+  });
+
+  it('enter() falls back to the declared default when nothing was saved', async () => {
+    const args: CommandArgument[] = [
+      { name: 'hours', type: 'number', placeholder: 'Hours', default: 0 },
+      { name: 'label', type: 'text', default: 'work' },
+    ];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    expect(svc.active!.values.hours).toBe('0');
+    expect(svc.active!.values.label).toBe('work');
+  });
+
+  it('enter() restores a persisted dropdown selection over the default', async () => {
+    const args: CommandArgument[] = [
+      {
+        name: 'lang',
+        type: 'dropdown',
+        default: 'en',
+        data: [
+          { value: 'en', title: 'English' },
+          { value: 'es', title: 'Spanish' },
+        ],
+      },
+    ];
+    commandArgDefaultsGet.mockResolvedValueOnce({ lang: 'es' });
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    expect(svc.active!.values.lang).toBe('es');
   });
 
   it('enter() seeds dropdown default when no persisted value exists', async () => {
@@ -146,6 +184,99 @@ describe('CommandArgumentsService', () => {
     expect(svc.active!.values.q).toBe('hello');
   });
 
+  describe('the seeded state of a dropdown', () => {
+    const args: CommandArgument[] = [
+      {
+        name: 'scope',
+        type: 'dropdown',
+        default: 'active',
+        data: [
+          { value: 'active', title: 'Active' },
+          { value: 'all', title: 'All' },
+        ],
+      },
+    ];
+
+    it('enter() records what it seeded, separately from the value', async () => {
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.seeds).toEqual({ scope: 'active' });
+      expect(svc.active!.edited.has('scope')).toBe(false);
+    });
+
+    it('setValue() promotes a seeded dropdown to a deliberate pick', async () => {
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      // Same value the chip already showed: picking it is still a choice, and
+      // the chip stops rendering it as a suggestion.
+      svc.setValue('scope', 'active');
+      expect(svc.active!.edited.has('scope')).toBe(true);
+    });
+
+    it('resetValue() puts back the seed and forgets the pick', async () => {
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('scope', 'all');
+      svc.resetValue('scope');
+      expect(svc.active!.values.scope).toBe('active');
+      expect(svc.active!.edited.has('scope')).toBe(false);
+      // Nothing of the user's left to resume.
+      svc.exit();
+      expect(svc.stashFor(d.commandObjectId)).toBeNull();
+    });
+
+    it('resetValue() returns to the persisted seed, not a resumed stash', async () => {
+      const d = makeDeps({ args });
+      commandArgDefaultsGet.mockResolvedValue({ scope: 'all' });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('scope', 'active');
+      svc.exit();
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.values.scope).toBe('active');
+      svc.resetValue('scope');
+      expect(svc.active!.values.scope).toBe('all');
+    });
+
+    it('resetValue() is a no-op for an untouched field', async () => {
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      const before = svc.active;
+      svc.resetValue('scope');
+      expect(svc.active).toBe(before);
+    });
+
+    it('resetValue() withdraws a remembered value, so the chip greys back', async () => {
+      const d = makeDeps({ args });
+      commandArgDefaultsGet.mockResolvedValue({ scope: 'all' });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.seededFromUser.has('scope')).toBe(true);
+      svc.resetValue('scope');
+      expect(svc.active!.seededFromUser.has('scope')).toBe(false);
+      // Still on screen, but a suggestion again rather than the user's pick.
+      expect(svc.active!.values.scope).toBe('all');
+    });
+
+    it('a withdrawn remembered value stops satisfying requireAnyOf', async () => {
+      const gated: CommandArgument[] = [
+        { name: 'hours', type: 'number' },
+        { name: 'minutes', type: 'number' },
+      ];
+      const d = makeDeps({ args: gated, requireAnyOf: ['hours', 'minutes'] });
+      commandArgDefaultsGet.mockResolvedValue({ minutes: '30' });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.canSubmit()).toBe(true);
+      svc.resetValue('minutes');
+      expect(svc.canSubmit()).toBe(false);
+    });
+  });
+
   it('focusField / next / prev move the cursor', async () => {
     const args: CommandArgument[] = [
       { name: 'a', type: 'text' },
@@ -159,12 +290,514 @@ describe('CommandArgumentsService', () => {
     svc.next();
     expect(svc.active!.currentFieldIdx).toBe(1);
     svc.next();
+    expect(svc.active!.currentFieldIdx).toBe(2);
+    // Neither end wraps: the chip row hands off to the query instead.
     svc.next();
     expect(svc.active!.currentFieldIdx).toBe(2);
+    svc.focusField(2);
     svc.prev();
     expect(svc.active!.currentFieldIdx).toBe(1);
     svc.focusField(0);
     expect(svc.active!.currentFieldIdx).toBe(0);
+  });
+
+  it('exit() stashes entered values and enter() restores them', async () => {
+    const args: CommandArgument[] = [
+      { name: 'hours', type: 'number', default: 0 },
+      { name: 'minutes', type: 'number', default: 0 },
+    ];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('hours', '1');
+    svc.setValue('minutes', '2');
+    svc.exit();
+    expect(svc.active).toBeNull();
+    expect(svc.stashFor(d.commandObjectId)).toEqual({ hours: '1', minutes: '2' });
+    await svc.enter(d.commandObjectId);
+    expect(svc.active!.values).toEqual({ hours: '1', minutes: '2' });
+  });
+
+  it('exit() with all fields cleared drops any previous stash', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.exit();
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', '');
+    svc.exit();
+    expect(svc.stashFor(d.commandObjectId)).toBeNull();
+  });
+
+  it('exit() carries the fields that were flagged, so the hint chips keep saying so', async () => {
+    // Escape hands the caret back to the query the way Tab does, so a field
+    // already marked as owing a value should not be let off by leaving.
+    const d = makeDeps({ args: [{ name: 'who', type: 'text', required: true }] });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    await svc.submit();
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+
+    svc.exit();
+    expect([...svc.flaggedFor(d.commandObjectId)]).toEqual(['who']);
+  });
+
+  it('exit() flags nothing when nothing was flagged', async () => {
+    // Tab in, Escape straight back out: the field was never walked away from,
+    // so there is nothing outstanding to carry.
+    const d = makeDeps({ args: [{ name: 'who', type: 'text', required: true }] });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.exit();
+    expect(svc.flaggedFor(d.commandObjectId).size).toBe(0);
+  });
+
+  it('drops the flags with the row they belong to', async () => {
+    const d = makeDeps({ args: [{ name: 'who', type: 'text', required: true }] });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    await svc.submit();
+    svc.exit();
+
+    svc.dropStashUnless('cmd_other_thing');
+    expect(svc.flaggedFor(d.commandObjectId).size).toBe(0);
+  });
+
+  it('exit() leaves no stash when the user never touched a field', async () => {
+    const args: CommandArgument[] = [
+      { name: 'device', type: 'dropdown', data: [{ value: 'a', title: 'A' }] },
+      { name: 'note', type: 'text' },
+    ];
+    const d = makeDeps({ args });
+    commandArgDefaultsGet.mockResolvedValue({ device: 'a' });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    // The dropdown is auto-seeded from the persisted selection, not typed.
+    expect(svc.active!.values.device).toBe('a');
+    svc.exit();
+    expect(svc.stashFor(d.commandObjectId)).toBeNull();
+  });
+
+  it('exit() stashes a dropdown the user actually changed', async () => {
+    const args: CommandArgument[] = [
+      {
+        name: 'device',
+        type: 'dropdown',
+        data: [
+          { value: 'a', title: 'A' },
+          { value: 'b', title: 'B' },
+        ],
+      },
+    ];
+    const d = makeDeps({ args });
+    commandArgDefaultsGet.mockResolvedValue({ device: 'a' });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('device', 'b');
+    svc.exit();
+    expect(svc.stashFor(d.commandObjectId)).toEqual({ device: 'b' });
+  });
+
+  it('exit() after a resumed stash keeps it, with nothing retyped', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.exit();
+    await svc.enter(d.commandObjectId);
+    svc.exit();
+    expect(svc.stashFor(d.commandObjectId)).toEqual({ q: 'hello' });
+  });
+
+  it('exit() never stashes password values', async () => {
+    const args: CommandArgument[] = [
+      { name: 'user', type: 'text' },
+      { name: 'secret', type: 'password' },
+    ];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('user', 'me');
+    svc.setValue('secret', 'hunter2');
+    svc.exit();
+    expect(svc.stashFor(d.commandObjectId)).toEqual({ user: 'me' });
+  });
+
+  it('reset() abandons an open argument session and its stash', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.reset();
+    expect(svc.active).toBeNull();
+    expect(svc.stashFor(d.commandObjectId)).toBeNull();
+    // Nothing kept back: re-entering starts from the declared hints.
+    await svc.enter(d.commandObjectId);
+    expect(svc.active!.values.q).toBe('');
+  });
+
+  it('syncQuery() leaves an open session alone while the query is unchanged', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    svc.syncQuery('caffeinate');
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    // Typing in a chip does not touch the query, so this repeats verbatim.
+    svc.syncQuery('caffeinate');
+    svc.syncQuery('caffeinate');
+    expect(svc.active).not.toBeNull();
+    expect(svc.active!.values.q).toBe('hello');
+  });
+
+  it('syncQuery() abandons an open session when the query changes', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    svc.syncQuery('caffeinate');
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.syncQuery('caffeinat');
+    expect(svc.active).toBeNull();
+    expect(svc.stashFor(d.commandObjectId)).toBeNull();
+  });
+
+  // Regression: resetLauncherState and launcherController's post-action clear
+  // both assign the query directly. Those fire no input event, which used to
+  // strand populated chips above an emptied search field.
+  it('syncQuery() abandons a session when the query is cleared programmatically', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    svc.syncQuery('caffeinate');
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.syncQuery('');
+    expect(svc.active).toBeNull();
+    expect(svc.stashFor(d.commandObjectId)).toBeNull();
+  });
+
+  it('syncQuery() clears a stash left by an Escape', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    svc.syncQuery('caffeinate');
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.exit();
+    expect(svc.stashFor(d.commandObjectId)).not.toBeNull();
+    svc.syncQuery('');
+    expect(svc.stashFor(d.commandObjectId)).toBeNull();
+  });
+
+  it('reset() also clears a stash left by a previous Escape', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.exit();
+    expect(svc.stashFor(d.commandObjectId)).not.toBeNull();
+    svc.reset();
+    expect(svc.stashFor(d.commandObjectId)).toBeNull();
+  });
+
+  it('dropStashUnless() keeps the stash while its own row stays highlighted', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.exit();
+    svc.dropStashUnless(d.commandObjectId);
+    expect(svc.stashFor(d.commandObjectId)).toEqual({ q: 'hello' });
+  });
+
+  it('dropStashUnless() discards the stash once the highlight moves elsewhere', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.exit();
+    svc.dropStashUnless('cmd_org.asyar.other_thing');
+    expect(svc.stashFor(d.commandObjectId)).toBeNull();
+    // Coming back to the row starts from the declared hints, not the old input.
+    await svc.enter(d.commandObjectId);
+    expect(svc.active!.values.q).toBe('');
+  });
+
+  it('a submitted dropdown selection survives the highlight moving away', async () => {
+    const args: CommandArgument[] = [
+      { name: 'q', type: 'text' },
+      {
+        name: 'lang',
+        type: 'dropdown',
+        default: 'en',
+        data: [
+          { value: 'en', title: 'English' },
+          { value: 'es', title: 'Spanish' },
+        ],
+      },
+    ];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.setValue('lang', 'es');
+    await svc.submit();
+
+    // Dropped stash must not take the persisted dropdown down with it.
+    svc.dropStashUnless('cmd_org.asyar.other_thing');
+    commandArgDefaultsGet.mockResolvedValueOnce({ lang: 'es' });
+    await svc.enter(d.commandObjectId);
+    expect(svc.active!.values.lang).toBe('es');
+    expect(svc.active!.values.q).toBe('');
+  });
+
+  it('dropStashUnless(null) leaves the stash alone (results mid-refresh)', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.exit();
+    svc.dropStashUnless(null);
+    expect(svc.stashFor(d.commandObjectId)).toEqual({ q: 'hello' });
+  });
+
+  describe('prepareRun', () => {
+    const OPTIONS = [
+      { value: 'en', title: 'English' },
+      { value: 'es', title: 'Spanish' },
+    ];
+
+    /** What Enter on a freshly-highlighted command would do, and run with. */
+    async function prepare(args: CommandArgument[], svc?: CommandArgumentsService) {
+      const d = makeDeps({ args });
+      const service = svc ?? new CommandArgumentsService(d);
+      return service.prepareRun(
+        d.commandObjectId,
+        d.getManifestByCommandObjectId(d.commandObjectId)!,
+      );
+    }
+
+    // Raycast fires a command whose arguments are all optional and lets the
+    // extension deal with the blanks; Tab is the way to fill them in.
+    it('does not stop a command whose arguments are all optional', async () => {
+      const run = await prepare([
+        { name: 'input', type: 'text' },
+        { name: 'lang', type: 'dropdown', data: OPTIONS },
+      ]);
+      expect(run.needsEntry).toBe(false);
+      // Nothing declared, nothing remembered: the command runs bare.
+      expect(run.args).toEqual({});
+    });
+
+    it('stops on a required argument with nothing to fall back on', async () => {
+      const run = await prepare([{ name: 'text', type: 'text', required: true }]);
+      expect(run.needsEntry).toBe(true);
+    });
+
+    // The author's suggestion is not the user agreeing to it, so a required
+    // field still stops for confirmation — but the payload carries the default.
+    it('stops on a required field even though a default exists, and still sends it', async () => {
+      const run = await prepare([{ name: 'text', type: 'text', required: true, default: 'hello' }]);
+      expect(run.needsEntry).toBe(true);
+      expect(run.args).toEqual({ text: 'hello' });
+    });
+
+    // The author declared the fallback, so a command fired without stopping
+    // gets it. Running it from the list and running it from the chips send
+    // the same payload.
+    it('sends the declared defaults of optional arguments', async () => {
+      const run = await prepare([
+        { name: 'name', type: 'text' },
+        { name: 'style', type: 'dropdown', default: 'casual', data: OPTIONS },
+        { name: 'volume', type: 'number', default: 1 },
+      ]);
+      expect(run.needsEntry).toBe(false);
+      expect(run.args).toEqual({ style: 'casual', volume: 1 });
+    });
+
+    it('counts a persisted dropdown selection as filled, and sends it', async () => {
+      commandArgDefaultsGet.mockResolvedValue({ lang: 'es' });
+      const run = await prepare([
+        { name: 'lang', type: 'dropdown', required: true, data: OPTIONS },
+      ]);
+      expect(run.needsEntry).toBe(false);
+      expect(run.args).toEqual({ lang: 'es' });
+    });
+
+    it('stops on a required dropdown that has never been chosen', async () => {
+      const run = await prepare([
+        { name: 'lang', type: 'dropdown', required: true, data: OPTIONS },
+      ]);
+      expect(run.needsEntry).toBe(true);
+    });
+
+    it('skips the storage read for a command with no dropdown to remember', async () => {
+      // Only dropdowns are persisted, so a text-only command is already
+      // settled, so Enter should not wait on IPC to say so.
+      const run = await prepare([{ name: 'text', type: 'text', required: true }]);
+      expect(run.needsEntry).toBe(true);
+      expect(commandArgDefaultsGet).not.toHaveBeenCalled();
+    });
+
+    it('counts values stashed by an earlier escape as filled, and sends them', async () => {
+      const args: CommandArgument[] = [{ name: 'text', type: 'text', required: true }];
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('text', 'hello');
+      svc.exit();
+
+      const meta = d.getManifestByCommandObjectId(d.commandObjectId)!;
+      const run = await svc.prepareRun(d.commandObjectId, meta);
+      expect(run.needsEntry).toBe(false);
+      expect(run.args).toEqual({ text: 'hello' });
+    });
+
+    it('stops when a required field is the one the stash left empty', async () => {
+      const args: CommandArgument[] = [
+        { name: 'text', type: 'text', required: true },
+        { name: 'note', type: 'text' },
+      ];
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('note', 'later');
+      svc.exit();
+
+      const meta = d.getManifestByCommandObjectId(d.commandObjectId)!;
+      expect((await svc.prepareRun(d.commandObjectId, meta)).needsEntry).toBe(true);
+    });
+
+    it('runs a mixed command whose required argument is already satisfied', async () => {
+      commandArgDefaultsGet.mockResolvedValue({ lang: 'es' });
+      const run = await prepare([
+        { name: 'lang', type: 'dropdown', required: true, data: OPTIONS },
+        { name: 'note', type: 'text', default: 'n/a' },
+      ]);
+      expect(run.needsEntry).toBe(false);
+      expect(run.args).toEqual({ lang: 'es', note: 'n/a' });
+    });
+  });
+
+  describe('syncSelection', () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }];
+
+    // Regression: arrowing the result list left argument mode running, so the
+    // chips (red border and all) stayed up for a command the highlight had
+    // long since left, and Enter would have run that one.
+    it('ends argument entry once the highlight moves to another row', async () => {
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('q', 'hello');
+
+      svc.syncSelection('cmd_org.asyar.other_thing');
+
+      expect(svc.active).toBeNull();
+      // The move takes the values with it, same as any other move.
+      expect(svc.stashFor(d.commandObjectId)).toBeNull();
+    });
+
+    it('leaves it running while its own row stays highlighted', async () => {
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('q', 'hello');
+
+      svc.syncSelection(d.commandObjectId);
+
+      expect(svc.active).not.toBeNull();
+      expect(svc.active!.values.q).toBe('hello');
+    });
+
+    it('treats a null id as results mid-refresh, not as a move', async () => {
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('q', 'hello');
+
+      svc.syncSelection(null);
+
+      expect(svc.active).not.toBeNull();
+    });
+
+    it('still drops a stash from another row when nothing is being entered', async () => {
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('q', 'hello');
+      svc.exit();
+
+      svc.syncSelection('cmd_org.asyar.other_thing');
+
+      expect(svc.stashFor(d.commandObjectId)).toBeNull();
+    });
+  });
+
+  it('runWithStash() dispatches with the stashed values and clears the stash', async () => {
+    const args: CommandArgument[] = [
+      { name: 'hours', type: 'number', default: 0 },
+      { name: 'minutes', type: 'number', default: 0 },
+    ];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('minutes', '45');
+    svc.exit();
+    const ran = await svc.runWithStash(d.commandObjectId);
+    expect(ran).toBe(true);
+    const payload = d.dispatchTier2Argument.mock.calls[0][0];
+    expect(payload.args).toEqual({ hours: 0, minutes: 45 });
+    expect(svc.active).toBeNull();
+    expect(svc.stashFor(d.commandObjectId)).toBeNull();
+  });
+
+  it('runWithStash() stays in argument mode when a required field is missing', async () => {
+    const args: CommandArgument[] = [
+      { name: 'note', type: 'text' },
+      { name: 'when', type: 'text', required: true },
+    ];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('note', 'hi');
+    svc.exit();
+    const ran = await svc.runWithStash(d.commandObjectId);
+    expect(ran).toBe(true);
+    expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
+    expect(svc.active).not.toBeNull();
+    expect(svc.active!.values.note).toBe('hi');
+  });
+
+  it('runWithStash() returns false with no stash', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    const ran = await svc.runWithStash(d.commandObjectId);
+    expect(ran).toBe(false);
+    expect(svc.active).toBeNull();
+  });
+
+  it('submit() clears the stash for the command', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('q', 'hello');
+    svc.exit();
+    expect(svc.stashFor(d.commandObjectId)).not.toBeNull();
+    await svc.enter(d.commandObjectId);
+    await svc.submit();
+    expect(svc.stashFor(d.commandObjectId)).toBeNull();
   });
 
   it('canSubmit() is false when a required text field is empty', async () => {
@@ -196,6 +829,149 @@ describe('CommandArgumentsService', () => {
     expect(svc.canSubmit()).toBe(true);
   });
 
+  it('canSubmit() is false while a required default sits in an unselected field', async () => {
+    const args: CommandArgument[] = [
+      { name: 'q', type: 'text' },
+      { name: 'n', type: 'number', required: true, default: 0 },
+    ];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    // The chip shows 0, but it is the author's suggestion, not the user's answer.
+    expect(svc.canSubmit()).toBe(false);
+    svc.setValue('n', '0');
+    expect(svc.canSubmit()).toBe(true);
+  });
+
+  it('validationError() stays null for a required field that is merely empty', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    // The chip's own border carries this, it is not an error message.
+    expect(svc.validationError()).toBeNull();
+    expect(svc.canSubmit()).toBe(false);
+    svc.setValue('q', 'hi');
+    expect(svc.canSubmit()).toBe(true);
+  });
+
+  it('validationError() names the offending number field', async () => {
+    const args: CommandArgument[] = [{ name: 'n', type: 'number', placeholder: 'Minutes' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('n', 'abc');
+    expect(svc.validationError()).toBe('Minutes must be a number');
+    expect(svc.canSubmit()).toBe(false);
+    svc.setValue('n', '42');
+    expect(svc.validationError()).toBeNull();
+  });
+
+  it('validationError() falls back to the argument name without a placeholder', async () => {
+    const args: CommandArgument[] = [{ name: 'volume', type: 'number' }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('volume', 'loud');
+    expect(svc.validationError()).toBe('volume must be a number');
+  });
+
+  it('says nothing until the user actually tries to run', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    // Entering the mode is not an error: an empty field is just unfilled.
+    expect(svc.feedbackMessage()).toBeNull();
+
+    await svc.submit();
+    expect(svc.feedbackMessage()).toBe('Required  q');
+    expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
+  });
+
+  it('drops the blocked notice as soon as the user edits a field', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    await svc.submit();
+    expect(svc.feedbackMessage()).toBe('Required  q');
+    svc.setValue('q', 'h');
+    expect(svc.feedbackMessage()).toBeNull();
+  });
+
+  it('a blocked submit still runs once the field is filled', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    await svc.submit();
+    svc.setValue('q', 'hi');
+    await svc.submit();
+    expect(d.dispatchTier2Argument).toHaveBeenCalledTimes(1);
+    expect(svc.feedbackMessage()).toBeNull();
+  });
+
+  it('an unparseable value outranks the blocked notice', async () => {
+    const args: CommandArgument[] = [
+      { name: 'q', type: 'text', required: true },
+      { name: 'n', type: 'number', placeholder: 'Count' },
+    ];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('n', 'abc');
+    await svc.submit();
+    expect(svc.feedbackMessage()).toBe('Count must be a number');
+  });
+
+  it('leaving argument mode clears the notice', async () => {
+    const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    await svc.submit();
+    svc.exit();
+    expect(svc.feedbackMessage()).toBeNull();
+  });
+
+  it('validationError() is null outside argument mode', () => {
+    const d = makeDeps({ args: [] });
+    const svc = new CommandArgumentsService(d);
+    expect(svc.validationError()).toBeNull();
+    expect(svc.canSubmit()).toBe(false);
+  });
+
+  it('submit() fills declared defaults for empty fields in the payload', async () => {
+    const args: CommandArgument[] = [
+      { name: 'hours', type: 'number', default: 0 },
+      { name: 'minutes', type: 'number', default: 0 },
+      { name: 'note', type: 'text' },
+    ];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('minutes', '15');
+    await svc.submit();
+    const payload = d.dispatchTier2Argument.mock.calls[0][0];
+    expect(payload.args).toEqual({ hours: 0, minutes: 15 });
+  });
+
+  it('submit() persists text and number values, which seed lastUsed by default', async () => {
+    const args: CommandArgument[] = [
+      { name: 'hours', type: 'number', default: 0 },
+      { name: 'note', type: 'text' },
+    ];
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('hours', '2');
+    svc.setValue('note', 'standup');
+    await svc.submit();
+    const persisted = commandArgDefaultsSet.mock.calls[0][2];
+    expect(persisted).toEqual({ hours: '2', note: 'standup' });
+  });
+
   it('submit() for a Tier 2 command routes through dispatchTier2Argument, never executeBuiltInCommand', async () => {
     const args: CommandArgument[] = [
       { name: 'q', type: 'text', required: true },
@@ -211,6 +987,7 @@ describe('CommandArgumentsService', () => {
     expect(d.dispatchTier2Argument).toHaveBeenCalledWith({
       extensionId: d.extensionId,
       commandId: d.commandId,
+      commandObjectId: d.commandObjectId,
       args: { q: 'hello', n: 7 },
       mode: 'view',
     });
@@ -233,6 +1010,7 @@ describe('CommandArgumentsService', () => {
     expect(d.dispatchTier2Argument).toHaveBeenCalledWith({
       extensionId: d.extensionId,
       commandId: d.commandId,
+      commandObjectId: d.commandObjectId,
       args: { hours: 0, minutes: 2 },
       mode: 'background',
     });
@@ -252,21 +1030,31 @@ describe('CommandArgumentsService', () => {
     expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
   });
 
-  it('submit() persists last non-password values', async () => {
+  it('submit() persists every remembered value, never the password', async () => {
     const args: CommandArgument[] = [
       { name: 'q', type: 'text', required: true },
       { name: 'apiKey', type: 'password' },
+      {
+        name: 'lang',
+        type: 'dropdown',
+        data: [
+          { value: 'en', title: 'English' },
+          { value: 'es', title: 'Spanish' },
+        ],
+      },
     ];
     const d = makeDeps({ args, isBuiltIn: false });
     const svc = new CommandArgumentsService(d);
     await svc.enter(d.commandObjectId);
     svc.setValue('q', 'hello');
     svc.setValue('apiKey', 'sk-secret');
+    svc.setValue('lang', 'es');
     await svc.submit();
 
-    expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, { q: 'hello' });
-    const persisted = commandArgDefaultsSet.mock.calls[0][2];
-    expect(persisted).not.toHaveProperty('apiKey');
+    expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, {
+      q: 'hello',
+      lang: 'es',
+    });
   });
 
   it('submit() does nothing when required fields are missing', async () => {
@@ -321,7 +1109,16 @@ describe('CommandArgumentsService', () => {
       const extensionId = 'org.asyar.shortcuts';
       const dynamicId = 'uuid-1';
       const commandObjectId = `cmd_${extensionId}_dyn_${dynamicId}`;
-      const args: CommandArgument[] = [{ name: 'input', type: 'text' }];
+      const args: CommandArgument[] = [
+        {
+          name: 'input',
+          type: 'dropdown',
+          data: [
+            { value: '85', title: '85%' },
+            { value: 'last value', title: 'Last' },
+          ],
+        },
+      ];
       return {
         extensionId,
         dynamicId,
@@ -373,7 +1170,7 @@ describe('CommandArgumentsService', () => {
       const d = makeDynamicDeps();
       const svc = new CommandArgumentsService(d);
       await svc.enter(d.commandObjectId);
-      svc.setValue('input', 'value');
+      svc.setValue('input', '85');
       await svc.submit();
       const dispatched = d.dispatchTier2Argument.mock.calls[0][0];
       expect(dispatched.commandId).toBe(d.dynamicId);
@@ -381,14 +1178,721 @@ describe('CommandArgumentsService', () => {
     });
 
     it('manifest commands without isDynamic still use the bare key (regression)', async () => {
-      const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+      const args: CommandArgument[] = [
+        {
+          name: 'q',
+          type: 'dropdown',
+          data: [
+            { value: 'a', title: 'A' },
+            { value: 'b', title: 'B' },
+          ],
+        },
+      ];
       const d = makeDeps({ args });
       const svc = new CommandArgumentsService(d);
       await svc.enter(d.commandObjectId);
-      svc.setValue('q', 'hi');
+      svc.setValue('q', 'b');
       await svc.submit();
       // Bare commandId, no `dynamic:` prefix
-      expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, { q: 'hi' });
+      expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, { q: 'b' });
+    });
+  });
+
+  // `seed` decides where a chip's starting value comes from, separately from
+  // whether the command is gated. Before it existed the argument *type* decided:
+  // dropdowns seeded, text and number never did.
+  describe('seed', () => {
+    const LANG = [
+      { value: 'en', title: 'English' },
+      { value: 'es', title: 'Spanish' },
+    ];
+
+    it('an unwritten seed means lastUsed', async () => {
+      const args: CommandArgument[] = [{ name: 'q', type: 'text' }];
+      commandArgDefaultsGet.mockResolvedValueOnce({ q: 'previous' });
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.values.q).toBe('previous');
+    });
+
+    it('lastUsed falls back to the default, then to empty', async () => {
+      const withDefault: CommandArgument[] = [{ name: 'q', type: 'text', default: 'asyar' }];
+      const d1 = makeDeps({ args: withDefault });
+      const s1 = new CommandArgumentsService(d1);
+      await s1.enter(d1.commandObjectId);
+      expect(s1.active!.values.q).toBe('asyar');
+
+      const bare: CommandArgument[] = [{ name: 'q', type: 'text' }];
+      const d2 = makeDeps({ args: bare });
+      const s2 = new CommandArgumentsService(d2);
+      await s2.enter(d2.commandObjectId);
+      expect(s2.active!.values.q).toBe('');
+    });
+
+    it('seed "none" starts empty even with a saved value and a default', async () => {
+      const args: CommandArgument[] = [{ name: 'q', type: 'text', default: 'asyar', seed: 'none' }];
+      commandArgDefaultsGet.mockResolvedValueOnce({ q: 'previous' });
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.values.q).toBe('');
+    });
+
+    it('seed "default" ignores the saved value', async () => {
+      const args: CommandArgument[] = [
+        { name: 'q', type: 'text', default: 'asyar', seed: 'default' },
+      ];
+      commandArgDefaultsGet.mockResolvedValueOnce({ q: 'previous' });
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.values.q).toBe('asyar');
+    });
+
+    it('a password is always seeded "none", even unwritten', async () => {
+      const args: CommandArgument[] = [{ name: 'secret', type: 'password' }];
+      commandArgDefaultsGet.mockResolvedValueOnce({ secret: 'leaked' });
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.values.secret).toBe('');
+    });
+
+    it('submit() saves only the arguments seeded from lastUsed', async () => {
+      const args: CommandArgument[] = [
+        { name: 'remembered', type: 'text' },
+        { name: 'oneOff', type: 'text', seed: 'none' },
+        { name: 'suggested', type: 'text', default: 'x', seed: 'default' },
+        { name: 'lang', type: 'dropdown', data: LANG },
+      ];
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('remembered', 'keep me');
+      svc.setValue('oneOff', 'forget me');
+      svc.setValue('suggested', 'y');
+      svc.setValue('lang', 'es');
+      await svc.submit();
+      expect(commandArgDefaultsSet.mock.calls[0][2]).toEqual({ remembered: 'keep me', lang: 'es' });
+    });
+
+    // A visible value the user has not agreed to is not an error, and
+    // selection is agreement: Enter selects the first unagreed required
+    // field instead of complaining, and the next Enter moves on — or runs.
+    describe('confirming seeded values by selection', () => {
+      const INVOICE: CommandArgument[] = [
+        { name: 'client', type: 'text', required: true },
+        { name: 'terms', type: 'text', required: true, default: '30 days', seed: 'default' },
+      ];
+
+      it('Enter selects the unagreed field instead of complaining', async () => {
+        const d = makeDeps({ args: INVOICE });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.setValue('client', 'ACME');
+        await svc.submit();
+
+        expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
+        expect(svc.active!.currentFieldIdx).toBe(1);
+        // Nothing is wrong, so nothing is said and nothing is flagged.
+        expect(svc.feedbackMessage()).toBeNull();
+        expect(svc.active!.owed.size).toBe(0);
+        expect(fieldNeedsValue(svc.active!, 1)).toBe(false);
+      });
+
+      it('the next Enter runs with the value the selection agreed to', async () => {
+        const d = makeDeps({ args: INVOICE });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.setValue('client', 'ACME');
+        await svc.submit();
+        await svc.submit();
+
+        expect(d.dispatchTier2Argument.mock.calls[0][0].args).toEqual({
+          client: 'ACME',
+          terms: '30 days',
+        });
+      });
+
+      it('standing in the field on the way through counts as agreement', async () => {
+        const d = makeDeps({ args: INVOICE });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.setValue('client', 'ACME');
+        svc.focusField(1);
+        await svc.submit();
+
+        expect(d.dispatchTier2Argument.mock.calls[0][0].args).toEqual({
+          client: 'ACME',
+          terms: '30 days',
+        });
+      });
+
+      it('agreement is not authorship: a merely agreed seed is not persisted', async () => {
+        const d = makeDeps({ args: INVOICE });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.setValue('client', 'ACME');
+        await svc.submit();
+        await svc.submit();
+
+        expect(commandArgDefaultsSet.mock.calls[0][2]).toEqual({ client: 'ACME' });
+      });
+
+      it('a single seeded field is selected on entry, so one Enter runs it', async () => {
+        const args: CommandArgument[] = [
+          { name: 'terms', type: 'text', required: true, default: '30 days', seed: 'default' },
+        ];
+        const d = makeDeps({ args });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+
+        expect(d.dispatchTier2Argument.mock.calls[0][0].args).toEqual({ terms: '30 days' });
+      });
+
+      it('an empty required field still complains, and never gets walked to', async () => {
+        const args: CommandArgument[] = [{ name: 'q', type: 'text', required: true }];
+        const d = makeDeps({ args });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+
+        expect(svc.feedbackMessage()).toBe('Required  q');
+        expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+      });
+
+      it('a genuinely empty sibling forecloses the walk', async () => {
+        // Selecting seeded fields first would just delay the complaint: the
+        // empty field needs typing either way, so it is named straight away.
+        // The seeded field stays quiet — it is showing a value, not missing one.
+        const args: CommandArgument[] = [
+          { name: 'client', type: 'text', required: true },
+          { name: 'terms', type: 'text', required: true, default: '30 days', seed: 'default' },
+          { name: 'po', type: 'text', required: true },
+        ];
+        const d = makeDeps({ args });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.setValue('client', 'ACME');
+        await svc.submit();
+
+        expect(svc.feedbackMessage()).toBe('Required  po');
+        expect(fieldNeedsValue(svc.active!, 1)).toBe(false);
+      });
+
+      it('agreement does not satisfy requireAnyOf', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours', default: 0, seed: 'default' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes', default: 0, seed: 'default' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.focusField(1);
+        await svc.submit();
+
+        expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
+        expect(svc.feedbackMessage()).toBe('Required  Hours or Minutes');
+      });
+
+      it('standing in the group does not mark it, however far the tour has got', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.focusField(1);
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(false);
+      });
+
+      it('touring every member and leaving for the query marks the group', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.focusField(1);
+        svc.blurFields();
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(true);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(true);
+      });
+
+      it('leaving the group for another field marks it the same way', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+          { name: 'label', type: 'text', placeholder: 'Label' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.focusField(1);
+        svc.focusField(2);
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(true);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(true);
+        expect(fieldNeedsAnyOf(svc.active!, 2)).toBe(false);
+      });
+
+      it('leaving mid-tour marks nothing: an unseen member is still an open offer', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+          { name: 'seconds', type: 'number', placeholder: 'Seconds' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes', 'seconds'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.focusField(1);
+        svc.blurFields();
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 2)).toBe(false);
+      });
+
+      it('a member filled during the tour keeps the leave quiet', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.focusField(1);
+        svc.setValue('minutes', '5');
+        svc.blurFields();
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(false);
+      });
+
+      it('a refused Enter marks every group member in place, and only them', async () => {
+        const args: CommandArgument[] = [
+          { name: 'profile', type: 'text', placeholder: 'Profile' },
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(true);
+        expect(fieldNeedsAnyOf(svc.active!, 2)).toBe(true);
+        expect(svc.feedbackMessage()).toBe('Required  Hours or Minutes');
+      });
+
+      it('filling any member clears the whole group at once', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+        svc.setValue('minutes', '5');
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(false);
+        // Clearing it again brings the marking back without another Enter:
+        // the user has already been told once.
+        svc.setValue('minutes', '');
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(true);
+      });
+
+      it('a member that is individually required keeps the stronger marking', async () => {
+        const args: CommandArgument[] = [
+          { name: 'hours', type: 'number', placeholder: 'Hours', required: true },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+
+        expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+        expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
+        expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(true);
+      });
+
+      it('both fault kinds share the bar in one line', async () => {
+        const args: CommandArgument[] = [
+          { name: 'profile', type: 'text', required: true, placeholder: 'Profile' },
+          { name: 'hours', type: 'number', placeholder: 'Hours' },
+          { name: 'minutes', type: 'number', placeholder: 'Minutes' },
+        ];
+        const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        await svc.submit();
+
+        expect(svc.feedbackMessage()).toBe('Required  Profile • Hours or Minutes');
+      });
+
+      it('a seeded default that is not required needs no confirming', async () => {
+        const args: CommandArgument[] = [
+          { name: 'q', type: 'text', required: true },
+          { name: 'volume', type: 'number', default: 1, seed: 'default' },
+        ];
+        const d = makeDeps({ args });
+        const svc = new CommandArgumentsService(d);
+        await svc.enter(d.commandObjectId);
+        svc.setValue('q', 'hello');
+        await svc.submit();
+        expect(d.dispatchTier2Argument.mock.calls[0][0].args).toEqual({ q: 'hello', volume: 1 });
+      });
+    });
+
+    // A default that got seeded into a chip and submitted untouched must not
+    // come back next time looking like something the user chose — that would
+    // launder the author's suggestion into a user value and quietly satisfy
+    // the gate on every run after the first.
+    it('submit() does not persist a default the user never touched', async () => {
+      const args: CommandArgument[] = [
+        { name: 'hours', type: 'number', default: 0 },
+        { name: 'minutes', type: 'number', default: 0 },
+      ];
+      const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('minutes', '30');
+      await svc.submit();
+      expect(commandArgDefaultsSet.mock.calls[0][2]).toEqual({ minutes: '30' });
+    });
+
+    it('a run that only used defaults leaves the gate closed next time', async () => {
+      const args: CommandArgument[] = [
+        { name: 'hours', type: 'number', default: 0 },
+        { name: 'minutes', type: 'number', default: 0 },
+      ];
+      const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+      const svc = new CommandArgumentsService(d);
+      // Whatever a previous run stored, a defaulted 0 must never be in it.
+      commandArgDefaultsGet.mockResolvedValueOnce({});
+      await svc.enter(d.commandObjectId);
+      expect(svc.canSubmit()).toBe(false);
+    });
+
+    // Provenance: the launcher must tell "the author suggested this" from
+    // "the user agreed to this". Selection is what turns one into the other.
+    it('required + a seeded default still blocks Enter until the user stands in it', async () => {
+      const args: CommandArgument[] = [
+        { name: 'memo', type: 'text' },
+        { name: 'terms', type: 'text', required: true, default: '30 days', seed: 'default' },
+      ];
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      // The chip shows the suggestion...
+      expect(svc.active!.values.terms).toBe('30 days');
+      // ...but it is the author's, not yet agreed to.
+      expect(svc.canSubmit()).toBe(false);
+      svc.focusField(1);
+      expect(svc.canSubmit()).toBe(true);
+    });
+
+    it('required + a restored lastUsed value runs without asking again', async () => {
+      const args: CommandArgument[] = [{ name: 'calendar', type: 'text', required: true }];
+      commandArgDefaultsGet.mockResolvedValueOnce({ calendar: 'Work' });
+      const d = makeDeps({ args });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.active!.values.calendar).toBe('Work');
+      expect(svc.canSubmit()).toBe(true);
+    });
+
+    it('a seeded default does not satisfy requireAnyOf either', async () => {
+      const args: CommandArgument[] = [
+        { name: 'hours', type: 'number', default: 0, seed: 'default' },
+        { name: 'minutes', type: 'number', default: 0, seed: 'default' },
+      ];
+      const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.canSubmit()).toBe(false);
+    });
+  });
+
+  // `requireAnyOf` covers the shape `required` cannot: a command that needs
+  // SOME input but cannot name which field it has to come from. Modelled on
+  // coffee's caffeinate-for, where hours/minutes/seconds each default to 0
+  // and firing with all three at 0 is an error the user never asked for.
+  describe('requireAnyOf', () => {
+    const DURATION: CommandArgument[] = [
+      { name: 'hours', type: 'number', default: 0 },
+      { name: 'minutes', type: 'number', default: 0 },
+      { name: 'seconds', type: 'number', default: 0 },
+    ];
+
+    const GROUP = ['hours', 'minutes', 'seconds'];
+
+    // Explicit, no default parameter: `f(undefined)` would fall back to it and
+    // silently test the gated case twice.
+    function makeDurationDeps(requireAnyOf: string[] | undefined) {
+      return makeDeps({ args: DURATION, requireAnyOf });
+    }
+
+    async function prepare(d: ReturnType<typeof makeDeps>, svc: CommandArgumentsService) {
+      const meta = d.getManifestByCommandObjectId(d.commandObjectId)!;
+      return svc.prepareRun(d.commandObjectId, meta);
+    }
+
+    it('stops for input when no member carries a user value', async () => {
+      const d = makeDurationDeps(GROUP);
+      const svc = new CommandArgumentsService(d);
+      const run = await prepare(d, svc);
+      expect(run.needsEntry).toBe(true);
+    });
+
+    it('a declared default alone does not satisfy the group', async () => {
+      // Every field defaults to 0, so the payload is fully populated — and
+      // still nothing the user chose. Defaults fill blanks; they do not
+      // stand in for the decision to run.
+      const d = makeDurationDeps(GROUP);
+      const svc = new CommandArgumentsService(d);
+      const run = await prepare(d, svc);
+      expect(run.needsEntry).toBe(true);
+    });
+
+    it('runs once one member carries a user value, filling the rest from defaults', async () => {
+      const d = makeDurationDeps(GROUP);
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('minutes', '30');
+      svc.exit();
+      const run = await prepare(d, svc);
+      expect(run.needsEntry).toBe(false);
+      expect(run.args).toEqual({ hours: 0, minutes: 30, seconds: 0 });
+    });
+
+    it('leaves commands without the declaration exactly as they were', async () => {
+      const d = makeDurationDeps(undefined);
+      const svc = new CommandArgumentsService(d);
+      const run = await prepare(d, svc);
+      expect(run.needsEntry).toBe(false);
+    });
+
+    it('canSubmit() is false while the group is unsatisfied, and says which fields', async () => {
+      const d = makeDurationDeps(GROUP);
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      expect(svc.canSubmit()).toBe(false);
+      await svc.submit();
+      expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
+      expect(svc.feedbackMessage()).toBe('Required  hours, minutes, or seconds');
+    });
+
+    it('canSubmit() flips once any member is filled in', async () => {
+      const d = makeDurationDeps(GROUP);
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('seconds', '45');
+      expect(svc.canSubmit()).toBe(true);
+      await svc.submit();
+      expect(d.dispatchTier2Argument.mock.calls[0][0].args).toEqual({
+        hours: 0,
+        minutes: 0,
+        seconds: 45,
+      });
+    });
+
+    it('clearing the last filled member blocks submit again', async () => {
+      const d = makeDurationDeps(GROUP);
+      const svc = new CommandArgumentsService(d);
+      await svc.enter(d.commandObjectId);
+      svc.setValue('seconds', '45');
+      svc.setValue('seconds', '');
+      expect(svc.canSubmit()).toBe(false);
+    });
+  });
+});
+
+describe('a `default` of null (the shape Rust actually sends)', () => {
+  // Manifests round-trip through Rust, where an omitted `default` comes back
+  // as JSON null. Treating that as "has a default" skipped every required
+  // check and put the string "null" into dispatch payloads.
+  const NULL_DEFAULT = [
+    { name: 'who', type: 'text', required: true, default: null },
+    { name: 'style', type: 'dropdown', default: null, data: [{ value: 'a', title: 'A' }] },
+  ] as unknown as CommandArgument[];
+
+  it('still enforces the required field', async () => {
+    const d = makeDeps({ args: NULL_DEFAULT });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    expect(svc.canSubmit()).toBe(false);
+    svc.setValue('who', 'Lucas');
+    expect(svc.canSubmit()).toBe(true);
+  });
+
+  it('refuses the submit and says which argument is missing', async () => {
+    const d = makeDeps({ args: NULL_DEFAULT });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    await svc.submit();
+    expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
+    expect(svc.feedbackMessage()).toBe('Required  who');
+  });
+
+  it('never puts the string "null" in the payload', async () => {
+    const d = makeDeps({ args: NULL_DEFAULT });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    svc.setValue('who', 'Lucas');
+    await svc.submit();
+    const payload = d.dispatchTier2Argument.mock.calls[0][0].args;
+    expect(payload).toEqual({ who: 'Lucas' });
+    expect(Object.values(payload)).not.toContain('null');
+  });
+
+  it('seeds a null-default dropdown empty rather than to "null"', () => {
+    expect(seedArgumentValues(NULL_DEFAULT, {})).toEqual({ who: '', style: '' });
+  });
+});
+
+describe('fieldNeedsValue', () => {
+  const REQUIRED: CommandArgument[] = [
+    { name: 'who', type: 'text', required: true },
+    { name: 'note', type: 'text' },
+  ];
+
+  async function enterWith(args: CommandArgument[]) {
+    const d = makeDeps({ args });
+    const svc = new CommandArgumentsService(d);
+    await svc.enter(d.commandObjectId);
+    return { svc, d };
+  }
+
+  it('stays quiet while the field is still focused', async () => {
+    const { svc } = await enterWith(REQUIRED);
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(false);
+  });
+
+  it('flags a required field once focus leaves it empty', async () => {
+    const { svc } = await enterWith(REQUIRED);
+    svc.next();
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+  });
+
+  it('clears once the field has a value', async () => {
+    const { svc } = await enterWith(REQUIRED);
+    svc.setValue('who', 'Lucas');
+    svc.next();
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(false);
+  });
+
+  it('flags a required field once focus goes back to the query', async () => {
+    // Nothing to step to on a one-field command, so leaving for the query is
+    // the only way to walk away from it.
+    const { svc } = await enterWith([{ name: 'who', type: 'text', required: true }]);
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(false);
+    svc.blurFields();
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+  });
+
+  it('flags the field being edited once Enter has been refused over it', async () => {
+    // Standing in it is not yet failing to fill it, but asking for the command
+    // to run is: with one field there is nowhere else for the blame to land.
+    const { svc } = await enterWith([{ name: 'who', type: 'text', required: true }]);
+    await svc.submit();
+    expect(svc.active!.currentFieldIdx).toBe(0);
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+  });
+
+  it('only a value in the field itself lifts the complaint', async () => {
+    const { svc } = await enterWith([
+      { name: 'who', type: 'text', required: true },
+      { name: 'note', type: 'text' },
+    ]);
+    await svc.submit();
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+    // Typing elsewhere changes nothing about what this field owes.
+    svc.setValue('note', 'anything');
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+    svc.setValue('who', 'Lucas');
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(false);
+  });
+
+  it('standing back in a flagged field keeps the complaint until it is filled', async () => {
+    // Same as an unmet group: returning to the scene does not retract the
+    // marking, a value does — and emptying it again brings it back.
+    const { svc } = await enterWith(REQUIRED);
+    svc.next();
+    svc.prev();
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+    svc.setValue('who', 'Lucas');
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(false);
+    svc.setValue('who', '');
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+  });
+
+  it('never flags an optional field', async () => {
+    const { svc } = await enterWith(REQUIRED);
+    svc.next();
+    expect(fieldNeedsValue(svc.active!, 1)).toBe(false);
+  });
+
+  it('never flags a field that is showing a value, even after a refusal', async () => {
+    const { svc } = await enterWith([
+      { name: 'note', type: 'text', required: true },
+      { name: 'a', type: 'text', required: true, default: 'x' },
+    ]);
+    // Refused for the empty field; the seeded one is showing a value, so it
+    // stays dashed rather than turning red.
+    await svc.submit();
+    expect(fieldNeedsValue(svc.active!, 0)).toBe(true);
+    expect(fieldNeedsValue(svc.active!, 1)).toBe(false);
+  });
+
+  it('leaves a field the user never reached alone until a submit is refused', async () => {
+    const { svc } = await enterWith([
+      { name: 'first', type: 'text' },
+      { name: 'second', type: 'text', required: true },
+    ]);
+    // Never focused, so nothing to answer for yet.
+    expect(fieldNeedsValue(svc.active!, 1)).toBe(false);
+    await svc.submit();
+    expect(fieldNeedsValue(svc.active!, 1)).toBe(true);
+  });
+});
+
+describe('seedArgumentValues', () => {
+  const OPTIONS = [
+    { value: 'a', title: 'A' },
+    { value: 'b', title: 'B' },
+  ];
+
+  it('prefers a persisted dropdown selection over the declared default', () => {
+    const args: CommandArgument[] = [
+      { name: 'device', type: 'dropdown', data: OPTIONS, default: 'a' },
+    ];
+    expect(seedArgumentValues(args, { device: 'b' })).toEqual({ device: 'b' });
+  });
+
+  it('falls back to the declared default, then the empty string', () => {
+    const args: CommandArgument[] = [
+      { name: 'withDefault', type: 'dropdown', data: OPTIONS, default: 'a' },
+      { name: 'bare', type: 'dropdown', data: OPTIONS },
+    ];
+    expect(seedArgumentValues(args, {})).toEqual({ withDefault: 'a', bare: '' });
+  });
+
+  it('seeds every type from its last used value, except the password', () => {
+    const args: CommandArgument[] = [
+      { name: 'q', type: 'text', default: 'stale' },
+      { name: 'n', type: 'number', default: 7 },
+      { name: 'p', type: 'password' },
+    ];
+    expect(seedArgumentValues(args, { q: 'persisted', n: '3', p: 'hunter2' })).toEqual({
+      q: 'persisted',
+      n: '3',
+      p: '',
     });
   });
 });

@@ -95,9 +95,12 @@ export interface CommandArgument {
   required?: boolean;
   default?: string | number;
   data?: CommandArgumentDropdownOption[];
+  /** 'none' | 'default' | 'lastUsed'. Absent means 'lastUsed'. */
+  seed?: string;
 }
 
 const VALID_ARGUMENT_TYPES: CommandArgumentType[] = ['text', 'password', 'dropdown', 'number'];
+const VALID_ARGUMENT_SEEDS = ['none', 'default', 'lastUsed'];
 const ARG_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const MAX_ARGUMENTS_PER_COMMAND = 3;
 
@@ -409,6 +412,13 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
     errors.push(...validatePreferences(cmd.preferences, `commands[${i}].preferences`));
     errors.push(...validateArguments(cmd.arguments, `commands[${i}].arguments`));
     errors.push(
+      ...validateRequireAnyOf(
+        (cmd as unknown as Record<string, unknown>).requireAnyOf,
+        cmd.arguments,
+        `commands[${i}].requireAnyOf`,
+      ),
+    );
+    errors.push(
       ...validateSearchBarAccessory(cmd.searchBarAccessory, `commands[${i}].searchBarAccessory`),
     );
   });
@@ -492,6 +502,55 @@ function validateCommand(cmd: ManifestCommand, i: number, errors: ValidationErro
   }
 }
 
+/**
+ * Cross-validate a command's `requireAnyOf` group against its arguments. The
+ * group means "at least one of these carries a user value", so it only makes
+ * sense over two or more real, non-`required` arguments. Mirrors the host-side
+ * `validate_require_any_of` in `extensions/mod.rs`.
+ */
+export function validateRequireAnyOf(
+  group: unknown,
+  args: CommandArgument[] | undefined,
+  pathPrefix: string,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  if (group === undefined) return errors;
+  if (!Array.isArray(group) || group.some((n) => typeof n !== 'string')) {
+    errors.push({ field: pathPrefix, message: 'requireAnyOf must be an array of argument names' });
+    return errors;
+  }
+
+  const declared = new Set((args ?? []).map((a) => a.name));
+  const seen = new Set<string>();
+  for (const name of group as string[]) {
+    if (!declared.has(name)) {
+      errors.push({
+        field: pathPrefix,
+        message: `requireAnyOf names '${name}', which is not a declared argument`,
+      });
+      continue;
+    }
+    if (seen.has(name)) {
+      errors.push({ field: pathPrefix, message: `requireAnyOf lists '${name}' more than once` });
+      continue;
+    }
+    seen.add(name);
+    if ((args ?? []).find((a) => a.name === name)?.required) {
+      errors.push({
+        field: pathPrefix,
+        message: `requireAnyOf lists '${name}', which is already required — a required argument must always be filled, so it cannot be one of several alternatives`,
+      });
+    }
+  }
+  if (errors.length === 0 && seen.size < 2) {
+    errors.push({
+      field: pathPrefix,
+      message: 'requireAnyOf needs at least two arguments; with one, mark it required instead',
+    });
+  }
+  return errors;
+}
+
 export function validateArguments(
   args: CommandArgument[] | undefined,
   pathPrefix: string,
@@ -537,6 +596,29 @@ export function validateArguments(
           a.type
         }'. Must be one of: ${VALID_ARGUMENT_TYPES.join(', ')}`,
       });
+    }
+
+    const seed = (a as unknown as Record<string, unknown>).seed;
+    if (seed !== undefined && !VALID_ARGUMENT_SEEDS.includes(seed as string)) {
+      errors.push({
+        field: `${base}.seed`,
+        message: `Unknown seed '${String(seed)}'. Must be one of: ${VALID_ARGUMENT_SEEDS.join(', ')}`,
+      });
+    }
+    // A password is never written to storage, so it is always seeded 'none'.
+    if (a.type === 'password') {
+      if (a.default !== undefined) {
+        errors.push({
+          field: `${base}.default`,
+          message: 'a password is never remembered, so it cannot declare a default',
+        });
+      }
+      if (seed !== undefined && seed !== 'none') {
+        errors.push({
+          field: `${base}.seed`,
+          message: "a password is always seeded 'none' and cannot be remembered",
+        });
+      }
     }
 
     const isRequired = a.required === true;

@@ -48,6 +48,15 @@ pub struct Command {
     pub last_used_at: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subtitle: Option<String>,
+    /// Right-side row label shown in root search. `None` falls back to the
+    /// owning extension's display name in the frontend mapper.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub type_label: Option<String>,
+    /// `true` when the registration declares an argument schema. Set on the
+    /// dynamic-command path only; manifest commands stay `false` and the
+    /// frontend derives their answer from the loaded manifest instead.
+    #[serde(default)]
+    pub has_arguments: bool,
     /// `true` for runtime-registered commands from
     /// `commandsService.replaceDynamicCommands(...)`. Manifest-declared
     /// commands always serialize as `false`. Defaults to `false` so older
@@ -73,6 +82,10 @@ pub struct SearchResult {
     pub extension_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub type_label: Option<String>,
+    #[serde(default)]
+    pub has_arguments: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub style: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -226,6 +239,8 @@ mod tests {
             icon: None,
             last_used_at: None,
             subtitle: None,
+            type_label: None,
+            has_arguments: false,
             is_dynamic: false,
         })
     }
@@ -343,6 +358,8 @@ mod tests {
             icon: None,
             last_used_at: None,
             subtitle: Some("72 F".to_string()),
+            type_label: None,
+            has_arguments: false,
             is_dynamic: false,
         };
         let json = serde_json::to_string(&cmd).unwrap();
@@ -375,6 +392,8 @@ mod tests {
             icon: None,
             last_used_at: None,
             subtitle: None,
+            type_label: None,
+            has_arguments: false,
             is_dynamic: true,
         };
         let json = serde_json::to_string(&cmd).unwrap();

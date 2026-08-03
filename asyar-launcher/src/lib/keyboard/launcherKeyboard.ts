@@ -123,18 +123,27 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (event.key !== 'Tab') return false;
     if (commandArgumentsService.active) return false;
     if (deps.getActiveContext() || viewManager.activeView) return false;
+    // Compact idle hides the result list, so there is nothing selected to
+    // promote — Tab belongs to the context hint (Ask AI) there. Selection is
+    // cleared for the same reason (see selectionEffects); this keeps a stale
+    // one from sneaking a command the user cannot see into argument mode.
+    if (deps.isCompactIdle?.()) return false;
     const item = deps.getSelectedItem?.();
     if (!item || item.type !== 'command') return false;
 
-    // Sync gate only — actual schema is resolved asynchronously inside
-    // `commandArgumentsService.enter()`. We cannot await before
-    // `event.preventDefault()` without losing the keystroke.
-    if (!extensionManager.couldHaveArguments(item.object_id)) return false;
+    // The row already carries the answer: from its manifest for a declared
+    // command, from the registration Rust indexed for a dynamic one. So the
+    // gate is exact without awaiting, which a keystroke cannot do. It is also
+    // what the ghost chips render off, so Tab never claims a press on a row
+    // showing nothing to fill.
+    if (item.hasArguments !== true) return false;
 
     event.preventDefault();
-    // Clear the context-hint chip if any is pending — argument mode
-    // replaces the pending-hint affordance for this keystroke.
-    contextModeService.contextHint = null;
+    // The hint is left standing rather than cleared. It is already out of the
+    // way both times it would matter: the search bar renders the chips over
+    // it, and the Tab that commits it stands down while argument mode is
+    // open. Clearing it here instead stranded it, since only a fresh search
+    // puts it back, so Escaping out left the row with no Ask AI at all.
     commandArgumentsService.enter(item.object_id).catch((err) => {
       logService.error(`Failed to enter argument mode: ${err}`);
       feedbackService.report({
@@ -392,13 +401,20 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     if (tag === 'input' && inputTypes.includes((target as HTMLInputElement).type?.toLowerCase()))
       return;
     if ((target as HTMLElement).isContentEditable) return;
+    // Regions that place their own focus. The opt-out is found by walking up
+    // from what was clicked, so the marker belongs on the outermost element of
+    // the region: put it on an inner one and anything that shadows it, a
+    // `pointer-events: none` child included, is back to being stolen from.
     if (target.closest('.action-popup, .bottom-action-bar, [data-no-focus-steal]')) return;
 
-    // For everything else, return focus to search after a tick
+    // For everything else, return focus to search after a tick. While the
+    // argument chips are up they own the caret, so it goes back to the field
+    // being edited instead: pressing a result row blurs that field, and a
+    // refused submit leaves the chips standing with nowhere for typing to go.
     requestAnimationFrame(() => {
-      if (!isInputFocused() && deps.getSearchInput()) {
-        deps.getSearchInput()?.focus({ preventScroll: true });
-      }
+      if (isInputFocused()) return;
+      const argField = document.querySelector<HTMLElement>('[data-arg-focus-target]');
+      (argField ?? deps.getSearchInput())?.focus({ preventScroll: true });
     });
   }
 

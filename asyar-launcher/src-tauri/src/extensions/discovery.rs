@@ -582,6 +582,7 @@ mod first_view_component_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            require_any_of: None,
             search_bar_accessory: None,
         }
     }
@@ -599,6 +600,7 @@ mod first_view_component_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            require_any_of: None,
             search_bar_accessory: None,
         }
     }
@@ -646,6 +648,7 @@ mod first_view_component_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            require_any_of: None,
             search_bar_accessory: None,
         }]);
         assert_eq!(m.first_view_component(), None);
@@ -676,6 +679,7 @@ mod first_view_component_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            require_any_of: None,
             search_bar_accessory: None,
         }]);
         assert_eq!(m.first_view_component(), Some("DefaultView"));
@@ -725,6 +729,7 @@ mod onboarding_validation_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            require_any_of: None,
             search_bar_accessory: None,
         }
     }
@@ -761,6 +766,7 @@ mod onboarding_validation_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            require_any_of: None,
             search_bar_accessory: None,
         };
         // background command requires a background.main bundle
@@ -1098,6 +1104,7 @@ mod discovery_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            require_any_of: None,
             search_bar_accessory: None,
         };
         // Simulate what discovery does
@@ -1125,6 +1132,7 @@ mod discovery_tests {
             preferences: None,
             actions: None,
             arguments: None,
+            require_any_of: None,
             search_bar_accessory: None,
         };
         if let Some(ref schedule) = cmd.schedule {
@@ -1962,6 +1970,7 @@ mod manifest_schema_tests {
                 preferences: None,
                 actions: None,
                 arguments: None,
+                require_any_of: None,
                 search_bar_accessory: Some(SearchBarAccessory::Dropdown {
                     default: None,
                     options: vec![SearchBarAccessoryDropdownOption {

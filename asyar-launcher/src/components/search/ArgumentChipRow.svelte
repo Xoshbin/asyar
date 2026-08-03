@@ -1,49 +1,143 @@
 <script lang="ts">
-  import { isIconImage, isBuiltInIcon, getBuiltInIconName } from '../../lib/iconUtils';
-  import Icon from '../base/Icon.svelte';
-  import KeyboardHint from '../base/KeyboardHint.svelte';
+  import { tick } from 'svelte';
   import CommandArgInput from './CommandArgInput.svelte';
-  import type { ActiveArgumentMode } from '../../services/search/commandArgumentsService.svelte';
+  import {
+    fieldNeedsValue,
+    fieldNeedsAnyOf,
+    type ActiveArgumentMode,
+  } from '../../services/search/commandArgumentsService.svelte';
 
   let {
     active,
-    canSubmit,
     onValueChange,
+    onValueReset,
     onFocusField,
     onNext,
     onPrev,
     onSubmit,
     onExit,
+    onMoveToQuery,
   }: {
     active: ActiveArgumentMode;
-    canSubmit: boolean;
     onValueChange: (name: string, value: string) => void;
+    /** A dropdown put back to its seeded value, and back to untouched. */
+    onValueReset: (name: string) => void;
+    /**
+     * Which field the row is on. Driven off each field's own focus event, so
+     * the walk stays with the caret however it moved: a click into a chip, a
+     * dropdown handing focus back as its list closes, or the keyboard.
+     */
     onFocusField: (idx: number) => void;
     onNext: () => void;
     onPrev: () => void;
     onSubmit: () => void;
     onExit: () => void;
+    /** Arrowing or tabbing off either end lands back in the search query. */
+    onMoveToQuery: () => void;
   } = $props();
+
+  // Read out of the DOM rather than collecting per-field bindings: binding
+  // element refs into a reactive array writes state mid-render.
+  let rowEl = $state<HTMLElement | null>(null);
+
+  // A dropdown's focusable element is its trigger button, not an input.
+  function fieldEl(idx: number): HTMLElement | null {
+    return rowEl?.querySelectorAll<HTMLElement>('.arg-input, .arg-trigger')[idx] ?? null;
+  }
+
+  /**
+   * Focus a field and select its contents. Exported so SearchHeader can
+   * enter the first field the same way when the query is arrowed off.
+   *
+   * The index is reported up front rather than left to the field's own focus
+   * handler, so the ring lands with the value already selected instead of a
+   * frame behind it.
+   */
+  export function focusFieldSelected(idx: number): void {
+    if (idx < 0 || idx >= active.args.length) return;
+    onFocusField(idx);
+    void tick().then(() => {
+      const el = fieldEl(idx);
+      if (!el) return;
+      el.focus();
+      if (el instanceof HTMLInputElement) el.select();
+    });
+  }
+
+  /**
+   * Left and Right are deliberately asymmetric. Left steps field to field,
+   * selecting each. Right is what drops into a field, collapsing the
+   * selection onto its trailing edge first, so crossing a filled field
+   * rightwards takes two presses. Neither wraps.
+   */
+  function handleArrow(idx: number, e: KeyboardEvent): boolean {
+    // A dropdown chip has no caret to cross, so one press leaves it either way.
+    if (active.args[idx]?.type === 'dropdown') {
+      e.preventDefault();
+      if (e.key === 'ArrowRight') {
+        if (idx < active.args.length - 1) focusFieldSelected(idx + 1);
+      } else if (idx > 0) {
+        focusFieldSelected(idx - 1);
+      } else {
+        onMoveToQuery();
+      }
+      return true;
+    }
+
+    const el = e.currentTarget ?? e.target;
+    if (!(el instanceof HTMLInputElement)) return false;
+
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? 0;
+    const selected = end > start;
+
+    if (e.key === 'ArrowRight') {
+      if (selected) {
+        e.preventDefault();
+        el.setSelectionRange(end, end);
+        return true;
+      }
+      if (start < el.value.length) return false;
+      e.preventDefault();
+      if (idx < active.args.length - 1) focusFieldSelected(idx + 1);
+      return true;
+    }
+
+    if (!selected && start > 0) return false;
+    e.preventDefault();
+    if (idx > 0) focusFieldSelected(idx - 1);
+    else onMoveToQuery();
+    return true;
+  }
 
   function handleFieldKeydown(idx: number, e: KeyboardEvent) {
     const atFirst = idx === 0;
     const isEmpty = (active.values[active.args[idx].name] ?? '') === '';
 
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      handleArrow(idx, e);
+      return;
+    }
     if (e.key === 'Tab') {
       e.preventDefault();
+      // The query is the slot before the first field and after the last, so
+      // Tab is one ring over everything rather than a loop inside the chips.
+      // With a single argument that is the difference between Tab doing
+      // nothing and Tab toggling between the query and the field.
       if (e.shiftKey) {
-        // Shift+Tab at the first field exits argument mode — symmetric with
-        // Backspace-on-empty and keeps users from getting "stuck" at idx=0.
-        if (atFirst) onExit();
+        if (atFirst) onMoveToQuery();
         else onPrev();
       } else {
-        onNext();
+        if (idx === active.args.length - 1) onMoveToQuery();
+        else onNext();
       }
       return;
     }
     if (e.key === 'Enter') {
+      // submit() decides whether this runs; gating here would swallow the
+      // refusal and leave nothing to explain it.
       e.preventDefault();
-      if (canSubmit) onSubmit();
+      onSubmit();
       return;
     }
     if (e.key === 'Escape') {
@@ -59,130 +153,29 @@
   }
 </script>
 
-<div class="argument-chip-row">
-  <span class="command-chip">
-    <span class="chip-icon">
-      {#if active.icon}
-        {#if isBuiltInIcon(active.icon)}
-          <Icon name={getBuiltInIconName(active.icon)} size={13} />
-        {:else if isIconImage(active.icon)}
-          <img src={active.icon} alt="" class="w-4 h-4 object-contain" />
-        {:else}
-          {active.icon}
-        {/if}
-      {/if}
-    </span>
-    <span class="chip-name">{active.title}</span>
-    <button
-      type="button"
-      class="chip-dismiss"
-      onclick={onExit}
-      tabindex="-1"
-      aria-label="Exit argument mode"
-    >
-      ×
-    </button>
-  </span>
-
-  <div class="arg-fields">
-    {#each active.args as arg, idx}
-      <CommandArgInput
-        {arg}
-        value={active.values[arg.name] ?? ''}
-        focused={idx === active.currentFieldIdx}
-        onInput={(v) => onValueChange(arg.name, v)}
-        onKeydown={(e) => handleFieldKeydown(idx, e)}
-      />
-      <!-- focus delegation when user clicks a chip -->
-      <button
-        type="button"
-        class="field-focus-proxy"
-        onclick={() => onFocusField(idx)}
-        tabindex="-1"
-        aria-hidden="true"
-      ></button>
-    {/each}
-  </div>
-
-  <span class="submit-hint">
-    <KeyboardHint keys="Enter" />
-    <span class="hint-label">{canSubmit ? 'Run' : 'Fill required fields'}</span>
-  </span>
+<div class="arg-fields" bind:this={rowEl}>
+  {#each active.args as arg, idx}
+    <CommandArgInput
+      {arg}
+      value={active.values[arg.name] ?? ''}
+      focused={idx === active.currentFieldIdx}
+      needsValue={fieldNeedsValue(active, idx)}
+      needsAny={fieldNeedsAnyOf(active, idx)}
+      touched={active.edited.has(arg.name) || active.seededFromUser.has(arg.name)}
+      confirmed={active.confirmed.has(arg.name)}
+      onInput={(v) => onValueChange(arg.name, v)}
+      onReset={() => onValueReset(arg.name)}
+      onKeydown={(e) => handleFieldKeydown(idx, e)}
+      onFocus={() => onFocusField(idx)}
+    />
+  {/each}
 </div>
 
 <style>
-  .argument-chip-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex: 1;
-    min-width: 0;
-    height: 100%;
-  }
-  .command-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    background: var(--accent-primary);
-    color: white;
-    border-radius: var(--radius-md);
-    padding: 3px 4px 3px var(--space-2);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    white-space: nowrap;
-    flex-shrink: 0;
-    user-select: none;
-    box-shadow: var(--shadow-xs);
-  }
-  .chip-icon {
-    font-size: var(--font-size-md);
-    display: inline-flex;
-    align-items: center;
-  }
-  .chip-name {
-    font-size: var(--font-size-sm);
-    max-width: 140px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .chip-dismiss {
-    background: none;
-    border: none;
-    color: rgba(255, 255, 255, 0.75);
-    cursor: pointer;
-    padding: 0 var(--space-1);
-    font-size: var(--font-size-lg);
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    border-radius: var(--radius-xs);
-    margin-left: 2px;
-  }
-  .chip-dismiss:hover {
-    color: white;
-    background: rgba(255, 255, 255, 0.15);
-  }
   .arg-fields {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    flex: 1;
     min-width: 0;
-    overflow-x: auto;
-  }
-  .field-focus-proxy {
-    display: none;
-  }
-  .submit-hint {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    flex-shrink: 0;
-    user-select: none;
-  }
-  .hint-label {
-    font-size: var(--font-size-sm);
   }
 </style>

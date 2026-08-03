@@ -26,8 +26,17 @@ pub struct RegisteredCommand {
     pub description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    /// Right-side row label in root search, e.g. "Apple Shortcut" for a
+    /// single shortcut item. Defaults to the extension's display name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub type_label: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub arguments: Vec<CommandArgument>,
+    /// Names of arguments of which at least one must carry a user value before
+    /// the command may run. Same shape and same rules as the manifest path, so
+    /// the launcher computes the Enter gate once for both.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub require_any_of: Option<Vec<String>>,
 }
 
 /// Diff returned by a `replace_for_extension` call. Callers use this
@@ -174,7 +183,9 @@ mod tests {
             name: name.to_string(),
             description: None,
             icon: None,
+            type_label: None,
             arguments: vec![],
+            require_any_of: None,
         }
     }
 

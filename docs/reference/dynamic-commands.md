@@ -8,8 +8,8 @@ Dynamic commands let a Tier 2 extension register commands at **runtime** —
 in addition to the static commands declared in `manifest.json`. Each
 dynamic command behaves identically to a manifest command at every
 layer: it appears in root search, supports inline argument input on
-Tab, ranks alongside manifest commands, and persists last-values for
-its arguments.
+Tab, ranks alongside manifest commands, and persists its dropdown
+selections.
 
 The motivating use case is surfacing user-owned items from the operating
 system: macOS Apple Shortcuts, SSH hosts in `~/.ssh/config`, project
@@ -73,6 +73,7 @@ const regs: DynamicCommandRegistration[] = [
     name: 'Set Lights', // displayed in search results
     description: 'Smart-home command',
     icon: 'icon:lightbulb',
+    typeLabel: 'Apple Shortcut', // right-side row label; defaults to the extension name
     arguments: [{ name: 'value', type: 'text', placeholder: 'e.g. 85' }],
   },
   // ...up to N items; no max enforced today, but expect ~5-100 in practice
@@ -87,8 +88,8 @@ launcher computes added / removed / kept internally and:
 
 - removes search-index entries for ids no longer in the list
 - adds search-index entries for new ids
-- updates display fields (`name`, `description`, `icon`) for kept ids
-- garbage-collects argument last-values for removed ids
+- updates display fields (`name`, `description`, `icon`, `typeLabel`) for kept ids
+- garbage-collects stored argument selections for removed ids
 
 If any registration fails validation, the call rejects and the previous
 list remains intact. Validation is atomic — partial state is never
@@ -125,13 +126,30 @@ Same rules as manifest arguments:
 - `type` is one of `text`, `password`, `dropdown`, `number`.
 - `dropdown` requires a non-empty `data: [{ value, title }, ...]`.
 - When `default` is set, it must match the declared type.
-- `password` values are never persisted.
+- Only `dropdown` selections are persisted between invocations.
+
+- `seed` chooses where a chip starts: `lastUsed` (the default when omitted),
+  `default`, or `none`.
+- A command may declare `requireAnyOf` to gate Enter on "at least one of
+  these", exactly as a manifest command does.
+
+A dynamic registration carries the same argument shape as a manifest command,
+so the launcher computes the Enter gate once for both paths.
 
 See [Command Arguments](./command-arguments.md) for the full schema.
 
+## Row labels
+
+`typeLabel` sets the label shown on the right of the search result row.
+Leave it unset and the row falls back to the extension's display name,
+which is right when every dynamic command comes from the same source. Set
+it when the individual item reads better: an Apple Shortcuts extension
+registering one command per shortcut labels each `Apple Shortcut`, not
+`Apple Shortcuts`.
+
 ## Stable ids
 
-The `id` field is the persistence key for argument last-values. If the
+The `id` field is the persistence key for argument selections. If the
 underlying source allows renaming (e.g., an Apple Shortcut's name is
 editable, but its UUID is not), use the **stable identity** as `id`:
 
@@ -167,16 +185,16 @@ identically — no parallel implementation to maintain.
 
 ## Lifecycle
 
-| Event               | Effect on dynamic commands                                                              |
-| ------------------- | --------------------------------------------------------------------------------------- |
-| Extension activate  | Worker boots, calls `replaceDynamicCommands` from your activate handler                 |
-| Extension disable   | Launcher drops registrations; persistence is **kept** so re-enable restores last-values |
-| Extension uninstall | Launcher drops registrations and wipes all persisted last-values                        |
-| Launcher restart    | In-memory registry is fresh; your worker's activate path re-registers                   |
+| Event               | Effect on dynamic commands                                                             |
+| ------------------- | -------------------------------------------------------------------------------------- |
+| Extension activate  | Worker boots, calls `replaceDynamicCommands` from your activate handler                |
+| Extension disable   | Launcher drops registrations; persistence is **kept** so re-enable restores selections |
+| Extension uninstall | Launcher drops registrations and wipes all persisted selections                        |
+| Launcher restart    | In-memory registry is fresh; your worker's activate path re-registers                  |
 
 ## Persistence
 
-Argument last-values are stored in the launcher's SQLite
+Argument selections are stored in the launcher's SQLite
 `command_arg_defaults` table, namespaced under
 `(extension_id, "dynamic:<id>")` so dynamic ids can never collide with
 manifest command ids.

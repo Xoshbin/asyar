@@ -56,16 +56,104 @@ Add an `arguments` array to a command in `manifest.json`:
 
 ### Per-argument fields
 
-| Field         | Type                                             | Required                     | Description                                                                                                                                                                   |
-| ------------- | ------------------------------------------------ | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`        | `string`                                         | ✅                           | Unique within the command. Regex: `/^[a-zA-Z_][a-zA-Z0-9_]*$/`. Becomes the key on `args.arguments`.                                                                          |
-| `type`        | `"text" \| "password" \| "dropdown" \| "number"` | ✅                           | Input type. See [Type behaviour](#type-behaviour).                                                                                                                            |
-| `placeholder` | `string`                                         | ❌                           | Chip placeholder text shown when the field is empty.                                                                                                                          |
-| `required`    | `boolean`                                        | ❌                           | Default `false`. Required arguments must be filled before `Enter` will submit.                                                                                                |
-| `default`     | `string \| number`                               | ❌                           | Pre-filled value on first invocation. Type must match the declared `type` (number default → number, everything else → string). For `dropdown`, must be one of `data[].value`. |
-| `data`        | `{ value, title }[]`                             | ❌ (required for `dropdown`) | Non-empty option list. Each option needs both `value` (returned) and `title` (displayed).                                                                                     |
+| Field         | Type                                             | Required                     | Description                                                                                                                                                                                                         |
+| ------------- | ------------------------------------------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`        | `string`                                         | ✅                           | Unique within the command. Regex: `/^[a-zA-Z_][a-zA-Z0-9_]*$/`. Becomes the key on `args.arguments`.                                                                                                                |
+| `type`        | `"text" \| "password" \| "dropdown" \| "number"` | ✅                           | Input type. See [Type behaviour](#type-behaviour).                                                                                                                                                                  |
+| `placeholder` | `string`                                         | ❌                           | Chip placeholder text shown when the field is empty.                                                                                                                                                                |
+| `required`    | `boolean`                                        | ❌                           | Default `false`. Required arguments must be filled before `Enter` will submit, unless the argument also declares a `default`.                                                                                       |
+| `default`     | `string \| number`                               | ❌                           | Value substituted when the field is left empty. Type must match the declared `type` (number default → number, everything else → string). For `dropdown`, must be one of `data[].value`, and pre-selects the option. |
+| `data`        | `{ value, title }[]`                             | ❌ (required for `dropdown`) | Non-empty option list. Each option needs both `value` (returned) and `title` (displayed).                                                                                                                           |
 
-### Schema constraints
+#### `seed` &mdash; where a chip's starting value comes from
+
+`required` decides whether Enter may run. `seed` decides what is already in the
+box when the chips appear. They are independent.
+
+| `seed`     | The chip starts with                                                   |
+| ---------- | ---------------------------------------------------------------------- |
+| `lastUsed` | what the user submitted last time; falls back to `default`, then empty |
+| `default`  | the declared `default`, ignoring anything stored                       |
+| `none`     | always empty                                                           |
+
+**Omitting `seed` means `lastUsed`.** It degrades to `default` and then to
+empty, so a manifest written before this field existed keeps behaving the way
+its author expected. Declare `seed: "none"` for one-off input that should not
+be remembered &mdash; a note body, a search query you never repeat.
+
+Only arguments that seed from `lastUsed` are written to storage. The others are
+never saved, so `seed` is also the switch that decides what the launcher
+remembers.
+
+```json
+{ "name": "engine", "type": "dropdown", "default": "google", "seed": "lastUsed" }
+```
+
+#### Passwords
+
+A `password` is always seeded `none` and is never stored. Validation rejects a
+password that declares a `default`, or a `seed` other than `"none"`. Leaving
+`seed` unwritten on a password is fine and means `none`.
+
+#### A default is not the user agreeing to it
+
+A value the launcher put in the chip on the author's behalf does not satisfy
+`required` until the user has agreed to it. Selection is agreement: standing
+in the field at any point during the invocation &mdash; by Tab, by click, or by
+the Enter walk described under [How the user interacts with
+arguments](#how-the-user-interacts-with-arguments) &mdash; is enough, but
+something has to come from them. `requireAnyOf` is stricter still and needs a value they actually chose.
+
+A value restored from `lastUsed` **does** count: the user chose it on a previous
+run. This is what makes `required` + `default` coherent &mdash; the chip shows the
+suggestion dashed, and Enter walks the user through accepting it.
+
+### Command-level `requireAnyOf`
+
+Some commands need _some_ input without any single argument being the one that
+must supply it. `caffeinate-for` wants an hours, a minutes or a seconds and
+does not mind which. `required` cannot express that — marking all three
+required would demand all three.
+
+Declare the alternatives on the command instead:
+
+```json
+{
+  "id": "caffeinate-for",
+  "requireAnyOf": ["hours", "minutes", "seconds"],
+  "arguments": [
+    { "name": "hours", "type": "number", "default": 0 },
+    { "name": "minutes", "type": "number", "default": 0 },
+    { "name": "seconds", "type": "number", "default": 0 }
+  ]
+}
+```
+
+The two knobs then say different things: `requireAnyOf` is the **gate** (may
+this run yet?), `default` is the **fill** (what goes in the blanks?). Enter with
+`minutes` set to 30 runs the command with `{ hours: 0, minutes: 30, seconds: 0 }`;
+Enter with nothing entered opens the chips and the bottom bar reads
+_"**Required**&nbsp;&nbsp;hours, minutes, or seconds"_ (the label bold) while every member of the
+group takes a **dashed red border**: the complaint colours, dashed because the
+obligation is the group's rather than any one field's. The marking also
+appears without an Enter once the user has stood in every member and then
+left the group empty-handed: walking out on a toured group is the group's
+version of leaving a required field empty. Filling any member clears the
+whole group at once. The bar's `Required` line enumerates
+everything owed in declaration order, `•`-separated: a plain item is an
+empty required field, an or-list is the group. A command with a required
+`profile` and this group would read
+_"**Required**&nbsp;&nbsp;profile • hours, minutes, or seconds"_.
+
+A **declared `default` never satisfies the gate.** Defaults fill blanks; they
+are not the user asking for anything. Only a typed value, a selection restored
+from an earlier Escape, or a remembered `dropdown` choice counts.
+
+Validation rejects a group that names an argument the command does not declare,
+lists one twice, has fewer than two members (use `required`), or names an
+argument that is already `required`.
+
+## Schema constraints
 
 - **Max 3 arguments per command.** Chip-row real estate is finite; if you need more inputs, use a view.
 - **Required arguments must precede optional ones.** The manifest validator rejects `required: true` that follows `required: false`.
@@ -74,29 +162,123 @@ Add an `arguments` array to a command in `manifest.json`:
 ## How the user interacts with arguments
 
 1. The user searches for your command in the launcher.
-2. With the command highlighted, they press **Tab** (or **Enter** when the
-   command has at least one `required` argument — the launcher auto-enters
-   argument mode instead of executing).
-3. The command becomes a chip; its arguments render as inline inputs in the
-   search bar. Focus lands on the first field.
-4. **Tab / Shift+Tab** move between fields. **Shift+Tab on the first field**
-   exits argument mode back to search.
-5. **Enter** submits when every required argument is filled. A red `*`
-   marks required fields visually.
-6. **Escape**, or **Backspace on an empty first field**, exits argument
-   mode without running the command.
+2. Highlighting it shows one greyed-out chip per declared argument, trailing
+   the typed query. The chips are a preview: nothing is typed into them yet.
+   With the query empty, the search bar shows the command's own name in
+   placeholder grey instead of the usual prompt, and the chips trail that.
+3. **Tab** (or a click on a chip) promotes the command into argument mode and
+   focuses the first field. **Enter** does the same only when a `required`
+   argument has nothing to stand in for it — no `default`, no stored last
+   selection, nothing left from an earlier Escape. Optional arguments never
+   hold Enter up: the command runs straight away, and Tab is how the user opts
+   into filling them. It still receives everything those arguments declare or
+   remember — a `default`, a stored `dropdown` selection — so the payload is
+   the one argument mode would have sent, and anything with neither is simply
+   absent. Handle those blanks accordingly.
+4. **Tab / Shift+Tab** walk one ring over the search query and every field,
+   selecting each field's contents on arrival. Tab off the last field lands
+   back in the query; Shift+Tab off the first does the same. A command with a
+   single argument therefore toggles between the query and its one field.
+5. **Left / Right arrows** walk the same row, treating the search query as
+   the slot to the left of the first field. Right steps out of a field only
+   once the caret has reached its end; Left steps out immediately. A dropdown
+   has no caret to cross, so one press leaves it either way — its own
+   Up/Down keys are covered under
+   [Dropdown interaction](#dropdown-interaction).
+6. **Enter** submits when every required argument holds a value the user has
+   supplied or agreed to. Typed, kept from an earlier Escape, or restored
+   from a previous run all count; so does a seeded value in a field the user
+   has **stood in** at some point — selection is agreement. A `default` in a
+   field they have never been near is not enough: it is the author's
+   suggestion, not the user's decision.
+
+   When the only thing standing in the way is a seeded value the user has not
+   agreed to, Enter **selects that field instead of complaining**. They can
+   type a new value, or press Enter again — the selection already counted as
+   agreement, so the next press moves to the next unagreed required field, or
+   runs the command when there is none left. Nothing is marked red, because
+   nothing is wrong. Tabbing through a field agrees to it the same way.
+
+   `requireAnyOf` is deliberately not satisfied this way. Its whole purpose is
+   to refuse a run assembled entirely from declared defaults, so it needs a
+   value the user actually chose.
+
+   Required fields look the same as optional ones;
+   `aria-required` carries the distinction for assistive tech. When Enter
+   cannot run the command, the bottom bar's feedback area says why — next to
+   where run failures appear. A value that cannot be parsed at all, such as
+   text in a `number` field, is named as soon as it is typed; a merely
+   unfilled required field is only reported once Enter has been pressed, and
+   the message clears on the next edit.
+
+7. **Escape**, or **Backspace on an empty first field**, exits argument mode
+   without running the command. An open dropdown list takes Escape first. Whatever the user typed or picked stays in the
+   chips for as long as the command remains highlighted, so Enter still runs it
+   with those values. Untouched fields are not kept. Moving the highlight, or
+   editing the query, discards everything — arrowing the result list while the
+   chips are up therefore ends argument mode, since the chips describe the row
+   that was highlighted when it started.
+
+A `background` command closes the launcher once it dispatches. A `view`
+command leaves it open, since its view has just mounted.
 
 ## Type behaviour
 
-| Type       | Input widget                          | Submitted as                                                            |
-| ---------- | ------------------------------------- | ----------------------------------------------------------------------- |
-| `text`     | Plain text input                      | `string`                                                                |
-| `password` | Masked text input (asterisks)         | `string`                                                                |
-| `number`   | Numeric input (`inputmode="decimal"`) | `number` — parsed; submit is blocked if the value isn't a finite number |
-| `dropdown` | Native `<select>` of `data[]` options | `string` — the chosen option's `value`                                  |
+| Type       | Input widget                                  | Submitted as                                                            |
+| ---------- | --------------------------------------------- | ----------------------------------------------------------------------- |
+| `text`     | Plain text input                              | `string`                                                                |
+| `password` | Masked text input (asterisks)                 | `string`                                                                |
+| `number`   | Text input, `inputmode="decimal"`, no stepper | `number` — parsed; submit is blocked if the value isn't a finite number |
+| `dropdown` | Chip with a filterable list of `data[]`       | `string` — the chosen option's `value`                                  |
 
 Dropdowns always submit one of the declared values. Numbers are coerced
 before delivery, so your handler receives `7`, not `"7"`.
+
+### Reading a chip
+
+The border carries commitment; the text colour carries provenance:
+
+| What you see          | Meaning                                                                                   |
+| --------------------- | ----------------------------------------------------------------------------------------- |
+| Grey text, no border  | The placeholder — a field name. Nothing is sent.                                          |
+| **Dashed border**     | A seeded value. It **will** be sent, but the user has not agreed to it yet.               |
+| **Solid border**      | The selected field — the one the caret is in.                                             |
+| No border             | Agreed: the user has stood in the field, or the value is their own.                       |
+| Solid red border      | This field owes a value: `required`, walked away from empty, or named by a refused Enter. |
+| **Dashed red border** | One of these fields owes a value: an unmet `requireAnyOf` group.                          |
+| Solid text            | The user's own value — typed, picked, or restored from a previous run.                    |
+
+The dashed border is what separates a default from a hint: both are grey
+because neither came from the user, but only one is a real value. Dashed
+means "not yet committed" throughout the launcher.
+
+Both red markings persist while the user stands back in the field: the
+border goes grey to show where the caret is, the red tint stays. Only a
+value lifts the complaint — in the field itself for `required`, in any
+member for `requireAnyOf` — and only for as long as one is there.
+
+### Dropdown interaction
+
+A dropdown chip shows the value it was seeded with — the last selection, or
+the declared `default` — greyed, because the user has not weighed in on it
+yet. Picking a value, even the same one, renders it in full.
+
+- **Down / Up** walk the options with the list closed. Down from the seeded
+  chip takes the first option; Up off the first option returns the chip to
+  its seeded, greyed state. Neither end wraps.
+- **Typing** opens the list on that keystroke, with what was typed in its
+  search box and the options filtered by it. Deleting the query leaves the
+  list open.
+- **Click**, or **Space**, opens the list unfiltered and focuses its search
+  box; clicking again closes it. The chevron follows.
+- **Down / Up** move the highlight in an open list, and **Enter** takes it.
+  The `-` row at the top, offered whenever the search box is empty, puts the
+  chip back to its seeded state. That withdraws a remembered value too: the
+  chip greys back to a suggestion, it stops counting for `requireAnyOf`, and
+  a run without re-picking it forgets the stored value.
+- **Escape** clears the search box, then closes the list on the next press.
+  The chip keeps focus either way, so typing opens the list again; a third
+  press leaves argument mode. **Backspace** clears a value the user picked.
 
 ## Receiving arguments in your handler
 
@@ -132,23 +314,23 @@ Other keys alongside `arguments` remain the established system flags —
 `scheduledTick`, `deeplinkTrigger`. They are never mixed with user-declared
 argument values.
 
-## Persistence — last-value pre-fill
+## Persistence
 
-After the user submits, the launcher stores the non-password values per
-`(extensionId, commandId)` in the launcher's SQLite store. The next time
-the user opens argument mode for the same command, those values pre-fill
-the chip row. The user can edit them freely before submitting again.
+Only `dropdown` selections carry over between invocations. After the user
+submits, the chosen option is stored per `(extensionId, commandId)` in the
+launcher's SQLite store and pre-selected next time, shown greyed until the
+user picks something themselves.
 
-- `password` fields are **never** persisted. They start empty on every
-  invocation.
-- `default` from the manifest is used only when no persisted value exists
-  for that field yet.
-- Uninstalling the extension clears its persisted argument defaults, along
-  with its storage, preferences, and cache.
+`text`, `password`, and `number` fields start empty on every invocation,
+showing their placeholder. Their `default`, if declared, is substituted at
+submit time rather than typed into the field, so the user sees the hint
+instead of a value they have to clear.
 
-Persistence is transparent — extension authors don't opt in or out. If you
-want a field to start empty every time, declare it as `password` (when
-appropriate) or don't give it a `default`.
+- `default` seeds a dropdown only when no selection has been stored yet.
+- Uninstalling the extension clears its stored selections, along with its
+  storage, preferences, and cache.
+
+Persistence is transparent: extension authors don't opt in or out.
 
 ## Scheduled, deeplink, and notification-triggered invocations
 
@@ -173,14 +355,14 @@ iframe involved.
 
 ## Relationship to preferences
 
-|             | Arguments                                           | Preferences                                                                                 |
-| ----------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Scope       | Per invocation                                      | Per install (extension or command)                                                          |
-| UI          | Inline chip row in the search bar                   | Settings panel in Extensions tab                                                            |
-| Persistence | Last-value per `(ext, cmd, arg)`, except `password` | All values, encrypted-at-rest for `password`                                                |
-| Max count   | 3 per command                                       | No fixed limit                                                                              |
-| Types       | `text`, `password`, `dropdown`, `number`            | `textfield`, `password`, `dropdown`, `number`, `checkbox`, `appPicker`, `file`, `directory` |
-| Reached as  | `args.arguments.<name>`                             | `context.preferences.<name>` / `context.preferences.commands.<cmdId>.<name>`                |
+|             | Arguments                                         | Preferences                                                                                 |
+| ----------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Scope       | Per invocation                                    | Per install (extension or command)                                                          |
+| UI          | Inline chip row in the search bar                 | Settings panel in Extensions tab                                                            |
+| Persistence | `dropdown` selections only, per `(ext, cmd, arg)` | All values, encrypted-at-rest for `password`                                                |
+| Max count   | 3 per command                                     | No fixed limit                                                                              |
+| Types       | `text`, `password`, `dropdown`, `number`          | `textfield`, `password`, `dropdown`, `number`, `checkbox`, `appPicker`, `file`, `directory` |
+| Reached as  | `args.arguments.<name>`                           | `context.preferences.<name>` / `context.preferences.commands.<cmdId>.<name>`                |
 
 An extension can use both. Preferences configure defaults, API endpoints,
 units — things the user sets once. Arguments capture the bits that change
@@ -192,7 +374,7 @@ The arguments described on this page apply to commands declared in
 `manifest.json`. The same argument schema also applies to **dynamic
 commands** registered at runtime — the launcher resolves both through
 the same argument-mode pipeline, with one difference: dynamic command
-last-values are namespaced under `dynamic:<id>` in storage so dynamic
+selections are namespaced under `dynamic:<id>` in storage so dynamic
 ids cannot collide with manifest ids.
 
 For commands whose set is determined by the user's environment (Apple

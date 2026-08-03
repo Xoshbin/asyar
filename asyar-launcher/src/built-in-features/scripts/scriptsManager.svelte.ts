@@ -173,6 +173,7 @@ export class ScriptsManager {
       name: s.displayName,
       icon: s.header.icon ?? 'icon:terminal',
       arguments: s.header.arguments,
+      requireAnyOf: s.header.requireAnyOf,
     }));
     await replaceDynamicCommandsBuiltin(SCRIPTS_EXTENSION_ID, regs);
     this.scripts = report.scripts;

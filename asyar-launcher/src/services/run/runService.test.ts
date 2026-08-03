@@ -213,6 +213,20 @@ describe('onStateChanged', () => {
     );
   });
 
+  it('an extension-owned failure with no subjectId still reports', async () => {
+    const run = makeRun({
+      id: 'r-loud',
+      status: 'failed',
+      errorMessage: 'yt-dlp exited 1',
+      extensionId: 'com.example.ext',
+      subjectId: undefined,
+    });
+    await runService['onStateChanged'](run);
+    expect(feedbackService.report).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'run_failed' }),
+    );
+  });
+
   it('state_changed_cancelled_with_extension_id_posts_to_iframe', async () => {
     const postMessage = vi.fn();
     const fakeIframe = { contentWindow: { postMessage } } as unknown as HTMLIFrameElement;

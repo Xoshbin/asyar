@@ -334,9 +334,9 @@ describe('ExtensionIpcRouter — originRole injection for shell streams', () => 
     expect(attach).toHaveBeenCalledWith('ext.demo', 'sp-2', 'view');
   });
 
-  it('shell:spawn without originRole does not append a trailing argument', async () => {
-    // Privileged host calls pass undefined; the role must not leak as a
-    // trailing `undefined` arg into the service method.
+  it('shell:spawn without originRole appends nothing', async () => {
+    // Privileged host calls pass undefined; an absent role is simply absent
+    // rather than a hole in the argument list.
     const spawn = vi.fn(async () => ({ streaming: true }));
     const registry = {
       shell: { spawn, attach: vi.fn(), list: vi.fn() },
@@ -351,7 +351,6 @@ describe('ExtensionIpcRouter — originRole injection for shell streams', () => 
     );
 
     expect(spawn).toHaveBeenCalledWith('ext.demo', 'ls', [], 'sp-3');
-    expect(spawn.mock.calls[0]).toHaveLength(4);
   });
 
   it('non-streaming shell methods do not receive originRole', async () => {

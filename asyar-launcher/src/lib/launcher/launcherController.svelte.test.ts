@@ -82,8 +82,12 @@ vi.mock('../../services/extension/extensionManager.svelte', () => {
 
 vi.mock('../../services/search/commandArguments', () => ({
   commandArgumentsService: {
-    active: false,
+    active: null,
     enter: vi.fn().mockResolvedValue(undefined),
+    prepareRun: vi.fn().mockResolvedValue({ needsEntry: false, args: {} }),
+    runWithStash: vi.fn().mockResolvedValue(false),
+    submit: vi.fn().mockResolvedValue(undefined),
+    exit: vi.fn(),
   },
 }));
 
@@ -91,6 +95,8 @@ import { LauncherController } from './launcherController.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+import { commandArgumentsService } from '../../services/search/commandArguments';
+import { extensionManager } from '../../services/extension/extensionManager.svelte';
 
 describe('LauncherController.handleEnterKey — nav-stack observation guard', () => {
   let controller: LauncherController;
@@ -101,6 +107,16 @@ describe('LauncherController.handleEnterKey — nav-stack observation guard', ()
     searchStores.selectedIndex = 0;
     vi.mocked(viewManager.getNavigationStackSize).mockReturnValue(0);
 
+    vi.mocked(commandArgumentsService).active = null;
+    // clearAllMocks leaves implementations in place, so restate the "command
+    // declares nothing to collect" baseline every test starts from.
+    vi.mocked(extensionManager.getCommandArgMeta).mockResolvedValue(null as never);
+    vi.mocked(commandArgumentsService.prepareRun).mockResolvedValue({
+      needsEntry: false,
+      args: {},
+    } as never);
+    vi.mocked(commandArgumentsService.runWithStash).mockResolvedValue(false as never);
+
     controller = new LauncherController();
     controller.state.localSearchValue = 'hello';
   });
@@ -108,6 +124,113 @@ describe('LauncherController.handleEnterKey — nav-stack observation guard', ()
   function selectItem(item: any) {
     controller.state.searchResultItemsMapped = [item];
   }
+
+  describe('while argument mode is active', () => {
+    it('submits the chips rather than running the command bare', async () => {
+      // Running here would ignore the canSubmit gate and drop everything the
+      // user typed.
+      const action = vi.fn().mockResolvedValue(undefined);
+      selectItem({ type: 'command', object_id: 'cmd_demo_greet', action });
+      vi.mocked(commandArgumentsService).active = {
+        commandObjectId: 'cmd_demo_greet',
+      } as never;
+
+      await controller.handleEnterKey();
+
+      expect(commandArgumentsService.submit).toHaveBeenCalled();
+      expect(action).not.toHaveBeenCalled();
+      expect(commandArgumentsService.enter).not.toHaveBeenCalled();
+    });
+
+    // Regression: a click on a result row runs it through here, and the search
+    // bar only intercepts Enter, so the press used to hit the bail-out and do
+    // nothing at all. Picking from a dropdown by mouse leaves argument mode
+    // open, which is how it was reached.
+    it('leaves the row it was started from and runs the one now selected', async () => {
+      const action = vi.fn().mockResolvedValue(undefined);
+      selectItem({ type: 'command', object_id: 'cmd_demo_other', action });
+      vi.mocked(commandArgumentsService).active = {
+        commandObjectId: 'cmd_demo_greet',
+      } as never;
+
+      await controller.handleEnterKey();
+
+      expect(commandArgumentsService.exit).toHaveBeenCalled();
+      expect(commandArgumentsService.submit).not.toHaveBeenCalled();
+      expect(action).toHaveBeenCalled();
+    });
+  });
+
+  describe('argument gating', () => {
+    const META = { args: [{ name: 'input', type: 'text' }] } as never;
+
+    function prepared(run: { needsEntry: boolean; args?: Record<string, unknown> }) {
+      vi.mocked(extensionManager.getCommandArgMeta).mockResolvedValue(META);
+      vi.mocked(commandArgumentsService.prepareRun).mockResolvedValue({
+        args: {},
+        ...run,
+      } as never);
+    }
+
+    it('runs the command when nothing required is missing', async () => {
+      // Raycast fires a command whose arguments are all optional; Tab is the
+      // way to fill them, Enter is not asked to stop for them.
+      const action = vi.fn().mockResolvedValue(undefined);
+      selectItem({ type: 'command', object_id: 'cmd_demo_greet', action });
+      prepared({ needsEntry: false });
+
+      await controller.handleEnterKey();
+
+      expect(commandArgumentsService.enter).not.toHaveBeenCalled();
+      expect(action).toHaveBeenCalledWith(undefined);
+    });
+
+    it('hands the command what it declared but was never asked for', async () => {
+      const action = vi.fn().mockResolvedValue(undefined);
+      selectItem({ type: 'command', object_id: 'cmd_demo_greet', action });
+      prepared({ needsEntry: false, args: { style: 'casual', volume: 1 } });
+
+      await controller.handleEnterKey();
+
+      expect(action).toHaveBeenCalledWith({ arguments: { style: 'casual', volume: 1 } });
+    });
+
+    it('runs a stashed entry through argument mode, not around it', async () => {
+      // Every way of running the row goes through here, Enter and a click on
+      // the row alike, so a dropdown the user picked before escaping is
+      // remembered whichever one they use.
+      const action = vi.fn().mockResolvedValue(undefined);
+      selectItem({ type: 'command', object_id: 'cmd_demo_greet', action });
+      prepared({ needsEntry: false });
+      vi.mocked(commandArgumentsService.runWithStash).mockResolvedValue(true as never);
+
+      await controller.handleEnterKey();
+
+      expect(commandArgumentsService.runWithStash).toHaveBeenCalledWith('cmd_demo_greet');
+      expect(action).not.toHaveBeenCalled();
+    });
+
+    it('runs the command normally when there is no stash to resume', async () => {
+      const action = vi.fn().mockResolvedValue(undefined);
+      selectItem({ type: 'command', object_id: 'cmd_demo_greet', action });
+      prepared({ needsEntry: false });
+
+      await controller.handleEnterKey();
+
+      expect(action).toHaveBeenCalled();
+    });
+
+    it('collects arguments first when one is required and unfilled', async () => {
+      const action = vi.fn().mockResolvedValue(undefined);
+      selectItem({ type: 'command', object_id: 'cmd_demo_greet', action });
+      prepared({ needsEntry: true });
+
+      await controller.handleEnterKey();
+
+      expect(commandArgumentsService.enter).toHaveBeenCalledWith('cmd_demo_greet');
+      expect(action).not.toHaveBeenCalled();
+    });
+  });
 
   it('clears search when a plain command returns undefined and does not navigate', async () => {
     selectItem({ type: 'command', action: vi.fn().mockResolvedValue(undefined) });

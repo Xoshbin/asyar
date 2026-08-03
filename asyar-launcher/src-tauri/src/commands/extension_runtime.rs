@@ -1054,6 +1054,7 @@ mod onboarding_dispatch_tests {
                     preferences: None,
                     actions: None,
                     arguments: None,
+                    require_any_of: None,
                     search_bar_accessory: None,
                 },
                 ExtensionCommand {
@@ -1068,6 +1069,7 @@ mod onboarding_dispatch_tests {
                     preferences: None,
                     actions: None,
                     arguments: None,
+                    require_any_of: None,
                     search_bar_accessory: None,
                 },
             ],

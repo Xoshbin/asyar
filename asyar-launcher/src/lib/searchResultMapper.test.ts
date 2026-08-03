@@ -105,6 +105,15 @@ describe('typeLabel resolution', () => {
     expect(typeLabel).toBe('Application');
   });
 
+  it('prefers the result typeLabel over the manifest name for commands', () => {
+    const getManifest = (_id: string) => ({ name: 'Apple Shortcuts' });
+    const { typeLabel } = resolveItemMeta(
+      makeResult({ type: 'command', extensionId: 'my-ext', typeLabel: 'Apple Shortcut' }),
+      getManifest,
+    );
+    expect(typeLabel).toBe('Apple Shortcut');
+  });
+
   it('uses manifest name for command type when manifest is found', () => {
     const getManifest = (_id: string) => ({ name: 'My Extension' });
     const { typeLabel } = resolveItemMeta(

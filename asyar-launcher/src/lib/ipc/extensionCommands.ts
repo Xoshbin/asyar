@@ -1,6 +1,7 @@
 // asyar-launcher/src/lib/ipc/extensionCommands.ts
 // Tauri command wrappers, re-exported through ./commands (the barrel).
 import { invokeSafe, invokeSafeVoid } from './invokeSafe';
+import { bumpArgumentHintVersion } from '../launcher/argumentHintVersion.svelte';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
 import type { AvailableUpdate } from '../../types/ExtensionUpdate';
 
@@ -135,6 +136,8 @@ export interface DynamicCommandArgumentInput {
   required?: boolean;
   default?: string | number;
   data?: { value: string; title: string }[];
+  /** Where the chip starts from. Absent means 'lastUsed'. */
+  seed?: 'none' | 'default' | 'lastUsed';
 }
 
 export interface DynamicCommandRegistrationInput {
@@ -155,6 +158,7 @@ export async function replaceDynamicCommands(
   regs: DynamicCommandRegistrationInput[],
 ): Promise<void> {
   await invokeSafe('replace_dynamic_commands', { extensionId, regs });
+  bumpArgumentHintVersion();
 }
 
 /**
@@ -167,6 +171,8 @@ export interface DynamicCommandMetaReply {
   commandName: string;
   icon?: string;
   args: DynamicCommandArgumentInput[];
+  /** Same "at least one of these" gate the manifest path declares. */
+  requireAnyOf?: string[];
 }
 
 /**

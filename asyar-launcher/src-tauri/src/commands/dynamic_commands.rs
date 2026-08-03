@@ -37,6 +37,10 @@ pub struct DynamicCommandMeta {
     pub command_name: String,
     pub icon: Option<String>,
     pub args: Vec<crate::extensions::CommandArgument>,
+    /// Mirrors the manifest path's `requireAnyOf` so both resolve through the
+    /// same gate in `CommandArgumentsService`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub require_any_of: Option<Vec<String>>,
 }
 
 /// Replace the calling extension's dynamic command list with `regs`.
@@ -82,6 +86,11 @@ pub async fn replace_dynamic_commands(
         }
         validate_arguments(&reg.arguments)
             .map_err(|e| AppError::Validation(format!("dynamic command id '{}': {e}", reg.id)))?;
+        if let Some(group) = &reg.require_any_of {
+            crate::extensions::validate_require_any_of(group, &reg.arguments).map_err(|e| {
+                AppError::Validation(format!("dynamic command id '{}': {e}", reg.id))
+            })?;
+        }
     }
 
     // Step 2: gate on background.main. Dynamic commands must register
@@ -176,6 +185,11 @@ pub(crate) fn replace_dynamic_commands_builtin_impl(
         }
         validate_arguments(&reg.arguments)
             .map_err(|e| AppError::Validation(format!("dynamic command id '{}': {e}", reg.id)))?;
+        if let Some(group) = &reg.require_any_of {
+            crate::extensions::validate_require_any_of(group, &reg.arguments).map_err(|e| {
+                AppError::Validation(format!("dynamic command id '{}': {e}", reg.id))
+            })?;
+        }
     }
 
     // Replace in registry and capture the diff.
@@ -287,6 +301,7 @@ pub async fn get_dynamic_command_meta(
         command_name: reg.name,
         icon: reg.icon,
         args: reg.arguments,
+        require_any_of: reg.require_any_of,
     }))
 }
 
@@ -327,7 +342,9 @@ mod tests {
             name: name.to_string(),
             description: None,
             icon: None,
+            type_label: None,
             arguments: vec![],
+            require_any_of: None,
         }
     }
 
@@ -437,6 +454,40 @@ mod tests {
         assert!(
             list.is_empty(),
             "registry must be empty after replace with empty regs, got {list:?}"
+        );
+    }
+
+    // A dynamic command must reach the launcher in the same shape a manifest
+    // command does, so the Enter gate is computed once for both paths.
+    #[test]
+    fn registered_command_deserializes_require_any_of() {
+        let json = r#"{
+            "id": "timer",
+            "name": "Timer",
+            "requireAnyOf": ["hours", "minutes"],
+            "arguments": [
+                { "name": "hours", "type": "number", "default": 0 },
+                { "name": "minutes", "type": "number", "default": 0 }
+            ]
+        }"#;
+        let reg: RegisteredCommand = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            reg.require_any_of.as_deref(),
+            Some(["hours".to_string(), "minutes".to_string()].as_slice())
+        );
+    }
+
+    #[test]
+    fn registered_command_carries_a_seed_on_its_arguments() {
+        let json = r#"{
+            "id": "search",
+            "name": "Search",
+            "arguments": [{ "name": "q", "type": "text", "seed": "none" }]
+        }"#;
+        let reg: RegisteredCommand = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            reg.arguments[0].seed,
+            Some(crate::extensions::ArgumentSeed::None)
         );
     }
 

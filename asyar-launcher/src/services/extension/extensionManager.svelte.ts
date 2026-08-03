@@ -471,6 +471,7 @@ export class ExtensionManager implements IExtensionManager {
     icon?: string;
     args: import('asyar-sdk/contracts').CommandArgument[];
     mode?: 'view' | 'background';
+    requireAnyOf?: string[];
     isDynamic?: boolean;
   } | null> {
     if (!commandObjectId.startsWith('cmd_')) return null;
@@ -490,6 +491,7 @@ export class ExtensionManager implements IExtensionManager {
         args:
           (cmd as { arguments?: import('asyar-sdk/contracts').CommandArgument[] }).arguments ?? [],
         mode: (cmd as { mode?: 'view' | 'background' }).mode,
+        requireAnyOf: (cmd as { requireAnyOf?: string[] }).requireAnyOf,
         isDynamic: false,
       };
     }
@@ -507,6 +509,10 @@ export class ExtensionManager implements IExtensionManager {
         isBuiltIn: isBuiltinDynamicExtension(reply.extensionId),
         icon: reply.icon,
         args: reply.args as import('asyar-sdk/contracts').CommandArgument[],
+        // Same gate as the manifest path — a dynamic command declares its
+        // "at least one of these" the same way, so Enter behaves identically
+        // whichever way the command was registered.
+        requireAnyOf: reply.requireAnyOf,
         // Dynamic commands run through the Tier 2 worker by default. Built-in
         // dynamic extensions (registered via registerBuiltinDynamicDispatcher)
         // are routed by handleCommandAction back to their Tier 1 handler.
@@ -522,18 +528,16 @@ export class ExtensionManager implements IExtensionManager {
   }
 
   /**
-   * Sync gate for keypress handlers that need to decide before calling
-   * `event.preventDefault()` whether a Tab on the selected command should
-   * promote into argument-entry mode. Cannot await IPC, so for dynamic
-   * commands this is *optimistic* — any object id matching the dynamic
-   * format returns true. The actual schema is resolved asynchronously
-   * inside `CommandArgumentsService.enter()`.
+   * Whether a command declares arguments, answered from the loaded manifests
+   * alone: `true`/`false` when the object id resolves to one, `null` when it
+   * doesn't. A dynamic command lands in that third case and is answered by
+   * the `hasArguments` its registration puts on the search result instead.
    *
-   * For manifest commands this is conclusive: returns true only when the
-   * command's manifest declaration carries a non-empty `arguments[]`.
+   * Synchronous, because the answer feeds `MappedSearchItem.hasArguments`,
+   * which Tab consults before `preventDefault()`.
    */
-  public couldHaveArguments(commandObjectId: string): boolean {
-    if (!commandObjectId.startsWith('cmd_')) return false;
+  public manifestCommandHasArguments(commandObjectId: string): boolean | null {
+    if (!commandObjectId.startsWith('cmd_')) return null;
     const rest = commandObjectId.slice(4);
     for (const manifest of this.manifestsById.values()) {
       const prefix = `${manifest.id}_`;
@@ -544,10 +548,7 @@ export class ExtensionManager implements IExtensionManager {
       const args = (cmd as { arguments?: unknown[] }).arguments;
       return Array.isArray(args) && args.length > 0;
     }
-    // Manifest scan missed. If the id looks dynamic, optimistically allow
-    // entry — the async resolver will short-circuit the actual `enter()`
-    // when the registry has no entry or the entry has no args.
-    return parseDynamicObjectId(commandObjectId) !== null;
+    return null;
   }
 
   public setActiveViewActionLabel(label: string | null): void {

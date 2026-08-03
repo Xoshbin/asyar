@@ -40,7 +40,11 @@ export function resolveItemMeta(
   let typeLabel: string | undefined = type
     ? type.charAt(0).toUpperCase() + type.slice(1)
     : undefined;
-  if (type === 'command' && result.extensionId) {
+  if (type === 'command' && result.typeLabel) {
+    // Per-command label from the registration (e.g. "Apple Shortcut" for a
+    // single dynamic item), overriding the extension-name default below.
+    typeLabel = result.typeLabel;
+  } else if (type === 'command' && result.extensionId) {
     const manifest = getManifestById(result.extensionId);
     if (manifest?.name) {
       typeLabel = manifest.name;
@@ -290,7 +294,10 @@ export function buildMappedItems({
         activeContext !== null &&
         objectId === `cmd_portals_${activeContext.provider.id.replace('portal_', '')}`;
       const capturedQuery = isPortalCommand ? activeContext!.query : localSearchValue;
-      actionFunction = async () => {
+      // `extra` carries the argument values a command declared but was not
+      // stopped to collect — declared defaults and remembered selections, so
+      // running it straight from the list sends what its chips would have.
+      actionFunction = async (extra?: Record<string, unknown>) => {
         if (searchOrchestrator.tryExecuteResultAction(commandObjectId)) {
           // The action was dispatched to the extension worker (e.g. switch
           // browser tab, which the companion raises to the foreground). Dismiss
@@ -303,6 +310,7 @@ export function buildMappedItems({
         try {
           return await extensionManager.handleCommandAction(commandObjectId, {
             query: capturedQuery,
+            ...extra,
           });
         } catch (err) {
           logService.error(`extensionManager.handleCommandAction failed: ${err}`);
@@ -329,6 +337,10 @@ export function buildMappedItems({
       subtitle,
       type,
       typeLabel,
+      hasArguments:
+        type === 'command' &&
+        (result.hasArguments === true ||
+          extensionManager.manifestCommandHasArguments?.(objectId) === true),
       icon,
       score,
       tier: result.tier,

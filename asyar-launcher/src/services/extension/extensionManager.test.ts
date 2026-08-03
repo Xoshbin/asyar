@@ -847,6 +847,27 @@ describe('ExtensionManager Characterization Tests', () => {
       );
     });
 
+    // A dynamic command has to reach the gate in the same shape a manifest one
+    // does, or apple-shortcuts could never express "needs some input".
+    it('carries requireAnyOf and argument seeds back from the registry', async () => {
+      vi.mocked(invoke).mockResolvedValueOnce({
+        extensionId: 'org.asyar.shortcuts',
+        commandId: 'uuid-1',
+        commandName: 'Set Lights',
+        icon: null,
+        args: [
+          { name: 'hours', type: 'number', default: 0, seed: 'lastUsed' },
+          { name: 'minutes', type: 'number', default: 0, seed: 'none' },
+        ],
+        requireAnyOf: ['hours', 'minutes'],
+      });
+
+      const meta = await extensionManager.getCommandArgMeta('cmd_org.asyar.shortcuts_dyn_uuid-1');
+      expect(meta?.requireAnyOf).toEqual(['hours', 'minutes']);
+      expect(meta?.args[0].seed).toBe('lastUsed');
+      expect(meta?.args[1].seed).toBe('none');
+    });
+
     it('returns manifest meta synchronously without IPC for manifest commands', async () => {
       extensionManager.manifestsById.set('ext.foo', {
         id: 'ext.foo',
@@ -935,7 +956,7 @@ describe('ExtensionManager Characterization Tests', () => {
     });
   });
 
-  describe('couldHaveArguments — sync gate for keypress decisions', () => {
+  describe('manifestCommandHasArguments: sync answer for the search row', () => {
     beforeEach(() => {
       extensionManager.manifestsById.clear();
     });
@@ -945,7 +966,7 @@ describe('ExtensionManager Characterization Tests', () => {
         id: 'ext',
         commands: [{ id: 'open', name: 'Open', arguments: [{ name: 'q', type: 'text' }] }],
       } as any);
-      expect(extensionManager.couldHaveArguments('cmd_ext_open')).toBe(true);
+      expect(extensionManager.manifestCommandHasArguments('cmd_ext_open')).toBe(true);
     });
 
     it('returns false for manifest commands without declared args', () => {
@@ -953,19 +974,20 @@ describe('ExtensionManager Characterization Tests', () => {
         id: 'ext',
         commands: [{ id: 'open', name: 'Open' }],
       } as any);
-      expect(extensionManager.couldHaveArguments('cmd_ext_open')).toBe(false);
+      expect(extensionManager.manifestCommandHasArguments('cmd_ext_open')).toBe(false);
     });
 
-    it('returns true optimistically for any dynamic-format object id', () => {
-      // No registry lookup — optimistic. The sync keypress gate cannot
-      // afford to await an IPC call.
-      expect(extensionManager.couldHaveArguments('cmd_ext_dyn_uuid-1')).toBe(true);
+    it('abstains on ids no loaded manifest claims', () => {
+      // Null, not false: a dynamic command's schema lives in the Rust
+      // registry, and its search result answers for it.
+      expect(extensionManager.manifestCommandHasArguments('cmd_ext_dyn_uuid-1')).toBeNull();
+      expect(extensionManager.manifestCommandHasArguments('cmd_absent_open')).toBeNull();
     });
 
-    it('returns false for non-cmd ids', () => {
-      expect(extensionManager.couldHaveArguments('app_safari')).toBe(false);
-      expect(extensionManager.couldHaveArguments('action_thing')).toBe(false);
-      expect(extensionManager.couldHaveArguments('')).toBe(false);
+    it('abstains on ids that are not commands at all', () => {
+      expect(extensionManager.manifestCommandHasArguments('app_safari')).toBeNull();
+      expect(extensionManager.manifestCommandHasArguments('action_thing')).toBeNull();
+      expect(extensionManager.manifestCommandHasArguments('')).toBeNull();
     });
   });
 });

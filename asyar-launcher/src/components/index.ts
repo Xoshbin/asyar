@@ -85,4 +85,5 @@ export { default as ExpansionDemo } from './onboarding/ExpansionDemo.svelte';
 // Search
 export { default as ArgumentChipRow } from './search/ArgumentChipRow.svelte';
 export { default as CommandArgInput } from './search/CommandArgInput.svelte';
+export { default as ArgumentDropdownChip } from './search/ArgumentDropdownChip.svelte';
 export { default as SearchBarAccessoryDropdown } from './search/SearchBarAccessoryDropdown.svelte';

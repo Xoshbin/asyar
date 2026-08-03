@@ -227,6 +227,96 @@ describe('manifest validation — schedule', () => {
   });
 });
 
+describe('manifest validation — seed', () => {
+  const withArgs = (args: unknown): AsyarManifest =>
+    ({
+      ...backgroundOnly,
+      commands: [
+        { id: 'do-thing', name: 'Do Thing', description: 'x', mode: 'background', arguments: args },
+      ],
+    }) as unknown as AsyarManifest;
+
+  it('accepts every seed on a normal argument', () => {
+    for (const seed of ['none', 'default', 'lastUsed']) {
+      const errors = validateManifest(withArgs([{ name: 'q', type: 'text', seed }]), './');
+      expect(errors.filter((e) => e.field.includes('arguments'))).toHaveLength(0);
+    }
+  });
+
+  it('rejects an unknown seed value', () => {
+    const errors = validateManifest(withArgs([{ name: 'q', type: 'text', seed: 'always' }]), './');
+    expect(errors.some((e) => e.message.includes('seed'))).toBe(true);
+  });
+
+  it('rejects a password that asks to be remembered', () => {
+    const errors = validateManifest(
+      withArgs([{ name: 'secret', type: 'password', seed: 'lastUsed' }]),
+      './',
+    );
+    expect(errors.some((e) => e.message.includes('password'))).toBe(true);
+  });
+
+  it('rejects a password with a default', () => {
+    const errors = validateManifest(
+      withArgs([{ name: 'secret', type: 'password', default: 'hunter2' }]),
+      './',
+    );
+    expect(errors.some((e) => e.message.includes('password'))).toBe(true);
+  });
+
+  it('accepts a password with no seed written', () => {
+    const errors = validateManifest(withArgs([{ name: 'secret', type: 'password' }]), './');
+    expect(errors.filter((e) => e.field.includes('arguments'))).toHaveLength(0);
+  });
+});
+
+describe('manifest validation — requireAnyOf', () => {
+  const withGroup = (group: unknown, args: unknown): AsyarManifest =>
+    ({
+      ...backgroundOnly,
+      commands: [
+        {
+          id: 'caffeinate-for',
+          name: 'Caffeinate For',
+          description: 'Needs some duration',
+          mode: 'background',
+          requireAnyOf: group,
+          arguments: args,
+        },
+      ],
+    }) as unknown as AsyarManifest;
+
+  const DURATION = [
+    { name: 'hours', type: 'number', default: 0 },
+    { name: 'minutes', type: 'number', default: 0 },
+  ];
+
+  it('accepts a group over two optional arguments', () => {
+    const errors = validateManifest(withGroup(['hours', 'minutes'], DURATION), './');
+    expect(errors.filter((e) => e.field.includes('requireAnyOf'))).toHaveLength(0);
+  });
+
+  it('rejects a group naming an argument the command does not declare', () => {
+    const errors = validateManifest(withGroup(['hours', 'nope'], DURATION), './');
+    expect(errors.some((e) => e.field.includes('requireAnyOf') && e.message.includes('nope'))).toBe(
+      true,
+    );
+  });
+
+  it('rejects a single-member group', () => {
+    const errors = validateManifest(withGroup(['hours'], DURATION), './');
+    expect(errors.some((e) => e.field.includes('requireAnyOf'))).toBe(true);
+  });
+
+  it('rejects a member that is also required', () => {
+    const args = [{ name: 'hours', type: 'number', required: true }, DURATION[1]];
+    const errors = validateManifest(withGroup(['hours', 'minutes'], args), './');
+    expect(
+      errors.some((e) => e.field.includes('requireAnyOf') && e.message.includes('required')),
+    ).toBe(true);
+  });
+});
+
 describe('manifest validation — command arguments', () => {
   const base = (args: unknown): AsyarManifest => ({
     ...backgroundOnly,
