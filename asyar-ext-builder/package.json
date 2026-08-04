@@ -1,6 +1,7 @@
 {
   "name": "asyar-ext-builder",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "build:bin": "bun build src/main.ts --compile --outfile ../asyar-launcher/src-tauri/binaries/asyar-ext-builder",

@@ -492,6 +492,6 @@ For release procedures (both launcher and SDK), see [`RELEASING.md`](RELEASING.m
 
 ---
 
-## License
+## Licensing
 
-Distributed under the AGPLv3 License. See [LICENSE](LICENSE) for more information. Both `asyar-launcher/` and `asyar-sdk/` are AGPL-3.0.
+This repository uses a split-licensing model. The core application (`asyar-launcher`) is licensed under the GPL-3.0 license. The SDK and extension tooling (`asyar-sdk`, `asyar-ext-builder`) are licensed under the MIT license. See the respective directories for full details.
