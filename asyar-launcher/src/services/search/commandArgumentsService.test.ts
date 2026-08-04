@@ -6,22 +6,53 @@ vi.mock('../log/logService', () => ({
 }));
 
 const commandArgDefaultsGet =
-  vi.fn<(ext: string, cmd: string) => Promise<Record<string, string>>>();
+  vi.fn<(ext: string, cmd: string, isDynamic: boolean) => Promise<Record<string, string>>>();
 const commandArgDefaultsSet =
-  vi.fn<(ext: string, cmd: string, v: Record<string, string>) => Promise<void>>();
+  vi.fn<
+    (ext: string, cmd: string, isDynamic: boolean, v: Record<string, string>) => Promise<void>
+  >();
 vi.mock('../../lib/ipc/commandArgDefaultsCommands', () => ({
-  commandArgDefaultsGet: (ext: string, cmd: string) => commandArgDefaultsGet(ext, cmd),
-  commandArgDefaultsSet: (ext: string, cmd: string, v: Record<string, string>) =>
-    commandArgDefaultsSet(ext, cmd, v),
+  commandArgDefaultsGet: (ext: string, cmd: string, isDynamic: boolean) =>
+    commandArgDefaultsGet(ext, cmd, isDynamic),
+  commandArgDefaultsSet: (
+    ext: string,
+    cmd: string,
+    isDynamic: boolean,
+    v: Record<string, string>,
+  ) => commandArgDefaultsSet(ext, cmd, isDynamic, v),
 }));
+
+// The seeding/provenance/gate algorithm now lives in Rust
+// (extensions::argument_model::resolve); fakeResolveCommandArguments is a
+// test-only JS port used here in place of the real IPC call. See its doc
+// comment in argumentModelTestFake.ts.
+vi.mock('../../lib/ipc/argumentModelCommands', async () => {
+  const { fakeResolveCommandArguments } = await import('./argumentModelTestFake');
+  return {
+    resolveCommandArguments: (req: ResolveArgumentModelRequest) => fakeResolveCommandArguments(req),
+  };
+});
 
 import {
   CommandArgumentsService,
   fieldNeedsValue,
   fieldNeedsAnyOf,
-  seedArgumentValues,
 } from './commandArgumentsService.svelte';
 import type { CommandArgument } from 'asyar-sdk/contracts';
+import type { ResolveArgumentModelRequest } from '../../lib/ipc/argumentModelCommands';
+
+/**
+ * `setValue`/`focusField`/`blurFields` kick off a fire-and-forget resolve to
+ * refresh `active.resolved` (see `CommandArgumentsService.refreshResolved`);
+ * it lands a microtask later, not synchronously. A real blur/focus event
+ * can't happen in the same tick as the keystroke before it, so this never
+ * shows up in the app — but a test calling both back-to-back needs an
+ * explicit flush before asserting on `fieldNeedsAnyOf`, which reads that
+ * cache.
+ */
+function flush(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 function makeDeps(opts: {
   args: CommandArgument[];
@@ -107,7 +138,7 @@ describe('CommandArgumentsService', () => {
     expect(svc.active!.args).toEqual(args);
     expect(svc.active!.values.query).toBe('prev-query');
     expect(svc.active!.currentFieldIdx).toBe(0);
-    expect(commandArgDefaultsGet).toHaveBeenCalledWith(d.extensionId, d.commandId);
+    expect(commandArgDefaultsGet).toHaveBeenCalledWith(d.extensionId, d.commandId, false);
   });
 
   it('enter() falls back to the declared default when nothing was saved', async () => {
@@ -271,9 +302,9 @@ describe('CommandArgumentsService', () => {
       commandArgDefaultsGet.mockResolvedValue({ minutes: '30' });
       const svc = new CommandArgumentsService(d);
       await svc.enter(d.commandObjectId);
-      expect(svc.canSubmit()).toBe(true);
+      expect(await svc.canSubmit()).toBe(true);
       svc.resetValue('minutes');
-      expect(svc.canSubmit()).toBe(false);
+      expect(await svc.canSubmit()).toBe(false);
     });
   });
 
@@ -805,9 +836,9 @@ describe('CommandArgumentsService', () => {
     const d = makeDeps({ args });
     const svc = new CommandArgumentsService(d);
     await svc.enter(d.commandObjectId);
-    expect(svc.canSubmit()).toBe(false);
+    expect(await svc.canSubmit()).toBe(false);
     svc.setValue('q', 'hi');
-    expect(svc.canSubmit()).toBe(true);
+    expect(await svc.canSubmit()).toBe(true);
   });
 
   it('canSubmit() is false when a required number field is not a valid number', async () => {
@@ -816,9 +847,9 @@ describe('CommandArgumentsService', () => {
     const svc = new CommandArgumentsService(d);
     await svc.enter(d.commandObjectId);
     svc.setValue('n', 'abc');
-    expect(svc.canSubmit()).toBe(false);
+    expect(await svc.canSubmit()).toBe(false);
     svc.setValue('n', '42');
-    expect(svc.canSubmit()).toBe(true);
+    expect(await svc.canSubmit()).toBe(true);
   });
 
   it('canSubmit() is true with no required args and empty optional', async () => {
@@ -826,7 +857,7 @@ describe('CommandArgumentsService', () => {
     const d = makeDeps({ args });
     const svc = new CommandArgumentsService(d);
     await svc.enter(d.commandObjectId);
-    expect(svc.canSubmit()).toBe(true);
+    expect(await svc.canSubmit()).toBe(true);
   });
 
   it('canSubmit() is false while a required default sits in an unselected field', async () => {
@@ -838,9 +869,9 @@ describe('CommandArgumentsService', () => {
     const svc = new CommandArgumentsService(d);
     await svc.enter(d.commandObjectId);
     // The chip shows 0, but it is the author's suggestion, not the user's answer.
-    expect(svc.canSubmit()).toBe(false);
+    expect(await svc.canSubmit()).toBe(false);
     svc.setValue('n', '0');
-    expect(svc.canSubmit()).toBe(true);
+    expect(await svc.canSubmit()).toBe(true);
   });
 
   it('validationError() stays null for a required field that is merely empty', async () => {
@@ -850,9 +881,9 @@ describe('CommandArgumentsService', () => {
     await svc.enter(d.commandObjectId);
     // The chip's own border carries this, it is not an error message.
     expect(svc.validationError()).toBeNull();
-    expect(svc.canSubmit()).toBe(false);
+    expect(await svc.canSubmit()).toBe(false);
     svc.setValue('q', 'hi');
-    expect(svc.canSubmit()).toBe(true);
+    expect(await svc.canSubmit()).toBe(true);
   });
 
   it('validationError() names the offending number field', async () => {
@@ -862,7 +893,7 @@ describe('CommandArgumentsService', () => {
     await svc.enter(d.commandObjectId);
     svc.setValue('n', 'abc');
     expect(svc.validationError()).toBe('Minutes must be a number');
-    expect(svc.canSubmit()).toBe(false);
+    expect(await svc.canSubmit()).toBe(false);
     svc.setValue('n', '42');
     expect(svc.validationError()).toBeNull();
   });
@@ -935,11 +966,11 @@ describe('CommandArgumentsService', () => {
     expect(svc.feedbackMessage()).toBeNull();
   });
 
-  it('validationError() is null outside argument mode', () => {
+  it('validationError() is null outside argument mode', async () => {
     const d = makeDeps({ args: [] });
     const svc = new CommandArgumentsService(d);
     expect(svc.validationError()).toBeNull();
-    expect(svc.canSubmit()).toBe(false);
+    expect(await svc.canSubmit()).toBe(false);
   });
 
   it('submit() fills declared defaults for empty fields in the payload', async () => {
@@ -968,7 +999,7 @@ describe('CommandArgumentsService', () => {
     svc.setValue('hours', '2');
     svc.setValue('note', 'standup');
     await svc.submit();
-    const persisted = commandArgDefaultsSet.mock.calls[0][2];
+    const persisted = commandArgDefaultsSet.mock.calls[0][3];
     expect(persisted).toEqual({ hours: '2', note: 'standup' });
   });
 
@@ -1051,7 +1082,7 @@ describe('CommandArgumentsService', () => {
     svc.setValue('lang', 'es');
     await svc.submit();
 
-    expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, {
+    expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, false, {
       q: 'hello',
       lang: 'es',
     });
@@ -1142,26 +1173,27 @@ describe('CommandArgumentsService', () => {
       };
     }
 
-    it('enter() loads defaults using dynamic: prefix in storage key', async () => {
+    it('enter() loads defaults with isDynamic so Rust applies the dynamic: prefix', async () => {
       const d = makeDynamicDeps();
       commandArgDefaultsGet.mockResolvedValueOnce({ input: 'last value' });
       const svc = new CommandArgumentsService(d);
 
       const ok = await svc.enter(d.commandObjectId);
       expect(ok).toBe(true);
-      // Key sent to Rust must namespace the dynamic id.
-      expect(commandArgDefaultsGet).toHaveBeenCalledWith(d.extensionId, `dynamic:${d.dynamicId}`);
+      // The bare dynamic id + isDynamic: true — Rust builds the `dynamic:`
+      // storage key server-side, TS no longer mirrors that string rule.
+      expect(commandArgDefaultsGet).toHaveBeenCalledWith(d.extensionId, d.dynamicId, true);
       // Pre-fill from persisted value still applies.
       expect(svc.active?.values.input).toBe('last value');
     });
 
-    it('submit() persists with the dynamic: storage prefix', async () => {
+    it('submit() persists with isDynamic true so Rust applies the dynamic: prefix', async () => {
       const d = makeDynamicDeps();
       const svc = new CommandArgumentsService(d);
       await svc.enter(d.commandObjectId);
       svc.setValue('input', '85');
       await svc.submit();
-      expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, `dynamic:${d.dynamicId}`, {
+      expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.dynamicId, true, {
         input: '85',
       });
     });
@@ -1193,8 +1225,10 @@ describe('CommandArgumentsService', () => {
       await svc.enter(d.commandObjectId);
       svc.setValue('q', 'b');
       await svc.submit();
-      // Bare commandId, no `dynamic:` prefix
-      expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, { q: 'b' });
+      // isDynamic: false — no `dynamic:` prefix applied server-side.
+      expect(commandArgDefaultsSet).toHaveBeenCalledWith(d.extensionId, d.commandId, false, {
+        q: 'b',
+      });
     });
   });
 
@@ -1274,7 +1308,7 @@ describe('CommandArgumentsService', () => {
       svc.setValue('suggested', 'y');
       svc.setValue('lang', 'es');
       await svc.submit();
-      expect(commandArgDefaultsSet.mock.calls[0][2]).toEqual({ remembered: 'keep me', lang: 'es' });
+      expect(commandArgDefaultsSet.mock.calls[0][3]).toEqual({ remembered: 'keep me', lang: 'es' });
     });
 
     // A visible value the user has not agreed to is not an error, and
@@ -1337,7 +1371,7 @@ describe('CommandArgumentsService', () => {
         await svc.submit();
         await svc.submit();
 
-        expect(commandArgDefaultsSet.mock.calls[0][2]).toEqual({ client: 'ACME' });
+        expect(commandArgDefaultsSet.mock.calls[0][3]).toEqual({ client: 'ACME' });
       });
 
       it('a single seeded field is selected on entry, so one Enter runs it', async () => {
@@ -1467,6 +1501,7 @@ describe('CommandArgumentsService', () => {
         svc.focusField(1);
         svc.setValue('minutes', '5');
         svc.blurFields();
+        await flush();
         expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
         expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(false);
       });
@@ -1498,11 +1533,13 @@ describe('CommandArgumentsService', () => {
         await svc.enter(d.commandObjectId);
         await svc.submit();
         svc.setValue('minutes', '5');
+        await flush();
         expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(false);
         expect(fieldNeedsAnyOf(svc.active!, 1)).toBe(false);
         // Clearing it again brings the marking back without another Enter:
         // the user has already been told once.
         svc.setValue('minutes', '');
+        await flush();
         expect(fieldNeedsAnyOf(svc.active!, 0)).toBe(true);
       });
 
@@ -1563,7 +1600,7 @@ describe('CommandArgumentsService', () => {
       await svc.enter(d.commandObjectId);
       svc.setValue('minutes', '30');
       await svc.submit();
-      expect(commandArgDefaultsSet.mock.calls[0][2]).toEqual({ minutes: '30' });
+      expect(commandArgDefaultsSet.mock.calls[0][3]).toEqual({ minutes: '30' });
     });
 
     it('a run that only used defaults leaves the gate closed next time', async () => {
@@ -1576,7 +1613,7 @@ describe('CommandArgumentsService', () => {
       // Whatever a previous run stored, a defaulted 0 must never be in it.
       commandArgDefaultsGet.mockResolvedValueOnce({});
       await svc.enter(d.commandObjectId);
-      expect(svc.canSubmit()).toBe(false);
+      expect(await svc.canSubmit()).toBe(false);
     });
 
     // Provenance: the launcher must tell "the author suggested this" from
@@ -1592,9 +1629,9 @@ describe('CommandArgumentsService', () => {
       // The chip shows the suggestion...
       expect(svc.active!.values.terms).toBe('30 days');
       // ...but it is the author's, not yet agreed to.
-      expect(svc.canSubmit()).toBe(false);
+      expect(await svc.canSubmit()).toBe(false);
       svc.focusField(1);
-      expect(svc.canSubmit()).toBe(true);
+      expect(await svc.canSubmit()).toBe(true);
     });
 
     it('required + a restored lastUsed value runs without asking again', async () => {
@@ -1604,7 +1641,7 @@ describe('CommandArgumentsService', () => {
       const svc = new CommandArgumentsService(d);
       await svc.enter(d.commandObjectId);
       expect(svc.active!.values.calendar).toBe('Work');
-      expect(svc.canSubmit()).toBe(true);
+      expect(await svc.canSubmit()).toBe(true);
     });
 
     it('a seeded default does not satisfy requireAnyOf either', async () => {
@@ -1615,7 +1652,7 @@ describe('CommandArgumentsService', () => {
       const d = makeDeps({ args, requireAnyOf: ['hours', 'minutes'] });
       const svc = new CommandArgumentsService(d);
       await svc.enter(d.commandObjectId);
-      expect(svc.canSubmit()).toBe(false);
+      expect(await svc.canSubmit()).toBe(false);
     });
   });
 
@@ -1682,7 +1719,7 @@ describe('CommandArgumentsService', () => {
       const d = makeDurationDeps(GROUP);
       const svc = new CommandArgumentsService(d);
       await svc.enter(d.commandObjectId);
-      expect(svc.canSubmit()).toBe(false);
+      expect(await svc.canSubmit()).toBe(false);
       await svc.submit();
       expect(d.dispatchTier2Argument).not.toHaveBeenCalled();
       expect(svc.feedbackMessage()).toBe('Required  hours, minutes, or seconds');
@@ -1693,7 +1730,7 @@ describe('CommandArgumentsService', () => {
       const svc = new CommandArgumentsService(d);
       await svc.enter(d.commandObjectId);
       svc.setValue('seconds', '45');
-      expect(svc.canSubmit()).toBe(true);
+      expect(await svc.canSubmit()).toBe(true);
       await svc.submit();
       expect(d.dispatchTier2Argument.mock.calls[0][0].args).toEqual({
         hours: 0,
@@ -1708,7 +1745,7 @@ describe('CommandArgumentsService', () => {
       await svc.enter(d.commandObjectId);
       svc.setValue('seconds', '45');
       svc.setValue('seconds', '');
-      expect(svc.canSubmit()).toBe(false);
+      expect(await svc.canSubmit()).toBe(false);
     });
   });
 });
@@ -1726,9 +1763,9 @@ describe('a `default` of null (the shape Rust actually sends)', () => {
     const d = makeDeps({ args: NULL_DEFAULT });
     const svc = new CommandArgumentsService(d);
     await svc.enter(d.commandObjectId);
-    expect(svc.canSubmit()).toBe(false);
+    expect(await svc.canSubmit()).toBe(false);
     svc.setValue('who', 'Lucas');
-    expect(svc.canSubmit()).toBe(true);
+    expect(await svc.canSubmit()).toBe(true);
   });
 
   it('refuses the submit and says which argument is missing', async () => {
@@ -1751,9 +1788,9 @@ describe('a `default` of null (the shape Rust actually sends)', () => {
     expect(Object.values(payload)).not.toContain('null');
   });
 
-  it('seeds a null-default dropdown empty rather than to "null"', () => {
-    expect(seedArgumentValues(NULL_DEFAULT, {})).toEqual({ who: '', style: '' });
-  });
+  // Seeding a null-default dropdown empty (not to the string "null") is
+  // covered directly in the Rust module:
+  // extensions::argument_model::tests::has_declared_default_is_false_for_json_null.
 });
 
 describe('fieldNeedsValue', () => {
@@ -1862,37 +1899,7 @@ describe('fieldNeedsValue', () => {
   });
 });
 
-describe('seedArgumentValues', () => {
-  const OPTIONS = [
-    { value: 'a', title: 'A' },
-    { value: 'b', title: 'B' },
-  ];
-
-  it('prefers a persisted dropdown selection over the declared default', () => {
-    const args: CommandArgument[] = [
-      { name: 'device', type: 'dropdown', data: OPTIONS, default: 'a' },
-    ];
-    expect(seedArgumentValues(args, { device: 'b' })).toEqual({ device: 'b' });
-  });
-
-  it('falls back to the declared default, then the empty string', () => {
-    const args: CommandArgument[] = [
-      { name: 'withDefault', type: 'dropdown', data: OPTIONS, default: 'a' },
-      { name: 'bare', type: 'dropdown', data: OPTIONS },
-    ];
-    expect(seedArgumentValues(args, {})).toEqual({ withDefault: 'a', bare: '' });
-  });
-
-  it('seeds every type from its last used value, except the password', () => {
-    const args: CommandArgument[] = [
-      { name: 'q', type: 'text', default: 'stale' },
-      { name: 'n', type: 'number', default: 7 },
-      { name: 'p', type: 'password' },
-    ];
-    expect(seedArgumentValues(args, { q: 'persisted', n: '3', p: 'hunter2' })).toEqual({
-      q: 'persisted',
-      n: '3',
-      p: '',
-    });
-  });
-});
+// Seeding itself — persisted-over-default, default-then-empty fallback,
+// password always empty — is now `extensions::argument_model::resolve` in
+// Rust; see the `seed_argument_values_*` tests in
+// src-tauri/src/extensions/argument_model.rs.

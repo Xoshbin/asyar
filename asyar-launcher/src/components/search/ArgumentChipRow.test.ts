@@ -6,6 +6,20 @@ import type { CommandArgument } from 'asyar-sdk/contracts';
 
 import ArgumentChipRow from './ArgumentChipRow.svelte';
 import type { ActiveArgumentMode } from '../../services/search/commandArgumentsService.svelte';
+import type { ArgumentModelResolution } from '../../lib/ipc/argumentModelCommands';
+
+const EMPTY_RESOLUTION: ArgumentModelResolution = {
+  seeds: {},
+  seededFromUser: [],
+  lastUsedFields: [],
+  userSupplied: {},
+  acknowledged: {},
+  unfilledRequiredVisible: [],
+  unfilledRequired: [],
+  unfilledRequiredAcknowledged: [],
+  requireAnyOfUnsatisfied: false,
+  payload: {},
+};
 
 const ARGS: CommandArgument[] = [
   { name: 'hours', type: 'number' },
@@ -30,6 +44,7 @@ function makeActive(overrides: Partial<ActiveArgumentMode> = {}): ActiveArgument
     owed: new Set<string>(),
     currentFieldIdx: 0,
     anyOfRefused: false,
+    resolved: EMPTY_RESOLUTION,
     ...overrides,
   };
 }

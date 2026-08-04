@@ -146,6 +146,7 @@ pub struct PreferenceDeclaration {
     pub data: Option<Vec<DropdownOption>>,
 }
 
+pub mod argument_model;
 pub mod dynamic_commands;
 
 #[cfg(test)]

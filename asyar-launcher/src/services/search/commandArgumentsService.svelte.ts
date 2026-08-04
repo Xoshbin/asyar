@@ -1,79 +1,11 @@
-import type { ArgumentSeed, CommandArgument } from 'asyar-sdk/contracts';
+import type { CommandArgument } from 'asyar-sdk/contracts';
 import { logService } from '../log/logService';
 import {
   commandArgDefaultsGet,
   commandArgDefaultsSet,
 } from '../../lib/ipc/commandArgDefaultsCommands';
-
-/**
- * Build the SQLite `command_arg_defaults.command_id` storage key for a
- * given command. Manifest commands store under their bare id; dynamic
- * commands get a `dynamic:` prefix so the two id spaces never collide
- * inside a single extension's row set.
- *
- * Mirrored on the Rust side by
- * `storage::command_arg_defaults::dynamic_command_id_key`.
- */
-export function persistenceCommandKey(commandId: string, isDynamic: boolean): string {
-  return isDynamic ? `dynamic:${commandId}` : commandId;
-}
-
-/**
- * Whether the argument declares a fallback value. Manifests round-trip
- * through Rust, where an omitted `default` comes back as JSON `null` rather
- * than absent, so `!== undefined` alone treats every argument as defaulted —
- * which skips required-field checks and puts the string "null" in payloads.
- */
-export function hasDeclaredDefault(arg: CommandArgument): boolean {
-  return arg.default !== undefined && arg.default !== null;
-}
-
-/**
- * Where an argument's starting value comes from. Omitting `seed` means
- * `lastUsed`, which falls back to the default and then to empty — the only
- * value that behaves sensibly for a manifest that never declared one.
- *
- * A password is always `none`: it is never remembered, and validation refuses
- * a manifest that says otherwise.
- */
-export function effectiveSeed(arg: CommandArgument): ArgumentSeed {
-  if (arg.type === 'password') return 'none';
-  return arg.seed ?? 'lastUsed';
-}
-
-/**
- * The values a fresh `enter()` starts from.
- *
- * Shared with the ghost hint chips so the preview matches what Enter sends.
- */
-export function seedArgumentValues(
-  args: CommandArgument[],
-  persisted: Record<string, string>,
-): Record<string, string> {
-  const values: Record<string, string> = {};
-  for (const arg of args) {
-    const seed = effectiveSeed(arg);
-    if (seed === 'none') {
-      values[arg.name] = '';
-      continue;
-    }
-    const declared = hasDeclaredDefault(arg) ? String(arg.default) : '';
-    values[arg.name] = seed === 'lastUsed' ? (persisted[arg.name] ?? declared) : declared;
-  }
-  return values;
-}
-
-/**
- * Whether this argument's seed came from the user's own previous run rather
- * than from the manifest. Only a `lastUsed` argument can, and only when
- * something was actually stored for it.
- */
-export function seedIsUserSupplied(
-  arg: CommandArgument,
-  persisted: Record<string, string>,
-): boolean {
-  return effectiveSeed(arg) === 'lastUsed' && (persisted[arg.name] ?? '').trim() !== '';
-}
+import { resolveCommandArguments } from '../../lib/ipc/argumentModelCommands';
+import type { ArgumentModelResolution } from '../../lib/ipc/argumentModelCommands';
 
 export interface CommandArgMeta {
   extensionId: string;
@@ -81,8 +13,8 @@ export interface CommandArgMeta {
    * The bare command identifier — used for the dispatch payload that
    * reaches the extension's `executeCommand(commandId, args)`. For
    * dynamic commands this is the dynamic id as the extension
-   * registered it; the `dynamic:` storage prefix is applied internally
-   * by the persistence layer when `isDynamic` is true.
+   * registered it; the `dynamic:` storage prefix is applied server-side
+   * by `command_arg_defaults_get`/`_set` when `isDynamic` is true.
    */
   commandId: string;
   commandName: string;
@@ -213,92 +145,18 @@ export interface ActiveArgumentMode {
    * stand in for the user's decision to run.
    */
   seededFromUser: ReadonlySet<string>;
-}
-
-/**
- * Values that came from the user rather than from a declared default: typed,
- * restored from a stash, or remembered from a previous run. Empty fields drop
- * out, so a cleared field stops counting the moment it is cleared.
- */
-export function userSuppliedValues(active: ActiveArgumentMode): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const arg of active.args) {
-    const raw = (active.values[arg.name] ?? '').trim();
-    if (!raw) continue;
-    if (active.edited.has(arg.name) || active.seededFromUser.has(arg.name)) out[arg.name] = raw;
-  }
-  return out;
-}
-
-/**
- * The values that satisfy `required`: everything the user supplied, plus any
- * seeded value in a field they have selected at some point. A seed they have
- * never been near is not agreed to and does not count.
- */
-export function acknowledgedValues(active: ActiveArgumentMode): Record<string, string> {
-  const out = userSuppliedValues(active);
-  for (const arg of active.args) {
-    if (out[arg.name] !== undefined) continue;
-    const raw = (active.values[arg.name] ?? '').trim();
-    if (raw && active.confirmed.has(arg.name)) out[arg.name] = raw;
-  }
-  return out;
-}
-
-/**
- * Whether a command's `requireAnyOf` gate is still unmet. Commands without the
- * declaration are never gated by it.
- */
-export function requireAnyOfUnsatisfied(
-  requireAnyOf: string[] | undefined,
-  userValues: Record<string, string>,
-): boolean {
-  if (!requireAnyOf?.length) return false;
-  return !requireAnyOf.some((name) => (userValues[name] ?? '').trim() !== '');
-}
-
-/**
- * Arguments the user still owes a value: required, with nothing of the user's
- * own standing in for them. A declared default does NOT count — it fills the
- * blank in the payload, but agreeing to it is the user's job. A remembered
- * value from a previous run does count: the user chose it once already.
- *
- * The single definition of "unfilled" behind both gates: the submit gate
- * inside argument mode, and the one deciding whether Enter on a command has
- * to stop for input at all.
- */
-export function unfilledRequiredArgs(
-  args: CommandArgument[],
-  userValues: Record<string, string>,
-): CommandArgument[] {
-  return args.filter((arg) => arg.required && (userValues[arg.name] ?? '').trim() === '');
-}
-
-/**
- * The `arguments` payload for a set of collected values: every entered value
- * coerced to its declared type, with a declared default standing in wherever
- * the user left a field empty. An argument with neither is left out entirely,
- * so a handler can tell "not given" from "given as empty".
- *
- * Shared by the submit path and the Enter-fires-it-straight-away path, so a
- * command receives the same payload whichever way it was run.
- */
-export function buildArgumentsPayload(
-  args: CommandArgument[],
-  values: Record<string, string>,
-): Record<string, string | number> {
-  const payload: Record<string, string | number> = {};
-  for (const arg of args) {
-    const raw = (values[arg.name] ?? '').trim();
-    if (!raw) {
-      if (hasDeclaredDefault(arg)) {
-        payload[arg.name] = arg.type === 'number' ? Number(arg.default) : String(arg.default);
-      }
-      continue;
-    }
-    payload[arg.name] = arg.type === 'number' ? Number(raw) : raw;
-  }
-  return payload;
+  /**
+   * The Rust-computed argument model for the current `values`/`edited`/
+   * `confirmed` snapshot — provenance, the `required`/`requireAnyOf` gates,
+   * and the coerced payload. Refreshed after every mutation; `submit()`
+   * additionally resolves fresh right before deciding, since it is the one
+   * place a stale-by-one-keystroke answer would matter. See the `rust-first`
+   * skill and `extensions::argument_model::resolve` in the Rust crate — this
+   * mirrors the `has_arguments`/`type_label` precomputed-field pattern used
+   * for search results, needed because `fieldNeedsAnyOf` reads it
+   * synchronously during Svelte's render pass, where IPC cannot be awaited.
+   */
+  resolved: ArgumentModelResolution;
 }
 
 const EMPTY_FLAGGED: ReadonlySet<string> = new Set();
@@ -337,13 +195,31 @@ export function fieldNeedsValue(active: ActiveArgumentMode, idx: number): boolea
  * field is a member. Clears for the whole group the moment any member holds
  * a user value. A field individually owed a value keeps its own, stronger
  * marking instead.
+ *
+ * `requireAnyOfUnsatisfied` itself is computed in Rust
+ * (`extensions::argument_model::resolve`) — this reads the last-resolved
+ * answer off `active.resolved` rather than recomputing it, because Svelte's
+ * render pass calling this (once per chip, every render) cannot await IPC.
  */
 export function fieldNeedsAnyOf(active: ActiveArgumentMode, idx: number): boolean {
   const arg = active.args[idx];
   if (!arg || !active.requireAnyOf?.includes(arg.name)) return false;
   if (!active.anyOfRefused) return false;
   if (fieldNeedsValue(active, idx)) return false;
-  return requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active));
+  return active.resolved.requireAnyOfUnsatisfied;
+}
+
+/**
+ * Field names to send as `edited` on a refresh/resolve call that omits
+ * `persisted` (every call after `enter()`'s own). Rust's `seededFromUser`
+ * is derived from `persisted`, so recomputing it fresh from an empty map
+ * would forget which fields were remembered from a previous run. Folding
+ * `active.seededFromUser` (computed once, at `enter()`) into `edited` gets
+ * the same "counts as the user's" credit without re-sending `persisted` on
+ * every keystroke.
+ */
+function userTouchedFields(active: ActiveArgumentMode): string[] {
+  return [...active.edited, ...active.seededFromUser];
 }
 
 /**
@@ -354,10 +230,11 @@ export function fieldNeedsAnyOf(active: ActiveArgumentMode, idx: number): boolea
  * the next invocation restores them (other field types restart empty).
  *
  * Declared arguments come from the already-loaded manifest, so no extra IPC
- * is needed to enter the mode — only the defaults-get call hits Rust.
+ * is needed to enter the mode — only the defaults-get and argument-model-
+ * resolve calls hit Rust.
  *
  * Values are stored as strings internally (chip inputs always produce strings);
- * `buildArgumentsPayload` coerces numeric fields to `number` on submit.
+ * the resolved `payload` coerces numeric fields to `number` on submit.
  */
 export class CommandArgumentsService {
   private _active = $state<ActiveArgumentMode | null>(null);
@@ -390,6 +267,14 @@ export class CommandArgumentsService {
    * and cleared by the next edit.
    */
   private _blockedNotice = $state<string | null>(null);
+
+  /**
+   * Guards the fire-and-forget refresh kicked off by every mutator against a
+   * stale response landing after a newer mutation (or after `exit()`/
+   * `enter()` switched commands entirely) — the same shape as a request-id
+   * check on any out-of-order async response.
+   */
+  private resolveGeneration = 0;
 
   constructor(private readonly deps: CommandArgumentsServiceDeps) {}
 
@@ -470,12 +355,14 @@ export class CommandArgumentsService {
 
   /** Last-used values Rust has for this command, or none if the read fails. */
   private async loadPersisted(meta: CommandArgMeta): Promise<Record<string, string>> {
-    const persistenceKey = persistenceCommandKey(meta.commandId, meta.isDynamic === true);
     try {
-      return (await commandArgDefaultsGet(meta.extensionId, persistenceKey)) ?? {};
+      return (
+        (await commandArgDefaultsGet(meta.extensionId, meta.commandId, meta.isDynamic === true)) ??
+        {}
+      );
     } catch (err) {
       logService.warn(
-        `[CommandArgumentsService] Failed to load defaults for ${meta.extensionId}/${persistenceKey}: ${err}`,
+        `[CommandArgumentsService] Failed to load defaults for ${meta.extensionId}/${meta.commandId}: ${err}`,
       );
       return {};
     }
@@ -497,23 +384,16 @@ export class CommandArgumentsService {
       ? await this.loadPersisted(meta)
       : {};
     const stash = this.stashFor(commandObjectId) ?? {};
-    const values = {
-      ...seedArgumentValues(meta.args, persisted),
-      ...stash,
-    };
-    // Declared defaults are deliberately absent here: they fill blanks in the
-    // payload, but they are not the user asking for anything.
-    const userValues: Record<string, string> = {};
-    for (const arg of meta.args) {
-      const supplied =
-        stash[arg.name] ?? (seedIsUserSupplied(arg, persisted) ? persisted[arg.name] : undefined);
-      if (supplied !== undefined && supplied.trim() !== '') userValues[arg.name] = supplied;
-    }
+    const resolved = await resolveCommandArguments({
+      args: meta.args,
+      persisted,
+      values: stash,
+      edited: Object.keys(stash),
+      requireAnyOf: meta.requireAnyOf,
+    });
     return {
-      needsEntry:
-        unfilledRequiredArgs(meta.args, userValues).length > 0 ||
-        requireAnyOfUnsatisfied(meta.requireAnyOf, userValues),
-      args: buildArgumentsPayload(meta.args, values),
+      needsEntry: resolved.unfilledRequired.length > 0 || resolved.requireAnyOfUnsatisfied,
+      args: resolved.payload,
     };
   }
 
@@ -533,25 +413,23 @@ export class CommandArgumentsService {
     }
 
     const persisted = await this.loadPersisted(meta);
-    const values = seedArgumentValues(meta.args, persisted);
-    const seeds = { ...values };
-    // A remembered selection is the user's earlier pick, so it counts towards
-    // `requireAnyOf` the way a fresh one would. A declared default does not.
-    const seededFromUser = new Set(
-      meta.args.filter((arg) => seedIsUserSupplied(arg, persisted)).map((arg) => arg.name),
-    );
+    const stashed = this.stashFor(commandObjectId) ?? {};
+    // Field 0 takes focus on entry, and selection is agreement, so its seed
+    // counts as accepted from the start.
+    const confirmedInitial = [meta.args[0].name];
+
+    const resolved = await resolveCommandArguments({
+      args: meta.args,
+      persisted,
+      values: stashed,
+      edited: Object.keys(stashed),
+      confirmed: confirmedInitial,
+      requireAnyOf: meta.requireAnyOf,
+    });
 
     // Values from a prior Escape win over persisted/default seeds so the
     // user resumes exactly where they left off, cleared fields included.
-    const edited = new Set<string>();
-    const stashed = this.stashFor(commandObjectId);
-    if (stashed) {
-      for (const arg of meta.args) {
-        if (stashed[arg.name] === undefined) continue;
-        values[arg.name] = stashed[arg.name];
-        edited.add(arg.name);
-      }
-    }
+    const values = { ...resolved.seeds, ...stashed };
 
     this._active = {
       commandObjectId,
@@ -563,17 +441,16 @@ export class CommandArgumentsService {
       icon: meta.icon,
       args: meta.args,
       values,
-      seeds,
+      seeds: resolved.seeds,
       requireAnyOf: meta.requireAnyOf,
-      seededFromUser,
-      edited,
-      // Field 0 takes focus on entry, and selection is agreement, so its
-      // seed counts as accepted from the start.
-      confirmed: new Set(meta.args.length ? [meta.args[0].name] : []),
+      seededFromUser: new Set(resolved.seededFromUser),
+      edited: new Set(Object.keys(stashed)),
+      confirmed: new Set(confirmedInitial),
       owed: new Set<string>(),
       currentFieldIdx: 0,
       anyOfRefused: false,
       mode: meta.mode,
+      resolved,
     };
     return true;
   }
@@ -616,6 +493,7 @@ export class CommandArgumentsService {
       values: { ...this._active.values, [name]: value },
       edited: new Set(this._active.edited).add(name),
     };
+    this.refreshResolved();
   }
 
   /**
@@ -647,12 +525,16 @@ export class CommandArgumentsService {
       edited,
       seededFromUser,
     };
+    this.refreshResolved();
   }
 
   /**
    * Whether moving focus to `destIdx` (-1 for the query) walks out on a
    * still-unmet `requireAnyOf` group the user has stood in every member of.
    * Gated on `confirmed`: only real focus counts as having seen a field.
+   * `requireAnyOfUnsatisfied` is read off the last-resolved cache rather than
+   * recomputed — this runs synchronously off a real focus event, and IPC
+   * cannot be awaited there.
    */
   private leavesAnyOfUnmet(active: ActiveArgumentMode, destIdx: number): boolean {
     const group = active.requireAnyOf;
@@ -660,7 +542,7 @@ export class CommandArgumentsService {
     const dest = destIdx === -1 ? undefined : active.args[destIdx]?.name;
     if (dest && group.includes(dest)) return false;
     if (!group.every((name) => active.confirmed.has(name))) return false;
-    return requireAnyOfUnsatisfied(group, userSuppliedValues(active));
+    return active.resolved.requireAnyOfUnsatisfied;
   }
 
   /**
@@ -689,6 +571,7 @@ export class CommandArgumentsService {
       owed: this.owedAfterLeaving(this._active),
       anyOfRefused: this._active.anyOfRefused || this.leavesAnyOfUnmet(this._active, clamped),
     };
+    this.refreshResolved();
   }
 
   /**
@@ -705,6 +588,7 @@ export class CommandArgumentsService {
       owed: this.owedAfterLeaving(this._active),
       anyOfRefused: this._active.anyOfRefused || this.leavesAnyOfUnmet(this._active, -1),
     };
+    this.refreshResolved();
   }
 
   /**
@@ -720,6 +604,51 @@ export class CommandArgumentsService {
   prev(): void {
     if (!this._active) return;
     this.focusField(this._active.currentFieldIdx - 1);
+  }
+
+  /**
+   * Apply a resolution to `_active.resolved`, but only if nothing has
+   * superseded it: a later call bumped `resolveGeneration` past ours, or
+   * the session moved on to a different command (or closed) entirely.
+   * Comparing `commandObjectId` rather than object identity matters because
+   * `_active` is legitimately replaced on every mutation (and by another
+   * resolve landing) — reference equality would treat every one of those as
+   * "the session changed" and drop good data, which is exactly the race
+   * this method exists to avoid.
+   */
+  private applyResolved(
+    commandObjectId: string,
+    generation: number,
+    resolved: ArgumentModelResolution,
+  ): void {
+    if (this.resolveGeneration !== generation) return;
+    if (!this._active || this._active.commandObjectId !== commandObjectId) return;
+    this._active = { ...this._active, resolved };
+  }
+
+  /**
+   * Re-resolve the argument model for the current `values`/`edited`/
+   * `confirmed` snapshot and cache the answer on `_active.resolved`. Fired
+   * after every mutation; not awaited by the caller — `fieldNeedsAnyOf`
+   * reads whatever is cached, and `submit()`/`canSubmit()` resolve fresh
+   * themselves rather than trust this cache, so a keystroke's worth of
+   * staleness here only ever affects paint, never the run/refuse decision.
+   */
+  private refreshResolved(): void {
+    if (!this._active) return;
+    const active = this._active;
+    const generation = ++this.resolveGeneration;
+    resolveCommandArguments({
+      args: active.args,
+      values: active.values,
+      edited: userTouchedFields(active),
+      confirmed: [...active.confirmed],
+      requireAnyOf: active.requireAnyOf,
+    })
+      .then((resolved) => this.applyResolved(active.commandObjectId, generation, resolved))
+      .catch((err) => {
+        logService.warn(`[CommandArgumentsService] Failed to refresh argument model: ${err}`);
+      });
   }
 
   /**
@@ -755,18 +684,18 @@ export class CommandArgumentsService {
    * just enumerates. A required field holding an unconfirmed seed is not
    * listed — it is not empty, and the Enter walk is what settles it.
    */
-  private missingArgumentNotice(): string {
+  private missingArgumentNotice(resolved: ArgumentModelResolution): string {
     const active = this._active;
     if (!active) return 'Fill required fields';
     const items: Array<{ idx: number; text: string }> = [];
-    for (const arg of unfilledRequiredArgs(active.args, active.values)) {
-      items.push({
-        idx: active.args.findIndex((a) => a.name === arg.name),
-        text: arg.placeholder?.trim() || arg.name,
-      });
+    for (const name of resolved.unfilledRequiredVisible) {
+      const idx = active.args.findIndex((a) => a.name === name);
+      const arg = active.args[idx];
+      if (!arg) continue;
+      items.push({ idx, text: arg.placeholder?.trim() || arg.name });
     }
-    if (requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active))) {
-      const group = active.requireAnyOf!;
+    if (resolved.requireAnyOfUnsatisfied && active.requireAnyOf?.length) {
+      const group = active.requireAnyOf;
       const labels = group.map((name) => {
         const arg = active.args.find((a) => a.name === name);
         return arg?.placeholder?.trim() || name;
@@ -783,32 +712,65 @@ export class CommandArgumentsService {
     return `Required  ${items.map((i) => i.text).join(' • ')}`;
   }
 
-  canSubmit(): boolean {
+  /**
+   * The field Enter should select instead of running: the first required
+   * field holding a seeded value the user has not stood in yet, from a fresh
+   * `resolved`. -1 when there is nothing to walk to, or when walking could
+   * not end in a run anyway — a genuinely empty required field (still absent
+   * from `unfilledRequiredVisible` after crediting acknowledgement) or an
+   * unmet `requireAnyOf` needs typing, and selecting seeded fields first
+   * would just delay the complaint.
+   */
+  private confirmWalkTarget(resolved: ArgumentModelResolution): number {
     const active = this._active;
-    if (!active) return false;
-    if (this.validationError()) return false;
-    // `required` accepts a seeded value the user has stood in; `requireAnyOf`
-    // never does. Its whole purpose is to refuse a run made entirely of the
-    // author's defaults — caffeinate-for with 0/0/0.
-    if (unfilledRequiredArgs(active.args, acknowledgedValues(active)).length > 0) return false;
-    return !requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active));
+    if (!active || this.validationError() || resolved.requireAnyOfUnsatisfied) return -1;
+    const gaps = resolved.unfilledRequiredAcknowledged;
+    if (!gaps.length) return -1;
+    if (gaps.some((name) => resolved.unfilledRequiredVisible.includes(name))) return -1;
+    return active.args.findIndex((arg) => arg.name === gaps[0]);
   }
 
   /**
-   * The field Enter should select instead of running: the first required
-   * field holding a seeded value the user has not stood in yet. -1 when there
-   * is nothing to walk to, or when walking could not end in a run anyway — a
-   * genuinely empty required field or an unmet `requireAnyOf` needs typing,
-   * and selecting seeded fields first would just delay the complaint.
+   * Resolve fresh against the current `values`/`edited`/`confirmed`
+   * snapshot and cache the answer on `_active.resolved`. Unlike
+   * `refreshResolved()`, this is awaited by its caller — used by
+   * `canSubmit()` and `submit()`, the two places a stale-by-one-keystroke
+   * answer would matter rather than just paint. Shares `resolveGeneration`
+   * with `refreshResolved()` so a fire-and-forget refresh kicked off just
+   * before this call can never win a race against it and overwrite a newer
+   * answer with a stale one. Returns `null` if there is no active session,
+   * or if a later call (or `exit()`/`enter()`) superseded this one.
    */
-  private confirmWalkTarget(): number {
+  private async resolveFresh(): Promise<ArgumentModelResolution | null> {
     const active = this._active;
-    if (!active || this.validationError()) return -1;
-    if (requireAnyOfUnsatisfied(active.requireAnyOf, userSuppliedValues(active))) return -1;
-    const gaps = unfilledRequiredArgs(active.args, acknowledgedValues(active));
-    if (!gaps.length) return -1;
-    if (gaps.some((arg) => (active.values[arg.name] ?? '').trim() === '')) return -1;
-    return active.args.findIndex((arg) => arg.name === gaps[0].name);
+    if (!active) return null;
+    const generation = ++this.resolveGeneration;
+    const resolved = await resolveCommandArguments({
+      args: active.args,
+      values: active.values,
+      edited: userTouchedFields(active),
+      confirmed: [...active.confirmed],
+      requireAnyOf: active.requireAnyOf,
+    });
+    if (this.resolveGeneration !== generation) return null;
+    if (!this._active || this._active.commandObjectId !== active.commandObjectId) return null;
+    this.applyResolved(active.commandObjectId, generation, resolved);
+    return resolved;
+  }
+
+  /**
+   * Whether the currently active command could run right now: every
+   * `required` argument is satisfied (a confirmed seed counts, a bare
+   * default does not) and `requireAnyOf` (which no seed can satisfy) is
+   * met. Resolves fresh every call, same as `submit()` — this is the
+   * correctness-critical read, not the cached `active.resolved` that
+   * `fieldNeedsAnyOf` paints off.
+   */
+  async canSubmit(): Promise<boolean> {
+    if (!this._active || this.validationError()) return false;
+    const resolved = await this.resolveFresh();
+    if (!resolved) return false;
+    return resolved.unfilledRequiredAcknowledged.length === 0 && !resolved.requireAnyOfUnsatisfied;
   }
 
   async submit(): Promise<void> {
@@ -816,57 +778,62 @@ export class CommandArgumentsService {
     // The single authority on whether Enter runs. Callers hand every press
     // here rather than pre-checking, so a refusal always has somewhere to say
     // why instead of being swallowed.
-    if (!this.canSubmit()) {
+    if (this.validationError()) {
+      this._blockedNotice = this.validationError();
+      return;
+    }
+
+    const resolved = await this.resolveFresh();
+    // Another enter()/exit() raced this await — nothing left to submit.
+    if (!resolved || !this._active) return;
+    const active = this._active;
+
+    const canRun =
+      resolved.unfilledRequiredAcknowledged.length === 0 && !resolved.requireAnyOfUnsatisfied;
+
+    if (!canRun) {
       // When every gap is a seeded value the user could agree to, Enter
       // walks instead of complaining: selection counts as agreement, so the
       // next Enter moves on, or runs. Nothing is wrong, so nothing turns red.
-      const walkIdx = this.confirmWalkTarget();
+      const walkIdx = this.confirmWalkTarget(resolved);
       if (walkIdx !== -1) {
         this._blockedNotice = null;
         this.focusField(walkIdx);
         return;
       }
-      this._blockedNotice = this.validationError() ?? this.missingArgumentNotice();
+      this._blockedNotice = this.missingArgumentNotice(resolved);
       // Everything still owed is now something the user has been told about,
       // so it may flag itself in place — reached or not.
       this._active = {
         ...this._active,
-        owed: new Set([
-          ...this._active.owed,
-          ...unfilledRequiredArgs(this._active.args, this._active.values).map((arg) => arg.name),
-        ]),
-        anyOfRefused:
-          this._active.anyOfRefused ||
-          requireAnyOfUnsatisfied(this._active.requireAnyOf, userSuppliedValues(this._active)),
+        owed: new Set([...this._active.owed, ...resolved.unfilledRequiredVisible]),
+        anyOfRefused: this._active.anyOfRefused || resolved.requireAnyOfUnsatisfied,
       };
       logService.debug(`[argumentMode] submit refused: ${this._blockedNotice}`);
       return;
     }
     this._blockedNotice = null;
 
-    const active = this._active;
-    const payload = buildArgumentsPayload(active.args, active.values);
+    const payload = resolved.payload;
 
     // Persist non-password values BEFORE executing — the command may navigate
     // away or close the launcher, and we want the user's input preserved.
     const persist: Record<string, string> = {};
     // Only what the user supplied, and only where the argument asked to be
-    // remembered. Storing a default that merely passed through the chip would
-    // make the author's suggestion indistinguishable from a real choice next
-    // run, and open a gate that should have stayed shut.
-    const supplied = userSuppliedValues(active);
-    for (const arg of active.args) {
-      if (effectiveSeed(arg) !== 'lastUsed') continue;
-      const raw = (supplied[arg.name] ?? '').trim();
+    // remembered (`lastUsedFields`). Storing a default that merely passed
+    // through the chip would make the author's suggestion indistinguishable
+    // from a real choice next run, and open a gate that should have stayed
+    // shut.
+    for (const name of resolved.lastUsedFields) {
+      const raw = (resolved.userSupplied[name] ?? '').trim();
       if (!raw) continue;
-      persist[arg.name] = raw;
+      persist[name] = raw;
     }
-    const persistKey = persistenceCommandKey(active.commandId, active.isDynamic);
     try {
-      await commandArgDefaultsSet(active.extensionId, persistKey, persist);
+      await commandArgDefaultsSet(active.extensionId, active.commandId, active.isDynamic, persist);
     } catch (err) {
       logService.warn(
-        `[CommandArgumentsService] Failed to persist defaults for ${active.extensionId}/${persistKey}: ${err}`,
+        `[CommandArgumentsService] Failed to persist defaults for ${active.extensionId}/${active.commandId}: ${err}`,
       );
     }
 
