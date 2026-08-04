@@ -6,6 +6,7 @@
 
 export * from './extensionPreferencesCommands';
 export * from './commandArgDefaultsCommands';
+export * from './argumentModelCommands';
 export * from './iframeLifecycleCommands';
 export * from './deeplinkCommands';
 export * from './browserCommands';

@@ -15,6 +15,13 @@ vi.mock('../../lib/ipc/commandArgDefaultsCommands', () => ({
   commandArgDefaultsGet: vi.fn().mockResolvedValue({}),
   commandArgDefaultsSet: vi.fn().mockResolvedValue(undefined),
 }));
+// The seeding/provenance/gate algorithm now lives in Rust
+// (extensions::argument_model::resolve); this test-only JS port stands in
+// for the real IPC call. See argumentModelTestFake.ts.
+vi.mock('../../lib/ipc/argumentModelCommands', async () => {
+  const { fakeResolveCommandArguments } = await import('./argumentModelTestFake');
+  return { resolveCommandArguments: fakeResolveCommandArguments };
+});
 vi.mock('../extension/extensionManager.svelte', () => ({
   default: {
     getCommandArgMeta: (id: string) => getCommandArgMeta(id),

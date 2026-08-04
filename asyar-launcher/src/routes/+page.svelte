@@ -31,10 +31,7 @@
   import ShellConsentDialog from '../components/shell/ShellConsentDialog.svelte';
   import { actionService } from '../services/action/actionService.svelte';
   import { commandArgumentsService } from '../services/search/commandArguments';
-  import {
-    persistenceCommandKey,
-    seedArgumentValues,
-  } from '../services/search/commandArgumentsService.svelte';
+  import { resolveCommandArguments } from '../lib/ipc/argumentModelCommands';
   import { commandArgDefaultsGet } from '../lib/ipc/commandArgDefaultsCommands';
   import { argumentHintVersion } from '../lib/launcher/argumentHintVersion.svelte';
   import type { CommandArgument } from 'asyar-sdk/contracts';
@@ -347,9 +344,11 @@
         meta && declared.some((a) => a.type === 'dropdown')
           ? ((await commandArgDefaultsGet(
               meta.extensionId,
-              persistenceCommandKey(meta.commandId, meta.isDynamic === true),
+              meta.commandId,
+              meta.isDynamic === true,
             )) ?? {})
           : {};
+      const resolved = await resolveCommandArguments({ args: declared, persisted, values: {} });
       const schema: ArgHintSchema = {
         args: declared.map((a) => ({
           name: a.name,
@@ -357,7 +356,7 @@
           type: a.type,
           options: a.data,
         })),
-        seeds: seedArgumentValues(declared, persisted),
+        seeds: resolved.seeds,
       };
       // A bump while this was in flight already emptied the cache: what was
       // just read is exactly what it threw away, so don't put it back.

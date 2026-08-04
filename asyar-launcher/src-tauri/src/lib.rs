@@ -598,6 +598,7 @@ pub fn run() {
             commands::extension_preferences_import_all,
             commands::command_arg_defaults_get,
             commands::command_arg_defaults_set,
+            commands::resolve_command_arguments,
             commands::searchbar_accessory_get,
             commands::searchbar_accessory_set,
             commands::window_management_get_bounds,
