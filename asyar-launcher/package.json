@@ -23,7 +23,7 @@
     "prebuild": "pnpm gen:all"
   },
   "author": "Khoshbin Ali",
-  "license": "AGPL-3.0",
+  "license": "GPL-3.0-only",
   "dependencies": {
     "@tailwindcss/vite": "^4.0.6",
     "@tauri-apps/api": "^2.11.0",
