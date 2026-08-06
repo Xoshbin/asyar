@@ -55,8 +55,7 @@
     color: var(--text-secondary);
     border-radius: var(--radius-sm);
     border: none;
-    /* Soft inset rim. Mirrored to the native macOS chip via nativeBarSync,
-       which uses CALayer borderWidth (hard stroke) instead of a blur. */
+    /* Soft inset rim. */
     box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
     font-weight: 500;
   }

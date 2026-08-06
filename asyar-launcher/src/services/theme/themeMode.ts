@@ -1,4 +1,3 @@
-import { syncNativeBarStyle } from './nativeBarSync';
 import { setPanelAppearance } from '../../lib/ipc/commands';
 import { logService } from '../log/logService';
 
@@ -22,8 +21,6 @@ function write(resolved: ResolvedTheme): void {
   if (typeof document === 'undefined') return;
   if (document.documentElement.dataset.theme === resolved) return;
   document.documentElement.dataset.theme = resolved;
-  // rAF lets the style commit so getComputedStyle reads the new values.
-  requestAnimationFrame(() => void syncNativeBarStyle());
   // Keep NSVisualEffectView material in sync. Pass the preference so Rust
   // re-resolves "system" the same way the OS-notification observer does.
   setPanelAppearance(currentPreference).catch((e) => {

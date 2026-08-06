@@ -7,24 +7,12 @@
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import extensionManager from '../../services/extension/extensionManager.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-  import { platform } from '@tauri-apps/plugin-os';
   import PrimaryActionDisplay from './PrimaryActionDisplay.svelte';
   import BottomBarButton from './BottomBarButton.svelte';
   import FeedbackBar from './FeedbackBar.svelte';
   import StatusDot from '../base/StatusDot.svelte';
   import InformationPanel from './InformationPanel.svelte';
   import ShowMoreBarHuds from './ShowMoreBarHuds.svelte';
-
-  // On macOS the Show More bar is rendered natively (NSView) so its setHidden:
-  // commits atomically with NSWindow setFrame: — see platform/macos.rs.
-  // Windows/Linux fall back to the Svelte-rendered overlay below.
-  const IS_MACOS = (() => {
-    try {
-      return platform() === 'macos';
-    } catch {
-      return false;
-    }
-  })();
 
   let {
     selectedItem = null,
@@ -147,25 +135,21 @@
 </div>
 
 <!--
-  macOS renders this bar natively (platform/macos.rs → `show_more_bar` module)
-  for atomic setFrame+setHidden. Non-macOS uses the Svelte overlay below.
-
-  KEEP IN SYNC: any visual change here (label text, keyboard hint, colors,
-  typography, spacing, extra buttons) MUST be mirrored in the native bar at
-  src-tauri/src/platform/macos.rs `mod show_more_bar`. The two implementations
-  have no automatic sync — nativeBarSync.ts pushes CSS-variable colors over,
-  but layout and structure are hardcoded on each side.
+  Sits at the compact seam (top: 56px = SearchHeader height) inside the
+  always-480px page. On macOS the window crops the pinned webview, so this
+  bar occupies the bottom 40px of the compact window; its visibility toggle
+  rides the same paint the presentation-gated resize commits with (see
+  compactSyncService.applyLauncherHeight), keeping the transition atomic.
+  Non-macOS: the window really shrinks, same geometry applies.
 -->
-{#if !IS_MACOS}
-  <div
-    class="fixed left-0 right-0 z-40 h-10 flex items-center justify-between gap-3 px-3 show-more-bar"
-    class:is-visible={isCompactIdle}
-    style="top: 56px; background-color: var(--bg-secondary-full-opacity);"
-  >
-    <ShowMoreBarHuds />
-    <BottomBarButton label="Show More" keyHint="↓" onclick={() => onexpand?.()} />
-  </div>
-{/if}
+<div
+  class="fixed left-0 right-0 z-40 h-10 flex items-center justify-between gap-3 px-3 show-more-bar"
+  class:is-visible={isCompactIdle}
+  style="top: 56px; background-color: var(--bg-secondary-full-opacity);"
+>
+  <ShowMoreBarHuds />
+  <BottomBarButton label="Show More" keyHint="↓" onclick={() => onexpand?.()} />
+</div>
 
 <style>
   :global(html:not([data-platform='macos'])) .bottom-action-bar.is-compact {

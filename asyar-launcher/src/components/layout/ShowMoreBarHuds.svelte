@@ -1,19 +1,12 @@
 <!--
   Show More bar HUD chips — Scripts / Agents aggregate run-state summary
-  rendered on the LEFT side of the compact-mode show-more-bar (non-macOS).
-  macOS renders an equivalent native NSView via platform::macos and gets
-  its counts pushed through compactHudBridge.
+  rendered on the LEFT side of the compact-mode show-more-bar.
 
   - Scripts chip:  [dev-tools icon] · N Active · N Done
   - Agents  chip:  [ai-chat icon]   · N Active · N Idle
   - A chip with zero active + zero done is omitted (not greyed).
   - When both chips are zero, this component renders nothing — the row
     falls back to the original "Show More ↓"-only layout.
-
-  KEEP IN SYNC: the macOS counterpart is src-tauri/src/platform/macos.rs
-  `mod show_more_bar` (`build_hud_chip` / `apply_huds`). Any label / token
-  change here (Active / Done / Idle wording, icon symbol, dot colors) MUST
-  land on both sides — there is no automatic mirror.
 -->
 <script lang="ts">
   import Icon from '../base/Icon.svelte';

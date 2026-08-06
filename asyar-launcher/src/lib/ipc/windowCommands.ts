@@ -56,13 +56,11 @@ export async function quitApp(): Promise<void> {
 
 export async function setLauncherHeight(
   height: number,
-  expanded?: boolean,
   deferUntilNextCaCommit?: boolean,
   afterNextPresentationUpdate?: boolean,
 ): Promise<void> {
   await invokeSafe('set_launcher_height', {
     height,
-    expanded,
     deferUntilNextCaCommit,
     afterNextPresentationUpdate,
   });
@@ -76,34 +74,8 @@ export async function cancelLauncherResize(): Promise<void> {
   await invokeSafe('cancel_launcher_resize');
 }
 
-export async function markLauncherReady(expanded: boolean): Promise<void> {
-  await invokeSafe('mark_launcher_ready', { expanded });
-}
-
 export async function setLauncherKeepExpanded(keepExpanded: boolean): Promise<void> {
   await invokeSafe('set_launcher_keep_expanded', { keepExpanded });
-}
-
-export interface ShowMoreBarStyle {
-  bar_bg: string;
-  text: string;
-  chip_bg: string;
-  chip_border: string;
-}
-
-export async function updateShowMoreBarStyle(style: ShowMoreBarStyle): Promise<void> {
-  await invokeSafe('update_show_more_bar_style', { style });
-}
-
-export interface ShowMoreBarHudsPayload {
-  scripts_active: number;
-  scripts_done: number;
-  agents_active: number;
-  agents_done: number;
-}
-
-export async function updateShowMoreBarHuds(huds: ShowMoreBarHudsPayload): Promise<void> {
-  await invokeSafe('update_show_more_bar_huds', { huds });
 }
 
 export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Promise<void> {
