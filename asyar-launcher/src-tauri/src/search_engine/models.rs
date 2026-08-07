@@ -152,6 +152,33 @@ impl SearchableItem {
             SearchableItem::Command(c) => &c.name,
         }
     }
+
+    /// Every name a query may be matched against, display name first.
+    ///
+    /// Callers that score a query must try all of these and keep the best
+    /// hit. Matching only `get_name()` makes localized macOS apps
+    /// unreachable under the name they carry on disk: `Photos.app` presents
+    /// as "Fotos" on a German system, so a user typing "Photos" would find
+    /// nothing. The bundle file name is already available via `path`, so it
+    /// needs no separate storage — it is only surfaced for matching and
+    /// never shown, since `name` remains what the UI renders.
+    pub fn search_names(&self) -> Vec<&str> {
+        match self {
+            SearchableItem::Application(a) => {
+                let mut names = vec![a.name.as_str()];
+                if let Some(stem) = std::path::Path::new(a.path.as_str())
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                {
+                    if !stem.eq_ignore_ascii_case(&a.name) {
+                        names.push(stem);
+                    }
+                }
+                names
+            }
+            SearchableItem::Command(c) => vec![c.name.as_str()],
+        }
+    }
     // Helper to get the type string
     pub fn get_type_str(&self) -> &str {
         match self {
