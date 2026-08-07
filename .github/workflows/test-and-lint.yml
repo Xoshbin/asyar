@@ -9,6 +9,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   test-and-lint:
     runs-on: ubuntu-latest
@@ -177,4 +180,59 @@ jobs:
       # rather than the active layout.
       - name: Run Rust tests
         run: cargo test -- --skip resolve_keypress_routes_to_windows_resolver_for_shift_colon
+        working-directory: asyar-launcher/src-tauri
+
+  # macOS-only Rust build/test/lint run. Deliberately lean — no frontend/
+  # pnpm/doc steps (those are platform-agnostic and covered by
+  # `test-and-lint` above). Exists because this crate contains real
+  # `unsafe` macOS-only code (objc2/NSFileManager calls,
+  # `#[cfg(target_os = "macos")]` tests) that ubuntu-latest and
+  # windows-latest never compile — without this job that code was only
+  # ever verified by whoever happened to test it on their own Mac before
+  # merging. The repo is public, so GitHub-hosted macOS runners are free.
+  test-rust-macos:
+    name: Rust tests (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust 1.97.0
+        uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          components: clippy
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: asyar-launcher/src-tauri -> target
+          cache-on-failure: true
+
+      # build.rs reads node_modules/asyar-sdk/package.json to inject the
+      # SDK version, so the workspace symlink must exist. --ignore-scripts
+      # skips native (keytar) builds the Rust tests don't need.
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.26.0
+
+      - name: Install workspace dependencies (for build.rs SDK-version read)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run Rust tests
+        run: cargo test
+        working-directory: asyar-launcher/src-tauri
+
+      # `cargo clippy --all-targets -D warnings` on ubuntu never compiles
+      # `#[cfg(target_os = "macos")]` code, so this is the only job that
+      # ever lints macOS-only code (e.g. the NSFileManager call). `cargo
+      # fmt --check` is not needed here — rustfmt works on syntax only, not
+      # conditional compilation, so the ubuntu job's fmt check already
+      # covers macOS-gated code correctly.
+      - name: Run Clippy
+        run: cargo clippy --all-targets -- -D warnings
         working-directory: asyar-launcher/src-tauri
