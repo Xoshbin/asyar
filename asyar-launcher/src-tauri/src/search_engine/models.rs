@@ -152,6 +152,41 @@ impl SearchableItem {
             SearchableItem::Command(c) => &c.name,
         }
     }
+
+    /// Every name a query may be matched against, display name first.
+    ///
+    /// Callers that score a query must try all of these and keep the best
+    /// hit. Matching only `get_name()` makes localized macOS apps
+    /// unreachable under the name they carry on disk: `Photos.app` presents
+    /// as "Fotos" on a German system, so a user typing "Photos" would find
+    /// nothing. The bundle file name is already available via `path`, so it
+    /// needs no separate storage — it is only surfaced for matching and
+    /// never shown, since `name` remains what the UI renders.
+    pub fn search_names(&self) -> Vec<&str> {
+        match self {
+            SearchableItem::Application(a) => {
+                let mut names = vec![a.name.as_str()];
+                // Windows UWP apps are indexed under a synthetic
+                // "shell:AppsFolder\<AUMID>" identifier, not a real bundle
+                // path — file_stem() on that would chop the dotted AUMID
+                // (PackageFamilyName!AppId) and produce a bogus alternate
+                // name, e.g. "Microsoft" from every Microsoft-published app.
+                let is_real_bundle_path = !a.path.starts_with(r"shell:AppsFolder\");
+                if is_real_bundle_path {
+                    if let Some(stem) = std::path::Path::new(a.path.as_str())
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                    {
+                        if !stem.eq_ignore_ascii_case(&a.name) {
+                            names.push(stem);
+                        }
+                    }
+                }
+                names
+            }
+            SearchableItem::Command(c) => vec![c.name.as_str()],
+        }
+    }
     // Helper to get the type string
     pub fn get_type_str(&self) -> &str {
         match self {
@@ -331,6 +366,31 @@ mod tests {
     fn test_command_get_type_str() {
         let item = make_cmd("cmd_find", "Find");
         assert_eq!(item.get_type_str(), "command");
+    }
+
+    #[test]
+    fn test_search_names_ignores_uwp_synthetic_path() {
+        // UWP apps are indexed under a synthetic "shell:AppsFolder\<AUMID>"
+        // identifier, not a real bundle path. AUMIDs are dotted
+        // (PackageFamilyName!AppId, e.g.
+        // "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"), so file_stem()
+        // on the raw string would chop it at that dot and produce
+        // "Microsoft" — a bogus alternate name that would make every
+        // Microsoft-published app match a search for "Microsoft".
+        let item = SearchableItem::Application(Application {
+            id: "app_calculator".to_string(),
+            name: "Calculator".to_string(),
+            path: r"shell:AppsFolder\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App".to_string(),
+            usage_count: 0,
+            icon: None,
+            last_used_at: None,
+            bundle_id: None,
+        });
+        assert_eq!(
+            item.search_names(),
+            vec!["Calculator"],
+            "a UWP path must not contribute a bogus file-stem alternate name"
+        );
     }
 
     #[test]

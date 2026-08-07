@@ -422,13 +422,20 @@ impl SearchState {
             let mut scored: Vec<(i64, f32, &SearchableItem)> = guard
                 .iter()
                 .filter_map(|item| {
-                    matcher.fuzzy_match(item.get_name(), trimmed).map(|score| {
-                        (
-                            score,
-                            frecency_score(item.usage_count(), item.last_used_at()),
-                            item,
-                        )
-                    })
+                    // Score every name the item answers to and keep the best
+                    // hit, so a localized macOS app stays reachable under the
+                    // name it carries on disk. See `SearchableItem::search_names`.
+                    item.search_names()
+                        .iter()
+                        .filter_map(|name| matcher.fuzzy_match(name, trimmed))
+                        .max()
+                        .map(|score| {
+                            (
+                                score,
+                                frecency_score(item.usage_count(), item.last_used_at()),
+                                item,
+                            )
+                        })
                 })
                 .collect();
             scored.sort_unstable_by(|a, b| {
@@ -736,8 +743,16 @@ impl SearchState {
                         Some(SearchableItem::Command(cmd)) => {
                             (cmd.subtitle.clone(), vec![cmd.trigger.clone()])
                         }
-                        Some(SearchableItem::Application(app)) => {
-                            (None, app.bundle_id.iter().cloned().collect())
+                        Some(item @ SearchableItem::Application(app)) => {
+                            // Bundle id plus any non-display name the item
+                            // matched on — without the latter, an app found
+                            // via its on-disk name would classify as
+                            // "no name hit" and rank below genuine misses.
+                            let mut keywords: Vec<String> = app.bundle_id.iter().cloned().collect();
+                            keywords.extend(
+                                item.search_names().into_iter().skip(1).map(str::to_string),
+                            );
+                            (None, keywords)
                         }
                         None => (None, vec![]),
                     };
@@ -941,6 +956,20 @@ mod service_tests {
         })
     }
 
+    /// An app whose OS-resolved display name differs from its bundle file
+    /// name, the way localized macOS apps behave.
+    fn app_localized(id: &str, name: &str, file_name: &str, usage: u32) -> SearchableItem {
+        SearchableItem::Application(Application {
+            id: id.to_string(),
+            name: name.to_string(),
+            path: format!("/Applications/{}.app", file_name),
+            usage_count: usage,
+            icon: None,
+            last_used_at: None,
+            bundle_id: None,
+        })
+    }
+
     fn cmd(id: &str, name: &str, usage: u32) -> SearchableItem {
         SearchableItem::Command(Command {
             id: id.to_string(),
@@ -1124,6 +1153,40 @@ mod service_tests {
         let results = state.search("saf").unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].name, "Safari");
+    }
+
+    #[test]
+    fn test_search_finds_app_by_alternate_name() {
+        // macOS localizes bundle display names: Photos.app presents as
+        // "Fotos" on a German system while staying Photos.app on disk.
+        // Both spellings must find it — the display name because that is
+        // what the user sees, the on-disk name because that is what people
+        // used to English app names type.
+        let state = make_state();
+        state
+            .index_one(app_localized("app_photos", "Fotos", "Photos", 0))
+            .unwrap();
+
+        assert!(
+            !state.search("Fotos").unwrap().is_empty(),
+            "localized display name must match"
+        );
+        assert!(
+            !state.search("Photos").unwrap().is_empty(),
+            "on-disk bundle name must match"
+        );
+    }
+
+    #[test]
+    fn test_search_by_alternate_name_still_reports_display_name() {
+        // Matching the on-disk name must not leak it into the UI: the row
+        // still has to read "Fotos", the name the rest of the system uses.
+        let state = make_state();
+        state
+            .index_one(app_localized("app_photos", "Fotos", "Photos", 0))
+            .unwrap();
+        let results = state.search("Photos").unwrap();
+        assert_eq!(results[0].name, "Fotos");
     }
 
     #[test]

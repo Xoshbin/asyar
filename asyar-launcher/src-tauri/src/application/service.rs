@@ -77,19 +77,16 @@ pub fn sync_application_index<R: tauri::Runtime>(
     // 2. Build current app set
     let mut current_apps: HashMap<String, Application> = HashMap::new();
     for path_str in &scanner.paths {
-        let name = Path::new(path_str)
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .unwrap_or("Unknown_App")
-            .to_string();
-
-        let full_app_id = build_app_id(&name, path_str);
+        let path = Path::new(path_str);
+        // Id keyed on the file name, never the display name — see
+        // `bundle_file_name`. Keeps existing ids byte-identical.
+        let full_app_id = build_app_id(&bundle_file_name(path), path_str);
 
         current_apps.insert(
             full_app_id.clone(),
             Application {
                 id: full_app_id,
-                name,
+                name: display_name(path),
                 path: path_str.clone(),
                 usage_count: 0,
                 icon: extract_app_icon(path_str, &icon_cache_dir),
@@ -206,17 +203,12 @@ pub fn list_applications<R: tauri::Runtime>(
     let mut applications = Vec::new();
 
     for path_str in &scanner.paths {
-        let name = Path::new(path_str)
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .unwrap_or("Unknown_App")
-            .to_string();
-
-        let full_app_id = build_app_id(&name, path_str);
+        let path = Path::new(path_str);
+        let full_app_id = build_app_id(&bundle_file_name(path), path_str);
 
         applications.push(Application {
             id: full_app_id,
-            name,
+            name: display_name(path),
             path: path_str.clone(),
             usage_count: 0,
             icon: extract_app_icon(path_str, &icon_cache_dir),
@@ -562,6 +554,54 @@ fn score_candidate(filename: &str) -> i32 {
 /// Works the same whether the path comes from a default scan location or from
 /// a user-configured custom scan directory — the logic is purely
 /// path-content-based (Info.plist or .desktop), no registry lookup.
+/// The bundle's file name on disk, without extension.
+///
+/// This is the app's stable identity: `build_app_id` embeds it, and the id
+/// in turn keys usage stats, user-assigned aliases and item shortcuts.
+/// It must never be swapped for a display name, or all three break silently
+/// the first time a user's language changes what the OS reports.
+pub(crate) fn bundle_file_name(path: &Path) -> String {
+    path.file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("Unknown_App")
+        .to_string()
+}
+
+/// The name macOS presents for a bundle, which is localized — `Photos.app`
+/// reads as "Fotos" on a German system. Returns `None` when the OS has
+/// nothing to add, so callers fall back to the file name.
+#[cfg(target_os = "macos")]
+pub(crate) fn localized_display_name(path: &Path) -> Option<String> {
+    use objc2_foundation::{NSFileManager, NSString};
+
+    let path_str = path.to_str()?;
+    let ns_path = NSString::from_str(path_str);
+    let display = unsafe { NSFileManager::defaultManager().displayNameAtPath(&ns_path) };
+    // Finder hides the extension by default but honours the user's
+    // "show all filename extensions" setting, so it may come back either way.
+    let display = display.to_string();
+    let trimmed = display.strip_suffix(".app").unwrap_or(&display).trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+/// What the user sees for this app. Localized on macOS, the plain file name
+/// everywhere else. Deliberately separate from [`bundle_file_name`] — search
+/// matches both, but only the file name may reach `build_app_id`.
+pub(crate) fn display_name(path: &Path) -> String {
+    #[cfg(target_os = "macos")]
+    {
+        localized_display_name(path).unwrap_or_else(|| bundle_file_name(path))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        bundle_file_name(path)
+    }
+}
+
 pub(crate) fn extract_bundle_id(path: &Path) -> Option<String> {
     #[cfg(target_os = "macos")]
     {
@@ -866,6 +906,45 @@ mod tests {
     fn test_is_default_app_location_macos_matches_applications_dir() {
         assert!(is_default_app_location("/Applications/Finder.app"));
         assert!(is_default_app_location("/System/Applications/Calendar.app"));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_localized_display_name_resolves_system_app() {
+        // Locale-independent on purpose: an English system answers "Photos",
+        // a German one "Fotos". Asserting either would fail on the other, so
+        // only assert the properties that must hold in every locale.
+        let name = localized_display_name(Path::new("/System/Applications/Photos.app"))
+            .expect("macOS must resolve a display name for a stock system app");
+        assert!(!name.is_empty());
+        assert!(
+            !name.ends_with(".app"),
+            "extension must be stripped, got {name}"
+        );
+    }
+
+    #[test]
+    fn test_display_name_falls_back_to_file_name_for_unknown_bundle() {
+        // A path the OS knows nothing about must still yield the file name
+        // rather than an empty string, or the app would index as nameless.
+        let tmp = std::env::temp_dir().join("asyar_display_name_fallback_Widget.app");
+        assert_eq!(
+            display_name(&tmp),
+            "asyar_display_name_fallback_Widget",
+            "unknown bundles fall back to the file name"
+        );
+    }
+
+    #[test]
+    fn test_bundle_file_name_is_independent_of_display_name() {
+        // The id is built from this, so it must stay the plain file stem.
+        // If this ever tracked the display name, every localized app would
+        // get a new id and silently lose its usage stats, aliases and
+        // shortcuts on the first scan after a language change.
+        assert_eq!(
+            bundle_file_name(Path::new("/System/Applications/Photos.app")),
+            "Photos"
+        );
     }
 
     #[test]
