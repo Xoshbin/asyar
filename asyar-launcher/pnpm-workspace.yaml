@@ -2,3 +2,11 @@ packages:
   - '.'
   - 'src/built-in-features/*'
   - '../asyar-sdk'
+
+allowBuilds:
+  esbuild: true
+  keytar: true
+
+onlyBuiltDependencies:
+  - 'esbuild'
+  - 'keytar'
