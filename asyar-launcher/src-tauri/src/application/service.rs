@@ -451,10 +451,17 @@ pub fn display_parent_dir(app_path: &str) -> String {
 pub fn get_default_app_scan_paths() -> Vec<PathBuf> {
     #[cfg(target_os = "macos")]
     {
-        vec![
+        let mut paths = vec![
             PathBuf::from("/Applications"),
             PathBuf::from("/System/Applications"),
-        ]
+        ];
+        // Installers that don't ask for admin rights write here instead of
+        // /Applications. Same rationale as the per-user locations the Linux
+        // and Windows arms below already cover.
+        if let Some(home) = dirs::home_dir() {
+            paths.push(home.join("Applications"));
+        }
+        paths
     }
     #[cfg(target_os = "linux")]
     {
@@ -882,6 +889,20 @@ mod tests {
 
     #[test]
     #[cfg(target_os = "macos")]
+    fn test_get_default_app_scan_paths_includes_user_applications() {
+        // macOS installers that don't require admin rights (Autodesk, some
+        // Adobe tools, browser-generated PWA shims) land in ~/Applications.
+        // Linux and Windows already scan their per-user location; macOS must
+        // too, or those apps are invisible to search.
+        let home = dirs::home_dir().expect("home dir must resolve in tests");
+        assert!(
+            get_default_app_scan_paths().contains(&home.join("Applications")),
+            "macOS defaults must include the per-user ~/Applications folder"
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
     fn test_is_default_app_location_macos_matches_applications_dir() {
         assert!(is_default_app_location("/Applications/Finder.app"));
         assert!(is_default_app_location("/System/Applications/Calendar.app"));
@@ -924,6 +945,17 @@ mod tests {
             bundle_file_name(Path::new("/System/Applications/Photos.app")),
             "Photos"
         );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_is_default_app_location_macos_matches_user_applications() {
+        // Derived from get_default_app_scan_paths(), so ~/Applications must
+        // count as a default location — the settings UI relies on this to
+        // reject it as a redundant custom path.
+        let home = dirs::home_dir().expect("home dir must resolve in tests");
+        let app = home.join("Applications").join("Some.app");
+        assert!(is_default_app_location(app.to_str().expect("utf-8 path")));
     }
 
     #[test]
