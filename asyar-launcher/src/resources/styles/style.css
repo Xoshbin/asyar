@@ -219,8 +219,7 @@ html[data-platform='macos'] .app-root {
 
     --shadow-color: rgba(0, 0, 0, 0.25);
     --scrollbar-thumb: rgba(155, 155, 155, 0.5);
-    /* White-alpha rim for kbd chips on dark surfaces. Mirrored to the
-       native macOS Show More chip via nativeBarSync. */
+    /* White-alpha rim for kbd chips on dark surfaces. */
     --kbd-rim: rgba(255, 255, 255, 0.03);
 
     background-color: var(--bg-primary);
@@ -381,8 +380,7 @@ html[data-platform='macos'] .app-root {
 
     --shadow-color: rgba(0, 0, 0, 0.06);
     --scrollbar-thumb: rgba(100, 116, 132, 0.3);
-    /* Dark-alpha rim for kbd chips on light surfaces. Mirrored to the
-       native macOS Show More chip via nativeBarSync. */
+    /* Dark-alpha rim for kbd chips on light surfaces. */
     --kbd-rim: rgba(0, 0, 0, 0.025);
 
     background-color: var(--bg-primary);

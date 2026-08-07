@@ -272,8 +272,8 @@ pub fn set_launcher_keep_expanded(state: tauri::State<'_, AppState>, keep_expand
 
 /// Marks the in-flight presentation-gated resize's content as painted.
 /// Called from a rAF in the same webview rendering update that builds the
-/// new view's paint, so the gated grow commits on exactly that paint's
-/// presentation (see `platform::macos::confirm_launcher_paint`).
+/// new view's paint, so the gated resize commits in the same render-server
+/// commit as that paint (see `platform::macos::confirm_launcher_paint`).
 #[tauri::command]
 pub fn confirm_launcher_paint() {
     #[cfg(target_os = "macos")]
@@ -282,7 +282,7 @@ pub fn confirm_launcher_paint() {
 
 /// Withdraws an in-flight presentation-gated resize whose confirm will
 /// never arrive (the frontend deferred a reversal mid-transition instead).
-/// The armed hook and its watchdog drop via the generation check.
+/// The armed sentinel and its watchdog drop via the generation check.
 #[tauri::command]
 pub fn cancel_launcher_resize() {
     #[cfg(target_os = "macos")]
@@ -306,17 +306,15 @@ fn validate_launcher_height(height: f64) -> Result<(), AppError> {
 }
 
 /// Resizes the launcher window height, keeping the top edge pinned. On macOS
-/// `expanded: Some(bool)` also toggles the native Show More bar in the same
-/// CATransaction as the window resize; `None` leaves its visibility alone.
 /// `defer_until_next_ca_commit: Some(true)` gates the resize on the current
-/// CA transaction's pre-commit phase (goBack shrink);
+/// CA transaction's pre-commit phase;
 /// `after_next_presentation_update: Some(true)` gates it on WebKit's next
-/// applied WebContent paint (hotkey-entry grow) and wins over the CA gate.
+/// *confirmed* WebContent paint (every visible compact↔expanded transition)
+/// and wins over the CA gate.
 #[tauri::command]
 pub fn set_launcher_height(
     app_handle: AppHandle,
     height: f64,
-    expanded: Option<bool>,
     defer_until_next_ca_commit: Option<bool>,
     after_next_presentation_update: Option<bool>,
 ) -> Result<(), AppError> {
@@ -335,12 +333,11 @@ pub fn set_launcher_height(
         } else {
             ResizeMode::Immediate
         };
-        crate::platform::macos::set_launcher_window_height(&window, height, expanded, mode);
+        crate::platform::macos::set_launcher_window_height(&window, height, mode);
     }
 
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = expanded;
         let _ = defer_until_next_ca_commit;
         let _ = after_next_presentation_update;
         use tauri::LogicalSize;
@@ -356,158 +353,6 @@ pub fn set_launcher_height(
     }
 
     Ok(())
-}
-
-/// Reveals the native Show More bar, which was created hidden so cold-start
-/// paint latency doesn't show a bar above a blank search header. The frontend
-/// fires this from a single onMount rAF so `setHidden:NO` lands on the same
-/// CATransaction as WebKit's first painted frame. No-op on non-macOS.
-#[tauri::command]
-pub fn mark_launcher_ready(expanded: bool) -> Result<(), AppError> {
-    #[cfg(target_os = "macos")]
-    {
-        crate::platform::macos::reveal_show_more_bar(expanded);
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = expanded;
-    }
-    Ok(())
-}
-
-/// Color palette for the native macOS Show More bar. Each field is a CSS
-/// color string (`#RRGGBB`/`#RRGGBBAA`, `rgb(r,g,b)`, `rgba(r,g,b,a)`).
-#[derive(serde::Deserialize, Debug)]
-pub struct ShowMoreBarStyle {
-    pub bar_bg: String,
-    pub text: String,
-    pub chip_bg: String,
-    pub chip_border: String,
-}
-
-/// Aggregate Scripts / Agents run counts pushed from TS so the native macOS
-/// Show More bar can render the chip HUDs (icon + dot + "N Active / N Done")
-/// on its left side, opposite the existing "Show More ↓" affordance.
-///
-/// Snake-case field names mirror the TS payload; Tauri serde does the mapping.
-#[derive(serde::Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
-pub struct ShowMoreBarHuds {
-    pub scripts_active: u32,
-    pub scripts_done: u32,
-    pub agents_active: u32,
-    pub agents_done: u32,
-}
-
-/// Updates the native Show More bar HUD chips with the current aggregate
-/// counts. Each chip is hidden when both of its counts are zero, so the bar
-/// looks identical to the pre-HUD state on a quiet system. No-op on non-macOS.
-///
-/// Dispatched to the main thread: `apply_huds` mutates NSView frames and
-/// NSTextField string values, both of which silently no-op off the main
-/// thread (unlike pure CALayer property writes which are thread-safe — that's
-/// why the sibling `update_show_more_bar_style` works without dispatch).
-#[tauri::command]
-pub fn update_show_more_bar_huds(
-    app_handle: AppHandle,
-    huds: ShowMoreBarHuds,
-) -> Result<(), AppError> {
-    #[cfg(target_os = "macos")]
-    {
-        let _ = app_handle.run_on_main_thread(move || {
-            crate::platform::macos::apply_show_more_bar_huds(
-                huds.scripts_active,
-                huds.scripts_done,
-                huds.agents_active,
-                huds.agents_done,
-            );
-        });
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = (app_handle, huds);
-    }
-    Ok(())
-}
-
-/// Updates the native Show More bar's colors to match the current webview
-/// theme. No-op on non-macOS.
-#[tauri::command]
-pub fn update_show_more_bar_style(style: ShowMoreBarStyle) -> Result<(), AppError> {
-    #[cfg(target_os = "macos")]
-    {
-        let bar_bg = parse_css_color(&style.bar_bg)?;
-        let text = parse_css_color(&style.text)?;
-        let chip_bg = parse_css_color(&style.chip_bg)?;
-        let chip_border = parse_css_color(&style.chip_border)?;
-        crate::platform::macos::apply_show_more_bar_style(bar_bg, text, chip_bg, chip_border);
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = style;
-    }
-    Ok(())
-}
-
-/// Parses CSS color strings that `getComputedStyle` may return: the
-/// `rgb()/rgba()` functional forms (Chrome/Firefox) and `#RRGGBB`/`#RRGGBBAA`
-/// hex forms (Safari/WebKit canonicalizes opaque rgb() colors back to hex).
-#[cfg(target_os = "macos")]
-fn parse_css_color(s: &str) -> Result<(f64, f64, f64, f64), AppError> {
-    let s = s.trim();
-    let invalid = || AppError::Validation(format!("unsupported color: {s}"));
-
-    if let Some(hex) = s.strip_prefix('#') {
-        let hex_chan = |slice: &str| -> Result<f64, AppError> {
-            let v = u8::from_str_radix(slice, 16).map_err(|_| invalid())?;
-            Ok(v as f64 / 255.0)
-        };
-        return match hex.len() {
-            6 => Ok((
-                hex_chan(&hex[0..2])?,
-                hex_chan(&hex[2..4])?,
-                hex_chan(&hex[4..6])?,
-                1.0,
-            )),
-            8 => Ok((
-                hex_chan(&hex[0..2])?,
-                hex_chan(&hex[2..4])?,
-                hex_chan(&hex[4..6])?,
-                hex_chan(&hex[6..8])?,
-            )),
-            _ => Err(invalid()),
-        };
-    }
-
-    let inner = s
-        .strip_prefix("rgba(")
-        .or_else(|| s.strip_prefix("rgb("))
-        .and_then(|r| r.strip_suffix(')'))
-        .ok_or_else(invalid)?;
-
-    let parts: Vec<&str> = inner
-        .split(|c: char| c == ',' || c == '/' || c.is_whitespace())
-        .filter(|p| !p.is_empty())
-        .collect();
-    if !(3..=4).contains(&parts.len()) {
-        return Err(invalid());
-    }
-
-    let chan = |p: &str| -> Result<f64, AppError> {
-        let v: u16 = p.parse().map_err(|_| invalid())?;
-        if v > 255 {
-            return Err(invalid());
-        }
-        Ok(v as f64 / 255.0)
-    };
-    let a: f64 = if parts.len() == 4 {
-        parts[3].parse().map_err(|_| invalid())?
-    } else {
-        1.0
-    };
-    if !(0.0..=1.0).contains(&a) {
-        return Err(invalid());
-    }
-    Ok((chan(parts[0])?, chan(parts[1])?, chan(parts[2])?, a))
 }
 
 /// Updates the NSVisualEffectView material on the launcher panel to match the
@@ -667,170 +512,5 @@ mod tests {
     fn error_is_validation_variant() {
         let err = validate_launcher_height(f64::NAN).unwrap_err();
         assert!(matches!(err, AppError::Validation(_)));
-    }
-
-    #[cfg(target_os = "macos")]
-    mod parse_css_color_tests {
-        use super::*;
-
-        #[test]
-        fn accepts_rgb_comma_form() {
-            let (r, g, b, a) = parse_css_color("rgb(255, 0, 128)").unwrap();
-            assert_eq!(r, 1.0);
-            assert_eq!(g, 0.0);
-            assert!((b - 128.0 / 255.0).abs() < 1e-9);
-            assert_eq!(a, 1.0);
-        }
-
-        #[test]
-        fn accepts_rgba_with_alpha() {
-            let (r, g, b, a) = parse_css_color("rgba(0, 0, 0, 0.5)").unwrap();
-            assert_eq!((r, g, b, a), (0.0, 0.0, 0.0, 0.5));
-        }
-
-        #[test]
-        fn accepts_css4_space_slash_form() {
-            let (r, g, b, a) = parse_css_color("rgb(255 128 64 / 0.75)").unwrap();
-            assert_eq!(r, 1.0);
-            assert!((g - 128.0 / 255.0).abs() < 1e-9);
-            assert!((b - 64.0 / 255.0).abs() < 1e-9);
-            assert_eq!(a, 0.75);
-        }
-
-        #[test]
-        fn accepts_leading_and_trailing_whitespace() {
-            assert!(parse_css_color("  rgb(1, 2, 3)  ").is_ok());
-        }
-
-        #[test]
-        fn accepts_black() {
-            let (r, g, b, a) = parse_css_color("rgb(0, 0, 0)").unwrap();
-            assert_eq!((r, g, b, a), (0.0, 0.0, 0.0, 1.0));
-        }
-
-        #[test]
-        fn accepts_white() {
-            let (r, g, b, a) = parse_css_color("rgb(255, 255, 255)").unwrap();
-            assert_eq!((r, g, b, a), (1.0, 1.0, 1.0, 1.0));
-        }
-
-        #[test]
-        fn rejects_missing_closing_paren() {
-            assert!(parse_css_color("rgb(1, 2, 3").is_err());
-        }
-
-        #[test]
-        fn parses_six_digit_hex() {
-            let (r, g, b, a) = parse_css_color("#e6e6eb").unwrap();
-            assert!((r - 0.9019).abs() < 1e-3);
-            assert!((g - 0.9019).abs() < 1e-3);
-            assert!((b - 0.9215).abs() < 1e-3);
-            assert!((a - 1.0).abs() < 1e-9);
-        }
-
-        #[test]
-        fn parses_eight_digit_hex_with_alpha() {
-            let (_, _, _, a) = parse_css_color("#3c3c43b3").unwrap();
-            assert!((a - (0xb3 as f64 / 255.0)).abs() < 1e-9);
-        }
-
-        #[test]
-        fn rejects_short_hex() {
-            // 3-digit shorthand isn't emitted by getComputedStyle; reject so we
-            // don't have to silently truncate.
-            assert!(parse_css_color("#fff").is_err());
-        }
-
-        #[test]
-        fn rejects_hsl_form() {
-            assert!(parse_css_color("hsl(0, 0%, 0%)").is_err());
-        }
-
-        #[test]
-        fn rejects_too_few_channels() {
-            assert!(parse_css_color("rgb(1, 2)").is_err());
-        }
-
-        #[test]
-        fn rejects_too_many_channels() {
-            assert!(parse_css_color("rgb(1, 2, 3, 4, 5)").is_err());
-        }
-
-        #[test]
-        fn rejects_channel_above_255() {
-            assert!(parse_css_color("rgb(256, 0, 0)").is_err());
-        }
-
-        #[test]
-        fn rejects_non_numeric_channel() {
-            assert!(parse_css_color("rgb(x, 0, 0)").is_err());
-        }
-
-        #[test]
-        fn rejects_negative_channel() {
-            assert!(parse_css_color("rgb(-1, 0, 0)").is_err());
-        }
-
-        #[test]
-        fn rejects_alpha_above_one() {
-            assert!(parse_css_color("rgba(0, 0, 0, 1.5)").is_err());
-        }
-
-        #[test]
-        fn rejects_negative_alpha() {
-            assert!(parse_css_color("rgba(0, 0, 0, -0.1)").is_err());
-        }
-
-        #[test]
-        fn error_is_validation_variant() {
-            let err = parse_css_color("nope").unwrap_err();
-            assert!(matches!(err, AppError::Validation(_)));
-        }
-    }
-
-    mod show_more_bar_huds_contract {
-        use super::*;
-
-        #[test]
-        fn deserializes_full_payload_from_ts() {
-            // TS sends snake_case keys via the Tauri invoke wrapper. Mirrors
-            // the shape produced by compactHudBridge.pushShowMoreBarHuds.
-            let json = r#"{
-                "scripts_active": 2,
-                "scripts_done": 0,
-                "agents_active": 1,
-                "agents_done": 3
-            }"#;
-            let parsed: ShowMoreBarHuds = serde_json::from_str(json).unwrap();
-            assert_eq!(
-                parsed,
-                ShowMoreBarHuds {
-                    scripts_active: 2,
-                    scripts_done: 0,
-                    agents_active: 1,
-                    agents_done: 3,
-                }
-            );
-        }
-
-        #[test]
-        fn deserializes_zero_payload_used_for_clearing_chips() {
-            // First-frame "hide everything" push from a quiet system.
-            let json = r#"{"scripts_active":0,"scripts_done":0,"agents_active":0,"agents_done":0}"#;
-            let parsed: ShowMoreBarHuds = serde_json::from_str(json).unwrap();
-            assert_eq!(parsed.scripts_active, 0);
-            assert_eq!(parsed.scripts_done, 0);
-            assert_eq!(parsed.agents_active, 0);
-            assert_eq!(parsed.agents_done, 0);
-        }
-
-        #[test]
-        fn rejects_negative_counts() {
-            // u32 cannot represent negatives — serde must error so a TS bug
-            // that produces a sentinel like -1 can't silently render garbage.
-            let json =
-                r#"{"scripts_active":-1,"scripts_done":0,"agents_active":0,"agents_done":0}"#;
-            assert!(serde_json::from_str::<ShowMoreBarHuds>(json).is_err());
-        }
     }
 }

@@ -22,8 +22,6 @@
     CompactSyncService,
     registerCompactSyncService,
   } from '../services/launcher/compactSyncService.svelte';
-  import { pushShowMoreBarHuds } from '../services/launcher/compactHudBridge';
-  import { aggregateKindCounts } from '../services/launcher/itemStatusLogic';
   import { runService } from '../services/run/runService.svelte';
   import { feedbackService } from '../services/feedback/feedbackService.svelte';
   import { logService } from '../services/log/logService';
@@ -183,19 +181,6 @@
   });
   $effect(() => {
     compactSync.applyLauncherHeight();
-  });
-
-  // Mirror Scripts/Agents run counts to the native macOS Show More bar HUD
-  // chips. Reads runService directly so the $derived in compactHudBridge's
-  // dedup cache fires only when the four numbers actually change. No-op on
-  // non-macOS (the chips render inline via ShowMoreBarHuds.svelte there).
-  $effect(() => {
-    const counts = aggregateKindCounts(
-      runService.active,
-      runService.keptAgents,
-      runService.unacknowledgedScriptResults,
-    );
-    void pushShowMoreBarHuds(counts);
   });
 
   onMount(() => {

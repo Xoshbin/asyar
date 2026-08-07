@@ -750,23 +750,19 @@ pub enum ResizeMode {
 
 /// Monotonic resize-request generation. Every `set_launcher_window_height`
 /// call claims a new generation, and a commit whose generation has been
-/// superseded by the time it fires (late CA pre-commit, late presentation
-/// block, watchdog) is dropped: the newest request owns the window. This
+/// superseded by the time it fires (late CA pre-commit, late sentinel
+/// match, watchdog) is dropped: the newest request owns the window. This
 /// turns Escape-then-instant-reopen into "no visible resize at all" instead
 /// of a 480→96→480 bounce. `cancel_pending_resize` claims a generation with
 /// no successor, which withdraws an armed request outright.
 static RESIZE_GEN: AtomicU64 = AtomicU64::new(0);
 
 /// Highest generation whose content paint the webview has confirmed
-/// (`confirm_launcher_paint`). A presentation-gated resize only commits on a
-/// present at-or-after this mark; earlier presents (a caret blink already in
-/// flight) re-arm the hook instead of resizing against stale content.
+/// (`confirm_launcher_paint`). A gated resize whose generation is already
+/// confirmed at dispatch time skips the sentinel and joins the current
+/// transaction directly (`set_launcher_window_height`'s fast path): the
+/// swap is already applied, so there is no future commit to wait for.
 static CONFIRMED_GEN: AtomicU64 = AtomicU64::new(0);
-
-/// Re-arms a presentation hook tolerates before giving up (the watchdog
-/// owns recovery). At one present per frame this comfortably exceeds the
-/// watchdog horizon.
-const GROW_HOOK_MAX_REARMS: u8 = 20;
 
 /// How long a presentation-gated resize waits for WebKit before the watchdog
 /// force-applies the geometry. Sized for "WebContent is wedged", not "slow
@@ -774,68 +770,230 @@ const GROW_HOOK_MAX_REARMS: u8 = 20;
 /// resize must land with, and waiting for it is the point.
 const GROW_WATCHDOG_MS: u64 = 250;
 
+// ────────────────────────────────────────────────────────────────────────────
+// The commit sentinel: how a gated resize lands in the SAME render-server
+// commit as the webview paint it belongs to.
+//
+// Problem. A compact↔expanded transition swaps DOM chrome inside the already
+// visible region (the Show More bar at the seam) at the same instant the
+// NSWindow resizes. Unless both land in one render-server commit, one frame
+// shows mismatched state (window tall + compact chrome, or cropped + stale
+// pixels). AppKit-side content can join `setFrame:`'s CATransaction by
+// construction; DOM content paints on WebKit's pipeline, so it needs the
+// machinery below.
+//
+// Why presentation callbacks cannot do this:
+// - `_doAfterNextPresentationUpdate:` fires after the paint is on glass, so
+//   a resize committed from it trails the paint by one frame. Measured: the
+//   mismatch is visible for exactly one 60fps frame.
+// - `_doAfterNextPresentationUpdateWithoutWaitingForPainting:` fires inside
+//   WebKit's commit-application callout. Mutating AppKit there (setFrame:)
+//   crashes the WebContent process; deferring from it to pre-commit attaches
+//   to the NEXT transaction, one frame late again. Both are dead ends.
+//
+// The two facts the sentinel is built on:
+// 1. ORDERING. The frontend confirms the paint (`confirm_launcher_paint`)
+//    from a rAF in the same rendering update that builds the swap, and
+//    WebKit IPC is ordered per connection: the confirm message and the
+//    swap's layer-tree commit leave the WebContent process in that order.
+//    So when confirm runs in this process, every layer commit applied so
+//    far is pre-swap, and the first one applied after it IS the swap.
+// 2. UI-SIDE COMPOSITING. Modern macOS WKWebView uses remote layer trees:
+//    the WebContent process sends layer-tree commits that the UI process
+//    applies to real CALayers (contents = IOSurface refs) on the main
+//    thread, inside ordinary CATransactions. That is what makes the swap
+//    observable here at all, and what a `setFrame:` can join. Verified
+//    empirically: the fingerprint below changes on the first transaction
+//    after confirm, and resizing there yields adjacent-frame transitions
+//    with no mismatch. If Apple ever moved compositing back out of the UI
+//    process, the fingerprint would never change, the sentinel would never
+//    fire, and the watchdog would degrade this to the old one-frame-late
+//    behavior — worse, but never broken.
+//
+// Algorithm. When a gated resize is requested, stash the commit closure plus
+// a fingerprint of the webview's layer subtree (contents pointers + sublayer
+// counts). When confirm arrives, re-snapshot the fingerprint (any commit
+// applied between request and confirm — a caret blink — is pre-swap by fact
+// 1) and start watching: each main-runloop turn, register a handler for the
+// pre-commit phase of that turn's implicit CATransaction. At pre-commit,
+// layout is done and the transaction has not been handed to the render
+// server; if the fingerprint changed, this transaction is the one applying
+// the swap commit — run the resize right here and it ships in the same
+// render-server commit as the new pixels. Unchanged → chain to the next
+// turn. Mutating window geometry at pre-commit is the same mechanic as
+// `DeferToNextCaCommit`, safely outside any WebKit callout.
+//
+// Recovery: generation supersession drops stale sentinels, the rounds cap
+// bounds the watch, and the 250ms watchdog force-applies geometry if the
+// paint never comes. Main-thread only.
+// ────────────────────────────────────────────────────────────────────────────
+struct SentinelPending {
+    gen: u64,
+    commit: Box<dyn Fn()>,
+    webview: usize,
+    fingerprint: std::cell::Cell<u64>,
+    rounds: std::cell::Cell<u32>,
+}
+
+thread_local! {
+    static SENTINEL: RefCell<Option<Rc<SentinelPending>>> = const { RefCell::new(None) };
+}
+
+extern "C" {
+    static _dispatch_main_q: std::ffi::c_void;
+    fn dispatch_async(queue: *const std::ffi::c_void, block: &block2::Block<dyn Fn()>);
+}
+
+/// Cheap structural hash of a layer subtree: contents pointers + sublayer
+/// counts. A WebContent commit swaps tile contents, so the hash moves.
+unsafe fn layer_tree_fingerprint(view: *mut AnyObject) -> u64 {
+    unsafe fn walk(layer: *mut AnyObject, depth: u32, acc: &mut u64) {
+        if layer.is_null() || depth > 8 {
+            return;
+        }
+        let contents: *mut AnyObject = msg_send![layer, contents];
+        *acc = acc.rotate_left(7) ^ (contents as u64);
+        let subs: *mut AnyObject = msg_send![layer, sublayers];
+        if subs.is_null() {
+            return;
+        }
+        let count: usize = msg_send![subs, count];
+        *acc = acc.rotate_left(3) ^ (count as u64);
+        for i in 0..count {
+            let sub: *mut AnyObject = msg_send![subs, objectAtIndex: i];
+            walk(sub, depth + 1, acc);
+        }
+    }
+    let layer: *mut AnyObject = msg_send![view, layer];
+    let mut acc = 0u64;
+    walk(layer, 0, &mut acc);
+    acc
+}
+
+/// Registers a one-shot pre-commit handler on the current implicit
+/// transaction; returns false when no transaction is active this turn.
+fn try_register_pre_commit<F: Fn() + 'static>(f: F) -> bool {
+    let block = block2::RcBlock::new(f);
+    unsafe {
+        let ca = AnyClass::get("CATransaction").expect("CATransaction class");
+        let ok: Bool = msg_send![
+            ca,
+            addCommitHandler: &*block
+            forPhase: CA_TRANSACTION_PHASE_PRE_COMMIT
+        ];
+        ok.as_bool()
+    }
+}
+
+/// One round of the sentinel: attach to this turn's transaction; at
+/// pre-commit compare the fingerprint; on change run the resize inside that
+/// same transaction, else chain to the next turn.
+fn sentinel_tick() {
+    let Some(state) = SENTINEL.with(|s| s.borrow().clone()) else {
+        return;
+    };
+    if RESIZE_GEN.load(Ordering::Acquire) != state.gen {
+        SENTINEL.with(|s| *s.borrow_mut() = None);
+        return;
+    }
+    if state.rounds.get() > 240 {
+        log::warn!(
+            "[launcher-resize] sentinel gave up after {} rounds (gen {})",
+            state.rounds.get(),
+            state.gen
+        );
+        SENTINEL.with(|s| *s.borrow_mut() = None);
+        return;
+    }
+    state.rounds.set(state.rounds.get() + 1);
+    let for_handler = state.clone();
+    let registered = try_register_pre_commit(move || {
+        if RESIZE_GEN.load(Ordering::Acquire) != for_handler.gen {
+            SENTINEL.with(|s| *s.borrow_mut() = None);
+            return;
+        }
+        let fp = unsafe { layer_tree_fingerprint(for_handler.webview as *mut AnyObject) };
+        if fp != for_handler.fingerprint.get() {
+            log::info!(
+                "[launcher-resize] sentinel matched commit at round {} (gen {}); resizing in-transaction",
+                for_handler.rounds.get(),
+                for_handler.gen
+            );
+            (for_handler.commit)();
+            SENTINEL.with(|s| *s.borrow_mut() = None);
+        } else {
+            sentinel_chain_next_turn();
+        }
+    });
+    if !registered {
+        sentinel_chain_next_turn();
+    }
+}
+
+/// Re-enters `sentinel_tick` on the next main-runloop turn.
+fn sentinel_chain_next_turn() {
+    let block = block2::RcBlock::new(sentinel_tick);
+    unsafe {
+        dispatch_async(&_dispatch_main_q as *const std::ffi::c_void, &block);
+    }
+}
+
 /// Marks the current generation's content as painted. The webview calls this
 /// from a rAF in the same rendering update as the DOM swap: the IPC message
 /// and the swap's layer-tree commit leave the WebContent process in that
-/// order, so the mark is set before the swap's presentation callback fires.
+/// order, so the mark lands here strictly before the swap commit is applied.
 pub fn confirm_launcher_paint() {
     CONFIRMED_GEN.store(RESIZE_GEN.load(Ordering::Acquire), Ordering::Release);
+    // The swap's layer-tree commit is ordered after this confirm on the
+    // same IPC connection. Re-snapshot the fingerprint NOW (any commit
+    // applied so far is pre-swap, e.g. a caret blink between send and
+    // confirm), then watch per-turn transactions for the first post-confirm
+    // layer change — that is the swap.
+    let is_main: Bool = unsafe {
+        let cls = AnyClass::get("NSThread").expect("NSThread class");
+        msg_send![cls, isMainThread]
+    };
+    if is_main.as_bool() {
+        SENTINEL.with(|s| {
+            if let Some(p) = s.borrow().as_ref() {
+                if RESIZE_GEN.load(Ordering::Acquire) == p.gen {
+                    let fp = unsafe { layer_tree_fingerprint(p.webview as *mut AnyObject) };
+                    p.fingerprint.set(fp);
+                }
+            }
+        });
+    }
+    sentinel_chain_next_turn();
 }
 
 /// Withdraws the in-flight presentation-gated resize, if any: claims a new
-/// generation with no successor, so an armed hook and its watchdog drop via
-/// the generation check instead of eventually committing geometry the
-/// frontend has moved past. Called when the frontend cancels a sent grow
-/// whose confirm will never arrive (a shrink got deferred mid-transition).
+/// generation with no successor, so an armed sentinel and its watchdog drop
+/// via the generation check instead of eventually committing geometry the
+/// frontend has moved past. Called when the frontend cancels a sent resize
+/// whose confirm will never arrive (a reversal got deferred mid-transition).
 pub fn cancel_pending_resize() {
     RESIZE_GEN.fetch_add(1, Ordering::AcqRel);
 }
 
-/// Arms `_doAfterNextPresentationUpdate:` for a presentation-gated resize:
-/// fires `commit` only on a confirmed present (see [`CONFIRMED_GEN`]);
-/// unconfirmed presents re-arm, bounded by `remaining` so a dead page can't
-/// chain forever (the watchdog owns that case). Main-thread only.
-unsafe fn arm_grow_presentation_hook<C: Fn() + Copy + 'static>(
-    webview: usize,
-    gen: u64,
-    commit: C,
-    remaining: u8,
-) {
-    let block = block2::RcBlock::new(move || {
-        if RESIZE_GEN.load(Ordering::Acquire) != gen {
-            return;
-        }
-        if CONFIRMED_GEN.load(Ordering::Acquire) >= gen {
-            commit();
-        } else if remaining > 0 {
-            unsafe { arm_grow_presentation_hook(webview, gen, commit, remaining - 1) };
-        } else {
-            log::warn!("[launcher-resize] presentation hook exhausted re-arms (gen {gen})");
-        }
-    });
-    let _: () = msg_send![webview as *mut AnyObject, _doAfterNextPresentationUpdate: &*block];
-}
-
-/// Atomically resize the NSWindow (top edge pinned), reposition the pinned
-/// webview + vibrancy layer, and toggle the native Show More bar: one
-/// main-thread turn, one CATransaction. `expanded: None` leaves bar visibility
-/// alone; `Some(true)` hides it, `Some(false)` shows it.
+/// Atomically resize the NSWindow (top edge pinned) and reposition the pinned
+/// webview + vibrancy layer: one main-thread turn, one CATransaction.
 ///
 /// `DeferToNextCaCommit` attaches the resize to the current CA transaction's
 /// pre-commit phase so it lands in the same render-server commit as WebKit's
-/// pending paint. Used for the goBack shrink, where resizing ASAP is right:
-/// the crop only hides the results region.
+/// pending paint.
 ///
 /// `AfterNextPresentationUpdate` gates the resize on WebKit applying the
-/// webview's next *confirmed* paint (`_doAfterNextPresentationUpdate:`), so
-/// the window grow and the new view's pixels land in one CATransaction. Used
-/// for the hotkey-entry grow, where an ungated resize shows the new view's
-/// header through the compact crop for a frame or two. A watchdog applies
-/// the resize anyway if WebKit never presents.
+/// webview's next *confirmed* paint via the commit sentinel (see the block
+/// above [`SentinelPending`]), so the window geometry and the new view's
+/// pixels ship in one render-server commit. Every visible compact↔expanded
+/// transition uses this: the Show More bar is DOM, so the paint the resize
+/// must land with is also the paint that toggles the bar. An ungated grow
+/// would show the new view's header through the compact crop for a frame or
+/// two; an ungated shrink would show stale results pixels where the bar
+/// belongs. A watchdog applies the resize anyway if the paint never comes.
 pub fn set_launcher_window_height<R: Runtime + 'static>(
     window: &WebviewWindow<R>,
     height: f64,
-    expanded: Option<bool>,
     mode: ResizeMode,
 ) {
     // Cast through `usize` so the closure stays `Send` (raw pointers aren't);
@@ -887,8 +1045,6 @@ pub fn set_launcher_window_height<R: Runtime + 'static>(
             };
             let _: () = msg_send![view, setFrame: new_f];
         }
-
-        show_more_bar::reposition_and_toggle(height, expanded);
     };
 
     match mode {
@@ -896,8 +1052,9 @@ pub fn set_launcher_window_height<R: Runtime + 'static>(
         ResizeMode::DeferToNextCaCommit => schedule_on_next_pre_commit(commit),
         ResizeMode::AfterNextPresentationUpdate => {
             // A parked (alpha-0) window has no interstitial to prevent, and
-            // presentation callbacks starve while it stays invisible. Commit
-            // immediately; the reveal alpha-flips onto finished geometry.
+            // the rAF-driven confirm can starve while it stays invisible.
+            // Commit immediately; the reveal alpha-flips onto finished
+            // geometry.
             if window_alpha(window) < 1.0 {
                 commit();
                 return;
@@ -917,23 +1074,33 @@ pub fn set_launcher_window_height<R: Runtime + 'static>(
             let hooked = unsafe {
                 let content_view: *mut AnyObject = msg_send![nsw as *mut AnyObject, contentView];
                 let webview = find_webview(content_view);
-                if !webview.is_null() && responds_to(webview, sel!(_doAfterNextPresentationUpdate:))
-                {
-                    arm_grow_presentation_hook(webview as usize, gen, commit, GROW_HOOK_MAX_REARMS);
+                if !webview.is_null() {
+                    // Stash the pending resize with a fingerprint of the
+                    // webview's layer subtree; the confirm IPC starts a
+                    // per-turn transaction watch that commits the resize
+                    // inside the transaction applying the swap's layer-tree
+                    // commit.
+                    let fingerprint = layer_tree_fingerprint(webview);
+                    let pending = Rc::new(SentinelPending {
+                        gen,
+                        commit: Box::new(commit),
+                        webview: webview as usize,
+                        fingerprint: std::cell::Cell::new(fingerprint),
+                        rounds: std::cell::Cell::new(0),
+                    });
+                    SENTINEL.with(|s| *s.borrow_mut() = Some(pending));
                     true
                 } else {
                     false
                 }
             };
             if !hooked {
-                log::info!(
-                    "[launcher-resize] presentation SPI absent; falling back to CA pre-commit"
-                );
+                log::info!("[launcher-resize] webview absent; falling back to CA pre-commit");
                 schedule_on_next_pre_commit(commit);
                 return;
             }
             // The watchdog advances the generation after a forced apply so
-            // the real presentation block drops if it fires late.
+            // a late sentinel match drops via the generation check.
             let w = window.clone();
             let app = window.app_handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -1006,890 +1173,6 @@ pub fn center_at_cursor_monitor<R: Runtime>(window: &WebviewWindow<R>) -> tauri:
     set_window_frame(window, rect);
     Ok(())
 }
-
-// ────────────────────────────────────────────────────────────────────────────
-// Native Show More bar — an NSView, not a DOM element, so its setHidden:
-// commits in the same CATransaction as NSWindow setFrame:. A Svelte overlay
-// paints on WebKit's pipeline and lands one display frame off, producing a
-// visible interstitial. `reposition_and_toggle` is called from inside the same
-// unsafe block as setFrame: so both mutations commit together.
-//
-// KEEP IN SYNC: the Windows/Linux counterpart is a Svelte overlay in
-// asyar-launcher/src/components/layout/BottomActionBar.svelte (the `!IS_MACOS`
-// branch). Any visual change here (label text, keyboard hint, colors,
-// typography, spacing, extra buttons) MUST be mirrored there, and vice versa.
-// No automatic sync exists — nativeBarSync.ts pushes CSS-variable colors, but
-// layout and structure are hardcoded on each side.
-// ────────────────────────────────────────────────────────────────────────────
-
-mod show_more_bar {
-    use objc2::declare::ClassBuilder;
-    use objc2::encode::{Encoding, RefEncode};
-    use objc2::runtime::{AnyClass, AnyObject, Bool, Sel};
-    use objc2::{msg_send, sel};
-    use objc2_foundation::{NSPoint, NSRect, NSSize};
-    use std::ffi::CString;
-    use std::sync::Mutex;
-
-    const SEARCH_HEADER_HEIGHT: f64 = 56.0;
-    const SHOW_MORE_BAR_HEIGHT: f64 = 40.0;
-
-    /// References to all the styled subviews. Stored so theme pushes can
-    /// update each color independently. All `usize` so the struct is `Send`;
-    /// access happens only on the main thread.
-    #[derive(Default, Clone, Copy)]
-    struct BarViews {
-        bar: usize,
-        chip: usize,
-        label: usize,
-        glyph: usize,
-        scripts: ChipViews,
-        agents: ChipViews,
-    }
-    static BAR_VIEWS: Mutex<Option<BarViews>> = Mutex::new(None);
-
-    /// One HUD chip: kind icon + "N Active" segment + "N Done"/"N Idle"
-    /// segment. The container holds icon + dots + labels at absolute frames;
-    /// we re-layout on each `apply_huds` push and toggle subview visibility
-    /// per-segment so a 0-count side disappears cleanly.
-    #[derive(Default, Clone, Copy)]
-    struct ChipViews {
-        container: usize,
-        icon: usize,
-        active_dot: usize,
-        active_label: usize,
-        done_dot: usize,
-        done_label: usize,
-    }
-
-    // Chip layout constants. Sizes mirror the Svelte CompactHud's tokens:
-    // 14×14 icon, 6×6 dots, --space-2 (4px) text-to-dot gap, --space-3 (8px)
-    // icon-to-content gap, --space-5 (16px) inter-chip gap.
-    const HUD_ICON_SIZE: f64 = 14.0;
-    const HUD_DOT_SIZE: f64 = 6.0;
-    const HUD_FONT_SIZE: f64 = 13.0;
-    const HUD_ICON_TO_DOT_GAP: f64 = 8.0;
-    const HUD_DOT_TO_LABEL_GAP: f64 = 4.0;
-    const HUD_INTER_SEGMENT_GAP: f64 = 10.0;
-    const HUD_INTER_CHIP_GAP: f64 = 16.0;
-    const HUD_LEFT_MARGIN: f64 = 12.0;
-    // Reserve so HUD chips never overlap the right-side "Show More" cluster
-    // (chip 24 + 11 gap + label sizeToFit ≈ 90 in English locales + 12 right
-    // margin → ~140 worst case). Keep symmetric with chip_right_margin.
-    const HUD_RIGHT_RESERVE: f64 = 140.0;
-
-    /// Boxed click callback pointer — leaked on install, lives for the app's
-    /// lifetime. The ObjC mouseDown: method reads this to invoke the callback.
-    static CLICK_CALLBACK_PTR: Mutex<Option<usize>> = Mutex::new(None);
-
-    /// Creates and installs the native Show More bar. Called once, after the
-    /// webview has been pinned. `on_click` fires on each bar click.
-    pub(super) fn create<F: Fn() + Send + Sync + 'static>(
-        content_view: *mut AnyObject,
-        content_width: f64,
-        on_click: F,
-    ) {
-        unsafe {
-            let boxed: Box<Box<dyn Fn() + Send + Sync>> = Box::new(Box::new(on_click));
-            let ptr = Box::into_raw(boxed) as usize;
-            *CLICK_CALLBACK_PTR.lock().unwrap() = Some(ptr);
-
-            let bar_class = register_class();
-
-            // Bar initial frame (compact: window height = 96, bar at y=0).
-            let bar_frame = NSRect {
-                origin: NSPoint { x: 0.0, y: 0.0 },
-                size: NSSize {
-                    width: content_width,
-                    height: SHOW_MORE_BAR_HEIGHT,
-                },
-            };
-            let bar: *mut AnyObject = msg_send![bar_class, alloc];
-            let bar: *mut AnyObject = msg_send![bar, initWithFrame: bar_frame];
-
-            let _: () = msg_send![bar, setWantsLayer: true];
-            // Width-sizable only (NSViewWidthSizable = 2). We manage origin.y.
-            let _: () = msg_send![bar, setAutoresizingMask: 2u64];
-
-            // Background seeded to --bg-secondary-full-opacity dark default;
-            // JS pushes theme-accurate colors via apply_show_more_bar_style.
-            set_layer_bg(bar, 40.0 / 255.0, 40.0 / 255.0, 42.0 / 255.0, 1.0);
-
-            // Key-hint chip — 24×21 rounded rect, pinned right, vertically centered.
-            // Matches KeyboardHint.svelte's kbd dimensions so the native bar's
-            // chip looks identical to in-webview kbd elements.
-            let chip_width = 24.0;
-            let chip_height = 21.0;
-            let chip_right_margin = 12.0;
-            let chip_y = (SHOW_MORE_BAR_HEIGHT - chip_height) / 2.0;
-            let chip_x = content_width - chip_right_margin - chip_width;
-            let chip = make_plain_view(NSRect {
-                origin: NSPoint {
-                    x: chip_x,
-                    y: chip_y,
-                },
-                size: NSSize {
-                    width: chip_width,
-                    height: chip_height,
-                },
-            });
-            // NSViewMinXMargin = 1 (left margin flexible → pins right).
-            let _: () = msg_send![chip, setAutoresizingMask: 1u64];
-            let chip_layer: *mut AnyObject = msg_send![chip, layer];
-            // Radius matches --radius-sm in KeyboardHint.svelte. Border color
-            // is pushed from JS (set_layer_border) so the rim follows the theme.
-            let _: () = msg_send![chip_layer, setCornerRadius: 6.0_f64];
-            let _: () = msg_send![chip_layer, setBorderWidth: 1.0_f64];
-            set_layer_bg(chip, 1.0, 1.0, 1.0, 0.08);
-
-            // "↓" glyph — NSImageView + SF Symbol. NSTextField adds asymmetric
-            // cell padding that throws off single-char centering; NSImageView
-            // renders at intrinsic size, geometrically centered in bounds.
-            let glyph = make_symbol_image_view(
-                "arrow.down",
-                NSRect {
-                    origin: NSPoint { x: 0.0, y: 0.0 },
-                    size: NSSize {
-                        width: chip_width,
-                        height: chip_height,
-                    },
-                },
-                9.0,
-                SymbolWeight::Medium,
-                235.0 / 255.0,
-                235.0 / 255.0,
-                245.0 / 255.0,
-                0.65,
-            );
-            let _: () = msg_send![chip, addSubview: glyph];
-            let _: () = msg_send![bar, addSubview: chip];
-
-            // "Show More" label. Left-aligned + sizeToFit so the frame hugs
-            // the glyphs; right-align would add NSTextField's ~6px cell-inset
-            // and break the chip-to-text gap math.
-            const TEXT_TO_CHIP_GAP: f64 = 11.0;
-            let label = make_label(
-                "Show More",
-                NSRect {
-                    origin: NSPoint { x: 0.0, y: 0.0 },
-                    size: NSSize {
-                        width: 200.0,
-                        height: 18.0,
-                    },
-                },
-                13.0,
-                235.0 / 255.0,
-                235.0 / 255.0,
-                245.0 / 255.0,
-                0.65,
-                TextAlign::Left,
-            );
-            let _: () = msg_send![label, sizeToFit];
-            let label_frame: NSRect = msg_send![label, frame];
-            let label_x = content_width
-                - chip_right_margin
-                - chip_width
-                - TEXT_TO_CHIP_GAP
-                - label_frame.size.width;
-            let label_y = (SHOW_MORE_BAR_HEIGHT - label_frame.size.height) / 2.0;
-            let positioned_frame = NSRect {
-                origin: NSPoint {
-                    x: label_x,
-                    y: label_y,
-                },
-                size: label_frame.size,
-            };
-            let _: () = msg_send![label, setFrame: positioned_frame];
-            // Pin right (same as chip) so they move together if the bar resizes.
-            let _: () = msg_send![label, setAutoresizingMask: 1u64];
-            let _: () = msg_send![bar, addSubview: label];
-
-            // ── HUD chips (Scripts + Agents) ──────────────────────────────
-            // Built once, hidden by default. `apply_huds` later updates label
-            // text, repositions subviews per chip's current width, and toggles
-            // visibility per segment + per chip. Pinned LEFT (NSViewMaxXMargin
-            // = 4) so the bar's autoresize doesn't shift them on width change.
-            let scripts = build_hud_chip(bar, "chevron.left.forwardslash.chevron.right");
-            let agents = build_hud_chip(bar, "bubble.left.and.bubble.right");
-
-            // Top subview of contentView (above webview + vibrancy).
-            let _: () = msg_send![content_view, addSubview: bar];
-
-            // Start hidden — NSView composites instantly, but WKWebView needs
-            // a layout/paint cycle for its first frame; revealing now would
-            // show the bar over a blank webview. Frontend's onMount rAF calls
-            // reveal_show_more_bar to flip it with WebKit's first frame.
-            let _: () = msg_send![bar, setHidden: Bool::YES];
-
-            *BAR_VIEWS.lock().unwrap() = Some(BarViews {
-                bar: bar as usize,
-                chip: chip as usize,
-                label: label as usize,
-                glyph: glyph as usize,
-                scripts,
-                agents,
-            });
-        }
-    }
-
-    /// Builds one HUD chip's full subview tree (container + icon + two dot/
-    /// label segments) and attaches the container to the bar. The chip starts
-    /// hidden; `apply_huds` reveals + lays out per push. Returns the handle
-    /// struct for later lookup.
-    unsafe fn build_hud_chip(bar: *mut AnyObject, sf_symbol: &str) -> ChipViews {
-        let chip_y = (SHOW_MORE_BAR_HEIGHT - HUD_ICON_SIZE) / 2.0;
-
-        // Container holds nothing layout-wise yet — apply_huds resizes it
-        // after measuring labels. Width-zero start prevents a one-frame
-        // flash of the seed frame if the bar reveals before the first push.
-        let container = make_plain_view(NSRect {
-            origin: NSPoint {
-                x: HUD_LEFT_MARGIN,
-                y: 0.0,
-            },
-            size: NSSize {
-                width: 0.0,
-                height: SHOW_MORE_BAR_HEIGHT,
-            },
-        });
-        let _: () = msg_send![container, setAutoresizingMask: 4u64];
-        let _: () = msg_send![container, setHidden: Bool::YES];
-
-        // Icon: SF Symbol tinted with --text-secondary default, restyled
-        // alongside the "Show More" label via apply_style.
-        let icon = make_symbol_image_view(
-            sf_symbol,
-            NSRect {
-                origin: NSPoint { x: 0.0, y: chip_y },
-                size: NSSize {
-                    width: HUD_ICON_SIZE,
-                    height: HUD_ICON_SIZE,
-                },
-            },
-            12.0,
-            SymbolWeight::Medium,
-            235.0 / 255.0,
-            235.0 / 255.0,
-            245.0 / 255.0,
-            0.65,
-        );
-        let _: () = msg_send![container, addSubview: icon];
-
-        // Two dot views (active = info accent, done = success accent).
-        // `set_layer_bg` seeds defaults that mirror StatusDot.svelte's CSS
-        // variables; `apply_huds_dot_colors` re-pushes from the theme.
-        let active_dot = make_round_dot(46.0 / 255.0, 196.0 / 255.0, 182.0 / 255.0, 1.0);
-        let done_dot = make_round_dot(52.0 / 255.0, 199.0 / 255.0, 89.0 / 255.0, 1.0);
-        let _: () = msg_send![container, addSubview: active_dot];
-        let _: () = msg_send![container, addSubview: done_dot];
-
-        // Labels (set later — empty until apply_huds writes counts).
-        let active_label = make_label(
-            "",
-            NSRect {
-                origin: NSPoint { x: 0.0, y: 0.0 },
-                size: NSSize {
-                    width: 100.0,
-                    height: 18.0,
-                },
-            },
-            HUD_FONT_SIZE,
-            235.0 / 255.0,
-            235.0 / 255.0,
-            245.0 / 255.0,
-            0.65,
-            TextAlign::Left,
-        );
-        let done_label = make_label(
-            "",
-            NSRect {
-                origin: NSPoint { x: 0.0, y: 0.0 },
-                size: NSSize {
-                    width: 100.0,
-                    height: 18.0,
-                },
-            },
-            HUD_FONT_SIZE,
-            235.0 / 255.0,
-            235.0 / 255.0,
-            245.0 / 255.0,
-            0.65,
-            TextAlign::Left,
-        );
-        let _: () = msg_send![container, addSubview: active_label];
-        let _: () = msg_send![container, addSubview: done_label];
-
-        let _: () = msg_send![bar, addSubview: container];
-
-        ChipViews {
-            container: container as usize,
-            icon: icon as usize,
-            active_dot: active_dot as usize,
-            active_label: active_label as usize,
-            done_dot: done_dot as usize,
-            done_label: done_label as usize,
-        }
-    }
-
-    /// Small filled circle. Uses a layer-backed NSView with the layer's
-    /// cornerRadius = size/2 so a square frame renders as a perfect dot.
-    /// `r/g/b/a` are the initial color — themable later via set_layer_bg.
-    unsafe fn make_round_dot(r: f64, g: f64, b: f64, a: f64) -> *mut AnyObject {
-        let v = make_plain_view(NSRect {
-            origin: NSPoint { x: 0.0, y: 0.0 },
-            size: NSSize {
-                width: HUD_DOT_SIZE,
-                height: HUD_DOT_SIZE,
-            },
-        });
-        let layer: *mut AnyObject = msg_send![v, layer];
-        let _: () = msg_send![layer, setCornerRadius: HUD_DOT_SIZE / 2.0];
-        set_layer_bg(v, r, g, b, a);
-        v
-    }
-
-    /// Reposition + visibility toggle. Called from inside the same unsafe
-    /// block as setFrame: so both mutations commit to the same CATransaction.
-    pub(super) unsafe fn reposition_and_toggle(height: f64, expanded: Option<bool>) {
-        let Some(views) = *BAR_VIEWS.lock().unwrap() else {
-            return;
-        };
-        let bar: *mut AnyObject = views.bar as *mut AnyObject;
-
-        let new_y = height - SEARCH_HEADER_HEIGHT - SHOW_MORE_BAR_HEIGHT;
-        let current: NSRect = msg_send![bar, frame];
-        let new_frame = NSRect {
-            origin: NSPoint { x: 0.0, y: new_y },
-            size: current.size,
-        };
-        let _: () = msg_send![bar, setFrame: new_frame];
-
-        if let Some(is_expanded) = expanded {
-            let _: () = msg_send![bar, setHidden: Bool::new(is_expanded)];
-        }
-    }
-
-    /// Bar visibility only, no reposition. Used for the first-paint reveal —
-    /// see note in `create`.
-    pub(super) unsafe fn set_hidden(hidden: bool) {
-        let Some(views) = *BAR_VIEWS.lock().unwrap() else {
-            return;
-        };
-        let bar: *mut AnyObject = views.bar as *mut AnyObject;
-        let _: () = msg_send![bar, setHidden: Bool::new(hidden)];
-    }
-
-    #[derive(Copy, Clone)]
-    pub(super) struct BarStyle {
-        pub bar_bg: (f64, f64, f64, f64),
-        pub text: (f64, f64, f64, f64),
-        pub chip_bg: (f64, f64, f64, f64),
-        pub chip_border: (f64, f64, f64, f64),
-    }
-
-    /// Updates HUD chip counts. Hides each chip when both of its counts are
-    /// zero; hides each segment (active / done) independently otherwise.
-    /// Re-lays out the chip's internal subviews + the chip's own x-position
-    /// relative to its sibling (Scripts always left of Agents). Returns
-    /// silently if the bar hasn't been built yet (early TS push before
-    /// `create()` ran).
-    ///
-    /// Done-label text differs by kind: Scripts get "Done" (kept-success
-    /// rows from `runService.unacknowledgedScriptResults`), Agents get
-    /// "Idle" (persistent kept threads waiting to be reused).
-    pub(super) fn apply_huds(
-        scripts_active: u32,
-        scripts_done: u32,
-        agents_active: u32,
-        agents_done: u32,
-    ) {
-        let Some(views) = *BAR_VIEWS.lock().unwrap() else {
-            return;
-        };
-        unsafe {
-            let scripts_w = layout_chip(views.scripts, scripts_active, scripts_done, "Done");
-            let agents_w = layout_chip(views.agents, agents_active, agents_done, "Idle");
-
-            // Position chips left-to-right with HUD_INTER_CHIP_GAP between
-            // them. When a chip is hidden (width 0), its sibling slides left
-            // so it doesn't gap awkwardly against the left margin.
-            let scripts_x = HUD_LEFT_MARGIN;
-            let agents_x = if scripts_w > 0.0 {
-                scripts_x + scripts_w + HUD_INTER_CHIP_GAP
-            } else {
-                scripts_x
-            };
-            set_chip_origin_x(views.scripts.container as *mut AnyObject, scripts_x);
-            set_chip_origin_x(views.agents.container as *mut AnyObject, agents_x);
-
-            // Defensive clamp: if the combined width would crash into the
-            // Show More cluster, hide the agents chip. Width ~140 worst-case
-            // for two chips is fine on the typical >=480px-wide launcher.
-            let bar: *mut AnyObject = views.bar as *mut AnyObject;
-            let bar_frame: NSRect = msg_send![bar, frame];
-            let right_edge_limit = bar_frame.size.width - HUD_RIGHT_RESERVE;
-            if agents_x + agents_w > right_edge_limit {
-                let _: () =
-                    msg_send![views.agents.container as *mut AnyObject, setHidden: Bool::YES];
-            }
-        }
-    }
-
-    /// Re-lays out one chip's subviews based on new counts. Returns the
-    /// chip's total width (0 when fully hidden). `done_word` is the kind-
-    /// specific noun for the "done" segment ("Done" / "Idle").
-    unsafe fn layout_chip(chip: ChipViews, active: u32, done: u32, done_word: &str) -> f64 {
-        let container = chip.container as *mut AnyObject;
-
-        if active == 0 && done == 0 {
-            let _: () = msg_send![container, setHidden: Bool::YES];
-            return 0.0;
-        }
-        let _: () = msg_send![container, setHidden: Bool::NO];
-
-        let chip_v_center = SHOW_MORE_BAR_HEIGHT / 2.0;
-        let icon_y = chip_v_center - HUD_ICON_SIZE / 2.0;
-        let dot_y = chip_v_center - HUD_DOT_SIZE / 2.0;
-
-        // Icon is always at x=0 inside the container.
-        let icon = chip.icon as *mut AnyObject;
-        let icon_frame: NSRect = msg_send![icon, frame];
-        let _: () = msg_send![icon, setFrame: NSRect {
-            origin: NSPoint { x: 0.0, y: icon_y },
-            size: icon_frame.size,
-        }];
-
-        // Cursor walks left → right through the container as we place segments.
-        let mut cursor = HUD_ICON_SIZE + HUD_ICON_TO_DOT_GAP;
-
-        let active_dot = chip.active_dot as *mut AnyObject;
-        let active_label = chip.active_label as *mut AnyObject;
-        if active > 0 {
-            let text = format!("{active} Active");
-            set_text(active_label, &text);
-            let _: () = msg_send![active_label, sizeToFit];
-            let label_frame: NSRect = msg_send![active_label, frame];
-            let label_y = chip_v_center - label_frame.size.height / 2.0;
-
-            let _: () = msg_send![active_dot, setHidden: Bool::NO];
-            let _: () = msg_send![active_label, setHidden: Bool::NO];
-            let _: () = msg_send![active_dot, setFrame: NSRect {
-                origin: NSPoint { x: cursor, y: dot_y },
-                size: NSSize { width: HUD_DOT_SIZE, height: HUD_DOT_SIZE },
-            }];
-            cursor += HUD_DOT_SIZE + HUD_DOT_TO_LABEL_GAP;
-            let _: () = msg_send![active_label, setFrame: NSRect {
-                origin: NSPoint { x: cursor, y: label_y },
-                size: label_frame.size,
-            }];
-            cursor += label_frame.size.width;
-        } else {
-            let _: () = msg_send![active_dot, setHidden: Bool::YES];
-            let _: () = msg_send![active_label, setHidden: Bool::YES];
-        }
-
-        let done_dot = chip.done_dot as *mut AnyObject;
-        let done_label = chip.done_label as *mut AnyObject;
-        if done > 0 {
-            if active > 0 {
-                cursor += HUD_INTER_SEGMENT_GAP;
-            }
-            let text = format!("{done} {done_word}");
-            set_text(done_label, &text);
-            let _: () = msg_send![done_label, sizeToFit];
-            let label_frame: NSRect = msg_send![done_label, frame];
-            let label_y = chip_v_center - label_frame.size.height / 2.0;
-
-            let _: () = msg_send![done_dot, setHidden: Bool::NO];
-            let _: () = msg_send![done_label, setHidden: Bool::NO];
-            let _: () = msg_send![done_dot, setFrame: NSRect {
-                origin: NSPoint { x: cursor, y: dot_y },
-                size: NSSize { width: HUD_DOT_SIZE, height: HUD_DOT_SIZE },
-            }];
-            cursor += HUD_DOT_SIZE + HUD_DOT_TO_LABEL_GAP;
-            let _: () = msg_send![done_label, setFrame: NSRect {
-                origin: NSPoint { x: cursor, y: label_y },
-                size: label_frame.size,
-            }];
-            cursor += label_frame.size.width;
-        } else {
-            let _: () = msg_send![done_dot, setHidden: Bool::YES];
-            let _: () = msg_send![done_label, setHidden: Bool::YES];
-        }
-
-        // Resize the container to hug its contents (`cursor` is now the
-        // rightmost x). Height stays at bar height so vertical centering
-        // math above keeps working.
-        let container_frame: NSRect = msg_send![container, frame];
-        let _: () = msg_send![container, setFrame: NSRect {
-            origin: container_frame.origin,
-            size: NSSize { width: cursor, height: SHOW_MORE_BAR_HEIGHT },
-        }];
-        cursor
-    }
-
-    unsafe fn set_chip_origin_x(container: *mut AnyObject, x: f64) {
-        let f: NSRect = msg_send![container, frame];
-        let _: () = msg_send![container, setFrame: NSRect {
-            origin: NSPoint { x, y: f.origin.y },
-            size: f.size,
-        }];
-    }
-
-    unsafe fn set_text(textfield: *mut AnyObject, text: &str) {
-        let nsstring_cls = AnyClass::get("NSString").expect("NSString");
-        let cstr = CString::new(text).unwrap();
-        let ns_text: *mut AnyObject = msg_send![nsstring_cls, stringWithUTF8String: cstr.as_ptr()];
-        let _: () = msg_send![textfield, setStringValue: ns_text];
-    }
-
-    /// Applies a new color palette to the already-built bar. Returns silently
-    /// if the bar hasn't been built yet (early startup before create()).
-    pub(super) fn apply_style(style: BarStyle) {
-        let Some(views) = *BAR_VIEWS.lock().unwrap() else {
-            return;
-        };
-        unsafe {
-            let bar: *mut AnyObject = views.bar as *mut AnyObject;
-            let chip: *mut AnyObject = views.chip as *mut AnyObject;
-            let label: *mut AnyObject = views.label as *mut AnyObject;
-            let glyph: *mut AnyObject = views.glyph as *mut AnyObject;
-
-            set_layer_bg(
-                bar,
-                style.bar_bg.0,
-                style.bar_bg.1,
-                style.bar_bg.2,
-                style.bar_bg.3,
-            );
-            set_layer_bg(
-                chip,
-                style.chip_bg.0,
-                style.chip_bg.1,
-                style.chip_bg.2,
-                style.chip_bg.3,
-            );
-            set_layer_border(
-                chip,
-                style.chip_border.0,
-                style.chip_border.1,
-                style.chip_border.2,
-                style.chip_border.3,
-            );
-
-            set_text_color(
-                label,
-                style.text.0,
-                style.text.1,
-                style.text.2,
-                style.text.3,
-            );
-            set_image_tint(
-                glyph,
-                style.text.0,
-                style.text.1,
-                style.text.2,
-                style.text.3,
-            );
-
-            // HUD chip icons + labels share the bar's --text-secondary tone.
-            // Dots use accent colors that don't theme — they're semantic
-            // (info / success), not text.
-            for chip_views in [views.scripts, views.agents] {
-                set_image_tint(
-                    chip_views.icon as *mut AnyObject,
-                    style.text.0,
-                    style.text.1,
-                    style.text.2,
-                    style.text.3,
-                );
-                set_text_color(
-                    chip_views.active_label as *mut AnyObject,
-                    style.text.0,
-                    style.text.1,
-                    style.text.2,
-                    style.text.3,
-                );
-                set_text_color(
-                    chip_views.done_label as *mut AnyObject,
-                    style.text.0,
-                    style.text.1,
-                    style.text.2,
-                    style.text.3,
-                );
-            }
-        }
-    }
-
-    unsafe fn set_text_color(textfield: *mut AnyObject, r: f64, g: f64, b: f64, a: f64) {
-        let nscolor_cls = AnyClass::get("NSColor").expect("NSColor");
-        let color: *mut AnyObject = msg_send![nscolor_cls,
-            colorWithSRGBRed: r green: g blue: b alpha: a];
-        let _: () = msg_send![textfield, setTextColor: color];
-    }
-
-    unsafe fn set_image_tint(image_view: *mut AnyObject, r: f64, g: f64, b: f64, a: f64) {
-        let nscolor_cls = AnyClass::get("NSColor").expect("NSColor");
-        let color: *mut AnyObject = msg_send![nscolor_cls,
-            colorWithSRGBRed: r green: g blue: b alpha: a];
-        let _: () = msg_send![image_view, setContentTintColor: color];
-    }
-
-    // ── ObjC subclass ──────────────────────────────────────────────────────
-
-    fn register_class() -> &'static AnyClass {
-        if let Some(cls) = AnyClass::get("AsyarShowMoreBar") {
-            return cls;
-        }
-
-        let superclass = AnyClass::get("NSView").expect("NSView");
-        let mut builder = ClassBuilder::new("AsyarShowMoreBar", superclass)
-            .expect("ClassBuilder::new for AsyarShowMoreBar returned None");
-
-        extern "C" fn mouse_down(_this: *mut AnyObject, _sel: Sel, _event: *mut AnyObject) {
-            if let Some(ptr) = *CLICK_CALLBACK_PTR.lock().unwrap() {
-                unsafe {
-                    let cb: *const Box<dyn Fn() + Send + Sync> = ptr as *const _;
-                    (*cb)();
-                }
-            }
-        }
-
-        extern "C" fn accepts_first_mouse(
-            _this: *mut AnyObject,
-            _sel: Sel,
-            _event: *mut AnyObject,
-        ) -> Bool {
-            Bool::YES
-        }
-
-        unsafe {
-            builder.add_method(sel!(mouseDown:), mouse_down as extern "C" fn(_, _, _));
-            builder.add_method(
-                sel!(acceptsFirstMouse:),
-                accepts_first_mouse as extern "C" fn(_, _, _) -> Bool,
-            );
-        }
-
-        builder.register()
-    }
-
-    // ── Helpers ────────────────────────────────────────────────────────────
-
-    #[allow(dead_code)]
-    enum TextAlign {
-        Left,
-        Center,
-        Right,
-    }
-
-    unsafe fn make_plain_view(frame: NSRect) -> *mut AnyObject {
-        let cls = AnyClass::get("NSView").expect("NSView");
-        let v: *mut AnyObject = msg_send![cls, alloc];
-        let v: *mut AnyObject = msg_send![v, initWithFrame: frame];
-        let _: () = msg_send![v, setWantsLayer: true];
-        v
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    unsafe fn make_label(
-        text: &str,
-        frame: NSRect,
-        font_size: f64,
-        r: f64,
-        g: f64,
-        b: f64,
-        a: f64,
-        align: TextAlign,
-    ) -> *mut AnyObject {
-        let tf_cls = AnyClass::get("NSTextField").expect("NSTextField");
-        let tf: *mut AnyObject = msg_send![tf_cls, alloc];
-        let tf: *mut AnyObject = msg_send![tf, initWithFrame: frame];
-
-        let nsstring_cls = AnyClass::get("NSString").expect("NSString");
-        let cstr = CString::new(text).unwrap();
-        let ns_text: *mut AnyObject = msg_send![nsstring_cls, stringWithUTF8String: cstr.as_ptr()];
-        let _: () = msg_send![tf, setStringValue: ns_text];
-
-        let _: () = msg_send![tf, setEditable: false];
-        let _: () = msg_send![tf, setSelectable: false];
-        let _: () = msg_send![tf, setBezeled: false];
-        let _: () = msg_send![tf, setDrawsBackground: false];
-        let _: () = msg_send![tf, setBordered: false];
-
-        let nsfont_cls = AnyClass::get("NSFont").expect("NSFont");
-        let font: *mut AnyObject = msg_send![nsfont_cls, systemFontOfSize: font_size];
-        let _: () = msg_send![tf, setFont: font];
-
-        let nscolor_cls = AnyClass::get("NSColor").expect("NSColor");
-        let color: *mut AnyObject = msg_send![nscolor_cls,
-            colorWithSRGBRed: r green: g blue: b alpha: a];
-        let _: () = msg_send![tf, setTextColor: color];
-
-        // NSTextAlignment: Left=0, Right=1, Center=2.
-        let align_val: i64 = match align {
-            TextAlign::Left => 0,
-            TextAlign::Right => 1,
-            TextAlign::Center => 2,
-        };
-        let _: () = msg_send![tf, setAlignment: align_val];
-
-        tf
-    }
-
-    #[allow(dead_code)]
-    enum SymbolWeight {
-        Regular,
-        Medium,
-        Semibold,
-        Bold,
-    }
-    impl SymbolWeight {
-        fn raw(&self) -> f64 {
-            match self {
-                SymbolWeight::Regular => 0.0,
-                SymbolWeight::Medium => 0.23,
-                SymbolWeight::Semibold => 0.3,
-                SymbolWeight::Bold => 0.4,
-            }
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    unsafe fn make_symbol_image_view(
-        symbol_name: &str,
-        frame: NSRect,
-        point_size: f64,
-        weight: SymbolWeight,
-        r: f64,
-        g: f64,
-        b: f64,
-        a: f64,
-    ) -> *mut AnyObject {
-        let nsstring_cls = AnyClass::get("NSString").expect("NSString");
-        let nsimage_cls = AnyClass::get("NSImage").expect("NSImage");
-        let nsimageview_cls = AnyClass::get("NSImageView").expect("NSImageView");
-        let nscolor_cls = AnyClass::get("NSColor").expect("NSColor");
-
-        let name_cstr = CString::new(symbol_name).unwrap();
-        let ns_name: *mut AnyObject =
-            msg_send![nsstring_cls, stringWithUTF8String: name_cstr.as_ptr()];
-        let nil: *mut AnyObject = std::ptr::null_mut();
-        let image: *mut AnyObject = msg_send![
-            nsimage_cls,
-            imageWithSystemSymbolName: ns_name
-            accessibilityDescription: nil
-        ];
-
-        let sym_cfg_cls =
-            AnyClass::get("NSImageSymbolConfiguration").expect("NSImageSymbolConfiguration");
-        let cfg: *mut AnyObject = msg_send![
-            sym_cfg_cls,
-            configurationWithPointSize: point_size
-            weight: weight.raw()
-        ];
-        let image: *mut AnyObject = msg_send![image, imageWithSymbolConfiguration: cfg];
-
-        let iv: *mut AnyObject = msg_send![nsimageview_cls, alloc];
-        let iv: *mut AnyObject = msg_send![iv, initWithFrame: frame];
-        let _: () = msg_send![iv, setImage: image];
-        let _: () = msg_send![image, setTemplate: true];
-        let color: *mut AnyObject = msg_send![
-            nscolor_cls,
-            colorWithSRGBRed: r green: g blue: b alpha: a
-        ];
-        let _: () = msg_send![iv, setContentTintColor: color];
-        // NSImageScaleNone = 2, NSImageAlignCenter = 0.
-        let _: () = msg_send![iv, setImageScaling: 2u64];
-        let _: () = msg_send![iv, setImageAlignment: 0u64];
-        iv
-    }
-
-    unsafe fn set_layer_bg(view: *mut AnyObject, r: f64, g: f64, b: f64, a: f64) {
-        let layer: *mut AnyObject = msg_send![view, layer];
-        let cg = cg_color(r, g, b, a);
-        let _: () = msg_send![layer, setBackgroundColor: cg];
-    }
-
-    unsafe fn set_layer_border(view: *mut AnyObject, r: f64, g: f64, b: f64, a: f64) {
-        let layer: *mut AnyObject = msg_send![view, layer];
-        let cg = cg_color(r, g, b, a);
-        let _: () = msg_send![layer, setBorderColor: cg];
-    }
-
-    // CGColor is a CoreFoundation opaque pointer (`^{CGColor=}`), not an
-    // NSObject. objc2's strict type checking rejects returning it as
-    // `*mut AnyObject` (encoded as `@`). Declare an opaque stub whose
-    // RefEncode matches the selector's declared return type.
-    #[repr(C)]
-    struct CGColorStub {
-        _private: [u8; 0],
-    }
-    unsafe impl RefEncode for CGColorStub {
-        const ENCODING_REF: Encoding = Encoding::Pointer(&Encoding::Struct("CGColor", &[]));
-    }
-
-    unsafe fn cg_color(r: f64, g: f64, b: f64, a: f64) -> *const CGColorStub {
-        let nscolor_cls = AnyClass::get("NSColor").expect("NSColor");
-        let nscolor: *mut AnyObject = msg_send![nscolor_cls,
-            colorWithSRGBRed: r green: g blue: b alpha: a];
-        let cg: *const CGColorStub = msg_send![nscolor, CGColor];
-        cg
-    }
-}
-
-/// Creates the native Show More bar. Call once during setup, after
-/// pin_launcher_webview, so the bar is added on top of the webview.
-pub fn create_show_more_bar<R: Runtime>(window: &WebviewWindow<R>, app_handle: AppHandle<R>) {
-    unsafe {
-        let nsw = window.ns_window().unwrap() as *mut AnyObject;
-        let content_view: *mut AnyObject = msg_send![nsw, contentView];
-        let content_frame: NSRect = msg_send![content_view, frame];
-        let width = content_frame.size.width;
-
-        show_more_bar::create(content_view, width, move || {
-            let _ = app_handle.emit("launcher:show-more-clicked", ());
-        });
-    }
-}
-
-/// Reveals the native Show More bar. Frontend signals first-frame via onMount
-/// rAF so this flip lines up with WebKit's first present. `expanded: true` →
-/// bar hidden, `false` → bar visible.
-pub fn reveal_show_more_bar(expanded: bool) {
-    unsafe {
-        show_more_bar::set_hidden(expanded);
-    }
-}
-
-/// Applies a color palette to the native Show More bar; components in [0, 1].
-pub fn apply_show_more_bar_style(
-    bar_bg: (f64, f64, f64, f64),
-    text: (f64, f64, f64, f64),
-    chip_bg: (f64, f64, f64, f64),
-    chip_border: (f64, f64, f64, f64),
-) {
-    show_more_bar::apply_style(show_more_bar::BarStyle {
-        bar_bg,
-        text,
-        chip_bg,
-        chip_border,
-    });
-}
-
-/// Pushes the current Scripts / Agents run counts to the native Show More
-/// bar's HUD chips. The bar lays out each chip on the next AppKit display
-/// pass; no setNeedsDisplay: needed because layer-backed views composite
-/// from their CALayer's current properties.
-pub fn apply_show_more_bar_huds(
-    scripts_active: u32,
-    scripts_done: u32,
-    agents_active: u32,
-    agents_done: u32,
-) {
-    show_more_bar::apply_huds(scripts_active, scripts_done, agents_active, agents_done);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

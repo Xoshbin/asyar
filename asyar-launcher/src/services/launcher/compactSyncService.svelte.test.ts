@@ -5,10 +5,6 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
-vi.mock('../theme/nativeBarSync', () => ({
-  syncNativeBarStyle: vi.fn(),
-}));
-
 vi.mock('../log/logService', () => ({
   logService: {
     debug: vi.fn(),
@@ -125,57 +121,41 @@ describe('CompactSyncService.syncKeepExpanded', () => {
 describe('CompactSyncService.resetToCompactIfConfigured', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('does not leave #hadActiveView stale when shrinking from an extension view', async () => {
-    // Regression: resetLauncherState drains the nav stack (clears activeView)
-    // and then calls resetToCompactIfConfigured. If #shrinkToCompactNow doesn't
-    // refresh #hadActiveView, the next applyLauncherHeight pass sees a phantom
-    // activeView toggle and routes the grow through the CA pre-commit branch
-    // — which is meant for chrome-swap transitions, not idle keystrokes.
+  it('shrinks ungated while hidden and leaves the next grow on the gated path', async () => {
+    // The reset path runs against a hidden (parked) window: rAF is
+    // throttled there, so the shrink must not wait on a paint confirm.
     const { state, deps } = makeDeps({ activeView: 'ext/view', launchView: 'compact' });
     const svc = new CompactSyncService(deps);
 
-    // Seed #hadActiveView=true and #lastApplied=LAUNCHER_HEIGHT_DEFAULT by running a grow.
+    // Seed #lastApplied=LAUNCHER_HEIGHT_DEFAULT by running a grow.
     svc.applyLauncherHeight();
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
     vi.mocked(invoke).mockClear();
 
     // Simulate resetLauncherState: drain the view, then collapse.
     state.activeView = null;
     svc.resetToCompactIfConfigured();
 
-    // The shrink itself fires the immediate (non-deferred) path.
-    expect(invoke).toHaveBeenCalledWith(
-      'set_launcher_height',
-      expect.objectContaining({
-        height: LAUNCHER_HEIGHT_COMPACT,
-        expanded: false,
-      }),
-    );
     const shrinkCall = vi.mocked(invoke).mock.calls.find((c) => c[0] === 'set_launcher_height');
-    expect(
-      (shrinkCall?.[1] as { deferUntilNextCaCommit?: boolean }).deferUntilNextCaCommit,
-    ).toBeUndefined();
-    vi.mocked(invoke).mockClear();
-
-    // Activate a context chip (not a view) to trigger a grow without bringing
-    // back activeView. With the fix, #hadActiveView is now false, so this
-    // grow has activeViewToggled=false and routes through the double-rAF
-    // path (no deferUntilNextCaCommit). Without the fix, #hadActiveView is
-    // still true (stale), activeViewToggled flips true, and the grow
-    // mis-routes through DeferToNextCaCommit.
-    state.activeContext = { provider: { id: 'google' }, query: '' };
-    svc.applyLauncherHeight();
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
-
-    const growCall = vi.mocked(invoke).mock.calls.find((c) => c[0] === 'set_launcher_height');
-    expect(growCall).toBeDefined();
-    expect(growCall?.[1]).toMatchObject({ height: LAUNCHER_HEIGHT_DEFAULT, expanded: true });
-    const growArgs = growCall?.[1] as {
+    expect(shrinkCall?.[1]).toMatchObject({ height: LAUNCHER_HEIGHT_COMPACT });
+    const shrinkArgs = shrinkCall?.[1] as {
       deferUntilNextCaCommit?: boolean;
       afterNextPresentationUpdate?: boolean;
     };
-    expect(growArgs.deferUntilNextCaCommit).not.toBe(true);
-    expect(growArgs.afterNextPresentationUpdate).not.toBe(true);
+    expect(shrinkArgs.deferUntilNextCaCommit).toBeUndefined();
+    expect(shrinkArgs.afterNextPresentationUpdate).toBeUndefined();
+    vi.mocked(invoke).mockClear();
+
+    // The side-channel shrink must not derail the next visible transition:
+    // a context-chip grow still takes the presentation gate.
+    state.activeContext = { provider: { id: 'google' }, query: '' };
+    svc.applyLauncherHeight();
+
+    const growCall = vi.mocked(invoke).mock.calls.find((c) => c[0] === 'set_launcher_height');
+    expect(growCall?.[1]).toMatchObject({
+      height: LAUNCHER_HEIGHT_DEFAULT,
+      afterNextPresentationUpdate: true,
+    });
   });
 });
 
@@ -190,17 +170,16 @@ describe('CompactSyncService.applyLauncherHeight', () => {
   const cancelCalls = () =>
     vi.mocked(invoke).mock.calls.filter((c) => c[0] === 'cancel_launcher_resize');
 
-  /** Runs the seed pass (previous = -1 takes the ungated default path). */
+  /** Runs the seed pass (compact idle, sent gated like every transition). */
   async function seedCompact(svc: CompactSyncService) {
     svc.applyLauncherHeight();
-    await nextFrame();
     await nextFrame();
     vi.mocked(invoke).mockClear();
   }
 
   it('sends the extension-view grow at effect time and confirms the paint one frame later', async () => {
     // The grow must reach Rust BEFORE the rendering update that builds the
-    // new view's paint (so the presentation hook arms ahead of the swap's
+    // new view's paint (so the commit sentinel arms ahead of the swap's
     // layer-tree commit), and confirm_launcher_paint must ride the next
     // frame, the same rendering update as the swap. A grow deferred to a
     // rAF can arm after the swap has already presented, which leaves the
@@ -216,7 +195,6 @@ describe('CompactSyncService.applyLauncherHeight', () => {
     expect(heightCalls()).toHaveLength(1);
     expect(heightCalls()[0][1]).toMatchObject({
       height: LAUNCHER_HEIGHT_DEFAULT,
-      expanded: true,
       afterNextPresentationUpdate: true,
     });
     expect(confirmCalls()).toHaveLength(0);
@@ -225,7 +203,7 @@ describe('CompactSyncService.applyLauncherHeight', () => {
     expect(confirmCalls()).toHaveLength(1);
   });
 
-  it('routes a full open → escape → reopen cycle through the right gates', async () => {
+  it('routes a full open → escape → reopen cycle through the presentation gate', async () => {
     const { state, deps } = makeDeps();
     const svc = new CompactSyncService(deps);
     await seedCompact(svc);
@@ -235,17 +213,19 @@ describe('CompactSyncService.applyLauncherHeight', () => {
     await nextFrame();
     vi.mocked(invoke).mockClear();
 
-    // Escape back to compact root: single rAF, CA pre-commit gate.
+    // Escape back to compact root: the shrink takes the same effect-time
+    // gated send + next-frame confirm as the grow — the paint it must land
+    // with is the one that re-shows the DOM Show More bar at the seam.
     state.activeView = null;
     svc.applyLauncherHeight();
-    expect(heightCalls()).toHaveLength(0);
-    await nextFrame();
     expect(heightCalls()).toHaveLength(1);
     expect(heightCalls()[0][1]).toMatchObject({
       height: LAUNCHER_HEIGHT_COMPACT,
-      expanded: false,
-      deferUntilNextCaCommit: true,
+      afterNextPresentationUpdate: true,
     });
+    expect(confirmCalls()).toHaveLength(0);
+    await nextFrame();
+    expect(confirmCalls()).toHaveLength(1);
     vi.mocked(invoke).mockClear();
 
     // Reopen: the bookkeeping from the shrink must not leak; the second
@@ -261,48 +241,52 @@ describe('CompactSyncService.applyLauncherHeight', () => {
     expect(confirmCalls()).toHaveLength(1);
   });
 
-  it('disarms a pending grow when a shrink is deferred by a live query', async () => {
+  it('withdraws a sticky-flip grow when a shrink is deferred by a live query', async () => {
     // Regression for the visible position bounce: goBack can restore a
     // prior query before the search re-settles, so isCompactIdle blips true
-    // and the shrink is deferred. A grow armed just before that pass must
-    // be cancelled with it; left armed, it fires against the settled state
-    // and the window visibly jumps 96 → 480 → 96.
+    // and the shrink is deferred. The gated grow already in Rust must be
+    // withdrawn with it; left armed, its watchdog fires against the settled
+    // state and the window visibly jumps 96 → 480 → 96.
     const { state, deps } = makeDeps();
     const svc = new CompactSyncService(deps);
     await seedCompact(svc);
 
-    // Settled query: sticky flips, a grow is armed (double rAF, not yet sent).
+    // Settled query: sticky flips, the gated grow goes out at effect time.
     state.localSearchValue = 'q';
     svc.searchExpandSticky = true;
     svc.applyLauncherHeight();
-    expect(heightCalls()).toHaveLength(0);
+    expect(heightCalls()).toHaveLength(1);
 
     // Query restored-but-unsettled: sticky drops, shrink target while the
-    // query text is still present → deferred shrink pass.
+    // query text is still present → deferred shrink pass withdraws the
+    // unconfirmed grow instead of sending anything.
     svc.searchExpandSticky = false;
     svc.applyLauncherHeight();
     await nextFrame();
     await nextFrame();
+    expect(heightCalls()).toHaveLength(1);
+    expect(cancelCalls()).toHaveLength(1);
+    expect(confirmCalls()).toHaveLength(0);
 
-    // Neither the armed grow nor a shrink may have reached Rust.
-    expect(heightCalls()).toHaveLength(0);
-
-    // The service isn't wedged: once the search settles again, the grow goes out.
+    // The service isn't wedged: once the search settles again, a fresh
+    // gated grow goes out.
     svc.searchExpandSticky = true;
     svc.applyLauncherHeight();
+    expect(heightCalls()).toHaveLength(2);
+    expect(heightCalls()[1][1]).toMatchObject({
+      height: LAUNCHER_HEIGHT_DEFAULT,
+      afterNextPresentationUpdate: true,
+    });
     await nextFrame();
-    await nextFrame();
-    expect(heightCalls()).toHaveLength(1);
-    expect(heightCalls()[0][1]).toMatchObject({ height: LAUNCHER_HEIGHT_DEFAULT });
+    expect(confirmCalls()).toHaveLength(1);
   });
 
-  it('withdraws a sent-but-unconfirmed grow when a shrink is deferred by a live query', async () => {
-    // The gated grow reaches Rust at effect time, one frame before its
-    // confirm. If goBack restores a live query inside that frame, the
-    // shrink is deferred and the confirm rAF is cancelled — the grow must
-    // be withdrawn (cancel_launcher_resize), or Rust's watchdog would land
-    // the 480 geometry unsynchronized against whatever is on screen 250ms
-    // later.
+  it('withdraws a sent-but-unconfirmed extension-view grow when goBack restores a query', async () => {
+    // Same guard through the other entry: the gated grow reaches Rust at
+    // effect time, one frame before its confirm. If goBack restores a live
+    // query inside that frame, the confirm rAF is cancelled and the grow
+    // must be withdrawn (cancel_launcher_resize), or Rust's watchdog would
+    // land the 480 geometry unsynchronized 250ms later.
     const { state, deps } = makeDeps();
     const svc = new CompactSyncService(deps);
     await seedCompact(svc);
@@ -322,18 +306,16 @@ describe('CompactSyncService.applyLauncherHeight', () => {
     expect(confirmCalls()).toHaveLength(0);
     expect(heightCalls()).toHaveLength(1);
 
-    // Settle re-derives from scratch: a plain ungated grow, not a stale
+    // Settle re-derives from scratch: a fresh gated grow, not a stale
     // replay of the withdrawn one.
     svc.searchExpandSticky = true;
     svc.applyLauncherHeight();
     await nextFrame();
-    await nextFrame();
     expect(heightCalls()).toHaveLength(2);
-    const regrow = heightCalls()[1][1] as {
-      height?: number;
-      afterNextPresentationUpdate?: boolean;
-    };
-    expect(regrow.height).toBe(LAUNCHER_HEIGHT_DEFAULT);
-    expect(regrow.afterNextPresentationUpdate).not.toBe(true);
+    expect(heightCalls()[1][1]).toMatchObject({
+      height: LAUNCHER_HEIGHT_DEFAULT,
+      afterNextPresentationUpdate: true,
+    });
+    expect(confirmCalls()).toHaveLength(1);
   });
 });

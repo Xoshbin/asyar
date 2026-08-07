@@ -1,17 +1,11 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('./nativeBarSync', () => ({
-  syncNativeBarStyle: vi.fn(),
-}));
-
 vi.mock('../../lib/ipc/commands', () => ({
   setPanelAppearance: vi.fn().mockResolvedValue(undefined),
 }));
 
 import type { setPanelAppearance as SetPanelAppearanceFn } from '../../lib/ipc/commands';
-
-import type { syncNativeBarStyle as SyncFn } from './nativeBarSync';
 
 type ChangeListener = (e: MediaQueryListEvent) => void;
 
@@ -42,11 +36,9 @@ function installMatchMedia(initialDark: boolean): FakeMediaQuery {
 
 async function loadModule() {
   const mod = await import('./themeMode');
-  const { syncNativeBarStyle } = await import('./nativeBarSync');
   const { setPanelAppearance } = await import('../../lib/ipc/commands');
   return {
     mod,
-    syncNativeBarStyle: vi.mocked(syncNativeBarStyle as typeof SyncFn),
     setPanelAppearance: vi.mocked(setPanelAppearance as typeof SetPanelAppearanceFn),
   };
 }
@@ -101,44 +93,24 @@ describe('themeMode', () => {
     expect(document.documentElement.dataset.theme).toBe('light');
   });
 
-  it('triggers syncNativeBarStyle when data-theme changes', async () => {
-    installMatchMedia(false);
-    const { mod, syncNativeBarStyle } = await loadModule();
-    mod.applyThemePreference('dark');
-    expect(syncNativeBarStyle).toHaveBeenCalledTimes(1);
-  });
-
-  it('skips syncNativeBarStyle when data-theme is unchanged', async () => {
-    installMatchMedia(true);
-    const { mod, syncNativeBarStyle } = await loadModule();
-    mod.applyThemePreference('system'); // resolves to dark, sets attribute
-    expect(syncNativeBarStyle).toHaveBeenCalledTimes(1);
-    mod.applyThemePreference('dark'); // already dark — no-op
-    expect(syncNativeBarStyle).toHaveBeenCalledTimes(1);
-  });
-
-  it('resyncs on OS toggle while preference is "system"', async () => {
+  it('retints on OS toggle while preference is "system"', async () => {
     const mq = installMatchMedia(false);
-    const { mod, syncNativeBarStyle } = await loadModule();
+    const { mod } = await loadModule();
     mod.applyThemePreference('system');
     expect(document.documentElement.dataset.theme).toBe('light');
-    expect(syncNativeBarStyle).toHaveBeenCalledTimes(1);
 
     mq.emit(true); // OS flipped to dark
     expect(document.documentElement.dataset.theme).toBe('dark');
-    expect(syncNativeBarStyle).toHaveBeenCalledTimes(2);
   });
 
   it('ignores OS toggle once preference is forced', async () => {
     const mq = installMatchMedia(false);
-    const { mod, syncNativeBarStyle } = await loadModule();
+    const { mod } = await loadModule();
     mod.applyThemePreference('system');
     mod.applyThemePreference('dark'); // user forces dark — listener removed
-    expect(syncNativeBarStyle).toHaveBeenCalledTimes(2); // light → dark
 
     mq.emit(false); // OS flipped to light — should not retint
     expect(document.documentElement.dataset.theme).toBe('dark');
-    expect(syncNativeBarStyle).toHaveBeenCalledTimes(2);
     expect(mq.removeEventListener).toHaveBeenCalledTimes(1);
   });
 

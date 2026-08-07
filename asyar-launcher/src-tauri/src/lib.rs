@@ -320,9 +320,6 @@ pub fn run() {
             commands::set_launcher_height,
             commands::confirm_launcher_paint,
             commands::cancel_launcher_resize,
-            commands::mark_launcher_ready,
-            commands::update_show_more_bar_style,
-            commands::update_show_more_bar_huds,
             commands::set_panel_appearance,
             commands::quit_app,
             commands::list_applications,
@@ -1226,9 +1223,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // a JS-side crop would produce (settings load sits behind appInitializer).
     let compact = read_launch_view(handle) == "compact";
 
-    // Pin the webview + vibrancy at max height and build the native Show More
-    // bar so compact↔expanded resizes stay frame-perfect: setFrame + webview
-    // reposition + bar setHidden: commit to one CATransaction, no DOM reflow.
+    // Pin the webview + vibrancy at max height so compact↔expanded resizes
+    // stay frame-perfect: setFrame + webview reposition commit to one
+    // CATransaction, no DOM reflow. The Show More bar is DOM, painted at the
+    // compact seam inside the pinned page, so the crop reveals or hides it.
     #[cfg(target_os = "macos")]
     {
         use crate::platform::macos::{LAUNCHER_COMPACT_HEIGHT, LAUNCHER_MAX_HEIGHT};
@@ -1237,20 +1235,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         // possible after the webview exists; flags may not apply to an
         // already-parsed document, and the JS polyfill covers that gap.
         crate::platform::macos::configure_launcher_webkit_features(&window);
-        crate::platform::macos::create_show_more_bar(&window, handle.clone());
         let height = if compact {
             LAUNCHER_COMPACT_HEIGHT
         } else {
             LAUNCHER_MAX_HEIGHT
         };
-        // Size only — the bar is created setHidden:YES so cold-start paint
-        // latency never shows "bar visible, header blank". The frontend's
-        // onMount rAF calls mark_launcher_ready to flip it in the same
-        // CATransaction as WebKit's first painted frame.
         crate::platform::macos::set_launcher_window_height(
             &window,
             height,
-            None,
             crate::platform::macos::ResizeMode::Immediate,
         );
 
@@ -1700,7 +1692,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         crate::platform::macos::set_launcher_window_height(
                             &window,
                             crate::platform::macos::LAUNCHER_COMPACT_HEIGHT,
-                            Some(false),
                             crate::platform::macos::ResizeMode::Immediate,
                         );
                     }
@@ -1761,7 +1752,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     crate::platform::macos::set_launcher_window_height(
                         &window,
                         height,
-                        Some(!compact),
                         ResizeMode::Immediate,
                     );
                 }
