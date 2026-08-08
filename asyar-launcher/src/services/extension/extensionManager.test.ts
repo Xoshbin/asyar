@@ -130,6 +130,15 @@ vi.mock('../search/SearchService', () => ({
   },
 }));
 vi.mock('../search/topItemsCache', () => ({ invalidateTopItemsCache: vi.fn() }));
+vi.mock('../walkthrough/walkthroughService.svelte', () => ({
+  walkthroughService: {
+    sync: vi.fn().mockResolvedValue(undefined),
+    subscribe: vi.fn().mockResolvedValue(undefined),
+    unsubscribe: vi.fn().mockResolvedValue(undefined),
+  },
+  collectProbes: vi.fn().mockReturnValue({}),
+}));
+vi.mock('../walkthrough/probeSources', () => ({ walkthroughProbeSources: {} }));
 vi.mock('../action/actionService.svelte', () => ({
   actionService: { setExtensionForwarder: vi.fn() },
 }));
@@ -988,6 +997,19 @@ describe('ExtensionManager Characterization Tests', () => {
       expect(extensionManager.manifestCommandHasArguments('app_safari')).toBeNull();
       expect(extensionManager.manifestCommandHasArguments('action_thing')).toBeNull();
       expect(extensionManager.manifestCommandHasArguments('')).toBeNull();
+    });
+  });
+
+  describe('walkthrough listener lifecycle', () => {
+    it('drops the walkthrough listener when extensions unload', async () => {
+      // The listener is registered once per sync and would otherwise outlive
+      // the registry it reports on, alongside eventSubscriptions/timerBridge.
+      const { walkthroughService } = await import('../walkthrough/walkthroughService.svelte');
+      vi.mocked(walkthroughService.unsubscribe).mockClear();
+
+      await extensionManager.unloadExtensions();
+
+      expect(walkthroughService.unsubscribe).toHaveBeenCalled();
     });
   });
 });

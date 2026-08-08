@@ -20,6 +20,7 @@ import { viewManager } from './viewManager.svelte';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
 
 import { searchService } from '../search/SearchService';
+import { collectProbes, walkthroughService } from '../walkthrough/walkthroughService.svelte';
 import { invalidateTopItemsCache } from '../search/topItemsCache';
 import { applyTheme } from '../theme/themeService';
 import { ExtensionIpcRouter } from './ExtensionIpcRouter';
@@ -340,8 +341,8 @@ export class ExtensionManager implements IExtensionManager {
 
   private async syncWalkthroughTasks(): Promise<void> {
     try {
-      const { walkthroughService, collectProbes } =
-        await import('../walkthrough/walkthroughService.svelte');
+      // `probeSources` imports this module for the extension count, so it
+      // stays a runtime import to keep the module graph acyclic.
       const { walkthroughProbeSources } = await import('../walkthrough/probeSources');
 
       await walkthroughService.sync(
@@ -393,6 +394,7 @@ export class ExtensionManager implements IExtensionManager {
   async unloadExtensions(): Promise<void> {
     this.eventSubscriptions.unsubscribe();
     this.timerBridge.unsubscribe();
+    void walkthroughService.unsubscribe();
 
     // Clear commands first
     this.manifestsById.forEach((manifest) => {
