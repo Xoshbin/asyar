@@ -6,6 +6,7 @@
     Button,
     Input,
     InlineError,
+    EmptyState,
   } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { providerRegistry } from '../../../services/ai/providerRegistry';
@@ -301,11 +302,9 @@
   <!-- Provider rows -->
   <div class="providers-section">
     {#if configuredIds.length === 0 && !draftActive}
-      <!-- Empty state -->
-      <div class="empty-state">
-        <p class="empty-state-text">No AI provider configured yet</p>
+      <EmptyState compact bordered message="No AI provider configured yet">
         <Button onclick={addProviderRow}>+ Add provider</Button>
-      </div>
+      </EmptyState>
     {:else}
       <!-- Top toolbar: explanation on the left, Add button on the right -->
       <div class="providers-toolbar">
@@ -715,24 +714,6 @@
     color: var(--accent-primary);
   }
 
-  /* Empty state */
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-6) var(--space-4);
-    border: 1px dashed var(--border-color);
-    border-radius: var(--radius-md);
-    background: var(--bg-secondary);
-  }
-
-  .empty-state-text {
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    margin: 0;
-  }
-
   /* Provider rows */
   .provider-row {
     border: 1px solid var(--border-color);
@@ -803,7 +784,7 @@
     border: none;
     padding: var(--space-1);
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--font-size-xl);
     line-height: 1;
     color: var(--text-tertiary);
     transition:
@@ -830,7 +811,7 @@
     border: none;
     padding: var(--space-1) var(--space-2);
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--font-size-xl);
     line-height: 1;
     color: var(--text-tertiary);
     border-radius: var(--radius-sm);
@@ -840,8 +821,8 @@
   }
 
   .remove-btn:hover {
-    color: var(--color-error, #ef4444);
-    background: color-mix(in srgb, var(--color-error, #ef4444) 10%, transparent);
+    color: var(--accent-danger);
+    background: color-mix(in srgb, var(--accent-danger) 10%, transparent);
   }
 
   .row-body {

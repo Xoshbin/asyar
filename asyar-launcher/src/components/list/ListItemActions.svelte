@@ -16,7 +16,7 @@
   .list-item-actions {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--space-1);
     flex-shrink: 0;
     opacity: 0;
     transition: opacity var(--transition-fast);

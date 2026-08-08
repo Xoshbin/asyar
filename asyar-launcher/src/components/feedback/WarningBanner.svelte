@@ -25,8 +25,8 @@
 <style>
   .warning-banner {
     display: flex;
-    gap: 12px;
-    padding: 12px;
+    gap: var(--space-5);
+    padding: var(--space-5);
     background: color-mix(in srgb, var(--accent-warning) 10%, transparent);
     border: 1px solid var(--accent-warning);
     border-radius: var(--radius-md);
@@ -35,7 +35,7 @@
 
   .banner-icon {
     font-size: var(--font-size-lg);
-    margin-top: 2px;
+    margin-top: var(--space-0-5);
     flex-shrink: 0;
   }
 
@@ -46,8 +46,8 @@
 
   .banner-actions {
     display: flex;
-    gap: 8px;
-    margin-top: 10px;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
     flex-wrap: wrap;
   }
 </style>

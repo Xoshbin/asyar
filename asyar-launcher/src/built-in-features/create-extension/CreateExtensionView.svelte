@@ -264,22 +264,22 @@
   .form-body {
     flex: 1;
     overflow-y: auto;
-    padding: 24px 24px 16px;
+    padding: var(--space-8) var(--space-8) var(--space-6);
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--space-7);
   }
 
   .header {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-1);
   }
 
   .fields {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-6);
   }
 
   .sr-only {
@@ -294,14 +294,14 @@
   .type-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: var(--space-3);
   }
 
   .type-card {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
-    padding: 12px;
+    gap: var(--space-4);
+    padding: var(--space-5);
     border-radius: var(--radius-md);
     border: 2px solid var(--border-color);
     cursor: pointer;
@@ -323,7 +323,7 @@
   .type-info {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: var(--space-1);
   }
 
   .type-label {
@@ -345,7 +345,7 @@
 
   .location-row {
     display: flex;
-    gap: 8px;
+    gap: var(--space-3);
   }
 
   :global(.location-row .field-input) {
@@ -358,7 +358,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 16px;
+    padding: 0 var(--space-6);
     height: 52px;
     flex-shrink: 0;
     border-top: 1px solid var(--separator);

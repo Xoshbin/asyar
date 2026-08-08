@@ -78,7 +78,7 @@
   .list-panel {
     height: 100%;
     overflow-y: auto;
-    padding: 8px;
+    padding: var(--space-3);
   }
   .list-panel:focus {
     outline: none;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from '../feedback/EmptyState.svelte';
   import { inspectorStore } from '../../services/dev/inspectorStore.svelte';
   import TimestampRelative from './TimestampRelative.svelte';
 
@@ -21,9 +22,9 @@
 
 <div class="subs-panel">
   {#if !inspectorStore.selectedExtensionId}
-    <div class="empty">Select an extension from the sidebar.</div>
+    <EmptyState compact message="Select an extension from the sidebar." />
   {:else if rows.length === 0}
-    <div class="empty">No active subscriptions.</div>
+    <EmptyState compact message="No active subscriptions." />
   {:else}
     <table>
       <thead>
@@ -50,59 +51,54 @@
 
 <style>
   .subs-panel {
-    padding: 12px;
-  }
-  .empty {
-    color: var(--color-text-muted, #888);
-    font-style: italic;
-    font-size: 12px;
+    padding: var(--space-5);
   }
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
   }
   th {
     text-align: left;
-    padding: 4px 8px;
-    border-bottom: 1px solid var(--color-border, #333);
-    font-size: 10px;
+    padding: var(--space-1) var(--space-3);
+    border-bottom: 1px solid var(--border-color);
+    font-size: var(--font-size-2xs);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--color-text-muted, #888);
+    color: var(--text-secondary);
   }
   td {
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--color-border, #2a2a2a);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--border-color);
   }
   .count-col {
     width: 80px;
     text-align: right;
-    font-family: var(--font-mono, ui-monospace, monospace);
+    font-family: var(--font-mono);
   }
   .ts-col {
     width: 90px;
     text-align: right;
   }
   code {
-    font-family: var(--font-mono, ui-monospace, monospace);
-    color: var(--color-text-accent, #8ab4f8);
+    font-family: var(--font-mono);
+    color: var(--accent-primary);
   }
   .role {
     display: inline-block;
-    padding: 0 5px;
-    border-radius: 3px;
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 10px;
+    padding: 0 var(--space-1-5);
+    border-radius: var(--radius-xs);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-2xs);
     font-weight: 600;
     text-transform: uppercase;
   }
   .role-worker {
-    background: #4a5d7e;
-    color: #d6e4ff;
+    background: color-mix(in srgb, var(--accent-primary) 30%, transparent);
+    color: var(--accent-primary);
   }
   .role-view {
-    background: #6b4a7e;
-    color: #e4d6ff;
+    background: var(--asyar-brand-muted);
+    color: var(--asyar-brand);
   }
 </style>

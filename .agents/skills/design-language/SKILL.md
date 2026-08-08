@@ -1,419 +1,424 @@
 ---
 name: design-language
-description: Use when building, modifying, or fixing any frontend UI in the Asyar launcher. Triggers on new components, new views, layout changes, styling decisions, new built-in extensions, and visual bug fixes. Ensures visual consistency across the entire app.
+description: Use when building, modifying, or fixing any frontend UI in the Asyar launcher — new components, new views, layout changes, styling decisions, new built-in features, visual bug fixes, and anything in settings or onboarding. Answers "what do I use here?" for fonts, colour, typography, spacing, components, and layout.
 ---
 
 # Asyar Design Language
 
-**All UI work MUST use the existing design system. No exceptions. No "fix it later." No "just for the demo."**
+This file answers one question: **given what you are building, what do you use?**
 
-## The Iron Rule
+Every table below is a lookup. Find your row, use what it says. If your case
+is not in a table, the answer is at the bottom of this file under
+[When nothing fits](#when-nothing-fits) — it is never "invent something".
 
-**Use existing components. Use CSS variables. Use design tokens. If a component you need doesn't exist, create a new reusable component in `src/components/` — never inline custom one-off styling.**
-
-Violating the letter of this rule IS violating the spirit. "I used CSS variables but wrote my own button" is still a violation.
-
----
-
-## Component-First Development
-
-Before writing ANY UI code, check `src/components/index.ts` for existing components. Import from the barrel file:
-
-```svelte
-import {(Button, Input, EmptyState, ListItem, SplitView)} from '../../components';
-```
-
-### Available Components
-
-`src/components/index.ts` is the source of truth — it is grouped by category
-and currently exports ~74 components. The table below is the subset you will
-reach for most often; **read the barrel before concluding something doesn't
-exist.**
-
-**Base** — `Button`, `IconButton`, `Input`, `Textarea`, `Select`, `Checkbox`, `Toggle`, `Badge`, `Icon`, `IconBox`, `ExtensionAvatar`, `StatusDot`, `MeterBar`, `StatTile`, `KeyboardHint`, `ShortcutRecorder`, `TabGroup`, `SegmentedControl`, `Modal`
-
-**Feedback** — `EmptyState`, `ErrorState`, `InlineError`, `LoadingState`, `WarningBanner`, `FeedbackMessage`, `DialogHost`, `EntitlementGate`
-
-**Layout** — `AppBar`, `Card`, `ActionFooter`, `ActionListPopup`, `BottomActionBar`, `BottomBarButton`, `InformationPanel`, `PrimaryActionDisplay`, `SearchHeader`, `SearchResultsArea`, `SplitListDetail`, `ShortcutCaptureOverlay`
-
-**List** — `ListItem`, `ListItemActions`, `ResultsList`, `SplitView`, `LauncherListRow`, `RankedStatRow`, `CalcResultCard`
-
-**Settings** — `SettingsRow`, `SettingsSection`, `SettingsTopBar`, `SettingsForm`, `SettingsFormRow`, `SettingsRadioGroup`, `SettingsRangeSlider`, plus `AppearanceThemeSelector`, `WindowModeSelector`, `ExtensionDetailPanel`, `ExtensionPreferencesForm`
-
-**Form** — `FormField`, `PlaceholderPicker`
-
-**Onboarding** — `OnboardingStage`, `GuidanceStep`, `StepProgress`, `LauncherHint`, `TestBox`, `ExpansionDemo`
-
-**Search** — `ArgumentChipRow`, `CommandArgInput`, `ArgumentDropdownChip`, `SearchBarAccessoryDropdown`
-
-The ones with non-obvious contracts:
-
-| Need                 | Component         | Notes                                                                                                                                                                                       |
-| -------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Any dialog / modal   | `Modal`           | Native `<dialog>`. Props: `isOpen` (bindable), `title`, `subtitle`, `width`, `dismissible`, `onEscape`, `onEnter`; `children` + `actions` snippets. **This is the target for all dialogs.** |
-| Confirm prompt       | `ConfirmDialog`   | Built on `Modal`, variants default/danger. **Not exported from the barrel** — import `components/base/ConfirmDialog.svelte` directly, or go through `DialogHost`.                           |
-| App-wide dialog slot | `DialogHost`      | Renders the queued confirm dialog; prefer this over mounting `ConfirmDialog` yourself                                                                                                       |
-| Status badge         | `Badge`           | variants: default, success, warning, danger, info                                                                                                                                           |
-| Icon                 | `Icon`            | built-in SVG icons with `name` prop                                                                                                                                                         |
-| Icon container       | `IconBox`         | sized container: sm/md/lg/xl                                                                                                                                                                |
-| Status indicator     | `StatusDot`       | color: success/warning/danger/info, optional pulse                                                                                                                                          |
-| Tab navigation       | `TabGroup`        | variants: pills, sidebar                                                                                                                                                                    |
-| List item            | `ListItem`        | leading/title/subtitle/trailing slots                                                                                                                                                       |
-| Results list         | `ResultsList`     | virtual scrolling search results                                                                                                                                                            |
-| Split two-panel      | `SplitView`       | resizable left/right with drag handle                                                                                                                                                       |
-| Master/detail page   | `SplitListDetail` | list + detail pane with the standard empty state                                                                                                                                            |
-| Empty state          | `EmptyState`      | icon snippet, message, description, children                                                                                                                                                |
-| Loading state        | `LoadingState`    | animated spinner with message                                                                                                                                                               |
-| Form field wrapper   | `FormField`       | label, hint, error props                                                                                                                                                                    |
-| Settings section     | `SettingsSection` | title, description props                                                                                                                                                                    |
-| Settings row         | `SettingsRow`     | label, description, control slot                                                                                                                                                            |
-
-### When a Component Doesn't Exist
-
-If you need a UI element that has no matching component above:
-
-1. **Create a new reusable component** in `src/components/{category}/NewComponent.svelte`
-2. **Export it** from `src/components/index.ts`
-3. **Use design tokens** (CSS variables, not hardcoded values) in its styling
-4. **Follow existing component patterns** — look at similar components for prop conventions
-5. **Import and use it** from the barrel file
-
-**Never** create a one-off styled element inline. If it's worth building, it's worth making reusable.
+**`pnpm check:design` enforces the mechanical half of this document and runs in
+CI.** If it passes, you have not broken the system; it does not mean your UI is
+good. The judgement calls are the tables.
 
 ---
 
-## Philosophy
+## The 30-second version
 
-Asyar is a **keyboard-first, native-feeling desktop launcher**. Every design decision should reinforce:
+| You need                      | You use                                                                    |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| Any UI element                | A component from `src/components/index.ts` — read the barrel first         |
+| Any colour                    | A `var(--…)` token. Never a hex, `rgb()`, `white`, or a Tailwind colour    |
+| Any text size or weight       | A `.text-*` class, or `var(--font-size-*)`                                 |
+| Any padding/margin/gap        | `var(--space-*)`                                                           |
+| Any corner                    | `var(--radius-*)`                                                          |
+| Any stacking                  | `var(--z-*)`                                                               |
+| A scrolling container         | Add `.custom-scrollbar`                                                    |
+| Something that does not exist | Build a reusable component in `src/components/`, export it from the barrel |
 
-- **Invisible chrome** — the UI gets out of the way; content is king
-- **Native feel** — looks and behaves like an OS-native app on macOS, Windows, and Linux
-- **Clarity** — every element has a clear purpose; nothing decorative without function
-- **Consistency** — same visual weight and interaction pattern everywhere
-
----
-
-## CSS Variables — Never Hardcode
-
-**Never hardcode colors, radius, spacing, shadows, transitions, or font sizes.** Every value must come from a CSS variable so theming, dark/light mode, and platform overrides work automatically.
-
-### Colors
-
-| Token                   | Use for                                    |
-| ----------------------- | ------------------------------------------ |
-| `var(--bg-primary)`     | Main window background                     |
-| `var(--bg-secondary)`   | Cards, sidebars, secondary surfaces        |
-| `var(--bg-tertiary)`    | Inputs, subtle backgrounds                 |
-| `var(--bg-hover)`       | Hover states on interactive elements       |
-| `var(--bg-selected)`    | Selected/active states in lists            |
-| `var(--bg-popup)`       | Opaque popups and modals (no transparency) |
-| `var(--text-primary)`   | Headings, labels, important content        |
-| `var(--text-secondary)` | Subtitles, metadata, secondary info        |
-| `var(--text-tertiary)`  | Placeholders, hints, disabled text         |
-| `var(--border-color)`   | Borders on interactive elements            |
-| `var(--separator)`      | List dividers, section borders             |
-| `var(--accent-primary)` | Primary actions, focus rings               |
-| `var(--accent-success)` | Success states                             |
-| `var(--accent-warning)` | Warnings                                   |
-| `var(--accent-danger)`  | Destructive actions, errors                |
-| `var(--shadow-color)`   | Box shadows only                           |
-| `var(--asyar-brand)`    | Brand color (#2EC4B6)                      |
-
-**Never add fallback values to CSS variables** (e.g., `var(--bg-primary, #1e1e2e)`). All variables are always defined globally — fallbacks indicate the author didn't check the design system.
-
-### Border Radius
-
-| Token                | Value  | Use for           |
-| -------------------- | ------ | ----------------- |
-| `var(--radius-xs)`   | 4px    | Small elements    |
-| `var(--radius-sm)`   | 6px    | Buttons, inputs   |
-| `var(--radius-md)`   | 8px    | Cards, panels     |
-| `var(--radius-lg)`   | 10px   | Large containers  |
-| `var(--radius-xl)`   | 12px   | Modals            |
-| `var(--radius-full)` | 9999px | Circular elements |
-
-### Spacing
-
-Use `var(--space-N)` tokens: `--space-1` (4px) through `--space-11` (48px).
-
-### Transitions
-
-| Token                      | Value              |
-| -------------------------- | ------------------ |
-| `var(--transition-fast)`   | 100ms ease         |
-| `var(--transition-normal)` | 150ms ease         |
-| `var(--transition-smooth)` | 200ms cubic-bezier |
-| `var(--transition-slow)`   | 300ms cubic-bezier |
-
-### Shadows
-
-Use `var(--shadow-xs)` through `var(--shadow-xl)`, `var(--shadow-popup)`, `var(--shadow-focus)`.
-
-### Font Sizes
-
-Use `var(--font-size-2xs)` through `var(--font-size-display)`. Never write pixel font sizes.
-
-### Fonts
-
-| Token              | Use for                                   |
-| ------------------ | ----------------------------------------- |
-| `var(--font-ui)`   | All UI text (Satoshi)                     |
-| `var(--font-mono)` | Code, monospaced content (JetBrains Mono) |
+Never write a `var(--token, fallback)`. Every token is always defined, so a
+fallback can only ever hide a typo — that is exactly how a whole subsystem in
+this app once ended up running on invented token names nobody noticed.
 
 ---
 
-## Typography
+## 1. Fonts — which font, where
 
-| Use case             | Class                                                      |
-| -------------------- | ---------------------------------------------------------- |
-| Page title           | `.text-page-title`                                         |
-| Section header       | `.text-section`                                            |
-| Item title           | `.text-title`                                              |
-| Body text            | `.text-body`                                               |
-| Label                | `.text-label`                                              |
-| Caption / hint       | `.text-caption`                                            |
-| Subtitle             | `.text-subtitle`                                           |
-| Monospace            | `.text-mono`                                               |
-| Section group header | `.section-header` (xs, uppercase, tracking-wide, tertiary) |
+Two faces. There is no third.
 
-- Never use `font-bold` in body text — `font-medium` (500) is the heaviest for UI labels
-- Use `font-semibold` (600) only for prominent headings
+| Where                                                                               | Token              | Renders as     |
+| ----------------------------------------------------------------------------------- | ------------------ | -------------- |
+| All UI text — labels, titles, body, buttons, menus, settings, onboarding            | `var(--font-ui)`   | Satoshi        |
+| Code, JSON, file paths, IDs, hashes, shortcuts, timestamps, anything column-aligned | `var(--font-mono)` | JetBrains Mono |
 
----
-
-## Layout Architecture
-
-Every view inside the launcher fits this fixed shell:
-
-```
-┌─────────────────────────────────┐  ← SearchHeader (fixed, 52px, z-50)
-│  SearchHeader                   │
-├─────────────────────────────────┤
-│                                 │
-│  Scrollable content area        │  ← height: calc(100vh - 72px)
-│  (flex-1, overflow-y-auto)      │    or use SplitView for master/detail
-│                                 │
-├─────────────────────────────────┤
-│  BottomActionBar (fixed, 40px)  │  ← Always present
-└─────────────────────────────────┘
-```
-
-- **Never** add a second fixed header or footer inside a view
-- Content area scrolls; header and footer are always visible
-- For master/detail layouts use the `SplitView` **component** — not a custom flex layout
+- `--font-ui` is applied globally to `*`. You only name it explicitly inside a
+  component that also sets `font-family` for another reason.
+- On macOS, `--font-ui` resolves to the system face (San Francisco) instead of
+  Satoshi. That is deliberate — do not "fix" it.
+- Reach for mono when characters need to line up or be read individually. A
+  duration, a count, or a version number in prose stays in `--font-ui`; the
+  same value in a table column goes mono with `font-variant-numeric:
+tabular-nums`.
 
 ---
 
-## Global CSS Classes
+## 2. Colour — which colour, where
 
-All defined in `src/resources/styles/style.css`. Use these instead of writing custom CSS:
+### Surfaces, from back to front
 
-### Buttons
+| Token              | Use for                                                      |
+| ------------------ | ------------------------------------------------------------ |
+| `--bg-primary`     | The window background. You rarely set this yourself          |
+| `--bg-secondary`   | Cards, sidebars, panels — anything sitting on the window     |
+| `--bg-tertiary`    | Inputs, wells, and subtle insets inside a card               |
+| `--bg-hover`       | Hover on any interactive row, button, or tile                |
+| `--bg-selected`    | The selected row in a list, the active item                  |
+| `--bg-popup`       | Opaque popups and menus                                      |
+| `--surface-canvas` | Only where external HTML assumes a white page (URL previews) |
 
-Use the `Button` component. If you must use raw HTML: `.btn`, `.btn-primary`, `.btn-danger`, `.btn-success`, `.btn-secondary`, `.btn-full`.
+Never set an opaque background on the root container — platform overrides
+(macOS transparency, Windows Acrylic, opaque Linux) handle that automatically.
 
-### Inputs
+### Text
 
-Use the `Input` component. If you must use raw HTML: `.input` class. For full-width settings inputs: `.field-input`.
+| Token              | Use for                                                       |
+| ------------------ | ------------------------------------------------------------- |
+| `--text-primary`   | Headings, labels, the content the user came for               |
+| `--text-secondary` | Subtitles, metadata, supporting detail                        |
+| `--text-tertiary`  | Placeholders, hints, disabled text, timestamps                |
+| `--text-on-accent` | **Text or icons on any filled saturated surface** — see below |
 
-### Cards
+`--text-on-accent` is the answer whenever the background is
+`--accent-primary`, `--accent-success/-warning/-danger`, or a per-extension
+chip colour. It is white, and it is a token so you never type `#fff` again.
 
-Use the `Card` component. CSS classes: `.card`, `.card-elevated`.
+### Semantic state
 
-### Badges
+| Token              | Means                                    |
+| ------------------ | ---------------------------------------- |
+| `--accent-primary` | Primary action, focus, selection, links  |
+| `--accent-success` | Succeeded, healthy, connected            |
+| `--accent-warning` | Needs attention, degraded, in progress   |
+| `--accent-danger`  | Destructive action, error, failed        |
+| `--asyar-brand`    | Asyar's own identity (teal). Not a state |
 
-Use the `Badge` component. CSS classes: `.badge`, `.badge-primary`, `.badge-secondary`, `.badge-success`, `.badge-warning`, `.badge-danger`.
-
-### Keyboard Shortcuts
-
-Use the `KeyboardHint` component. CSS class: `.keyboard-shortcut`.
-
-### List Items
-
-Use the `ListItem` component. CSS classes: `.result-item`, `.result-title`, `.result-subtitle`, `.selected-result`.
-
-### Surfaces
-
-`.surface-primary`, `.surface-secondary`, `.surface-popup`.
-
-### Layout
-
-`.view-container`, `.view-header`, `.app-layout`, `.search-header`, `.split-view`, `.split-view-left`, `.split-view-right`.
-
-### Scrollbar
-
-Always add `.custom-scrollbar` to any scrollable container.
-
-### Interactive
-
-`.pressable` — adds `scale(0.97)` on active state.
-
----
-
-## Interaction States
-
-Every interactive element must cover all states:
-
-| State            | Pattern                                                  |
-| ---------------- | -------------------------------------------------------- |
-| Default          | Base styles                                              |
-| Hover            | `background-color: var(--bg-hover)`                      |
-| Active/Pressed   | `background-color: var(--bg-selected)` or `.pressable`   |
-| Focus (keyboard) | `box-shadow: var(--shadow-focus)`                        |
-| Disabled         | `opacity: 0.5; cursor: not-allowed`                      |
-| Selected (list)  | `background-color: var(--bg-selected)` + left accent bar |
-
-Use `transition: var(--transition-normal)` for state changes. Never use `outline: none` without a visible `:focus-visible` alternative.
-
----
-
-## Icons
-
-- Size: `w-5 h-5` (20px) for list items; `w-4 h-4` (16px) for inline/button icons
-- Color: `var(--text-secondary)` for decorative; `var(--accent-primary)` for active
-- Always add `shrink-0` in flex layouts
-- Use the `Icon` component for built-in icons (Tier 1 only — not available in extension iframes)
-
----
-
-## Third-Party Extensions (Tier 2 — iframe sandbox)
-
-Third-party extensions run in **two sandboxed iframes per extension**
-(worker + view). Design rules apply only to the **view** iframe (the
-on-demand UI panel) — the worker iframe is hidden and renders nothing.
-Token / font injection covers both, but visible styling lives on the
-view side. Imports in the view bundle should come from `asyar-sdk/view`
-(see [`asyar-sdk/README.md`](../../../asyar-sdk/README.md) for the
-subpath split).
-
-**There is no bare `asyar-sdk` entry point.** The package's `exports` map
-declares only `./worker`, `./view`, `./contracts`, and `./tokens.css`.
-`import { x } from 'asyar-sdk'` fails to resolve — always use a subpath.
-
-### Design Tokens & Fonts — Automatic
-
-The host injects tokens and fonts into every extension iframe automatically:
-
-- All CSS custom properties (`var(--bg-primary)`, `var(--font-ui)`, etc.) are available with no setup
-- Satoshi and JetBrains Mono font files are sent as base64 data URIs so `var(--font-ui)` renders the real typeface, not a system fallback
-
-During development (outside the running app), import the static fallback for IDE autocomplete:
-
-```typescript
-import 'asyar-sdk/tokens.css'; // in main.ts
-```
-
-Or in plain CSS:
+For a **tinted background** in a state colour, mix it rather than inventing a
+second token — this is the house formula:
 
 ```css
-@import 'asyar-sdk/tokens.css';
+background: color-mix(in srgb, var(--accent-danger) 12%, transparent);
+color: var(--accent-danger);
 ```
 
-### Icons — `<asyar-icon>` Web Component
+### Lines and separators
 
-Third-party extensions use the `<asyar-icon>` web component from `asyar-sdk/view`. Register it once in the view bundle's entry, then use it anywhere in the extension HTML/template:
+| Token            | Use for                                       |
+| ---------------- | --------------------------------------------- |
+| `--border-color` | The border of an interactive element          |
+| `--separator`    | List dividers, section rules, subtle outlines |
+| `--divider-soft` | The faintest hairline (split-view handle)     |
 
-```typescript
-// main.view.ts
-import { registerIconElement } from 'asyar-sdk/view';
-registerIconElement(); // idempotent — safe to call multiple times
-```
+### Code colour
 
-The icon helpers are DOM-dependent, so they ship on the **view** entry only —
-they are not available from `asyar-sdk/worker`.
+Only for rendered code and structured data. The Prism markdown theme and
+`JsonTree` both read from these, so a snippet looks the same everywhere.
 
-```html
-<asyar-icon name="calculator" size="20"></asyar-icon>
-<asyar-icon name="clipboard" size="16" stroke-width="1.5"></asyar-icon>
-```
+`--syntax-comment` · `--syntax-keyword` · `--syntax-string` · `--syntax-number` · `--syntax-function`
 
-- Icons inherit `currentColor` — set `color` on the element or a parent to control icon color
-- `size` defaults to `20`; `stroke-width` defaults to `1.5`
-- Full icon name list: see `docs/reference/design-system/icons.md`
+### Everything else
 
-For programmatic SVG (e.g. canvas, dynamic injection), use `renderIcon()`:
-
-```typescript
-import { renderIcon, hasIcon } from 'asyar-sdk/view';
-
-if (hasIcon('calculator')) {
-  el.innerHTML = renderIcon('calculator', { size: 20, strokeWidth: 2 });
-}
-```
-
-### The Same Iron Rules Apply
-
-All CSS variable rules in this skill apply equally to Tier 2 extensions. Never hardcode colors, sizes, radii, or font names. `var(--font-ui)` renders Satoshi; `var(--font-mono)` renders JetBrains Mono. Always use tokens.
+`--scrim` / `--scrim-opaque` for modal backdrops · `--control-knob` for the
+Toggle knob · `--shadow-color` inside shadows only.
 
 ---
 
-## Empty & Loading States
+## 3. Typography — which class, where
 
-Use the `EmptyState` and `LoadingState` components. Never create custom empty/loading UI:
+Use the class. Only drop to raw `var(--font-size-*)` inside a component that
+needs a size the classes do not cover.
 
-```svelte
-<EmptyState message="No notes yet" description="Create a note to get started" />
-<LoadingState message="Loading notes..." />
+| Where you are                                      | Class              |
+| -------------------------------------------------- | ------------------ |
+| The title of a settings page or a full-screen view | `.text-page-title` |
+| A section heading inside a page                    | `.text-section`    |
+| An uppercase group label above a list              | `.section-header`  |
+| The name of a list item, card, or result           | `.text-title`      |
+| A paragraph of running text                        | `.text-body`       |
+| The label on a form field or setting               | `.text-label`      |
+| The second line under a list-item title            | `.text-subtitle`   |
+| A hint, a timestamp, a caption                     | `.text-caption`    |
+| Code, a path, an ID                                | `.text-mono`       |
+
+Weight rules: **500 (`font-medium`) is the heaviest weight for body and label
+text.** 600 (`font-semibold`) is for headings only. Never `font-bold` in body
+text — the classes above already carry the right weight, which is the main
+reason to use them.
+
+---
+
+## 4. Spacing, corners, elevation, motion
+
+**Spacing** — `var(--space-N)`, from `--space-0-5` (2px) to `--space-11`
+(48px). Whole steps first. The half-steps (`0-5`, `1-5`, `2-5`, `5-5`, `7-5`)
+exist for the cases where a whole step visibly breaks alignment against a
+neighbour; reach for one only then. `--space-2-5` is 11px — its name is
+historically misordered, so read the value before using it.
+
+**Radius** — `--radius-xs` (4) · `sm` (6) · `md` (8) · `lg` (10) · `xl` (12) ·
+`popup` (20) · `full`. Small controls take `sm`, cards take `md`, modals take
+`xl`, floating launcher surfaces take `popup`.
+
+**Shadow** — `--shadow-xs` … `--shadow-xl` for lift, `--shadow-popup` for
+menus, `--shadow-launcher-popup` for the launcher's floating surfaces,
+`--shadow-focus` for focus rings.
+
+**Motion** — `--transition-fast` (100ms) for colour changes,
+`--transition-normal` (150ms) for most state changes, `--transition-smooth`
+(200ms) and `--transition-slow` (300ms) for movement and reveals. Wrap any
+looping or large animation in `@media (prefers-reduced-motion: reduce)`.
+
+**Stacking** — never a bare number:
+
+| Token          | Value | For                                                 |
+| -------------- | ----- | --------------------------------------------------- |
+| `--z-base`     | 1     | Stacking inside one card or row                     |
+| `--z-raised`   | 10    | An icon or handle over its own container            |
+| `--z-footer`   | 40    | The launcher bottom bars                            |
+| `--z-dropdown` | 50    | A list anchored to a field or row                   |
+| `--z-floating` | 60    | Toasts, search accessories — above dropdowns        |
+| `--z-header`   | 100   | The launcher search header                          |
+| `--z-overlay`  | 200   | Prompts, banners, the extension inspector           |
+| `--z-portal`   | 9999  | A fixed popup escaping an `overflow: hidden` parent |
+
+`Modal` uses native `<dialog>`, which renders in the browser's top layer and is
+above all of these regardless of z-index. You never need to out-number a modal.
+
+---
+
+## 5. Components — which component, where
+
+**Read `src/components/index.ts` before deciding anything does not exist.** It
+exports every component in the app except `ConfirmDialog` and the extension
+inspector's internals, both documented at the bottom of that file. The checker
+fails the build if a component is missing from it, so the barrel is trustworthy
+— treat it as the catalogue.
+
+### By what you are building
+
+| You are building                      | Use                                                    |
+| ------------------------------------- | ------------------------------------------------------ |
+| A button                              | `Button` — never a styled `<button>`                   |
+| An icon-only button                   | `IconButton`                                           |
+| A button in the launcher's bottom bar | `BottomBarButton`                                      |
+| A text field                          | `Input` · multi-line: `Textarea`                       |
+| A dropdown of fixed options           | `Select`                                               |
+| An on/off setting                     | `Toggle` · in a list of choices: `Checkbox`            |
+| Two-to-four exclusive options, inline | `SegmentedControl`                                     |
+| Top-level navigation between views    | `TabGroup` (`pills` or `sidebar`)                      |
+| A keyboard shortcut, displayed        | `KeyboardHint`                                         |
+| A keyboard shortcut, being recorded   | `ShortcutRecorder`                                     |
+| A status word (`ready`, `failed`)     | `Badge` — variants default/success/warning/danger/info |
+| A status dot                          | `StatusDot`                                            |
+| A progress or capacity bar            | `MeterBar`                                             |
+| A single headline number              | `StatTile`                                             |
+| A busy indicator                      | `Spinner` (`inline` beside text, `md` standalone)      |
+| An icon                               | `Icon` · in a sized container: `IconBox`               |
+| An extension's avatar                 | `ExtensionAvatar`                                      |
+
+| You are building                              | Use                             |
+| --------------------------------------------- | ------------------------------- |
+| **Any** dialog                                | `Modal`                         |
+| A yes/no confirmation                         | Queue it through `DialogHost`   |
+| A destructive confirmation                    | Same, with the `danger` variant |
+| A row in a list                               | `ListItem`                      |
+| A long, scrolling result list                 | `ResultsList` (virtualised)     |
+| A list with group headers                     | `SectionedResultsList`          |
+| A resizable two-pane layout                   | `SplitView`                     |
+| A master/detail page with its own empty state | `SplitListDetail`               |
+| A card                                        | `Card`                          |
+| A page header with a back button              | `AppBar`                        |
+| Actions pinned to the bottom of a view        | `ActionFooter`                  |
+| A ⌘K-style action menu                        | `ActionListPopup`               |
+
+| You are building                              | Use                                                                                     |
+| --------------------------------------------- | --------------------------------------------------------------------------------------- |
+| "There is nothing here"                       | `EmptyState`                                                                            |
+| …inside a panel that is part of a fuller view | `EmptyState` with `compact`                                                             |
+| …that doubles as "add the first one"          | `EmptyState` with `compact bordered` + a `Button`                                       |
+| "This is loading"                             | `LoadingState`                                                                          |
+| "This failed"                                 | `ErrorState` · inside a form: `InlineError`                                             |
+| A non-blocking caution                        | `WarningBanner`                                                                         |
+| A transient confirmation                      | Publish via `feedbackService` — `ToastHost` is already mounted and must not be imported |
+
+| You are building                          | Use                                          |
+| ----------------------------------------- | -------------------------------------------- |
+| A settings page                           | `SettingsForm` + `SettingsSection`           |
+| One setting with a label and a control    | `SettingsRow` · in a form: `SettingsFormRow` |
+| A set of radio choices in settings        | `SettingsRadioGroup`                         |
+| A numeric slider in settings              | `SettingsRangeSlider`                        |
+| A labelled form field with hint and error | `FormField`                                  |
+| An onboarding step                        | `OnboardingStage` + `GuidanceStep`           |
+| Onboarding progress                       | `StepProgress`                               |
+| A "try it now" box in onboarding          | `TestBox`                                    |
+
+If two components look like they both fit, pick the more specific one.
+
+---
+
+## 6. Layout
+
+### The launcher shell
+
+```
+┌───────────────────────────────────┐
+│  SearchHeader   .search-header    │  fixed, --shell-header-h, --z-header
+├───────────────────────────────────┤
+│                                   │
+│  .shell-content custom-scrollbar  │  fixed between the two bars, scrolls
+│                                   │
+├───────────────────────────────────┤
+│  BottomActionBar                  │  fixed, --shell-footer-h, --z-footer
+└───────────────────────────────────┘
 ```
 
+- The header and footer are **already mounted** by `routes/+page.svelte`. A
+  view renders into the content area only.
+- **Never add a second fixed header or footer inside a view.**
+- Never hardcode `56px` or `40px`. Use `--shell-header-h` /
+  `--shell-footer-h`, or `calc()` off them, so the five places that depend on
+  those heights stay in agreement.
+- For a master/detail view inside the content area, use `SplitListDetail` (or
+  `SplitView` for a plain resizable split) — not a hand-rolled flex layout.
+
+### Scrolling
+
+Every scrolling container gets `.custom-scrollbar`. No exceptions — the
+checker enforces it, because the platform default scrollbar against Asyar's
+surfaces is immediately obvious.
+
+### The three surfaces
+
+The tokens and components are identical across all three. What differs is
+density and how much chrome is acceptable.
+
+| Surface        | Density                                                    | Notes                                                                                               |
+| -------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Launcher**   | Tightest. `--space-2`/`--space-3` inside rows              | Keyboard-first: every action needs a key path and a `KeyboardHint`. Chrome stays invisible          |
+| **Settings**   | Roomier. `--space-5`/`--space-6` between rows and sections | Always `SettingsSection` → `SettingsRow`. Mouse and keyboard are equal citizens                     |
+| **Onboarding** | Roomiest. `--space-7`+ between blocks                      | One idea per stage. `OnboardingStage` owns the frame; a step supplies content, never its own layout |
+
 ---
 
-## Scrollable Areas
+## 7. Interaction and accessibility
 
-Always add `.custom-scrollbar` to any scrollable container:
+Every interactive element covers every state:
 
-```svelte
-<div class="flex-1 overflow-y-auto custom-scrollbar">...</div>
+| State            | Pattern                                                |
+| ---------------- | ------------------------------------------------------ |
+| Hover            | `background: var(--bg-hover)`                          |
+| Active / pressed | `.pressable`, or `background: var(--bg-selected)`      |
+| Keyboard focus   | Nothing — the global `*:focus-visible` ring handles it |
+| Disabled         | `opacity: 0.5; cursor: not-allowed`                    |
+| Selected in list | `background: var(--bg-selected)` + a left accent bar   |
+
+Transition state changes with `var(--transition-normal)`.
+
+**Focus is already solved globally.** `*:focus-visible` applies
+`var(--shadow-focus)` app-wide. Two things break it, both worth knowing:
+
+1. A more specific rule that also sets `box-shadow` (e.g. `.item.active`)
+   silently wins. If your component sets `box-shadow` in any state, restate
+   the ring in a `:focus-visible` rule **after** it.
+2. `:focus-within` does not match when the real input is a _sibling_ rather
+   than a descendant. Drive the ring off the input with
+   `:global(.peer:focus-visible) ~ .track`.
+
+Use `:focus-visible`, not `:focus`, for buttons and rows — `:focus` also fires
+on mouse click. Text fields are the exception: they legitimately use `:focus`,
+and the global rule already stands aside for `input`/`textarea`/`select`.
+
+Other rules:
+
+- Anything clickable is a `<button>` or `<a>`. A `<div onclick>` needs a
+  `role`, a `tabindex`, and a key handler — and is almost always the wrong
+  answer.
+- `svelte-ignore` uses **underscores** in Svelte 5
+  (`a11y_no_static_element_interactions`). The Svelte 4 hyphenated names
+  silently suppress nothing.
+- Decorative icons get `aria-hidden="true"`; meaningful ones get a label.
+
+---
+
+## 8. Third-party extensions (Tier 2, iframe sandbox)
+
+Extensions run in two sandboxed iframes — a hidden worker and an on-demand
+view. Design rules apply to the **view**.
+
+- Every CSS token above is injected automatically, along with the real Satoshi
+  and JetBrains Mono files. `var(--bg-primary)`, `var(--font-ui)` etc. just
+  work. **The same "never hardcode a colour" rule applies.**
+- Icons come from the `<asyar-icon>` web component: call `registerIconElement()`
+  once in the view entry, then `<asyar-icon name="calculator" size="20">`.
+  Icons inherit `currentColor`.
+- There is **no bare `asyar-sdk` entry point** — import from `asyar-sdk/view`,
+  `asyar-sdk/worker`, or `asyar-sdk/contracts`. The icon helpers are
+  DOM-dependent and ship on `/view` only.
+- For IDE autocomplete outside the running app, import `asyar-sdk/tokens.css`.
+
+---
+
+## 9. When nothing fits
+
+In order. Do not skip a step.
+
+1. **Re-read the barrel.** `src/components/index.ts` exports ~100 components.
+   The thing you want usually exists under a name you did not guess.
+2. **Check whether an existing component takes a prop for it.** `EmptyState`
+   grew `compact` and `bordered` this way; `Badge` already has five variants.
+   Extending beats duplicating.
+3. **Build a new reusable component** in `src/components/{category}/`, style it
+   with tokens, export it from the barrel, and use it. If it is worth building,
+   it is worth making reusable.
+4. **A token genuinely missing?** Add it to `:root` in
+   `resources/styles/style.css` with a comment saying what it is for, and give
+   it a light and dark value if it is not constant. Then use it.
+
+### The escape hatch
+
+Some values legitimately are not on a scale: a glyph sized to a fixed tile, a
+metric pinned to a native platform dimension, a standalone webview with no
+theme injection. For those, and only those:
+
+```css
+/* design-ok: glyph scaled to the fixed 128px box, not UI text */
+font-size: 64px;
 ```
 
----
+A reason is required — a bare `design-ok` does not suppress. For a whole file
+(there is currently exactly one, the HUD window), use `design-ok-file: <reason>`.
 
-## Platform Awareness
-
-The `html` element has a `data-platform` attribute (`"darwin"`, `"win32"`, `"linux"`).
-
-- **macOS**: Full transparency + `backdrop-filter: blur(25px)` via `.macos-panel`
-- **Windows**: Native Acrylic; `.macos-panel` has `backdrop-filter: none`
-- **Linux**: Fully opaque backgrounds (WebKitGTK limitation)
-
-**Do NOT** set opaque background colors on the root container — platform overrides handle this automatically.
+If you find yourself writing the third `design-ok` for the same kind of value,
+that is the system telling you a token is missing. Add the token instead.
 
 ---
 
-## Red Flags — STOP and Fix
+## 10. Before you call it done
 
-- **Imported zero components** from `../../components` → Stop. Check what exists first.
-- **Created a custom styled button** instead of using `Button` or `.btn` → Use the component. This includes raw `<button class="btn-primary">` — always use the `Button` component, even inside snippets/slots of other components.
-- **Created a custom empty state** div → Use `EmptyState` component.
-- **Created a custom list item** layout → Use `ListItem` component.
-- **Created a custom split layout** → Use `SplitView` component.
-- **Raw `<input>` without `Input` component or `.input` class** → Use the component.
-- **Hardcoded hex/rgb color** anywhere → Replace with CSS variable.
-- **Used pixel values** for font-size, padding, margin, radius, min/max dimensions, or spacing → Replace with design token (`var(--space-*)`, `var(--font-size-*)`, `var(--radius-*)`).
-- **Tailwind arbitrary values with hardcoded pixels** like `max-w-[160px]`, `h-[200px]` → These are still hardcoded values. Use design tokens or Tailwind's built-in scale.
-- **Added CSS variable fallbacks** like `var(--bg-primary, #1e1e2e)` → Remove fallback.
-- **Wrote a `<style>` block with >20 lines of custom CSS** → You're probably bypassing the design system. Use components and utility classes instead.
-- **Used `rounded-*` Tailwind** for border-radius → Use `var(--radius-*)`.
-- **Missing `.custom-scrollbar`** on a scrollable container → Add it.
-- **Interactive element with no hover/focus state** → Add proper state handling.
-- **`outline: none` without `:focus-visible`** → Add focus ring.
-- **"Fix styling later" or "polish after"** in comments → No. Design system compliance is not optional polish.
+Run `pnpm check:design`. It fails on:
 
-**All of these mean: you are bypassing the design system. Stop, use what exists, fix before moving on.**
+| Rule                   | What it catches                                                     |
+| ---------------------- | ------------------------------------------------------------------- |
+| `undefined-token`      | `var(--x)` where `--x` is defined nowhere — the declaration is dead |
+| `token-fallback`       | `var(--x, something)`                                               |
+| `hardcoded-color`      | A hex, `rgb()`, `white` or `black` in a colour property             |
+| `tailwind-palette`     | `bg-red-500` and friends                                            |
+| `raw-px`               | Pixels on font-size, padding, margin, gap, or border-radius         |
+| `arbitrary-px`         | `min-h-[56px]` and friends                                          |
+| `bare-z-index`         | `z-index: 50`, `z-40`, `z-[100]`                                    |
+| `missing-scrollbar`    | A scrolling container with no `.custom-scrollbar`                   |
+| `unexported-component` | A component missing from the barrel                                 |
+| `stale-a11y-ignore`    | Svelte 4 hyphenated `svelte-ignore` names                           |
 
----
+Then check the things a script cannot:
 
-## Rationalization Table
-
-| Excuse                                                  | Reality                                                                                                         |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| "It's faster to write custom CSS"                       | It's faster to import `Button` than to write 15 lines of button CSS. Components exist for this reason.          |
-| "This is just for the demo / prototype"                 | Prototypes become production code. Use the design system from the start.                                        |
-| "I'll fix the styling later"                            | You won't. "Later" never comes. Do it right now.                                                                |
-| "This component is slightly different"                  | Use the existing component with its props. If truly different, create a new reusable component.                 |
-| "It's just one small inline style"                      | One becomes ten. Use CSS variables and design tokens.                                                           |
-| "I know the hex value"                                  | The design system knows it better. It handles dark mode, light mode, and platform overrides. You don't.         |
-| "The existing component doesn't do exactly what I need" | Extend the component or create a new one in `src/components/`. Never inline one-off UI.                         |
-| "Custom CSS gives me more control"                      | The design system gives you consistency across the entire app. That matters more than control over one element. |
-| "It's inside a slot/snippet so it doesn't count"        | Components must be used everywhere — including inside snippets, children, and slot content of other components. |
-| "Tailwind arbitrary values are still utility classes"   | `max-w-[160px]` is a hardcoded pixel value with extra syntax. Use Tailwind's built-in scale or design tokens.   |
+- Did you import components, or write markup? Zero imports from
+  `../components` in a new view is a red flag.
+- Does it look right in **both** light and dark? Toggle and look.
+- Does every interactive element have hover, and does Tab show a focus ring?
+- Is there an empty state, a loading state, and an error state?
+- Would this look at home next to the rest of the app, or does it look like a
+  different program?

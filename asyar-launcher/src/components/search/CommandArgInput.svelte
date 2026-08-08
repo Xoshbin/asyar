@@ -220,7 +220,7 @@
     background: var(--bg-selected);
     border: 1px solid transparent;
     border-radius: var(--radius-md);
-    padding: 3px calc(var(--space-3) - 3px) 3px var(--space-3);
+    padding: var(--space-1) calc(var(--space-3) - var(--space-1)) var(--space-1) var(--space-3);
     transition: border-color var(--transition-normal);
     min-width: 0;
   }

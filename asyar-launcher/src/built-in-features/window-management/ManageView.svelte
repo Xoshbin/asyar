@@ -94,7 +94,7 @@
   }
 
   .section-header {
-    padding: 6px 12px 4px;
+    padding: var(--space-2) var(--space-5) var(--space-1);
     font-size: var(--font-size-xs);
     font-weight: 600;
     color: var(--text-tertiary);

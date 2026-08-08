@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Textarea } from '../../components';
+  import { Textarea, EmptyState } from '../../components';
   import { agentsManager } from './agentsManager.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import {
@@ -415,7 +415,7 @@
           <div class="cache-manager">
             <label class="field-label">Cached Responses ({cachedItems.length})</label>
             {#if cachedItems.length > 0}
-              <div class="cache-list">
+              <div class="cache-list custom-scrollbar">
                 {#each cachedItems as item}
                   <div class="cache-item">
                     <div class="cache-content">
@@ -440,7 +440,7 @@
               </div>
               <button class="clear-button" onclick={clearCache}>Clear Cache</button>
             {:else}
-              <p class="empty-cache">No responses cached yet.</p>
+              <EmptyState compact message="No responses cached yet" />
             {/if}
           </div>
         {/if}
@@ -673,13 +673,6 @@
 
   .clear-button:hover {
     background: var(--accent-danger);
-    color: white;
-  }
-
-  .empty-cache {
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
-    margin: 0;
-    font-style: italic;
+    color: var(--text-on-accent);
   }
 </style>

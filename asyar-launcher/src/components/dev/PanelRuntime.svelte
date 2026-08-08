@@ -1,12 +1,21 @@
 <script lang="ts">
   import { inspectorStore, type RuntimeEntry } from '../../services/dev/inspectorStore.svelte';
-  import StatusBadge from './StatusBadge.svelte';
+  import Badge from '../base/Badge.svelte';
+  import EmptyState from '../feedback/EmptyState.svelte';
   import TimestampRelative from './TimestampRelative.svelte';
 
   const entries = $derived(inspectorStore.entriesForSelected());
 
   function entryFor(role: 'worker' | 'view'): RuntimeEntry | null {
     return entries.find((e) => e.role === role) ?? null;
+  }
+
+  /** Runtime lifecycle state → the Badge variant that carries the same meaning. */
+  function stateVariant(state: string): 'default' | 'success' | 'warning' | 'danger' {
+    if (state === 'ready') return 'success';
+    if (state === 'mounting') return 'warning';
+    if (state === 'degraded') return 'danger';
+    return 'default';
   }
 
   const worker = $derived(entryFor('worker'));
@@ -22,12 +31,16 @@
 
 <div class="runtime-panel">
   {#if !inspectorStore.selectedExtensionId}
-    <div class="empty">Select an extension from the sidebar.</div>
+    <EmptyState compact message="Select an extension from the sidebar." />
   {:else}
     <section class="role-block">
       <header>
         <h3>Worker</h3>
-        <StatusBadge state={worker?.state ?? 'dormant'} />
+        <Badge
+          text={worker?.state ?? 'dormant'}
+          variant={stateVariant(worker?.state ?? 'dormant')}
+          mono
+        />
       </header>
       <dl>
         <div>
@@ -57,7 +70,11 @@
     <section class="role-block">
       <header>
         <h3>View</h3>
-        <StatusBadge state={view?.state ?? 'dormant'} />
+        <Badge
+          text={view?.state ?? 'dormant'}
+          variant={stateVariant(view?.state ?? 'dormant')}
+          mono
+        />
       </header>
       <dl>
         <div>
@@ -85,67 +102,63 @@
 
 <style>
   .runtime-panel {
-    padding: 12px;
+    padding: var(--space-5);
     display: flex;
     flex-direction: column;
-    gap: 16px;
-  }
-  .empty {
-    color: var(--color-text-muted, #888);
-    font-style: italic;
+    gap: var(--space-6);
   }
   .role-block {
-    border: 1px solid var(--color-border, #333);
-    border-radius: 5px;
-    padding: 10px 12px;
-    background: var(--color-surface-2, #141414);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--space-4) var(--space-5);
+    background: var(--bg-secondary);
   }
   .role-block header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 10px;
+    margin-bottom: var(--space-4);
   }
   .role-block h3 {
     margin: 0;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--color-text-muted, #999);
+    color: var(--text-secondary);
   }
   dl {
     margin: 0;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 6px 12px;
+    gap: var(--space-2) var(--space-5);
   }
   dl > div {
     display: flex;
     justify-content: space-between;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
   }
   dt {
-    color: var(--color-text-muted, #888);
+    color: var(--text-secondary);
   }
   dd {
     margin: 0;
-    font-family: var(--font-mono, ui-monospace, monospace);
-    color: var(--color-text, #ddd);
+    font-family: var(--font-mono);
+    color: var(--text-primary);
   }
   .actions {
-    margin-top: 10px;
+    margin-top: var(--space-4);
   }
   .remount-btn {
-    padding: 4px 10px;
-    border: 1px solid var(--color-border, #444);
-    border-radius: 3px;
-    background: var(--color-surface-3, #222);
-    color: var(--color-text, #ddd);
-    font-size: 11px;
+    padding: var(--space-1) var(--space-4);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xs);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: var(--font-size-xs);
     cursor: pointer;
   }
   .remount-btn:hover {
-    background: var(--color-surface-hover, #2a2a2a);
+    background: var(--bg-hover);
   }
 </style>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { EmptyState } from '../../../components';
   import { listen } from '@tauri-apps/api/event';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { browserService } from '../../../services/browser/browserService';
@@ -123,10 +124,11 @@
   <div class="paired-list" data-testid="paired-list">
     <h3>Connected browsers</h3>
     {#if pairedBrowsers.length === 0}
-      <p class="empty">
-        No browsers paired yet. Install the Asyar Companion extension below — once it's running, it
-        pairs automatically and your browser shows up here.
-      </p>
+      <EmptyState
+        compact
+        message="No browsers paired yet"
+        description="Install the Asyar Companion extension below — once it's running, it pairs automatically and your browser shows up here."
+      />
     {:else}
       {#each pairedBrowsers as b (familyKey(b.family, b.variant))}
         <article class="paired-item">
@@ -211,12 +213,6 @@
 
   .status.connected {
     color: var(--accent-success);
-  }
-
-  .empty {
-    color: var(--text-tertiary);
-    font-style: italic;
-    margin: 0;
   }
 
   .action-btn {

@@ -5,7 +5,7 @@
   import { getBuiltInIconName, isBuiltInIcon } from '../../lib/iconUtils';
 </script>
 
-<div class="help-view">
+<div class="help-view custom-scrollbar">
   <section class="cheat-sheet">
     <h2 class="section-title">Keyboard Shortcuts</h2>
     <ul class="shortcut-list">
@@ -45,18 +45,18 @@
   .help-view {
     display: flex;
     flex-direction: column;
-    gap: var(--space-6, 16px);
-    padding: var(--space-5, 12px);
+    gap: var(--space-6);
+    padding: var(--space-5);
     overflow-y: auto;
     height: 100%;
   }
 
   .section-title {
-    font-size: var(--font-size-xs, 11px);
+    font-size: var(--font-size-xs);
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--text-tertiary, #888);
-    margin: 0 0 var(--space-2, 6px);
+    color: var(--text-tertiary);
+    margin: 0 0 var(--space-2);
     font-weight: 600;
   }
 
@@ -72,64 +72,64 @@
   .shortcut-row {
     display: flex;
     align-items: center;
-    gap: var(--space-4, 10px);
-    padding: var(--space-1, 3px) var(--space-2, 6px);
+    gap: var(--space-4);
+    padding: var(--space-1) var(--space-2);
   }
 
   .keys {
     display: inline-flex;
-    gap: 3px;
+    gap: var(--space-1);
     min-width: 88px;
     flex-shrink: 0;
   }
 
   kbd {
     font-family: inherit;
-    font-size: 11px;
-    padding: 1px 6px;
-    border-radius: 4px;
-    background: var(--bg-secondary, #2a2a2a);
-    border: 1px solid var(--separator, #3a3a3a);
-    color: var(--text-primary, #ddd);
+    font-size: var(--font-size-xs);
+    padding: var(--space-0-5) var(--space-2);
+    border-radius: var(--radius-xs);
+    background: var(--bg-secondary);
+    border: 1px solid var(--separator);
+    color: var(--text-primary);
   }
 
   .label {
-    font-size: var(--font-size-sm, 13px);
-    color: var(--text-secondary, #bbb);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
   }
 
   .topic-row {
     display: flex;
     align-items: center;
-    gap: var(--space-3, 8px);
-    padding: var(--space-2, 6px) var(--space-3, 8px);
-    border-radius: var(--radius-md, 8px);
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
     cursor: default;
   }
 
   .topic-row.selected {
-    background: var(--surface-selected, rgba(255, 255, 255, 0.08));
+    background: var(--bg-selected);
   }
 
   .topic-text {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: var(--space-0-5);
   }
 
   .topic-title {
-    font-size: var(--font-size-sm, 13px);
-    color: var(--text-primary, #eee);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
   }
 
   .topic-subtitle {
-    font-size: var(--font-size-xs, 11px);
-    color: var(--text-tertiary, #888);
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
   }
 
   .empty {
-    font-size: var(--font-size-sm, 13px);
-    color: var(--text-tertiary, #888);
-    padding: var(--space-3, 8px) var(--space-2, 6px);
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+    padding: var(--space-3) var(--space-2);
   }
 </style>

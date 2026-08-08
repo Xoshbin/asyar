@@ -31,13 +31,13 @@
     padding: 0;
     display: flex;
     flex-direction: column-reverse;
-    gap: 2px;
+    gap: var(--space-0-5);
   }
   .stream-tail li {
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 11px;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
     line-height: 1.5;
-    padding: 2px 8px;
-    border-bottom: 1px solid var(--color-border, #262626);
+    padding: var(--space-0-5) var(--space-3);
+    border-bottom: 1px solid var(--border-color);
   }
 </style>

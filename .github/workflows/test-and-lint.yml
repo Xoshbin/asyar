@@ -56,6 +56,9 @@ jobs:
       - name: Check Prettier formatting
         run: pnpm format:check
 
+      - name: Check design system compliance
+        run: pnpm check:design
+
       - name: Sync SvelteKit
         run: pnpm svelte-kit sync
         working-directory: asyar-launcher

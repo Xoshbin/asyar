@@ -57,7 +57,7 @@
     border: 1px solid var(--separator);
     border-radius: var(--radius-md);
     padding: var(--space-3);
-    background: var(--bg-subtle);
+    background: var(--bg-tertiary);
   }
   .axgate__text {
     margin: 0;

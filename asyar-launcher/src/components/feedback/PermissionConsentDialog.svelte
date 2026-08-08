@@ -46,7 +46,7 @@
 <style>
   :global(.btn-consent-primary) {
     background: var(--accent-primary) !important;
-    color: white !important;
+    color: var(--text-on-accent) !important;
     border: none !important;
   }
 

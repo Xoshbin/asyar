@@ -52,6 +52,7 @@
   .size-xl {
     width: 128px;
     height: 128px;
+    /* design-ok: glyph scaled to the fixed 128px box, not UI text */
     font-size: 64px;
   }
 

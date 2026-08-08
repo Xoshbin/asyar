@@ -62,7 +62,7 @@
 
   .tab-group--pills .tab-item.active {
     background: var(--accent-primary);
-    color: white;
+    color: var(--text-on-accent);
     box-shadow: 0 4px 6px -1px color-mix(in srgb, var(--accent-primary) 20%, transparent);
   }
 

@@ -140,17 +140,17 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 14px 8px;
+    padding: var(--space-4) var(--space-5-5) var(--space-3);
   }
   .calc-header-left {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-3);
   }
   .calc-icon-badge {
     width: 26px;
     height: 26px;
-    border-radius: 7px;
+    border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -159,7 +159,7 @@
       var(--cat-color),
       color-mix(in srgb, var(--cat-color) 72%, black)
     );
-    color: white;
+    color: var(--text-on-accent);
     box-shadow:
       0 2px 6px color-mix(in srgb, var(--cat-color) 35%, transparent),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -191,13 +191,13 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    padding: 14px 18px 18px;
+    gap: var(--space-1-5);
+    padding: var(--space-5-5) var(--space-7) var(--space-7);
     min-width: 0;
   }
   .calc-divider {
     width: 1px;
-    margin: 10px 0;
+    margin: var(--space-4) 0;
     background: linear-gradient(
       to bottom,
       transparent,

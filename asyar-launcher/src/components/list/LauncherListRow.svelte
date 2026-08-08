@@ -159,7 +159,7 @@
     flex-shrink: 0;
     border-radius: var(--radius-sm);
     background-color: var(--accent-primary);
-    color: #fff;
+    color: var(--text-on-accent);
   }
 
   .alias-chip {

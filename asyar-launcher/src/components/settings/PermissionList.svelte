@@ -48,15 +48,15 @@
   .permission-arg-chip,
   .permission-arg-json {
     background: var(--bg-secondary);
-    border: 1px solid var(--border-color, transparent);
-    border-radius: 4px;
-    padding: 1px 6px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xs);
+    padding: var(--space-0-5) var(--space-2);
     color: var(--text-primary);
     word-break: break-all;
   }
 
   .permission-arg-json {
-    padding: 6px 8px;
+    padding: var(--space-2) var(--space-3);
     white-space: pre;
   }
 

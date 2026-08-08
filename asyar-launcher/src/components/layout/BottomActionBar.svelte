@@ -88,9 +88,9 @@
   Non-macOS: hidden via CSS since the window really shrinks.
 -->
 <div
-  class="fixed bottom-0 left-0 right-0 z-40 h-10 border-t border-[var(--border-color)] flex items-center justify-between px-3 bottom-action-bar"
+  class="fixed bottom-0 left-0 right-0 border-t border-[var(--border-color)] flex items-center justify-between px-3 bottom-action-bar"
   class:is-compact={isCompactIdle}
-  style="background-color: var(--bg-secondary-full-opacity);"
+  style="height: var(--shell-footer-h); z-index: var(--z-footer); background-color: var(--bg-secondary-full-opacity);"
 >
   <div class="flex-1 min-w-0 flex items-center gap-3">
     {#if argumentValidationError}
@@ -135,7 +135,7 @@
 </div>
 
 <!--
-  Sits at the compact seam (top: 56px = SearchHeader height) inside the
+  Sits at the compact seam (top: --shell-header-h) inside the
   always-480px page. On macOS the window crops the pinned webview, so this
   bar occupies the bottom 40px of the compact window; its visibility toggle
   rides the same paint the presentation-gated resize commits with (see
@@ -143,9 +143,9 @@
   Non-macOS: the window really shrinks, same geometry applies.
 -->
 <div
-  class="fixed left-0 right-0 z-40 h-10 flex items-center justify-between gap-3 px-3 show-more-bar"
+  class="fixed left-0 right-0 flex items-center justify-between gap-3 px-3 show-more-bar"
   class:is-visible={isCompactIdle}
-  style="top: 56px; background-color: var(--bg-secondary-full-opacity);"
+  style="top: var(--shell-header-h); height: var(--shell-footer-h); z-index: var(--z-footer); background-color: var(--bg-secondary-full-opacity);"
 >
   <ShowMoreBarHuds />
   <BottomBarButton label="Show More" keyHint="↓" onclick={() => onexpand?.()} />
@@ -169,8 +169,8 @@
     align-items: center;
     gap: var(--space-2);
     min-width: 0;
-    padding: 3px var(--space-3);
-    border-radius: 999px;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
     background: color-mix(in srgb, var(--accent-danger) 12%, transparent);
     color: var(--accent-danger);
     font-size: var(--font-size-xs);
@@ -188,7 +188,7 @@
     display: inline-block;
     width: 2px;
     height: 11px;
-    border-radius: 1px;
+    border-radius: var(--radius-full);
     background-color: var(--separator);
     flex-shrink: 0;
   }

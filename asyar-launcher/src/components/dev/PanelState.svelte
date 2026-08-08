@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from '../feedback/EmptyState.svelte';
   import { inspectorStore } from '../../services/dev/inspectorStore.svelte';
   import JsonTree from './JsonTree.svelte';
   import TimestampRelative from './TimestampRelative.svelte';
@@ -23,9 +24,9 @@
 
 <div class="state-panel">
   {#if !inspectorStore.selectedExtensionId}
-    <div class="empty">Select an extension from the sidebar.</div>
+    <EmptyState compact message="Select an extension from the sidebar." />
   {:else if rows.length === 0}
-    <div class="empty">No state rows for this extension.</div>
+    <EmptyState compact message="No state rows for this extension." />
   {:else}
     <table>
       <thead>
@@ -50,30 +51,25 @@
 
 <style>
   .state-panel {
-    padding: 12px;
-  }
-  .empty {
-    color: var(--color-text-muted, #888);
-    font-style: italic;
-    font-size: 12px;
+    padding: var(--space-5);
   }
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
   }
   th {
     text-align: left;
-    padding: 4px 8px;
-    border-bottom: 1px solid var(--color-border, #333);
-    font-size: 10px;
+    padding: var(--space-1) var(--space-3);
+    border-bottom: 1px solid var(--border-color);
+    font-size: var(--font-size-2xs);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--color-text-muted, #888);
+    color: var(--text-secondary);
   }
   td {
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--color-border, #2a2a2a);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--border-color);
     vertical-align: top;
   }
   .key-col {
@@ -85,7 +81,7 @@
     text-align: right;
   }
   code {
-    font-family: var(--font-mono, ui-monospace, monospace);
-    color: var(--color-text-accent, #8ab4f8);
+    font-family: var(--font-mono);
+    color: var(--accent-primary);
   }
 </style>

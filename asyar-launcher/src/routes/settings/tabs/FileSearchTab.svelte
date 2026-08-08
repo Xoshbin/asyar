@@ -288,7 +288,7 @@
 
   .warning {
     padding: var(--space-2) var(--space-3);
-    background: color-mix(in srgb, var(--accent-warning, orange) 10%, transparent);
+    background: color-mix(in srgb, var(--accent-warning) 10%, transparent);
     border-radius: var(--radius-sm);
     font-size: var(--font-size-xs);
     color: var(--text-primary);

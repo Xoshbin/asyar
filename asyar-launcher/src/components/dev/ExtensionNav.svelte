@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from '../feedback/EmptyState.svelte';
   import extensionManager from '../../services/extension/extensionManager.svelte';
 
   type Props = {
@@ -22,10 +23,10 @@
   );
 </script>
 
-<nav class="ext-nav" aria-label="Extensions">
+<nav class="ext-nav custom-scrollbar" aria-label="Extensions">
   <div class="nav-header">Extensions</div>
   {#if items.length === 0}
-    <div class="empty">No enabled extensions</div>
+    <EmptyState compact message="No enabled extensions" />
   {:else}
     <ul>
       {#each items as item (item.id)}
@@ -57,17 +58,12 @@
     overflow-y: auto;
   }
   .nav-header {
-    padding: 10px 12px 6px;
-    font-size: 10px;
+    padding: var(--space-4) var(--space-5) var(--space-2);
+    font-size: var(--font-size-2xs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--color-text-muted, #888);
-  }
-  .empty {
-    padding: 12px;
-    font-size: 12px;
-    color: var(--color-text-muted, #888);
+    color: var(--text-secondary);
   }
   ul {
     list-style: none;
@@ -79,21 +75,21 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px;
-    padding: 6px 12px;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-5);
     border: 0;
     background: transparent;
-    color: var(--color-text, #ddd);
-    font-size: 12px;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
     text-align: left;
     cursor: pointer;
   }
   .nav-row:hover {
-    background: var(--color-surface-hover, rgba(255, 255, 255, 0.04));
+    background: var(--bg-hover);
   }
   .nav-row.selected {
-    background: var(--color-surface-active, rgba(100, 150, 255, 0.12));
-    color: var(--color-text-accent, #8ab4f8);
+    background: var(--bg-selected);
+    color: var(--accent-primary);
   }
   .name {
     overflow: hidden;
@@ -102,26 +98,26 @@
   }
   .roles {
     display: flex;
-    gap: 3px;
+    gap: var(--space-1);
     flex-shrink: 0;
   }
   .role-badge {
     display: inline-block;
     min-width: 14px;
-    padding: 0 3px;
-    border-radius: 3px;
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 9px;
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-xs);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-2xs);
     font-weight: 700;
     text-align: center;
     line-height: 14px;
   }
   .role-badge.w {
-    background: #4a5d7e;
-    color: #d6e4ff;
+    background: color-mix(in srgb, var(--accent-primary) 30%, transparent);
+    color: var(--accent-primary);
   }
   .role-badge.v {
-    background: #6b4a7e;
-    color: #e4d6ff;
+    background: var(--asyar-brand-muted);
+    color: var(--asyar-brand);
   }
 </style>

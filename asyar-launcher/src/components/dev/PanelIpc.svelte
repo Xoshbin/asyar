@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from '../feedback/EmptyState.svelte';
   import { inspectorStore, type IpcTrace } from '../../services/dev/inspectorStore.svelte';
   import StreamTail from './StreamTail.svelte';
 
@@ -27,9 +28,9 @@
   </div>
 
   {#if !inspectorStore.selectedExtensionId}
-    <div class="empty">Select an extension from the sidebar.</div>
+    <EmptyState compact message="Select an extension from the sidebar." />
   {:else if rows.length === 0}
-    <div class="empty">No IPC traffic yet.</div>
+    <EmptyState compact message="No IPC traffic yet." />
   {:else}
     <StreamTail {rows} tail={250}>
       {#snippet row(item)}
@@ -57,60 +58,55 @@
   .toolbar {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--color-border, #333);
-    font-size: 11px;
-    color: var(--color-text-muted, #999);
+    gap: var(--space-5);
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border-color);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
   }
   .toolbar button {
     margin-left: auto;
-    background: var(--color-surface-3, #222);
-    border: 1px solid var(--color-border, #444);
-    border-radius: 3px;
-    color: var(--color-text, #ddd);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xs);
+    color: var(--text-primary);
     cursor: pointer;
-    padding: 2px 8px;
-    font-size: 11px;
-  }
-  .empty {
-    padding: 16px;
-    font-style: italic;
-    color: var(--color-text-muted, #888);
+    padding: var(--space-0-5) var(--space-3);
+    font-size: var(--font-size-xs);
   }
   .time {
-    color: var(--color-text-muted, #888);
-    margin-right: 8px;
+    color: var(--text-secondary);
+    margin-right: var(--space-3);
   }
   .phase {
     display: inline-block;
     min-width: 54px;
-    padding: 0 4px;
-    border-radius: 3px;
-    font-size: 9px;
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-xs);
+    font-size: var(--font-size-2xs);
     font-weight: 700;
     text-transform: uppercase;
-    margin-right: 6px;
+    margin-right: var(--space-2);
     text-align: center;
   }
   .phase.phase-invoke {
-    background: rgba(120, 160, 255, 0.22);
-    color: #8ab4f8;
+    background: color-mix(in srgb, var(--accent-primary) 22%, transparent);
+    color: var(--accent-primary);
   }
   .phase.phase-response {
-    background: rgba(90, 220, 110, 0.2);
-    color: #5adc6e;
+    background: color-mix(in srgb, var(--accent-success) 20%, transparent);
+    color: var(--accent-success);
   }
   .cmd {
-    color: var(--color-text, #ddd);
-    margin-right: 6px;
+    color: var(--text-primary);
+    margin-right: var(--space-2);
   }
   .ms {
-    color: var(--color-text-muted, #aaa);
+    color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
-    margin-right: 6px;
+    margin-right: var(--space-2);
   }
   .err {
-    color: #f06464;
+    color: var(--accent-danger);
   }
 </style>

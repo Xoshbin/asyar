@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Spinner from '../base/Spinner.svelte';
   import type { FeedbackItem } from '../../lib/ipc/commands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { DIAGNOSTIC_MESSAGES } from '../../services/diagnostics/messages';
@@ -44,7 +45,7 @@
       <p class="message">{message}</p>
       {#if feedback.progress}
         <div class="progress-row">
-          <span class="spinner" aria-hidden="true"></span>
+          <Spinner size="inline" accent />
           {#if feedback.progress.completed != null && feedback.progress.total != null}
             <span>{feedback.progress.completed} of {feedback.progress.total}</span>
           {:else}
@@ -124,23 +125,6 @@
     margin: 0;
     overflow-wrap: anywhere;
   }
-  .spinner {
-    width: 12px;
-    height: 12px;
-    border: 1.5px solid var(--accent-primary);
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
   @media (prefers-reduced-motion: reduce) {
-    .spinner {
-      animation: none;
-      border-top-color: var(--accent-primary);
-    }
   }
 </style>

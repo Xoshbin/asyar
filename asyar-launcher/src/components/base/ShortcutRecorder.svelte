@@ -260,7 +260,7 @@
     background: var(--bg-hover);
   }
 
-  .recorder-button:focus {
+  .recorder-button:focus-visible {
     outline: none;
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 50%, transparent);
   }

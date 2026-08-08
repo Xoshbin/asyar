@@ -47,20 +47,20 @@
 <style>
   .toast-host {
     position: fixed;
-    bottom: 56px;
+    bottom: calc(var(--shell-footer-h) + var(--space-6));
     left: 50%;
     transform: translateX(-50%);
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--space-4);
     max-width: min(560px, calc(100vw - 32px));
-    padding: 8px 14px;
+    padding: var(--space-3) var(--space-5-5);
     background: color-mix(in srgb, var(--bg-popup) 92%, transparent);
     backdrop-filter: blur(20px);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-popup);
-    z-index: 60;
+    z-index: var(--z-floating);
     pointer-events: auto;
   }
 
@@ -76,7 +76,7 @@
   .toast-action {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--space-4);
     min-width: 0;
     background: none;
     border: none;
@@ -103,7 +103,7 @@
   .toast-text {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: var(--space-0-5);
     min-width: 0;
   }
 
@@ -127,7 +127,7 @@
   }
 
   .symbol {
-    font-size: 13px;
+    font-size: var(--font-size-md);
     font-weight: 700;
     line-height: 1;
   }

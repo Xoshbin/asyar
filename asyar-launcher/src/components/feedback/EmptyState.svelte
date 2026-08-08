@@ -6,15 +6,30 @@
     message = 'No items found',
     description,
     children,
+    compact = false,
+    bordered = false,
   }: {
     icon?: Snippet;
     message?: string;
     description?: string;
     children?: Snippet;
+    /**
+     * Inline variant for a panel or a section that is empty while the rest of
+     * the view still has content — it drops the full-height centring and the
+     * display-size icon. Use the default (full) variant when the empty state
+     * IS the whole view.
+     */
+    compact?: boolean;
+    /**
+     * Dashed outline, for the "nothing here yet — add one" case where the
+     * empty state doubles as the affordance to create the first item. Pair it
+     * with a Button in the children snippet.
+     */
+    bordered?: boolean;
   } = $props();
 </script>
 
-<div class="empty-state">
+<div class="empty-state" class:compact class:bordered>
   {#if icon}
     <div class="empty-state-icon">
       {@render icon()}
@@ -44,15 +59,36 @@
     min-height: 100%;
   }
 
+  .empty-state.compact {
+    min-height: 0;
+    padding: var(--space-4);
+  }
+
+  .empty-state.bordered {
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    padding: var(--space-6) var(--space-4);
+  }
+
   .empty-state-icon {
-    margin-bottom: 8px;
+    margin-bottom: var(--space-3);
     font-size: var(--font-size-display);
     opacity: 0.6;
     color: var(--text-tertiary);
   }
 
+  .empty-state.compact .empty-state-icon {
+    margin-bottom: var(--space-1);
+    font-size: var(--font-size-2xl);
+  }
+
   .empty-state-message {
     color: var(--text-primary);
+  }
+
+  .empty-state.compact .empty-state-message {
+    color: var(--text-secondary);
   }
 
   .empty-state-description {

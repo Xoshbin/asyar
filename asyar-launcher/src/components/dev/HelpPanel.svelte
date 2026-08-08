@@ -29,44 +29,44 @@
 
 <style>
   .help-panel {
-    padding: 12px;
-    font-size: 12px;
+    padding: var(--space-5);
+    font-size: var(--font-size-sm);
     line-height: 1.5;
-    color: var(--color-text, #ddd);
+    color: var(--text-primary);
   }
   .help-panel h3 {
-    margin: 0 0 8px;
-    font-size: 12px;
+    margin: 0 0 var(--space-3);
+    font-size: var(--font-size-sm);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--color-text-muted, #999);
+    color: var(--text-secondary);
   }
   .help-panel p {
-    margin: 0 0 8px;
+    margin: 0 0 var(--space-3);
   }
   .help-panel ol {
-    margin: 0 0 8px 20px;
+    margin: 0 0 var(--space-3) var(--space-7);
     padding: 0;
   }
   .help-panel li {
-    margin-bottom: 4px;
+    margin-bottom: var(--space-1);
   }
   .help-panel kbd {
     display: inline-block;
-    padding: 1px 5px;
-    border: 1px solid var(--color-border, #444);
-    border-radius: 3px;
-    background: var(--color-surface-2, #222);
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 11px;
+    padding: var(--space-0-5) var(--space-1-5);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xs);
+    background: var(--bg-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
   }
   .help-panel code {
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 11px;
-    color: var(--color-text-accent, #8ab4f8);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--accent-primary);
   }
   .muted {
-    color: var(--color-text-muted, #888);
+    color: var(--text-secondary);
   }
 </style>

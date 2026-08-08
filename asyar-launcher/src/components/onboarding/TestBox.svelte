@@ -52,7 +52,7 @@
     border: 1px dashed var(--separator);
     border-radius: var(--radius-md);
     padding: var(--space-3);
-    background: var(--bg-subtle);
+    background: var(--bg-tertiary);
   }
   .testbox--disabled {
     opacity: 0.55;

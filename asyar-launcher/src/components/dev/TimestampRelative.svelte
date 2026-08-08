@@ -31,8 +31,8 @@
 
 <style>
   .ts-rel {
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 10px;
-    color: var(--color-text-muted, #888);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-2xs);
+    color: var(--text-secondary);
   }
 </style>

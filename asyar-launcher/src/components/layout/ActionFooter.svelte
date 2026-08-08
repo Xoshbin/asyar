@@ -29,11 +29,11 @@
     align-items: center;
     justify-content: space-between;
     height: 48px;
-    padding: 0 16px;
+    padding: 0 var(--space-6);
     border-top: 1px solid var(--divider-soft);
     background-color: transparent;
     flex-shrink: 0;
-    z-index: 10;
+    z-index: var(--z-raised);
     color: var(--text-secondary);
   }
 
@@ -48,13 +48,13 @@
   .action-footer-right {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--space-5);
   }
 
   :global(.action-footer kbd) {
     font-family: var(--font-mono);
     font-size: var(--font-size-xs);
-    padding: 2px 5px;
+    padding: var(--space-0-5) var(--space-1-5);
     background: var(--bg-tertiary);
     border-radius: var(--radius-xs);
     border: 1px solid var(--border-color);

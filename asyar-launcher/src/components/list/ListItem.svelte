@@ -61,10 +61,10 @@
   .list-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--space-5);
     padding: var(--space-5) var(--space-6);
     border-radius: var(--radius-xl);
-    margin-bottom: 1px;
+    margin-bottom: var(--space-0-5);
     transition: none;
     cursor: default;
     user-select: none;
@@ -96,7 +96,7 @@
   .list-item-trailing {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-3);
     flex-shrink: 0;
   }
 
