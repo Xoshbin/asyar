@@ -92,7 +92,6 @@ const HOST_REALM_ONLY = new Set([
   'asyar:api:clipboard:hideWindow',
   'asyar:api:clipboard:initialize',
   'asyar:api:commands:executeCommand',
-  'asyar:api:onboarding:complete',
 ]);
 
 describe('extension permission gate coverage', () => {
