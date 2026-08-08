@@ -251,6 +251,12 @@ mod tests {
         mark_complete(&conn, "wt_a", CompletionSource::Auto, 1).unwrap();
         set_dismissed(&conn, true).unwrap();
 
+        // Assert the setup landed before resetting it. Without this the test
+        // passes vacuously against a no-op writer: "empty after reset" is
+        // trivially true if nothing was ever written.
+        assert!(!latched(&conn).unwrap().is_empty());
+        assert!(is_dismissed(&conn).unwrap());
+
         reset(&conn).unwrap();
 
         assert!(latched(&conn).unwrap().is_empty());

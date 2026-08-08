@@ -1,11 +1,8 @@
 import type { TaskProgress } from '../../lib/ipc/walkthroughCommands';
 
 /**
- * "2 of 3 days" for a task that is partway there.
- *
- * Returns null when a bar would say nothing the tick mark doesn't already:
- * a manual task (no progress at all) or a single-step one, where "0 of 1" is
- * just a longer way of writing "not done".
+ * Null when a label would say nothing the tick mark doesn't: a manual task,
+ * or a single-step one where "0 of 1" just means "not done".
  */
 export function taskProgressLabel(progress: TaskProgress | null | undefined): string | null {
   if (!progress || progress.target <= 1) return null;

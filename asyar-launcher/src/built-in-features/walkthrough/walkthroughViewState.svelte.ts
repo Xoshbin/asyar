@@ -5,11 +5,8 @@ import type { WalkthroughTaskView } from '../../lib/ipc/walkthroughCommands';
 export type WalkthroughMode = 'list' | 'detail';
 
 /**
- * View state for the Walkthrough list and its task detail page.
- *
- * Ordering and completion belong to Rust; this only decides what is on
- * screen and which row has focus. Text filtering also goes to Rust, through
- * the shared `rank_items` ranker.
+ * Ordering, completion and text ranking all belong to Rust; this only tracks
+ * what is on screen and which row has focus.
  */
 class WalkthroughViewState {
   mode = $state<WalkthroughMode>('list');

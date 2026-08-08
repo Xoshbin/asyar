@@ -8,12 +8,8 @@ import { countUserCreatedPortals } from './portalCounting';
 import type { ProbeSources } from './walkthroughService.svelte';
 
 /**
- * Where each `state` completion probe reads its count from.
- *
- * Only for things launch history genuinely cannot answer — "does a snippet
- * exist" is a fact about stored data, not about anything the user launched.
- * Prefer a `launch` or `count` rule whenever a command can express the same
- * thing; those need no wiring here at all.
+ * Only for facts launch history cannot answer. Prefer a `launch`/`count`
+ * rule where a command expresses the same thing — those need no wiring here.
  */
 export const walkthroughProbeSources: ProbeSources = {
   snippetCount: () => snippetStore.snippets?.length ?? 0,
