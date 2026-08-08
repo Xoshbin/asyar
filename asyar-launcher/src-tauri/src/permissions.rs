@@ -409,6 +409,11 @@ fn is_public_call(call_type: &str) -> bool {
         // decision, tracked separately).
             | "asyar:api:ai:streamChat"
             | "asyar:api:clipboard:stopMonitoring"
+        // An extension marking its OWN per-extension onboarding complete
+        // (extension_id is host-injected from the trusted iframe attribute,
+        // never the payload — see INJECTS_EXTENSION_ID) — scoped to the
+        // caller, like state:*/feedback:*.
+            | "asyar:api:onboarding:complete"
     )
 }
 
@@ -946,6 +951,22 @@ mod tests {
                 "{call} should be permission-free (ephemeral, extension-scoped UI)"
             );
         }
+    }
+
+    #[test]
+    fn gate_decision_allows_onboarding_complete() {
+        // Tier 2 extensions with an `onboarding.command` in their manifest call
+        // `context.proxies.onboarding.complete()` on themselves once their
+        // onboarding view finishes. `extension_id` is host-injected from the
+        // trusted iframe attribute (INJECTS_EXTENSION_ID), never the payload,
+        // so this only ever marks the *calling* extension onboarded — no
+        // cross-extension reach, nothing else persisted. Permission-free like
+        // state:*/feedback:*. Was left unclassified when the gate went
+        // fail-closed (#567), silently denying every extension onboarding flow.
+        assert_eq!(
+            gate_decision("asyar:api:onboarding:complete"),
+            GateDecision::AllowPublic
+        );
     }
 
     #[test]
