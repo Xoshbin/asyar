@@ -177,6 +177,37 @@ pub fn progress_for(
     }
 }
 
+/// The shape a finished task's progress takes, derived from the rule alone.
+///
+/// A latched task always reads as full, so its numbers never depend on the
+/// history — which is what lets a snapshot of an entirely finished
+/// walkthrough skip reading the history at all. Dual-threshold `count` rules
+/// report their day dimension, matching the tie-break in [`progress_for`].
+pub fn completed_progress(rule: &CompletionRule) -> Option<TaskProgress> {
+    match rule {
+        CompletionRule::Launch { .. } => Some(TaskProgress::new(1, 1, ProgressUnit::Launches)),
+
+        CompletionRule::Count {
+            times,
+            distinct_days,
+            ..
+        } => Some(match distinct_days {
+            Some(days) => TaskProgress::new(*days, *days, ProgressUnit::Days),
+            None => {
+                let times = times.unwrap_or(1);
+                TaskProgress::new(times, times, ProgressUnit::Launches)
+            }
+        }),
+
+        CompletionRule::State { at_least, .. } => {
+            let target = at_least.unwrap_or(1);
+            Some(TaskProgress::new(target, target, ProgressUnit::Items))
+        }
+
+        CompletionRule::Manual => None,
+    }
+}
+
 /// The launch target a rule watches, if it watches one at all.
 /// `state` and `manual` rules are unaffected by launches.
 pub fn watched_target(rule: &CompletionRule) -> Option<&str> {
@@ -589,6 +620,73 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&p).unwrap(),
             r#"{"current":2,"target":3,"unit":"days"}"#
+        );
+    }
+
+    #[test]
+    fn completed_progress_is_full_and_needs_no_history() {
+        assert_eq!(
+            completed_progress(&CompletionRule::Launch {
+                target: "cmd_a".into()
+            }),
+            Some(TaskProgress {
+                current: 1,
+                target: 1,
+                unit: ProgressUnit::Launches
+            })
+        );
+
+        assert_eq!(
+            completed_progress(&CompletionRule::State {
+                probe: "snippets.count".into(),
+                at_least: Some(3),
+            }),
+            Some(TaskProgress {
+                current: 3,
+                target: 3,
+                unit: ProgressUnit::Items
+            })
+        );
+
+        assert_eq!(completed_progress(&CompletionRule::Manual), None);
+    }
+
+    #[test]
+    fn completed_progress_of_a_count_rule_matches_the_live_tie_break() {
+        // A dual-threshold rule reports days when finished, the same
+        // dimension `progress_for` settles on when the ratios tie.
+        let both = CompletionRule::Count {
+            target: "cmd_a".into(),
+            times: Some(10),
+            distinct_days: Some(3),
+        };
+        assert_eq!(
+            completed_progress(&both),
+            Some(TaskProgress {
+                current: 3,
+                target: 3,
+                unit: ProgressUnit::Days
+            })
+        );
+        assert_eq!(
+            progress_for(&both, &LaunchHistory::new(), &no_probes())
+                .unwrap()
+                .unit,
+            ProgressUnit::Days,
+        );
+
+        let times_only = CompletionRule::Count {
+            target: "cmd_a".into(),
+            times: Some(4),
+            distinct_days: None,
+        };
+        assert_eq!(
+            completed_progress(&times_only),
+            Some(TaskProgress {
+                current: 4,
+                target: 4,
+                unit: ProgressUnit::Launches
+            })
         );
     }
 

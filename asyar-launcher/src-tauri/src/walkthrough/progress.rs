@@ -1,6 +1,6 @@
 //! Joining declared tasks with latched completion state, and summarizing it.
 
-use super::rules::{self, LaunchHistory, Probes, TaskProgress};
+use super::rules::{self, LaunchHistory, Probes};
 use super::{CompletionRecord, TaskView, WalkthroughTask};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -54,33 +54,41 @@ pub fn build_views(
     sort_tasks(&mut ordered);
     ordered
         .into_iter()
-        .map(|task| {
-            let measured = rules::progress_for(&task.completion, history, probes);
-            match latched.get(&task.id) {
-                Some(record) => TaskView {
-                    // A latched task reads as full regardless of what the
-                    // history still says — completions outlive the history
-                    // that earned them, and a "done" row showing 1 of 3 would
-                    // look like a bug.
-                    progress: measured.map(|p| TaskProgress {
-                        current: p.target,
-                        ..p
-                    }),
-                    task,
-                    completed: true,
-                    completed_at: Some(record.completed_at),
-                    source: Some(record.source),
-                },
-                None => TaskView {
-                    task,
-                    completed: false,
-                    completed_at: None,
-                    source: None,
-                    progress: measured,
-                },
-            }
+        .map(|task| match latched.get(&task.id) {
+            // A latched task reads as full from its rule alone — completions
+            // outlive the history that earned them, and a "done" row showing
+            // 1 of 3 would look like a bug. Deriving it from the rule rather
+            // than the history is also what makes `needs_history` safe.
+            Some(record) => TaskView {
+                progress: rules::completed_progress(&task.completion),
+                task,
+                completed: true,
+                completed_at: Some(record.completed_at),
+                source: Some(record.source),
+            },
+            None => TaskView {
+                progress: rules::progress_for(&task.completion, history, probes),
+                task,
+                completed: false,
+                completed_at: None,
+                source: None,
+            },
         })
         .collect()
+}
+
+/// Would reading the launch history change anything?
+///
+/// Only an unfinished `launch` or `count` task consults it: `state` rules read
+/// probes, `manual` rules read nothing, and finished tasks derive their
+/// progress from the rule. So a walkthrough that is complete — the steady
+/// state for anyone who has been using Asyar a while — can skip the read
+/// entirely rather than loading every launch ever recorded.
+pub fn needs_history(tasks: &[WalkthroughTask], latched: &Latched) -> bool {
+    tasks
+        .iter()
+        .filter(|t| !latched.contains_key(&t.id))
+        .any(|t| rules::watched_target(&t.completion).is_some())
 }
 
 pub fn summarize(views: &[TaskView]) -> WalkthroughProgress {
@@ -210,6 +218,90 @@ mod tests {
         let views = build_views(&tasks, &latched, &LaunchHistory::new(), &Probes::new());
         assert_eq!(views.len(), 1);
         assert!(!views[0].completed);
+    }
+
+    fn launch_task(id: &str, order: i32) -> WalkthroughTask {
+        task(
+            id,
+            order,
+            CompletionRule::Launch {
+                target: "cmd_a".into(),
+            },
+        )
+    }
+
+    #[test]
+    fn needs_history_only_for_unfinished_launch_or_count_tasks() {
+        let tasks = vec![launch_task("wt_a", 1)];
+        assert!(needs_history(&tasks, &Latched::new()));
+
+        let latched: Latched = [latch("wt_a", 1, CompletionSource::Auto)]
+            .into_iter()
+            .collect();
+        assert!(
+            !needs_history(&tasks, &latched),
+            "a finished walkthrough must not pay for the read"
+        );
+    }
+
+    #[test]
+    fn needs_history_is_false_for_probe_and_manual_tasks() {
+        let tasks = vec![
+            manual("wt_m", 1),
+            task(
+                "wt_s",
+                2,
+                CompletionRule::State {
+                    probe: "snippets.count".into(),
+                    at_least: None,
+                },
+            ),
+        ];
+        assert!(!needs_history(&tasks, &Latched::new()));
+    }
+
+    #[test]
+    fn needs_history_is_false_for_an_empty_registry() {
+        assert!(!needs_history(&[], &Latched::new()));
+    }
+
+    #[test]
+    fn needs_history_is_true_when_any_one_task_is_outstanding() {
+        let tasks = vec![manual("wt_m", 1), launch_task("wt_a", 2)];
+        assert!(needs_history(&tasks, &Latched::new()));
+    }
+
+    #[test]
+    fn a_finished_task_reports_the_same_progress_with_or_without_history() {
+        // The guarantee that makes skipping the read safe: for latched tasks
+        // the two calls must be indistinguishable.
+        let tasks = vec![task(
+            "wt_habit",
+            1,
+            CompletionRule::Count {
+                target: "cmd_clip_*".into(),
+                times: Some(10),
+                distinct_days: Some(3),
+            },
+        )];
+        let latched: Latched = [latch("wt_habit", 1, CompletionSource::Auto)]
+            .into_iter()
+            .collect();
+
+        let with = build_views(
+            &tasks,
+            &latched,
+            &history(&[
+                ("cmd_clip_a", "2026-08-01", 4),
+                ("cmd_clip_a", "2026-08-02", 4),
+                ("cmd_clip_a", "2026-08-03", 4),
+            ]),
+            &Probes::new(),
+        );
+        let without = build_views(&tasks, &latched, &LaunchHistory::new(), &Probes::new());
+
+        assert_eq!(with[0].progress, without[0].progress);
+        assert_eq!(with, without);
     }
 
     #[test]

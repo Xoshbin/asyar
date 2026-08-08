@@ -31,6 +31,21 @@ fn now_seconds() -> i64 {
         .unwrap_or(0)
 }
 
+/// `all_launches()` loads every recorded launch — one row per item per day,
+/// which grows without bound over a long install. Nothing consults it once
+/// every task that watches launches is finished, so don't pay for it then.
+fn read_history_if_needed(
+    usage: &UsageState,
+    tasks: &[WalkthroughTask],
+    latched: &Latched,
+) -> LaunchHistory {
+    if progress::needs_history(tasks, latched) {
+        history_from(usage)
+    } else {
+        LaunchHistory::new()
+    }
+}
+
 fn history_from(usage: &UsageState) -> LaunchHistory {
     // A usage-database hiccup must not break the walkthrough; an empty
     // history simply completes nothing new this pass.
@@ -57,7 +72,7 @@ pub fn evaluate(
 
     let conn = data.conn()?;
     let latched = store::latched(&conn)?;
-    let history = history_from(usage);
+    let history = read_history_if_needed(usage, &tasks, &latched);
 
     let newly = progress::newly_satisfied(&tasks, &history, &probes, &latched);
     let completed_at = now_seconds();
@@ -103,7 +118,7 @@ pub fn snapshot(
     let dismissed = store::is_dismissed(&conn)?;
     drop(conn);
 
-    let history = history_from(usage);
+    let history = read_history_if_needed(usage, &tasks, &latched);
     Ok(build_snapshot(
         &tasks, &latched, &history, &probes, dismissed,
     ))
@@ -721,6 +736,88 @@ mod tests {
 
         let progress = snap.tasks[0].progress.unwrap();
         assert_eq!((progress.current, progress.target), (1, 3));
+    }
+
+    #[test]
+    fn a_finished_walkthrough_snapshots_identically_with_or_without_history() {
+        // The behavioural contract behind skipping the history read: once
+        // every task is done, the history cannot influence the result.
+        let data = create_test_store();
+        let usage = usage_state();
+        let state = WalkthroughState::new();
+        usage.record_launch("cmd_calc", "2026-08-01").unwrap();
+
+        let tasks = vec![launch_task("wt_calc", "cmd_calc")];
+        let with_history = sync(&data, &usage, &state, tasks.clone(), Probes::new()).unwrap();
+        assert_eq!(with_history.progress.completed, 1);
+
+        usage
+            .db
+            .lock()
+            .unwrap()
+            .execute("DELETE FROM usage_events", [])
+            .unwrap();
+
+        let without_history = snapshot(&data, &usage, &state).unwrap();
+        assert_eq!(with_history, without_history);
+    }
+
+    #[test]
+    fn an_unfinished_task_still_reflects_history() {
+        // Guard against over-skipping: the read must still happen while
+        // anything is outstanding.
+        let data = create_test_store();
+        let usage = usage_state();
+        let state = WalkthroughState::new();
+
+        usage.record_launch("cmd_clip_a", "2026-08-01").unwrap();
+        usage.record_launch("cmd_clip_a", "2026-08-02").unwrap();
+
+        let snap = sync(
+            &data,
+            &usage,
+            &state,
+            vec![task(
+                "wt_habit",
+                0,
+                CompletionRule::Count {
+                    target: "cmd_clip_*".into(),
+                    times: None,
+                    distinct_days: Some(3),
+                },
+            )],
+            Probes::new(),
+        )
+        .unwrap();
+
+        assert_eq!(snap.tasks[0].progress.unwrap().current, 2);
+    }
+
+    #[test]
+    fn a_walkthrough_of_only_probe_tasks_never_needs_history() {
+        let data = create_test_store();
+        let usage = usage_state();
+        let state = WalkthroughState::new();
+
+        let probes: Probes = [("snippets.count".to_string(), 2)].into_iter().collect();
+        let snap = sync(
+            &data,
+            &usage,
+            &state,
+            vec![task(
+                "wt_snip",
+                0,
+                CompletionRule::State {
+                    probe: "snippets.count".into(),
+                    at_least: Some(3),
+                },
+            )],
+            probes,
+        )
+        .unwrap();
+
+        assert_eq!(snap.tasks[0].progress.unwrap().current, 2);
+        assert!(!snap.tasks[0].completed);
     }
 
     #[test]
