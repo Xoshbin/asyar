@@ -6,10 +6,9 @@
     noteUpdate,
     stickyClose,
     stickyNew,
-    stickyDragStart,
-    stickyDragMove,
-    stickyDragEnd,
+    stickyWindowLabel,
   } from '../../lib/ipc/commands';
+  import { createWindowDragController } from '../../services/launcher/windowDragController';
   import '../../resources/styles/style.css';
 
   let noteId = $state<string | null>(null);
@@ -88,40 +87,24 @@
     await stickyNew();
   }
 
-  // Drag the window by its title bar. Screen coordinates are used so the delta
-  // is unaffected by the window moving out from under the cursor mid-drag, and
-  // moves are coalesced to one per animation frame to keep IPC light.
-  let dragOrigin: { x: number; y: number } | null = null;
-  let pendingDelta: { dx: number; dy: number } | null = null;
-  let dragFrame = 0;
+  // Drag the window by its title bar. The mechanics live in the shared
+  // controller — the launcher's search header uses the same one.
+  let drag = $derived(noteId ? createWindowDragController(stickyWindowLabel(noteId)) : null);
 
   function onDragPointerDown(e: PointerEvent) {
-    if (e.button !== 0 || !noteId) return;
-    dragOrigin = { x: e.screenX, y: e.screenY };
-    void stickyDragStart(noteId);
+    if (!drag) return;
+    drag.onPointerDown(e);
     window.addEventListener('pointermove', onDragPointerMove);
     window.addEventListener('pointerup', onDragPointerUp, { once: true });
   }
 
   function onDragPointerMove(e: PointerEvent) {
-    if (!dragOrigin) return;
-    pendingDelta = { dx: e.screenX - dragOrigin.x, dy: e.screenY - dragOrigin.y };
-    if (dragFrame) return;
-    dragFrame = requestAnimationFrame(() => {
-      dragFrame = 0;
-      if (noteId && pendingDelta) void stickyDragMove(noteId, pendingDelta.dx, pendingDelta.dy);
-    });
+    drag?.onPointerMove(e);
   }
 
   function onDragPointerUp() {
     window.removeEventListener('pointermove', onDragPointerMove);
-    if (dragFrame) {
-      cancelAnimationFrame(dragFrame);
-      dragFrame = 0;
-    }
-    dragOrigin = null;
-    pendingDelta = null;
-    if (noteId) void stickyDragEnd(noteId);
+    drag?.onPointerUp();
   }
 </script>
 

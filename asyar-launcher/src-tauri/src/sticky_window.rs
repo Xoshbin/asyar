@@ -22,7 +22,11 @@ const CASCADE_STEP: f64 = 28.0;
 const REVEAL_FALLBACK_MS: u64 = 400;
 
 /// Deterministic window label so an already-open sticky can be found, focused,
-/// and closed by note id alone.
+/// and closed by note id alone. It is also what the frontend passes to
+/// [`crate::window_drag`] to drag a note by its title bar — the per-note
+/// `sticky_drag_*` commands that used to live here were generalised into that
+/// module when the launcher needed the same behaviour. Position is still
+/// persisted by the `WindowEvent::Moved` listener below, not by the drag.
 pub fn window_label(note_id: &str) -> String {
     format!("{LABEL_PREFIX}{note_id}")
 }
@@ -100,16 +104,6 @@ fn persist_geometry(app: &AppHandle, note_id: &str) {
         return;
     };
     let _ = sticky_notes::save_geometry(&conn, note_id, pos.x, pos.y, size.width, size.height);
-}
-
-/// Window position captured at mousedown, per note, so each drag frame can be
-/// applied as an absolute offset from where the drag started (rather than
-/// accumulating per-frame deltas, which drifts).
-fn drag_anchors() -> &'static std::sync::Mutex<std::collections::HashMap<String, (f64, f64)>> {
-    static STATE: std::sync::OnceLock<
-        std::sync::Mutex<std::collections::HashMap<String, (f64, f64)>>,
-    > = std::sync::OnceLock::new();
-    STATE.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
 }
 
 /// Debounced geometry save — the last move/resize in a burst wins.
@@ -341,55 +335,6 @@ pub fn sticky_new(
     open(&app, &note.id)?;
     crate::storage::commands::emit_note_changed(&app, &note.id);
     Ok(note.id)
-}
-
-/// Begin a drag: remember where the window currently is.
-///
-/// Dragging is done manually rather than with `data-tauri-drag-region` because
-/// these windows are converted to `NSPanel`s on macOS, and the native
-/// `startDragging` path (`performWindowDragWithEvent:`) is not something we can
-/// rely on there. Anchor + absolute offset is deterministic on every platform.
-#[tauri::command]
-pub fn sticky_drag_start(note_id: String, app: AppHandle) -> Result<(), AppError> {
-    let Some(window) = app.get_webview_window(&window_label(&note_id)) else {
-        return Ok(());
-    };
-    let (Ok(scale), Ok(pos)) = (window.scale_factor(), window.outer_position()) else {
-        return Ok(());
-    };
-    let pos = pos.to_logical::<f64>(scale);
-    if let Ok(mut anchors) = drag_anchors().lock() {
-        anchors.insert(note_id, (pos.x, pos.y));
-    }
-    Ok(())
-}
-
-/// Move the window to `anchor + (dx, dy)`, where the deltas are screen-space
-/// pixels accumulated since [`sticky_drag_start`].
-#[tauri::command]
-pub fn sticky_drag_move(note_id: String, dx: f64, dy: f64, app: AppHandle) -> Result<(), AppError> {
-    let anchor = drag_anchors()
-        .lock()
-        .ok()
-        .and_then(|anchors| anchors.get(&note_id).copied());
-    let Some((anchor_x, anchor_y)) = anchor else {
-        return Ok(());
-    };
-    let Some(window) = app.get_webview_window(&window_label(&note_id)) else {
-        return Ok(());
-    };
-    let _ = window.set_position(tauri::LogicalPosition::new(anchor_x + dx, anchor_y + dy));
-    Ok(())
-}
-
-/// Drop the drag anchor. The `Moved` events emitted during the drag already
-/// scheduled the debounced geometry save, so there's nothing to persist here.
-#[tauri::command]
-pub fn sticky_drag_end(note_id: String) -> Result<(), AppError> {
-    if let Ok(mut anchors) = drag_anchors().lock() {
-        anchors.remove(&note_id);
-    }
-    Ok(())
 }
 
 #[tauri::command]

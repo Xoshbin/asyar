@@ -1,6 +1,7 @@
 // asyar-launcher/src/lib/ipc/windowCommands.ts
 // Tauri command wrappers, re-exported through ./commands (the barrel).
 import { invokeSafe } from './invokeSafe';
+import type { LauncherPlacement } from '../../bindings';
 
 // ── Window ────────────────────────────────────────────────────────────────────
 
@@ -197,4 +198,35 @@ export async function showHud(args: {
 
 export async function hideHud(): Promise<void> {
   await invokeSafe('hide_hud');
+}
+
+// ── Window dragging ───────────────────────────────────────────────────────────
+// `data-tauri-drag-region` relies on the native startDragging path, which is
+// not dependable for the NSPanel-converted launcher and sticky windows on
+// macOS. Rust instead anchors on the window's position at pointerdown and
+// applies each screen-space delta as an absolute offset — see
+// `src-tauri/src/window_drag.rs`. Callers address a window by its Tauri label.
+
+export async function windowDragStart(label: string): Promise<void> {
+  await invokeSafe('window_drag_start', { label });
+}
+
+export async function windowDragMove(label: string, dx: number, dy: number): Promise<void> {
+  await invokeSafe('window_drag_move', { label, dx, dy });
+}
+
+export async function windowDragEnd(label: string): Promise<void> {
+  await invokeSafe('window_drag_end', { label });
+}
+
+// ── Launcher placement ────────────────────────────────────────────────────────
+
+/** Where the launcher opens. Resolved against the target monitor on every
+ * reveal, so a change takes effect on the next summon. */
+export async function getLauncherPlacement(): Promise<LauncherPlacement | null> {
+  return invokeSafe<LauncherPlacement>('get_launcher_placement');
+}
+
+export async function setLauncherPlacement(placement: LauncherPlacement): Promise<void> {
+  await invokeSafe('set_launcher_placement', { placement });
 }

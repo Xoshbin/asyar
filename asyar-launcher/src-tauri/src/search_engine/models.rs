@@ -507,7 +507,10 @@ mod bindings_export {
             .register::<crate::agents::editor::AgentProviderDescriptor>()
             .register::<crate::agents::runner::AgentRunConfig>()
             .register::<crate::agents::runner::AgentStreamEvent>()
-            .register::<crate::system_actions::SystemAction>();
+            .register::<crate::system_actions::SystemAction>()
+            .register::<crate::launcher_placement::LauncherPlacement>()
+            .register::<crate::launcher_placement::LauncherMonitorChoice>()
+            .register::<crate::launcher_placement::LauncherAnchor>();
 
         Typescript::default()
             .bigint(BigIntExportBehavior::Number)

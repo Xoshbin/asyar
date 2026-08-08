@@ -96,19 +96,10 @@ export async function stickyNew(): Promise<string | null> {
   return invokeSafe<string>('sticky_new');
 }
 
-// Manual window dragging. `data-tauri-drag-region` relies on the native
-// startDragging path, which isn't dependable for the NSPanel-converted sticky
-// windows on macOS — anchor-plus-offset works the same on every platform.
-export async function stickyDragStart(noteId: string): Promise<void> {
-  await invokeSafe('sticky_drag_start', { noteId });
-}
-
-export async function stickyDragMove(noteId: string, dx: number, dy: number): Promise<void> {
-  await invokeSafe('sticky_drag_move', { noteId, dx, dy });
-}
-
-export async function stickyDragEnd(noteId: string): Promise<void> {
-  await invokeSafe('sticky_drag_end', { noteId });
+/** The Rust-side window label for a note, and the handle the shared drag
+ *  commands are addressed by. Mirrors `sticky_window::window_label`. */
+export function stickyWindowLabel(noteId: string): string {
+  return `sticky-${noteId}`;
 }
 
 export async function stickyIsStuck(noteId: string): Promise<boolean | null> {

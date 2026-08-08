@@ -86,8 +86,7 @@ pub fn commit_show(
         let window = app_handle
             .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
-        crate::platform::macos::center_at_cursor_monitor(&window)
-            .map_err(|e| AppError::Platform(format!("center_at_cursor_monitor: {e}")))?;
+        crate::platform::macos::position_launcher(&window)?;
         crate::platform::macos::set_window_alpha(&window, 1.0);
         // prepare_show's panel.show() ran on an already-visible (parked)
         // panel, which doesn't rebuild the responder chain; without this,
@@ -99,7 +98,7 @@ pub fn commit_show(
         let window = app_handle
             .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
-        center_on_primary_monitor(&window)?;
+        crate::launcher_placement::service::apply(&app_handle)?;
         let _ = window.set_focus();
     }
     // Flip the visibility flag only after the panel is actually composited at
@@ -133,7 +132,7 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
         let window = app_handle
             .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
-        center_on_primary_monitor(&window)?;
+        crate::launcher_placement::service::apply(&app_handle)?;
         let _ = window.show();
         let _ = window.set_focus();
     }
@@ -203,52 +202,6 @@ fn capture_previous_foreground(state: &tauri::State<'_, AppState>) -> Result<(),
         *prev = wid;
     }
     let _ = state;
-    Ok(())
-}
-
-/// Pure arithmetic for the centered-with-top-weight launcher position.
-/// Horizontally centered in the monitor; vertically placed at 16% from the
-/// top edge (matches the macOS cursor-monitor path's top-weight).
-#[cfg(any(not(target_os = "macos"), test))]
-fn compute_centered_position(
-    monitor_pos: (f64, f64),
-    monitor_size: (f64, f64),
-    window_size: (f64, f64),
-) -> (f64, f64) {
-    let x = monitor_pos.0 + (monitor_size.0 - window_size.0) / 2.0;
-    let y = monitor_pos.1 + monitor_size.1 * 0.16;
-    (x, y)
-}
-
-/// Cross-platform "center on primary monitor" for the reveal path.
-/// macOS uses its own cursor-monitor centering; Windows/Linux fall back to
-/// primary monitor since cursor-monitor lookup is platform-dependent and
-/// not currently wired up outside macOS.
-#[cfg(not(target_os = "macos"))]
-fn center_on_primary_monitor<R: tauri::Runtime>(
-    window: &tauri::WebviewWindow<R>,
-) -> Result<(), AppError> {
-    let monitor = window
-        .primary_monitor()
-        .map_err(|e| AppError::Platform(format!("primary_monitor: {e}")))?
-        .ok_or_else(|| AppError::NotFound("primary monitor".to_string()))?;
-    let scale = monitor.scale_factor();
-    let monitor_size = monitor.size().to_logical::<f64>(scale);
-    let monitor_position = monitor.position().to_logical::<f64>(scale);
-    let window_size = window
-        .outer_size()
-        .map_err(|e| AppError::Platform(format!("outer_size: {e}")))?
-        .to_logical::<f64>(scale);
-
-    let (x, y) = compute_centered_position(
-        (monitor_position.x, monitor_position.y),
-        (monitor_size.width, monitor_size.height),
-        (window_size.width, window_size.height),
-    );
-
-    window
-        .set_position(Position::Logical(LogicalPosition { x, y }))
-        .map_err(|e| AppError::Platform(format!("set_position: {e}")))?;
     Ok(())
 }
 
@@ -413,7 +366,7 @@ pub fn show_launcher(app: &AppHandle) -> Result<(), AppError> {
         let window = app
             .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
-        center_on_primary_monitor(&window)?;
+        crate::launcher_placement::service::apply(app)?;
         let _ = window.show();
         let _ = window.set_focus();
     }
@@ -429,29 +382,6 @@ pub fn quit_app(app_handle: AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn centers_on_origin_monitor() {
-        let (x, y) = compute_centered_position((0.0, 0.0), (1920.0, 1080.0), (480.0, 96.0));
-        assert_eq!(x, (1920.0 - 480.0) / 2.0);
-        assert_eq!(y, 1080.0 * 0.16);
-    }
-
-    #[test]
-    fn centers_on_offset_monitor() {
-        // Secondary display whose top-left is at (1920, -200) — common
-        // multi-monitor layout. Position must include the monitor origin.
-        let (x, y) = compute_centered_position((1920.0, -200.0), (2560.0, 1440.0), (480.0, 96.0));
-        assert_eq!(x, 1920.0 + (2560.0 - 480.0) / 2.0);
-        assert_eq!(y, -200.0 + 1440.0 * 0.16);
-    }
-
-    #[test]
-    fn handles_window_wider_than_monitor() {
-        // Pathological but should not panic; x just goes negative.
-        let (x, _) = compute_centered_position((0.0, 0.0), (800.0, 600.0), (1000.0, 96.0));
-        assert_eq!(x, (800.0 - 1000.0) / 2.0);
-    }
 
     #[test]
     fn rejects_nan() {
