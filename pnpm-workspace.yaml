@@ -8,6 +8,10 @@ allowBuilds:
   esbuild: true
   keytar: true
 
+onlyBuiltDependencies:
+  - 'esbuild'
+  - 'keytar'
+
 supportedArchitectures:
   cpu:
     - 'arm64'
