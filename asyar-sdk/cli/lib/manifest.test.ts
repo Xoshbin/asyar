@@ -666,4 +666,93 @@ describe('manifest validation — runtimes', () => {
     const err = errors.find((e) => e.field === 'runtimes');
     expect(err?.message).toContain('Did you mean "bun"?');
   });
+
+  describe('walkthrough contributions', () => {
+    const withTasks = (walkthrough: AsyarManifest['walkthrough']): AsyarManifest => ({
+      ...viewOnly,
+      walkthrough,
+    });
+
+    it('accepts a manifest with no walkthrough at all', () => {
+      expect(validateManifest(viewOnly, './')).toEqual([]);
+    });
+
+    it('accepts every completion rule type', () => {
+      const errors = validateManifest(
+        withTasks([
+          { id: 'a', title: 'A', completion: { type: 'launch', target: 'cmd_x_*' } },
+          {
+            id: 'b',
+            title: 'B',
+            completion: { type: 'count', target: 'cmd_x_*', distinctDays: 3 },
+          },
+          { id: 'c', title: 'C', completion: { type: 'state', probe: 'snippets.count' } },
+          { id: 'd', title: 'D', completion: { type: 'manual' } },
+        ]),
+        './',
+      );
+      expect(errors).toEqual([]);
+    });
+
+    it('rejects a duplicate task id', () => {
+      const errors = validateManifest(
+        withTasks([
+          { id: 'same', title: 'A', completion: { type: 'manual' } },
+          { id: 'same', title: 'B', completion: { type: 'manual' } },
+        ]),
+        './',
+      );
+      expect(errors.some((e) => e.message.includes('duplicate task id'))).toBe(true);
+    });
+
+    it('rejects an id that would break the qualified form', () => {
+      const errors = validateManifest(
+        withTasks([{ id: 'has space', title: 'A', completion: { type: 'manual' } }]),
+        './',
+      );
+      expect(errors.some((e) => e.field === 'walkthrough[0].id')).toBe(true);
+    });
+
+    it('requires a title', () => {
+      const errors = validateManifest(
+        withTasks([{ id: 'a', title: '  ', completion: { type: 'manual' } }]),
+        './',
+      );
+      expect(errors.some((e) => e.field === 'walkthrough[0].title')).toBe(true);
+    });
+
+    it('rejects an unknown completion rule type', () => {
+      const errors = validateManifest(
+        withTasks([
+          {
+            id: 'a',
+            title: 'A',
+            completion: { type: 'whenever' } as unknown as { type: 'manual' },
+          },
+        ]),
+        './',
+      );
+      expect(errors.some((e) => e.field === 'walkthrough[0].completion.type')).toBe(true);
+    });
+
+    it('requires a target on launch and count rules', () => {
+      const errors = validateManifest(
+        withTasks([
+          { id: 'a', title: 'A', completion: { type: 'launch', target: '' } },
+          { id: 'b', title: 'B', completion: { type: 'count', target: '  ' } },
+        ]),
+        './',
+      );
+      expect(errors.some((e) => e.field === 'walkthrough[0].completion.target')).toBe(true);
+      expect(errors.some((e) => e.field === 'walkthrough[1].completion.target')).toBe(true);
+    });
+
+    it('requires a probe on state rules', () => {
+      const errors = validateManifest(
+        withTasks([{ id: 'a', title: 'A', completion: { type: 'state', probe: '' } }]),
+        './',
+      );
+      expect(errors.some((e) => e.field === 'walkthrough[0].completion.probe')).toBe(true);
+    });
+  });
 });

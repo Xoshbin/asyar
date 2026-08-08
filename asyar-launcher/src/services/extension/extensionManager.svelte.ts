@@ -20,6 +20,7 @@ import { viewManager } from './viewManager.svelte';
 import type { ExtensionRecord } from '../../types/ExtensionRecord';
 
 import { searchService } from '../search/SearchService';
+import { collectProbes, walkthroughService } from '../walkthrough/walkthroughService.svelte';
 import { invalidateTopItemsCache } from '../search/topItemsCache';
 import { applyTheme } from '../theme/themeService';
 import { ExtensionIpcRouter } from './ExtensionIpcRouter';
@@ -204,6 +205,12 @@ export class ExtensionManager implements IExtensionManager {
 
       this.updateExtensionRecords();
 
+      // Push manifest-declared walkthrough tasks to Rust. Same shape as the
+      // command-index sync above: the frontend transports declarations, Rust
+      // decides everything about them. Never fatal — a walkthrough failure
+      // must not stop extensions from loading.
+      await this.syncWalkthroughTasks();
+
       // Start listening for scheduled command ticks and preference changes
       // from Rust. Both listeners are managed by ExtensionEventSubscriptions.
       // The TimerBridge listens for one-shot persistent timer fires on the
@@ -332,11 +339,28 @@ export class ExtensionManager implements IExtensionManager {
     await this.loader.syncCommandIndex(this.allLoadedCommands);
   }
 
+  private async syncWalkthroughTasks(): Promise<void> {
+    try {
+      // `probeSources` imports this module for the extension count, so it
+      // stays a runtime import to keep the module graph acyclic.
+      const { walkthroughProbeSources } = await import('../walkthrough/probeSources');
+
+      await walkthroughService.sync(
+        Array.from(this.manifestsById.values()),
+        collectProbes(walkthroughProbeSources),
+      );
+      await walkthroughService.subscribe();
+    } catch (error) {
+      logService.error(`Failed to sync walkthrough tasks: ${error}`);
+    }
+  }
+
   // Helper for toggleExtensionState to avoid circular dependency or method binding issues
   private async reloadExtensionsFilesAndSync(): Promise<void> {
     await this.unloadExtensions();
     await this.loadExtensions();
     await this.syncCommandIndex();
+    await this.syncWalkthroughTasks();
   }
 
   async reloadExtensions(): Promise<void> {
@@ -370,6 +394,7 @@ export class ExtensionManager implements IExtensionManager {
   async unloadExtensions(): Promise<void> {
     this.eventSubscriptions.unsubscribe();
     this.timerBridge.unsubscribe();
+    void walkthroughService.unsubscribe();
 
     // Clear commands first
     this.manifestsById.forEach((manifest) => {

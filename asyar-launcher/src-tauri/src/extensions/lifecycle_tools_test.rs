@@ -51,6 +51,7 @@ mod lifecycle_tools_tests {
             onboarding: None,
             tools: if tools.is_empty() { None } else { Some(tools) },
             runtimes: None,
+            walkthrough: None,
         }
     }
 

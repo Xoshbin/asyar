@@ -72,5 +72,20 @@
   ],
   "background": {
     "main": "dist/worker.js"
-  }
+  },
+  "walkthrough": [
+    {
+      "id": "first-note",
+      "title": "Write the thought down before it goes",
+      "summary": "Capture a note without leaving what you were doing",
+      "icon": "icon:type",
+      "order": 60,
+      "body": "Notes are for the thought that arrives while you are busy with something else — a reminder, a meeting note, a snippet of a conversation. They open over whatever you are doing and get out of the way again.\n\nPro tip: bind a hotkey to **Quick Note** so capture costs one key press.\n\n## To complete the task\n\nRun **Notes** or **Quick Note** and write something down.",
+      "completion": {
+        "type": "state",
+        "probe": "notes.count",
+        "atLeast": 1
+      }
+    }
+  ]
 }

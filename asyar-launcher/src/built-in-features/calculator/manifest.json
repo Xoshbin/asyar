@@ -22,5 +22,18 @@
       "description": "3-letter code (e.g. USD, EUR, IQD) used when you type an amount like \"50 usd\" without a target currency.",
       "default": "USD"
     }
+  ],
+  "walkthrough": [
+    {
+      "id": "calculate",
+      "title": "A calculator you never have to open",
+      "summary": "Type a calculation straight into the search bar",
+      "icon": "icon:calculator",
+      "order": 25,
+      "body": "Type a sum, a unit conversion, a currency conversion, or a date difference straight into the search bar and the answer appears as you type. No app to open, no mode to switch into.\n\nTry these:\n\n- `1234 * 56`\n- `120 usd in eur`\n- `18% of 240`\n- `days until dec 25`\n\n## To complete the task\n\nDo one calculation in the search bar, then mark this task complete.",
+      "completion": {
+        "type": "manual"
+      }
+    }
   ]
 }

@@ -733,6 +733,7 @@ mod tests {
                 onboarding: None,
                 tools: None,
                 runtimes: None,
+                walkthrough: None,
             },
             enabled,
             is_built_in,

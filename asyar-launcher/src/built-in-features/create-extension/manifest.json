@@ -33,5 +33,19 @@
       "mode": "view",
       "component": "CreatedExtensionsView"
     }
+  ],
+  "walkthrough": [
+    {
+      "id": "build-an-extension",
+      "title": "Build your first extension",
+      "summary": "Scaffold an extension and make Asyar yours",
+      "icon": "icon:dev-tools",
+      "order": 100,
+      "body": "Every built-in feature you have used in this walkthrough is an extension using the same public API you get. If Asyar is missing something you need, that gap is a few hours of work, not a feature request.\n\n## To complete the task\n\nRun **Developer Tools** and scaffold your first extension.",
+      "completion": {
+        "type": "launch",
+        "target": "cmd_create-extension_*"
+      }
+    }
   ]
 }

@@ -143,6 +143,7 @@ pub mod timers;
 pub mod tray;
 pub mod uri_schemes;
 pub mod usage;
+pub mod walkthrough;
 pub mod window_management;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
@@ -479,6 +480,13 @@ pub fn run() {
             commands::usage::reset_usage_anon_id,
             commands::usage::send_pending_usage,
             commands::usage::send_usage_now,
+            commands::walkthrough::sync_walkthrough_tasks,
+            commands::walkthrough::get_walkthrough,
+            commands::walkthrough::complete_walkthrough_task,
+            commands::walkthrough::uncomplete_walkthrough_task,
+            commands::walkthrough::complete_all_walkthrough_tasks,
+            commands::walkthrough::set_walkthrough_dismissed,
+            commands::walkthrough::reset_walkthrough,
             commands::dismiss_pending_crash,
             commands::sync::sync_run,
             commands::sync::sync_get_status,
@@ -1299,6 +1307,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => log::error!("usage state init failed: {e}"),
     }
+
+    // Walkthrough task registry. Starts empty and is filled by the frontend's
+    // `sync_walkthrough_tasks` once manifests are loaded, so an empty registry
+    // here simply means every launch hook is a no-op until then.
+    app.manage(std::sync::Arc::new(
+        walkthrough::registry::WalkthroughState::new(),
+    ));
 
     // Opt-in usage share: once at launch, roll up the most recent unsent prior
     // day and act on consent. Mirrors the crash-report startup block: read

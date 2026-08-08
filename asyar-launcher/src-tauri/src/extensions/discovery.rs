@@ -145,6 +145,12 @@ pub fn validate_manifest(m: &ExtensionManifest) -> Result<(), AppError> {
         }
     }
 
+    if let Some(tasks) = &m.walkthrough {
+        if let Err(e) = crate::walkthrough::validate_declarations(tasks) {
+            return Err(AppError::Validation(format!("Extension '{}': {}", m.id, e)));
+        }
+    }
+
     if let Some(onb) = &m.onboarding {
         let target = m.commands.iter().find(|c| c.id == onb.command);
         match target {
@@ -566,6 +572,7 @@ mod first_view_component_tests {
             onboarding: None,
             tools: None,
             runtimes: None,
+            walkthrough: None,
         }
     }
 
@@ -713,6 +720,7 @@ mod onboarding_validation_tests {
             onboarding: None,
             tools: None,
             runtimes: None,
+            walkthrough: None,
         }
     }
 
@@ -786,6 +794,55 @@ mod onboarding_validation_tests {
         let m = manifest_with_commands(vec![view_cmd("brew", "dist/brew.html")]);
         assert!(validate_manifest(&m).is_ok());
     }
+
+    fn walkthrough_task(id: &str) -> crate::walkthrough::WalkthroughTaskDecl {
+        crate::walkthrough::WalkthroughTaskDecl {
+            id: id.into(),
+            title: "Learn something".into(),
+            summary: String::new(),
+            body: String::new(),
+            icon: None,
+            image: None,
+            order: 0,
+            completion: crate::walkthrough::CompletionRule::Launch {
+                target: "cmd_org.asyar.test_*".into(),
+            },
+        }
+    }
+
+    #[test]
+    fn validate_manifest_accepts_declared_walkthrough_tasks() {
+        let mut m = manifest_with_commands(vec![view_cmd("brew", "dist/brew.html")]);
+        m.walkthrough = Some(vec![walkthrough_task("first"), walkthrough_task("second")]);
+        assert!(validate_manifest(&m).is_ok());
+    }
+
+    #[test]
+    fn validate_manifest_rejects_duplicate_walkthrough_task_ids() {
+        let mut m = manifest_with_commands(vec![view_cmd("brew", "dist/brew.html")]);
+        m.walkthrough = Some(vec![walkthrough_task("same"), walkthrough_task("same")]);
+        let err = validate_manifest(&m).unwrap_err();
+        assert!(
+            format!("{err}").contains("duplicate"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_manifest_rejects_a_malformed_walkthrough_task() {
+        let mut m = manifest_with_commands(vec![view_cmd("brew", "dist/brew.html")]);
+        let mut bad = walkthrough_task("ok");
+        bad.title = String::new();
+        m.walkthrough = Some(vec![bad]);
+        assert!(validate_manifest(&m).is_err());
+    }
+
+    #[test]
+    fn validate_manifest_passes_when_walkthrough_absent() {
+        let m = manifest_with_commands(vec![view_cmd("brew", "dist/brew.html")]);
+        assert!(m.walkthrough.is_none());
+        assert!(validate_manifest(&m).is_ok());
+    }
 }
 
 #[cfg(test)]
@@ -815,6 +872,7 @@ mod compatibility_tests {
             onboarding: None,
             tools: None,
             runtimes: None,
+            walkthrough: None,
         }
     }
 
@@ -1989,6 +2047,7 @@ mod manifest_schema_tests {
             onboarding: None,
             tools: None,
             runtimes: None,
+            walkthrough: None,
         };
 
         let err = validate_manifest(&manifest)

@@ -1085,6 +1085,7 @@ mod onboarding_dispatch_tests {
             }),
             tools: None,
             runtimes: None,
+            walkthrough: None,
         }
     }
 

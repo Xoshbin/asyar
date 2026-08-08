@@ -371,6 +371,11 @@ pub struct ExtensionManifest {
     /// runtimes show their download size in the install consent dialog.
     #[serde(default)]
     pub runtimes: Option<Vec<String>>,
+    /// Walkthrough tasks this extension teaches. Each is qualified to
+    /// `wt_<extensionId>_<taskId>` and evaluated against real usage by the
+    /// `walkthrough` module — the extension writes no completion code.
+    #[serde(default)]
+    pub walkthrough: Option<Vec<crate::walkthrough::WalkthroughTaskDecl>>,
 }
 
 impl ExtensionManifest {
@@ -1189,6 +1194,7 @@ mod tests {
                     onboarding: None,
                     tools: None,
                     runtimes: None,
+                    walkthrough: None,
                 },
                 enabled: true,
                 is_built_in: false,

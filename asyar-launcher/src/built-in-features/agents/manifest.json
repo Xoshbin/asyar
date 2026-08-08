@@ -62,5 +62,19 @@
       "mode": "view",
       "component": "AgentChatView"
     }
+  ],
+  "walkthrough": [
+    {
+      "id": "ask-ai",
+      "title": "Ask AI without switching apps",
+      "summary": "Put a question straight into the search bar",
+      "icon": "icon:ai-chat",
+      "order": 90,
+      "body": "Ask a question from the search bar and get an answer in place — no browser tab, no app switch, no losing what you were doing.\n\nAgents can also use tools, so they can act on your machine rather than only answering.\n\n## To complete the task\n\nRun **Ask** and put a real question to it.",
+      "completion": {
+        "type": "launch",
+        "target": "cmd_agents_*"
+      }
+    }
   ]
 }

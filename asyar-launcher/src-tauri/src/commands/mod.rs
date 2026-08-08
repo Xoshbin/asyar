@@ -50,6 +50,7 @@ pub mod system_events;
 pub mod templating;
 pub mod timers;
 pub mod usage;
+pub mod walkthrough;
 pub mod window_management;
 
 #[cfg(test)]
