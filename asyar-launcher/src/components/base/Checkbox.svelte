@@ -51,7 +51,7 @@
     width: 1px;
     height: 1px;
     padding: 0;
-    margin: -1px;
+    margin: -var(--space-0-5);
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
@@ -76,7 +76,7 @@
   .checkbox-box.checked {
     background: var(--accent-primary);
     border-color: var(--accent-primary);
-    color: white;
+    color: var(--text-on-accent);
   }
 
   .checkbox-wrapper:not(.disabled):hover .checkbox-box:not(.checked) {

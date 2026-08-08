@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Spinner from '../base/Spinner.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { DIAGNOSTIC_MESSAGES } from '../../services/diagnostics/messages';
   import type { DiagnosticKind } from '../../services/diagnostics/kinds';
@@ -50,7 +51,7 @@
 {#if current}
   <div class="feedback" data-severity={current.severity}>
     {#if current.severity === 'progress'}
-      <span class="spinner" aria-hidden="true"></span>
+      <Spinner size="inline" />
     {:else}
       <StatusDot color={dotColor} />
     {/if}
@@ -100,7 +101,7 @@
   .feedback-action {
     flex-shrink: 0;
     border: 0;
-    padding: 2px 4px;
+    padding: var(--space-0-5) var(--space-1);
     border-radius: var(--radius-xs);
     background: transparent;
     color: currentColor;
@@ -112,23 +113,6 @@
     background: var(--bg-tertiary);
     color: var(--text-primary);
   }
-  .spinner {
-    flex-shrink: 0;
-    width: 11px;
-    height: 11px;
-    border: 1.5px solid currentColor;
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
   @media (prefers-reduced-motion: reduce) {
-    .spinner {
-      animation: none;
-    }
   }
 </style>

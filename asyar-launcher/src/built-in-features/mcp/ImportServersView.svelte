@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Textarea } from '../../components';
+  import { Textarea, EmptyState } from '../../components';
   import { mcpService } from './mcpService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -120,10 +120,10 @@
 <div class="import-view">
   <TabGroup {tabs} bind:activeTab variant="underline" />
 
-  <div class="tab-content">
+  <div class="tab-content custom-scrollbar">
     {#if activeTab === 'detected'}
       {#if detectedConfigs.length === 0}
-        <p class="empty-msg">No existing MCP configs detected on this system.</p>
+        <EmptyState compact message="No existing MCP configs detected on this system" />
       {:else}
         {#each detectedConfigs as config (config.path)}
           <div class="config-group">
@@ -235,11 +235,6 @@
     flex: 1;
     overflow-y: auto;
     padding: var(--space-4);
-  }
-
-  .empty-msg {
-    color: var(--text-tertiary);
-    font-size: var(--font-size-sm);
   }
 
   .config-group {

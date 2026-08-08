@@ -345,7 +345,7 @@
     align-items: center;
     gap: var(--space-2);
     max-width: 200px;
-    padding: 3px var(--space-3);
+    padding: var(--space-1) var(--space-3);
     background: transparent;
     border: none;
     border-radius: inherit;
@@ -393,7 +393,7 @@
     min-width: max(180px, 100%);
     max-width: 260px;
     overflow: hidden;
-    z-index: 60;
+    z-index: var(--z-floating);
   }
   /* Taller and further in than the action popup's row: that one butts against
      a flat window edge, this one sits under a 20px corner and needs the room

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Input } from '..';
+  import { Input, EmptyState } from '..';
   import { tick } from 'svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
@@ -238,7 +238,7 @@
         />
       </div>
       {#if filteredOptions.length === 0}
-        <div class="accessory-empty">No matches</div>
+        <EmptyState compact message="No matches" />
       {:else}
         {#each filteredOptions as opt, i}
           <button
@@ -330,7 +330,7 @@
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-popup);
     padding: var(--space-1);
-    z-index: 60;
+    z-index: var(--z-floating);
   }
 
   .accessory-filter-row {
@@ -352,17 +352,6 @@
 
   :global(.accessory-filter-input)::placeholder {
     color: var(--text-tertiary);
-  }
-
-  /* .accessory-filter-input:focus-visible — outline omitted intentionally;
-     the popover border + filter underline already provide visual focus
-     context. */
-
-  .accessory-empty {
-    padding: var(--space-3);
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    text-align: center;
   }
 
   .accessory-option {

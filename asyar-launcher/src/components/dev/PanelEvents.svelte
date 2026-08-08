@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from '../feedback/EmptyState.svelte';
   import { inspectorStore, type EventRow } from '../../services/dev/inspectorStore.svelte';
   import StreamTail from './StreamTail.svelte';
 
@@ -61,9 +62,9 @@
   </div>
 
   {#if !inspectorStore.selectedExtensionId}
-    <div class="empty">Select an extension from the sidebar.</div>
+    <EmptyState compact message="Select an extension from the sidebar." />
   {:else if rows.length === 0}
-    <div class="empty">No events yet.</div>
+    <EmptyState compact message="No events yet." />
   {:else}
     <StreamTail {rows}>
       {#snippet row(item)}
@@ -85,11 +86,11 @@
   .toolbar {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--color-border, #333);
-    font-size: 11px;
-    color: var(--color-text-muted, #999);
+    gap: var(--space-5);
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border-color);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
   }
   .toolbar label {
     cursor: pointer;
@@ -100,28 +101,23 @@
     font-variant-numeric: tabular-nums;
   }
   .toolbar button {
-    background: var(--color-surface-3, #222);
-    border: 1px solid var(--color-border, #444);
-    border-radius: 3px;
-    color: var(--color-text, #ddd);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xs);
+    color: var(--text-primary);
     cursor: pointer;
-    padding: 2px 8px;
-    font-size: 11px;
-  }
-  .empty {
-    padding: 16px;
-    font-style: italic;
-    color: var(--color-text-muted, #888);
+    padding: var(--space-0-5) var(--space-3);
+    font-size: var(--font-size-xs);
   }
   .time {
-    color: var(--color-text-muted, #888);
-    margin-right: 6px;
+    color: var(--text-secondary);
+    margin-right: var(--space-2);
   }
   .name {
-    color: var(--color-text-accent, #8ab4f8);
-    margin-right: 6px;
+    color: var(--accent-primary);
+    margin-right: var(--space-2);
   }
   .summary {
-    color: var(--color-text, #ddd);
+    color: var(--text-primary);
   }
 </style>

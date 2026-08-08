@@ -78,8 +78,33 @@
      that assumes a white background. Constant across themes. */
   --surface-canvas: #ffffff;
 
-  /* Spacing scale */
+  /* Text and icons sitting ON any filled, saturated surface — an accent
+     button, a danger confirm, a selected pill, a checkbox tick, an avatar
+     tile. Every one of those fills (--accent-primary/-success/-warning/
+     -danger, and per-extension chip colours) is dark enough to need white,
+     and none of them change between themes, so this is one constant token.
+     Never hardcode #fff or `white` for this. */
+  --text-on-accent: #ffffff;
+
+  /* The moving part of a switch — the Toggle knob. White in both themes, the
+     way a native platform switch is, so it reads against both the off-state
+     track (--bg-hover) and the on-state track (--accent-primary). */
+  --control-knob: #ffffff;
+
+  /* Modal / overlay scrim. Constant across themes — a dimming layer is dark
+     in both, because it darkens whatever is behind it rather than matching
+     the surface in front. --scrim-opaque is the Linux fallback, used where
+     backdrop-filter is unavailable and the blur can't carry the separation. */
+  --scrim: rgba(0, 0, 0, 0.4);
+  --scrim-opaque: rgba(0, 0, 0, 0.6);
+
+  /* Spacing scale. The half-steps are real tokens, not typos — reach for one
+     only when a whole step visibly breaks alignment against a neighbour.
+     Note --space-2-5 (11px) is misordered against its name for historical
+     reasons; it sits between --space-4 and --space-5, not 2 and 3. */
+  --space-0-5: 2px;
   --space-1: 4px;
+  --space-1-5: 5px;
   --space-2: 6px;
   --space-2-5: 11px;
   --space-3: 8px;
@@ -93,6 +118,27 @@
   --space-9: 32px;
   --space-10: 40px;
   --space-11: 48px;
+
+  /* Launcher shell metrics. The window chrome is fixed-position by design
+     (see routes/+page.svelte) so these heights are hand-referenced by the
+     header, the content area, the bottom bar, the action popup and the toast
+     host. They exist as tokens so those five stay in agreement. */
+  --shell-header-h: 56px;
+  --shell-footer-h: 40px;
+
+  /* Stacking scale. Every z-index in the app comes from this list — never
+     write a bare number. The values are the ones the app already used, so
+     the names describe the layering that exists rather than imposing a new
+     one. Native <dialog> (the Modal component) renders in the browser's top
+     layer and is above all of these regardless of z-index. */
+  --z-base: 1; /* stacking inside one card or row */
+  --z-raised: 10; /* an icon or drag handle over its own container */
+  --z-footer: 40; /* the launcher bottom bars */
+  --z-dropdown: 50; /* a list anchored to a field or row */
+  --z-floating: 60; /* toasts and search accessories, above dropdowns */
+  --z-header: 100; /* the launcher search header */
+  --z-overlay: 200; /* prompts, banners, the extension inspector */
+  --z-portal: 9999; /* a fixed popup escaping an overflow-hidden parent */
 
   /* Shadow scale */
   --shadow-xs: 0 1px 2px var(--shadow-color);
@@ -124,9 +170,45 @@
   --font-size-2xl: 20px;
   --font-size-3xl: 22px;
   --font-size-display: 2.25rem;
+  /* Role-named because 16px falls between --font-size-lg (15) and -xl (17)
+     and there is no free size name for it. Only .text-section uses it. */
+  --font-size-section: 16px;
 
   /* Additional transition token */
   --transition-slow: 300ms cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* ── Syntax tokens ──────────────────────────────────────────
+   The one place code colour is defined. Used by the Prism theme for
+   rendered markdown and by JsonTree in the extension inspector — anything
+   that colours code must come from here, so a snippet looks the same
+   wherever it is shown. Light values are the :root default; the two blocks
+   below swap in the dark set following the same not([data-theme]) /
+   [data-theme='dark'] pattern the surface tokens use. */
+:root {
+  --syntax-comment: #90a4ae;
+  --syntax-keyword: #7c4dff;
+  --syntax-string: #558b2f;
+  --syntax-number: #e53935;
+  --syntax-function: #6182b8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --syntax-comment: #637777;
+    --syntax-keyword: #c792ea;
+    --syntax-string: #c3e88d;
+    --syntax-number: #f07178;
+    --syntax-function: #82aaff;
+  }
+}
+
+:root[data-theme='dark'] {
+  --syntax-comment: #637777;
+  --syntax-keyword: #c792ea;
+  --syntax-string: #c3e88d;
+  --syntax-number: #f07178;
+  --syntax-function: #82aaff;
 }
 
 /* macOS: use San Francisco system font (skip Satoshi). Other platforms
@@ -516,8 +598,20 @@ html[data-platform='macos'] .app-root {
     font-family: var(--font-ui);
   }
 
+  /* The launcher's fixed top chrome. Height and layer come from the shell
+     tokens so the header, the content area below it and the bottom bars
+     cannot drift apart. */
   .search-header {
-    @apply fixed inset-x-0 top-0 z-50;
+    @apply fixed inset-x-0 top-0;
+    height: var(--shell-header-h);
+    z-index: var(--z-header);
+  }
+
+  /* The scrollable area between the two fixed bars. */
+  .shell-content {
+    @apply fixed left-0 right-0 overflow-y-auto;
+    top: var(--shell-header-h);
+    bottom: var(--shell-footer-h);
   }
 
   /* The launcher's floating surfaces — the ⌘K action popup, the dropdown
@@ -588,7 +682,8 @@ html[data-platform='macos'] .app-root {
   }
 
   .back-button {
-    @apply absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer z-10 flex items-center gap-2;
+    @apply absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer flex items-center gap-2;
+    z-index: var(--z-raised);
     transition: color var(--transition-fast);
   }
 
@@ -596,7 +691,7 @@ html[data-platform='macos'] .app-root {
     @apply w-full text-left flex flex-col justify-center gap-1 cursor-pointer;
     padding: 0 9px;
     min-height: 40px;
-    border-radius: var(--radius-xl, 12px);
+    border-radius: var(--radius-xl);
     border: none;
     margin-bottom: 1px;
 
@@ -799,7 +894,8 @@ html[data-platform='macos'] .app-root {
   }
 
   .split-view-handle {
-    @apply w-px hover:w-1 cursor-ew-resize z-10;
+    @apply w-px hover:w-1 cursor-ew-resize;
+    z-index: var(--z-raised);
     background-color: var(--divider-soft);
     transition:
       width var(--transition-fast),
@@ -1074,7 +1170,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     line-height: 1.25;
   }
   .text-section {
-    font-size: 16px;
+    font-size: var(--font-size-section);
     font-weight: 600;
     color: var(--text-primary);
     letter-spacing: -0.01em;
@@ -1465,7 +1561,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
   .md-content .token.prolog,
   .md-content .token.doctype,
   .md-content .token.cdata {
-    color: #637777;
+    color: var(--syntax-comment);
     font-style: italic;
   }
   .md-content .token.punctuation {
@@ -1481,7 +1577,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
   .md-content .token.constant,
   .md-content .token.symbol,
   .md-content .token.deleted {
-    color: #f07178;
+    color: var(--syntax-number);
   }
   .md-content .token.selector,
   .md-content .token.attr-name,
@@ -1489,7 +1585,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
   .md-content .token.char,
   .md-content .token.builtin,
   .md-content .token.inserted {
-    color: #c3e88d;
+    color: var(--syntax-string);
   }
   .md-content .token.operator,
   .md-content .token.entity,
@@ -1501,11 +1597,11 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
   .md-content .token.atrule,
   .md-content .token.attr-value,
   .md-content .token.keyword {
-    color: #c792ea;
+    color: var(--syntax-keyword);
   }
   .md-content .token.function,
   .md-content .token.class-name {
-    color: #82aaff;
+    color: var(--syntax-function);
   }
   .md-content .token.regex,
   .md-content .token.important,

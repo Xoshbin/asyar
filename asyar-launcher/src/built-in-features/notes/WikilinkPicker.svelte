@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { EmptyState } from '../../components';
   import type { Note } from './noteStore.svelte';
 
   let {
@@ -50,9 +51,10 @@
 <div class="wikilink-picker">
   <div class="picker-header">Link to note</div>
   {#if candidates.length === 0}
-    <div class="picker-empty">
-      {query.trim() ? `No notes match "${query.trim()}"` : 'No other notes yet'}
-    </div>
+    <EmptyState
+      compact
+      message={query.trim() ? `No notes match "${query.trim()}"` : 'No other notes yet'}
+    />
   {:else}
     <ul class="picker-list custom-scrollbar" role="listbox">
       {#each candidates as note, i (note.id)}
@@ -77,7 +79,7 @@
 <style>
   .wikilink-picker {
     position: absolute;
-    z-index: 50;
+    z-index: var(--z-dropdown);
     bottom: calc(100% + var(--space-1));
     left: 0;
     min-width: 240px;
@@ -97,12 +99,6 @@
     border-bottom: 1px solid var(--border-color);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-  }
-
-  .picker-empty {
-    padding: var(--space-4);
-    font-size: var(--font-size-sm);
-    color: var(--text-tertiary);
   }
 
   .picker-list {

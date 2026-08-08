@@ -52,7 +52,7 @@
     flex-shrink: 0;
     border-radius: var(--radius-sm);
     background-color: var(--accent-primary);
-    color: #fff;
+    color: var(--text-on-accent);
   }
   .info-chip-img {
     width: var(--space-5-5);

@@ -147,7 +147,7 @@
     onEscape={() => backup.closeImportModal()}
   >
     {#snippet children()}
-      <div class="space-y-1 max-h-80 overflow-y-auto">
+      <div class="space-y-1 max-h-80 overflow-y-auto custom-scrollbar">
         {#each backup.importManifest!.categories as cat (cat.id)}
           {@const catState = backup.importCategories.get(cat.id)}
           {@const preview = backup.importPreviewData.get(cat.id)}

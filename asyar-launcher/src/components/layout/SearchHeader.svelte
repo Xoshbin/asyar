@@ -243,7 +243,7 @@
 
 <div class="search-header">
   <div
-    class="relative w-full border-b border-[var(--separator)] flex items-center min-h-[56px] px-4 gap-3"
+    class="relative w-full border-b border-[var(--separator)] flex items-center min-h-[var(--shell-header-h)] px-4 gap-3"
   >
     {#if showBack}
       <button
@@ -473,7 +473,7 @@
     transform: translateY(-50%);
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-2);
   }
   /* Click-through except on the chips themselves, so clicking the gaps still
      focuses the query. */
@@ -489,7 +489,7 @@
   .context-hint {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-3);
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
     white-space: nowrap;
@@ -504,8 +504,8 @@
   .hint-text {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    color: var(--text-tertiary, var(--text-secondary));
+    gap: var(--space-2);
+    color: var(--text-tertiary);
   }
   .hint-icon {
     font-size: var(--font-size-md);
@@ -520,7 +520,7 @@
   .context-search-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--space-4);
     flex: 1;
     min-width: 0;
     height: 100%;
@@ -528,10 +528,10 @@
   .context-chip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    color: white;
-    border-radius: var(--radius-md, 8px);
-    padding: 3px 4px 3px 8px;
+    gap: var(--space-1);
+    color: var(--text-on-accent);
+    border-radius: var(--radius-md);
+    padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
     font-size: var(--font-size-sm);
     font-weight: 500;
     white-space: nowrap;
@@ -551,19 +551,19 @@
   .chip-dismiss {
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.75);
+    color: color-mix(in srgb, var(--text-on-accent) 75%, transparent);
     cursor: pointer;
-    padding: 0 4px;
+    padding: 0 var(--space-1);
     font-size: var(--font-size-lg);
     line-height: 1;
     display: flex;
     align-items: center;
     border-radius: var(--radius-xs);
-    margin-left: 2px;
+    margin-left: var(--space-0-5);
   }
   .chip-dismiss:hover {
-    color: white;
-    background: rgba(255, 255, 255, 0.15);
+    color: var(--text-on-accent);
+    background: color-mix(in srgb, var(--text-on-accent) 15%, transparent);
   }
   :global(.context-query-input) {
     flex: 1;

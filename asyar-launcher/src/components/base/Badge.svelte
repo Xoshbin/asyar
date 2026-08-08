@@ -23,7 +23,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 2px 6px;
+    padding: var(--space-0-5) var(--space-2);
     font-size: var(--font-size-2xs);
     font-weight: 600;
     line-height: normal;

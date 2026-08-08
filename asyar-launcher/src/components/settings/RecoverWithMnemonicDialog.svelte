@@ -196,7 +196,7 @@
   }
 
   :global(.phrase-textarea):focus {
-    border-color: var(--accent);
+    border-color: var(--accent-primary);
   }
 
   .phrase-status {

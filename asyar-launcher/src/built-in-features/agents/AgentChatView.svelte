@@ -328,7 +328,7 @@
   .chat-layout {
     display: flex;
     width: 100%;
-    gap: 1px;
+    gap: var(--space-0-5);
   }
   .chat-main {
     flex: 1;
@@ -387,7 +387,7 @@
     justify-content: center;
     font-size: var(--font-size-xs);
     font-weight: 700;
-    margin-top: 2px;
+    margin-top: var(--space-0-5);
   }
   .assistant-avatar {
     background: var(--bg-tertiary);
@@ -396,7 +396,7 @@
   }
   .user-avatar {
     background: var(--accent-primary);
-    color: white;
+    color: var(--text-on-accent);
   }
   .tool-avatar {
     background: var(--bg-tertiary);
@@ -421,7 +421,7 @@
   }
   .message-bubble.user {
     background: var(--accent-primary);
-    color: white;
+    color: var(--text-on-accent);
     border-top-right-radius: var(--radius-xs);
   }
   .message-bubble.tool {

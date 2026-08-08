@@ -91,7 +91,7 @@
   }
 
   input[type='radio'] {
-    margin-top: 3px;
+    margin-top: var(--space-1);
     accent-color: var(--accent-primary);
   }
 
@@ -103,6 +103,6 @@
   .option-description {
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
-    margin-top: 2px;
+    margin-top: var(--space-0-5);
   }
 </style>

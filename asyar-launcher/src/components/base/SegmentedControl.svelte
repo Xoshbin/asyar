@@ -34,8 +34,8 @@
 <style>
   .segmented-control {
     display: flex;
-    gap: 3px;
-    padding: 3px;
+    gap: var(--space-1);
+    padding: var(--space-1);
     border-radius: var(--radius-sm);
     border: 1px solid var(--border-color);
     background: var(--bg-secondary-full-opacity);
@@ -43,7 +43,7 @@
 
   .segment {
     flex: 1;
-    padding: 5px 10px;
+    padding: var(--space-1-5) var(--space-4);
     border: none;
     border-radius: calc(var(--radius-sm) - 2px);
     font-family: var(--font-ui);
@@ -65,5 +65,13 @@
     background: var(--bg-tertiary);
     color: var(--text-primary);
     box-shadow: var(--shadow-xs);
+  }
+
+  /* The global *:focus-visible ring is a bare `box-shadow`, so .segment.active
+     out-specifies it and the selected segment would show no focus at all.
+     Restate the ring here, after .active, and keep the lift alongside it. */
+  .segment:focus-visible,
+  .segment.active:focus-visible {
+    box-shadow: var(--shadow-focus);
   }
 </style>

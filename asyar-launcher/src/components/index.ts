@@ -87,3 +87,66 @@ export { default as ArgumentChipRow } from './search/ArgumentChipRow.svelte';
 export { default as CommandArgInput } from './search/CommandArgInput.svelte';
 export { default as ArgumentDropdownChip } from './search/ArgumentDropdownChip.svelte';
 export { default as SearchBarAccessoryDropdown } from './search/SearchBarAccessoryDropdown.svelte';
+
+// ── Additions below complete the barrel ────────────────────────────────────
+// Everything in components/ is exported from here except the two cases noted
+// at the bottom of this file. If you add a component, add its export in the
+// matching section — `pnpm check:design` fails the build if you forget.
+
+// Base
+export { default as Spinner } from './base/Spinner.svelte';
+
+// Feedback
+export { default as CrashReportPrompt } from './feedback/CrashReportPrompt.svelte';
+export { default as PermissionConsentDialog } from './feedback/PermissionConsentDialog.svelte';
+export { default as UsageSharePrompt } from './feedback/UsageSharePrompt.svelte';
+
+// Layout
+export { default as AppShell } from './layout/AppShell.svelte';
+export { default as ShowMoreBarHuds } from './layout/ShowMoreBarHuds.svelte';
+
+// List
+export { default as SectionedResultsList } from './list/SectionedResultsList.svelte';
+
+// Shell
+export { default as ShellConsentDialog } from './shell/ShellConsentDialog.svelte';
+
+// Settings — sections
+export { default as ClipboardPrivacySection } from './settings/ClipboardPrivacySection.svelte';
+export { default as CrashReportSection } from './settings/CrashReportSection.svelte';
+export { default as EncryptionStatusSection } from './settings/EncryptionStatusSection.svelte';
+export { default as RuntimesSection } from './settings/RuntimesSection.svelte';
+export { default as ScheduledTasksSection } from './settings/ScheduledTasksSection.svelte';
+export { default as SecretRedactionSection } from './settings/SecretRedactionSection.svelte';
+export { default as UsageShareSection } from './settings/UsageShareSection.svelte';
+
+// Settings — controls and lists
+export { default as PermissionList } from './settings/PermissionList.svelte';
+export { default as RuntimeDownloadList } from './settings/RuntimeDownloadList.svelte';
+export { default as ShellTrustManager } from './settings/ShellTrustManager.svelte';
+
+// Settings — dialogs
+export { default as DisableE2eeDialog } from './settings/DisableE2eeDialog.svelte';
+export { default as EncryptionEnrolmentDialog } from './settings/EncryptionEnrolmentDialog.svelte';
+export { default as PassphraseDialog } from './settings/PassphraseDialog.svelte';
+export { default as PreferencesPromptHost } from './settings/PreferencesPromptHost.svelte';
+export { default as RecoverWithMnemonicDialog } from './settings/RecoverWithMnemonicDialog.svelte';
+export { default as RecoveryPhraseDialog } from './settings/RecoveryPhraseDialog.svelte';
+export { default as RequiredPreferencesDialog } from './settings/RequiredPreferencesDialog.svelte';
+export { default as RotatePassphraseDialog } from './settings/RotatePassphraseDialog.svelte';
+
+// Dev — the extension inspector. Only the shell is exported; its panels are
+// internal to it and importing one on its own is always a mistake.
+export { default as InspectorShell } from './dev/InspectorShell.svelte';
+
+// ── Deliberately NOT exported ──────────────────────────────────────────────
+// base/ConfirmDialog  — go through DialogHost, or import the file directly if
+//                       you genuinely need to mount your own.
+// feedback/ToastHost, feedback/FatalErrorDialog,
+// feedback/FeedbackDetailsDialog, layout/FeedbackBar
+//                     — feedback presenters. Only BottomActionBar, FeedbackBar
+//                       and routes/+page.svelte may mount them; publish through
+//                       feedbackService instead. Enforced by
+//                       services/feedback/feedbackBoundary.test.ts.
+// dev/Panel*, dev/JsonTree, dev/StreamTail, dev/ExtensionNav, dev/HelpPanel,
+// dev/TimestampRelative — internals of InspectorShell (see above).

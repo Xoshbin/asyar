@@ -78,44 +78,44 @@
   .toggle {
     background: transparent;
     border: 0;
-    color: var(--color-text-muted, #888);
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 11px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
     cursor: pointer;
     padding: 0;
   }
   .summary {
-    color: var(--color-text-muted, #777);
+    color: var(--text-secondary);
     font-style: italic;
   }
   .children {
     list-style: none;
-    margin: 0 0 0 14px;
+    margin: 0 0 0 var(--space-5-5);
     padding: 0;
   }
   .children li {
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 11px;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
     line-height: 1.5;
   }
   .key {
-    color: var(--color-text-accent, #8ab4f8);
-    margin-right: 4px;
+    color: var(--accent-primary);
+    margin-right: var(--space-1);
   }
   .json-string {
-    color: #a5d6a7;
+    color: var(--syntax-string);
   }
   .json-number {
-    color: #ffab91;
+    color: var(--syntax-number);
   }
   .json-boolean {
-    color: #ce93d8;
+    color: var(--syntax-keyword);
   }
   .json-null {
-    color: #888;
+    color: var(--text-tertiary);
     font-style: italic;
   }
   .json-other {
-    color: #bbb;
+    color: var(--text-secondary);
   }
 </style>

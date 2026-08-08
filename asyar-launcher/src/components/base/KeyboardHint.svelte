@@ -32,7 +32,7 @@
   .keyboard-hint {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-3);
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
     user-select: none;
@@ -41,7 +41,7 @@
   .key-group {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: var(--space-0-5);
   }
 
   kbd {
@@ -50,7 +50,7 @@
     justify-content: center;
     min-width: 24px;
     height: 21px;
-    padding: 0 6px;
+    padding: 0 var(--space-2);
     background-color: var(--bg-selected);
     color: var(--text-secondary);
     border-radius: var(--radius-sm);

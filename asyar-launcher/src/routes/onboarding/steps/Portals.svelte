@@ -66,9 +66,9 @@
     line-height: 1.6;
   }
   .step__lede code {
-    background: var(--bg-subtle);
+    background: var(--bg-tertiary);
     border: 1px solid var(--separator);
     border-radius: var(--radius-md);
-    padding: 0 6px;
+    padding: 0 var(--space-2);
   }
 </style>

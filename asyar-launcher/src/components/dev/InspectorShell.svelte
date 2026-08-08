@@ -142,7 +142,7 @@
           >
         </nav>
 
-        <div class="panel-body">
+        <div class="panel-body custom-scrollbar">
           {#if inspectorStore.activeTab === 'help'}
             <HelpPanel />
           {:else if inspectorStore.selectedExtensionId === null}
@@ -173,41 +173,41 @@
     right: 0;
     bottom: 0;
     width: 660px;
-    z-index: 200;
+    z-index: var(--z-overlay);
     display: flex;
     flex-direction: column;
-    background: var(--color-surface-1, #1a1a1a);
-    color: var(--color-text, #ddd);
-    border-left: 1px solid var(--color-border, #333);
-    font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, sans-serif);
-    font-size: 12px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-left: 1px solid var(--border-color);
+    font-family: var(--font-ui);
+    font-size: var(--font-size-sm);
   }
   .header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--color-border, #333);
-    background: var(--color-surface-2, #141414);
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
   }
   .title {
     font-weight: 600;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--color-text-muted, #999);
+    color: var(--text-secondary);
   }
   .close-btn {
     border: 0;
     background: transparent;
-    color: var(--color-text, #ddd);
+    color: var(--text-primary);
     cursor: pointer;
-    padding: 2px 6px;
-    font-size: 12px;
-    border-radius: 3px;
+    padding: var(--space-0-5) var(--space-2);
+    font-size: var(--font-size-sm);
+    border-radius: var(--radius-xs);
   }
   .close-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--bg-hover);
   }
   .body {
     flex: 1;
@@ -216,11 +216,11 @@
     min-height: 0;
   }
   .sidebar {
-    border-right: 1px solid var(--color-border, #333);
+    border-right: 1px solid var(--border-color);
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-    background: var(--color-surface-1b, #161616);
+    background: var(--bg-secondary);
   }
   .main {
     display: flex;
@@ -230,28 +230,28 @@
   }
   .tabs {
     display: flex;
-    gap: 2px;
-    padding: 4px 4px 0;
-    border-bottom: 1px solid var(--color-border, #333);
+    gap: var(--space-0-5);
+    padding: var(--space-1) var(--space-1) 0;
+    border-bottom: 1px solid var(--border-color);
   }
   .tabs button {
     border: 0;
     background: transparent;
-    color: var(--color-text-muted, #888);
-    padding: 6px 10px;
-    font-size: 11px;
+    color: var(--text-secondary);
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--font-size-xs);
     cursor: pointer;
-    border-radius: 3px 3px 0 0;
+    border-radius: var(--radius-xs) var(--radius-xs) 0 0;
   }
   .tabs button:hover {
-    color: var(--color-text, #ddd);
-    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-primary);
+    background: var(--bg-hover);
   }
   .tabs button.active {
-    color: var(--color-text, #ddd);
-    background: var(--color-surface-2, #141414);
-    border-bottom: 1px solid var(--color-surface-2, #141414);
-    margin-bottom: -1px;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--bg-secondary);
+    margin-bottom: -var(--space-0-5);
   }
   .panel-body {
     flex: 1;
@@ -259,9 +259,9 @@
     min-height: 0;
   }
   .empty-state {
-    padding: 16px;
-    color: var(--color-text-muted, #888);
+    padding: var(--space-6);
+    color: var(--text-secondary);
     font-style: italic;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
   }
 </style>

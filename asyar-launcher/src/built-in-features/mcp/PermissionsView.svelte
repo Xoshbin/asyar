@@ -31,7 +31,7 @@
   load();
 </script>
 
-<div class="permissions-view">
+<div class="permissions-view custom-scrollbar">
   {#if loading}
     <LoadingState message="Loading…" />
   {:else if mcpService.permissions.length === 0}

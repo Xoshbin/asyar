@@ -149,7 +149,7 @@
     font-weight: 500; /* font-medium */
     color: var(--text-secondary);
     line-height: 1.2;
-    margin-top: 2px;
+    margin-top: var(--space-0-5);
   }
 
   .terminal-box {
@@ -176,7 +176,7 @@
 
   .window-controls {
     display: flex;
-    gap: 6px;
+    gap: var(--space-2);
   }
 
   .control {
@@ -240,7 +240,7 @@
     border-left: 1px solid var(--separator);
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--space-0-5);
     font-size: var(--font-size-2xs);
     color: var(--text-secondary);
   }
@@ -252,7 +252,7 @@
   .alias-row {
     display: flex;
     gap: var(--space-1);
-    margin-top: 2px;
+    margin-top: var(--space-0-5);
   }
 
   .alias-label {

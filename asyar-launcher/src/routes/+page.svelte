@@ -414,44 +414,44 @@
   producing a 1–2 frame blank flash on first show.
 -->
 <div class="app-root" style="position: relative; width: 100%;">
-  <div class="fixed top-0 left-0 right-0 z-[100]" style="height: 56px;">
-    <SearchHeader
-      bind:ref={searchInput}
-      bind:accessoryRef
-      bind:value={controller.localSearchValue}
-      showBack={!!controller.activeViewVal}
-      searchable={!(controller.activeViewVal && !controller.activeViewSearchableVal)}
-      placeholder={controller.activeViewVal
-        ? controller.activeViewSearchableVal
-          ? 'Search...'
-          : 'Press Escape to go back'
-        : 'Search or type a command...'}
-      activeContext={controller.activeContextChip}
-      activeViewId={controller.activeViewVal}
-      bind:contextQuery={controller.contextQuery}
-      contextHint={controller.contextHintChip}
-      {argumentMode}
-      {argumentHint}
-      {argumentHintFields}
-      {argumentCommandName}
-      onArgHintClick={handleArgHintClick}
-      oninput={(e) => controller.handleSearchInput(e)}
-      onkeydown={keyboard.handleKeydown}
-      onclick={() => controller.handleBackClick()}
-      oncontextDismiss={() => controller.handleChipDismiss()}
-      oncontextQueryChange={(d) => controller.handleContextQueryChange(d)}
-      onArgValueChange={(name, v) => commandArgumentsService.setValue(name, v)}
-      onArgValueReset={(name) => commandArgumentsService.resetValue(name)}
-      onArgFocusField={(idx) => commandArgumentsService.focusField(idx)}
-      onArgFieldsBlur={() => commandArgumentsService.blurFields()}
-      onArgNext={() => commandArgumentsService.next()}
-      onArgPrev={() => commandArgumentsService.prev()}
-      onArgSubmit={() => controller.submitArguments()}
-      onArgExit={() => commandArgumentsService.exit()}
-    />
-  </div>
+  <!-- SearchHeader roots itself on .search-header, which owns the fixed
+       position, --shell-header-h and --z-header. No wrapper needed. -->
+  <SearchHeader
+    bind:ref={searchInput}
+    bind:accessoryRef
+    bind:value={controller.localSearchValue}
+    showBack={!!controller.activeViewVal}
+    searchable={!(controller.activeViewVal && !controller.activeViewSearchableVal)}
+    placeholder={controller.activeViewVal
+      ? controller.activeViewSearchableVal
+        ? 'Search...'
+        : 'Press Escape to go back'
+      : 'Search or type a command...'}
+    activeContext={controller.activeContextChip}
+    activeViewId={controller.activeViewVal}
+    bind:contextQuery={controller.contextQuery}
+    contextHint={controller.contextHintChip}
+    {argumentMode}
+    {argumentHint}
+    {argumentHintFields}
+    {argumentCommandName}
+    onArgHintClick={handleArgHintClick}
+    oninput={(e) => controller.handleSearchInput(e)}
+    onkeydown={keyboard.handleKeydown}
+    onclick={() => controller.handleBackClick()}
+    oncontextDismiss={() => controller.handleChipDismiss()}
+    oncontextQueryChange={(d) => controller.handleContextQueryChange(d)}
+    onArgValueChange={(name, v) => commandArgumentsService.setValue(name, v)}
+    onArgValueReset={(name) => commandArgumentsService.resetValue(name)}
+    onArgFocusField={(idx) => commandArgumentsService.focusField(idx)}
+    onArgFieldsBlur={() => commandArgumentsService.blurFields()}
+    onArgNext={() => commandArgumentsService.next()}
+    onArgPrev={() => commandArgumentsService.prev()}
+    onArgSubmit={() => controller.submitArguments()}
+    onArgExit={() => commandArgumentsService.exit()}
+  />
 
-  <div class="fixed left-0 right-0 overflow-y-auto" style="top: 56px; bottom: 40px;">
+  <div class="shell-content custom-scrollbar">
     {#if controller.activeViewVal}
       <ExtensionViewContainer activeView={controller.activeViewVal} {extensionManager} />
     {:else if !isCompactIdle}
@@ -583,7 +583,7 @@
     background: transparent;
   }
   html:not([data-platform='macos']) ::-webkit-scrollbar-thumb {
-    background-color: var(--scrollbar-thumb, rgba(155, 155, 155, 0.5));
+    background-color: var(--scrollbar-thumb);
     border-radius: var(--radius-md);
   }
 </style>

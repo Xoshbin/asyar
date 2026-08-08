@@ -113,10 +113,10 @@
       only the soft drop shadow tells you where it ends.
     - One large soft drop shadow lifts it off the desktop.
 
-    Intentionally NOT using theme variables — this window is a standalone
-    Tauri webview with no theme injection, so anything depending on
-    `--bg-popup`, `--text-primary`, etc. would render as the unstyled
-    fallback.
+    design-ok-file: standalone Tauri webview with no theme injection, so
+    anything depending on `--bg-popup`, `--text-primary`, etc. would render as
+    the unstyled fallback. Every literal below is deliberate; this is the one
+    file in the app exempt from the design-token rules.
   */
   .hud-pill {
     padding: 16px 32px;

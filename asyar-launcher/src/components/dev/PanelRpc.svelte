@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from '../feedback/EmptyState.svelte';
   import { inspectorStore, type RpcTrace } from '../../services/dev/inspectorStore.svelte';
 
   const traces = $derived.by(() => {
@@ -30,9 +31,12 @@
   </div>
 
   {#if !inspectorStore.selectedExtensionId}
-    <div class="empty">Select an extension from the sidebar.</div>
+    <EmptyState compact message="Select an extension from the sidebar." />
   {:else if traces.length === 0}
-    <div class="empty">No RPC activity. Make sure the dev flag is active (reload extension).</div>
+    <EmptyState
+      compact
+      message="No RPC activity. Make sure the dev flag is active (reload extension)."
+    />
   {:else}
     <table>
       <thead>
@@ -69,50 +73,45 @@
   .toolbar {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--color-border, #333);
-    font-size: 11px;
-    color: var(--color-text-muted, #999);
+    gap: var(--space-5);
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border-color);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
   }
   .toolbar span {
     font-variant-numeric: tabular-nums;
   }
   .toolbar button {
     margin-left: auto;
-    background: var(--color-surface-3, #222);
-    border: 1px solid var(--color-border, #444);
-    border-radius: 3px;
-    color: var(--color-text, #ddd);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xs);
+    color: var(--text-primary);
     cursor: pointer;
-    padding: 2px 8px;
-    font-size: 11px;
-  }
-  .empty {
-    padding: 16px;
-    font-style: italic;
-    color: var(--color-text-muted, #888);
+    padding: var(--space-0-5) var(--space-3);
+    font-size: var(--font-size-xs);
   }
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     table-layout: fixed;
   }
   th,
   td {
-    padding: 4px 8px;
-    border-bottom: 1px solid var(--color-border, #2a2a2a);
+    padding: var(--space-1) var(--space-3);
+    border-bottom: 1px solid var(--border-color);
     text-align: left;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   th {
-    font-size: 10px;
+    font-size: var(--font-size-2xs);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: var(--color-text-muted, #888);
+    color: var(--text-secondary);
   }
   .cid {
     width: 130px;
@@ -122,34 +121,38 @@
     font-variant-numeric: tabular-nums;
   }
   code {
-    font-family: var(--font-mono, ui-monospace, monospace);
-    color: var(--color-text-accent, #8ab4f8);
+    font-family: var(--font-mono);
+    color: var(--accent-primary);
   }
   .badge {
     display: inline-block;
-    padding: 0 5px;
-    border-radius: 3px;
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 9px;
-    font-weight: 700;
+    padding: 0 var(--space-1-5);
+    border: 1px solid transparent;
+    border-radius: var(--radius-xs);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-2xs);
+    font-weight: 600;
     text-transform: uppercase;
   }
   .badge.phase-request {
-    background: rgba(255, 190, 90, 0.25);
-    color: #ffbe5a;
+    background: color-mix(in srgb, var(--accent-warning) 25%, transparent);
+    color: var(--accent-warning);
     animation: pulse 1.2s ease-in-out infinite;
   }
   .badge.phase-resolved {
-    background: rgba(90, 220, 110, 0.2);
-    color: #5adc6e;
+    background: color-mix(in srgb, var(--accent-success) 20%, transparent);
+    color: var(--accent-success);
   }
   .badge.phase-rejected {
-    background: rgba(240, 100, 100, 0.25);
-    color: #f06464;
+    background: color-mix(in srgb, var(--accent-danger) 25%, transparent);
+    color: var(--accent-danger);
   }
+  /* A timeout is a failure too, so it stays in the danger hue — the outline
+     is what separates "we gave up waiting" from "the call was rejected". */
   .badge.phase-timeout {
-    background: rgba(240, 140, 60, 0.25);
-    color: #f08c3c;
+    background: transparent;
+    border-color: color-mix(in srgb, var(--accent-danger) 50%, transparent);
+    color: var(--accent-danger);
   }
   @keyframes pulse {
     0%,

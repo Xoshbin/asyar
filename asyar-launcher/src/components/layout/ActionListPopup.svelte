@@ -207,7 +207,7 @@
      in style.css, shared with the dropdown argument list. */
   .action-popup {
     position: fixed;
-    bottom: 48px; /* 40px bar height + 8px gap */
+    bottom: calc(var(--shell-footer-h) + var(--space-3));
     right: 12px;
     width: 350px;
     /* ~6 rows + search bar; keeps the popup from hiding the launcher bottom. */
@@ -215,7 +215,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    z-index: 50;
+    z-index: var(--z-dropdown);
     outline: none;
   }
 

@@ -807,7 +807,7 @@
     border-radius: var(--radius-md);
     padding: var(--space-1) 0;
     min-width: 180px;
-    z-index: 9999;
+    z-index: var(--z-portal);
     box-shadow: var(--shadow-popup);
   }
 
@@ -1084,7 +1084,7 @@
     justify-content: center;
     height: 18px;
     min-width: 18px;
-    padding: 0 6px;
+    padding: 0 var(--space-2);
     border-radius: var(--radius-xs);
     background-color: color-mix(in srgb, var(--text-primary) 8%, transparent);
     color: var(--text-secondary);

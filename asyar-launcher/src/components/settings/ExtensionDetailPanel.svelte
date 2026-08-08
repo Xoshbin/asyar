@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { EmptyState } from '../index';
   import Badge from '../base/Badge.svelte';
   import Toggle from '../base/Toggle.svelte';
   import ExtensionPreferencesForm from './ExtensionPreferencesForm.svelte';
@@ -375,9 +376,7 @@
     {/if}
   </div>
 {:else}
-  <div class="empty-panel">
-    <p class="empty-panel-text">Select an extension or command</p>
-  </div>
+  <EmptyState message="Select an extension or command" />
 {/if}
 
 <style>
@@ -473,7 +472,7 @@
   }
 
   .reset-link {
-    font-size: 10px;
+    font-size: var(--font-size-2xs);
     color: var(--text-tertiary);
     background: none;
     border: none;
@@ -488,7 +487,7 @@
   }
 
   .review-link {
-    font-size: 10px;
+    font-size: var(--font-size-2xs);
     color: var(--accent-danger);
     background: none;
     border: none;
@@ -507,7 +506,7 @@
   }
 
   .revoke-link {
-    font-size: 10px;
+    font-size: var(--font-size-2xs);
     color: var(--accent-danger);
     background: none;
     border: none;
@@ -540,18 +539,5 @@
     font-size: var(--font-size-xs);
     color: var(--text-tertiary);
     font-style: italic;
-  }
-
-  .empty-panel {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    padding: var(--space-8);
-  }
-
-  .empty-panel-text {
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
   }
 </style>

@@ -181,25 +181,25 @@
   .portal-form {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-6);
     background: var(--bg-secondary);
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
   }
   .code-inline {
     background: var(--bg-hover);
-    padding: 1px 4px;
+    padding: var(--space-0-5) var(--space-1);
     border-radius: var(--radius-xs);
   }
   .shortcut-hint {
     opacity: 0.7;
     font-size: var(--font-size-xs);
-    margin-left: 6px;
+    margin-left: var(--space-2);
     font-weight: 500;
   }
   .url-input-row {
     display: flex;
-    gap: 6px;
+    gap: var(--space-2);
     align-items: center;
   }
   :global(.url-input-row .field-input) {
@@ -209,7 +209,7 @@
   .picker-toggle {
     flex-shrink: 0;
     height: 32px;
-    padding: 0 10px;
+    padding: 0 var(--space-4);
     font-family: monospace;
     font-size: var(--font-size-sm);
     white-space: nowrap;

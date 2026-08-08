@@ -71,6 +71,6 @@
     position: absolute;
     top: var(--space-2);
     right: var(--space-3);
-    z-index: 2;
+    z-index: var(--z-base);
   }
 </style>

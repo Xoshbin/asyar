@@ -167,13 +167,13 @@
   }
 
   dialog.modal::backdrop {
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--scrim);
     backdrop-filter: blur(8px);
   }
 
   :global(html[data-platform='linux']) dialog.modal::backdrop {
     backdrop-filter: none;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--scrim-opaque);
   }
 
   .modal-panel {
@@ -183,14 +183,14 @@
   }
 
   .modal-panel h3 {
-    margin: 0 0 16px;
+    margin: 0 0 var(--space-6);
     font-weight: 600;
     font-size: var(--font-size-lg);
     text-align: center;
   }
 
   .modal-subtitle {
-    margin: -12px 0 20px;
+    margin: -var(--space-5) 0 var(--space-7);
     color: var(--text-secondary);
     font-size: var(--font-size-md);
     text-align: center;

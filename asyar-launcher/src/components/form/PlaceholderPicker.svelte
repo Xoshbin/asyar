@@ -79,7 +79,7 @@
 <style>
   .placeholder-picker {
     position: absolute;
-    z-index: 50;
+    z-index: var(--z-dropdown);
     top: calc(100% + 4px);
     left: 0;
     right: 0;
@@ -91,7 +91,7 @@
   }
 
   .picker-header {
-    padding: 6px 12px;
+    padding: var(--space-2) var(--space-5);
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
     font-weight: 600;
@@ -103,7 +103,7 @@
   .picker-list {
     list-style: none;
     margin: 0;
-    padding: 4px 0;
+    padding: var(--space-1) 0;
     max-height: 280px;
     overflow-y: auto;
   }
@@ -112,10 +112,10 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: 6px 12px;
+    padding: var(--space-2) var(--space-5);
     min-height: 40px;
     cursor: pointer;
-    gap: 2px;
+    gap: var(--space-0-5);
   }
 
   .picker-item:hover,

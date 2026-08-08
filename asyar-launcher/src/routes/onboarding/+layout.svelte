@@ -107,7 +107,7 @@
     position: absolute;
     top: 0;
     right: 0;
-    z-index: 10;
+    z-index: var(--z-raised);
     display: flex;
     justify-content: flex-end;
     padding: var(--space-3);

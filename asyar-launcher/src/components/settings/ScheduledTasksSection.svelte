@@ -76,10 +76,10 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    font-size: 10px;
+    font-size: var(--font-size-2xs);
     font-weight: 500;
     font-family: var(--font-ui);
-    padding: 2px var(--space-2);
+    padding: var(--space-0-5) var(--space-2);
     border-radius: var(--radius-full);
   }
 

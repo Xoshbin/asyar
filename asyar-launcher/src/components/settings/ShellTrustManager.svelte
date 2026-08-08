@@ -131,7 +131,7 @@
                 <img src={group.extensionIcon} alt="" class="w-5 h-5 rounded-sm" />
               {:else}
                 <div
-                  class="w-5 h-5 rounded-sm bg-[var(--bg-tertiary)] flex items-center justify-center text-[10px] font-bold text-[var(--text-secondary)]"
+                  class="w-5 h-5 rounded-sm bg-[var(--bg-tertiary)] flex items-center justify-center text-[length:var(--font-size-2xs)] font-bold text-[var(--text-secondary)]"
                 >
                   {group.extensionName.charAt(0).toUpperCase()}
                 </div>
@@ -139,7 +139,7 @@
               <span class="text-sm font-semibold text-[var(--text-primary)]"
                 >{group.extensionName}</span
               >
-              <span class="text-[10px] text-[var(--text-tertiary)] font-mono"
+              <span class="text-[length:var(--font-size-2xs)] text-[var(--text-tertiary)] font-mono"
                 >{group.extensionId}</span
               >
             </div>
@@ -147,7 +147,7 @@
             <div class="grid gap-2 pl-8">
               {#each group.binaries as binary}
                 <div
-                  class="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-[var(--border-color)] transition-colors group"
+                  class="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--separator)] hover:border-[var(--border-color)] transition-colors group"
                 >
                   <div class="flex flex-col gap-0.5 min-w-0">
                     <span
@@ -156,13 +156,13 @@
                     >
                       {binary.binaryPath}
                     </span>
-                    <span class="text-[10px] text-[var(--text-tertiary)]">
+                    <span class="text-[length:var(--font-size-2xs)] text-[var(--text-tertiary)]">
                       Trusted {formatRelativeTime(binary.trustedAt)}
                     </span>
                   </div>
 
                   <button
-                    class="px-2.5 py-1 rounded-md text-[10px] font-medium bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-all opacity-0 group-hover:opacity-100"
+                    class="px-2.5 py-1 rounded-md text-[length:var(--font-size-2xs)] font-medium bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_20%,transparent)] border border-[color-mix(in_srgb,var(--accent-danger)_20%,transparent)] transition-all opacity-0 group-hover:opacity-100"
                     onclick={() => revokeTrust(group.extensionId, binary.binaryPath)}
                   >
                     Revoke

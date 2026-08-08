@@ -53,11 +53,12 @@ Surfaces and container fills.
 
 ### Text
 
-| Token              | Dark default                | Use for                            |
-| :----------------- | :-------------------------- | :--------------------------------- |
-| `--text-primary`   | `rgba(255, 255, 255, 0.95)` | Headings, labels, primary content  |
-| `--text-secondary` | `rgba(235, 235, 245, 0.65)` | Subtitles, metadata, descriptions  |
-| `--text-tertiary`  | `rgba(235, 235, 245, 0.4)`  | Placeholders, hints, disabled text |
+| Token              | Dark default                | Use for                                                                                                                                                     |
+| :----------------- | :-------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--text-primary`   | `rgba(255, 255, 255, 0.95)` | Headings, labels, primary content                                                                                                                           |
+| `--text-secondary` | `rgba(235, 235, 245, 0.65)` | Subtitles, metadata, descriptions                                                                                                                           |
+| `--text-tertiary`  | `rgba(235, 235, 245, 0.4)`  | Placeholders, hints, disabled text                                                                                                                          |
+| `--text-on-accent` | `#ffffff`                   | Text/icons **on** a filled saturated surface — an accent button, a danger confirm, a coloured chip. Constant across themes, so never hardcode `#fff` for it |
 
 ```css
 h2 {
@@ -180,6 +181,18 @@ Asyar's teal brand color and its variants.
 | `--space-5` | `12px` | `--space-11` | `48px` |
 | `--space-6` | `16px` |              |        |
 
+Half-steps exist for the cases where a whole step visibly breaks alignment
+against a neighbour. Prefer a whole step; reach for these only when one does
+not work.
+
+| Token         | Value  | Sits between                                                               |
+| :------------ | :----- | :------------------------------------------------------------------------- |
+| `--space-0-5` | `2px`  | 0 and `--space-1`                                                          |
+| `--space-1-5` | `5px`  | `--space-1` and `-2`                                                       |
+| `--space-2-5` | `11px` | `--space-4` and `-5` — the name is historically misordered; read the value |
+| `--space-5-5` | `13px` | `--space-5` and `-6`                                                       |
+| `--space-7-5` | `23px` | `--space-7` and `-8`                                                       |
+
 ```css
 .item {
   padding: var(--space-3) var(--space-5);
@@ -191,18 +204,19 @@ Asyar's teal brand color and its variants.
 
 ### Font Sizes
 
-| Token                 | Value     | Use for                   |
-| :-------------------- | :-------- | :------------------------ |
-| `--font-size-2xs`     | `10px`    | Tiny labels               |
-| `--font-size-xs`      | `11px`    | Captions, section headers |
-| `--font-size-sm`      | `12px`    | Secondary text            |
-| `--font-size-md`      | `13px`    | UI labels                 |
-| `--font-size-base`    | `14px`    | Body text                 |
-| `--font-size-lg`      | `15px`    | Subtitles                 |
-| `--font-size-xl`      | `17px`    | Titles                    |
-| `--font-size-2xl`     | `20px`    | Section headings          |
-| `--font-size-3xl`     | `22px`    | Page headings             |
-| `--font-size-display` | `2.25rem` | Hero / display text       |
+| Token                 | Value     | Use for                                                                                      |
+| :-------------------- | :-------- | :------------------------------------------------------------------------------------------- |
+| `--font-size-2xs`     | `10px`    | Tiny labels                                                                                  |
+| `--font-size-xs`      | `11px`    | Captions, section headers                                                                    |
+| `--font-size-sm`      | `12px`    | Secondary text                                                                               |
+| `--font-size-md`      | `13px`    | UI labels                                                                                    |
+| `--font-size-base`    | `14px`    | Body text                                                                                    |
+| `--font-size-lg`      | `15px`    | Subtitles                                                                                    |
+| `--font-size-xl`      | `17px`    | Titles                                                                                       |
+| `--font-size-2xl`     | `20px`    | Section headings                                                                             |
+| `--font-size-3xl`     | `22px`    | Page headings                                                                                |
+| `--font-size-section` | `16px`    | Section headings. Role-named because 16px falls between `lg` and `xl` with no free size name |
+| `--font-size-display` | `2.25rem` | Hero / display text                                                                          |
 
 ### Font Families
 
@@ -239,6 +253,25 @@ code {
   transition: transform var(--transition-smooth);
 }
 ```
+
+### Code Colour
+
+Use these for anything syntax-highlighted, so a snippet in your extension
+matches one rendered by the host.
+
+| Token               | Dark default | Use for                                 |
+| :------------------ | :----------- | :-------------------------------------- |
+| `--syntax-comment`  | `#637777`    | Comments                                |
+| `--syntax-keyword`  | `#c792ea`    | Keywords, at-rules, booleans            |
+| `--syntax-string`   | `#c3e88d`    | Strings, attribute names, inserted text |
+| `--syntax-number`   | `#f07178`    | Numbers, properties, tags, constants    |
+| `--syntax-function` | `#82aaff`    | Function and class names, object keys   |
+
+### Controls
+
+| Token            | Dark default | Use for                                                                          |
+| :--------------- | :----------- | :------------------------------------------------------------------------------- |
+| `--control-knob` | `#ffffff`    | The moving part of a switch. White in both themes, like a native platform toggle |
 
 ## Complete Example
 

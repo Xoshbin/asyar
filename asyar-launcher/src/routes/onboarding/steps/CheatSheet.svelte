@@ -79,10 +79,10 @@
   .done__sheet kbd {
     min-width: 84px;
     text-align: center;
-    background: var(--bg-subtle);
+    background: var(--bg-tertiary);
     border: 1px solid var(--separator);
     border-radius: var(--radius-md);
-    padding: 2px 8px;
+    padding: var(--space-0-5) var(--space-3);
     font-size: var(--font-size-md);
     color: var(--text-primary);
   }

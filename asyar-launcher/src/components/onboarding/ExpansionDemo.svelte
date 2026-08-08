@@ -16,7 +16,7 @@
     border: 1px solid var(--separator);
     border-radius: var(--radius-md);
     padding: var(--space-3);
-    background: var(--bg-subtle);
+    background: var(--bg-tertiary);
   }
   .demo__row {
     display: flex;
@@ -28,7 +28,7 @@
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
-    padding: 2px 8px;
+    padding: var(--space-0-5) var(--space-3);
     color: var(--text-primary);
   }
   .demo__arrow {

@@ -39,7 +39,7 @@
   }
   .bubble-user {
     background: var(--accent-primary);
-    color: white;
+    color: var(--text-on-accent);
     align-self: flex-end;
   }
   .bubble-assistant {

@@ -23,6 +23,14 @@ try {
   hasErrors = true;
 }
 
+// Run the design-system checker
+console.log('\nChecking design system compliance...\n');
+try {
+  execSync('node scripts/check-design.mjs', { cwd: root, stdio: 'inherit' });
+} catch {
+  hasErrors = true;
+}
+
 // Run svelte-check in the asyar app
 console.log('\nRunning type checks (svelte-check)...\n');
 try {

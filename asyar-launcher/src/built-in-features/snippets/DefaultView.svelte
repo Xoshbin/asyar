@@ -550,7 +550,7 @@
   }
   .code-inline {
     background: var(--bg-hover);
-    padding: 1px var(--space-1);
+    padding: var(--space-0-5) var(--space-1);
     border-radius: var(--radius-xs);
     font-family: var(--font-mono);
     font-size: 0.9em;

@@ -108,7 +108,7 @@
   .welcome__row-label {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--space-0-5);
   }
   .welcome__row-title {
     font-size: var(--font-size-md);

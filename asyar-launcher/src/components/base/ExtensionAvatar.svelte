@@ -35,7 +35,7 @@
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    color: #fff;
+    color: var(--text-on-accent);
     flex-shrink: 0;
     letter-spacing: -0.02em;
     user-select: none;
@@ -75,7 +75,9 @@
   .size-xl {
     width: 88px;
     height: 88px;
+    /* design-ok: glyph and corner scaled to the fixed 88px tile, not UI text */
     font-size: 28px;
+    /* design-ok: corner proportional to the 88px tile; no radius token fits */
     border-radius: 16px;
   }
 </style>

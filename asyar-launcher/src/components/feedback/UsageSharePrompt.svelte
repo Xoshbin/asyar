@@ -26,7 +26,7 @@
     bottom: calc(var(--space-10) + var(--space-3));
     left: var(--space-5);
     right: var(--space-5);
-    z-index: 200;
+    z-index: var(--z-overlay);
     background: color-mix(in srgb, var(--bg-popup) 97%, transparent);
     border: 1px solid color-mix(in srgb, var(--accent-warning) 60%, transparent);
     border-radius: var(--radius-md);

@@ -44,7 +44,7 @@
   }
 </script>
 
-<div class="walkthrough">
+<div class="walkthrough custom-scrollbar">
   {#if walkthroughViewState.mode === 'detail' && task}
     <article class="detail" bind:this={detailEl}>
       <header class="detail-head">

@@ -400,8 +400,8 @@
   }
 
   .row-icon-wrap {
-    width: var(--space-7-5, 30px);
-    height: var(--space-7-5, 30px);
+    width: var(--space-7-5);
+    height: var(--space-7-5);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -413,7 +413,7 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: var(--radius-sm, 4px);
+    border-radius: var(--radius-sm);
   }
 
   .row-icon {

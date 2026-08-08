@@ -840,8 +840,8 @@
     justify-content: center;
     border-radius: 50%;
     background: var(--accent-primary);
-    color: #fff;
-    z-index: 1;
+    color: var(--text-on-accent);
+    z-index: var(--z-base);
   }
 
   .indexing-hint {
@@ -1038,7 +1038,7 @@
     background-color: var(--bg-secondary) !important;
     color: var(--text-primary) !important;
     border-radius: var(--radius-sm);
-    padding: 2px var(--space-2);
+    padding: var(--space-0-5) var(--space-2);
   }
 
   :global(.html-preview pre) {
