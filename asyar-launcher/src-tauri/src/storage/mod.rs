@@ -26,6 +26,7 @@ pub mod shortcuts;
 pub mod snippets;
 pub mod sticky_notes;
 pub mod timers;
+pub mod walkthrough;
 
 use crate::error::AppError;
 use r2d2::{CustomizeConnection, Pool};

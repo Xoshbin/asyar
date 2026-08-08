@@ -28,14 +28,49 @@
         "type": "dropdown",
         "default": "all",
         "options": [
-          { "value": "all", "title": "All Files" },
-          { "value": "document", "title": "Documents" },
-          { "value": "image", "title": "Images" },
-          { "value": "code", "title": "Code" },
-          { "value": "audio-video", "title": "Audio & Video" },
-          { "value": "archive", "title": "Archives" },
-          { "value": "folder", "title": "Folders" }
+          {
+            "value": "all",
+            "title": "All Files"
+          },
+          {
+            "value": "document",
+            "title": "Documents"
+          },
+          {
+            "value": "image",
+            "title": "Images"
+          },
+          {
+            "value": "code",
+            "title": "Code"
+          },
+          {
+            "value": "audio-video",
+            "title": "Audio & Video"
+          },
+          {
+            "value": "archive",
+            "title": "Archives"
+          },
+          {
+            "value": "folder",
+            "title": "Folders"
+          }
         ]
+      }
+    }
+  ],
+  "walkthrough": [
+    {
+      "id": "find-a-file",
+      "title": "Find a file without opening a window",
+      "summary": "Search your files straight from the launcher",
+      "icon": "icon:folder-search",
+      "order": 50,
+      "body": "File search indexes your files locally and finds them by fuzzy name — no folder navigation, no waiting for a file manager to open. Results can be opened, revealed in the file manager, or pinned so they always come up first.\n\n## To complete the task\n\nRun **File Search** and open a file from the results.",
+      "completion": {
+        "type": "launch",
+        "target": "cmd_file-search_*"
       }
     }
   ]

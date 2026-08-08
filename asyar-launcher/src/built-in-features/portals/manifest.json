@@ -16,5 +16,20 @@
       "mode": "view",
       "component": "DefaultView"
     }
+  ],
+  "walkthrough": [
+    {
+      "id": "first-portal",
+      "title": "Jump straight to the links you live in",
+      "summary": "Save a URL as a named, searchable portal",
+      "icon": "icon:globe",
+      "order": 30,
+      "body": "A portal turns a URL into something you can summon by name — a dashboard, a repo, a ticket board, a playlist. Portals can take a query too, so one portal becomes a search box for any site you use.\n\n## To complete the task\n\n1. Run **Open Portals**.\n2. Add a link you open most days.\n3. Summon it by name from the search bar.",
+      "completion": {
+        "type": "state",
+        "probe": "portals.count",
+        "atLeast": 1
+      }
+    }
   ]
 }

@@ -131,13 +131,44 @@ pub async fn get_indexed_object_ids(
 #[tauri::command]
 pub async fn record_item_usage(
     object_id: String,
+    app_handle: tauri::AppHandle,
     state: State<'_, std::sync::Arc<SearchState>>,
     usage: State<'_, std::sync::Arc<crate::usage::UsageState>>,
 ) -> Result<(), SearchError> {
     state.record_usage(&object_id)?;
     // Best-effort local usage record; never fail the launch on a usage write.
     let _ = usage.record_launch(&object_id, &crate::usage::local_day());
+    // This is the single funnel every launch passes through, which is why
+    // walkthrough tasks need no cooperation from the feature they teach.
+    // Cheap by construction: unless some unfinished task watches this id,
+    // `on_item_launched` returns before touching a database.
+    notify_walkthrough(&app_handle, &usage, &object_id);
     Ok(())
+}
+
+/// Best-effort: a walkthrough problem must never fail a launch.
+fn notify_walkthrough(
+    app_handle: &tauri::AppHandle,
+    usage: &std::sync::Arc<crate::usage::UsageState>,
+    object_id: &str,
+) {
+    let (Some(data), Some(walkthrough)) = (
+        app_handle.try_state::<crate::storage::DataStore>(),
+        app_handle.try_state::<std::sync::Arc<crate::walkthrough::registry::WalkthroughState>>(),
+    ) else {
+        return;
+    };
+
+    match crate::walkthrough::service::on_item_launched(&data, usage, &walkthrough, object_id) {
+        Ok(newly) if !newly.is_empty() => {
+            if let Ok(snapshot) = crate::walkthrough::service::snapshot(&data, usage, &walkthrough)
+            {
+                let _ = tauri::Emitter::emit(app_handle, "asyar:walkthrough:changed", snapshot);
+            }
+        }
+        Ok(_) => {}
+        Err(e) => log::warn!("walkthrough evaluation failed for '{object_id}': {e}"),
+    }
 }
 
 #[tauri::command]

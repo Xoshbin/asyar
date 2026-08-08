@@ -636,6 +636,7 @@ mod tests {
                 onboarding: None,
                 tools: None,
                 runtimes: None,
+                walkthrough: None,
             },
             enabled: true,
             is_built_in,

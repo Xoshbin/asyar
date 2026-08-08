@@ -88,6 +88,34 @@ impl UsageState {
         Ok(())
     }
 
+    /// Every recorded launch as `(target, day, count)`, across all days.
+    ///
+    /// The walkthrough reads this to decide whether a task's completion rule
+    /// is satisfied. Because it spans the full history rather than today,
+    /// a task opens already-complete for a feature the user adopted months
+    /// before the task existed.
+    pub fn all_launches(&self) -> Result<Vec<(String, String, u32)>, UsageError> {
+        let conn = self.db.lock().map_err(|_| UsageError::Lock)?;
+        let mut stmt = conn
+            .prepare("SELECT target, day, count FROM usage_events WHERE event_type='launch'")
+            .map_err(|e| UsageError::Db(e.to_string()))?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, i64>(2)? as u32,
+                ))
+            })
+            .map_err(|e| UsageError::Db(e.to_string()))?;
+
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row.map_err(|e| UsageError::Db(e.to_string()))?);
+        }
+        Ok(out)
+    }
+
     pub fn anon_id(&self) -> Result<String, UsageError> {
         let conn = self.db.lock().map_err(|_| UsageError::Lock)?;
         let existing: Option<String> = conn
@@ -284,6 +312,42 @@ mod tests {
             .unwrap();
         assert_eq!(events, 0);
         assert_eq!(meta, 0);
+    }
+
+    #[test]
+    fn all_launches_is_empty_on_a_fresh_database() {
+        assert!(mem_state().all_launches().unwrap().is_empty());
+    }
+
+    #[test]
+    fn all_launches_returns_every_day_not_just_today() {
+        let state = mem_state();
+        state.record_launch("cmd_a", "2026-06-14").unwrap();
+        state.record_launch("cmd_a", "2026-06-15").unwrap();
+        state.record_launch("cmd_a", "2026-06-15").unwrap();
+        state.record_launch("cmd_b", "2026-06-15").unwrap();
+
+        let mut rows = state.all_launches().unwrap();
+        rows.sort();
+        assert_eq!(
+            rows,
+            vec![
+                ("cmd_a".to_string(), "2026-06-14".to_string(), 1),
+                ("cmd_a".to_string(), "2026-06-15".to_string(), 2),
+                ("cmd_b".to_string(), "2026-06-15".to_string(), 1),
+            ]
+        );
+    }
+
+    #[test]
+    fn all_launches_excludes_heartbeat_rows() {
+        let state = mem_state();
+        state.record_active_day("2026-06-15").unwrap();
+        state.record_launch("cmd_a", "2026-06-15").unwrap();
+
+        let rows = state.all_launches().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].0, "cmd_a");
     }
 
     #[test]

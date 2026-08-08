@@ -132,6 +132,8 @@ export type {
 } from './contracts/tools';
 export { ToolsServiceProxy } from './services/ToolsServiceProxy';
 
+export type { CompletionRule, WalkthroughTaskDecl } from './contracts/walkthrough';
+
 export type { ShortcodeMap, ISnippetsService } from './contracts/snippets';
 export { SHORTCODE_PATTERN, isValidShortcode } from './contracts/snippets';
 

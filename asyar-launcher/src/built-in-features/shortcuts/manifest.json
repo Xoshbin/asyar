@@ -17,5 +17,33 @@
       "mode": "view",
       "component": "DefaultView"
     }
+  ],
+  "walkthrough": [
+    {
+      "id": "first-hotkey",
+      "title": "Open anything with one key press",
+      "summary": "Bind a global hotkey to a command you use constantly",
+      "icon": "icon:keyboard",
+      "order": 40,
+      "body": "A global hotkey opens a specific command from anywhere on your desktop, without going through the search bar first. The commands you run ten times a day should never cost you a search.\n\n## To complete the task\n\n1. Run **Shortcuts**.\n2. Bind a hotkey to the command you run most.\n3. Use it from another app.",
+      "completion": {
+        "type": "state",
+        "probe": "shortcuts.count",
+        "atLeast": 1
+      }
+    },
+    {
+      "id": "first-alias",
+      "title": "Give your favourites a two-letter name",
+      "summary": "Set an alias so one command always wins the search",
+      "icon": "icon:type",
+      "order": 45,
+      "body": "An alias is a short word that jumps straight to one item — type it and that item is selected, every time, no matter what else matches.\n\nAliases are for the things you refuse to hunt for: `f` for file search, `cb` for clipboard history, `dw` for define word.\n\n## To complete the task\n\nSelect any item in the search results, open the action panel, and give it an alias.",
+      "completion": {
+        "type": "state",
+        "probe": "aliases.count",
+        "atLeast": 1
+      }
+    }
   ]
 }

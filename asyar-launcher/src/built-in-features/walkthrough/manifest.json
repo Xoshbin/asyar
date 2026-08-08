@@ -1,0 +1,35 @@
+{
+  "id": "walkthrough",
+  "name": "Walkthrough",
+  "icon": "icon:star",
+  "version": "1.0.0",
+  "description": "Short tasks that turn Asyar's features into habits, ticked off as you actually use them",
+  "author": "Core",
+  "type": "extension",
+  "searchable": true,
+  "commands": [
+    {
+      "id": "show-walkthrough",
+      "name": "Walkthrough",
+      "description": "Learn Asyar one task at a time",
+      "trigger": "walkthrough learn tips tour basics getting started expert",
+      "icon": "icon:star",
+      "mode": "view",
+      "component": "DefaultView"
+    }
+  ],
+  "walkthrough": [
+    {
+      "id": "start",
+      "title": "Start the journey to becoming an expert",
+      "summary": "You are already here — that is the first task done",
+      "icon": "icon:star",
+      "order": 0,
+      "body": "Every task in this list teaches one thing Asyar can do that most people never find.\n\nYou do not tick these off by hand. Each task watches how you actually use Asyar and completes itself the moment you do the thing for real. Tasks you have already been doing for weeks are already ticked — the list only ever shows you what is genuinely left.\n\n## To complete the task\n\nOpen the Walkthrough. Done.",
+      "completion": {
+        "type": "launch",
+        "target": "cmd_walkthrough_show-walkthrough"
+      }
+    }
+  ]
+}

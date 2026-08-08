@@ -27,8 +27,11 @@ export function warmIfTier2(
 ): void {
   if (!item) return;
   if (item.type !== 'command' || !item.extensionId) return;
-  // Tier 1 built-ins run in the host context — no iframe to warm.
-  if (item.isBuiltIn) return;
+  // Tier 1 built-ins run in the host context — no iframe to warm. Ask the
+  // registry rather than trusting `item.isBuiltIn`: search results come from
+  // Rust, whose `SearchResult` has no such field, so that check was always
+  // undefined and every built-in row warmed an iframe that never arrives.
+  if (item.isBuiltIn || isBuiltInFeature(item.extensionId)) return;
   void dispatch({
     extensionId: item.extensionId,
     kind: 'predictiveWarm',

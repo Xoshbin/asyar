@@ -27,5 +27,20 @@
       "mode": "view",
       "component": "DefaultView"
     }
+  ],
+  "walkthrough": [
+    {
+      "id": "first-snippet",
+      "title": "Stop typing the same thing twice",
+      "summary": "Create a snippet that expands from a keyword",
+      "icon": "icon:snippets",
+      "order": 20,
+      "body": "A snippet is a block of text you type constantly — your email address, a canned reply, a code block, your bank details — stored once and expanded by a short keyword, in any app.\n\nA good first one is your email with the keyword `@@`.\n\n## To complete the task\n\n1. Run **Snippets** and create your first one.\n2. Give it a keyword you would never type by accident.\n3. Try the keyword in any other app.",
+      "completion": {
+        "type": "state",
+        "probe": "snippets.count",
+        "atLeast": 1
+      }
+    }
   ]
 }

@@ -28,11 +28,38 @@
         "type": "dropdown",
         "default": "all",
         "options": [
-          { "value": "all", "title": "All Types" },
-          { "value": "text", "title": "Text" },
-          { "value": "images", "title": "Images" },
-          { "value": "files", "title": "Files" }
+          {
+            "value": "all",
+            "title": "All Types"
+          },
+          {
+            "value": "text",
+            "title": "Text"
+          },
+          {
+            "value": "images",
+            "title": "Images"
+          },
+          {
+            "value": "files",
+            "title": "Files"
+          }
         ]
+      }
+    }
+  ],
+  "walkthrough": [
+    {
+      "id": "clipboard-habit",
+      "title": "Never lose what you copied again",
+      "summary": "Open clipboard history on three separate days",
+      "icon": "icon:clipboard",
+      "order": 10,
+      "body": "Everything you copy is kept, searchable, and one keystroke away. No more copying something and losing what was there before, no more re-finding the same link twice.\n\nClipboard history is the single feature people say changed how they work — but only after it has caught them a few times. That is why this task asks for three days rather than one visit.\n\n## To complete the task\n\n1. Copy a few things as you normally would.\n2. Open **Clipboard History** and paste something from further back.\n3. Do it again on three separate days.",
+      "completion": {
+        "type": "count",
+        "target": "cmd_clipboard-history_*",
+        "distinctDays": 3
       }
     }
   ]

@@ -688,8 +688,14 @@ impl SearchState {
                     r
                 })
                 .collect();
+            // `priority: Top` has to be honoured here too, not just in the
+            // ranked path below. Appending pinned rows would bury them under
+            // every frecent item and then truncate them away entirely — so a
+            // built-in asking to lead the root list would silently not.
+            let mut pinned: Vec<models::SearchResult> = Vec::new();
             for ext in external_results {
-                combined.push(models::SearchResult {
+                let is_pinned = ext.priority == Some(models::ResultPriority::Top);
+                let result = models::SearchResult {
                     object_id: ext.object_id,
                     name: ext.name,
                     result_type: ext.result_type,
@@ -702,15 +708,28 @@ impl SearchState {
                     has_arguments: false,
                     style: ext.style,
                     alias: None,
-                    // Empty-query short-circuit doesn't classify by tier.
-                    tier: ranker::Tier::FrecencyOnly as u8,
-                });
+                    // Empty-query short-circuit doesn't classify by tier,
+                    // except that a pinned row reports Tier 0 so the frontend
+                    // reads it the same way as on the ranked path.
+                    tier: if is_pinned {
+                        ranker::Tier::Pinned as u8
+                    } else {
+                        ranker::Tier::FrecencyOnly as u8
+                    },
+                };
+                if is_pinned {
+                    pinned.push(result);
+                } else {
+                    combined.push(result);
+                }
             }
-            combined.retain(|r| !is_disabled_app(r));
+            let mut ordered = pinned;
+            ordered.append(&mut combined);
+            ordered.retain(|r| !is_disabled_app(r));
             let mut seen = std::collections::HashSet::new();
-            combined.retain(|r| seen.insert(r.object_id.clone()));
-            combined.truncate(limit);
-            return Ok(combined);
+            ordered.retain(|r| seen.insert(r.object_id.clone()));
+            ordered.truncate(limit);
+            return Ok(ordered);
         }
 
         // Gather indexed results via skim pre-filter.
@@ -1343,6 +1362,79 @@ mod service_tests {
             results[0].name, "Beta",
             "Empty query should rank by frecency"
         );
+    }
+
+    fn pinned_external(object_id: &str, name: &str) -> models::ExternalSearchResult {
+        models::ExternalSearchResult {
+            object_id: object_id.to_string(),
+            name: name.to_string(),
+            description: None,
+            result_type: "result".to_string(),
+            score: 1.0,
+            icon: None,
+            extension_id: Some("walkthrough".to_string()),
+            category: Some("extension".to_string()),
+            style: None,
+            priority: Some(models::ResultPriority::Top),
+        }
+    }
+
+    #[test]
+    fn test_merged_search_empty_query_pins_top_priority_first() {
+        // A built-in that asks to be pinned must lead the root list, not be
+        // appended after every frecent item. Without this the empty-query
+        // short-circuit ignores `priority` entirely.
+        let state = make_state();
+        state.index_one(app("app_a", "Alpha", 1)).unwrap();
+        state.index_one(app("app_b", "Beta", 10)).unwrap();
+
+        let results = state
+            .merged_search(
+                "",
+                vec![pinned_external("ext_wt_row", "Beyond the basics")],
+                10,
+                &[],
+            )
+            .unwrap();
+
+        assert_eq!(results[0].name, "Beyond the basics");
+        assert_eq!(results[1].name, "Beta", "frecency order is otherwise kept");
+    }
+
+    #[test]
+    fn test_merged_search_empty_query_survives_truncation_when_pinned() {
+        // A busy index must not push the pinned row off the end of the list.
+        let state = make_state();
+        for i in 0..40 {
+            state
+                .index_one(app(&format!("app_{i}"), &format!("App {i}"), i as u32))
+                .unwrap();
+        }
+
+        let results = state
+            .merged_search(
+                "",
+                vec![pinned_external("ext_wt_row", "Beyond the basics")],
+                10,
+                &[],
+            )
+            .unwrap();
+
+        assert_eq!(results[0].name, "Beyond the basics");
+    }
+
+    #[test]
+    fn test_merged_search_empty_query_keeps_unpinned_externals_last() {
+        let state = make_state();
+        state.index_one(app("app_b", "Beta", 10)).unwrap();
+
+        let mut unpinned = pinned_external("ext_plain", "Plain External");
+        unpinned.priority = None;
+
+        let results = state.merged_search("", vec![unpinned], 10, &[]).unwrap();
+
+        assert_eq!(results[0].name, "Beta");
+        assert_eq!(results.last().unwrap().name, "Plain External");
     }
 
     #[test]

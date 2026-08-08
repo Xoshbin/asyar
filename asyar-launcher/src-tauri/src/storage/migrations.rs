@@ -24,11 +24,18 @@ pub struct Migration {
 /// Append-only. Versions start at 1 and must stay gapless and strictly
 /// ascending — `ledger_versions_are_unique_ascending_and_gapless_from_one`
 /// enforces that so two contributors cannot both claim the same number.
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "baseline",
-    up: baseline,
-}];
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "baseline",
+        up: baseline,
+    },
+    Migration {
+        version: 2,
+        name: "walkthrough",
+        up: |conn| super::walkthrough::init_table(conn),
+    },
+];
 
 /// Bring `conn` up to the newest ledger version. Idempotent.
 pub fn run(conn: &Connection) -> Result<(), AppError> {
@@ -160,6 +167,8 @@ mod tests {
         "snippets",
         "sticky_notes",
         "threads",
+        "walkthrough_meta",
+        "walkthrough_state",
     ];
 
     fn user_version(conn: &Connection) -> u32 {

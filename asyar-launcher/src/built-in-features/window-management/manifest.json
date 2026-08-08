@@ -156,5 +156,19 @@
   ],
   "background": {
     "main": "dist/worker.js"
-  }
+  },
+  "walkthrough": [
+    {
+      "id": "tile-a-window",
+      "title": "Arrange windows without touching the mouse",
+      "summary": "Move a window with a command instead of a drag",
+      "icon": "icon:layers",
+      "order": 70,
+      "body": "Halves, thirds, quarters, centre, maximize, restore — every window layout you drag for is a command you can run or bind to a hotkey.\n\nThe payoff comes when they are on hotkeys: two key presses to put two apps side by side.\n\n## To complete the task\n\n1. Search `left half` or `maximize` and run it.\n2. Bind your two favourites to hotkeys.",
+      "completion": {
+        "type": "launch",
+        "target": "cmd_window-management_*"
+      }
+    }
+  ]
 }

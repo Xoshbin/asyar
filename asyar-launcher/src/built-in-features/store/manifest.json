@@ -17,5 +17,20 @@
       "mode": "view",
       "component": "__TBD__"
     }
+  ],
+  "walkthrough": [
+    {
+      "id": "install-an-extension",
+      "title": "Add something Asyar does not do yet",
+      "summary": "Install your first extension from the Store",
+      "icon": "icon:store",
+      "order": 80,
+      "body": "Extensions are built on the same API the built-in features use, so anything in the Store behaves like it shipped with the app — same search, same actions, same keyboard rules.\n\n## To complete the task\n\nOpen the **Store**, find something you would actually use, and install it.",
+      "completion": {
+        "type": "state",
+        "probe": "extensions.installedCount",
+        "atLeast": 1
+      }
+    }
   ]
 }

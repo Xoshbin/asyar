@@ -36,6 +36,30 @@ export interface AsyarManifest {
    * permissions.
    */
   runtimes?: string[];
+  /**
+   * Walkthrough tasks this extension teaches. The launcher decides when each
+   * is complete by watching real usage, so declaring a task requires no
+   * completion code in the extension. Mirrors `WalkthroughTaskDecl` in
+   * `src/contracts/walkthrough.ts` and the Rust `walkthrough` module.
+   */
+  walkthrough?: WalkthroughTask[];
+}
+
+export type CompletionRule =
+  | { type: 'launch'; target: string }
+  | { type: 'count'; target: string; times?: number; distinctDays?: number }
+  | { type: 'state'; probe: string; atLeast?: number }
+  | { type: 'manual' };
+
+export interface WalkthroughTask {
+  id: string;
+  title: string;
+  summary?: string;
+  body?: string;
+  icon?: string;
+  image?: string;
+  order?: number;
+  completion: CompletionRule;
 }
 
 export type PreferenceType =
@@ -291,6 +315,10 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
     });
   }
 
+  if (manifest.walkthrough) {
+    errors.push(...validateWalkthrough(manifest.walkthrough));
+  }
+
   // Legacy schema rejection — defunct fields surface a clear error so authors
   // upgrading from an older template get a pointer instead of a silent
   // pass-through.
@@ -421,6 +449,63 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
     errors.push(
       ...validateSearchBarAccessory(cmd.searchBarAccessory, `commands[${i}].searchBarAccessory`),
     );
+  });
+
+  return errors;
+}
+
+const WALKTHROUGH_RULE_TYPES = ['launch', 'count', 'state', 'manual'];
+
+/**
+ * Mirrors `walkthrough::validate_declarations` in the launcher. Kept in step
+ * by hand deliberately: these are structural rules on a small, stable schema,
+ * and the launcher rejects anything that slips through at discovery time —
+ * the CLI check exists to fail earlier, with a friendlier message.
+ */
+function validateWalkthrough(tasks: WalkthroughTask[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const seen = new Set<string>();
+
+  tasks.forEach((task, i) => {
+    const base = `walkthrough[${i}]`;
+
+    if (!task.id || !task.id.trim()) {
+      errors.push({ field: `${base}.id`, message: 'required' });
+    } else {
+      if (!/^[A-Za-z0-9._-]+$/.test(task.id)) {
+        errors.push({
+          field: `${base}.id`,
+          message: "may only contain letters, digits, '-', '_' and '.'",
+        });
+      }
+      if (seen.has(task.id)) {
+        errors.push({ field: `${base}.id`, message: `duplicate task id "${task.id}"` });
+      }
+      seen.add(task.id);
+    }
+
+    if (!task.title || !task.title.trim()) {
+      errors.push({ field: `${base}.title`, message: 'required' });
+    }
+
+    const rule = task.completion;
+    if (!rule || typeof rule.type !== 'string') {
+      errors.push({ field: `${base}.completion`, message: 'required' });
+      return;
+    }
+    if (!WALKTHROUGH_RULE_TYPES.includes(rule.type)) {
+      errors.push({
+        field: `${base}.completion.type`,
+        message: `"${rule.type}" is not a valid rule; must be one of ${WALKTHROUGH_RULE_TYPES.join(', ')}`,
+      });
+      return;
+    }
+    if ((rule.type === 'launch' || rule.type === 'count') && !rule.target?.trim()) {
+      errors.push({ field: `${base}.completion.target`, message: 'required' });
+    }
+    if (rule.type === 'state' && !rule.probe?.trim()) {
+      errors.push({ field: `${base}.completion.probe`, message: 'required' });
+    }
   });
 
   return errors;

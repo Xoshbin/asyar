@@ -30,6 +30,7 @@ fields are listed below.
 | `preferences`    | `PreferenceDeclaration[]` | ❌          | See [Preferences reference](./sdk/preferences.md)                                                             | Extension-level user-configurable settings. Auto-rendered as a settings panel in the launcher's Extensions tab, injected into `context.preferences` at extension boot, and synced across devices (except `password` type, which stays on-device).                                                                                       |
 | `actions`        | `ManifestAction[]`        | ❌          | See [Actions reference](./actions.md#manifest-declared-actions)                                               | Extension-level actions that appear in the ⌘K drawer whenever any command from this extension is selected in the root search results.                                                                                                                                                                                                   |
 | `tools`          | `ManifestTool[]`          | ❌          | Each `id` must be unique within the extension and must not contain `:`. Requires `tools:register` permission. | Tools your extension exports to the agent runtime. See [Built-in Tools Reference](./builtin-tools.md) for Tier 1 tools and [Register extension tools](../how-to/register-extension-tools.md) for the authoring guide. Runtime API documented at [ToolsService](./sdk/tools-service.md).                                                 |
+| `walkthrough`    | `WalkthroughTask[]`       | ❌          | Each `id` must be unique within the extension and match `/^[A-Za-z0-9._-]+$/`.                                | Tasks that teach your extension's features, shown in the launcher's **Walkthrough** command. See [the walkthrough section](#walkthrough--teaching-your-features) below. No permission required and no runtime code — the launcher decides when each task is complete by watching real usage.                                            |
 
 ### Removed fields (rejected at parse time)
 
@@ -102,6 +103,67 @@ The root-level `tools` field declares the tools your extension contributes to th
 The `tools:register` permission must also be declared in `permissions`. Without it, the launcher rejects the manifest.
 
 See [ToolsService](./sdk/tools-service.md) for the runtime API (`registerTool`, `unregisterTool`, `listTools`) and the [Register extension tools](../how-to/register-extension-tools.md) guide for the end-to-end authoring flow.
+
+### `walkthrough` — teaching your features
+
+The **Walkthrough** command in the launcher is a task list that teaches Asyar
+over time. Your extension contributes tasks to it the same way it contributes
+commands — declaratively, in `manifest.json`.
+
+You write no code for this. A task declares _what counts as having learned
+it_, and the launcher decides when that happened by watching what the user
+actually launches. There is no API to call and no completion event to emit.
+
+Two consequences worth designing around:
+
+- **Completion is retroactive.** The launcher measures a task against the
+  user's whole usage history, not the history since the task shipped. A task
+  you add in v2 of your extension opens already complete for someone who has
+  been using that feature since v1.
+- **Completion latches.** Once a task is done it stays done, even if the user
+  later clears their usage history.
+
+#### Per-task fields (WalkthroughTask)
+
+| Field        | Type             | Required | Constraints                                    | Description                                                                                                                              |
+| ------------ | ---------------- | -------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`         | `string`         | ✅       | Unique within the extension, `[A-Za-z0-9._-]+` | Short identifier. The launcher qualifies it as `wt_<extensionId>_<id>`, the same way commands become `cmd_<extensionId>_<commandId>`.    |
+| `title`      | `string`         | ✅       | Non-empty                                      | The one line shown in the task list. Write the benefit, not the mechanism — "Never lose what you copied" beats "Use clipboard history".  |
+| `summary`    | `string`         | ❌       | —                                              | Subtitle in the list. Defaults to a description generated from the completion rule.                                                      |
+| `body`       | `string`         | ❌       | Markdown                                       | The detail page. Convention is a short "why this matters", then a `## To complete the task` section with numbered steps.                 |
+| `icon`       | `string`         | ❌       | Emoji or `"icon:<name>"`                       | Shown beside the task in the list.                                                                                                       |
+| `image`      | `string`         | ❌       | Local asset path                               | Preview image on the detail page. Must ship inside your extension — remote URLs are not fetched, so the walkthrough still works offline. |
+| `order`      | `number`         | ❌       | Defaults to `0`                                | Ascending sort key across the whole combined list, not just your tasks. Ties break on id.                                                |
+| `completion` | `CompletionRule` | ✅       | See below                                      | How the task decides it is done.                                                                                                         |
+
+#### Completion rules
+
+| Rule     | Shape                                                                    | Completes when                                                                                                                                                                                                  |
+| -------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `launch` | `{ "type": "launch", "target": "<glob>" }`                               | Any launch matches `target`. Globs match against object ids — `cmd_<extensionId>_<commandId>` for commands, `app_<name>` for applications.                                                                      |
+| `count`  | `{ "type": "count", "target": "<glob>", "times": n, "distinctDays": n }` | `times` matching launches have happened **and** they span `distinctDays` separate days. Both default to 1. Counts sum and days union across every id the glob matches.                                          |
+| `state`  | `{ "type": "state", "probe": "<name>", "atLeast": n }`                   | A launcher-reported counter reaches `atLeast` (default 1). For facts no launch can express — `snippets.count`, `portals.count`, `notes.count`, `aliases.count`, `shortcuts.count`, `extensions.installedCount`. |
+| `manual` | `{ "type": "manual" }`                                                   | Never automatically. The user ticks it themselves. Use this only when nothing observable corresponds to the task.                                                                                               |
+
+Use `distinctDays` when the point of the feature is the habit rather than the
+visit. "Opened clipboard history once" teaches nobody anything; "reached for
+it on three separate days" means it stuck.
+
+```json
+{
+  "walkthrough": [
+    {
+      "id": "first-search",
+      "title": "Find a track without leaving the keyboard",
+      "summary": "Search your library straight from Asyar",
+      "icon": "icon:store",
+      "order": 50,
+      "body": "Type an artist and hit Enter.\n\n## To complete the task\n\nRun **Search Library** and open a result.",
+      "completion": { "type": "launch", "target": "cmd_com.you.music_search" }
+    }
+  ]
+}
+```
 
 ### Validation rules
 
