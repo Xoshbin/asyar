@@ -166,6 +166,21 @@ actually want is `--scrim` to push the thing beneath it back.
 
 Three tiers. If you want a fourth, you want a different layout.
 
+### Colour is never the only channel
+
+**Every state must be legible with all hue removed.** Simulated for
+deuteranopia (~6% of men) the three state colours collapse toward the same
+olive — success against danger sits at a luminance ratio of 1.23. No contrast
+tuning fixes that, because the problem is hue discrimination.
+
+So a state colour is an accelerant on top of a shape, an icon, or a word, never
+the sole carrier. A status indicator needs a label or an adjacent word; a
+severity needs an icon with a different silhouette. `Badge` is fine — it carries
+text. A bare coloured dot is not.
+
+Review test: **screenshot it, desaturate it, and see if you can still read the
+state.**
+
 ### Semantic state
 
 | Token              | Means                                                                              |
@@ -340,7 +355,7 @@ bottom, and **368px is exactly nine rows**: `9 × 40 + 8 × 1`.
 
 ### Density — how fast is this read?
 
-The tokens are identical across the three surfaces; the rhythm is not.
+The tokens are identical across all five surfaces; the rhythm is not.
 
 | Surface        | Rhythm                                              | Read at                          |
 | -------------- | --------------------------------------------------- | -------------------------------- |
@@ -395,7 +410,30 @@ directly.
 
 ---
 
-## 7. Components — which component, where
+## 7. Voice — how it reads
+
+Asyar is mostly words, and it writes the way an instrument reports: flatly, in
+the user's terms, without personality.
+
+| Rule                                | Do                                              | Not                           |
+| ----------------------------------- | ----------------------------------------------- | ----------------------------- |
+| Sentence case, always               | "Copy to clipboard"                             | "Copy To Clipboard"           |
+| A control names its result          | "Publish" → toast "Published"                   | "OK" · "Submit"               |
+| Name what the user recognises       | "Notifications"                                 | "Webhook config"              |
+| Errors say what broke and what next | "Extension failed to load — check the manifest" | "An error occurred"           |
+| No apology, no exclamation          | "Nothing matched 'xyz'"                         | "Sorry! Nothing found!"       |
+| Second person, active               | "Choose a shortcut"                             | "A shortcut should be chosen" |
+
+- **A result is named, never described.** Title = what it is called. Subtitle =
+  where it lives or what it does. Neither is a sentence.
+- **Truncate at the end**, except file paths, where the middle goes.
+- Fixed terms, not synonyms: a **command** is declared by an extension; an
+  **action** is what you can do to a selected result; a **result** is a row; an
+  **extension** ships them.
+
+---
+
+## 8. Components — which component, where
 
 **Read `src/components/index.ts` before deciding anything does not exist.** It
 exports every component in the app except `ConfirmDialog` and the extension
@@ -465,7 +503,7 @@ If two components look like they both fit, pick the more specific one.
 
 ---
 
-## 8. Layout
+## 9. Layout
 
 ### The launcher shell
 
@@ -496,20 +534,22 @@ Every scrolling container gets `.custom-scrollbar`. No exceptions — the
 checker enforces it, because the platform default scrollbar against Asyar's
 surfaces is immediately obvious.
 
-### The three surfaces
+### The five surfaces
 
 The tokens and components are identical across all three. What differs is
 density and how much chrome is acceptable.
 
-| Surface        | Density                                                    | Notes                                                                                               |
-| -------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **Launcher**   | Tightest. `--space-2`/`--space-3` inside rows              | Keyboard-first: every action needs a key path and a `KeyboardHint`. Chrome stays invisible          |
-| **Settings**   | Roomier. `--space-5`/`--space-6` between rows and sections | Always `SettingsSection` → `SettingsRow`. Mouse and keyboard are equal citizens                     |
-| **Onboarding** | Roomiest. `--space-7`+ between blocks                      | One idea per stage. `OnboardingStage` owns the frame; a step supplies content, never its own layout |
+| Surface        | Density                                                    | Notes                                                                                                                  |
+| -------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **Launcher**   | Tightest. `--space-2`/`--space-3` inside rows              | Keyboard-first: every action needs a key path and a `KeyboardHint`. Chrome stays invisible                             |
+| **Settings**   | Roomier. `--space-5`/`--space-6` between rows and sections | Always `SettingsSection` → `SettingsRow`. Mouse and keyboard are equal citizens                                        |
+| **Onboarding** | Roomiest. `--space-7`+ between blocks                      | One idea per stage. `OnboardingStage` owns the frame; a step supplies content, never its own layout                    |
+| **HUD**        | A single line, no chrome                                   | Read peripherally, mid-task. It is a standalone webview with no theme injection — the one `design-ok-file` in the repo |
+| **Sticky**     | Launcher density, but persistent                           | Read repeatedly over minutes, so it takes hover states the launcher does not need                                      |
 
 ---
 
-## 9. Interaction and accessibility
+## 10. Interaction and accessibility
 
 Every interactive element covers every state:
 
@@ -554,7 +594,7 @@ Other rules:
 
 ---
 
-## 10. Third-party extensions (Tier 2, iframe sandbox)
+## 11. Third-party extensions (Tier 2, iframe sandbox)
 
 Extensions run in two sandboxed iframes — a hidden worker and an on-demand
 view. Design rules apply to the **view**.
@@ -579,7 +619,7 @@ re-times it.
 
 ---
 
-## 11. When nothing fits
+## 12. When nothing fits
 
 In order. Do not skip a step.
 
@@ -617,7 +657,7 @@ that is the system telling you a token is missing. Add the token instead.
 
 ---
 
-## 12. Before you call it done
+## 13. Before you call it done
 
 Run `pnpm check:design`. It fails on:
 
@@ -642,6 +682,8 @@ Then check the things a script cannot:
 - Did you import components, or write markup? Zero imports from
   `../components` in a new view is a red flag.
 - Does it look right in **both** light and dark? Toggle and look.
+- **Desaturate the screenshot. Can you still read every state?** Colour is never
+  the only channel.
 - **Is there exactly one lit thing?** Squint at it. If two elements compete for
   the eye, one of them is wrong.
 - **Does anything cast a sideways shadow?** There is one light, and it is above.

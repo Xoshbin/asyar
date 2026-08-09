@@ -96,6 +96,14 @@ primary button sitting beside a selected row · category icons in saturated
 brand colours · a coloured badge on an unselected row · any hover state strong
 enough to be mistaken for selection.
 
+**The one carve-out: icons Asyar does not own.** Every result row renders the
+real application icon, and those are saturated, full-colour, and outside our
+control. A launcher that desaturated them would be harder to scan, not easier —
+recognising Safari by its blue compass is the fastest path there is. So
+third-party marks are exempt from this principle, and the exemption is narrow:
+it covers artwork the user already recognises, never chrome Asyar draws itself.
+An extension's _accent_ is still bound by the rule; only its _mark_ is free.
+
 **Corollary — chrome earns its pixels.** Every persistent pixel must be the
 query, a result, or the next keystroke. If it is none of those three, it is
 decoration, and decoration takes luminance away from the one lit thing.
@@ -325,6 +333,39 @@ need to line up or be read individually — a hash, a path, a duration in a
 table column. A version number in a sentence stays in Satoshi. All mono
 carries `font-variant-numeric: tabular-nums`.
 
+### Voice
+
+Asyar is mostly words. A result is a title and a subtitle; an empty state is a
+sentence; a failure is a sentence. Type is how they look, voice is what they
+say, and a design language that specifies one and not the other has only done
+half the job.
+
+**Asyar writes the way an instrument reports: flatly, in the user's terms, and
+without personality.** The product has no character to express — the user's
+task is the only subject.
+
+| Rule                              | Do                                              | Not                                 |
+| --------------------------------- | ----------------------------------------------- | ----------------------------------- |
+| **Sentence case, always**         | "Copy to clipboard"                             | "Copy To Clipboard"                 |
+| **A control names its result**    | "Publish" → toast "Published"                   | "OK", "Submit", "Are you sure?"     |
+| **Name what the user recognises** | "Notifications"                                 | "Webhook config"                    |
+| **Errors say what and what next** | "Extension failed to load — check the manifest" | "An error occurred"                 |
+| **No apology, no exclamation**    | "Nothing matched 'xyz'"                         | "Sorry! We couldn't find anything!" |
+| **Second person, active**         | "Choose a shortcut"                             | "A shortcut should be chosen"       |
+
+Two rules specific to a launcher:
+
+- **The result list is a noun list.** A result is named, never described. The
+  title is what the thing is called; the subtitle is where it lives or what it
+  does. Neither is a sentence.
+- **Truncate at the end, never the middle**, except for file paths, where the
+  middle is the only expendable part.
+
+Terminology is fixed, because these four get used interchangeably and they are
+not synonyms: a **command** is a thing an extension declares; an **action** is a
+thing you can do to a selected result; a **result** is a row; an **extension**
+is the package that ships them.
+
 ---
 
 ## 3. Space and scale
@@ -481,13 +522,17 @@ what keeps the query unmistakably larger than every other string on screen
 ### Density across the three surfaces
 
 Same tokens, three different densities. This is the one place the system
-deliberately varies, because the three surfaces are read at different speeds.
+deliberately varies, because the five surfaces are read at different speeds.
+(This document said "three" until the surface audit — the HUD and sticky windows
+are real, user-facing, and were being designed without guidance.)
 
 | Surface        | Rhythm                                              | Read at                          |
 | -------------- | --------------------------------------------------- | -------------------------------- |
 | **Launcher**   | `--space-2` / `--space-3` inside a row              | A glance. Density is the feature |
 | **Settings**   | `--space-5` / `--space-6` between rows and sections | Deliberately, with a pointer     |
 | **Onboarding** | `--space-7`+ between blocks                         | Once, slowly, one idea per stage |
+| **HUD**        | Single line, no chrome at all                       | Peripherally, mid-task           |
+| **Sticky**     | Launcher density, but persistent                    | Repeatedly, over minutes         |
 
 A row that is comfortable in Settings is wasteful in the launcher, and a
 launcher row dropped into onboarding reads as cramped. If you are unsure which
@@ -611,6 +656,37 @@ Three tiers. If you want a fourth, you want a different layout.
 The tertiary tier was raised in this revision — it previously composited to
 2.7:1, below the 3:1 floor for incidental text, which made timestamps and
 placeholders genuinely hard to read on a busy wallpaper.
+
+### Colour is never the only channel
+
+Contrast is not the whole of colour accessibility, and the state ramp is where
+that bites. Simulated for **deuteranopia** — the most common form, around 6% of
+men — the three state hues collapse toward the same olive:
+
+| Pair               | Luminance ratio, deuteranopia |
+| ------------------ | ----------------------------- |
+| success vs warning | 1.21                          |
+| success vs danger  | 1.23                          |
+| warning vs danger  | 1.49                          |
+
+`#3ed18f` and `#ff6b77` both land near rgb(160, 160, 130). Green–amber–red is
+the textbook failure, and no amount of contrast tuning fixes it, because the
+problem is hue discrimination rather than luminance.
+
+This does not mean abandoning the ramp — colour remains the fastest channel for
+the majority of users. It means colour may never be the _only_ channel:
+
+> **Every state must be legible with all hue removed.** A state colour is an
+> accelerant on top of a shape, an icon, or a word — never the sole carrier.
+
+In practice: a status indicator needs an accessible label or an adjacent word;
+a severity needs an icon whose silhouette differs; a chart series needs a direct
+label. `Badge` already satisfies this because it carries text. `StatusDot` does
+not — it is a bare coloured circle at 8 call sites, and closing that is the
+first item in the outstanding list.
+
+The test is mechanical enough to apply in review: **screenshot it, desaturate
+it, and see whether you can still read the state.**
 
 ### Tinted state backgrounds
 
@@ -925,19 +1001,30 @@ Stated plainly, so nobody mistakes silence for permission.
   instrument.
 - **Sound.** Asyar makes none. If that ever changes, it needs its own section
   here first.
+- **Latency budgets.** The thesis is "answers before you finish asking", and
+  nothing here states what that means in milliseconds — no keystroke-to-paint
+  target, no debounce doctrine, no rule for what occupies the list while a slow
+  source resolves. For an instrument, responsiveness _is_ the design, so this is
+  a genuine hole rather than a deferral.
+- **Writing and voice, in full.** §2 sets the register and the fixed
+  terminology; a complete error taxonomy, a capitalisation reference for every
+  surface, and localisation guidance are not written yet.
 
 ### Outstanding against this specification
 
 The language is defined in full; the implementation is not yet complete
 against it. Known gaps, in the order they are worth closing:
 
-1. **The travelling Bloom** (§5) — selection currently snaps between rows.
-2. **Summon and dismiss choreography** (§5) — the window appears and
+1. **`StatusDot` carries state by colour alone** (§4) — a bare coloured circle
+   at 8 call sites, with no label, shape, or aria. The clearest violation of the
+   rule above, and the first thing to fix.
+2. **The travelling Bloom** (§5) — selection currently snaps between rows.
+3. **Summon and dismiss choreography** (§5) — the window appears and
    disappears without transition.
-3. **Per-view retrofit** — the token layer re-skins all 188 components, but
+4. **Per-view retrofit** — the token layer re-skins all 188 components, but
    individual views have not been re-composed against Principles I and II.
    Expect surfaces that are still boxed where they should be lit.
-4. **A formal icon grid** — stroke weight, optical sizing, and corner
+5. **A formal icon grid** — stroke weight, optical sizing, and corner
    treatment are consistent by habit rather than by specification.
 
 ---
