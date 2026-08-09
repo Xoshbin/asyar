@@ -37,25 +37,30 @@
 /* ── Root Tokens ────────────────────────────────────────── */
 
 /* ═══════════════════════════════════════════════════════════════════════
-   DIRECTED LIGHT — Asyar's design language.
+   MEASURE — Asyar's design language.
 
    The full specification lives in docs/reference/design-system/design-language.md;
    the decision rules an agent needs live in .agents/skills/design-language/SKILL.md.
    This file is where both become real.
 
-   The whole system is derived from the app icon: a point source above,
-   a beam, and one lit ellipse on a deep navy ground. Three consequences
-   run through every token below.
+   Every value in Asyar is measured, not chosen. This file is the set of
+   measurements, and a value that is not in it does not exist. Four
+   principles govern what goes in:
 
-     1. ONE LIT THING. Exactly one element carries full luminance and full
-        chroma at any instant. Everything else is graded down. The accent
-        ramp and the bloom tokens exist to make that gradient explicit.
-     2. LIGHT COMES FROM DIRECTLY ABOVE. Every shadow falls straight down;
-        every raised surface carries --rim-light on its top edge. There is
-        no second light source anywhere in this file.
-     3. THE GROUND SHOWS THROUGH. Surfaces are translucent by default and
-        tinted toward the mark's hue (~225°), never neutral grey. Depth is
-        transmission, not stacked opaque cards.
+     I.   DERIVED, NOT CHOSEN. Every number below traces to arithmetic, a
+          scale step, or a hard constraint. "It looked right" is not a
+          derivation, and a value that cannot be defended is not a token.
+     II.  SUBTRACT FIRST. Nothing is here because an interface usually has
+          one. Borders, fills, shadows and animations all start at zero and
+          have to be argued in.
+     III. ONE CANDIDATE. At any instant exactly one element is the thing
+          Enter will act on. --bg-selected is the only surface token
+          carrying chroma, and that is this principle as a value.
+     IV.  EVERY AFFORDANCE NAMES ITS KEY. The key chip is the most repeated
+          element in the product because of it.
+
+   Surfaces are translucent and tinted ~225°, never neutral grey: depth is
+   transmission, not stacked opaque cards.
    ═══════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -127,11 +132,12 @@
   --transition-smooth: var(--dur-travel) var(--ease-travel);
 
   /* ── Brand ─────────────────────────────────────────────────────────────
-     Asyar's identity colour is the beam from its own icon. It was teal here
-     for a long time while --accent-primary was Apple's system blue, so the
-     app's most-used colour belonged to Apple and the brand token was
-     decorative. Brand and accent are now the same light: --asyar-brand and
-     its three variants resolve per theme alongside the accent ramp below.
+     Brand and accent are one colour. They were not: --asyar-brand was a teal
+     that appeared almost nowhere while --accent-primary was Apple's system
+     blue, so the app's most-used colour belonged to Apple and the brand
+     token was decorative. Two identity colours is one more than the product
+     can spend (Principle III). --asyar-brand and its three variants now
+     resolve per theme alongside the accent ramp below.
 
      Canvas surface for external content (URL previews, embedded HTML) that
      assumes a white page. Constant across themes — it is someone else's
@@ -219,8 +225,8 @@
      384px, the list insets it by --space-3 top and bottom, and 368px is
      EXACTLY nine rows — 9 × 40 + 8 × 1px of separation, with nothing left
      over. Change this and you change how much of Asyar is visible at once.
-     It was a bare `min-height: 40px` inside .result-item until v1.0 of the
-     design language, so the nine-row fit was true by accident. */
+     It was a bare `min-height: 40px` inside .result-item before this token
+     existed, so the nine-row fit was true by accident. */
   --shell-row-h: 40px;
 
   /* Stacking scale. Every z-index in the app comes from this list — never
@@ -238,14 +244,19 @@
   --z-portal: 9999; /* a fixed popup escaping an overflow-hidden parent */
 
   /* ── Elevation ─────────────────────────────────────────────────────────
-     One light source, directly above, exactly as in the icon. Every offset
-     below is `0 Ypx` — there is no horizontal component anywhere, because a
-     second light direction would read as a second source. Height is carried
-     by blur radius and by how far the shadow is pulled back with a negative
-     spread, not by sliding the shadow sideways.
+     Five steps, and every one of them casts straight down: `0 Ypx`, no
+     horizontal component. That is a consistency rule, not a physics one —
+     shadows that disagree about direction read as a rendering mistake, and
+     the scale is easier to reason about when height is the only variable.
+     Height is carried by blur radius and by how far the shadow is pulled
+     back with a negative spread.
 
-     The previous scale cast down-and-left (-28px 20px 80px), which implied a
-     light up and to the right and contradicted the mark. */
+     It applies to drop shadows. An inset box-shadow used to draw an edge —
+     the multi-select bar on a clipboard row, say — is a drawing primitive
+     rather than a cast, and is not bound by it.
+
+     The previous scale cast down-and-left (-28px 20px 80px), inconsistently
+     with everything else in the file. */
   --shadow-xs: 0 1px 2px var(--shadow-color);
   --shadow-sm: 0 2px 6px var(--shadow-color);
   --shadow-md: 0 6px 14px -2px var(--shadow-color);
@@ -408,7 +419,7 @@ html[data-platform='macos'] .app-root {
    and fails if the OS-tracking and forced copies of a palette disagree on
    any token.
 
-   Every surface here is tinted toward the mark's hue (~225°) rather than
+   Every surface here is tinted toward the system hue (~225°) rather than
    neutral grey, and every accent value is contrast-verified: the voice ramp
    (--accent-*) reaches 4.5:1 on its own surfaces, and the fill ramp
    (--accent-*-fill) carries --text-on-accent at 4.5:1. See the "Chromatic
@@ -426,8 +437,9 @@ html[data-platform='macos'] .app-root {
     --bg-secondary: rgba(24, 27, 42, 0.7);
     --bg-tertiary: rgba(32, 36, 54, 0.7);
     --bg-hover: rgba(56, 63, 92, 0.5);
-    /* Selection is lit, not filled grey — the accent at low alpha. This is
-       the Bloom: the one lit thing in a list of results. */
+    /* Selection carries chroma; hover does not. That difference is what keeps
+       the two apart at a glance, and it is the only surface token with any
+       chroma in it (Principle III — one candidate). */
     --bg-selected: rgba(61, 107, 245, 0.18);
     --bg-secondary-full-opacity: rgb(24, 27, 42);
     --bg-popup: rgb(16, 18, 31);
@@ -457,14 +469,16 @@ html[data-platform='macos'] .app-root {
     --accent-warning-fill: #8f5d0a;
     --accent-danger-fill: #c0303e;
 
-    /* Brand === accent. Both are the beam from the icon. */
+    /* Brand === accent. One identity colour, not two. */
     --asyar-brand: #7b9cff;
     --asyar-brand-hover: #9db4ff;
     --asyar-brand-muted: rgba(123, 156, 255, 0.18);
     --asyar-brand-subtle: rgba(123, 156, 255, 0.09);
 
-    /* The Rim — the top-edge highlight every raised surface carries, and
-       the bottom edge it loses. One source, directly above. */
+    /* Edge highlight and edge shade, used inside --shadow-launcher-popup and
+       the filled-button gradients to keep a surface from reading as a flat
+       rectangle of colour. Themeable, so they stay named tokens rather than
+       being inlined at each of those sites. */
     --rim-light: rgba(255, 255, 255, 0.1);
     --rim-shade: rgba(0, 0, 0, 0.4);
 
@@ -1406,25 +1420,19 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     cursor: default;
   }
 
-  /* THE BLOOM — the signature selected state.
-     A launcher's selected row is the one lit thing on screen, so it is lit
-     rather than boxed: the accent washes in from the left edge where the
-     beam lands and falls off across the row, with a hard accent seam at the
-     very edge. A flat grey fill (what this used to be, and what every other
-     launcher does) reads as a rectangle drawn behind the text; this reads as
-     light falling on it. Never add a border to a selected row — the seam is
-     the edge. */
-  .list-row.selected,
-  .bloom {
-    background:
-      linear-gradient(
-        to right,
-        var(--bg-selected),
-        color-mix(in srgb, var(--bg-selected) 35%, transparent) 68%,
-        transparent
-      ),
-      linear-gradient(to right, var(--accent-primary) 0 2px, transparent 2px);
-    box-shadow: inset 0 1px 0 0 var(--rim-light);
+  /* The selected row. Identical to .selected-result, which is what the
+     launcher list and clipboard history use — one selection treatment across
+     the whole app.
+
+     Keep it flat. No gradient wash, no accent seam down the left edge, no
+     border. This is the most-seen element in the product and the most
+     tempting one to make expressive, and it is deliberately plain: a flat
+     band reads faster, and every gradient stop you would have to pick is a
+     number nothing derives (Principle I). A selected row is a reading
+     position, not a place to spend craft (Principle II). */
+  .list-row.selected {
+    background-color: var(--bg-selected);
+    box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
   }
   .list-row.selected * {
     color: var(--text-primary);
@@ -1432,18 +1440,6 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
   .list-row.selected .text-caption,
   .list-row.selected .text-tertiary {
     color: var(--text-secondary);
-  }
-
-  /* THE RIM — a raised surface catches the overhead source on its top edge.
-     Compose it onto anything that needs to read as lifted off the ground
-     without drawing a full border. */
-  .rim {
-    box-shadow: inset 0 1px 0 0 var(--rim-light);
-  }
-  .rim-all {
-    box-shadow:
-      inset 0 1px 0 0 var(--rim-light),
-      inset 0 -1px 0 0 var(--rim-shade);
   }
 
   /* ── Input field ─────────────────────────────────────── */

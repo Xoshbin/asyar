@@ -73,21 +73,14 @@
     flex-shrink: 0;
   }
 
-  /* THE BLOOM. The selected row is the one lit thing on screen, so it is lit
-     rather than boxed: the accent washes in from the left seam where the beam
-     lands and falls off across the row. This mirrors the global
-     `.list-row.selected` in style.css — the component-scoped copy is what
-     actually wins here, so the two have to agree. */
+  /* The selected row: a flat band, the same one `.selected-result` draws in
+     the launcher list. Keep it flat — no gradient, no seam, no border. This
+     mirrors the global `.list-row.selected` in style.css, which carries the
+     full reasoning; the component-scoped copy is what actually wins here, so
+     the two have to agree. */
   .list-row.selected {
-    background:
-      linear-gradient(
-        to right,
-        var(--bg-selected),
-        color-mix(in srgb, var(--bg-selected) 35%, transparent) 68%,
-        transparent
-      ),
-      linear-gradient(to right, var(--accent-primary) 0 2px, transparent 2px);
-    box-shadow: inset 0 1px 0 0 var(--rim-light);
+    background-color: var(--bg-selected);
+    box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
   }
 
   .list-item-leading {

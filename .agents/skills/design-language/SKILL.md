@@ -3,7 +3,7 @@ name: design-language
 description: Use when building, modifying, or fixing any frontend UI in the Asyar launcher — new components, new views, layout changes, styling decisions, new built-in features, visual bug fixes, and anything in settings or onboarding. Answers "what do I use here?" for fonts, colour, typography, spacing, motion, components, and layout.
 ---
 
-# Asyar Design Language — Directed Light
+# Asyar Design Language — Measure
 
 This file answers one question: **given what you are building, what do you use?**
 
@@ -23,21 +23,30 @@ judgement calls are the tables.
 
 ## The thesis, in one paragraph
 
-Asyar is **an instrument, not a place**. It is summoned by a keystroke, lives
-for two to six seconds, and vanishes. Its design language is derived from its
-own app icon: one light source, directly above, lighting exactly one thing.
-Four principles fall out of that, and every table below is one of them made
-operational:
+> **Every value in Asyar is measured, not chosen.**
 
-1. **One Lit Thing** — exactly one element carries full luminance and chroma.
-2. **The Ground Shows Through** — surfaces are translucent and tinted, never
-   opaque neutral cards.
-3. **Every Affordance Names Its Key** — if it can be done, its key is visible.
-4. **Motion Reports** — if removing an animation wouldn't confuse anyone,
-   remove it.
+Asyar is 750 × 480, of which 384px is content, and it is on screen for two to
+six seconds. Nothing in it has room to be arbitrary. A value is either derived
+from a constraint — a window dimension, a contrast ratio, a scale step, a count
+of rows that must fit — or it is a guess, and this is a system that does not
+ship guesses. Four principles, in priority order, and every table below is one
+of them made operational:
 
-When two rules below seem to conflict, the principle wins, and **Principle I
-wins over all the others.**
+1. **Derived, Not Chosen** — every value traces to a measurement or a scale
+   step. "It looked right" is not a derivation.
+2. **Subtract First** — borders, fills, shadows and animations start at zero
+   and have to be argued in. Remove it and look; if nothing is lost, it was
+   decoration.
+3. **One Candidate** — exactly one element is the thing `⏎` will act on, and
+   nothing else may compete for the eye.
+4. **Every Affordance Names Its Key** — if it can be done, its key is visible.
+
+When two rules below seem to conflict, the principle wins, and **the
+lower-numbered principle wins over the higher.**
+
+**Restraint is the position here, not a fallback applied when nothing better
+comes to mind.** If you are about to make something look more designed, that is
+the moment Principle II applies, not an exception to it.
 
 ---
 
@@ -58,8 +67,7 @@ wins over all the others.**
 | Any duration                  | `var(--dur-*)`                                                                           |
 | Any easing                    | `var(--ease-*)`                                                                          |
 | Any stacking                  | `var(--z-*)`                                                                             |
-| A raised surface's top edge   | `.rim`, or `inset 0 1px 0 0 var(--rim-light)`                                            |
-| A selected row                | `.bloom`, or let `.list-row.selected` do it                                              |
+| A selected row                | Let `.list-row.selected` / `.selected-result` do it — do not restyle it                  |
 | A scrolling container         | Add `.custom-scrollbar`                                                                  |
 | Something that does not exist | Build a reusable component in `src/components/`, export it from the barrel               |
 
@@ -145,7 +153,7 @@ an Asyar surface.
 | `--bg-secondary`   | Cards, sidebars, panels — anything sitting on the window     |
 | `--bg-tertiary`    | Inputs, wells, and subtle insets inside a card               |
 | `--bg-hover`       | Hover on any interactive row, button, or tile                |
-| `--bg-selected`    | The selected row — accent-tinted, this is the Bloom          |
+| `--bg-selected`    | The selected row — the only surface token carrying chroma    |
 | `--bg-popup`       | Opaque popups and menus                                      |
 | `--surface-canvas` | Only where external HTML assumes a white page (URL previews) |
 
@@ -183,13 +191,13 @@ state.**
 
 ### Semantic state
 
-| Token              | Means                                                                              |
-| ------------------ | ---------------------------------------------------------------------------------- |
-| `--accent-primary` | Primary action, focus, selection, links                                            |
-| `--accent-success` | Succeeded, healthy, connected                                                      |
-| `--accent-warning` | Needs attention, degraded, in progress                                             |
-| `--accent-danger`  | Destructive action, error, failed                                                  |
-| `--asyar-brand`    | Asyar's identity. Now the same blue as the accent — brand and accent are one light |
+| Token              | Means                                                                        |
+| ------------------ | ---------------------------------------------------------------------------- |
+| `--accent-primary` | Primary action, focus, selection, links                                      |
+| `--accent-success` | Succeeded, healthy, connected                                                |
+| `--accent-warning` | Needs attention, degraded, in progress                                       |
+| `--accent-danger`  | Destructive action, error, failed                                            |
+| `--asyar-brand`    | Asyar's identity. The same blue as the accent — one identity colour, not two |
 
 For a **tinted background** in a state colour, mix it rather than inventing a
 second token — this is the house formula, and it uses the voice ramp for both
@@ -200,19 +208,20 @@ background: color-mix(in srgb, var(--accent-danger) 12%, transparent);
 color: var(--accent-danger);
 ```
 
-### Lines, edges and light
+### Lines and edges
 
-| Token            | Use for                                                               |
-| ---------------- | --------------------------------------------------------------------- |
-| `--border-color` | The border of an interactive element                                  |
-| `--separator`    | List dividers, section rules, subtle outlines                         |
-| `--divider-soft` | The faintest hairline (split-view handle)                             |
-| `--rim-light`    | The top edge of a raised surface — see [§4](#4-elevation-and-the-rim) |
-| `--rim-shade`    | The bottom edge of a raised surface                                   |
+| Token            | Use for                                                              |
+| ---------------- | -------------------------------------------------------------------- |
+| `--border-color` | The border of an interactive element                                 |
+| `--separator`    | List dividers, section rules, subtle outlines                        |
+| `--divider-soft` | The faintest hairline (split-view handle)                            |
+| `--rim-light`    | Edge highlight, inside a shadow or gradient — see [§4](#4-elevation) |
+| `--rim-shade`    | Edge shade, same                                                     |
 
-**Prefer a rim to a border** when the job is "this surface is closer to the
-light than what's behind it". Use a real border when the job is "this is an
-interactive control with an outline".
+**Prefer alignment to a border.** Two things sharing a left edge already read
+as one column; a border on top of that is a line the layout has already drawn
+(Principle II). Use a real border when the job is "this is an interactive
+control with an outline".
 
 ### Code colour
 
@@ -256,15 +265,15 @@ If you are adding something at `--font-size-2xl` or above outside
 
 ---
 
-## 4. Elevation and the Rim
+## 4. Elevation
 
-**One light source, directly above.** This is the rule that makes the whole
-system cohere:
-
-> **No shadow in Asyar has a horizontal offset.** Every shadow is `0 Ypx`.
+> **Every drop shadow casts straight down.** Every shadow is `0 Ypx`.
 
 Height comes from blur radius and negative spread, never from sliding the
-shadow sideways — a sideways shadow implies a second light source.
+shadow sideways. This is consistency, not physics: shadows that disagree about
+their direction read as a rendering mistake, and the scale is easier to reason
+about when height is the only variable. It binds drop shadows — an inset
+`box-shadow` used to draw an edge is a drawing primitive, not a cast.
 
 | Token                     | For                                    |
 | ------------------------- | -------------------------------------- |
@@ -273,8 +282,9 @@ shadow sideways — a sideways shadow implies a second light source.
 | `--shadow-launcher-popup` | The launcher's floating surfaces       |
 | `--shadow-focus`          | Focus rings (applied globally already) |
 
-Compose the top-edge highlight with `.rim`, or `.rim-all` for a highlight plus
-a bottom shade. Both are one inset shadow and cost nothing.
+`--rim-light` / `--rim-shade` are ingredients inside `--shadow-launcher-popup`
+and the filled-button gradients. There are no `.rim` / `.rim-all` utility
+classes — they existed, had zero call sites, and were removed.
 
 **Radius** — `--radius-xs` (4) · `sm` (6) · `md` (8) · `lg` (10) · `xl` (12) ·
 `popup` (20) · `full`. Small controls take `sm`, cards take `md`, modals take
@@ -383,8 +393,8 @@ component.
 | --------------- | ---------------------------------------- |
 | `--dur-instant` | Colour/opacity landing under the pointer |
 | `--dur-quick`   | A state change the user caused directly  |
-| `--dur-travel`  | The selection moving; a panel sliding    |
-| `--dur-emerge`  | The launcher arriving; a sheet opening   |
+| `--dur-travel`  | A panel sliding                          |
+| `--dur-emerge`  | A sheet opening                          |
 
 | Curve           | Use for                                              |
 | --------------- | ---------------------------------------------------- |
@@ -403,6 +413,15 @@ Rules that are not negotiable:
   confused about what happened?** If no, don't add it.
 - Reduced motion is handled globally in `style.css`. You do not need a
   `prefers-reduced-motion` block unless your component animates via JS.
+
+**Two animations are specifically not wanted.** Both are the obvious thing to
+reach for, and both fail the test above:
+
+- **The selection travelling between rows.** Selection snaps. The user pressed
+  `↓`; nobody is confused about where the highlight went.
+- **The launcher animating on summon or dismiss.** The window appears. An
+  arrival animation delays the first usable moment on the one surface whose
+  whole promise is being already there.
 
 `--transition-fast/normal/smooth/slow` still exist and still work; they are
 shorthands over the tokens above. New code should pair a duration with a curve
@@ -559,13 +578,18 @@ Every interactive element covers every state:
 | Active / pressed | `.pressable`, or `background: var(--bg-selected)`      |
 | Keyboard focus   | Nothing — the global `*:focus-visible` ring handles it |
 | Disabled         | `opacity: 0.5; cursor: not-allowed`                    |
-| Selected in list | `.bloom`, or let `.list-row.selected` do it            |
+| Selected in list | Let `.list-row.selected` / `.selected-result` do it    |
 
-**Hover must never be mistakable for selection** (Principle I). `--bg-hover`
+**Hover must never be mistakable for selection** (Principle III). `--bg-hover`
 is neutral; `--bg-selected` carries chroma. That difference is load-bearing —
 do not "improve" hover by tinting it.
 
-**A selected row never takes a border.** The Bloom's left seam is the edge.
+**The selected row is a flat band, everywhere, and it is not yours to
+restyle.** `background-color: var(--bg-selected)` plus
+`box-shadow: inset 0 0 2px 0.5px var(--kbd-rim)`, identical in
+`.list-row.selected` and `.selected-result`. It never takes a border, a
+gradient, or an accent seam — this is the most-seen element in the app and the
+most tempting one to make expressive, and it is deliberately plain.
 
 **Focus is already solved globally.** `*:focus-visible` applies
 `var(--shadow-focus)` app-wide. Two things break it, both worth knowing:
@@ -684,9 +708,15 @@ Then check the things a script cannot:
 - Does it look right in **both** light and dark? Toggle and look.
 - **Desaturate the screenshot. Can you still read every state?** Colour is never
   the only channel.
-- **Is there exactly one lit thing?** Squint at it. If two elements compete for
+- **Can you name where every number came from?** Pick the three least obvious
+  values in your diff and say what derives them. If the answer is "it looked
+  right", it is not finished (Principle I).
+- **Delete something and look.** Take out the border, the background, the icon,
+  the animation — whichever is least load-bearing — and run it. If nothing was
+  lost, leave it out (Principle II).
+- **Is there exactly one candidate?** Squint at it. If two elements compete for
   the eye, one of them is wrong.
-- **Does anything cast a sideways shadow?** There is one light, and it is above.
+- **Does anything cast a sideways drop shadow?** Every cast is `0 Ypx`.
 - Does every interactive element have hover, and does Tab show a focus ring?
 - Does every action show its key?
 - Is there an empty state, a loading state, and an error state?

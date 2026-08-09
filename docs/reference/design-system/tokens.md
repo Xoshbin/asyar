@@ -20,10 +20,10 @@ Or in plain CSS:
 
 Never hardcode colors, sizes, or radii. Using tokens ensures your extension adapts to light/dark mode and future theme changes automatically.
 
-These tokens are the vocabulary of Asyar's design language, **Directed Light** —
-one source, directly above, lighting exactly one thing. The reasoning behind
-every value here is in [Design Language](./design-language.md); this page is
-the lookup table.
+These tokens are the vocabulary of Asyar's design language, **Measure** — every
+value derived from a constraint rather than chosen because it looked right. The
+reasoning behind every value here is in
+[Design Language](./design-language.md); this page is the lookup table.
 
 ## Token Reference
 
@@ -45,9 +45,12 @@ nearer a surface is, the less of the ground it lets past.
 | `--bg-popup`                  | `rgb(16, 18, 31)`         | Opaque popups and modals            |
 | `--bg-secondary-full-opacity` | `rgb(24, 27, 42)`         | bg-secondary without transparency   |
 
-`--bg-selected` is the only surface token carrying colour. Selection in Asyar
-is _lit_, not filled with grey — see "the Bloom" in the design language. Keep
-`--bg-hover` neutral so hover can never be mistaken for selection.
+`--bg-selected` is the only surface token carrying chroma, and that is what
+keeps selection distinct from hover at a glance. Keep `--bg-hover` neutral —
+that difference is load-bearing, not stylistic.
+
+The selected row is a **flat band**: `--bg-selected` plus a faint inset rim,
+and nothing else. No gradient, no border, no accent seam.
 
 ```css
 .card {
@@ -92,23 +95,22 @@ p {
 | `--border-color` | `rgba(140, 152, 200, .18)` | Borders on interactive elements (inputs, buttons) |
 | `--separator`    | `rgba(140, 152, 200, .13)` | Dividers between list items and sections          |
 | `--divider-soft` | `rgba(160, 172, 220, .06)` | The faintest hairline                             |
-| `--rim-light`    | `rgba(255, 255, 255, .1)`  | The top edge of a raised surface — see below      |
-| `--rim-shade`    | `rgba(0, 0, 0, 0.4)`       | The bottom edge of a raised surface               |
+| `--rim-light`    | `rgba(255, 255, 255, .1)`  | Edge highlight, inside a shadow or gradient       |
+| `--rim-shade`    | `rgba(0, 0, 0, 0.4)`       | Edge shade, same                                  |
 
-**The Rim.** Asyar lights every surface from directly above, so a raised
-surface catches light on its top edge and loses it at the bottom. Prefer a rim
-to a border when the job is "this is closer to the light than what's behind
-it":
+**Prefer alignment to a border.** Two things sharing a left edge already read
+as one column, and a border on top of that is a line the layout has already
+drawn. Reach for `--border-color` when the job is genuinely "this is an
+interactive control with an outline".
 
-```css
-.raised {
-  box-shadow: inset 0 1px 0 0 var(--rim-light);
-}
-```
+`--rim-light` and `--rim-shade` are ingredients rather than standalone
+treatments — they appear inside `--shadow-launcher-popup` and the
+filled-button gradients so a surface does not read as a flat rectangle of
+colour.
 
-The corollary is strict: **no shadow in Asyar has a horizontal offset.** Height
-comes from blur and negative spread, never from sliding the shadow sideways —
-that would imply a second light source.
+**Every drop shadow casts straight down.** Height comes from blur and negative
+spread, never from sliding the shadow sideways. Shadows that disagree about
+direction read as a rendering mistake.
 
 ```css
 .input {
@@ -182,10 +184,10 @@ Asyar surface.
 
 ### Brand
 
-Asyar's identity colour is the beam from its own app icon, which is also the
-accent. Brand and accent are the same light. (These were teal until v1.0 of
-the design language, while the accent was Apple's system blue — the app's
-most-used colour belonged to Apple and the brand token was decorative.)
+Brand and accent are one colour. Two identity colours is one more than the
+product can spend. (Brand was a teal before this design system, while the
+accent was Apple's system blue — so the app's most-used colour belonged to
+Apple and the brand token was decorative.)
 
 | Token                  | Dark value                  |
 | :--------------------- | :-------------------------- |
@@ -462,9 +464,8 @@ A realistic card component using only design tokens:
     padding: var(--space-6);
     font-family: var(--font-ui);
 
-    /* The Rim: a top-edge highlight instead of a border, because the light
-       is above. Layered with the elevation shadow, which has no horizontal
-       offset — there is only one source. */
+    /* An edge highlight instead of a border, layered with the elevation
+       shadow — which, like every drop shadow here, casts straight down. */
     box-shadow:
       inset 0 1px 0 0 var(--rim-light),
       var(--shadow-sm);

@@ -1,8 +1,8 @@
 # Design System
 
-Asyar's design language is **Directed Light**: one light source, directly
-above, lighting exactly one thing. It is derived from the app's own icon — a
-point source, a beam, and a single lit ellipse on a deep navy ground.
+Asyar's design language is **Measure**: every value in the product is derived
+from a constraint — a window dimension, a contrast ratio, a scale step, a count
+of rows that must fit — rather than chosen because it looked right.
 
 The launcher exposes its full token set and built-in icons to extensions, so
 an extension can look native across light/dark mode and theme changes without
@@ -10,15 +10,24 @@ shipping any colour of its own.
 
 ## Start here
 
-- **[Design Language](./design-language.md)** — the specification. Philosophy,
-  the four principles, the three visual signatures, the chromatic system, the
-  motion physics, and blueprints for the three components that carry the
-  language. Read this once, properly.
+- **[Design Language](./design-language.md)** — the specification. The thesis,
+  the four principles, the three signatures, the chromatic system, the motion
+  physics, and blueprints for the three components that carry the language.
+  Read this once, properly.
+
+The four principles, in priority order:
+
+1. **Derived, Not Chosen** — every value traces to a measurement or a scale
+   step.
+2. **Subtract First** — remove it and look; if nothing is lost, it was
+   decoration.
+3. **One Candidate** — exactly one element is the thing `⏎` will act on.
+4. **Every Affordance Names Its Key** — if it can be done, its key is visible.
 
 ## Pages in this section
 
 - **[Tokens](./tokens.md)** — CSS custom properties: backgrounds, text,
-  accents (both ramps), the rim, spacing, motion, code colour, with dark-mode
+  accents (both ramps), edges, spacing, motion, code colour, with dark-mode
   values.
 - **[Components](./components.md)** — Every launcher component, grouped by what
   you would be building when you reach for it.

@@ -100,7 +100,7 @@ describe('THEMEABLE_VAR_NAMES', () => {
     expect(THEMEABLE_VAR_NAMES).toContain('--accent-danger-fill');
   });
 
-  it('allows the rim, so a theme can recolor the light landing on its surfaces', () => {
+  it('allows the edge tokens, so a theme can recolor the edges on its surfaces', () => {
     expect(THEMEABLE_VAR_NAMES).toContain('--rim-light');
     expect(THEMEABLE_VAR_NAMES).toContain('--rim-shade');
   });

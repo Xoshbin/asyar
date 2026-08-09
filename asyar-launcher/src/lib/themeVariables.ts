@@ -104,9 +104,9 @@ export const THEME_VAR_NAMES: readonly string[] = [
   '--tracking-tight',
   '--tracking-normal',
   '--tracking-wide',
-  // The Rim: the top-edge highlight and bottom-edge shade that every raised
-  // surface carries. Themeable, because a theme that recolours surfaces must
-  // be able to recolour the light landing on them.
+  // Edge highlight and edge shade, used inside --shadow-launcher-popup and the
+  // filled-button gradients. Themeable, because a theme that recolours
+  // surfaces must be able to recolour the edges built on top of them.
   '--rim-light',
   '--rim-shade',
   '--asyar-brand',

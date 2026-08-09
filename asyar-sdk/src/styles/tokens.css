@@ -18,8 +18,8 @@
   --bg-secondary: rgba(24, 27, 42, 0.7);
   --bg-tertiary: rgba(32, 36, 54, 0.7);
   --bg-hover: rgba(56, 63, 92, 0.5);
-  /* Selection is the accent at low alpha, not a grey fill — see "the Bloom"
-     in the design language. */
+  /* Selection carries chroma; hover does not. That difference is what keeps
+     the two apart at a glance. */
   --bg-selected: rgba(61, 107, 245, 0.18);
   --bg-popup: rgb(16, 18, 31);
   --bg-secondary-full-opacity: rgb(24, 27, 42);
@@ -54,8 +54,9 @@
   --accent-warning-fill: #8f5d0a;
   --accent-danger-fill: #c0303e;
 
-  /* The Rim — Asyar lights every surface from directly above, so a raised
-     surface catches light on its top edge and loses it at the bottom. */
+  /* Edge highlight and edge shade, used inside the launcher's popup shadow
+     and its filled-button gradients so a surface does not read as a flat
+     rectangle of colour. */
   --rim-light: rgba(255, 255, 255, 0.1);
   --rim-shade: rgba(0, 0, 0, 0.4);
 
@@ -66,16 +67,16 @@
   --syntax-number: #f07178;
   --syntax-function: #82aaff;
 
-  /* Brand. Asyar's identity colour is the beam from its own icon, which is
-     also the accent — brand and accent are the same light. */
+  /* Brand === accent. One identity colour, not two. */
   --asyar-brand: #7b9cff;
   --asyar-brand-hover: #9db4ff;
   --asyar-brand-muted: rgba(123, 156, 255, 0.18);
   --asyar-brand-subtle: rgba(123, 156, 255, 0.09);
 
-  /* Shadows. One light source, directly above: every offset is `0 Ypx`, and
-     height is carried by blur and negative spread, never by sliding the
-     shadow sideways. */
+  /* Shadows. Every drop shadow casts straight down — `0 Ypx`, no horizontal
+     component — and height is carried by blur and negative spread rather
+     than by sliding the shadow sideways. Consistency, not physics: shadows
+     that disagree about direction read as a rendering mistake. */
   --shadow-color: rgba(0, 0, 0, 0.4);
   --shadow-xs: 0 1px 2px var(--shadow-color);
   --shadow-sm: 0 2px 6px var(--shadow-color);
