@@ -10,6 +10,15 @@
 //! Reads are fail-soft in the style of `lib::parse_launch_view`: a missing
 //! file, an unreadable store, or a value written by a future version all
 //! resolve to the default rather than failing a reveal.
+//!
+//! ## Deliberately not backed up or synced
+//!
+//! `SettingsSyncProvider` exports `settingsService.getSettings()` — the
+//! frontend's `settings` blob — so this sibling key is *not* carried by
+//! profile backup, restore, or sync. That is intended, not an oversight:
+//! where the launcher sits is a per-machine choice, tied to the displays in
+//! front of you, and restoring a 27"-derived position onto a laptop is not a
+//! favour. Do not add a sync provider for it without asking first.
 
 use super::types::LauncherPlacement;
 use crate::error::AppError;
