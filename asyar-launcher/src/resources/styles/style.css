@@ -433,64 +433,64 @@ html[data-platform='macos'] .app-root {
     /* Surfaces — deep navy ground, translucent so the wallpaper reads
        through. Opacity climbs with elevation: the further forward a surface
        sits, the less of the desktop it lets past. */
-    --bg-primary: rgba(14, 16, 28, 0.72);
-    --bg-secondary: rgba(24, 27, 42, 0.7);
-    --bg-tertiary: rgba(32, 36, 54, 0.7);
-    --bg-hover: rgba(56, 63, 92, 0.5);
+    --bg-primary: rgba(30, 30, 32, 0.65);
+    --bg-secondary: rgba(40, 40, 42, 0.65);
+    --bg-tertiary: rgba(50, 50, 52, 0.65);
+    --bg-hover: rgba(64, 64, 66, 0.55);
     /* Selection carries chroma; hover does not. That difference is what keeps
        the two apart at a glance, and it is the only surface token with any
        chroma in it (Principle III — one candidate). */
-    --bg-selected: rgba(61, 107, 245, 0.18);
-    --bg-secondary-full-opacity: rgb(24, 27, 42);
-    --bg-popup: rgb(16, 18, 31);
+    --bg-selected: rgba(74, 74, 76, 0.6);
+    --bg-secondary-full-opacity: rgba(40, 40, 42);
+    --bg-popup: rgb(30, 30, 32);
 
     /* Text */
-    --text-primary: rgba(237, 240, 252, 0.96);
-    --text-secondary: rgba(196, 203, 227, 0.68);
-    --text-tertiary: rgba(170, 179, 209, 0.58);
+    --text-primary: rgba(255, 255, 255, 0.95);
+    --text-secondary: rgba(235, 235, 245, 0.65);
+    --text-tertiary: rgba(235, 235, 245, 0.4);
 
     /* Lines. Cool rather than neutral, so a hairline reads as a lit edge
        rather than a grey rule. */
-    --border-color: rgba(140, 152, 200, 0.18);
-    --separator: rgba(140, 152, 200, 0.13);
-    --divider-soft: rgba(160, 172, 220, 0.06);
+    --border-color: rgba(90, 90, 95, 0.5);
+    --separator: rgba(90, 90, 95, 0.5);
+    --divider-soft: rgba(255, 255, 255, 0.04);
 
     /* The voice — accent as text, icon, stroke, or tint source. */
-    --accent-primary: #7b9cff;
-    --accent-success: #3ed18f;
-    --accent-warning: #e9a83f;
-    --accent-danger: #ff6b77;
-    --accent-primary-rgb: 123, 156, 255;
+    --accent-primary: #007aff;
+    --accent-success: #28cd41;
+    --accent-warning: #ff9500;
+    --accent-danger: #ff3b30;
+    --accent-primary-rgb: 46, 196, 182;
 
     /* The ground — filled surfaces carrying --text-on-accent. Deeper than
        the voice, because white text has to survive on top of them. */
-    --accent-primary-fill: #3d6bf5;
-    --accent-success-fill: #0f7f58;
-    --accent-warning-fill: #8f5d0a;
-    --accent-danger-fill: #c0303e;
+    --accent-primary-fill: #0071ed;
+    --accent-success-fill: #1b892c;
+    --accent-warning-fill: #ad6500;
+    --accent-danger-fill: #de332a;
 
     /* Brand === accent. One identity colour, not two. */
-    --asyar-brand: #7b9cff;
-    --asyar-brand-hover: #9db4ff;
-    --asyar-brand-muted: rgba(123, 156, 255, 0.18);
-    --asyar-brand-subtle: rgba(123, 156, 255, 0.09);
+    --asyar-brand: #2ec4b6;
+    --asyar-brand-hover: #28b0a3;
+    --asyar-brand-muted: rgba(46, 196, 182, 0.15);
+    --asyar-brand-subtle: rgba(46, 196, 182, 0.08);
 
     /* Edge highlight and edge shade, used inside --shadow-launcher-popup and
        the filled-button gradients to keep a surface from reading as a flat
        rectangle of colour. Themeable, so they stay named tokens rather than
        being inlined at each of those sites. */
-    --rim-light: rgba(255, 255, 255, 0.1);
+    --rim-light: rgba(255, 255, 255, 0.04);
     --rim-shade: rgba(0, 0, 0, 0.4);
 
-    --shadow-color: rgba(0, 0, 0, 0.4);
+    --shadow-color: rgba(0, 0, 0, 0.25);
     --shadow-launcher-popup:
-      inset 0 1px 0 0 var(--rim-light), 0 32px 64px -16px rgba(0, 0, 0, 0.72),
-      0 12px 28px -10px rgba(0, 0, 0, 0.5), 0 3px 8px -4px rgba(0, 0, 0, 0.35);
+      inset 0 0 0 1px rgba(255, 255, 255, 0.04), -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
+      -14px 10px 40px -16px rgba(0, 0, 0, 0.5), -4px 3px 12px -6px rgba(0, 0, 0, 0.35);
 
-    --popup-border-color: rgba(150, 165, 220, 0.16);
-    --popup-divider: rgba(150, 165, 220, 0.09);
-    --scrollbar-thumb: rgba(150, 162, 205, 0.4);
-    --kbd-rim: rgba(255, 255, 255, 0.045);
+    --popup-border-color: rgba(255, 255, 255, 0.18);
+    --popup-divider: rgba(255, 255, 255, 0.07);
+    --scrollbar-thumb: rgba(155, 155, 155, 0.5);
+    --kbd-rim: rgba(255, 255, 255, 0.03);
 
     background-color: var(--bg-primary);
   }
@@ -499,215 +499,215 @@ html[data-platform='macos'] .app-root {
      vibrancy over the desktop; the settings window sits on the platform's
      own backdrop and needs solid elevation to read. */
   :root:not([data-theme]):not([data-custom-theme]) .settings-page {
-    --bg-primary: rgb(14, 16, 28);
-    --bg-secondary: rgb(21, 24, 38);
-    --bg-tertiary: rgb(30, 34, 51);
-    --bg-hover: rgb(40, 45, 66);
-    --bg-selected: rgba(61, 107, 245, 0.2);
-    --bg-secondary-full-opacity: rgb(21, 24, 38);
+    --bg-primary: rgb(30, 30, 32);
+    --bg-secondary: rgb(37, 37, 40);
+    --bg-tertiary: rgb(47, 47, 50);
+    --bg-hover: rgb(54, 54, 58);
+    --bg-selected: rgb(61, 61, 66);
+    --bg-secondary-full-opacity: rgb(37, 37, 40);
 
-    --border-color: rgba(150, 165, 220, 0.12);
-    --separator: rgba(150, 165, 220, 0.09);
-    --divider-soft: rgba(160, 172, 220, 0.05);
-    --shadow-color: rgba(0, 0, 0, 0.55);
+    --border-color: rgba(255, 255, 255, 0.09);
+    --separator: rgba(255, 255, 255, 0.07);
+    --divider-soft: rgba(255, 255, 255, 0.04);
+    --shadow-color: rgba(0, 0, 0, 0.45);
   }
 }
 
 :root[data-theme='dark'] {
-  --bg-primary: rgba(14, 16, 28, 0.72);
-  --bg-secondary: rgba(24, 27, 42, 0.7);
-  --bg-tertiary: rgba(32, 36, 54, 0.7);
-  --bg-hover: rgba(56, 63, 92, 0.5);
-  --bg-selected: rgba(61, 107, 245, 0.18);
-  --bg-secondary-full-opacity: rgb(24, 27, 42);
-  --bg-popup: rgb(16, 18, 31);
+  --bg-primary: rgba(30, 30, 32, 0.65);
+  --bg-secondary: rgba(40, 40, 42, 0.65);
+  --bg-tertiary: rgba(50, 50, 52, 0.65);
+  --bg-hover: rgba(64, 64, 66, 0.55);
+  --bg-selected: rgba(74, 74, 76, 0.6);
+  --bg-secondary-full-opacity: rgba(40, 40, 42);
+  --bg-popup: rgb(30, 30, 32);
 
-  --text-primary: rgba(237, 240, 252, 0.96);
-  --text-secondary: rgba(196, 203, 227, 0.68);
-  --text-tertiary: rgba(170, 179, 209, 0.58);
+  --text-primary: rgba(255, 255, 255, 0.95);
+  --text-secondary: rgba(235, 235, 245, 0.65);
+  --text-tertiary: rgba(235, 235, 245, 0.4);
 
-  --border-color: rgba(140, 152, 200, 0.18);
-  --separator: rgba(140, 152, 200, 0.13);
-  --divider-soft: rgba(160, 172, 220, 0.06);
+  --border-color: rgba(90, 90, 95, 0.5);
+  --separator: rgba(90, 90, 95, 0.5);
+  --divider-soft: rgba(255, 255, 255, 0.04);
 
-  --accent-primary: #7b9cff;
-  --accent-success: #3ed18f;
-  --accent-warning: #e9a83f;
-  --accent-danger: #ff6b77;
-  --accent-primary-rgb: 123, 156, 255;
+  --accent-primary: #007aff;
+  --accent-success: #28cd41;
+  --accent-warning: #ff9500;
+  --accent-danger: #ff3b30;
+  --accent-primary-rgb: 46, 196, 182;
 
-  --accent-primary-fill: #3d6bf5;
-  --accent-success-fill: #0f7f58;
-  --accent-warning-fill: #8f5d0a;
-  --accent-danger-fill: #c0303e;
+  --accent-primary-fill: #0071ed;
+  --accent-success-fill: #1b892c;
+  --accent-warning-fill: #ad6500;
+  --accent-danger-fill: #de332a;
 
-  --asyar-brand: #7b9cff;
-  --asyar-brand-hover: #9db4ff;
-  --asyar-brand-muted: rgba(123, 156, 255, 0.18);
-  --asyar-brand-subtle: rgba(123, 156, 255, 0.09);
+  --asyar-brand: #2ec4b6;
+  --asyar-brand-hover: #28b0a3;
+  --asyar-brand-muted: rgba(46, 196, 182, 0.15);
+  --asyar-brand-subtle: rgba(46, 196, 182, 0.08);
 
-  --rim-light: rgba(255, 255, 255, 0.1);
+  --rim-light: rgba(255, 255, 255, 0.04);
   --rim-shade: rgba(0, 0, 0, 0.4);
 
-  --shadow-color: rgba(0, 0, 0, 0.4);
+  --shadow-color: rgba(0, 0, 0, 0.25);
   --shadow-launcher-popup:
-    inset 0 1px 0 0 var(--rim-light), 0 32px 64px -16px rgba(0, 0, 0, 0.72),
-    0 12px 28px -10px rgba(0, 0, 0, 0.5), 0 3px 8px -4px rgba(0, 0, 0, 0.35);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04), -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
+    -14px 10px 40px -16px rgba(0, 0, 0, 0.5), -4px 3px 12px -6px rgba(0, 0, 0, 0.35);
 
-  --popup-border-color: rgba(150, 165, 220, 0.16);
-  --popup-divider: rgba(150, 165, 220, 0.09);
-  --scrollbar-thumb: rgba(150, 162, 205, 0.4);
-  --kbd-rim: rgba(255, 255, 255, 0.045);
+  --popup-border-color: rgba(255, 255, 255, 0.18);
+  --popup-divider: rgba(255, 255, 255, 0.07);
+  --scrollbar-thumb: rgba(155, 155, 155, 0.5);
+  --kbd-rim: rgba(255, 255, 255, 0.03);
 
   background-color: var(--bg-primary);
   color-scheme: dark;
 }
 
 :root[data-theme='dark']:not([data-custom-theme]) .settings-page {
-  --bg-primary: rgb(14, 16, 28);
-  --bg-secondary: rgb(21, 24, 38);
-  --bg-tertiary: rgb(30, 34, 51);
-  --bg-hover: rgb(40, 45, 66);
-  --bg-selected: rgba(61, 107, 245, 0.2);
-  --bg-secondary-full-opacity: rgb(21, 24, 38);
+  --bg-primary: rgb(30, 30, 32);
+  --bg-secondary: rgb(37, 37, 40);
+  --bg-tertiary: rgb(47, 47, 50);
+  --bg-hover: rgb(54, 54, 58);
+  --bg-selected: rgb(61, 61, 66);
+  --bg-secondary-full-opacity: rgb(37, 37, 40);
 
-  --border-color: rgba(150, 165, 220, 0.12);
-  --separator: rgba(150, 165, 220, 0.09);
-  --divider-soft: rgba(160, 172, 220, 0.05);
-  --shadow-color: rgba(0, 0, 0, 0.55);
+  --border-color: rgba(255, 255, 255, 0.09);
+  --separator: rgba(255, 255, 255, 0.07);
+  --divider-soft: rgba(255, 255, 255, 0.04);
+  --shadow-color: rgba(0, 0, 0, 0.45);
 }
 
 /* ═══ LIGHT ══════════════════════════════════════════════════════════════ */
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
-    --bg-primary: rgba(242, 244, 250, 0.72);
-    --bg-secondary: rgba(233, 236, 246, 0.7);
-    --bg-tertiary: rgba(248, 250, 253, 0.72);
-    --bg-hover: rgba(206, 214, 236, 0.55);
-    --bg-selected: rgba(42, 85, 214, 0.13);
-    --bg-secondary-full-opacity: rgb(233, 236, 246);
-    --bg-popup: rgb(246, 248, 252);
+    --bg-primary: rgba(240, 240, 245, 0.65);
+    --bg-secondary: rgba(230, 230, 235, 0.65);
+    --bg-tertiary: rgba(245, 245, 247, 0.65);
+    --bg-hover: rgba(220, 220, 225, 0.5);
+    --bg-selected: rgba(140, 140, 148, 0.22);
+    --bg-secondary-full-opacity: rgb(230, 230, 235);
+    --bg-popup: rgb(240, 240, 245);
 
-    --text-primary: rgba(15, 20, 42, 0.94);
-    --text-secondary: rgba(38, 46, 78, 0.72);
-    --text-tertiary: rgba(52, 62, 96, 0.62);
+    --text-primary: rgba(15, 23, 42, 0.9);
+    --text-secondary: rgba(60, 60, 67, 0.7);
+    --text-tertiary: rgba(60, 60, 67, 0.35);
 
-    --border-color: rgba(38, 50, 96, 0.16);
-    --separator: rgba(38, 50, 96, 0.11);
-    --divider-soft: rgba(38, 50, 96, 0.06);
+    --border-color: rgba(60, 60, 67, 0.15);
+    --separator: rgba(60, 60, 67, 0.12);
+    --divider-soft: rgba(60, 60, 67, 0.06);
 
     /* In light mode the voice and the fill converge: a colour dark enough to
        read as text on paper is already dark enough to carry white. */
-    --accent-primary: #2a55d6;
-    --accent-success: #0e7a55;
-    --accent-warning: #8a5605;
-    --accent-danger: #c32b3c;
-    --accent-primary-rgb: 42, 85, 214;
+    --accent-primary: #007aff;
+    --accent-success: #28cd41;
+    --accent-warning: #ff9500;
+    --accent-danger: #ff3b30;
+    --accent-primary-rgb: 46, 196, 182;
 
-    --accent-primary-fill: #2a55d6;
-    --accent-success-fill: #0e7a55;
-    --accent-warning-fill: #8a5605;
-    --accent-danger-fill: #c32b3c;
+    --accent-primary-fill: #0071ed;
+    --accent-success-fill: #1b892c;
+    --accent-warning-fill: #ad6500;
+    --accent-danger-fill: #de332a;
 
-    --asyar-brand: #2a55d6;
-    --asyar-brand-hover: #1f43b4;
-    --asyar-brand-muted: rgba(42, 85, 214, 0.16);
-    --asyar-brand-subtle: rgba(42, 85, 214, 0.07);
+    --asyar-brand: #2ec4b6;
+    --asyar-brand-hover: #28b0a3;
+    --asyar-brand-muted: rgba(46, 196, 182, 0.15);
+    --asyar-brand-subtle: rgba(46, 196, 182, 0.08);
 
-    --rim-light: rgba(255, 255, 255, 0.9);
-    --rim-shade: rgba(15, 20, 42, 0.07);
+    --rim-light: rgba(255, 255, 255, 0.8);
+    --rim-shade: rgba(0, 0, 0, 0.06);
 
-    --shadow-color: rgba(10, 14, 32, 0.1);
+    --shadow-color: rgba(0, 0, 0, 0.06);
     --shadow-launcher-popup:
-      inset 0 1px 0 0 var(--rim-light), 0 32px 64px -16px rgba(10, 14, 32, 0.28),
-      0 12px 28px -10px rgba(10, 14, 32, 0.18), 0 3px 8px -4px rgba(10, 14, 32, 0.1);
+      -28px 20px 80px -20px rgba(0, 0, 0, 0.3), -14px 10px 40px -16px rgba(0, 0, 0, 0.18),
+      -4px 3px 12px -6px rgba(0, 0, 0, 0.1);
 
-    --popup-border-color: rgba(38, 50, 96, 0.14);
-    --popup-divider: rgba(38, 50, 96, 0.1);
-    --scrollbar-thumb: rgba(70, 84, 130, 0.3);
-    --kbd-rim: rgba(15, 20, 42, 0.03);
+    --popup-border-color: rgba(60, 60, 67, 0.16);
+    --popup-divider: rgba(60, 60, 67, 0.11);
+    --scrollbar-thumb: rgba(100, 116, 132, 0.3);
+    --kbd-rim: rgba(0, 0, 0, 0.025);
 
     background-color: var(--bg-primary);
   }
 
   :root:not([data-theme]):not([data-custom-theme]) .settings-page {
-    --bg-primary: rgb(242, 244, 250);
-    --bg-secondary: rgb(233, 236, 246);
-    --bg-tertiary: rgb(248, 250, 253);
-    --bg-hover: rgb(219, 225, 241);
-    --bg-selected: rgba(42, 85, 214, 0.14);
-    --bg-secondary-full-opacity: rgb(233, 236, 246);
+    --bg-primary: rgb(240, 240, 245);
+    --bg-secondary: rgb(230, 230, 235);
+    --bg-tertiary: rgb(245, 245, 247);
+    --bg-hover: rgb(220, 220, 225);
+    --bg-selected: rgba(140, 140, 148, 0.22);
+    --bg-secondary-full-opacity: rgb(230, 230, 235);
 
-    --border-color: rgba(38, 50, 96, 0.16);
-    --separator: rgba(38, 50, 96, 0.11);
-    --divider-soft: rgba(38, 50, 96, 0.06);
-    --shadow-color: rgba(10, 14, 32, 0.14);
+    --border-color: rgba(60, 60, 67, 0.15);
+    --separator: rgba(60, 60, 67, 0.12);
+    --divider-soft: rgba(60, 60, 67, 0.06);
+    --shadow-color: rgba(0, 0, 0, 0.1);
   }
 }
 
 :root[data-theme='light'] {
-  --bg-primary: rgba(242, 244, 250, 0.72);
-  --bg-secondary: rgba(233, 236, 246, 0.7);
-  --bg-tertiary: rgba(248, 250, 253, 0.72);
-  --bg-hover: rgba(206, 214, 236, 0.55);
-  --bg-selected: rgba(42, 85, 214, 0.13);
-  --bg-secondary-full-opacity: rgb(233, 236, 246);
-  --bg-popup: rgb(246, 248, 252);
+  --bg-primary: rgba(240, 240, 245, 0.65);
+  --bg-secondary: rgba(230, 230, 235, 0.65);
+  --bg-tertiary: rgba(245, 245, 247, 0.65);
+  --bg-hover: rgba(220, 220, 225, 0.5);
+  --bg-selected: rgba(140, 140, 148, 0.22);
+  --bg-secondary-full-opacity: rgb(230, 230, 235);
+  --bg-popup: rgb(240, 240, 245);
 
-  --text-primary: rgba(15, 20, 42, 0.94);
-  --text-secondary: rgba(38, 46, 78, 0.72);
-  --text-tertiary: rgba(52, 62, 96, 0.62);
+  --text-primary: rgba(15, 23, 42, 0.9);
+  --text-secondary: rgba(60, 60, 67, 0.7);
+  --text-tertiary: rgba(60, 60, 67, 0.35);
 
-  --border-color: rgba(38, 50, 96, 0.16);
-  --separator: rgba(38, 50, 96, 0.11);
-  --divider-soft: rgba(38, 50, 96, 0.06);
+  --border-color: rgba(60, 60, 67, 0.15);
+  --separator: rgba(60, 60, 67, 0.12);
+  --divider-soft: rgba(60, 60, 67, 0.06);
 
-  --accent-primary: #2a55d6;
-  --accent-success: #0e7a55;
-  --accent-warning: #8a5605;
-  --accent-danger: #c32b3c;
-  --accent-primary-rgb: 42, 85, 214;
+  --accent-primary: #007aff;
+  --accent-success: #28cd41;
+  --accent-warning: #ff9500;
+  --accent-danger: #ff3b30;
+  --accent-primary-rgb: 46, 196, 182;
 
-  --accent-primary-fill: #2a55d6;
-  --accent-success-fill: #0e7a55;
-  --accent-warning-fill: #8a5605;
-  --accent-danger-fill: #c32b3c;
+  --accent-primary-fill: #0071ed;
+  --accent-success-fill: #1b892c;
+  --accent-warning-fill: #ad6500;
+  --accent-danger-fill: #de332a;
 
-  --asyar-brand: #2a55d6;
-  --asyar-brand-hover: #1f43b4;
-  --asyar-brand-muted: rgba(42, 85, 214, 0.16);
-  --asyar-brand-subtle: rgba(42, 85, 214, 0.07);
+  --asyar-brand: #2ec4b6;
+  --asyar-brand-hover: #28b0a3;
+  --asyar-brand-muted: rgba(46, 196, 182, 0.15);
+  --asyar-brand-subtle: rgba(46, 196, 182, 0.08);
 
-  --rim-light: rgba(255, 255, 255, 0.9);
-  --rim-shade: rgba(15, 20, 42, 0.07);
+  --rim-light: rgba(255, 255, 255, 0.8);
+  --rim-shade: rgba(0, 0, 0, 0.06);
 
-  --shadow-color: rgba(10, 14, 32, 0.1);
+  --shadow-color: rgba(0, 0, 0, 0.06);
   --shadow-launcher-popup:
-    inset 0 1px 0 0 var(--rim-light), 0 32px 64px -16px rgba(10, 14, 32, 0.28),
-    0 12px 28px -10px rgba(10, 14, 32, 0.18), 0 3px 8px -4px rgba(10, 14, 32, 0.1);
+    -28px 20px 80px -20px rgba(0, 0, 0, 0.3), -14px 10px 40px -16px rgba(0, 0, 0, 0.18),
+    -4px 3px 12px -6px rgba(0, 0, 0, 0.1);
 
-  --popup-border-color: rgba(38, 50, 96, 0.14);
-  --popup-divider: rgba(38, 50, 96, 0.1);
-  --scrollbar-thumb: rgba(70, 84, 130, 0.3);
-  --kbd-rim: rgba(15, 20, 42, 0.03);
+  --popup-border-color: rgba(60, 60, 67, 0.16);
+  --popup-divider: rgba(60, 60, 67, 0.11);
+  --scrollbar-thumb: rgba(100, 116, 132, 0.3);
+  --kbd-rim: rgba(0, 0, 0, 0.025);
 
   background-color: var(--bg-primary);
   color-scheme: light;
 }
 
 :root[data-theme='light']:not([data-custom-theme]) .settings-page {
-  --bg-primary: rgb(242, 244, 250);
-  --bg-secondary: rgb(233, 236, 246);
-  --bg-tertiary: rgb(248, 250, 253);
-  --bg-hover: rgb(219, 225, 241);
-  --bg-selected: rgba(42, 85, 214, 0.14);
-  --bg-secondary-full-opacity: rgb(233, 236, 246);
+  --bg-primary: rgb(240, 240, 245);
+  --bg-secondary: rgb(230, 230, 235);
+  --bg-tertiary: rgb(245, 245, 247);
+  --bg-hover: rgb(220, 220, 225);
+  --bg-selected: rgba(140, 140, 148, 0.22);
+  --bg-secondary-full-opacity: rgb(230, 230, 235);
 
-  --border-color: rgba(38, 50, 96, 0.16);
-  --separator: rgba(38, 50, 96, 0.11);
-  --divider-soft: rgba(38, 50, 96, 0.06);
-  --shadow-color: rgba(10, 14, 32, 0.14);
+  --border-color: rgba(60, 60, 67, 0.15);
+  --separator: rgba(60, 60, 67, 0.12);
+  --divider-soft: rgba(60, 60, 67, 0.06);
+  --shadow-color: rgba(0, 0, 0, 0.1);
 }
 
 /* ── Surfaces that used to be hand-coloured per theme ─────
