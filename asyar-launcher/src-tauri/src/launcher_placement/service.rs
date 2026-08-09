@@ -12,7 +12,10 @@
 //!   — *not* Tauri's normalised coordinates — and the reveal path positions
 //!   the panel with `set_window_frame` rather than `set_position`, because the
 //!   flash-free reveal machinery in `platform::macos::window` is written
-//!   against `NSRect`. Both directions go through [`macos_conv`].
+//!   against `NSRect`. Both directions go through the `macos_conv` submodule.
+//!   (Not an intra-doc link: that module is `cfg(target_os = "macos")`, so the
+//!   link would be unresolvable when these docs are built for any other
+//!   target — and `cargo doc` runs with `-D warnings` in CI.)
 //! - **Windows/Linux** use Tauri's monitor APIs, which are already top-left
 //!   y-down, so the conversion is an origin offset.
 
