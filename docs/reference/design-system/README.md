@@ -1,31 +1,56 @@
 # Design System
 
-Asyar exposes a set of CSS custom properties and built-in icons so extensions can look native across light/dark modes and theme changes.
+Asyar's design language is **Directed Light**: one light source, directly
+above, lighting exactly one thing. It is derived from the app's own icon — a
+point source, a beam, and a single lit ellipse on a deep navy ground.
+
+The launcher exposes its full token set and built-in icons to extensions, so
+an extension can look native across light/dark mode and theme changes without
+shipping any colour of its own.
+
+## Start here
+
+- **[Design Language](./design-language.md)** — the specification. Philosophy,
+  the four principles, the three visual signatures, the chromatic system, the
+  motion physics, and blueprints for the three components that carry the
+  language. Read this once, properly.
 
 ## Pages in this section
 
-- **[Tokens](./tokens.md)** — CSS custom properties: backgrounds, text, interactive, structure, spacing, code colour, with the full dark-mode default values.
-- **[Components](./components.md)** — Every launcher component, grouped by what you would be building when you reach for it.
-- **[Icons](./icons.md)** — Visual reference of all built-in icons, grouped by purpose, with usage in manifests and inside iframe views.
+- **[Tokens](./tokens.md)** — CSS custom properties: backgrounds, text,
+  accents (both ramps), the rim, spacing, motion, code colour, with dark-mode
+  values.
+- **[Components](./components.md)** — Every launcher component, grouped by what
+  you would be building when you reach for it.
+- **[Icons](./icons.md)** — Visual reference of all built-in icons, grouped by
+  purpose, with usage in manifests and inside iframe views.
 
 ## The rules
 
-The reference pages above say **what exists**. The design language says **what
-to use where** — which font, which colour, which typography class, which
-component, and how the launcher, settings and onboarding surfaces differ:
+The reference pages say **what exists**. The design language says **why**. The
+skill file says **what to use where** — which font, which colour ramp, which
+typography class, which component, and how the launcher, settings and
+onboarding surfaces differ:
 
 - **[`.agents/skills/design-language/SKILL.md`](../../../.agents/skills/design-language/SKILL.md)**
 
-That file is the single source of truth for UI decisions, and it is what AI
-coding agents load before touching frontend code. Its mechanical rules are
-enforced by `pnpm check:design`, which runs in CI:
+That file is the single source of truth for day-to-day UI decisions, and it is
+what AI coding agents load before touching frontend code.
+
+## Enforcement
+
+A design language that is only a document decays within two release cycles.
+Asyar's is executable:
+
+| Mechanism                | Enforces                                                                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm check:design`      | Tokens only — no hardcoded colours, raw pixels, bare z-indexes, Tailwind palette classes, voice tokens used as fills, spacing tokens used as dimensions, or new uses of a deprecated token |
+| `themePalettes.test.ts`  | The two copies of each palette agree; every accent fill carries `--text-on-accent` at ≥ 4.5:1                                                                                              |
+| `themeVariables.test.ts` | Spacing, size, type, tracking and easing stay design-system-owned and cannot be overridden by a theme                                                                                      |
 
 ```bash
 pnpm check:design
 ```
 
-The checker fails on undefined tokens, `var()` fallbacks, hardcoded colours,
-raw pixels on scaled properties, bare z-index values, missing
-`.custom-scrollbar`, components missing from the barrel, and stale Svelte 4
-a11y suppressions. Genuine exceptions are marked in-place with a
-`design-ok: <reason>` comment.
+Genuine exceptions are marked in place with a `design-ok: <reason>` comment —
+a reason is required, and a bare `design-ok` does not suppress.

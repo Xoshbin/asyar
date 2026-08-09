@@ -672,7 +672,7 @@
   }
 
   .clear-button:hover {
-    background: var(--accent-danger);
+    background: var(--accent-danger-fill);
     color: var(--text-on-accent);
   }
 </style>

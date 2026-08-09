@@ -131,16 +131,16 @@
   }
 
   .row-icon-img {
-    width: var(--space-7-5);
-    height: var(--space-7-5);
+    width: var(--size-lg);
+    height: var(--size-lg);
     object-fit: contain;
     border-radius: var(--radius-xs);
     flex-shrink: 0;
   }
 
   .row-icon-fallback {
-    width: var(--space-7-5);
-    height: var(--space-7-5);
+    width: var(--size-lg);
+    height: var(--size-lg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -151,14 +151,14 @@
   }
 
   .builtin-icon-tile {
-    width: var(--space-7-5);
-    height: var(--space-7-5);
+    width: var(--size-lg);
+    height: var(--size-lg);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     border-radius: var(--radius-sm);
-    background-color: var(--accent-primary);
+    background-color: var(--accent-primary-fill);
     color: var(--text-on-accent);
   }
 
@@ -166,8 +166,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: var(--space-7);
-    min-width: var(--space-7);
+    height: var(--size-md);
+    min-width: var(--size-md);
     padding: 0 var(--space-2);
     border-radius: var(--radius-xs);
     border: 1px solid var(--border-color);

@@ -112,34 +112,39 @@
 
   .description code {
     background: var(--bg-secondary);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: var(--space-0-5) var(--space-2);
+    border-radius: var(--radius-xs);
+    font-family: var(--font-mono);
     font-size: 0.9em;
   }
 
+  /* A filled surface carrying text uses the FILL ramp, never the voice ramp.
+     --accent-primary is bright enough to read as text on an Asyar surface,
+     which makes it far too bright to put white text on top of. --text-on-accent
+     is guaranteed to reach 4.5:1 on every --accent-*-fill token. */
   .btn-primary {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    background: var(--asyar-brand);
-    color: #fff;
+    background: var(--accent-primary-fill);
+    color: var(--text-on-accent);
     border: none;
     border-radius: var(--radius-md);
     padding: var(--space-3) var(--space-6);
     font-size: var(--font-size-base);
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
-    transition: background var(--transition-fast), transform var(--transition-fast);
+    transition: background var(--dur-quick) var(--ease-travel);
   }
 
   .btn-primary:hover {
-    background: var(--asyar-brand-hover);
-    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--accent-primary-fill) 88%, var(--rim-light));
   }
 
+  /* Scale, not translate — the one place --ease-settle is allowed. */
   .btn-primary:active {
-    transform: translateY(0);
+    transform: scale(0.97);
+    transition: transform var(--dur-instant) var(--ease-settle);
   }
 
   asyar-icon {

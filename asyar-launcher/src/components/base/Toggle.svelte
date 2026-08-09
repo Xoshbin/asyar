@@ -42,7 +42,7 @@
   }
 
   :global(.peer:checked) ~ .toggle-track {
-    background-color: var(--accent-primary);
+    background-color: var(--accent-primary-fill);
   }
   :global(.peer:checked) ~ .toggle-track::after {
     transform: translateX(100%);

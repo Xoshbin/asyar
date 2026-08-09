@@ -379,8 +379,8 @@
 
   .avatar {
     flex-shrink: 0;
-    width: var(--space-8);
-    height: var(--space-8);
+    width: var(--size-lg);
+    height: var(--size-lg);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -395,7 +395,7 @@
     border: 1px solid var(--border-color);
   }
   .user-avatar {
-    background: var(--accent-primary);
+    background: var(--accent-primary-fill);
     color: var(--text-on-accent);
   }
   .tool-avatar {
@@ -420,7 +420,7 @@
     border-top-left-radius: var(--radius-xs);
   }
   .message-bubble.user {
-    background: var(--accent-primary);
+    background: var(--accent-primary-fill);
     color: var(--text-on-accent);
     border-top-right-radius: var(--radius-xs);
   }

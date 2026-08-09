@@ -54,20 +54,20 @@
   }
 
   .size-sm {
-    width: var(--space-6);
-    height: var(--space-6);
+    width: var(--size-sm);
+    height: var(--size-sm);
     font-size: var(--font-size-xs);
   }
 
   .size-md {
-    width: var(--space-8);
-    height: var(--space-8);
+    width: var(--size-lg);
+    height: var(--size-lg);
     font-size: var(--font-size-sm);
   }
 
   .size-lg {
-    width: var(--space-9);
-    height: var(--space-9);
+    width: var(--size-xl);
+    height: var(--size-xl);
     font-size: var(--font-size-base);
   }
 

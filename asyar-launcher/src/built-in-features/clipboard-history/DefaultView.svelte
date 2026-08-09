@@ -839,7 +839,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: var(--accent-primary);
+    background: var(--accent-primary-fill);
     color: var(--text-on-accent);
     z-index: var(--z-base);
   }
@@ -1055,16 +1055,16 @@
   }
 
   .source-app-icon {
-    width: var(--space-6);
-    height: var(--space-6);
+    width: var(--size-sm);
+    height: var(--size-sm);
     object-fit: contain;
     border-radius: var(--radius-xs);
     flex-shrink: 0;
   }
 
   .source-app-icon-fallback {
-    width: var(--space-6);
-    height: var(--space-6);
+    width: var(--size-sm);
+    height: var(--size-sm);
     flex-shrink: 0;
     opacity: 0.5;
   }

@@ -75,4 +75,33 @@ describe('THEMEABLE_VAR_NAMES', () => {
     expect(THEME_VAR_NAMES).toContain('--space-5');
     expect(THEME_VAR_NAMES).toContain('--font-size-base');
   });
+
+  it('excludes the size scale (--size-*), which dimensions every row and control', () => {
+    expect(THEMEABLE_VAR_NAMES.some((n) => n.startsWith('--size-'))).toBe(false);
+    expect(THEME_VAR_NAMES).toContain('--size-lg');
+  });
+
+  it('excludes the tracking scale (--tracking-*), drawn to fit Satoshi at fixed sizes', () => {
+    expect(THEMEABLE_VAR_NAMES.some((n) => n.startsWith('--tracking-'))).toBe(false);
+    expect(THEME_VAR_NAMES).toContain('--tracking-tight');
+  });
+
+  it('excludes the easing curves (--ease-*), which are the motion language itself', () => {
+    expect(THEMEABLE_VAR_NAMES.some((n) => n.startsWith('--ease-'))).toBe(false);
+    expect(THEME_VAR_NAMES).toContain('--ease-travel');
+  });
+
+  it('still allows retiming via --dur-*, which is a taste choice rather than physics', () => {
+    expect(THEMEABLE_VAR_NAMES).toContain('--dur-travel');
+  });
+
+  it('allows the fill ramp, so a theme cannot recolor the voice and leave fills stale', () => {
+    expect(THEMEABLE_VAR_NAMES).toContain('--accent-primary-fill');
+    expect(THEMEABLE_VAR_NAMES).toContain('--accent-danger-fill');
+  });
+
+  it('allows the rim, so a theme can recolor the light landing on its surfaces', () => {
+    expect(THEMEABLE_VAR_NAMES).toContain('--rim-light');
+    expect(THEMEABLE_VAR_NAMES).toContain('--rim-shade');
+  });
 });
