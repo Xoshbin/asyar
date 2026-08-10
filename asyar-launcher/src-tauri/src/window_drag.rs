@@ -39,6 +39,43 @@ fn drop_handlers() -> &'static Mutex<HashMap<String, DropHandler>> {
     STATE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// Runs on every `window_drag_move` for the given window label, letting a
+/// window adjust its own live position (e.g. magnetic snapping) before it's
+/// applied. The counterpart to [`register_drop_handler`] — this module still
+/// doesn't know *why* a window wants this, only that it can ask.
+type MoveAdjuster = Arc<dyn Fn(f64, f64) -> (f64, f64) + Send + Sync>;
+
+fn move_adjusters() -> &'static Mutex<HashMap<String, MoveAdjuster>> {
+    static STATE: OnceLock<Mutex<HashMap<String, MoveAdjuster>>> = OnceLock::new();
+    STATE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Registers `adjuster` to run on every move of `label`'s drag, receiving
+/// the freshly computed `(x, y)` and returning the position to actually
+/// apply. Registering twice for the same label replaces the first.
+pub fn register_move_adjuster(
+    label: impl Into<String>,
+    adjuster: impl Fn(f64, f64) -> (f64, f64) + Send + Sync + 'static,
+) {
+    if let Ok(mut map) = move_adjusters().lock() {
+        map.insert(label.into(), Arc::new(adjuster));
+    }
+}
+
+/// Runs the registered adjuster for `label`, or passes `(x, y)` through
+/// unchanged if none is registered. Cloned out and invoked with the
+/// registry lock released, same discipline as [`run_drop_handler`].
+fn apply_move_adjuster(label: &str, x: f64, y: f64) -> (f64, f64) {
+    let adjuster = move_adjusters()
+        .lock()
+        .ok()
+        .and_then(|map| map.get(label).cloned());
+    match adjuster {
+        Some(adjuster) => adjuster(x, y),
+        None => (x, y),
+    }
+}
+
 /// Registers `handler` to run after a drag of `label` ends. Call from setup.
 /// Registering twice for the same label replaces the first handler.
 pub fn register_drop_handler(label: impl Into<String>, handler: impl Fn() + Send + Sync + 'static) {
@@ -106,6 +143,7 @@ pub fn window_drag_move(label: String, dx: f64, dy: f64, app: AppHandle) -> Resu
     let Some((x, y)) = target_origin(anchor, dx, dy) else {
         return Ok(());
     };
+    let (x, y) = apply_move_adjuster(&label, x, y);
     let Some(window) = app.get_webview_window(&label) else {
         return Ok(());
     };
@@ -218,5 +256,24 @@ mod tests {
         window_drag_end("test-drop-once".to_string()).unwrap();
 
         assert_eq!(count.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn move_adjuster_runs_for_its_own_label_only() {
+        register_move_adjuster("test-adjust-mine", |x, y| (x + 1.0, y + 1.0));
+        register_move_adjuster("test-adjust-theirs", |x, y| (x + 100.0, y + 100.0));
+
+        assert_eq!(
+            apply_move_adjuster("test-adjust-mine", 10.0, 10.0),
+            (11.0, 11.0)
+        );
+    }
+
+    #[test]
+    fn move_adjuster_for_an_unregistered_label_is_a_passthrough() {
+        assert_eq!(
+            apply_move_adjuster("test-adjust-nobody-registered", 5.0, 5.0),
+            (5.0, 5.0)
+        );
     }
 }
