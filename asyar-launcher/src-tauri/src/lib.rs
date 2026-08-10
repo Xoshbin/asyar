@@ -110,6 +110,7 @@ pub mod files_scope;
 pub mod fs_watcher;
 pub mod hud_window;
 pub mod index_events;
+pub mod launcher_placement;
 pub mod mcp;
 pub mod network;
 mod notes_export;
@@ -144,6 +145,7 @@ pub mod tray;
 pub mod uri_schemes;
 pub mod usage;
 pub mod walkthrough;
+pub mod window_drag;
 pub mod window_management;
 
 pub const SPOTLIGHT_LABEL: &str = "main";
@@ -538,12 +540,14 @@ pub fn run() {
             storage::commands::note_backlinks,
             storage::commands::note_export_markdown,
             // Sticky notes (one always-on-top window per pinned note)
+            window_drag::window_drag_start,
+            window_drag::window_drag_move,
+            window_drag::window_drag_end,
+            launcher_placement::commands::get_launcher_placement,
+            launcher_placement::commands::set_launcher_placement,
             sticky_window::sticky_open,
             sticky_window::sticky_close,
             sticky_window::sticky_new,
-            sticky_window::sticky_drag_start,
-            sticky_window::sticky_drag_move,
-            sticky_window::sticky_drag_end,
             sticky_window::sticky_is_stuck,
             sticky_window::sticky_list,
             sticky_window::sticky_save_geometry,
@@ -1226,6 +1230,16 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "macos")]
     crate::platform::macos::install_appearance_observer(handle);
 
+    // Dragging the launcher by its search header rewrites the saved
+    // placement, but only once the pointer is released — `window_drag` fires
+    // this on drop, not on every frame, so a drag is one store write.
+    {
+        let handle_for_drop = handle.clone();
+        window_drag::register_drop_handler(SPOTLIGHT_LABEL, move || {
+            launcher_placement::service::persist_dragged(&handle_for_drop);
+        });
+    }
+
     // Seed the launcher geometry from the persisted launchView BEFORE the
     // first panel.show(), so compact users never see the 480→96 reflow that
     // a JS-side crop would produce (settings load sits behind appInitializer).
@@ -1774,7 +1788,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 #[cfg(not(target_os = "macos"))]
                 {
                     use tauri::{LogicalSize, Size};
-                    let height = if compact { 96.0 } else { 480.0 };
+                    let height = if compact {
+                        96.0
+                    } else {
+                        crate::launcher_placement::LAUNCHER_MAX_HEIGHT
+                    };
                     if let Ok(size) = window.inner_size() {
                         let scale = window.scale_factor().unwrap_or(1.0);
                         let logical_width = size.width as f64 / scale;

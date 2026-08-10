@@ -2,14 +2,24 @@
   let {
     options,
     value = $bindable(''),
+    onchange,
     onfocus,
     onblur,
   }: {
     options: { value: string; label: string }[];
     value: string;
+    /** For callers that persist the choice rather than binding to local
+     *  state. Fires only on a real change, so a re-click is not a save. */
+    onchange?: (value: string) => void;
     onfocus?: () => void;
     onblur?: () => void;
   } = $props();
+
+  function select(next: string) {
+    if (next === value) return;
+    value = next;
+    onchange?.(next);
+  }
 </script>
 
 <div class="segmented-control" role="radiogroup">
@@ -20,9 +30,7 @@
       aria-checked={value === option.value}
       class="segment"
       class:active={value === option.value}
-      onclick={() => {
-        value = option.value;
-      }}
+      onclick={() => select(option.value)}
       {onfocus}
       {onblur}
     >

@@ -12,6 +12,7 @@
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
   import { logService } from '../../services/log/logService';
   import { looksLikeAIIntent } from './aiHintIntensity';
+  import { createWindowDragController } from '../../services/launcher/windowDragController';
 
   // Public handle exposed via `bind:accessoryRef={...}` so the global
   // keyboard chain (⌘P) can call togglePopover() from outside this component.
@@ -233,6 +234,27 @@
 
   let accessory = $derived(searchBarAccessoryService.active);
 
+  // The header doubles as the launcher's drag handle — the window is
+  // undecorated, so there is no title bar to grab. The controller ignores
+  // presses that land on the input or a button and only starts once the
+  // pointer clears a few pixels, so click-to-focus still works.
+  const drag = createWindowDragController('main');
+
+  function onHeaderPointerDown(e: PointerEvent) {
+    drag.onPointerDown(e);
+    window.addEventListener('pointermove', onHeaderPointerMove);
+    window.addEventListener('pointerup', onHeaderPointerUp, { once: true });
+  }
+
+  function onHeaderPointerMove(e: PointerEvent) {
+    drag.onPointerMove(e);
+  }
+
+  function onHeaderPointerUp() {
+    window.removeEventListener('pointermove', onHeaderPointerMove);
+    drag.onPointerUp();
+  }
+
   function onAccessoryChange(value: string): void {
     if (!accessory) return;
     searchBarAccessoryService
@@ -242,8 +264,10 @@
 </script>
 
 <div class="search-header">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="relative w-full border-b border-[var(--separator)] flex items-center min-h-[var(--shell-header-h)] px-4 gap-3"
+    onpointerdown={onHeaderPointerDown}
   >
     {#if showBack}
       <button

@@ -340,8 +340,10 @@ pub fn park_launcher_panel<R: Runtime>(window: &WebviewWindow<R>, panel: &Panel)
 /// rebuild the responder chain and under this lifecycle every show is one.
 pub fn reveal_launcher_panel<R: Runtime>(window: &WebviewWindow<R>, panel: &Panel) {
     set_ignores_mouse_events(window, false);
-    if let Err(e) = center_at_cursor_monitor(window) {
-        log::warn!("[launcher-reveal] center_at_cursor_monitor failed: {e}; revealing at previous position");
+    if let Err(e) = position_launcher(window) {
+        log::warn!(
+            "[launcher-reveal] position_launcher failed: {e}; revealing at previous position"
+        );
     }
     panel.show();
     set_window_alpha(window, 1.0);
@@ -1155,23 +1157,16 @@ fn schedule_on_next_pre_commit<F: FnOnce() + 'static>(f: F) {
     }
 }
 
-pub fn center_at_cursor_monitor<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
-    let monitor =
-        monitor::get_monitor_with_cursor().ok_or_else(|| tauri::Error::FailedToReceiveMessage)?;
-    let monitor_scale_factor = monitor.scale_factor();
-    let monitor_size = monitor.size().to_logical::<f64>(monitor_scale_factor);
-    let monitor_position = monitor.position().to_logical::<f64>(monitor_scale_factor);
-    let window_frame = get_window_frame(window);
-    let top_y = monitor_position.y + monitor_size.height - (monitor_size.height * 0.16);
-    let rect = NSRect {
-        origin: NSPoint {
-            x: (monitor_position.x + (monitor_size.width / 2.0)) - (window_frame.size.width / 2.0),
-            y: top_y - window_frame.size.height,
-        },
-        size: window_frame.size,
-    };
-    set_window_frame(window, rect);
-    Ok(())
+/// Places the launcher for a reveal, honouring the user's saved placement.
+///
+/// This used to be `center_at_cursor_monitor`, which hardcoded "centred on the
+/// cursor's monitor, 16% down". That formula now lives — as the default —
+/// in [`crate::launcher_placement::resolve`], alongside the drag position and
+/// the Settings choices.
+pub fn position_launcher<R: Runtime>(
+    window: &WebviewWindow<R>,
+) -> Result<(), crate::error::AppError> {
+    crate::launcher_placement::service::apply(window.app_handle())
 }
 #[cfg(test)]
 mod tests {

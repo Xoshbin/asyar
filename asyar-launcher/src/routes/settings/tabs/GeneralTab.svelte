@@ -8,7 +8,10 @@
     AppearanceThemeSelector,
     WindowModeSelector,
     Button,
+    SegmentedControl,
+    SettingsRangeSlider,
   } from '../../../components';
+  import { launcherPlacementService } from '../../../services/launcher/launcherPlacementService.svelte';
   import { onboardingCommands } from '../../../lib/ipc/commands';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { shortcutService } from '../../../built-in-features/shortcuts/shortcutService';
@@ -32,6 +35,15 @@
   let activeThemeId = $state<string | null>(null);
 
   onMount(async () => {
+    // Separate from the theme-extension load below: Rust owns the placement,
+    // so a failure there must not blank the placement controls (and vice
+    // versa).
+    try {
+      await launcherPlacementService.load();
+    } catch (e) {
+      logService.error(`Failed to load launcher placement: ${e}`);
+    }
+
     try {
       const records = await discoverExtensions();
       themeExtensions = (records ?? [])
@@ -77,6 +89,26 @@
     } catch (e) {
       handler.isSaving = false;
       return 'Cannot save, shortcut may be reserved by the OS or another app';
+    }
+  }
+
+  const placement = launcherPlacementService;
+
+  /** Each placement edit is one store write. Persist-then-adopt lives in the
+   *  service, so a failure leaves the previous choice selected rather than a
+   *  setting that isn't on disk. */
+  async function updatePlacement(change: () => Promise<void>, what: string) {
+    try {
+      await change();
+    } catch (error) {
+      logService.error(`Failed to update launcher ${what}: ${error}`);
+      feedbackService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: `Could not save the launcher ${what}` },
+      });
     }
   }
 
@@ -157,6 +189,60 @@
   <SettingsFormRow label="Window Mode">
     <WindowModeSelector value={handler.selectedLaunchView} onchange={selectLaunchView} />
   </SettingsFormRow>
+
+  <SettingsFormRow label="Launcher Display" separator>
+    <SegmentedControl
+      options={[
+        { value: 'cursor', label: 'Display with cursor' },
+        { value: 'primary', label: 'Primary display' },
+      ]}
+      value={placement.placement.monitor}
+      onchange={(v) =>
+        updatePlacement(() => placement.setMonitor(v as 'cursor' | 'primary'), 'display')}
+    />
+  </SettingsFormRow>
+
+  <SettingsFormRow label="Launcher Position">
+    <SegmentedControl
+      options={[
+        { value: 'top', label: 'Top' },
+        { value: 'center', label: 'Centre' },
+        { value: 'custom', label: 'Custom' },
+      ]}
+      value={placement.vertical ?? ''}
+      onchange={(v) =>
+        updatePlacement(() => placement.setVertical(v as 'top' | 'center' | 'custom'), 'position')}
+    />
+  </SettingsFormRow>
+
+  {#if placement.vertical === 'custom'}
+    <SettingsFormRow label="Distance from top">
+      <SettingsRangeSlider
+        min={0}
+        max={100}
+        value={placement.biasPercent}
+        suffix="%"
+        onchange={(v) => updatePlacement(() => placement.setBias(v), 'position')}
+      />
+    </SettingsFormRow>
+  {/if}
+
+  {#if placement.isDragged}
+    <SettingsFormRow label="Custom position">
+      <div class="onboarding-row">
+        <span class="onboarding-row__hint">
+          Set by dragging the launcher. Stored relative to the display, so it holds up across
+          screens and resolutions.
+        </span>
+        <Button
+          class="btn-secondary"
+          onclick={() => updatePlacement(() => placement.reset(), 'position')}
+        >
+          Reset
+        </Button>
+      </div>
+    </SettingsFormRow>
+  {/if}
 
   <SettingsFormRow label="Onboarding" separator>
     <div class="onboarding-row">

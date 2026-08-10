@@ -214,6 +214,47 @@ export type ItemAlias = {
 	createdAt: number,
 };
 
+/**
+ *  Where within the chosen display the launcher sits.
+ * 
+ *  `Free` is the drag result and stores **fractions of the monitor**, not
+ *  pixels. Pixels would put the launcher off-screen the first time a display
+ *  is unplugged or a resolution changes, with no way back except a reset;
+ *  fractions land in the same relative spot on any display and are clamped
+ *  into the work area on every reveal.
+ */
+export type LauncherAnchor = 
+// Horizontally centred; top edge at `bias` of the monitor's height.
+{ kind: "topWeighted"; bias: number } | 
+// Centred on both axes.
+{ kind: "centered" } | 
+/**
+ *  Free position from a drag, as fractions of the monitor for the
+ *  window's top-left corner.
+ */
+{ kind: "free"; x: number; y: number };
+
+// Which display the launcher opens on.
+export type LauncherMonitorChoice = 
+/**
+ *  The display the mouse pointer is currently on. The default, and what
+ *  macOS has always done — Windows and Linux only gained it with this
+ *  feature.
+ */
+"cursor" | 
+// Always the primary display, wherever the pointer is.
+"primary";
+
+/**
+ *  The whole user-facing placement preference. Default reproduces the
+ *  pre-#596 behaviour exactly, so an install that never opens the setting
+ *  sees no change.
+ */
+export type LauncherPlacement = {
+	monitor: LauncherMonitorChoice,
+	anchor: LauncherAnchor,
+};
+
 export type MergedSearchResponse = {
 	results: SearchResult[],
 	aliasMatch?: AliasMatch | null,
