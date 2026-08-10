@@ -132,6 +132,7 @@ mod search_engine;
 pub mod secret_detection;
 pub mod selection;
 pub mod shell;
+pub mod snap_guides;
 mod snippets;
 pub mod sticky_window;
 pub mod storage;
