@@ -10,6 +10,7 @@
     Button,
     SegmentedControl,
     SettingsRangeSlider,
+    Toggle,
   } from '../../../components';
   import { launcherPlacementService } from '../../../services/launcher/launcherPlacementService.svelte';
   import { onboardingCommands } from '../../../lib/ipc/commands';
@@ -226,6 +227,17 @@
       />
     </SettingsFormRow>
   {/if}
+
+  <SettingsFormRow label="Snap while dragging">
+    <Toggle
+      checked={placement.placement.snapEnabled}
+      onchange={() =>
+        updatePlacement(
+          () => placement.setSnapEnabled(!placement.placement.snapEnabled),
+          'snap setting',
+        )}
+    />
+  </SettingsFormRow>
 
   {#if placement.isDragged}
     <SettingsFormRow label="Custom position">
