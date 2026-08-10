@@ -1,11 +1,11 @@
 #![allow(deprecated)]
 //! macOS platform integration, split by concern:
-//! - [`appearance`] — theme resolution + panel appearance/material
-//! - [`window`]     — spotlight/HUD/sticky panels, geometry, resize, WebKit tuning
-//! - [`icon`]       — app-icon extraction (.icns fast path + NSWorkspace fallback)
-//! - [`haptics`]    — trackpad haptic feedback (drag-to-snap)
-//! - [`input`]      — global key monitors (Cmd-Q, snippet expansion) + press-and-hold
-//! - [`system`]     — accessibility, frontmost app, and the native Show-More bar
+//! - `appearance` — theme resolution + panel appearance/material
+//! - `window`     — spotlight/HUD/sticky panels, geometry, resize, WebKit tuning
+//! - `icon`       — app-icon extraction (.icns fast path + NSWorkspace fallback)
+//! - `haptics`    — trackpad haptic feedback (drag-to-snap)
+//! - `input`      — global key monitors (Cmd-Q, snippet expansion) + press-and-hold
+//! - `system`     — accessibility, frontmost app, and the native Show-More bar
 //!
 //! Every item is re-exported here, so `crate::platform::macos::<name>` paths are
 //! unchanged. `ResolvedTheme` is defined here because both `appearance` and

@@ -3,7 +3,7 @@
 //!
 //! Modeled directly on [`crate::hud_window`]: a pre-declared Tauri window
 //! (label `"snap-guides"`, `tauri.conf.json`), transparent, click-through,
-//! always-on-top, `visible: false` at startup. [`launcher_placement::service`]
+//! always-on-top, `visible: false` at startup. [`crate::launcher_placement::service`]
 //! drives it from the registered [`crate::window_drag`] move-adjuster —
 //! nothing here calls into `window_drag` or `launcher_placement`; this
 //! module only knows how to show/hide/paint itself.
