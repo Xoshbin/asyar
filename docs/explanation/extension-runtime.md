@@ -255,8 +255,7 @@ view: abortController.abort()
 ## What lives where
 
 These rules follow from the lifecycle model. They are enforced by code
-review (see the `architectural-integrity` and `review-ipc` skills under
-[`asyar-launcher/.claude/skills/`](../../.claude/skills/)).
+review.
 
 | Belongs in worker                                                                            | Belongs in view                                                            |
 | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -280,6 +279,3 @@ hit Escape), it must live in the worker. The view iframe is gone within
   the manifest fields that drive which contexts an extension materialises.
 - [Background scheduling](../reference/background-scheduling.md) — how
   `commands[].schedule` ticks are routed to the worker.
-- [`architectural-integrity` skill](../../.claude/skills/architectural-integrity/SKILL.md) ·
-  [`review-ipc` skill](../../.claude/skills/review-ipc/SKILL.md) ·
-  [`service-singletons` skill](../../.claude/skills/service-singletons/SKILL.md).
