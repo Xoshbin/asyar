@@ -19,6 +19,7 @@
 //! - **Windows/Linux** use Tauri's monitor APIs, which are already top-left
 //!   y-down, so the conversion is an origin offset.
 
+use super::resolve;
 use super::resolve::{origin_to_fractions, resolve_origin, Rect};
 use super::store;
 use super::types::{LauncherAnchor, LauncherMonitorChoice, LauncherPlacement};
@@ -89,6 +90,20 @@ pub mod macos_conv {
     pub fn to_offsets(screen: AppKitRect, window: AppKitRect) -> (f64, f64) {
         (window.x - screen.x, screen.top() - window.top())
     }
+}
+
+/// How close two 0..1 fractions must be to count as "the same point," for
+/// deciding whether a drop should persist as the named default anchor
+/// rather than `Free`. Loose enough to absorb float rounding through the
+/// fraction round-trip, tight enough that it only matches a drop that was
+/// actually snapped — `apply_snap` (see `resolve.rs`) already clamps the
+/// live position to the exact target pixel whenever it's within the much
+/// larger `SNAP_THRESHOLD_PX` magnetic radius, so a genuinely-snapped drop's
+/// final fractions land within a few thousandths of the target's.
+const FRACTION_EPSILON: f64 = 0.002;
+
+fn is_close(a: f64, b: f64) -> bool {
+    (a - b).abs() < FRACTION_EPSILON
 }
 
 /// Positions the launcher for a reveal. Fail-soft by contract: the caller is
@@ -177,6 +192,11 @@ fn apply_placement<R: Runtime>(
 /// dropped on. Registered as the launcher's [`crate::window_drag`] drop
 /// handler, so it runs once per drag rather than once per frame.
 pub fn persist_dragged<R: Runtime>(app: &AppHandle<R>) {
+    if let Ok(mut slot) = last_snap_state().lock() {
+        *slot = None;
+    }
+    let _ = crate::snap_guides::service::hide(app);
+
     match dragged_anchor(app) {
         Some(anchor) => {
             let placement = LauncherPlacement {
@@ -212,6 +232,19 @@ fn dragged_anchor<R: Runtime>(app: &AppHandle<R>) -> Option<LauncherAnchor> {
     let frames = macos_conv::frames(screen.frame, screen.visible);
     let offsets = macos_conv::to_offsets(screen.frame, window_rect);
     let (x, y) = origin_to_fractions(offsets, frames.monitor);
+
+    let default_origin = resolve_origin(
+        &LauncherAnchor::default(),
+        frames.monitor,
+        frames.work,
+        window_rect.width,
+        LAUNCHER_MAX_HEIGHT,
+    );
+    let (default_x, default_y) = origin_to_fractions(default_origin, frames.monitor);
+    if is_close(x, default_x) && is_close(y, default_y) {
+        return Some(LauncherAnchor::default());
+    }
+
     Some(LauncherAnchor::Free { x, y })
 }
 
@@ -232,7 +265,129 @@ fn dragged_anchor<R: Runtime>(app: &AppHandle<R>) -> Option<LauncherAnchor> {
     let (origin, frames) = monitor_frames(&monitor);
     let offsets = (pos.x - origin.0, pos.y - origin.1);
     let (x, y) = origin_to_fractions(offsets, frames.monitor);
+
+    let default_origin = resolve_origin(
+        &LauncherAnchor::default(),
+        frames.monitor,
+        frames.work,
+        size.width,
+        LAUNCHER_MAX_HEIGHT,
+    );
+    let (default_x, default_y) = origin_to_fractions(default_origin, frames.monitor);
+    if is_close(x, default_x) && is_close(y, default_y) {
+        return Some(LauncherAnchor::default());
+    }
+
     Some(LauncherAnchor::Free { x, y })
+}
+
+/// How far (logical px) a drag must be from the snap target before it
+/// releases — see [`resolve::apply_snap`].
+const SNAP_THRESHOLD_PX: f64 = 12.0;
+
+/// Whether each axis was snapped as of the *previous* `adjust_for_snap`
+/// call — `None` between drags. Used only to fire the haptic tick on the
+/// false→true edge (not continuously while held) and to detect "this is the
+/// first move of a fresh drag" (no entry yet). Single slot, not a
+/// per-label registry like `window_drag`'s own state: this module only
+/// ever drives the launcher.
+fn last_snap_state() -> &'static std::sync::Mutex<Option<resolve::SnapState>> {
+    static STATE: std::sync::OnceLock<std::sync::Mutex<Option<resolve::SnapState>>> =
+        std::sync::OnceLock::new();
+    STATE.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+/// The launcher's [`crate::window_drag`] move adjuster: magnetically snaps
+/// the live drag position, and drives the guide window + haptic feedback as
+/// a side effect. Registered in `lib.rs` alongside the existing
+/// `persist_dragged` drop handler.
+///
+/// See the coordinate-space note above `dragged_anchor` — this works
+/// entirely in `window_drag`'s own Tauri-normalized absolute space and does
+/// not touch the macOS AppKit-space conversion `apply_placement` uses.
+pub fn adjust_for_snap<R: Runtime>(app: &AppHandle<R>, x: f64, y: f64) -> (f64, f64) {
+    let placement = store::load(app);
+    if !placement.snap_enabled {
+        return (x, y);
+    }
+    let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) else {
+        return (x, y);
+    };
+    let (Ok(scale), Ok(size)) = (window.scale_factor(), window.outer_size()) else {
+        return (x, y);
+    };
+    let size = size.to_logical::<f64>(scale);
+    let center = (x + size.width / 2.0, y + size.height / 2.0);
+
+    let monitor = window
+        .monitor_from_point(center.0, center.1)
+        .ok()
+        .flatten()
+        .or_else(|| window.primary_monitor().ok().flatten());
+    let Some(monitor) = monitor else {
+        return (x, y);
+    };
+    let (origin, frames) = monitor_frames(&monitor);
+
+    let target =
+        resolve::snap_targets(frames.monitor, frames.work, size.width, LAUNCHER_MAX_HEIGHT);
+    let ((snapped_x, snapped_y), state) = resolve::apply_snap(x, y, target, SNAP_THRESHOLD_PX);
+
+    handle_snap_feedback(app, origin, frames.monitor, target, size.width, state);
+
+    (snapped_x, snapped_y)
+}
+
+/// Shows the guide window on the first move of a fresh drag, fires a
+/// macOS haptic tick on a false→true snap transition, and pushes the guide
+/// window's state — but only when it actually changed, so a held-snapped
+/// drag doesn't flood IPC at animation-frame rate.
+fn handle_snap_feedback<R: Runtime>(
+    app: &AppHandle<R>,
+    monitor_origin: (f64, f64),
+    monitor_size: resolve::Rect,
+    target: (f64, f64),
+    window_width: f64,
+    state: resolve::SnapState,
+) {
+    let Ok(mut slot) = last_snap_state().lock() else {
+        return;
+    };
+    let previous = *slot;
+
+    if previous.is_none() {
+        let _ = crate::snap_guides::service::show(
+            app,
+            monitor_origin,
+            (monitor_size.width, monitor_size.height),
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let entered_x = state.x && !previous.map(|p| p.x).unwrap_or(false);
+        let entered_y = state.y && !previous.map(|p| p.y).unwrap_or(false);
+        if entered_x || entered_y {
+            crate::platform::macos::perform_alignment_haptic();
+        }
+    }
+
+    let changed = match previous {
+        Some(p) => p != state,
+        None => true,
+    };
+    if changed {
+        let guide_state = crate::snap_guides::SnapGuideState {
+            left_x: target.0,
+            right_x: target.0 + window_width,
+            y: target.1,
+            snapped_x: state.x,
+            snapped_y: state.y,
+        };
+        let _ = crate::snap_guides::service::set_state(app, guide_state);
+    }
+
+    *slot = Some(state);
 }
 
 // --- monitor selection -----------------------------------------------------
@@ -324,7 +479,13 @@ fn pick_monitor<R: Runtime>(
 
 /// A Tauri monitor's absolute logical origin, plus its frames in the neutral
 /// (monitor-relative) space.
-#[cfg(not(target_os = "macos"))]
+///
+/// Cross-platform: `tauri::Monitor`'s API needs no AppKit-space conversion,
+/// so unlike `pick_screen`/`apply_placement`'s macOS branch, this is used on
+/// every platform — by `dragged_anchor`'s non-macOS branch, and by
+/// `adjust_for_snap` on all platforms including macOS (the live drag
+/// already works in Tauri's own normalized space; see the module-level note
+/// on `adjust_for_snap`).
 fn monitor_frames(m: &tauri::Monitor) -> ((f64, f64), Frames) {
     let scale = m.scale_factor();
     let size = m.size().to_logical::<f64>(scale);
@@ -345,6 +506,21 @@ fn monitor_frames(m: &tauri::Monitor) -> ((f64, f64), Frames) {
             ),
         },
     )
+}
+
+#[cfg(test)]
+mod snap_persistence_tests {
+    use super::*;
+
+    #[test]
+    fn is_close_accepts_tiny_float_drift() {
+        assert!(is_close(0.5000001, 0.5));
+    }
+
+    #[test]
+    fn is_close_rejects_a_real_difference() {
+        assert!(!is_close(0.51, 0.5));
+    }
 }
 
 #[cfg(all(test, target_os = "macos"))]
