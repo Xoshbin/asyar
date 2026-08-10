@@ -253,6 +253,12 @@ export type LauncherMonitorChoice =
 export type LauncherPlacement = {
 	monitor: LauncherMonitorChoice,
 	anchor: LauncherAnchor,
+	/**
+	 *  Whether dragging magnetically snaps to the default position. A
+	 *  `#[derive(Default)]` would give this `false` (bool's own default) —
+	 *  wrong, since snapping ships on. Hence the hand-written impl below.
+	 */
+	snapEnabled: boolean,
 };
 
 export type MergedSearchResponse = {
