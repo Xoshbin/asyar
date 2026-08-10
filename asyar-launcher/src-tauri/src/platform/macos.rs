@@ -3,6 +3,7 @@
 //! - [`appearance`] — theme resolution + panel appearance/material
 //! - [`window`]     — spotlight/HUD/sticky panels, geometry, resize, WebKit tuning
 //! - [`icon`]       — app-icon extraction (.icns fast path + NSWorkspace fallback)
+//! - [`haptics`]    — trackpad haptic feedback (drag-to-snap)
 //! - [`input`]      — global key monitors (Cmd-Q, snippet expansion) + press-and-hold
 //! - [`system`]     — accessibility, frontmost app, and the native Show-More bar
 //!
@@ -18,12 +19,14 @@ pub enum ResolvedTheme {
 }
 
 mod appearance;
+mod haptics;
 mod icon;
 mod input;
 mod system;
 mod window;
 
 pub use appearance::*;
+pub use haptics::*;
 pub use icon::*;
 pub use input::*;
 pub use system::*;
