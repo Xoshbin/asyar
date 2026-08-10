@@ -21,11 +21,16 @@ describe('LauncherPlacementService', () => {
     vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
       monitor: 'primary',
       anchor: { kind: 'centered' },
+      snapEnabled: true,
     });
     const svc = new LauncherPlacementService();
     await svc.load();
 
-    expect(svc.placement).toEqual({ monitor: 'primary', anchor: { kind: 'centered' } });
+    expect(svc.placement).toEqual({
+      monitor: 'primary',
+      anchor: { kind: 'centered' },
+      snapEnabled: true,
+    });
     expect(svc.loaded).toBe(true);
   });
 
@@ -54,6 +59,7 @@ describe('LauncherPlacementService', () => {
     vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
       monitor: 'primary',
       anchor: { kind: 'free', x: 0.1, y: 0.9 },
+      snapEnabled: true,
     });
     const svc = new LauncherPlacementService();
     await svc.load();
@@ -62,6 +68,7 @@ describe('LauncherPlacementService', () => {
     expect(setLauncherPlacement).toHaveBeenCalledWith({
       monitor: 'primary',
       anchor: { kind: 'centered' },
+      snapEnabled: true,
     });
   });
 
@@ -108,6 +115,7 @@ describe('LauncherPlacementService', () => {
       vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
         monitor: 'cursor',
         anchor: { kind: 'topWeighted', bias: 0.5 },
+        snapEnabled: true,
       });
       const svc = new LauncherPlacementService();
       await svc.load();
@@ -118,6 +126,7 @@ describe('LauncherPlacementService', () => {
       vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
         monitor: 'cursor',
         anchor: { kind: 'free', x: 0.3, y: 0.4 },
+        snapEnabled: true,
       });
       const svc = new LauncherPlacementService();
       await svc.load();
@@ -131,6 +140,7 @@ describe('LauncherPlacementService', () => {
     vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
       monitor: 'primary',
       anchor: { kind: 'free', x: 0.3, y: 0.4 },
+      snapEnabled: true,
     });
     const svc = new LauncherPlacementService();
     await svc.load();
