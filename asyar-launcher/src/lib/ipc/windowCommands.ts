@@ -200,6 +200,20 @@ export async function hideHud(): Promise<void> {
   await invokeSafe('hide_hud');
 }
 
+// ── Snap guides ───────────────────────────────────────────────────────────────
+
+export interface SnapGuideState {
+  leftX: number;
+  rightX: number;
+  y: number;
+  snappedX: boolean;
+  snappedY: boolean;
+}
+
+export async function getSnapGuideState(): Promise<SnapGuideState | null> {
+  return invokeSafe<SnapGuideState | null>('get_snap_guide_state');
+}
+
 // ── Window dragging ───────────────────────────────────────────────────────────
 // `data-tauri-drag-region` relies on the native startDragging path, which is
 // not dependable for the NSPanel-converted launcher and sticky windows on

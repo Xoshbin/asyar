@@ -4,7 +4,7 @@
   let { children }: { children: Snippet } = $props();
   // Standalone windows that render their own chrome and must not pull in the
   // privileged launcher shell (search orchestrator, extension host, ...).
-  const BARE_ROUTES = ['/hud', '/sticky'];
+  const BARE_ROUTES = ['/hud', '/sticky', '/snap-guides'];
   let isBare = $state(false);
   let AppShell = $state<Component<{ children: Snippet }> | null>(null);
 
