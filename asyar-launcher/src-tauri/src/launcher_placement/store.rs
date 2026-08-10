@@ -97,6 +97,7 @@ mod tests {
             LauncherPlacement {
                 monitor: LauncherMonitorChoice::Primary,
                 anchor: LauncherAnchor::Free { x: 0.2, y: 0.7 },
+                snap_enabled: true,
             }
         );
     }
@@ -132,6 +133,7 @@ mod tests {
         let p = LauncherPlacement {
             monitor: LauncherMonitorChoice::Primary,
             anchor: LauncherAnchor::Centered,
+            snap_enabled: true,
         };
         let v = serde_json::to_value(p).unwrap();
         assert_eq!(parse_placement(Some(&v)), p);

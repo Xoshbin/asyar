@@ -132,6 +132,7 @@ mod search_engine;
 pub mod secret_detection;
 pub mod selection;
 pub mod shell;
+pub mod snap_guides;
 mod snippets;
 pub mod sticky_window;
 pub mod storage;
@@ -255,6 +256,7 @@ pub fn run() {
         .manage(oauth::OAuthPendingFlowState::new())
         .manage(deeplink::PendingDeeplinks::default())
         .manage(hud_window::HudState::default())
+        .manage(snap_guides::SnapGuidesState::default())
         .manage(shell::ShellProcessRegistry::new())
         .manage(extensions::scheduler::SchedulerState::new())
         .manage(scripts::InlineSchedulerState::new())
@@ -338,6 +340,7 @@ pub fn run() {
             commands::show_hud,
             commands::hide_hud,
             commands::get_hud_state,
+            commands::get_snap_guide_state,
             commands::hud_mark_shown,
             commands::simulate_paste,
             commands::check_accessibility_permission,
@@ -1233,11 +1236,28 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Dragging the launcher by its search header rewrites the saved
     // placement, but only once the pointer is released — `window_drag` fires
     // this on drop, not on every frame, so a drag is one store write.
+    // The move adjuster runs on every frame instead, magnetically snapping
+    // the live position and driving the snap-guides overlay + haptic tick.
     {
         let handle_for_drop = handle.clone();
         window_drag::register_drop_handler(SPOTLIGHT_LABEL, move || {
             launcher_placement::service::persist_dragged(&handle_for_drop);
         });
+
+        let handle_for_move = handle.clone();
+        window_drag::register_move_adjuster(SPOTLIGHT_LABEL, move |x, y| {
+            launcher_placement::service::adjust_for_snap(&handle_for_move, x, y)
+        });
+    }
+
+    // The snap-guides overlay must never intercept the drag it's decorating
+    // — click-through once at startup, not per-drag.
+    if let Some(guides_window) =
+        handle.get_webview_window(crate::snap_guides::service::SNAP_GUIDES_WINDOW_LABEL)
+    {
+        if let Err(e) = guides_window.set_ignore_cursor_events(true) {
+            log::warn!("[snap-guides] set_ignore_cursor_events failed: {e}");
+        }
     }
 
     // Seed the launcher geometry from the persisted launchView BEFORE the

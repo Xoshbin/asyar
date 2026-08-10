@@ -21,11 +21,16 @@ describe('LauncherPlacementService', () => {
     vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
       monitor: 'primary',
       anchor: { kind: 'centered' },
+      snapEnabled: true,
     });
     const svc = new LauncherPlacementService();
     await svc.load();
 
-    expect(svc.placement).toEqual({ monitor: 'primary', anchor: { kind: 'centered' } });
+    expect(svc.placement).toEqual({
+      monitor: 'primary',
+      anchor: { kind: 'centered' },
+      snapEnabled: true,
+    });
     expect(svc.loaded).toBe(true);
   });
 
@@ -45,6 +50,7 @@ describe('LauncherPlacementService', () => {
     expect(setLauncherPlacement).toHaveBeenCalledWith({
       monitor: 'primary',
       anchor: DEFAULT_PLACEMENT.anchor,
+      snapEnabled: true,
     });
     expect(svc.placement.monitor).toBe('primary');
   });
@@ -53,6 +59,7 @@ describe('LauncherPlacementService', () => {
     vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
       monitor: 'primary',
       anchor: { kind: 'free', x: 0.1, y: 0.9 },
+      snapEnabled: true,
     });
     const svc = new LauncherPlacementService();
     await svc.load();
@@ -61,6 +68,7 @@ describe('LauncherPlacementService', () => {
     expect(setLauncherPlacement).toHaveBeenCalledWith({
       monitor: 'primary',
       anchor: { kind: 'centered' },
+      snapEnabled: true,
     });
   });
 
@@ -71,6 +79,7 @@ describe('LauncherPlacementService', () => {
     expect(setLauncherPlacement).toHaveBeenCalledWith({
       monitor: 'cursor',
       anchor: { kind: 'topWeighted', bias: 0.16 },
+      snapEnabled: true,
     });
   });
 
@@ -81,7 +90,20 @@ describe('LauncherPlacementService', () => {
     expect(setLauncherPlacement).toHaveBeenCalledWith({
       monitor: 'cursor',
       anchor: { kind: 'topWeighted', bias: 0.42 },
+      snapEnabled: true,
     });
+  });
+
+  it('persists a snap-enabled change without touching monitor or anchor', async () => {
+    const svc = new LauncherPlacementService();
+    await svc.setSnapEnabled(false);
+
+    expect(setLauncherPlacement).toHaveBeenCalledWith({
+      monitor: DEFAULT_PLACEMENT.monitor,
+      anchor: DEFAULT_PLACEMENT.anchor,
+      snapEnabled: false,
+    });
+    expect(svc.placement.snapEnabled).toBe(false);
   });
 
   describe('vertical (the segmented control selection)', () => {
@@ -93,6 +115,7 @@ describe('LauncherPlacementService', () => {
       vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
         monitor: 'cursor',
         anchor: { kind: 'topWeighted', bias: 0.5 },
+        snapEnabled: true,
       });
       const svc = new LauncherPlacementService();
       await svc.load();
@@ -103,6 +126,7 @@ describe('LauncherPlacementService', () => {
       vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
         monitor: 'cursor',
         anchor: { kind: 'free', x: 0.3, y: 0.4 },
+        snapEnabled: true,
       });
       const svc = new LauncherPlacementService();
       await svc.load();
@@ -116,6 +140,7 @@ describe('LauncherPlacementService', () => {
     vi.mocked(getLauncherPlacement).mockResolvedValueOnce({
       monitor: 'primary',
       anchor: { kind: 'free', x: 0.3, y: 0.4 },
+      snapEnabled: true,
     });
     const svc = new LauncherPlacementService();
     await svc.load();

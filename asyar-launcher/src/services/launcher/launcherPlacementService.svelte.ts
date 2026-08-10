@@ -10,6 +10,7 @@ import type { LauncherAnchor, LauncherMonitorChoice, LauncherPlacement } from '.
 export const DEFAULT_PLACEMENT: LauncherPlacement = {
   monitor: 'cursor',
   anchor: { kind: 'topWeighted', bias: 0.16 },
+  snapEnabled: true,
 };
 
 const DEFAULT_BIAS = 0.16;
@@ -68,6 +69,10 @@ export class LauncherPlacementService {
       ...this.placement,
       anchor: { kind: 'topWeighted', bias: clampFraction(percent / 100) },
     });
+  }
+
+  setSnapEnabled(enabled: boolean): Promise<void> {
+    return this.commit({ ...this.placement, snapEnabled: enabled });
   }
 
   reset(): Promise<void> {

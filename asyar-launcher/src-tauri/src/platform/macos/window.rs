@@ -986,7 +986,7 @@ pub fn cancel_pending_resize() {
 ///
 /// `AfterNextPresentationUpdate` gates the resize on WebKit applying the
 /// webview's next *confirmed* paint via the commit sentinel (see the block
-/// above [`SentinelPending`]), so the window geometry and the new view's
+/// above `SentinelPending`), so the window geometry and the new view's
 /// pixels ship in one render-server commit. Every visible compact↔expanded
 /// transition uses this: the Show More bar is DOM, so the paint the resize
 /// must land with is also the paint that toggles the bar. An ungated grow

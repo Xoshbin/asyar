@@ -102,6 +102,53 @@ fn clamp_into(v: f64, lo: f64, hi: f64) -> f64 {
     v.clamp(lo, hi)
 }
 
+/// Which axes of a drag are currently within the magnetic snap radius.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SnapState {
+    pub x: bool,
+    pub y: bool,
+}
+
+/// The launcher's snap target: identical to where it would sit at its
+/// default placement. There is no separate formula to maintain — snapping
+/// *is* "does this drag match the default anchor," so this simply reuses
+/// [`resolve_origin`] with [`LauncherAnchor::default()`]. The two vertical
+/// guide lines the frontend draws are `target.0` and `target.0 + window_width`
+/// — both edges of this one x value.
+pub fn snap_targets(
+    monitor: Rect,
+    work: Rect,
+    window_width: f64,
+    reserve_height: f64,
+) -> (f64, f64) {
+    resolve_origin(
+        &LauncherAnchor::default(),
+        monitor,
+        work,
+        window_width,
+        reserve_height,
+    )
+}
+
+/// Clamps a live drag position onto `target` per-axis when within
+/// `threshold` (a strict `<` — sitting exactly on the boundary does not
+/// count as snapped). Independent per axis, matching the crosshair: you can
+/// be snapped horizontally with a free vertical position, or vice versa.
+pub fn apply_snap(x: f64, y: f64, target: (f64, f64), threshold: f64) -> ((f64, f64), SnapState) {
+    let snap_x = (x - target.0).abs() < threshold;
+    let snap_y = (y - target.1).abs() < threshold;
+    (
+        (
+            if snap_x { target.0 } else { x },
+            if snap_y { target.1 } else { y },
+        ),
+        SnapState {
+            x: snap_x,
+            y: snap_y,
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,5 +323,59 @@ mod tests {
     fn fractions_of_a_degenerate_monitor_are_zero() {
         let m = Rect::new(0.0, 0.0, 0.0, 0.0);
         assert_eq!(origin_to_fractions((10.0, 10.0), m), (0.0, 0.0));
+    }
+
+    // --- snap_targets / apply_snap ------------------------------------------
+
+    #[test]
+    fn snap_targets_equal_the_default_anchors_resolved_position() {
+        let (m, w) = primary();
+        let target = snap_targets(m, w, WIN_W, MAX_H);
+        let default_origin = resolve_origin(&LauncherAnchor::default(), m, w, WIN_W, MAX_H);
+        assert_eq!(
+            target, default_origin,
+            "the snap target must be the exact same point the reveal path uses for the default anchor"
+        );
+    }
+
+    #[test]
+    fn apply_snap_locks_onto_the_target_within_threshold() {
+        let (m, w) = primary();
+        let target = snap_targets(m, w, WIN_W, MAX_H);
+        let near = (target.0 + 5.0, target.1 - 5.0);
+        let (adjusted, state) = apply_snap(near.0, near.1, target, 12.0);
+        assert_eq!(adjusted, target);
+        assert_eq!(state, SnapState { x: true, y: true });
+    }
+
+    #[test]
+    fn apply_snap_releases_outside_threshold() {
+        let (m, w) = primary();
+        let target = snap_targets(m, w, WIN_W, MAX_H);
+        let far = (target.0 + 50.0, target.1 + 50.0);
+        let (adjusted, state) = apply_snap(far.0, far.1, target, 12.0);
+        assert_eq!(adjusted, far);
+        assert_eq!(state, SnapState { x: false, y: false });
+    }
+
+    #[test]
+    fn apply_snap_axes_are_independent() {
+        let (m, w) = primary();
+        let target = snap_targets(m, w, WIN_W, MAX_H);
+        // Close on x, far on y.
+        let (adjusted, state) = apply_snap(target.0 + 2.0, target.1 + 200.0, target, 12.0);
+        assert_eq!(adjusted.0, target.0, "x snaps");
+        assert_eq!(adjusted.1, target.1 + 200.0, "y stays free");
+        assert_eq!(state, SnapState { x: true, y: false });
+    }
+
+    #[test]
+    fn apply_snap_threshold_is_a_strict_boundary() {
+        let (m, w) = primary();
+        let target = snap_targets(m, w, WIN_W, MAX_H);
+        // Exactly at the threshold: not close enough (strict `<`, not `<=`,
+        // matching the "must be strictly inside the magnetic radius" intent).
+        let (_, state) = apply_snap(target.0 + 12.0, target.1 + 12.0, target, 12.0);
+        assert_eq!(state, SnapState { x: false, y: false });
     }
 }

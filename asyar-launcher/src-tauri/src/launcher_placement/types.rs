@@ -80,11 +80,30 @@ fn sanitize_fraction(v: f64) -> Option<f64> {
 /// The whole user-facing placement preference. Default reproduces the
 /// pre-#596 behaviour exactly, so an install that never opens the setting
 /// sees no change.
-#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LauncherPlacement {
     pub monitor: LauncherMonitorChoice,
     pub anchor: LauncherAnchor,
+    /// Whether dragging magnetically snaps to the default position. A
+    /// `#[derive(Default)]` would give this `false` (bool's own default) —
+    /// wrong, since snapping ships on. Hence the hand-written impl below.
+    #[serde(default = "snap_enabled_default")]
+    pub snap_enabled: bool,
+}
+
+fn snap_enabled_default() -> bool {
+    true
+}
+
+impl Default for LauncherPlacement {
+    fn default() -> Self {
+        Self {
+            monitor: LauncherMonitorChoice::default(),
+            anchor: LauncherAnchor::default(),
+            snap_enabled: true,
+        }
+    }
 }
 
 impl LauncherPlacement {
@@ -92,6 +111,7 @@ impl LauncherPlacement {
         Self {
             monitor: self.monitor,
             anchor: self.anchor.sanitized(),
+            snap_enabled: self.snap_enabled,
         }
     }
 }
@@ -153,8 +173,23 @@ mod tests {
         let p = LauncherPlacement {
             monitor: LauncherMonitorChoice::Primary,
             anchor: LauncherAnchor::Free { x: 0.25, y: 0.4 },
+            snap_enabled: true,
         };
         let json = serde_json::to_string(&p).unwrap();
         assert_eq!(serde_json::from_str::<LauncherPlacement>(&json).unwrap(), p);
+    }
+
+    #[test]
+    fn default_placement_has_snapping_enabled() {
+        // A derived `Default` would silently give this `false` (bool's own
+        // default) — this test exists specifically to catch that footgun if
+        // `LauncherPlacement` is ever switched back to `#[derive(Default)]`.
+        assert!(LauncherPlacement::default().snap_enabled);
+    }
+
+    #[test]
+    fn serializes_snap_enabled() {
+        let json = serde_json::to_value(LauncherPlacement::default()).unwrap();
+        assert_eq!(json["snapEnabled"], true);
     }
 }
