@@ -90,6 +90,9 @@
     opacity: 0;
     transition: opacity 100ms ease;
     pointer-events: none;
+    /* Dark halo around the white dash so it stays visible on light desktop
+       backgrounds, not just dark ones. */
+    filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
   }
 
   .guide-line--vertical {
