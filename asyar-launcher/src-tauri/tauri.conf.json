@@ -47,6 +47,22 @@
         "visible": false,
         "focus": false,
         "acceptFirstMouse": false
+      },
+      {
+        "label": "snap-guides",
+        "url": "/snap-guides",
+        "title": "Asyar Snap Guides",
+        "width": 1,
+        "height": 1,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "transparent": true,
+        "shadow": false,
+        "skipTaskbar": true,
+        "resizable": false,
+        "visible": false,
+        "focus": false,
+        "acceptFirstMouse": false
       }
     ],
     "security": {
