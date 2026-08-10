@@ -329,13 +329,44 @@ pub fn adjust_for_snap<R: Runtime>(app: &AppHandle<R>, x: f64, y: f64) -> (f64, 
     };
     let (origin, frames) = monitor_frames(&monitor);
 
+    // Monitor-relative, per `monitor_frames`'s own contract (`frames.monitor`
+    // is always 0-based) — matches the guide window's own local coordinates,
+    // since the guide window is positioned at absolute `origin` and sized to
+    // the monitor.
     let target =
         resolve::snap_targets(frames.monitor, frames.work, size.width, LAUNCHER_MAX_HEIGHT);
-    let ((snapped_x, snapped_y), state) = resolve::apply_snap(x, y, target, SNAP_THRESHOLD_PX);
+    // `x, y` are absolute desktop coordinates — `window_drag_move` keeps the
+    // live drag in Tauri's own absolute logical space the whole time (see
+    // the coordinate-space note above). Comparing that directly against the
+    // monitor-relative `target` would silently never snap on any monitor
+    // whose absolute origin isn't `(0, 0)`, so `apply_snap_absolute` adds
+    // `origin` back in first — the same step `apply_placement`'s non-macOS
+    // branch and `dragged_anchor`'s non-macOS branch both already take after
+    // calling `resolve_origin`/before calling `origin_to_fractions`.
+    let ((snapped_x, snapped_y), state) =
+        apply_snap_absolute(x, y, origin, target, SNAP_THRESHOLD_PX);
 
     handle_snap_feedback(app, origin, frames.monitor, target, size.width, state);
 
     (snapped_x, snapped_y)
+}
+
+/// Combines a monitor's absolute logical `origin` (from [`monitor_frames`])
+/// with a monitor-relative `target` (from [`resolve::snap_targets`]) before
+/// delegating to [`resolve::apply_snap`], which needs the live position and
+/// the target expressed in the same space — and the live position here is
+/// always absolute (see the note at its call site in [`adjust_for_snap`]).
+/// Kept as a small pure helper so the origin-adjustment step itself is
+/// unit-testable without a live window or monitor.
+fn apply_snap_absolute(
+    x: f64,
+    y: f64,
+    origin: (f64, f64),
+    target: (f64, f64),
+    threshold: f64,
+) -> ((f64, f64), resolve::SnapState) {
+    let target_absolute = (origin.0 + target.0, origin.1 + target.1);
+    resolve::apply_snap(x, y, target_absolute, threshold)
 }
 
 /// Shows the guide window on the first move of a fresh drag, fires a
@@ -520,6 +551,45 @@ mod snap_persistence_tests {
     #[test]
     fn is_close_rejects_a_real_difference() {
         assert!(!is_close(0.51, 0.5));
+    }
+
+    #[test]
+    fn apply_snap_absolute_accounts_for_the_monitors_origin() {
+        // A monitor sitting away from Tauri's absolute origin, as on a real
+        // multi-monitor desktop — this is exactly the case a monitor-relative
+        // `target` compared directly against an absolute `x, y` would
+        // silently miss (the bug this helper exists to prevent).
+        let origin = (1920.0, 100.0);
+        let target = (200.0, 50.0); // monitor-relative
+        let absolute = (origin.0 + target.0, origin.1 + target.1);
+        let (adjusted, state) = apply_snap_absolute(absolute.0, absolute.1, origin, target, 12.0);
+        assert_eq!(adjusted, absolute);
+        assert_eq!(state, resolve::SnapState { x: true, y: true });
+    }
+
+    #[test]
+    fn apply_snap_absolute_does_not_snap_on_the_monitor_relative_coordinates_alone() {
+        // Sitting exactly at `target`'s own (monitor-relative) numbers is
+        // actually far away in absolute space once `origin` is added back
+        // in — the case a comparison that forgot the origin would have
+        // wrongly reported as snapped.
+        let origin = (1920.0, 100.0);
+        let target = (200.0, 50.0);
+        let (adjusted, state) = apply_snap_absolute(target.0, target.1, origin, target, 12.0);
+        assert_eq!(adjusted, target, "far outside the threshold, so unchanged");
+        assert_eq!(state, resolve::SnapState { x: false, y: false });
+    }
+
+    #[test]
+    fn apply_snap_absolute_is_a_no_op_when_the_monitor_sits_at_the_desktop_origin() {
+        // The single-monitor case: absolute and monitor-relative coincide,
+        // so this must behave identically to calling `resolve::apply_snap`
+        // directly.
+        let origin = (0.0, 0.0);
+        let target = (200.0, 50.0);
+        let (adjusted, state) = apply_snap_absolute(205.0, 45.0, origin, target, 12.0);
+        assert_eq!(adjusted, target);
+        assert_eq!(state, resolve::SnapState { x: true, y: true });
     }
 }
 
