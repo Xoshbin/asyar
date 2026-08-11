@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    SettingsForm,
-    SettingsFormRow,
+    SettingsCard,
+    SettingsRow,
     Checkbox,
     ShortcutRecorder,
     AppearanceThemeSelector,
@@ -158,115 +158,134 @@
   }
 </script>
 
-<SettingsForm>
-  <SettingsFormRow label="Startup">
-    <div class="checkbox-row">
+<div class="pane-header">
+  <div class="pane-title">General</div>
+  <div class="pane-subtitle">How Asyar starts, looks, and where it appears.</div>
+</div>
+
+<div class="section-header">Startup</div>
+<SettingsCard>
+  <div id="general-startup">
+    <SettingsRow
+      label="Launch Asyar at login"
+      description="Asyar starts in the background when you sign in."
+    >
       <Checkbox
         checked={handler.settings.general.startAtLogin}
         onchange={() => handler.handleAutostartToggle()}
       />
-      <span class="checkbox-label">Launch Asyar at login</span>
-    </div>
-  </SettingsFormRow>
-
-  <SettingsFormRow label="Hotkey">
-    <ShortcutRecorder
-      bind:modifier={handler.selectedModifier}
-      bind:key={handler.selectedKey}
-      placeholder="Click to set shortcut"
-      disabled={handler.isSaving}
-      onsave={handleSave}
-      {conflictChecker}
-    />
-  </SettingsFormRow>
-
-  <SettingsFormRow label="Appearance" separator>
-    <AppearanceThemeSelector
-      value={handler.selectedTheme as 'light' | 'dark' | 'system'}
-      onchange={(v) => handler.updateThemeSetting(v)}
-    />
-  </SettingsFormRow>
-
-  <SettingsFormRow label="Window Mode">
-    <WindowModeSelector value={handler.selectedLaunchView} onchange={selectLaunchView} />
-  </SettingsFormRow>
-
-  <SettingsFormRow label="Launcher Display" separator>
-    <SegmentedControl
-      options={[
-        { value: 'cursor', label: 'Display with cursor' },
-        { value: 'primary', label: 'Primary display' },
-      ]}
-      value={placement.placement.monitor}
-      onchange={(v) =>
-        updatePlacement(() => placement.setMonitor(v as 'cursor' | 'primary'), 'display')}
-    />
-  </SettingsFormRow>
-
-  <SettingsFormRow label="Launcher Position">
-    <SegmentedControl
-      options={[
-        { value: 'top', label: 'Top' },
-        { value: 'center', label: 'Centre' },
-        { value: 'custom', label: 'Custom' },
-      ]}
-      value={placement.vertical ?? ''}
-      onchange={(v) =>
-        updatePlacement(() => placement.setVertical(v as 'top' | 'center' | 'custom'), 'position')}
-    />
-  </SettingsFormRow>
-
-  {#if placement.vertical === 'custom'}
-    <SettingsFormRow label="Distance from top">
-      <SettingsRangeSlider
-        min={0}
-        max={100}
-        value={placement.biasPercent}
-        suffix="%"
-        onchange={(v) => updatePlacement(() => placement.setBias(v), 'position')}
+    </SettingsRow>
+    <SettingsRow label="Global hotkey" description="Summon the launcher from any app.">
+      <ShortcutRecorder
+        bind:modifier={handler.selectedModifier}
+        bind:key={handler.selectedKey}
+        placeholder="Click to set shortcut"
+        disabled={handler.isSaving}
+        onsave={handleSave}
+        {conflictChecker}
       />
-    </SettingsFormRow>
-  {/if}
+    </SettingsRow>
+  </div>
+</SettingsCard>
 
-  <SettingsFormRow label="Snap while dragging">
-    <Toggle
-      checked={placement.placement.snapEnabled}
-      onchange={() =>
-        updatePlacement(
-          () => placement.setSnapEnabled(!placement.placement.snapEnabled),
-          'snap setting',
-        )}
-    />
-  </SettingsFormRow>
+<div class="section-header">Appearance</div>
+<SettingsCard>
+  <div id="general-appearance">
+    <SettingsRow label="Theme" description="Match the system or lock one appearance.">
+      <AppearanceThemeSelector
+        value={handler.selectedTheme as 'light' | 'dark' | 'system'}
+        onchange={(v) => handler.updateThemeSetting(v)}
+      />
+    </SettingsRow>
+    <SettingsRow
+      label="Window mode"
+      description="How much of the launcher is visible before you type."
+    >
+      <WindowModeSelector value={handler.selectedLaunchView} onchange={selectLaunchView} />
+    </SettingsRow>
+  </div>
+</SettingsCard>
 
-  {#if placement.isDragged}
-    <SettingsFormRow label="Custom position">
-      <div class="onboarding-row">
-        <span class="onboarding-row__hint">
-          Set by dragging the launcher. Stored relative to the display, so it holds up across
-          screens and resolutions.
-        </span>
+<div class="section-header">Placement</div>
+<SettingsCard>
+  <div id="general-placement">
+    <SettingsRow label="Display" description="Which screen the launcher opens on.">
+      <SegmentedControl
+        options={[
+          { value: 'cursor', label: 'Display with cursor' },
+          { value: 'primary', label: 'Primary display' },
+        ]}
+        value={placement.placement.monitor}
+        onchange={(v) =>
+          updatePlacement(() => placement.setMonitor(v as 'cursor' | 'primary'), 'display')}
+      />
+    </SettingsRow>
+    <SettingsRow
+      label="Vertical position"
+      description="Drag the launcher itself to set a custom spot."
+    >
+      <SegmentedControl
+        options={[
+          { value: 'top', label: 'Top' },
+          { value: 'center', label: 'Centre' },
+          { value: 'custom', label: 'Custom' },
+        ]}
+        value={placement.vertical ?? ''}
+        onchange={(v) =>
+          updatePlacement(
+            () => placement.setVertical(v as 'top' | 'center' | 'custom'),
+            'position',
+          )}
+      />
+    </SettingsRow>
+    {#if placement.vertical === 'custom'}
+      <SettingsRow label="Distance from top">
+        <SettingsRangeSlider
+          min={0}
+          max={100}
+          value={placement.biasPercent}
+          suffix="%"
+          onchange={(v) => updatePlacement(() => placement.setBias(v), 'position')}
+        />
+      </SettingsRow>
+    {/if}
+    <SettingsRow label="Snap while dragging" description="Snap to screen edges and centre lines.">
+      <Toggle
+        checked={placement.placement.snapEnabled}
+        onchange={() =>
+          updatePlacement(
+            () => placement.setSnapEnabled(!placement.placement.snapEnabled),
+            'snap setting',
+          )}
+      />
+    </SettingsRow>
+    {#if placement.isDragged}
+      <SettingsRow
+        label="Custom position"
+        description="Set by dragging the launcher. Stored relative to the display."
+      >
         <Button
           class="btn-secondary"
           onclick={() => updatePlacement(() => placement.reset(), 'position')}
         >
           Reset
         </Button>
-      </div>
-    </SettingsFormRow>
-  {/if}
+      </SettingsRow>
+    {/if}
+  </div>
+</SettingsCard>
 
-  <SettingsFormRow label="Onboarding" separator>
-    <div class="onboarding-row">
-      <span class="onboarding-row__hint">Walk through the welcome flow again.</span>
+<SettingsCard>
+  <div id="general-onboarding">
+    <SettingsRow label="Onboarding" description="Walk through the welcome flow again.">
       <Button class="btn-secondary" onclick={rerunOnboarding}>Re-run onboarding</Button>
-    </div>
-  </SettingsFormRow>
-</SettingsForm>
+    </SettingsRow>
+  </div>
+</SettingsCard>
 
 {#if themeExtensions.length > 0}
-  <div class="themes-section">
-    <div class="themes-section-header">Custom Themes</div>
+  <div class="section-header">Custom Themes</div>
+  <SettingsCard>
     <div class="themes-list">
       <label class="theme-item" class:theme-active={activeThemeId === null}>
         <input
@@ -301,39 +320,25 @@
         </label>
       {/each}
     </div>
-  </div>
+  </SettingsCard>
 {/if}
 
 <style>
-  .onboarding-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--space-3);
-    width: 100%;
+  .pane-header {
+    margin-bottom: var(--space-8);
   }
 
-  .onboarding-row__hint {
+  .pane-title {
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+  }
+
+  .pane-subtitle {
+    font-size: var(--font-size-md);
     color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-  }
-
-  .themes-section {
-    display: flex;
-    flex-direction: column;
-    border-top: 1px solid var(--separator);
-    margin-top: var(--space-4);
-  }
-
-  .themes-section-header {
-    padding: var(--space-4) var(--space-6) var(--space-2)
-      calc(var(--space-6) + 9rem + var(--space-6));
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    font-family: var(--font-ui);
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    margin-top: var(--space-1);
   }
 
   .themes-list {
@@ -342,17 +347,22 @@
   }
 
   .theme-item {
+    position: relative;
     display: flex;
     align-items: center;
-    padding: var(--space-3) var(--space-6) var(--space-3)
-      calc(var(--space-6) + 9rem + var(--space-6));
-    border-bottom: 1px solid var(--separator);
+    padding: var(--space-5-5) var(--space-6);
     cursor: pointer;
     transition: background var(--transition-fast);
   }
 
-  .theme-item:last-child {
-    border-bottom: none;
+  .theme-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: var(--space-6);
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--border-color);
   }
 
   .theme-item:hover {
@@ -369,7 +379,7 @@
 
   .theme-item-name {
     font-weight: 500;
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-md);
     color: var(--text-primary);
     font-family: var(--font-ui);
   }
@@ -379,17 +389,5 @@
     color: var(--text-secondary);
     font-family: var(--font-ui);
     margin-top: var(--space-1);
-  }
-
-  .checkbox-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-  }
-
-  .checkbox-label {
-    font-size: var(--font-size-sm);
-    color: var(--text-primary);
-    font-family: var(--font-ui);
   }
 </style>

@@ -38,7 +38,6 @@
   <SettingsRow
     label="Anonymous ID"
     description="A random id, not linked to your account. Reset it any time."
-    noBorder
   >
     <span class="text-mono text-caption">{usageShareState.anonId}</span>
     <Button onclick={() => usageShareState.reset()}>Reset</Button>

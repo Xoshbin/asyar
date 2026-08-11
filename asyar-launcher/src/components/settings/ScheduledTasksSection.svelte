@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getScheduledTasks, type ScheduledTaskInfo } from '../../lib/ipc/commands';
-  import SettingsForm from './SettingsForm.svelte';
-  import SettingsFormRow from './SettingsFormRow.svelte';
+  import SettingsCard from './SettingsCard.svelte';
+  import SettingsRow from './SettingsRow.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
 
@@ -41,37 +41,28 @@
 
 {#if !isLoading && tasks.length > 0}
   <div class="section-header">Scheduled Tasks</div>
-  <SettingsForm>
-    {#each tasks as task}
-      <SettingsFormRow
-        label={task.extensionName}
-        description="{task.commandName} · {formatInterval(task.intervalSeconds)}"
-      >
-        {#if task.active}
-          <span class="badge badge-active">
-            <span class="badge-dot"></span>
-            Active
-          </span>
-        {:else}
-          <span class="badge badge-paused">Paused</span>
-        {/if}
-      </SettingsFormRow>
-    {/each}
-  </SettingsForm>
+  <SettingsCard>
+    <div id="advanced-scheduled-tasks">
+      {#each tasks as task}
+        <SettingsRow
+          label={task.extensionName}
+          description="{task.commandName} · {formatInterval(task.intervalSeconds)}"
+        >
+          {#if task.active}
+            <span class="badge badge-active">
+              <span class="badge-dot"></span>
+              Active
+            </span>
+          {:else}
+            <span class="badge badge-paused">Paused</span>
+          {/if}
+        </SettingsRow>
+      {/each}
+    </div>
+  </SettingsCard>
 {/if}
 
 <style>
-  .section-header {
-    padding: var(--space-4) var(--space-6) var(--space-2);
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    font-family: var(--font-ui);
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    border-top: 1px solid var(--separator);
-  }
-
   .badge {
     display: inline-flex;
     align-items: center;

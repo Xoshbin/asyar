@@ -73,7 +73,7 @@
     {/snippet}
   </SettingsRow>
 
-  <SettingsRow label="Your additions" description="Apps you have added to the denylist." noBorder>
+  <SettingsRow label="Your additions" description="Apps you have added to the denylist.">
     {#snippet children()}
       {#if clipboardPrivacyService.userDenylist.length === 0}
         <EmptyState message="No custom entries yet" />

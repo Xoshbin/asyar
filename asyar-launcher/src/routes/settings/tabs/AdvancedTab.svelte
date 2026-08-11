@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { SettingsForm, SettingsFormRow, Toggle, SegmentedControl } from '../../../components';
+  import { SettingsCard, SettingsRow, Toggle, SegmentedControl } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import ScheduledTasksSection from '../../../components/settings/ScheduledTasksSection.svelte';
@@ -53,66 +53,71 @@
   });
 </script>
 
-<SettingsForm>
-  <SettingsFormRow
-    label="Extension Search"
-    description="Allow extensions to contribute results in the search bar"
-  >
-    <Toggle
-      checked={handler.settings.search.enableExtensionSearch}
-      onchange={() => handler.handleExtensionSearchToggle()}
-    />
-  </SettingsFormRow>
+<div class="pane-header">
+  <div class="pane-title">Advanced</div>
+  <div class="pane-subtitle">Behaviour that most people never need to change.</div>
+</div>
 
-  <SettingsFormRow
-    label="Extension Actions"
-    separator
-    description="Allow extensions to contribute actions to the main launcher's action panel (⌘K). When off, only Asyar's built-in actions appear."
-  >
-    <Toggle
-      checked={handler.settings.search.allowExtensionActions}
-      onchange={() => handler.handleExtensionActionsToggle()}
-    />
-  </SettingsFormRow>
+<div class="section-header">Extension surface</div>
+<SettingsCard>
+  <div id="advanced-extension-surface">
+    <SettingsRow
+      label="Extension results in search"
+      description="Allow extensions to contribute results in the search bar."
+    >
+      <Toggle
+        checked={handler.settings.search.enableExtensionSearch}
+        onchange={() => handler.handleExtensionSearchToggle()}
+      />
+    </SettingsRow>
+    <SettingsRow
+      label="Extension actions in ⌘K"
+      description="When off, only Asyar's built-in actions appear in the action panel."
+    >
+      <Toggle
+        checked={handler.settings.search.allowExtensionActions}
+        onchange={() => handler.handleExtensionActionsToggle()}
+      />
+    </SettingsRow>
+    <SettingsRow
+      label="Auto-update extensions"
+      description="Updates install silently in the background."
+    >
+      <Toggle checked={autoUpdate} onchange={toggleAutoUpdate} />
+    </SettingsRow>
+  </div>
+</SettingsCard>
 
-  <SettingsFormRow label="Escape Key" separator>
-    <SegmentedControl
-      options={[
-        { value: 'hide-and-reset', label: 'Reset Launcher' },
-        { value: 'go-back', label: 'Step Backwards' },
-        { value: 'close-window', label: 'Hide Window' },
-      ]}
-      bind:value={escapeValue}
-    />
-  </SettingsFormRow>
-
-  <SettingsFormRow
-    label="Auto Updates"
-    separator
-    description="Extensions update silently in the background"
-  >
-    <Toggle checked={autoUpdate} onchange={toggleAutoUpdate} />
-  </SettingsFormRow>
-
-  <SettingsFormRow
-    label="Text Expansion"
-    separator
-    description="Automatically expand text snippets as you type. Requires Accessibility permission on macOS."
-  >
-    <Toggle checked={snippetsEnabled} onchange={toggleSnippets} />
-  </SettingsFormRow>
-
-  <SettingsFormRow
-    label="Developer Mode"
-    separator
-    description="Enables developer tools like the extension inspector, verbose logging, and sideloading. Intended for extension developers."
-  >
-    <Toggle
-      checked={handler.settings.developer?.enabled ?? false}
-      onchange={() => handler.handleDeveloperModeToggle()}
-    />
-  </SettingsFormRow>
-</SettingsForm>
+<div class="section-header">Input</div>
+<SettingsCard>
+  <div id="advanced-input">
+    <SettingsRow label="Escape key" description="What Escape does inside the launcher.">
+      <SegmentedControl
+        options={[
+          { value: 'hide-and-reset', label: 'Reset Launcher' },
+          { value: 'go-back', label: 'Step Backwards' },
+          { value: 'close-window', label: 'Hide Window' },
+        ]}
+        bind:value={escapeValue}
+      />
+    </SettingsRow>
+    <SettingsRow
+      label="Text expansion"
+      description="Expand snippets as you type. Requires Accessibility permission on macOS."
+    >
+      <Toggle checked={snippetsEnabled} onchange={toggleSnippets} />
+    </SettingsRow>
+    <SettingsRow
+      label="Developer mode"
+      description="Enables the extension inspector, verbose logging, and sideloading."
+    >
+      <Toggle
+        checked={handler.settings.developer?.enabled ?? false}
+        onchange={() => handler.handleDeveloperModeToggle()}
+      />
+    </SettingsRow>
+  </div>
+</SettingsCard>
 
 {#if snippetsToggleError}
   <div class="error-message">{snippetsToggleError}</div>
@@ -127,8 +132,24 @@
 {/if}
 
 <style>
+  .pane-header {
+    margin-bottom: var(--space-8);
+  }
+
+  .pane-title {
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+  }
+
+  .pane-subtitle {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+    margin-top: var(--space-1);
+  }
+
   .error-message {
-    padding: var(--space-3) var(--space-6);
     font-size: var(--font-size-sm);
     font-weight: 500;
     color: var(--accent-danger);

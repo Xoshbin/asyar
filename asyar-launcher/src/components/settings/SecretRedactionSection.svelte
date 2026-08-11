@@ -87,7 +87,6 @@
   <SettingsRow
     label="Active detectors"
     description="The bundled rule catalog. Updating the catalog requires a launcher update."
-    noBorder
   >
     {#snippet children()}
       {#if secretRedactionService.catalog.length === 0}

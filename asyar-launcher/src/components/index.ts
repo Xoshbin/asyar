@@ -60,7 +60,10 @@ export { default as ExtensionViewContainer } from './extension/ExtensionViewCont
 // Settings
 export { default as SettingsRow } from './settings/SettingsRow.svelte';
 export { default as SettingsSection } from './settings/SettingsSection.svelte';
-export { default as SettingsTopBar } from './settings/SettingsTopBar.svelte';
+export { default as SettingsCard } from './settings/SettingsCard.svelte';
+export { default as SettingsSectionNav } from './settings/SettingsSectionNav.svelte';
+export { default as SettingsCommandBar } from './settings/SettingsCommandBar.svelte';
+export { default as SettingsSearchResults } from './settings/SettingsSearchResults.svelte';
 export { default as SettingsRadioGroup } from './settings/SettingsRadioGroup.svelte';
 export { default as SettingsRangeSlider } from './settings/SettingsRangeSlider.svelte';
 export { default as SettingsForm } from './settings/SettingsForm.svelte';

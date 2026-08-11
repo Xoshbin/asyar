@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { emit } from '@tauri-apps/api/event';
-  import { Button, Icon, Toggle, KeyboardHint, EmptyState } from '../../../components';
+  import { Icon, Toggle, KeyboardHint, EmptyState, SettingsCard } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import {
     getDefaultAppScanPaths,
@@ -47,6 +47,13 @@
   ]);
 
   let sortedApps = $derived([...apps].sort((a, b) => a.name.localeCompare(b.name)));
+
+  let appFilterQuery = $state('');
+  let filteredApps = $derived(
+    appFilterQuery.trim()
+      ? sortedApps.filter((a) => a.name.toLowerCase().includes(appFilterQuery.trim().toLowerCase()))
+      : sortedApps,
+  );
 
   function withIds(list: Application[]): IndexedApp[] {
     return list.filter((a): a is IndexedApp => typeof a.id === 'string' && a.id.length > 0);
@@ -184,27 +191,17 @@
   }
 </script>
 
-<div class="app-tab">
-  <section class="section">
-    <h2 class="section-title">Search Scope</h2>
-    <p class="section-description">Directories added here will be searched for applications.</p>
+<div class="pane-header">
+  <div class="pane-title">Applications</div>
+  <div class="pane-subtitle">Where Asyar looks for apps, and how each one behaves in search.</div>
+</div>
 
-    <div class="add-row">
-      <Button onclick={handleAddDirectory} disabled={isBrowsing}>
-        <span class="btn-content">
-          <Icon name="plus" size={14} />
-          {isBrowsing ? 'Opening…' : 'Add Directory'}
-        </span>
-      </Button>
-    </div>
-
-    {#if errorMessage}
-      <div class="error" role="alert">{errorMessage}</div>
-    {/if}
-
+<div class="section-header">Search scope</div>
+<div id="applications-scope">
+  <SettingsCard>
     <ul class="path-list">
       {#each pathRows as row (row.path)}
-        <li class="path-row" class:path-row-default={row.readonly}>
+        <li class="path-row">
           <Icon name="layers" size={14} class="path-icon" />
           <span class="path-text" title={row.path}>{row.path}</span>
           {#if row.readonly}
@@ -221,29 +218,63 @@
           {/if}
         </li>
       {/each}
+      <li class="add-directory-row">
+        <button
+          type="button"
+          class="add-directory-btn"
+          onclick={handleAddDirectory}
+          disabled={isBrowsing}
+        >
+          <Icon name="plus" size={14} />
+          {isBrowsing ? 'Opening…' : 'Add directory'}
+        </button>
+      </li>
     </ul>
-  </section>
+  </SettingsCard>
+  {#if errorMessage}
+    <div class="error" role="alert">{errorMessage}</div>
+  {/if}
+</div>
 
-  <section class="section">
-    <h2 class="section-title">Applications</h2>
-    <p class="section-description">
-      Assign an alias or hotkey to any app. Disable an app to hide it from search results.
-    </p>
+<div class="applications-header-row">
+  <div class="section-header applications-header-label">Applications</div>
+  <div class="filter-box">
+    <svg
+      class="filter-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+    >
+      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+    </svg>
+    <input
+      type="text"
+      class="filter-input"
+      placeholder="Filter apps"
+      aria-label="Filter applications"
+      bind:value={appFilterQuery}
+    />
+  </div>
+</div>
 
-    {#if isLoading}
-      <div class="empty">Loading applications…</div>
-    {:else if sortedApps.length === 0}
-      <EmptyState message="No applications found" />
-    {:else}
+<div id="applications-list">
+  {#if isLoading}
+    <div class="empty">Loading applications…</div>
+  {:else if filteredApps.length === 0}
+    <EmptyState message="No applications found" />
+  {:else}
+    <SettingsCard>
       <div class="app-table" role="table">
         <div class="app-table-head" role="row">
           <span class="col-name" role="columnheader">Name</span>
           <span class="col-alias" role="columnheader">Alias</span>
           <span class="col-hotkey" role="columnheader">Hotkey</span>
-          <span class="col-enabled" role="columnheader">Enabled</span>
+          <span class="col-enabled" role="columnheader">On</span>
         </div>
 
-        {#each sortedApps as app (app.id)}
+        {#each filteredApps as app (app.id)}
           {@const shortcut = shortcutsByObjectId.get(app.id)}
           <div class="app-row" role="row">
             <div class="col-name" role="cell">
@@ -274,7 +305,7 @@
                 </button>
               {:else}
                 <button type="button" class="row-action" onclick={() => openAliasCapture(app)}>
-                  Add Alias
+                  Add alias
                 </button>
               {/if}
             </div>
@@ -298,7 +329,7 @@
                 </button>
               {:else}
                 <button type="button" class="row-action" onclick={() => openShortcutCapture(app)}>
-                  Record Hotkey
+                  Record
                 </button>
               {/if}
             </div>
@@ -308,8 +339,8 @@
           </div>
         {/each}
       </div>
-    {/if}
-  </section>
+    </SettingsCard>
+  {/if}
 </div>
 
 {#if editingApp}
@@ -333,43 +364,25 @@
 {/if}
 
 <style>
-  .app-tab {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
+  .pane-header {
+    margin-bottom: var(--space-8);
   }
 
-  .section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  .section-title {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
+  .pane-title {
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
     color: var(--text-primary);
   }
 
-  .section-description {
-    margin: 0;
-    font-size: var(--font-size-xs);
+  .pane-subtitle {
+    font-size: var(--font-size-md);
     color: var(--text-secondary);
-    line-height: 1.5;
-  }
-
-  .add-row {
-    align-self: flex-start;
-  }
-
-  .btn-content {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
+    margin-top: var(--space-1);
   }
 
   .error {
+    margin-top: var(--space-3);
     padding: var(--space-2) var(--space-3);
     background: color-mix(in srgb, var(--accent-danger) 10%, transparent);
     border-radius: var(--radius-sm);
@@ -383,23 +396,28 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
   }
 
   .path-row {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--separator);
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-6);
   }
-  .path-row:last-child {
-    border-bottom: none;
-  }
-  .path-row-default {
-    background: var(--bg-secondary);
+
+  /* Applies to every .path-row unconditionally (not :not(:last-child)) —
+     it also draws the divider between the last directory and the
+     "Add directory" action row that follows it. .add-directory-row has
+     no ::after of its own, so it never gets a trailing divider. */
+  .path-row::after {
+    content: '';
+    position: absolute;
+    left: var(--space-6);
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--border-color);
   }
 
   :global(.path-icon) {
@@ -410,9 +428,9 @@
   .path-text {
     flex: 1;
     min-width: 0;
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-md);
     color: var(--text-primary);
-    font-family: var(--font-ui);
+    font-family: var(--font-mono);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -420,58 +438,146 @@
 
   .default-tag {
     font-size: var(--font-size-2xs);
-    font-family: var(--font-ui);
-    font-weight: 500;
+    font-weight: 700;
     color: var(--text-tertiary);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
   }
 
   .remove-btn {
     padding: var(--space-1);
   }
 
+  .add-directory-row {
+    padding: 0;
+  }
+
+  .add-directory-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-6);
+    background: transparent;
+    border: none;
+    color: var(--accent-primary);
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    font-family: var(--font-ui);
+  }
+
+  .add-directory-btn:hover {
+    background: var(--bg-hover);
+  }
+
+  .add-directory-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .applications-header-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin: var(--space-8) 0 var(--space-3);
+  }
+
+  .applications-header-label {
+    margin: 0;
+    padding: 0;
+  }
+
+  .filter-box {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    max-width: 200px;
+    margin-left: auto;
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary-full-opacity);
+    border: 1px solid var(--border-color);
+  }
+
+  .filter-icon {
+    width: 13px;
+    height: 13px;
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+
+  .filter-input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+  }
+
+  .filter-input::placeholder {
+    color: var(--text-tertiary);
+  }
+
   .app-table {
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
   }
 
   .app-table-head,
   .app-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 160px 200px 80px;
+    grid-template-columns: 1fr 150px 130px 56px;
     align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--separator);
-  }
-  .app-row:last-child {
-    border-bottom: none;
+    gap: var(--space-6);
+    padding: var(--space-3) var(--space-6);
   }
 
   .app-table-head {
-    background: var(--bg-secondary);
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
     font-size: var(--font-size-2xs);
-    font-weight: 600;
-    color: var(--text-tertiary);
+    font-weight: 700;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    color: var(--text-tertiary);
+  }
+
+  .app-row {
+    position: relative;
+    transition: background-color var(--transition-fast);
+  }
+
+  .app-row:hover {
+    background: var(--bg-hover);
+  }
+
+  .app-row:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: var(--space-6);
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--border-color);
   }
 
   .col-name {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
     min-width: 0;
   }
 
   .app-icon {
-    width: 20px;
-    height: 20px;
-    border-radius: var(--radius-xs);
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-sm);
     flex-shrink: 0;
   }
 
@@ -479,13 +585,13 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     font-size: var(--font-size-sm);
   }
 
   .app-name {
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-md);
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
@@ -502,14 +608,14 @@
     background: transparent;
     border: none;
     padding: 0;
-    font-size: var(--font-size-xs);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-mono);
     color: var(--text-tertiary);
     cursor: pointer;
   }
 
   .row-action:hover {
     color: var(--accent-primary);
-    text-decoration: underline;
   }
 
   .alias-pill {
@@ -521,7 +627,7 @@
     padding: 0 var(--space-2);
     border-radius: var(--radius-xs);
     background-color: color-mix(in srgb, var(--text-primary) 8%, transparent);
-    color: var(--text-secondary);
+    color: var(--text-primary);
     font-size: var(--font-size-2xs);
     font-weight: 500;
     line-height: 1;
