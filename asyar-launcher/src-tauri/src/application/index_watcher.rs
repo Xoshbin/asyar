@@ -148,7 +148,7 @@ impl IndexWatcher {
 
         let mut debouncer = new_debouncer_opt(
             DEBOUNCE_WINDOW,
-            None,
+            Some(DEBOUNCE_WINDOW),
             move |result: DebounceEventResult| match result {
                 Ok(events) if events.is_empty() => {}
                 Ok(_events) => {
