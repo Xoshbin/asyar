@@ -12,6 +12,12 @@
     class?: string;
     strokeWidth?: number;
   } = $props();
+
+  $effect(() => {
+    if (import.meta.env.DEV && !icons[name]) {
+      console.warn(`Icon: unrecognized icon name "${name}" — rendering a blank placeholder.`);
+    }
+  });
 </script>
 
 {#if icons[name]}

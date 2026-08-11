@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Badge } from '..';
+  import { Badge, Icon } from '..';
   import { developmentBuildIndicator } from '../../lib/developmentBuild';
   import { getCommandBarKeyAction } from './settingsCommandBar.logic';
   import { platform } from '@tauri-apps/plugin-os';
@@ -44,16 +44,7 @@
 
   <div class="command-bar-search-wrap">
     <label class="command-bar-search" class:focused={isFocused}>
-      <svg
-        class="command-bar-search-icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-      >
-        <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-      </svg>
+      <Icon name="search" size={13} strokeWidth={2} class="command-bar-search-icon" />
       <input
         bind:this={inputEl}
         bind:value={query}
@@ -124,9 +115,7 @@
     box-shadow: var(--shadow-focus);
   }
 
-  .command-bar-search-icon {
-    width: 13px;
-    height: 13px;
+  :global(.command-bar-search-icon) {
     color: var(--text-tertiary);
     flex-shrink: 0;
   }

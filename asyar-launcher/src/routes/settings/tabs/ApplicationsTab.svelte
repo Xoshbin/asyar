@@ -2,7 +2,14 @@
   import { onMount } from 'svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { emit } from '@tauri-apps/api/event';
-  import { Icon, Toggle, KeyboardHint, EmptyState, SettingsCard } from '../../../components';
+  import {
+    Icon,
+    Toggle,
+    KeyboardHint,
+    EmptyState,
+    SettingsCard,
+    SettingsPaneHeader,
+  } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import {
     getDefaultAppScanPaths,
@@ -191,10 +198,10 @@
   }
 </script>
 
-<div class="pane-header">
-  <div class="pane-title">Applications</div>
-  <div class="pane-subtitle">Where Asyar looks for apps, and how each one behaves in search.</div>
-</div>
+<SettingsPaneHeader
+  title="Applications"
+  subtitle="Where Asyar looks for apps, and how each one behaves in search."
+/>
 
 <div class="section-header">Search scope</div>
 <div id="applications-scope">
@@ -239,16 +246,7 @@
 <div class="applications-header-row">
   <div class="section-header applications-header-label">Applications</div>
   <div class="filter-box">
-    <svg
-      class="filter-icon"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-    >
-      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-    </svg>
+    <Icon name="search" size={13} strokeWidth={2} class="filter-icon" />
     <input
       type="text"
       class="filter-input"
@@ -263,7 +261,17 @@
   {#if isLoading}
     <div class="empty">Loading applications…</div>
   {:else if filteredApps.length === 0}
-    <EmptyState message="No applications found" />
+    {#if appFilterQuery.trim()}
+      <EmptyState
+        message="No applications match your filter"
+        description="Try a different search term."
+      />
+    {:else}
+      <EmptyState
+        message="No applications found"
+        description="Add a directory above to scan for apps."
+      />
+    {/if}
   {:else}
     <SettingsCard>
       <div class="app-table" role="table">
@@ -364,23 +372,6 @@
 {/if}
 
 <style>
-  .pane-header {
-    margin-bottom: var(--space-8);
-  }
-
-  .pane-title {
-    font-size: var(--font-size-3xl);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--text-primary);
-  }
-
-  .pane-subtitle {
-    font-size: var(--font-size-md);
-    color: var(--text-secondary);
-    margin-top: var(--space-1);
-  }
-
   .error {
     margin-top: var(--space-3);
     padding: var(--space-2) var(--space-3);
@@ -502,9 +493,7 @@
     border: 1px solid var(--border-color);
   }
 
-  .filter-icon {
-    width: 13px;
-    height: 13px;
+  :global(.filter-icon) {
     color: var(--text-tertiary);
     flex-shrink: 0;
   }
@@ -539,7 +528,9 @@
   }
 
   .app-table-head {
-    background: var(--bg-tertiary);
+    /* One step darker than --bg-tertiary so the header row stays visible
+       against its parent SettingsCard (also --bg-tertiary). */
+    background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
     font-size: var(--font-size-2xs);
     font-weight: 700;

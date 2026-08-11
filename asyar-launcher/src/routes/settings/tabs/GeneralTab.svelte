@@ -3,6 +3,7 @@
   import {
     SettingsCard,
     SettingsRow,
+    SettingsPaneHeader,
     Checkbox,
     ShortcutRecorder,
     AppearanceThemeSelector,
@@ -158,10 +159,7 @@
   }
 </script>
 
-<div class="pane-header">
-  <div class="pane-title">General</div>
-  <div class="pane-subtitle">How Asyar starts, looks, and where it appears.</div>
-</div>
+<SettingsPaneHeader title="General" subtitle="How Asyar starts, looks, and where it appears." />
 
 <div class="section-header">Startup</div>
 <SettingsCard>
@@ -195,13 +193,18 @@
       <AppearanceThemeSelector
         value={handler.selectedTheme as 'light' | 'dark' | 'system'}
         onchange={(v) => handler.updateThemeSetting(v)}
+        wellBackground="secondary"
       />
     </SettingsRow>
     <SettingsRow
       label="Window mode"
       description="How much of the launcher is visible before you type."
     >
-      <WindowModeSelector value={handler.selectedLaunchView} onchange={selectLaunchView} />
+      <WindowModeSelector
+        value={handler.selectedLaunchView}
+        onchange={selectLaunchView}
+        wellBackground="primary"
+      />
     </SettingsRow>
   </div>
 </SettingsCard>
@@ -324,23 +327,6 @@
 {/if}
 
 <style>
-  .pane-header {
-    margin-bottom: var(--space-8);
-  }
-
-  .pane-title {
-    font-size: var(--font-size-3xl);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--text-primary);
-  }
-
-  .pane-subtitle {
-    font-size: var(--font-size-md);
-    color: var(--text-secondary);
-    margin-top: var(--space-1);
-  }
-
   .themes-list {
     display: flex;
     flex-direction: column;

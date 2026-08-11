@@ -209,6 +209,37 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
   },
 ];
 
+export interface SectionAnchor {
+  id: string;
+  label: string;
+}
+
+/** Anchors for each tab's section-pill sub-nav (`SettingsSectionNav`). Each
+ *  `id` must match the `id` attribute of a wrapper rendered by that tab, and
+ *  is also the target `SettingsSearchEntry.sectionAnchor` values above point
+ *  at — kept as one map so the two can't drift apart silently (see the
+ *  consistency test in settingsNavRegistry.test.ts). A tab with no entry
+ *  here renders without a sub-nav — either it has nothing to scroll to
+ *  (Extensions' fixed master-detail split) or hasn't been migrated onto this
+ *  shell yet. */
+export const SECTION_ANCHORS: Record<string, SectionAnchor[]> = {
+  general: [
+    { id: 'general-startup', label: 'Startup' },
+    { id: 'general-appearance', label: 'Appearance' },
+    { id: 'general-placement', label: 'Placement' },
+    { id: 'general-onboarding', label: 'Onboarding' },
+  ],
+  applications: [
+    { id: 'applications-scope', label: 'Search scope' },
+    { id: 'applications-list', label: 'Applications' },
+  ],
+  advanced: [
+    { id: 'advanced-extension-surface', label: 'Extension surface' },
+    { id: 'advanced-input', label: 'Input' },
+    { id: 'advanced-scheduled-tasks', label: 'Scheduled tasks' },
+  ],
+};
+
 export function filterSearchIndex(
   index: SettingsSearchEntry[],
   query: string,
@@ -221,4 +252,34 @@ export function filterSearchIndex(
       .toLowerCase();
     return haystack.includes(q);
   });
+}
+
+/** `filterSearchIndex` only covers tabs indexed in `SETTINGS_SEARCH_INDEX`
+ *  (currently general/extensions/applications/advanced) — searching e.g.
+ *  "backup" or "privacy" would otherwise return nothing even though those
+ *  tabs exist. For any tab whose label matches the query and that has no
+ *  real indexed match of its own, synthesize a fallback entry that just
+ *  opens the tab, so every tab stays reachable from search until its own
+ *  settings are indexed. */
+export function buildSearchResults(
+  index: SettingsSearchEntry[],
+  tabs: SettingsTabDescriptor[],
+  query: string,
+): SettingsSearchEntry[] {
+  const matches = filterSearchIndex(index, query);
+  const q = query.trim().toLowerCase();
+  if (!q) return matches;
+
+  const matchedTabIds = new Set(matches.map((entry) => entry.tab));
+  const tabFallbacks: SettingsSearchEntry[] = tabs
+    .filter((tab) => !matchedTabIds.has(tab.id) && tab.label.toLowerCase().includes(q))
+    .map((tab) => ({
+      id: `tab-${tab.id}`,
+      title: tab.label,
+      description: `Open the ${tab.label} tab.`,
+      tab: tab.id,
+      tabLabel: tab.label,
+    }));
+
+  return [...matches, ...tabFallbacks];
 }

@@ -1,6 +1,10 @@
 <script lang="ts">
-  import { EmptyState } from '..';
-  import type { SettingsSearchEntry } from '../../routes/settings/settingsNavRegistry';
+  import { EmptyState, Icon } from '..';
+  import {
+    SETTINGS_TABS,
+    type SettingsSearchEntry,
+  } from '../../routes/settings/settingsNavRegistry';
+  import { getSearchResultsKeyAction, moveHighlightedIndex } from './settingsSearchResults.logic';
 
   let {
     query,
@@ -11,7 +15,41 @@
     results: SettingsSearchEntry[];
     onSelect: (entry: SettingsSearchEntry) => void;
   } = $props();
+
+  const tabIcons: Record<string, string> = Object.fromEntries(
+    SETTINGS_TABS.map((tab) => [tab.id, tab.icon]),
+  );
+
+  let highlightedIndex = $state(-1);
+  let rowEls: (HTMLButtonElement | undefined)[] = [];
+
+  $effect(() => {
+    // A new query means a new result set — a stale index from the previous
+    // search shouldn't carry over onto an unrelated row.
+    void query;
+    highlightedIndex = -1;
+  });
+
+  $effect(() => {
+    if (highlightedIndex >= 0) {
+      rowEls[highlightedIndex]?.scrollIntoView({ block: 'nearest' });
+    }
+  });
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (results.length === 0) return;
+    const action = getSearchResultsKeyAction(e);
+    if (action === 'move-up' || action === 'move-down') {
+      e.preventDefault();
+      highlightedIndex = moveHighlightedIndex(highlightedIndex, results.length, action);
+    } else if (action === 'select' && highlightedIndex >= 0) {
+      e.preventDefault();
+      onSelect(results[highlightedIndex]);
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <div class="search-results custom-scrollbar">
   <div class="search-results-inner">
@@ -24,9 +62,19 @@
       <EmptyState message="No matching settings" description="Try a different search term." />
     {:else}
       <div class="search-results-list">
-        {#each results as entry (entry.id)}
-          <button type="button" class="search-result-row" onclick={() => onSelect(entry)}>
-            <div class="search-result-icon"></div>
+        {#each results as entry, i (entry.id)}
+          <button
+            bind:this={rowEls[i]}
+            type="button"
+            class="search-result-row"
+            class:highlighted={i === highlightedIndex}
+            aria-current={i === highlightedIndex ? 'true' : undefined}
+            onclick={() => onSelect(entry)}
+            onmouseenter={() => (highlightedIndex = i)}
+          >
+            <div class="search-result-icon">
+              <Icon name={tabIcons[entry.tab] ?? 'settings'} size={16} />
+            </div>
             <div class="search-result-text">
               <div class="search-result-title">{entry.title}</div>
               <div class="search-result-sub">{entry.description}</div>
@@ -82,15 +130,20 @@
     width: 100%;
   }
 
-  .search-result-row:hover {
+  .search-result-row:hover,
+  .search-result-row.highlighted {
     background: var(--bg-hover);
   }
 
   .search-result-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 32px;
     height: 32px;
     border-radius: var(--radius-lg);
     background: var(--bg-tertiary);
+    color: var(--text-secondary);
     flex-shrink: 0;
   }
 

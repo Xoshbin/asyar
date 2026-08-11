@@ -12,9 +12,15 @@
   let activeId = $state<string | null>(sections[0]?.id ?? null);
 
   $effect(() => {
+    // Reset eagerly on every sections change (e.g. a tab switch) instead of
+    // waiting for the IntersectionObserver's first callback below — avoids
+    // a frame where the previous tab's pill is still shown active.
+    activeId = sections[0]?.id ?? null;
+
     if (!scrollRoot || sections.length === 0) return;
 
     const state = new Map<string, SectionIntersection>();
+    const observedIds = new Set<string>();
     const observer = new IntersectionObserver(
       (observed) => {
         for (const entry of observed) {
@@ -33,12 +39,34 @@
       { root: scrollRoot, threshold: 0, rootMargin: '0px 0px -70% 0px' },
     );
 
-    for (const section of sections) {
-      const el = document.getElementById(section.id);
-      if (el) observer.observe(el);
+    // A section's anchor element can mount after this effect's first pass —
+    // e.g. ScheduledTasksSection only renders its wrapper once its async
+    // task list finishes loading. Re-scan on every DOM mutation under the
+    // scroll root until every section has been found, so a late-arriving
+    // section still gets picked up by the scrollspy.
+    const mutationObserver = new MutationObserver(() => observeAvailableSections());
+
+    function observeAvailableSections() {
+      for (const section of sections) {
+        if (observedIds.has(section.id)) continue;
+        const el = document.getElementById(section.id);
+        if (el) {
+          observer.observe(el);
+          observedIds.add(section.id);
+        }
+      }
+      if (observedIds.size === sections.length) mutationObserver.disconnect();
     }
 
-    return () => observer.disconnect();
+    observeAvailableSections();
+    if (observedIds.size < sections.length) {
+      mutationObserver.observe(scrollRoot, { childList: true, subtree: true });
+    }
+
+    return () => {
+      observer.disconnect();
+      mutationObserver.disconnect();
+    };
   });
 
   function scrollToSection(id: string) {

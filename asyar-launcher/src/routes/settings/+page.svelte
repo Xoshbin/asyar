@@ -13,7 +13,8 @@
   import {
     SETTINGS_TABS,
     SETTINGS_SEARCH_INDEX,
-    filterSearchIndex,
+    SECTION_ANCHORS,
+    buildSearchResults,
     type SettingsSearchEntry,
   } from './settingsNavRegistry';
   import GeneralTab from './tabs/GeneralTab.svelte';
@@ -51,28 +52,8 @@
 
   const query = $derived(handler.searchQuery);
   const searching = $derived(query.trim().length > 0);
-  const searchResults = $derived(filterSearchIndex(SETTINGS_SEARCH_INDEX, query));
+  const searchResults = $derived(buildSearchResults(SETTINGS_SEARCH_INDEX, settingsTabs, query));
 
-  // Anchors for the section-pill sub-nav, per Phase-1 tab. Extensions has
-  // no entry — it's a fixed master-detail split with nothing to scroll to,
-  // so its pane renders without a sub-nav (documented deviation).
-  const SECTION_ANCHORS: Record<string, { id: string; label: string }[]> = {
-    general: [
-      { id: 'general-startup', label: 'Startup' },
-      { id: 'general-appearance', label: 'Appearance' },
-      { id: 'general-placement', label: 'Placement' },
-      { id: 'general-onboarding', label: 'Onboarding' },
-    ],
-    applications: [
-      { id: 'applications-scope', label: 'Search scope' },
-      { id: 'applications-list', label: 'Applications' },
-    ],
-    advanced: [
-      { id: 'advanced-extension-surface', label: 'Extension surface' },
-      { id: 'advanced-input', label: 'Input' },
-      { id: 'advanced-scheduled-tasks', label: 'Scheduled tasks' },
-    ],
-  };
   const currentAnchors = $derived(SECTION_ANCHORS[handler.activeTab] ?? []);
 
   // Switching tabs (sidebar click, or the asyar:navigate-settings-tab event)

@@ -6,6 +6,7 @@
     EmptyState,
     LoadingState,
     ExtensionDetailPanel,
+    Icon,
   } from '../../../components';
   import type { SettingsHandler, ExtensionItem } from '../settingsHandlers.svelte';
   import { extensionStateManager } from '../../../services/extension/extensionStateManager.svelte';
@@ -310,16 +311,7 @@
         <!-- toolbar: search + filter chips -->
         <div class="toolbar-row">
           <div class="search-box">
-            <svg
-              class="search-icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            >
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-            </svg>
+            <Icon name="search" size={13} strokeWidth={2} class="search-icon" />
             <Input
               unstyled
               textIntent="exact"
@@ -722,9 +714,7 @@
     box-shadow: var(--shadow-focus);
   }
 
-  .search-icon {
-    width: 13px;
-    height: 13px;
+  :global(.search-icon) {
     color: var(--text-tertiary);
     flex-shrink: 0;
   }

@@ -4,9 +4,16 @@
   let {
     value = 'system',
     onchange,
+    wellBackground = 'tertiary',
   }: {
     value?: Theme;
     onchange?: (v: Theme) => void;
+    /** Background token for the unselected circle. Default `'tertiary'`
+     *  matches this component's onboarding usage (inside a `Card`, which is
+     *  `--bg-secondary`). Settings' `GeneralTab` passes `'secondary'` since
+     *  it sits inside a `SettingsCard`, which is `--bg-tertiary` — using the
+     *  same token there would make the circle disappear into its card. */
+    wellBackground?: 'tertiary' | 'secondary';
   } = $props();
 
   const options: { id: Theme; label: string }[] = [
@@ -27,7 +34,7 @@
       type="button"
       onclick={() => onchange?.(option.id)}
     >
-      <div class="theme-circle">
+      <div class="theme-circle" class:well-secondary={wellBackground === 'secondary'}>
         {#if option.id === 'light'}
           <!-- Sun icon -->
           <svg
@@ -122,6 +129,10 @@
     transition:
       border-color var(--transition-normal),
       background-color var(--transition-normal);
+  }
+
+  .theme-circle.well-secondary {
+    background: var(--bg-secondary);
   }
 
   .theme-option:hover .theme-circle {

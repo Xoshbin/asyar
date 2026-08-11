@@ -15,11 +15,11 @@ describe('TabGroup sidebar variant', () => {
   });
 
   it('renders no count element when count is omitted', () => {
-    render(TabGroup, {
+    const { container } = render(TabGroup, {
       variant: 'sidebar',
       activeTab: 'general',
       tabs: [{ id: 'general', label: 'General', icon: 'settings' }],
     });
-    expect(screen.queryByText('412')).toBeNull();
+    expect(container.querySelector('.tab-item-count')).toBeNull();
   });
 });

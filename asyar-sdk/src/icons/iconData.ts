@@ -250,6 +250,10 @@ export const ICON_DATA: Record<string, string> = {
     <polyline points="16 17 21 12 16 7" />
     <line x1="21" y1="12" x2="9" y2="12" />
   `,
+  search: `
+    <circle cx="11" cy="11" r="8" />
+    <path d="m21 21-4.35-4.35" />
+  `,
 };
 
 export const ICON_NAMES: readonly string[] = Object.keys(ICON_DATA);

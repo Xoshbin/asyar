@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { SettingsCard, SettingsRow, Toggle, SegmentedControl } from '../../../components';
+  import {
+    SettingsCard,
+    SettingsRow,
+    SettingsPaneHeader,
+    Toggle,
+    SegmentedControl,
+  } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import ScheduledTasksSection from '../../../components/settings/ScheduledTasksSection.svelte';
@@ -53,10 +59,7 @@
   });
 </script>
 
-<div class="pane-header">
-  <div class="pane-title">Advanced</div>
-  <div class="pane-subtitle">Behaviour that most people never need to change.</div>
-</div>
+<SettingsPaneHeader title="Advanced" subtitle="Behaviour that most people never need to change." />
 
 <div class="section-header">Extension surface</div>
 <SettingsCard>
@@ -132,23 +135,6 @@
 {/if}
 
 <style>
-  .pane-header {
-    margin-bottom: var(--space-8);
-  }
-
-  .pane-title {
-    font-size: var(--font-size-3xl);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--text-primary);
-  }
-
-  .pane-subtitle {
-    font-size: var(--font-size-md);
-    color: var(--text-secondary);
-    margin-top: var(--space-1);
-  }
-
   .error-message {
     font-size: var(--font-size-sm);
     font-weight: 500;
