@@ -36,17 +36,30 @@ pub fn start(app: AppHandle, registry: TimerRegistry) {
         loop {
             tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
 
+            if !registry.should_poll() {
+                continue;
+            }
+            registry.begin_poll();
+
             let now = now_millis();
-            match registry.due_now(now) {
-                Ok(due) => {
+            let should_prune = match registry.poll_due(now) {
+                Ok((due, has_unfired)) => {
+                    if has_unfired {
+                        registry.keep_polling();
+                    }
                     for desc in due {
                         fire_one(&app, &registry, desc, now);
                     }
+                    has_unfired
                 }
-                Err(e) => warn!("[timers] due_now query failed: {e}"),
-            }
+                Err(e) => {
+                    registry.keep_polling();
+                    warn!("[timers] due_now query failed: {e}");
+                    true
+                }
+            };
 
-            if now.saturating_sub(last_prune_ms) >= PRUNE_INTERVAL_SECS * 1000 {
+            if should_prune && now.saturating_sub(last_prune_ms) >= PRUNE_INTERVAL_SECS * 1000 {
                 let cutoff = now.saturating_sub(PRUNE_AGE_MILLIS);
                 match registry.prune_old_fired(cutoff) {
                     Ok(n) if n > 0 => info!("[timers] pruned {n} stale fired timers"),
