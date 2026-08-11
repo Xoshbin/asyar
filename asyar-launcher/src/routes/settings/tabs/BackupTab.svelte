@@ -2,13 +2,14 @@
   import { onMount } from 'svelte';
   import { emit } from '@tauri-apps/api/event';
   import {
-    SettingsForm,
-    SettingsFormRow,
     Checkbox,
     Button,
     Input,
     WarningBanner,
     Modal,
+    SettingsCard,
+    SettingsRow,
+    SettingsPaneHeader,
   } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { BackupHandler } from './backupHandler.svelte';
@@ -29,16 +30,22 @@
   }
 </script>
 
-<!-- Export Backup & Restore -->
-<div class="no-separators">
-  <SettingsForm>
+<SettingsPaneHeader
+  title="Backup & Restore"
+  subtitle="Export or restore your Asyar settings, extensions, and data."
+/>
+
+<!-- Export Backup -->
+<div class="section-header">Export</div>
+<div id="backup-export">
+  <SettingsCard>
     {#each backup.providers as provider (provider.id)}
-      <SettingsFormRow label={provider.displayName}>
+      <SettingsRow label={provider.displayName}>
         <Checkbox
           checked={backup.enabledCategories.has(provider.id)}
           onchange={() => backup.toggleCategory(provider.id)}
         />
-      </SettingsFormRow>
+      </SettingsRow>
     {/each}
 
     {#if backup.hasSensitiveData}
@@ -50,17 +57,17 @@
       </div>
     {/if}
 
-    <SettingsFormRow label="Password (optional)">
+    <SettingsRow label="Password (optional)" description="Leave blank to strip sensitive fields.">
       <Input
         textIntent="exact"
         id="export-password"
         type="password"
-        placeholder="Leave blank to strip sensitive fields"
+        placeholder="Optional encryption password"
         bind:value={backup.exportPassword}
       />
-    </SettingsFormRow>
+    </SettingsRow>
 
-    <SettingsFormRow label="">
+    <SettingsRow label="Export backup">
       <div class="action-row">
         <Button
           onclick={() => backup.handleExport()}
@@ -74,22 +81,25 @@
           </span>
         {/if}
       </div>
-    </SettingsFormRow>
-  </SettingsForm>
+    </SettingsRow>
+  </SettingsCard>
+</div>
 
-  <!-- Migrate from Raycast -->
-  <SettingsForm>
-    <SettingsFormRow label="Migrate from Raycast">
-      <div class="action-row">
-        <Button onclick={openRaycastImport}>Import from Raycast…</Button>
-        <span class="text-caption">Snippets, quicklinks, and app hotkeys</span>
-      </div>
-    </SettingsFormRow>
-  </SettingsForm>
+<!-- Migrate from Raycast -->
+<div class="section-header">Migrate from Raycast</div>
+<div id="backup-raycast">
+  <SettingsCard>
+    <SettingsRow label="Raycast import" description="Snippets, quicklinks, and app hotkeys">
+      <Button onclick={openRaycastImport}>Import from Raycast…</Button>
+    </SettingsRow>
+  </SettingsCard>
+</div>
 
-  <!-- Restore from Backup -->
-  <SettingsForm>
-    <SettingsFormRow label="" separator>
+<!-- Restore from Backup -->
+<div class="section-header">Restore</div>
+<div id="backup-import">
+  <SettingsCard>
+    <SettingsRow label="Restore backup" description="Choose a previously exported backup file.">
       <div class="action-row">
         <Button
           onclick={() => backup.handleChooseFile()}
@@ -105,10 +115,10 @@
           </span>
         {/if}
       </div>
-    </SettingsFormRow>
+    </SettingsRow>
 
     {#if backup.importNeedsPassword}
-      <SettingsFormRow label="Password">
+      <SettingsRow label="Password">
         <div class="import-password-row">
           <Input
             textIntent="exact"
@@ -123,14 +133,14 @@
             {backup.importStatus === 'importing' ? 'Unlocking…' : 'Unlock'}
           </Button>
         </div>
-      </SettingsFormRow>
+      </SettingsRow>
       {#if backup.importStatus === 'error' && backup.importMessage}
-        <SettingsFormRow label="">
+        <div class="warning-row">
           <span class="status-text error">{backup.importMessage}</span>
-        </SettingsFormRow>
+        </div>
       {/if}
     {/if}
-  </SettingsForm>
+  </SettingsCard>
 </div>
 
 <!-- Import Preview Modal -->
@@ -233,14 +243,6 @@
 {/if}
 
 <style>
-  .no-separators :global(.form-row) {
-    border-bottom: none;
-  }
-
-  .no-separators :global(.form-row.separator) {
-    border-top: none;
-  }
-
   .warning-row {
     padding: var(--space-3) var(--space-6);
   }

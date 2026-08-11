@@ -260,6 +260,96 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     tabLabel: 'Scripts',
     keywords: ['script', 'directory', 'watch', 'executable'],
   },
+  {
+    id: 'ai-tab-continues-last-thread',
+    title: 'Tab continues last thread',
+    description: 'Pressing Tab resumes your previous conversation with Asyar Assistant.',
+    tab: 'ai',
+    tabLabel: 'AI',
+    sectionAnchor: 'ai-behavior',
+    keywords: ['chat', 'thread', 'remember', 'assistant'],
+  },
+  {
+    id: 'ai-providers',
+    title: 'AI providers',
+    description: 'Configure AI providers, API keys, endpoints, and default assistant models.',
+    tab: 'ai',
+    tabLabel: 'AI',
+    sectionAnchor: 'ai-providers',
+    keywords: ['api', 'key', 'openai', 'anthropic', 'ollama', 'gemini', 'openrouter', 'model'],
+  },
+  {
+    id: 'ai-temperature',
+    title: 'AI temperature',
+    description: 'Adjust sampling temperature for assistant responses.',
+    tab: 'ai',
+    tabLabel: 'AI',
+    sectionAnchor: 'ai-advanced',
+    keywords: ['creativity', 'randomness', 'temperature', 'sampling'],
+  },
+  {
+    id: 'ai-max-tokens',
+    title: 'AI max tokens',
+    description: 'Set maximum response length for AI completions.',
+    tab: 'ai',
+    tabLabel: 'AI',
+    sectionAnchor: 'ai-advanced',
+    keywords: ['length', 'tokens', 'limit', 'max'],
+  },
+  {
+    id: 'account-profile',
+    title: 'Account profile',
+    description: 'View active Asyar user profile, email, and features.',
+    tab: 'account',
+    tabLabel: 'Account',
+    sectionAnchor: 'account-profile',
+    keywords: ['user', 'login', 'email', 'avatar', 'sign out'],
+  },
+  {
+    id: 'account-subscription',
+    title: 'Subscription',
+    description: 'Manage your Asyar subscription and billing.',
+    tab: 'account',
+    tabLabel: 'Account',
+    sectionAnchor: 'account-subscription',
+    keywords: ['plan', 'pro', 'tier', 'billing', 'upgrade'],
+  },
+  {
+    id: 'account-sync',
+    title: 'Cloud sync',
+    description: 'Configure cross-device sync and end-to-end encryption.',
+    tab: 'account',
+    tabLabel: 'Account',
+    sectionAnchor: 'account-sync',
+    keywords: ['sync', 'cloud', 'devices', 'e2ee', 'encryption', 'passphrase'],
+  },
+  {
+    id: 'backup-export',
+    title: 'Export backup',
+    description: 'Export Asyar settings, extensions, and data to an encrypted backup file.',
+    tab: 'backup',
+    tabLabel: 'Backup',
+    sectionAnchor: 'backup-export',
+    keywords: ['export', 'save', 'backup', 'file', 'password'],
+  },
+  {
+    id: 'backup-import',
+    title: 'Restore from backup',
+    description: 'Restore settings and data from a backup file.',
+    tab: 'backup',
+    tabLabel: 'Backup',
+    sectionAnchor: 'backup-import',
+    keywords: ['restore', 'import', 'load', 'file'],
+  },
+  {
+    id: 'backup-raycast',
+    title: 'Migrate from Raycast',
+    description: 'Import snippets, quicklinks, and hotkeys from Raycast.',
+    tab: 'backup',
+    tabLabel: 'Backup',
+    sectionAnchor: 'backup-raycast',
+    keywords: ['raycast', 'migrate', 'snippets', 'quicklinks'],
+  },
 ];
 
 export interface SectionAnchor {
@@ -295,6 +385,21 @@ export const SECTION_ANCHORS: Record<string, SectionAnchor[]> = {
     { id: 'file-search-roots', label: 'Search roots' },
     { id: 'file-search-excludes', label: 'Exclude patterns' },
   ],
+  ai: [
+    { id: 'ai-behavior', label: 'Behavior' },
+    { id: 'ai-providers', label: 'Providers' },
+    { id: 'ai-advanced', label: 'Advanced' },
+  ],
+  backup: [
+    { id: 'backup-export', label: 'Export' },
+    { id: 'backup-import', label: 'Restore' },
+    { id: 'backup-raycast', label: 'Migrate' },
+  ],
+  account: [
+    { id: 'account-profile', label: 'Profile' },
+    { id: 'account-subscription', label: 'Subscription' },
+    { id: 'account-sync', label: 'Cloud sync' },
+  ],
   advanced: [
     { id: 'advanced-extension-surface', label: 'Extension surface' },
     { id: 'advanced-input', label: 'Input' },
@@ -317,9 +422,9 @@ export function filterSearchIndex(
 }
 
 /** `filterSearchIndex` only covers tabs indexed in `SETTINGS_SEARCH_INDEX`
- *  (currently general/extensions/applications/advanced) — searching e.g.
- *  "backup" or "privacy" would otherwise return nothing even though those
- *  tabs exist. For any tab whose label matches the query and that has no
+ *  (general/extensions/browsers/applications/file-search/scripts/ai/backup/account/advanced) —
+ *  searching e.g. "privacy" or "about" would otherwise return nothing even though
+ *  those tabs exist. For any tab whose label matches the query and that has no
  *  real indexed match of its own, synthesize a fallback entry that just
  *  opens the tab, so every tab stays reachable from search until its own
  *  settings are indexed. */

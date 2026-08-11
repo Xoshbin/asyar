@@ -8,6 +8,10 @@ vi.mock('../../../components', async () => ({
   InlineError: (await import('../../../components/feedback/InlineError.svelte')).default,
   SettingsForm: (await import('../../../components/settings/SettingsForm.svelte')).default,
   SettingsFormRow: (await import('../../../components/settings/SettingsFormRow.svelte')).default,
+  SettingsCard: (await import('../../../components/settings/SettingsCard.svelte')).default,
+  SettingsRow: (await import('../../../components/settings/SettingsRow.svelte')).default,
+  SettingsPaneHeader: (await import('../../../components/settings/SettingsPaneHeader.svelte'))
+    .default,
   Toggle: (await import('../../../components/base/Toggle.svelte')).default,
 }));
 vi.mock('../../../services/settings/settingsService.svelte', () => ({

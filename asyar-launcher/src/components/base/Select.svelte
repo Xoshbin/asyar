@@ -49,7 +49,7 @@
     padding: var(--space-2) var(--space-7) var(--space-2) var(--space-3);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    background-color: var(--bg-tertiary);
+    background-color: var(--bg-secondary);
     color: var(--text-primary);
     font-family: var(--font-ui);
     font-size: var(--font-size-sm);
