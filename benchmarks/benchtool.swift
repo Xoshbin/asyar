@@ -14,6 +14,7 @@
 //   benchtool mem       <bundle-path>
 //   benchtool hotkey    <bundle-path> <keyspec> [runs]
 //   benchtool coldstart <bundle-path> <keyspec>
+//   benchtool typelatency <bundle-path> <keyspec> <char> [runs]
 //   benchtool cpu       <bundle-path> [seconds]
 //   benchtool group     <bundle-path>
 //
@@ -124,7 +125,9 @@ func cpuTimeNs(_ pid: pid_t) -> UInt64? {
 
 /// True when the app has a real (launcher-sized) window on screen.
 /// Small always-on windows like the menu-bar status item are filtered
-/// out by the size threshold.
+/// out by the size threshold. The threshold must stay below the
+/// collapsed empty-query launcher (750x96 as of 0.1.1): a 100 px
+/// height floor made every hotkey run time out against it.
 func launcherWindowVisible(pids: Set<pid_t>) -> Bool {
     let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
     guard let info = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]]
@@ -139,9 +142,32 @@ func launcherWindowVisible(pids: Set<pid_t>) -> Bool {
         guard let boundsDict = w[kCGWindowBounds as String] as? NSDictionary,
             let rect = CGRect(dictionaryRepresentation: boundsDict)
         else { continue }
-        if rect.height >= 100, rect.width >= 200 { return true }
+        if rect.height >= 60, rect.width >= 400 { return true }
     }
     return false
+}
+
+/// Height of the visible launcher window, or nil when none is on screen.
+/// Used by `typelatency`: launchers that present results by growing the
+/// panel (Asyar's collapsed 96 px → expanded) reveal "results painted"
+/// as a height change observable without any in-app instrumentation.
+func launcherWindowHeight(pids: Set<pid_t>) -> Double? {
+    let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+    guard let info = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]]
+    else { return nil }
+    for w in info {
+        guard let owner = (w[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+            pids.contains(owner)
+        else { continue }
+        if let alpha = (w[kCGWindowAlpha as String] as? NSNumber)?.doubleValue, alpha <= 0.01 {
+            continue
+        }
+        guard let boundsDict = w[kCGWindowBounds as String] as? NSDictionary,
+            let rect = CGRect(dictionaryRepresentation: boundsDict)
+        else { continue }
+        if rect.height >= 60, rect.width >= 400 { return rect.height }
+    }
+    return nil
 }
 
 // MARK: - Key events
@@ -365,6 +391,82 @@ func cmdHotkey(_ bundle: String, spec: String, runs: Int) {
     print("median_ms=\(String(format: "%.1f", median(samples)))")
     print("p95_ms=\(String(format: "%.1f", percentile(samples, 0.95)))")
     print("min_ms=\(String(format: "%.1f", samples.min()!))")
+    print("p99_ms=\(String(format: "%.1f", percentile(samples, 0.99)))")
+    print("samples_ms=\(samples.map { String(format: "%.1f", $0) }.joined(separator: ","))")
+}
+
+/// Keystroke → results painted, via panel growth. Each run: summon the
+/// launcher, let it stabilize at its collapsed height, post one character,
+/// and time until the window height changes (the results list rendering is
+/// what grows the panel). Requires a launcher that presents results by
+/// resizing; apps with a fixed-size window time out and report n/a.
+func cmdTypeLatency(_ bundle: String, spec: String, char: String, runs: Int) {
+    requireAccessibility()
+    guard let (key, flags) = parseKeySpec(spec) else {
+        fputs("error: cannot parse keyspec '\(spec)'\n", stderr)
+        exit(1)
+    }
+    guard let charCode = keyCodes[char.lowercased()] else {
+        fputs("error: unsupported character '\(char)' (use a letter key)\n", stderr)
+        exit(1)
+    }
+    let group = processGroup(bundlePath: bundle)
+    guard !group.isEmpty else {
+        fputs("error: \(bundle) is not running — launch it first\n", stderr)
+        exit(1)
+    }
+    let pids = Set(group)
+
+    var samples: [Double] = []
+    var failures = 0
+    hideWindow(key, flags, pids: pids)
+
+    for run in 1...runs {
+        usleep(400_000)
+        postKey(key, flags)
+        guard waitFor(timeoutMs: 5000, { launcherWindowVisible(pids: pids) }) != nil else {
+            failures += 1
+            print("run=\(run) ms=summon-timeout")
+            continue
+        }
+        // Let the collapsed panel settle so the baseline height is stable.
+        usleep(400_000)
+        guard let baseline = launcherWindowHeight(pids: pids) else {
+            failures += 1
+            print("run=\(run) ms=no-window")
+            continue
+        }
+        let t0 = nowNs()
+        postKey(charCode, [])
+        if waitFor(timeoutMs: 5000, pollUs: 300, {
+            if let h = launcherWindowHeight(pids: pids) { return abs(h - baseline) > 2 }
+            return false
+        }) != nil {
+            let ms = msSince(t0)
+            samples.append(ms)
+            print("run=\(run) ms=\(String(format: "%.1f", ms))")
+        } else {
+            failures += 1
+            print("run=\(run) ms=timeout")
+        }
+        // Esc clears the query, second Esc (via hideWindow) dismisses.
+        postKey(keyCodes["escape"]!, [])
+        usleep(200_000)
+        guard hideWindow(key, flags, pids: pids) else {
+            fputs("error: could not hide the launcher window between runs\n", stderr)
+            exit(1)
+        }
+    }
+
+    guard !samples.isEmpty, failures * 2 < runs else {
+        fputs(
+            "error: too many failures (\(failures)/\(runs)) — the launcher may not resize on results\n",
+            stderr)
+        exit(1)
+    }
+    print("type_p50_ms=\(String(format: "%.1f", median(samples)))")
+    print("type_p95_ms=\(String(format: "%.1f", percentile(samples, 0.95)))")
+    print("type_p99_ms=\(String(format: "%.1f", percentile(samples, 0.99)))")
 }
 
 func cmdColdstart(_ bundle: String, spec: String) {
@@ -436,6 +538,7 @@ guard args.count >= 3 else {
         usage: benchtool mem       <bundle-path>
                benchtool hotkey    <bundle-path> <keyspec> [runs]
                benchtool coldstart <bundle-path> <keyspec>
+               benchtool typelatency <bundle-path> <keyspec> <char> [runs]
                benchtool cpu       <bundle-path> [seconds]
                benchtool group     <bundle-path>
 
@@ -454,6 +557,12 @@ case "hotkey":
         exit(64)
     }
     cmdHotkey(bundle, spec: args[3], runs: args.count > 4 ? Int(args[4]) ?? 15 : 15)
+case "typelatency":
+    guard args.count >= 5 else {
+        fputs("error: typelatency needs a keyspec and a character, e.g. cmd+space a\n", stderr)
+        exit(64)
+    }
+    cmdTypeLatency(bundle, spec: args[3], char: args[4], runs: args.count > 5 ? Int(args[5]) ?? 10 : 10)
 case "coldstart":
     guard args.count >= 4 else {
         fputs("error: coldstart needs a keyspec, e.g. opt+space\n", stderr)
