@@ -26,10 +26,9 @@ export const SETTINGS_TABS: SettingsTabDescriptor[] = [
 /** `sectionAnchor`, when present, must match the `id` attribute of a
  *  `SettingsCard`/section wrapper rendered by that tab, and a `section.id`
  *  passed to that tab's `SettingsSectionNav` — SettingsSearchResults scrolls
- *  to and briefly highlights that element on selection. Only the four
- *  Phase-1 tabs (general/extensions/applications/advanced) are indexed;
- *  indexing the remaining tabs is follow-up work for their own migration
- *  plans. Titles/descriptions below are the same copy the design handoff
+ *  to and briefly highlights that element on selection. Tabs are indexed as
+ *  they migrate onto the command-bar shell; unmigrated tabs have no entries
+ *  yet. Titles/descriptions below are the same copy the design handoff
  *  specifies for these settings, not invented strings. */
 export interface SettingsSearchEntry {
   id: string;
@@ -207,6 +206,60 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     sectionAnchor: 'advanced-scheduled-tasks',
     keywords: ['cron', 'timer'],
   },
+  {
+    id: 'browsers-connected-browsers',
+    title: 'Connected browsers',
+    description:
+      'Pair browsers running the Asyar Companion extension and manage existing pairings.',
+    tab: 'browsers',
+    tabLabel: 'Browsers',
+    sectionAnchor: 'browsers-connected',
+    keywords: ['pairing', 'companion', 'chrome', 'browser', 'connected'],
+  },
+  {
+    id: 'browsers-install-companion',
+    title: 'Install browser companion',
+    description: 'Get the Asyar Companion extension for Chrome, Brave, Edge, Arc, and Vivaldi.',
+    tab: 'browsers',
+    tabLabel: 'Browsers',
+    sectionAnchor: 'browsers-install',
+    keywords: ['chrome', 'extension', 'companion', 'install'],
+  },
+  {
+    id: 'file-search-enable',
+    title: 'File search',
+    description: "Search files across your home folder from Asyar's search bar.",
+    tab: 'file-search',
+    tabLabel: 'File Search',
+    sectionAnchor: 'file-search-status',
+    keywords: ['index', 'enable', 'toggle', 'indexing'],
+  },
+  {
+    id: 'file-search-roots',
+    title: 'Search roots',
+    description: 'Directories included when indexing files for search.',
+    tab: 'file-search',
+    tabLabel: 'File Search',
+    sectionAnchor: 'file-search-roots',
+    keywords: ['directory', 'folder', 'root', 'scope'],
+  },
+  {
+    id: 'file-search-excludes',
+    title: 'Exclude patterns',
+    description: 'Patterns skipped when indexing files, layered on the built-in exclusions.',
+    tab: 'file-search',
+    tabLabel: 'File Search',
+    sectionAnchor: 'file-search-excludes',
+    keywords: ['exclude', 'ignore', 'pattern'],
+  },
+  {
+    id: 'scripts-directories',
+    title: 'Script directories',
+    description: 'Folders watched for executable scripts.',
+    tab: 'scripts',
+    tabLabel: 'Scripts',
+    keywords: ['script', 'directory', 'watch', 'executable'],
+  },
 ];
 
 export interface SectionAnchor {
@@ -229,9 +282,18 @@ export const SECTION_ANCHORS: Record<string, SectionAnchor[]> = {
     { id: 'general-placement', label: 'Placement' },
     { id: 'general-onboarding', label: 'Onboarding' },
   ],
+  browsers: [
+    { id: 'browsers-connected', label: 'Connected browsers' },
+    { id: 'browsers-install', label: 'Install companion' },
+  ],
   applications: [
     { id: 'applications-scope', label: 'Search scope' },
     { id: 'applications-list', label: 'Applications' },
+  ],
+  'file-search': [
+    { id: 'file-search-status', label: 'Status' },
+    { id: 'file-search-roots', label: 'Search roots' },
+    { id: 'file-search-excludes', label: 'Exclude patterns' },
   ],
   advanced: [
     { id: 'advanced-extension-surface', label: 'Extension surface' },

@@ -1,8 +1,16 @@
 <script lang="ts">
-  import { Input } from '../../../components';
+  import {
+    Input,
+    Button,
+    Icon,
+    Toggle,
+    Badge,
+    SettingsCard,
+    SettingsRow,
+    SettingsPaneHeader,
+  } from '../../../components';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { open } from '@tauri-apps/plugin-dialog';
-  import { Button, Icon, Toggle, Badge } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { setFocusLock } from '../../../lib/ipc/commands';
   import { fileIndexStatus, fileIndexRebuild } from '../../../lib/ipc/fileSearchCommands';
@@ -124,65 +132,66 @@
   }
 </script>
 
-<div class="file-search-tab">
-  <section class="section">
-    <div class="section-header-row">
-      <div>
-        <h2 class="section-title">File Search</h2>
-        <p class="section-description">
-          Search files across your home folder. Indexing runs in the background and excludes caches,
-          dependency folders, and system directories by default.
-        </p>
-      </div>
+<SettingsPaneHeader
+  title="File Search"
+  subtitle="Search files across your home folder from Asyar's search bar."
+/>
+
+<div class="section-header">Status</div>
+<div id="file-search-status">
+  <SettingsCard>
+    <SettingsRow
+      label="File search"
+      description="Indexing runs in the background and excludes caches, dependency folders, and system directories by default."
+    >
       <Toggle checked={enabled} onchange={handleToggleEnabled} />
-    </div>
-  </section>
+    </SettingsRow>
+  </SettingsCard>
 
-  <section class="section">
-    <h2 class="section-title">Index Status</h2>
-    {#if status}
-      <div class="status-card">
-        <Badge text={STATE_LABELS[status.state] ?? status.state} variant="default" />
-        <span class="text-caption">{status.entryCount.toLocaleString()} files indexed</span>
-        {#if status.lastScanMs > 0}
-          <span class="text-caption opacity-70">last scan {status.lastScanMs}ms</span>
-        {/if}
-        {#if status.snapshotLoaded}
-          <span class="text-caption opacity-70">restored from snapshot</span>
-        {/if}
-        <Button onclick={handleRebuild} disabled={isRebuilding}>
-          {isRebuilding ? 'Rebuilding…' : 'Rebuild Index'}
-        </Button>
-      </div>
-      {#if status.capReached}
-        <div class="warning" role="alert">
-          The index hit its size cap — some files may not be searchable. Add exclude patterns to
-          narrow the scan, or reduce your search roots.
-        </div>
+  {#if status}
+    <div class="index-status">
+      <Badge text={STATE_LABELS[status.state] ?? status.state} variant="default" />
+      <span class="text-caption">{status.entryCount.toLocaleString()} files indexed</span>
+      {#if status.lastScanMs > 0}
+        <span class="text-caption opacity-70">last scan {status.lastScanMs}ms</span>
       {/if}
-    {/if}
-  </section>
-
-  <section class="section">
-    <h2 class="section-title">Search Roots</h2>
-    <p class="section-description">
-      Empty ⇒ your entire home folder. Add specific directories to narrow the scope.
-    </p>
-
-    <div class="add-row">
-      <Button onclick={handleAddRoot} disabled={isBrowsing}>
-        <span class="btn-content">
-          <Icon name="plus" size={14} />
-          {isBrowsing ? 'Opening…' : 'Add Root'}
-        </span>
+      {#if status.snapshotLoaded}
+        <span class="text-caption opacity-70">restored from snapshot</span>
+      {/if}
+      <Button onclick={handleRebuild} disabled={isRebuilding}>
+        {isRebuilding ? 'Rebuilding…' : 'Rebuild Index'}
       </Button>
     </div>
-
-    {#if errorMessage}
-      <div class="error" role="alert">{errorMessage}</div>
+    {#if status.capReached}
+      <div class="warning" role="alert">
+        The index hit its size cap — some files may not be searchable. Add exclude patterns to
+        narrow the scan, or reduce your search roots.
+      </div>
     {/if}
+  {/if}
+</div>
 
-    {#if roots.length > 0}
+<div class="section-header">Search roots</div>
+<div id="file-search-roots">
+  <p class="section-description">
+    Empty ⇒ your entire home folder. Add specific directories to narrow the scope.
+  </p>
+
+  <div class="add-row">
+    <Button onclick={handleAddRoot} disabled={isBrowsing}>
+      <span class="btn-content">
+        <Icon name="plus" size={14} />
+        {isBrowsing ? 'Opening…' : 'Add Root'}
+      </span>
+    </Button>
+  </div>
+
+  {#if errorMessage}
+    <div class="error" role="alert">{errorMessage}</div>
+  {/if}
+
+  {#if roots.length > 0}
+    <SettingsCard>
       <ul class="path-list">
         {#each roots as path (path)}
           <li class="path-row">
@@ -199,29 +208,31 @@
           </li>
         {/each}
       </ul>
-    {/if}
-  </section>
+    </SettingsCard>
+  {/if}
+</div>
 
-  <section class="section">
-    <h2 class="section-title">Exclude Patterns</h2>
-    <p class="section-description">
-      Layered on top of the built-in exclusions (node_modules, .git, caches, etc).
-    </p>
+<div class="section-header">Exclude patterns</div>
+<div id="file-search-excludes">
+  <p class="section-description">
+    Layered on top of the built-in exclusions (node_modules, .git, caches, etc).
+  </p>
 
-    <div class="add-row exclude-add-row">
-      <Input
-        unstyled
-        textIntent="exact"
-        type="text"
-        class="exclude-input"
-        placeholder="e.g. *.tmp"
-        bind:value={newExcludePattern}
-        onkeydown={(e) => e.key === 'Enter' && handleAddExcludePattern()}
-      />
-      <Button onclick={handleAddExcludePattern}>Add</Button>
-    </div>
+  <div class="add-row exclude-add-row">
+    <Input
+      unstyled
+      textIntent="exact"
+      type="text"
+      class="exclude-input"
+      placeholder="e.g. *.tmp"
+      bind:value={newExcludePattern}
+      onkeydown={(e) => e.key === 'Enter' && handleAddExcludePattern()}
+    />
+    <Button onclick={handleAddExcludePattern}>Add</Button>
+  </div>
 
-    {#if excludePatterns.length > 0}
+  {#if excludePatterns.length > 0}
+    <SettingsCard>
       <ul class="path-list">
         {#each excludePatterns as pattern (pattern)}
           <li class="path-row">
@@ -238,55 +249,36 @@
           </li>
         {/each}
       </ul>
-    {/if}
-  </section>
+    </SettingsCard>
+  {/if}
 </div>
 
 <style>
-  .file-search-tab {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
-  }
-
-  .section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  .section-header-row {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-4);
-  }
-
-  .section-title {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-
   .section-description {
-    margin: 0;
+    margin: 0 0 var(--space-3) 0;
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
     line-height: 1.5;
   }
 
-  .status-card {
+  /* Deliberately NOT a SettingsCard: it holds a Badge (variant="default")
+     and a Button, both of which default to var(--bg-tertiary) — the same
+     token SettingsCard uses. Nesting either inside a SettingsCard here would
+     make it blend invisibly into the card (see Global Constraints). */
+  .index-status {
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-3);
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-sm);
+    margin-top: var(--space-3);
+    padding: var(--space-4) var(--space-6);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary-full-opacity);
     flex-wrap: wrap;
   }
 
   .warning {
+    margin-top: var(--space-3);
     padding: var(--space-2) var(--space-3);
     background: color-mix(in srgb, var(--accent-warning) 10%, transparent);
     border-radius: var(--radius-sm);
@@ -295,6 +287,7 @@
   }
 
   .add-row {
+    margin-bottom: var(--space-3);
     align-self: flex-start;
   }
 
@@ -322,6 +315,7 @@
   }
 
   .error {
+    margin-bottom: var(--space-3);
     padding: var(--space-2) var(--space-3);
     background: color-mix(in srgb, var(--accent-danger) 10%, transparent);
     border-radius: var(--radius-sm);
@@ -335,20 +329,24 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
   }
 
   .path-row {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--separator);
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-6);
   }
-  .path-row:last-child {
-    border-bottom: none;
+
+  .path-row:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: var(--space-6);
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--border-color);
   }
 
   :global(.path-icon) {
@@ -359,7 +357,7 @@
   .path-text {
     flex: 1;
     min-width: 0;
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-md);
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;

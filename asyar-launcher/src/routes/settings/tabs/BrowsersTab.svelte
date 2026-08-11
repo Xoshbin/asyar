@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { EmptyState } from '../../../components';
+  import { EmptyState, SettingsCard, SettingsPaneHeader } from '../../../components';
   import { listen } from '@tauri-apps/api/event';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { browserService } from '../../../services/browser/browserService';
@@ -99,111 +99,140 @@
   });
 </script>
 
-<section class="settings-section">
-  <h2>Browsers</h2>
+<SettingsPaneHeader
+  title="Browsers"
+  subtitle="Pair browsers running the Asyar Companion extension."
+/>
 
+<div class="section-header">Connected browsers</div>
+<div id="browsers-connected" class="anchor-group">
   {#if pendingPairings.length > 0}
-    <div class="pending-list" data-testid="pending-list">
-      <h3>Pending pairing requests</h3>
-      {#each pendingPairings as p (p.id)}
-        <article class="pending-item">
-          <span class="browser-label">{p.family} · {p.variant}</span>
-          <button
-            class="action-btn"
-            onclick={() => resolve(p.id, 'allow')}
-            data-testid="allow-{p.id}">Allow</button
-          >
-          <button class="action-btn" onclick={() => resolve(p.id, 'deny')} data-testid="deny-{p.id}"
-            >Deny</button
-          >
-        </article>
-      {/each}
-    </div>
+    <SettingsCard>
+      <div class="pending-list" data-testid="pending-list">
+        {#each pendingPairings as p (p.id)}
+          <div class="browser-row">
+            <span class="browser-label">{p.family} · {p.variant}</span>
+            <span class="pending-tag">Pending</span>
+            <button
+              class="action-btn"
+              onclick={() => resolve(p.id, 'allow')}
+              data-testid="allow-{p.id}">Allow</button
+            >
+            <button
+              class="action-btn action-btn-danger"
+              onclick={() => resolve(p.id, 'deny')}
+              data-testid="deny-{p.id}">Deny</button
+            >
+          </div>
+        {/each}
+      </div>
+    </SettingsCard>
   {/if}
 
-  <div class="paired-list" data-testid="paired-list">
-    <h3>Connected browsers</h3>
-    {#if pairedBrowsers.length === 0}
+  {#if pairedBrowsers.length === 0}
+    <div class="paired-list" data-testid="paired-list">
       <EmptyState
         compact
         message="No browsers paired yet"
         description="Install the Asyar Companion extension below — once it's running, it pairs automatically and your browser shows up here."
       />
-    {:else}
-      {#each pairedBrowsers as b (familyKey(b.family, b.variant))}
-        <article class="paired-item">
-          <span class="browser-label">{b.family} · {b.variant}</span>
-          <span class="status" class:connected={connectionStatus[b.family]}>
-            {connectionStatus[b.family] ? 'connected' : 'offline'}
-          </span>
-          <button
-            class="action-btn"
-            onclick={() => revoke(b.family, b.variant)}
-            data-testid="revoke-{familyKey(b.family, b.variant)}"
-          >
-            Revoke
-          </button>
-        </article>
-      {/each}
-    {/if}
-  </div>
+    </div>
+  {:else}
+    <SettingsCard>
+      <div class="paired-list" data-testid="paired-list">
+        {#each pairedBrowsers as b (familyKey(b.family, b.variant))}
+          <div class="browser-row">
+            <span class="browser-label">{b.family} · {b.variant}</span>
+            <span class="status" class:connected={connectionStatus[b.family]}>
+              {connectionStatus[b.family] ? 'Connected' : 'Offline'}
+            </span>
+            <button
+              class="action-btn"
+              onclick={() => revoke(b.family, b.variant)}
+              data-testid="revoke-{familyKey(b.family, b.variant)}"
+            >
+              Revoke
+            </button>
+          </div>
+        {/each}
+      </div>
+    </SettingsCard>
+  {/if}
+</div>
 
-  <div class="install-links">
-    <h3>Install the Asyar Companion</h3>
-    <p class="companion-intro">
-      Asyar's browser features need a small companion extension installed in your browser. The two
-      work as a pair: the companion streams your open tabs, bookmarks, and history to Asyar so you
-      can search and control them from here. Install it, and it pairs with this launcher
-      automatically.
-    </p>
-    <button
-      class="btn btn-primary install-btn"
-      onclick={installChromiumCompanion}
-      data-testid="install-chromium"
-    >
-      Install for Chrome
-    </button>
-    <p class="companion-note">
-      Works for Chrome, Brave, Edge, Arc, and Vivaldi. Firefox and Safari companions are coming
-      soon.
-    </p>
-  </div>
-</section>
+<div class="section-header">Install companion</div>
+<div id="browsers-install">
+  <SettingsCard>
+    <div class="install-links">
+      <p class="companion-intro">
+        Asyar's browser features need a small companion extension installed in your browser. The two
+        work as a pair: the companion streams your open tabs, bookmarks, and history to Asyar so you
+        can search and control them from here. Install it, and it pairs with this launcher
+        automatically.
+      </p>
+      <button
+        class="btn btn-primary install-btn"
+        onclick={installChromiumCompanion}
+        data-testid="install-chromium"
+      >
+        Install for Chrome
+      </button>
+      <p class="companion-note">
+        Works for Chrome, Brave, Edge, Arc, and Vivaldi. Firefox and Safari companions are coming
+        soon.
+      </p>
+    </div>
+  </SettingsCard>
+</div>
 
 <style>
-  .settings-section {
-    padding: var(--space-4);
+  .anchor-group {
     display: flex;
     flex-direction: column;
-    gap: var(--space-5);
+    gap: var(--space-4);
   }
 
-  h2 {
-    font-size: var(--font-size-lg);
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
+  .pending-list {
+    display: flex;
+    flex-direction: column;
   }
 
-  h3 {
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    color: var(--text-secondary);
-    margin: 0 0 var(--space-2) 0;
+  .paired-list {
+    display: flex;
+    flex-direction: column;
   }
 
-  .pending-item,
-  .paired-item {
+  .browser-row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--border-color);
+    padding: var(--space-4) var(--space-6);
+  }
+
+  .browser-row:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: var(--space-6);
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--border-color);
   }
 
   .browser-label {
     flex: 1;
+    min-width: 0;
     color: var(--text-primary);
+    font-size: var(--font-size-md);
+  }
+
+  .pending-tag {
+    font-size: var(--font-size-2xs);
+    font-weight: 700;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
   .status {
@@ -215,23 +244,37 @@
     color: var(--accent-success);
   }
 
+  /* Uses --bg-secondary, not --bg-tertiary — this button sits inside a
+     SettingsCard, which is itself --bg-tertiary; matching that token here
+     would make the button invisible (see Global Constraints). */
   .action-btn {
     padding: var(--space-1) var(--space-3);
-    background: var(--bg-tertiary);
+    background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     color: var(--text-primary);
     font-size: var(--font-size-sm);
     cursor: pointer;
-    transition: background-color var(--transition-normal);
+    transition: background-color var(--transition-fast);
   }
 
   .action-btn:hover {
     background: var(--bg-hover);
   }
 
+  .action-btn-danger {
+    color: var(--accent-danger);
+  }
+
+  .install-links {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-6);
+  }
+
   .companion-intro {
-    margin: 0 0 var(--space-3) 0;
+    margin: 0;
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
     line-height: 1.5;
@@ -239,10 +282,11 @@
 
   .install-btn {
     display: inline-flex;
+    align-self: flex-start;
   }
 
   .companion-note {
-    margin: var(--space-2) 0 0 0;
+    margin: 0;
     color: var(--text-tertiary);
     font-size: var(--font-size-sm);
   }
