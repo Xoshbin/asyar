@@ -260,6 +260,96 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     tabLabel: 'Scripts',
     keywords: ['script', 'directory', 'watch', 'executable'],
   },
+  {
+    id: 'ai-tab-continues-last-thread',
+    title: 'Tab continues last thread',
+    description: 'Keep the launcher Tab key connected to the previous AI conversation.',
+    tab: 'ai',
+    tabLabel: 'AI',
+    sectionAnchor: 'ai-behavior',
+    keywords: ['assistant', 'conversation', 'thread'],
+  },
+  {
+    id: 'ai-providers',
+    title: 'AI providers',
+    description: 'Configure model providers, API keys, default agents, and model choices.',
+    tab: 'ai',
+    tabLabel: 'AI',
+    sectionAnchor: 'ai-providers',
+    keywords: ['openai', 'anthropic', 'ollama', 'model', 'api key'],
+  },
+  {
+    id: 'ai-temperature',
+    title: 'Temperature',
+    description: 'Tune how varied AI responses should be.',
+    tab: 'ai',
+    tabLabel: 'AI',
+    sectionAnchor: 'ai-advanced',
+    keywords: ['randomness', 'advanced'],
+  },
+  {
+    id: 'ai-max-tokens',
+    title: 'Max tokens',
+    description: 'Set the maximum token budget for AI responses.',
+    tab: 'ai',
+    tabLabel: 'AI',
+    sectionAnchor: 'ai-advanced',
+    keywords: ['tokens', 'limit', 'advanced'],
+  },
+  {
+    id: 'account-profile',
+    title: 'Account profile',
+    description: 'Sign in, sign out, and review account entitlements.',
+    tab: 'account',
+    tabLabel: 'Account',
+    sectionAnchor: 'account-profile',
+    keywords: ['login', 'sign in', 'github', 'google', 'features'],
+  },
+  {
+    id: 'account-subscription',
+    title: 'Subscription',
+    description: 'Open subscription settings and manage paid plans.',
+    tab: 'account',
+    tabLabel: 'Account',
+    sectionAnchor: 'account-subscription',
+    keywords: ['billing', 'plans', 'pricing'],
+  },
+  {
+    id: 'account-sync',
+    title: 'Cloud sync',
+    description: 'Sync settings across devices and manage encrypted sync.',
+    tab: 'account',
+    tabLabel: 'Account',
+    sectionAnchor: 'account-sync',
+    keywords: ['cloud', 'sync', 'encrypted', 'passphrase', 'recovery'],
+  },
+  {
+    id: 'backup-export',
+    title: 'Export backup',
+    description: 'Export selected Asyar data to a backup archive.',
+    tab: 'backup',
+    tabLabel: 'Backup',
+    sectionAnchor: 'backup-export',
+    keywords: ['archive', 'export', 'password'],
+  },
+  {
+    id: 'backup-import',
+    title: 'Restore from backup',
+    description: 'Choose a backup archive, preview categories, and restore data.',
+    tab: 'backup',
+    tabLabel: 'Backup',
+    sectionAnchor: 'backup-import',
+    keywords: ['import', 'restore', 'archive'],
+  },
+  {
+    id: 'backup-raycast',
+    title: 'Migrate from Raycast',
+    description: 'Import snippets, quicklinks, and app hotkeys from Raycast.',
+    tab: 'backup',
+    tabLabel: 'Backup',
+    sectionAnchor: 'backup-raycast',
+    keywords: ['raycast', 'migration', 'quicklinks', 'snippets'],
+  },
 ];
 
 export interface SectionAnchor {
@@ -295,6 +385,21 @@ export const SECTION_ANCHORS: Record<string, SectionAnchor[]> = {
     { id: 'file-search-roots', label: 'Search roots' },
     { id: 'file-search-excludes', label: 'Exclude patterns' },
   ],
+  ai: [
+    { id: 'ai-behavior', label: 'Behavior' },
+    { id: 'ai-providers', label: 'Providers' },
+    { id: 'ai-advanced', label: 'Advanced' },
+  ],
+  backup: [
+    { id: 'backup-export', label: 'Export' },
+    { id: 'backup-raycast', label: 'Raycast' },
+    { id: 'backup-import', label: 'Restore' },
+  ],
+  account: [
+    { id: 'account-profile', label: 'Profile' },
+    { id: 'account-subscription', label: 'Subscription' },
+    { id: 'account-sync', label: 'Sync' },
+  ],
   advanced: [
     { id: 'advanced-extension-surface', label: 'Extension surface' },
     { id: 'advanced-input', label: 'Input' },
@@ -316,13 +421,10 @@ export function filterSearchIndex(
   });
 }
 
-/** `filterSearchIndex` only covers tabs indexed in `SETTINGS_SEARCH_INDEX`
- *  (currently general/extensions/applications/advanced) — searching e.g.
- *  "backup" or "privacy" would otherwise return nothing even though those
- *  tabs exist. For any tab whose label matches the query and that has no
- *  real indexed match of its own, synthesize a fallback entry that just
- *  opens the tab, so every tab stays reachable from search until its own
- *  settings are indexed. */
+/** For any tab whose label matches the query and that has no real indexed
+ *  match of its own, synthesize a fallback entry that just opens the tab.
+ *  This keeps every tab reachable from search while tabs migrate onto their
+ *  own specific search entries batch by batch. */
 export function buildSearchResults(
   index: SettingsSearchEntry[],
   tabs: SettingsTabDescriptor[],

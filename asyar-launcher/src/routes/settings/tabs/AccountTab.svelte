@@ -1,13 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    SettingsForm,
-    SettingsFormRow,
     Button,
     LoadingState,
     Toggle,
     Badge,
     StatusDot,
+    SettingsCard,
+    SettingsPaneHeader,
+    SettingsRow,
   } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { authService } from '../../../services/auth/authService.svelte';
@@ -135,79 +136,91 @@
   }
 </script>
 
+<SettingsPaneHeader
+  title="Account"
+  subtitle="Manage your Asyar account, subscription, and encrypted cloud sync."
+/>
+
 {#if authService.isAwaitingOAuth}
-  <!-- ── Awaiting OAuth state ─────────────────────────────────── -->
-  <div class="awaiting-container">
-    <LoadingState message="Waiting for browser login..." />
-    <Button onclick={handleCancel}>Cancel</Button>
+  <div class="section-header">Profile</div>
+  <div id="account-profile" class="anchor-group">
+    <SettingsCard>
+      <div class="awaiting-container">
+        <LoadingState message="Waiting for browser login..." />
+        <Button onclick={handleCancel}>Cancel</Button>
+      </div>
+    </SettingsCard>
+  </div>
+
+  <div class="section-header">Subscription</div>
+  <div id="account-subscription" class="anchor-group">
+    <SettingsCard>
+      <SettingsRow label="Subscription" description="Finish signing in to manage your plan.">
+        <span class="secondary-text">Pending login</span>
+      </SettingsRow>
+    </SettingsCard>
+  </div>
+
+  <div class="section-header">Sync</div>
+  <div id="account-sync" class="anchor-group">
+    <SettingsCard>
+      <SettingsRow label="Cloud Sync" description="Finish signing in to sync settings.">
+        <span class="secondary-text">Pending login</span>
+      </SettingsRow>
+    </SettingsCard>
   </div>
 {:else if !authService.isLoggedIn}
-  <!-- ── Logged out state ───────────────────────────────────────── -->
-  <div class="no-separators">
-    <SettingsForm>
+  <div class="section-header">Profile</div>
+  <div id="account-profile" class="anchor-group">
+    <SettingsCard>
       {#if authService.loginError}
-        <SettingsFormRow label="">
+        <SettingsRow label="Sign-in error">
           <div class="error-banner">{authService.loginError}</div>
-        </SettingsFormRow>
+        </SettingsRow>
       {/if}
 
-      <SettingsFormRow label="GitHub">
-        <button
-          class="provider-btn"
-          onclick={() => handleSignIn('github')}
-          disabled={authService.isLoading}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path
-              d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"
-            />
-          </svg>
-          Sign in with GitHub
-        </button>
-      </SettingsFormRow>
+      <SettingsRow label="GitHub" description="Use your GitHub account with Asyar.">
+        <Button onclick={() => handleSignIn('github')} disabled={authService.isLoading}>
+          Sign in
+        </Button>
+      </SettingsRow>
 
-      <SettingsFormRow label="Google">
-        <button
-          class="provider-btn"
-          onclick={() => handleSignIn('google')}
-          disabled={authService.isLoading}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              fill="#4285F4"
-            />
-            <path
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              fill="#34A853"
-            />
-            <path
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-              fill="#FBBC05"
-            />
-            <path
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-              fill="#EA4335"
-            />
-          </svg>
-          Sign in with Google
-        </button>
-      </SettingsFormRow>
+      <SettingsRow label="Google" description="Use your Google account with Asyar.">
+        <Button onclick={() => handleSignIn('google')} disabled={authService.isLoading}>
+          Sign in
+        </Button>
+      </SettingsRow>
 
-      <SettingsFormRow label="">
+      <SettingsRow label="Terms">
         <p class="terms-text">
           By signing in, you agree to the Asyar Terms of Service and Privacy Policy.
         </p>
-      </SettingsFormRow>
-    </SettingsForm>
+      </SettingsRow>
+    </SettingsCard>
+  </div>
+
+  <div class="section-header">Subscription</div>
+  <div id="account-subscription" class="anchor-group">
+    <SettingsCard>
+      <SettingsRow label="Subscription" description="Sign in to manage your plan.">
+        <span class="secondary-text">Not signed in</span>
+      </SettingsRow>
+    </SettingsCard>
+  </div>
+
+  <div class="section-header">Sync</div>
+  <div id="account-sync" class="anchor-group">
+    <SettingsCard>
+      <SettingsRow label="Cloud Sync" description="Sign in to sync settings across devices.">
+        <span class="secondary-text">Not signed in</span>
+      </SettingsRow>
+    </SettingsCard>
   </div>
 {:else}
-  <!-- ── Logged in state ────────────────────────────────────────── -->
-
-  <!-- Profile & Entitlements -->
-  <div class="no-separators">
-    <SettingsForm>
-      <SettingsFormRow label="">
+  <div class="section-header">Profile</div>
+  <div id="account-profile" class="anchor-group">
+    <SettingsCard>
+      <SettingsRow label="Profile">
         <div class="profile-row">
           {#if authService.user?.avatarUrl}
             <img src={authService.user.avatarUrl} alt="Avatar" class="avatar" />
@@ -224,9 +237,9 @@
             {authService.isLoading ? 'Signing out…' : 'Sign Out'}
           </Button>
         </div>
-      </SettingsFormRow>
+      </SettingsRow>
 
-      <SettingsFormRow label="Features">
+      <SettingsRow label="Features">
         {#if authService.entitlements.length === 0}
           <div class="no-subscription">
             <span class="secondary-text">No active subscription.</span>
@@ -267,14 +280,14 @@
             {/each}
           </div>
         {/if}
-      </SettingsFormRow>
-    </SettingsForm>
+      </SettingsRow>
+    </SettingsCard>
   </div>
 
-  <!-- Subscription -->
-  <div class="no-separators">
-    <SettingsForm>
-      <SettingsFormRow label="Subscription" separator>
+  <div class="section-header">Subscription</div>
+  <div id="account-subscription" class="anchor-group">
+    <SettingsCard>
+      <SettingsRow label="Subscription" description="Open your hosted billing and plan settings.">
         <Button
           onclick={() => {
             import('@tauri-apps/plugin-opener').then((m) =>
@@ -284,15 +297,15 @@
         >
           Open
         </Button>
-      </SettingsFormRow>
-    </SettingsForm>
+      </SettingsRow>
+    </SettingsCard>
   </div>
 
-  <!-- Cloud Sync -->
-  {#if entitlementService.check('sync:settings')}
-    <div class="no-separators">
-      <SettingsForm>
-        <SettingsFormRow label="Cloud Sync" separator>
+  <div class="section-header">Sync</div>
+  <div id="account-sync" class="anchor-group">
+    <SettingsCard>
+      {#if entitlementService.check('sync:settings')}
+        <SettingsRow label="Cloud Sync">
           <div class="sync-enable-row">
             <span class="secondary-text">
               {syncToggleState
@@ -304,10 +317,10 @@
               onchange={(e) => onSyncToggleClick((e.target as HTMLInputElement).checked)}
             />
           </div>
-        </SettingsFormRow>
+        </SettingsRow>
 
         {#if cloudSyncService.enabled}
-          <SettingsFormRow label="Last Synced" separator>
+          <SettingsRow label="Last Synced">
             <div class="sync-status">
               <span class="secondary-text">
                 {cloudSyncService.lastSyncedAt
@@ -318,18 +331,18 @@
                 <span class="error-text">{cloudSyncService.lastError}</span>
               {/if}
             </div>
-          </SettingsFormRow>
+          </SettingsRow>
 
-          <SettingsFormRow label="Sync Now">
+          <SettingsRow label="Sync Now">
             <Button
               onclick={() => cloudSyncService.syncNow().catch((err) => reportSyncFailure(err))}
               disabled={cloudSyncService.status === 'syncing'}
             >
               {cloudSyncService.status === 'syncing' ? 'Syncing…' : 'Sync Now'}
             </Button>
-          </SettingsFormRow>
+          </SettingsRow>
 
-          <SettingsFormRow label="Encrypted Sync" separator>
+          <SettingsRow label="Encrypted Sync">
             <div class="e2ee-row">
               <div class="e2ee-status">
                 {#if !syncEncryptionService.enabled}
@@ -354,84 +367,84 @@
                 onchange={(e) => onToggleClick((e.target as HTMLInputElement).checked)}
               />
             </div>
-          </SettingsFormRow>
+          </SettingsRow>
 
           {#if syncEncryptionService.enabled}
             {#if syncEncryptionService.locked}
-              <SettingsFormRow label="Unlock">
+              <SettingsRow label="Unlock">
                 <Button onclick={() => (activeDialog = 'unlock')}>Enter passphrase</Button>
-              </SettingsFormRow>
+              </SettingsRow>
             {/if}
-            <SettingsFormRow label="Passphrase">
+            <SettingsRow label="Passphrase">
               <Button onclick={() => (activeDialog = 'rotate')}>Change passphrase</Button>
-            </SettingsFormRow>
-            <SettingsFormRow label="Recovery phrase">
+            </SettingsRow>
+            <SettingsRow label="Recovery phrase">
               <div class="e2ee-phrase-actions">
                 <Button onclick={() => (activeDialog = 'phrase')}>View recovery phrase</Button>
                 <Button onclick={() => (activeDialog = 'recover')}>I forgot my passphrase</Button>
               </div>
-            </SettingsFormRow>
+            </SettingsRow>
           {/if}
         {/if}
-      </SettingsForm>
-    </div>
+      {:else}
+        <SettingsRow label="Cloud Sync" description="Your current plan does not include sync.">
+          <span class="secondary-text">Unavailable</span>
+        </SettingsRow>
+      {/if}
+    </SettingsCard>
+  </div>
 
-    {#if activeDialog === 'enrol'}
-      <EncryptionEnrolmentDialog
-        isOpen={true}
-        onComplete={() => (activeDialog = null)}
-        onCancel={() => {
-          activeDialog = null;
-          resetToggle();
-        }}
-      />
-    {:else if activeDialog === 'unlock'}
-      <PassphraseDialog
-        isOpen={true}
-        title="Unlock encrypted sync"
-        description="Enter your passphrase to unlock the cached encryption key on this device."
-        onComplete={() => (activeDialog = null)}
-        onCancel={() => (activeDialog = null)}
-        onForgot={() => (activeDialog = 'recover')}
-      />
-    {:else if activeDialog === 'rotate'}
-      <RotatePassphraseDialog
-        isOpen={true}
-        onComplete={() => (activeDialog = null)}
-        onCancel={() => (activeDialog = null)}
-      />
-    {:else if activeDialog === 'phrase'}
-      <RecoveryPhraseDialog
-        isOpen={true}
-        onComplete={() => (activeDialog = null)}
-        onCancel={() => (activeDialog = null)}
-      />
-    {:else if activeDialog === 'recover'}
-      <RecoverWithMnemonicDialog
-        isOpen={true}
-        onComplete={() => (activeDialog = null)}
-        onCancel={() => (activeDialog = null)}
-      />
-    {:else if activeDialog === 'disable'}
-      <DisableE2eeDialog
-        isOpen={true}
-        onComplete={() => (activeDialog = null)}
-        onCancel={() => {
-          activeDialog = null;
-          resetToggle();
-        }}
-      />
-    {/if}
+  {#if activeDialog === 'enrol'}
+    <EncryptionEnrolmentDialog
+      isOpen={true}
+      onComplete={() => (activeDialog = null)}
+      onCancel={() => {
+        activeDialog = null;
+        resetToggle();
+      }}
+    />
+  {:else if activeDialog === 'unlock'}
+    <PassphraseDialog
+      isOpen={true}
+      title="Unlock encrypted sync"
+      description="Enter your passphrase to unlock the cached encryption key on this device."
+      onComplete={() => (activeDialog = null)}
+      onCancel={() => (activeDialog = null)}
+      onForgot={() => (activeDialog = 'recover')}
+    />
+  {:else if activeDialog === 'rotate'}
+    <RotatePassphraseDialog
+      isOpen={true}
+      onComplete={() => (activeDialog = null)}
+      onCancel={() => (activeDialog = null)}
+    />
+  {:else if activeDialog === 'phrase'}
+    <RecoveryPhraseDialog
+      isOpen={true}
+      onComplete={() => (activeDialog = null)}
+      onCancel={() => (activeDialog = null)}
+    />
+  {:else if activeDialog === 'recover'}
+    <RecoverWithMnemonicDialog
+      isOpen={true}
+      onComplete={() => (activeDialog = null)}
+      onCancel={() => (activeDialog = null)}
+    />
+  {:else if activeDialog === 'disable'}
+    <DisableE2eeDialog
+      isOpen={true}
+      onComplete={() => (activeDialog = null)}
+      onCancel={() => {
+        activeDialog = null;
+        resetToggle();
+      }}
+    />
   {/if}
 {/if}
 
 <style>
-  .no-separators :global(.form-row) {
-    border-bottom: none;
-  }
-
-  .no-separators :global(.form-row.separator) {
-    border-top: none;
+  .anchor-group {
+    scroll-margin-top: var(--space-6);
   }
 
   /* Awaiting OAuth */
@@ -453,37 +466,6 @@
     color: var(--accent-danger);
     font-size: var(--font-size-sm);
     font-family: var(--font-ui);
-  }
-
-  /* Provider sign-in buttons */
-  .provider-btn {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    width: 100%;
-    padding: var(--space-2) var(--space-4);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--separator);
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-    font-size: var(--font-size-sm);
-    font-family: var(--font-ui);
-    font-weight: 500;
-    cursor: pointer;
-    transition: opacity var(--transition-fast);
-  }
-
-  .provider-btn:hover {
-    opacity: 0.8;
-  }
-
-  .provider-btn:active {
-    opacity: 0.6;
-  }
-
-  .provider-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 
   /* Terms */
