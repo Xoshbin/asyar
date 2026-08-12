@@ -47,6 +47,44 @@ pub struct AppState {
     pub linux_prev_window_id: Mutex<u64>,
     /// Set during snippet expansion to suppress the monitor from re-triggering.
     pub is_expanding: AtomicBool,
+    /// When the launcher was last revealed. Read by the blur handler on Wayland
+    /// to ignore the spurious `Focused(false)` that arrives before the
+    /// compositor has granted keyboard focus. See `blur_hide_is_spurious`.
+    #[cfg(target_os = "linux")]
+    pub launcher_shown_at: Mutex<Option<std::time::Instant>>,
+}
+
+/// How long after a reveal a `Focused(false)` is treated as compositor noise
+/// rather than a real click-away.
+#[cfg(target_os = "linux")]
+pub const BLUR_HIDE_GRACE: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// True when a `Focused(false)` arrived so soon after the reveal that it cannot
+/// be a deliberate click-away.
+///
+/// Wayland has no way for a client to focus itself: `set_focus()` sends an
+/// xdg-activation request and returns `Ok(())` whether or not the compositor
+/// honours it. Between `show()` and the compositor granting focus, the window
+/// is mapped but unfocused, so the blur handler fires and hides the launcher
+/// the instant it appears. Under `input:follow_mouse` the compositor may
+/// never grant focus at all, because the pointer is still over whatever the
+/// user was looking at.
+///
+/// X11 is unaffected (the grab focuses synchronously) but shares this code
+/// path; the grace window is short enough that a real click-away inside it is
+/// not humanly reachable.
+#[cfg(target_os = "linux")]
+pub fn blur_hide_is_spurious(shown_at: Option<std::time::Instant>) -> bool {
+    shown_at.is_some_and(|t| t.elapsed() < BLUR_HIDE_GRACE)
+}
+
+/// Start the blur grace window. Called from every path that reveals the
+/// launcher; a later call simply extends the window.
+#[cfg(target_os = "linux")]
+pub fn mark_launcher_shown(state: &AppState) {
+    if let Ok(mut guard) = state.launcher_shown_at.lock() {
+        *guard = Some(std::time::Instant::now());
+    }
 }
 
 /// Adapts the managed `runtimes::RuntimeManager` to
@@ -192,7 +230,26 @@ pub fn run() {
         // feature) forwards that instance's asyar:// URL argv into on_open_url
         // — the only way a deep link reaches an already-running app on
         // Windows/Linux.
-        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // A bare re-exec (`asyar` with no URL argv) is a summon request:
+            // it is the only way a Wayland compositor can drive the launcher,
+            // since the X11 key grab behind tauri-plugin-global-shortcut never
+            // sees keystrokes there. Bind a compositor key to the binary and
+            // this callback toggles the already-running instance.
+            //
+            // Skip when argv carries an asyar:// URL — those instances exist to
+            // deliver a deep link, and the deep-link handler decides on its own
+            // whether to reveal the window (view commands do, background ones
+            // do not). Toggling here would fight that, and would *hide* the
+            // launcher whenever a deep link arrived while it was open.
+            let scheme = deeplink::deep_link_scheme(app);
+            let carries_deeplink = args
+                .iter()
+                .any(|arg| arg.starts_with(&format!("{scheme}://")));
+            if !carries_deeplink {
+                commands::toggle_launcher(app);
+            }
+        }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_clipboard_x::init())
@@ -306,6 +363,8 @@ pub fn run() {
             #[cfg(target_os = "linux")]
             linux_prev_window_id: Mutex::new(0),
             is_expanding: AtomicBool::new(false),
+            #[cfg(target_os = "linux")]
+            launcher_shown_at: Mutex::new(None),
         })
         .manage(crate::onboarding::commands::OnboardingCursor::new(cfg!(
             target_os = "macos"
@@ -1756,10 +1815,21 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         window.on_window_event(move |event| {
             if let tauri::WindowEvent::Focused(false) = event {
                 let state = handle_clone.state::<AppState>();
-                if !state.focus_locked.load(Ordering::Relaxed) {
-                    state.asyar_visible.store(false, Ordering::Relaxed);
-                    let _ = window_clone.hide();
+                if state.focus_locked.load(Ordering::Relaxed) {
+                    return;
                 }
+                // Drop the blur that races the reveal on Wayland — otherwise
+                // the launcher hides itself the moment it is summoned.
+                #[cfg(target_os = "linux")]
+                {
+                    let shown_at = state.launcher_shown_at.lock().ok().and_then(|g| *g);
+                    if blur_hide_is_spurious(shown_at) {
+                        log::debug!("[launcher] ignoring blur within reveal grace window");
+                        return;
+                    }
+                }
+                state.asyar_visible.store(false, Ordering::Relaxed);
+                let _ = window_clone.hide();
             }
         });
     }
@@ -2412,6 +2482,34 @@ mod appearance_theme_tests {
     fn returns_system_when_json_is_empty_object() {
         let v = json!({});
         assert_eq!(parse_appearance_theme(Some(&v)), ThemePreference::System);
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod blur_hide_grace_tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn never_suppresses_when_the_launcher_was_never_shown() {
+        assert!(!blur_hide_is_spurious(None));
+    }
+
+    #[test]
+    fn suppresses_a_blur_that_lands_immediately_after_the_reveal() {
+        assert!(blur_hide_is_spurious(Some(Instant::now())));
+    }
+
+    #[test]
+    fn allows_a_blur_once_the_grace_window_has_elapsed() {
+        let long_ago = Instant::now() - (BLUR_HIDE_GRACE + Duration::from_millis(50));
+        assert!(!blur_hide_is_spurious(Some(long_ago)));
+    }
+
+    #[test]
+    fn allows_a_deliberate_click_away_seconds_later() {
+        let earlier = Instant::now() - Duration::from_secs(5);
+        assert!(!blur_hide_is_spurious(Some(earlier)));
     }
 }
 
