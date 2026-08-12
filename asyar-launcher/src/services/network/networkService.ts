@@ -1,4 +1,4 @@
-import { fetchUrl } from '../../lib/ipc/commands';
+import { fetchUrl, wsConnect, wsSend, wsClose } from '../../lib/ipc/commands';
 
 export class NetworkService {
   async fetch(
@@ -27,6 +27,32 @@ export class NetworkService {
     });
     if (result === null) throw new Error('fetch_url failed');
     return result;
+  }
+
+  async wsConnect(
+    callerExtensionId: string | null,
+    socketId: string,
+    url: string,
+    headers?: Record<string, string>,
+  ): Promise<boolean> {
+    return wsConnect(socketId, url, headers, callerExtensionId);
+  }
+
+  async wsSend(
+    callerExtensionId: string | null,
+    socketId: string,
+    message: string,
+  ): Promise<boolean> {
+    return wsSend(socketId, message, callerExtensionId);
+  }
+
+  async wsClose(
+    callerExtensionId: string | null,
+    socketId: string,
+    code?: number,
+    reason?: string,
+  ): Promise<boolean> {
+    return wsClose(socketId, code, reason, callerExtensionId);
   }
 }
 

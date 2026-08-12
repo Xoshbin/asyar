@@ -98,3 +98,49 @@ pub async fn fetch_url(
     })
     .await
 }
+
+#[tauri::command]
+pub async fn ws_connect(
+    socket_id: String,
+    url: String,
+    headers: Option<HashMap<String, String>>,
+    caller_extension_id: Option<String>,
+    registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
+    ws_manager: tauri::State<'_, crate::network::websocket::WebSocketManager>,
+    app: tauri::AppHandle,
+) -> Result<(), AppError> {
+    registry.check(&caller_extension_id, "network")?;
+    crate::network::service::validate_url_for_ssrf(&url)?;
+
+    let ext_id = caller_extension_id.unwrap_or_else(|| "system".to_string());
+    ws_manager
+        .connect(socket_id, url, headers, ext_id, app)
+        .await
+}
+
+#[tauri::command]
+pub async fn ws_send(
+    socket_id: String,
+    message: String,
+    caller_extension_id: Option<String>,
+    registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
+    ws_manager: tauri::State<'_, crate::network::websocket::WebSocketManager>,
+) -> Result<(), AppError> {
+    registry.check(&caller_extension_id, "network")?;
+    let ext_id = caller_extension_id.unwrap_or_else(|| "system".to_string());
+    ws_manager.send(&socket_id, message, &ext_id)
+}
+
+#[tauri::command]
+pub async fn ws_close(
+    socket_id: String,
+    code: Option<u16>,
+    reason: Option<String>,
+    caller_extension_id: Option<String>,
+    registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
+    ws_manager: tauri::State<'_, crate::network::websocket::WebSocketManager>,
+) -> Result<(), AppError> {
+    registry.check(&caller_extension_id, "network")?;
+    let ext_id = caller_extension_id.unwrap_or_else(|| "system".to_string());
+    ws_manager.close(&socket_id, code, reason, &ext_id)
+}

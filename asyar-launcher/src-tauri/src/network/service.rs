@@ -25,10 +25,10 @@ pub fn validate_url_for_ssrf(url: &str) -> Result<(), AppError> {
     let parsed = Url::parse(url).map_err(|_| AppError::Other(format!("Invalid URL: {}", url)))?;
 
     match parsed.scheme() {
-        "http" | "https" => {}
+        "http" | "https" | "ws" | "wss" => {}
         scheme => {
             return Err(AppError::Other(format!(
-                "URL scheme '{}' is not allowed. Only http and https are permitted.",
+                "URL scheme '{}' is not allowed. Only http, https, ws, and wss are permitted.",
                 scheme
             )));
         }

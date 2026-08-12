@@ -115,4 +115,30 @@ export async function appEventsUnsubscribe(
   return invokeSafeVoid('app_events_unsubscribe', { extensionId, subscriptionId });
 }
 
+export async function wsConnect(
+  socketId: string,
+  url: string,
+  headers: Record<string, string> | undefined,
+  callerExtensionId: string | null,
+): Promise<boolean> {
+  return invokeSafeVoid('ws_connect', { socketId, url, headers, callerExtensionId });
+}
+
+export async function wsSend(
+  socketId: string,
+  message: string,
+  callerExtensionId: string | null,
+): Promise<boolean> {
+  return invokeSafeVoid('ws_send', { socketId, message, callerExtensionId });
+}
+
+export async function wsClose(
+  socketId: string,
+  code: number | undefined,
+  reason: string | undefined,
+  callerExtensionId: string | null,
+): Promise<boolean> {
+  return invokeSafeVoid('ws_close', { socketId, code, reason, callerExtensionId });
+}
+
 export type { ScheduleTimerOptions, TimerDescriptor };
