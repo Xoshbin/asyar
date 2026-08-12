@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { SettingsSection, SettingsRow, Input, Button, Badge, EmptyState } from '../index';
+  import { SettingsCard, SettingsRow, Input, Button, Badge, EmptyState } from '../index';
   import { clipboardPrivacyService } from '../../services/privacy/clipboardPrivacyService.svelte';
 
   let newEntry = $state('');
@@ -20,10 +20,17 @@
   }
 </script>
 
-<SettingsSection
-  title="Clipboard Privacy"
-  description="Asyar will not store clipboard items that the OS or source app has marked private."
->
+<div class="section-header">Clipboard</div>
+<SettingsCard>
+  <SettingsRow
+    label="Clipboard Privacy"
+    description="Asyar will not store clipboard items that the OS or source app has marked private."
+  >
+    {#snippet children()}
+      <Badge text="Protected" variant="info" />
+    {/snippet}
+  </SettingsRow>
+
   {#if isLinux}
     <SettingsRow
       label="Platform note"
@@ -91,7 +98,7 @@
       {/if}
     {/snippet}
   </SettingsRow>
-</SettingsSection>
+</SettingsCard>
 
 <style>
   .denylist {

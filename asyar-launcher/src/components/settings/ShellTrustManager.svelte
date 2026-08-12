@@ -1,6 +1,6 @@
 <script lang="ts">
-  import SettingsSection from './SettingsSection.svelte';
   import { onMount } from 'svelte';
+  import { Button, EmptyState, SettingsCard } from '../index';
   import {
     shellListTrusted,
     shellRevokeTrust,
@@ -113,60 +113,50 @@
   });
 </script>
 
-<SettingsSection title="Terminal Trust Store">
-  <div class="px-6 pb-6 space-y-6">
+<div class="section-header">Shell trust</div>
+<SettingsCard>
+  <div class="shell-trust-content">
     {#if isLoading}
-      <p class="text-xs text-[var(--text-tertiary)] leading-relaxed">Loading trusted programs…</p>
+      <p class="trust-note text-caption">Loading trusted programs...</p>
     {:else if groupedTrusts.length > 0}
-      <p class="text-xs text-[var(--text-secondary)] leading-relaxed">
+      <p class="trust-note text-caption">
         The following programs have been explicitly trusted for execution by specific extensions.
         Revoking trust will cause the extension to prompt for permission again on next use.
       </p>
 
-      <div class="space-y-6">
+      <div class="trust-groups">
         {#each groupedTrusts as group}
-          <div class="space-y-3">
-            <div class="flex items-center gap-3">
+          <div class="trust-group">
+            <div class="trust-group-header">
               {#if group.extensionIcon}
-                <img src={group.extensionIcon} alt="" class="w-5 h-5 rounded-sm" />
+                <img src={group.extensionIcon} alt="" class="trust-icon" />
               {:else}
-                <div
-                  class="w-5 h-5 rounded-sm bg-[var(--bg-tertiary)] flex items-center justify-center text-[length:var(--font-size-2xs)] font-bold text-[var(--text-secondary)]"
-                >
+                <div class="trust-icon trust-icon-fallback">
                   {group.extensionName.charAt(0).toUpperCase()}
                 </div>
               {/if}
-              <span class="text-sm font-semibold text-[var(--text-primary)]"
-                >{group.extensionName}</span
-              >
-              <span class="text-[length:var(--font-size-2xs)] text-[var(--text-tertiary)] font-mono"
-                >{group.extensionId}</span
-              >
+              <span class="trust-name">{group.extensionName}</span>
+              <span class="trust-id text-mono">{group.extensionId}</span>
             </div>
 
-            <div class="grid gap-2 pl-8">
+            <div class="trust-binaries">
               {#each group.binaries as binary}
-                <div
-                  class="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--separator)] hover:border-[var(--border-color)] transition-colors group"
-                >
-                  <div class="flex flex-col gap-0.5 min-w-0">
-                    <span
-                      class="text-xs font-mono text-[var(--accent-primary)] truncate"
-                      title={binary.binaryPath}
-                    >
+                <div class="trust-binary-row">
+                  <div class="trust-binary-text">
+                    <span class="trust-binary-path text-mono" title={binary.binaryPath}>
                       {binary.binaryPath}
                     </span>
-                    <span class="text-[length:var(--font-size-2xs)] text-[var(--text-tertiary)]">
+                    <span class="trust-binary-meta text-caption">
                       Trusted {formatRelativeTime(binary.trustedAt)}
                     </span>
                   </div>
 
-                  <button
-                    class="px-2.5 py-1 rounded-md text-[length:var(--font-size-2xs)] font-medium bg-[color-mix(in_srgb,var(--accent-danger)_10%,transparent)] text-[var(--accent-danger)] hover:bg-[color-mix(in_srgb,var(--accent-danger)_20%,transparent)] border border-[color-mix(in_srgb,var(--accent-danger)_20%,transparent)] transition-all opacity-0 group-hover:opacity-100"
+                  <Button
+                    class="btn-secondary"
                     onclick={() => revokeTrust(group.extensionId, binary.binaryPath)}
                   >
                     Revoke
-                  </button>
+                  </Button>
                 </div>
               {/each}
             </div>
@@ -174,10 +164,117 @@
         {/each}
       </div>
     {:else}
-      <p class="text-xs text-[var(--text-tertiary)] leading-relaxed">
-        No programs are trusted yet. When an extension runs a binary — or you approve its declared
-        binaries at install — they’ll appear here to review or revoke.
-      </p>
+      <EmptyState
+        compact
+        message="No trusted programs"
+        description="When an extension runs a binary, or you approve its declared binaries at install, they will appear here."
+      />
     {/if}
   </div>
-</SettingsSection>
+</SettingsCard>
+
+<style>
+  .shell-trust-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    padding: var(--space-5-5) var(--space-6);
+  }
+
+  .trust-note {
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .trust-groups {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+
+  .trust-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .trust-group-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .trust-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+  }
+
+  .trust-icon-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: var(--font-size-2xs);
+    font-weight: 600;
+  }
+
+  .trust-name {
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
+
+  .trust-id {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-2xs);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .trust-binaries {
+    display: grid;
+    gap: var(--space-2);
+    padding-left: calc(20px + var(--space-3));
+  }
+
+  .trust-binary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-3);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    transition: border-color var(--transition-fast);
+  }
+
+  .trust-binary-row:hover {
+    border-color: var(--border-color);
+  }
+
+  .trust-binary-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0-5);
+    min-width: 0;
+  }
+
+  .trust-binary-path {
+    color: var(--accent-primary);
+    font-size: var(--font-size-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .trust-binary-meta {
+    color: var(--text-tertiary);
+  }
+</style>
