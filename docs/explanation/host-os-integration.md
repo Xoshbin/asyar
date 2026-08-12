@@ -10,6 +10,7 @@ Asyar relies strictly on Rust for handling raw Operating System tasks.
 
 - **Global Hotkey Registration:** Managed via the `tauri_plugin_global_shortcut` crate. The core logic sits in `lib.rs:setup_global_shortcut()`.
   - **Conflict Handling:** If a shortcut registration fails (e.g., the user attempts to bind a key combination already reserved by the OS or another app), the `Err` is caught and logged to standard error (`eprintln!`).
+  - **Wayland Compositor Summoning:** On Wayland, background global hotkey grabs are blocked by protocol security. Instead, the desktop compositor (Hyprland, Sway, GNOME, KDE) owns the keybinding and executes `asyar`. The `tauri_plugin_single_instance` plugin intercepts re-execution without a deep link and calls `toggle_launcher()`. A 250 ms blur grace period (`BLUR_HIDE_GRACE`) ignores spurious early `Focused(false)` events that land before the compositor grants window focus.
   - **User Experience:** Crucially, a hotkey conflict **does not crash the app**. Asyar continues its startup sequence and launches successfully. However, there is no automatic fallback hotkey assigned. The user will simply find the hotkey unresponsive and must use the System Tray icon to open the app and rebind the shortcut in settings.
 - **System Tray (two independent code paths):**
   - **Asyar's own tray** lives in `src-tauri/src/tray.rs`. It owns a single fixed-menu `TrayIcon` (Settings / Check for Updates / Quit). Extensions never write to it, and its menu never mutates at runtime.

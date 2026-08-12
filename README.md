@@ -81,6 +81,15 @@ brew install --cask asyar
 **Windows, or a manual download for any OS:** grab the installer for your platform from
 [Releases](https://github.com/Xoshbin/asyar/releases).
 
+**Linux (Wayland) Shortcut Setup:**
+
+Wayland protocol security prevents background applications from capturing global hotkeys directly. To summon Asyar on Wayland, bind a key shortcut in your desktop compositor (Hyprland, Sway, GNOME, KDE) to execute `asyar`:
+
+- **Hyprland:** `bind = ALT, SPACE, exec, asyar`
+- **Sway:** `bindsym Mod1+space exec asyar`
+
+Re-executing `asyar` toggles the visibility of the already-running instance.
+
 ---
 
 ## Asyar vs. The Alternatives
