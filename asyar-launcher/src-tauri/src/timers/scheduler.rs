@@ -29,37 +29,49 @@ pub fn select_fireable(pending: &[TimerDescriptor], now_ms: u64) -> Vec<&TimerDe
     pending.iter().filter(|d| d.fire_at <= now_ms).collect()
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct TickPlan {
+    poll_due: bool,
+    prune: bool,
+}
+
+impl TickPlan {
+    fn new(has_pending_timers: bool, now_ms: u64, last_prune_ms: u64) -> Self {
+        Self {
+            poll_due: has_pending_timers,
+            prune: now_ms.saturating_sub(last_prune_ms) >= PRUNE_INTERVAL_SECS * 1000,
+        }
+    }
+}
+
 pub fn start(app: AppHandle, registry: TimerRegistry) {
     tauri::async_runtime::spawn(async move {
         let mut last_prune_ms: u64 = 0;
 
         loop {
             tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
-
-            if !registry.should_poll() {
-                continue;
-            }
-            registry.begin_poll();
-
             let now = now_millis();
-            let should_prune = match registry.poll_due(now) {
-                Ok((due, has_unfired)) => {
-                    if has_unfired {
-                        registry.keep_polling();
-                    }
-                    for desc in due {
-                        fire_one(&app, &registry, desc, now);
-                    }
-                    has_unfired
-                }
-                Err(e) => {
-                    registry.keep_polling();
-                    warn!("[timers] due_now query failed: {e}");
-                    true
-                }
-            };
+            let plan = TickPlan::new(registry.should_poll(), now, last_prune_ms);
 
-            if should_prune && now.saturating_sub(last_prune_ms) >= PRUNE_INTERVAL_SECS * 1000 {
+            if plan.poll_due {
+                registry.begin_poll();
+                match registry.poll_due(now) {
+                    Ok((due, has_unfired)) => {
+                        if has_unfired {
+                            registry.keep_polling();
+                        }
+                        for desc in due {
+                            fire_one(&app, &registry, desc, now);
+                        }
+                    }
+                    Err(e) => {
+                        registry.keep_polling();
+                        warn!("[timers] due_now query failed: {e}");
+                    }
+                }
+            }
+
+            if plan.prune {
                 let cutoff = now.saturating_sub(PRUNE_AGE_MILLIS);
                 match registry.prune_old_fired(cutoff) {
                     Ok(n) if n > 0 => info!("[timers] pruned {n} stale fired timers"),
@@ -160,5 +172,13 @@ mod tests {
     fn prune_interval_and_age_are_one_hour_and_twenty_four_hours() {
         assert_eq!(PRUNE_INTERVAL_SECS, 3600);
         assert_eq!(PRUNE_AGE_MILLIS, 24 * 60 * 60 * 1000);
+    }
+
+    #[test]
+    fn idle_due_polling_does_not_skip_a_due_prune() {
+        let plan = TickPlan::new(false, PRUNE_INTERVAL_SECS * 1000, 0);
+
+        assert!(!plan.poll_due);
+        assert!(plan.prune);
     }
 }
