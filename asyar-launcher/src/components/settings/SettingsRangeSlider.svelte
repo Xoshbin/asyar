@@ -44,7 +44,9 @@
     border-radius: var(--radius-full);
     appearance: none;
     cursor: pointer;
-    background: var(--bg-tertiary);
+    /* One step darker than --bg-tertiary so the track stays visible when
+       this control sits inside a SettingsCard (also --bg-tertiary). */
+    background: var(--bg-secondary);
     accent-color: var(--accent-primary);
   }
 

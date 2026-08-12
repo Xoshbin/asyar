@@ -4,17 +4,15 @@
   let {
     label,
     description = '',
-    noBorder = false,
     children,
   }: {
     label: string;
     description?: string;
-    noBorder?: boolean;
     children: Snippet;
   } = $props();
 </script>
 
-<div class="settings-row" class:no-border={noBorder}>
+<div class="settings-row">
   <div class="settings-row-text">
     <div class="settings-row-label">{label}</div>
     {#if description}
@@ -28,16 +26,24 @@
 
 <style>
   .settings-row {
+    position: relative;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: var(--space-6) 0;
-    border-bottom: 1px solid var(--border-color);
-    gap: var(--space-6);
+    gap: var(--space-7);
+    padding: var(--space-5-5) var(--space-6);
   }
 
-  .settings-row.no-border {
-    border-bottom: none;
+  /* Inset 16px from the left, flush right, never after the last row —
+     a border on the row itself would be flush on both sides, so the
+     divider is a positioned pseudo-element instead. */
+  .settings-row:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: var(--space-6);
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--border-color);
   }
 
   .settings-row-text {
@@ -46,16 +52,16 @@
   }
 
   .settings-row-label {
+    font-size: var(--font-size-md);
     font-weight: 500;
     color: var(--text-primary);
-    font-size: var(--font-size-base);
   }
 
   .settings-row-description {
     margin-top: var(--space-1);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-xs);
     color: var(--text-secondary);
-    line-height: 1.4;
+    line-height: 1.45;
   }
 
   .settings-row-control {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import SettingsForm from './SettingsForm.svelte';
-  import SettingsFormRow from './SettingsFormRow.svelte';
+  import SettingsCard from './SettingsCard.svelte';
+  import SettingsRow from './SettingsRow.svelte';
   import { runtimeService } from '../../services/runtime/runtimeService.svelte';
   import { describeRuntimeRemovalWarning } from '../../services/runtime/runtimeRemovalGuard';
   import { formatBytes } from '../../services/action/actionService.svelte';
@@ -68,9 +68,9 @@
 
 {#if !isLoading && runtimes.length > 0}
   <div class="section-header">Installed Runtimes</div>
-  <SettingsForm>
+  <SettingsCard>
     {#each runtimes as runtime (runtime.name + runtime.version)}
-      <SettingsFormRow
+      <SettingsRow
         label={runtime.name}
         description="v{runtime.version} · {formatBytes(runtime.sizeBytes)}"
       >
@@ -81,23 +81,12 @@
         >
           {removingName === runtime.name ? 'Removing…' : 'Remove'}
         </button>
-      </SettingsFormRow>
+      </SettingsRow>
     {/each}
-  </SettingsForm>
+  </SettingsCard>
 {/if}
 
 <style>
-  .section-header {
-    padding: var(--space-4) var(--space-6) var(--space-2);
-    font-size: var(--font-size-xs);
-    font-weight: 600;
-    font-family: var(--font-ui);
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    border-top: 1px solid var(--separator);
-  }
-
   .remove-btn {
     font-size: var(--font-size-xs);
     color: var(--accent-danger);

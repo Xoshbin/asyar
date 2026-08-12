@@ -728,7 +728,7 @@ html[data-platform='macos'] .app-root {
     @apply inline-flex items-center justify-center px-4 py-1.5 text-sm font-medium outline-none;
     font-family: var(--font-ui);
     border-radius: var(--radius-sm);
-    background-color: var(--bg-tertiary);
+    background-color: var(--bg-secondary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
     transition: all var(--transition-fast);

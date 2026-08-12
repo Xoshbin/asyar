@@ -6,6 +6,7 @@
     EmptyState,
     LoadingState,
     ExtensionDetailPanel,
+    Icon,
   } from '../../../components';
   import type { SettingsHandler, ExtensionItem } from '../settingsHandlers.svelte';
   import { extensionStateManager } from '../../../services/extension/extensionStateManager.svelte';
@@ -282,22 +283,35 @@
     </div>
   {/if}
 
+  <div class="ext-head">
+    <div class="ext-head-title-row">
+      <span class="ext-head-title">Extensions</span>
+      <span class="ext-head-count">{handler.extensions.length} installed</span>
+      <div class="ext-head-spacer"></div>
+      <div class="plus-wrapper">
+        <button class="add-btn" bind:this={plusBtnEl} onclick={openPlusDropdown}>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Add
+        </button>
+      </div>
+    </div>
+  </div>
+
   <SplitView leftWidth="66%" minLeftWidth={340} maxLeftWidth={720}>
     {#snippet left()}
       <div class="left-panel">
-        <!-- toolbar: search + filter chips + plus button -->
+        <!-- toolbar: search + filter chips -->
         <div class="toolbar-row">
           <div class="search-box">
-            <svg
-              class="search-icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-            >
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-            </svg>
+            <Icon name="search" size={13} strokeWidth={2} class="search-icon" />
             <Input
               unstyled
               textIntent="exact"
@@ -319,25 +333,6 @@
               {f.label}
             </button>
           {/each}
-
-          <div class="plus-wrapper">
-            <button
-              class="plus-btn"
-              aria-label="Add extension"
-              bind:this={plusBtnEl}
-              onclick={openPlusDropdown}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-              >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-            </button>
-          </div>
         </div>
 
         <!-- column headers -->
@@ -719,9 +714,7 @@
     box-shadow: var(--shadow-focus);
   }
 
-  .search-icon {
-    width: 13px;
-    height: 13px;
+  :global(.search-icon) {
     color: var(--text-tertiary);
     flex-shrink: 0;
   }
@@ -745,13 +738,13 @@
   }
 
   .filter-chip {
-    padding: var(--space-1) var(--space-3);
-    border-radius: var(--radius-xs);
-    font-size: var(--font-size-sm);
-    font-weight: 500;
+    padding: var(--space-2) var(--space-5);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
     color: var(--text-secondary);
     background: none;
-    border: none;
+    border: 1px solid var(--border-color);
     cursor: pointer;
     white-space: nowrap;
     transition: var(--transition-fast);
@@ -764,6 +757,7 @@
   .filter-chip.active {
     background: var(--bg-selected);
     color: var(--text-primary);
+    border-color: var(--border-color);
   }
 
   /* ── Plus button + dropdown ───────────────────────── */
@@ -771,33 +765,6 @@
     position: relative;
     margin-left: auto;
     flex-shrink: 0;
-  }
-
-  .plus-btn {
-    width: 26px;
-    height: 26px;
-    border-radius: var(--radius-xs);
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: var(--text-secondary);
-    transition: var(--transition-fast);
-  }
-
-  .plus-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-  }
-  .plus-btn:focus-visible {
-    box-shadow: var(--shadow-focus);
-  }
-
-  .plus-btn svg {
-    width: 14px;
-    height: 14px;
   }
 
   .plus-dropdown {
@@ -968,21 +935,21 @@
   }
 
   .ext-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: var(--radius-xs);
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-md);
     background: var(--bg-tertiary);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
+    font-size: var(--font-size-md);
+    font-weight: 700;
     color: var(--text-secondary);
   }
 
   .ext-icon-img {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
   }
 
   .cmd-icon {
@@ -1093,5 +1060,57 @@
     line-height: 1;
     letter-spacing: 0.02em;
     user-select: none;
+  }
+
+  /* ── Head block (title + count + add) ─────────────── */
+  .ext-head {
+    padding: var(--space-7) var(--space-8) var(--space-2);
+    flex-shrink: 0;
+  }
+
+  .ext-head-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-4);
+  }
+
+  .ext-head-title {
+    font-size: var(--font-size-3xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+  }
+
+  .ext-head-count {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+  }
+
+  .ext-head-spacer {
+    flex: 1;
+  }
+
+  .add-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-md);
+    background: var(--accent-primary);
+    color: var(--text-on-accent);
+    border: none;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-fast);
+  }
+
+  .add-btn:hover {
+    opacity: 0.9;
+  }
+
+  .add-btn svg {
+    width: 12px;
+    height: 12px;
   }
 </style>

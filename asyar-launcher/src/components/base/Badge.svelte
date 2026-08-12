@@ -35,7 +35,7 @@
   }
 
   .badge-default {
-    background-color: var(--bg-tertiary);
+    background-color: var(--bg-secondary);
     color: var(--text-secondary);
   }
 

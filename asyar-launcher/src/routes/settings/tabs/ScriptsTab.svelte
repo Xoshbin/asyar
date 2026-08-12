@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Button, Icon, EmptyState } from '../../../components';
+  import { Button, Icon, EmptyState, SettingsCard, SettingsPaneHeader } from '../../../components';
   import {
     scriptsListDirectories,
     scriptsPickDirectory,
@@ -64,32 +64,34 @@
   }
 </script>
 
-<div class="scripts-tab">
-  <section class="section">
-    <h2 class="section-title">Script Directories</h2>
-    <p class="section-description">
-      Directories added here will be watched for executable scripts. Scripts are discovered
-      automatically — no restart required.
-    </p>
+<SettingsPaneHeader title="Scripts" subtitle="Directories watched for executable scripts." />
 
-    <div class="add-row">
-      <Button onclick={handleAddDirectory} disabled={isBrowsing}>
-        <span class="btn-content">
-          <Icon name="plus" size={14} />
-          {isBrowsing ? 'Opening…' : 'Add Directory'}
-        </span>
-      </Button>
-    </div>
+<div class="section-header">Script directories</div>
+<div id="scripts-directories">
+  <p class="section-description">
+    Directories added here will be watched for executable scripts. Scripts are discovered
+    automatically — no restart required.
+  </p>
 
-    {#if errorMessage}
-      <div class="error" role="alert">{errorMessage}</div>
-    {/if}
+  <div class="add-row">
+    <Button onclick={handleAddDirectory} disabled={isBrowsing}>
+      <span class="btn-content">
+        <Icon name="plus" size={14} />
+        {isBrowsing ? 'Opening…' : 'Add Directory'}
+      </span>
+    </Button>
+  </div>
 
-    {#if isLoading}
-      <div class="empty">Loading…</div>
-    {:else if directories.length === 0}
-      <EmptyState message="No script directories added yet" />
-    {:else}
+  {#if errorMessage}
+    <div class="error" role="alert">{errorMessage}</div>
+  {/if}
+
+  {#if isLoading}
+    <div class="empty">Loading…</div>
+  {:else if directories.length === 0}
+    <EmptyState message="No script directories added yet" />
+  {:else}
+    <SettingsCard>
       <ul class="path-list">
         {#each directories as path (path)}
           <li class="path-row">
@@ -106,38 +108,20 @@
           </li>
         {/each}
       </ul>
-    {/if}
-  </section>
+    </SettingsCard>
+  {/if}
 </div>
 
 <style>
-  .scripts-tab {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
-  }
-
-  .section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  .section-title {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-
   .section-description {
-    margin: 0;
+    margin: 0 0 var(--space-3) 0;
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
     line-height: 1.5;
   }
 
   .add-row {
+    margin-bottom: var(--space-3);
     align-self: flex-start;
   }
 
@@ -148,6 +132,7 @@
   }
 
   .error {
+    margin-bottom: var(--space-3);
     padding: var(--space-2) var(--space-3);
     background: color-mix(in srgb, var(--accent-danger) 10%, transparent);
     border-radius: var(--radius-sm);
@@ -161,20 +146,24 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--separator);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
   }
 
   .path-row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--separator);
+    padding: var(--space-4) var(--space-6);
   }
-  .path-row:last-child {
-    border-bottom: none;
+
+  .path-row:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: var(--space-6);
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--border-color);
   }
 
   :global(.path-icon) {
@@ -185,7 +174,7 @@
   .path-text {
     flex: 1;
     min-width: 0;
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-md);
     color: var(--text-primary);
     font-family: var(--font-ui);
     white-space: nowrap;
