@@ -2,13 +2,14 @@
   import { onMount } from 'svelte';
   import { emit } from '@tauri-apps/api/event';
   import {
-    SettingsForm,
-    SettingsFormRow,
     Checkbox,
     Button,
     Input,
     WarningBanner,
     Modal,
+    SettingsCard,
+    SettingsPaneHeader,
+    SettingsRow,
   } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { BackupHandler } from './backupHandler.svelte';
@@ -29,16 +30,21 @@
   }
 </script>
 
-<!-- Export Backup & Restore -->
-<div class="no-separators">
-  <SettingsForm>
+<SettingsPaneHeader
+  title="Backup & Restore"
+  subtitle="Export or restore your Asyar settings, extensions, and data."
+/>
+
+<div class="section-header">Export</div>
+<div id="backup-export" class="anchor-group">
+  <SettingsCard>
     {#each backup.providers as provider (provider.id)}
-      <SettingsFormRow label={provider.displayName}>
+      <SettingsRow label={provider.displayName}>
         <Checkbox
           checked={backup.enabledCategories.has(provider.id)}
           onchange={() => backup.toggleCategory(provider.id)}
         />
-      </SettingsFormRow>
+      </SettingsRow>
     {/each}
 
     {#if backup.hasSensitiveData}
@@ -50,7 +56,7 @@
       </div>
     {/if}
 
-    <SettingsFormRow label="Password (optional)">
+    <SettingsRow label="Password (optional)" description="Encrypt sensitive fields in the export.">
       <Input
         textIntent="exact"
         id="export-password"
@@ -58,9 +64,9 @@
         placeholder="Leave blank to strip sensitive fields"
         bind:value={backup.exportPassword}
       />
-    </SettingsFormRow>
+    </SettingsRow>
 
-    <SettingsFormRow label="">
+    <SettingsRow label="Export backup">
       <div class="action-row">
         <Button
           onclick={() => backup.handleExport()}
@@ -74,22 +80,25 @@
           </span>
         {/if}
       </div>
-    </SettingsFormRow>
-  </SettingsForm>
+    </SettingsRow>
+  </SettingsCard>
+</div>
 
-  <!-- Migrate from Raycast -->
-  <SettingsForm>
-    <SettingsFormRow label="Migrate from Raycast">
+<div class="section-header">Raycast</div>
+<div id="backup-raycast" class="anchor-group">
+  <SettingsCard>
+    <SettingsRow label="Migrate from Raycast" description="Snippets, quicklinks, and app hotkeys.">
       <div class="action-row">
         <Button onclick={openRaycastImport}>Import from Raycast…</Button>
-        <span class="text-caption">Snippets, quicklinks, and app hotkeys</span>
       </div>
-    </SettingsFormRow>
-  </SettingsForm>
+    </SettingsRow>
+  </SettingsCard>
+</div>
 
-  <!-- Restore from Backup -->
-  <SettingsForm>
-    <SettingsFormRow label="" separator>
+<div class="section-header">Restore</div>
+<div id="backup-import" class="anchor-group">
+  <SettingsCard>
+    <SettingsRow label="Backup file" description="Choose an Asyar backup archive to preview.">
       <div class="action-row">
         <Button
           onclick={() => backup.handleChooseFile()}
@@ -105,10 +114,10 @@
           </span>
         {/if}
       </div>
-    </SettingsFormRow>
+    </SettingsRow>
 
     {#if backup.importNeedsPassword}
-      <SettingsFormRow label="Password">
+      <SettingsRow label="Password" description="Unlock the encrypted backup archive.">
         <div class="import-password-row">
           <Input
             textIntent="exact"
@@ -123,14 +132,14 @@
             {backup.importStatus === 'importing' ? 'Unlocking…' : 'Unlock'}
           </Button>
         </div>
-      </SettingsFormRow>
+      </SettingsRow>
       {#if backup.importStatus === 'error' && backup.importMessage}
-        <SettingsFormRow label="">
+        <SettingsRow label="Import error">
           <span class="status-text error">{backup.importMessage}</span>
-        </SettingsFormRow>
+        </SettingsRow>
       {/if}
     {/if}
-  </SettingsForm>
+  </SettingsCard>
 </div>
 
 <!-- Import Preview Modal -->
@@ -147,15 +156,12 @@
     onEscape={() => backup.closeImportModal()}
   >
     {#snippet children()}
-      <div class="space-y-1 max-h-80 overflow-y-auto custom-scrollbar">
+      <div class="import-preview-list custom-scrollbar">
         {#each backup.importManifest!.categories as cat (cat.id)}
           {@const catState = backup.importCategories.get(cat.id)}
           {@const preview = backup.importPreviewData.get(cat.id)}
           {#if catState}
-            <div
-              class="flex items-center gap-3 py-3 border-b"
-              style="border-color: var(--border-color)"
-            >
+            <div class="import-preview-row">
               <Checkbox
                 checked={catState.enabled}
                 onchange={() => {
@@ -168,17 +174,13 @@
                   }
                 }}
               />
-              <div class="flex-1 min-w-0">
-                <div class="font-medium text-sm" style="color: var(--text-primary)">
-                  {cat.displayName}
-                </div>
+              <div class="import-preview-copy">
+                <div class="import-preview-title">{cat.displayName}</div>
                 {#if preview}
-                  <div class="text-xs mt-0.5" style="color: var(--text-secondary)">
+                  <div class="import-preview-meta">
                     Local: {preview.localCount} → Incoming: {preview.incomingCount}
                     {#if preview.conflicts > 0}
-                      <span style="color: var(--accent-warning)">
-                        · {preview.conflicts} conflicts</span
-                      >
+                      <span class="conflict-text"> · {preview.conflicts} conflicts</span>
                     {/if}
                   </div>
                 {/if}
@@ -202,12 +204,7 @@
                     ]);
                   }
                 }}
-                class="text-sm px-2 py-1 rounded"
-                style="background: var(--bg-tertiary); border: 1px solid var(--border-color); color: {catState.enabled
-                  ? 'var(--text-primary)'
-                  : 'var(--text-tertiary)'}; cursor: {catState.enabled
-                  ? 'pointer'
-                  : 'not-allowed'};"
+                class="strategy-select"
               >
                 <option value="merge">Merge</option>
                 <option value="replace">Replace</option>
@@ -219,7 +216,7 @@
       </div>
 
       {#if backup.importStatus === 'error' && backup.importMessage}
-        <p class="text-sm mt-3" style="color: var(--accent-danger)">{backup.importMessage}</p>
+        <p class="modal-error">{backup.importMessage}</p>
       {/if}
     {/snippet}
 
@@ -233,12 +230,8 @@
 {/if}
 
 <style>
-  .no-separators :global(.form-row) {
-    border-bottom: none;
-  }
-
-  .no-separators :global(.form-row.separator) {
-    border-top: none;
+  .anchor-group {
+    scroll-margin-top: var(--space-6);
   }
 
   .warning-row {
@@ -269,5 +262,61 @@
 
   .import-password-row :global(.input) {
     flex: 1;
+  }
+
+  .import-preview-list {
+    max-height: 20rem;
+    overflow-y: auto;
+  }
+
+  .import-preview-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .import-preview-copy {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .import-preview-title {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .import-preview-meta {
+    margin-top: var(--space-0-5);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+
+  .conflict-text {
+    color: var(--accent-warning);
+  }
+
+  .strategy-select {
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-ui);
+    cursor: pointer;
+  }
+
+  .strategy-select:disabled {
+    color: var(--text-tertiary);
+    cursor: not-allowed;
+  }
+
+  .modal-error {
+    margin: var(--space-3) 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--accent-danger);
   }
 </style>

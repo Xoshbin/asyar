@@ -16,6 +16,10 @@ use crate::error::AppError;
 use crate::storage::DataStore;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 /// Tauri event name used when a timer fires. The TS-side bridge
 /// (`timerBridge.svelte.ts`) listens for this and dispatches the
@@ -51,11 +55,15 @@ pub struct TimerFirePayload {
 #[derive(Clone)]
 pub struct TimerRegistry {
     store: DataStore,
+    maybe_nonempty: Arc<AtomicBool>,
 }
 
 impl TimerRegistry {
     pub fn new(store: DataStore) -> Self {
-        Self { store }
+        Self {
+            store,
+            maybe_nonempty: Arc::new(AtomicBool::new(true)),
+        }
     }
 
     /// A registry over a throwaway file-backed test store.
@@ -63,6 +71,7 @@ impl TimerRegistry {
     pub(crate) fn for_test() -> Self {
         Self {
             store: crate::storage::create_test_store(),
+            maybe_nonempty: Arc::new(AtomicBool::new(true)),
         }
     }
 
@@ -102,7 +111,20 @@ impl TimerRegistry {
             ],
         )
         .map_err(|e| AppError::Database(format!("Failed to insert timer: {e}")))?;
+        self.maybe_nonempty.store(true, Ordering::Release);
         Ok(timer_id)
+    }
+
+    pub(crate) fn should_poll(&self) -> bool {
+        self.maybe_nonempty.load(Ordering::Acquire)
+    }
+
+    pub(crate) fn begin_poll(&self) {
+        self.maybe_nonempty.store(false, Ordering::Release);
+    }
+
+    pub(crate) fn keep_polling(&self) {
+        self.maybe_nonempty.store(true, Ordering::Release);
     }
 
     pub fn cancel(&self, extension_id: &str, timer_id: &str) -> Result<(), AppError> {
@@ -155,23 +177,50 @@ impl TimerRegistry {
     }
 
     pub fn due_now(&self, now_ms: u64) -> Result<Vec<TimerDescriptor>, AppError> {
+        self.poll_due(now_ms).map(|(due, _)| due)
+    }
+
+    pub(crate) fn poll_due(&self, now_ms: u64) -> Result<(Vec<TimerDescriptor>, bool), AppError> {
         let conn = self.store.conn()?;
         let mut stmt = conn
             .prepare(
-                "SELECT timer_id, extension_id, command_id, args_json, fire_at, created_at
-                 FROM extension_timers
-                 WHERE fired = 0 AND fire_at <= ?1
-                 ORDER BY fire_at ASC",
+                "SELECT due.timer_id, due.extension_id, due.command_id, due.args_json,
+                        due.fire_at, due.created_at,
+                        EXISTS(SELECT 1 FROM extension_timers WHERE fired = 0)
+                 FROM (SELECT 1) AS state
+                 LEFT JOIN extension_timers AS due
+                    ON due.fired = 0 AND due.fire_at <= ?1
+                 ORDER BY due.fire_at ASC",
             )
-            .map_err(|e| AppError::Database(format!("Failed to prepare due_now: {e}")))?;
+            .map_err(|e| AppError::Database(format!("Failed to prepare poll_due: {e}")))?;
         let iter = stmt
-            .query_map(params![now_ms as i64], Self::map_row)
-            .map_err(|e| AppError::Database(format!("Failed to query due_now: {e}")))?;
+            .query_map(params![now_ms as i64], |row| {
+                let timer_id = row.get::<_, Option<String>>(0)?;
+                let desc = match timer_id {
+                    Some(timer_id) => Some(TimerDescriptor {
+                        timer_id,
+                        extension_id: row.get(1)?,
+                        command_id: row.get(2)?,
+                        args_json: row.get(3)?,
+                        fire_at: row.get::<_, i64>(4)? as u64,
+                        created_at: row.get::<_, i64>(5)? as u64,
+                    }),
+                    None => None,
+                };
+                Ok((desc, row.get::<_, bool>(6)?))
+            })
+            .map_err(|e| AppError::Database(format!("Failed to query poll_due: {e}")))?;
         let mut out = Vec::new();
+        let mut has_unfired = false;
         for r in iter {
-            out.push(r.map_err(|e| AppError::Database(format!("Row error: {e}")))?);
+            let (desc, any_unfired) =
+                r.map_err(|e| AppError::Database(format!("Row error: {e}")))?;
+            has_unfired = any_unfired;
+            if let Some(desc) = desc {
+                out.push(desc);
+            }
         }
-        Ok(out)
+        Ok((out, has_unfired))
     }
 
     pub fn mark_fired(
@@ -383,6 +432,21 @@ mod tests {
         let id = r.schedule("ext-a", "cmd", "{}", 2_000, 1_000).unwrap();
         r.mark_fired("ext-a", &id, 2_001).unwrap();
         assert!(r.due_now(9_000).unwrap().is_empty());
+    }
+
+    #[test]
+    fn empty_poll_disables_polling_until_a_timer_is_scheduled() {
+        let r = make();
+        assert!(r.should_poll());
+
+        r.begin_poll();
+        let (due, has_unfired) = r.poll_due(1_000).unwrap();
+        assert!(due.is_empty());
+        assert!(!has_unfired);
+        assert!(!r.should_poll());
+
+        r.schedule("ext-a", "cmd", "{}", 2_000, 1_000).unwrap();
+        assert!(r.should_poll());
     }
 
     #[test]

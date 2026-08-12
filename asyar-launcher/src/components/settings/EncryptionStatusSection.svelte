@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { SettingsSection, SettingsRow, StatusDot } from '../index';
+  import { SettingsCard, SettingsRow, StatusDot } from '../index';
   import { encryptionService } from '../../services/privacy/encryptionService.svelte';
 
   let dot = $derived(
@@ -19,11 +19,12 @@
   );
 </script>
 
-<SettingsSection
-  title="Encryption at Rest"
-  description="Clipboard items, snippet expansions, AI conversations, and encrypted extension preferences are stored as ciphertext on disk."
->
-  <SettingsRow label="Status" {description} noBorder>
+<div class="section-header">Encryption</div>
+<SettingsCard>
+  <SettingsRow
+    label="Encryption at Rest"
+    description={`Clipboard items, snippet expansions, AI conversations, and encrypted extension preferences are stored as ciphertext on disk. ${description}`}
+  >
     {#snippet children()}
       <div class="status-row">
         <StatusDot color={dot.color} />
@@ -31,7 +32,7 @@
       </div>
     {/snippet}
   </SettingsRow>
-</SettingsSection>
+</SettingsCard>
 
 <style>
   .status-row {

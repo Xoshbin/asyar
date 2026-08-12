@@ -4,9 +4,17 @@
   let {
     value = 'default',
     onchange,
+    wellBackground = 'tertiary',
   }: {
     value?: LaunchView;
     onchange?: (v: LaunchView) => void;
+    /** Background token for the thumbnail's outer "desktop" area. Default
+     *  `'tertiary'` matches this component's onboarding usage (inside a
+     *  `Card`, which is `--bg-secondary`). Settings' `GeneralTab` passes
+     *  `'primary'` since it sits inside a `SettingsCard` (`--bg-tertiary`) —
+     *  `'secondary'` isn't an option here because the thumbnail's own inner
+     *  window already uses `--bg-secondary`. */
+    wellBackground?: 'tertiary' | 'primary';
   } = $props();
 
   const options: { id: LaunchView; label: string }[] = [
@@ -26,7 +34,7 @@
       type="button"
       onclick={() => onchange?.(option.id)}
     >
-      <div class="mode-thumbnail">
+      <div class="mode-thumbnail" class:well-primary={wellBackground === 'primary'}>
         {#if option.id === 'default'}
           <div class="inner-window">
             <div class="win-search-bar"></div>
@@ -97,6 +105,10 @@
     display: flex;
     align-items: flex-start;
     justify-content: center;
+  }
+
+  .mode-thumbnail.well-primary {
+    background: var(--bg-primary);
   }
 
   .mode-option:hover .mode-thumbnail {

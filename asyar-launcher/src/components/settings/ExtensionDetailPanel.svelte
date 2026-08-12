@@ -383,28 +383,29 @@
   .panel-header {
     display: flex;
     align-items: flex-start;
-    gap: var(--space-3);
-    padding: var(--space-4) var(--space-4) var(--space-3);
-    border-bottom: 1px solid var(--separator);
+    gap: var(--space-5);
+    padding: var(--space-8) var(--space-7) var(--space-6);
+    border-bottom: 1px solid var(--border-color);
   }
 
   .panel-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius-md);
-    background: var(--bg-tertiary);
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-xl);
+    background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: var(--font-size-lg);
-    font-weight: 600;
-    color: var(--text-secondary);
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--accent-primary);
     flex-shrink: 0;
   }
 
   .icon-img {
-    width: 22px;
-    height: 22px;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
   }
 
   .panel-meta {
@@ -452,7 +453,7 @@
   }
 
   .panel-body {
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-6) var(--space-7);
   }
 
   .panel-section {
