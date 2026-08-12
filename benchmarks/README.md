@@ -40,12 +40,11 @@ instrumentation inside Asyar that Raycast wouldn't have.
 Defaults assume `/Applications/asyar.app` and `/Applications/Raycast.app`.
 Use `--asyar dev` to build the current checkout with `pnpm build -- --local`
 and test the resulting release bundle. It is a release build, but uses the
-isolated `Asyar Dev` bundle (`org.asyar.dev`): its dev marker, profile,
-keychain entry, and default `Option-Space` shortcut are separate from the
-installed app. The terminal and report label it as `local worktree <revision>`
-and note any compiled uncommitted changes. This is suitable for local
-comparisons against Raycast, but deliberately cannot be combined with
-`--update-readme`.
+isolated `Asyar Dev` bundle (`org.asyar.dev`): its app name, profile, and
+keychain entry are separate from the installed app. The terminal and report
+label it as `local worktree <revision>` and note any compiled uncommitted
+changes. This is suitable for local comparisons against Raycast, but
+deliberately cannot be combined with `--update-readme`.
 If `/Applications/Raycast Beta.app` (Raycast v2) is installed, it is
 benchmarked too, automatically. All hotkeys default to `⌥Space` (each app's
 factory default — the apps never run at the same time, so the shared hotkey
@@ -79,6 +78,28 @@ CPU window. `--deep-idle-seconds N` controls the later CPU, `powermetrics`,
    The script lists the app → hotkey pairs before starting; make sure they
    match reality. On an interactive run, a failed cold-start check prompts
    for the correct key and retries that app; `--yes` fails immediately.
+5. **Python 3.** `python3` parses the `powermetrics`, `fs_usage`, and `nettop`
+   raw output. The script checks for it before starting.
+
+### Optional Passwordless Measurement Tools
+
+`powermetrics` and `fs_usage` need root. The benchmark never prompts for a
+password. It checks access with `sudo -n true`; if that check fails, CPU
+ms/s, wakeups/s, disk write operations, and distinct files touched are
+reported as `n/a`. The hotkey, cold-start, memory, CPU percentage, network,
+and app-size metrics still run end to end.
+
+To enable the privileged metrics, edit a dedicated sudoers file with
+`sudo visudo -f /etc/sudoers.d/asyar-benchmarks` and add the following,
+replacing `yourusername` with the account that runs the benchmark:
+
+```sudoers
+Cmnd_Alias ASYAR_BENCH = /usr/bin/powermetrics *, /usr/bin/fs_usage *
+yourusername ALL = (root) NOPASSWD: ASYAR_BENCH
+```
+
+Availability is probed with a 100 ms `powermetrics` run, so no extra
+entries are needed beyond the two tools.
 
 ## Fairness rules
 
@@ -101,8 +122,9 @@ CPU window. `--deep-idle-seconds N` controls the later CPU, `powermetrics`,
   it — this really happens), or it is bound to a different key than you
   passed, or another launcher owns the key. The interactive script asks for
   the matching key and retries; with `--yes`, pass the matching
-  `--…-hotkey` flag. Which key you use does not change the timing, so this
-  stays fair.
+  `--…-hotkey` flag. macOS does not expose a reliable way to enumerate
+  another app's registered global hotkeys. Which key you use does not change
+  the timing, so this stays fair.
 - **Cold start passes but the hotkey phase fails** — some apps (Raycast)
   show a window by themselves on manual launch, which can mask a wrong
   hotkey. The tool verifies the hotkey with one toggle right after cold
