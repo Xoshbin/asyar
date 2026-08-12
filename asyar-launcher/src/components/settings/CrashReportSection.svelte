@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { SettingsSection } from '../index';
+  import { SettingsCard } from '../index';
   import SettingsRadioGroup from './SettingsRadioGroup.svelte';
   import { settingsService } from '../../services/settings/settingsService.svelte';
   import type { CrashReportMode } from '../../services/settings/types/AppSettingsType';
@@ -21,9 +21,15 @@
   }
 </script>
 
-<SettingsSection
-  title="Crash & Error Reports"
-  description="Asyar sends no telemetry by default. Opt in to help fix crashes — you choose how."
->
-  <SettingsRadioGroup name="crash-report-mode" {options} value={mode} onchange={choose} noBorder />
-</SettingsSection>
+<div class="section-header">Reports</div>
+<SettingsCard>
+  <SettingsRadioGroup
+    label="Crash & Error Reports"
+    description="Asyar sends no telemetry by default. Opt in to help fix crashes — you choose how."
+    name="crash-report-mode"
+    {options}
+    value={mode}
+    onchange={choose}
+    noBorder
+  />
+</SettingsCard>

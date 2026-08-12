@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { SettingsSection, SettingsRow, Toggle, Badge, EmptyState } from '../index';
+  import { SettingsCard, SettingsRow, Toggle, Badge, EmptyState } from '../index';
   import { secretRedactionService } from '../../services/privacy/secretRedactionService.svelte';
 
   let totalRedacted = $derived(
@@ -23,13 +23,11 @@
   }
 </script>
 
-<SettingsSection
-  title="Secret Redaction"
-  description="Asyar replaces known secret formats (API keys, JWTs, private keys, credit cards) with markers before storing them. Items still appear in history; the secret value is gone."
->
+<div class="section-header">Redaction</div>
+<SettingsCard>
   <SettingsRow
     label="Enabled"
-    description="Master switch for the secret detector across all categories below."
+    description="Master switch for redacting known secret formats before storage. Items still appear in history; the secret value is gone."
   >
     {#snippet children()}
       <Toggle checked={secretRedactionService.settings.master} onchange={toggleMaster} />
@@ -103,7 +101,7 @@
       {/if}
     {/snippet}
   </SettingsRow>
-</SettingsSection>
+</SettingsCard>
 
 <style>
   .catalog {

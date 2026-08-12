@@ -1,11 +1,11 @@
 <script lang="ts">
   import {
-    SettingsForm,
-    SettingsFormRow,
+    SettingsCard,
+    SettingsPaneHeader,
+    SettingsRow,
     Button,
     SegmentedControl,
     Toggle,
-    Card,
   } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { runUpdateCheck } from '../../../services/update/updateService';
@@ -105,88 +105,131 @@
   }
 </script>
 
-<div class="app-header">
-  <img src={logoUrl} alt="Asyar" class="app-logo" />
-  <div class="app-name">Asyar</div>
-  <div class="app-version">Version {appVersion}</div>
+<SettingsPaneHeader
+  title="About"
+  subtitle="Review version information, update settings, and project links."
+/>
+
+<div class="about-tab">
+  <div id="about-updates" class="anchor-group">
+    <div class="section-header">Updates</div>
+    <SettingsCard>
+      <div class="app-header">
+        <img src={logoUrl} alt="Asyar" class="app-logo" />
+        <div class="app-name">Asyar</div>
+        <div class="app-version">Version {appVersion}</div>
+      </div>
+
+      <SettingsRow
+        label="Release channel"
+        description="Stable: tested releases only. Beta: early access to pre-release versions."
+      >
+        {#snippet children()}
+          <SegmentedControl
+            options={[
+              { value: 'stable', label: 'Stable' },
+              { value: 'beta', label: 'Beta' },
+            ]}
+            bind:value={selectedChannel}
+          />
+        {/snippet}
+      </SettingsRow>
+
+      <SettingsRow
+        label="Automatic updates"
+        description="Check for and download updates in the background."
+      >
+        {#snippet children()}
+          <Toggle
+            checked={handler.settings.updates?.autoCheck ?? true}
+            onchange={(e) => handler.updateAutoCheck((e.currentTarget as HTMLInputElement).checked)}
+          />
+        {/snippet}
+      </SettingsRow>
+
+      {#if appUpdateState.phase === 'ready'}
+        <SettingsRow
+          label={`Update ${appUpdateState.pendingVersion} ready`}
+          description="Will install automatically on next launch."
+        >
+          {#snippet children()}
+            <Button onclick={restartAndUpdate}>Restart Now</Button>
+          {/snippet}
+        </SettingsRow>
+      {/if}
+
+      <SettingsRow label="Updates">
+        {#snippet children()}
+          <div class="update-control">
+            <Button
+              onclick={checkForUpdates}
+              disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
+            >
+              {updateStatus === 'checking' || updateStatus === 'downloading'
+                ? 'Checking...'
+                : 'Check for Updates'}
+            </Button>
+            {#if updateStatus !== 'idle'}
+              <span
+                class="update-status"
+                class:status-success={updateStatus === 'up-to-date' || updateStatus === 'installed'}
+                class:status-error={updateStatus === 'error'}
+              >
+                {updateStatusText}
+              </span>
+            {/if}
+          </div>
+        {/snippet}
+      </SettingsRow>
+    </SettingsCard>
+  </div>
+
+  <div id="about-credits" class="anchor-group">
+    <div class="section-header">Credits</div>
+    <SettingsCard>
+      <SettingsRow label="Created by">
+        {#snippet children()}
+          <span class="info-text">Khoshbin Ali</span>
+        {/snippet}
+      </SettingsRow>
+
+      <SettingsRow label="Built with">
+        {#snippet children()}
+          <span class="info-text">Tauri, Rust, Svelte, TypeScript</span>
+        {/snippet}
+      </SettingsRow>
+    </SettingsCard>
+  </div>
+
+  <div id="about-links" class="anchor-group">
+    <div class="section-header">Links</div>
+    <SettingsCard>
+      <SettingsRow label="Project links" description="Open source, policies, and license details.">
+        {#snippet children()}
+          <div class="links-row">
+            <Button onclick={() => openUrl('https://github.com/Xoshbin/asyar-launcher')}>
+              GitHub
+            </Button>
+            <Button>Privacy Policy</Button>
+            <Button>License</Button>
+          </div>
+        {/snippet}
+      </SettingsRow>
+    </SettingsCard>
+  </div>
 </div>
 
-<SettingsForm>
-  <SettingsFormRow
-    label="Release Channel"
-    description="Stable: tested releases only. Beta: early access to pre-release versions."
-  >
-    <SegmentedControl
-      options={[
-        { value: 'stable', label: 'Stable' },
-        { value: 'beta', label: 'Beta' },
-      ]}
-      bind:value={selectedChannel}
-    />
-  </SettingsFormRow>
-
-  <SettingsFormRow
-    label="Automatic updates"
-    description="Check for and download updates in the background"
-  >
-    <Toggle
-      checked={handler.settings.updates?.autoCheck ?? true}
-      onchange={(e) => handler.updateAutoCheck((e.currentTarget as HTMLInputElement).checked)}
-    />
-  </SettingsFormRow>
-
-  {#if appUpdateState.phase === 'ready'}
-    <Card>
-      <div class="update-ready-banner">
-        <div class="update-ready-text">
-          <span class="text-title">Update {appUpdateState.pendingVersion} ready</span>
-          <span class="text-caption update-caption">Will install automatically on next launch</span>
-        </div>
-        <Button onclick={restartAndUpdate}>Restart Now</Button>
-      </div>
-    </Card>
-  {/if}
-
-  <SettingsFormRow label="Updates" separator>
-    <div class="update-control">
-      <Button
-        onclick={checkForUpdates}
-        disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
-      >
-        {updateStatus === 'checking' || updateStatus === 'downloading'
-          ? 'Checking...'
-          : 'Check for Updates'}
-      </Button>
-      {#if updateStatus !== 'idle'}
-        <span
-          class="update-status"
-          class:status-success={updateStatus === 'up-to-date' || updateStatus === 'installed'}
-          class:status-error={updateStatus === 'error'}
-        >
-          {updateStatusText}
-        </span>
-      {/if}
-    </div>
-  </SettingsFormRow>
-
-  <SettingsFormRow label="Created by" separator>
-    <span class="info-text">Khoshbin Ali</span>
-  </SettingsFormRow>
-
-  <SettingsFormRow label="Built with">
-    <span class="info-text">Tauri, Rust, Svelte, TypeScript</span>
-  </SettingsFormRow>
-
-  <SettingsFormRow label="">
-    <div class="links-row">
-      <Button onclick={() => openUrl('https://github.com/Xoshbin/asyar-launcher')}>GitHub</Button>
-      <Button>Privacy Policy</Button>
-      <Button>License</Button>
-    </div>
-  </SettingsFormRow>
-</SettingsForm>
-
 <style>
+  .about-tab {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+
+  .anchor-group {
+    scroll-margin-top: var(--space-6);
+  }
+
   .app-header {
     display: flex;
     flex-direction: column;
@@ -247,22 +290,5 @@
   .links-row {
     display: flex;
     gap: var(--space-2);
-  }
-
-  .update-ready-banner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-  }
-
-  .update-ready-text {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-
-  .update-caption {
-    color: var(--text-secondary);
   }
 </style>
