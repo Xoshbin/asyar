@@ -34,9 +34,17 @@ instrumentation inside Asyar that Raycast wouldn't have.
 ```bash
 ./benchmarks/bench.sh                  # interactive, ~4-6 minutes per app
 ./benchmarks/bench.sh --update-readme  # also refresh the table in the root README
+./benchmarks/bench.sh --asyar dev      # build and test this checkout's local release bundle
 ```
 
 Defaults assume `/Applications/asyar.app` and `/Applications/Raycast.app`.
+Use `--asyar dev` to build the current checkout with `pnpm build -- --local`
+and test the resulting release bundle. It is a release build, but uses the
+isolated `Asyar Dev` bundle (`org.asyar.dev`): its app name, profile, and
+keychain entry are separate from the installed app. The terminal and report
+label it as `local worktree <revision>` and note any compiled uncommitted
+changes. This is suitable for local comparisons against Raycast, but
+deliberately cannot be combined with `--update-readme`.
 If `/Applications/Raycast Beta.app` (Raycast v2) is installed, it is
 benchmarked too, automatically. All hotkeys default to `⌥Space` (each app's
 factory default — the apps never run at the same time, so the shared hotkey
@@ -68,11 +76,12 @@ CPU window. `--deep-idle-seconds N` controls the later CPU, `powermetrics`,
 4. **A hotkey registered in every app.** Open each app's settings and
    confirm the hotkey is actually set — app updates can silently clear it.
    The script lists the app → hotkey pairs before starting; make sure they
-   match reality.
+   match reality. On an interactive run, a failed cold-start check prompts
+   for the correct key and retries that app; `--yes` fails immediately.
 5. **Python 3.** `python3` parses the `powermetrics`, `fs_usage`, and `nettop`
    raw output. The script checks for it before starting.
 
-### Optional passwordless measurement tools
+### Optional Passwordless Measurement Tools
 
 `powermetrics` and `fs_usage` need root. The benchmark never prompts for a
 password. It checks access with `sudo -n true`; if that check fails, CPU
@@ -111,11 +120,11 @@ entries are needed beyond the two tools.
 - **"the hotkey does not summon it" / runs time out** — the app has **no
   hotkey registered at all** (updates and beta installs can silently clear
   it — this really happens), or it is bound to a different key than you
-  passed, or another launcher owns the key. Launchers cannot share one
-  global hotkey: with Asyar, Raycast, and Raycast Beta on one machine, only
-  one of them owns `⌥Space` at a time. Open each app's settings, register a
-  unique hotkey, and pass the matching `--…-hotkey` flags. Which key you use
-  does not change the timing, so this stays fair.
+  passed, or another launcher owns the key. The interactive script asks for
+  the matching key and retries; with `--yes`, pass the matching
+  `--…-hotkey` flag. macOS does not expose a reliable way to enumerate
+  another app's registered global hotkeys. Which key you use does not change
+  the timing, so this stays fair.
 - **Cold start passes but the hotkey phase fails** — some apps (Raycast)
   show a window by themselves on manual launch, which can mask a wrong
   hotkey. The tool verifies the hotkey with one toggle right after cold

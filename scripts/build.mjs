@@ -16,6 +16,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
 const launcherDir = resolve(root, 'asyar-launcher');
 const extBuilderDir = resolve(root, 'asyar-ext-builder');
+const requestedBuildArgs = process.argv.slice(2);
+const buildArgs = requestedBuildArgs[0] === '--' ? requestedBuildArgs.slice(1) : requestedBuildArgs;
+const isLocalBuild = buildArgs.length === 1 && buildArgs[0] === '--local';
+
+if (buildArgs.length > 0 && !isLocalBuild) {
+  console.error('Usage: pnpm build [--local]');
+  process.exit(64);
+}
 
 function run(cmd, cwd = root) {
   execSync(cmd, { cwd, stdio: 'inherit' });
@@ -95,7 +103,12 @@ try {
 // 4. Tauri build (Rust + frontend)
 step('Building asyar-launcher (pnpm tauri build)');
 try {
-  run('pnpm tauri build', launcherDir);
+  // Local benchmark builds use the isolated dev bundle ID and keychain entry,
+  // but retain release optimizations and skip updater artifacts/signing.
+  const buildCommand = isLocalBuild
+    ? 'ASYAR_KEYCHAIN_SERVICE=org.asyar.dev pnpm tauri build --config src-tauri/tauri.dev.conf.json --config \'{"bundle":{"createUpdaterArtifacts":false}}\''
+    : 'pnpm tauri build';
+  run(buildCommand, launcherDir);
   console.log('\n✓ Build complete');
 } catch {
   console.error('✗ Tauri build failed');
