@@ -1,0 +1,17 @@
+hour process cpu_ms_per_s wakeups_per_s (30x1s powermetrics samples, installed app idle soak 2026-08-07/08)
+00:08:31 asyar 3.1 17.4
+00:08:31 com.apple.WebKit.WebContent 9.4 6.2
+01:08:01 asyar 2.7 17.5
+01:08:01 com.apple.WebKit.WebContent 9.6 7.7
+02:07:32 asyar 3.4 17.5
+02:07:32 com.apple.WebKit.WebContent 7.8 6.4
+19:10:58 asyar 2.8 17.5
+19:10:58 com.apple.WebKit.WebContent 5.6 5.8
+20:10:28 asyar 3.8 17.2
+20:10:28 com.apple.WebKit.WebContent 8.7 5.6
+21:09:59 asyar 3.4 16.7
+21:09:59 com.apple.WebKit.WebContent 7.6 5.8
+22:09:30 asyar 3.7 17.2
+22:09:30 com.apple.WebKit.WebContent 8.0 6.0
+23:09:00 asyar 3.0 17.5
+23:09:00 com.apple.WebKit.WebContent 6.7 5.9
