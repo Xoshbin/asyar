@@ -11,6 +11,10 @@ fn main() {
         "cargo:rustc-env=TARGET_TRIPLE={}",
         std::env::var("TARGET").expect("TARGET env var not set")
     );
+    println!("cargo:rerun-if-env-changed=ASYAR_KEYCHAIN_SERVICE");
+    if let Ok(service) = std::env::var("ASYAR_KEYCHAIN_SERVICE") {
+        println!("cargo:rustc-env=ASYAR_KEYCHAIN_SERVICE={service}");
+    }
     let features_source_dir = base_dir.join("../src/built-in-features");
     let staging_dir = base_dir.join("built-in-features");
 

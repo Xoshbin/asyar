@@ -7,7 +7,8 @@
 #
 # Usage:
 #   ./benchmarks/bench.sh [--yes] [--update-readme]
-#       [--asyar-app PATH] [--raycast-app PATH] [--raycast-beta-app PATH]
+#       [--asyar production|dev] [--asyar-app PATH]
+#       [--raycast-app PATH] [--raycast-beta-app PATH]
 #       [--asyar-hotkey SPEC] [--raycast-hotkey SPEC] [--raycast-beta-hotkey SPEC]
 #       [--runs N] [--cpu-seconds N] [--settle-seconds N]
 #
@@ -25,6 +26,9 @@ TOOL="$BUILD_DIR/benchtool"
 RESULTS_DIR="$SCRIPT_DIR/results"
 
 ASYAR_APP="/Applications/asyar.app"
+ASYAR_MODE="production"
+ASYAR_APP_EXPLICIT=0
+ASYAR_LABEL=""
 RAYCAST_APP="/Applications/Raycast.app"
 RAYCAST_BETA_APP="/Applications/Raycast Beta.app"
 ASYAR_HOTKEY="opt+space"        # Asyar default (Alt+Space)
@@ -38,7 +42,8 @@ UPDATE_README=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --asyar-app) ASYAR_APP="$2"; shift 2 ;;
+    --asyar) ASYAR_MODE="$2"; shift 2 ;;
+    --asyar-app) ASYAR_APP="$2"; ASYAR_APP_EXPLICIT=1; shift 2 ;;
     --raycast-app) RAYCAST_APP="$2"; shift 2 ;;
     --raycast-beta-app) RAYCAST_BETA_APP="$2"; shift 2 ;;
     --asyar-hotkey) ASYAR_HOTKEY="$2"; shift 2 ;;
@@ -49,7 +54,7 @@ while [[ $# -gt 0 ]]; do
     --settle-seconds) SETTLE_SECONDS="$2"; shift 2 ;;
     --yes) ASSUME_YES=1; shift ;;
     --update-readme) UPDATE_README=1; shift ;;
-    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
   esac
 done
@@ -57,6 +62,30 @@ done
 die() { echo "error: $*" >&2; exit 1; }
 
 [[ "$(uname)" == "Darwin" ]] || die "macOS only"
+
+case "$ASYAR_MODE" in
+  production)
+    ;;
+  dev)
+    [[ "$ASYAR_APP_EXPLICIT" -eq 0 ]] \
+      || die "--asyar dev cannot be combined with --asyar-app"
+    [[ "$UPDATE_README" -eq 0 ]] \
+      || die "--update-readme is only for installed production builds"
+    LOCAL_REVISION="$(git -C "$REPO_ROOT" rev-parse --short HEAD)"
+    LOCAL_STATE=""
+    if [[ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]]; then
+      LOCAL_STATE=" + worktree changes"
+    fi
+    echo "Building the local Asyar release bundle from this checkout ($LOCAL_REVISION$LOCAL_STATE)..."
+    (cd "$REPO_ROOT" && pnpm build -- --local)
+    ASYAR_APP="$REPO_ROOT/asyar-launcher/src-tauri/target/release/bundle/macos/Asyar Dev.app"
+    ASYAR_LABEL="Asyar (local worktree $LOCAL_REVISION$LOCAL_STATE)"
+    ;;
+  *)
+    die "--asyar must be production or dev"
+    ;;
+esac
+
 [[ -d "$ASYAR_APP" ]] || die "Asyar app not found at $ASYAR_APP (pass --asyar-app)"
 [[ -d "$RAYCAST_APP" ]] || die "Raycast app not found at $RAYCAST_APP (pass --raycast-app)"
 command -v swiftc >/dev/null || die "swiftc not found — install Xcode command-line tools"
@@ -75,19 +104,19 @@ APP_HOTKEYS=()
 APP_LABELS=()
 APP_LOGS=()
 
-add_app() { # path hotkey
-  local path="$1" hotkey="$2" name ver slug display
+add_app() { # path hotkey [display-name]
+  local path="$1" hotkey="$2" display_name="${3:-}" name ver slug display
   name="$(app_name "$path")"
   ver="$(defaults read "$path/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || echo '?')"
   slug="$(echo "$name" | tr '[:upper:] ' '[:lower:]-')"
-  display="$(echo "$name" | awk '{ print toupper(substr($0, 1, 1)) substr($0, 2) }')"
+  display="${display_name:-$(echo "$name" | awk '{ print toupper(substr($0, 1, 1)) substr($0, 2) }')}"
   APP_PATHS+=("$path")
   APP_HOTKEYS+=("$hotkey")
   APP_LABELS+=("$display $ver")
   APP_LOGS+=("$RESULTS_DIR/raw-$slug.txt")
 }
 
-add_app "$ASYAR_APP" "$ASYAR_HOTKEY"
+add_app "$ASYAR_APP" "$ASYAR_HOTKEY" "$ASYAR_LABEL"
 add_app "$RAYCAST_APP" "$RAYCAST_HOTKEY"
 if [[ -d "$RAYCAST_BETA_APP" ]]; then
   add_app "$RAYCAST_BETA_APP" "$RAYCAST_BETA_HOTKEY"
@@ -161,11 +190,26 @@ measure_app() { # index into the APP_* arrays
   sleep 2
 
   echo "  cold start (launch → usable)..."
-  "$TOOL" coldstart "$app" "$hotkey" | tee -a "$log" \
-    || die "'$hotkey' does not summon ${APP_LABELS[$i]} — open that app's settings and check:
+  if ! "$TOOL" coldstart "$app" "$hotkey" | tee -a "$log"; then
+    [[ "$ASSUME_YES" -eq 0 ]] || die "'$hotkey' does not summon ${APP_LABELS[$i]} — open that app's settings and check:
 the hotkey may not be registered at all (updates can clear it), set to a
 different key, or owned by another launcher. Register one, then pass the
 matching --asyar-hotkey / --raycast-hotkey / --raycast-beta-hotkey flag."
+
+    echo
+    # Let the synthetic failed hotkey finish propagating before Terminal reads.
+    # In particular, Option-Space can otherwise consume the first input character.
+    sleep 1
+    printf "  Enter %s's configured hotkey (for example cmd+space), or press Return to stop: " "${APP_LABELS[$i]}"
+    read -r hotkey
+    [[ -n "$hotkey" ]] || die "no hotkey supplied for ${APP_LABELS[$i]}"
+    APP_HOTKEYS[$i]="$hotkey"
+    echo "  retrying with $hotkey..."
+    quit_all
+    sleep 2
+    "$TOOL" coldstart "$app" "$hotkey" | tee -a "$log" \
+      || die "'$hotkey' does not summon ${APP_LABELS[$i]} — verify it in the app's settings."
+  fi
 
   echo "  settling ${SETTLE_SECONDS}s (startup indexing etc.)..."
   sleep "$SETTLE_SECONDS"

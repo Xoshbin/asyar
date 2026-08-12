@@ -30,9 +30,18 @@ instrumentation inside Asyar that Raycast wouldn't have.
 ```bash
 ./benchmarks/bench.sh                  # interactive, ~4-5 minutes
 ./benchmarks/bench.sh --update-readme  # also refresh the table in the root README
+./benchmarks/bench.sh --asyar dev      # build and test this checkout's local release bundle
 ```
 
 Defaults assume `/Applications/asyar.app` and `/Applications/Raycast.app`.
+Use `--asyar dev` to build the current checkout with `pnpm build -- --local`
+and test the resulting release bundle. It is a release build, but uses the
+isolated `Asyar Dev` bundle (`org.asyar.dev`): its dev marker, profile,
+keychain entry, and default `Option-Space` shortcut are separate from the
+installed app. The terminal and report label it as `local worktree <revision>`
+and note any compiled uncommitted changes. This is suitable for local
+comparisons against Raycast, but deliberately cannot be combined with
+`--update-readme`.
 If `/Applications/Raycast Beta.app` (Raycast v2) is installed, it is
 benchmarked too, automatically. All hotkeys default to `⌥Space` (each app's
 factory default — the apps never run at the same time, so the shared hotkey
@@ -54,7 +63,8 @@ time out.
 4. **A hotkey registered in every app.** Open each app's settings and
    confirm the hotkey is actually set — app updates can silently clear it.
    The script lists the app → hotkey pairs before starting; make sure they
-   match reality.
+   match reality. On an interactive run, a failed cold-start check prompts
+   for the correct key and retries that app; `--yes` fails immediately.
 
 ## Fairness rules
 
@@ -75,11 +85,10 @@ time out.
 - **"the hotkey does not summon it" / runs time out** — the app has **no
   hotkey registered at all** (updates and beta installs can silently clear
   it — this really happens), or it is bound to a different key than you
-  passed, or another launcher owns the key. Launchers cannot share one
-  global hotkey: with Asyar, Raycast, and Raycast Beta on one machine, only
-  one of them owns `⌥Space` at a time. Open each app's settings, register a
-  unique hotkey, and pass the matching `--…-hotkey` flags. Which key you use
-  does not change the timing, so this stays fair.
+  passed, or another launcher owns the key. The interactive script asks for
+  the matching key and retries; with `--yes`, pass the matching
+  `--…-hotkey` flag. Which key you use does not change the timing, so this
+  stays fair.
 - **Cold start passes but the hotkey phase fails** — some apps (Raycast)
   show a window by themselves on manual launch, which can mask a wrong
   hotkey. The tool verifies the hotkey with one toggle right after cold

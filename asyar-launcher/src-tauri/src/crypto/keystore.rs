@@ -22,7 +22,10 @@ use zeroize::Zeroizing;
 /// account name is versioned (`data-encryption-v1`) so a future key
 /// rotation can use a separate identifier without colliding with the
 /// current one.
-pub const KEYCHAIN_SERVICE: &str = "org.asyar.app";
+pub const KEYCHAIN_SERVICE: &str = match option_env!("ASYAR_KEYCHAIN_SERVICE") {
+    Some(service) => service,
+    None => "org.asyar.app",
+};
 pub const KEYCHAIN_ACCOUNT: &str = "data-encryption-v1";
 
 /// Filename used by the Linux file-backed fallback.
