@@ -1,7 +1,8 @@
 <script lang="ts">
   import {
-    SettingsForm,
-    SettingsFormRow,
+    SettingsCard,
+    SettingsPaneHeader,
+    SettingsRow,
     Toggle,
     Button,
     Badge,
@@ -98,166 +99,136 @@
   const devExtEntries = $derived(Object.entries(devExtensions));
 </script>
 
-<div class="developer-header">
-  <Badge text="Developer Mode Active" variant="warning" />
-  <p class="developer-hint">
-    These tools are intended for extension developers. Enable individual features below.
-  </p>
-</div>
+<SettingsPaneHeader
+  title="Developer"
+  subtitle="Inspect extensions, trace host messages, and manage local development extensions."
+/>
 
-<SettingsForm>
-  <SettingsFormRow
-    label="DevEx Inspector"
-    description="Show the extension inspector panel in the main launcher window. Access runtime state, events, IPC/RPC traces, and more."
-  >
-    <Toggle
-      checked={handler.settings.developer?.showInspector ?? false}
-      onchange={() => handler.handleDeveloperSettingToggle('showInspector')}
-    />
-  </SettingsFormRow>
+<div class="developer-tab">
+  <div id="developer-tools" class="anchor-group">
+    <div class="section-header">Tools</div>
+    <SettingsCard>
+      <SettingsRow
+        label="Developer mode"
+        description="These tools are intended for extension developers."
+      >
+        {#snippet children()}
+          <Badge text="Active" variant="warning" />
+        {/snippet}
+      </SettingsRow>
 
-  <SettingsFormRow
-    label="Verbose Logging"
-    separator
-    description="Increase log verbosity for all loaded extensions. Useful for debugging extension behavior."
-  >
-    <Toggle
-      checked={handler.settings.developer?.verboseLogging ?? false}
-      onchange={() => handler.handleDeveloperSettingToggle('verboseLogging')}
-    />
-  </SettingsFormRow>
+      <SettingsRow
+        label="DevEx Inspector"
+        description="Show the extension inspector panel in the main launcher window. Access runtime state, events, IPC/RPC traces, and more."
+      >
+        {#snippet children()}
+          <Toggle
+            checked={handler.settings.developer?.showInspector ?? false}
+            onchange={() => handler.handleDeveloperSettingToggle('showInspector')}
+          />
+        {/snippet}
+      </SettingsRow>
 
-  <SettingsFormRow
-    label="IPC/RPC Tracing"
-    separator
-    description="Record message traces between extensions and the host. Visible in the DevEx Inspector's IPC and RPC tabs."
-  >
-    <Toggle
-      checked={handler.settings.developer?.tracing ?? false}
-      onchange={() => handler.handleDeveloperSettingToggle('tracing')}
-    />
-  </SettingsFormRow>
+      <SettingsRow
+        label="Verbose logging"
+        description="Increase log verbosity for all loaded extensions. Useful for debugging extension behavior."
+      >
+        {#snippet children()}
+          <Toggle
+            checked={handler.settings.developer?.verboseLogging ?? false}
+            onchange={() => handler.handleDeveloperSettingToggle('verboseLogging')}
+          />
+        {/snippet}
+      </SettingsRow>
 
-  <SettingsFormRow
-    label="Sideload Extensions"
-    separator
-    description="Allow installing extension bundles from local files instead of the store."
-  >
-    <Toggle
-      checked={handler.settings.developer?.allowSideloading ?? false}
-      onchange={() => handler.handleDeveloperSettingToggle('allowSideloading')}
-    />
-  </SettingsFormRow>
-</SettingsForm>
+      <SettingsRow
+        label="IPC/RPC tracing"
+        description="Record message traces between extensions and the host. Visible in the DevEx Inspector's IPC and RPC tabs."
+      >
+        {#snippet children()}
+          <Toggle
+            checked={handler.settings.developer?.tracing ?? false}
+            onchange={() => handler.handleDeveloperSettingToggle('tracing')}
+          />
+        {/snippet}
+      </SettingsRow>
 
-<div class="dev-extensions-section">
-  <h3 class="section-header">Dev Extensions</h3>
+      <SettingsRow
+        label="Sideload extensions"
+        description="Allow installing extension bundles from local files instead of the store."
+      >
+        {#snippet children()}
+          <Toggle
+            checked={handler.settings.developer?.allowSideloading ?? false}
+            onchange={() => handler.handleDeveloperSettingToggle('allowSideloading')}
+          />
+        {/snippet}
+      </SettingsRow>
+    </SettingsCard>
+  </div>
 
-  {#if isLoadingDevExts}
-    <p class="text-caption">Loading…</p>
-  {:else if devExtError}
-    <p class="text-caption" style="color: var(--accent-danger)">{devExtError}</p>
-  {:else if devExtEntries.length === 0}
-    <EmptyState
-      message="No dev extensions attached"
-      description="Use the Asyar SDK CLI to attach a local extension: asyar-sdk attach <path>"
-    />
-  {:else}
-    <div class="dev-ext-list">
-      {#each devExtEntries as [extId, extPath]}
-        <div class="dev-ext-item">
-          <div class="dev-ext-info">
-            <span class="dev-ext-id">{extId}</span>
-            <span class="dev-ext-path">{extPath}</span>
-          </div>
-          <div class="dev-ext-actions">
-            <Button
-              class="btn-secondary"
-              disabled={reloadingExt === extId}
-              onclick={() => hotReload(extId)}
-            >
-              {reloadingExt === extId ? 'Reloading…' : 'Hot Reload'}
-            </Button>
-            <Button
-              class="btn-danger"
-              disabled={detachingExt === extId}
-              onclick={() => detachDevExtension(extId)}
-            >
-              {detachingExt === extId ? 'Detaching…' : 'Detach'}
-            </Button>
-          </div>
+  <div id="developer-extensions" class="anchor-group">
+    <div class="section-header">Dev Extensions</div>
+    <SettingsCard>
+      {#if isLoadingDevExts}
+        <div class="dev-ext-state text-caption">Loading…</div>
+      {:else if devExtError}
+        <div class="dev-ext-state error-text text-caption">{devExtError}</div>
+      {:else if devExtEntries.length === 0}
+        <div class="dev-ext-empty">
+          <EmptyState
+            compact
+            message="No dev extensions attached"
+            description="Use the Asyar SDK CLI to attach a local extension: asyar-sdk attach <path>"
+          />
         </div>
-      {/each}
-    </div>
-  {/if}
+      {:else}
+        {#each devExtEntries as [extId, extPath]}
+          <SettingsRow label={extId} description={extPath}>
+            {#snippet children()}
+              <div class="dev-ext-actions">
+                <Button disabled={reloadingExt === extId} onclick={() => hotReload(extId)}>
+                  {reloadingExt === extId ? 'Reloading…' : 'Hot Reload'}
+                </Button>
+                <Button
+                  class="btn-danger"
+                  disabled={detachingExt === extId}
+                  onclick={() => detachDevExtension(extId)}
+                >
+                  {detachingExt === extId ? 'Detaching…' : 'Detach'}
+                </Button>
+              </div>
+            {/snippet}
+          </SettingsRow>
+        {/each}
+      {/if}
+    </SettingsCard>
+  </div>
 </div>
 
 <style>
-  .developer-header {
+  .developer-tab {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
-    margin-bottom: var(--space-4);
+    gap: var(--space-6);
   }
 
-  .developer-hint {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    margin: 0;
+  .anchor-group {
+    scroll-margin-top: var(--space-6);
   }
 
-  .dev-extensions-section {
-    margin-top: var(--space-6);
-  }
-
-  .dev-ext-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    margin-top: var(--space-3);
-  }
-
-  .dev-ext-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  .dev-ext-state,
+  .dev-ext-empty {
     padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-md);
-    background: var(--bg-secondary);
-    border: 1px solid var(--separator);
-    transition: var(--transition-normal);
-  }
-
-  .dev-ext-item:hover {
-    background: var(--bg-hover);
-  }
-
-  .dev-ext-info {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    min-width: 0;
-  }
-
-  .dev-ext-id {
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    color: var(--text-primary);
-    font-family: var(--font-mono);
-  }
-
-  .dev-ext-path {
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-    font-family: var(--font-mono);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .dev-ext-actions {
     display: flex;
     gap: var(--space-2);
     flex-shrink: 0;
+  }
+
+  .error-text {
+    color: var(--accent-danger);
   }
 </style>

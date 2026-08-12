@@ -1,11 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import ClipboardPrivacySection from '../../../components/settings/ClipboardPrivacySection.svelte';
-  import SecretRedactionSection from '../../../components/settings/SecretRedactionSection.svelte';
-  import EncryptionStatusSection from '../../../components/settings/EncryptionStatusSection.svelte';
-  import CrashReportSection from '../../../components/settings/CrashReportSection.svelte';
-  import UsageShareSection from '../../../components/settings/UsageShareSection.svelte';
-  import ShellTrustManager from '../../../components/settings/ShellTrustManager.svelte';
+  import {
+    ClipboardPrivacySection,
+    CrashReportSection,
+    EncryptionStatusSection,
+    SecretRedactionSection,
+    SettingsPaneHeader,
+    ShellTrustManager,
+    UsageShareSection,
+  } from '../../../components';
   import { clipboardPrivacyService } from '../../../services/privacy/clipboardPrivacyService.svelte';
   import { secretRedactionService } from '../../../services/privacy/secretRedactionService.svelte';
   import { encryptionService } from '../../../services/privacy/encryptionService.svelte';
@@ -22,12 +25,34 @@
 </script>
 
 <div class="privacy-tab">
-  <EncryptionStatusSection />
-  <CrashReportSection />
-  <UsageShareSection />
-  <ClipboardPrivacySection />
-  <SecretRedactionSection />
-  <ShellTrustManager />
+  <SettingsPaneHeader
+    title="Privacy"
+    subtitle="Control local encryption, crash reports, usage sharing, and sensitive data handling."
+  />
+
+  <div id="privacy-encryption" class="anchor-group">
+    <EncryptionStatusSection />
+  </div>
+
+  <div id="privacy-reports" class="anchor-group">
+    <CrashReportSection />
+  </div>
+
+  <div id="privacy-usage" class="anchor-group">
+    <UsageShareSection />
+  </div>
+
+  <div id="privacy-clipboard" class="anchor-group">
+    <ClipboardPrivacySection />
+  </div>
+
+  <div id="privacy-redaction" class="anchor-group">
+    <SecretRedactionSection />
+  </div>
+
+  <div id="privacy-shell-trust" class="anchor-group">
+    <ShellTrustManager />
+  </div>
 </div>
 
 <style>
@@ -35,5 +60,9 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-6);
+  }
+
+  .anchor-group {
+    scroll-margin-top: var(--space-6);
   }
 </style>

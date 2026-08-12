@@ -124,4 +124,52 @@ describe('registry consistency', () => {
       ).toBe(true);
     }
   });
+
+  it('includes Batch 3 settings tabs in the sidebar registry without a duplicate shortcuts tab', () => {
+    expect(SETTINGS_TABS.map((tab) => tab.id)).toEqual(
+      expect.arrayContaining(['privacy', 'developer', 'about']),
+    );
+    expect(SETTINGS_TABS.map((tab) => tab.id)).not.toContain('shortcuts');
+  });
+
+  it('defines Batch 3 section anchors for migrated tabs', () => {
+    expect(SECTION_ANCHORS.privacy?.map((anchor) => anchor.id)).toEqual([
+      'privacy-encryption',
+      'privacy-reports',
+      'privacy-usage',
+      'privacy-clipboard',
+      'privacy-redaction',
+      'privacy-shell-trust',
+    ]);
+    expect(SECTION_ANCHORS.developer?.map((anchor) => anchor.id)).toEqual([
+      'developer-tools',
+      'developer-extensions',
+    ]);
+    expect(SECTION_ANCHORS.about?.map((anchor) => anchor.id)).toEqual([
+      'about-updates',
+      'about-credits',
+      'about-links',
+    ]);
+    expect(SECTION_ANCHORS.shortcuts).toBeUndefined();
+  });
+
+  it('indexes Batch 3 settings sections for command-bar search', () => {
+    const indexedIds = new Set(SETTINGS_SEARCH_INDEX.map((entry) => entry.id));
+    for (const id of [
+      'privacy-encryption',
+      'privacy-crash-reports',
+      'privacy-usage-share',
+      'privacy-clipboard',
+      'privacy-secret-redaction',
+      'privacy-shell-trust',
+      'developer-tools',
+      'developer-extensions',
+      'about-release-channel',
+      'about-updates',
+      'about-links',
+    ]) {
+      expect(indexedIds.has(id), `${id} should be indexed`).toBe(true);
+    }
+    expect(indexedIds.has('shortcuts-global-hotkey')).toBe(false);
+  });
 });
