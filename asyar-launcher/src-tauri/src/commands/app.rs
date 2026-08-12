@@ -67,6 +67,8 @@ pub fn prepare_show(
             y: OFFSCREEN_COORD,
         }));
         let _ = window.show();
+        #[cfg(target_os = "linux")]
+        crate::mark_launcher_shown(&state);
     }
     let _ = state;
     Ok(())
@@ -100,6 +102,8 @@ pub fn commit_show(
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         crate::launcher_placement::service::apply(&app_handle)?;
         let _ = window.set_focus();
+        #[cfg(target_os = "linux")]
+        crate::mark_launcher_shown(&state);
     }
     // Flip the visibility flag only after the panel is actually composited at
     // its final position and alpha — otherwise a concurrent showWindow() that
@@ -135,6 +139,8 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
         crate::launcher_placement::service::apply(&app_handle)?;
         let _ = window.show();
         let _ = window.set_focus();
+        #[cfg(target_os = "linux")]
+        crate::mark_launcher_shown(&state);
     }
     Ok(())
 }

@@ -146,6 +146,8 @@ mod contribute_tests {
             #[cfg(target_os = "linux")]
             linux_prev_window_id: Mutex::new(0),
             is_expanding: AtomicBool::new(false),
+            #[cfg(target_os = "linux")]
+            launcher_shown_at: Mutex::new(None),
         }
     }
 

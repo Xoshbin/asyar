@@ -448,7 +448,19 @@ pub fn handle_shortcut(app: &tauri::AppHandle, shortcut: &Shortcut, event: Short
         }
     }
 
+    toggle_launcher(app);
+}
+
+/// Toggle launcher visibility. The body of the launcher-summon hotkey, split
+/// out so non-hotkey summon paths can reuse it — notably the single-instance
+/// callback, which is how a Wayland compositor summons the launcher (the X11
+/// key grab behind `tauri-plugin-global-shortcut` cannot see keystrokes there,
+/// so the compositor owns the binding and re-execs the binary instead).
+pub fn toggle_launcher(app: &tauri::AppHandle) {
+    let state = app.state::<AppState>();
+
     let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) else {
+        log::warn!("[toggle_launcher] no window labelled {SPOTLIGHT_LABEL}");
         return;
     };
 
@@ -496,6 +508,8 @@ pub fn handle_shortcut(app: &tauri::AppHandle, shortcut: &Shortcut, event: Short
 
             let _ = window.show();
             let _ = window.set_focus();
+            #[cfg(target_os = "linux")]
+            crate::mark_launcher_shown(&state);
         }
     }
 }
