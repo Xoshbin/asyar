@@ -146,7 +146,7 @@ impl FsWatcherRegistry {
 
         let mut debouncer = new_debouncer_opt(
             debounce,
-            None,
+            Some(debounce),
             move |result: DebounceEventResult| {
                 let events = match result {
                     Ok(e) if !e.is_empty() => e,
