@@ -1252,7 +1252,23 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // The snap-guides overlay must never intercept the drag it's decorating
     // — click-through once at startup, not per-drag.
-    if let Some(guides_window) =
+    //
+    // Skipped on Wayland: the overlay is declared `visible: false`, and an
+    // unmapped GTK window has no GDK surface there (X11 realises one much
+    // earlier). tao's CursorIgnoreEvents handler does `window.window().unwrap()`
+    // — see tao/src/platform_impl/linux/event_loop.rs — so the call aborts the
+    // whole process, and it aborts rather than returning Err because the panic
+    // happens on the event-loop thread in a non-unwinding context. The `Err`
+    // arm below can never catch it.
+    let skip_click_through = cfg!(target_os = "linux")
+        && std::env::var_os("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty());
+    if skip_click_through {
+        log::warn!(
+            "[snap-guides] Wayland session: skipping set_ignore_cursor_events \
+             on the hidden overlay (would abort the process). The overlay may \
+             intercept pointer events during a launcher drag."
+        );
+    } else if let Some(guides_window) =
         handle.get_webview_window(crate::snap_guides::service::SNAP_GUIDES_WINDOW_LABEL)
     {
         if let Err(e) = guides_window.set_ignore_cursor_events(true) {
