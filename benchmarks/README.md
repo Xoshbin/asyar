@@ -9,26 +9,30 @@ instrumentation inside Asyar that Raycast wouldn't have.
                  ┌─────────────────────────────────────────────┐
    bench.sh ───▶ │ 1. cold start   open app ──▶ window usable  │
    (one app      │ 2. hotkey       ⌥Space ──▶ window on screen │──▶ results/latest.md
-    at a time)   │ 3. memory       app + ALL helper processes  │──▶ README table
-                 │ 4. idle CPU     30 s average                │
+    at a time)   │ 3. post-activity CPU + memory               │──▶ README table
+                 │ 4. deep idle    CPU, memory, wakeups, I/O   │
                  │ 5. disk size    du -sm App.app              │
                  └─────────────────────────────────────────────┘
 ```
 
 ## What is measured, and how
 
-| Metric                      | How                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Hotkey → window visible** | A synthetic hotkey press (`CGEvent`) is posted, then the window list (`CGWindowListCopyWindowInfo`) is polled until a launcher-sized window owned by the app is on screen. Between runs the window is dismissed with Esc — re-pressing the hotkey is not reliable, because Raycast v1 types a focused synthetic ⌥Space into its search field as text instead of toggling. A run only starts once the window is verified hidden. Median and p95 of 15 runs. Resolution is ≈1–3 ms (window-server poll cost). |
-| **Cold start → usable**     | App is fully quit, then launched with `open`. The hotkey is pressed repeatedly until the launcher window appears — so this measures "launch → you can actually use it", not "process exists".                                                                                                                                                                                                                                                                                                               |
-| **Memory footprint**        | `phys_footprint` (the Activity Monitor "Memory" column) summed over the app's **whole process group**: the main process plus every WebKit/XPC helper the OS attributes to it via the responsible-process mechanism. This is fair to both sides — Raycast's node extension host and Asyar's WebKit processes are both counted.                                                                                                                                                                               |
-| **CPU while idle**          | User+system CPU time of the process group sampled over 30 s with the launcher hidden, as a percentage of one core.                                                                                                                                                                                                                                                                                                                                                                                          |
-| **App size on disk**        | `du -sm` of the installed bundle.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Metric                        | How                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Hotkey → window visible**   | A synthetic hotkey press (`CGEvent`) is posted, then the window list (`CGWindowListCopyWindowInfo`) is polled until a launcher-sized window owned by the app is on screen. Between runs the window is dismissed with Esc — re-pressing the hotkey is not reliable, because Raycast v1 types a focused synthetic ⌥Space into its search field as text instead of toggling. A run only starts once the window is verified hidden. Median, p95, and p99 of 15 runs are reported, together with the complete comma-separated sample list. Resolution is ≈1–3 ms (window-server poll cost). |
+| **Cold start → usable**       | App is fully quit, then launched with `open`. The hotkey is pressed repeatedly until the launcher window appears — so this measures "launch → you can actually use it", not "process exists".                                                                                                                                                                                                                                                                                                                                                                                          |
+| **Memory footprint**          | `phys_footprint` (the Activity Monitor "Memory" column) summed over the app's **whole process group**: the main process plus every WebKit/XPC helper the OS attributes to it via the responsible-process mechanism. This is fair to both sides — Raycast's node extension host and Asyar's WebKit processes are both counted. Memory is captured once after hotkey activity and again during deep idle.                                                                                                                                                                                |
+| **CPU after activity**        | User+system CPU time of the process group sampled over 30 s with the launcher hidden, shortly after the hotkey runs. This preserves the legacy "CPU while idle" metric while distinguishing it from deep idle. CPU percentages are percentages of one core.                                                                                                                                                                                                                                                                                                                            |
+| **Deep-idle CPU and wakeups** | After a 120 s quiet settling period, CPU is sampled for 60 s. `benchtool cpu` reports process-group CPU percentage. When optional passwordless `sudo` is available, the `powermetrics` tasks sampler also reports process-group CPU ms/s and interrupt wakeups/s, averaged across its one-second samples.                                                                                                                                                                                                                                                                              |
+| **Deep-idle disk writes**     | During the same 60 s window, optional `fs_usage` collection counts `write`, `pwrite`, `WrData`, and `WrMeta` calls by the process group, plus the number of distinct absolute paths touched.                                                                                                                                                                                                                                                                                                                                                                                           |
+| **Keystroke → results**       | After summoning the launcher, one character is typed synthetically and the time until the launcher window's height changes is measured (300 µs polling of `CGWindowList` bounds). This works because Asyar presents results by growing its collapsed 96 px panel; launchers with a fixed-size window (Raycast) cannot be measured this way and report `n/a`. A proxy for "results painted", measurable black-box on the shipping app.                                                                                                                                                  |
+| **Deep-idle network**         | Unprivileged `nettop -P -x -l 1` snapshots before and after the deep-idle CPU window provide per-process-group byte deltas in each direction.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **App size on disk**          | `du -sm` of the installed bundle.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ## Running it
 
 ```bash
-./benchmarks/bench.sh                  # interactive, ~4-5 minutes
+./benchmarks/bench.sh                  # interactive, ~4-6 minutes per app
 ./benchmarks/bench.sh --update-readme  # also refresh the table in the root README
 ```
 
@@ -40,6 +44,16 @@ is fine). Override with `--asyar-hotkey` / `--raycast-hotkey` /
 `--raycast-beta-hotkey` (e.g. `cmd+space`) if your setup differs. **Each
 hotkey must match what that app is actually bound to**, or its runs will
 time out.
+
+The deep-idle defaults can be changed independently:
+
+```bash
+./benchmarks/bench.sh --deep-settle 120 --deep-idle-seconds 60
+```
+
+`--deep-settle N` controls the quiet period after the legacy post-activity
+CPU window. `--deep-idle-seconds N` controls the later CPU, `powermetrics`,
+`fs_usage`, and network measurement window.
 
 ### Prerequisites
 
@@ -55,6 +69,28 @@ time out.
    confirm the hotkey is actually set — app updates can silently clear it.
    The script lists the app → hotkey pairs before starting; make sure they
    match reality.
+5. **Python 3.** `python3` parses the `powermetrics`, `fs_usage`, and `nettop`
+   raw output. The script checks for it before starting.
+
+### Optional passwordless measurement tools
+
+`powermetrics` and `fs_usage` need root. The benchmark never prompts for a
+password. It checks access with `sudo -n true`; if that check fails, CPU
+ms/s, wakeups/s, disk write operations, and distinct files touched are
+reported as `n/a`. The hotkey, cold-start, memory, CPU percentage, network,
+and app-size metrics still run end to end.
+
+To enable the privileged metrics, edit a dedicated sudoers file with
+`sudo visudo -f /etc/sudoers.d/asyar-benchmarks` and add the following,
+replacing `yourusername` with the account that runs the benchmark:
+
+```sudoers
+Cmnd_Alias ASYAR_BENCH = /usr/bin/powermetrics *, /usr/bin/fs_usage *
+yourusername ALL = (root) NOPASSWD: ASYAR_BENCH
+```
+
+Availability is probed with a 100 ms `powermetrics` run, so no extra
+entries are needed beyond the two tools.
 
 ## Fairness rules
 
@@ -100,5 +136,5 @@ time out.
 - `benchtool.swift` — the measurement tool (compiled on first run to
   `.build/benchtool`; no dependencies beyond Xcode command-line tools).
 - `bench.sh` — orchestrates the protocol: quit both → per app: cold
-  start → settle → hotkey runs → memory → idle CPU → quit; then renders
-  the report.
+  start → settle → hotkey runs → post-activity memory and CPU → deep settle →
+  deep-idle metrics → quit; then renders the report.
