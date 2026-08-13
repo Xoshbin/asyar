@@ -110,8 +110,6 @@ pub async fn ws_connect(
     app: tauri::AppHandle,
 ) -> Result<(), AppError> {
     registry.check(&caller_extension_id, "network")?;
-    crate::network::service::validate_url_for_ssrf(&url)?;
-
     let ext_id = caller_extension_id.unwrap_or_else(|| "system".to_string());
     ws_manager
         .connect(socket_id, url, headers, ext_id, app)
@@ -142,5 +140,5 @@ pub async fn ws_close(
 ) -> Result<(), AppError> {
     registry.check(&caller_extension_id, "network")?;
     let ext_id = caller_extension_id.unwrap_or_else(|| "system".to_string());
-    ws_manager.close(&socket_id, code, reason, &ext_id)
+    ws_manager.close(&socket_id, code, reason, &ext_id).await
 }

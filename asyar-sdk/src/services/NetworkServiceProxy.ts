@@ -28,11 +28,17 @@ export class NetworkServiceProxy extends BaseServiceProxy implements INetworkSer
     const errorListeners = new Set<(err: string) => void>();
     const closeListeners = new Set<(info: { code?: number; reason?: string }) => void>();
 
-    // Buffer early events that arrive before the caller registers callbacks.
-    // The Rust read_task emits "open" from a tokio::spawn which can fire
-    // before the IPC round-trip resolves, so onOpen() would miss it.
     let didOpen = false;
     let closeInfo: { code?: number; reason?: string } | null = null;
+    let closeFired = false;
+
+    const fireCloseOnce = (info: { code?: number; reason?: string }): void => {
+      if (closeFired) return;
+      closeFired = true;
+      closeInfo = info;
+      this.broker.off('asyar:event:network:wsMessage:push', listener);
+      closeListeners.forEach((cb) => cb(info));
+    };
 
     const listener = (payload: unknown): void => {
       const p = payload as {
@@ -59,20 +65,23 @@ export class NetworkServiceProxy extends BaseServiceProxy implements INetworkSer
           }
           break;
         case 'close':
-          closeInfo = { code: p.code, reason: p.data };
-          closeListeners.forEach((cb) => cb(closeInfo!));
-          this.broker.off('asyar:event:network:wsMessage:push', listener);
+          fireCloseOnce({ code: p.code, reason: p.data });
           break;
       }
     };
 
     this.broker.on('asyar:event:network:wsMessage:push', listener);
 
-    await this.broker.invoke('network:wsConnect', {
-      socketId,
-      url,
-      headers: options?.headers,
-    });
+    try {
+      await this.broker.invoke('network:wsConnect', {
+        socketId,
+        url,
+        headers: options?.headers,
+      });
+    } catch (err) {
+      this.broker.off('asyar:event:network:wsMessage:push', listener);
+      throw err;
+    }
 
     const broker = this.broker;
 
@@ -86,7 +95,6 @@ export class NetworkServiceProxy extends BaseServiceProxy implements INetworkSer
       },
       onOpen(callback: () => void): () => void {
         openListeners.add(callback);
-        // Replay buffered open if it already fired
         if (didOpen) callback();
         return () => openListeners.delete(callback);
       },
@@ -100,7 +108,6 @@ export class NetworkServiceProxy extends BaseServiceProxy implements INetworkSer
       },
       onClose(callback: (info: { code?: number; reason?: string }) => void): () => void {
         closeListeners.add(callback);
-        // Replay buffered close if it already fired
         if (closeInfo) callback(closeInfo);
         return () => closeListeners.delete(callback);
       },

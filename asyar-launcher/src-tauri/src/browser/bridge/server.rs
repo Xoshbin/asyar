@@ -625,7 +625,7 @@ mod tests {
         use futures_util::SinkExt;
         socket
             .send(tokio_tungstenite::tungstenite::Message::Text(
-                r#"{"type":"hello","version":1,"browser":{"family":"chromium","variant":"chrome","profiles":["Default"]}}"#.to_string().into(),
+                r#"{"type":"hello","version":1,"browser":{"family":"chromium","variant":"chrome","profiles":["Default"]}}"#.to_string(),
             ))
             .await
             .unwrap();
@@ -681,7 +681,7 @@ mod tests {
         use futures_util::SinkExt;
         socket
             .send(tokio_tungstenite::tungstenite::Message::Text(
-                r#"{"type":"hello","version":1,"browser":{"family":"chromium","variant":"chrome","profiles":["Default"]}}"#.to_string().into(),
+                r#"{"type":"hello","version":1,"browser":{"family":"chromium","variant":"chrome","profiles":["Default"]}}"#.to_string(),
             ))
             .await
             .unwrap();

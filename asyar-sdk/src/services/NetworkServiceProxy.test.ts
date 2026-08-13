@@ -97,6 +97,20 @@ describe('NetworkServiceProxy', () => {
     expect(onMessageCb).toHaveBeenCalledWith('hello websocket');
   });
 
+  it('connectWebSocket → unregisters listener if invoke rejects', async () => {
+    const { proxy, mockInvoke, mockOff } = makeProxy();
+    mockInvoke.mockRejectedValueOnce(new Error('Connection failed'));
+
+    await expect(proxy.connectWebSocket('wss://invalid.domain')).rejects.toThrow(
+      'Connection failed',
+    );
+
+    expect(mockOff).toHaveBeenCalledWith(
+      'asyar:event:network:wsMessage:push',
+      expect.any(Function),
+    );
+  });
+
   it('onOpen replays buffered open event if it already fired', async () => {
     const { proxy, eventListeners } = makeProxy();
     const handle = await proxy.connectWebSocket('wss://echo.websocket.org');
@@ -113,7 +127,7 @@ describe('NetworkServiceProxy', () => {
     expect(onOpenCb).toHaveBeenCalledTimes(1);
   });
 
-  it('onClose replays buffered close event if it already fired', async () => {
+  it('onClose replays buffered close event if it already fired and fires exactly once', async () => {
     const { proxy, eventListeners } = makeProxy();
     const handle = await proxy.connectWebSocket('wss://echo.websocket.org');
 
@@ -127,7 +141,17 @@ describe('NetworkServiceProxy', () => {
 
     const onCloseCb = vi.fn();
     handle.onClose(onCloseCb);
+    expect(onCloseCb).toHaveBeenCalledTimes(1);
     expect(onCloseCb).toHaveBeenCalledWith({ code: 1000, reason: 'normal closure' });
+
+    // Subsequent close events should not fire again
+    firePush(eventListeners, {
+      socket_id: handle.socketId,
+      event_type: 'close',
+      code: 1000,
+      data: 'duplicate closure',
+    });
+    expect(onCloseCb).toHaveBeenCalledTimes(1);
   });
 
   it('close event unsubscribes the listener via broker.off', async () => {
