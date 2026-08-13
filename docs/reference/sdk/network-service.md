@@ -107,3 +107,7 @@ await socket.close(1000, 'User navigated away');
 - **HTTP Fetch:** The `timeout` option (default 30 000 ms) controls how long the Rust backend waits for the remote server.
 - **WebSocket Streaming:** Rust manages the background connection, socket lifecycles, and frame loops. Events are forwarded asynchronously to extension iframes via host push bridge without blocking UI render threads.
 - **Role isolation:** A WebSocket belongs to the worker or view iframe that opened it. Its `onOpen`, `onMessage`, `onError`, and `onClose` callbacks are delivered only to that same role; they are never rerouted to the other iframe. If the originating iframe is unavailable, the event is dropped.
+
+### SDK Playground role-isolation smoke test
+
+In **SDK Playground → Network**, click **Run Worker WebSocket Probe**. It opens the displayed URL from the extension's worker iframe. A `role: worker` result with a `message` status confirms the worker received the callback. The result is intentionally mirrored through the extension-state service for display; it is not a WebSocket callback delivered to the view iframe.
