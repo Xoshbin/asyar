@@ -120,8 +120,11 @@ export async function wsConnect(
   url: string,
   headers: Record<string, string> | undefined,
   callerExtensionId: string | null,
+  originRole: 'view' | 'worker' | undefined,
 ): Promise<boolean> {
-  return invokeSafeVoid('ws_connect', { socketId, url, headers, callerExtensionId });
+  return invokeSafeVoid('ws_connect', {
+    request: { socketId, url, headers, callerExtensionId, originRole },
+  });
 }
 
 export async function wsSend(

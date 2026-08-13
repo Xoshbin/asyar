@@ -8,6 +8,16 @@ use log::info;
 use std::collections::HashMap;
 use tauri::AppHandle;
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebSocketConnectRequest {
+    socket_id: String,
+    url: String,
+    headers: Option<HashMap<String, String>>,
+    caller_extension_id: Option<String>,
+    origin_role: Option<String>,
+}
+
 /// Enables or disables launching Asyar at login (autostart).
 #[tauri::command]
 pub async fn initialize_autostart_from_settings(
@@ -101,18 +111,32 @@ pub async fn fetch_url(
 
 #[tauri::command]
 pub async fn ws_connect(
-    socket_id: String,
-    url: String,
-    headers: Option<HashMap<String, String>>,
-    caller_extension_id: Option<String>,
+    request: WebSocketConnectRequest,
     registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
     ws_manager: tauri::State<'_, crate::network::websocket::WebSocketManager>,
     app: tauri::AppHandle,
 ) -> Result<(), AppError> {
-    registry.check(&caller_extension_id, "network")?;
-    let ext_id = caller_extension_id.unwrap_or_else(|| "system".to_string());
+    registry.check(&request.caller_extension_id, "network")?;
+    let ext_id = request
+        .caller_extension_id
+        .unwrap_or_else(|| "system".to_string());
+    let origin_role = request
+        .origin_role
+        .filter(|role| matches!(role.as_str(), "view" | "worker"))
+        .ok_or_else(|| {
+            AppError::Other(
+                "WebSocket connections must originate from a view or worker iframe".to_string(),
+            )
+        })?;
     ws_manager
-        .connect(socket_id, url, headers, ext_id, app)
+        .connect(
+            request.socket_id,
+            request.url,
+            request.headers,
+            ext_id,
+            origin_role,
+            app,
+        )
         .await
 }
 

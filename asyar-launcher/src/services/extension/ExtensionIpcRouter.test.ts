@@ -390,6 +390,42 @@ describe('ExtensionIpcRouter — originRole injection for shell streams', () => 
   });
 });
 
+describe('ExtensionIpcRouter — originRole injection for WebSocket pushes', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: Record<string, unknown>,
+    extensionId: string | undefined,
+    isPrivilegedHostContext: boolean,
+    originRole?: 'view' | 'worker',
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
+  }
+
+  it('passes the trusted caller role to network.wsConnect', async () => {
+    const wsConnect = vi.fn();
+    const registry = { network: { wsConnect } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:network:wsConnect',
+      { socketId: 'socket-1', url: 'wss://example.com', headers: undefined },
+      'ext.demo',
+      false,
+      'worker',
+    );
+
+    expect(wsConnect).toHaveBeenCalledWith(
+      'ext.demo',
+      'socket-1',
+      'wss://example.com',
+      undefined,
+      'worker',
+    );
+  });
+});
+
 describe('ExtensionIpcRouter — snippets Tauri-direct routing', () => {
   type DispatchApiCall = (
     type: string,

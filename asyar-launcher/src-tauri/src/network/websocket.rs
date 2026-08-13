@@ -26,6 +26,7 @@ use url::Url;
 pub struct WsMessagePayload {
     pub socket_id: String,
     pub extension_id: String,
+    pub origin_role: String,
     pub event_type: String, // "open" | "message" | "error" | "close"
     pub data: Option<String>,
     pub code: Option<u16>,
@@ -191,10 +192,11 @@ impl WebSocketManager {
         url_str: String,
         headers: Option<HashMap<String, String>>,
         caller_extension_id: String,
+        origin_role: String,
         app: AppHandle<R>,
     ) -> Result<(), AppError> {
         let ws_stream = connect_ws_stream(&url_str, headers).await?;
-        self.connect_stream(socket_id, ws_stream, caller_extension_id, app)
+        self.connect_stream(socket_id, ws_stream, caller_extension_id, origin_role, app)
     }
 
     /// Internal setup for connected WebSocketStream (used by connect and unit tests).
@@ -203,6 +205,7 @@ impl WebSocketManager {
         socket_id: String,
         ws_stream: WebSocketStream<S>,
         caller_extension_id: String,
+        origin_role: String,
         app: AppHandle<R>,
     ) -> Result<(), AppError>
     where
@@ -218,6 +221,7 @@ impl WebSocketManager {
 
         let socket_id_event = socket_id.clone();
         let extension_id_event = caller_extension_id.clone();
+        let origin_role_event = origin_role.clone();
         let close_emitted_event = Arc::clone(&close_emitted);
         let app_event = app.clone();
         let terminal_close: TerminalCloseEmitter = Arc::new(move |code, data| {
@@ -227,6 +231,7 @@ impl WebSocketManager {
                     WsMessagePayload {
                         socket_id: socket_id_event.clone(),
                         extension_id: extension_id_event.clone(),
+                        origin_role: origin_role_event.clone(),
                         event_type: "close".to_string(),
                         data,
                         code: Some(code),
@@ -273,6 +278,7 @@ impl WebSocketManager {
         let sockets_ref = Arc::clone(&self.sockets);
         let socket_id_read = socket_id.clone();
         let ext_id_read = caller_extension_id.clone();
+        let origin_role_read = origin_role;
         let is_closing_read = Arc::clone(&is_closing);
         let terminal_close_read = Arc::clone(&terminal_close);
         let registration_read = Arc::clone(&registration);
@@ -285,6 +291,7 @@ impl WebSocketManager {
                 WsMessagePayload {
                     socket_id: socket_id_read.clone(),
                     extension_id: ext_id_read.clone(),
+                    origin_role: origin_role_read.clone(),
                     event_type: "open".to_string(),
                     data: None,
                     code: None,
@@ -300,6 +307,7 @@ impl WebSocketManager {
                                 WsMessagePayload {
                                     socket_id: socket_id_read.clone(),
                                     extension_id: ext_id_read.clone(),
+                                    origin_role: origin_role_read.clone(),
                                     event_type: "message".to_string(),
                                     data: Some(text),
                                     code: None,
@@ -318,6 +326,7 @@ impl WebSocketManager {
                                 WsMessagePayload {
                                     socket_id: socket_id_read.clone(),
                                     extension_id: ext_id_read.clone(),
+                                    origin_role: origin_role_read.clone(),
                                     event_type: "message".to_string(),
                                     data: Some(base64_str),
                                     code: None,
@@ -339,6 +348,7 @@ impl WebSocketManager {
                             WsMessagePayload {
                                 socket_id: socket_id_read.clone(),
                                 extension_id: ext_id_read.clone(),
+                                origin_role: origin_role_read.clone(),
                                 event_type: "error".to_string(),
                                 data: Some(e.to_string()),
                                 code: None,
@@ -550,6 +560,7 @@ mod tests {
                 socket_id.clone(),
                 client_ws,
                 "ext.test".to_string(),
+                "view".to_string(),
                 app.handle().clone(),
             )
             .unwrap();
@@ -595,6 +606,7 @@ mod tests {
                 socket_id.clone(),
                 client_ws,
                 "ext.test".to_string(),
+                "view".to_string(),
                 app.handle().clone(),
             )
             .unwrap();
@@ -632,6 +644,7 @@ mod tests {
                 "duplicate-id".to_string(),
                 first_ws,
                 "ext.test".to_string(),
+                "view".to_string(),
                 app.handle().clone(),
             )
             .unwrap();
@@ -644,6 +657,7 @@ mod tests {
             "duplicate-id".to_string(),
             second_ws,
             "ext.test".to_string(),
+            "view".to_string(),
             app.handle().clone(),
         );
 
@@ -682,6 +696,7 @@ mod tests {
                 socket_id.clone(),
                 client_ws,
                 "ext.test".to_string(),
+                "view".to_string(),
                 app.handle().clone(),
             )
             .unwrap();
@@ -729,6 +744,7 @@ mod tests {
                 socket_id.clone(),
                 client_ws,
                 "ext.test".to_string(),
+                "view".to_string(),
                 app.handle().clone(),
             )
             .unwrap();
@@ -804,6 +820,7 @@ mod tests {
                 "ws_a1".to_string(),
                 ws1,
                 "ext.alpha".to_string(),
+                "view".to_string(),
                 app.handle().clone(),
             )
             .unwrap();
@@ -817,6 +834,7 @@ mod tests {
                 "ws_b1".to_string(),
                 ws2,
                 "ext.beta".to_string(),
+                "worker".to_string(),
                 app.handle().clone(),
             )
             .unwrap();

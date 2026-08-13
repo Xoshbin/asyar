@@ -1,5 +1,7 @@
 import { fetchUrl, wsConnect, wsSend, wsClose } from '../../lib/ipc/commands';
 
+type IframeRole = 'view' | 'worker';
+
 export class NetworkService {
   async fetch(
     callerExtensionId: string | null,
@@ -34,8 +36,9 @@ export class NetworkService {
     socketId: string,
     url: string,
     headers?: Record<string, string>,
+    originRole?: IframeRole,
   ): Promise<boolean> {
-    return wsConnect(socketId, url, headers, callerExtensionId);
+    return wsConnect(socketId, url, headers, callerExtensionId, originRole);
   }
 
   async wsSend(
