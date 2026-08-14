@@ -157,17 +157,28 @@ pub fn agents_editor_catalog_impl(
     providers: &[AgentProviderDescriptor],
     configs: &HashMap<String, ProviderConfig>,
 ) -> Result<AgentEditorCatalog, AppError> {
-    let providers = providers
-        .iter()
-        .filter(|provider| is_provider_usable(provider, configs.get(&provider.id)))
-        .map(|provider| AgentProviderOption {
-            id: provider.id.clone(),
-            name: provider.name.clone(),
-        })
-        .collect();
+    let mut provider_options = Vec::new();
+    for (instance_id, config) in configs {
+        let ptype = config.provider_type.as_deref().unwrap_or(instance_id);
+        if let Some(descriptor) = providers.iter().find(|p| p.id == ptype) {
+            if is_provider_usable(descriptor, Some(config)) {
+                let name = config
+                    .name
+                    .as_deref()
+                    .filter(|n| !n.trim().is_empty())
+                    .map(|n| n.to_string())
+                    .unwrap_or_else(|| descriptor.name.clone());
+                provider_options.push(AgentProviderOption {
+                    id: instance_id.clone(),
+                    name,
+                });
+            }
+        }
+    }
+    provider_options.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.id.cmp(&b.id)));
 
     Ok(AgentEditorCatalog {
-        providers,
+        providers: provider_options,
         tool_groups: group_tools(registry.list_all()),
     })
 }
@@ -189,12 +200,21 @@ pub fn agents_stranded_by_provider_removal(
     providers: &[AgentProviderDescriptor],
     configs: &HashMap<String, ProviderConfig>,
 ) -> Vec<AgentRow> {
-    let provider_usable = providers.iter().any(|provider| {
-        provider.id == provider_id && is_provider_usable(provider, configs.get(provider_id))
-    });
-    let other_usable_remains = providers.iter().any(|provider| {
-        provider.id != provider_id && is_provider_usable(provider, configs.get(&provider.id))
-    });
+    let is_instance_usable = |id: &str| {
+        if let Some(config) = configs.get(id) {
+            let ptype = config.provider_type.as_deref().unwrap_or(id);
+            if let Some(descriptor) = providers.iter().find(|p| p.id == ptype) {
+                return is_provider_usable(descriptor, Some(config));
+            }
+        }
+        false
+    };
+
+    let provider_usable = is_instance_usable(provider_id);
+    let other_usable_remains = configs
+        .keys()
+        .any(|id| id != provider_id && is_instance_usable(id));
+
     if !provider_usable || other_usable_remains {
         return Vec::new();
     }
@@ -212,15 +232,26 @@ pub fn agents_stranded_by_provider_removal(
 pub fn provider_removal_blocked_message(
     provider_id: &str,
     providers: &[AgentProviderDescriptor],
+    configs: &HashMap<String, ProviderConfig>,
     stranded: &[AgentRow],
 ) -> Option<String> {
     if stranded.is_empty() {
         return None;
     }
-    let provider_name = providers
-        .iter()
-        .find(|provider| provider.id == provider_id)
-        .map(|provider| provider.name.as_str())
+    let provider_name = configs
+        .get(provider_id)
+        .and_then(|c| c.name.as_deref())
+        .filter(|n| !n.trim().is_empty())
+        .or_else(|| {
+            let ptype = configs
+                .get(provider_id)
+                .and_then(|c| c.provider_type.as_deref())
+                .unwrap_or(provider_id);
+            providers
+                .iter()
+                .find(|p| p.id == ptype)
+                .map(|p| p.name.as_str())
+        })
         .unwrap_or(provider_id);
     let agent_names = stranded
         .iter()
@@ -414,6 +445,7 @@ pub fn agents_provider_removal_blockers(
     Ok(provider_removal_blocked_message(
         &provider_id,
         &providers,
+        &configs,
         &stranded,
     ))
 }

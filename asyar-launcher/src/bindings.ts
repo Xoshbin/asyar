@@ -274,6 +274,8 @@ export type ModelInfo = {
 
 export type ProviderConfig = {
 	enabled: boolean,
+	name: string | null,
+	providerType: string | null,
 	apiKey: string | null,
 	baseUrl: string | null,
 	lastModelId: string | null,

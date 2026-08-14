@@ -40,6 +40,8 @@ fn mock_params(system: Option<&str>) -> ChatParams {
 fn mock_config() -> ProviderConfig {
     ProviderConfig {
         enabled: true,
+        name: None,
+        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: None,
         last_model_id: None,
@@ -409,5 +411,26 @@ fn test_custom_responses_parser_emits_function_call() {
             if id == "call-custom"
                 && name == "builtin__echo"
                 && input == &serde_json::json!({ "value": 1 })
+    ));
+}
+
+#[test]
+fn test_build_request_and_parser_with_custom_named_instance() {
+    let mut config = mock_config();
+    config.name = Some("Local DeepSeek".into());
+    config.provider_type = Some("custom".into());
+    config.base_url = Some("http://localhost:8000/v1".into());
+
+    let req = build_request("custom_deepseek_123", &config, &[], &mock_params(None)).unwrap();
+    assert_eq!(req.url, "http://localhost:8000/v1/chat/completions");
+
+    let mut parser = ProviderStreamParser::new("custom_deepseek_123", &config);
+    let events = parser
+        .push_line("data: {\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}")
+        .unwrap();
+    assert_eq!(events.len(), 1);
+    assert!(matches!(
+        &events[0],
+        ChatStreamEvent::Token { token } if token == "hello"
     ));
 }

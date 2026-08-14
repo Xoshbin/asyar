@@ -12,6 +12,8 @@ export interface ModelInfo {
 
 export interface ProviderConfig {
   enabled: boolean;
+  name?: string;
+  providerType?: ProviderId;
   apiKey?: string;
   baseUrl?: string;
   lastModelId?: string;

@@ -225,12 +225,14 @@ fn provider_is_usable(
     providers: &[crate::agents::editor::AgentProviderDescriptor],
     configs: &std::collections::HashMap<String, crate::ai::types::ProviderConfig>,
 ) -> bool {
+    let Some(config) = configs.get(provider_id) else {
+        return false;
+    };
+    let ptype = config.provider_type.as_deref().unwrap_or(provider_id);
     providers
         .iter()
-        .find(|provider| provider.id == provider_id)
-        .is_some_and(|provider| {
-            crate::agents::editor::is_provider_usable(provider, configs.get(provider_id))
-        })
+        .find(|provider| provider.id == ptype)
+        .is_some_and(|provider| crate::agents::editor::is_provider_usable(provider, Some(config)))
 }
 
 /// Resolves the agent that should actually run for `agent_id`. If the
@@ -547,6 +549,8 @@ mod tests {
     ) -> crate::ai::types::ProviderConfig {
         crate::ai::types::ProviderConfig {
             enabled,
+            name: None,
+            provider_type: None,
             api_key: api_key.map(str::to_owned),
             base_url: base_url.map(str::to_owned),
             last_model_id: None,

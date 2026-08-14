@@ -36,6 +36,8 @@ pub struct ChatMessage {
 #[serde(rename_all = "camelCase")]
 pub struct ProviderConfig {
     pub enabled: bool,
+    pub name: Option<String>,
+    pub provider_type: Option<String>,
     pub api_key: Option<String>,
     pub base_url: Option<String>,
     pub last_model_id: Option<String>,

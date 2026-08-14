@@ -65,11 +65,11 @@
   // newly-added rows auto-expand so the user can fill in credentials.
   let expandedRows = $state<Record<string, boolean>>({});
 
-  function isExpanded(id: ProviderId): boolean {
+  function isExpanded(id: string): boolean {
     return expandedRows[id] === true;
   }
 
-  function toggleExpanded(id: ProviderId) {
+  function toggleExpanded(id: string) {
     expandedRows = { ...expandedRows, [id]: !expandedRows[id] };
   }
 
@@ -90,20 +90,20 @@
 
   /** Provider IDs that have enabled: true in settings */
   let configuredIds = $derived(
-    (Object.keys(settings.providers) as ProviderId[]).filter(
-      (id) => settings.providers[id]?.enabled === true,
-    ),
+    Object.keys(settings.providers).filter((id) => settings.providers[id]?.enabled === true),
   );
 
-  function getPlugin(id: ProviderId): IProviderPlugin | undefined {
-    return allPlugins.find((p) => p.id === id);
+  function getPlugin(id: string): IProviderPlugin | undefined {
+    const config = settings.providers[id];
+    const providerType = (config?.providerType ?? id) as ProviderId;
+    return allPlugins.find((p) => p.id === providerType);
   }
 
-  function getConfig(id: ProviderId): ProviderConfig {
+  function getConfig(id: string): ProviderConfig {
     return settings.providers[id] ?? { enabled: false };
   }
 
-  function updateProviderConfig(id: ProviderId, partial: Partial<ProviderConfig>) {
+  function updateProviderConfig(id: string, partial: Partial<ProviderConfig>) {
     return settingsService.updateSettings('ai', {
       providers: {
         ...settings.providers,
@@ -120,14 +120,14 @@
     return `${effort[0].toUpperCase()}${effort.slice(1)}`;
   }
 
-  async function fetchModels(plugin: IProviderPlugin) {
-    fetchingModels = { ...fetchingModels, [plugin.id]: true };
-    fetchErrors = { ...fetchErrors, [plugin.id]: '' };
+  async function fetchModels(providerId: string, plugin: IProviderPlugin) {
+    fetchingModels = { ...fetchingModels, [providerId]: true };
+    fetchErrors = { ...fetchErrors, [providerId]: '' };
     try {
-      const models = await plugin.getModels(getConfig(plugin.id));
-      modelCache = { ...modelCache, [plugin.id]: models };
-      fetchErrors = { ...fetchErrors, [plugin.id]: '' };
-      const config = getConfig(plugin.id);
+      const config = getConfig(providerId);
+      const models = await plugin.getModels(config);
+      modelCache = { ...modelCache, [providerId]: models };
+      fetchErrors = { ...fetchErrors, [providerId]: '' };
       // Seed the effective model so the ★ default button is enabled even when
       // the user keeps the pre-selected first entry (which fires no onchange).
       const { configPatch, newlySelectedModelId } = modelSelectionAfterFetch(
@@ -136,23 +136,23 @@
         config,
       );
       if (Object.keys(configPatch).length > 0) {
-        await updateProviderConfig(plugin.id, configPatch);
+        await updateProviderConfig(providerId, configPatch);
       }
       if (newlySelectedModelId) {
-        await maybeAutoSetAsDefault(plugin.id, newlySelectedModelId);
+        await maybeAutoSetAsDefault(providerId, newlySelectedModelId);
       }
     } catch (e: unknown) {
       fetchErrors = {
         ...fetchErrors,
-        [plugin.id]: e instanceof Error ? e.message : 'Failed to fetch models',
+        [providerId]: e instanceof Error ? e.message : 'Failed to fetch models',
       };
-      modelCache = { ...modelCache, [plugin.id]: [] };
+      modelCache = { ...modelCache, [providerId]: [] };
     } finally {
-      fetchingModels = { ...fetchingModels, [plugin.id]: false };
+      fetchingModels = { ...fetchingModels, [providerId]: false };
     }
   }
 
-  function isDefault(id: ProviderId): boolean {
+  function isDefault(id: string): boolean {
     const agent = agentService.getDefaultAgent();
     return agent?.providerId === id;
   }
@@ -161,7 +161,7 @@
   // model, used when the user hasn't explicitly picked one yet (an untouched
   // dropdown fires no onchange). The resolved model is persisted so the row and
   // the default agent always agree.
-  async function setAsDefault(id: ProviderId, fallbackModelId?: string) {
+  async function setAsDefault(id: string, fallbackModelId?: string) {
     const config = getConfig(id);
     const modelId = config.lastModelId ?? fallbackModelId;
     if (!modelId) return;
@@ -187,7 +187,7 @@
    * second provider never silently swaps the user's preferred default
    * out from under them. They still have to click the star to switch.
    */
-  async function maybeAutoSetAsDefault(id: ProviderId, modelId: string) {
+  async function maybeAutoSetAsDefault(id: string, modelId: string) {
     if (agentService.getDefaultAgent()) return;
     try {
       await agentService.upsertDefaultAgent(id, modelId);
@@ -199,7 +199,7 @@
     }
   }
 
-  async function removeProvider(id: ProviderId) {
+  async function removeProvider(id: string) {
     removeErrors = { ...removeErrors, [id]: '' };
     let blockedReason: string | null;
     try {
@@ -217,12 +217,11 @@
     }
 
     const wasDefault = isDefault(id);
+    const nextProviders = { ...settings.providers };
+    delete nextProviders[id];
     // Clear config for this provider
     settingsService.updateSettings('ai', {
-      providers: {
-        ...settings.providers,
-        [id]: { enabled: false },
-      },
+      providers: nextProviders,
     });
 
     if (wasDefault) {
@@ -257,15 +256,23 @@
     const val = (e.currentTarget as HTMLSelectElement).value as ProviderId;
     if (!val) return;
     draftPickedId = val;
+    const plugin = allPlugins.find((p) => p.id === val);
+    if (!plugin) return;
+    const newId = `${val}_${crypto.randomUUID().slice(0, 8)}`;
+    const newConfig = configForNewProvider(plugin, {
+      enabled: true,
+      name: plugin.name,
+      providerType: val,
+    });
     // Persist immediately with enabled: true
     settingsService.updateSettings('ai', {
       providers: {
         ...settings.providers,
-        [val]: configForNewProvider(getPlugin(val), getConfig(val)),
+        [newId]: newConfig,
       },
     });
     // Auto-expand the newly added row so the user can configure it immediately
-    expandedRows = { ...expandedRows, [val]: true };
+    expandedRows = { ...expandedRows, [newId]: true };
     // Draft row is now a real row
     draftActive = false;
     draftPickedId = null;
@@ -276,7 +283,7 @@
     draftPickedId = null;
   }
 
-  /** Plugins not yet added — used for the draft row dropdown */
+  /** Plugins available for the draft row dropdown */
   let availableForDraft = $derived(availableProvidersForNewRow(allPlugins, configuredIds));
 
   function saveGlobal(partial: Partial<typeof settings>) {
@@ -365,7 +372,10 @@
                   aria-controls="row-body-{providerId}"
                 >
                   <span class="row-chevron" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
-                  <span class="provider-label">{plugin?.name ?? providerId}</span>
+                  <span class="provider-label">{config.name || plugin?.name || providerId}</span>
+                  {#if config.name && plugin && config.name !== plugin.name}
+                    <span class="provider-type-badge">{plugin.name}</span>
+                  {/if}
                   {#if !expanded && config.lastModelId}
                     <span class="row-summary">{config.lastModelId}</span>
                   {/if}
@@ -390,7 +400,7 @@
                   <button
                     class="remove-btn"
                     onclick={() => removeProvider(providerId)}
-                    aria-label="Remove {plugin?.name ?? providerId}"
+                    aria-label="Remove {config.name || plugin?.name || providerId}"
                     title="Remove provider"
                   >
                     ×
@@ -411,6 +421,24 @@
 
               {#if expanded}
                 <div class="row-body" id="row-body-{providerId}">
+                  <div class="card-field">
+                    <label class="field-label" for="name-{providerId}">Name</label>
+                    <Input
+                      unstyled
+                      textIntent="exact"
+                      class="card-input"
+                      id="name-{providerId}"
+                      type="text"
+                      value={config.name ?? plugin?.name ?? ''}
+                      placeholder={plugin?.name ?? 'Provider connection name'}
+                      autocomplete="off"
+                      onblur={(e) =>
+                        updateProviderConfig(providerId, {
+                          name: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
+                        })}
+                    />
+                  </div>
+
                   {#if plugin?.requiresApiKey || plugin?.optionalApiKey}
                     <div class="card-field">
                       <label class="field-label" for="apikey-{providerId}">
@@ -510,7 +538,7 @@
                   <!-- Test & Fetch button -->
                   <div class="card-actions">
                     <Button
-                      onclick={() => plugin && fetchModels(plugin)}
+                      onclick={() => plugin && fetchModels(providerId, plugin)}
                       disabled={isFetching || !canTestAndFetch(plugin ?? null, config)}
                     >
                       {isFetching ? 'Fetching…' : 'Test & Fetch Models'}
@@ -806,6 +834,16 @@
     font-size: var(--font-size-sm);
     font-weight: 600;
     color: var(--text-primary);
+  }
+
+  .provider-type-badge {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 1px var(--space-1);
   }
 
   .row-actions {
