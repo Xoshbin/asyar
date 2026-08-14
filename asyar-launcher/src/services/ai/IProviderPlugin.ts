@@ -20,6 +20,8 @@ export interface ProviderConfig {
   openAIApiMode?: OpenAIApiMode;
   hostedWebSearch?: boolean;
   reasoningEffort?: ReasoningEffort;
+  temperature?: number;
+  maxTokens?: number;
 }
 
 export type ChatStreamStatus = 'searching';

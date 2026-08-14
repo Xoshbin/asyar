@@ -255,4 +255,31 @@ describe('runAgent', () => {
       expect.anything(),
     );
   });
+
+  it('prefers provider-level temperature and maxTokens when configured', async () => {
+    const customConfig = { enabled: true, apiKey: 'sk-test', temperature: 0.2, maxTokens: 4096 };
+    vi.mocked(settingsService.getSettings).mockReturnValue({
+      ai: {
+        providers: { openai: customConfig },
+        defaultAgentId: null,
+        temperature: 0.7,
+        maxTokens: 2048,
+      },
+    } as never);
+
+    await runAgent({ agentId: 'agent-1', threadId: 'thread-1', userText: 'hello' });
+
+    expect(agentsRunThread).toHaveBeenCalledWith(
+      'agent-1',
+      'thread-1',
+      'hello',
+      'run-1',
+      expect.objectContaining({
+        temperature: 0.2,
+        maxTokens: 4096,
+      }),
+      expect.any(String),
+      expect.anything(),
+    );
+  });
 });

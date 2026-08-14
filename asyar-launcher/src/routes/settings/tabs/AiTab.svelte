@@ -52,11 +52,6 @@
   // inline-in-the-row reasoning as removeErrors.
   let defaultAgentErrors = $state<Record<string, string>>({});
 
-  // Advanced settings local state
-  let maxTokensStr = $state(String(settings.maxTokens));
-  let temperature = $state(settings.temperature);
-  let showAdvanced = $state(false);
-
   // Draft row: a new row the user started via "+ Add" but hasn't committed yet
   let draftActive = $state(false);
   let draftPickedId = $state<ProviderId | null>(null);
@@ -72,12 +67,6 @@
   function toggleExpanded(id: string) {
     expandedRows = { ...expandedRows, [id]: !expandedRows[id] };
   }
-
-  // Keep local state in sync when settings change externally
-  $effect(() => {
-    maxTokensStr = String(settings.maxTokens);
-    temperature = settings.temperature;
-  });
 
   // Ensure agents are loaded
   $effect(() => {
@@ -285,17 +274,10 @@
 
   /** Plugins available for the draft row dropdown */
   let availableForDraft = $derived(availableProvidersForNewRow(allPlugins, configuredIds));
-
-  function saveGlobal(partial: Partial<typeof settings>) {
-    settingsService.updateSettings('ai', { ...settings, ...partial });
-  }
 </script>
 
 {#if mode === 'full'}
-  <SettingsPaneHeader
-    title="AI"
-    subtitle="Configure assistant behavior, model providers, and advanced response defaults."
-  />
+  <SettingsPaneHeader title="AI" subtitle="Configure assistant behavior and model providers." />
 {/if}
 
 <div class="ai-tab">
@@ -676,6 +658,67 @@
                       </p>
                     </div>
                   {/if}
+
+                  <div class="card-field">
+                    <div class="field-header-row">
+                      <label class="field-label" for="temp-{providerId}">
+                        Temperature: {(config.temperature ?? 0.7).toFixed(2)}
+                      </label>
+                      {#if config.temperature !== undefined && config.temperature !== 0.7}
+                        <button
+                          class="text-btn"
+                          onclick={() => updateProviderConfig(providerId, { temperature: 0.7 })}
+                        >
+                          Reset (0.70)
+                        </button>
+                      {/if}
+                    </div>
+                    <input
+                      class="field-range"
+                      id="temp-{providerId}"
+                      type="range"
+                      min="0"
+                      max="2"
+                      step="0.05"
+                      value={config.temperature ?? 0.7}
+                      oninput={(e) =>
+                        updateProviderConfig(providerId, {
+                          temperature: parseFloat((e.currentTarget as HTMLInputElement).value),
+                        })}
+                    />
+                  </div>
+
+                  <div class="card-field">
+                    <div class="field-header-row">
+                      <label class="field-label" for="maxtokens-{providerId}"> Max Tokens </label>
+                      {#if config.maxTokens !== undefined && config.maxTokens !== 2048}
+                        <button
+                          class="text-btn"
+                          onclick={() => updateProviderConfig(providerId, { maxTokens: 2048 })}
+                        >
+                          Reset (2048)
+                        </button>
+                      {/if}
+                    </div>
+                    <Input
+                      unstyled
+                      textIntent="exact"
+                      class="card-input"
+                      id="maxtokens-{providerId}"
+                      type="number"
+                      value={config.maxTokens !== undefined ? String(config.maxTokens) : '2048'}
+                      placeholder="2048"
+                      min="128"
+                      max="32768"
+                      step="128"
+                      onblur={(e) => {
+                        const val = parseInt((e.currentTarget as HTMLInputElement).value);
+                        updateProviderConfig(providerId, {
+                          maxTokens: !isNaN(val) && val > 0 ? val : 2048,
+                        });
+                      }}
+                    />
+                  </div>
                 </div>
               {/if}
             </div>
@@ -699,49 +742,6 @@
       </div>
     </SettingsCard>
   </div>
-
-  {#if mode === 'full'}
-    <!-- Advanced settings -->
-    <div class="section-header">Advanced</div>
-    <div id="ai-advanced" class="advanced-section anchor-group">
-      <button class="text-label advanced-toggle" onclick={() => (showAdvanced = !showAdvanced)}>
-        {showAdvanced ? '▾' : '▸'} Advanced
-      </button>
-
-      {#if showAdvanced}
-        <SettingsCard>
-          <div class="no-separators">
-            <SettingsForm>
-              <SettingsFormRow label="Temperature {temperature.toFixed(2)}">
-                <input
-                  class="field-range"
-                  type="range"
-                  min="0"
-                  max="2"
-                  step="0.05"
-                  bind:value={temperature}
-                  oninput={() => saveGlobal({ temperature })}
-                />
-              </SettingsFormRow>
-
-              <SettingsFormRow label="Max Tokens">
-                <Input
-                  textIntent="exact"
-                  type="number"
-                  bind:value={maxTokensStr}
-                  min="128"
-                  max="32768"
-                  step="128"
-                  onblur={() =>
-                    saveGlobal({ maxTokens: parseInt(maxTokensStr) || settings.maxTokens })}
-                />
-              </SettingsFormRow>
-            </SettingsForm>
-          </div>
-        </SettingsCard>
-      {/if}
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -912,6 +912,13 @@
     gap: var(--space-1);
   }
 
+  .field-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
   .field-label {
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
@@ -1046,27 +1053,5 @@
 
   .no-separators :global(.form-row.separator) {
     border-top: none;
-  }
-
-  .advanced-section {
-    margin-top: var(--space-2);
-  }
-
-  .advanced-toggle {
-    margin-bottom: var(--space-2);
-    cursor: pointer;
-    background: none;
-    border: none;
-    padding: 0;
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    transition: color var(--transition-smooth);
-  }
-
-  .advanced-toggle:hover {
-    color: var(--text-primary);
   }
 </style>

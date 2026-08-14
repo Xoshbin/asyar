@@ -13,6 +13,8 @@ fn config(api_key: Option<&str>, base_url: Option<&str>) -> ProviderConfig {
         open_ai_api_mode: None,
         hosted_web_search: None,
         reasoning_effort: None,
+        temperature: None,
+        max_tokens: None,
     }
 }
 

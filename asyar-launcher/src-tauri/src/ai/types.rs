@@ -45,6 +45,8 @@ pub struct ProviderConfig {
     pub open_ai_api_mode: Option<String>, // "responses", "chat-completions"
     pub hosted_web_search: Option<bool>,
     pub reasoning_effort: Option<String>, // "none", "minimal", "low", etc.
+    pub temperature: Option<f64>,
+    pub max_tokens: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]

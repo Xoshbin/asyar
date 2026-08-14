@@ -282,6 +282,8 @@ export type ProviderConfig = {
 	openAIApiMode: string | null,
 	hostedWebSearch: boolean | null,
 	reasoningEffort: string | null,
+	temperature: number | null,
+	maxTokens: number | null,
 };
 
 /**

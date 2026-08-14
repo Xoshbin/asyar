@@ -284,7 +284,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     description: 'Tune how varied AI responses should be.',
     tab: 'ai',
     tabLabel: 'AI',
-    sectionAnchor: 'ai-advanced',
+    sectionAnchor: 'ai-providers',
     keywords: ['randomness', 'advanced'],
   },
   {
@@ -293,7 +293,7 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     description: 'Set the maximum token budget for AI responses.',
     tab: 'ai',
     tabLabel: 'AI',
-    sectionAnchor: 'ai-advanced',
+    sectionAnchor: 'ai-providers',
     keywords: ['tokens', 'limit', 'advanced'],
   },
   {
@@ -487,7 +487,6 @@ export const SECTION_ANCHORS: Record<string, SectionAnchor[]> = {
   ai: [
     { id: 'ai-behavior', label: 'Behavior' },
     { id: 'ai-providers', label: 'Providers' },
-    { id: 'ai-advanced', label: 'Advanced' },
   ],
   backup: [
     { id: 'backup-export', label: 'Export' },
