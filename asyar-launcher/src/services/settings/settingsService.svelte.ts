@@ -47,6 +47,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   onboarding: {
     completed: false,
   },
+  feedback: {
+    promptSeen: false,
+  },
   updates: {
     channel: 'stable' as const,
     autoCheck: true,
@@ -352,6 +355,9 @@ class SettingsService implements ISettingsService {
           },
         },
         onboarding: { ...DEFAULT_SETTINGS.onboarding, ...typedStored?.onboarding },
+        feedback: typedStored?.feedback
+          ? { ...DEFAULT_SETTINGS.feedback, ...typedStored.feedback }
+          : DEFAULT_SETTINGS.feedback,
         updates: typedStored?.updates
           ? { ...DEFAULT_SETTINGS.updates, ...typedStored.updates }
           : DEFAULT_SETTINGS.updates,

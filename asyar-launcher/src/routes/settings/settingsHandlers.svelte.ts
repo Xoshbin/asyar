@@ -67,6 +67,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   onboarding: {
     completed: false,
   },
+  feedback: {
+    promptSeen: false,
+  },
   updates: {
     channel: 'stable' as const,
     autoCheck: true,

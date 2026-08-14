@@ -3,3 +3,6 @@ contact_links:
   - name: Ask a Question or Get Help
     url: https://github.com/xoshbin/asyar/discussions/categories/q-a
     about: Please use GitHub Discussions for questions, troubleshooting, or general help.
+  - name: Join our Discord Community
+    url: https://discord.gg/vvYRXrs7Xa
+    about: Chat with other users and contributors in the Asyar Discord server.

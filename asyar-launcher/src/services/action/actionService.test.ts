@@ -18,6 +18,13 @@ vi.mock('tauri-plugin-clipboard-x-api', () => ({
   writeText: vi.fn().mockResolvedValue(undefined),
 }));
 
+const mockCommandService = vi.hoisted(() => ({
+  executeCommand: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../extension/commandService.svelte', () => ({
+  commandService: mockCommandService,
+}));
+
 const mockSearchOrchestrator = vi.hoisted(() => ({ items: [] as any[] }));
 vi.mock('../search/searchOrchestrator.svelte', () => ({
   searchOrchestrator: mockSearchOrchestrator,
@@ -1151,5 +1158,57 @@ describe('factory_reset built-in action', () => {
     await svc.executeAction('factory_reset');
 
     expect(localStorageClearMock).not.toHaveBeenCalled();
+  });
+});
+
+// ── settings built-in action ──────────────────────────────────────────────────
+
+describe('settings built-in action', () => {
+  it('is registered as a built-in action in CORE context', () => {
+    const svc = freshService();
+    const action = svc.getAllActions().find((a) => a.id === 'settings');
+    expect(action).toBeDefined();
+    expect(action?.label).toBe('Settings');
+    expect(action?.icon).toBe('icon:settings');
+    expect(action?.category).toBe('System');
+    expect(action?.context).toBe(ActionContext.CORE);
+  });
+});
+
+// ── send_feedback built-in action ─────────────────────────────────────────────
+
+describe('send_feedback built-in action', () => {
+  beforeEach(() => {
+    mockCommandService.executeCommand.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('is registered as a built-in action with expected metadata', () => {
+    const svc = freshService();
+    const action = svc.getAllActions().find((a) => a.id === 'send_feedback');
+    expect(action).toBeDefined();
+    expect(action?.label).toBe('Send Feedback');
+    expect(action?.icon).toBe('icon:info');
+    expect(action?.category).toBe('System');
+    expect(action?.description).toBe('Share an idea, praise, or report a problem');
+    expect(action?.context).toBe(ActionContext.CORE);
+  });
+
+  it('is visible in filteredActions in CORE context', () => {
+    const svc = freshService();
+    svc.setContext(ActionContext.CORE);
+    const ids = svc.filteredActions.map((a) => a.id);
+    expect(ids).toContain('send_feedback');
+  });
+
+  it('executes cmd_feedback_send-feedback via commandService', async () => {
+    const svc = freshService();
+    await svc.executeAction('send_feedback');
+    expect(mockCommandService.executeCommand).toHaveBeenCalledWith('cmd_feedback_send-feedback');
+  });
+
+  it('handles errors gracefully if executeCommand throws', async () => {
+    mockCommandService.executeCommand.mockRejectedValueOnce(new Error('Extension not found'));
+    const svc = freshService();
+    await expect(svc.executeAction('send_feedback')).resolves.not.toThrow();
   });
 });

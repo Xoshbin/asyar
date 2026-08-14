@@ -210,8 +210,11 @@
             <Button onclick={() => openUrl('https://github.com/Xoshbin/asyar-launcher')}>
               GitHub
             </Button>
-            <Button>Privacy Policy</Button>
-            <Button>License</Button>
+            <Button onclick={() => openUrl('https://discord.gg/vvYRXrs7Xa')}>Discord</Button>
+            <Button onclick={() => openUrl('https://asyar.org/privacy')}>Privacy Policy</Button>
+            <Button onclick={() => openUrl('https://github.com/Xoshbin/asyar/blob/main/LICENSE')}>
+              License
+            </Button>
           </div>
         {/snippet}
       </SettingsRow>
