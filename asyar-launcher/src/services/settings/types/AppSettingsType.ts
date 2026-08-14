@@ -37,6 +37,7 @@ export interface AppSettings {
   onboarding: {
     completed: boolean;
   };
+  feedback?: FeedbackSettings;
   updates?: {
     channel: 'stable' | 'beta';
     autoCheck: boolean;
@@ -54,6 +55,11 @@ export interface AppSettings {
   developer?: DeveloperSettings;
   privacy: PrivacySettings;
   fileSearch: FileSearchSettings;
+}
+
+export interface FeedbackSettings {
+  promptSeen?: boolean;
+  firstLaunchDate?: string;
 }
 
 export interface FileSearchSettings {

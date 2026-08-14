@@ -252,8 +252,9 @@ export const appInitializer = {
       logService.info('App update store initialized.');
 
       // Check whether to surface a What's New notice (shown once after each
-      // update). Idle-deferred: purely cosmetic and independent of the
-      // remaining init chain, so it must not compete with first paint (native
+      // update) or a one-time Feedback nudge (shown after real usage).
+      // Idle-deferred: purely cosmetic and independent of the remaining init
+      // chain, so it must not compete with first paint (native
       // requestIdleCallback when the WebKit flag landed, deadline-gated
       // setTimeout otherwise; see src/lib/idle.ts).
       runWhenIdle(
@@ -262,6 +263,10 @@ export const appInitializer = {
             const { checkAndNotifyWhatsNew } = await import('./update/whatsNewNotifier');
             await checkAndNotifyWhatsNew();
             logService.info("What's New check complete.");
+
+            const { checkAndNotifyFeedback } = await import('./feedback/feedbackNotifier');
+            await checkAndNotifyFeedback();
+            logService.info('Feedback nudge check complete.');
           })();
         },
         { timeout: 4000 },
