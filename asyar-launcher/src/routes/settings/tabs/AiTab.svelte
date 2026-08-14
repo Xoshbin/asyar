@@ -1,7 +1,6 @@
 <script lang="ts">
   import {
-    SettingsForm,
-    SettingsFormRow,
+    SettingsRow,
     Toggle,
     Button,
     Input,
@@ -285,17 +284,16 @@
     <div class="section-header">Behavior</div>
     <div id="ai-behavior" class="anchor-group">
       <SettingsCard>
-        <div class="no-separators">
-          <SettingsForm>
-            <SettingsFormRow label="Tab continues last thread" separator>
-              <Toggle
-                checked={settings.tabContinuesLastThread}
-                onchange={() =>
-                  handler!.handleToggleTabContinuesLastThread(!settings.tabContinuesLastThread)}
-              />
-            </SettingsFormRow>
-          </SettingsForm>
-        </div>
+        <SettingsRow
+          label="Tab continues last thread"
+          description="Pressing Tab in the launcher reopens your previous conversation instead of starting a new one."
+        >
+          <Toggle
+            checked={settings.tabContinuesLastThread}
+            onchange={() =>
+              handler!.handleToggleTabContinuesLastThread(!settings.tabContinuesLastThread)}
+          />
+        </SettingsRow>
       </SettingsCard>
     </div>
   {/if}
@@ -1045,13 +1043,5 @@
 
   .anchor-group {
     scroll-margin-top: var(--space-6);
-  }
-
-  .no-separators :global(.form-row) {
-    border-bottom: none;
-  }
-
-  .no-separators :global(.form-row.separator) {
-    border-top: none;
   }
 </style>
