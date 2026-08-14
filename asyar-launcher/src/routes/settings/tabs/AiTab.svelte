@@ -843,7 +843,7 @@
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    padding: 1px var(--space-1);
+    padding: var(--space-0-5) var(--space-1);
   }
 
   .row-actions {
