@@ -7,6 +7,7 @@ import { searchService } from '../search/SearchService';
 import { searchOrchestrator } from '../search/searchOrchestrator.svelte';
 import { searchStores } from '../search/stores/search.svelte';
 import { feedbackService } from '../feedback/feedbackService.svelte';
+import { commandService } from '../extension/commandService.svelte';
 import { applicationService } from '../application/applicationService';
 import type { UninstallScanResult } from '../application/applicationService';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
@@ -377,6 +378,23 @@ export class ActionService implements IActionService {
           await commands.showSettingsWindow();
         } catch (err) {
           logService.error(`Failed to open settings window: ${err}`);
+        }
+      },
+    });
+
+    this.registerAction({
+      id: 'send_feedback',
+      label: 'Send Feedback',
+      icon: 'icon:info',
+      description: 'Share an idea, praise, or report a problem',
+      category: 'System',
+      context: ActionContext.CORE,
+      execute: async () => {
+        logService.info('Executing built-in action: Send Feedback');
+        try {
+          await commandService.executeCommand('cmd_feedback_send-feedback');
+        } catch (err) {
+          logService.error(`Failed to open feedback window: ${err}`);
         }
       },
     });
