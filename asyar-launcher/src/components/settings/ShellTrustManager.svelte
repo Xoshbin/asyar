@@ -178,7 +178,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
-    padding: var(--space-5-5) var(--space-6);
+    padding: var(--space-5) var(--space-6);
   }
 
   .trust-note {

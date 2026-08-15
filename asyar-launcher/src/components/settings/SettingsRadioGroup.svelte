@@ -56,7 +56,7 @@
 
 <style>
   .settings-radio-group {
-    padding: var(--space-5-5) var(--space-6);
+    padding: var(--space-5) var(--space-6);
     border-bottom: 1px solid var(--border-color);
   }
 

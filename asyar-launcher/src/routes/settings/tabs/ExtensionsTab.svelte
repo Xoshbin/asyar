@@ -1096,7 +1096,7 @@
     gap: var(--space-2);
     padding: var(--space-3) var(--space-5);
     border-radius: var(--radius-md);
-    background: var(--accent-primary);
+    background: var(--accent-primary-fill);
     color: var(--text-on-accent);
     border: none;
     font-size: var(--font-size-sm);

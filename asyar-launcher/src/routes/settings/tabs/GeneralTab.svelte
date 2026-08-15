@@ -336,7 +336,7 @@
     position: relative;
     display: flex;
     align-items: center;
-    padding: var(--space-5-5) var(--space-6);
+    padding: var(--space-5) var(--space-6);
     cursor: pointer;
     transition: background var(--transition-fast);
   }
