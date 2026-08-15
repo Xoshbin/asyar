@@ -348,7 +348,8 @@ pub async fn list_models_impl(
     provider_id: &str,
     config: &ProviderConfig,
 ) -> Result<Vec<ModelInfo>, AppError> {
-    let spec = provider_model_request(provider_id, config)?;
+    let engine_type = config.provider_type.as_deref().unwrap_or(provider_id);
+    let spec = provider_model_request(engine_type, config)?;
     let client = reqwest::Client::new();
     let mut request = client
         .get(&spec.url)
@@ -366,7 +367,7 @@ pub async fn list_models_impl(
             body
         }));
     }
-    parse_provider_models(provider_id, response.json().await?)
+    parse_provider_models(engine_type, response.json().await?)
 }
 
 #[tauri::command]

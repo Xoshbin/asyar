@@ -97,12 +97,13 @@ async function runSilentAgentCommand(input: SilentDispatchInput): Promise<void> 
     }
 
     const streamId = `silent-agent-${agent.id}-${crypto.randomUUID()}`;
+    const providerConfig = settings.ai.providers[agent.providerId];
     const runConfig = {
       providers: toAgentProviderDescriptors(providerRegistry.list()),
       configs: settings.ai.providers,
       defaultAgentId: settings.ai.defaultAgentId,
-      temperature: settings.ai.temperature,
-      maxTokens: settings.ai.maxTokens,
+      temperature: providerConfig?.temperature ?? settings.ai.temperature,
+      maxTokens: providerConfig?.maxTokens ?? settings.ai.maxTokens,
     };
     let bridgeError: Error | null = null;
     const stream = createAgentStreamChannel({

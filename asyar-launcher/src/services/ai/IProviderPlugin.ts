@@ -12,12 +12,16 @@ export interface ModelInfo {
 
 export interface ProviderConfig {
   enabled: boolean;
+  name?: string;
+  providerType?: ProviderId;
   apiKey?: string;
   baseUrl?: string;
   lastModelId?: string;
   openAIApiMode?: OpenAIApiMode;
   hostedWebSearch?: boolean;
   reasoningEffort?: ReasoningEffort;
+  temperature?: number;
+  maxTokens?: number;
 }
 
 export type ChatStreamStatus = 'searching';

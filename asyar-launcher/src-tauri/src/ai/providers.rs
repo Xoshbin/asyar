@@ -9,7 +9,8 @@ pub fn build_request(
     messages: &[ChatMessage],
     params: &ChatParams,
 ) -> Result<RequestSpec, AppError> {
-    match provider_id {
+    let engine_type = config.provider_type.as_deref().unwrap_or(provider_id);
+    match engine_type {
         "openai" => build_openai_request(config, messages, params),
         "anthropic" => build_anthropic_request(config, messages, params),
         "google" => build_google_request(config, messages, params),
@@ -47,8 +48,12 @@ pub struct ProviderStreamParser {
 
 impl ProviderStreamParser {
     pub fn new(provider_id: &str, config: &ProviderConfig) -> Self {
+        let engine_type = config
+            .provider_type
+            .clone()
+            .unwrap_or_else(|| provider_id.to_string());
         Self {
-            provider_id: provider_id.to_string(),
+            provider_id: engine_type,
             config: config.clone(),
             openai_tools: BTreeMap::new(),
             anthropic_tool: None,

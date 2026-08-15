@@ -76,12 +76,13 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     subjectId: `cmd_agents_dyn_${input.agentId}`,
   });
   const streamId = `agent-${input.agentId}-${crypto.randomUUID()}`;
+  const providerConfig = settings.ai.providers[agent.providerId];
   const runConfig = {
     providers: toAgentProviderDescriptors(providerRegistry.list()),
     configs: settings.ai.providers,
     defaultAgentId: settings.ai.defaultAgentId,
-    temperature: settings.ai.temperature,
-    maxTokens: settings.ai.maxTokens,
+    temperature: providerConfig?.temperature ?? settings.ai.temperature,
+    maxTokens: providerConfig?.maxTokens ?? settings.ai.maxTokens,
   };
 
   let runnerCancelled = false;

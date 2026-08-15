@@ -1,7 +1,6 @@
 <script lang="ts">
   import {
-    SettingsForm,
-    SettingsFormRow,
+    SettingsRow,
     Toggle,
     Button,
     Input,
@@ -52,11 +51,6 @@
   // inline-in-the-row reasoning as removeErrors.
   let defaultAgentErrors = $state<Record<string, string>>({});
 
-  // Advanced settings local state
-  let maxTokensStr = $state(String(settings.maxTokens));
-  let temperature = $state(settings.temperature);
-  let showAdvanced = $state(false);
-
   // Draft row: a new row the user started via "+ Add" but hasn't committed yet
   let draftActive = $state(false);
   let draftPickedId = $state<ProviderId | null>(null);
@@ -65,19 +59,13 @@
   // newly-added rows auto-expand so the user can fill in credentials.
   let expandedRows = $state<Record<string, boolean>>({});
 
-  function isExpanded(id: ProviderId): boolean {
+  function isExpanded(id: string): boolean {
     return expandedRows[id] === true;
   }
 
-  function toggleExpanded(id: ProviderId) {
+  function toggleExpanded(id: string) {
     expandedRows = { ...expandedRows, [id]: !expandedRows[id] };
   }
-
-  // Keep local state in sync when settings change externally
-  $effect(() => {
-    maxTokensStr = String(settings.maxTokens);
-    temperature = settings.temperature;
-  });
 
   // Ensure agents are loaded
   $effect(() => {
@@ -90,20 +78,20 @@
 
   /** Provider IDs that have enabled: true in settings */
   let configuredIds = $derived(
-    (Object.keys(settings.providers) as ProviderId[]).filter(
-      (id) => settings.providers[id]?.enabled === true,
-    ),
+    Object.keys(settings.providers).filter((id) => settings.providers[id]?.enabled === true),
   );
 
-  function getPlugin(id: ProviderId): IProviderPlugin | undefined {
-    return allPlugins.find((p) => p.id === id);
+  function getPlugin(id: string): IProviderPlugin | undefined {
+    const config = settings.providers[id];
+    const providerType = (config?.providerType ?? id) as ProviderId;
+    return allPlugins.find((p) => p.id === providerType);
   }
 
-  function getConfig(id: ProviderId): ProviderConfig {
+  function getConfig(id: string): ProviderConfig {
     return settings.providers[id] ?? { enabled: false };
   }
 
-  function updateProviderConfig(id: ProviderId, partial: Partial<ProviderConfig>) {
+  function updateProviderConfig(id: string, partial: Partial<ProviderConfig>) {
     return settingsService.updateSettings('ai', {
       providers: {
         ...settings.providers,
@@ -120,14 +108,14 @@
     return `${effort[0].toUpperCase()}${effort.slice(1)}`;
   }
 
-  async function fetchModels(plugin: IProviderPlugin) {
-    fetchingModels = { ...fetchingModels, [plugin.id]: true };
-    fetchErrors = { ...fetchErrors, [plugin.id]: '' };
+  async function fetchModels(providerId: string, plugin: IProviderPlugin) {
+    fetchingModels = { ...fetchingModels, [providerId]: true };
+    fetchErrors = { ...fetchErrors, [providerId]: '' };
     try {
-      const models = await plugin.getModels(getConfig(plugin.id));
-      modelCache = { ...modelCache, [plugin.id]: models };
-      fetchErrors = { ...fetchErrors, [plugin.id]: '' };
-      const config = getConfig(plugin.id);
+      const config = getConfig(providerId);
+      const models = await plugin.getModels(config);
+      modelCache = { ...modelCache, [providerId]: models };
+      fetchErrors = { ...fetchErrors, [providerId]: '' };
       // Seed the effective model so the ★ default button is enabled even when
       // the user keeps the pre-selected first entry (which fires no onchange).
       const { configPatch, newlySelectedModelId } = modelSelectionAfterFetch(
@@ -136,23 +124,23 @@
         config,
       );
       if (Object.keys(configPatch).length > 0) {
-        await updateProviderConfig(plugin.id, configPatch);
+        await updateProviderConfig(providerId, configPatch);
       }
       if (newlySelectedModelId) {
-        await maybeAutoSetAsDefault(plugin.id, newlySelectedModelId);
+        await maybeAutoSetAsDefault(providerId, newlySelectedModelId);
       }
     } catch (e: unknown) {
       fetchErrors = {
         ...fetchErrors,
-        [plugin.id]: e instanceof Error ? e.message : 'Failed to fetch models',
+        [providerId]: e instanceof Error ? e.message : 'Failed to fetch models',
       };
-      modelCache = { ...modelCache, [plugin.id]: [] };
+      modelCache = { ...modelCache, [providerId]: [] };
     } finally {
-      fetchingModels = { ...fetchingModels, [plugin.id]: false };
+      fetchingModels = { ...fetchingModels, [providerId]: false };
     }
   }
 
-  function isDefault(id: ProviderId): boolean {
+  function isDefault(id: string): boolean {
     const agent = agentService.getDefaultAgent();
     return agent?.providerId === id;
   }
@@ -161,7 +149,7 @@
   // model, used when the user hasn't explicitly picked one yet (an untouched
   // dropdown fires no onchange). The resolved model is persisted so the row and
   // the default agent always agree.
-  async function setAsDefault(id: ProviderId, fallbackModelId?: string) {
+  async function setAsDefault(id: string, fallbackModelId?: string) {
     const config = getConfig(id);
     const modelId = config.lastModelId ?? fallbackModelId;
     if (!modelId) return;
@@ -187,7 +175,7 @@
    * second provider never silently swaps the user's preferred default
    * out from under them. They still have to click the star to switch.
    */
-  async function maybeAutoSetAsDefault(id: ProviderId, modelId: string) {
+  async function maybeAutoSetAsDefault(id: string, modelId: string) {
     if (agentService.getDefaultAgent()) return;
     try {
       await agentService.upsertDefaultAgent(id, modelId);
@@ -199,7 +187,7 @@
     }
   }
 
-  async function removeProvider(id: ProviderId) {
+  async function removeProvider(id: string) {
     removeErrors = { ...removeErrors, [id]: '' };
     let blockedReason: string | null;
     try {
@@ -217,12 +205,11 @@
     }
 
     const wasDefault = isDefault(id);
+    const nextProviders = { ...settings.providers };
+    delete nextProviders[id];
     // Clear config for this provider
     settingsService.updateSettings('ai', {
-      providers: {
-        ...settings.providers,
-        [id]: { enabled: false },
-      },
+      providers: nextProviders,
     });
 
     if (wasDefault) {
@@ -257,15 +244,23 @@
     const val = (e.currentTarget as HTMLSelectElement).value as ProviderId;
     if (!val) return;
     draftPickedId = val;
+    const plugin = allPlugins.find((p) => p.id === val);
+    if (!plugin) return;
+    const newId = `${val}_${crypto.randomUUID().slice(0, 8)}`;
+    const newConfig = configForNewProvider(plugin, {
+      enabled: true,
+      name: plugin.name,
+      providerType: val,
+    });
     // Persist immediately with enabled: true
     settingsService.updateSettings('ai', {
       providers: {
         ...settings.providers,
-        [val]: configForNewProvider(getPlugin(val), getConfig(val)),
+        [newId]: newConfig,
       },
     });
     // Auto-expand the newly added row so the user can configure it immediately
-    expandedRows = { ...expandedRows, [val]: true };
+    expandedRows = { ...expandedRows, [newId]: true };
     // Draft row is now a real row
     draftActive = false;
     draftPickedId = null;
@@ -276,19 +271,12 @@
     draftPickedId = null;
   }
 
-  /** Plugins not yet added — used for the draft row dropdown */
+  /** Plugins available for the draft row dropdown */
   let availableForDraft = $derived(availableProvidersForNewRow(allPlugins, configuredIds));
-
-  function saveGlobal(partial: Partial<typeof settings>) {
-    settingsService.updateSettings('ai', { ...settings, ...partial });
-  }
 </script>
 
 {#if mode === 'full'}
-  <SettingsPaneHeader
-    title="AI"
-    subtitle="Configure assistant behavior, model providers, and advanced response defaults."
-  />
+  <SettingsPaneHeader title="AI" subtitle="Configure assistant behavior and model providers." />
 {/if}
 
 <div class="ai-tab">
@@ -296,17 +284,16 @@
     <div class="section-header">Behavior</div>
     <div id="ai-behavior" class="anchor-group">
       <SettingsCard>
-        <div class="no-separators">
-          <SettingsForm>
-            <SettingsFormRow label="Tab continues last thread" separator>
-              <Toggle
-                checked={settings.tabContinuesLastThread}
-                onchange={() =>
-                  handler!.handleToggleTabContinuesLastThread(!settings.tabContinuesLastThread)}
-              />
-            </SettingsFormRow>
-          </SettingsForm>
-        </div>
+        <SettingsRow
+          label="Tab continues last thread"
+          description="Pressing Tab in the launcher reopens your previous conversation instead of starting a new one."
+        >
+          <Toggle
+            checked={settings.tabContinuesLastThread}
+            onchange={() =>
+              handler!.handleToggleTabContinuesLastThread(!settings.tabContinuesLastThread)}
+          />
+        </SettingsRow>
       </SettingsCard>
     </div>
   {/if}
@@ -365,7 +352,10 @@
                   aria-controls="row-body-{providerId}"
                 >
                   <span class="row-chevron" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
-                  <span class="provider-label">{plugin?.name ?? providerId}</span>
+                  <span class="provider-label">{config.name || plugin?.name || providerId}</span>
+                  {#if config.name && plugin && config.name !== plugin.name}
+                    <span class="provider-type-badge">{plugin.name}</span>
+                  {/if}
                   {#if !expanded && config.lastModelId}
                     <span class="row-summary">{config.lastModelId}</span>
                   {/if}
@@ -390,7 +380,7 @@
                   <button
                     class="remove-btn"
                     onclick={() => removeProvider(providerId)}
-                    aria-label="Remove {plugin?.name ?? providerId}"
+                    aria-label="Remove {config.name || plugin?.name || providerId}"
                     title="Remove provider"
                   >
                     ×
@@ -411,6 +401,24 @@
 
               {#if expanded}
                 <div class="row-body" id="row-body-{providerId}">
+                  <div class="card-field">
+                    <label class="field-label" for="name-{providerId}">Name</label>
+                    <Input
+                      unstyled
+                      textIntent="exact"
+                      class="card-input"
+                      id="name-{providerId}"
+                      type="text"
+                      value={config.name ?? plugin?.name ?? ''}
+                      placeholder={plugin?.name ?? 'Provider connection name'}
+                      autocomplete="off"
+                      onblur={(e) =>
+                        updateProviderConfig(providerId, {
+                          name: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
+                        })}
+                    />
+                  </div>
+
                   {#if plugin?.requiresApiKey || plugin?.optionalApiKey}
                     <div class="card-field">
                       <label class="field-label" for="apikey-{providerId}">
@@ -510,7 +518,7 @@
                   <!-- Test & Fetch button -->
                   <div class="card-actions">
                     <Button
-                      onclick={() => plugin && fetchModels(plugin)}
+                      onclick={() => plugin && fetchModels(providerId, plugin)}
                       disabled={isFetching || !canTestAndFetch(plugin ?? null, config)}
                     >
                       {isFetching ? 'Fetching…' : 'Test & Fetch Models'}
@@ -648,6 +656,67 @@
                       </p>
                     </div>
                   {/if}
+
+                  <div class="card-field">
+                    <div class="field-header-row">
+                      <label class="field-label" for="temp-{providerId}">
+                        Temperature: {(config.temperature ?? 0.7).toFixed(2)}
+                      </label>
+                      {#if config.temperature !== undefined && config.temperature !== 0.7}
+                        <button
+                          class="text-btn"
+                          onclick={() => updateProviderConfig(providerId, { temperature: 0.7 })}
+                        >
+                          Reset (0.70)
+                        </button>
+                      {/if}
+                    </div>
+                    <input
+                      class="field-range"
+                      id="temp-{providerId}"
+                      type="range"
+                      min="0"
+                      max="2"
+                      step="0.05"
+                      value={config.temperature ?? 0.7}
+                      oninput={(e) =>
+                        updateProviderConfig(providerId, {
+                          temperature: parseFloat((e.currentTarget as HTMLInputElement).value),
+                        })}
+                    />
+                  </div>
+
+                  <div class="card-field">
+                    <div class="field-header-row">
+                      <label class="field-label" for="maxtokens-{providerId}"> Max Tokens </label>
+                      {#if config.maxTokens !== undefined && config.maxTokens !== 2048}
+                        <button
+                          class="text-btn"
+                          onclick={() => updateProviderConfig(providerId, { maxTokens: 2048 })}
+                        >
+                          Reset (2048)
+                        </button>
+                      {/if}
+                    </div>
+                    <Input
+                      unstyled
+                      textIntent="exact"
+                      class="card-input"
+                      id="maxtokens-{providerId}"
+                      type="number"
+                      value={config.maxTokens !== undefined ? String(config.maxTokens) : '2048'}
+                      placeholder="2048"
+                      min="128"
+                      max="32768"
+                      step="128"
+                      onblur={(e) => {
+                        const val = parseInt((e.currentTarget as HTMLInputElement).value);
+                        updateProviderConfig(providerId, {
+                          maxTokens: !isNaN(val) && val > 0 ? val : 2048,
+                        });
+                      }}
+                    />
+                  </div>
                 </div>
               {/if}
             </div>
@@ -671,49 +740,6 @@
       </div>
     </SettingsCard>
   </div>
-
-  {#if mode === 'full'}
-    <!-- Advanced settings -->
-    <div class="section-header">Advanced</div>
-    <div id="ai-advanced" class="advanced-section anchor-group">
-      <button class="text-label advanced-toggle" onclick={() => (showAdvanced = !showAdvanced)}>
-        {showAdvanced ? '▾' : '▸'} Advanced
-      </button>
-
-      {#if showAdvanced}
-        <SettingsCard>
-          <div class="no-separators">
-            <SettingsForm>
-              <SettingsFormRow label="Temperature {temperature.toFixed(2)}">
-                <input
-                  class="field-range"
-                  type="range"
-                  min="0"
-                  max="2"
-                  step="0.05"
-                  bind:value={temperature}
-                  oninput={() => saveGlobal({ temperature })}
-                />
-              </SettingsFormRow>
-
-              <SettingsFormRow label="Max Tokens">
-                <Input
-                  textIntent="exact"
-                  type="number"
-                  bind:value={maxTokensStr}
-                  min="128"
-                  max="32768"
-                  step="128"
-                  onblur={() =>
-                    saveGlobal({ maxTokens: parseInt(maxTokensStr) || settings.maxTokens })}
-                />
-              </SettingsFormRow>
-            </SettingsForm>
-          </div>
-        </SettingsCard>
-      {/if}
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -808,6 +834,16 @@
     color: var(--text-primary);
   }
 
+  .provider-type-badge {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--space-0-5) var(--space-1);
+  }
+
   .row-actions {
     display: flex;
     align-items: center;
@@ -872,6 +908,13 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+  }
+
+  .field-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
   }
 
   .field-label {
@@ -1000,35 +1043,5 @@
 
   .anchor-group {
     scroll-margin-top: var(--space-6);
-  }
-
-  .no-separators :global(.form-row) {
-    border-bottom: none;
-  }
-
-  .no-separators :global(.form-row.separator) {
-    border-top: none;
-  }
-
-  .advanced-section {
-    margin-top: var(--space-2);
-  }
-
-  .advanced-toggle {
-    margin-bottom: var(--space-2);
-    cursor: pointer;
-    background: none;
-    border: none;
-    padding: 0;
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    transition: color var(--transition-smooth);
-  }
-
-  .advanced-toggle:hover {
-    color: var(--text-primary);
   }
 </style>

@@ -274,12 +274,16 @@ export type ModelInfo = {
 
 export type ProviderConfig = {
 	enabled: boolean,
+	name: string | null,
+	providerType: string | null,
 	apiKey: string | null,
 	baseUrl: string | null,
 	lastModelId: string | null,
 	openAIApiMode: string | null,
 	hostedWebSearch: boolean | null,
 	reasoningEffort: string | null,
+	temperature: number | null,
+	maxTokens: number | null,
 };
 
 /**

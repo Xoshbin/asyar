@@ -57,6 +57,7 @@ vi.mock('../../../lib/ipc/commands', () => ({
 import AiTab from './AiTab.svelte';
 import { agentsProviderRemovalBlockers } from '../../../lib/ipc/commands';
 import { settingsService } from '../../../services/settings/settingsService.svelte';
+import { providerRegistry } from '../../../services/ai/providerRegistry';
 
 describe('AiTab', () => {
   beforeEach(() => {
@@ -87,9 +88,43 @@ describe('AiTab', () => {
       expect(settingsService.updateSettings).toHaveBeenCalledWith(
         'ai',
         expect.objectContaining({
-          providers: expect.objectContaining({ anthropic: { enabled: false } }),
+          providers: {},
         }),
       );
     });
+  });
+
+  it('renders custom connection name and provider type badge', () => {
+    vi.mocked(settingsService).currentSettings = {
+      ai: {
+        providers: {
+          custom_1: {
+            enabled: true,
+            name: 'Local Ollama',
+            providerType: 'custom' as any,
+            baseUrl: 'http://localhost:11434',
+          },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+      },
+    } as any;
+    vi.mocked(providerRegistry.list).mockReturnValue([
+      {
+        id: 'custom',
+        name: 'Custom (OpenAI-compatible)',
+        requiresApiKey: false,
+        requiresBaseUrl: true,
+        getModels: vi.fn(),
+      },
+    ]);
+
+    render(AiTab, { mode: 'providers-only' });
+
+    expect(screen.getByText('Local Ollama')).toBeTruthy();
+    expect(screen.getByText('Custom (OpenAI-compatible)')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Remove Local Ollama' })).toBeTruthy();
   });
 });

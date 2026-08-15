@@ -23,22 +23,10 @@ function makePlugin(id: string, opts: Partial<IProviderPlugin> = {}): IProviderP
 // ── availableProvidersForNewRow ────────────────────────────────────────────────
 
 describe('availableProvidersForNewRow', () => {
-  it('returns all plugins when none are in the existing set', () => {
-    const plugins = [makePlugin('openai'), makePlugin('anthropic'), makePlugin('ollama')];
-    const result = availableProvidersForNewRow(plugins, []);
-    expect(result.map((p) => p.id)).toEqual(['openai', 'anthropic', 'ollama']);
-  });
-
-  it('filters out plugins that are already in the existing set', () => {
+  it('returns all plugins regardless of existing providers to allow multiple instances', () => {
     const plugins = [makePlugin('openai'), makePlugin('anthropic'), makePlugin('ollama')];
     const result = availableProvidersForNewRow(plugins, ['openai', 'ollama']);
-    expect(result.map((p) => p.id)).toEqual(['anthropic']);
-  });
-
-  it('returns empty array when all plugins are already added', () => {
-    const plugins = [makePlugin('openai'), makePlugin('anthropic')];
-    const result = availableProvidersForNewRow(plugins, ['openai', 'anthropic']);
-    expect(result).toHaveLength(0);
+    expect(result.map((p) => p.id)).toEqual(['openai', 'anthropic', 'ollama']);
   });
 });
 
@@ -74,18 +62,27 @@ describe('canTestAndFetch', () => {
 });
 
 describe('configForNewProvider', () => {
-  it('explicitly selects Responses for a newly added compatible provider', () => {
-    const plugin = makePlugin('custom', { supportsOpenAIApiMode: true });
+  it('explicitly selects Responses for a newly added compatible provider and sets defaults', () => {
+    const plugin = makePlugin('custom', {
+      name: 'Custom (OpenAI-compatible)',
+      supportsOpenAIApiMode: true,
+    });
 
     expect(configForNewProvider(plugin, { enabled: false })).toEqual({
       enabled: true,
+      name: 'Custom (OpenAI-compatible)',
+      providerType: 'custom',
       openAIApiMode: 'responses',
     });
   });
 
-  it('does not add an API mode to other provider families', () => {
-    expect(configForNewProvider(makePlugin('anthropic'), { enabled: false })).toEqual({
+  it('sets name and providerType for other provider families', () => {
+    expect(
+      configForNewProvider(makePlugin('anthropic', { name: 'Anthropic' }), { enabled: false }),
+    ).toEqual({
       enabled: true,
+      name: 'Anthropic',
+      providerType: 'anthropic',
     });
   });
 });

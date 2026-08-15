@@ -6,15 +6,15 @@ import type {
 } from '../../../services/ai/IProviderPlugin';
 
 /**
- * Returns all registered plugins NOT in the given set of existing provider IDs.
- * Used to populate the "Choose provider…" dropdown for a new row, preventing duplicates.
+ * Returns all registered plugins available to be added as a new provider row.
+ * Multiple connections of any provider (e.g. multiple custom endpoints or accounts)
+ * are allowed.
  */
 export function availableProvidersForNewRow(
   allPlugins: IProviderPlugin[],
-  existingProviderIds: string[],
+  _existingProviderIds?: string[],
 ): IProviderPlugin[] {
-  const existing = new Set(existingProviderIds);
-  return allPlugins.filter((p) => !existing.has(p.id));
+  return allPlugins;
 }
 
 /**
@@ -34,11 +34,13 @@ export function canTestAndFetch(
 
 export function configForNewProvider(
   plugin: IProviderPlugin | null | undefined,
-  config: ProviderConfig,
+  config: Partial<ProviderConfig> = {},
 ): ProviderConfig {
   return {
     ...config,
     enabled: true,
+    name: config.name || plugin?.name,
+    providerType: plugin?.id,
     ...(plugin?.supportsOpenAIApiMode ? { openAIApiMode: 'responses' as const } : {}),
   };
 }

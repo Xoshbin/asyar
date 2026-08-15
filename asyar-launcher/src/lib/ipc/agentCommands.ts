@@ -165,7 +165,7 @@ export async function agentsEditorLoad(
   agentId: string | null,
   defaultAgentId: string | null,
   providers: IProviderPlugin[],
-  configs: Record<ProviderId, ProviderConfig>,
+  configs: Record<string, ProviderConfig>,
 ): Promise<AgentEditorViewModel> {
   return invokeRaw('agents_editor_load', {
     agentId,
@@ -190,7 +190,7 @@ export async function agentsEditorSave(
 export async function agentsProviderRemovalBlockers(
   providerId: string,
   providers: IProviderPlugin[],
-  configs: Record<ProviderId, ProviderConfig>,
+  configs: Record<string, ProviderConfig>,
 ): Promise<string | null> {
   return invokeRaw('agents_provider_removal_blockers', {
     providerId,

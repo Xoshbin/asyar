@@ -93,7 +93,7 @@ export interface DeveloperSettings {
 }
 
 export interface AISettings {
-  providers: Record<ProviderId, ProviderConfig>;
+  providers: Record<string, ProviderConfig>;
   temperature: number;
   maxTokens: number;
   defaultAgentId: string | null;

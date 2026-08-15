@@ -5,12 +5,16 @@ use serde_json::json;
 fn config(api_key: Option<&str>, base_url: Option<&str>) -> ProviderConfig {
     ProviderConfig {
         enabled: true,
+        name: None,
+        provider_type: None,
         api_key: api_key.map(str::to_owned),
         base_url: base_url.map(str::to_owned),
         last_model_id: None,
         open_ai_api_mode: None,
         hosted_web_search: None,
         reasoning_effort: None,
+        temperature: None,
+        max_tokens: None,
     }
 }
 
@@ -27,6 +31,18 @@ fn custom_model_request_normalizes_base_url_and_optional_key() {
         request.headers.get("Authorization").map(String::as_str),
         Some("Bearer secret")
     );
+}
+
+#[test]
+fn custom_model_request_resolves_via_provider_type() {
+    let mut cfg = config(Some("secret"), Some("http://localhost:11434"));
+    cfg.name = Some("Local Ollama".into());
+    cfg.provider_type = Some("ollama".into());
+
+    let engine = cfg.provider_type.as_deref().unwrap_or("custom_ollama");
+    let request = provider_model_request(engine, &cfg).unwrap();
+
+    assert_eq!(request.url, "http://localhost:11434/api/tags");
 }
 
 #[test]

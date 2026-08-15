@@ -44,12 +44,16 @@ fn provider(id: &str, requires_api_key: bool, requires_base_url: bool) -> AgentP
 fn config(enabled: bool, api_key: Option<&str>, base_url: Option<&str>) -> ProviderConfig {
     ProviderConfig {
         enabled,
+        name: None,
+        provider_type: None,
         api_key: api_key.map(str::to_owned),
         base_url: base_url.map(str::to_owned),
         last_model_id: None,
         open_ai_api_mode: None,
         hosted_web_search: None,
         reasoning_effort: None,
+        temperature: None,
+        max_tokens: None,
     }
 }
 
@@ -121,7 +125,7 @@ fn editor_catalog_groups_tools_and_filters_unavailable_providers() {
             .iter()
             .map(|provider| provider.id.as_str())
             .collect::<Vec<_>>(),
-        vec!["openai", "ollama"]
+        vec!["ollama", "openai"]
     );
     assert_eq!(catalog.tool_groups.len(), 3);
     assert!(matches!(
@@ -376,7 +380,7 @@ fn stranded_by_provider_removal_is_empty_when_the_provider_being_removed_is_alre
 fn provider_removal_blocked_message_is_none_when_nothing_is_stranded() {
     let providers = vec![provider("anthropic", true, false)];
 
-    let message = provider_removal_blocked_message("anthropic", &providers, &[]);
+    let message = provider_removal_blocked_message("anthropic", &providers, &HashMap::new(), &[]);
 
     assert_eq!(message, None);
 }
@@ -391,19 +395,79 @@ fn provider_removal_blocked_message_uses_the_providers_display_name() {
     }];
     let stranded = vec![agent("agent-1", "anthropic", "claude-sonnet-5")];
 
-    let message = provider_removal_blocked_message("anthropic", &providers, &stranded)
-        .expect("should be blocked");
+    let message =
+        provider_removal_blocked_message("anthropic", &providers, &HashMap::new(), &stranded)
+            .expect("should be blocked");
 
     assert!(message.contains("Anthropic"));
     assert!(message.contains("Asyar Assistant"));
 }
 
 #[test]
+fn provider_removal_blocked_message_uses_custom_connection_name_when_available() {
+    let providers = vec![AgentProviderDescriptor {
+        id: "custom".into(),
+        name: "Custom (OpenAI-compatible)".into(),
+        requires_api_key: false,
+        requires_base_url: true,
+    }];
+    let mut custom_cfg = config(true, None, Some("http://localhost:11434"));
+    custom_cfg.name = Some("Local Ollama".into());
+    custom_cfg.provider_type = Some("custom".into());
+
+    let configs = HashMap::from([("custom_123".into(), custom_cfg)]);
+    let stranded = vec![agent("agent-1", "custom_123", "llama3.2")];
+
+    let message = provider_removal_blocked_message("custom_123", &providers, &configs, &stranded)
+        .expect("should be blocked");
+
+    assert!(message.contains("Local Ollama"));
+    assert!(message.contains("Asyar Assistant"));
+}
+
+#[test]
+fn editor_catalog_lists_multiple_named_provider_instances() {
+    let registry = ToolRegistry::new();
+    let providers = vec![
+        provider("custom", false, true),
+        provider("openai", true, false),
+    ];
+    let mut ollama_cfg = config(true, None, Some("http://localhost:11434"));
+    ollama_cfg.name = Some("Local Ollama".into());
+    ollama_cfg.provider_type = Some("custom".into());
+
+    let mut deepseek_cfg = config(true, Some("sk-ds"), Some("https://api.deepseek.com"));
+    deepseek_cfg.name = Some("DeepSeek".into());
+    deepseek_cfg.provider_type = Some("custom".into());
+
+    let mut work_openai_cfg = config(true, Some("sk-work"), None);
+    work_openai_cfg.name = Some("Work OpenAI".into());
+    work_openai_cfg.provider_type = Some("openai".into());
+
+    let configs = HashMap::from([
+        ("custom_ollama".into(), ollama_cfg),
+        ("custom_deepseek".into(), deepseek_cfg),
+        ("openai_work".into(), work_openai_cfg),
+    ]);
+
+    let catalog = agents_editor_catalog_impl(&registry, &providers, &configs).unwrap();
+
+    let options = catalog.providers;
+    assert_eq!(options.len(), 3);
+    assert_eq!(options[0].name, "DeepSeek");
+    assert_eq!(options[0].id, "custom_deepseek");
+    assert_eq!(options[1].name, "Local Ollama");
+    assert_eq!(options[1].id, "custom_ollama");
+    assert_eq!(options[2].name, "Work OpenAI");
+    assert_eq!(options[2].id, "openai_work");
+}
+
+#[test]
 fn provider_removal_blocked_message_falls_back_to_the_raw_id_when_the_provider_is_unknown() {
     let stranded = vec![agent("agent-1", "openrouter", "openrouter/free")];
 
-    let message =
-        provider_removal_blocked_message("openrouter", &[], &stranded).expect("should be blocked");
+    let message = provider_removal_blocked_message("openrouter", &[], &HashMap::new(), &stranded)
+        .expect("should be blocked");
 
     assert!(message.contains("openrouter"));
 }

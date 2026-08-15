@@ -196,12 +196,16 @@ async fn test_silent_runner_rejects_non_silent_agent() {
     };
     let provider = crate::ai::types::ProviderConfig {
         enabled: true,
+        name: None,
+        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some("http://127.0.0.1:9".to_string()),
         last_model_id: None,
         open_ai_api_mode: None,
         hosted_web_search: None,
         reasoning_effort: None,
+        temperature: None,
+        max_tokens: None,
     };
 
     let error = run_silent_agent_loop_impl(
@@ -262,12 +266,16 @@ async fn run_shortcode_miss_with_mocked_reply(reply_chunks: &[&str]) -> String {
 
     let provider = crate::ai::types::ProviderConfig {
         enabled: true,
+        name: None,
+        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{port}")),
         last_model_id: None,
         open_ai_api_mode: None,
         hosted_web_search: None,
         reasoning_effort: None,
+        temperature: None,
+        max_tokens: None,
     };
 
     run_silent_agent_loop_impl(
@@ -340,12 +348,16 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
     .unwrap();
     let provider = crate::ai::types::ProviderConfig {
         enabled: true,
+        name: None,
+        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some("http://127.0.0.1:9".to_string()),
         last_model_id: None,
         open_ai_api_mode: None,
         hosted_web_search: None,
         reasoning_effort: None,
+        temperature: None,
+        max_tokens: None,
     };
 
     let error = run_thread_loop_impl(
@@ -437,12 +449,16 @@ async fn test_run_thread_loop_text_only() {
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
+        name: None,
+        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         last_model_id: None,
         open_ai_api_mode: None,
         hosted_web_search: None,
         reasoning_effort: None,
+        temperature: None,
+        max_tokens: None,
     };
 
     let tokens_clone = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -587,12 +603,16 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
+        name: None,
+        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         last_model_id: None,
         open_ai_api_mode: None,
         hosted_web_search: None,
         reasoning_effort: None,
+        temperature: None,
+        max_tokens: None,
     };
 
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -723,12 +743,16 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
+        name: None,
+        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         last_model_id: None,
         open_ai_api_mode: None,
         hosted_web_search: None,
         reasoning_effort: None,
+        temperature: None,
+        max_tokens: None,
     };
 
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -843,12 +867,16 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
     let registry = Arc::new(ToolRegistry::new());
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
+        name: None,
+        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
         last_model_id: None,
         open_ai_api_mode: None,
         hosted_web_search: None,
         reasoning_effort: None,
+        temperature: None,
+        max_tokens: None,
     };
 
     let before = {
@@ -906,12 +934,16 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
 fn valid_openai_config() -> crate::ai::types::ProviderConfig {
     crate::ai::types::ProviderConfig {
         enabled: true,
+        name: None,
+        provider_type: None,
         api_key: Some("sk-test".to_string()),
         base_url: None,
         last_model_id: None,
         open_ai_api_mode: None,
         hosted_web_search: None,
         reasoning_effort: None,
+        temperature: None,
+        max_tokens: None,
     }
 }
 
