@@ -235,6 +235,9 @@ export class ExtensionIpcRouter {
     if (ns === 'shell' && (methodName === 'spawn' || methodName === 'attach') && originRole) {
       args = [...args, originRole];
     }
+    if (ns === 'network' && methodName === 'wsConnect' && originRole) {
+      args = [...args, originRole];
+    }
     return await (method as (...a: unknown[]) => unknown).apply(service, args);
   }
 }

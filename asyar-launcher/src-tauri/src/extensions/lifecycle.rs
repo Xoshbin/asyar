@@ -11,7 +11,7 @@ use std::fs;
 use std::path::Path;
 use tauri::{AppHandle, Emitter, Manager};
 
-pub(crate) fn uninstall(
+pub(crate) async fn uninstall(
     app_handle: &AppHandle,
     extension_id: &str,
     registry: &ExtensionRegistryState,
@@ -384,6 +384,15 @@ pub(crate) fn uninstall(
                 "Failed to close filesystem watchers for '{}': {}",
                 extension_id, e
             ),
+        }
+    }
+
+    // Close all active WebSockets owned by this extension.
+    if let Some(ws_manager) = app_handle.try_state::<crate::network::websocket::WebSocketManager>()
+    {
+        let n = ws_manager.close_all_for_extension(extension_id).await;
+        if n > 0 {
+            info!("Closed {} WebSocket(s) for extension '{}'", n, extension_id);
         }
     }
 
@@ -932,7 +941,7 @@ mod tests {
     }
 }
 
-pub(crate) fn set_enabled(
+pub(crate) async fn set_enabled(
     app_handle: &AppHandle,
     registry: &ExtensionRegistryState,
     extension_id: &str,
@@ -1070,6 +1079,19 @@ pub(crate) fn set_enabled(
                     "Failed to close filesystem watchers for disabled '{}': {}",
                     extension_id, e
                 ),
+            }
+        }
+
+        // Close WebSocket connections. Disabled extensions have no iframe.
+        if let Some(ws_manager) =
+            app_handle.try_state::<crate::network::websocket::WebSocketManager>()
+        {
+            let n = ws_manager.close_all_for_extension(extension_id).await;
+            if n > 0 {
+                info!(
+                    "Closed {} WebSocket(s) for disabled extension '{}'",
+                    n, extension_id
+                );
             }
         }
 

@@ -33,7 +33,7 @@ pub async fn uninstall_extension(
     extension_id: String,
 ) -> Result<(), AppError> {
     scheduler::stop_tasks_for_extension(&scheduler, &extension_id)?;
-    extensions::lifecycle::uninstall(&app_handle, &extension_id, &registry, &runtime_manager)
+    extensions::lifecycle::uninstall(&app_handle, &extension_id, &registry, &runtime_manager).await
 }
 
 #[tauri::command]
@@ -159,7 +159,7 @@ pub async fn set_extension_enabled(
     extension_id: String,
     enabled: bool,
 ) -> Result<(), AppError> {
-    extensions::lifecycle::set_enabled(&app_handle, &registry, &extension_id, enabled)?;
+    extensions::lifecycle::set_enabled(&app_handle, &registry, &extension_id, enabled).await?;
     if enabled {
         scheduler::start_tasks_for_extension(&app_handle, &registry, &scheduler, &extension_id)?;
     } else {

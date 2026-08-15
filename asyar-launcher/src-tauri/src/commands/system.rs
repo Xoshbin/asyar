@@ -8,6 +8,16 @@ use log::info;
 use std::collections::HashMap;
 use tauri::AppHandle;
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebSocketConnectRequest {
+    socket_id: String,
+    url: String,
+    headers: Option<HashMap<String, String>>,
+    caller_extension_id: Option<String>,
+    origin_role: Option<String>,
+}
+
 /// Enables or disables launching Asyar at login (autostart).
 #[tauri::command]
 pub async fn initialize_autostart_from_settings(
@@ -97,4 +107,62 @@ pub async fn fetch_url(
         timeout_ms,
     })
     .await
+}
+
+#[tauri::command]
+pub async fn ws_connect(
+    request: WebSocketConnectRequest,
+    registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
+    ws_manager: tauri::State<'_, crate::network::websocket::WebSocketManager>,
+    app: tauri::AppHandle,
+) -> Result<(), AppError> {
+    registry.check(&request.caller_extension_id, "network")?;
+    let ext_id = request
+        .caller_extension_id
+        .unwrap_or_else(|| "system".to_string());
+    let origin_role = request
+        .origin_role
+        .filter(|role| matches!(role.as_str(), "view" | "worker"))
+        .ok_or_else(|| {
+            AppError::Other(
+                "WebSocket connections must originate from a view or worker iframe".to_string(),
+            )
+        })?;
+    ws_manager
+        .connect(
+            request.socket_id,
+            request.url,
+            request.headers,
+            ext_id,
+            origin_role,
+            app,
+        )
+        .await
+}
+
+#[tauri::command]
+pub async fn ws_send(
+    socket_id: String,
+    message: String,
+    caller_extension_id: Option<String>,
+    registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
+    ws_manager: tauri::State<'_, crate::network::websocket::WebSocketManager>,
+) -> Result<(), AppError> {
+    registry.check(&caller_extension_id, "network")?;
+    let ext_id = caller_extension_id.unwrap_or_else(|| "system".to_string());
+    ws_manager.send(&socket_id, message, &ext_id)
+}
+
+#[tauri::command]
+pub async fn ws_close(
+    socket_id: String,
+    code: Option<u16>,
+    reason: Option<String>,
+    caller_extension_id: Option<String>,
+    registry: tauri::State<'_, crate::permissions::ExtensionPermissionRegistry>,
+    ws_manager: tauri::State<'_, crate::network::websocket::WebSocketManager>,
+) -> Result<(), AppError> {
+    registry.check(&caller_extension_id, "network")?;
+    let ext_id = caller_extension_id.unwrap_or_else(|| "system".to_string());
+    ws_manager.close(&socket_id, code, reason, &ext_id).await
 }

@@ -158,6 +158,9 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:invoke" => Some("shell:spawn"),
         // Network
         "asyar:api:network:fetch" => Some("network"),
+        "asyar:api:network:wsConnect" => Some("network"),
+        "asyar:api:network:wsSend" => Some("network"),
+        "asyar:api:network:wsClose" => Some("network"),
         // Opener
         "asyar:api:opener:open" => Some("shell:open-url"),
         "asyar:api:fs:showInFileManager" => Some("fs:read"),

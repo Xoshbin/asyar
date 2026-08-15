@@ -40,6 +40,7 @@ import { appEventsBridge } from './appEvents/appEventsBridge.svelte';
 import { indexEventsBridge } from './applicationIndex/indexEventsBridge.svelte';
 import { browserEventsBridge } from './browser/browserEventsBridge.svelte';
 import { fsWatcherBridge } from './fsWatcher/fsWatcherBridge.svelte';
+import { networkWsPushBridge } from './network/networkWsPushBridge.svelte';
 import { stateChangedBridge } from './extensionState/stateChangedBridge.svelte';
 import { rpcReplyBridge } from './extensionState/rpcReplyBridge.svelte';
 import { initScanPathsSync } from './application/scanPathsSync.svelte';
@@ -195,6 +196,9 @@ export const appInitializer = {
       });
       fsWatcherBridge.init().catch((err: any) => {
         logService.warn(`fsWatcherBridge init failed: ${err}`);
+      });
+      networkWsPushBridge.init().catch((err: any) => {
+        logService.warn(`networkWsPushBridge init failed: ${err}`);
       });
       trayClickBridge.init().catch((err: any) => {
         logService.warn(`trayClickBridge init failed: ${err}`);

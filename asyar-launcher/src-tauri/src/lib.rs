@@ -308,6 +308,7 @@ pub fn run() {
         .manage(extensions::ExtensionRegistryState::new())
         .manage(extensions::dynamic_commands::DynamicCommandRegistry::new())
         .manage(permissions::ExtensionPermissionRegistry::new())
+        .manage(network::websocket::WebSocketManager::new())
         .manage(auth::state::AuthState::default())
         .manage(auth::api_client::ApiClient::new())
         .manage(oauth::OAuthPendingFlowState::new())
@@ -504,6 +505,9 @@ pub fn run() {
             commands::update_extension,
             commands::update_all_extensions,
             commands::fetch_url,
+            commands::ws_connect,
+            commands::ws_send,
+            commands::ws_close,
             crate::notifications::commands::send_notification,
             crate::notifications::commands::dismiss_notification,
             commands::register_item_shortcut,
