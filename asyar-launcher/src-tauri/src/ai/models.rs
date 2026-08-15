@@ -1,10 +1,13 @@
 use crate::ai::types::{ModelInfo, ProviderConfig};
 use crate::error::AppError;
-use serde_json::Value;
+use futures_util::future::join_all;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 
 const ALL_REASONING_EFFORTS: &[&str] =
     &["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+
+const OLLAMA_REASONING_EFFORTS: &[&str] = &["low", "medium", "high"];
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct ProviderModelRequest {
@@ -344,6 +347,79 @@ pub(super) fn parse_provider_models(
     Ok(models)
 }
 
+/// Ollama's `/api/tags` (model list) response carries no capability data, so
+/// a model's support for "thinking" can only be known by asking `/api/show`
+/// about that specific model. Without this, the Reasoning selector in
+/// Settings would be offered for every Ollama model — including ones like
+/// qwen2.5 that reject the `think` field outright.
+pub(super) fn parse_ollama_show_capabilities(payload: &Value) -> Vec<String> {
+    payload
+        .get("capabilities")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|value| value.as_str().map(str::to_owned))
+        .collect()
+}
+
+pub(super) fn ollama_reasoning_efforts_from_capabilities(
+    capabilities: &[String],
+) -> Option<Vec<String>> {
+    // Always `Some` — an empty list is the frontend's signal for "confirmed
+    // unsupported", distinct from `None` ("unknown, use the connection-wide
+    // default"). Every other provider branch follows the same convention.
+    let supports_thinking = capabilities
+        .iter()
+        .any(|capability| capability == "thinking");
+    Some(if supports_thinking {
+        OLLAMA_REASONING_EFFORTS
+            .iter()
+            .map(|effort| (*effort).to_owned())
+            .collect()
+    } else {
+        Vec::new()
+    })
+}
+
+async fn fetch_ollama_capabilities(
+    client: &reqwest::Client,
+    base_url: &str,
+    model_id: &str,
+) -> Vec<String> {
+    let url = format!("{}/api/show", base_url.trim_end_matches('/'));
+    let Ok(response) = client
+        .post(url)
+        .json(&json!({ "model": model_id }))
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+    else {
+        return Vec::new();
+    };
+    if !response.status().is_success() {
+        return Vec::new();
+    }
+    let Ok(payload) = response.json::<Value>().await else {
+        return Vec::new();
+    };
+    parse_ollama_show_capabilities(&payload)
+}
+
+async fn enrich_ollama_reasoning_efforts(
+    client: &reqwest::Client,
+    base_url: &str,
+    models: Vec<ModelInfo>,
+) -> Vec<ModelInfo> {
+    join_all(models.into_iter().map(|model| async move {
+        let capabilities = fetch_ollama_capabilities(client, base_url, &model.id).await;
+        ModelInfo {
+            reasoning_efforts: ollama_reasoning_efforts_from_capabilities(&capabilities),
+            ..model
+        }
+    }))
+    .await
+}
+
 pub async fn list_models_impl(
     provider_id: &str,
     config: &ProviderConfig,
@@ -367,7 +443,15 @@ pub async fn list_models_impl(
             body
         }));
     }
-    parse_provider_models(engine_type, response.json().await?)
+    let models = parse_provider_models(engine_type, response.json().await?)?;
+    if engine_type == "ollama" {
+        let base_url = config
+            .base_url
+            .as_deref()
+            .unwrap_or("http://localhost:11434");
+        return Ok(enrich_ollama_reasoning_efforts(&client, base_url, models).await);
+    }
+    Ok(models)
 }
 
 #[tauri::command]
