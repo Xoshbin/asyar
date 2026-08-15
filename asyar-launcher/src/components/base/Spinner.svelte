@@ -49,20 +49,20 @@
   }
 
   .spinner--inline {
-    width: var(--space-2-5);
-    height: var(--space-2-5);
+    width: var(--size-xs);
+    height: var(--size-xs);
     border-width: 1.5px;
   }
 
   .spinner--sm {
-    width: var(--space-6);
-    height: var(--space-6);
+    width: var(--size-sm);
+    height: var(--size-sm);
     border-width: 2px;
   }
 
   .spinner--md {
-    width: var(--space-8);
-    height: var(--space-8);
+    width: var(--size-lg);
+    height: var(--size-lg);
     border-width: 2px;
   }
 

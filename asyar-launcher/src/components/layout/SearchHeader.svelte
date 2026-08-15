@@ -432,6 +432,16 @@
     height: 100%;
     position: relative;
   }
+  /* THE COMMAND LINE.
+     The query is the only thing in the launcher the user authored, so it is
+     the largest and highest-contrast text in the product — one step up the
+     scale from every other string on screen, and the only place tracking is
+     pulled tight.
+
+     Weight drops from 600 to 500: at 20px, Satoshi at 600 reads as a heading
+     rather than as an editable field, and the launcher is not a document.
+     The caret is the accent rather than a muted grey — it is the only part of
+     the UI that moves on its own, so it is the one thing lit while typing. */
   :global(.search-input-clean) {
     flex: 1;
     min-width: 0;
@@ -439,18 +449,16 @@
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    caret-color: color-mix(
-      in srgb,
-      var(--text-primary) 60%,
-      var(--bg-secondary-full-opacity) 40%
-    ) !important;
-    font-size: var(--font-size-xl);
-    font-weight: 600;
+    caret-color: var(--accent-primary) !important;
+    font-size: var(--font-size-2xl);
+    font-weight: 500;
+    letter-spacing: var(--tracking-tight);
     padding: 0;
   }
   :global(.search-input-clean::placeholder) {
-    color: color-mix(in srgb, var(--text-primary) 50%, var(--bg-secondary-full-opacity) 50%);
+    color: var(--text-tertiary);
     font-weight: 500;
+    letter-spacing: var(--tracking-tight);
   }
   .back-button-new {
     display: inline-flex;
@@ -472,7 +480,9 @@
     color: var(--text-primary);
   }
   /* Mirrors .search-input-clean typography so offsetWidth matches the
-     rendered query the chips trail. */
+     rendered query the chips trail. These four declarations must stay in
+     lockstep with the command line above — a mismatch does not look wrong,
+     it puts the chips at the wrong x. */
   .arg-measure {
     position: absolute;
     left: 0;
@@ -480,11 +490,14 @@
     visibility: hidden;
     pointer-events: none;
     white-space: pre;
-    font-size: var(--font-size-xl);
-    font-weight: 600;
+    font-size: var(--font-size-2xl);
+    font-weight: 500;
+    letter-spacing: var(--tracking-tight);
   }
-  /* The placeholder renders a weight lighter than typed text, so measuring it
-     at 600 would overshoot and push the chips too far right. */
+  /* Typed text and the placeholder now render at the same weight and
+     tracking, so the measurement no longer needs to compensate. The class is
+     still applied by the markup and kept here as the hook to re-diverge
+     through if the placeholder is ever restyled. */
   .arg-measure--placeholder {
     font-weight: 500;
   }
@@ -589,23 +602,22 @@
     color: var(--text-on-accent);
     background: color-mix(in srgb, var(--text-on-accent) 15%, transparent);
   }
+  /* The context query is the command line wearing a chip — same type, so
+     entering a context does not resize the text the user is looking at. */
   :global(.context-query-input) {
     flex: 1;
     border: none;
     outline: none;
     background: transparent;
     color: var(--text-primary);
-    caret-color: color-mix(
-      in srgb,
-      var(--text-primary) 60%,
-      var(--bg-secondary-full-opacity) 40%
-    ) !important;
-    font-size: var(--font-size-xl);
-    font-weight: 600;
+    caret-color: var(--accent-primary) !important;
+    font-size: var(--font-size-2xl);
+    font-weight: 500;
+    letter-spacing: var(--tracking-tight);
     padding: 0;
     min-width: 0;
   }
   :global(.context-query-input::placeholder) {
-    color: color-mix(in srgb, var(--text-primary) 35%, var(--bg-secondary-full-opacity) 65%);
+    color: var(--text-tertiary);
   }
 </style>

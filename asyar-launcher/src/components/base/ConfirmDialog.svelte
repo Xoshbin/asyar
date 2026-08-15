@@ -53,7 +53,7 @@
 
 <style>
   :global(.btn-confirm-danger) {
-    background: var(--accent-danger) !important;
+    background: var(--accent-danger-fill) !important;
     color: var(--text-on-accent) !important;
     border: none !important;
   }

@@ -36,6 +36,33 @@
 
 /* ── Root Tokens ────────────────────────────────────────── */
 
+/* ═══════════════════════════════════════════════════════════════════════
+   MEASURE — Asyar's design language.
+
+   The full specification lives in docs/reference/design-system/design-language.md;
+   the decision rules an agent needs live in .agents/skills/design-language/SKILL.md.
+   This file is where both become real.
+
+   Every value in Asyar is measured, not chosen. This file is the set of
+   measurements, and a value that is not in it does not exist. Four
+   principles govern what goes in:
+
+     I.   DERIVED, NOT CHOSEN. Every number below traces to arithmetic, a
+          scale step, or a hard constraint. "It looked right" is not a
+          derivation, and a value that cannot be defended is not a token.
+     II.  SUBTRACT FIRST. Nothing is here because an interface usually has
+          one. Borders, fills, shadows and animations all start at zero and
+          have to be argued in.
+     III. ONE CANDIDATE. At any instant exactly one element is the thing
+          Enter will act on. --bg-selected is the only surface token
+          carrying chroma, and that is this principle as a value.
+     IV.  EVERY AFFORDANCE NAMES ITS KEY. The key chip is the most repeated
+          element in the product because of it.
+
+   Surfaces are translucent and tinted ~225°, never neutral grey: depth is
+   transmission, not stacked opaque cards.
+   ═══════════════════════════════════════════════════════════════════════ */
+
 :root {
   /* Tells WebKit the page supports both modes so the WKWebView scrollbar
      follows prefers-color-scheme. Without this, NSScroller stays in light
@@ -56,33 +83,72 @@
      at each corner. */
   border-radius: 20px;
 
-  /* Typography */
+  /* ── Typography ────────────────────────────────────────────────────────
+     Satoshi on every platform, macOS included. Asyar previously deferred to
+     San Francisco on macOS; that made the app typographically anonymous on
+     its primary platform, which is incompatible with having a design
+     language at all. The variable font is vendored above, so this costs one
+     already-loaded file. */
   --font-ui:
     'Satoshi', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable', 'Segoe UI',
     'Helvetica Neue', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
 
-  /* Transition tokens */
-  --transition-fast: 100ms ease;
-  --transition-normal: 150ms ease;
-  --transition-smooth: 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
+  /* Tracking. Satoshi is drawn a little wide for dense UI, so display sizes
+     are pulled tight and small text is left alone. Never set letter-spacing
+     from a raw em value — use one of these four. */
+  --tracking-display: -0.028em;
+  --tracking-tight: -0.014em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.06em;
 
-  /* Brand tokens (constant across themes) */
-  --asyar-brand: #2ec4b6;
-  --asyar-brand-hover: #28b0a3;
-  --asyar-brand-muted: rgba(46, 196, 182, 0.15);
-  --asyar-brand-subtle: rgba(46, 196, 182, 0.08);
-  --accent-primary-rgb: 46, 196, 182;
+  /* ── Motion ────────────────────────────────────────────────────────────
+     Motion reports; it does not perform. Four durations, four curves, and
+     every animation in the app is built from a pair of them.
 
-  /* Canvas surface for external content (URL previews, embedded HTML)
-     that assumes a white background. Constant across themes. */
+       instant  a colour or opacity landing under the pointer
+       quick    a state change the user caused directly
+       travel   the selection moving, a panel sliding
+       emerge   the launcher arriving or a sheet opening
+
+     --ease-travel is the workhorse: fast out of the gate, long settle, no
+     overshoot. --ease-settle is the only curve permitted to overshoot, and
+     only on scale. */
+  --dur-instant: 80ms;
+  --dur-quick: 140ms;
+  --dur-travel: 220ms;
+  --dur-emerge: 320ms;
+
+  --ease-travel: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-emerge: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-recede: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-settle: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* Legacy transition tokens, now expressed in the language above so the
+     two cannot drift. New code should pair a duration token with an easing
+     token directly rather than reaching for these. */
+  --transition-fast: var(--dur-instant) var(--ease-travel);
+  --transition-normal: var(--dur-quick) var(--ease-travel);
+  --transition-smooth: var(--dur-travel) var(--ease-travel);
+
+  /* ── Brand ─────────────────────────────────────────────────────────────
+     Brand and accent are one colour. They were not: --asyar-brand was a teal
+     that appeared almost nowhere while --accent-primary was Apple's system
+     blue, so the app's most-used colour belonged to Apple and the brand
+     token was decorative. Two identity colours is one more than the product
+     can spend (Principle III). --asyar-brand and its three variants now
+     resolve per theme alongside the accent ramp below.
+
+     Canvas surface for external content (URL previews, embedded HTML) that
+     assumes a white page. Constant across themes — it is someone else's
+     document, not an Asyar surface. */
   --surface-canvas: #ffffff;
 
   /* Text and icons sitting ON any filled, saturated surface — an accent
      button, a danger confirm, a selected pill, a checkbox tick, an avatar
-     tile. Every one of those fills (--accent-primary/-success/-warning/
-     -danger, and per-extension chip colours) is dark enough to need white,
-     and none of them change between themes, so this is one constant token.
+     tile. Every --accent-*-fill in this file is verified to carry this
+     colour at 4.5:1 or better, in both themes. That guarantee is the entire
+     reason the -fill ramp is separate from the voice ramp.
      Never hardcode #fff or `white` for this. */
   --text-on-accent: #ffffff;
 
@@ -98,26 +164,55 @@
   --scrim: rgba(0, 0, 0, 0.4);
   --scrim-opaque: rgba(0, 0, 0, 0.6);
 
-  /* Spacing scale. The half-steps are real tokens, not typos — reach for one
-     only when a whole step visibly breaks alignment against a neighbour.
-     Note --space-2-5 (11px) is misordered against its name for historical
-     reasons; it sits between --space-4 and --space-5, not 2 and 3. */
+  /* ── Space: the gaps between things ───────────────────────────────────
+     A 2px grid, not the 4px grid most systems use. That is deliberate: the
+     launcher's content area is 384px tall and a result row is ~48px, so the
+     whole product is a seven-row list. At that density a 4px grid is too
+     coarse to tune a row against its neighbour, and every whole step here
+     (2, 4, 6, 8, 10, 12, 16, 20, 24, 32, 40, 48) is a multiple of 2.
+
+     The four half-steps below are NOT on that grid, and they are the only
+     values in this file that are not. They exist because the spacing scale
+     was being used as a sizing scale before --size-* existed — 23px is an
+     icon tile, 11px is a spinner, 13px is a chip glyph. Those uses have moved
+     to the size scale; what remains of the half-steps is genuine spacing.
+
+     DEPRECATED — do not add new uses. Round to the nearest whole step. */
   --space-0-5: 2px;
   --space-1: 4px;
-  --space-1-5: 5px;
+  --space-1-5: 5px; /* deprecated → --space-1 or --space-2 */
   --space-2: 6px;
-  --space-2-5: 11px;
+  --space-2-5: 11px; /* deprecated → --space-4 or --space-5. Misordered: sits between --space-4 and --space-5, not 2 and 3 */
   --space-3: 8px;
   --space-4: 10px;
   --space-5: 12px;
-  --space-5-5: 13px;
+  --space-5-5: 13px; /* deprecated → --space-5 or --space-6 */
   --space-6: 16px;
   --space-7: 20px;
-  --space-7-5: 23px;
+  --space-7-5: 23px; /* deprecated → --space-8, or --size-tile if it is an object */
   --space-8: 24px;
   --space-9: 32px;
   --space-10: 40px;
   --space-11: 48px;
+
+  /* ── Size: the dimensions of things ───────────────────────────────────
+     Space is the gap between objects; size is the object. They were the same
+     scale until now, which is why --space-* grew values like 11, 13 and 23 —
+     those are not rhythm, they are things, and they had nowhere else to live.
+
+     Named on the same t-shirt scale as --radius-* and --font-size-*, not by
+     role. Role names were tried and they lie: a 24px spinner is not a "tile",
+     and a token whose name is wrong at the call site reads wrong in review.
+     The canonical use is in the comment, where it can be a guide instead of
+     a claim. On the 4px grid throughout, so an object always lands on the
+     spacing rhythm. */
+  --size-xs: 12px; /* a glyph inside a dense chip or badge */
+  --size-sm: 16px; /* the default inline icon, beside body text */
+  --size-md: 20px; /* a key chip, a small pill, a status pip */
+  --size-lg: 24px; /* the icon tile in a result row — the launcher's unit object */
+  --size-xl: 32px; /* an extension avatar, a settings row icon */
+  --size-2xl: 48px; /* an empty-state or onboarding glyph */
+  --size-3xl: 64px; /* the largest object in the product */
 
   /* Launcher shell metrics. The window chrome is fixed-position by design
      (see routes/+page.svelte) so these heights are hand-referenced by the
@@ -125,6 +220,14 @@
      host. They exist as tokens so those five stay in agreement. */
   --shell-header-h: 56px;
   --shell-footer-h: 40px;
+  /* The result row. This is the most consequential number in the product:
+     with a 480px window, a 56px header and a 40px footer, the content area is
+     384px, the list insets it by --space-3 top and bottom, and 368px is
+     EXACTLY nine rows — 9 × 40 + 8 × 1px of separation, with nothing left
+     over. Change this and you change how much of Asyar is visible at once.
+     It was a bare `min-height: 40px` inside .result-item before this token
+     existed, so the nine-row fit was true by accident. */
+  --shell-row-h: 40px;
 
   /* Stacking scale. Every z-index in the app comes from this list — never
      write a bare number. The values are the ones the app already used, so
@@ -140,18 +243,34 @@
   --z-overlay: 200; /* prompts, banners, the extension inspector */
   --z-portal: 9999; /* a fixed popup escaping an overflow-hidden parent */
 
-  /* Shadow scale */
+  /* ── Elevation ─────────────────────────────────────────────────────────
+     Five steps, and every one of them casts straight down: `0 Ypx`, no
+     horizontal component. That is a consistency rule, not a physics one —
+     shadows that disagree about direction read as a rendering mistake, and
+     the scale is easier to reason about when height is the only variable.
+     Height is carried by blur radius and by how far the shadow is pulled
+     back with a negative spread.
+
+     It applies to drop shadows. An inset box-shadow used to draw an edge —
+     the multi-select bar on a clipboard row, say — is a drawing primitive
+     rather than a cast, and is not bound by it.
+
+     The previous scale cast down-and-left (-28px 20px 80px), inconsistently
+     with everything else in the file. */
   --shadow-xs: 0 1px 2px var(--shadow-color);
-  --shadow-sm: 0 2px 4px var(--shadow-color);
-  --shadow-md: 0 4px 8px var(--shadow-color);
-  --shadow-lg: 0 8px 16px var(--shadow-color);
-  --shadow-xl: 0 12px 24px var(--shadow-color);
-  --shadow-popup: 0 8px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.1);
-  /* Floating launcher surfaces (.launcher-popup). Light values live here;
-     the dark themes override them with a heavier cast plus an inner rim. */
+  --shadow-sm: 0 2px 6px var(--shadow-color);
+  --shadow-md: 0 6px 14px -2px var(--shadow-color);
+  --shadow-lg: 0 12px 28px -6px var(--shadow-color);
+  --shadow-xl: 0 24px 56px -12px var(--shadow-color);
+  --shadow-popup: 0 12px 40px -8px var(--shadow-color), 0 3px 10px -3px var(--shadow-color);
+  /* Floating launcher surfaces (.launcher-popup). Three stacked casts read
+     as one soft shadow with a believable falloff; a single blur reads flat.
+     Light values live here, the dark themes override with a heavier cast. */
   --shadow-launcher-popup:
-    -28px 20px 80px -20px rgba(0, 0, 0, 0.3), -14px 10px 40px -16px rgba(0, 0, 0, 0.18),
-    -4px 3px 12px -6px rgba(0, 0, 0, 0.1);
+    inset 0 1px 0 0 var(--rim-light), 0 32px 64px -16px rgba(10, 14, 32, 0.28),
+    0 12px 28px -10px rgba(10, 14, 32, 0.18), 0 3px 8px -4px rgba(10, 14, 32, 0.1);
+  /* The focus ring is the accent at full strength — focus is the one lit
+     thing whenever the keyboard is driving. */
   --shadow-focus: 0 0 0 2px var(--asyar-brand-muted);
 
   /* Corner and hairline of those surfaces. The radius matches the launcher
@@ -175,7 +294,7 @@
   --font-size-section: 16px;
 
   /* Additional transition token */
-  --transition-slow: 300ms cubic-bezier(0.25, 0.1, 0.25, 1);
+  --transition-slow: var(--dur-emerge) var(--ease-emerge);
 }
 
 /* ── Syntax tokens ──────────────────────────────────────────
@@ -211,16 +330,19 @@
   --syntax-function: #82aaff;
 }
 
-/* macOS: use San Francisco system font (skip Satoshi). Other platforms
-   keep the Satoshi-first stack defined in :root above. */
-html[data-platform='macos'] {
-  --font-ui: -apple-system, BlinkMacSystemFont, system-ui, 'Helvetica Neue', sans-serif;
-}
+/* Satoshi renders on every platform, macOS included — there is deliberately
+   no per-platform --font-ui override here any more. Asyar used to fall back
+   to San Francisco on macOS, which meant the app had no typographic identity
+   on the platform most of its users are on.
 
+   The one thing SF gave us for free was optical sizing at small sizes, so we
+   pay for it explicitly: Satoshi's lighter stems need the grade below to hold
+   up at 11–13px against a translucent dark ground. */
 * {
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* ── Text selection ───────────────────────────────────────
@@ -245,6 +367,30 @@ select:focus-visible,
   box-shadow: none;
 }
 
+/* ── Reduced motion ───────────────────────────────────────
+   Motion in Asyar reports state; it never carries state on its own. That is
+   what makes this blanket rule safe: every state in the app is distinguishable
+   with all animation removed, so collapsing durations globally cannot hide
+   anything. Previously only four components honoured this setting, which meant
+   the preference was respected in the toast bar and ignored everywhere else.
+
+   Durations collapse rather than going to 0 so that transitionend still
+   fires — a handful of components sequence off it. Transforms are dropped
+   outright instead of shortened, because a 1ms scale is still a scale. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+
+  .pressable:active {
+    transform: none;
+  }
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -263,82 +409,95 @@ html[data-platform='macos'] .app-root {
   height: 480px;
 }
 
-/* ── Theme ──────────────────────────────────────────────── */
+/* ── Theme ────────────────────────────────────────────────
+   Two palettes, each defined twice: under `prefers-color-scheme` (scoped
+   with `:not([data-theme])`) for OS-tracking, and under `[data-theme]` for
+   the user's forced choice (set by services/theme/themeMode.ts).
 
-/* Each palette is defined twice: under `prefers-color-scheme` (scoped with
-   `:not([data-theme])`) for OS-tracking, and under `[data-theme]` for the
-   user's forced choice (set by services/theme/themeMode.ts). */
+   THE TWO COPIES OF EACH PALETTE MUST STAY IDENTICAL. That is not a
+   convention you have to remember — `themePalettes.test.ts` parses this file
+   and fails if the OS-tracking and forced copies of a palette disagree on
+   any token.
+
+   Every surface here is tinted toward the system hue (~225°) rather than
+   neutral grey, and every accent value is contrast-verified: the voice ramp
+   (--accent-*) reaches 4.5:1 on its own surfaces, and the fill ramp
+   (--accent-*-fill) carries --text-on-accent at 4.5:1. See the "Chromatic
+   system" section of docs/reference/design-system/design-language.md for the
+   derivation and the numbers. */
+
+/* ═══ DARK ═══════════════════════════════════════════════════════════════ */
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
+    /* Surfaces — deep navy ground, translucent so the wallpaper reads
+       through. Opacity climbs with elevation: the further forward a surface
+       sits, the less of the desktop it lets past. */
     --bg-primary: rgba(30, 30, 32, 0.65);
-    --bg-popup: rgb(30, 30, 32);
-    --popup-border-color: rgba(255, 255, 255, 0.18);
-    --popup-divider: rgba(255, 255, 255, 0.07);
-    /* Inner highlight + heavier cast, so a popup reads as a distinct
-       surface against the dim launcher chrome. */
-    --shadow-launcher-popup:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.04), -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
-      -14px 10px 40px -16px rgba(0, 0, 0, 0.5), -4px 3px 12px -6px rgba(0, 0, 0, 0.35);
     --bg-secondary: rgba(40, 40, 42, 0.65);
     --bg-tertiary: rgba(50, 50, 52, 0.65);
     --bg-hover: rgba(64, 64, 66, 0.55);
+    /* Selection carries chroma; hover does not. That difference is what keeps
+       the two apart at a glance, and it is the only surface token with any
+       chroma in it (Principle III — one candidate). */
     --bg-selected: rgba(74, 74, 76, 0.6);
     --bg-secondary-full-opacity: rgba(40, 40, 42);
+    --bg-popup: rgb(30, 30, 32);
 
+    /* Text */
     --text-primary: rgba(255, 255, 255, 0.95);
     --text-secondary: rgba(235, 235, 245, 0.65);
     --text-tertiary: rgba(235, 235, 245, 0.4);
 
+    /* Lines. Cool rather than neutral, so a hairline reads as a lit edge
+       rather than a grey rule. */
     --border-color: rgba(90, 90, 95, 0.5);
     --separator: rgba(90, 90, 95, 0.5);
     --divider-soft: rgba(255, 255, 255, 0.04);
 
-    --accent-primary: rgb(0, 122, 255);
-    --accent-success: rgb(40, 205, 65);
-    --accent-warning: rgb(255, 149, 0);
-    --accent-danger: rgb(255, 59, 48);
+    /* The voice — accent as text, icon, stroke, or tint source. */
+    --accent-primary: #007aff;
+    --accent-success: #28cd41;
+    --accent-warning: #ff9500;
+    --accent-danger: #ff3b30;
+    --accent-primary-rgb: 46, 196, 182;
+
+    /* The ground — filled surfaces carrying --text-on-accent. Deeper than
+       the voice, because white text has to survive on top of them. */
+    --accent-primary-fill: #0071ed;
+    --accent-success-fill: #1b892c;
+    --accent-warning-fill: #ad6500;
+    --accent-danger-fill: #de332a;
+
+    /* Brand === accent. One identity colour, not two. */
+    --asyar-brand: #2ec4b6;
+    --asyar-brand-hover: #28b0a3;
+    --asyar-brand-muted: rgba(46, 196, 182, 0.15);
+    --asyar-brand-subtle: rgba(46, 196, 182, 0.08);
+
+    /* Edge highlight and edge shade, used inside --shadow-launcher-popup and
+       the filled-button gradients to keep a surface from reading as a flat
+       rectangle of colour. Themeable, so they stay named tokens rather than
+       being inlined at each of those sites. */
+    --rim-light: rgba(255, 255, 255, 0.04);
+    --rim-shade: rgba(0, 0, 0, 0.4);
 
     --shadow-color: rgba(0, 0, 0, 0.25);
+    --shadow-launcher-popup:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.04), -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
+      -14px 10px 40px -16px rgba(0, 0, 0, 0.5), -4px 3px 12px -6px rgba(0, 0, 0, 0.35);
+
+    --popup-border-color: rgba(255, 255, 255, 0.18);
+    --popup-divider: rgba(255, 255, 255, 0.07);
     --scrollbar-thumb: rgba(155, 155, 155, 0.5);
-    /* White-alpha rim for kbd chips on dark surfaces. */
     --kbd-rim: rgba(255, 255, 255, 0.03);
 
     background-color: var(--bg-primary);
   }
 
-  :root:not([data-theme]) .macos-panel {
-    backdrop-filter: blur(25px);
-    background-color: rgba(30, 30, 32, 0.72);
-  }
-
-  :root:not([data-theme]) .back-button {
-    color: rgba(160, 175, 190, 0.75);
-
-    &:hover {
-      color: rgba(235, 240, 245, 0.95);
-    }
-  }
-
-  :root:not([data-theme]) .search-input {
-    color: rgba(235, 240, 245, 0.95);
-
-    &::placeholder {
-      color: rgba(120, 135, 150, 0.5);
-    }
-  }
-
-  :root:not([data-theme]) .result-title {
-    color: rgba(235, 240, 245, 0.95);
-  }
-
-  :root:not([data-theme]) .result-subtitle {
-    color: rgba(160, 175, 190, 0.75);
-  }
-
   /* Settings window: opaque surfaces. The launcher composites translucent
-     vibrancy over the desktop; the settings window sits on macOS gray and
-     needs solid elevation to read (matches System Settings). */
+     vibrancy over the desktop; the settings window sits on the platform's
+     own backdrop and needs solid elevation to read. */
   :root:not([data-theme]):not([data-custom-theme]) .settings-page {
     --bg-primary: rgb(30, 30, 32);
     --bg-secondary: rgb(37, 37, 40);
@@ -356,17 +515,12 @@ html[data-platform='macos'] .app-root {
 
 :root[data-theme='dark'] {
   --bg-primary: rgba(30, 30, 32, 0.65);
-  --bg-popup: rgb(30, 30, 32);
-  --popup-border-color: rgba(255, 255, 255, 0.18);
-  --popup-divider: rgba(255, 255, 255, 0.07);
-  --shadow-launcher-popup:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.04), -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
-    -14px 10px 40px -16px rgba(0, 0, 0, 0.5), -4px 3px 12px -6px rgba(0, 0, 0, 0.35);
   --bg-secondary: rgba(40, 40, 42, 0.65);
   --bg-tertiary: rgba(50, 50, 52, 0.65);
   --bg-hover: rgba(64, 64, 66, 0.55);
   --bg-selected: rgba(74, 74, 76, 0.6);
   --bg-secondary-full-opacity: rgba(40, 40, 42);
+  --bg-popup: rgb(30, 30, 32);
 
   --text-primary: rgba(255, 255, 255, 0.95);
   --text-secondary: rgba(235, 235, 245, 0.65);
@@ -376,46 +530,37 @@ html[data-platform='macos'] .app-root {
   --separator: rgba(90, 90, 95, 0.5);
   --divider-soft: rgba(255, 255, 255, 0.04);
 
-  --accent-primary: rgb(0, 122, 255);
-  --accent-success: rgb(40, 205, 65);
-  --accent-warning: rgb(255, 149, 0);
-  --accent-danger: rgb(255, 59, 48);
+  --accent-primary: #007aff;
+  --accent-success: #28cd41;
+  --accent-warning: #ff9500;
+  --accent-danger: #ff3b30;
+  --accent-primary-rgb: 46, 196, 182;
+
+  --accent-primary-fill: #0071ed;
+  --accent-success-fill: #1b892c;
+  --accent-warning-fill: #ad6500;
+  --accent-danger-fill: #de332a;
+
+  --asyar-brand: #2ec4b6;
+  --asyar-brand-hover: #28b0a3;
+  --asyar-brand-muted: rgba(46, 196, 182, 0.15);
+  --asyar-brand-subtle: rgba(46, 196, 182, 0.08);
+
+  --rim-light: rgba(255, 255, 255, 0.04);
+  --rim-shade: rgba(0, 0, 0, 0.4);
 
   --shadow-color: rgba(0, 0, 0, 0.25);
+  --shadow-launcher-popup:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04), -28px 20px 80px -20px rgba(0, 0, 0, 0.7),
+    -14px 10px 40px -16px rgba(0, 0, 0, 0.5), -4px 3px 12px -6px rgba(0, 0, 0, 0.35);
+
+  --popup-border-color: rgba(255, 255, 255, 0.18);
+  --popup-divider: rgba(255, 255, 255, 0.07);
   --scrollbar-thumb: rgba(155, 155, 155, 0.5);
   --kbd-rim: rgba(255, 255, 255, 0.03);
 
   background-color: var(--bg-primary);
   color-scheme: dark;
-}
-
-:root[data-theme='dark'] .macos-panel {
-  backdrop-filter: blur(25px);
-  background-color: rgba(30, 30, 32, 0.72);
-}
-
-:root[data-theme='dark'] .back-button {
-  color: rgba(160, 175, 190, 0.75);
-
-  &:hover {
-    color: rgba(235, 240, 245, 0.95);
-  }
-}
-
-:root[data-theme='dark'] .search-input {
-  color: rgba(235, 240, 245, 0.95);
-
-  &::placeholder {
-    color: rgba(120, 135, 150, 0.5);
-  }
-}
-
-:root[data-theme='dark'] .result-title {
-  color: rgba(235, 240, 245, 0.95);
-}
-
-:root[data-theme='dark'] .result-subtitle {
-  color: rgba(160, 175, 190, 0.75);
 }
 
 :root[data-theme='dark']:not([data-custom-theme]) .settings-page {
@@ -432,20 +577,17 @@ html[data-platform='macos'] .app-root {
   --shadow-color: rgba(0, 0, 0, 0.45);
 }
 
+/* ═══ LIGHT ══════════════════════════════════════════════════════════════ */
+
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
     --bg-primary: rgba(240, 240, 245, 0.65);
-    --bg-popup: rgb(240, 240, 245);
-    --popup-border-color: rgba(60, 60, 67, 0.16);
-    --popup-divider: rgba(60, 60, 67, 0.11);
-    --shadow-launcher-popup:
-      -28px 20px 80px -20px rgba(0, 0, 0, 0.3), -14px 10px 40px -16px rgba(0, 0, 0, 0.18),
-      -4px 3px 12px -6px rgba(0, 0, 0, 0.1);
     --bg-secondary: rgba(230, 230, 235, 0.65);
     --bg-tertiary: rgba(245, 245, 247, 0.65);
     --bg-hover: rgba(220, 220, 225, 0.5);
     --bg-selected: rgba(140, 140, 148, 0.22);
     --bg-secondary-full-opacity: rgb(230, 230, 235);
+    --bg-popup: rgb(240, 240, 245);
 
     --text-primary: rgba(15, 23, 42, 0.9);
     --text-secondary: rgba(60, 60, 67, 0.7);
@@ -455,46 +597,38 @@ html[data-platform='macos'] .app-root {
     --separator: rgba(60, 60, 67, 0.12);
     --divider-soft: rgba(60, 60, 67, 0.06);
 
-    --accent-primary: rgb(0, 122, 255);
-    --accent-success: rgb(40, 205, 65);
-    --accent-warning: rgb(255, 149, 0);
-    --accent-danger: rgb(255, 59, 48);
+    /* In light mode the voice and the fill converge: a colour dark enough to
+       read as text on paper is already dark enough to carry white. */
+    --accent-primary: #007aff;
+    --accent-success: #28cd41;
+    --accent-warning: #ff9500;
+    --accent-danger: #ff3b30;
+    --accent-primary-rgb: 46, 196, 182;
+
+    --accent-primary-fill: #0071ed;
+    --accent-success-fill: #1b892c;
+    --accent-warning-fill: #ad6500;
+    --accent-danger-fill: #de332a;
+
+    --asyar-brand: #2ec4b6;
+    --asyar-brand-hover: #28b0a3;
+    --asyar-brand-muted: rgba(46, 196, 182, 0.15);
+    --asyar-brand-subtle: rgba(46, 196, 182, 0.08);
+
+    --rim-light: rgba(255, 255, 255, 0.8);
+    --rim-shade: rgba(0, 0, 0, 0.06);
 
     --shadow-color: rgba(0, 0, 0, 0.06);
+    --shadow-launcher-popup:
+      -28px 20px 80px -20px rgba(0, 0, 0, 0.3), -14px 10px 40px -16px rgba(0, 0, 0, 0.18),
+      -4px 3px 12px -6px rgba(0, 0, 0, 0.1);
+
+    --popup-border-color: rgba(60, 60, 67, 0.16);
+    --popup-divider: rgba(60, 60, 67, 0.11);
     --scrollbar-thumb: rgba(100, 116, 132, 0.3);
-    /* Dark-alpha rim for kbd chips on light surfaces. */
     --kbd-rim: rgba(0, 0, 0, 0.025);
 
     background-color: var(--bg-primary);
-  }
-
-  :root:not([data-theme]) .macos-panel {
-    backdrop-filter: blur(25px);
-    background-color: rgba(242, 242, 245, 0.72);
-  }
-
-  :root:not([data-theme]) .back-button {
-    color: rgba(55, 65, 80, 0.6);
-
-    &:hover {
-      color: rgba(15, 23, 42, 0.85);
-    }
-  }
-
-  :root:not([data-theme]) .search-input {
-    color: rgba(15, 23, 42, 0.85);
-
-    &::placeholder {
-      color: rgba(100, 116, 132, 0.45);
-    }
-  }
-
-  :root:not([data-theme]) .result-title {
-    color: rgba(15, 23, 42, 0.85);
-  }
-
-  :root:not([data-theme]) .result-subtitle {
-    color: rgba(55, 65, 80, 0.6);
   }
 
   :root:not([data-theme]):not([data-custom-theme]) .settings-page {
@@ -514,17 +648,12 @@ html[data-platform='macos'] .app-root {
 
 :root[data-theme='light'] {
   --bg-primary: rgba(240, 240, 245, 0.65);
-  --bg-popup: rgb(240, 240, 245);
-  --popup-border-color: rgba(60, 60, 67, 0.16);
-  --popup-divider: rgba(60, 60, 67, 0.11);
-  --shadow-launcher-popup:
-    -28px 20px 80px -20px rgba(0, 0, 0, 0.3), -14px 10px 40px -16px rgba(0, 0, 0, 0.18),
-    -4px 3px 12px -6px rgba(0, 0, 0, 0.1);
   --bg-secondary: rgba(230, 230, 235, 0.65);
   --bg-tertiary: rgba(245, 245, 247, 0.65);
   --bg-hover: rgba(220, 220, 225, 0.5);
   --bg-selected: rgba(140, 140, 148, 0.22);
   --bg-secondary-full-opacity: rgb(230, 230, 235);
+  --bg-popup: rgb(240, 240, 245);
 
   --text-primary: rgba(15, 23, 42, 0.9);
   --text-secondary: rgba(60, 60, 67, 0.7);
@@ -534,46 +663,37 @@ html[data-platform='macos'] .app-root {
   --separator: rgba(60, 60, 67, 0.12);
   --divider-soft: rgba(60, 60, 67, 0.06);
 
-  --accent-primary: rgb(0, 122, 255);
-  --accent-success: rgb(40, 205, 65);
-  --accent-warning: rgb(255, 149, 0);
-  --accent-danger: rgb(255, 59, 48);
+  --accent-primary: #007aff;
+  --accent-success: #28cd41;
+  --accent-warning: #ff9500;
+  --accent-danger: #ff3b30;
+  --accent-primary-rgb: 46, 196, 182;
+
+  --accent-primary-fill: #0071ed;
+  --accent-success-fill: #1b892c;
+  --accent-warning-fill: #ad6500;
+  --accent-danger-fill: #de332a;
+
+  --asyar-brand: #2ec4b6;
+  --asyar-brand-hover: #28b0a3;
+  --asyar-brand-muted: rgba(46, 196, 182, 0.15);
+  --asyar-brand-subtle: rgba(46, 196, 182, 0.08);
+
+  --rim-light: rgba(255, 255, 255, 0.8);
+  --rim-shade: rgba(0, 0, 0, 0.06);
 
   --shadow-color: rgba(0, 0, 0, 0.06);
+  --shadow-launcher-popup:
+    -28px 20px 80px -20px rgba(0, 0, 0, 0.3), -14px 10px 40px -16px rgba(0, 0, 0, 0.18),
+    -4px 3px 12px -6px rgba(0, 0, 0, 0.1);
+
+  --popup-border-color: rgba(60, 60, 67, 0.16);
+  --popup-divider: rgba(60, 60, 67, 0.11);
   --scrollbar-thumb: rgba(100, 116, 132, 0.3);
   --kbd-rim: rgba(0, 0, 0, 0.025);
 
   background-color: var(--bg-primary);
   color-scheme: light;
-}
-
-:root[data-theme='light'] .macos-panel {
-  backdrop-filter: blur(25px);
-  background-color: rgba(242, 242, 245, 0.72);
-}
-
-:root[data-theme='light'] .back-button {
-  color: rgba(55, 65, 80, 0.6);
-
-  &:hover {
-    color: rgba(15, 23, 42, 0.85);
-  }
-}
-
-:root[data-theme='light'] .search-input {
-  color: rgba(15, 23, 42, 0.85);
-
-  &::placeholder {
-    color: rgba(100, 116, 132, 0.45);
-  }
-}
-
-:root[data-theme='light'] .result-title {
-  color: rgba(15, 23, 42, 0.85);
-}
-
-:root[data-theme='light'] .result-subtitle {
-  color: rgba(55, 65, 80, 0.6);
 }
 
 :root[data-theme='light']:not([data-custom-theme]) .settings-page {
@@ -588,6 +708,32 @@ html[data-platform='macos'] .app-root {
   --separator: rgba(60, 60, 67, 0.12);
   --divider-soft: rgba(60, 60, 67, 0.06);
   --shadow-color: rgba(0, 0, 0, 0.1);
+}
+
+/* ── Surfaces that used to be hand-coloured per theme ─────
+   .search-input, .result-title and .back-button each carried four
+   hardcoded colour blocks (one per theme entry point) because the old
+   neutral-grey palette could not express them. The tinted ramp above can,
+   so they are one token-driven rule each now. .result-subtitle and
+   .macos-panel had no remaining markup and are gone entirely. */
+
+.search-input {
+  color: var(--text-primary);
+}
+.search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.result-title {
+  color: var(--text-primary);
+}
+
+.back-button {
+  color: var(--text-secondary);
+  transition: color var(--transition-normal);
+}
+.back-button:hover {
+  color: var(--text-primary);
 }
 
 /* ── Component Layer ────────────────────────────────────── */
@@ -689,10 +835,16 @@ html[data-platform='macos'] .app-root {
 
   .result-item {
     @apply w-full text-left flex flex-col justify-center gap-1 cursor-pointer;
-    padding: 0 9px;
-    min-height: 40px;
+    /* 8px here plus the list's own --space-3 inset puts the row's content on
+       16px — the same left edge as the query in the header, which uses px-4.
+       This was 9px, which put every result 1px to the right of the text the
+       user typed and sat off the 2px grid. */
+    padding: 0 var(--space-3);
+    min-height: var(--shell-row-h);
     border-radius: var(--radius-xl);
     border: none;
+    /* 1px, not --space-0-5: the nine-row fit above depends on this exact
+       separation, and 2px would cost a whole row. */
     margin-bottom: 1px;
 
     &:active {
@@ -823,7 +975,7 @@ html[data-platform='macos'] .app-root {
       border-radius: 3px;
 
       &:hover {
-        background-color: rgba(128, 128, 128, 0.5);
+        background-color: color-mix(in srgb, var(--scrollbar-thumb) 100%, var(--text-primary) 20%);
       }
     }
 
@@ -834,17 +986,17 @@ html[data-platform='macos'] .app-root {
   .btn-primary {
     background: linear-gradient(
       to bottom,
-      var(--accent-primary),
-      color-mix(in srgb, var(--accent-primary) 90%, black)
+      var(--accent-primary-fill),
+      color-mix(in srgb, var(--accent-primary-fill) 88%, var(--rim-shade))
     );
-    color: white;
+    color: var(--text-on-accent);
     border: none;
 
     &:hover {
       background: linear-gradient(
         to bottom,
-        color-mix(in srgb, var(--accent-primary) 95%, white),
-        var(--accent-primary)
+        color-mix(in srgb, var(--accent-primary-fill) 92%, var(--rim-light)),
+        var(--accent-primary-fill)
       );
     }
 
@@ -860,17 +1012,17 @@ html[data-platform='macos'] .app-root {
   .btn-success {
     background: linear-gradient(
       to bottom,
-      var(--accent-success),
-      color-mix(in srgb, var(--accent-success) 90%, black)
+      var(--accent-success-fill),
+      color-mix(in srgb, var(--accent-success-fill) 88%, var(--rim-shade))
     );
-    color: white;
+    color: var(--text-on-accent);
     border: none;
 
     &:hover {
       background: linear-gradient(
         to bottom,
-        color-mix(in srgb, var(--accent-success) 95%, white),
-        var(--accent-success)
+        color-mix(in srgb, var(--accent-success-fill) 92%, var(--rim-light)),
+        var(--accent-success-fill)
       );
     }
   }
@@ -878,17 +1030,17 @@ html[data-platform='macos'] .app-root {
   .btn-danger {
     background: linear-gradient(
       to bottom,
-      var(--accent-danger),
-      color-mix(in srgb, var(--accent-danger) 90%, black)
+      var(--accent-danger-fill),
+      color-mix(in srgb, var(--accent-danger-fill) 88%, var(--rim-shade))
     );
-    color: white;
+    color: var(--text-on-accent);
     border: none;
 
     &:hover {
       background: linear-gradient(
         to bottom,
-        color-mix(in srgb, var(--accent-danger) 95%, white),
-        var(--accent-danger)
+        color-mix(in srgb, var(--accent-danger-fill) 92%, var(--rim-light)),
+        var(--accent-danger-fill)
       );
     }
   }
@@ -922,17 +1074,17 @@ html[data-platform='macos'] .app-root {
   }
 
   .badge-success {
-    background-color: rgba(40, 205, 65, 0.1);
+    background-color: color-mix(in srgb, var(--accent-success) 12%, transparent);
     color: var(--accent-success);
   }
 
   .badge-warning {
-    background-color: rgba(255, 149, 0, 0.1);
+    background-color: color-mix(in srgb, var(--accent-warning) 12%, transparent);
     color: var(--accent-warning);
   }
 
   .badge-danger {
-    background-color: rgba(255, 59, 48, 0.1);
+    background-color: color-mix(in srgb, var(--accent-danger) 12%, transparent);
     color: var(--accent-danger);
   }
 
@@ -1164,16 +1316,16 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
   /* Heading scale — for page/section headings inside built-in views */
   .text-page-title {
     font-size: var(--font-size-3xl);
-    font-weight: 700;
+    font-weight: 600;
     color: var(--text-primary);
-    letter-spacing: -0.02em;
-    line-height: 1.25;
+    letter-spacing: var(--tracking-display);
+    line-height: 1.2;
   }
   .text-section {
     font-size: var(--font-size-section);
     font-weight: 600;
     color: var(--text-primary);
-    letter-spacing: -0.01em;
+    letter-spacing: var(--tracking-tight);
     line-height: 1.35;
   }
   .text-subtitle {
@@ -1207,6 +1359,7 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
   .text-mono {
     font-family: var(--font-mono);
     font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
   }
 
   /* ── Surface utilities ────────────────────────────────── */
@@ -1227,9 +1380,9 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     font-size: var(--font-size-xs);
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--tracking-wide);
     color: var(--text-tertiary);
-    padding: 8px 16px 4px;
+    padding: var(--space-3) var(--space-6) var(--space-1);
     user-select: none;
   }
 
@@ -1267,8 +1420,18 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     cursor: default;
   }
 
+  /* The selected row. Identical to .selected-result, which is what the
+     launcher list and clipboard history use — one selection treatment across
+     the whole app.
+
+     Keep it flat. No gradient wash, no accent seam down the left edge, no
+     border. This is the most-seen element in the product and the most
+     tempting one to make expressive, and it is deliberately plain: a flat
+     band reads faster, and every gradient stop you would have to pick is a
+     number nothing derives (Principle I). A selected row is a reading
+     position, not a place to spend craft (Principle II). */
   .list-row.selected {
-    background: var(--bg-selected);
+    background-color: var(--bg-selected);
     box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
   }
   .list-row.selected * {
@@ -1342,8 +1505,8 @@ html[data-platform='linux'][data-theme='dark'] .macos-panel {
     padding: 6px 14px;
     border-radius: var(--radius-sm);
     border: none;
-    background: var(--accent-primary);
-    color: white;
+    background: var(--accent-primary-fill);
+    color: var(--text-on-accent);
     font-family: var(--font-ui);
     font-size: var(--font-size-md);
     font-weight: 500;

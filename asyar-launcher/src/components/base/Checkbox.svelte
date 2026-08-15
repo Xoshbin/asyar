@@ -59,8 +59,8 @@
   }
 
   .checkbox-box {
-    width: var(--space-5);
-    height: var(--space-5);
+    width: var(--size-xs);
+    height: var(--size-xs);
     border-radius: var(--radius-xs);
     border: 1.5px solid var(--border-color);
     background: var(--bg-primary);
@@ -74,7 +74,7 @@
   }
 
   .checkbox-box.checked {
-    background: var(--accent-primary);
+    background: var(--accent-primary-fill);
     border-color: var(--accent-primary);
     color: var(--text-on-accent);
   }

@@ -118,8 +118,8 @@
     color: var(--text-secondary);
     cursor: pointer;
     font-size: var(--font-size-sm);
-    width: var(--space-7);
-    height: var(--space-7);
+    width: var(--size-md);
+    height: var(--size-md);
     border-radius: var(--radius-full);
     display: flex;
     align-items: center;

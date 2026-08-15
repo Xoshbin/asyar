@@ -68,7 +68,7 @@
 
 <style>
   :global(.btn-confirm-primary) {
-    background: var(--accent-primary) !important;
+    background: var(--accent-primary-fill) !important;
     color: var(--text-on-accent) !important;
     border: none !important;
   }

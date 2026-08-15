@@ -46,6 +46,67 @@ const DEFINED_TOKENS = new Set(
   [...tokensCss.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]),
 );
 
+/* ── Scales, read out of style.css ──────────────────────────────────────
+   Both rules below derive themselves from the token file rather than from a
+   hardcoded list, so adding a --size-* step or marking a token deprecated
+   starts being enforced immediately, with no change here. */
+
+/** `--space-8` → `24`, `--size-lg` → `24`, … */
+function pixelScale(prefix) {
+  const out = new Map();
+  for (const m of tokensCss.matchAll(
+    new RegExp(`^\\s*(--${prefix}-[a-z0-9-]+)\\s*:\\s*(\\d+)px`, 'gm'),
+  )) {
+    out.set(m[1], m[2]);
+  }
+  return out;
+}
+
+const SIZE_BY_PIXELS = new Map([...pixelScale('size')].map(([token, px]) => [px, token]));
+
+/**
+ * The spacing tokens that have an exact --size-* equivalent. Using one of
+ * these as a width or height is the space/size confusion the two scales exist
+ * to prevent — and because the mapping is by value, the fix never moves a
+ * pixel. Spacing values with no size equivalent (a 4px meter bar, a chevron)
+ * are left alone: those are strokes, not objects.
+ */
+const SPACE_WITH_SIZE_EQUIVALENT = new Map(
+  [...pixelScale('space')]
+    .filter(([, px]) => SIZE_BY_PIXELS.has(px))
+    .map(([token, px]) => [token, SIZE_BY_PIXELS.get(px)]),
+);
+
+/** Tokens whose declaration in style.css is marked `deprecated`. */
+const DEPRECATED_TOKENS = new Set(
+  [...tokensCss.matchAll(/^\s*(--[a-z0-9-]+)\s*:[^;]+;\s*\/\*[^*]*deprecated/gim)].map((m) => m[1]),
+);
+
+/**
+ * Deprecated tokens still in use, frozen at the count each file had when the
+ * deprecation landed. This is a ratchet, not an allowlist: a file may drop
+ * below its number, never exceed it, and a file not listed here may not use
+ * one at all.
+ *
+ * These are all genuine 1px optical corrections in spacing, which is why they
+ * were not mechanically rounded to the grid — each one is a judgement call
+ * that belongs with whoever next touches the file for another reason.
+ */
+const DEPRECATED_BASELINE = new Map([
+  ['components/base/SegmentedControl.svelte', 1],
+  ['components/dev/HelpPanel.svelte', 1],
+  ['components/dev/JsonTree.svelte', 1],
+  ['components/dev/PanelRpc.svelte', 1],
+  ['components/dev/PanelSubscriptions.svelte', 1],
+  ['components/feedback/ToastHost.svelte', 1],
+  ['components/layout/ActionFooter.svelte', 1],
+  ['components/layout/BottomBarButton.svelte', 1],
+  ['components/layout/PrimaryActionDisplay.svelte', 1],
+  ['components/list/CalcResultCard.svelte', 3],
+  ['components/list/LauncherListRow.svelte', 2],
+  ['components/shell/ShellConsentDialog.svelte', 2],
+]);
+
 /**
  * Components that are intentionally absent from the barrel, with the reason.
  * Keep this in sync with the comment at the bottom of components/index.ts.
@@ -198,6 +259,93 @@ for (const file of files) {
       );
     }
   });
+
+  // The voice/fill split. --accent-* is the voice: bright enough to read as
+  // text on an Asyar surface, and therefore too bright to carry white text on
+  // top of it. --accent-*-fill is the ground: verified to carry
+  // --text-on-accent at 4.5:1. Pairing a voice background with --text-on-accent
+  // produces text at roughly 2:1, which is the exact defect this split exists
+  // to prevent — and it is invisible to the line-based rules above, because
+  // every individual declaration is a legitimate token reference.
+  //
+  // Block-scoped rather than line-scoped: the two declarations are only wrong
+  // together. A voice background with no text on it (a status dot, a meter
+  // bar) is correct and must not be flagged.
+  for (const m of text.matchAll(/\{([^{}]*)\}/g)) {
+    const body = m[1];
+    const fill =
+      /(?:^|\s)(?:background|background-color)\s*:\s*var\(\s*(--accent-[a-z]+)\s*\)/.exec(body);
+    if (!fill || fill[1].endsWith('-fill')) continue;
+    if (!/color\s*:\s*var\(\s*(?:--text-on-accent|--control-knob)\s*\)/.test(body)) continue;
+    const line = text.slice(0, m.index + m[0].indexOf(fill[0])).split('\n').length;
+    if (suppressed(lines, line - 1)) continue;
+    record(
+      file,
+      line,
+      {
+        id: 'voice-as-fill',
+        message: `${fill[1]} is the voice ramp — it cannot carry --text-on-accent`,
+        fix: `Use var(${fill[1]}-fill) for a filled surface. The voice value is deliberately too light to carry white text.`,
+      },
+      fill[0].trim().slice(0, 100),
+    );
+  }
+
+  // Space is the gap between objects; size is the object. A spacing token on a
+  // width or height is the confusion the two scales exist to prevent. Only
+  // flagged where a --size-* token carries the identical value, so the fix is
+  // always a rename that moves no pixels.
+  lines.forEach((line, i) => {
+    if (suppressed(lines, i)) return;
+    const hit = /^\s*(?:min-|max-)?(?:width|height)\s*:\s*var\(\s*(--space-[a-z0-9-]+)\s*\)/.exec(
+      line,
+    );
+    if (!hit) return;
+    const replacement = SPACE_WITH_SIZE_EQUIVALENT.get(hit[1]);
+    if (!replacement) return;
+    // Findings are grouped by rule id and the group prints one message, so the
+    // per-token suggestion goes on the detail line rather than in the message.
+    record(
+      file,
+      i + 1,
+      {
+        id: 'space-as-size',
+        message: 'spacing token used as a dimension — space is the gap, size is the object',
+        fix: 'Use the --size-* token holding the same value. The mapping is by value, so nothing moves.',
+      },
+      `${line.trim().slice(0, 72)}  →  var(${replacement})`,
+    );
+  });
+
+  // Deprecated tokens, ratcheted. A file may use fewer than its baseline,
+  // never more, and a file with no baseline may not use one at all.
+  if (file !== TOKENS_FILE && DEPRECATED_TOKENS.size > 0) {
+    const key = relative(SRC, file).split(/[\\/]/).join('/');
+    const used = lines.flatMap((line, i) =>
+      suppressed(lines, i)
+        ? []
+        : [...line.matchAll(/var\(\s*(--[a-z0-9-]+)\s*\)/g)]
+            .map((m) => m[1])
+            .filter((t) => DEPRECATED_TOKENS.has(t))
+            .map(() => i + 1),
+    );
+    const allowed = DEPRECATED_BASELINE.get(key) ?? 0;
+    if (used.length > allowed) {
+      record(
+        file,
+        used[allowed] ?? 1,
+        {
+          id: 'deprecated-token',
+          message:
+            allowed === 0
+              ? 'uses a deprecated token — see the scale in style.css for what replaces it'
+              : `uses ${used.length} deprecated tokens, up from a baseline of ${allowed}`,
+          fix: 'Round to the nearest whole step on the scale. The deprecated values are the only off-grid numbers in the system; do not add more.',
+        },
+        '',
+      );
+    }
+  }
 
   // Scrollable containers must carry .custom-scrollbar.
   // style.css is where .custom-scrollbar itself is defined, so the counting

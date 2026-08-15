@@ -20,21 +20,37 @@ Or in plain CSS:
 
 Never hardcode colors, sizes, or radii. Using tokens ensures your extension adapts to light/dark mode and future theme changes automatically.
 
+These tokens are the vocabulary of Asyar's design language, **Measure** — every
+value derived from a constraint rather than chosen because it looked right. The
+reasoning behind every value here is in
+[Design Language](./design-language.md); this page is the lookup table.
+
 ## Token Reference
 
 ### Backgrounds
 
 Surfaces and container fills.
 
-| Token                         | Dark default             | Use for                             |
-| :---------------------------- | :----------------------- | :---------------------------------- |
-| `--bg-primary`                | `rgba(30, 30, 32, 0.75)` | Main panel/window background        |
-| `--bg-secondary`              | `rgba(40, 40, 42, 0.65)` | Cards, sidebars, secondary surfaces |
-| `--bg-tertiary`               | `rgba(50, 50, 52, 0.65)` | Input fields, subtle backgrounds    |
-| `--bg-hover`                  | `rgba(64, 64, 66, 0.55)` | Hover state on interactive elements |
-| `--bg-selected`               | `rgba(74, 74, 76, 0.6)`  | Active/selected state in lists      |
-| `--bg-popup`                  | `rgb(30, 30, 32)`        | Opaque popups and modals            |
-| `--bg-secondary-full-opacity` | `rgba(40, 40, 42)`       | bg-secondary without transparency   |
+Surfaces are deep navy rather than neutral grey, and translucent — an Asyar
+surface lets the desktop read through it. Opacity rises with elevation: the
+nearer a surface is, the less of the ground it lets past.
+
+| Token                         | Dark default              | Use for                             |
+| :---------------------------- | :------------------------ | :---------------------------------- |
+| `--bg-primary`                | `rgba(14, 16, 28, 0.72)`  | Main panel/window background        |
+| `--bg-secondary`              | `rgba(24, 27, 42, 0.7)`   | Cards, sidebars, secondary surfaces |
+| `--bg-tertiary`               | `rgba(32, 36, 54, 0.7)`   | Input fields, subtle backgrounds    |
+| `--bg-hover`                  | `rgba(56, 63, 92, 0.5)`   | Hover state on interactive elements |
+| `--bg-selected`               | `rgba(61, 107, 245, .18)` | Active/selected state in lists      |
+| `--bg-popup`                  | `rgb(16, 18, 31)`         | Opaque popups and modals            |
+| `--bg-secondary-full-opacity` | `rgb(24, 27, 42)`         | bg-secondary without transparency   |
+
+`--bg-selected` is the only surface token carrying chroma, and that is what
+keeps selection distinct from hover at a glance. Keep `--bg-hover` neutral —
+that difference is load-bearing, not stylistic.
+
+The selected row is a **flat band**: `--bg-selected` plus a faint inset rim,
+and nothing else. No gradient, no border, no accent seam.
 
 ```css
 .card {
@@ -53,12 +69,12 @@ Surfaces and container fills.
 
 ### Text
 
-| Token              | Dark default                | Use for                                                                                                                                                     |
-| :----------------- | :-------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--text-primary`   | `rgba(255, 255, 255, 0.95)` | Headings, labels, primary content                                                                                                                           |
-| `--text-secondary` | `rgba(235, 235, 245, 0.65)` | Subtitles, metadata, descriptions                                                                                                                           |
-| `--text-tertiary`  | `rgba(235, 235, 245, 0.4)`  | Placeholders, hints, disabled text                                                                                                                          |
-| `--text-on-accent` | `#ffffff`                   | Text/icons **on** a filled saturated surface — an accent button, a danger confirm, a coloured chip. Constant across themes, so never hardcode `#fff` for it |
+| Token              | Dark default                | Use for                                                                                                                                                  |
+| :----------------- | :-------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--text-primary`   | `rgba(237, 240, 252, 0.96)` | Headings, labels, primary content                                                                                                                        |
+| `--text-secondary` | `rgba(196, 203, 227, 0.68)` | Subtitles, metadata, descriptions                                                                                                                        |
+| `--text-tertiary`  | `rgba(170, 179, 209, 0.58)` | Placeholders, hints, disabled text                                                                                                                       |
+| `--text-on-accent` | `#ffffff`                   | Text/icons **on** an `--accent-*-fill` surface. Constant across themes, and every fill is verified to carry it at 4.5:1, so never hardcode `#fff` for it |
 
 ```css
 h2 {
@@ -74,10 +90,27 @@ p {
 
 ### Borders
 
-| Token            | Dark default            | Use for                                           |
-| :--------------- | :---------------------- | :------------------------------------------------ |
-| `--border-color` | `rgba(90, 90, 95, 0.5)` | Borders on interactive elements (inputs, buttons) |
-| `--separator`    | `rgba(90, 90, 95, 0.5)` | Dividers between list items and sections          |
+| Token            | Dark default               | Use for                                           |
+| :--------------- | :------------------------- | :------------------------------------------------ |
+| `--border-color` | `rgba(140, 152, 200, .18)` | Borders on interactive elements (inputs, buttons) |
+| `--separator`    | `rgba(140, 152, 200, .13)` | Dividers between list items and sections          |
+| `--divider-soft` | `rgba(160, 172, 220, .06)` | The faintest hairline                             |
+| `--rim-light`    | `rgba(255, 255, 255, .1)`  | Edge highlight, inside a shadow or gradient       |
+| `--rim-shade`    | `rgba(0, 0, 0, 0.4)`       | Edge shade, same                                  |
+
+**Prefer alignment to a border.** Two things sharing a left edge already read
+as one column, and a border on top of that is a line the layout has already
+drawn. Reach for `--border-color` when the job is genuinely "this is an
+interactive control with an outline".
+
+`--rim-light` and `--rim-shade` are ingredients rather than standalone
+treatments — they appear inside `--shadow-launcher-popup` and the
+filled-button gradients so a surface does not read as a flat rectangle of
+colour.
+
+**Every drop shadow casts straight down.** Height comes from blur and negative
+spread, never from sliding the shadow sideways. Shadows that disagree about
+direction read as a rendering mistake.
 
 ```css
 .input {
@@ -90,36 +123,78 @@ p {
 
 ### Accent
 
-| Token                  | Value              | Use for                                            |
-| :--------------------- | :----------------- | :------------------------------------------------- |
-| `--accent-primary`     | `rgb(0, 122, 255)` | Primary actions, focus rings, highlights           |
-| `--accent-primary-rgb` | `0, 122, 255`      | When you need rgba(var(--accent-primary-rgb), 0.2) |
-| `--accent-success`     | `rgb(40, 205, 65)` | Success states, confirmations                      |
-| `--accent-warning`     | `rgb(255, 149, 0)` | Warnings, caution states                           |
-| `--accent-danger`      | `rgb(255, 59, 48)` | Errors, destructive actions                        |
+There are **two accent ramps**, and picking the wrong one is a contrast bug.
+
+> **A colour that fills cannot also be the colour that speaks.**
+
+An accent used as text on a dark surface must be light enough to read against
+it. An accent used as a fill under white text must be dark enough for white to
+read on top. On a dark ground those constraints have no common solution, so
+Asyar ships both.
+
+**The voice** — text, icons, strokes, focus rings, and the source for a tint:
+
+| Token                  | Dark value      | Use for                                            |
+| :--------------------- | :-------------- | :------------------------------------------------- |
+| `--accent-primary`     | `#7B9CFF`       | Primary actions, focus rings, highlights           |
+| `--accent-primary-rgb` | `123, 156, 255` | When you need rgba(var(--accent-primary-rgb), 0.2) |
+| `--accent-success`     | `#3ED18F`       | Success states, confirmations                      |
+| `--accent-warning`     | `#E9A83F`       | Warnings, caution states                           |
+| `--accent-danger`      | `#FF6B77`       | Errors, destructive actions                        |
+
+**The ground** — the background of a filled surface carrying `--text-on-accent`:
+
+| Token                   | Dark value | Contrast with `--text-on-accent` |
+| :---------------------- | :--------- | :------------------------------- |
+| `--accent-primary-fill` | `#3D6BF5`  | 4.55:1                           |
+| `--accent-success-fill` | `#0F7F58`  | 5.00:1                           |
+| `--accent-warning-fill` | `#8F5D0A`  | 5.62:1                           |
+| `--accent-danger-fill`  | `#C0303E`  | 5.62:1                           |
+
+The test is mechanical: **does this surface have `--text-on-accent` on it?**
+Yes → `-fill`. No → the voice.
 
 ```css
+/* A filled button, a checked box, a coloured tile — carries white text */
 .button-primary {
-  background: var(--accent-primary);
+  background: var(--accent-primary-fill);
+  color: var(--text-on-accent);
 }
-.badge-success {
+
+/* A status dot, a meter bar, an accent seam — carries no text */
+.status-dot {
   background: var(--accent-success);
 }
-.overlay {
-  background: rgba(var(--accent-primary-rgb), 0.15);
+
+/* An accent label or link */
+.link {
+  color: var(--accent-primary);
+}
+
+/* A tinted state background — the house formula. Voice ramp for both, so
+   the tint and the text always agree. */
+.error-banner {
+  background: color-mix(in srgb, var(--accent-danger) 12%, transparent);
+  color: var(--accent-danger);
 }
 ```
 
+Never use a `-fill` token as a text colour — it is too dark to read on an
+Asyar surface.
+
 ### Brand
 
-Asyar's teal brand color and its variants.
+Brand and accent are one colour. Two identity colours is one more than the
+product can spend. (Brand was a teal before this design system, while the
+accent was Apple's system blue — so the app's most-used colour belonged to
+Apple and the brand token was decorative.)
 
-| Token                  | Value                      |
-| :--------------------- | :------------------------- |
-| `--asyar-brand`        | `#2EC4B6`                  |
-| `--asyar-brand-hover`  | `#28B0A3`                  |
-| `--asyar-brand-muted`  | `rgba(46, 196, 182, 0.15)` |
-| `--asyar-brand-subtle` | `rgba(46, 196, 182, 0.08)` |
+| Token                  | Dark value                  |
+| :--------------------- | :-------------------------- |
+| `--asyar-brand`        | `#7B9CFF`                   |
+| `--asyar-brand-hover`  | `#9DB4FF`                   |
+| `--asyar-brand-muted`  | `rgba(123, 156, 255, 0.18)` |
+| `--asyar-brand-subtle` | `rgba(123, 156, 255, 0.09)` |
 
 ### Shadows
 
@@ -170,7 +245,9 @@ Asyar's teal brand color and its variants.
 
 ### Spacing
 
-4px base grid.
+**A 2px grid** — not the 4px grid most systems use. At 40px rows and 11–14px
+type, 4px is too coarse to tune a row against its neighbour. Space is the _gap
+between_ things; for the dimensions _of_ things, use the size scale below.
 
 | Token       | Value  | Token        | Value  |
 | :---------- | :----- | :----------- | :----- |
@@ -181,17 +258,50 @@ Asyar's teal brand color and its variants.
 | `--space-5` | `12px` | `--space-11` | `48px` |
 | `--space-6` | `16px` |              |        |
 
-Half-steps exist for the cases where a whole step visibly breaks alignment
-against a neighbour. Prefer a whole step; reach for these only when one does
-not work.
+`--space-0-5` (`2px`) is the smallest step and is a normal part of the scale.
 
-| Token         | Value  | Sits between                                                               |
-| :------------ | :----- | :------------------------------------------------------------------------- |
-| `--space-0-5` | `2px`  | 0 and `--space-1`                                                          |
-| `--space-1-5` | `5px`  | `--space-1` and `-2`                                                       |
-| `--space-2-5` | `11px` | `--space-4` and `-5` — the name is historically misordered; read the value |
-| `--space-5-5` | `13px` | `--space-5` and `-6`                                                       |
-| `--space-7-5` | `23px` | `--space-7` and `-8`                                                       |
+**Four half-steps are deprecated — do not add new uses.** They are the only
+off-grid values in the system, and they exist because the spacing scale was
+being used as a sizing scale before `--size-*` existed: 23px was an icon tile,
+11px a spinner, 13px a chip glyph.
+
+| Deprecated    | Value  | Use instead                                                                                           |
+| :------------ | :----- | :---------------------------------------------------------------------------------------------------- |
+| `--space-1-5` | `5px`  | `--space-1` or `--space-2`                                                                            |
+| `--space-2-5` | `11px` | `--space-4` or `--space-5`. Its name also misleads: it sits between `--space-4` and `-5`, not 2 and 3 |
+| `--space-5-5` | `13px` | `--space-5` or `--space-6`                                                                            |
+| `--space-7-5` | `23px` | `--space-8`, or `--size-lg` if it is an object                                                        |
+
+### Size
+
+**Space is the gap between objects; size is the object.** Use these for
+widths, heights, icons, tiles and avatars rather than reaching into the
+spacing scale. A 4px grid, so an object always lands on the spacing rhythm.
+
+| Token        | Value  | Canonical use                             |
+| :----------- | :----- | :---------------------------------------- |
+| `--size-xs`  | `12px` | A glyph inside a dense chip or badge      |
+| `--size-sm`  | `16px` | The default inline icon, beside body text |
+| `--size-md`  | `20px` | A key chip, a small pill, a status pip    |
+| `--size-lg`  | `24px` | The icon tile in a result row             |
+| `--size-xl`  | `32px` | An extension avatar, a settings row icon  |
+| `--size-2xl` | `48px` | An empty-state or onboarding glyph        |
+| `--size-3xl` | `64px` | The largest object in the product         |
+
+The names are t-shirt rather than role, so pick by value and treat the
+canonical column as a guide — `--size-lg` on a spinner is fine; it is 24px,
+not "a tile".
+
+```css
+.icon-tile {
+  width: var(--size-lg);
+  height: var(--size-lg);
+}
+.inline-icon {
+  width: var(--size-sm);
+  height: var(--size-sm);
+}
+```
 
 ```css
 .item {
@@ -218,6 +328,13 @@ not work.
 | `--font-size-section` | `16px`    | Section headings. Role-named because 16px falls between `lg` and `xl` with no free size name |
 | `--font-size-display` | `2.25rem` | Hero / display text                                                                          |
 
+The dense band is a modular scale — `10 × 1.08ⁿ`, rounded — which reproduces
+10, 11, 12, 13, 14, 15, 16 and 17 exactly. A 1.08 ratio is unusually tight;
+it is right for Asyar because 65% of all type in the product sits between 11px
+and 13px, and a coarser ratio would leave the app with three usable sizes.
+Above 17px the ratio breaks deliberately: 20px is the command line, 22px a page
+title, 36px display type, and nothing else belongs there.
+
 ### Font Families
 
 | Token         | Fonts                   | Use for                  |
@@ -226,6 +343,9 @@ not work.
 | `--font-mono` | `JetBrains Mono, …`     | Code, monospaced content |
 
 The host injects the actual Satoshi and JetBrains Mono font files into every extension iframe as base64 data URIs on load. `var(--font-ui)` and `var(--font-mono)` render the real typefaces — not system fallbacks — with no extra setup.
+
+Satoshi renders on **every** platform, macOS included. Asyar deliberately does
+not fall back to the system face anywhere.
 
 ```css
 body {
@@ -236,23 +356,74 @@ code {
 }
 ```
 
-### Transitions
+### Tracking
 
-| Token                 | Value                                    |
-| :-------------------- | :--------------------------------------- |
-| `--transition-fast`   | `100ms ease`                             |
-| `--transition-normal` | `150ms ease`                             |
-| `--transition-smooth` | `200ms cubic-bezier(0.25, 0.1, 0.25, 1)` |
-| `--transition-slow`   | `300ms cubic-bezier(0.25, 0.1, 0.25, 1)` |
+Pair with the font sizes above. Never set `letter-spacing` from a raw `em`
+value — Satoshi is drawn a little wide for dense UI, so display sizes are
+pulled tight and small text is left alone.
+
+| Token                | Value      | Use for                                  |
+| :------------------- | :--------- | :--------------------------------------- |
+| `--tracking-display` | `-0.028em` | Page titles, the largest type in the app |
+| `--tracking-tight`   | `-0.014em` | The command line, section headings       |
+| `--tracking-normal`  | `0em`      | All body, label and caption text         |
+| `--tracking-wide`    | `0.06em`   | Uppercase group labels only              |
+
+Weight discipline: **500 is the heaviest weight for body and label text**, 600
+is for headings, and 700 does not appear in the product.
+
+### Motion
+
+Four durations and four curves. Every animation in Asyar is one of each; there
+is no fifth of either.
+
+| Token           | Value   | Use for                                  |
+| :-------------- | :------ | :--------------------------------------- |
+| `--dur-instant` | `80ms`  | Colour/opacity landing under the pointer |
+| `--dur-quick`   | `140ms` | A state change the user caused directly  |
+| `--dur-travel`  | `220ms` | The selection moving; a panel sliding    |
+| `--dur-emerge`  | `320ms` | The launcher arriving; a sheet opening   |
+
+| Token           | Value                            | Character                                      |
+| :-------------- | :------------------------------- | :--------------------------------------------- |
+| `--ease-travel` | `cubic-bezier(.32, .72, 0, 1)`   | The default. Fast out, long settle.            |
+| `--ease-emerge` | `cubic-bezier(.16, 1, .3, 1)`    | Something arriving                             |
+| `--ease-recede` | `cubic-bezier(.7, 0, .84, 0)`    | Something leaving                              |
+| `--ease-settle` | `cubic-bezier(.34, 1.4, .64, 1)` | **Scale only.** The one curve that overshoots. |
+
+Arrival and departure use _different_ curves — using one for both is the
+fastest way to make an interface feel cheap. And `--ease-settle` may only be
+applied to `scale`: overshoot on position reads as sloppy, on opacity it is
+incoherent.
+
+Before adding any animation, ask: **if this were removed, would the user be
+confused about what happened?** If no, don't add it.
 
 ```css
 .button {
-  transition: background var(--transition-normal);
+  transition: background var(--dur-quick) var(--ease-travel);
 }
 .panel {
-  transition: transform var(--transition-smooth);
+  transition: transform var(--dur-travel) var(--ease-travel);
+}
+.tile:active {
+  transition: transform var(--dur-instant) var(--ease-settle);
 }
 ```
+
+Reduced motion is handled globally by the host; you do not need a
+`prefers-reduced-motion` block unless your view animates via JavaScript.
+
+### Transitions (shorthands)
+
+Kept as convenience shorthands over the motion tokens above.
+
+| Token                 | Value                                   |
+| :-------------------- | :-------------------------------------- |
+| `--transition-fast`   | `var(--dur-instant) var(--ease-travel)` |
+| `--transition-normal` | `var(--dur-quick) var(--ease-travel)`   |
+| `--transition-smooth` | `var(--dur-travel) var(--ease-travel)`  |
+| `--transition-slow`   | `var(--dur-emerge) var(--ease-emerge)`  |
 
 ### Code Colour
 
@@ -289,15 +460,21 @@ A realistic card component using only design tokens:
 <style>
   .card {
     background: var(--bg-secondary);
-    border: 1px solid var(--separator);
     border-radius: var(--radius-md);
     padding: var(--space-6);
-    box-shadow: var(--shadow-sm);
     font-family: var(--font-ui);
-    transition: box-shadow var(--transition-normal);
+
+    /* An edge highlight instead of a border, layered with the elevation
+       shadow — which, like every drop shadow here, casts straight down. */
+    box-shadow:
+      inset 0 1px 0 0 var(--rim-light),
+      var(--shadow-sm);
+    transition: box-shadow var(--dur-quick) var(--ease-travel);
   }
   .card:hover {
-    box-shadow: var(--shadow-md);
+    box-shadow:
+      inset 0 1px 0 0 var(--rim-light),
+      var(--shadow-md);
   }
 
   .card-header {
@@ -316,7 +493,7 @@ A realistic card component using only design tokens:
     background: var(--asyar-brand-muted);
     color: var(--asyar-brand);
     font-size: var(--font-size-xs);
-    padding: 2px var(--space-2);
+    padding: var(--space-0-5) var(--space-2);
     border-radius: var(--radius-full);
   }
 

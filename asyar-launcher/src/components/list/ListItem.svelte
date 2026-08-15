@@ -73,8 +73,13 @@
     flex-shrink: 0;
   }
 
+  /* The selected row: a flat band, the same one `.selected-result` draws in
+     the launcher list. Keep it flat — no gradient, no seam, no border. This
+     mirrors the global `.list-row.selected` in style.css, which carries the
+     full reasoning; the component-scoped copy is what actually wins here, so
+     the two have to agree. */
   .list-row.selected {
-    background: var(--bg-selected);
+    background-color: var(--bg-selected);
     box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
   }
 

@@ -55,7 +55,7 @@
 
   .rank {
     flex-shrink: 0;
-    width: var(--space-6);
+    width: var(--size-sm);
     text-align: right;
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;

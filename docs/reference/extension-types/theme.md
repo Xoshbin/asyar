@@ -54,7 +54,8 @@ my-dark-theme.asyar  (renamed ZIP)
   "variables": {
     "--bg-primary": "rgba(25, 25, 35, 0.85)",
     "--bg-secondary": "rgba(35, 35, 50, 0.75)",
-    "--accent-primary": "rgb(138, 43, 226)",
+    "--accent-primary": "rgb(168, 116, 245)",
+    "--accent-primary-fill": "rgb(112, 48, 200)",
     "--text-primary": "rgba(255, 255, 255, 0.92)",
     "--font-ui": "\"Inter\", system-ui, sans-serif"
   },
@@ -73,6 +74,20 @@ my-dark-theme.asyar  (renamed ZIP)
 
 - Keys are validated against the Asyar design token allowlist (see [design system tokens](../design-system/tokens.md)). Unknown variable names are silently ignored — they will not apply.
 - Only the listed token names are valid override targets. You cannot inject arbitrary CSS properties.
+- **A theme recolours the app; it never resizes or re-times it.** Four token
+  families are design-system-owned and cannot be overridden: `--space-*`,
+  `--font-size-*`, `--tracking-*`, and `--ease-*`. A theme shipping its own
+  spacing or type scale would reflow real UI, and the easing curves are the
+  motion language itself. You _can_ override `--dur-*` to make the app feel
+  slower or snappier.
+
+**Override the accent in pairs.** Asyar has two accent ramps: `--accent-*` is
+the _voice_ (text, icons, strokes) and `--accent-*-fill` is the _ground_ (the
+background of a filled surface carrying `--text-on-accent`, which is white).
+Overriding only the voice leaves every filled button in Asyar's own blue.
+Overriding only the fill leaves accent text unchanged. Set both, and make sure
+your fill reaches 4.5:1 against white — the host verifies its own values but
+cannot verify yours.
 
 **Font validation rules (enforced at install time):**
 

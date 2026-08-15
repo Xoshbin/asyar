@@ -230,7 +230,7 @@
   }
 
   .category-count {
-    min-width: var(--space-8);
+    min-width: var(--size-lg);
     text-align: right;
   }
 
