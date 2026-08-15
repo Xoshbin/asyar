@@ -47,16 +47,16 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: var(--space-7);
-    height: var(--space-7);
+    width: var(--size-md);
+    height: var(--size-md);
     flex-shrink: 0;
     border-radius: var(--radius-sm);
-    background-color: var(--accent-primary);
+    background-color: var(--accent-primary-fill);
     color: var(--text-on-accent);
   }
   .info-chip-img {
-    width: var(--space-5-5);
-    height: var(--space-5-5);
+    width: var(--size-xs);
+    height: var(--size-xs);
     object-fit: contain;
   }
   .info-chip-emoji {

@@ -312,8 +312,8 @@
     color: var(--text-primary);
   }
   .accessory-chevron {
-    width: var(--space-5);
-    height: var(--space-5);
+    width: var(--size-xs);
+    height: var(--size-xs);
     color: var(--text-secondary);
     flex-shrink: 0;
   }
@@ -378,8 +378,8 @@
     color: var(--accent-primary);
   }
   .accessory-check {
-    width: var(--space-5);
-    height: var(--space-5);
+    width: var(--size-xs);
+    height: var(--size-xs);
     display: inline-flex;
     align-items: center;
     justify-content: center;

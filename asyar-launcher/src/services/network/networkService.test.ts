@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockFetchUrl = vi.hoisted(() => vi.fn());
+const mockWsConnect = vi.hoisted(() => vi.fn());
 
 vi.mock('../../lib/ipc/commands', () => ({
   fetchUrl: mockFetchUrl,
+  wsConnect: mockWsConnect,
 }));
 
 vi.mock('../log/logService', () => ({
@@ -93,5 +95,25 @@ describe('NetworkService', () => {
     await makeSvc().fetch(null, 'https://example.com');
 
     expect(mockFetchUrl).toHaveBeenCalledWith(expect.objectContaining({ callerExtensionId: null }));
+  });
+
+  it('forwards the trusted iframe role when connecting a WebSocket', async () => {
+    mockWsConnect.mockResolvedValueOnce(true);
+
+    await makeSvc().wsConnect(
+      'org.test.ext',
+      'socket-1',
+      'wss://example.com/socket',
+      { Authorization: 'Bearer test' },
+      'worker',
+    );
+
+    expect(mockWsConnect).toHaveBeenCalledWith(
+      'socket-1',
+      'wss://example.com/socket',
+      { Authorization: 'Bearer test' },
+      'org.test.ext',
+      'worker',
+    );
   });
 });

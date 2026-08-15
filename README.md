@@ -4,6 +4,8 @@
 
 A fast, open-source launcher for macOS, Windows, and Linux.
 
+[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/vvYRXrs7Xa)
+
 ## Tiny Footprint. Native Performance.
 
 Asyar is built with **Tauri + Rust** instead of Electron. That means:
@@ -471,7 +473,9 @@ See [Use the Create Extension tool](docs/how-to/use-create-extension-tool.md) fo
 
 ## Contributing
 
-We welcome contributions! To set up the full development environment:
+We welcome contributions! Check out our [Contributing Guide](CONTRIBUTING.md) to get started, or join our [Discord Community](https://discord.gg/vvYRXrs7Xa) to discuss ideas.
+
+To set up the full development environment:
 
 ```bash
 git clone https://github.com/Xoshbin/asyar.git

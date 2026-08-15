@@ -250,7 +250,7 @@
     padding: var(--space-4) var(--space-6);
     cursor: pointer;
     transition: all var(--transition-normal);
-    min-height: var(--space-11);
+    min-height: var(--size-2xl);
     display: flex;
     align-items: center;
     justify-content: center;

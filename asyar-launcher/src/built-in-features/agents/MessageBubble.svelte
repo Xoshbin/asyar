@@ -38,7 +38,7 @@
     max-width: 80%;
   }
   .bubble-user {
-    background: var(--accent-primary);
+    background: var(--accent-primary-fill);
     color: var(--text-on-accent);
     align-self: flex-end;
   }

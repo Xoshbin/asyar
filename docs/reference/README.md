@@ -16,5 +16,5 @@ Information-oriented lookup material. Each page describes one thing precisely �
 - **[Extension types](./extension-types/)** — View / result / logic / theme, plus in-view search.
 - **[Background scheduling](./background-scheduling.md)** — Declarative recurring task execution via `schedule` in `manifest.json`.
 - **[SDK](./sdk/)** — One page per service.
-- **[Design system](./design-system/)** — CSS tokens and built-in icons.
+- **[Design system](./design-system/)** — Asyar's design language (Measure), CSS tokens, components, and built-in icons.
 - **[Host Settings](./host-settings.md)** — Custom application scan paths and system discovery.

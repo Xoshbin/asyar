@@ -12,15 +12,17 @@
 export function pickExtensionIframe(
   extensionId: string,
   prefer: 'view' | 'worker',
+  options: { fallback?: boolean } = {},
 ): HTMLIFrameElement | null {
+  const preferred = document.querySelector<HTMLIFrameElement>(
+    `iframe[data-extension-id="${extensionId}"][data-role="${prefer}"]`,
+  );
+  if (preferred || options.fallback === false) return preferred;
+
   const fallback = prefer === 'view' ? 'worker' : 'view';
   return (
     document.querySelector<HTMLIFrameElement>(
-      `iframe[data-extension-id="${extensionId}"][data-role="${prefer}"]`,
-    ) ??
-    document.querySelector<HTMLIFrameElement>(
       `iframe[data-extension-id="${extensionId}"][data-role="${fallback}"]`,
-    ) ??
-    document.querySelector<HTMLIFrameElement>(`iframe[data-extension-id="${extensionId}"]`)
+    ) ?? document.querySelector<HTMLIFrameElement>(`iframe[data-extension-id="${extensionId}"]`)
   );
 }

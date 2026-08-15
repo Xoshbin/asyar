@@ -261,16 +261,16 @@
   }
 
   .action-icon-img {
-    width: var(--space-7-5);
-    height: var(--space-7-5);
+    width: var(--size-lg);
+    height: var(--size-lg);
     border-radius: var(--radius-xs);
     object-fit: contain;
     flex-shrink: 0;
   }
 
   .action-icon-fallback {
-    width: var(--space-7-5);
-    height: var(--space-7-5);
+    width: var(--size-lg);
+    height: var(--size-lg);
     display: flex;
     align-items: center;
     justify-content: center;

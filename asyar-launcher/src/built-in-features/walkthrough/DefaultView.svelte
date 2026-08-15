@@ -179,8 +179,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: var(--space-6);
-    height: var(--space-6);
+    width: var(--size-sm);
+    height: var(--size-sm);
     border-radius: var(--radius-full);
     border: 1px solid var(--separator);
     color: var(--text-tertiary);
