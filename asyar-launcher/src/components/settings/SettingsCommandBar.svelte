@@ -141,7 +141,7 @@
     color: var(--text-tertiary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-xs);
-    padding: var(--space-0-5) var(--space-1-5);
+    padding: var(--space-0-5) var(--space-2);
     flex-shrink: 0;
   }
 

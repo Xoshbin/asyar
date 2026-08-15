@@ -30,7 +30,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-7);
-    padding: var(--space-5-5) var(--space-6);
+    padding: var(--space-5) var(--space-6);
   }
 
   /* Inset 16px from the left, flush right, never after the last row —
