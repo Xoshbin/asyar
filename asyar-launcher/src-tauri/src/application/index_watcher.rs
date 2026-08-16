@@ -36,14 +36,24 @@
 //!   cosmetic changes (mtime bumps, file attribute edits) can produce a
 //!   scan that shows `added == 0 && removed == 0`. `sync_result_to_event`
 //!   filters those out so subscribers don't wake for nothing.
+//!
+//! - **Access-only batches never trigger a rescan.** `notify`'s Linux
+//!   inotify backend watches `IN_OPEN`/`IN_CLOSE_*` unconditionally, so a
+//!   mere *read* of a watched `.desktop` file (by GNOME Shell, tracker-miner,
+//!   or this watcher's own icon extraction) surfaces as `EventKind::Access`.
+//!   `has_relevant_change` restricts triggering to Create/Modify/Remove —
+//!   without it, a rescan that itself reads uncached `.desktop` files could
+//!   re-arm its own trigger and pin a core (asyar#622).
 
 use crate::application::service::{get_default_app_scan_paths, sync_application_index, SyncResult};
 use crate::error::AppError;
 use crate::index_events::{IndexEvent, IndexEventsHub};
 use crate::search_engine::managed_search_state;
 use log::{debug, warn};
-use notify::RecursiveMode;
-use notify_debouncer_full::{new_debouncer_opt, DebounceEventResult, Debouncer, NoCache};
+use notify::{EventKind, RecursiveMode};
+use notify_debouncer_full::{
+    new_debouncer_opt, DebounceEventResult, DebouncedEvent, Debouncer, NoCache,
+};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -77,6 +87,29 @@ pub fn compute_watch_set(defaults: &[PathBuf], extras: &[PathBuf]) -> Vec<PathBu
         }
     }
     out
+}
+
+/// Pure helper: does this debounced batch contain at least one event that
+/// could actually add or remove a `.desktop`/app-bundle file?
+///
+/// `notify`'s Linux inotify backend watches `IN_OPEN`/`IN_CLOSE_*`
+/// unconditionally on every recursive watch, so merely *reading* a file
+/// under a watched directory — GNOME Shell's app-grid indexing,
+/// `tracker-miner`, or this watcher's own icon extraction in
+/// `extract_app_icon` — surfaces as `EventKind::Access`. Treating those as
+/// "something changed" turns a read into a full rescan; if the rescan
+/// itself reads uncached `.desktop` files (icon extraction cache miss), it
+/// re-arms its own trigger, producing a continuous-rescan CPU loop with no
+/// real filesystem change (see asyar#622). Restrict to the event kinds
+/// that can actually change *what apps exist* — mirrors the same filter in
+/// `file_index::watcher::Coalescer::ingest`.
+fn has_relevant_change(events: &[DebouncedEvent]) -> bool {
+    events.iter().any(|e| {
+        matches!(
+            e.kind,
+            EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)
+        )
+    })
 }
 
 /// Pure helper: map a `SyncResult` to the event to dispatch, or `None` if
@@ -151,6 +184,11 @@ impl IndexWatcher {
             Some(DEBOUNCE_WINDOW),
             move |result: DebounceEventResult| match result {
                 Ok(events) if events.is_empty() => {}
+                Ok(events) if !has_relevant_change(&events) => {
+                    debug!(
+                        "[index_watcher] ignoring debounced batch with no Create/Modify/Remove events (likely Access-only, e.g. IN_OPEN)"
+                    );
+                }
                 Ok(_events) => {
                     let extras = callback_extras
                         .lock()
@@ -386,6 +424,88 @@ mod tests {
         let extras = vec![base.clone(), with_slash];
         let out = compute_watch_set(&[], &extras);
         assert_eq!(out.len(), 1);
+    }
+
+    // ---- has_relevant_change ----
+
+    fn debounced(kind: EventKind, path: &std::path::Path) -> DebouncedEvent {
+        let event = notify::Event::new(kind).add_path(path.to_path_buf());
+        DebouncedEvent::new(event, std::time::Instant::now())
+    }
+
+    /// Regression: asyar#622 — Linux/Fedora reported 20-30% idle CPU from a
+    /// continuous application-index resync loop, with `find -mmin` showing
+    /// no actual `.desktop` file modifications. Root cause: `notify`'s
+    /// inotify backend watches `IN_OPEN` unconditionally
+    /// (`notify::inotify::add_single_watch`), and `notify-debouncer-full`'s
+    /// `NoCache` (the Linux default) passes any non-Create/Rename/Remove
+    /// event straight through — so a mere *read* of a `.desktop` file
+    /// (GNOME Shell app-grid indexing, tracker-miner, or this watcher's own
+    /// icon extraction on a cache miss) was enough to trigger a full
+    /// rescan indistinguishable from a real filesystem change.
+    #[test]
+    fn has_relevant_change_ignores_access_only_batch() {
+        use notify::event::{AccessKind, AccessMode};
+
+        let path = std::path::Path::new("/usr/share/applications/foo.desktop");
+        let batch = vec![debounced(
+            EventKind::Access(AccessKind::Open(AccessMode::Any)),
+            path,
+        )];
+        assert!(
+            !has_relevant_change(&batch),
+            "an Access(Open)-only batch must not be treated as a real change"
+        );
+    }
+
+    #[test]
+    fn has_relevant_change_ignores_empty_batch() {
+        assert!(!has_relevant_change(&[]));
+    }
+
+    #[test]
+    fn has_relevant_change_detects_create() {
+        use notify::event::CreateKind;
+
+        let path = std::path::Path::new("/usr/share/applications/new.desktop");
+        let batch = vec![debounced(EventKind::Create(CreateKind::File), path)];
+        assert!(has_relevant_change(&batch));
+    }
+
+    #[test]
+    fn has_relevant_change_detects_remove() {
+        use notify::event::RemoveKind;
+
+        let path = std::path::Path::new("/usr/share/applications/gone.desktop");
+        let batch = vec![debounced(EventKind::Remove(RemoveKind::File), path)];
+        assert!(has_relevant_change(&batch));
+    }
+
+    #[test]
+    fn has_relevant_change_detects_modify() {
+        use notify::event::{DataChange, ModifyKind};
+
+        let path = std::path::Path::new("/usr/share/applications/edited.desktop");
+        let batch = vec![debounced(
+            EventKind::Modify(ModifyKind::Data(DataChange::Any)),
+            path,
+        )];
+        assert!(has_relevant_change(&batch));
+    }
+
+    #[test]
+    fn has_relevant_change_true_when_any_event_in_batch_is_relevant() {
+        use notify::event::{AccessKind, AccessMode, CreateKind};
+
+        let path = std::path::Path::new("/usr/share/applications/mixed.desktop");
+        let batch = vec![
+            debounced(EventKind::Access(AccessKind::Open(AccessMode::Any)), path),
+            debounced(EventKind::Create(CreateKind::File), path),
+        ];
+        assert!(
+            has_relevant_change(&batch),
+            "one real change in a batch is enough to trigger a rescan"
+        );
     }
 
     // ---- sync_result_to_event ----
