@@ -8,7 +8,6 @@
     WarningBanner,
     Modal,
     SettingsCard,
-    SettingsPaneHeader,
     SettingsRow,
   } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
@@ -29,11 +28,6 @@
     await emit('asyar:run-command', { commandId: 'cmd_raycast-import_import-raycast' });
   }
 </script>
-
-<SettingsPaneHeader
-  title="Backup & Restore"
-  subtitle="Export or restore your Asyar settings, extensions, and data."
-/>
 
 <div class="section-header">Export</div>
 <div id="backup-export" class="anchor-group">

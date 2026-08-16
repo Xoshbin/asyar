@@ -7,7 +7,6 @@
     Badge,
     SettingsCard,
     SettingsRow,
-    SettingsPaneHeader,
   } from '../../../components';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { open } from '@tauri-apps/plugin-dialog';
@@ -131,11 +130,6 @@
     }
   }
 </script>
-
-<SettingsPaneHeader
-  title="File Search"
-  subtitle="Search files across your home folder from Asyar's search bar."
-/>
 
 <div class="section-header">Status</div>
 <div id="file-search-status">

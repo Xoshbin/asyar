@@ -7,7 +7,6 @@
     InlineError,
     EmptyState,
     SettingsCard,
-    SettingsPaneHeader,
   } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { providerRegistry } from '../../../services/ai/providerRegistry';
@@ -274,10 +273,6 @@
   /** Plugins available for the draft row dropdown */
   let availableForDraft = $derived(availableProvidersForNewRow(allPlugins, configuredIds));
 </script>
-
-{#if mode === 'full'}
-  <SettingsPaneHeader title="AI" subtitle="Configure assistant behavior and model providers." />
-{/if}
 
 <div class="ai-tab">
   {#if mode === 'full'}

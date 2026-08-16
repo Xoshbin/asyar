@@ -5,7 +5,6 @@
     CrashReportSection,
     EncryptionStatusSection,
     SecretRedactionSection,
-    SettingsPaneHeader,
     ShellTrustManager,
     UsageShareSection,
   } from '../../../components';
@@ -25,11 +24,6 @@
 </script>
 
 <div class="privacy-tab">
-  <SettingsPaneHeader
-    title="Privacy"
-    subtitle="Control local encryption, crash reports, usage sharing, and sensitive data handling."
-  />
-
   <div id="privacy-encryption" class="anchor-group">
     <EncryptionStatusSection />
   </div>

@@ -1,11 +1,5 @@
 <script lang="ts">
-  import {
-    SettingsCard,
-    SettingsRow,
-    SettingsPaneHeader,
-    Toggle,
-    SegmentedControl,
-  } from '../../../components';
+  import { SettingsCard, SettingsRow, Toggle, SegmentedControl } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import ScheduledTasksSection from '../../../components/settings/ScheduledTasksSection.svelte';
@@ -58,8 +52,6 @@
     }
   });
 </script>
-
-<SettingsPaneHeader title="Advanced" subtitle="Behaviour that most people never need to change." />
 
 <div class="section-header">Extension surface</div>
 <SettingsCard>

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { EmptyState, SettingsCard, SettingsPaneHeader } from '../../../components';
+  import { EmptyState, SettingsCard } from '../../../components';
   import { listen } from '@tauri-apps/api/event';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { browserService } from '../../../services/browser/browserService';
@@ -98,11 +98,6 @@
     unlisteners.forEach((fn) => fn());
   });
 </script>
-
-<SettingsPaneHeader
-  title="Browsers"
-  subtitle="Pair browsers running the Asyar Companion extension."
-/>
 
 <div class="section-header">Connected browsers</div>
 <div id="browsers-connected" class="anchor-group">

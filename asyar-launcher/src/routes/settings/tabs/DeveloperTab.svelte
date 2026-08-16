@@ -1,7 +1,6 @@
 <script lang="ts">
   import {
     SettingsCard,
-    SettingsPaneHeader,
     SettingsRow,
     Toggle,
     Button,
@@ -98,11 +97,6 @@
 
   const devExtEntries = $derived(Object.entries(devExtensions));
 </script>
-
-<SettingsPaneHeader
-  title="Developer"
-  subtitle="Inspect extensions, trace host messages, and manage local development extensions."
-/>
 
 <div class="developer-tab">
   <div id="developer-tools" class="anchor-group">
