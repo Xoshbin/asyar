@@ -1,12 +1,5 @@
 <script lang="ts">
-  import {
-    SettingsCard,
-    SettingsPaneHeader,
-    SettingsRow,
-    Button,
-    SegmentedControl,
-    Toggle,
-  } from '../../../components';
+  import { SettingsCard, SettingsRow, Button, SegmentedControl, Toggle } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { runUpdateCheck } from '../../../services/update/updateService';
   import { appUpdateState } from '../../../services/update/appUpdateStore.svelte';
@@ -104,11 +97,6 @@
     await appRelaunch();
   }
 </script>
-
-<SettingsPaneHeader
-  title="About"
-  subtitle="Review version information, update settings, and project links."
-/>
 
 <div class="about-tab">
   <div id="about-updates" class="anchor-group">

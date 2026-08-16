@@ -2,14 +2,7 @@
   import { onMount } from 'svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { emit } from '@tauri-apps/api/event';
-  import {
-    Icon,
-    Toggle,
-    KeyboardHint,
-    EmptyState,
-    SettingsCard,
-    SettingsPaneHeader,
-  } from '../../../components';
+  import { Icon, Toggle, KeyboardHint, EmptyState, SettingsCard } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import {
     getDefaultAppScanPaths,
@@ -197,11 +190,6 @@
     }
   }
 </script>
-
-<SettingsPaneHeader
-  title="Applications"
-  subtitle="Where Asyar looks for apps, and how each one behaves in search."
-/>
 
 <div class="section-header">Search scope</div>
 <div id="applications-scope">

@@ -7,7 +7,6 @@
     Badge,
     StatusDot,
     SettingsCard,
-    SettingsPaneHeader,
     SettingsRow,
   } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
@@ -135,11 +134,6 @@
     return `${days} day${days === 1 ? '' : 's'} ago`;
   }
 </script>
-
-<SettingsPaneHeader
-  title="Account"
-  subtitle="Manage your Asyar account, subscription, and encrypted cloud sync."
-/>
 
 {#if authService.isAwaitingOAuth}
   <div class="section-header">Profile</div>

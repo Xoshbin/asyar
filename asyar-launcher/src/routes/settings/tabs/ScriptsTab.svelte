@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Button, Icon, EmptyState, SettingsCard, SettingsPaneHeader } from '../../../components';
+  import { Button, Icon, EmptyState, SettingsCard } from '../../../components';
   import {
     scriptsListDirectories,
     scriptsPickDirectory,
@@ -63,8 +63,6 @@
     }
   }
 </script>
-
-<SettingsPaneHeader title="Scripts" subtitle="Directories watched for executable scripts." />
 
 <div class="section-header">Script directories</div>
 <div id="scripts-directories">

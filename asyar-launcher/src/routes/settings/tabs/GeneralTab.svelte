@@ -3,7 +3,6 @@
   import {
     SettingsCard,
     SettingsRow,
-    SettingsPaneHeader,
     Checkbox,
     ShortcutRecorder,
     AppearanceThemeSelector,
@@ -158,8 +157,6 @@
     }
   }
 </script>
-
-<SettingsPaneHeader title="General" subtitle="How Asyar starts, looks, and where it appears." />
 
 <div class="section-header">Startup</div>
 <SettingsCard>

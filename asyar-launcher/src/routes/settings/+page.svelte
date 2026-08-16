@@ -1,22 +1,8 @@
 <!-- src/routes/settings/+page.svelte -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import {
-    LoadingState,
-    DialogHost,
-    SettingsCommandBar,
-    SettingsSectionNav,
-    SettingsSearchResults,
-    TabGroup,
-  } from '../../components';
+  import { LoadingState, DialogHost, SettingsTopBar } from '../../components';
   import { SettingsHandler } from './settingsHandlers.svelte';
-  import {
-    SETTINGS_TABS,
-    SETTINGS_SEARCH_INDEX,
-    SECTION_ANCHORS,
-    buildSearchResults,
-    type SettingsSearchEntry,
-  } from './settingsNavRegistry';
   import GeneralTab from './tabs/GeneralTab.svelte';
   import AiTab from './tabs/AiTab.svelte';
   import ApplicationsTab from './tabs/ApplicationsTab.svelte';
@@ -46,45 +32,23 @@
 
   const handler = new SettingsHandler();
 
-  const settingsTabs = $derived(
-    SETTINGS_TABS.filter((t) => !t.developerOnly || handler.settings.developer?.enabled),
-  );
-
-  const query = $derived(handler.searchQuery);
-  const searching = $derived(query.trim().length > 0);
-  const searchResults = $derived(buildSearchResults(SETTINGS_SEARCH_INDEX, settingsTabs, query));
-
-  const currentAnchors = $derived(SECTION_ANCHORS[handler.activeTab] ?? []);
-
-  // Switching tabs (sidebar click, or the asyar:navigate-settings-tab event)
-  // must leave the search-results view — otherwise the results list stays up
-  // and the sidebar looks inert. selectSearchResult clears the query itself;
-  // the redundant clear this effect performs afterwards is a no-op.
-  let previousActiveTab = handler.activeTab;
-  $effect(() => {
-    if (handler.activeTab !== previousActiveTab) {
-      previousActiveTab = handler.activeTab;
-      handler.searchQuery = '';
-    }
-  });
-
-  let contentEl = $state<HTMLElement | undefined>();
-
-  function selectSearchResult(entry: SettingsSearchEntry) {
-    handler.activeTab = entry.tab;
-    handler.searchQuery = '';
-    if (entry.sectionAnchor) {
-      // Wait one frame for the pane switch to mount before scrolling.
-      requestAnimationFrame(() => {
-        const target = document.getElementById(entry.sectionAnchor!);
-        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        if (target) {
-          target.classList.add('settings-search-highlight');
-          setTimeout(() => target.classList.remove('settings-search-highlight'), 1200);
-        }
-      });
-    }
-  }
+  const settingsTabs = $derived([
+    { id: 'general', label: 'General', icon: 'settings' },
+    { id: 'extensions', label: 'Extensions', icon: 'puzzle' },
+    { id: 'browsers', label: 'Browsers', icon: 'globe' },
+    { id: 'applications', label: 'Applications', icon: 'layers' },
+    { id: 'file-search', label: 'File Search', icon: 'folder-search' },
+    { id: 'scripts', label: 'Scripts', icon: 'dev-tools' },
+    { id: 'ai', label: 'AI', icon: 'ai-chat' },
+    { id: 'backup', label: 'Backup', icon: 'cloud-upload' },
+    { id: 'account', label: 'Account', icon: 'user' },
+    { id: 'privacy', label: 'Privacy', icon: 'lock' },
+    { id: 'advanced', label: 'Advanced', icon: 'layers' },
+    ...(handler.settings.developer?.enabled
+      ? [{ id: 'developer', label: 'Developer', icon: 'dev-tools' }]
+      : []),
+    { id: 'about', label: 'About', icon: 'info' },
+  ]);
 
   let unlistenNavTab: (() => void) | undefined;
 
@@ -121,114 +85,78 @@
     <LoadingState message="Loading settings..." />
   </div>
 {:else}
-  <div class="settings-shell">
-    {#if handler.initError}
+  <div class="settings-page">
+    <header class="settings-header">
+      {#if handler.initError}
+        <div
+          class="p-2 text-center"
+          style="background: color-mix(in srgb, var(--accent-warning) 15%, var(--bg-primary)); color: var(--text-primary);"
+        >
+          ⚠️ {handler.initError}
+        </div>
+      {/if}
+      <SettingsTopBar tabs={settingsTabs} bind:activeTab={handler.activeTab} />
+    </header>
+
+    <main
+      class="settings-content custom-scrollbar"
+      class:full-bleed={handler.activeTab === 'extensions'}
+    >
       <div
-        class="p-2 text-center"
-        style="background: color-mix(in srgb, var(--accent-warning) 15%, var(--bg-primary)); color: var(--text-primary);"
+        class="settings-content-inner"
+        class:full-bleed-inner={handler.activeTab === 'extensions'}
+        class:wide-inner={handler.activeTab === 'applications'}
       >
-        ⚠️ {handler.initError}
-      </div>
-    {/if}
-
-    <SettingsCommandBar bind:query={handler.searchQuery} />
-
-    <div class="settings-body">
-      <aside class="settings-sidebar custom-scrollbar">
-        <TabGroup tabs={settingsTabs} bind:activeTab={handler.activeTab} variant="sidebar" />
-      </aside>
-
-      <div class="settings-content-column">
-        {#if searching}
-          <SettingsSearchResults {query} results={searchResults} onSelect={selectSearchResult} />
-        {:else}
-          {#if currentAnchors.length > 0}
-            <SettingsSectionNav sections={currentAnchors} scrollRoot={contentEl ?? null} />
-          {/if}
-
-          <main
-            bind:this={contentEl}
-            class="settings-content custom-scrollbar"
-            class:full-bleed={handler.activeTab === 'extensions'}
-          >
-            <div
-              class="settings-content-inner"
-              class:full-bleed-inner={handler.activeTab === 'extensions'}
-              class:wide-inner={handler.activeTab === 'applications'}
-            >
-              {#if handler.activeTab === 'general'}
-                <GeneralTab {handler} />
-              {:else if handler.activeTab === 'ai'}
-                <AiTab {handler} />
-              {:else if handler.activeTab === 'extensions'}
-                <ExtensionsTab {handler} />
-              {:else if handler.activeTab === 'browsers'}
-                <BrowsersTab />
-              {:else if handler.activeTab === 'applications'}
-                <ApplicationsTab />
-              {:else if handler.activeTab === 'file-search'}
-                <FileSearchTab />
-              {:else if handler.activeTab === 'scripts'}
-                <ScriptsTab />
-              {:else if handler.activeTab === 'backup'}
-                <BackupTab {handler} />
-              {:else if handler.activeTab === 'account'}
-                <AccountTab {handler} />
-              {:else if handler.activeTab === 'privacy'}
-                <PrivacyTab />
-              {:else if handler.activeTab === 'advanced'}
-                <AdvancedTab {handler} />
-              {:else if handler.activeTab === 'developer'}
-                <DeveloperTab {handler} />
-              {:else if handler.activeTab === 'about'}
-                <AboutTab {handler} />
-              {/if}
-            </div>
-          </main>
+        {#if handler.activeTab === 'general'}
+          <GeneralTab {handler} />
+        {:else if handler.activeTab === 'ai'}
+          <AiTab {handler} />
+        {:else if handler.activeTab === 'extensions'}
+          <ExtensionsTab {handler} />
+        {:else if handler.activeTab === 'browsers'}
+          <BrowsersTab />
+        {:else if handler.activeTab === 'applications'}
+          <ApplicationsTab />
+        {:else if handler.activeTab === 'file-search'}
+          <FileSearchTab />
+        {:else if handler.activeTab === 'scripts'}
+          <ScriptsTab />
+        {:else if handler.activeTab === 'backup'}
+          <BackupTab {handler} />
+        {:else if handler.activeTab === 'account'}
+          <AccountTab {handler} />
+        {:else if handler.activeTab === 'privacy'}
+          <PrivacyTab />
+        {:else if handler.activeTab === 'advanced'}
+          <AdvancedTab {handler} />
+        {:else if handler.activeTab === 'developer'}
+          <DeveloperTab {handler} />
+        {:else if handler.activeTab === 'about'}
+          <AboutTab {handler} />
         {/if}
       </div>
-    </div>
+    </main>
   </div>
 {/if}
 
 <DialogHost />
 
 <style>
-  .settings-shell {
+  .settings-page {
     display: flex;
     flex-direction: column;
     height: 100vh;
     background: var(--bg-primary);
   }
 
-  .settings-body {
-    flex: 1;
-    display: flex;
-    min-height: 0;
-  }
-
-  .settings-sidebar {
-    width: 238px;
+  .settings-header {
     flex-shrink: 0;
-    background: var(--bg-primary);
-    border-right: 1px solid var(--border-color);
-    overflow-y: auto;
-    padding: var(--space-3) var(--space-3) var(--space-6);
-  }
-
-  .settings-content-column {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-secondary);
   }
 
   .settings-content {
     flex: 1;
     overflow-y: auto;
-    min-height: 0;
-    padding: var(--space-8) var(--space-8) var(--space-10);
+    padding: var(--space-5) var(--space-6);
   }
 
   .settings-content.full-bleed {
@@ -253,18 +181,5 @@
 
   .settings-content-inner.wide-inner {
     max-width: 900px;
-  }
-
-  :global(.settings-search-highlight) {
-    animation: settings-search-highlight-pulse 1.2s ease-out;
-  }
-
-  @keyframes settings-search-highlight-pulse {
-    0% {
-      box-shadow: 0 0 0 2px var(--accent-primary);
-    }
-    100% {
-      box-shadow: 0 0 0 2px transparent;
-    }
   }
 </style>

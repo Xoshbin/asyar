@@ -116,10 +116,6 @@ export class SettingsHandler {
   saveMessage = $state('');
   saveError = $state(false);
   activeTab = $state('general');
-  /** Cross-tab "search every setting" field in the command bar. Component-
-   *  local UI state, not persisted — mirrors how `query`/`appQuery` are
-   *  described in the design handoff's State section. */
-  searchQuery = $state('');
   selectedTheme = $state('system');
   selectedLaunchView = $state<'default' | 'compact'>('default');
   isLoading = $state(true);
