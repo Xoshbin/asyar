@@ -567,39 +567,13 @@ pub(crate) fn bundle_file_name(path: &Path) -> String {
         .to_string()
 }
 
-/// The name macOS presents for a bundle, which is localized — `Photos.app`
-/// reads as "Fotos" on a German system. Returns `None` when the OS has
-/// nothing to add, so callers fall back to the file name.
-#[cfg(target_os = "macos")]
-pub(crate) fn localized_display_name(path: &Path) -> Option<String> {
-    use objc2_foundation::{NSFileManager, NSString};
-
-    let path_str = path.to_str()?;
-    let ns_path = NSString::from_str(path_str);
-    let display = unsafe { NSFileManager::defaultManager().displayNameAtPath(&ns_path) };
-    // Finder hides the extension by default but honours the user's
-    // "show all filename extensions" setting, so it may come back either way.
-    let display = display.to_string();
-    let trimmed = display.strip_suffix(".app").unwrap_or(&display).trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
-}
-
-/// What the user sees for this app. Localized on macOS, the plain file name
-/// everywhere else. Deliberately separate from [`bundle_file_name`] — search
-/// matches both, but only the file name may reach `build_app_id`.
+/// What the user sees for this app: the name translated into the user's
+/// language where the bundle ships one, the plain file name otherwise.
+///
+/// Deliberately separate from [`bundle_file_name`] — search matches both, but
+/// only the file name may reach `build_app_id`.
 pub(crate) fn display_name(path: &Path) -> String {
-    #[cfg(target_os = "macos")]
-    {
-        localized_display_name(path).unwrap_or_else(|| bundle_file_name(path))
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        bundle_file_name(path)
-    }
+    crate::platform::localized_bundle_name(path).unwrap_or_else(|| bundle_file_name(path))
 }
 
 pub(crate) fn extract_bundle_id(path: &Path) -> Option<String> {
@@ -910,16 +884,17 @@ mod tests {
 
     #[test]
     #[cfg(target_os = "macos")]
-    fn test_localized_display_name_resolves_system_app() {
-        // Locale-independent on purpose: an English system answers "Photos",
-        // a German one "Fotos". Asserting either would fail on the other, so
-        // only assert the properties that must hold in every locale.
-        let name = localized_display_name(Path::new("/System/Applications/Photos.app"))
-            .expect("macOS must resolve a display name for a stock system app");
+    fn test_display_name_resolves_a_stock_system_app() {
+        // Whether the answer reads "Photos" or "Fotos" depends on the machine
+        // running the suite, so only the locale-independent properties are
+        // asserted here. That the *right* translation is picked is covered
+        // deterministically in `platform::macos::display_name`, where the
+        // locale is injected instead of read from the host.
+        let name = display_name(Path::new("/System/Applications/Photos.app"));
         assert!(!name.is_empty());
         assert!(
             !name.ends_with(".app"),
-            "extension must be stripped, got {name}"
+            "the extension must never leak into a display name, got {name}"
         );
     }
 

@@ -43,6 +43,9 @@ r2d2 = "0.8"
 # track newer rusqlite majors and will not link against the pin above.
 r2d2_sqlite = "0.24"
 plist = "1.7"
+# The user's language preference, which is what bundle display names must be
+# resolved against — Cocoa's own lookups answer in the host process's language.
+sys-locale = "0.3"
 tauri-plugin-notification = "2"
 tokio = { version = "1.0", features = ["full"] }
 tauri-plugin-clipboard-x = "2"

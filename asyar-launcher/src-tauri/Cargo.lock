@@ -265,6 +265,7 @@ dependencies = [
  "sha2",
  "specta",
  "specta-typescript",
+ "sys-locale",
  "sysinfo",
  "tar",
  "tauri",
