@@ -309,18 +309,32 @@ impl AppScanner {
         }
     }
 
+    /// Records a discovered bundle, skipping one an earlier scan root already
+    /// yielded (#410).
+    fn record(&mut self, path: &Path) {
+        if let Some(path_str) = path.to_str() {
+            if self.seen.insert(path_str.to_string()) {
+                self.paths.push(path_str.to_string());
+            }
+        }
+    }
+
     fn scan_directory(&mut self, dir_path: &Path) -> Result<(), AppError> {
+        // A scan root may name a single bundle rather than a folder of them —
+        // the Finder entry in the macOS defaults, or a custom path a user
+        // aimed straight at one app. That bundle *is* the app: record it and
+        // stop, because descending would index the helper apps nested in it.
+        if is_app_bundle(dir_path) && dir_path.exists() {
+            self.record(dir_path);
+            return Ok(());
+        }
         if !dir_path.is_dir() {
             return Ok(());
         }
         for entry in fs::read_dir(dir_path)?.filter_map(Result::ok) {
             let path = entry.path();
             if is_app_bundle(&path) {
-                if let Some(path_str) = path.to_str() {
-                    if self.seen.insert(path_str.to_string()) {
-                        self.paths.push(path_str.to_string());
-                    }
-                }
+                self.record(&path);
             } else if path.is_dir() {
                 let _ = self.scan_directory(&path);
             }
@@ -496,6 +510,14 @@ pub fn get_default_app_scan_paths() -> Vec<PathBuf> {
         let mut paths = vec![
             PathBuf::from("/Applications"),
             PathBuf::from("/System/Applications"),
+            // Finder lives in neither app folder. Named as a single bundle
+            // rather than scanning its directory: /System/Library/CoreServices
+            // holds ~150 bundles, nearly all background agents and helpers no
+            // one launches (rcd, PIPAgent, liquiddetectiond, …). Filtering
+            // those by LSUIElement/LSBackgroundOnly still leaves a couple of
+            // dozen, so the whole directory is not worth its noise for the one
+            // app users actually ask for by name.
+            PathBuf::from("/System/Library/CoreServices/Finder.app"),
         ];
         // Installers that don't ask for admin rights write here instead of
         // /Applications. Same rationale as the per-user locations the Linux
@@ -920,7 +942,8 @@ mod tests {
     #[test]
     #[cfg(target_os = "macos")]
     fn test_is_default_app_location_macos_matches_applications_dir() {
-        assert!(is_default_app_location("/Applications/Finder.app"));
+        // Not Finder.app — no such path exists. Finder has its own tests below.
+        assert!(is_default_app_location("/Applications/Safari.app"));
         assert!(is_default_app_location("/System/Applications/Calendar.app"));
     }
 
@@ -1003,6 +1026,101 @@ mod tests {
         );
         assert_eq!(items[0].get_name(), "Safari");
         assert_eq!(items[1].get_name(), "Ghost");
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_default_scan_paths_include_finder() {
+        // Finder ships in /System/Library/CoreServices, which is neither
+        // /Applications nor /System/Applications nor ~/Applications, so no
+        // scan ever reached it and searching "finder" returned no application.
+        let finder = Path::new("/System/Library/CoreServices/Finder.app");
+        let paths = get_default_app_scan_paths();
+        assert!(
+            paths.iter().any(|p| p == finder),
+            "Finder must be a default scan target, got {:?}",
+            paths
+        );
+        assert!(
+            is_default_app_location(finder.to_str().unwrap()),
+            "Finder must count as a default location, so its row shows no path subtitle"
+        );
+    }
+
+    #[test]
+    fn test_scanner_records_a_scan_root_that_is_itself_a_bundle() {
+        // A scan entry may name a single bundle rather than a folder of them —
+        // the Finder entry above, or a custom path a user aimed straight at one
+        // app. Only a root's children were ever considered, so such an entry
+        // yielded nothing at all.
+        let tmp = std::env::temp_dir().join("asyar_test_bundle_root");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        #[cfg(target_os = "macos")]
+        let app_path = tmp.join("Rooted.app");
+        #[cfg(target_os = "linux")]
+        let app_path = tmp.join("rooted.desktop");
+        #[cfg(target_os = "windows")]
+        let app_path = tmp.join("Rooted.lnk");
+
+        #[cfg(target_os = "macos")]
+        fs::create_dir_all(&app_path).unwrap();
+        #[cfg(not(target_os = "macos"))]
+        fs::write(&app_path, b"fake").unwrap();
+
+        let mut scanner = AppScanner::new();
+        scanner.scan_directory(&app_path).unwrap();
+
+        assert_eq!(
+            scanner.paths,
+            vec![app_path.to_str().unwrap().to_string()],
+            "a scan root that is itself a bundle must be recorded"
+        );
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn test_scanner_does_not_descend_into_a_bundle_root() {
+        // Bundles nest helper apps under Contents/. Recursing into a bundle
+        // root would index those helpers in place of the app itself.
+        let tmp = std::env::temp_dir().join("asyar_test_bundle_root_nested");
+        let _ = fs::remove_dir_all(&tmp);
+        let outer = tmp.join("Outer.app");
+        fs::create_dir_all(outer.join("Contents/Library/Helper.app")).unwrap();
+
+        let mut scanner = AppScanner::new();
+        scanner.scan_directory(&outer).unwrap();
+
+        assert_eq!(
+            scanner.paths,
+            vec![outer.to_str().unwrap().to_string()],
+            "nested helper bundles must not be indexed, got {:?}",
+            scanner.paths
+        );
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_scanner_ignores_a_bundle_scan_root_that_is_absent() {
+        // The Finder entry is an absolute path we assume exists. A macOS
+        // release that moves or drops it must degrade to "not indexed", not to
+        // a row pointing at nothing.
+        #[cfg(target_os = "macos")]
+        let missing = std::env::temp_dir().join("asyar_absent_bundle.app");
+        #[cfg(target_os = "linux")]
+        let missing = std::env::temp_dir().join("asyar_absent_bundle.desktop");
+        #[cfg(target_os = "windows")]
+        let missing = std::env::temp_dir().join("asyar_absent_bundle.lnk");
+        let _ = fs::remove_dir_all(&missing);
+
+        let mut scanner = AppScanner::new();
+        scanner.scan_directory(&missing).unwrap();
+
+        assert!(scanner.paths.is_empty());
     }
 
     #[test]
