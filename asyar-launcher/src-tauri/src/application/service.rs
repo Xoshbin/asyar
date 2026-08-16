@@ -150,7 +150,11 @@ pub fn sync_application_index<R: tauri::Runtime>(
     let removed = to_remove.len() as u32;
 
     // 5. Update SearchState
-    if !to_add.is_empty() || !to_remove.is_empty() {
+    //
+    // The write lock is taken unconditionally: an app can need updating without
+    // being added or removed, and `refresh_display_names` below is the only
+    // thing that catches it.
+    let renamed = {
         let mut items = search_state
             .items
             .write()
@@ -161,12 +165,16 @@ pub fn sync_application_index<R: tauri::Runtime>(
             items.retain(|item| !remove_set.contains(item.id()));
         }
 
+        let renamed = refresh_display_names(&mut items, &current_apps);
+
         for id in to_add {
             if let Some(app) = current_apps.remove(&id) {
                 items.push(SearchableItem::Application(app));
             }
         }
-    }
+
+        renamed
+    };
 
     // 6. Persist
     search_state
@@ -182,14 +190,48 @@ pub fn sync_application_index<R: tauri::Runtime>(
     };
 
     info!(
-        "App sync complete: {} added, {} removed, {} total apps",
-        added, removed, total
+        "App sync complete: {} added, {} removed, {} renamed, {} total apps",
+        added, removed, renamed, total
     );
     Ok(SyncResult {
         added,
         removed,
         total,
     })
+}
+
+/// Brings the names of already-indexed apps back in line with what a fresh
+/// scan reports, returning how many changed.
+///
+/// The add/remove diff cannot do this. An app's id is built from its bundle
+/// file name (see [`bundle_file_name`]), which no rename of the *displayed*
+/// name touches — so such an app sits in both the indexed and the scanned set
+/// and is neither added nor removed. Without this pass it would keep whatever
+/// name it was first indexed under for the lifetime of the index: a user
+/// switching macOS to German would go on seeing "Photos", and so would every
+/// install that was indexed before this resolution was fixed.
+///
+/// Only the name is copied over. `usage_count` and `last_used_at` live on the
+/// indexed item and are absent from a freshly scanned one, so swapping the
+/// whole struct would silently reset every app's frecency on each scan.
+fn refresh_display_names(
+    items: &mut [SearchableItem],
+    scanned: &HashMap<String, Application>,
+) -> u32 {
+    let mut renamed = 0;
+    for item in items.iter_mut() {
+        let SearchableItem::Application(indexed) = item else {
+            continue;
+        };
+        let Some(fresh) = scanned.get(&indexed.id) else {
+            continue;
+        };
+        if indexed.name != fresh.name {
+            indexed.name.clone_from(&fresh.name);
+            renamed += 1;
+        }
+    }
+    renamed
 }
 
 pub fn list_applications<R: tauri::Runtime>(
@@ -589,39 +631,13 @@ pub(crate) fn bundle_file_name(path: &Path) -> String {
         .to_string()
 }
 
-/// The name macOS presents for a bundle, which is localized — `Photos.app`
-/// reads as "Fotos" on a German system. Returns `None` when the OS has
-/// nothing to add, so callers fall back to the file name.
-#[cfg(target_os = "macos")]
-pub(crate) fn localized_display_name(path: &Path) -> Option<String> {
-    use objc2_foundation::{NSFileManager, NSString};
-
-    let path_str = path.to_str()?;
-    let ns_path = NSString::from_str(path_str);
-    let display = unsafe { NSFileManager::defaultManager().displayNameAtPath(&ns_path) };
-    // Finder hides the extension by default but honours the user's
-    // "show all filename extensions" setting, so it may come back either way.
-    let display = display.to_string();
-    let trimmed = display.strip_suffix(".app").unwrap_or(&display).trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
-}
-
-/// What the user sees for this app. Localized on macOS, the plain file name
-/// everywhere else. Deliberately separate from [`bundle_file_name`] — search
-/// matches both, but only the file name may reach `build_app_id`.
+/// What the user sees for this app: the name translated into the user's
+/// language where the bundle ships one, the plain file name otherwise.
+///
+/// Deliberately separate from [`bundle_file_name`] — search matches both, but
+/// only the file name may reach `build_app_id`.
 pub(crate) fn display_name(path: &Path) -> String {
-    #[cfg(target_os = "macos")]
-    {
-        localized_display_name(path).unwrap_or_else(|| bundle_file_name(path))
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        bundle_file_name(path)
-    }
+    crate::platform::localized_bundle_name(path).unwrap_or_else(|| bundle_file_name(path))
 }
 
 pub(crate) fn extract_bundle_id(path: &Path) -> Option<String> {
@@ -931,6 +947,87 @@ mod tests {
         assert!(is_default_app_location("/System/Applications/Calendar.app"));
     }
 
+    /// An app as the index holds it, carrying frecency data a scan never has.
+    fn indexed_app(id: &str, name: &str, usage_count: u32) -> SearchableItem {
+        SearchableItem::Application(Application {
+            id: id.to_string(),
+            name: name.to_string(),
+            path: format!("/Applications/{name}.app"),
+            usage_count,
+            icon: None,
+            last_used_at: Some(1_700_000_000),
+            bundle_id: None,
+        })
+    }
+
+    /// The same app as a fresh scan reports it: no usage history.
+    fn scanned_app(id: &str, name: &str) -> (String, Application) {
+        (
+            id.to_string(),
+            Application {
+                id: id.to_string(),
+                name: name.to_string(),
+                path: format!("/Applications/{name}.app"),
+                usage_count: 0,
+                icon: None,
+                last_used_at: None,
+                bundle_id: None,
+            },
+        )
+    }
+
+    #[test]
+    fn test_refresh_display_names_updates_a_stale_name() {
+        // The reported bug: an app indexed as "Photos" before the localized
+        // name resolved correctly keeps its id, so the add/remove diff never
+        // touches it. This pass is what makes the new name reach the index.
+        let mut items = vec![indexed_app("app_Photos", "Photos", 0)];
+        let scanned = HashMap::from([scanned_app("app_Photos", "Fotos")]);
+
+        assert_eq!(refresh_display_names(&mut items, &scanned), 1);
+        assert_eq!(items[0].get_name(), "Fotos");
+    }
+
+    #[test]
+    fn test_refresh_display_names_preserves_frecency() {
+        // Guards the reason only the name is copied: replacing the indexed
+        // item with the scanned one would zero the usage history of every
+        // renamed app on the very next scan.
+        let mut items = vec![indexed_app("app_Photos", "Photos", 42)];
+        let scanned = HashMap::from([scanned_app("app_Photos", "Fotos")]);
+
+        refresh_display_names(&mut items, &scanned);
+
+        let SearchableItem::Application(app) = &items[0] else {
+            panic!("item must stay an application");
+        };
+        assert_eq!(app.usage_count, 42, "usage count must survive a rename");
+        assert_eq!(
+            app.last_used_at,
+            Some(1_700_000_000),
+            "last use must survive a rename"
+        );
+    }
+
+    #[test]
+    fn test_refresh_display_names_leaves_matching_and_unscanned_items_alone() {
+        let mut items = vec![
+            indexed_app("app_Safari", "Safari", 7),
+            // Not in the scan — e.g. an app on a scan path the user just
+            // removed. Untouched here; the remove diff owns that case.
+            indexed_app("app_Ghost", "Ghost", 3),
+        ];
+        let scanned = HashMap::from([scanned_app("app_Safari", "Safari")]);
+
+        assert_eq!(
+            refresh_display_names(&mut items, &scanned),
+            0,
+            "an unchanged name must not count as a rename"
+        );
+        assert_eq!(items[0].get_name(), "Safari");
+        assert_eq!(items[1].get_name(), "Ghost");
+    }
+
     #[test]
     #[cfg(target_os = "macos")]
     fn test_default_scan_paths_include_finder() {
@@ -1028,16 +1125,17 @@ mod tests {
 
     #[test]
     #[cfg(target_os = "macos")]
-    fn test_localized_display_name_resolves_system_app() {
-        // Locale-independent on purpose: an English system answers "Photos",
-        // a German one "Fotos". Asserting either would fail on the other, so
-        // only assert the properties that must hold in every locale.
-        let name = localized_display_name(Path::new("/System/Applications/Photos.app"))
-            .expect("macOS must resolve a display name for a stock system app");
+    fn test_display_name_resolves_a_stock_system_app() {
+        // Whether the answer reads "Photos" or "Fotos" depends on the machine
+        // running the suite, so only the locale-independent properties are
+        // asserted here. That the *right* translation is picked is covered
+        // deterministically in `platform::macos::display_name`, where the
+        // locale is injected instead of read from the host.
+        let name = display_name(Path::new("/System/Applications/Photos.app"));
         assert!(!name.is_empty());
         assert!(
             !name.ends_with(".app"),
-            "extension must be stripped, got {name}"
+            "the extension must never leak into a display name, got {name}"
         );
     }
 

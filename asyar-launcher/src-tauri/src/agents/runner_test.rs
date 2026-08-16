@@ -982,6 +982,19 @@ fn resolve_provider_config_errors_for_an_unregistered_provider_id() {
 }
 
 #[test]
+fn resolve_provider_config_succeeds_for_a_named_connection_id() {
+    // Named connections (added via the "multiple provider connections"
+    // feature) get an opaque id like "custom_60f9a975" — the real engine
+    // lives in `provider_type`, not the map key.
+    let mut config = valid_openai_config();
+    config.provider_type = Some("custom".to_string());
+    config.base_url = Some("https://example.com/v1".to_string());
+    let configs = std::collections::HashMap::from([("custom_60f9a975".to_string(), config)]);
+    let resolved = resolve_provider_config("custom_60f9a975", &configs).unwrap();
+    assert_eq!(resolved.provider_type.as_deref(), Some("custom"));
+}
+
+#[test]
 fn resolve_provider_config_errors_when_api_key_is_missing() {
     let mut config = valid_openai_config();
     config.api_key = Some("   ".to_string());
