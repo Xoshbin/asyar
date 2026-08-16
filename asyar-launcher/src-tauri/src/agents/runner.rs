@@ -533,8 +533,12 @@ pub(crate) fn resolve_provider_config<'a>(
             "provider '{provider_id}' is disabled"
         )));
     }
+    // Named connections carry an opaque id like "custom_60f9a975"; the
+    // engine that actually handles the request lives in `provider_type`,
+    // falling back to `provider_id` for legacy configs that predate it.
+    let engine_type = config.provider_type.as_deref().unwrap_or(provider_id);
     if !matches!(
-        provider_id,
+        engine_type,
         "openai" | "anthropic" | "google" | "ollama" | "openrouter" | "custom"
     ) {
         return Err(AppError::Validation(format!(
@@ -542,7 +546,7 @@ pub(crate) fn resolve_provider_config<'a>(
         )));
     }
     if matches!(
-        provider_id,
+        engine_type,
         "openai" | "anthropic" | "google" | "openrouter"
     ) && config
         .api_key
@@ -555,7 +559,7 @@ pub(crate) fn resolve_provider_config<'a>(
             "API key for provider '{provider_id}' is not configured"
         )));
     }
-    if matches!(provider_id, "ollama" | "custom")
+    if matches!(engine_type, "ollama" | "custom")
         && config
             .base_url
             .as_deref()
