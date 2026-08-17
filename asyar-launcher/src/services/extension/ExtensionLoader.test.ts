@@ -72,6 +72,7 @@ vi.mock('../envService', () => ({ envService: { isDev: vi.fn().mockReturnValue(f
 vi.mock('../../lib/ipc/commands', () => ({
   syncSearchIndex: vi.fn().mockResolvedValue(undefined),
   syncCommandIndex: vi.fn().mockResolvedValue(undefined),
+  showSettingsWindow: vi.fn().mockResolvedValue(undefined),
 }));
 const mockCommandHandlers = vi.hoisted(() => new Map<string, any>());
 vi.mock('./commandService.svelte', () => ({
@@ -271,6 +272,92 @@ describe('ExtensionLoader.registerManifestActions', () => {
       mockSearchStores.selectedIndex = 0;
       mockSearchOrchestrator.items = [
         { type: 'command', extensionId: 'test-ext', objectId: 'cmd_test-ext_do-thing' },
+      ];
+      expect(action.visible()).toBe(true);
+    });
+  });
+
+  describe('Extension preferences action auto-registration', () => {
+    it('auto-registers act_<ext>_open_preferences when manifest has preferences', async () => {
+      const manifest = {
+        ...makeManifest('pref-ext'),
+        preferences: [{ name: 'apiKey', type: 'textfield' as const, title: 'API Key' }],
+      };
+      const loader = makeLoader([{ cmd: makeCommand('my-cmd'), manifest, isBuiltIn: true }]);
+
+      loader.registerManifestActions();
+
+      const action = registeredActions.find((a) => a.id === 'act_pref-ext_open_preferences');
+      expect(action).toBeDefined();
+      expect(action.label).toBe('Extension Preferences');
+      expect(action.category).toBe('Preferences');
+      expect(action.icon).toBe('icon:sliders');
+      expect(action.extensionId).toBe('pref-ext');
+      expect(action.context).toBe(ActionContext.CORE);
+
+      // Visibility: true when a command from this extension is selected
+      mockSearchStores.selectedIndex = 0;
+      mockSearchOrchestrator.items = [
+        { type: 'command', extensionId: 'pref-ext', objectId: 'cmd_pref-ext_my-cmd' },
+      ];
+      expect(action.visible()).toBe(true);
+
+      // Visibility: false when a different extension is selected
+      mockSearchOrchestrator.items = [
+        { type: 'command', extensionId: 'other-ext', objectId: 'cmd_other-ext_my-cmd' },
+      ];
+      expect(action.visible()).toBe(false);
+
+      // Execution calls showSettingsWindow('extensions', 'pref-ext')
+      const { showSettingsWindow } = await import('../../lib/ipc/commands');
+      await action.execute();
+      expect(showSettingsWindow).toHaveBeenCalledWith('extensions', 'pref-ext');
+    });
+
+    it('auto-registers act_<ext>_open_preferences when a command has preferences', () => {
+      const manifest = makeManifest('cmd-pref-ext');
+      const cmd = {
+        ...makeCommand('cmd-with-pref'),
+        preferences: [{ name: 'token', type: 'password' as const, title: 'Token' }],
+      };
+      const loader = makeLoader([{ cmd, manifest, isBuiltIn: true }]);
+
+      loader.registerManifestActions();
+
+      const action = registeredActions.find((a) => a.id === 'act_cmd-pref-ext_open_preferences');
+      expect(action).toBeDefined();
+    });
+
+    it('does not register act_<ext>_open_preferences when no preferences are declared', () => {
+      const manifest = makeManifest('no-pref-ext');
+      const cmd = makeCommand('plain-cmd');
+      const loader = makeLoader([{ cmd, manifest, isBuiltIn: true }]);
+
+      loader.registerManifestActions();
+
+      const action = registeredActions.find((a) => a.id === 'act_no-pref-ext_open_preferences');
+      expect(action).toBeUndefined();
+    });
+
+    it('remains visible even when allowExtensionActions = false (because it is a host platform action)', () => {
+      mockSettingsGetSettings.mockReturnValue({
+        search: { enableExtensionSearch: false, allowExtensionActions: false },
+      });
+
+      const manifest = {
+        ...makeManifest('pref-ext'),
+        preferences: [{ name: 'apiKey', type: 'textfield' as const, title: 'API Key' }],
+      };
+      const loader = makeLoader([{ cmd: makeCommand('my-cmd'), manifest, isBuiltIn: true }]);
+
+      loader.registerManifestActions();
+
+      const action = registeredActions.find((a) => a.id === 'act_pref-ext_open_preferences');
+      expect(action).toBeDefined();
+
+      mockSearchStores.selectedIndex = 0;
+      mockSearchOrchestrator.items = [
+        { type: 'command', extensionId: 'pref-ext', objectId: 'cmd_pref-ext_my-cmd' },
       ];
       expect(action.visible()).toBe(true);
     });
