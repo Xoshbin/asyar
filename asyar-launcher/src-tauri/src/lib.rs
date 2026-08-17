@@ -130,6 +130,7 @@ pub mod application;
 pub mod auth;
 pub mod browser;
 pub mod calculator;
+pub mod clipboard_cache;
 pub mod clipboard_markup;
 pub mod clipboard_privacy;
 pub mod color_sampler;
@@ -588,6 +589,8 @@ pub fn run() {
             storage::commands::clipboard_clear_non_favorites,
             commands::clipboard_markup::clipboard_strip_html,
             commands::clipboard_markup::clipboard_strip_rtf,
+            clipboard_cache::commands::clipboard_adopt_image,
+            clipboard_cache::commands::clipboard_forget_image,
             // Storage: snippets
             storage::commands::snippet_upsert,
             storage::commands::snippet_get_all,
