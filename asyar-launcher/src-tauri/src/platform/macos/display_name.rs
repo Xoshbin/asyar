@@ -24,28 +24,112 @@ pub fn localized_bundle_name(path: &Path) -> Option<String> {
 
 fn localized_bundle_name_in_locale(path: &Path, locale: &str) -> Option<String> {
     let resources = path.join("Contents/Resources");
+    let loctable = plist::Value::from_file(resources.join("InfoPlist.loctable")).ok();
+    let loctable = loctable.as_ref().and_then(plist::Value::as_dictionary);
     language_candidates(locale).into_iter().find_map(|lang| {
-        name_from_loctable(&resources.join("InfoPlist.loctable"), &lang).or_else(|| {
+        name_from_loctable(loctable, &lang).or_else(|| {
             name_from_info_plist_strings(&resources.join(format!("{lang}.lproj/InfoPlist.strings")))
         })
     })
 }
 
-/// Language keys to try, most specific first — `de-DE` before `de`. Bundles key
-/// their tables either way, and macOS itself falls back along the same chain.
+/// Language keys to try, most specific first — `de-DE` before `de`.
+///
+/// Two shapes of the same locale have to be tried, because the tag macOS
+/// reports and the key a bundle uses are written differently. `sys_locale`
+/// returns the user's preferred language as a BCP-47 tag with hyphens
+/// (`de-DE`, `zh-Hans-CN`), while Apple keys its own tables with underscores
+/// and no script subtag — every one of the 166 system `InfoPlist.loctable`s on
+/// macOS 26 uses `zh_CN`, `zh_HK`, `zh_TW`, `pt_PT`, `pt_BR`, `en_GB`,
+/// `es_419` and never a hyphen. Third-party bundles do use the hyphen form, so
+/// both are emitted, hyphen first.
+///
+/// A script subtag also has to be dropped on the way down, not just truncated
+/// off the end: Chinese arrives as `zh-Hans-CN`, and plain RFC 4647 truncation
+/// (`zh-Hans-CN` → `zh-Hans` → `zh`) never reaches `zh_CN` — and Apple ships no
+/// bare `zh` entry at all, so that chain ends in the English name. The order
+/// below matches what CoreFoundation's own resolver
+/// (`CFBundleCopyLocalizationsForPreferences`) picks when asked with Photos'
+/// real key list: `zh-Hans-CN` → `zh_CN`, `zh-Hant-HK` → `zh_HK` then `zh_TW`,
+/// `de-DE` → `de_DE` then `de`, `pt-BR` → `pt`.
+///
+/// What is deliberately not replicated is CoreFoundation's alias and
+/// likely-subtag data: `nb-NO` → `no`, `yue-Hans-CN` → `zh_CN`, `es-MX` →
+/// `es_419`. Those need a table this crate has no business shipping, and a miss
+/// only costs the fallback that has always applied — the on-disk file stem.
 fn language_candidates(locale: &str) -> Vec<String> {
-    let regional = locale.replace('_', "-");
-    let base = regional.split('-').next().unwrap_or_default().to_string();
-    match () {
-        _ if base.is_empty() => Vec::new(),
-        _ if base == regional => vec![base],
-        _ => vec![regional, base],
+    let mut subtags = locale.split(['-', '_']).filter(|part| !part.is_empty());
+    let Some(language) = subtags.next() else {
+        return Vec::new();
+    };
+    let (mut script, mut region) = (None, None);
+    for subtag in subtags {
+        match subtag {
+            // A one-character subtag opens an extension ("de-DE-u-co-phonebk"),
+            // and what follows it only looks like a region — "-u-ca-chinese"
+            // would otherwise read as Canada.
+            _ if subtag.len() == 1 => break,
+            _ if script.is_none() && is_script(subtag) => script = Some(subtag),
+            _ if region.is_none() && is_region(subtag) => region = Some(subtag),
+            // Variants ("de-DE-1901") never key a table.
+            _ => {}
+        }
+    }
+
+    let mut candidates = Vec::new();
+    if let (Some(script), Some(region)) = (script, region) {
+        push_both_separators(&mut candidates, &format!("{language}-{script}-{region}"));
+    }
+    if let Some(region) = region {
+        push_both_separators(&mut candidates, &format!("{language}-{region}"));
+    }
+    if let Some(script) = script {
+        push_both_separators(&mut candidates, &format!("{language}-{script}"));
+    }
+    if let Some(region) = implied_region(language, script) {
+        push_both_separators(&mut candidates, &format!("{language}-{region}"));
+    }
+    push_both_separators(&mut candidates, language);
+    candidates
+}
+
+/// The region Apple's tables stand in for a script, for the one language where
+/// it matters. There is no `zh_Hans`/`zh_Hant` key anywhere in macOS and no
+/// bare `zh` either, so a `zh-Hans` or `zh-Hant` preference only resolves
+/// through a region. CoreFoundation resolves the same way (`zh-Hans` → `zh_CN`,
+/// `zh-Hant` → `zh_TW`), and it too keeps a Traditional preference away from
+/// the Simplified `zh` entry — hence this runs before the bare language.
+fn implied_region(language: &str, script: Option<&str>) -> Option<&'static str> {
+    match (language, script) {
+        ("zh", Some("Hant")) => Some("TW"),
+        ("zh", Some("Hans") | None) => Some("CN"),
+        _ => None,
     }
 }
 
-fn name_from_loctable(path: &Path, lang: &str) -> Option<String> {
-    let table = plist::Value::from_file(path).ok()?;
-    display_name_in(table.as_dictionary()?.get(lang)?.as_dictionary()?)
+/// Emits a candidate in both the hyphen and the underscore spelling, skipping
+/// duplicates so `zh-Hans-CN` does not try `zh_CN` twice.
+fn push_both_separators(candidates: &mut Vec<String>, stem: &str) {
+    for candidate in [stem.to_owned(), stem.replace('-', "_")] {
+        if !candidates.contains(&candidate) {
+            candidates.push(candidate);
+        }
+    }
+}
+
+/// A script subtag is four letters (`Hans`), a region two letters (`GB`) or
+/// three digits (`419`, Latin America).
+fn is_script(subtag: &str) -> bool {
+    subtag.len() == 4 && subtag.chars().all(|c| c.is_ascii_alphabetic())
+}
+
+fn is_region(subtag: &str) -> bool {
+    (subtag.len() == 2 && subtag.chars().all(|c| c.is_ascii_alphabetic()))
+        || (subtag.len() == 3 && subtag.chars().all(|c| c.is_ascii_digit()))
+}
+
+fn name_from_loctable(table: Option<&plist::Dictionary>, lang: &str) -> Option<String> {
+    display_name_in(table?.get(lang)?.as_dictionary()?)
 }
 
 /// Reads a `<lang>.lproj/InfoPlist.strings`. Modern bundles ship these as
@@ -178,9 +262,144 @@ mod tests {
 
     #[test]
     fn language_candidates_are_ordered_most_specific_first() {
-        assert_eq!(language_candidates("de-DE"), vec!["de-DE", "de"]);
+        assert_eq!(language_candidates("de-DE"), vec!["de-DE", "de_DE", "de"]);
         assert_eq!(language_candidates("de"), vec!["de"]);
         assert!(language_candidates("").is_empty());
+    }
+
+    /// Stock bundles key Chinese as `zh_CN`/`zh_HK`/`zh_TW` and ship no bare
+    /// `zh` entry at all — true for every one of the 166 system
+    /// `InfoPlist.loctable`s on macOS 26. macOS reports the matching user
+    /// language as a script tag (`zh-Hans-CN`), so nothing lines up unless the
+    /// candidate chain bridges both.
+    #[test]
+    fn resolves_chinese_against_apples_underscore_only_keys() {
+        // Names as Photos.app actually ships them.
+        let bundle = bundle_with_loctable(
+            "Chinese.app",
+            &[
+                ("en", "Photos"),
+                ("zh_CN", "照片"),
+                ("zh_HK", "相片"),
+                ("zh_TW", "照片"),
+            ],
+        );
+        for (locale, expected) in [
+            ("zh-Hans-CN", "照片"),
+            ("zh_CN", "照片"),
+            ("zh-CN", "照片"),
+            ("zh-Hant-TW", "照片"),
+            ("zh-Hant-HK", "相片"),
+            ("zh-Hans", "照片"),
+            ("zh-Hant", "照片"),
+            ("zh", "照片"),
+        ] {
+            assert_eq!(
+                localized_bundle_name_in_locale(&bundle, locale).as_deref(),
+                Some(expected),
+                "locale {locale}"
+            );
+        }
+    }
+
+    /// The other regional key shapes Apple ships: `en_GB`, `pt_PT`, `es_419`.
+    #[test]
+    fn resolves_underscore_keyed_regions_and_keeps_the_base_language_for_others() {
+        let bundle = bundle_with_loctable(
+            "Regions.app",
+            &[
+                ("en", "Photos"),
+                ("en_GB", "Photos GB"),
+                ("pt", "Fotos"),
+                ("pt_PT", "Fotografias"),
+                ("es", "Fotos ES"),
+                ("es_419", "Fotos 419"),
+            ],
+        );
+        for (locale, expected) in [
+            ("en-GB", "Photos GB"),
+            ("en_GB", "Photos GB"),
+            ("en-US", "Photos"),
+            ("pt-PT", "Fotografias"),
+            ("pt-BR", "Fotos"),
+            ("es-419", "Fotos 419"),
+            ("es-ES", "Fotos ES"),
+        ] {
+            assert_eq!(
+                localized_bundle_name_in_locale(&bundle, locale).as_deref(),
+                Some(expected),
+                "locale {locale}"
+            );
+        }
+    }
+
+    /// The synthetic bundles above prove the lookup; this proves the key shapes
+    /// were read off the real thing. Apple's own translations are not pinned —
+    /// only that a Chinese preference stops landing on the English name, which
+    /// is the exact symptom of a missed regional key.
+    #[test]
+    fn resolves_a_real_stock_bundle_in_an_injected_locale() {
+        let photos = Path::new("/System/Applications/Photos.app");
+        if !photos.exists() {
+            return; // Not a stock macOS install — nothing to check against.
+        }
+        let english = localized_bundle_name_in_locale(photos, "en-US");
+        for locale in ["zh-Hans-CN", "zh-Hant-TW", "zh-Hant-HK", "pt-PT", "en-GB"] {
+            let name = localized_bundle_name_in_locale(photos, locale);
+            assert!(name.is_some(), "{locale} resolved to nothing");
+            if locale.starts_with("zh") {
+                assert_ne!(name, english, "{locale} fell back to the English name");
+            }
+        }
+    }
+
+    #[test]
+    fn language_candidates_cover_both_separators_and_script_tags() {
+        assert_eq!(language_candidates("en_GB"), vec!["en-GB", "en_GB", "en"]);
+        assert_eq!(
+            language_candidates("es-419"),
+            vec!["es-419", "es_419", "es"]
+        );
+        assert_eq!(
+            language_candidates("zh-Hans-CN"),
+            vec![
+                "zh-Hans-CN",
+                "zh_Hans_CN",
+                "zh-CN",
+                "zh_CN",
+                "zh-Hans",
+                "zh_Hans",
+                "zh"
+            ]
+        );
+        assert_eq!(
+            language_candidates("zh-Hant-HK"),
+            vec![
+                "zh-Hant-HK",
+                "zh_Hant_HK",
+                "zh-HK",
+                "zh_HK",
+                "zh-Hant",
+                "zh_Hant",
+                "zh-TW",
+                "zh_TW",
+                "zh"
+            ]
+        );
+        assert_eq!(
+            language_candidates("zh-Hant"),
+            vec!["zh-Hant", "zh_Hant", "zh-TW", "zh_TW", "zh"]
+        );
+        assert_eq!(language_candidates("zh"), vec!["zh-CN", "zh_CN", "zh"]);
+        assert_eq!(
+            language_candidates("zh-Hans-CN-u-ca-chinese"),
+            language_candidates("zh-Hans-CN"),
+            "an extension subtag must not be mistaken for a region"
+        );
+        assert_eq!(
+            language_candidates("de-DE-1901"),
+            vec!["de-DE", "de_DE", "de"]
+        );
     }
 
     #[test]
