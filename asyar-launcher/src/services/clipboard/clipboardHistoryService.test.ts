@@ -30,15 +30,13 @@ vi.mock('tauri-plugin-clipboard-x-api', () => ({
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
-vi.mock('@tauri-apps/api/path', () => ({
-  appDataDir: vi.fn().mockResolvedValue('/mock/app/data/'),
-}));
-
-vi.mock('@tauri-apps/plugin-fs', () => ({
-  copyFile: vi.fn().mockResolvedValue(undefined),
-  remove: vi.fn().mockResolvedValue(undefined),
-  mkdir: vi.fn().mockResolvedValue(undefined),
-  exists: vi.fn().mockResolvedValue(false),
+// Default: the move succeeds, mirroring Rust's `$APPDATA/clipboard_cache/<id>.png`.
+// Tests that care about a failed move override this per case.
+vi.mock('../../lib/ipc/clipboardCacheCommands', () => ({
+  clipboardAdoptImage: vi.fn((id: string) =>
+    Promise.resolve(`/app/data/clipboard_cache/${id}.png`),
+  ),
+  clipboardForgetImage: vi.fn(() => Promise.resolve(true)),
 }));
 
 vi.mock('@tauri-apps/plugin-os', () => ({
@@ -87,7 +85,7 @@ import { ClipboardItemType, type ClipboardHistoryItem } from 'asyar-sdk/contract
 import { clipboardPrivacyService } from '../privacy/clipboardPrivacyService.svelte';
 import { secretRedactionService } from '../privacy/secretRedactionService.svelte';
 import { clipboardHistoryStore } from './stores/clipboardHistoryStore.svelte';
-import { remove } from '@tauri-apps/plugin-fs';
+import { clipboardAdoptImage, clipboardForgetImage } from '../../lib/ipc/clipboardCacheCommands';
 
 function getInstance(): ClipboardHistoryService {
   return new ClipboardHistoryService();
@@ -924,40 +922,49 @@ describe('image cache persistence', () => {
     vi.clearAllMocks();
   });
 
-  it('copies image to permanent cache directory', async () => {
-    const { copyFile, mkdir } = await import('@tauri-apps/plugin-fs');
+  it('adopts the image out of the plugin directory and stores the owned path', async () => {
+    vi.mocked(clipboardAdoptImage).mockResolvedValueOnce('/app/data/clipboard_cache/item.png');
     const svc = getInstance();
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
 
     await (svc as any).handleClipboardChange({
       image: {
         type: 'image',
-        value: '/tmp/plugin-temp/img123.png',
+        value: '/plugin/images/998877.png',
         count: 1,
         width: 800,
         height: 600,
       },
     });
 
-    // Should create cache directory
-    expect(mkdir).toHaveBeenCalledWith(
-      expect.stringContaining('clipboard_cache'),
-      expect.objectContaining({ recursive: true }),
+    expect(clipboardAdoptImage).toHaveBeenCalledWith(
+      expect.any(String),
+      '/plugin/images/998877.png',
     );
 
-    // Should copy from temp to permanent location
-    expect(copyFile).toHaveBeenCalledWith(
-      '/tmp/plugin-temp/img123.png',
-      expect.stringContaining('clipboard_cache/'),
-    );
-
-    // The stored item should have the permanent cache path, NOT the temp path
+    // The row must record where its image actually ended up, not the
+    // plugin's shared hash-addressed path.
     expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'image',
-        content: expect.stringContaining('clipboard_cache/'),
+        content: '/app/data/clipboard_cache/item.png',
       }),
     );
+  });
+
+  it('adopts under the item id so each row owns a distinct file', async () => {
+    vi.mocked(clipboardAdoptImage).mockResolvedValueOnce('/app/data/clipboard_cache/x.png');
+    const svc = getInstance();
+    const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+    await (svc as any).handleClipboardChange({
+      image: { type: 'image', value: '/plugin/images/1.png', count: 1, width: 1, height: 1 },
+    });
+
+    const adoptedId = vi.mocked(clipboardAdoptImage).mock.calls[0][0];
+    const stored = vi.mocked(clipboardHistoryStore.addHistoryItem).mock
+      .calls[0][0] as ClipboardHistoryItem;
+    expect(adoptedId).toBe(stored.id);
   });
 
   it('stores image metadata (width, height, sizeBytes)', async () => {
@@ -982,24 +989,22 @@ describe('image cache persistence', () => {
     const deleteSpy = vi
       .spyOn(clipboardHistoryStore, 'deleteHistoryItem')
       .mockResolvedValue({ imageContentPath: '/cache/foo.png' });
-    vi.mocked(remove).mockClear();
 
     const ok = await getInstance().deleteItem('foo');
 
     expect(ok).toBe(true);
     expect(deleteSpy).toHaveBeenCalledWith('foo');
-    expect(remove).toHaveBeenCalledWith('/cache/foo.png');
+    expect(clipboardForgetImage).toHaveBeenCalledWith('/cache/foo.png');
   });
 
   it('deleteItem does not unlink anything when the IPC response has no image path', async () => {
     vi.spyOn(clipboardHistoryStore, 'deleteHistoryItem').mockResolvedValue({
       imageContentPath: undefined,
     });
-    vi.mocked(remove).mockClear();
 
     await getInstance().deleteItem('text-row');
 
-    expect(remove).not.toHaveBeenCalled();
+    expect(clipboardForgetImage).not.toHaveBeenCalled();
   });
 
   it('clearNonFavorites unlinks every image path returned by the IPC response', async () => {
@@ -1007,28 +1012,28 @@ describe('image cache persistence', () => {
       removedIds: ['a', 'b'],
       removedImagePaths: ['/cache/a.png', '/cache/b.png'],
     });
-    vi.mocked(remove).mockClear();
 
     const ok = await getInstance().clearNonFavorites();
 
     expect(ok).toBe(true);
-    expect(remove).toHaveBeenCalledWith('/cache/a.png');
-    expect(remove).toHaveBeenCalledWith('/cache/b.png');
+    expect(clipboardForgetImage).toHaveBeenCalledWith('/cache/a.png');
+    expect(clipboardForgetImage).toHaveBeenCalledWith('/cache/b.png');
   });
 
-  it('handles copy failure gracefully', async () => {
-    const { copyFile } = await import('@tauri-apps/plugin-fs');
-    vi.mocked(copyFile).mockRejectedValueOnce(new Error('disk full'));
+  // The plugin's own path stays readable, so a failed move must leave a
+  // usable row rather than dropping the capture.
+  it('falls back to the plugin path when the move fails', async () => {
+    vi.mocked(clipboardAdoptImage).mockResolvedValueOnce(null);
     const svc = getInstance();
     const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
 
-    // Should not throw, should log error and still store with temp path as fallback
     await (svc as any).handleClipboardChange({
-      image: { type: 'image', value: '/tmp/img.png', count: 1, width: 100, height: 100 },
+      image: { type: 'image', value: '/plugin/images/1.png', count: 1, width: 100, height: 100 },
     });
 
-    // Should still store the item (with the temp path as fallback)
-    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalled();
+    expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'image', content: '/plugin/images/1.png' }),
+    );
   });
 });
 

@@ -19,9 +19,8 @@ import {
   onClipboardChange,
   type ReadClipboard,
 } from 'tauri-plugin-clipboard-x-api';
-import { copyFile, remove, mkdir } from '@tauri-apps/plugin-fs';
-import { appDataDir } from '@tauri-apps/api/path';
 import { platform } from '@tauri-apps/plugin-os';
+import { clipboardAdoptImage, clipboardForgetImage } from '../../lib/ipc/clipboardCacheCommands';
 import * as commands from '../../lib/ipc/commands';
 import type { ClipboardDeleteResult, ClipboardClearResult } from '../../lib/ipc/commands';
 import { getFrontmostApplication } from '../../lib/ipc/applicationCommands';
@@ -49,36 +48,27 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
   private isAndroid: boolean = false;
   private pollingInterval: number | null = null;
 
-  private static readonly CLIPBOARD_CACHE_DIR = 'clipboard_cache';
-  private cacheDirPath: string | null = null;
-
-  private async getCacheDirPath(): Promise<string> {
-    if (!this.cacheDirPath) {
-      const appData = await appDataDir();
-      this.cacheDirPath = `${appData}${ClipboardHistoryService.CLIPBOARD_CACHE_DIR}`;
-    }
-    return this.cacheDirPath;
-  }
-
-  private async ensureCacheDir(): Promise<void> {
-    const dir = await this.getCacheDirPath();
-    await mkdir(dir, { recursive: true });
-  }
-
-  private async copyImageToCache(id: string, sourcePath: string): Promise<string> {
-    await this.ensureCacheDir();
-    const cacheDir = await this.getCacheDirPath();
-    const destPath = `${cacheDir}/${id}.png`;
-    await copyFile(sourcePath, destPath);
-    return destPath;
+  /**
+   * Gives this history item sole ownership of its image file.
+   *
+   * The clipboard plugin writes every copied image to its own directory
+   * keyed by a hash of the pixel bytes, so two rows holding the same image
+   * share one file and deleting either would break the other. Rust moves it
+   * to `$APPDATA/clipboard_cache/<id>.png` — a rename, so it costs nothing
+   * and leaves one file on disk rather than two. The plugin simply
+   * re-encodes on the next identical copy; it only skips writing while its
+   * hash path still exists.
+   *
+   * Returns the plugin's original path unchanged when the move fails. That
+   * path stays readable, so the preview keeps working — it just goes back to
+   * being shared, exactly as every row captured before this existed.
+   */
+  private async adoptImage(id: string, sourcePath: string): Promise<string> {
+    return (await clipboardAdoptImage(id, sourcePath)) ?? sourcePath;
   }
 
   private async deleteImageFromCache(path: string): Promise<void> {
-    try {
-      await remove(path);
-    } catch {
-      // File may not exist, that's ok
-    }
+    await clipboardForgetImage(path);
   }
 
   /**
@@ -284,13 +274,9 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
       if (!imageData?.value) return;
 
       const imageId = uuidv4();
-      let storedPath = imageData.value; // fallback to temp path
-
-      try {
-        storedPath = await this.copyImageToCache(imageId, imageData.value);
-      } catch (error) {
-        logService.error(`Failed to copy image to cache, using temp path: ${error}`);
-      }
+      // Falls back to the plugin's own path when the move fails; either way
+      // the row records where its image actually is.
+      const storedPath = await this.adoptImage(imageId, imageData.value);
 
       const item: ClipboardHistoryItem = {
         id: imageId,
