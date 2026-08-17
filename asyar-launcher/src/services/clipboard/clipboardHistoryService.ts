@@ -356,16 +356,23 @@ export class ClipboardHistoryService implements IClipboardHistoryService {
         return parts[parts.length - 1] || p;
       });
 
+      // `fileData.count` is the plugin's *byte size* of the copied files
+      // (readClipboard fills it from `readFiles().size`), not how many there
+      // are — using it as the count rendered a single copied screenshot as
+      // "288263 files". The paths array is the only source for the count.
+      const fileCount = fileData.value.length;
+
       const item: ClipboardHistoryItem = {
         id: uuidv4(),
         type: ClipboardItemType.Files,
         content: contentStr,
-        preview: `${fileData.count} file${fileData.count !== 1 ? 's' : ''}: ${fileNames.join(', ')}`,
+        preview: `${fileCount} file${fileCount !== 1 ? 's' : ''}: ${fileNames.join(', ')}`,
         createdAt: Date.now(),
         favorite: false,
         metadata: {
-          fileCount: fileData.count,
+          fileCount,
           fileNames,
+          sizeBytes: fileData.count,
         },
         sourceApp,
       };
