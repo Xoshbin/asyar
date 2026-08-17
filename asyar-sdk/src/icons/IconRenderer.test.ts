@@ -104,6 +104,13 @@ describe('IconRenderer', () => {
       expect(data).toBeDefined();
       expect(data).toMatch(/<polyline|<path|<line/);
     });
+
+    it('includes sliders icon (used for preferences action)', () => {
+      expect(hasIcon('sliders')).toBe(true);
+      const data = getIconData('sliders');
+      expect(data).toBeDefined();
+      expect(data).toMatch(/<line/);
+    });
   });
 
   describe('ICON_NAMES', () => {

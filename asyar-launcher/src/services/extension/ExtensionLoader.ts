@@ -400,27 +400,61 @@ export class ExtensionLoader {
       const extensionId = manifest.id;
 
       // Register extension-level actions once per extension
-      if (!seenExtensions.has(extensionId) && manifest.actions?.length) {
-        for (const action of manifest.actions) {
-          const fullActionId = `act_${extensionId}_${action.id}`;
+      if (!seenExtensions.has(extensionId)) {
+        if (manifest.actions?.length) {
+          for (const action of manifest.actions) {
+            const fullActionId = `act_${extensionId}_${action.id}`;
+            actionService.registerAction({
+              id: fullActionId,
+              label: action.title,
+              description: action.description,
+              icon: action.icon,
+              shortcut: action.shortcut,
+              category: action.category,
+              extensionId,
+              context: ActionContext.CORE,
+              visible: () => {
+                if (settingsService.getSettings().search.allowExtensionActions === false)
+                  return false;
+                const idx = searchStores.selectedIndex;
+                if (idx < 0) return false;
+                const item = searchOrchestrator.items[idx];
+                return item?.type === 'command' && item.extensionId === extensionId;
+              },
+              // execute intentionally omitted — triggers sendToExtension fallback
+            } as any);
+          }
+        }
+
+        // Auto-register built-in "Extension Preferences" action if the extension declares preferences
+        const hasPreferences =
+          (manifest.preferences?.length ?? 0) > 0 ||
+          this.allLoadedCommands.some(
+            (c) => c.manifest.id === extensionId && (c.cmd.preferences?.length ?? 0) > 0,
+          );
+
+        if (hasPreferences) {
+          const prefActionId = `act_${extensionId}_open_preferences`;
           actionService.registerAction({
-            id: fullActionId,
-            label: action.title,
-            description: action.description,
-            icon: action.icon,
-            shortcut: action.shortcut,
-            category: action.category,
+            id: prefActionId,
+            label: 'Extension Preferences',
+            description: `Configure preferences for ${manifest.name || extensionId}`,
+            icon: 'icon:sliders',
+            category: 'Preferences',
             extensionId,
             context: ActionContext.CORE,
             visible: () => {
-              if (settingsService.getSettings().search.allowExtensionActions === false)
-                return false;
               const idx = searchStores.selectedIndex;
               if (idx < 0) return false;
               const item = searchOrchestrator.items[idx];
-              return item?.type === 'command' && item.extensionId === extensionId;
+              return (
+                (item?.type === 'command' && item.extensionId === extensionId) ||
+                item?.objectId?.startsWith(`cmd_${extensionId}_`) === true
+              );
             },
-            // execute intentionally omitted — triggers sendToExtension fallback
+            execute: async () => {
+              await commands.showSettingsWindow('extensions', extensionId);
+            },
           } as any);
         }
       }
