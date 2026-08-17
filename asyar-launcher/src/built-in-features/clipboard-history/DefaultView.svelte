@@ -11,6 +11,7 @@
   import { clipboardHistoryStore } from '../../services/clipboard/stores/clipboardHistoryStore.svelte';
   import { listen } from '@tauri-apps/api/event';
   import { fetchRawHtml } from './urlFetcher';
+  import { parseFilePaths, fileNameOf, loadFileThumbnails, FILE_THUMB_DIM } from './filePreview';
   import { stripRtf, type ClipboardHistoryItem } from 'asyar-sdk/contracts';
   import type { StoredClipboardItem } from '../../lib/ipc/commands';
   import { readFile } from '@tauri-apps/plugin-fs';
@@ -61,6 +62,13 @@
   let imageLoading = $state(false);
   let imageUrl = $state('');
   let currentImagePath = $state('');
+
+  // Thumbnails for `files` entries. macOS screenshot tools (and Finder)
+  // put a *file reference* on the pasteboard rather than image data, and
+  // handleClipboardChange prefers files over image — so a copied screenshot
+  // arrives here as type `files` and used to render as a bare filename row.
+  let fileThumbnails = $state<Record<string, string | null>>({});
+  let currentFilesContent = $state('');
 
   // URL content fetch state
   let urlBlobUrl = $state('');
@@ -220,6 +228,41 @@
     }
   });
 
+  // Load thumbnails when a files item is selected. Debounced because
+  // holding an arrow key steps through many rows a second, and on macOS
+  // every non-image type is thumbnailed via a `qlmanage` subprocess.
+  let fileThumbTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const item = selectedFullItem;
+
+    if (!item || item.type !== 'files' || item.redactedKinds?.length) {
+      clearTimeout(fileThumbTimer);
+      fileThumbnails = {};
+      currentFilesContent = '';
+      return;
+    }
+
+    const content = item.content ?? '';
+    // Already loaded, or a load is already pending, for this exact entry.
+    // Cancelling the timer here would drop a request no later run reschedules.
+    if (content === currentFilesContent) return;
+
+    clearTimeout(fileThumbTimer);
+    currentFilesContent = content;
+    fileThumbnails = {};
+    const paths = parseFilePaths(content);
+    if (paths.length === 0) return;
+
+    fileThumbTimer = setTimeout(() => {
+      void loadFileThumbnails(paths, FILE_THUMB_DIM).then((thumbs) => {
+        // Selection may have moved on while the thumbnails were generating.
+        if (currentFilesContent === content) fileThumbnails = thumbs;
+      });
+    }, 150);
+  });
+
+  onDestroy(() => clearTimeout(fileThumbTimer));
+
   // Fetch URL content when a URL item is selected
   $effect(() => {
     const item = selectedFullItem;
@@ -355,18 +398,6 @@
     return content.length > MAX_PREVIEW_CHARS;
   }
 
-  function getFileName(path: string): string {
-    return path.split('/').pop() || path.split('\\').pop() || path;
-  }
-
-  function getFiles(content: string | null | undefined): string[] {
-    try {
-      return JSON.parse(content || '[]');
-    } catch {
-      return [];
-    }
-  }
-
   function isUrl(text: string | null | undefined): boolean {
     if (!text) return false;
     const trimmed = text.trim();
@@ -429,7 +460,10 @@
       return parts.join(' \u00b7 ') || '';
     }
     if (item.type === 'files' && meta?.fileCount) {
-      return `${meta.fileCount} file${(meta.fileCount as number) !== 1 ? 's' : ''}`;
+      const count = meta.fileCount as number;
+      const parts = [`${count} file${count !== 1 ? 's' : ''}`];
+      if (meta.sizeBytes) parts.push(formatBytes(meta.sizeBytes as number));
+      return parts.join(' · ');
     }
     if (item.content && ['text', 'html', 'rtf'].includes(item.type)) {
       const words = getWordCount(item);
@@ -624,28 +658,54 @@
                   </div>
                 {/if}
               {:else if selectedFullItem.type === 'files'}
+                {@const filePaths = parseFilePaths(selectedFullItem.content)}
+                {@const soloThumb =
+                  filePaths.length === 1 ? (fileThumbnails[filePaths[0]] ?? null) : null}
                 <div class="flex flex-col gap-1.5 p-4">
-                  {#each getFiles(selectedFullItem.content) as filePath}
+                  {#if soloThumb}
+                    <!-- A single copied file that the backend can thumbnail —
+                         a screenshot, in the case that motivated this. Show it
+                         the way an `image` entry is shown rather than as a
+                         one-row filename list. -->
+                    <div class="flex items-center justify-center pb-3">
+                      <img
+                        src={soloThumb}
+                        class="max-w-full object-contain rounded-md shadow-sm border file-solo-thumb"
+                        style="border-color: var(--border-color);"
+                        alt="Preview of {fileNameOf(filePaths[0])}"
+                      />
+                    </div>
+                  {/if}
+                  {#each filePaths as filePath}
                     <div
                       class="flex items-center gap-2 py-1.5 px-2 rounded"
                       style="background: var(--bg-secondary);"
                     >
-                      <svg
-                        class="w-4 h-4 flex-shrink-0 opacity-60"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                        ><path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        /></svg
-                      >
+                      {#if !soloThumb && fileThumbnails[filePath]}
+                        <img
+                          src={fileThumbnails[filePath]}
+                          class="file-row-thumb flex-shrink-0"
+                          alt=""
+                          aria-hidden="true"
+                        />
+                      {:else}
+                        <svg
+                          class="w-4 h-4 flex-shrink-0 opacity-60"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          ><path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          /></svg
+                        >
+                      {/if}
                       <span
                         class="text-sm truncate flex-1"
                         style="color: var(--text-primary); font-family: var(--font-mono);"
-                        >{getFileName(filePath)}</span
+                        >{fileNameOf(filePath)}</span
                       >
                       <IconButton
                         onclick={() => revealFile(filePath)}
@@ -1044,6 +1104,19 @@
   :global(.html-preview pre) {
     padding: var(--space-5) var(--space-6);
     overflow-x: auto;
+  }
+
+  /* Bounded so a tall screenshot still leaves the filename row and the
+     rest of the detail pane visible without scrolling past the image. */
+  .file-solo-thumb {
+    max-height: 60vh;
+  }
+
+  .file-row-thumb {
+    width: var(--size-sm);
+    height: var(--size-sm);
+    object-fit: cover;
+    border-radius: var(--radius-xs);
   }
 
   .source-app-info {

@@ -598,6 +598,29 @@ describe('handleClipboardChange', () => {
       );
     });
 
+    // The plugin's `count` on a files entry is the total byte size of the
+    // copied files, not how many there are (readClipboard sets it from
+    // `readFiles().size`). Deriving fileCount from it turned a single copied
+    // screenshot into "288263 files".
+    it('derives fileCount from the paths, not from the plugin byte count', async () => {
+      const svc = getInstance();
+      const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
+
+      await (svc as any).handleClipboardChange({
+        files: { type: 'files', value: ['/Users/test/shot.png'], count: 288263 },
+      });
+
+      expect(clipboardHistoryStore.addHistoryItem).toHaveBeenCalledWith(
+        expect.objectContaining({
+          preview: '1 file: shot.png',
+          metadata: expect.objectContaining({
+            fileCount: 1,
+            sizeBytes: 288263,
+          }),
+        }),
+      );
+    });
+
     it('prioritizes files over everything', async () => {
       const svc = getInstance();
       const { clipboardHistoryStore } = await import('./stores/clipboardHistoryStore.svelte');
