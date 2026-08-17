@@ -93,6 +93,9 @@ mod watcher {
         }
     }
 
+    const PROCFS_POLL_INTERVAL: Duration = Duration::from_secs(3);
+    const PROCFS_STARTUP_DELAY: Duration = Duration::from_millis(2500);
+
     fn spawn_procfs_poller(hub: Arc<AppEventsHub>) {
         std::thread::Builder::new()
             .name("asyar-app-events-procfs".into())
@@ -107,16 +110,18 @@ mod watcher {
     fn run_procfs_loop(hub: Arc<AppEventsHub>) -> Result<(), String> {
         use procfs::process::all_processes;
 
+        // Defer initial procfs traversal until after core app startup and window creation
+        std::thread::sleep(PROCFS_STARTUP_DELAY);
+
         let mut last_pids: HashSet<u32> = HashSet::new();
         let mut names: std::collections::HashMap<u32, String> = std::collections::HashMap::new();
 
         loop {
-            std::thread::sleep(Duration::from_secs(1));
-
             let current = match all_processes() {
                 Ok(iter) => iter,
                 Err(e) => {
                     warn!("[app_events/linux] procfs read failed: {e}");
+                    std::thread::sleep(PROCFS_POLL_INTERVAL);
                     continue;
                 }
             };
@@ -160,6 +165,8 @@ mod watcher {
 
             last_pids = now_pids;
             names = now_names;
+
+            std::thread::sleep(PROCFS_POLL_INTERVAL);
         }
     }
 
