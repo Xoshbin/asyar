@@ -3,6 +3,7 @@
   import { scriptsManager } from './scriptsManager.svelte';
   import { runSelectedScript } from './runSelected';
   import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { commandArgumentsService } from '../../services/search/commandArguments';
   import {
     Badge,
     Card,
@@ -50,6 +51,15 @@
   function handleWindowKeydown(event: KeyboardEvent) {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     if (document.querySelector('.action-popup') || isAnyModalOpen(document)) return;
+    // Argument mode keeps this view mounted underneath its chips, and this
+    // listener is window+capture — it would beat the chip row's own Enter and
+    // re-enter argument mode, wiping whatever the user just typed.
+    if (commandArgumentsService.active) return;
+    // Same reasoning for any text field that happens to hold focus.
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest('input, textarea, [contenteditable]')) {
+      return;
+    }
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       scriptsManager.moveSelection(event.key === 'ArrowDown' ? 1 : -1);
       event.preventDefault();
@@ -71,19 +81,28 @@
     }
   }
 
+  // The last label we published, so teardown can tell ours from a successor's.
+  let publishedLabel: string | null = null;
+
   // The launcher hands Enter to a view only once the view declares a primary
   // action label (see launcherKeyboard.tryHandleViewEnter); without it the
   // bottom bar also falls back to the stale search-result hint.
   $effect(() => {
+    publishedLabel = primaryActionLabel;
     viewManager.activeViewPrimaryActionLabel = primaryActionLabel;
   });
 
   onMount(() => window.addEventListener('keydown', handleWindowKeydown, true));
   onDestroy(() => {
     window.removeEventListener('keydown', handleWindowKeydown, true);
-    // Nothing resets the label on navigation, so a leftover would leak into
-    // whichever view comes next.
-    viewManager.activeViewPrimaryActionLabel = null;
+    // Nothing else resets the label on navigation, so a leftover would leak
+    // into whichever view comes next. But a replacement navigation (global
+    // item hotkey) runs the incoming view's viewActivated — where every other
+    // built-in sets its own label — before Svelte tears this component down,
+    // so only clear a label that is still the one we published.
+    if (viewManager.activeViewPrimaryActionLabel === publishedLabel) {
+      viewManager.activeViewPrimaryActionLabel = null;
+    }
   });
 </script>
 

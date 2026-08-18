@@ -27,6 +27,10 @@ vi.mock('../../services/extension/viewManager.svelte', () => ({
   viewManager: { activeViewPrimaryActionLabel: null },
 }));
 
+vi.mock('../../services/search/commandArguments', () => ({
+  commandArgumentsService: { active: null },
+}));
+
 vi.mock('../../components', async () => ({
   Badge: (await import('../../components/base/Badge.svelte')).default,
   Card: (await import('../../components/layout/Card.svelte')).default,
@@ -43,6 +47,10 @@ import { scriptsManager } from './scriptsManager.svelte';
 import { runSelectedScript } from './runSelected';
 import { isAnyModalOpen } from '../../components/base/Modal.logic';
 import { viewManager } from '../../services/extension/viewManager.svelte';
+import { commandArgumentsService } from '../../services/search/commandArguments';
+
+// `active` is a getter on the real service, so the mock needs a writable view.
+const argumentMode = commandArgumentsService as unknown as { active: unknown };
 
 const script = {
   absolutePath: '/scripts/deploy.sh',
@@ -96,6 +104,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(isAnyModalOpen).mockReturnValue(false);
   viewManager.activeViewPrimaryActionLabel = null;
+  argumentMode.active = null;
   Object.assign(scriptsManager, {
     scripts: [],
     issues: [],
@@ -179,6 +188,46 @@ describe('ScriptLibraryView keyboard', () => {
     expect(runSelectedScript).not.toHaveBeenCalled();
   });
 
+  it('enter_falls_through_while_argument_mode_is_open', async () => {
+    // runSelectedScript promotes a script with arguments into argument mode,
+    // which leaves this view mounted under the chips. Stealing Enter there
+    // would re-enter argument mode and discard what the user typed instead of
+    // letting the chip row submit.
+    selectScript();
+    render(ScriptLibraryView);
+    argumentMode.active = { commandObjectId: 'cmd_scripts_dyn_deploy-id' };
+
+    const notConsumed = await fireEvent.keyDown(window, { key: 'Enter' });
+
+    expect(runSelectedScript).not.toHaveBeenCalled();
+    expect(notConsumed).toBe(true);
+  });
+
+  it('arrow_keys_fall_through_while_argument_mode_is_open', async () => {
+    selectScript();
+    render(ScriptLibraryView);
+    argumentMode.active = { commandObjectId: 'cmd_scripts_dyn_deploy-id' };
+
+    const notConsumed = await fireEvent.keyDown(window, { key: 'ArrowDown' });
+
+    expect(scriptsManager.moveSelection).not.toHaveBeenCalled();
+    expect(notConsumed).toBe(true);
+  });
+
+  it('enter_from_a_focused_text_field_falls_through', async () => {
+    selectScript();
+    render(ScriptLibraryView);
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    const notConsumed = await fireEvent.keyDown(input, { key: 'Enter' });
+    input.remove();
+
+    expect(runSelectedScript).not.toHaveBeenCalled();
+    expect(notConsumed).toBe(true);
+  });
+
   it('arrow_keys_still_move_the_selection', async () => {
     selectScript();
     render(ScriptLibraryView);
@@ -228,5 +277,18 @@ describe('ScriptLibraryView primary action label', () => {
     unmount();
 
     expect(viewManager.activeViewPrimaryActionLabel).toBeNull();
+  });
+
+  it('destroy_keeps_a_label_the_incoming_view_already_set', () => {
+    // A global item hotkey replaces the view: the next view's viewActivated
+    // publishes its own label before Svelte tears this component down.
+    selectScript();
+    const { unmount } = render(ScriptLibraryView);
+    expect(viewManager.activeViewPrimaryActionLabel).toBe('Run Script');
+
+    viewManager.activeViewPrimaryActionLabel = 'Paste';
+    unmount();
+
+    expect(viewManager.activeViewPrimaryActionLabel).toBe('Paste');
   });
 });
