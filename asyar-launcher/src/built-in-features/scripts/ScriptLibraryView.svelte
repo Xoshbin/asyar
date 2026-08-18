@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { scriptsManager } from './scriptsManager.svelte';
+  import { runSelectedScript } from './runSelected';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
   import {
     Badge,
     Card,
@@ -18,6 +20,15 @@
   const issues = $derived(scriptsManager.issues);
   const selectedScript = $derived(scriptsManager.selectedScript);
   const selectedIssue = $derived(scriptsManager.selectedIssue);
+
+  // What Enter does for the current selection — null when it does nothing.
+  const primaryActionLabel = $derived(
+    selectedScript
+      ? 'Run Script'
+      : selectedIssue?.fix === 'makeExecutable'
+        ? 'Make Executable'
+        : null,
+  );
 
   function issueLabel(reason: ScriptScanIssueReason): string {
     switch (reason) {
@@ -43,11 +54,37 @@
       scriptsManager.moveSelection(event.key === 'ArrowDown' ? 1 : -1);
       event.preventDefault();
       event.stopPropagation();
+      return;
+    }
+    // Consume Enter only when the selection has something to do — an Enter we
+    // ignore has to keep bubbling to the launcher's own handler.
+    if (event.key === 'Enter') {
+      if (selectedScript) {
+        void runSelectedScript();
+      } else if (selectedIssue?.fix === 'makeExecutable') {
+        void scriptsManager.makeSelectedExecutable();
+      } else {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
     }
   }
 
+  // The launcher hands Enter to a view only once the view declares a primary
+  // action label (see launcherKeyboard.tryHandleViewEnter); without it the
+  // bottom bar also falls back to the stale search-result hint.
+  $effect(() => {
+    viewManager.activeViewPrimaryActionLabel = primaryActionLabel;
+  });
+
   onMount(() => window.addEventListener('keydown', handleWindowKeydown, true));
-  onDestroy(() => window.removeEventListener('keydown', handleWindowKeydown, true));
+  onDestroy(() => {
+    window.removeEventListener('keydown', handleWindowKeydown, true);
+    // Nothing resets the label on navigation, so a leftover would leak into
+    // whichever view comes next.
+    viewManager.activeViewPrimaryActionLabel = null;
+  });
 </script>
 
 <SplitView leftWidth="38%">
