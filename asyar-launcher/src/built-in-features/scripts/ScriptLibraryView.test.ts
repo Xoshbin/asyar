@@ -115,7 +115,7 @@ beforeEach(() => {
 });
 
 describe('ScriptLibraryView keyboard', () => {
-  it('enter_runs_the_selected_script', async () => {
+  it('runs the selected script on Enter', async () => {
     selectScript();
     render(ScriptLibraryView);
 
@@ -125,7 +125,7 @@ describe('ScriptLibraryView keyboard', () => {
     expect(notConsumed).toBe(false);
   });
 
-  it('enter_repairs_a_make_executable_issue', async () => {
+  it('repairs a not-executable script instead of running it', async () => {
     selectIssue(notExecutableIssue);
     render(ScriptLibraryView);
 
@@ -136,7 +136,7 @@ describe('ScriptLibraryView keyboard', () => {
     expect(notConsumed).toBe(false);
   });
 
-  it('enter_without_a_selection_leaves_the_event_to_the_launcher', async () => {
+  it('leaves Enter to the launcher when nothing is selected', async () => {
     render(ScriptLibraryView);
 
     const notConsumed = await fireEvent.keyDown(window, { key: 'Enter' });
@@ -146,7 +146,7 @@ describe('ScriptLibraryView keyboard', () => {
     expect(notConsumed).toBe(true);
   });
 
-  it('enter_on_an_unfixable_issue_leaves_the_event_to_the_launcher', async () => {
+  it('leaves Enter to the launcher on an issue it cannot repair', async () => {
     selectIssue(unreadableIssue);
     render(ScriptLibraryView);
 
@@ -156,7 +156,7 @@ describe('ScriptLibraryView keyboard', () => {
     expect(notConsumed).toBe(true);
   });
 
-  it('modified_enter_is_ignored', async () => {
+  it('ignores Enter that carries a modifier, so ⌘K still opens actions', async () => {
     selectScript();
     render(ScriptLibraryView);
 
@@ -165,7 +165,7 @@ describe('ScriptLibraryView keyboard', () => {
     expect(runSelectedScript).not.toHaveBeenCalled();
   });
 
-  it('enter_is_ignored_while_a_modal_is_open', async () => {
+  it('ignores Enter while a modal owns the keyboard', async () => {
     selectScript();
     vi.mocked(isAnyModalOpen).mockReturnValue(true);
     render(ScriptLibraryView);
@@ -175,7 +175,7 @@ describe('ScriptLibraryView keyboard', () => {
     expect(runSelectedScript).not.toHaveBeenCalled();
   });
 
-  it('enter_is_ignored_while_the_action_popup_is_open', async () => {
+  it('ignores Enter while the action popup is open', async () => {
     selectScript();
     render(ScriptLibraryView);
     const popup = document.createElement('div');
@@ -188,7 +188,7 @@ describe('ScriptLibraryView keyboard', () => {
     expect(runSelectedScript).not.toHaveBeenCalled();
   });
 
-  it('enter_falls_through_while_argument_mode_is_open', async () => {
+  it('stands down while argument mode owns Enter', async () => {
     // runSelectedScript promotes a script with arguments into argument mode,
     // which leaves this view mounted under the chips. Stealing Enter there
     // would re-enter argument mode and discard what the user typed instead of
@@ -203,7 +203,7 @@ describe('ScriptLibraryView keyboard', () => {
     expect(notConsumed).toBe(true);
   });
 
-  it('arrow_keys_fall_through_while_argument_mode_is_open', async () => {
+  it('stands down on arrows while argument mode is open', async () => {
     selectScript();
     render(ScriptLibraryView);
     argumentMode.active = { commandObjectId: 'cmd_scripts_dyn_deploy-id' };
@@ -214,7 +214,7 @@ describe('ScriptLibraryView keyboard', () => {
     expect(notConsumed).toBe(true);
   });
 
-  it('enter_from_a_focused_text_field_falls_through', async () => {
+  it('leaves Enter to a focused text field', async () => {
     selectScript();
     render(ScriptLibraryView);
     const input = document.createElement('input');
@@ -228,7 +228,7 @@ describe('ScriptLibraryView keyboard', () => {
     expect(notConsumed).toBe(true);
   });
 
-  it('arrow_keys_still_move_the_selection', async () => {
+  it('still moves the selection with the arrow keys', async () => {
     selectScript();
     render(ScriptLibraryView);
 
@@ -242,34 +242,34 @@ describe('ScriptLibraryView keyboard', () => {
 });
 
 describe('ScriptLibraryView primary action label', () => {
-  it('label_is_run_script_when_a_script_is_selected', () => {
+  it('announces Run Script for a selected script', () => {
     selectScript();
     render(ScriptLibraryView);
 
     expect(viewManager.activeViewPrimaryActionLabel).toBe('Run Script');
   });
 
-  it('label_is_make_executable_for_a_repairable_issue', () => {
+  it('announces Make Executable for a repairable issue', () => {
     selectIssue(notExecutableIssue);
     render(ScriptLibraryView);
 
     expect(viewManager.activeViewPrimaryActionLabel).toBe('Make Executable');
   });
 
-  it('label_is_null_for_an_unfixable_issue', () => {
+  it('announces nothing for an issue it cannot repair', () => {
     selectIssue(unreadableIssue);
     render(ScriptLibraryView);
 
     expect(viewManager.activeViewPrimaryActionLabel).toBeNull();
   });
 
-  it('label_is_null_without_a_selection', () => {
+  it('announces nothing without a selection', () => {
     render(ScriptLibraryView);
 
     expect(viewManager.activeViewPrimaryActionLabel).toBeNull();
   });
 
-  it('label_is_cleared_when_the_view_is_destroyed', () => {
+  it('clears its label when the view goes away', () => {
     selectScript();
     const { unmount } = render(ScriptLibraryView);
     expect(viewManager.activeViewPrimaryActionLabel).toBe('Run Script');
@@ -279,7 +279,7 @@ describe('ScriptLibraryView primary action label', () => {
     expect(viewManager.activeViewPrimaryActionLabel).toBeNull();
   });
 
-  it('destroy_keeps_a_label_the_incoming_view_already_set', () => {
+  it('keeps a label the incoming view already published', () => {
     // A global item hotkey replaces the view: the next view's viewActivated
     // publishes its own label before Svelte tears this component down.
     selectScript();

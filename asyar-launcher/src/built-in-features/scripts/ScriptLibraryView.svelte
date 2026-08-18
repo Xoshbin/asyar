@@ -84,9 +84,10 @@
   // The last label we published, so teardown can tell ours from a successor's.
   let publishedLabel: string | null = null;
 
-  // The launcher hands Enter to a view only once the view declares a primary
-  // action label (see launcherKeyboard.tryHandleViewEnter); without it the
-  // bottom bar also falls back to the stale search-result hint.
+  // Publish what Enter does, so the bottom bar stops falling back to the
+  // selected search result's own hint ("Run Command", from the row that opened
+  // this view) and so launcherKeyboard.tryHandleViewEnter keeps its hands off
+  // Enter should this view ever become searchable.
   $effect(() => {
     publishedLabel = primaryActionLabel;
     viewManager.activeViewPrimaryActionLabel = primaryActionLabel;
