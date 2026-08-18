@@ -1,10 +1,10 @@
 import { ActionContext, type Extension, type ExtensionContext } from 'asyar-sdk/contracts';
 import { scriptsManager } from './scriptsManager.svelte';
 import { dispatchScriptCommand } from './dispatch';
+import { runSelectedScript } from './runSelected';
 import ScriptLibraryView from './ScriptLibraryView.svelte';
 import { registerBuiltinDynamicDispatcher } from '../../services/extension/builtinDynamicDispatchers';
 import { actionService, type ApplicationAction } from '../../services/action/actionService.svelte';
-import { commandArgumentsService } from '../../services/search/commandArguments';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 
@@ -43,7 +43,7 @@ class ScriptsExtension implements Extension {
   }
 
   async onViewSubmit(_query: string): Promise<void> {
-    await this.runSelectedScript();
+    await runSelectedScript();
   }
 
   async executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
@@ -65,7 +65,7 @@ class ScriptsExtension implements Extension {
         category: 'Scripts',
         context: ActionContext.EXTENSION_VIEW,
         visible: () => scriptsManager.selectedScript !== undefined,
-        execute: async () => this.runSelectedScript(),
+        execute: async () => runSelectedScript(),
       },
       {
         id: 'scripts:reveal',
@@ -129,16 +129,6 @@ class ScriptsExtension implements Extension {
     ];
 
     for (const action of actions) actionService.registerAction(action);
-  }
-
-  private async runSelectedScript(): Promise<void> {
-    const script = scriptsManager.selectedScript;
-    if (!script) return;
-    if (script.header.arguments.length > 0) {
-      const entered = await commandArgumentsService.enter(`cmd_scripts_dyn_${script.dynamicId}`);
-      if (entered) return;
-    }
-    await dispatchScriptCommand(script.dynamicId, undefined);
   }
 
   private unregisterLibraryActions(): void {
