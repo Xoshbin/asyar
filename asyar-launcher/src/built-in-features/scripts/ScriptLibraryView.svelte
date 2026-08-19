@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { scriptsManager } from './scriptsManager.svelte';
+  import { runSelectedScript } from './runSelected';
+  import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { commandArgumentsService } from '../../services/search/commandArguments';
   import {
     Badge,
     Card,
@@ -18,6 +21,15 @@
   const issues = $derived(scriptsManager.issues);
   const selectedScript = $derived(scriptsManager.selectedScript);
   const selectedIssue = $derived(scriptsManager.selectedIssue);
+
+  // What Enter does for the current selection — null when it does nothing.
+  const primaryActionLabel = $derived(
+    selectedScript
+      ? 'Run Script'
+      : selectedIssue?.fix === 'makeExecutable'
+        ? 'Make Executable'
+        : null,
+  );
 
   function issueLabel(reason: ScriptScanIssueReason): string {
     switch (reason) {
@@ -39,15 +51,60 @@
   function handleWindowKeydown(event: KeyboardEvent) {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     if (document.querySelector('.action-popup') || isAnyModalOpen(document)) return;
+    // Argument mode keeps this view mounted underneath its chips, and this
+    // listener is window+capture — it would beat the chip row's own Enter and
+    // re-enter argument mode, wiping whatever the user just typed.
+    if (commandArgumentsService.active) return;
+    // Same reasoning for any text field that happens to hold focus.
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest('input, textarea, [contenteditable]')) {
+      return;
+    }
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       scriptsManager.moveSelection(event.key === 'ArrowDown' ? 1 : -1);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    // Consume Enter only when the selection has something to do — an Enter we
+    // ignore has to keep bubbling to the launcher's own handler.
+    if (event.key === 'Enter') {
+      if (selectedScript) {
+        void runSelectedScript();
+      } else if (selectedIssue?.fix === 'makeExecutable') {
+        void scriptsManager.makeSelectedExecutable();
+      } else {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
     }
   }
 
+  // The last label we published, so teardown can tell ours from a successor's.
+  let publishedLabel: string | null = null;
+
+  // Publish what Enter does, so the bottom bar stops falling back to the
+  // selected search result's own hint ("Run Command", from the row that opened
+  // this view) and so launcherKeyboard.tryHandleViewEnter keeps its hands off
+  // Enter should this view ever become searchable.
+  $effect(() => {
+    publishedLabel = primaryActionLabel;
+    viewManager.activeViewPrimaryActionLabel = primaryActionLabel;
+  });
+
   onMount(() => window.addEventListener('keydown', handleWindowKeydown, true));
-  onDestroy(() => window.removeEventListener('keydown', handleWindowKeydown, true));
+  onDestroy(() => {
+    window.removeEventListener('keydown', handleWindowKeydown, true);
+    // Nothing else resets the label on navigation, so a leftover would leak
+    // into whichever view comes next. But a replacement navigation (global
+    // item hotkey) runs the incoming view's viewActivated — where every other
+    // built-in sets its own label — before Svelte tears this component down,
+    // so only clear a label that is still the one we published.
+    if (viewManager.activeViewPrimaryActionLabel === publishedLabel) {
+      viewManager.activeViewPrimaryActionLabel = null;
+    }
+  });
 </script>
 
 <SplitView leftWidth="38%">
