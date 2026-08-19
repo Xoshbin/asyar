@@ -20,6 +20,9 @@ fn get_app_icon_name(path: &Path) -> String {
 /// `NSWorkspace iconForFile:` for apps that ship icons via Asset Catalogs
 /// (`Assets.car`) or non-`.app` paths the .icns reader can't handle.
 pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
+    if !path.exists() {
+        return None;
+    }
     extract_icon_from_icns(path).or_else(|| extract_icon_via_nsworkspace(path))
 }
 

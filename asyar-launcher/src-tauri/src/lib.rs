@@ -2106,6 +2106,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let app_handle_for_file_index = app.handle().clone();
         let file_index_state = file_index_state.clone();
         std::thread::spawn(move || {
+            // Stagger file indexing by 1.5s so window creation, initial paint,
+            // and critical startup services complete without disk I/O / inotify contention.
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+
             let cfg = file_index_state.config();
             if !cfg.enabled {
                 return;

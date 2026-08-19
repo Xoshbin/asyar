@@ -43,6 +43,15 @@ pub const DEFAULT_IGNORE_PATTERNS: &[&str] = &[
     "DerivedData",
     "coverage",
     ".pytest_cache",
+    // Linux volatile desktop / container / browser directories
+    ".var/app",
+    ".local/share/flatpak",
+    ".local/share/Trash",
+    ".local/state",
+    ".mozilla",
+    ".config/google-chrome",
+    ".config/chromium",
+    "snap",
     // VM disk images are internally structured as many small files (e.g.
     // Parallels' "expanding disk" format) and are rewritten continuously
     // while a VM is running — indexing them balloons entry count for no

@@ -738,24 +738,54 @@ pub(crate) fn extract_app_icon(app_path: &str, cache_dir: &Path) -> Option<Strin
         .replace(".desktop", "")
         .replace(".exe", "");
 
-    let cache_filename = format!("{}.png", &cache_key[..cache_key.len().min(200)]);
-    let cache_file = cache_dir.join(&cache_filename);
-
-    if cache_file.exists() {
+    let base_name = &cache_key[..cache_key.len().min(200)];
+    let cache_filename_png = format!("{base_name}.png");
+    let cache_file_png = cache_dir.join(&cache_filename_png);
+    if cache_file_png.exists() {
         #[cfg(target_os = "windows")]
-        return Some(format!("http://asyar-icon.localhost/{}", cache_filename));
+        return Some(format!(
+            "http://asyar-icon.localhost/{}",
+            cache_filename_png
+        ));
         #[cfg(not(target_os = "windows"))]
-        return Some(format!("asyar-icon://localhost/{}", cache_filename));
+        return Some(format!("asyar-icon://localhost/{}", cache_filename_png));
+    }
+
+    let cache_filename_svg = format!("{base_name}.svg");
+    let cache_file_svg = cache_dir.join(&cache_filename_svg);
+    if cache_file_svg.exists() {
+        #[cfg(target_os = "windows")]
+        return Some(format!(
+            "http://asyar-icon.localhost/{}",
+            cache_filename_svg
+        ));
+        #[cfg(not(target_os = "windows"))]
+        return Some(format!("asyar-icon://localhost/{}", cache_filename_svg));
+    }
+
+    let missing_marker = cache_dir.join(format!("{base_name}.missing"));
+    if missing_marker.exists() {
+        return None;
     }
 
     if let Some(bytes) = crate::platform::extract_icon(Path::new(app_path)) {
         let _ = std::fs::create_dir_all(cache_dir);
-        let _ = std::fs::write(&cache_file, bytes);
+        let is_svg = bytes.starts_with(b"<") || bytes.windows(4).take(32).any(|w| w == b"<svg");
+        let (chosen_filename, chosen_file) = if is_svg {
+            (cache_filename_svg, cache_file_svg)
+        } else {
+            (cache_filename_png, cache_file_png)
+        };
+        let _ = std::fs::write(&chosen_file, bytes);
         #[cfg(target_os = "windows")]
-        return Some(format!("http://asyar-icon.localhost/{}", cache_filename));
+        return Some(format!("http://asyar-icon.localhost/{}", chosen_filename));
         #[cfg(not(target_os = "windows"))]
-        return Some(format!("asyar-icon://localhost/{}", cache_filename));
+        return Some(format!("asyar-icon://localhost/{}", chosen_filename));
     }
+
+    // Cache the negative result so future launches skip expensive filesystem scans
+    let _ = std::fs::create_dir_all(cache_dir);
+    let _ = std::fs::File::create(&missing_marker);
 
     None
 }
@@ -1503,5 +1533,22 @@ mod tests {
         assert_eq!(score_candidate("CalculatorSdkLogo.targetsize-48.png"), 100);
         assert_eq!(score_candidate("CalculatorSdkLogo.scale-200.png"), 80);
         assert_eq!(score_candidate("CalculatorSdkLogo.png"), 50);
+    }
+
+    #[test]
+    fn test_extract_app_icon_negative_caching() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache_dir = tmp.path().join("icon_cache");
+
+        // Non-existent path returns None and creates .missing marker
+        let result = extract_app_icon("/nonexistent/path/app.desktop", &cache_dir);
+        assert!(result.is_none());
+
+        let marker = cache_dir.join("_nonexistent_path_app.missing");
+        assert!(marker.exists(), "missing marker must be created");
+
+        // Subsequent call immediately returns None via marker check
+        let result2 = extract_app_icon("/nonexistent/path/app.desktop", &cache_dir);
+        assert!(result2.is_none());
     }
 }

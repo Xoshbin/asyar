@@ -363,11 +363,20 @@ pub fn handle_icon_request(
     let file_path = icon_cache_dir.join(filename);
 
     match std::fs::read(&file_path) {
-        Ok(bytes) => tauri::http::Response::builder()
-            .header("Content-Type", "image/png")
-            .header("Access-Control-Allow-Origin", "*")
-            .body(bytes)
-            .unwrap(),
+        Ok(bytes) => {
+            let content_type = if filename.ends_with(".svg") {
+                "image/svg+xml"
+            } else if filename.ends_with(".ico") {
+                "image/x-icon"
+            } else {
+                "image/png"
+            };
+            tauri::http::Response::builder()
+                .header("Content-Type", content_type)
+                .header("Access-Control-Allow-Origin", "*")
+                .body(bytes)
+                .unwrap()
+        }
         Err(e) => {
             log::debug!("Icon not found in cache: {:?} ({})", file_path, e);
             tauri::http::Response::builder()
