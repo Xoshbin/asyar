@@ -98,7 +98,7 @@ pub fn sync_application_index<R: tauri::Runtime>(
 
     #[cfg(target_os = "windows")]
     for uwp in &scanner.uwp_apps {
-        let full_app_id = build_app_id(&uwp.name, &uwp.aumid);
+        let full_app_id = build_app_id(uwp_stable_name(&uwp.aumid), &uwp.aumid);
         let path = format!("shell:AppsFolder\\{}", uwp.aumid);
 
         current_apps.insert(
@@ -114,6 +114,10 @@ pub fn sync_application_index<R: tauri::Runtime>(
             },
         );
     }
+
+    // 2.5 Migrate legacy UWP app IDs if any were indexed under localized display names
+    let alias_state = app.try_state::<crate::aliases::AliasState>();
+    let _ = migrate_uwp_app_ids(search_state, alias_state.as_deref());
 
     // 3. Get currently indexed app_ IDs
     let indexed_ids: Vec<String> = {
@@ -261,7 +265,7 @@ pub fn list_applications<R: tauri::Runtime>(
 
     #[cfg(target_os = "windows")]
     for uwp in &scanner.uwp_apps {
-        let full_app_id = build_app_id(&uwp.name, &uwp.aumid);
+        let full_app_id = build_app_id(uwp_stable_name(&uwp.aumid), &uwp.aumid);
         let path = format!("shell:AppsFolder\\{}", uwp.aumid);
 
         applications.push(Application {
@@ -629,6 +633,64 @@ pub(crate) fn bundle_file_name(path: &Path) -> String {
         .and_then(|stem| stem.to_str())
         .unwrap_or("Unknown_App")
         .to_string()
+}
+
+/// Extracts a language-independent stable package name from a UWP AUMID.
+///
+/// For standard UWP AUMIDs like `Microsoft.WindowsCalculator_8wekyb3d8bbwe!App`,
+/// this extracts `Microsoft.WindowsCalculator`.
+/// Like `bundle_file_name` for file paths, this ensures UWP app IDs remain
+/// byte-identical across system language changes.
+pub(crate) fn uwp_stable_name(aumid: &str) -> &str {
+    let package_family = aumid.split('!').next().unwrap_or(aumid);
+    if let Some((name, _publisher_id)) = package_family.rsplit_once('_') {
+        if !name.is_empty() {
+            return name;
+        }
+    }
+    package_family
+}
+
+/// Migrates any legacy indexed UWP application IDs built from localized display names
+/// to stable IDs built from AUMIDs.
+pub(crate) fn migrate_uwp_app_ids(
+    search_state: &SearchState,
+    alias_state: Option<&crate::aliases::AliasState>,
+) -> Result<u32, AppError> {
+    let mut items = search_state
+        .items
+        .write()
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let mut migrated = 0;
+    for item in items.iter_mut() {
+        let SearchableItem::Application(app) = item else {
+            continue;
+        };
+        let aumid_opt = if let Some(ref bundle_id) = app.bundle_id {
+            if app.path.starts_with(r"shell:AppsFolder\") {
+                Some(bundle_id.clone())
+            } else {
+                None
+            }
+        } else {
+            app.path
+                .strip_prefix(r"shell:AppsFolder\")
+                .map(|aumid| aumid.to_string())
+        };
+
+        if let Some(aumid) = aumid_opt {
+            let target_id = build_app_id(uwp_stable_name(&aumid), &aumid);
+            if app.id != target_id {
+                let old_id = app.id.clone();
+                app.id = target_id.clone();
+                migrated += 1;
+                if let Some(aliases) = alias_state {
+                    let _ = aliases.migrate_object_id(&old_id, &target_id);
+                }
+            }
+        }
+    }
+    Ok(migrated)
 }
 
 /// What the user sees for this app: the name translated into the user's
@@ -1550,5 +1612,64 @@ mod tests {
         // Subsequent call immediately returns None via marker check
         let result2 = extract_app_icon("/nonexistent/path/app.desktop", &cache_dir);
         assert!(result2.is_none());
+    }
+
+    #[test]
+    fn test_uwp_stable_name_extracts_package_name_from_aumid() {
+        assert_eq!(
+            uwp_stable_name("Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"),
+            "Microsoft.WindowsCalculator"
+        );
+        assert_eq!(
+            uwp_stable_name("SpotifyAB.SpotifyMusic_zpdvkgc140fx8!Spotify"),
+            "SpotifyAB.SpotifyMusic"
+        );
+        assert_eq!(uwp_stable_name("Publisher.App_12345!App"), "Publisher.App");
+        assert_eq!(uwp_stable_name("NoPublisher_123"), "NoPublisher");
+        assert_eq!(uwp_stable_name("SimpleApp"), "SimpleApp");
+    }
+
+    #[test]
+    fn test_uwp_app_id_is_stable_across_display_name_changes() {
+        let aumid = "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App";
+        let english_id = build_app_id(uwp_stable_name(aumid), aumid);
+        let german_id = build_app_id(uwp_stable_name(aumid), aumid);
+        assert_eq!(english_id, german_id);
+
+        let old_english_id = build_app_id("Calculator", aumid);
+        let old_german_id = build_app_id("Rechner", aumid);
+        assert_ne!(old_english_id, old_german_id);
+    }
+
+    #[test]
+    fn test_migrate_uwp_app_ids_preserves_frecency() {
+        let aumid = "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App";
+        let old_id = build_app_id("Calculator", aumid);
+        let expected_id = build_app_id(uwp_stable_name(aumid), aumid);
+
+        let legacy_item = SearchableItem::Application(Application {
+            id: old_id.clone(),
+            name: "Calculator".to_string(),
+            path: format!("shell:AppsFolder\\{aumid}"),
+            usage_count: 42,
+            icon: None,
+            last_used_at: Some(1724000000),
+            bundle_id: Some(aumid.to_string()),
+        });
+
+        let search_state = SearchState::new_for_test();
+        search_state.items.write().unwrap().push(legacy_item);
+
+        let migrated = migrate_uwp_app_ids(&search_state, None).unwrap();
+        assert_eq!(migrated, 1);
+
+        let items = search_state.items.read().unwrap();
+        assert_eq!(items.len(), 1);
+        let SearchableItem::Application(ref app) = items[0] else {
+            panic!("Expected Application item");
+        };
+        assert_eq!(app.id, expected_id);
+        assert_eq!(app.usage_count, 42);
+        assert_eq!(app.last_used_at, Some(1724000000));
     }
 }
