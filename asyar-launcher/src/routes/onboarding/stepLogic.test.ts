@@ -55,6 +55,15 @@ describe('fetchTopThemes', () => {
     expect(out.map((t) => t.id)).toEqual([3, 4]);
   });
 
+  it('sorts by installCount when API returns camelCase installCount', async () => {
+    vi.mocked(fetchAllStoreItems).mockResolvedValueOnce([
+      { id: 1, name: 'A', category: 'theme', installCount: 5 } as any,
+      { id: 2, name: 'B', category: 'theme', installCount: 100 } as any,
+    ]);
+    const out = await fetchTopThemes(2);
+    expect(out.map((t) => t.id)).toEqual([2, 1]);
+  });
+
   it('returns empty array on fetch error', async () => {
     vi.mocked(fetchAllStoreItems).mockRejectedValueOnce(new Error('net'));
     const out = await fetchTopThemes(5);

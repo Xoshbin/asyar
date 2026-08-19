@@ -1,6 +1,6 @@
 <script lang="ts">
   import { envService } from '../../services/envService';
-  import { storeViewState as store } from './state.svelte';
+  import { storeViewState as store, getInstallCount } from './state.svelte';
   import { logService } from '../../services/log/logService';
   import {
     LoadingState,
@@ -263,7 +263,7 @@
                     d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                   /></svg
                 >
-                {extensionDetail.installCount} Installs
+                {getInstallCount(extensionDetail).toLocaleString()} Installs
               </span>
             </div>
 
