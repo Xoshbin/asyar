@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // renders the order Rust returns.
 vi.mock('../../lib/rankItems', () => ({ rankItems: vi.fn() }));
 
-import { StoreViewStateClass, type ApiExtension } from './state.svelte';
+import { StoreViewStateClass, getInstallCount, type ApiExtension } from './state.svelte';
 import { rankItems } from '../../lib/rankItems';
 
 function ext(
@@ -96,5 +96,20 @@ describe('StoreViewStateClass search', () => {
     await first;
 
     expect(state.filteredItems.map((i) => i.id)).toEqual([2]);
+  });
+});
+
+describe('getInstallCount', () => {
+  it('returns installCount if present (camelCase from API)', () => {
+    expect(getInstallCount({ installCount: 42 } as ApiExtension)).toBe(42);
+  });
+
+  it('falls back to install_count if installCount is undefined (snake_case)', () => {
+    expect(getInstallCount({ install_count: 15 } as ApiExtension)).toBe(15);
+  });
+
+  it('returns 0 if neither is present or item is null', () => {
+    expect(getInstallCount(null)).toBe(0);
+    expect(getInstallCount({} as ApiExtension)).toBe(0);
   });
 });

@@ -1,6 +1,6 @@
 import { onboardingService } from '../../services/onboarding/onboardingService.svelte';
 import { fetchAllStoreItems } from '../../built-in-features/store/storeFetch';
-import type { ApiExtension } from '../../built-in-features/store/state.svelte';
+import { getInstallCount, type ApiExtension } from '../../built-in-features/store/state.svelte';
 
 export async function advanceStep(): Promise<void> {
   await onboardingService.advance();
@@ -23,7 +23,7 @@ export async function fetchTopThemes(limit: number): Promise<ApiExtension[]> {
     const all = await fetchAllStoreItems();
     return all
       .filter(isTheme)
-      .sort((a, b) => b.install_count - a.install_count)
+      .sort((a, b) => getInstallCount(b) - getInstallCount(a))
       .slice(0, limit);
   } catch {
     return [];
@@ -39,7 +39,7 @@ export async function fetchTopExtensions(limit: number, platform: string): Promi
         const p = it.manifest?.platforms;
         return !p?.length || p.includes(platform);
       })
-      .sort((a, b) => b.install_count - a.install_count)
+      .sort((a, b) => getInstallCount(b) - getInstallCount(a))
       .slice(0, limit);
   } catch {
     return [];

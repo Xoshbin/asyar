@@ -10,19 +10,24 @@ export interface ExtensionAuthor {
 }
 
 export interface ApiExtension {
-  id: number;
+  id: number | string;
   name: string;
   slug: string;
   description: string;
   category: string;
   status: string;
-  repository_url: string;
-  install_count: number;
-  icon_url: string;
-  screenshot_urls: string[];
-  created_at: string;
-  updated_at: string;
-  last_polled_at: string | null;
+  repository_url?: string;
+  repoUrl?: string;
+  install_count?: number;
+  installCount?: number;
+  icon_url?: string | null;
+  iconUrl?: string | null;
+  screenshot_urls?: string[];
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
+  last_polled_at?: string | null;
   author: ExtensionAuthor;
   manifest?: {
     platforms?: string[];
@@ -30,6 +35,11 @@ export interface ApiExtension {
     permissionArgs?: Record<string, unknown>;
     runtimes?: string[];
   };
+}
+
+export function getInstallCount(item: Partial<ApiExtension> | null | undefined): number {
+  if (!item) return 0;
+  return item.installCount ?? item.install_count ?? 0;
 }
 
 // Search Engine handled in StoreViewStateClass
