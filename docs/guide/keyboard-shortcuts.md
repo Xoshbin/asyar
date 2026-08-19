@@ -24,6 +24,8 @@ The show/hide hotkey is user-configurable. The exact keys depend on what you set
 
 **Windows & Linux:** Asyar's shortcut display uses macOS symbols (⌘, ⌥, ⌃, ⇧). On Windows and Linux, use **Ctrl** wherever **⌘** is shown, and use the **Windows/Super** key where a Super-key shortcut is shown.
 
+**Linux on Wayland:** Because Wayland protocol security blocks background hotkey grabs, assign your shortcut inside your desktop compositor settings to run the `asyar` command. Executing `asyar` while the daemon is running acts as a toggle.
+
 ## In a view
 
 These shortcuts apply when you have drilled into a result that opens a full view (for example, Clipboard History, Snippets, or an AI agent conversation).
