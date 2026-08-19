@@ -338,6 +338,40 @@ impl AliasState {
         items.retain(|a| !a.object_id.starts_with(&prefix));
         Ok(before - items.len())
     }
+
+    /// Migrates an alias from `old_object_id` to `new_object_id`.
+    /// Returns true if an entry was updated, false if no entry matched.
+    pub fn migrate_object_id(
+        &self,
+        old_object_id: &str,
+        new_object_id: &str,
+    ) -> Result<bool, AliasError> {
+        if old_object_id == new_object_id {
+            return Ok(false);
+        }
+        {
+            let conn = self
+                .store
+                .conn()
+                .map_err(|e| AliasError::Storage(e.to_string()))?;
+            conn.execute(
+                "UPDATE item_aliases SET object_id = ?1 WHERE object_id = ?2",
+                params![new_object_id, old_object_id],
+            )
+            .map_err(|e| AliasError::Storage(e.to_string()))?;
+        }
+        let mut items = self.items.write().map_err(|_| {
+            AliasError::Storage("items write lock poisoned in migrate_object_id".into())
+        })?;
+        let mut updated = false;
+        for entry in items.iter_mut() {
+            if entry.object_id == old_object_id {
+                entry.object_id = new_object_id.to_string();
+                updated = true;
+            }
+        }
+        Ok(updated)
+    }
 }
 
 #[cfg(test)]
@@ -729,5 +763,35 @@ mod state_tests {
             .query_row("SELECT count(*) FROM item_aliases", [], |r| r.get(0))
             .unwrap();
         assert_eq!(db_count, 1);
+    }
+
+    #[test]
+    fn migrate_object_id_updates_db_and_cache() {
+        let state = AliasState::new_for_test();
+        state
+            .set_alias(
+                "app_Calculator_oldhash",
+                "calc",
+                "Calculator",
+                "application",
+                now_ms(),
+            )
+            .unwrap();
+
+        let updated = state
+            .migrate_object_id(
+                "app_Calculator_oldhash",
+                "app_Microsoft.WindowsCalculator_newhash",
+            )
+            .unwrap();
+        assert!(updated);
+
+        let alias = state
+            .lookup_alias_for("app_Microsoft.WindowsCalculator_newhash")
+            .unwrap();
+        assert_eq!(alias, Some("calc".to_string()));
+
+        let old_alias = state.lookup_alias_for("app_Calculator_oldhash").unwrap();
+        assert_eq!(old_alias, None);
     }
 }
