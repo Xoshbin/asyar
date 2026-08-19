@@ -672,11 +672,12 @@ pub(crate) fn migrate_uwp_app_ids(
             } else {
                 None
             }
-        } else if let Some(aumid) = app.path.strip_prefix(r"shell:AppsFolder\") {
-            Some(aumid.to_string())
         } else {
-            None
+            app.path
+                .strip_prefix(r"shell:AppsFolder\")
+                .map(|aumid| aumid.to_string())
         };
+
         if let Some(aumid) = aumid_opt {
             let target_id = build_app_id(uwp_stable_name(&aumid), &aumid);
             if app.id != target_id {
