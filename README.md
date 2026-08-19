@@ -85,12 +85,12 @@ brew install --cask asyar
 
 **Linux (Wayland) Shortcut Setup:**
 
-Wayland protocol security prevents background applications from capturing global hotkeys directly. To summon Asyar on Wayland, bind a key shortcut in your desktop compositor (Hyprland, Sway, GNOME, KDE) to execute `asyar`:
+Wayland protocol security prevents background applications from intercepting global keyboard shortcuts directly. To summon or toggle Asyar on Wayland, bind your preferred shortcut in your desktop environment or window manager to execute `asyar`. Re-executing `asyar` automatically toggles the visibility of the already-running background instance:
 
-- **Hyprland:** `bind = ALT, SPACE, exec, asyar`
-- **Sway:** `bindsym Mod1+space exec asyar`
-
-Re-executing `asyar` toggles the visibility of the already-running instance.
+- **GNOME:** Open **Settings** → **Keyboard** → **View and Customize Shortcuts** → **Custom Shortcuts**, click **+**, set Name to `Asyar`, Command to `asyar`, and assign your shortcut (e.g. `Ctrl+Space` or `Super+Space`).
+- **KDE Plasma:** Open **System Settings** → **Shortcuts** → **Custom Shortcuts** (or **Command/URL**), add a new global shortcut for `asyar`, and set your trigger key (e.g. `Alt+Space` or `Meta+Space`).
+- **Hyprland:** Add `bind = ALT, SPACE, exec, asyar` to `~/.config/hypr/hyprland.conf`.
+- **Sway:** Add `bindsym Mod1+space exec asyar` to `~/.config/sway/config`.
 
 ---
 

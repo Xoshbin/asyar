@@ -43,6 +43,8 @@ The global hotkey you chose during setup shows or hides Asyar from anywhere on y
 
 To change your hotkey after setup, open **Settings → General** (or **Settings → Shortcuts**) and click inside the shortcut recorder. Press your new combination and click **Save**.
 
+> **Linux (Wayland) Users:** Wayland compositors do not allow background apps to capture global hotkeys directly. Instead, bind a custom shortcut in your desktop settings (GNOME, KDE Plasma, Hyprland, Sway) to run the `asyar` command. Re-running `asyar` automatically toggles the visibility of the running instance. See [Troubleshooting](./troubleshooting.md#the-hotkey-doesnt-open-asyar) for step-by-step instructions.
+
 If the hotkey stops working, see [Troubleshooting](./troubleshooting.md) for common causes.
 
 ## Your first search

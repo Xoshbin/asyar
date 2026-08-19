@@ -12,11 +12,18 @@ If pressing your global hotkey does nothing:
 
 3. **Check for conflicts.** Another app may have claimed the same key combination. Open the shortcut recorder — if a conflict warning appears, choose a different combination that is not already in use.
 
-4. **Check macOS Accessibility permission (macOS only).** Although Accessibility is mainly needed for text expansion, Asyar also needs it for reliable global hotkey registration on some macOS versions. Go to **System Settings → Privacy & Security → Accessibility**, find Asyar in the list, and make sure the toggle is on. Relaunch Asyar after granting access.
+4. **Linux Wayland Shortcut Setup:** On Wayland (GNOME, KDE, Hyprland, Sway), applications cannot intercept global keystrokes in the background. You must create a custom shortcut in your desktop settings that executes `asyar`:
+   - **GNOME:** **Settings** → **Keyboard** → **View and Customize Shortcuts** → **Custom Shortcuts** → Add Name `Asyar`, Command `asyar`, and set your shortcut (e.g. `Ctrl+Space`).
+   - **KDE Plasma:** **System Settings** → **Shortcuts** → **Custom Shortcuts** / **Command/URL** → set Command to `asyar`.
+   - **Hyprland:** Add `bind = ALT, SPACE, exec, asyar` to `hyprland.conf`.
+   - **Sway:** Add `bindsym Mod1+space exec asyar` to your Sway config.
+     Running `asyar` while the app is active will toggle the launcher window.
 
-5. **Restart Asyar.** Search for "Quit Asyar" inside the launcher (if you can open it another way), or quit via the menu bar icon and reopen Asyar.
+5. **Check macOS Accessibility permission (macOS only).** Although Accessibility is mainly needed for text expansion, Asyar also needs it for reliable global hotkey registration on some macOS versions. Go to **System Settings → Privacy & Security → Accessibility**, find Asyar in the list, and make sure the toggle is on. Relaunch Asyar after granting access.
 
-6. **Restart your computer.** Occasionally a fresh login is needed after granting system permissions for the first time.
+6. **Restart Asyar.** Search for "Quit Asyar" inside the launcher (if you can open it another way), or quit via the menu bar / system tray icon and reopen Asyar.
+
+7. **Restart your computer.** Occasionally a fresh login is needed after granting system permissions for the first time.
 
 ## Asyar can't see my apps / accessibility
 
