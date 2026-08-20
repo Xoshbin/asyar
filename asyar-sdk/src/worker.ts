@@ -52,6 +52,7 @@ import { ToolsServiceProxy } from './services/ToolsServiceProxy';
 import { SnippetsServiceProxy } from './services/SnippetsServiceProxy';
 import { BrowserServiceProxy } from './services/BrowserServiceProxy';
 import { FilesServiceProxy } from './services/FilesServiceProxy';
+import { OpenerServiceProxy } from './services/OpenerServiceProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
 import { ExtensionContextCore } from './ExtensionContextCore';
@@ -84,6 +85,7 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     snippets: new SnippetsServiceProxy(),
     browser: new BrowserServiceProxy(),
     files: new FilesServiceProxy(),
+    opener: new OpenerServiceProxy(),
     // Role-neutral: pure postMessage forwarder. Exposes registerAction,
     // unregisterAction, and registerActionHandler so manifest root actions
     // (send-notification, show-hud, notification callbacks) can register
