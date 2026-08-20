@@ -202,6 +202,16 @@ Some permissions need a value in addition to being declared. Those values live i
 
 See [`FileSystemWatcherService`](./sdk/file-system-watcher.md) for the runtime surface.
 
+### Permission Consent and Review
+
+When an extension declares permissions or updates its declared permission set:
+
+- **Initial Linking / Installation / Updates:** Extensions that declare permissions require user consent before those permissions are registered in the Rust security registry.
+- **Proactive Prompt on Command Launch:** If an extension has unreviewed permissions (e.g. freshly linked via `asyar link` or updated), launching any command of that extension from the launcher automatically triggers the permission consent review dialog before opening the view or dispatching the background command.
+- **Consent Decision Flow:**
+  - If the user accepts, the consent record is persisted, permissions are registered immediately (and running background workers are remounted), and the command execution proceeds normally.
+  - If the user declines or cancels, command execution aborts cleanly without navigating or dispatching.
+
 ### Complete manifest example
 
 ```json
