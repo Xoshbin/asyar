@@ -89,6 +89,7 @@ export interface ApplicationAction {
 export class ActionService implements IActionService {
   private allActions: Map<string, ApplicationAction> = new Map();
   private currentContext: ActionContext = ActionContext.CORE;
+  private currentExtensionId?: string;
   private sendToExtension?: (
     extensionId: string,
     actionId: string,
@@ -138,13 +139,15 @@ export class ActionService implements IActionService {
   }
 
   /**
-   * Set the current action context and optional data (e.g., commandId)
+   * Set the current action context and optional active extensionId
    */
-  setContext(context: ActionContext): void {
-    // Only update if context actually changes
-    if (this.currentContext !== context) {
+  setContext(context: ActionContext, extensionId?: string | { commandId?: string }): void {
+    const extId = typeof extensionId === 'string' ? extensionId : undefined;
+    // Only update if context or extensionId actually changes
+    if (this.currentContext !== context || this.currentExtensionId !== extId) {
       this.currentContext = context;
-      logService.debug(`Action context set to: ${context}`);
+      this.currentExtensionId = extId;
+      logService.debug(`Action context set to: ${context}${extId ? ` (extension: ${extId})` : ''}`);
       this.updateState(); // Update the Svelte state with filtered actions
     }
   }
@@ -289,17 +292,27 @@ export class ActionService implements IActionService {
       return false;
     }
 
-    // Handle specific contexts (EXTENSION_VIEW, CORE, etc.)
-    if (action.context === this.currentContext) {
+    // Handle EXTENSION_VIEW context specifically
+    if (this.currentContext === ActionContext.EXTENSION_VIEW) {
+      if (action.context === ActionContext.EXTENSION_VIEW) {
+        if (this.currentExtensionId && action.extensionId) {
+          return action.extensionId === this.currentExtensionId;
+        }
+        return !action.extensionId;
+      }
+      if (action.context === ActionContext.GLOBAL) {
+        return true;
+      }
+      return false;
+    }
+
+    // Handle specific contexts (SEARCH_VIEW, etc.)
+    if (action.context === this.currentContext && this.currentContext !== ActionContext.CORE) {
       return true;
     }
 
-    // Handle GLOBAL actions - show them in CORE and EXTENSION_VIEW contexts
-    if (
-      action.context === ActionContext.GLOBAL &&
-      (this.currentContext === ActionContext.CORE ||
-        this.currentContext === ActionContext.EXTENSION_VIEW)
-    ) {
+    // Handle GLOBAL actions - show them in CORE context
+    if (action.context === ActionContext.GLOBAL && this.currentContext === ActionContext.CORE) {
       return true;
     }
 

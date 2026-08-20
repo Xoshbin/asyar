@@ -15,8 +15,12 @@ interface IActionService {
   unregisterAction(actionId: string): void;
   getActions(context?: ActionContext): ExtensionAction[];
   executeAction(actionId: string): Promise<void>;
-  setContext(context: ActionContext, data?: { commandId?: string }): void;
+  setContext(context: ActionContext, data?: { commandId?: string } | string): void;
   getContext(): ActionContext;
+  registerActionHandler(
+    actionId: string,
+    handler: (payload?: unknown) => Promise<void> | void,
+  ): void;
 }
 ```
 

@@ -28,12 +28,17 @@ export function setupSelectionEffects(state: LauncherState) {
   // Effect 7: Extension view cleanup
   $effect(() => {
     const currentView = state.activeViewVal;
-    if (state.lastActiveViewId !== null && currentView === null) {
-      const closedExtensionId = state.lastActiveViewId.split('/')[0];
-      actionService.clearActionsForExtension(closedExtensionId);
+    const currentExtId = currentView ? currentView.split('/')[0] : undefined;
+    const previousExtId = state.lastActiveViewId ? state.lastActiveViewId.split('/')[0] : undefined;
+
+    if (previousExtId && previousExtId !== currentExtId) {
+      actionService.clearActionsForExtension(previousExtId);
     }
     state.lastActiveViewId = currentView;
-    actionService.setContext(currentView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE);
+    actionService.setContext(
+      currentView ? ActionContext.EXTENSION_VIEW : ActionContext.CORE,
+      currentExtId,
+    );
   });
 
   // Effect 7b: Classify run rows against the live query via Rust's shared
