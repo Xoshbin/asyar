@@ -75,6 +75,10 @@ code .   # from within your extension directory
 
 Or open the folder manually in your IDE. The `dev_extensions.json` registration persists — you never need to re-link.
 
+**Q: Does `asyar link` work with production release builds of Asyar?**
+
+Yes. When you run `asyar link`, the CLI both creates a symlink in `$APPDATA/extensions/<id>` and registers your extension's absolute source directory in `$APPDATA/dev_extensions.json`. Asyar's custom protocol handler (`asyar-extension://`) reads this registry to allow local file access on production release builds without 403 access violations. To clean up the registration and symlink, run `asyar unlink`.
+
 **Q: How do I make my extension macOS-only (or any specific OS)?**
 
 Add a `platforms` field to your `manifest.json` listing only the operating systems you support:
