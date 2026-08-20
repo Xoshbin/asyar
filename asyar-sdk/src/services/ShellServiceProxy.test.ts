@@ -41,6 +41,15 @@ describe('ShellServiceProxy', () => {
       expect(payload).toMatchObject({ program: 'echo', args: ['hi'] });
     });
 
+    it('passes stdin in payload when provided', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      proxy.spawn({ program: 'cat', stdin: 'hello world' });
+      await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
+      const [cmd, payload] = mockInvoke.mock.calls[0];
+      expect(cmd).toBe('shell:spawn');
+      expect(payload).toMatchObject({ program: 'cat', stdin: 'hello world' });
+    });
+
     it('includes spawnId in the payload', async () => {
       const { proxy, mockInvoke } = makeProxy();
       proxy.spawn({ program: 'git', args: ['status'] });
@@ -366,6 +375,102 @@ describe('ShellServiceProxy', () => {
         code: 'ABORTED',
         message: 'Process was aborted by the extension',
       });
+    });
+  });
+
+  // ── stdin piping: write & closeStdin ────────────────────────────────────────
+
+  describe('stdin piping: handle.write() and handle.closeStdin()', () => {
+    it('handle.write() delegates to broker.invoke("shell:write-stdin")', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      let capturedId: string;
+      mockInvoke.mockImplementation((cmd: string, payload: { spawnId: string }) => {
+        if (cmd === 'shell:spawn') {
+          capturedId = payload.spawnId;
+          return Promise.resolve({ streaming: true });
+        }
+        return Promise.resolve();
+      });
+
+      const handle = proxy.spawn({ program: 'cat' });
+      await vi.waitFor(() => capturedId !== undefined);
+
+      await handle.write('hello stdin');
+
+      const call = mockInvoke.mock.calls.find((c) => c[0] === 'shell:write-stdin');
+      expect(call).toBeDefined();
+      expect(call![1]).toEqual({
+        spawnId: capturedId!,
+        data: 'hello stdin',
+      });
+    });
+
+    it('handle.closeStdin() delegates to broker.invoke("shell:close-stdin")', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      let capturedId: string;
+      mockInvoke.mockImplementation((cmd: string, payload: { spawnId: string }) => {
+        if (cmd === 'shell:spawn') {
+          capturedId = payload.spawnId;
+          return Promise.resolve({ streaming: true });
+        }
+        return Promise.resolve();
+      });
+
+      const handle = proxy.spawn({ program: 'cat' });
+      await vi.waitFor(() => capturedId !== undefined);
+
+      await handle.closeStdin();
+
+      const call = mockInvoke.mock.calls.find((c) => c[0] === 'shell:close-stdin');
+      expect(call).toBeDefined();
+      expect(call![1]).toEqual({
+        spawnId: capturedId!,
+      });
+    });
+
+    it('handle.write() rejects when process is already settled', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      let capturedId: string;
+      mockInvoke.mockImplementation((_cmd: string, payload: { spawnId: string }) => {
+        capturedId = payload.spawnId;
+        return Promise.resolve({ streaming: true });
+      });
+
+      const handle = proxy.spawn({ program: 'echo' });
+      await vi.waitFor(() => capturedId !== undefined);
+
+      fireStreamMessage({
+        type: 'asyar:stream',
+        streamId: capturedId!,
+        phase: 'done',
+        data: { exitCode: 0 },
+      });
+
+      await expect(handle.write('too late')).rejects.toThrow('Process is no longer running');
+    });
+
+    it('handle.closeStdin() is a no-op when process is already settled', async () => {
+      const { proxy, mockInvoke } = makeProxy();
+      let capturedId: string;
+      mockInvoke.mockImplementation((_cmd: string, payload: { spawnId: string }) => {
+        capturedId = payload.spawnId;
+        return Promise.resolve({ streaming: true });
+      });
+
+      const handle = proxy.spawn({ program: 'echo' });
+      await vi.waitFor(() => capturedId !== undefined);
+
+      fireStreamMessage({
+        type: 'asyar:stream',
+        streamId: capturedId!,
+        phase: 'done',
+        data: { exitCode: 0 },
+      });
+
+      mockInvoke.mockClear();
+      await handle.closeStdin();
+
+      expect(mockInvoke).not.toHaveBeenCalled();
     });
   });
 });

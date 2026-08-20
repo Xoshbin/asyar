@@ -1,6 +1,8 @@
 export interface SpawnParams {
   program: string;
   args?: string[];
+  /** Optional initial stdin string to write immediately on spawn (automatically closes stdin). */
+  stdin?: string;
 }
 
 export interface ShellChunk {
@@ -35,6 +37,12 @@ export interface ShellHandle {
    * Kills the running process.
    */
   abort(): void;
+
+  /** Write string data to the running process's stdin. */
+  write(data: string): Promise<void>;
+
+  /** Close standard input (sends EOF to the child process). */
+  closeStdin(): Promise<void>;
 }
 
 /**

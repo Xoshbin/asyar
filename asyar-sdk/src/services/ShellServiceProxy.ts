@@ -15,6 +15,7 @@ export class ShellServiceProxy extends BaseServiceProxy implements IShellService
         program: params.program,
         args: params.args,
         spawnId,
+        stdin: params.stdin,
       }),
     );
   }
@@ -112,6 +113,18 @@ export class ShellServiceProxy extends BaseServiceProxy implements IShellService
           '*',
         );
         settle({ code: 'ABORTED', message: 'Process was aborted by the extension' });
+      },
+      write: async (data: string) => {
+        if (settled) {
+          throw new Error('Process is no longer running');
+        }
+        await this.broker.invoke('shell:write-stdin', { spawnId, data });
+      },
+      closeStdin: async () => {
+        if (settled) {
+          return;
+        }
+        await this.broker.invoke('shell:close-stdin', { spawnId });
       },
     };
   }

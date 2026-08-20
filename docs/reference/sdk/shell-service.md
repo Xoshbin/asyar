@@ -16,6 +16,8 @@ interface SpawnParams {
   program: string;
   /** Command-line arguments. Defaults to `[]`. */
   args?: string[];
+  /** Optional initial stdin string to write immediately on spawn (automatically closes stdin). */
+  stdin?: string;
 }
 
 interface ShellChunk {
@@ -38,6 +40,10 @@ interface ShellHandle {
   onError(cb: (error: { code: string; message: string }) => void): void;
   /** Send SIGKILL (Unix) / TerminateProcess (Windows) to the running process. */
   abort(): void;
+  /** Write string data to the running process's stdin. */
+  write(data: string): Promise<void>;
+  /** Close standard input (sends EOF to the child process). */
+  closeStdin(): Promise<void>;
 }
 
 interface ShellDescriptor {
@@ -157,6 +163,45 @@ handle.onDone(() => {
   // render containers list
   renderContainers(containers);
 });
+```
+
+**Single-shot script execution via `stdin` (e.g. Python / AppleScript / Node without CLI arg limits):**
+
+```typescript
+// Run complex multi-line scripts without writing temporary files or hitting ARG_MAX:
+const pythonScript = `
+import sys, json
+data = {"status": "ok", "version": sys.version}
+print(json.dumps(data))
+`;
+
+const handle = shell.spawn({
+  program: 'python3',
+  args: ['-'], // python reads script from stdin
+  stdin: pythonScript,
+});
+
+handle.onChunk(({ data }) => {
+  console.log('Python output:', data);
+});
+```
+
+**Interactive streaming input (`handle.write()` and `handle.closeStdin()`):**
+
+```typescript
+// Spawn an interactive process and stream data incrementally:
+const handle = shell.spawn({ program: 'cat' });
+
+handle.onChunk(({ stream, data }) => {
+  console.log(`Echoed (${stream}):`, data);
+});
+
+// Write data to the process's standard input
+await handle.write('Line 1\n');
+await handle.write('Line 2\n');
+
+// Signal EOF to allow the process to finish
+await handle.closeStdin();
 ```
 
 #### How it works under the hood
@@ -325,7 +370,7 @@ The list shows every extension that has declared `shell:spawn`, grouped with the
 - **Non-standard path warning.** The consent dialog flags binaries outside known safe locations (`/usr/bin`, `/usr/local/bin`, `/opt/homebrew/bin`, `C:\Windows\System32`, etc.).
 - **Extension isolation.** Trust records are keyed by `(extensionId, binaryPath)`. Extensions cannot read or benefit from trust granted to other extensions.
 - **Uninstall cleanup.** When an extension is uninstalled, all its `shell_trusted_binaries` rows are deleted automatically.
-- **Output-only.** Extensions receive stdout/stderr. They cannot write to stdin — interactive processes are not supported.
+- **Process isolation & streaming.** Extensions can stream standard input into spawned processes and receive real-time stdout/stderr lines. Stdin pipes are scoped to the caller's extension ID and automatically cleaned up on exit or abort.
 
 #### Cross-platform notes
 

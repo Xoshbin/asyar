@@ -41,7 +41,7 @@ function walkTs(dir, out = []) {
 // `state:*` family slipped past the gate. The first arg is always a static
 // `'service:action'` literal (no dynamically built call types).
 function sdkCallTypes() {
-  const re = /\binvoke\s*(?:<[^>]*>)?\s*\(\s*['"`]([a-zA-Z]+:[a-zA-Z]+)['"`]/g;
+  const re = /\binvoke\s*(?:<[^>]*>)?\s*\(\s*['"`]([a-zA-Z]+:[a-zA-Z-]+)['"`]/g;
   const set = new Set();
   for (const file of walkTs(SDK_SRC)) {
     for (const m of readFileSync(file, 'utf8').matchAll(re)) set.add(`asyar:api:${m[1]}`);
@@ -61,7 +61,7 @@ function rustClassifiedCallTypes() {
   const publicFn = src.match(/fn is_public_call\(call_type: &str\) -> bool \{[\s\S]*?\n\}/);
   if (!gated) throw new Error('could not find get_required_permission in permissions.rs');
   if (!publicFn) throw new Error('could not find is_public_call in permissions.rs');
-  const literal = /"(asyar:api:[a-zA-Z]+:[a-zA-Z]+)"/g;
+  const literal = /"(asyar:api:[a-zA-Z]+:[a-zA-Z-]+)"/g;
   const set = new Set();
   for (const body of [gated[0], publicFn[0]]) {
     for (const m of body.matchAll(literal)) set.add(m[1]);

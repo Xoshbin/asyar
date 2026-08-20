@@ -648,6 +648,8 @@ pub fn run() {
             commands::shell_kill,
             commands::shell_list,
             commands::shell_attach,
+            commands::shell_write_stdin,
+            commands::shell_close_stdin,
             commands::shell_resolve_path,
             commands::shell_check_trust,
             commands::shell_grant_trust,

@@ -168,6 +168,8 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:shell:spawn" => Some("shell:spawn"),
         "asyar:api:shell:list" => Some("shell:spawn"),
         "asyar:api:shell:attach" => Some("shell:spawn"),
+        "asyar:api:shell:write-stdin" => Some("shell:spawn"),
+        "asyar:api:shell:close-stdin" => Some("shell:spawn"),
         // Entitlement service — requires subscription read permission
         "asyar:api:entitlements:check" => Some("entitlements:read"),
         "asyar:api:entitlements:getAll" => Some("entitlements:read"),

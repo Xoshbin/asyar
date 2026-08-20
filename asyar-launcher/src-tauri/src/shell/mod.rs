@@ -5,7 +5,7 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
 pub mod scheduler;
@@ -45,12 +45,14 @@ impl ShellDescriptor {
 
 pub struct ShellProcessRegistry {
     entries: Arc<Mutex<HashMap<String, ShellEntry>>>,
+    stdin_writers: Arc<tokio::sync::Mutex<HashMap<String, tokio::process::ChildStdin>>>,
 }
 
 impl Clone for ShellProcessRegistry {
     fn clone(&self) -> Self {
         Self {
             entries: Arc::clone(&self.entries),
+            stdin_writers: Arc::clone(&self.stdin_writers),
         }
     }
 }
@@ -65,6 +67,7 @@ impl ShellProcessRegistry {
     pub fn new() -> Self {
         Self {
             entries: Arc::new(Mutex::new(HashMap::new())),
+            stdin_writers: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         }
     }
 
@@ -90,6 +93,51 @@ impl ShellProcessRegistry {
             },
         );
         Ok(())
+    }
+
+    pub async fn register_stdin(&self, spawn_id: &str, stdin: tokio::process::ChildStdin) {
+        let mut map = self.stdin_writers.lock().await;
+        map.insert(spawn_id.to_string(), stdin);
+    }
+
+    pub async fn write_stdin(&self, spawn_id: &str, data: &[u8]) -> Result<(), AppError> {
+        let mut map = self.stdin_writers.lock().await;
+        if let Some(stdin) = map.get_mut(spawn_id) {
+            stdin
+                .write_all(data)
+                .await
+                .map_err(|e| AppError::Other(format!("Failed to write to stdin: {e}")))?;
+            stdin
+                .flush()
+                .await
+                .map_err(|e| AppError::Other(format!("Failed to flush stdin: {e}")))?;
+            Ok(())
+        } else {
+            Err(AppError::NotFound(format!(
+                "stdin for spawnId \"{}\" is closed or not found",
+                spawn_id
+            )))
+        }
+    }
+
+    pub async fn close_stdin(&self, spawn_id: &str) -> Result<(), AppError> {
+        let mut map = self.stdin_writers.lock().await;
+        if let Some(mut stdin) = map.remove(spawn_id) {
+            let _ = stdin.shutdown().await;
+        }
+        Ok(())
+    }
+
+    pub fn remove_stdin_sync(&self, spawn_id: &str) {
+        if let Ok(mut map) = self.stdin_writers.try_lock() {
+            map.remove(spawn_id);
+        } else {
+            let reg = self.clone();
+            let sid = spawn_id.to_string();
+            tokio::spawn(async move {
+                let _ = reg.close_stdin(&sid).await;
+            });
+        }
     }
 
     pub fn mark_finished(&self, spawn_id: &str, exit_code: Option<i32>) -> Result<(), AppError> {
@@ -131,6 +179,7 @@ impl ShellProcessRegistry {
     }
 
     pub fn remove(&self, spawn_id: &str) -> Result<Option<ShellEntry>, AppError> {
+        self.remove_stdin_sync(spawn_id);
         let mut map = self.entries.lock().map_err(|_| AppError::Lock)?;
         Ok(map.remove(spawn_id))
     }
@@ -148,6 +197,7 @@ impl ShellProcessRegistry {
             .collect();
         let mut pids = Vec::with_capacity(victim_ids.len());
         for sid in victim_ids {
+            self.remove_stdin_sync(&sid);
             if let Some(entry) = map.remove(&sid) {
                 pids.push(entry.pid);
             }
@@ -274,6 +324,7 @@ pub fn spawn(
     let mut child_process = std::process::Command::new(&program);
     child_process
         .args(&args)
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
@@ -293,6 +344,7 @@ pub fn spawn(
     let pid = child
         .id()
         .ok_or_else(|| AppError::Other("Failed to capture process ID".to_string()))?;
+    let stdin = child.stdin.take();
     let stdout = child
         .stdout
         .take()
@@ -303,6 +355,18 @@ pub fn spawn(
         .ok_or_else(|| AppError::Other("Failed to capture stderr".to_string()))?;
 
     shell_registry.register_spawn(&spawn_id, &extension_id, &program, &args, pid)?;
+
+    if let Some(s) = stdin {
+        if let Ok(mut map) = shell_registry.stdin_writers.try_lock() {
+            map.insert(spawn_id.clone(), s);
+        } else {
+            let reg = shell_registry.clone();
+            let sid = spawn_id.clone();
+            tokio::spawn(async move {
+                reg.register_stdin(&sid, s).await;
+            });
+        }
+    }
 
     let app_clone = app.clone();
     let spawn_id_clone = spawn_id.clone();
@@ -345,6 +409,7 @@ pub fn spawn(
         let wait_task = child.wait();
 
         let (_, _, status_result) = tokio::join!(stdout_task, stderr_task, wait_task);
+        let _ = registry_clone.close_stdin(&spawn_id_clone).await;
 
         match status_result {
             Ok(status) => {
@@ -376,7 +441,23 @@ pub fn spawn(
     Ok(())
 }
 
+pub async fn write_stdin(
+    shell_registry: &ShellProcessRegistry,
+    spawn_id: &str,
+    data: &[u8],
+) -> Result<(), AppError> {
+    shell_registry.write_stdin(spawn_id, data).await
+}
+
+pub async fn close_stdin(
+    shell_registry: &ShellProcessRegistry,
+    spawn_id: &str,
+) -> Result<(), AppError> {
+    shell_registry.close_stdin(spawn_id).await
+}
+
 pub fn kill(shell_registry: &ShellProcessRegistry, spawn_id: &str) -> Result<(), AppError> {
+    shell_registry.remove_stdin_sync(spawn_id);
     if let Some(entry) = shell_registry.remove(spawn_id)? {
         kill_pid(entry.pid);
     }
@@ -626,5 +707,65 @@ mod tests {
         assert!(!entry.finished);
         assert!(entry.exit_code.is_none());
         assert!(entry.started_at >= before && entry.started_at <= after);
+    }
+
+    #[tokio::test]
+    async fn write_stdin_returns_not_found_for_unregistered_spawn() {
+        let reg = ShellProcessRegistry::new();
+        let err = reg.write_stdin("unknown-id", b"data").await.unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn close_stdin_is_noop_for_unregistered_spawn() {
+        let reg = ShellProcessRegistry::new();
+        let res = reg.close_stdin("unknown-id").await;
+        assert!(res.is_ok());
+    }
+
+    #[tokio::test]
+    async fn pipe_stdin_to_child_process_and_read_output() {
+        let reg = ShellProcessRegistry::new();
+        let cmd_name = if cfg!(windows) { "findstr" } else { "cat" };
+        let args: Vec<String> = if cfg!(windows) {
+            vec!["^".to_string()]
+        } else {
+            vec![]
+        };
+
+        let mut child_cmd = std::process::Command::new(cmd_name);
+        child_cmd
+            .args(&args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        let mut child = Command::from(child_cmd).spawn().expect("spawn child");
+        let pid = child.id().expect("pid");
+        let stdin = child.stdin.take().expect("take stdin");
+        let stdout = child.stdout.take().expect("take stdout");
+
+        reg.register_spawn("spawn-cat", "ext-a", cmd_name, &args, pid)
+            .unwrap();
+        reg.register_stdin("spawn-cat", stdin).await;
+
+        // Write to stdin
+        reg.write_stdin("spawn-cat", b"hello stdin piping\n")
+            .await
+            .expect("write stdin ok");
+        // Close stdin to send EOF
+        reg.close_stdin("spawn-cat").await.expect("close stdin ok");
+
+        // Subsequent write should fail because stdin was closed
+        let err = reg.write_stdin("spawn-cat", b"after close\n").await;
+        assert!(err.is_err());
+
+        // Wait for child to exit and read stdout
+        let mut reader = BufReader::new(stdout).lines();
+        let line = reader.next_line().await.unwrap().unwrap();
+        assert_eq!(line, "hello stdin piping");
+
+        let status = child.wait().await.unwrap();
+        assert!(status.success());
     }
 }

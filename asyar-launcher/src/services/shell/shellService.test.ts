@@ -194,6 +194,61 @@ describe('ShellService', () => {
       expect(streamDispatcher.create).not.toHaveBeenCalled();
     });
   });
+
+  describe('writeStdin and closeStdin', () => {
+    it('writeStdin invokes shell_write_stdin with extensionId, spawnId, and data', async () => {
+      vi.mocked(invoke).mockResolvedValue(undefined);
+
+      await shellService.writeStdin('spawn-1', 'hello data\n', 'ext-a');
+
+      expect(invoke).toHaveBeenCalledWith('shell_write_stdin', {
+        extensionId: 'ext-a',
+        spawnId: 'spawn-1',
+        data: 'hello data\n',
+      });
+    });
+
+    it('closeStdin invokes shell_close_stdin with extensionId and spawnId', async () => {
+      vi.mocked(invoke).mockResolvedValue(undefined);
+
+      await shellService.closeStdin('spawn-1', 'ext-a');
+
+      expect(invoke).toHaveBeenCalledWith('shell_close_stdin', {
+        extensionId: 'ext-a',
+        spawnId: 'spawn-1',
+      });
+    });
+
+    it('spawn with initial stdin writes data and closes stdin after spawning', async () => {
+      vi.mocked(invoke).mockImplementation((cmd) => {
+        if (cmd === 'shell_resolve_path') return Promise.resolve('/usr/bin/cat');
+        return Promise.resolve(undefined);
+      });
+
+      await shellService.spawn(
+        'org.asyar.test',
+        'cat',
+        [],
+        'spawn-pipe-1',
+        undefined,
+        undefined,
+        undefined,
+        'initial script content',
+      );
+
+      await vi.waitFor(() => {
+        expect(invoke).toHaveBeenCalledWith('shell_write_stdin', {
+          extensionId: 'org.asyar.test',
+          spawnId: 'spawn-pipe-1',
+          data: 'initial script content',
+        });
+        expect(invoke).toHaveBeenCalledWith('shell_close_stdin', {
+          extensionId: 'org.asyar.test',
+          spawnId: 'spawn-pipe-1',
+        });
+      });
+    });
+  });
 });
 
 // ── Run Tracker auto-promotion ─────────────────────────────────────────────────
