@@ -192,3 +192,4 @@ export { injectThemeVariables, injectFontFaceCSS } from './lib/themeInjector';
 export * from './types';
 export * from './icons';
 export * from './search';
+export * from './errors';

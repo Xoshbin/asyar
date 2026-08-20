@@ -38,7 +38,7 @@ export interface IpcContext {
   role?: IframeRole;
   result: unknown;
   reply: (result: unknown) => void;
-  replyError: (error: string) => void;
+  replyError: (error: string, errorCode?: string, errorDetails?: Record<string, unknown>) => void;
 }
 
 /** Cross-cutting stage. Not calling `next()` ends the message here. */

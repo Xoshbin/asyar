@@ -1,5 +1,11 @@
 import type { WireCommand } from './namespaces';
 import { emitIpcLog } from './devInspectorBridge';
+import {
+  AsyarError,
+  PermissionDeniedError,
+  PermissionConsentRequiredError,
+  IpcTimeoutError,
+} from '../errors';
 
 export interface IPCMessage<T = any> {
   type: string;
@@ -13,6 +19,8 @@ export interface IPCResponse<T = any> {
   messageId: string;
   result?: T;
   error?: string;
+  errorCode?: string;
+  errorDetails?: Record<string, unknown>;
 }
 
 export type HostDispatcher = (
@@ -101,7 +109,27 @@ export class MessageBroker {
           extensionId: this.extensionId,
         });
         if (response.error) {
-          pending.reject(new Error(response.error));
+          if (response.errorCode === 'PERMISSION_DENIED') {
+            const perm =
+              typeof response.errorDetails?.permission === 'string'
+                ? response.errorDetails.permission
+                : undefined;
+            pending.reject(new PermissionDeniedError(response.error, perm));
+          } else if (response.errorCode === 'PERMISSION_CONSENT_REQUIRED') {
+            const perm =
+              typeof response.errorDetails?.permission === 'string'
+                ? response.errorDetails.permission
+                : undefined;
+            pending.reject(new PermissionConsentRequiredError(response.error, perm));
+          } else {
+            pending.reject(
+              new AsyarError(
+                response.error,
+                response.errorCode ?? 'UNKNOWN_ERROR',
+                response.errorDetails,
+              ),
+            );
+          }
         } else {
           pending.resolve(response.result);
         }
@@ -159,7 +187,13 @@ export class MessageBroker {
           timestamp: Date.now(),
           extensionId: extensionId ?? this.extensionId,
         });
-        reject(new Error(`IPC timeout after ${timeoutMs}ms for command: ${command}`));
+        reject(
+          new IpcTimeoutError(
+            `IPC timeout after ${timeoutMs}ms for command: ${command}`,
+            command,
+            timeoutMs,
+          ),
+        );
       }, timeoutMs);
 
       this.pendingRequests.set(messageId, {

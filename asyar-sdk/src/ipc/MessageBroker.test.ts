@@ -91,3 +91,124 @@ describe('MessageBroker.invoke — host dispatcher fast path', () => {
     expect(dispatcher).not.toHaveBeenCalled();
   });
 });
+
+describe('MessageBroker.handleMessage — structured error rejection', () => {
+  it('rejects with PermissionDeniedError when errorCode is PERMISSION_DENIED', async () => {
+    const fakeParent = { postMessage: vi.fn() };
+    Object.defineProperty(window, 'parent', { configurable: true, get: () => fakeParent });
+
+    const broker = freshBroker();
+    const promise = broker.invoke('clipboard:readText');
+
+    expect(fakeParent.postMessage).toHaveBeenCalledOnce();
+    const [message] = fakeParent.postMessage.mock.calls[0];
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'asyar:response',
+          messageId: message.messageId,
+          error:
+            'Permission denied: "clipboard:read" is required but not declared in manifest.json',
+          errorCode: 'PERMISSION_DENIED',
+          errorDetails: { permission: 'clipboard:read' },
+        },
+      }),
+    );
+
+    await expect(promise).rejects.toSatisfy((err: any) => {
+      expect(err.name).toBe('PermissionDeniedError');
+      expect(err.code).toBe('PERMISSION_DENIED');
+      expect(err.permission).toBe('clipboard:read');
+      expect(err.message).toContain('Permission denied');
+      return true;
+    });
+  });
+
+  it('rejects with PermissionConsentRequiredError when errorCode is PERMISSION_CONSENT_REQUIRED', async () => {
+    const fakeParent = { postMessage: vi.fn() };
+    Object.defineProperty(window, 'parent', { configurable: true, get: () => fakeParent });
+
+    const broker = freshBroker();
+    const promise = broker.invoke('fs:watch');
+
+    expect(fakeParent.postMessage).toHaveBeenCalledOnce();
+    const [message] = fakeParent.postMessage.mock.calls[0];
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'asyar:response',
+          messageId: message.messageId,
+          error: 'Permission consent required: "fs:watch" requires user review in Settings',
+          errorCode: 'PERMISSION_CONSENT_REQUIRED',
+          errorDetails: { permission: 'fs:watch' },
+        },
+      }),
+    );
+
+    await expect(promise).rejects.toSatisfy((err: any) => {
+      expect(err.name).toBe('PermissionConsentRequiredError');
+      expect(err.code).toBe('PERMISSION_CONSENT_REQUIRED');
+      expect(err.permission).toBe('fs:watch');
+      expect(err.message).toContain('Permission consent required');
+      return true;
+    });
+  });
+
+  it('rejects with AsyarError for other errors with errorCode', async () => {
+    const fakeParent = { postMessage: vi.fn() };
+    Object.defineProperty(window, 'parent', { configurable: true, get: () => fakeParent });
+
+    const broker = freshBroker();
+    const promise = broker.invoke('storage:get');
+
+    expect(fakeParent.postMessage).toHaveBeenCalledOnce();
+    const [message] = fakeParent.postMessage.mock.calls[0];
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'asyar:response',
+          messageId: message.messageId,
+          error: 'Key not found',
+          errorCode: 'NOT_FOUND',
+          errorDetails: { key: 'foo' },
+        },
+      }),
+    );
+
+    await expect(promise).rejects.toSatisfy((err: any) => {
+      expect(err.name).toBe('AsyarError');
+      expect(err.code).toBe('NOT_FOUND');
+      expect(err.details).toEqual({ key: 'foo' });
+      expect(err.message).toBe('Key not found');
+      return true;
+    });
+  });
+
+  it('rejects with IpcTimeoutError on invoke timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const fakeParent = { postMessage: vi.fn() };
+      Object.defineProperty(window, 'parent', { configurable: true, get: () => fakeParent });
+
+      const broker = freshBroker();
+      const promise = broker.invoke('storage:get', undefined, undefined, 100);
+
+      // Attach reject handler to avoid unhandled rejection during timer advance
+      const rejection = expect(promise).rejects.toSatisfy((err: any) => {
+        expect(err.name).toBe('IpcTimeoutError');
+        expect(err.code).toBe('IPC_TIMEOUT');
+        expect(err.command).toBe('storage:get');
+        expect(err.timeoutMs).toBe(100);
+        return true;
+      });
+
+      vi.advanceTimersByTime(150);
+      await rejection;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

@@ -132,7 +132,12 @@ export class ExtensionIpcRouter {
       deps: this.deps,
       result: undefined,
       reply: (result) => post({ result }),
-      replyError: (error) => post({ error }),
+      replyError: (error, errorCode, errorDetails) =>
+        post({
+          error,
+          ...(errorCode ? { errorCode } : {}),
+          ...(errorDetails ? { errorDetails } : {}),
+        }),
     };
   }
 

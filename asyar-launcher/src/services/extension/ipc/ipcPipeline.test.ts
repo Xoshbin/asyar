@@ -31,6 +31,7 @@ import { feedbackService } from '../../feedback/feedbackService.svelte';
 import { inspectorStore } from '../../dev/inspectorStore.svelte';
 import { isDevInspectorActive } from './devTracing';
 import { ExtensionIpcRouter } from '../ExtensionIpcRouter';
+import { permissionConsentService } from '../permissionConsentService.svelte';
 import { HandledDispatchError } from './errors';
 import { IPC_HANDLERS } from './handlers';
 import { IPC_PIPELINE } from './pipeline';
@@ -107,6 +108,7 @@ beforeEach(() => {
     extension: {},
     commands: {},
   } as never);
+  permissionConsentService.reset();
 });
 
 // ── §3 behavior matrix ──────────────────────────────────────────────────────
@@ -525,6 +527,40 @@ describe('IPC pipeline — denial and error envelopes', () => {
         type: 'asyar:response',
         messageId: 'm-denied',
         error: 'Permission denied: "clipboard:read" is required but not declared in manifest.json',
+        errorCode: 'PERMISSION_DENIED',
+        errorDetails: { permission: 'clipboard:read' },
+      },
+    ]);
+    expect(feedbackService.report).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'permission_denied' }),
+    );
+  });
+
+  it('attaches PERMISSION_CONSENT_REQUIRED when manifest declared permission but consent is pending', async () => {
+    vi.mocked(commands.checkExtensionPermission).mockResolvedValue({
+      allowed: false,
+      requiredPermission: 'fs:watch',
+      reason: 'needs consent',
+    } as never);
+
+    const router = new ExtensionIpcRouter(
+      {} as ServiceRegistry,
+      (id: string) => (id === EXT_ID ? ({ id, permissions: ['fs:watch'] } as never) : undefined),
+      goBack,
+      saveSearchIndex,
+    );
+
+    await router.handleMessage(
+      frameEvent({ type: 'asyar:api:fsWatcher:create', messageId: 'm-consent' }),
+    );
+
+    expect(responsesTo(viewPost)).toEqual([
+      {
+        type: 'asyar:response',
+        messageId: 'm-consent',
+        error: 'Permission consent required: "fs:watch" requires user review in Settings',
+        errorCode: 'PERMISSION_CONSENT_REQUIRED',
+        errorDetails: { permission: 'fs:watch' },
       },
     ]);
     expect(feedbackService.report).toHaveBeenCalledWith(

@@ -123,3 +123,4 @@ expands the placement guidance.
 - **[OpenerService](./opener-service.md)**
 - **[Preferences (declarative settings)](./preferences.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**
+- **[Error Handling & Error Classes](./errors.md)**
