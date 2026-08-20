@@ -4,7 +4,7 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { registerValidate } from './commands/validate';
 import { registerBuild } from './commands/build';
-import { registerLink } from './commands/link';
+import { registerLink, registerUnlink } from './commands/link';
 import { registerDev } from './commands/dev';
 import { registerPublish } from './commands/publish';
 import { registerDoctor } from './commands/doctor';
@@ -18,6 +18,7 @@ program.name('asyar').description('Asyar Extension Developer CLI').version(pkg.v
 registerValidate(program);
 registerBuild(program);
 registerLink(program);
+registerUnlink(program);
 registerDev(program);
 registerPublish(program);
 registerDoctor(program);

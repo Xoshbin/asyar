@@ -49,13 +49,13 @@ Many extension loading failures are manifest validation errors (wrong `id` forma
 
 ### Step 5 — Check the dev extension registry
 
-If your extension does not appear in the launcher after scaffolding, check that the dev registry has your path:
+If your extension does not appear in the launcher or is blocked with a `403 Access Denied` error on production builds, check that the dev registry contains your project's absolute path:
 
 ```
-~/.config/Asyar/dev_extensions.json
+$APPDATA/dev_extensions.json (e.g. ~/Library/Application Support/org.asyar.app/dev_extensions.json on macOS)
 ```
 
-It should contain an entry mapping your extension ID to the absolute path. If it is missing, run `asyar link` or use the Create Extension tool.
+It should contain an entry mapping your extension ID to the absolute source path. Running `asyar link` automatically registers this entry, and `asyar unlink` removes it. If it is missing, run `asyar link` or use the Create Extension tool.
 
 ### Common issues and solutions
 

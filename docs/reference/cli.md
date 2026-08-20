@@ -6,16 +6,18 @@ order: 2
 
 ### Available CLI commands
 
-| Command              | Description                                               |
-| -------------------- | --------------------------------------------------------- |
-| `asyar validate`     | Validate `manifest.json` against all rules                |
-| `asyar build`        | Validate + run `vite build` + verify output               |
-| `asyar dev`          | Validate + build + link + watch for changes               |
-| `asyar dev --dev`    | Same as `dev`, but links to the dev flavor of Asyar       |
-| `asyar link`         | Build + create symlink in Asyar's extensions directory    |
-| `asyar link --watch` | `link` + continuous file watching and rebuild             |
-| `asyar link --dev`   | `link` targeting the dev flavor of Asyar                  |
-| `asyar publish`      | Full publish pipeline (validate → build → GitHub → Store) |
+| Command              | Description                                                |
+| -------------------- | ---------------------------------------------------------- |
+| `asyar validate`     | Validate `manifest.json` against all rules                 |
+| `asyar build`        | Validate + run `vite build` + verify output                |
+| `asyar dev`          | Validate + build + link + watch for changes                |
+| `asyar dev --dev`    | Same as `dev`, but links to the dev flavor of Asyar        |
+| `asyar link`         | Build + create symlink + register in `dev_extensions.json` |
+| `asyar link --watch` | `link` + continuous file watching and rebuild              |
+| `asyar link --dev`   | `link` targeting the dev flavor of Asyar                   |
+| `asyar unlink`       | Remove symlink and unregister from `dev_extensions.json`   |
+| `asyar unlink --dev` | `unlink` targeting the dev flavor of Asyar                 |
+| `asyar publish`      | Full publish pipeline (validate → build → GitHub → Store)  |
 
 ---
 
@@ -75,12 +77,12 @@ asyar dev --dev
 
 1. Validates the manifest.
 2. Runs an initial `vite build`.
-3. Creates a symlink in the Asyar extensions directory (if needed).
+3. Creates a symlink in the Asyar extensions directory (if needed) and registers the source directory in `dev_extensions.json`.
 4. Watches `src/` for changes and rebuilds on every save.
 
 Every successful rebuild is live in Asyar the next time you open the extension panel (the iframe loads fresh on each open).
 
-> **Flavors:** If you are running the **dev build** of Asyar (identifier `org.asyar.dev`), pass `--dev` so the extension is linked into the correct app data directory. Without the flag, the symlink is created for the production build.
+> **Flavors:** If you are running the **dev build** of Asyar (identifier `org.asyar.dev`), pass `--dev` so the extension is linked into the correct app data directory. Without the flag, the symlink and registration are created for the production build.
 
 > **If you used "Create Extension"** to scaffold your project, the dev path is already registered and step 3 is a no-op. Just run `pnpm dev` (which calls `vite build --watch`).
 
@@ -94,8 +96,9 @@ Use this when you **manually cloned** an extension from GitHub and its path is n
 asyar link
 ```
 
-1. Runs `vite build`.
-2. Creates a symlink from `~/.config/Asyar/extensions/<id>/` pointing to your project root. Falls back to a directory copy on Windows or if symlink creation fails.
+1. Runs `vite build` (skipped for themes).
+2. Creates a symlink from `$APPDATA/extensions/<id>/` pointing to your project root (or copies files on Windows if symlinks are unavailable).
+3. Atomically registers the extension's absolute source path in `$APPDATA/dev_extensions.json`. This ensures Asyar's custom scheme handler (`asyar-extension://`) permits serving extension assets without `403 Access Denied` errors on production release builds.
 
 With a symlink in place, subsequent `vite build` runs are immediately reflected. You do not need to run `asyar link` again after each rebuild.
 
@@ -111,6 +114,19 @@ asyar link --dev --watch
 ```
 
 > **Flavors:** Asyar ships two builds — production (`org.asyar.app`) and dev (`org.asyar.dev`). By default `asyar link` targets production. Pass `--dev` when testing against a locally built dev instance of Asyar.
+
+---
+
+### `asyar unlink` — remove local registration
+
+Use this to remove the symlink from the extensions directory and remove the extension's entry from `dev_extensions.json`.
+
+```bash
+asyar unlink
+
+# Target the dev flavor (org.asyar.dev) instead of production
+asyar unlink --dev
+```
 
 ---
 

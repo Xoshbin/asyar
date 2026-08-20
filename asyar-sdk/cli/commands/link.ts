@@ -5,8 +5,59 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import chokidar from 'chokidar';
 import { readManifest } from '../lib/manifest';
-import { getExtensionsDir } from '../lib/platform';
+import { getExtensionsDir, getDevExtensionsFile } from '../lib/platform';
 import { runViteBuild, verifyBuildOutput } from './build';
+
+function writeDevExtensionsAtomic(filePath: string, data: Record<string, string>): void {
+  const content = JSON.stringify(data, null, 2);
+  const tmpFile = `${filePath}.tmp.${process.pid}.${Date.now()}`;
+  fs.writeFileSync(tmpFile, content, 'utf-8');
+  fs.renameSync(tmpFile, filePath);
+}
+
+function updateDevExtensions(
+  extensionId: string,
+  extensionDir: string,
+  isDevFlavor?: boolean,
+): void {
+  const devExtensionsFile = getDevExtensionsFile(isDevFlavor);
+  const devExtensionsDir = path.dirname(devExtensionsFile);
+
+  if (!fs.existsSync(devExtensionsDir)) {
+    fs.mkdirSync(devExtensionsDir, { recursive: true });
+  }
+
+  let registry: Record<string, string> = {};
+  if (fs.existsSync(devExtensionsFile)) {
+    try {
+      registry = JSON.parse(fs.readFileSync(devExtensionsFile, 'utf-8'));
+    } catch {
+      registry = {};
+    }
+  }
+
+  registry[extensionId] = extensionDir;
+  writeDevExtensionsAtomic(devExtensionsFile, registry);
+}
+
+function removeDevExtension(extensionId: string, isDevFlavor?: boolean): void {
+  const devExtensionsFile = getDevExtensionsFile(isDevFlavor);
+  if (!fs.existsSync(devExtensionsFile)) {
+    return;
+  }
+
+  let registry: Record<string, string> = {};
+  try {
+    registry = JSON.parse(fs.readFileSync(devExtensionsFile, 'utf-8'));
+  } catch {
+    return;
+  }
+
+  if (registry[extensionId]) {
+    delete registry[extensionId];
+    writeDevExtensionsAtomic(devExtensionsFile, registry);
+  }
+}
 
 export function registerLink(program: Command) {
   program
@@ -27,6 +78,7 @@ export function registerLink(program: Command) {
         } else {
           await symlinkOrCopy(cwd, targetDir);
         }
+        updateDevExtensions(manifest.id, cwd, opts.dev);
         return;
       }
 
@@ -41,6 +93,7 @@ export function registerLink(program: Command) {
         // Default — try symlink, fall back to copy
         await symlinkOrCopy(cwd, targetDir);
       }
+      updateDevExtensions(manifest.id, cwd, opts.dev);
 
       if (opts.watch) {
         console.log(chalk.cyan('\nWatching src/ for changes...'));
@@ -58,6 +111,30 @@ export function registerLink(program: Command) {
           }
         });
       }
+    });
+}
+
+export function registerUnlink(program: Command) {
+  program
+    .command('unlink')
+    .description('Unlink extension from Asyar extensions directory')
+    .option('--dev', 'Unlink from the dev flavor (org.asyar.dev) instead of production')
+    .action(async (opts) => {
+      const cwd = process.cwd();
+      const manifest = readManifest(cwd);
+      const targetDir = path.join(getExtensionsDir(opts.dev), manifest.id);
+
+      if (fs.existsSync(targetDir)) {
+        const stat = fs.lstatSync(targetDir);
+        if (stat.isSymbolicLink() || stat.isFIFO()) {
+          fs.unlinkSync(targetDir);
+        } else {
+          fs.rmSync(targetDir, { recursive: true, force: true });
+        }
+      }
+
+      removeDevExtension(manifest.id, opts.dev);
+      console.log(chalk.green('✓') + ` Unlinked ${manifest.id}`);
     });
 }
 
