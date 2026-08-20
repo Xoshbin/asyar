@@ -166,6 +166,7 @@ export interface ManifestCommand {
   component?: string;
   icon?: string;
   trigger?: string;
+  searchable?: boolean;
   schedule?: {
     intervalSeconds: number;
   };
@@ -583,6 +584,13 @@ function validateCommand(cmd: ManifestCommand, i: number, errors: ValidationErro
     errors.push({
       field: `${base}.searchBarAccessory`,
       message: `searchBarAccessory is only valid on mode="view" commands (got mode="${cmd.mode}")`,
+    });
+  }
+
+  if (cmd.searchable !== undefined && typeof cmd.searchable !== 'boolean') {
+    errors.push({
+      field: `${base}.searchable`,
+      message: 'must be a boolean',
     });
   }
 }

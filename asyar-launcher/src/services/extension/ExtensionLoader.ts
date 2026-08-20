@@ -508,6 +508,7 @@ export class ExtensionLoader {
     try {
       const inputs: commands.CommandSyncInput[] = allLoadedCommands
         .filter((c) => c.manifest?.id && c.cmd?.id)
+        .filter((c) => c.cmd.searchable !== false)
         // The command referenced by `manifest.onboarding.command` is an
         // internal hook reached only via the dispatch-interception path
         // (Plan B). It must stay in `manifest.commands[]` so the Rust
