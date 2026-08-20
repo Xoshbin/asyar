@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ExtensionLoader } from './ExtensionLoader';
 import { ActionContext } from 'asyar-sdk/contracts';
+import { permissionConsentService } from './permissionConsentService.svelte';
 
 // ---------- hoisted mocks ----------
 
@@ -461,5 +462,171 @@ describe('ExtensionLoader.syncCommandIndex', () => {
     expect(passedInputs).toHaveLength(2);
     expect(passedInputs[0].id).toBe('cmd_my-ext_cmd1');
     expect(passedInputs[1].id).toBe('cmd_my-ext_cmd2');
+  });
+});
+
+describe('ExtensionLoader proactive permission consent on command execution', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCommandHandlers.clear();
+    permissionConsentService.reset();
+  });
+
+  it('executing a background command for an extension in needsReview calls permissionConsentService.ensureConsent and proceeds on accept', async () => {
+    const { dispatch } = await import('./extensionDispatcher.svelte');
+    permissionConsentService.markNeedsReview('ext.review');
+    const ensureConsentSpy = vi
+      .spyOn(permissionConsentService, 'ensureConsent')
+      .mockResolvedValue(true);
+
+    const loader = new ExtensionLoader(
+      { registerManifest: vi.fn() } as any,
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
+    (loader as any).allLoadedCommands = [
+      {
+        cmd: { id: 'bg-run', name: 'Background Run', mode: 'background' },
+        manifest: { id: 'ext.review', name: 'Review Ext', commands: [] },
+        isBuiltIn: false,
+      },
+    ];
+
+    loader.registerCommandHandlersFromManifests(vi.fn());
+    const handler = mockCommandHandlers.get('cmd_ext.review_bg-run');
+    expect(handler).toBeDefined();
+
+    await handler.execute({ foo: 'bar' });
+
+    expect(ensureConsentSpy).toHaveBeenCalledWith('ext.review', 'Review Ext', 'review');
+    expect(dispatch).toHaveBeenCalledWith({
+      extensionId: 'ext.review',
+      kind: 'command',
+      payload: { commandId: 'bg-run', args: { foo: 'bar' } },
+      source: 'search',
+      commandMode: 'background',
+    });
+  });
+
+  it('if ensureConsent resolves to false for background command, dispatch is not called', async () => {
+    const { dispatch } = await import('./extensionDispatcher.svelte');
+    permissionConsentService.markNeedsReview('ext.review');
+    const ensureConsentSpy = vi
+      .spyOn(permissionConsentService, 'ensureConsent')
+      .mockResolvedValue(false);
+
+    const loader = new ExtensionLoader(
+      { registerManifest: vi.fn() } as any,
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
+    (loader as any).allLoadedCommands = [
+      {
+        cmd: { id: 'bg-run', name: 'Background Run', mode: 'background' },
+        manifest: { id: 'ext.review', name: 'Review Ext', commands: [] },
+        isBuiltIn: false,
+      },
+    ];
+
+    loader.registerCommandHandlersFromManifests(vi.fn());
+    const handler = mockCommandHandlers.get('cmd_ext.review_bg-run');
+    expect(handler).toBeDefined();
+
+    await handler.execute();
+
+    expect(ensureConsentSpy).toHaveBeenCalledWith('ext.review', 'Review Ext', 'review');
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('executing a view command for an extension in needsReview calls permissionConsentService.ensureConsent and proceeds on accept', async () => {
+    const navigateToView = vi.fn();
+    permissionConsentService.markNeedsReview('ext.review');
+    const ensureConsentSpy = vi
+      .spyOn(permissionConsentService, 'ensureConsent')
+      .mockResolvedValue(true);
+
+    const loader = new ExtensionLoader(
+      { registerManifest: vi.fn() } as any,
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
+    (loader as any).allLoadedCommands = [
+      {
+        cmd: { id: 'open-view', name: 'Open View', mode: 'view', component: 'Main' },
+        manifest: { id: 'ext.review', name: 'Review Ext', commands: [] },
+        isBuiltIn: false,
+      },
+    ];
+
+    loader.registerCommandHandlersFromManifests(navigateToView);
+    const handler = mockCommandHandlers.get('cmd_ext.review_open-view');
+    expect(handler).toBeDefined();
+
+    await handler.execute();
+
+    expect(ensureConsentSpy).toHaveBeenCalledWith('ext.review', 'Review Ext', 'review');
+    expect(navigateToView).toHaveBeenCalledWith('ext.review/Main');
+  });
+
+  it('if ensureConsent resolves to false for view command, navigateToView is not called', async () => {
+    const navigateToView = vi.fn();
+    permissionConsentService.markNeedsReview('ext.review');
+    const ensureConsentSpy = vi
+      .spyOn(permissionConsentService, 'ensureConsent')
+      .mockResolvedValue(false);
+
+    const loader = new ExtensionLoader(
+      { registerManifest: vi.fn() } as any,
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
+    (loader as any).allLoadedCommands = [
+      {
+        cmd: { id: 'open-view', name: 'Open View', mode: 'view', component: 'Main' },
+        manifest: { id: 'ext.review', name: 'Review Ext', commands: [] },
+        isBuiltIn: false,
+      },
+    ];
+
+    loader.registerCommandHandlersFromManifests(navigateToView);
+    const handler = mockCommandHandlers.get('cmd_ext.review_open-view');
+    expect(handler).toBeDefined();
+
+    await handler.execute();
+
+    expect(ensureConsentSpy).toHaveBeenCalledWith('ext.review', 'Review Ext', 'review');
+    expect(navigateToView).not.toHaveBeenCalled();
+  });
+
+  it('an extension with already-granted consent proceeds directly without opening consent dialog', async () => {
+    const navigateToView = vi.fn();
+    const ensureConsentSpy = vi.spyOn(permissionConsentService, 'ensureConsent');
+
+    const loader = new ExtensionLoader(
+      { registerManifest: vi.fn() } as any,
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
+    (loader as any).allLoadedCommands = [
+      {
+        cmd: { id: 'open-view', name: 'Open View', mode: 'view', component: 'Main' },
+        manifest: { id: 'ext.clean', name: 'Clean Ext', commands: [] },
+        isBuiltIn: false,
+      },
+    ];
+
+    loader.registerCommandHandlersFromManifests(navigateToView);
+    const handler = mockCommandHandlers.get('cmd_ext.clean_open-view');
+    expect(handler).toBeDefined();
+
+    await handler.execute();
+
+    expect(ensureConsentSpy).not.toHaveBeenCalled();
+    expect(navigateToView).toHaveBeenCalledWith('ext.clean/Main');
   });
 });

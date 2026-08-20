@@ -278,6 +278,16 @@ export class ExtensionLoader {
               // background Tier 2 command: send execute message to iframe
               const handler = {
                 execute: async (args?: Record<string, any>) => {
+                  if (permissionConsentService.needsReview.includes(manifest.id)) {
+                    const granted = await permissionConsentService.ensureConsent(
+                      manifest.id,
+                      manifest.name,
+                      'review',
+                    );
+                    if (!granted) {
+                      return;
+                    }
+                  }
                   await dispatch({
                     extensionId: manifest.id,
                     kind: 'command',
@@ -306,6 +316,16 @@ export class ExtensionLoader {
               const isOnboardingCmd = onboardingDecl?.command === cmd.id;
               const handler = {
                 execute: async (args?: Record<string, any>) => {
+                  if (permissionConsentService.needsReview.includes(manifest.id)) {
+                    const granted = await permissionConsentService.ensureConsent(
+                      manifest.id,
+                      manifest.name,
+                      'review',
+                    );
+                    if (!granted) {
+                      return;
+                    }
+                  }
                   const targetView = cmd.component ?? cmd.id;
                   const targetPath = `${manifest.id}/${targetView}`;
 
