@@ -29,6 +29,18 @@ export async function shellSpawn(
   return invokeSafeVoid('shell_spawn', { extensionId, spawnId, program, args });
 }
 
+export async function shellWriteStdin(
+  extensionId: string,
+  spawnId: string,
+  data: string,
+): Promise<boolean> {
+  return invokeSafeVoid('shell_write_stdin', { extensionId, spawnId, data });
+}
+
+export async function shellCloseStdin(extensionId: string, spawnId: string): Promise<boolean> {
+  return invokeSafeVoid('shell_close_stdin', { extensionId, spawnId });
+}
+
 export async function shellList(extensionId: string): Promise<ShellDescriptor[] | null> {
   return invokeSafe<ShellDescriptor[]>('shell_list', { extensionId });
 }

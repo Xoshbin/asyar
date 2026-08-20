@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use crate::permissions::ExtensionPermissionRegistry;
-use crate::shell::{self, ShellDescriptor, ShellProcessRegistry};
+use crate::shell::{self, ShellDescriptor, ShellEntry, ShellProcessRegistry};
 use crate::storage::{
     shell::{self as shell_storage, TrustedBinary},
     DataStore,
@@ -35,6 +35,31 @@ pub async fn shell_spawn(
     }
 
     shell::spawn(app, &shell_registry, spawn_id, extension_id, program, args)
+}
+
+#[tauri::command]
+pub async fn shell_write_stdin(
+    shell_registry: State<'_, ShellProcessRegistry>,
+    extension_permissions: State<'_, ExtensionPermissionRegistry>,
+    extension_id: String,
+    spawn_id: String,
+    data: String,
+) -> Result<(), AppError> {
+    extension_permissions.check(&Some(extension_id.clone()), REQUIRED_PERMISSION)?;
+    verify_spawn_ownership(&shell_registry, &extension_id, &spawn_id)?;
+    shell::write_stdin(&shell_registry, &spawn_id, data.as_bytes()).await
+}
+
+#[tauri::command]
+pub async fn shell_close_stdin(
+    shell_registry: State<'_, ShellProcessRegistry>,
+    extension_permissions: State<'_, ExtensionPermissionRegistry>,
+    extension_id: String,
+    spawn_id: String,
+) -> Result<(), AppError> {
+    extension_permissions.check(&Some(extension_id.clone()), REQUIRED_PERMISSION)?;
+    verify_spawn_ownership(&shell_registry, &extension_id, &spawn_id)?;
+    shell::close_stdin(&shell_registry, &spawn_id).await
 }
 
 #[tauri::command]
@@ -145,6 +170,29 @@ pub(crate) enum TerminalEmit {
     },
 }
 
+pub(crate) fn verify_spawn_ownership(
+    registry: &ShellProcessRegistry,
+    extension_id: &str,
+    spawn_id: &str,
+) -> Result<ShellEntry, AppError> {
+    match registry.get(spawn_id, extension_id)? {
+        Some(entry) => Ok(entry),
+        None => {
+            if registry.contains(spawn_id)? {
+                Err(AppError::Permission(format!(
+                    "spawnId \"{}\" does not belong to extension \"{}\"",
+                    spawn_id, extension_id
+                )))
+            } else {
+                Err(AppError::NotFound(format!(
+                    "spawnId \"{}\" is not tracked",
+                    spawn_id
+                )))
+            }
+        }
+    }
+}
+
 pub(crate) fn shell_list_inner(
     registry: &ShellProcessRegistry,
     permissions: &ExtensionPermissionRegistry,
@@ -162,21 +210,7 @@ pub(crate) fn shell_attach_inner(
 ) -> Result<AttachOutcome, AppError> {
     permissions.check(&Some(extension_id.clone()), REQUIRED_PERMISSION)?;
 
-    let entry = match registry.get(&spawn_id, &extension_id)? {
-        Some(e) => e,
-        None => {
-            if registry.contains(&spawn_id)? {
-                return Err(AppError::Permission(format!(
-                    "spawnId \"{}\" does not belong to extension \"{}\"",
-                    spawn_id, extension_id
-                )));
-            }
-            return Err(AppError::NotFound(format!(
-                "spawnId \"{}\" is not tracked",
-                spawn_id
-            )));
-        }
-    };
+    let entry = verify_spawn_ownership(registry, &extension_id, &spawn_id)?;
 
     let descriptor = ShellDescriptor {
         spawn_id: spawn_id.clone(),
@@ -321,5 +355,25 @@ mod tests {
         let perms = registered_permissions("ext-a");
         let err = shell_attach_inner(&registry, &perms, "ext-a".into(), "nope".into()).unwrap_err();
         assert!(matches!(err, AppError::NotFound(_)), "got: {err:?}");
+    }
+
+    #[test]
+    fn verify_spawn_ownership_checks_owner_and_existence() {
+        let registry = seeded_registry();
+        registry
+            .register_spawn("s1", "ext-a", "/bin/echo", &[], 100)
+            .unwrap();
+
+        // Matching owner
+        let entry = verify_spawn_ownership(&registry, "ext-a", "s1").unwrap();
+        assert_eq!(entry.pid, 100);
+
+        // Wrong owner -> Permission error
+        let err = verify_spawn_ownership(&registry, "ext-b", "s1").unwrap_err();
+        assert!(matches!(err, AppError::Permission(_)));
+
+        // Unknown id -> NotFound error
+        let err = verify_spawn_ownership(&registry, "ext-a", "s2").unwrap_err();
+        assert!(matches!(err, AppError::NotFound(_)));
     }
 }

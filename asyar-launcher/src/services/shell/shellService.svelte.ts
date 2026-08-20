@@ -7,6 +7,8 @@ import {
   shellResolvePath,
   shellKill,
   shellSpawn,
+  shellWriteStdin,
+  shellCloseStdin,
   shellList,
   shellAttach,
   type ShellDescriptor,
@@ -79,6 +81,11 @@ class ShellService {
      * omit this and get a label derived from program + args.
      */
     label?: string,
+    /**
+     * Optional initial stdin string to write immediately after spawn.
+     * When provided, standard input is closed right after writing.
+     */
+    stdin?: string,
   ): Promise<{ streaming: true }> {
     const resolvedPath = await shellResolvePath(program);
     if (resolvedPath === null) {
@@ -149,8 +156,20 @@ class ShellService {
       unsubscribeCancel?.();
     });
 
-    void shellSpawn(extensionId, spawnId, resolvedPath, args).then((ok) => {
-      if (ok) return;
+    void shellSpawn(extensionId, spawnId, resolvedPath, args).then(async (ok) => {
+      if (ok) {
+        if (stdin !== undefined) {
+          try {
+            await shellWriteStdin(extensionId, spawnId, stdin);
+            await shellCloseStdin(extensionId, spawnId);
+          } catch (err) {
+            logService.warn(
+              `Failed to write initial stdin for spawn ${spawnId}: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          }
+        }
+        return;
+      }
       const message = `Failed to spawn ${resolvedPath}`;
       streamDispatcher.forward(spawnId, 'error', {
         error: { code: 'SPAWN_FAILED', message },
@@ -168,6 +187,20 @@ class ShellService {
     });
 
     return { streaming: true };
+  }
+
+  async writeStdin(spawnId: string, data: string, extensionId?: string): Promise<void> {
+    const ok = await shellWriteStdin(extensionId ?? '', spawnId, data);
+    if (!ok) {
+      throw { code: 'WRITE_STDIN_FAILED', message: `Failed to write stdin to spawn ${spawnId}` };
+    }
+  }
+
+  async closeStdin(spawnId: string, extensionId?: string): Promise<void> {
+    const ok = await shellCloseStdin(extensionId ?? '', spawnId);
+    if (!ok) {
+      throw { code: 'CLOSE_STDIN_FAILED', message: `Failed to close stdin for spawn ${spawnId}` };
+    }
   }
 
   async list(extensionId: string): Promise<ShellDescriptor[]> {

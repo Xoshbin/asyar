@@ -138,7 +138,37 @@ export function buildServiceRegistry(deps: {
     },
     selection: selectionService,
     oauth: extensionOAuthService,
-    shell: shellService,
+    shell: {
+      spawn: (
+        extensionId: string,
+        program: string,
+        args: string[] = [],
+        spawnId: string,
+        stdin?: string,
+        originRole?: 'view' | 'worker',
+      ) =>
+        shellService.spawn(
+          extensionId,
+          program,
+          args,
+          spawnId,
+          originRole,
+          undefined,
+          undefined,
+          stdin,
+        ),
+      list: (extensionId: string) => shellService.list(extensionId),
+      attach: (extensionId: string, spawnId: string, originRole?: 'view' | 'worker') =>
+        shellService.attach(extensionId, spawnId, originRole),
+      writeStdin: (extensionId: string, spawnId: string, data: string) =>
+        shellService.writeStdin(spawnId, data, extensionId),
+      closeStdin: (extensionId: string, spawnId: string) =>
+        shellService.closeStdin(spawnId, extensionId),
+      'write-stdin': (extensionId: string, spawnId: string, data: string) =>
+        shellService.writeStdin(spawnId, data, extensionId),
+      'close-stdin': (extensionId: string, spawnId: string) =>
+        shellService.closeStdin(spawnId, extensionId),
+    },
     fs: fileManagerService,
     interop: new InteropService({
       hasCommand: (objectId: string) => commandService.commands.has(objectId),
