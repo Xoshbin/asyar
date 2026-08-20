@@ -29,6 +29,7 @@ const WORKER_PROXY_NAMESPACES = [
   'snippets',
   'browser',
   'files',
+  'opener',
 ] as const;
 
 const VIEW_ONLY_NAMESPACES = ['selection', 'interop', 'clipboard'] as const;

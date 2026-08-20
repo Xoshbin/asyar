@@ -61,6 +61,7 @@ export type {
   OAuthError,
   IShellService,
   IFileManagerService,
+  IOpenerService,
   IInteropService,
   IApplicationService,
   FrontmostApplication,
@@ -105,6 +106,7 @@ export type {
 export { FileSystemWatcherServiceProxy } from './services';
 export { LaunchCommandError } from './services';
 export { ProcessServiceProxy } from './services';
+export { OpenerServiceProxy } from './services';
 
 export type { ISearchBarAccessoryService } from './services/ISearchBarAccessoryService';
 export type {

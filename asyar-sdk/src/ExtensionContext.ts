@@ -32,6 +32,7 @@ import { ExtensionStateProxy } from './services/ExtensionStateProxy';
 import { OnboardingServiceProxy } from './services/OnboardingServiceProxy';
 import { BrowserServiceProxy } from './services/BrowserServiceProxy';
 import { FilesServiceProxy } from './services/FilesServiceProxy';
+import { OpenerServiceProxy } from './services/OpenerServiceProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
 import { PreferencesFacade, type PreferencesSnapshot } from './PreferencesFacade';
@@ -67,6 +68,7 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     search: new SearchServiceProxy(),
     application: new ApplicationServiceProxy(),
     window: new WindowManagementServiceProxy(),
+    opener: new OpenerServiceProxy(),
     power: new PowerServiceProxy(),
     screen: new ScreenServiceProxy(),
     process: new ProcessServiceProxy(),
