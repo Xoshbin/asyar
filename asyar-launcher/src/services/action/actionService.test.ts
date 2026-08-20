@@ -220,12 +220,23 @@ describe('setContext / getContext', () => {
     expect(svc.getContext()).toBe(ActionContext.EXTENSION_VIEW);
   });
 
-  it('does not trigger an update when context is unchanged', () => {
+  it('does not trigger an update when context and extensionId are unchanged', () => {
     const svc = freshService();
     // Already CORE; set CORE again — should be a no-op
     const before = svc.filteredActions;
     svc.setContext(ActionContext.CORE);
     expect(svc.filteredActions).toBe(before);
+  });
+
+  it('triggers an update when extensionId changes even if context remains EXTENSION_VIEW', () => {
+    const svc = freshService();
+    svc.registerAction(makeAction('a1', ActionContext.EXTENSION_VIEW, 'ext-1'));
+    svc.registerAction(makeAction('a2', ActionContext.EXTENSION_VIEW, 'ext-2'));
+    svc.setContext(ActionContext.EXTENSION_VIEW, 'ext-1');
+    expect(svc.filteredActions.map((a) => a.id)).toEqual(['a1']);
+
+    svc.setContext(ActionContext.EXTENSION_VIEW, 'ext-2');
+    expect(svc.filteredActions.map((a) => a.id)).toEqual(['a2']);
   });
 });
 
@@ -271,6 +282,46 @@ describe('filterActionsByContext (via getActions)', () => {
     svc.setContext(ActionContext.CORE);
     const ids = svc.filteredActions.map((a) => a.id);
     expect(ids).toContain('core-a');
+  });
+
+  it('shows extension-1 actions and hides extension-2 actions when setContext(EXTENSION_VIEW, "extension-1") is active', () => {
+    const svc = freshService();
+    svc.registerAction(makeAction('ext1-act', ActionContext.EXTENSION_VIEW, 'extension-1'));
+    svc.registerAction(makeAction('ext2-act', ActionContext.EXTENSION_VIEW, 'extension-2'));
+    svc.setContext(ActionContext.EXTENSION_VIEW, 'extension-1');
+    const ids = svc.filteredActions.map((a) => a.id);
+    expect(ids).toContain('ext1-act');
+    expect(ids).not.toContain('ext2-act');
+  });
+
+  it('hides extension-1 actions when setContext(EXTENSION_VIEW, "extension-2") is active', () => {
+    const svc = freshService();
+    svc.registerAction(makeAction('ext1-act', ActionContext.EXTENSION_VIEW, 'extension-1'));
+    svc.registerAction(makeAction('ext2-act', ActionContext.EXTENSION_VIEW, 'extension-2'));
+    svc.setContext(ActionContext.EXTENSION_VIEW, 'extension-2');
+    const ids = svc.filteredActions.map((a) => a.id);
+    expect(ids).toContain('ext2-act');
+    expect(ids).not.toContain('ext1-act');
+  });
+
+  it('shows GLOBAL actions in EXTENSION_VIEW regardless of active extensionId', () => {
+    const svc = freshService();
+    svc.registerAction(makeAction('global-act', ActionContext.GLOBAL));
+    svc.registerAction(makeAction('ext1-act', ActionContext.EXTENSION_VIEW, 'extension-1'));
+    svc.setContext(ActionContext.EXTENSION_VIEW, 'extension-1');
+    expect(svc.filteredActions.map((a) => a.id)).toContain('global-act');
+    expect(svc.filteredActions.map((a) => a.id)).toContain('ext1-act');
+
+    svc.setContext(ActionContext.EXTENSION_VIEW, 'extension-2');
+    expect(svc.filteredActions.map((a) => a.id)).toContain('global-act');
+    expect(svc.filteredActions.map((a) => a.id)).not.toContain('ext1-act');
+  });
+
+  it('shows built-in view actions (without extensionId) in EXTENSION_VIEW context', () => {
+    const svc = freshService();
+    svc.registerAction(makeAction('builtin-view-act', ActionContext.EXTENSION_VIEW)); // no extensionId
+    svc.setContext(ActionContext.EXTENSION_VIEW, 'extension-1');
+    expect(svc.filteredActions.map((a) => a.id)).toContain('builtin-view-act');
   });
 });
 

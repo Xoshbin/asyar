@@ -53,8 +53,8 @@ export interface IActionService {
   unregisterAction(actionId: string): void;
   getActions(context?: ActionContext): ExtensionAction[]; // Add context parameter
   executeAction(actionId: string): Promise<void>;
-  // Allow passing optional data (like commandId) when setting context
-  setContext(context: ActionContext, data?: { commandId?: string }): void;
+  // Allow passing optional data (like extensionId or commandId) when setting context
+  setContext(context: ActionContext, data?: { commandId?: string } | string): void;
   getContext(): ActionContext; // Return the enum type
   /** Register a handler for a manifest-declared action. Local-only — no IPC. */
   registerActionHandler(

@@ -91,7 +91,7 @@ actionService.registerAction(refreshAction);
 </script>
 ```
 
-> ⚠️ **Always unregister actions when the view unmounts.** Registered actions survive view navigation. If you forget `onDestroy` cleanup, your actions accumulate and appear in the ⌘K drawer for completely unrelated views.
+> 💡 **Automatic Scoping & Teardown:** The launcher automatically scopes `EXTENSION_VIEW` actions to the currently active extension ID. Navigating between extension views automatically clears actions registered by the previous extension and switches context to the new extension. Unregistering via `onDestroy` remains recommended best practice for component hygiene within the same extension.
 
 > ⚠️ **Pass the bare action ID to `unregisterAction()`** — the exact string you passed to `id` in `registerAction`. Do not add any prefix.
 
