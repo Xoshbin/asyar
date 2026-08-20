@@ -5,6 +5,7 @@ import { extensionIframeManager } from '../extensionIframeManager.svelte';
 import { isExternallyConsumedExtensionResponse } from '../../../lib/ipc/extensionMessageProtocol';
 import { HandledDispatchError, classifyProxyError, extractErrorMessage } from './errors';
 import { resolvePreIdentityHandler, resolveTerminalHandler } from './handlers';
+import { permissionConsentService } from '../permissionConsentService.svelte';
 import type { IpcContext, IpcStage } from './types';
 
 /** Search replies are consumed by a dedicated bridge, on every frame, first. */
@@ -111,14 +112,24 @@ const permissionGate: IpcStage = {
     logService.warn(
       `[PermissionGate] BLOCKED: ${permissionResult?.reason ?? 'permission check failed'}`,
     );
-    // Rust sets `requiredPermission` only for calls gated on a real manifest
-    // permission. The fail-closed path sends only `reason` — and a call type is
-    // not a permission name, so "declare it in manifest.json" would be
-    // unfollowable advice there.
-    const permError = permissionResult?.requiredPermission
-      ? `Permission denied: "${permissionResult.requiredPermission}" is required but not declared in manifest.json`
+    const requiredPermission = permissionResult?.requiredPermission;
+    const manifest = ctx.extensionId ? ctx.deps.getManifestById(ctx.extensionId) : undefined;
+    const isConsentRequired =
+      Boolean(ctx.extensionId && permissionConsentService.needsReview.includes(ctx.extensionId)) ||
+      Boolean(requiredPermission && manifest?.permissions?.includes(requiredPermission));
+
+    const errorCode = isConsentRequired ? 'PERMISSION_CONSENT_REQUIRED' : 'PERMISSION_DENIED';
+    const permError = requiredPermission
+      ? isConsentRequired
+        ? `Permission consent required: "${requiredPermission}" requires user review in Settings`
+        : `Permission denied: "${requiredPermission}" is required but not declared in manifest.json`
       : (permissionResult?.reason ?? `Blocked "${ctx.type}": permission check failed`);
-    ctx.replyError(permError);
+
+    ctx.replyError(
+      permError,
+      errorCode,
+      requiredPermission ? { permission: requiredPermission } : undefined,
+    );
     void feedbackService.report({
       source: 'extension',
       kind: classifyProxyError(ctx.type, permError),

@@ -237,3 +237,4 @@ export type { Namespace, WireCommand } from './ipc/namespaces';
 export { extensionBridge, ExtensionBridge } from './ExtensionBridge';
 export { PreferencesFacade } from './PreferencesFacade';
 export type { PreferencesSnapshot } from './PreferencesFacade';
+export * from './errors';
