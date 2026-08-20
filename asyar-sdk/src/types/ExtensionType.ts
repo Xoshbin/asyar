@@ -161,6 +161,12 @@ export interface ExtensionCommand {
   schedule?: {
     intervalSeconds: number;
   };
+  /**
+   * If false, the command is excluded from the launcher's root search index.
+   * Useful for scheduled background tasks or internal worker commands.
+   * Defaults to true.
+   */
+  searchable?: boolean;
   /** Command-level preferences (apply only to this command). */
   preferences?: PreferenceDeclaration[];
   /** Command-level actions (show when this specific command is selected). */

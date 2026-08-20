@@ -46,6 +46,7 @@ Add `schedule` to any command that should run on a timer:
 
 - `intervalSeconds` must be an integer in the range **[10, 86400]** (inclusive). Values outside this range are stripped at load time with a warning — the extension still loads, but the schedule is ignored.
 - The command must have `mode: "background"`. Scheduled commands dispatch to the worker iframe and cannot open a panel — there is no user interaction to display to.
+- If the scheduled task is purely an internal worker or background sync job that users should not trigger manually from search, add `"searchable": false` to the command declaration to exclude it from the launcher's root search suggestions.
 - There is no `runOnStartup` option. The first tick fires one full interval after the extension is loaded.
 - **Pick the largest interval that still meets your UX need.** A 10s poller wakes the CPU 6× per minute even when the user is idle. Use short intervals only when you have a concrete reason (e.g. Pomodoro minute-countdown, menu-bar status meter, sub-minute status poller). Prefer 60s+ for anything that could tolerate it.
 

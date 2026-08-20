@@ -266,6 +266,9 @@ pub struct ExtensionCommand {
     pub component: Option<String>,
     #[serde(default)]
     pub schedule: Option<ScheduleDeclaration>,
+    /// If false, this command is excluded from root search indexing.
+    #[serde(default)]
+    pub searchable: Option<bool>,
     #[serde(default)]
     pub preferences: Option<Vec<PreferenceDeclaration>>,
     #[serde(default)]
@@ -746,6 +749,33 @@ mod tests {
             m.permissions,
             Some(vec!["clipboard:read".into(), "network".into()])
         );
+    }
+
+    #[test]
+    fn test_read_manifest_with_command_searchable() {
+        let tmp = TempDir::new().unwrap();
+        let ext_dir = tmp.path().join("cmd-searchable-ext");
+        fs::create_dir_all(&ext_dir).unwrap();
+        let manifest = serde_json::json!({
+            "id": "cmd-searchable-ext",
+            "name": "Command Searchable Ext",
+            "version": "1.0.0",
+            "description": "Test command searchable field",
+            "type": "extension",
+            "background": { "main": "dist/worker.js" },
+            "commands": [
+                { "id": "search-cmd", "name": "Search Cmd", "mode": "view", "component": "SearchView", "searchable": true },
+                { "id": "bg-tick", "name": "Background Tick", "mode": "background", "searchable": false },
+                { "id": "default-cmd", "name": "Default Cmd", "mode": "view", "component": "DefaultView" }
+            ]
+        });
+        fs::write(ext_dir.join("manifest.json"), manifest.to_string()).unwrap();
+
+        let m = discovery::read_manifest(&ext_dir.join("manifest.json")).unwrap();
+        assert_eq!(m.commands.len(), 3);
+        assert_eq!(m.commands[0].searchable, Some(true));
+        assert_eq!(m.commands[1].searchable, Some(false));
+        assert_eq!(m.commands[2].searchable, None);
     }
 
     /// A single-command manifest body that passes the new schema validator.
@@ -1417,6 +1447,7 @@ mod tests {
             icon: None,
             component: None,
             schedule: None,
+            searchable: None,
             preferences: None,
             actions: None,
             arguments: None,
@@ -1446,6 +1477,7 @@ mod tests {
             icon: None,
             component: None,
             schedule: None,
+            searchable: None,
             preferences: None,
             actions: None,
             arguments: Some(args),

@@ -10,7 +10,7 @@ use crate::file_index::provider::{
     parse_path_lines, run_with_timeout, DeepProvider, FileSearchProvider, ProviderMode,
 };
 
-const PROBE_TIMEOUT: Duration = Duration::from_millis(500);
+const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 const SEARCH_TIMEOUT: Duration = Duration::from_secs(3);
 
 pub struct MdfindProvider;
@@ -28,9 +28,7 @@ impl FileSearchProvider for MdfindProvider {
 impl DeepProvider for MdfindProvider {
     fn probe(&self) -> bool {
         let mut cmd = Command::new("mdfind");
-        cmd.arg("-name")
-            .arg("__asyar_deep_search_probe__")
-            .arg("-count");
+        cmd.arg("-h");
         run_with_timeout(cmd, PROBE_TIMEOUT).is_some()
     }
 

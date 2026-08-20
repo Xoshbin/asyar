@@ -385,8 +385,6 @@ describe('ExtensionLoader Tier 2 no-view handler routes through dispatcher', () 
         isBuiltIn: false,
       },
     ];
-    (loader as any).extensionModulesById = new Map();
-
     loader.registerCommandHandlersFromManifests(vi.fn());
     const handler = mockCommandHandlers.get('cmd_ext.a_run');
     expect(handler).toBeDefined();
@@ -399,5 +397,69 @@ describe('ExtensionLoader Tier 2 no-view handler routes through dispatcher', () 
       source: 'search',
       commandMode: 'background',
     });
+  });
+});
+
+describe('ExtensionLoader.syncCommandIndex', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('excludes commands that declare searchable: false from command sync', async () => {
+    const { syncCommandIndex } = await import('../../lib/ipc/commands');
+    vi.mocked(syncCommandIndex).mockResolvedValueOnce({ added: 1, removed: 0, total: 1 });
+
+    const loader = new ExtensionLoader({} as any, vi.fn(), vi.fn(), vi.fn());
+    const manifest = makeManifest('my-ext');
+
+    const visibleCmd = {
+      id: 'search-items',
+      name: 'Search Items',
+      mode: 'view' as const,
+      searchable: true,
+    };
+    const defaultCmd = { id: 'view-logs', name: 'View Logs', mode: 'view' as const };
+    const hiddenCmd = {
+      id: 'bg-worker',
+      name: 'Background Worker',
+      mode: 'background' as const,
+      searchable: false,
+    };
+
+    await loader.syncCommandIndex([
+      { cmd: visibleCmd as any, manifest, isBuiltIn: false },
+      { cmd: defaultCmd as any, manifest, isBuiltIn: false },
+      { cmd: hiddenCmd as any, manifest, isBuiltIn: false },
+    ]);
+
+    expect(syncCommandIndex).toHaveBeenCalledTimes(1);
+    const passedInputs = vi.mocked(syncCommandIndex).mock.calls[0][0];
+    const ids = passedInputs.map((input) => input.id);
+
+    expect(ids).toContain('cmd_my-ext_search-items');
+    expect(ids).toContain('cmd_my-ext_view-logs');
+    expect(ids).not.toContain('cmd_my-ext_bg-worker');
+  });
+
+  it('indexes commands normally when searchable is true or omitted', async () => {
+    const { syncCommandIndex } = await import('../../lib/ipc/commands');
+    vi.mocked(syncCommandIndex).mockResolvedValueOnce({ added: 2, removed: 0, total: 2 });
+
+    const loader = new ExtensionLoader({} as any, vi.fn(), vi.fn(), vi.fn());
+    const manifest = makeManifest('my-ext');
+
+    const cmd1 = { id: 'cmd1', name: 'Command 1', mode: 'view' as const };
+    const cmd2 = { id: 'cmd2', name: 'Command 2', mode: 'background' as const, searchable: true };
+
+    await loader.syncCommandIndex([
+      { cmd: cmd1 as any, manifest, isBuiltIn: false },
+      { cmd: cmd2 as any, manifest, isBuiltIn: false },
+    ]);
+
+    expect(syncCommandIndex).toHaveBeenCalledTimes(1);
+    const passedInputs = vi.mocked(syncCommandIndex).mock.calls[0][0];
+    expect(passedInputs).toHaveLength(2);
+    expect(passedInputs[0].id).toBe('cmd_my-ext_cmd1');
+    expect(passedInputs[1].id).toBe('cmd_my-ext_cmd2');
   });
 });
