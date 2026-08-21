@@ -69,16 +69,100 @@ renderer.code = function (token) {
 // ── Sanitisation ────────────────────────────────────────────────────────
 
 function sanitize(html: string): string {
-  let prev = '';
-  let clean = html;
-  while (clean !== prev) {
-    prev = clean;
-    // Strip <script> tags (including whitespace in closing tag)
-    clean = clean.replace(/<script\b[^>]*>[\s\S]*?<\/script[^>]*>/gi, '');
-    // Strip on* event handlers
-    clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  if (!html) return '';
+
+  let out = '';
+  let i = 0;
+  const len = html.length;
+
+  while (i < len) {
+    // Strip <script>...</script> blocks
+    if (html.startsWith('<script', i) || html.startsWith('<SCRIPT', i)) {
+      const endIdx = html.toLowerCase().indexOf('</script', i);
+      if (endIdx === -1) break;
+      const closeIdx = html.indexOf('>', endIdx);
+      if (closeIdx === -1) break;
+      i = closeIdx + 1;
+      continue;
+    }
+
+    if (html[i] === '<') {
+      const tagEnd = html.indexOf('>', i);
+      if (tagEnd === -1) {
+        out += html.slice(i);
+        break;
+      }
+      const tagContent = html.slice(i, tagEnd + 1);
+      let cleanTag = '';
+      const spaceIdx = tagContent.search(/[\s>]/);
+      const tagName = spaceIdx === -1 ? tagContent : tagContent.slice(0, spaceIdx);
+      cleanTag += tagName;
+
+      let j = tagName.length;
+      while (j < tagContent.length) {
+        const c = tagContent[j];
+        if (c === '>') {
+          cleanTag += '>';
+          break;
+        }
+        if (/\s/.test(c)) {
+          cleanTag += c;
+          j++;
+          continue;
+        }
+        const attrNameStart = j;
+        while (j < tagContent.length && !/[\s=>]/.test(tagContent[j])) {
+          j++;
+        }
+        const attrName = tagContent.slice(attrNameStart, j);
+        let attrValue = '';
+        while (j < tagContent.length && /\s/.test(tagContent[j])) {
+          j++;
+        }
+        if (tagContent[j] === '=') {
+          j++;
+          while (j < tagContent.length && /\s/.test(tagContent[j])) {
+            j++;
+          }
+          if (tagContent[j] === '"' || tagContent[j] === "'") {
+            const quote = tagContent[j];
+            j++;
+            const valStart = j;
+            while (j < tagContent.length && tagContent[j] !== quote) {
+              j++;
+            }
+            attrValue = quote + tagContent.slice(valStart, j) + quote;
+            if (j < tagContent.length) j++;
+          } else {
+            const valStart = j;
+            while (j < tagContent.length && !/[\s>]/.test(tagContent[j])) {
+              j++;
+            }
+            attrValue = tagContent.slice(valStart, j);
+          }
+        }
+
+        const isDangerous =
+          attrName.toLowerCase().startsWith('on') ||
+          ((attrName.toLowerCase() === 'href' || attrName.toLowerCase() === 'src') &&
+            attrValue.toLowerCase().includes('javascript:'));
+
+        if (!isDangerous) {
+          cleanTag += attrName + (attrValue ? '=' + attrValue : '');
+        } else if (cleanTag.endsWith(' ')) {
+          cleanTag = cleanTag.slice(0, -1);
+        }
+      }
+
+      out += cleanTag;
+      i = tagEnd + 1;
+    } else {
+      out += html[i];
+      i++;
+    }
   }
-  return clean;
+
+  return out;
 }
 
 // ── Public API ──────────────────────────────────────────────────────────

@@ -4,16 +4,48 @@
  */
 export function stripHtml(html: string): string {
   if (!html) return '';
-  let prev = '';
-  let clean = html;
-  while (clean !== prev) {
-    prev = clean;
-    clean = clean
-      .replace(/<style\b[^>]*>[\s\S]*?<\/style[^>]*>/gi, '')
-      .replace(/<script\b[^>]*>[\s\S]*?<\/script[^>]*>/gi, '')
-      .replace(/<[^>]+>/g, ' ');
+
+  let out = '';
+  let inTag = false;
+  let inScript = false;
+  let inStyle = false;
+  let tagBuffer = '';
+
+  const len = html.length;
+  for (let i = 0; i < len; i++) {
+    const ch = html[i];
+
+    if (!inTag) {
+      if (ch === '<') {
+        inTag = true;
+        tagBuffer = '<';
+      } else {
+        if (!inScript && !inStyle) {
+          out += ch;
+        }
+      }
+    } else {
+      tagBuffer += ch;
+      if (ch === '>') {
+        inTag = false;
+        const lower = tagBuffer.toLowerCase();
+        if (lower.startsWith('<script')) {
+          inScript = true;
+        } else if (lower.startsWith('</script')) {
+          inScript = false;
+        } else if (lower.startsWith('<style')) {
+          inStyle = true;
+        } else if (lower.startsWith('</style')) {
+          inStyle = false;
+        }
+        out += ' ';
+        tagBuffer = '';
+      }
+    }
   }
-  return clean
+
+  // Decode common HTML entities (decode &amp; LAST)
+  return out
     .replace(/&nbsp;/gi, ' ')
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')

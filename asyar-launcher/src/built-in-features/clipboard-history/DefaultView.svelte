@@ -372,16 +372,110 @@
   }
 
   function sanitizeHtml(html: string): string {
-    // Cap rendered HTML to prevent DOM overload
-    let clean = html.length > MAX_PREVIEW_CHARS ? html.substring(0, MAX_PREVIEW_CHARS) : html;
-    let prev = '';
-    while (clean !== prev) {
-      prev = clean;
-      clean = clean.replace(/<script\b[^>]*>[\s\S]*?<\/script[^>]*>/gi, '');
-      clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-      clean = clean.replace(/<style\b[^>]*>[\s\S]*?<\/style[^>]*>/gi, '');
+    const raw = html.length > MAX_PREVIEW_CHARS ? html.substring(0, MAX_PREVIEW_CHARS) : html;
+    if (!raw) return '';
+
+    let out = '';
+    let i = 0;
+    const len = raw.length;
+
+    while (i < len) {
+      // Strip script and style blocks
+      const lower = raw.slice(i, i + 8).toLowerCase();
+      if (lower.startsWith('<script')) {
+        const endIdx = raw.toLowerCase().indexOf('</' + 'script', i);
+        if (endIdx === -1) break;
+        const closeIdx = raw.indexOf('>', endIdx);
+        if (closeIdx === -1) break;
+        i = closeIdx + 1;
+        continue;
+      }
+      if (lower.startsWith('<style')) {
+        const endIdx = raw.toLowerCase().indexOf('</' + 'style', i);
+        if (endIdx === -1) break;
+        const closeIdx = raw.indexOf('>', endIdx);
+        if (closeIdx === -1) break;
+        i = closeIdx + 1;
+        continue;
+      }
+
+      if (raw[i] === '<') {
+        const tagEnd = raw.indexOf('>', i);
+        if (tagEnd === -1) {
+          out += raw.slice(i);
+          break;
+        }
+        const tagContent = raw.slice(i, tagEnd + 1);
+        let cleanTag = '';
+        const spaceIdx = tagContent.search(/[\s>]/);
+        const tagName = spaceIdx === -1 ? tagContent : tagContent.slice(0, spaceIdx);
+        cleanTag += tagName;
+
+        let j = tagName.length;
+        while (j < tagContent.length) {
+          const c = tagContent[j];
+          if (c === '>') {
+            cleanTag += '>';
+            break;
+          }
+          if (/\s/.test(c)) {
+            cleanTag += c;
+            j++;
+            continue;
+          }
+          const attrNameStart = j;
+          while (j < tagContent.length && !/[\s=>]/.test(tagContent[j])) {
+            j++;
+          }
+          const attrName = tagContent.slice(attrNameStart, j);
+          let attrValue = '';
+          while (j < tagContent.length && /\s/.test(tagContent[j])) {
+            j++;
+          }
+          if (tagContent[j] === '=') {
+            j++;
+            while (j < tagContent.length && /\s/.test(tagContent[j])) {
+              j++;
+            }
+            if (tagContent[j] === '"' || tagContent[j] === "'") {
+              const quote = tagContent[j];
+              j++;
+              const valStart = j;
+              while (j < tagContent.length && tagContent[j] !== quote) {
+                j++;
+              }
+              attrValue = quote + tagContent.slice(valStart, j) + quote;
+              if (j < tagContent.length) j++;
+            } else {
+              const valStart = j;
+              while (j < tagContent.length && !/[\s>]/.test(tagContent[j])) {
+                j++;
+              }
+              attrValue = tagContent.slice(valStart, j);
+            }
+          }
+
+          const isDangerous =
+            attrName.toLowerCase().startsWith('on') ||
+            ((attrName.toLowerCase() === 'href' || attrName.toLowerCase() === 'src') &&
+              attrValue.toLowerCase().includes('javascript:'));
+
+          if (!isDangerous) {
+            cleanTag += attrName + (attrValue ? '=' + attrValue : '');
+          } else if (cleanTag.endsWith(' ')) {
+            cleanTag = cleanTag.slice(0, -1);
+          }
+        }
+
+        out += cleanTag;
+        i = tagEnd + 1;
+      } else {
+        out += raw[i];
+        i++;
+      }
     }
-    return clean;
+
+    return out;
   }
 
   const MAX_PREVIEW_CHARS = 50000;
