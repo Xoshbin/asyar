@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { readManifest, validateManifest } from '../lib/manifest';
+import { readManifest, lintManifest } from '../lib/manifest';
 
 export function registerValidate(program: Command) {
   program
@@ -12,7 +12,7 @@ export function registerValidate(program: Command) {
         const manifest = readManifest(cwd);
         console.log(chalk.green('✓') + ' manifest.json found and parsed');
 
-        const errors = validateManifest(manifest, cwd);
+        const { errors, warnings } = lintManifest(manifest, cwd);
         const fields = ['id', 'name', 'version', 'description', 'author'];
 
         for (const field of fields) {
@@ -28,6 +28,13 @@ export function registerValidate(program: Command) {
         errors
           .filter((e) => !fields.includes(e.field))
           .forEach((e) => console.log(chalk.red('✗') + ` ${e.field}: ${e.message}`));
+
+        if (warnings.length > 0) {
+          console.log(
+            chalk.yellow(`\n${warnings.length} recommendation${warnings.length > 1 ? 's' : ''}:`),
+          );
+          warnings.forEach((w) => console.log(chalk.yellow('  ⚠️ ') + `${w.field}: ${w.message}`));
+        }
 
         if (errors.length === 0) {
           console.log(chalk.green('\n✓ All checks passed'));

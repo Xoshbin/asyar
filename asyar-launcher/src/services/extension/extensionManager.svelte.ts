@@ -660,6 +660,18 @@ export class ExtensionManager implements IExtensionManager {
     return extensionSearchAggregator.searchAll(query);
   }
 
+  public getLoadedManifests(): ExtensionManifest[] {
+    return Array.from(this.manifestsById.values());
+  }
+
+  public getLoadedCommands(): {
+    cmd: ExtensionCommand;
+    manifest: ExtensionManifest;
+    isBuiltIn: boolean;
+  }[] {
+    return this.allLoadedCommands;
+  }
+
   // New helper function specifically for dynamic manifest import
   private async _dynamicImportManifest(manifestPath: string): Promise<any | null> {
     try {

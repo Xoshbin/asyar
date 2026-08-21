@@ -350,7 +350,20 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
     if (!manifest.commands || manifest.commands.length === 0) {
       errors.push({ field: 'commands', message: 'at least one command is required' });
     } else {
-      manifest.commands.forEach((cmd, i) => validateCommand(cmd, i, errors));
+      const seenCommandIds = new Set<string>();
+      manifest.commands.forEach((cmd, i) => {
+        if (cmd.id) {
+          if (seenCommandIds.has(cmd.id)) {
+            errors.push({
+              field: `commands[${i}].id`,
+              message: `duplicate command id "${cmd.id}"`,
+            });
+          } else {
+            seenCommandIds.add(cmd.id);
+          }
+        }
+        validateCommand(cmd, i, errors);
+      });
     }
 
     const hasBackgroundCommand = (manifest.commands ?? []).some((c) => c.mode === 'background');
@@ -430,12 +443,6 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
     }
   }
 
-  if (!manifest.asyarSdk && manifest.type !== 'theme') {
-    console.warn(
-      '⚠️  Consider adding "asyarSdk" to your manifest.json to declare SDK compatibility (e.g., "^1.2.0")',
-    );
-  }
-
   errors.push(...validatePreferences(manifest.preferences, 'preferences'));
   (manifest.commands ?? []).forEach((cmd, i) => {
     errors.push(...validatePreferences(cmd.preferences, `commands[${i}].preferences`));
@@ -453,6 +460,77 @@ export function validateManifest(manifest: AsyarManifest, cwd: string): Validati
   });
 
   return errors;
+}
+
+export interface ValidationWarning {
+  field: string;
+  message: string;
+}
+
+export interface LintResult {
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+}
+
+export function lintManifest(manifest: AsyarManifest, cwd: string): LintResult {
+  const errors = validateManifest(manifest, cwd);
+  const warnings: ValidationWarning[] = [];
+
+  // Check README.md existence and substance
+  const readmePath = path.join(cwd, 'README.md');
+  if (!fs.existsSync(readmePath)) {
+    warnings.push({
+      field: 'README.md',
+      message:
+        'README.md not found in project root. Adding a README helps users learn how to use your extension in the Store.',
+    });
+  } else {
+    try {
+      const content = fs.readFileSync(readmePath, 'utf8').trim();
+      if (content.length < 20) {
+        warnings.push({
+          field: 'README.md',
+          message:
+            'README.md is very short. Providing detailed usage instructions and examples improves your extension listing in the Store.',
+        });
+      }
+    } catch {
+      // ignore fs read error
+    }
+  }
+
+  // Check icon
+  const asRecord = manifest as unknown as Record<string, unknown>;
+  if (!asRecord.icon) {
+    warnings.push({
+      field: 'icon',
+      message:
+        'No icon specified in manifest.json. Adding an icon helps users recognize your extension in search and the store.',
+    });
+  }
+
+  // Check command argument placeholders
+  (manifest.commands ?? []).forEach((cmd, i) => {
+    (cmd.arguments ?? []).forEach((arg, ai) => {
+      if (!arg.placeholder && (arg.type === 'text' || arg.type === 'number')) {
+        warnings.push({
+          field: `commands[${i}].arguments[${ai}].placeholder`,
+          message: `Consider providing a placeholder for argument "${arg.name}" to guide users on expected format.`,
+        });
+      }
+    });
+  });
+
+  // Check asyarSdk declaration
+  if (!manifest.asyarSdk && manifest.type !== 'theme') {
+    warnings.push({
+      field: 'asyarSdk',
+      message:
+        'Consider adding "asyarSdk" to your manifest.json to declare SDK compatibility (e.g., "^1.2.0")',
+    });
+  }
+
+  return { errors, warnings };
 }
 
 const WALKTHROUGH_RULE_TYPES = ['launch', 'count', 'state', 'manual'];
@@ -516,8 +594,38 @@ function validateCommand(cmd: ManifestCommand, i: number, errors: ValidationErro
   const cmdRaw = cmd as unknown as Record<string, unknown>;
   const base = `commands[${i}]`;
 
-  if (!cmd.id) errors.push({ field: `${base}.id`, message: 'required' });
-  if (!cmd.name) errors.push({ field: `${base}.name`, message: 'required' });
+  if (!cmd.id) {
+    errors.push({ field: `${base}.id`, message: 'required' });
+  } else if (!/^[a-zA-Z0-9_-]+$/.test(cmd.id)) {
+    errors.push({
+      field: `${base}.id`,
+      message: 'must be alphanumeric with hyphens or underscores (e.g., "caffeinate-until")',
+    });
+  }
+
+  if (!cmd.name) {
+    errors.push({ field: `${base}.name`, message: 'required' });
+  } else if (cmd.name.length < 2 || cmd.name.length > 50) {
+    errors.push({ field: `${base}.name`, message: 'must be between 2 and 50 characters' });
+  }
+
+  if (!cmd.description) {
+    errors.push({ field: `${base}.description`, message: 'required' });
+  } else if (cmd.description.length < 5 || cmd.description.length > 200) {
+    errors.push({
+      field: `${base}.description`,
+      message: 'must be between 5 and 200 characters',
+    });
+  }
+
+  if (cmd.trigger !== undefined) {
+    if (typeof cmd.trigger !== 'string' || !/^[a-z0-9_-]+$/i.test(cmd.trigger)) {
+      errors.push({
+        field: `${base}.trigger`,
+        message: 'trigger must be alphanumeric without spaces',
+      });
+    }
+  }
 
   if (cmdRaw.resultType !== undefined) {
     errors.push({

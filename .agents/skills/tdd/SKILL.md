@@ -131,11 +131,14 @@ describe('FooService', () => {
 });
 ```
 
-**Globals available (no imports needed):** `describe`, `it`, `expect`, `vi`, `beforeEach`, `afterEach` — configured via `globals: true` in vitest.config.ts.
+## Cross-Module & Registry Integration Tests
 
-## Svelte 5 Components
+Unit tests with heavy mocking often hide multi-module bugs (e.g. duplicate action IDs, conflicting registrations across `ActionService` and `ExtensionLoader`).
 
-For Svelte 5 component logic, test the `.ts` service/store layer, not the `.svelte` file directly. If component behavior must be tested, extract logic to a testable `.ts` module first.
+When a feature interacts across registration boundaries:
+
+1. Write an integration test that boots the real modules together (e.g. `ExtensionLoader` registering manifest actions into `ActionService`).
+2. Assert that no duplicate IDs, duplicate shortcuts, or clashing UI labels are produced in the shared registry.
 
 ## Quick Reference
 

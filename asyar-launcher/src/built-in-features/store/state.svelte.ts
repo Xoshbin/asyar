@@ -9,6 +9,39 @@ export interface ExtensionAuthor {
   name: string;
 }
 
+export interface ManifestCommandArgument {
+  name: string;
+  type?: string;
+  placeholder?: string;
+  required?: boolean;
+  default?: string | number | boolean;
+}
+
+export interface ManifestCommand {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  mode?: 'view' | 'background' | string;
+  component?: string;
+  trigger?: string;
+  arguments?: ManifestCommandArgument[];
+  requireAnyOf?: string[];
+  schedule?: {
+    intervalSeconds?: number;
+  };
+  searchable?: boolean;
+}
+
+export interface ManifestPreference {
+  name: string;
+  type: string;
+  title?: string;
+  description?: string;
+  default?: unknown;
+  required?: boolean;
+}
+
 export interface ApiExtension {
   id: number | string;
   name: string;
@@ -34,6 +67,8 @@ export interface ApiExtension {
     permissions?: string[];
     permissionArgs?: Record<string, unknown>;
     runtimes?: string[];
+    commands?: ManifestCommand[];
+    preferences?: ManifestPreference[];
   };
 }
 

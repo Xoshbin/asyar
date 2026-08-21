@@ -1,0 +1,45 @@
+# Asyar Project Agent Guidelines & Rules
+
+The following rules are mandatory across all agent sessions, subagents, and tasks in this repository.
+
+## 1. Strict Git Policy (NO Git Writes Without Asking)
+
+- **NEVER** run `git add`, `git commit`, `git push`, `git stash`, or any other git command that modifies repository state.
+- Do NOT commit even if a workflow or skill prompts to do so.
+- The user commits and pushes everything themselves.
+- Always leave working tree changes clean, uncommitted, and unstaged for user review.
+
+## 2. No AI Attribution
+
+- **NEVER** add `Co-Authored-By: Claude ...`, `Co-Authored-By: Gemini ...`, or any other AI attribution trailer to git commits, pull request titles/descriptions, or comments.
+
+## 3. Mandatory Verification & Local CI Matrix
+
+Before concluding any implementation, bug fix, or refactor, **ALWAYS** run the full local CI verification matrix:
+
+1. **Workspace Prettier Check**:
+   `pnpm format:check` (in repo root)
+2. **Design System Compliance**:
+   `pnpm check:design` (in repo root)
+3. **Full Frontend & Workspace Tests**:
+   `pnpm -r --if-present test:run` (in repo root)
+4. **Rust Formatting (if Rust files touched)**:
+   `cargo fmt --check` (in `asyar-launcher/src-tauri`)
+5. **Clippy with `-D warnings` (if Rust files touched)**:
+   `cargo clippy --all-targets -- -D warnings` (in `asyar-launcher/src-tauri`)
+6. **Rust Test Suite (if Rust files touched)**:
+   `cargo test` (in `asyar-launcher/src-tauri`)
+7. **Type & Bindings Check (if bindings/types touched)**:
+   `cargo test export_bindings -- --ignored` and check `git diff --exit-code -- asyar-launcher/src/bindings.ts`
+
+## 4. Formatting Enforcement
+
+- Format-on-save does not run automatically on files edited by agents.
+- Before concluding a task, ensure modified files are formatted:
+  - JS/TS/Svelte/JSON/MD: `pnpm exec prettier --write <file>` or `pnpm format`
+  - Rust: `rustfmt <file>` or `cd asyar-launcher/src-tauri && cargo fmt`
+
+## 5. Skills & Architecture Discipline
+
+- Consult `.agents/skills/*/SKILL.md` before making architectural, IPC, service, Tauri, Svelte 5, or TDD changes.
+- Consult `.agents/memories/MEMORY.md` at session start for active project context, constraints, and feedback.

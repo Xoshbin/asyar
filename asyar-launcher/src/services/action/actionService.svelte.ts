@@ -570,6 +570,56 @@ export class ActionService implements IActionService {
         await feedbackService.showHUD('Deeplink Copied to Clipboard');
       },
     });
+
+    this.registerAction({
+      id: 'view_extension_commands',
+      label: 'View Extension Commands',
+      icon: 'icon:list',
+      description: 'Show all commands provided by this extension',
+      category: 'Extension',
+      context: ActionContext.CORE,
+      shortcut: 'Super+Shift+E',
+      visible: () => {
+        const idx = searchStores.selectedIndex;
+        if (idx < 0) return false;
+        const item = searchOrchestrator.items[idx];
+        return !!(item && item.type === 'command' && item.extensionId);
+      },
+      execute: async () => {
+        const idx = searchStores.selectedIndex;
+        if (idx < 0) return;
+        const item = searchOrchestrator.items[idx];
+        if (!item || item.type !== 'command' || !item.extensionId) return;
+
+        const extensionId = item.extensionId;
+        const slug = extensionId.split('.').pop() ?? extensionId;
+        searchStores.query = `@${slug} `;
+      },
+    });
+
+    this.registerAction({
+      id: 'configure_extension',
+      label: 'Configure Extension Settings',
+      icon: 'icon:settings',
+      description: 'Open preferences and settings for this extension',
+      category: 'Extension',
+      context: ActionContext.CORE,
+      shortcut: 'Super+Shift+,',
+      visible: () => {
+        const idx = searchStores.selectedIndex;
+        if (idx < 0) return false;
+        const item = searchOrchestrator.items[idx];
+        return !!(item && item.type === 'command' && item.extensionId);
+      },
+      execute: async () => {
+        const idx = searchStores.selectedIndex;
+        if (idx < 0) return;
+        const item = searchOrchestrator.items[idx];
+        if (!item || item.type !== 'command' || !item.extensionId) return;
+
+        await commands.showSettingsWindow('extensions', item.extensionId);
+      },
+    });
   }
 
   /**

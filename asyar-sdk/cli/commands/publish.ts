@@ -4,7 +4,7 @@ import ora from 'ora';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { readManifest, validateManifest } from '../lib/manifest';
+import { readManifest, lintManifest } from '../lib/manifest';
 import { requireAuth, logout, login, getOrAuthorizeGitHub, STORE_URL } from '../lib/auth';
 import { GitHubClient } from '../lib/github';
 import { StoreClient, AuthExpiredError, SubmitResult } from '../lib/store';
@@ -51,9 +51,12 @@ export function registerPublish(program: Command) {
         console.log(chalk.green('✓ Credentials cleared'));
       }
 
-      // 1. Validate
+      // 1. Validate & Lint
       const manifest = readManifest(cwd);
-      const errors = validateManifest(manifest, cwd);
+      const { errors, warnings } = lintManifest(manifest, cwd);
+      if (warnings.length > 0) {
+        warnings.forEach((w) => console.log(chalk.yellow('  ⚠️ ') + `${w.field}: ${w.message}`));
+      }
       if (errors.length > 0) {
         console.log(chalk.red('✗ Validation failed:'));
         errors.forEach((e) => console.log(chalk.red(`  ✗ ${e.field}: ${e.message}`)));

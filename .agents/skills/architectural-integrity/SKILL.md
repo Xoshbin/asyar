@@ -222,7 +222,29 @@ return defineServiceRegistry({
 
 The key IS the wire namespace (`asyar:api:<namespace>:<method>`). Renaming the backing class never breaks the wire. Adding a new namespace is a single edit to `NAMESPACES` followed by compile errors pointing at every place that needs updating.
 
-**Generalize the principle:** wherever you find yourself maintaining a hardcoded list of strings that must stay in sync with a typed surface, apply the same shape — a single source-of-truth constant, a type derived from it, and an identity helper that constrains consumers to that type. For the full namespace contract, read `asyar-sdk/src/ipc/namespaces.ts` (the `NAMESPACES` array) alongside `defineServiceRegistry.ts` and its test. The same shape applied to Rust-derived lists is the subject of the **generated-files** skill.
+### Never Introduce Capabilities Blindly (Search First, Maintain Single Ownership)
+
+Before adding any capability, action, IPC route, shortcut, event listener, or state store (whether explicitly requested or added as a companion enhancement):
+
+1. **Repository-Wide Discovery Before Creation**: Always search the entire codebase (`grep_search` for related keywords, handlers, or IPC namespaces). Never assume a capability or registration doesn't exist just because it is absent from the specific file you are editing.
+2. **Single Layer of Ownership**: Every capability must have exactly one canonical owner. Do not split or duplicate registrations across different layers (e.g. host core vs. extension loader runtime).
+3. **No Unaudited Companion Features**: If you proactively introduce companion features or UX improvements alongside a user request, you must apply the exact same discovery rigor to ensure you are not duplicating existing logic.
+
+**Case study — Duplicate extension configuration actions:**
+
+- **The Mistake**: When adding the built-in `"View Extension Commands"` action to `actionService.svelte.ts`, an agent proactively added a companion `"Configure Extension Settings"` action (`commands.showSettingsWindow('extensions', extensionId)`). The agent did not search the rest of the repository and missed that `ExtensionLoader.ts` was already dynamically auto-registering `"Extension Preferences"` (`act_${extensionId}_open_preferences`) with the exact same execution handler.
+- **The Consequence**: Highlighting any extension with preferences in the launcher produced two duplicate configuration actions in the ⌘K Action Panel.
+- **The Fix & Guard**:
+  - Host-level platform actions (settings, deeplinks, command lists) belong exclusively in `ActionService` as single sources of truth with standard shortcuts (`⌘ ⇧ ,`).
+  - `ExtensionLoader` only handles manifest-declared extension actions (`cmd.actions`).
+
+### Shortcut & Action ID Collision Discipline
+
+When introducing or modifying keyboard shortcuts or action identifiers:
+
+1. **Conflict Verification**: Always verify that the proposed key combination (e.g. `Super+Shift+,`, `Super+Shift+E`, `Super+Backspace`) is not already bound in `actionService.svelte.ts` or consumed by `launcherKeyboard.ts`.
+2. **Platform Neutrality**: Use `Super` for macOS Command and `Ctrl` for Windows/Linux.
+3. **No Unrequested Companion Features ("Propose, Don't Presume")**: If you identify a high-value companion action, command, or shortcut while implementing a task, **mention and propose it to the user with its rationale first** rather than silently adding extra unrequested features.
 
 ### Never Let IPC Boundaries Leak Implementation Details
 
@@ -255,4 +277,5 @@ Before writing any code, verify:
 - [ ] No backward-compatibility shims, feature flags, or deprecation wrappers?
 - [ ] New UI contributions registered declaratively (manifest/registry), not hardcoded?
 - [ ] Cross-boundary data is clean serializable types (no Proxies, no class instances)?
+- [ ] Repository-wide search conducted to ensure no duplicate capabilities or split-layer registrations exist?
 - [ ] Root cause addressed, not symptoms patched?

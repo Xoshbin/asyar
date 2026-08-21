@@ -44,5 +44,4 @@ pnpm-debug.log*
 CLAUDE.md
 .agents/*
 !.agents/skills/
-
-AGENTS.md
+GEMINI.md

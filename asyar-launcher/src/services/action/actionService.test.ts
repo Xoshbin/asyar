@@ -18,6 +18,14 @@ vi.mock('tauri-plugin-clipboard-x-api', () => ({
   writeText: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../../lib/ipc/commands', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../lib/ipc/commands')>();
+  return {
+    ...original,
+    showSettingsWindow: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 const mockCommandService = vi.hoisted(() => ({
   executeCommand: vi.fn().mockResolvedValue(undefined),
 }));
@@ -637,6 +645,51 @@ describe('copy_deeplink built-in action', () => {
     const { writeText } = await import('tauri-plugin-clipboard-x-api');
     await svc.executeAction('copy_deeplink');
     expect(writeText).toHaveBeenCalledWith('asyar://extensions/com.example.ext/open-url');
+  });
+});
+
+// ── view_extension_commands & configure_extension built-in actions ─────────
+
+describe('view_extension_commands & configure_extension actions', () => {
+  function makeCommandResult(extensionId: string, commandId: string) {
+    return {
+      objectId: `cmd_${extensionId}_${commandId}`,
+      name: commandId,
+      type: 'command' as const,
+      score: 1,
+      extensionId,
+    };
+  }
+
+  beforeEach(() => {
+    mockSearchStores.selectedIndex = -1;
+    mockSearchOrchestrator.items = [];
+    mockSearchStores.query = '';
+  });
+
+  it('view_extension_commands scopes search query to @extension', async () => {
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeCommandResult('org.asyar.coffee', 'caffeinate')];
+    mockSearchStores.selectedIndex = 0;
+
+    const action = svc.getAllActions().find((a) => a.id === 'view_extension_commands');
+    expect(action!.visible!()).toBe(true);
+
+    await svc.executeAction('view_extension_commands');
+    expect(mockSearchStores.query).toBe('@coffee ');
+  });
+
+  it('configure_extension calls showSettingsWindow with extensionId', async () => {
+    const svc = freshService();
+    mockSearchOrchestrator.items = [makeCommandResult('org.asyar.coffee', 'caffeinate')];
+    mockSearchStores.selectedIndex = 0;
+
+    const action = svc.getAllActions().find((a) => a.id === 'configure_extension');
+    expect(action!.visible!()).toBe(true);
+
+    const commands = await import('../../lib/ipc/commands');
+    await svc.executeAction('configure_extension');
+    expect(commands.showSettingsWindow).toHaveBeenCalledWith('extensions', 'org.asyar.coffee');
   });
 });
 

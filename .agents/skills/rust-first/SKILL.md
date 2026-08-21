@@ -29,6 +29,7 @@ When starting a new session or picking up work on the launcher:
 
 - Filtering, sorting, ranking, scoring
 - Fuzzy search and matching (use Rust crates, not JS libraries like Fuse.js)
+- Query syntax, sigils, and prefix parsing (`@extension`, `#tags`, `!bang` commands, aliases)
 - State management and data transformations
 - Validation and business rules
 - Caching and memoization of computed results
