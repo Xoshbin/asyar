@@ -177,6 +177,7 @@ winreg = "0.56"
 xkbcommon = "0.7"
 gtk = "0.18"
 gdk = "0.18"
+gio = "0.18"
 zbus = { version = "4", features = ["blocking"] }
 procfs = "0.16"
 x11rb = "0.13"
