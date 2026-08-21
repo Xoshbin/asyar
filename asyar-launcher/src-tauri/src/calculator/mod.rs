@@ -467,6 +467,50 @@ mod tests {
         assert_eq!(point[0].value, comma[0].value);
     }
 
+    /// Every handler must answer a comma-decimal query with exactly the
+    /// point-decimal answer, re-spelled. Anything else means a handler
+    /// is reading or writing separators behind the pipeline's back.
+    #[test]
+    fn comma_locale_answers_match_the_point_locale_answers() {
+        for (point_query, comma_query) in [
+            ("61.78*1.19", "61,78*1,19"),
+            ("1234567 + 1", "1.234.567 + 1"),
+            ("1.5 km in miles", "1,5 km in miles"),
+            ("100.50 usd in eur", "100,50 usd in eur"),
+            ("20% of 61.78", "20% of 61,78"),
+            ("12.5% off 80", "12,5% off 80"),
+            ("increase 61.78 by 19%", "increase 61,78 by 19%"),
+            (
+                "% change from 61.78 to 73.52",
+                "% change from 61,78 to 73,52",
+            ),
+            ("1.5 cups to ml", "1,5 cups to ml"),
+            ("1.5 hours to timespan", "1,5 hours to timespan"),
+            // Queries with no separators at all must survive untouched.
+            ("sqrt(2)", "sqrt(2)"),
+            ("0xFF", "0xFF"),
+            ("#ff8800", "#ff8800"),
+            ("rgb(255,0,0) to hex", "rgb(255,0,0) to hex"),
+            ("ratio of 16 to 9", "ratio of 16 to 9"),
+            ("days until dec 25", "days until dec 25"),
+            ("today + 45 days", "today + 45 days"),
+            ("5pm ldn in sf", "5pm ldn in sf"),
+            ("5'10\" to cm", "5'10\" to cm"),
+            ("10km in miles", "10km in miles"),
+            ("50 usd", "50 usd"),
+        ] {
+            let point = evaluate_query(point_query, &test_ctx());
+            let comma = evaluate_query(comma_query, &comma_ctx());
+            assert!(!point.is_empty(), "no answer for {point_query:?}");
+            assert!(!comma.is_empty(), "no answer for {comma_query:?}");
+            assert_eq!(
+                comma[0].value,
+                locale::localize_output(&point[0].value, locale::NumberFormat::Comma),
+                "{comma_query:?} must answer what {point_query:?} answers"
+            );
+        }
+    }
+
     #[test]
     fn point_locale_is_unchanged() {
         let res = evaluate_query("1234 * 1000", &test_ctx());
