@@ -1,6 +1,31 @@
-use std::io::{BufRead, BufReader};
+pub mod desktop_entry;
+pub use desktop_entry::*;
+
 use std::path::{Path, PathBuf};
 use tauri::{Runtime, WebviewWindow};
+
+/// The localized name a `.desktop` file presents to the user.
+pub fn localized_bundle_name(path: &Path) -> Option<String> {
+    let entry = DesktopEntry::from_file(path)?;
+    let locale = sys_locale::get_locale();
+    let name = entry.display_name(locale.as_deref());
+    if name.is_empty() {
+        None
+    } else {
+        Some(name)
+    }
+}
+
+/// Checks if a `.desktop` file is visible in an application launcher.
+pub fn is_visible_desktop_file(path: &Path) -> bool {
+    if let Some(entry) = DesktopEntry::from_file(path) {
+        let desktops = current_desktop_environments();
+        let desktop_refs: Vec<&str> = desktops.iter().map(|s| s.as_str()).collect();
+        entry.is_visible(&desktop_refs)
+    } else {
+        false
+    }
+}
 
 /// Configures GTK hints for a Spotlight-style window on Linux.
 pub fn setup_spotlight_window<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
@@ -36,14 +61,46 @@ pub fn parse_desktop_icon_value(content: &str) -> Option<String> {
 /// Common Linux Freedesktop icon search directories.
 pub fn default_icon_search_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    let mut add_dir = |p: PathBuf| {
+        if seen.insert(p.clone()) {
+            dirs.push(p);
+        }
+    };
+
     if let Some(home) = dirs::home_dir() {
-        dirs.push(home.join(".local/share/icons"));
+        add_dir(home.join(".local/share/icons"));
+        add_dir(home.join(".icons"));
+        add_dir(home.join(".local/share/flatpak/exports/share/icons"));
+        add_dir(home.join(".nix-profile/share/icons"));
     }
-    dirs.push(PathBuf::from("/usr/local/share/icons"));
-    dirs.push(PathBuf::from("/usr/share/icons/hicolor"));
-    dirs.push(PathBuf::from("/usr/share/icons/Adwaita"));
-    dirs.push(PathBuf::from("/usr/share/icons"));
-    dirs.push(PathBuf::from("/usr/share/pixmaps"));
+
+    if let Ok(data_home) = std::env::var("XDG_DATA_HOME") {
+        let trimmed = data_home.trim();
+        if !trimmed.is_empty() {
+            add_dir(PathBuf::from(trimmed).join("icons"));
+        }
+    }
+
+    if let Ok(data_dirs) = std::env::var("XDG_DATA_DIRS") {
+        for dir in data_dirs.split(':') {
+            let trimmed = dir.trim();
+            if !trimmed.is_empty() {
+                add_dir(PathBuf::from(trimmed).join("icons"));
+            }
+        }
+    }
+
+    add_dir(PathBuf::from("/var/lib/flatpak/exports/share/icons"));
+    add_dir(PathBuf::from("/snap/share/icons"));
+    add_dir(PathBuf::from("/nix/var/nix/profiles/default/share/icons"));
+    add_dir(PathBuf::from("/usr/local/share/icons"));
+    add_dir(PathBuf::from("/usr/share/icons/hicolor"));
+    add_dir(PathBuf::from("/usr/share/icons/Adwaita"));
+    add_dir(PathBuf::from("/usr/share/icons"));
+    add_dir(PathBuf::from("/usr/share/pixmaps"));
+
     dirs
 }
 
@@ -125,15 +182,12 @@ pub fn resolve_icon_path(icon_value: &str, search_dirs: &[PathBuf]) -> Option<Pa
 
 /// Extracts an application icon from a Linux .desktop file by searching icon themes.
 pub fn extract_icon(path: &Path) -> Option<Vec<u8>> {
-    let file = std::fs::File::open(path).ok()?;
-    let reader = BufReader::new(file);
-    let mut content = String::new();
-    for line in reader.lines().map_while(Result::ok) {
-        content.push_str(&line);
-        content.push('\n');
-    }
-
-    let icon_value = parse_desktop_icon_value(&content)?;
+    let icon_value = DesktopEntry::from_file(path)
+        .and_then(|entry| entry.icon)
+        .or_else(|| {
+            let content = std::fs::read_to_string(path).ok()?;
+            parse_desktop_icon_value(&content)
+        })?;
     let search_dirs = default_icon_search_dirs();
     let resolved = resolve_icon_path(&icon_value, &search_dirs)?;
     std::fs::read(resolved).ok()

@@ -316,6 +316,12 @@ impl AppScanner {
     /// Records a discovered bundle, skipping one an earlier scan root already
     /// yielded (#410).
     fn record(&mut self, path: &Path) {
+        #[cfg(target_os = "linux")]
+        {
+            if !is_bundle_visible(path) {
+                return;
+            }
+        }
         if let Some(path_str) = path.to_str() {
             if self.seen.insert(path_str.to_string()) {
                 self.paths.push(path_str.to_string());
@@ -508,6 +514,69 @@ pub fn display_parent_dir(app_path: &str) -> String {
     display_path(parent)
 }
 
+#[cfg(any(target_os = "linux", test))]
+pub(crate) fn is_bundle_visible(path: &Path) -> bool {
+    if path.extension().is_some_and(|ext| ext == "desktop") {
+        return crate::platform::linux::is_visible_desktop_file(path);
+    }
+    true
+}
+
+#[cfg(any(target_os = "linux", test))]
+pub fn get_linux_default_app_scan_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    let mut seen = HashSet::new();
+
+    let mut add_path = |p: PathBuf| {
+        if seen.insert(p.clone()) {
+            paths.push(p);
+        }
+    };
+
+    // 1. $XDG_DATA_HOME/applications (defaults to ~/.local/share/applications)
+    if let Ok(data_home) = std::env::var("XDG_DATA_HOME") {
+        let trimmed = data_home.trim();
+        if !trimmed.is_empty() {
+            add_path(PathBuf::from(trimmed).join("applications"));
+        }
+    } else if let Some(home) = dirs::home_dir() {
+        add_path(home.join(".local/share/applications"));
+    }
+
+    // 2. $XDG_DATA_DIRS/applications (defaults to /usr/local/share/applications and /usr/share/applications)
+    if let Ok(data_dirs) = std::env::var("XDG_DATA_DIRS") {
+        for dir in data_dirs.split(':') {
+            let trimmed = dir.trim();
+            if !trimmed.is_empty() {
+                add_path(PathBuf::from(trimmed).join("applications"));
+            }
+        }
+    } else {
+        add_path(PathBuf::from("/usr/local/share/applications"));
+        add_path(PathBuf::from("/usr/share/applications"));
+    }
+
+    // 3. Flatpak applications (user & system exports)
+    if let Some(home) = dirs::home_dir() {
+        add_path(home.join(".local/share/flatpak/exports/share/applications"));
+    }
+    add_path(PathBuf::from("/var/lib/flatpak/exports/share/applications"));
+
+    // 4. Snap applications
+    add_path(PathBuf::from("/var/lib/snapd/desktop/applications"));
+    add_path(PathBuf::from("/snap/share/applications"));
+
+    // 5. Nix applications (user profile & system profile)
+    if let Some(home) = dirs::home_dir() {
+        add_path(home.join(".nix-profile/share/applications"));
+    }
+    add_path(PathBuf::from(
+        "/nix/var/nix/profiles/default/share/applications",
+    ));
+
+    paths
+}
+
 pub fn get_default_app_scan_paths() -> Vec<PathBuf> {
     #[cfg(target_os = "macos")]
     {
@@ -533,11 +602,7 @@ pub fn get_default_app_scan_paths() -> Vec<PathBuf> {
     }
     #[cfg(target_os = "linux")]
     {
-        let mut paths = vec![PathBuf::from("/usr/share/applications")];
-        if let Some(home) = dirs::home_dir() {
-            paths.push(home.join(".local/share/applications"));
-        }
-        paths
+        get_linux_default_app_scan_paths()
     }
     #[cfg(target_os = "windows")]
     {
@@ -723,45 +788,8 @@ pub(crate) fn extract_bundle_id(path: &Path) -> Option<String> {
 
     #[cfg(target_os = "linux")]
     {
-        // Parse the .desktop file. Prefer StartupWMClass (matches X11 WM_CLASS
-        // and is what process-name checks want). Fallback: basename of the
-        // first arg of Exec= with format specifiers stripped.
-        let contents = std::fs::read_to_string(path).ok()?;
-        let mut wm_class: Option<String> = None;
-        let mut exec_cmd: Option<String> = None;
-        let mut in_desktop_entry = false;
-        for line in contents.lines() {
-            let trimmed = line.trim();
-            if trimmed.starts_with('[') && trimmed.ends_with(']') {
-                in_desktop_entry = trimmed == "[Desktop Entry]";
-                continue;
-            }
-            if !in_desktop_entry {
-                continue;
-            }
-            if let Some(rest) = trimmed.strip_prefix("StartupWMClass=") {
-                wm_class = Some(rest.trim().to_string());
-            } else if let Some(rest) = trimmed.strip_prefix("Exec=") {
-                // Strip format specifiers like %U %f %F %u and surrounding quotes.
-                let cleaned: String = rest
-                    .split_whitespace()
-                    .next()
-                    .unwrap_or("")
-                    .trim_matches('"')
-                    .to_string();
-                if !cleaned.is_empty() {
-                    let basename = Path::new(&cleaned)
-                        .file_name()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or(&cleaned)
-                        .to_string();
-                    exec_cmd = Some(basename);
-                }
-            }
-        }
-        wm_class
-            .filter(|s| !s.is_empty())
-            .or_else(|| exec_cmd.filter(|s| !s.is_empty()))
+        crate::platform::linux::DesktopEntry::from_file(path)
+            .and_then(|entry| entry.extract_bundle_id())
     }
 
     #[cfg(target_os = "windows")]
@@ -1159,7 +1187,11 @@ mod tests {
         #[cfg(target_os = "macos")]
         fs::create_dir_all(&app_path).unwrap();
         #[cfg(not(target_os = "macos"))]
-        fs::write(&app_path, b"fake").unwrap();
+        fs::write(
+            &app_path,
+            b"[Desktop Entry]\nType=Application\nName=Rooted\nExec=rooted\n",
+        )
+        .unwrap();
 
         let mut scanner = AppScanner::new();
         scanner.scan_directory(&app_path).unwrap();
@@ -1473,7 +1505,11 @@ mod tests {
         #[cfg(target_os = "macos")]
         fs::create_dir_all(&app_path).unwrap();
         #[cfg(not(target_os = "macos"))]
-        fs::write(&app_path, b"fake").unwrap();
+        fs::write(
+            &app_path,
+            b"[Desktop Entry]\nType=Application\nName=Test\nExec=test\n",
+        )
+        .unwrap();
 
         let mut scanner = AppScanner::new();
         let _ = scanner.scan_directory(&tmp);
@@ -1506,7 +1542,11 @@ mod tests {
         #[cfg(target_os = "macos")]
         fs::create_dir_all(&app_path).unwrap();
         #[cfg(not(target_os = "macos"))]
-        fs::write(&app_path, b"fake").unwrap();
+        fs::write(
+            &app_path,
+            b"[Desktop Entry]\nType=Application\nName=Overlap\nExec=overlap\n",
+        )
+        .unwrap();
 
         let mut scanner = AppScanner::new();
         // Simulate scan_all visiting both an ancestor (custom path) and the
@@ -1671,5 +1711,61 @@ mod tests {
         assert_eq!(app.id, expected_id);
         assert_eq!(app.usage_count, 42);
         assert_eq!(app.last_used_at, Some(1724000000));
+    }
+
+    #[test]
+    fn test_get_linux_default_app_scan_paths_contains_xdg_and_flatpak() {
+        let paths = get_linux_default_app_scan_paths();
+        assert!(!paths.is_empty());
+        assert!(paths
+            .iter()
+            .any(|p| p.to_string_lossy().contains("applications")));
+        assert!(paths
+            .iter()
+            .any(|p| p.to_string_lossy().contains("flatpak")));
+    }
+
+    #[test]
+    fn test_is_bundle_visible_respects_freedesktop_rules() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        let visible_app = tmp.path().join("visible.desktop");
+        std::fs::write(
+            &visible_app,
+            "[Desktop Entry]\nType=Application\nName=Visible App\nExec=visible\n",
+        )
+        .unwrap();
+        assert!(is_bundle_visible(&visible_app));
+
+        let hidden_app = tmp.path().join("hidden.desktop");
+        std::fs::write(
+            &hidden_app,
+            "[Desktop Entry]\nType=Application\nName=Hidden App\nNoDisplay=true\nExec=hidden\n",
+        )
+        .unwrap();
+        assert!(!is_bundle_visible(&hidden_app));
+
+        let deleted_app = tmp.path().join("deleted.desktop");
+        std::fs::write(
+            &deleted_app,
+            "[Desktop Entry]\nType=Application\nName=Deleted App\nHidden=true\nExec=deleted\n",
+        )
+        .unwrap();
+        assert!(!is_bundle_visible(&deleted_app));
+    }
+
+    #[test]
+    fn test_localized_bundle_name_linux_desktop_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app_path = tmp.path().join("sample.desktop");
+        std::fs::write(
+            &app_path,
+            "[Desktop Entry]\nType=Application\nName=Default Name\nName[fr]=Nom Francais\nExec=sample\n",
+        )
+        .unwrap();
+
+        let name = crate::platform::linux::localized_bundle_name(&app_path);
+        // Returns some localized name or fallback
+        assert!(name.is_some());
     }
 }
