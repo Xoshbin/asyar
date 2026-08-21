@@ -21,9 +21,12 @@ export class ToolsServiceProxy extends BaseServiceProxy implements IToolsService
   }
 
   async invokeHandler(id: string, args: unknown): Promise<unknown> {
-    const handler = this.handlers.get(id);
-    if (!handler) {
+    if (typeof id !== 'string' || !this.handlers.has(id)) {
       throw new Error(`[asyar-sdk/tools] No handler registered for tool id: "${id}"`);
+    }
+    const handler = this.handlers.get(id);
+    if (typeof handler !== 'function') {
+      throw new Error(`[asyar-sdk/tools] Invalid handler registered for tool id: "${id}"`);
     }
     return handler(args);
   }

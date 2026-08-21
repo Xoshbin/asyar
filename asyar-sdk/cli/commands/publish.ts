@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import { readManifest, lintManifest } from '../lib/manifest';
 import { requireAuth, logout, login, getOrAuthorizeGitHub, STORE_URL } from '../lib/auth';
 import { GitHubClient } from '../lib/github';
@@ -244,9 +244,15 @@ export function registerPublish(program: Command) {
               // already exists from a prior partial run, replace its URL
               // rather than failing with "remote already exists".
               try {
-                execSync(`git remote add origin ${newRepo.clone_url}`, { cwd, stdio: 'pipe' });
+                execFileSync('git', ['remote', 'add', 'origin', newRepo.clone_url], {
+                  cwd,
+                  stdio: 'pipe',
+                });
               } catch {
-                execSync(`git remote set-url origin ${newRepo.clone_url}`, { cwd, stdio: 'pipe' });
+                execFileSync('git', ['remote', 'set-url', 'origin', newRepo.clone_url], {
+                  cwd,
+                  stdio: 'pipe',
+                });
               }
 
               // Push
