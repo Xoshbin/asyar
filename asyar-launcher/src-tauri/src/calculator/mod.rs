@@ -13,6 +13,7 @@ pub mod dates;
 pub mod engine;
 pub mod extras;
 pub mod format;
+pub mod locale;
 pub mod normalize;
 pub mod percent;
 pub mod timezone;
