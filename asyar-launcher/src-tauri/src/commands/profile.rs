@@ -195,15 +195,25 @@ pub async fn show_open_profile_dialog(app_handle: AppHandle) -> Result<Option<St
 mod tests {
     use super::*;
 
+    fn test_salt() -> [u8; 16] {
+        rand::random()
+    }
+
+    fn test_pw() -> String {
+        format!("test-pw-{}", rand::random::<u64>())
+    }
+
     #[test]
     fn encrypt_sensitive_fields_at_top_level() {
+        let pw = test_pw();
+        let salt = test_salt();
         let mut value = serde_json::json!({
             "provider": "openai",
             "apiKey": "sk-secret-123",
             "temperature": 0.7
         });
         let paths = vec!["apiKey".to_string()];
-        encrypt_sensitive_fields(&mut value, &paths, "pw", b"salt-1234567890a").unwrap();
+        encrypt_sensitive_fields(&mut value, &paths, &pw, &salt).unwrap();
 
         assert!(value["apiKey"]
             .as_str()
@@ -215,11 +225,13 @@ mod tests {
 
     #[test]
     fn encrypt_nested_field() {
+        let pw = test_pw();
+        let salt = test_salt();
         let mut value = serde_json::json!({
             "auth": { "token": "my-secret-token" }
         });
         let paths = vec!["auth.token".to_string()];
-        encrypt_sensitive_fields(&mut value, &paths, "pw", b"salt-1234567890a").unwrap();
+        encrypt_sensitive_fields(&mut value, &paths, &pw, &salt).unwrap();
 
         assert!(value["auth"]["token"]
             .as_str()
@@ -240,25 +252,29 @@ mod tests {
 
     #[test]
     fn decrypt_walks_object_tree() {
+        let pw = test_pw();
+        let salt = test_salt();
         let mut value = serde_json::json!({
             "provider": "openai",
             "apiKey": "plain-text",
         });
         // First encrypt
         let paths = vec!["apiKey".to_string()];
-        encrypt_sensitive_fields(&mut value, &paths, "pw", b"salt-1234567890a").unwrap();
+        encrypt_sensitive_fields(&mut value, &paths, &pw, &salt).unwrap();
 
         // Then decrypt
-        decrypt_sensitive_fields(&mut value, "pw", b"salt-1234567890a").unwrap();
+        decrypt_sensitive_fields(&mut value, &pw, &salt).unwrap();
         assert_eq!(value["apiKey"], "plain-text");
     }
 
     #[test]
     fn nonexistent_path_is_silently_skipped() {
+        let pw = test_pw();
+        let salt = test_salt();
         let mut value = serde_json::json!({"key": "val"});
         let paths = vec!["nonexistent.deeply.nested".to_string()];
         // Should not panic
-        encrypt_sensitive_fields(&mut value, &paths, "pw", b"salt-1234567890a").unwrap();
+        encrypt_sensitive_fields(&mut value, &paths, &pw, &salt).unwrap();
         assert_eq!(value["key"], "val");
     }
 }

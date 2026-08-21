@@ -77,31 +77,40 @@ pub fn is_encrypted(value: &str) -> bool {
 mod tests {
     use super::*;
 
+    fn test_salt() -> [u8; 16] {
+        rand::random()
+    }
+
+    fn test_pw() -> String {
+        format!("test-passphrase-{}", rand::random::<u64>())
+    }
+
     #[test]
     fn round_trip_encrypt_decrypt() {
-        let password = "my-secret-password";
-        let salt = b"random-salt-1234";
+        let password = test_pw();
+        let salt = test_salt();
         let plaintext = "sk-abc123-my-api-key";
 
-        let encrypted = encrypt_value(plaintext, password, salt).unwrap();
+        let encrypted = encrypt_value(plaintext, &password, &salt).unwrap();
         assert!(encrypted.starts_with(ENC_PREFIX));
 
-        let decrypted = decrypt_value(&encrypted, password, salt).unwrap();
+        let decrypted = decrypt_value(&encrypted, &password, &salt).unwrap();
         assert_eq!(decrypted, plaintext);
     }
 
     #[test]
     fn wrong_password_fails() {
-        let salt = b"random-salt-1234";
-        let encrypted = encrypt_value("secret", "correct-pw", salt).unwrap();
-        let result = decrypt_value(&encrypted, "wrong-pw", salt);
+        let salt = test_salt();
+        let encrypted = encrypt_value("secret", &test_pw(), &salt).unwrap();
+        let result = decrypt_value(&encrypted, &test_pw(), &salt);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("wrong password"));
     }
 
     #[test]
     fn invalid_prefix_fails() {
-        let result = decrypt_value("not-encrypted", "pw", b"salt");
+        let salt = test_salt();
+        let result = decrypt_value("not-encrypted", &test_pw(), &salt);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -111,7 +120,8 @@ mod tests {
 
     #[test]
     fn too_short_ciphertext_fails() {
-        let result = decrypt_value("enc:aes256gcm:dG9vc2hvcnQ=", "pw", b"salt");
+        let salt = test_salt();
+        let result = decrypt_value("enc:aes256gcm:dG9vc2hvcnQ=", &test_pw(), &salt);
         assert!(result.is_err());
     }
 
@@ -124,24 +134,31 @@ mod tests {
 
     #[test]
     fn different_salts_produce_different_ciphertexts() {
-        let pw = "same-password";
-        let e1 = encrypt_value("data", pw, b"salt-one-1234567").unwrap();
-        let e2 = encrypt_value("data", pw, b"salt-two-1234567").unwrap();
+        let pw = test_pw();
+        let s1 = test_salt();
+        let mut s2 = s1;
+        s2[0] ^= 0xff;
+        let e1 = encrypt_value("data", &pw, &s1).unwrap();
+        let e2 = encrypt_value("data", &pw, &s2).unwrap();
         assert_ne!(e1, e2);
     }
 
     #[test]
     fn empty_plaintext_round_trips() {
-        let encrypted = encrypt_value("", "pw", b"salt-1234567890a").unwrap();
-        let decrypted = decrypt_value(&encrypted, "pw", b"salt-1234567890a").unwrap();
+        let pw = test_pw();
+        let salt = test_salt();
+        let encrypted = encrypt_value("", &pw, &salt).unwrap();
+        let decrypted = decrypt_value(&encrypted, &pw, &salt).unwrap();
         assert_eq!(decrypted, "");
     }
 
     #[test]
     fn unicode_plaintext_round_trips() {
+        let pw = test_pw();
+        let salt = test_salt();
         let text = "API Key: 秘密のキー 🔑";
-        let encrypted = encrypt_value(text, "pw", b"salt-1234567890a").unwrap();
-        let decrypted = decrypt_value(&encrypted, "pw", b"salt-1234567890a").unwrap();
+        let encrypted = encrypt_value(text, &pw, &salt).unwrap();
+        let decrypted = decrypt_value(&encrypted, &pw, &salt).unwrap();
         assert_eq!(decrypted, text);
     }
 }
