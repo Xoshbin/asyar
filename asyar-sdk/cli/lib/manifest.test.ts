@@ -755,4 +755,54 @@ describe('manifest validation — runtimes', () => {
       expect(errors.some((e) => e.field === 'walkthrough[0].completion.probe')).toBe(true);
     });
   });
+
+  describe('linter and command specifications', () => {
+    it('rejects duplicate command ids', () => {
+      const manifest: AsyarManifest = {
+        ...viewOnly,
+        commands: [
+          { id: 'open', name: 'Open 1', description: 'Open view 1', mode: 'view', component: 'V1' },
+          { id: 'open', name: 'Open 2', description: 'Open view 2', mode: 'view', component: 'V2' },
+        ],
+      };
+      const errors = validateManifest(manifest, './');
+      expect(
+        errors.some((e) => e.field === 'commands[1].id' && e.message.includes('duplicate')),
+      ).toBe(true);
+    });
+
+    it('rejects invalid command id characters', () => {
+      const manifest: AsyarManifest = {
+        ...viewOnly,
+        commands: [
+          {
+            id: 'open view!',
+            name: 'Open',
+            description: 'Open view',
+            mode: 'view',
+            component: 'V1',
+          },
+        ],
+      };
+      const errors = validateManifest(manifest, './');
+      expect(errors.some((e) => e.field === 'commands[0].id')).toBe(true);
+    });
+
+    it('requires a valid command description', () => {
+      const manifest: AsyarManifest = {
+        ...viewOnly,
+        commands: [{ id: 'open', name: 'Open', description: '', mode: 'view', component: 'V1' }],
+      };
+      const errors = validateManifest(manifest, './');
+      expect(errors.some((e) => e.field === 'commands[0].description')).toBe(true);
+    });
+
+    it('lintManifest generates helpful recommendations', async () => {
+      const { lintManifest } = await import('./manifest');
+      const result = lintManifest(viewOnly, './');
+      expect(result.errors).toEqual([]);
+      // Should have recommendations for icon, README, sdk, etc.
+      expect(Array.isArray(result.warnings)).toBe(true);
+    });
+  });
 });

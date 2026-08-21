@@ -4,7 +4,7 @@ import ora from 'ora';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { readManifest, validateManifest } from '../lib/manifest';
+import { readManifest, lintManifest } from '../lib/manifest';
 
 export function registerBuild(program: Command) {
   program
@@ -22,7 +22,10 @@ export function registerBuild(program: Command) {
       }
 
       if (!opts.skipValidate) {
-        const errors = validateManifest(manifest, cwd);
+        const { errors, warnings } = lintManifest(manifest, cwd);
+        if (warnings.length > 0) {
+          warnings.forEach((w) => console.log(chalk.yellow('  ⚠️ ') + `${w.field}: ${w.message}`));
+        }
         if (errors.length > 0) {
           console.log(chalk.red('✗ Validation failed:'));
           errors.forEach((e) => console.log(chalk.red(`  ✗ ${e.field}: ${e.message}`)));
