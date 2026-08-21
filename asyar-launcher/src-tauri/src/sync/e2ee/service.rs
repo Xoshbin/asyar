@@ -15,7 +15,6 @@ use crate::storage::DataStore;
 use crate::sync::e2ee::mode::Mode;
 use crate::sync::types::E2eeStatePayload;
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
-use rand::RngExt;
 use zeroize::Zeroizing;
 
 fn current_unix_ms() -> i64 {
@@ -102,10 +101,8 @@ impl<'a> E2eeService<'a> {
     /// Generate fresh master_seed, derive wrap_key, wrap, POST to server,
     /// cache locally, return the 24-word recovery phrase.
     pub async fn enrol(&self, token: &str, passphrase: &str) -> Result<EnrolmentResult, AppError> {
-        let mut seed = Zeroizing::new([0u8; 32]);
-        rand::rng().fill(&mut seed[..]);
-        let mut salt = [0u8; 32];
-        rand::rng().fill(&mut salt[..]);
+        let seed = Zeroizing::new(rand::random::<[u8; 32]>());
+        let salt: [u8; 32] = rand::random();
 
         let wrap_key = kdf::derive_wrap_key(
             passphrase,
@@ -184,12 +181,10 @@ impl<'a> E2eeService<'a> {
             )?;
             let new_wrapped = cipher::encrypt(&B64.encode(&*seed_bytes), &new_wrap_key)?;
 
-            let mut salt_array = [0u8; 32];
-            if new_salt.len() == 32 {
-                salt_array.copy_from_slice(&new_salt);
-            } else {
-                return Err(AppError::Encryption("kdf_salt wrong length".into()));
-            }
+            let salt_array: [u8; 32] = new_salt
+                .as_slice()
+                .try_into()
+                .map_err(|_| AppError::Encryption("kdf_salt wrong length".into()))?;
 
             let payload = E2eeStatePayload {
                 wrapped_master_seed: new_wrapped,
@@ -225,8 +220,7 @@ impl<'a> E2eeService<'a> {
             })?;
         }
 
-        let mut salt = [0u8; 32];
-        rand::rng().fill(&mut salt[..]);
+        let salt: [u8; 32] = rand::random();
         let wrap_key = kdf::derive_wrap_key(
             new_passphrase,
             &salt,
@@ -276,13 +270,10 @@ impl<'a> E2eeService<'a> {
             .keystore
             .read_slot(KEYCHAIN_SLOT)?
             .ok_or_else(|| AppError::Encryption("master_seed not cached".into()))?;
-        if seed_bytes.len() != 32 {
-            return Err(AppError::Encryption(
-                "cached master_seed wrong length".into(),
-            ));
-        }
-        let mut seed = [0u8; 32];
-        seed.copy_from_slice(&seed_bytes);
+        let seed: [u8; 32] = seed_bytes
+            .as_slice()
+            .try_into()
+            .map_err(|_| AppError::Encryption("cached master_seed wrong length".into()))?;
         mnemonic::encode(&seed)
     }
 
@@ -434,9 +425,9 @@ mod tests {
         seed_dirty_journal_row(&conn, "item-1", "clipboard", Some(make_hash(0x42)));
         drop(conn);
 
-        let seed = [9u8; 32];
+        let seed: [u8; 32] = rand::random();
         let payload = dummy_payload();
-        let salt = [7u8; 32];
+        let salt: [u8; 32] = rand::random();
 
         svc.apply_local_state_after_enrol(&seed, &payload, &salt, 1)
             .unwrap();
@@ -486,7 +477,9 @@ mod tests {
 
         // Pre-enrolled state: cached seed + populated mirror + dirty
         // journal row with a hash from a previous (ciphertext) push.
-        keystore.write_slot(KEYCHAIN_SLOT, &[1u8; 32]).unwrap();
+        let test_seed: [u8; 32] = rand::random();
+        let test_salt: [u8; 32] = rand::random();
+        keystore.write_slot(KEYCHAIN_SLOT, &test_seed).unwrap();
         {
             let conn = store.conn().unwrap();
             cloud_sync_e2ee_local::upsert(
@@ -495,7 +488,7 @@ mod tests {
                     enrolled: true,
                     key_version: 1,
                     wrapped_master_seed: "enc:v1:wrapped".into(),
-                    kdf_salt: vec![7u8; 32],
+                    kdf_salt: test_salt.to_vec(),
                     kdf_m_cost: 16384,
                     kdf_t_cost: 2,
                     kdf_p_cost: 1,
@@ -534,9 +527,9 @@ mod tests {
     #[test]
     fn show_recovery_phrase_rejects_wrong_passphrase() {
         // Set up a local mirror with a wrapped seed that decrypts under "right".
-        let salt = [9u8; 32];
+        let salt: [u8; 32] = rand::random();
         let key_right = kdf::derive_wrap_key("right-passphrase-12", &salt, 16384, 2, 1).unwrap();
-        let seed = [42u8; 32];
+        let seed: [u8; 32] = rand::random();
         let wrapped = cipher::encrypt(&B64.encode(seed), &key_right).unwrap();
 
         let conn = rusqlite::Connection::open_in_memory().unwrap();
@@ -567,11 +560,12 @@ mod tests {
     #[test]
     fn keystore_slot_isolation() {
         let store = InMemoryKeyStore::new();
-        store.write_slot(KEYCHAIN_SLOT, &[42u8; 32]).unwrap();
+        let test_seed: [u8; 32] = rand::random();
+        store.write_slot(KEYCHAIN_SLOT, &test_seed).unwrap();
         // Layer 3 master key path uses load_or_create — independent from slots.
         let _master = store.load_or_create().unwrap();
         // E2EE slot survived.
         let seed = store.read_slot(KEYCHAIN_SLOT).unwrap().unwrap();
-        assert_eq!(*seed, vec![42u8; 32]);
+        assert_eq!(*seed, test_seed.to_vec());
     }
 }

@@ -4,13 +4,19 @@ use crate::profile::encryption;
 use rusqlite::{params, Connection};
 use tauri::{AppHandle, Manager};
 
-const SALT: &[u8] = b"asyar-oauth-salt-v1";
-
 fn machine_key(app: &AppHandle) -> String {
     app.path()
         .app_data_dir()
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| "asyar-fallback".to_string())
+}
+
+fn oauth_salt(app: &AppHandle) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(machine_key(app).as_bytes());
+    hasher.update(b":oauth-salt-v1");
+    hasher.finalize().into()
 }
 
 pub fn init_table(conn: &Connection) -> Result<(), AppError> {
@@ -48,14 +54,15 @@ pub fn store_token(
     token: &OAuthToken,
 ) -> Result<(), AppError> {
     let password = machine_key(app);
+    let salt = oauth_salt(app);
     let composite_key = format!("{extension_id}:{provider_id}");
     let now = now_secs();
 
-    let access_enc = encryption::encrypt_value(&token.access_token, &password, SALT)?;
+    let access_enc = encryption::encrypt_value(&token.access_token, &password, &salt)?;
     let refresh_enc = token
         .refresh_token
         .as_deref()
-        .map(|rt| encryption::encrypt_value(rt, &password, SALT))
+        .map(|rt| encryption::encrypt_value(rt, &password, &salt))
         .transpose()?;
 
     let scopes_json = serde_json::to_string(&token.scopes)
@@ -117,9 +124,10 @@ pub fn get_token(
     match result {
         Ok((access_enc, refresh_enc, token_type, scopes_json, expires_at)) => {
             let password = machine_key(app);
-            let access_token = encryption::decrypt_value(&access_enc, &password, SALT)?;
+            let salt = oauth_salt(app);
+            let access_token = encryption::decrypt_value(&access_enc, &password, &salt)?;
             let refresh_token = refresh_enc
-                .map(|enc| encryption::decrypt_value(&enc, &password, SALT))
+                .map(|enc| encryption::decrypt_value(&enc, &password, &salt))
                 .transpose()?;
             let scopes: Vec<String> = serde_json::from_str(&scopes_json)
                 .map_err(|e| AppError::Database(format!("Failed to parse scopes: {e}")))?;

@@ -40,11 +40,15 @@ pub fn derive_wrap_key(
 mod tests {
     use super::*;
 
+    fn test_salt() -> [u8; 32] {
+        rand::random()
+    }
+
     #[test]
     fn derive_wrap_key_returns_32_bytes() {
-        let salt = [7u8; 32];
+        let salt = test_salt();
         let key = derive_wrap_key(
-            "hunter2hunter2",
+            "test_passphrase_value",
             &salt,
             ARGON2_M_COST,
             ARGON2_T_COST,
@@ -56,7 +60,7 @@ mod tests {
 
     #[test]
     fn derive_wrap_key_is_deterministic() {
-        let salt = [9u8; 32];
+        let salt = test_salt();
         let a = derive_wrap_key("same-passphrase", &salt, 16384, 2, 1).unwrap();
         let b = derive_wrap_key("same-passphrase", &salt, 16384, 2, 1).unwrap();
         assert_eq!(*a, *b);
@@ -64,7 +68,7 @@ mod tests {
 
     #[test]
     fn derive_wrap_key_differs_for_different_passphrase() {
-        let salt = [9u8; 32];
+        let salt = test_salt();
         let a = derive_wrap_key("passphrase-a", &salt, 16384, 2, 1).unwrap();
         let b = derive_wrap_key("passphrase-b", &salt, 16384, 2, 1).unwrap();
         assert_ne!(*a, *b);
@@ -72,14 +76,18 @@ mod tests {
 
     #[test]
     fn derive_wrap_key_differs_for_different_salt() {
-        let a = derive_wrap_key("same", &[1u8; 32], 16384, 2, 1).unwrap();
-        let b = derive_wrap_key("same", &[2u8; 32], 16384, 2, 1).unwrap();
+        let salt_a = test_salt();
+        let mut salt_b = salt_a;
+        salt_b[0] ^= 0xff;
+        let a = derive_wrap_key("same", &salt_a, 16384, 2, 1).unwrap();
+        let b = derive_wrap_key("same", &salt_b, 16384, 2, 1).unwrap();
         assert_ne!(*a, *b);
     }
 
     #[test]
     fn derive_wrap_key_rejects_short_salt() {
-        let err = derive_wrap_key("p", &[1u8; 4], 16384, 2, 1).unwrap_err();
+        let short_salt: [u8; 4] = rand::random();
+        let err = derive_wrap_key("p", &short_salt, 16384, 2, 1).unwrap_err();
         assert!(matches!(err, AppError::Validation(_)));
     }
 }
