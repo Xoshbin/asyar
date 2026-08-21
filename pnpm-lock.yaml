@@ -13,7 +13,7 @@ overrides:
   nanoid: '>=3.3.18'
   brace-expansion: '>=5.0.9'
   js-yaml: '>=4.3.1'
-  cookie: '>=0.7.0'
+  cookie: '>=0.7.0 <1.0.0'
   postcss: '>=8.5.23'
   tmp: '>=0.2.6'
   jsdom: ^30.0.1
@@ -1977,9 +1977,9 @@ packages:
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
 
-  cookie@2.0.1:
-    resolution: {integrity: sha512-yuToqVvRrj6pfDXREyQAAv8SkAEk/8GS3jQRTiUMm66TVtBYmqQeoEjL2Lmq8Rpo6271vH76InTChTitEAm65w==}
-    engines: {node: '>=22'}
+  cookie@0.7.2:
+    resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==}
+    engines: {node: '>= 0.6'}
 
   cose-base@1.0.3:
     resolution: {integrity: sha512-s9whTXInMSgAp/NVXVNuVxVKzGH2qck3aQlVHxDCdAEPgtMKwc4Wq6/QKhgdEdgbLSi9rBTAcPoRa6JpiG4ksg==}
@@ -4420,7 +4420,7 @@ snapshots:
       '@sveltejs/vite-plugin-svelte': 5.1.1(svelte@5.55.9(@typescript-eslint/types@8.59.4))(vite@6.4.3(@types/node@22.19.19)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))
       '@types/cookie': 0.6.0
       acorn: 8.18.0
-      cookie: 2.0.1
+      cookie: 0.7.2
       devalue: 5.9.0
       esm-env: 1.2.2
       kleur: 4.1.5
@@ -5248,7 +5248,7 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
-  cookie@2.0.1: {}
+  cookie@0.7.2: {}
 
   cose-base@1.0.3:
     dependencies:
