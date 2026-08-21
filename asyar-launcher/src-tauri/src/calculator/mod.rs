@@ -13,6 +13,7 @@ pub mod dates;
 pub mod engine;
 pub mod extras;
 pub mod format;
+pub mod locale;
 pub mod normalize;
 pub mod percent;
 pub mod timezone;
@@ -69,6 +70,8 @@ pub struct EvalContext {
     pub rates_age: Option<String>,
     /// Target for bare-amount queries like `50 usd` (user preference).
     pub preferred_currency: String,
+    /// How the user writes numbers: `1,234.56` or `1.234,56`.
+    pub number_format: locale::NumberFormat,
     pub today: NaiveDate,
     pub now_time: NaiveTime,
     pub now_utc: DateTime<Utc>,
@@ -81,6 +84,7 @@ impl EvalContext {
         rates: Option<Arc<HashMap<String, f64>>>,
         rates_age: Option<String>,
         preferred_currency: String,
+        number_format: locale::NumberFormat,
     ) -> Self {
         let local_now = chrono::Local::now();
         let local_tz: Tz = iana_time_zone::get_timezone()
@@ -91,6 +95,7 @@ impl EvalContext {
             rates,
             rates_age,
             preferred_currency,
+            number_format,
             today: local_now.date_naive(),
             now_time: local_now.time(),
             now_utc: Utc::now(),
@@ -166,7 +171,22 @@ pub fn should_attempt(query: &str) -> bool {
 }
 
 /// Full evaluation pipeline. Returns zero or more display-ready results.
+///
+/// The query is rewritten into the canonical `1,234.56` notation on the
+/// way in and the answers are rewritten back into the user's notation on
+/// the way out, so every handler in between — and fend itself — only
+/// ever sees numbers written the one way it understands.
 pub fn evaluate_query(raw: &str, ctx: &EvalContext) -> Vec<CalcResult> {
+    let canonical = locale::canonicalize_input(raw, ctx.number_format);
+    let mut results = evaluate_canonical(&canonical, ctx);
+    for r in &mut results {
+        r.value = locale::localize_output(&r.value, ctx.number_format);
+        r.detail = locale::localize_output(&r.detail, ctx.number_format);
+    }
+    results
+}
+
+fn evaluate_canonical(raw: &str, ctx: &EvalContext) -> Vec<CalcResult> {
     if !should_attempt(raw) {
         return Vec::new();
     }
@@ -297,6 +317,8 @@ pub struct CalculatorState {
     pub ttl_hours: RwLock<f64>,
     /// Target currency for bare-amount queries (user preference).
     pub preferred_currency: RwLock<String>,
+    /// Number notation override. `None` means "follow the host locale".
+    pub number_format: RwLock<Option<locale::NumberFormat>>,
     /// True while a background fetch is in flight.
     pub fetching: std::sync::atomic::AtomicBool,
     /// True once the disk cache has been loaded.
@@ -309,6 +331,7 @@ impl Default for CalculatorState {
             rates: RwLock::new(None),
             ttl_hours: RwLock::new(currency::DEFAULT_TTL_HOURS),
             preferred_currency: RwLock::new("USD".to_string()),
+            number_format: RwLock::new(None),
             fetching: std::sync::atomic::AtomicBool::new(false),
             disk_loaded: std::sync::atomic::AtomicBool::new(false),
         }
@@ -316,6 +339,15 @@ impl Default for CalculatorState {
 }
 
 impl CalculatorState {
+    /// The notation to render in: the user's override when set,
+    /// otherwise whatever the host locale is configured for.
+    pub fn number_format(&self) -> locale::NumberFormat {
+        self.number_format
+            .read()
+            .unwrap()
+            .unwrap_or_else(locale::detect)
+    }
+
     /// Snapshot of the current rates map and its human-readable age.
     pub fn rates_snapshot(&self) -> (Option<Arc<HashMap<String, f64>>>, Option<String>) {
         let guard = self.rates.read().unwrap();
@@ -333,6 +365,13 @@ impl CalculatorState {
 mod tests {
     use super::*;
 
+    fn comma_ctx() -> EvalContext {
+        EvalContext {
+            number_format: locale::NumberFormat::Comma,
+            ..test_ctx()
+        }
+    }
+
     fn test_ctx() -> EvalContext {
         let mut rates = HashMap::new();
         rates.insert("USD".to_string(), 1.0);
@@ -344,6 +383,7 @@ mod tests {
             rates: Some(Arc::new(rates)),
             rates_age: Some("2 h".to_string()),
             preferred_currency: "IQD".to_string(),
+            number_format: locale::NumberFormat::Point,
             today: NaiveDate::from_ymd_opt(2026, 7, 11).unwrap(),
             now_time: NaiveTime::from_hms_opt(15, 0, 0).unwrap(),
             now_utc: DateTime::parse_from_rfc3339("2026-07-11T12:00:00Z")
@@ -381,6 +421,100 @@ mod tests {
         assert!(!should_attempt("pixel"));
         assert!(!should_attempt("pin"));
         assert!(!should_attempt("pipe"));
+    }
+
+    #[test]
+    fn comma_locale_reads_commas_as_decimals() {
+        // The bug: fend reads `61,78` as grouped `6178`, so the answer
+        // came back as 6178 * 119 = 735182.
+        let res = evaluate_query("61,78*1,19", &comma_ctx());
+        assert_eq!(res[0].value, "73,5182");
+        assert_eq!(res[0].detail, "61,78*1,19");
+        assert_eq!(res[0].kind, CalcKind::Math);
+    }
+
+    #[test]
+    fn comma_locale_groups_the_answer_with_points() {
+        let res = evaluate_query("1234 * 1000", &comma_ctx());
+        assert_eq!(res[0].value, "1.234.000");
+    }
+
+    #[test]
+    fn comma_locale_reads_point_grouped_input() {
+        let res = evaluate_query("1.234,5 + 0,5", &comma_ctx());
+        assert_eq!(res[0].value, "1.235");
+    }
+
+    #[test]
+    fn comma_locale_handles_percent_phrases() {
+        let res = evaluate_query("19% of 61,78", &comma_ctx());
+        assert_eq!(res[0].kind, CalcKind::Percent);
+        assert_eq!(res[0].value, "11,7382");
+    }
+
+    #[test]
+    fn comma_locale_leaves_color_lists_alone() {
+        let res = evaluate_query("rgb(255,0,0) to hex", &comma_ctx());
+        assert_eq!(res[0].kind, CalcKind::Color);
+        assert_eq!(res[0].value, "#FF0000");
+    }
+
+    #[test]
+    fn comma_locale_leaves_dates_alone() {
+        let point = evaluate_query("days until dec 25, 2026", &test_ctx());
+        let comma = evaluate_query("days until dec 25, 2026", &comma_ctx());
+        assert!(!point.is_empty());
+        assert_eq!(point[0].value, comma[0].value);
+    }
+
+    /// Every handler must answer a comma-decimal query with exactly the
+    /// point-decimal answer, re-spelled. Anything else means a handler
+    /// is reading or writing separators behind the pipeline's back.
+    #[test]
+    fn comma_locale_answers_match_the_point_locale_answers() {
+        for (point_query, comma_query) in [
+            ("61.78*1.19", "61,78*1,19"),
+            ("1234567 + 1", "1.234.567 + 1"),
+            ("1.5 km in miles", "1,5 km in miles"),
+            ("100.50 usd in eur", "100,50 usd in eur"),
+            ("20% of 61.78", "20% of 61,78"),
+            ("12.5% off 80", "12,5% off 80"),
+            ("increase 61.78 by 19%", "increase 61,78 by 19%"),
+            (
+                "% change from 61.78 to 73.52",
+                "% change from 61,78 to 73,52",
+            ),
+            ("1.5 cups to ml", "1,5 cups to ml"),
+            ("1.5 hours to timespan", "1,5 hours to timespan"),
+            // Queries with no separators at all must survive untouched.
+            ("sqrt(2)", "sqrt(2)"),
+            ("0xFF", "0xFF"),
+            ("#ff8800", "#ff8800"),
+            ("rgb(255,0,0) to hex", "rgb(255,0,0) to hex"),
+            ("ratio of 16 to 9", "ratio of 16 to 9"),
+            ("days until dec 25", "days until dec 25"),
+            ("today + 45 days", "today + 45 days"),
+            ("5pm ldn in sf", "5pm ldn in sf"),
+            ("5'10\" to cm", "5'10\" to cm"),
+            ("10km in miles", "10km in miles"),
+            ("50 usd", "50 usd"),
+        ] {
+            let point = evaluate_query(point_query, &test_ctx());
+            let comma = evaluate_query(comma_query, &comma_ctx());
+            assert!(!point.is_empty(), "no answer for {point_query:?}");
+            assert!(!comma.is_empty(), "no answer for {comma_query:?}");
+            assert_eq!(
+                comma[0].value,
+                locale::localize_output(&point[0].value, locale::NumberFormat::Comma),
+                "{comma_query:?} must answer what {point_query:?} answers"
+            );
+        }
+    }
+
+    #[test]
+    fn point_locale_is_unchanged() {
+        let res = evaluate_query("1234 * 1000", &test_ctx());
+        assert_eq!(res[0].value, "1,234,000");
     }
 
     #[test]

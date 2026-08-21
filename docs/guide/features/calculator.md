@@ -53,7 +53,8 @@ The calculator result row has no action panel (⌘K) entries — its single acti
 - **Rate units convert too** — `8 dollars/hour in gbp` converts per-unit rates, not just flat amounts.
 - **Date anchor** — use the word `today` in date math, for example `today + 45 days`.
 - **Base literals** — paste a hex color like `0xFF8C00` and see its decimal, binary, and octal values side by side.
-- **Currency refresh interval & preferred currency** — go to Settings → Extensions → Calculator to change how often rates refresh (1–24 hours, default 6) and which currency bare amounts convert to.
+- **Your decimal mark** — type `61,78 * 1,19` and it means what you wrote. Asyar follows your system's region setting, so a comma-decimal locale reads commas as decimals and gets its answers grouped the same way (`73,5182`, `1.234.567`).
+- **Currency refresh interval, preferred currency & number format** — go to Settings → Extensions → Calculator to change how often rates refresh (1–24 hours, default 6), which currency bare amounts convert to, and — if the detected region is not how you actually write numbers — the number format to read and render (Automatic, `1,234.56`, or `1.234,56`).
 
 ## Related
 

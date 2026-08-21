@@ -19,16 +19,17 @@ pub async fn calculator_evaluate(
     let preferred = state.preferred_currency.read().unwrap().clone();
     Ok(calculator::evaluate_query(
         &query,
-        &EvalContext::current(rates, rates_age, preferred),
+        &EvalContext::current(rates, rates_age, preferred, state.number_format()),
     ))
 }
 
-/// Applies the user's preferences: currency refresh interval (hours) and
-/// preferred currency for bare-amount queries.
+/// Applies the user's preferences: currency refresh interval (hours),
+/// preferred currency for bare-amount queries, and number notation.
 #[tauri::command]
 pub async fn calculator_configure(
     ttl_hours: Option<f64>,
     preferred_currency: Option<String>,
+    number_format: Option<String>,
     state: State<'_, CalculatorState>,
 ) -> Result<(), AppError> {
     if let Some(ttl) = ttl_hours {
@@ -39,6 +40,10 @@ pub async fn calculator_configure(
         if code.len() == 3 && code.chars().all(|c| c.is_ascii_alphabetic()) {
             *state.preferred_currency.write().unwrap() = code;
         }
+    }
+    if let Some(format) = number_format {
+        // Anything unrecognized — "auto" included — means follow the host locale.
+        *state.number_format.write().unwrap() = calculator::locale::from_preference(&format);
     }
     Ok(())
 }
@@ -55,6 +60,7 @@ pub async fn calculator_refresh_rates(
 
 #[cfg(test)]
 mod tests {
+    use crate::calculator::locale::NumberFormat;
     use crate::calculator::CalculatorState;
 
     #[test]
@@ -64,5 +70,23 @@ mod tests {
         assert_eq!(*state.ttl_hours.read().unwrap(), 24.0);
         *state.ttl_hours.write().unwrap() = 0.5_f64.clamp(1.0, 24.0);
         assert_eq!(*state.ttl_hours.read().unwrap(), 1.0);
+    }
+
+    #[test]
+    fn number_format_defaults_to_the_host_locale() {
+        let state = CalculatorState::default();
+        assert!(state.number_format.read().unwrap().is_none());
+        assert_eq!(
+            state.number_format(),
+            crate::calculator::locale::detect(),
+            "an unset preference must follow the host locale"
+        );
+    }
+
+    #[test]
+    fn number_format_override_wins_over_the_host_locale() {
+        let state = CalculatorState::default();
+        *state.number_format.write().unwrap() = Some(NumberFormat::Comma);
+        assert_eq!(state.number_format(), NumberFormat::Comma);
     }
 }

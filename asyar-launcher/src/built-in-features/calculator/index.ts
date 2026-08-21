@@ -38,12 +38,19 @@ class CalculatorExtension implements Extension {
     // its TTL policy, and the implicit-conversion target currency.
     const interval = context.preferences.values.refreshInterval;
     const preferred = context.preferences.values.preferredCurrency;
+    const numberFormat = context.preferences.values.numberFormat;
     const args: Record<string, unknown> = {};
     if (typeof interval === 'number' && Number.isFinite(interval)) {
       args.ttlHours = interval;
     }
     if (typeof preferred === 'string' && preferred.trim()) {
       args.preferredCurrency = preferred.trim();
+    }
+    // Always forwarded, including "auto": Rust reads anything it does not
+    // recognize as "follow the host locale", so switching back to
+    // Automatic has to reach it too.
+    if (typeof numberFormat === 'string' && numberFormat.trim()) {
+      args.numberFormat = numberFormat.trim();
     }
     if (Object.keys(args).length > 0) {
       await invokeSafe('calculator_configure', args, { silent: true });

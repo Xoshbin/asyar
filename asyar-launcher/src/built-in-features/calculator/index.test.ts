@@ -63,10 +63,23 @@ describe('calculator extension (thin presenter)', () => {
   });
 
   it('initialize pushes preferences to Rust', async () => {
-    await calculator.initialize(makeContext({ refreshInterval: 12, preferredCurrency: 'iqd' }));
+    await calculator.initialize(
+      makeContext({ refreshInterval: 12, preferredCurrency: 'iqd', numberFormat: 'comma' }),
+    );
     expect(invokeSafe).toHaveBeenCalledWith(
       'calculator_configure',
-      { ttlHours: 12, preferredCurrency: 'iqd' },
+      { ttlHours: 12, preferredCurrency: 'iqd', numberFormat: 'comma' },
+      { silent: true },
+    );
+  });
+
+  it('initialize forwards a return to the automatic number format', async () => {
+    // Rust reads "auto" as "follow the host locale", so switching back
+    // has to reach it — skipping it would strand the old override.
+    await calculator.initialize(makeContext({ numberFormat: 'auto' }));
+    expect(invokeSafe).toHaveBeenCalledWith(
+      'calculator_configure',
+      { numberFormat: 'auto' },
       { silent: true },
     );
   });
