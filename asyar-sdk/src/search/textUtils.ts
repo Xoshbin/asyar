@@ -9,9 +9,9 @@ export function stripHtml(html: string): string {
   while (clean !== prev) {
     prev = clean;
     clean = clean
-      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<[^<>]+>/g, ' ');
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style[^>]*>/gi, '')
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script[^>]*>/gi, '')
+      .replace(/<[^>]+>/g, ' ');
   }
   return clean
     .replace(/&nbsp;/gi, ' ')

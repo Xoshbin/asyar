@@ -377,9 +377,9 @@
     let prev = '';
     while (clean !== prev) {
       prev = clean;
-      clean = clean.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+      clean = clean.replace(/<script\b[^>]*>[\s\S]*?<\/script[^>]*>/gi, '');
       clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-      clean = clean.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+      clean = clean.replace(/<style\b[^>]*>[\s\S]*?<\/style[^>]*>/gi, '');
     }
     return clean;
   }

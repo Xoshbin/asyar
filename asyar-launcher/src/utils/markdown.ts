@@ -73,8 +73,8 @@ function sanitize(html: string): string {
   let clean = html;
   while (clean !== prev) {
     prev = clean;
-    // Strip <script> tags
-    clean = clean.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+    // Strip <script> tags (including whitespace in closing tag)
+    clean = clean.replace(/<script\b[^>]*>[\s\S]*?<\/script[^>]*>/gi, '');
     // Strip on* event handlers
     clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
   }
