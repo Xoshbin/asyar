@@ -16,6 +16,18 @@
       "default": 6
     },
     {
+      "name": "numberFormat",
+      "type": "dropdown",
+      "title": "Number format",
+      "description": "How you write decimals. \"Automatic\" follows your system's region setting.",
+      "default": "auto",
+      "data": [
+        { "value": "auto", "title": "Automatic (system region)" },
+        { "value": "point", "title": "1,234.56 — point decimal" },
+        { "value": "comma", "title": "1.234,56 — comma decimal" }
+      ]
+    },
+    {
       "name": "preferredCurrency",
       "type": "textfield",
       "title": "Preferred currency",
