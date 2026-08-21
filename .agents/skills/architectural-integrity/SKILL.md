@@ -237,7 +237,14 @@ Before adding any capability, action, IPC route, shortcut, event listener, or st
 - **The Fix & Guard**:
   - Host-level platform actions (settings, deeplinks, command lists) belong exclusively in `ActionService` as single sources of truth with standard shortcuts (`⌘ ⇧ ,`).
   - `ExtensionLoader` only handles manifest-declared extension actions (`cmd.actions`).
-  - Running a repository-wide search before adding the action would have immediately revealed the existing dynamic registration and triggered a clean consolidation rather than duplicate UI entries.
+
+### Shortcut & Action ID Collision Discipline
+
+When introducing or modifying keyboard shortcuts or action identifiers:
+
+1. **Conflict Verification**: Always verify that the proposed key combination (e.g. `Super+Shift+,`, `Super+Shift+E`, `Super+Backspace`) is not already bound in `actionService.svelte.ts` or consumed by `launcherKeyboard.ts`.
+2. **Platform Neutrality**: Use `Super` for macOS Command and `Ctrl` for Windows/Linux.
+3. **No Unrequested Companion Features ("Propose, Don't Presume")**: If you identify a high-value companion action, command, or shortcut while implementing a task, **mention and propose it to the user with its rationale first** rather than silently adding extra unrequested features.
 
 ### Never Let IPC Boundaries Leak Implementation Details
 
