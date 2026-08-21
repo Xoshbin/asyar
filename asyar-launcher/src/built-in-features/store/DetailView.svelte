@@ -20,6 +20,7 @@
   import { extensionUpdateService } from '../../services/extension/extensionUpdateService.svelte';
   import { commandService } from '../../services/extension/commandService.svelte';
   import PermissionList from '../../components/settings/PermissionList.svelte';
+  import { renderMarkdown, handleMarkdownCopyClick } from '../../utils/markdown';
   import type { ManifestCommand, ManifestPreference } from './state.svelte';
 
   // Define structure for detailed API response
@@ -35,6 +36,7 @@
     iconUrl: string | null;
     createdAt: string;
     updatedAt: string;
+    readme?: string | null;
     author: {
       name: string;
       githubUsername: string | null;
@@ -50,6 +52,7 @@
       runtimes?: string[];
       commands?: ManifestCommand[];
       preferences?: ManifestPreference[];
+      readme?: string;
     };
   }
 
@@ -57,6 +60,14 @@
   let isLoading = $state(true);
   let isInstalled = $state(false);
   let error = $state<string | null>(null);
+
+  let readmeHtml = $derived(
+    extensionDetail?.manifest?.readme
+      ? renderMarkdown(extensionDetail.manifest.readme)
+      : extensionDetail?.readme
+        ? renderMarkdown(extensionDetail.readme)
+        : null,
+  );
 
   let hasUpdate = $derived(
     extensionDetail?.id
@@ -483,6 +494,20 @@
                       {/if}
                     </div>
                   {/each}
+                </div>
+              </section>
+            {/if}
+
+            {#if readmeHtml}
+              <section>
+                <div class="flex items-center justify-between mb-4">
+                  <h3 class="text-section">Documentation & Guide</h3>
+                </div>
+                <div
+                  class="prose max-w-none text-body bg-[var(--bg-secondary)] rounded-2xl p-6 border border-[var(--separator)] overflow-x-auto markdown-body"
+                  onclick={handleMarkdownCopyClick}
+                >
+                  {@html readmeHtml}
                 </div>
               </section>
             {/if}
