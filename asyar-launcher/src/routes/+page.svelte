@@ -12,6 +12,7 @@
   import ToastHost from '../components/feedback/ToastHost.svelte';
   import DialogHost from '../components/feedback/DialogHost.svelte';
   import FatalErrorDialog from '../components/feedback/FatalErrorDialog.svelte';
+  import { isAnyModalOpen } from '../components/base/Modal.logic';
   import { createKeyboardHandlers } from '../lib/keyboard/launcherKeyboard';
   import { searchStores } from '../services/search/stores/search.svelte';
   import { searchService } from '../services/search/SearchService';
@@ -151,6 +152,7 @@
     // DOM blur, so without this its keydown listener keeps swallowing arrows
     // and Enter on the next launcher invocation.
     let unlistenResignKey: UnlistenFn | null = null;
+    let unlistenBecomeKey: UnlistenFn | null = null;
     listen('main_panel_did_resign_key', () => {
       if (isActionPanelOpen) {
         isActionPanelOpen = false;
@@ -162,11 +164,24 @@
       })
       .catch((e) => logService.debug(`[+page] listen resign-key failed: ${e}`));
 
+    // When the panel becomes key (e.g. after shortcut execution or window summon),
+    // restore and select search focus if no modal is open.
+    listen('main_panel_did_become_key', () => {
+      if (!isAnyModalOpen(document) && !isActionPanelOpen) {
+        keyboard.restoreSearchFocus({ select: true });
+      }
+    })
+      .then((fn) => {
+        unlistenBecomeKey = fn;
+      })
+      .catch((e) => logService.debug(`[+page] listen become-key failed: ${e}`));
+
     return () => {
       window.removeEventListener('keydown', keyboard.handleGlobalKeydown, true);
       document.removeEventListener('click', keyboard.maintainSearchFocus, true);
       window.removeEventListener('blur', handleBlur);
       unlistenResignKey?.();
+      unlistenBecomeKey?.();
     };
   });
 
@@ -229,7 +244,12 @@
   $effect(() => {
     void recordActiveDay();
     const promise = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-      if (focused) void recordActiveDay();
+      if (focused) {
+        void recordActiveDay();
+        if (!isAnyModalOpen(document) && !isActionPanelOpen) {
+          keyboard.restoreSearchFocus({ select: true });
+        }
+      }
     });
     return () => {
       void promise.then((unlisten) => unlisten()).catch(() => {});
@@ -566,7 +586,7 @@
 
 <WorkerIframes />
 
-<style global>
+<style>
   /*
    * Non-macOS: visible styled scrollbar.
    * macOS: NO ::-webkit-scrollbar rule at all — defining one (even
@@ -575,14 +595,14 @@
    * default keeps the real macOS overlay scrollbar that fades in
    * on scroll, controlled by System Settings → "Show scroll bars".
    */
-  html:not([data-platform='macos']) ::-webkit-scrollbar {
+  :global(html:not([data-platform='macos']) ::-webkit-scrollbar) {
     width: 8px;
     height: 8px;
   }
-  html:not([data-platform='macos']) ::-webkit-scrollbar-track {
+  :global(html:not([data-platform='macos']) ::-webkit-scrollbar-track) {
     background: transparent;
   }
-  html:not([data-platform='macos']) ::-webkit-scrollbar-thumb {
+  :global(html:not([data-platform='macos']) ::-webkit-scrollbar-thumb) {
     background-color: var(--scrollbar-thumb);
     border-radius: var(--radius-md);
   }

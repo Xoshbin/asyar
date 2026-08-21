@@ -30,11 +30,22 @@ vi.mock('./state.svelte', () => ({
   windowManagementState: {
     customLayouts: [],
     previousBounds: null,
+    selectedIndex: 0,
+    selectedLayout: null,
+    setStore: vi.fn(),
     loadFromStorage: vi.fn(),
     savePreviousBounds: vi.fn(),
     addCustomLayout: vi.fn(),
     deleteCustomLayout: vi.fn(),
+    renameCustomLayout: vi.fn(),
+    setIndex: vi.fn(),
+    moveSelection: vi.fn(),
   },
+}));
+vi.mock('./layoutLifecycle', () => ({
+  applyCustomLayout: vi.fn(),
+  syncLayoutToIndex: vi.fn(),
+  removeLayoutFromIndex: vi.fn(),
 }));
 vi.mock('./ManageView.svelte', () => ({ default: {} }));
 
@@ -81,11 +92,12 @@ describe('WindowManagementExtension', () => {
       vi.mocked(feedbackService.showHUD).mockResolvedValue();
     });
 
-    it('left-half saves previous bounds then calls applyPreset', async () => {
-      await extension.executeCommand('left-half');
+    it('left-half saves previous bounds then calls applyPreset and returns no-view', async () => {
+      const result = await extension.executeCommand('left-half');
       expect(windowManagementState.savePreviousBounds).toHaveBeenCalled();
       expect(windowManagementService.applyPreset).toHaveBeenCalledWith('left-half');
       expect(feedbackService.showHUD).toHaveBeenCalledWith('Left Half');
+      expect(result).toEqual({ type: 'no-view' });
     });
 
     it('reports error diagnostic when getWindowBounds throws', async () => {
@@ -93,7 +105,7 @@ describe('WindowManagementExtension', () => {
         new Error('Accessibility permission required'),
       );
       vi.mocked(feedbackService.report).mockResolvedValue();
-      await extension.executeCommand('left-half');
+      const result = await extension.executeCommand('left-half');
       expect(feedbackService.report).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: 'manual',
@@ -103,6 +115,32 @@ describe('WindowManagementExtension', () => {
           }),
         }),
       );
+      expect(result).toEqual({ type: 'no-view' });
+    });
+  });
+
+  describe('executeCommand — save-current-layout', () => {
+    beforeEach(async () => {
+      await extension.initialize(makeContext());
+      vi.mocked(windowManagementService.getWindowBounds).mockResolvedValue({
+        x: 100,
+        y: 100,
+        width: 1200,
+        height: 800,
+      });
+      vi.mocked(feedbackService.showHUD).mockResolvedValue();
+    });
+
+    it('captures window bounds, adds custom layout and returns no-view', async () => {
+      const result = await extension.executeCommand('save-current-layout');
+      expect(windowManagementService.getWindowBounds).toHaveBeenCalled();
+      expect(windowManagementState.addCustomLayout).toHaveBeenCalledWith(
+        '1200x800',
+        { x: 100, y: 100, width: 1200, height: 800 },
+        expect.anything(),
+      );
+      expect(feedbackService.showHUD).toHaveBeenCalledWith('Saved "1200x800"');
+      expect(result).toEqual({ type: 'no-view' });
     });
   });
 
@@ -111,7 +149,7 @@ describe('WindowManagementExtension', () => {
       await extension.initialize(makeContext());
     });
 
-    it('calls setWindowBounds with previousBounds when available', async () => {
+    it('calls setWindowBounds with previousBounds when available and returns no-view', async () => {
       const prev = { x: 100, y: 100, width: 800, height: 600 };
       Object.defineProperty(windowManagementState, 'previousBounds', {
         value: prev,
@@ -119,17 +157,18 @@ describe('WindowManagementExtension', () => {
       });
       vi.mocked(windowManagementService.setWindowBounds).mockResolvedValue();
       vi.mocked(feedbackService.showHUD).mockResolvedValue();
-      await extension.executeCommand('restore');
+      const result = await extension.executeCommand('restore');
       expect(windowManagementService.setWindowBounds).toHaveBeenCalledWith(prev);
+      expect(result).toEqual({ type: 'no-view' });
     });
 
-    it('reports error diagnostic when nothing to restore', async () => {
+    it('reports error diagnostic when nothing to restore and returns no-view', async () => {
       Object.defineProperty(windowManagementState, 'previousBounds', {
         value: null,
         configurable: true,
       });
       vi.mocked(feedbackService.report).mockResolvedValue();
-      await extension.executeCommand('restore');
+      const result = await extension.executeCommand('restore');
       expect(feedbackService.report).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: 'manual',
@@ -139,6 +178,7 @@ describe('WindowManagementExtension', () => {
           }),
         }),
       );
+      expect(result).toEqual({ type: 'no-view' });
     });
   });
 

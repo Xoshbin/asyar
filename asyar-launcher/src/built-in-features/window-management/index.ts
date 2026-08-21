@@ -4,6 +4,8 @@ import { feedbackService } from '../../services/feedback/feedbackService.svelte'
 import { actionService } from '../../services/action/actionService.svelte';
 import { windowManagementState } from './state.svelte';
 import { getPresetBounds, PRESET_IDS } from './presets';
+import { applyCustomLayout, syncLayoutToIndex, removeLayoutFromIndex } from './layoutLifecycle';
+import { isAnyModalOpen } from '../../components/base/Modal.logic';
 import ManageView from './ManageView.svelte';
 import {
   type Extension,
@@ -25,14 +27,19 @@ class WindowManagementExtension implements Extension {
     this.store = context.getService<IStorageService>('storage');
     this.extensionManager = context.getService<IExtensionManager>('extensions');
     if (this.store) {
+      windowManagementState.setStore(this.store);
       await windowManagementState.loadFromStorage(this.store);
+      for (const layout of windowManagementState.customLayouts) {
+        await syncLayoutToIndex(layout, this.store);
+      }
     }
     logService.info('[WindowManagement] Initialized');
   }
 
   async executeCommand(commandId: string, _args?: Record<string, any>): Promise<any> {
     if (commandId === 'restore') {
-      return this.restorePreviousBounds();
+      await this.restorePreviousBounds();
+      return { type: 'no-view' };
     }
 
     if (commandId === 'manage-layouts') {
@@ -40,11 +47,18 @@ class WindowManagementExtension implements Extension {
       return { type: 'view', viewPath: 'window-management/ManageView' };
     }
 
+    if (commandId === 'save-current-layout') {
+      await this.saveCurrentWindowLayout();
+      return { type: 'no-view' };
+    }
+
     if ((PRESET_IDS as readonly string[]).includes(commandId)) {
-      return this.applyPreset(commandId);
+      await this.applyPreset(commandId);
+      return { type: 'no-view' };
     }
 
     logService.warn(`[WindowManagement] Unknown command: ${commandId}`);
+    return { type: 'no-view' };
   }
 
   private async applyPreset(presetId: string): Promise<void> {
@@ -107,44 +121,53 @@ class WindowManagementExtension implements Extension {
     const matched = customLayouts.filter((l) => l.name.toLowerCase().includes(q));
 
     return matched.map((layout) => ({
+      id: `cmd_window-management_layout_${layout.id}`,
       title: layout.name,
       subtitle: `${Math.round(layout.bounds.width)}x${Math.round(layout.bounds.height)} at (${Math.round(layout.bounds.x)}, ${Math.round(layout.bounds.y)})`,
       score: 0.7,
       type: 'result' as const,
       icon: 'icon:store',
-      action: () => this.applyCustomLayout(layout),
+      action: async () => {
+        await applyCustomLayout(layout, this.store);
+      },
     }));
   }
 
-  private async applyCustomLayout(layout: import('./state.svelte').CustomLayout): Promise<void> {
-    try {
-      const current = await windowManagementService.getWindowBounds();
-      if (this.store) {
-        await windowManagementState.savePreviousBounds(current, this.store);
-      }
-      await windowManagementService.setWindowBounds(layout.bounds);
-      await feedbackService.showHUD(layout.name);
-    } catch (err: any) {
-      await feedbackService.report({
-        source: 'frontend',
-        kind: 'manual',
-        severity: 'error',
-        retryable: false,
-        context: { message: `Could not apply layout${err.message ? ' — ' + err.message : ''}` },
-      });
-    }
-  }
+  private handleKeydownBound = (event: KeyboardEvent) => this.handleKeydown(event);
 
   async viewActivated(viewPath: string): Promise<void> {
     this.inView = true;
+    window.addEventListener('keydown', this.handleKeydownBound);
     this.registerManageActions();
+    this.extensionManager?.setActiveViewActionLabel('Apply');
     logService.debug(`[WindowManagement] View activated: ${viewPath}`);
   }
 
   async viewDeactivated(viewPath: string): Promise<void> {
     this.inView = false;
+    window.removeEventListener('keydown', this.handleKeydownBound);
     this.unregisterManageActions();
     logService.debug(`[WindowManagement] View deactivated: ${viewPath}`);
+  }
+
+  private handleKeydown(event: KeyboardEvent): void {
+    if (!this.inView) return;
+    if (isAnyModalOpen(document)) return;
+    const layouts = windowManagementState.customLayouts;
+    if (!layouts.length) return;
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      event.stopPropagation();
+      windowManagementState.moveSelection(event.key === 'ArrowUp' ? 'up' : 'down');
+    } else if (event.key === 'Enter') {
+      const selected = windowManagementState.selectedLayout;
+      if (selected) {
+        event.preventDefault();
+        event.stopPropagation();
+        void applyCustomLayout(selected, this.store);
+      }
+    }
   }
 
   private registerManageActions(): void {
@@ -170,6 +193,13 @@ class WindowManagementExtension implements Extension {
       const bounds = await windowManagementService.getWindowBounds();
       const name = `${Math.round(bounds.width)}x${Math.round(bounds.height)}`;
       await windowManagementState.addCustomLayout(name, bounds, this.store);
+      const created =
+        windowManagementState.customLayouts.find(
+          (l) => l.name === name && l.bounds.x === bounds.x && l.bounds.y === bounds.y,
+        ) ?? windowManagementState.customLayouts[windowManagementState.customLayouts.length - 1];
+      if (created) {
+        await syncLayoutToIndex(created, this.store);
+      }
       await feedbackService.showHUD(`Saved "${name}"`);
     } catch (err: any) {
       await feedbackService.report({
