@@ -27,6 +27,8 @@ const mockShowWindow = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const mockSearchStores = vi.hoisted(() => ({ query: '' }));
 const mockPortalGetById = vi.hoisted(() => vi.fn());
 
+const mockGetProviderForCommand = vi.hoisted(() => vi.fn());
+
 vi.mock('./shortcutStore.svelte', () => ({
   shortcutStore: {
     getAll: mockStoreGetAll,
@@ -61,6 +63,7 @@ vi.mock('../../services/context/contextModeService.svelte', () => ({
   contextModeService: {
     isActive: mockContextIsActive,
     deactivate: mockContextDeactivate,
+    getProviderForCommand: mockGetProviderForCommand,
   },
 }));
 
@@ -389,20 +392,54 @@ describe('handleFiredShortcut', () => {
     expect(mockSearchStores.query).toBe('');
   });
 
-  it('activates portal mode instead of executing for portal commands', async () => {
+  it('activates portal mode and shows window when portal requires user query', async () => {
+    mockPortalGetById.mockReturnValue({
+      id: 'google',
+      name: 'Google',
+      url: 'https://google.com/search?q={query}',
+    });
+    mockGetProviderForCommand.mockReturnValue({
+      id: 'portal_google',
+      needsQuery: true,
+    });
     mockStoreGetByObjectId.mockReturnValue(
       makeShortcut({ objectId: 'cmd_portals_google', itemType: 'command' }),
     );
     await shortcutService.handleFiredShortcut('cmd_portals_google');
     expect(mockShowWindow).toHaveBeenCalled();
-    // Must be the context PROVIDER id ('portal_' prefix) — providers are
-    // registered as `portal_<portalId>`, and contextModeService.activate()
-    // silently no-ops on an unknown id, so the raw portal id showed no chip.
     expect(mockContextSet).toHaveBeenCalledWith('portal_google');
     expect(mockExecuteCommand).not.toHaveBeenCalled();
   });
 
-  it('pre-clears the navigation stack for portal commands', async () => {
+  it('executes directly without showing window when portal does not require query', async () => {
+    mockPortalGetById.mockReturnValue({
+      id: 'whatsapp',
+      name: 'WhatsApp',
+      url: 'https://web.whatsapp.com',
+    });
+    mockGetProviderForCommand.mockReturnValue({
+      id: 'portal_whatsapp',
+      needsQuery: false,
+    });
+    mockStoreGetByObjectId.mockReturnValue(
+      makeShortcut({ objectId: 'cmd_portals_whatsapp', itemType: 'command' }),
+    );
+    await shortcutService.handleFiredShortcut('cmd_portals_whatsapp');
+    expect(mockExecuteCommand).toHaveBeenCalledWith('cmd_portals_whatsapp');
+    expect(mockShowWindow).not.toHaveBeenCalled();
+    expect(mockContextSet).not.toHaveBeenCalled();
+  });
+
+  it('pre-clears the navigation stack for query portal commands', async () => {
+    mockPortalGetById.mockReturnValue({
+      id: 'google',
+      name: 'Google',
+      url: 'https://google.com/search?q={query}',
+    });
+    mockGetProviderForCommand.mockReturnValue({
+      id: 'portal_google',
+      needsQuery: true,
+    });
     mockViewManagerGetStackSize
       .mockReturnValueOnce(2)
       .mockReturnValueOnce(1)
