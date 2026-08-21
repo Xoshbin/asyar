@@ -12,6 +12,7 @@ import { viewManager } from '../../services/extension/viewManager.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { portalStore } from '../portals/portalStore.svelte';
 import { logService } from '../../services/log/logService';
+import { commandService } from '../../services/extension/commandService.svelte';
 import { showWindow, registerItemShortcut, unregisterItemShortcut } from '../../lib/ipc/commands';
 
 class ShortcutService {
@@ -158,7 +159,18 @@ class ShortcutService {
           await this.unregister(shortcutInfo.objectId);
           return;
         }
-        // Portals activate a chip mode instead of navigating, so there's no
+
+        const provider = contextModeService.getProviderForCommand(shortcutInfo.objectId);
+        if (provider && provider.needsQuery === false) {
+          try {
+            await commandService.executeCommand(shortcutInfo.objectId);
+          } catch (e) {
+            logService.error(`Failed to execute portal shortcut: ${e}`);
+          }
+          return;
+        }
+
+        // Portals with query tokens activate a chip mode instead of navigating, so there's no
         // navigateToView for replacement semantics to piggyback on — drain
         // the stack explicitly before seeding the chip.
         while (viewManager.getNavigationStackSize() > 0) {
