@@ -69,10 +69,15 @@ renderer.code = function (token) {
 // ── Sanitisation ────────────────────────────────────────────────────────
 
 function sanitize(html: string): string {
-  // Strip <script> tags
-  let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  // Strip on* event handlers
-  clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  let prev = '';
+  let clean = html;
+  while (clean !== prev) {
+    prev = clean;
+    // Strip <script> tags
+    clean = clean.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+    // Strip on* event handlers
+    clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  }
   return clean;
 }
 

@@ -63,11 +63,18 @@ export async function login(): Promise<{
         return;
       }
 
+      const safeUsername = username
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(`
         <html><body style="font-family:system-ui;padding:40px;text-align:center">
           <h2>✓ Connected to Asyar Store</h2>
-          <p>Logged in as <strong>${username}</strong>.</p>
+          <p>Logged in as <strong>${safeUsername}</strong>.</p>
           <p>You can close this tab and return to your terminal.</p>
         </body></html>
       `);

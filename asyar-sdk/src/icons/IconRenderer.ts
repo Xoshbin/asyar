@@ -13,9 +13,15 @@ export function renderIcon(name: string, options?: IconOptions): string {
     return '';
   }
 
-  const size = options?.size ?? 20;
-  const strokeWidth = options?.strokeWidth ?? 1.5;
-  const className = options?.class ? ` class="${options.class}"` : '';
+  const size =
+    typeof options?.size === 'number' && Number.isFinite(options.size) ? options.size : 20;
+  const strokeWidth =
+    typeof options?.strokeWidth === 'number' && Number.isFinite(options.strokeWidth)
+      ? options.strokeWidth
+      : 1.5;
+  const rawClass =
+    typeof options?.class === 'string' ? options.class.replace(/[^a-zA-Z0-9_\-\s]/g, '') : '';
+  const className = rawClass ? ` class="${rawClass}"` : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"${className}>${iconData.trim()}</svg>`;
 }

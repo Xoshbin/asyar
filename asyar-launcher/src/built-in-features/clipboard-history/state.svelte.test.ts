@@ -352,10 +352,13 @@ describe('deleteItem', () => {
 describe('HTML sanitization helpers', () => {
   // Pure helper functions replicated from DefaultView.svelte for testing
   function sanitizeHtml(html: string): string {
-    // Strip <script> tags and their content
-    let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    // Strip on* event handler attributes
-    clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+    let clean = html;
+    let prev = '';
+    while (clean !== prev) {
+      prev = clean;
+      clean = clean.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+      clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+    }
     return clean;
   }
 

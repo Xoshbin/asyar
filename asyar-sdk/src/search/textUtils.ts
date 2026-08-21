@@ -4,15 +4,23 @@
  */
 export function stripHtml(html: string): string {
   if (!html) return '';
-  return html
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
+  let prev = '';
+  let clean = html;
+  while (clean !== prev) {
+    prev = clean;
+    clean = clean
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<[^<>]+>/g, ' ');
+  }
+  return clean
     .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&amp;/gi, '&')
     .replace(/&#\d+;/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();

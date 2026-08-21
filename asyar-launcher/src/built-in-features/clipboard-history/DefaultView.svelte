@@ -374,10 +374,13 @@
   function sanitizeHtml(html: string): string {
     // Cap rendered HTML to prevent DOM overload
     let clean = html.length > MAX_PREVIEW_CHARS ? html.substring(0, MAX_PREVIEW_CHARS) : html;
-    clean = clean.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-    // Strip <style> tags to prevent theme conflicts
-    clean = clean.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+    let prev = '';
+    while (clean !== prev) {
+      prev = clean;
+      clean = clean.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+      clean = clean.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+      clean = clean.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+    }
     return clean;
   }
 
