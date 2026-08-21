@@ -151,6 +151,7 @@
     // DOM blur, so without this its keydown listener keeps swallowing arrows
     // and Enter on the next launcher invocation.
     let unlistenResignKey: UnlistenFn | null = null;
+    let unlistenBecomeKey: UnlistenFn | null = null;
     listen('main_panel_did_resign_key', () => {
       if (isActionPanelOpen) {
         isActionPanelOpen = false;
@@ -162,11 +163,24 @@
       })
       .catch((e) => logService.debug(`[+page] listen resign-key failed: ${e}`));
 
+    // When the panel becomes key (e.g. after shortcut execution or window summon),
+    // restore and select search focus if no modal is open.
+    listen('main_panel_did_become_key', () => {
+      if (!isAnyModalOpen(document) && !isActionPanelOpen) {
+        keyboard.restoreSearchFocus({ select: true });
+      }
+    })
+      .then((fn) => {
+        unlistenBecomeKey = fn;
+      })
+      .catch((e) => logService.debug(`[+page] listen become-key failed: ${e}`));
+
     return () => {
       window.removeEventListener('keydown', keyboard.handleGlobalKeydown, true);
       document.removeEventListener('click', keyboard.maintainSearchFocus, true);
       window.removeEventListener('blur', handleBlur);
       unlistenResignKey?.();
+      unlistenBecomeKey?.();
     };
   });
 
@@ -229,7 +243,12 @@
   $effect(() => {
     void recordActiveDay();
     const promise = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-      if (focused) void recordActiveDay();
+      if (focused) {
+        void recordActiveDay();
+        if (!isAnyModalOpen(document) && !isActionPanelOpen) {
+          keyboard.restoreSearchFocus({ select: true });
+        }
+      }
     });
     return () => {
       void promise.then((unlisten) => unlisten()).catch(() => {});

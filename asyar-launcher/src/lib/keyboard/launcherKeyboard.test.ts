@@ -1709,4 +1709,45 @@ describe('launcherKeyboard characterization tests', () => {
       expect(contextModeService.activate).not.toHaveBeenCalled();
     });
   });
+
+  describe('restoreSearchFocus', () => {
+    it('focuses and selects input when select option is true', async () => {
+      const input = {
+        focus: vi.fn(),
+        select: vi.fn(),
+        value: 'hello',
+      } as unknown as HTMLInputElement;
+      const deps = createMockDeps({
+        getSearchInput: () => input,
+      });
+      const { restoreSearchFocus } = createKeyboardHandlers(deps);
+
+      restoreSearchFocus({ select: true });
+
+      // requestAnimationFrame fires on next tick
+      await new Promise((r) => requestAnimationFrame(r));
+
+      expect(input.focus).toHaveBeenCalledWith({ preventScroll: true });
+      expect(input.select).toHaveBeenCalled();
+    });
+
+    it('focuses without select when input value is empty', async () => {
+      const input = {
+        focus: vi.fn(),
+        select: vi.fn(),
+        value: '',
+      } as unknown as HTMLInputElement;
+      const deps = createMockDeps({
+        getSearchInput: () => input,
+      });
+      const { restoreSearchFocus } = createKeyboardHandlers(deps);
+
+      restoreSearchFocus({ select: true });
+
+      await new Promise((r) => requestAnimationFrame(r));
+
+      expect(input.focus).toHaveBeenCalledWith({ preventScroll: true });
+      expect(input.select).not.toHaveBeenCalled();
+    });
+  });
 });
