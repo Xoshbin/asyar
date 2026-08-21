@@ -47,6 +47,16 @@ export class WindowManagementState {
     await store.set(STORAGE_KEY_LAYOUTS, JSON.stringify(this.customLayouts));
   }
 
+  async renameCustomLayout(id: string, newName: string, store: IStorageService): Promise<void> {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    const existing = this.customLayouts.find((l) => l.id === id);
+    if (!existing || existing.name === trimmed) return;
+
+    this.customLayouts = this.customLayouts.map((l) => (l.id === id ? { ...l, name: trimmed } : l));
+    await store.set(STORAGE_KEY_LAYOUTS, JSON.stringify(this.customLayouts));
+  }
+
   async savePreviousBounds(bounds: WindowBounds, store: IStorageService): Promise<void> {
     this.previousBounds = bounds;
     await store.set(STORAGE_KEY_PREV_BOUNDS, JSON.stringify(bounds));

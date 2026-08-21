@@ -152,6 +152,14 @@
       "icon": "icon:settings",
       "mode": "view",
       "component": "ManageView"
+    },
+    {
+      "id": "save-current-layout",
+      "name": "Save Current Window as Layout",
+      "description": "Save the frontmost window position and size as a custom layout",
+      "trigger": "save window layout position custom",
+      "icon": "icon:plus",
+      "mode": "background"
     }
   ],
   "background": {

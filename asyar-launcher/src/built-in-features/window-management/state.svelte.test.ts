@@ -111,6 +111,42 @@ describe('WindowManagementState', () => {
     });
   });
 
+  describe('renameCustomLayout', () => {
+    it('renames layout by id and persists to storage', async () => {
+      const layouts = [
+        { id: 'abc', name: 'Old Name', bounds: { x: 0, y: 0, width: 800, height: 600 } },
+        { id: 'def', name: 'Layout B', bounds: { x: 0, y: 0, width: 1200, height: 800 } },
+      ];
+      storeMock = makeStoreMock({ custom_layouts: JSON.stringify(layouts) });
+      await state.loadFromStorage(storeMock);
+      await state.renameCustomLayout('abc', 'New Name', storeMock);
+      expect(state.customLayouts).toHaveLength(2);
+      expect(state.customLayouts[0].name).toBe('New Name');
+      expect(state.customLayouts[1].name).toBe('Layout B');
+      expect(storeMock.set).toHaveBeenCalledWith(
+        'custom_layouts',
+        JSON.stringify(state.customLayouts),
+      );
+    });
+
+    it('is a no-op when name is empty or unchanged', async () => {
+      const layouts = [
+        { id: 'abc', name: 'Old Name', bounds: { x: 0, y: 0, width: 800, height: 600 } },
+      ];
+      storeMock = makeStoreMock({ custom_layouts: JSON.stringify(layouts) });
+      await state.loadFromStorage(storeMock);
+      await state.renameCustomLayout('abc', '   ', storeMock);
+      expect(state.customLayouts[0].name).toBe('Old Name');
+      expect(storeMock.set).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op for unknown id', async () => {
+      await state.loadFromStorage(storeMock);
+      await state.renameCustomLayout('nonexistent', 'Name', storeMock);
+      expect(state.customLayouts).toEqual([]);
+    });
+  });
+
   describe('savePreviousBounds', () => {
     it('stores bounds in state and persists to storage', async () => {
       const bounds: WindowBounds = { x: 50, y: 50, width: 1440, height: 900 };
