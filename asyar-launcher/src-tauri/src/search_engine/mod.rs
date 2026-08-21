@@ -378,7 +378,123 @@ impl SearchState {
         let limit = 20;
         let mut results: Vec<SearchResult> = Vec::new();
 
-        if trimmed.is_empty() {
+        if trimmed.starts_with('@') {
+            let raw_scope = trimmed[1..].trim_start();
+            let (scope_token, subquery) = match raw_scope.split_once(' ') {
+                Some((scope, sub)) => (scope.trim().to_lowercase(), sub.trim()),
+                None => (raw_scope.trim().to_lowercase(), ""),
+            };
+
+            let matching_items: Vec<&SearchableItem> = guard
+                .iter()
+                .filter(|item| match item {
+                    SearchableItem::Command(cmd) => {
+                        if scope_token.is_empty() {
+                            true
+                        } else {
+                            let ext_lower = cmd.extension.to_lowercase();
+                            let last_part =
+                                cmd.extension.split('.').last().unwrap_or("").to_lowercase();
+                            let type_label_match = cmd
+                                .type_label
+                                .as_ref()
+                                .map(|l| l.to_lowercase().contains(&scope_token))
+                                .unwrap_or(false);
+                            ext_lower.contains(&scope_token)
+                                || last_part.contains(&scope_token)
+                                || type_label_match
+                        }
+                    }
+                    SearchableItem::Application(_) => false,
+                })
+                .collect();
+
+            if subquery.is_empty() {
+                let mut sorted: Vec<&SearchableItem> = matching_items;
+                sorted.sort_unstable_by(|a, b| {
+                    let score_a = frecency_score(a.usage_count(), a.last_used_at());
+                    let score_b = frecency_score(b.usage_count(), b.last_used_at());
+                    score_b
+                        .partial_cmp(&score_a)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                        .then_with(|| a.get_name().cmp(b.get_name()))
+                });
+
+                for item in sorted.into_iter().take(limit) {
+                    results.push(SearchResult {
+                        object_id: item.id().to_string(),
+                        name: item.get_name().to_string(),
+                        result_type: item.get_type_str().to_string(),
+                        score: frecency_score(item.usage_count(), item.last_used_at()),
+                        path: None,
+                        icon: match item {
+                            SearchableItem::Application(app) => app.icon.clone(),
+                            SearchableItem::Command(cmd) => cmd.icon.clone(),
+                        },
+                        extension_id: match item {
+                            SearchableItem::Application(_) => None,
+                            SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
+                        },
+                        description: description_for(item),
+                        type_label: type_label_for(item),
+                        has_arguments: has_arguments_for(item),
+                        style: None,
+                        alias: None,
+                        tier: ranker::Tier::ExactTitle as u8,
+                    });
+                }
+            } else {
+                let matcher = SkimMatcherV2::default();
+                let mut scored: Vec<(i64, f32, &SearchableItem)> = matching_items
+                    .iter()
+                    .filter_map(|item| {
+                        item.search_names()
+                            .iter()
+                            .filter_map(|name| matcher.fuzzy_match(name, subquery))
+                            .max()
+                            .map(|score| {
+                                (
+                                    score,
+                                    frecency_score(item.usage_count(), item.last_used_at()),
+                                    *item,
+                                )
+                            })
+                    })
+                    .collect();
+
+                scored.sort_unstable_by(|a, b| {
+                    b.0.cmp(&a.0)
+                        .then_with(|| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal))
+                });
+
+                let mut seen = HashSet::new();
+                for (score, _, item) in scored.into_iter().take(limit) {
+                    if seen.insert(item.id().to_string()) {
+                        results.push(SearchResult {
+                            object_id: item.id().to_string(),
+                            name: item.get_name().to_string(),
+                            result_type: item.get_type_str().to_string(),
+                            score: score as f32,
+                            path: None,
+                            icon: match item {
+                                SearchableItem::Application(app) => app.icon.clone(),
+                                SearchableItem::Command(cmd) => cmd.icon.clone(),
+                            },
+                            extension_id: match item {
+                                SearchableItem::Application(_) => None,
+                                SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
+                            },
+                            description: description_for(item),
+                            type_label: type_label_for(item),
+                            has_arguments: has_arguments_for(item),
+                            style: None,
+                            alias: None,
+                            tier: ranker::Tier::ExactTitle as u8,
+                        });
+                    }
+                }
+            }
+        } else if trimmed.is_empty() {
             let mut sorted: Vec<&SearchableItem> = guard.iter().collect();
             sorted.sort_unstable_by(|a, b| {
                 let score_a = frecency_score(a.usage_count(), a.last_used_at());
@@ -730,6 +846,59 @@ impl SearchState {
             ordered.retain(|r| seen.insert(r.object_id.clone()));
             ordered.truncate(limit);
             return Ok(ordered);
+        }
+
+        // Scoped-query short-circuit (@extension): pure extension command filter
+        if query.trim().starts_with('@') {
+            let raw = self.search(query)?;
+            let raw_scope = query.trim()[1..].trim_start();
+            let scope_token = raw_scope
+                .split_once(' ')
+                .map(|(s, _)| s.trim().to_lowercase())
+                .unwrap_or_else(|| raw_scope.trim().to_lowercase());
+
+            let mut combined: Vec<models::SearchResult> = raw;
+            for ext in external_results {
+                let matches_scope = if scope_token.is_empty() {
+                    true
+                } else {
+                    ext.extension_id
+                        .as_deref()
+                        .map(|id| {
+                            id.to_lowercase().contains(&scope_token)
+                                || id
+                                    .split('.')
+                                    .last()
+                                    .unwrap_or("")
+                                    .to_lowercase()
+                                    .contains(&scope_token)
+                        })
+                        .unwrap_or(false)
+                };
+
+                if matches_scope {
+                    combined.push(models::SearchResult {
+                        object_id: ext.object_id,
+                        name: ext.name,
+                        result_type: ext.result_type,
+                        score: ext.score,
+                        path: None,
+                        icon: ext.icon,
+                        extension_id: ext.extension_id,
+                        description: ext.description,
+                        type_label: None,
+                        has_arguments: false,
+                        style: ext.style,
+                        alias: None,
+                        tier: ranker::Tier::ExactTitle as u8,
+                    });
+                }
+            }
+            combined.retain(|r| !is_disabled_app(r));
+            let mut seen = std::collections::HashSet::new();
+            combined.retain(|r| seen.insert(r.object_id.clone()));
+            combined.truncate(limit);
+            return Ok(combined);
         }
 
         // Gather indexed results via skim pre-filter.
@@ -2327,5 +2496,80 @@ mod service_tests {
             SearchableItem::Command(c) => assert_eq!(c.subtitle.as_deref(), Some("subtitle text")),
             _ => panic!("expected Command"),
         }
+    }
+
+    #[test]
+    fn test_scoped_search_lists_all_commands_on_at() {
+        let state = make_state();
+        state.index_one(app("app_safari", "Safari", 5)).unwrap();
+        state
+            .index_one(SearchableItem::Command(Command {
+                id: "cmd_coffee_caffeinate".to_string(),
+                name: "Caffeinate".to_string(),
+                extension: "org.asyar.coffee".to_string(),
+                trigger: "caffeinate".to_string(),
+                command_type: "command".to_string(),
+                usage_count: 2,
+                icon: None,
+                last_used_at: None,
+                subtitle: None,
+                type_label: Some("Coffee".to_string()),
+                has_arguments: false,
+                is_dynamic: false,
+            }))
+            .unwrap();
+
+        let results = state.search("@").unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "Caffeinate");
+        assert_eq!(results[0].result_type, "command");
+    }
+
+    #[test]
+    fn test_scoped_search_filters_by_extension_name_or_id() {
+        let state = make_state();
+        state
+            .index_one(SearchableItem::Command(Command {
+                id: "cmd_coffee_caffeinate".to_string(),
+                name: "Caffeinate".to_string(),
+                extension: "org.asyar.coffee".to_string(),
+                trigger: "caffeinate".to_string(),
+                command_type: "command".to_string(),
+                usage_count: 2,
+                icon: None,
+                last_used_at: None,
+                subtitle: None,
+                type_label: Some("Coffee".to_string()),
+                has_arguments: false,
+                is_dynamic: false,
+            }))
+            .unwrap();
+        state
+            .index_one(SearchableItem::Command(Command {
+                id: "cmd_notes_new".to_string(),
+                name: "New Note".to_string(),
+                extension: "org.asyar.notes".to_string(),
+                trigger: "new".to_string(),
+                command_type: "command".to_string(),
+                usage_count: 1,
+                icon: None,
+                last_used_at: None,
+                subtitle: None,
+                type_label: Some("Notes".to_string()),
+                has_arguments: false,
+                is_dynamic: false,
+            }))
+            .unwrap();
+
+        let results = state.search("@coffee").unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "Caffeinate");
+
+        let sub_results = state.search("@coffee caff").unwrap();
+        assert_eq!(sub_results.len(), 1);
+        assert_eq!(sub_results[0].name, "Caffeinate");
+
+        let mismatch = state.search("@coffee notes").unwrap();
+        assert_eq!(mismatch.len(), 0);
     }
 }
