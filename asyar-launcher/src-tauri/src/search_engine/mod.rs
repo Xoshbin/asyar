@@ -378,8 +378,8 @@ impl SearchState {
         let limit = 20;
         let mut results: Vec<SearchResult> = Vec::new();
 
-        if trimmed.starts_with('@') {
-            let raw_scope = trimmed[1..].trim_start();
+        if let Some(stripped) = trimmed.strip_prefix('@') {
+            let raw_scope = stripped.trim_start();
             let (scope_token, subquery) = match raw_scope.split_once(' ') {
                 Some((scope, sub)) => (scope.trim().to_lowercase(), sub.trim()),
                 None => (raw_scope.trim().to_lowercase(), ""),
@@ -393,8 +393,12 @@ impl SearchState {
                             true
                         } else {
                             let ext_lower = cmd.extension.to_lowercase();
-                            let last_part =
-                                cmd.extension.split('.').last().unwrap_or("").to_lowercase();
+                            let last_part = cmd
+                                .extension
+                                .split('.')
+                                .next_back()
+                                .unwrap_or("")
+                                .to_lowercase();
                             let type_label_match = cmd
                                 .type_label
                                 .as_ref()
@@ -849,9 +853,9 @@ impl SearchState {
         }
 
         // Scoped-query short-circuit (@extension): pure extension command filter
-        if query.trim().starts_with('@') {
+        if let Some(stripped) = query.trim().strip_prefix('@') {
             let raw = self.search(query)?;
-            let raw_scope = query.trim()[1..].trim_start();
+            let raw_scope = stripped.trim_start();
             let scope_token = raw_scope
                 .split_once(' ')
                 .map(|(s, _)| s.trim().to_lowercase())
@@ -868,7 +872,7 @@ impl SearchState {
                             id.to_lowercase().contains(&scope_token)
                                 || id
                                     .split('.')
-                                    .last()
+                                    .next_back()
                                     .unwrap_or("")
                                     .to_lowercase()
                                     .contains(&scope_token)
