@@ -17,20 +17,19 @@ The following rules are mandatory across all agent sessions, subagents, and task
 
 Before concluding any implementation, bug fix, or refactor, **ALWAYS** run the full local CI verification matrix:
 
-1. **Workspace Prettier Check**:
-   `pnpm format:check` (in repo root)
-2. **Design System Compliance**:
-   `pnpm check:design` (in repo root)
-3. **Full Frontend & Workspace Tests**:
-   `pnpm -r --if-present test:run` (in repo root)
-4. **Rust Formatting (if Rust files touched)**:
-   `cargo fmt --check` (in `asyar-launcher/src-tauri`)
-5. **Clippy with `-D warnings` (if Rust files touched)**:
-   `cargo clippy --all-targets -- -D warnings` (in `asyar-launcher/src-tauri`)
-6. **Rust Test Suite (if Rust files touched)**:
-   `cargo test` (in `asyar-launcher/src-tauri`)
-7. **Type & Bindings Check (if bindings/types touched)**:
-   `cargo test export_bindings -- --ignored` and check `git diff --exit-code -- asyar-launcher/src/bindings.ts`
+```bash
+pnpm check:ci
+```
+
+Or manually run the steps:
+
+1. **Workspace Prettier Check**: `pnpm format:check` (in repo root)
+2. **Design System Compliance**: `pnpm check:design` (in repo root)
+3. **Full Frontend & Workspace Tests**: `pnpm -r --if-present test:run` (in repo root)
+4. **Rust Formatting (if Rust touched)**: `cargo fmt --check` (in `asyar-launcher/src-tauri`)
+5. **Clippy with `-D warnings` (if Rust touched)**: `cargo clippy --all-targets -- -D warnings` (in `asyar-launcher/src-tauri`)
+6. **Rust Test Suite (if Rust touched)**: `cargo test` (in `asyar-launcher/src-tauri`)
+7. **Type & Bindings Check (if bindings/types touched)**: `cargo test export_bindings -- --ignored` and check `git diff --exit-code -- asyar-launcher/src/bindings.ts`
 
 ## 4. Formatting Enforcement
 
@@ -39,7 +38,19 @@ Before concluding any implementation, bug fix, or refactor, **ALWAYS** run the f
   - JS/TS/Svelte/JSON/MD: `pnpm exec prettier --write <file>` or `pnpm format`
   - Rust: `rustfmt <file>` or `cd asyar-launcher/src-tauri && cargo fmt`
 
-## 5. Skills & Architecture Discipline
+## 5. Architectural Invariants
 
-- Consult `.agents/skills/*/SKILL.md` before making architectural, IPC, service, Tauri, Svelte 5, or TDD changes.
-- Consult `.agents/memories/MEMORY.md` at session start for active project context, constraints, and feedback.
+- **Rust-First**: Rust is the brain, frontend is the presenter. Move filtering, ranking, scoring, fuzzy search, parsing, caching, and state logic to Rust.
+- **No Singletons**: Never introduce `getInstance()` or static singleton state; use `ServiceRegistry`.
+- **Never Hand-Edit Generated Files**: Always edit source definitions and run generators (`src/bindings.ts`, `kinds.ts`, `gatedPermissions.ts`, `knownRuntimes.ts`).
+
+## 6. Tech Stack Standards
+
+- **Svelte 5 Runes Only**: Always use runes (`$state`, `$derived`, `$props`, `$bindable`, `$effect`). Svelte 4 syntax (`export let`, `$:`) is strictly forbidden.
+- **Tauri 2 APIs**: Use modular `@tauri-apps/api/*` and Tauri 2 plugins.
+
+## 7. Rules, Skills & Memories Structure
+
+- Modular rules: `.agents/rules/*.md`
+- On-demand procedural skills: `.agents/skills/*/SKILL.md`
+- Project memory index: `.agents/memories/MEMORY.md`
