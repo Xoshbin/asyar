@@ -5,6 +5,7 @@ import { actionService } from '../../services/action/actionService.svelte';
 import { windowManagementState } from './state.svelte';
 import { getPresetBounds, PRESET_IDS } from './presets';
 import { applyCustomLayout, syncLayoutToIndex, removeLayoutFromIndex } from './layoutLifecycle';
+import { isAnyModalOpen } from '../../components/base/Modal.logic';
 import ManageView from './ManageView.svelte';
 import {
   type Extension,
@@ -26,6 +27,7 @@ class WindowManagementExtension implements Extension {
     this.store = context.getService<IStorageService>('storage');
     this.extensionManager = context.getService<IExtensionManager>('extensions');
     if (this.store) {
+      windowManagementState.setStore(this.store);
       await windowManagementState.loadFromStorage(this.store);
       for (const layout of windowManagementState.customLayouts) {
         await syncLayoutToIndex(layout, this.store);
@@ -132,16 +134,41 @@ class WindowManagementExtension implements Extension {
     }));
   }
 
+  private handleKeydownBound = (event: KeyboardEvent) => this.handleKeydown(event);
+
   async viewActivated(viewPath: string): Promise<void> {
     this.inView = true;
+    window.addEventListener('keydown', this.handleKeydownBound);
     this.registerManageActions();
+    this.extensionManager?.setActiveViewActionLabel('Apply');
     logService.debug(`[WindowManagement] View activated: ${viewPath}`);
   }
 
   async viewDeactivated(viewPath: string): Promise<void> {
     this.inView = false;
+    window.removeEventListener('keydown', this.handleKeydownBound);
     this.unregisterManageActions();
     logService.debug(`[WindowManagement] View deactivated: ${viewPath}`);
+  }
+
+  private handleKeydown(event: KeyboardEvent): void {
+    if (!this.inView) return;
+    if (isAnyModalOpen(document)) return;
+    const layouts = windowManagementState.customLayouts;
+    if (!layouts.length) return;
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      event.stopPropagation();
+      windowManagementState.moveSelection(event.key === 'ArrowUp' ? 'up' : 'down');
+    } else if (event.key === 'Enter') {
+      const selected = windowManagementState.selectedLayout;
+      if (selected) {
+        event.preventDefault();
+        event.stopPropagation();
+        void applyCustomLayout(selected, this.store);
+      }
+    }
   }
 
   private registerManageActions(): void {

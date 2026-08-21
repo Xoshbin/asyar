@@ -63,7 +63,7 @@ export async function removeLayoutFromIndex(layoutId: string): Promise<void> {
   await shortcutService.unregister(objectId);
 }
 
-export async function deleteLayout(layoutId: string, store: IStorageService): Promise<void> {
+export async function deleteLayout(layoutId: string, store?: IStorageService): Promise<void> {
   await windowManagementState.deleteCustomLayout(layoutId, store);
   await removeLayoutFromIndex(layoutId);
 }
@@ -71,7 +71,7 @@ export async function deleteLayout(layoutId: string, store: IStorageService): Pr
 export async function renameLayout(
   layoutId: string,
   newName: string,
-  store: IStorageService,
+  store?: IStorageService,
 ): Promise<void> {
   await windowManagementState.renameCustomLayout(layoutId, newName, store);
   const updated = windowManagementState.customLayouts.find((l) => l.id === layoutId);

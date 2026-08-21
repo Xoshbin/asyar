@@ -30,10 +30,16 @@ vi.mock('./state.svelte', () => ({
   windowManagementState: {
     customLayouts: [],
     previousBounds: null,
+    selectedIndex: 0,
+    selectedLayout: null,
+    setStore: vi.fn(),
     loadFromStorage: vi.fn(),
     savePreviousBounds: vi.fn(),
     addCustomLayout: vi.fn(),
     deleteCustomLayout: vi.fn(),
+    renameCustomLayout: vi.fn(),
+    setIndex: vi.fn(),
+    moveSelection: vi.fn(),
   },
 }));
 vi.mock('./layoutLifecycle', () => ({
