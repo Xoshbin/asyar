@@ -14,7 +14,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Manager};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::task::JoinHandle;
 
@@ -190,21 +190,64 @@ pub fn clear_inline_scripts(state: &InlineSchedulerState) -> Result<(), AppError
     Ok(())
 }
 
+static REVEAL_NUDGE: std::sync::OnceLock<std::sync::Arc<tokio::sync::Notify>> =
+    std::sync::OnceLock::new();
+
+/// Wake any parked inline-script tasks. Cheap and synchronous
+/// (`Notify::notify_waiters`); safe to call from the show path. No-op if
+/// no scheduler task has spun up yet (OnceLock not initialized).
+pub fn nudge_reveal() {
+    if let Some(n) = REVEAL_NUDGE.get() {
+        n.notify_waiters();
+    }
+}
+
+fn shared_nudge() -> std::sync::Arc<tokio::sync::Notify> {
+    REVEAL_NUDGE
+        .get_or_init(|| std::sync::Arc::new(tokio::sync::Notify::new()))
+        .clone()
+}
+
 /// Spawn the per-spec ticking loop. Fires once immediately so the row's
 /// subtitle is populated as soon as the script is registered, then every
-/// `refresh_time_seconds`.
+/// `refresh_time_seconds`. While the launcher is hidden (`asyar_visible ==
+/// false`) interval ticks set `pending` and skip the spawn; a reveal
+/// nudge (`nudge_reveal`) wakes the loop and flushes a single pending tick
+/// so subtitles refresh immediately on show without spawning background
+/// processes while parked.
 fn spawn_inline_task(app: AppHandle, spec: InlineScriptSpec) -> JoinHandle<()> {
+    let nudge = shared_nudge();
     tokio::spawn(async move {
-        // Immediate first tick
+        // Immediate first tick, unconditional: populates the subtitle.
         run_one_tick(&app, &spec).await;
 
         let mut interval = tokio::time::interval(Duration::from_secs(spec.refresh_time_seconds));
         // interval.tick() fires immediately by default; we already fired,
         // so skip the leading tick.
         interval.tick().await;
+
+        let mut pending = false;
         loop {
-            interval.tick().await;
-            run_one_tick(&app, &spec).await;
+            tokio::select! {
+                _ = interval.tick() => {
+                    let visible = app
+                        .try_state::<crate::AppState>()
+                        .map(|s| s.asyar_visible.load(std::sync::atomic::Ordering::Relaxed))
+                        .unwrap_or(true);
+                    if visible {
+                        run_one_tick(&app, &spec).await;
+                        pending = false;
+                    } else {
+                        pending = true;
+                    }
+                }
+                _ = nudge.notified() => {
+                    if pending {
+                        run_one_tick(&app, &spec).await;
+                        pending = false;
+                    }
+                }
+            }
         }
     })
 }
@@ -223,7 +266,7 @@ async fn run_one_tick(app: &AppHandle, spec: &InlineScriptSpec) {
             error: Some(e.to_string()),
         },
     };
-    let _ = app.emit("scripts:inline:tick", payload);
+    crate::event_bridge::bridge_emit(app, "scripts:inline:tick", &payload);
 }
 
 /// Spawn the script, read stdout, return the first non-empty trimmed

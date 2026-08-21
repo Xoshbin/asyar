@@ -2,8 +2,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const listeners = new Map<string, (e: { payload: any }) => void>();
-vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(async (event: string, handler: (e: { payload: any }) => void) => {
+vi.mock('../../lib/ipc/bridgeEvents', () => ({
+  bridgeListen: vi.fn(async (event: string, handler: (e: { payload: any }) => void) => {
     listeners.set(event, handler);
     return () => listeners.delete(event);
   }),

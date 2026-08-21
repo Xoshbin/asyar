@@ -17,6 +17,10 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(async () => () => {}),
 }));
 
+vi.mock('../../lib/ipc/bridgeEvents', () => ({
+  bridgeListen: vi.fn(async () => () => {}),
+}));
+
 vi.mock('../../services/log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -32,6 +36,7 @@ vi.mock('../../services/extension/commandService.svelte', () => ({
 import { scriptsManager } from './scriptsManager.svelte';
 import * as commands from '../../lib/ipc/commands';
 import { listen } from '@tauri-apps/api/event';
+import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { commandService } from '../../services/extension/commandService.svelte';
 import type { ScannedScript, ScriptScanIssue, ScriptScanReport } from './types';
@@ -121,9 +126,6 @@ describe('ScriptsManager', () => {
   it('scripts_changed_event_triggers_rescan', async () => {
     let capturedHandler: (() => void) | null = null;
     vi.mocked(listen).mockImplementation(async (event, handler) => {
-      // start() registers two listeners; only `scripts:changed` carries
-      // the rescan trigger. The inline-tick handler reads `event.payload`,
-      // so we MUST scope this capture to the right event name.
       if (event === 'scripts:changed') {
         capturedHandler = handler as () => void;
       }
@@ -224,11 +226,10 @@ describe('ScriptsManager', () => {
   it('stop_clears_registrations_and_unsubscribes', async () => {
     const unlistenChanged = vi.fn();
     const unlistenInlineTick = vi.fn();
-    // start() registers two listeners in order: scripts:changed, then
-    // scripts:inline:tick. Queue both unlisten mocks in the same order.
-    vi.mocked(listen)
-      .mockResolvedValueOnce(unlistenChanged)
-      .mockResolvedValueOnce(unlistenInlineTick);
+    // scripts:changed subscribes via listen, scripts:inline:tick via the
+    // eval-free bridge.
+    vi.mocked(listen).mockResolvedValueOnce(unlistenChanged);
+    vi.mocked(bridgeListen).mockResolvedValueOnce(unlistenInlineTick);
 
     await scriptsManager.start();
     await scriptsManager.stop();
@@ -344,13 +345,11 @@ describe('ScriptsManager', () => {
           payload: { dynamicId: string; subtitle: string | null; error: string | null };
         }) => void)
       | null = null;
-    // First listen() call = 'scripts:changed' (unused here), second = 'scripts:inline:tick'.
-    vi.mocked(listen)
-      .mockImplementationOnce(async () => () => {})
-      .mockImplementationOnce(async (_event, handler) => {
-        captured = handler as any;
-        return () => {};
-      });
+    // 'scripts:inline:tick' subscribes via the eval-free bridge.
+    vi.mocked(bridgeListen).mockImplementationOnce(async (_event, handler) => {
+      captured = handler as any;
+      return () => {};
+    });
 
     await scriptsManager.start();
     expect(captured).toBeTruthy();
@@ -367,12 +366,10 @@ describe('ScriptsManager', () => {
           payload: { dynamicId: string; subtitle: string | null; error: string | null };
         }) => void)
       | null = null;
-    vi.mocked(listen)
-      .mockImplementationOnce(async () => () => {})
-      .mockImplementationOnce(async (_event, handler) => {
-        captured = handler as any;
-        return () => {};
-      });
+    vi.mocked(bridgeListen).mockImplementationOnce(async (_event, handler) => {
+      captured = handler as any;
+      return () => {};
+    });
 
     await scriptsManager.start();
     captured!({

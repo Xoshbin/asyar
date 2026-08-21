@@ -573,6 +573,7 @@ fn reveal_launcher(
 ) {
     state.asyar_visible.store(true, Ordering::Relaxed);
     crate::platform::macos::reveal_launcher_panel(window, panel);
+    crate::scripts::inline_scheduler::nudge_reveal();
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -590,6 +591,7 @@ fn reveal_launcher(state: &tauri::State<'_, AppState>, window: &tauri::WebviewWi
     let _ = window.set_focus();
     #[cfg(target_os = "linux")]
     crate::mark_launcher_shown(state);
+    crate::scripts::inline_scheduler::nudge_reveal();
 }
 
 fn launcher_visibility_after(action: LauncherAction, currently_visible: bool) -> bool {

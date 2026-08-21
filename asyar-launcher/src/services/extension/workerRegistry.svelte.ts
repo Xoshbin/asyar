@@ -1,4 +1,4 @@
-import { listen } from '@tauri-apps/api/event';
+import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import { iframeUnmountAck } from '../../lib/ipc/iframeLifecycleCommands';
 import { logService } from '../log/logService';
 
@@ -18,14 +18,16 @@ class WorkerRegistry {
 
   async init(): Promise<void> {
     if (this.unlistenMount) return;
-    this.unlistenMount = await listen<{ extensionId: string; mountToken: number; role?: string }>(
-      'asyar:iframe:mount',
-      (e) => this.handleMount(e.payload),
-    );
-    this.unlistenUnmount = await listen<{ extensionId: string; reason: string; role?: string }>(
-      'asyar:iframe:unmount',
-      (e) => this.handleUnmount(e.payload),
-    );
+    this.unlistenMount = await bridgeListen<{
+      extensionId: string;
+      mountToken: number;
+      role?: string;
+    }>('asyar:iframe:mount', (e) => this.handleMount(e.payload));
+    this.unlistenUnmount = await bridgeListen<{
+      extensionId: string;
+      reason: string;
+      role?: string;
+    }>('asyar:iframe:unmount', (e) => this.handleUnmount(e.payload));
   }
 
   async reset(): Promise<void> {

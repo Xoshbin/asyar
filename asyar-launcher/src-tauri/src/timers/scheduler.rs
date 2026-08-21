@@ -14,7 +14,7 @@ use crate::shell::now_millis;
 use crate::timers::{TimerDescriptor, TimerFirePayload, TimerRegistry, TIMER_FIRE_EVENT};
 use log::{info, warn};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 const POLL_INTERVAL_SECS: u64 = 1;
 const PRUNE_INTERVAL_SECS: u64 = 3600;
@@ -108,9 +108,7 @@ pub(crate) fn fire_one(
         fire_at: desc.fire_at,
         fired_at,
     };
-    if let Err(e) = app.emit(TIMER_FIRE_EVENT, &payload) {
-        warn!("[timers] failed to emit {}: {}", TIMER_FIRE_EVENT, e);
-    }
+    crate::event_bridge::bridge_emit(app, TIMER_FIRE_EVENT, &payload);
 }
 
 #[cfg(test)]

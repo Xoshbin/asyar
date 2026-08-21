@@ -139,6 +139,7 @@ pub mod crypto;
 pub mod deeplink;
 pub mod diagnostics;
 pub mod error;
+pub mod event_bridge;
 pub mod event_hub;
 pub mod ext_builder;
 pub mod extension_tray;
@@ -392,6 +393,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             deeplink::flush_pending_deeplinks,
             scheduler::get_scheduler_snapshot,
+            event_bridge::bridge_poll,
             commands::set_focus_lock,
             commands::feedback_publish,
             commands::feedback_get_current,
@@ -1185,6 +1187,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             log::error!("panic: {info}");
         }));
     }
+
+    // Long-poll IPC bridge: queue Rust->JS events for `bridge_poll` instead
+    // of letting Tauri `app.emit` eval-format each one in the webview.
+    app.manage(std::sync::Arc::new(event_bridge::EventBridge::default()));
 
     // ── Crash-report detection (next launch) ──────────────────────────────
     // A marker file left behind from the previous run means it crashed. Read
@@ -2050,9 +2056,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 "extensionId": extension_id,
                 "event": event,
             });
-            if let Err(e) = app_handle_for_events.emit("asyar:system-event", payload.clone()) {
-                log::warn!("[system_events] failed to emit Tauri event: {e}");
-            }
+            crate::event_bridge::bridge_emit(
+                &app_handle_for_events,
+                "asyar:system-event",
+                &payload,
+            );
             if let Some(mgr) =
                 app_handle_for_events.try_state::<std::sync::Arc<ExtensionRuntimeManager>>()
             {
@@ -2086,9 +2094,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 "extensionId": extension_id,
                 "event": event,
             });
-            if let Err(e) = app_handle_for_app_events.emit("asyar:app-event", payload.clone()) {
-                log::warn!("[app_events] failed to emit Tauri event: {e}");
-            }
+            crate::event_bridge::bridge_emit(
+                &app_handle_for_app_events,
+                "asyar:app-event",
+                &payload,
+            );
             if let Some(mgr) =
                 app_handle_for_app_events.try_state::<std::sync::Arc<ExtensionRuntimeManager>>()
             {
@@ -2124,11 +2134,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 "extensionId": extension_id,
                 "event": event,
             });
-            if let Err(e) =
-                app_handle_for_index_events.emit("asyar:application-index", payload.clone())
-            {
-                log::warn!("[index_events] failed to emit Tauri event: {e}");
-            }
+            crate::event_bridge::bridge_emit(
+                &app_handle_for_index_events,
+                "asyar:application-index",
+                &payload,
+            );
             if let Some(mgr) =
                 app_handle_for_index_events.try_state::<std::sync::Arc<ExtensionRuntimeManager>>()
             {
@@ -2278,9 +2288,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             });
-            if let Err(e) = app_handle_for_fs_watch.emit("asyar:fs-watch", payload) {
-                log::warn!("[fs_watcher] failed to emit Tauri event: {e}");
-            }
+            crate::event_bridge::bridge_emit(&app_handle_for_fs_watch, "asyar:fs-watch", &payload);
         }));
     }
 
@@ -2389,9 +2397,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     "extensionId": extension_id,
                     "event": event,
                 });
-                if let Err(e) = app_handle_for_events.emit("asyar:browser-event", payload.clone()) {
-                    log::warn!("[browser_events] failed to emit Tauri event: {e}");
-                }
+                crate::event_bridge::bridge_emit(
+                    &app_handle_for_events,
+                    "asyar:browser-event",
+                    &payload,
+                );
                 if let Some(mgr) = app_handle_for_events.try_state::<Arc<ExtensionRuntimeManager>>()
                 {
                     let now = std::time::Instant::now();

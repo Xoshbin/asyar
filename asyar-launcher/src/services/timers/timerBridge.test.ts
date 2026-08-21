@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
+vi.mock('../../lib/ipc/bridgeEvents', () => ({ bridgeListen: vi.fn() }));
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 vi.mock('../extension/extensionDispatcher.svelte', () => ({ dispatch: vi.fn() }));
 
-import { listen } from '@tauri-apps/api/event';
+import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import { dispatch } from '../extension/extensionDispatcher.svelte';
 import { logService } from '../log/logService';
 import { TimerBridge } from './timerBridge.svelte';
@@ -29,7 +29,7 @@ async function captureFireHandler(
   },
 ): Promise<FireHandler> {
   let captured: FireHandler | undefined;
-  vi.mocked(listen).mockImplementationOnce(async (_event, handler) => {
+  vi.mocked(bridgeListen).mockImplementationOnce(async (_event, handler) => {
     captured = handler as unknown as FireHandler;
     return vi.fn();
   });
@@ -41,11 +41,11 @@ async function captureFireHandler(
 describe('TimerBridge.subscribe', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('registers a Tauri listener for asyar:timer:fire', async () => {
+  it('registers a bridge listener for asyar:timer:fire', async () => {
     const bridge = new TimerBridge();
-    vi.mocked(listen).mockResolvedValueOnce(vi.fn());
+    vi.mocked(bridgeListen).mockResolvedValueOnce(vi.fn());
     await bridge.subscribe({ isExtensionEnabled: () => true });
-    expect(listen).toHaveBeenCalledWith('asyar:timer:fire', expect.any(Function));
+    expect(bridgeListen).toHaveBeenCalledWith('asyar:timer:fire', expect.any(Function));
   });
 });
 
@@ -160,7 +160,7 @@ describe('TimerBridge.unsubscribe', () => {
   it('calls the stored unlisten function and nulls it out', async () => {
     const bridge = new TimerBridge();
     const unlisten = vi.fn();
-    vi.mocked(listen).mockResolvedValueOnce(unlisten);
+    vi.mocked(bridgeListen).mockResolvedValueOnce(unlisten);
     await bridge.subscribe({ isExtensionEnabled: () => true });
 
     bridge.unsubscribe();

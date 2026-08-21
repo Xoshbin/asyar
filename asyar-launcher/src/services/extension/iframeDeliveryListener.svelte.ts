@@ -1,4 +1,4 @@
-import { listen } from '@tauri-apps/api/event';
+import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import { post } from './extensionDelivery';
 import type { IpcPendingMessage } from '../../lib/ipc/iframeLifecycleCommands';
 import { feedbackService } from '../feedback/feedbackService.svelte';
@@ -14,7 +14,7 @@ export class IframeDeliveryListener {
 
   async init(): Promise<void> {
     if (this.unlisten) return;
-    this.unlisten = await listen<DeliverPayload>('asyar:iframe:deliver', (e) => {
+    this.unlisten = await bridgeListen<DeliverPayload>('asyar:iframe:deliver', (e) => {
       const { extensionId, role, messages } = e.payload;
       const iframe = document.querySelector<HTMLIFrameElement>(
         `iframe[data-extension-id="${extensionId}"][data-role="${role}"]`,

@@ -1,4 +1,4 @@
-import { listen } from '@tauri-apps/api/event';
+import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import { logService } from '../log/logService';
 import { dispatch } from '../extension/extensionDispatcher.svelte';
 
@@ -47,7 +47,7 @@ export class TimerBridge {
   private unlisten: (() => void) | null = null;
 
   async subscribe(deps: TimerBridgeDeps): Promise<void> {
-    this.unlisten = await listen<TimerFirePayload>('asyar:timer:fire', (event) =>
+    this.unlisten = await bridgeListen<TimerFirePayload>('asyar:timer:fire', (event) =>
       this.handleFire(event.payload, deps.isExtensionEnabled),
     );
   }
