@@ -516,7 +516,7 @@ pub fn display_parent_dir(app_path: &str) -> String {
 
 #[cfg(any(target_os = "linux", test))]
 pub(crate) fn is_bundle_visible(path: &Path) -> bool {
-    if path.extension().map_or(false, |ext| ext == "desktop") {
+    if path.extension().is_some_and(|ext| ext == "desktop") {
         return crate::platform::linux::is_visible_desktop_file(path);
     }
     true
@@ -1187,7 +1187,11 @@ mod tests {
         #[cfg(target_os = "macos")]
         fs::create_dir_all(&app_path).unwrap();
         #[cfg(not(target_os = "macos"))]
-        fs::write(&app_path, b"fake").unwrap();
+        fs::write(
+            &app_path,
+            b"[Desktop Entry]\nType=Application\nName=Rooted\nExec=rooted\n",
+        )
+        .unwrap();
 
         let mut scanner = AppScanner::new();
         scanner.scan_directory(&app_path).unwrap();
@@ -1501,7 +1505,11 @@ mod tests {
         #[cfg(target_os = "macos")]
         fs::create_dir_all(&app_path).unwrap();
         #[cfg(not(target_os = "macos"))]
-        fs::write(&app_path, b"fake").unwrap();
+        fs::write(
+            &app_path,
+            b"[Desktop Entry]\nType=Application\nName=Test\nExec=test\n",
+        )
+        .unwrap();
 
         let mut scanner = AppScanner::new();
         let _ = scanner.scan_directory(&tmp);
@@ -1534,7 +1542,11 @@ mod tests {
         #[cfg(target_os = "macos")]
         fs::create_dir_all(&app_path).unwrap();
         #[cfg(not(target_os = "macos"))]
-        fs::write(&app_path, b"fake").unwrap();
+        fs::write(
+            &app_path,
+            b"[Desktop Entry]\nType=Application\nName=Overlap\nExec=overlap\n",
+        )
+        .unwrap();
 
         let mut scanner = AppScanner::new();
         // Simulate scan_all visiting both an ancestor (custom path) and the
