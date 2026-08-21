@@ -111,7 +111,7 @@ describe('Action & Shortcut Registry Integrity Guard', () => {
     };
 
     // 2. Mock loader commands
-    const loader = new ExtensionLoader();
+    const loader = new ExtensionLoader({} as any, vi.fn(), vi.fn(), vi.fn());
     (loader as any).allLoadedCommands = [
       { cmd: sampleCmd, manifest: sampleManifest, isBuiltIn: false },
     ];
