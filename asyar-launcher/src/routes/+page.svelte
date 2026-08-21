@@ -12,6 +12,7 @@
   import ToastHost from '../components/feedback/ToastHost.svelte';
   import DialogHost from '../components/feedback/DialogHost.svelte';
   import FatalErrorDialog from '../components/feedback/FatalErrorDialog.svelte';
+  import { isAnyModalOpen } from '../components/base/Modal.logic';
   import { createKeyboardHandlers } from '../lib/keyboard/launcherKeyboard';
   import { searchStores } from '../services/search/stores/search.svelte';
   import { searchService } from '../services/search/SearchService';
@@ -585,7 +586,7 @@
 
 <WorkerIframes />
 
-<style global>
+<style>
   /*
    * Non-macOS: visible styled scrollbar.
    * macOS: NO ::-webkit-scrollbar rule at all — defining one (even
@@ -594,14 +595,14 @@
    * default keeps the real macOS overlay scrollbar that fades in
    * on scroll, controlled by System Settings → "Show scroll bars".
    */
-  html:not([data-platform='macos']) ::-webkit-scrollbar {
+  :global(html:not([data-platform='macos']) ::-webkit-scrollbar) {
     width: 8px;
     height: 8px;
   }
-  html:not([data-platform='macos']) ::-webkit-scrollbar-track {
+  :global(html:not([data-platform='macos']) ::-webkit-scrollbar-track) {
     background: transparent;
   }
-  html:not([data-platform='macos']) ::-webkit-scrollbar-thumb {
+  :global(html:not([data-platform='macos']) ::-webkit-scrollbar-thumb) {
     background-color: var(--scrollbar-thumb);
     border-radius: var(--radius-md);
   }

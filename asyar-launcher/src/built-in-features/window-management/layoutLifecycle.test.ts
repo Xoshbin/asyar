@@ -119,8 +119,7 @@ describe('layoutLifecycle', () => {
 
   it('deleteLayout removes from state and index', async () => {
     const store = makeStore();
-    vi.spyToMethod?.(windowManagementState, 'deleteCustomLayout') ||
-      (windowManagementState.deleteCustomLayout = vi.fn().mockResolvedValue(undefined));
+    windowManagementState.deleteCustomLayout = vi.fn().mockResolvedValue(undefined);
     await deleteLayout('test-123', store);
     expect(windowManagementState.deleteCustomLayout).toHaveBeenCalledWith('test-123', store);
     expect(mockDeleteItem).toHaveBeenCalledWith('cmd_window-management_layout_test-123');

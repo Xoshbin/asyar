@@ -199,11 +199,7 @@
   onEscape={cancelRename}
 >
   <div class="modal-body">
-    <Input
-      label="Layout Name"
-      placeholder="e.g. Work Setup, Right Focus..."
-      bind:value={editingName}
-    />
+    <Input placeholder="e.g. Work Setup, Right Focus..." bind:value={editingName} />
   </div>
   {#snippet actions()}
     <div class="modal-actions">

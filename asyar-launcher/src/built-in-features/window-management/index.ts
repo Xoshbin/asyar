@@ -129,7 +129,6 @@ class WindowManagementExtension implements Extension {
       icon: 'icon:store',
       action: async () => {
         await applyCustomLayout(layout, this.store);
-        return { type: 'no-view' };
       },
     }));
   }
