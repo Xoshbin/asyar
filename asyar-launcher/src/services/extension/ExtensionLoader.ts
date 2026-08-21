@@ -445,38 +445,6 @@ export class ExtensionLoader {
             } as any);
           }
         }
-
-        // Auto-register built-in "Extension Preferences" action if the extension declares preferences
-        const hasPreferences =
-          (manifest.preferences?.length ?? 0) > 0 ||
-          this.allLoadedCommands.some(
-            (c) => c.manifest.id === extensionId && (c.cmd.preferences?.length ?? 0) > 0,
-          );
-
-        if (hasPreferences) {
-          const prefActionId = `act_${extensionId}_open_preferences`;
-          actionService.registerAction({
-            id: prefActionId,
-            label: 'Extension Preferences',
-            description: `Configure preferences for ${manifest.name || extensionId}`,
-            icon: 'icon:sliders',
-            category: 'Preferences',
-            extensionId,
-            context: ActionContext.CORE,
-            visible: () => {
-              const idx = searchStores.selectedIndex;
-              if (idx < 0) return false;
-              const item = searchOrchestrator.items[idx];
-              return (
-                (item?.type === 'command' && item.extensionId === extensionId) ||
-                item?.objectId?.startsWith(`cmd_${extensionId}_`) === true
-              );
-            },
-            execute: async () => {
-              await commands.showSettingsWindow('extensions', extensionId);
-            },
-          } as any);
-        }
       }
       seenExtensions.add(extensionId);
 
