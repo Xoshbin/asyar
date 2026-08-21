@@ -82,6 +82,16 @@ impl Scheduler {
             } => {
                 // tauri's runtime (not raw tokio::spawn): setup_app can run
                 // before a Tokio reactor is attached.
+                //
+                // macOS App Nap coalesces long tokio sleeps once the app sits
+                // idle and hidden; a period of minutes or hours can stretch
+                // far past nominal until the next app wakeup. Acceptable for
+                // every current job (update checks, GC): each is periodic
+                // best-effort housekeeping that simply runs on wake. A job
+                // that needs punctual firing while the app is napping must
+                // not use this loop as-is; it needs OS-scheduled timing
+                // (NSBackgroundActivityScheduler or an explicit-tolerance
+                // timer).
                 async_runtime::spawn(async move {
                     tokio::time::sleep(startup_delay).await;
                     loop {
