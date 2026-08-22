@@ -4,6 +4,7 @@
   import AccessibilityGate from './AccessibilityGate.svelte';
   import { seedSampleSnippet, enableExpansion } from './snippetsSetup';
   import { onboardingNav } from '../onboardingNav.svelte';
+  import { t } from '../../../services/i18n';
 
   let seeded = $state(false);
   let enabled = $state(false);
@@ -37,13 +38,10 @@
 
 <Card>
   <div class="step">
-    <p class="step__kicker">Type less, everywhere</p>
-    <h1 class="step__title"><span class="onb-hl">Snippets</span></h1>
+    <p class="step__kicker">{t('onboarding.snippets_title')}</p>
+    <h1 class="step__title"><span class="onb-hl">{t('onboarding.snippets_heading')}</span></h1>
     <p class="step__lede">
-      Save a keyword like <code>;email</code> and it expands into full text in any app you type in —
-      addresses, signatures, boilerplate. Snippets can include placeholders like
-      <code>{'{Date}'}</code> or <code>{'{Clipboard Text}'}</code>. We'll add a sample
-      <code>;email</code> snippet.
+      {t('onboarding.snippets_desc')}
     </p>
 
     <div class="step__setup">

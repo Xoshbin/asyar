@@ -251,11 +251,11 @@
     };
   });
 
-  const FILTERS: { id: ExtensionFilter; label: string }[] = [
-    { id: 'all', label: 'All' },
-    { id: 'commands', label: 'Commands' },
-    { id: 'extension', label: 'Extensions' },
-    { id: 'theme', label: 'Theme' },
+  const FILTERS: { id: ExtensionFilter; labelKey: string }[] = [
+    { id: 'all', labelKey: 'settings.extensions.filter_all' },
+    { id: 'commands', labelKey: 'settings.extensions.filter_commands' },
+    { id: 'extension', labelKey: 'settings.extensions.filter_extensions' },
+    { id: 'theme', labelKey: 'settings.extensions.filter_theme' },
   ];
 </script>
 
@@ -279,7 +279,7 @@
         {updateCount} extension{updateCount === 1 ? '' : 's'} can be updated
       </span>
       <button class="btn btn-primary" onclick={handleUpdateAll} disabled={isUpdatingAll}>
-        {isUpdatingAll ? 'Updating…' : 'Update All'}
+        {isUpdatingAll ? t('settings.extensions.updating') : t('settings.extensions.update_all')}
       </button>
     </div>
   {/if}
@@ -296,7 +296,7 @@
               textIntent="exact"
               class="search-input"
               type="text"
-              placeholder="Search…"
+              placeholder={t('settings.extensions.search_placeholder')}
               bind:value={searchQuery}
             />
           </div>
@@ -309,14 +309,14 @@
                 activeFilter = f.id;
               }}
             >
-              {f.label}
+              {t(f.labelKey)}
             </button>
           {/each}
 
           <div class="plus-wrapper">
             <button
               class="plus-btn"
-              aria-label="Add extension"
+              aria-label={t('settings.extensions.add_extension')}
               bind:this={plusBtnEl}
               onclick={openPlusDropdown}
             >
@@ -335,17 +335,17 @@
 
         <!-- column headers -->
         <div class="col-headers">
-          <span class="col-name">Name</span>
-          <span class="col-type">Type</span>
-          <span class="col-alias">Alias</span>
-          <span class="col-hotkey">Hotkey</span>
-          <span class="col-on">Enabled</span>
+          <span class="col-name">{t('settings.extensions.table_name')}</span>
+          <span class="col-type">{t('settings.extensions.table_type')}</span>
+          <span class="col-alias">{t('settings.extensions.table_alias')}</span>
+          <span class="col-hotkey">{t('settings.extensions.table_hotkey')}</span>
+          <span class="col-on">{t('settings.extensions.table_enabled')}</span>
         </div>
 
         <!-- table -->
         <div class="table-body custom-scrollbar">
           {#if handler.isLoadingExtensions}
-            <LoadingState message="Loading extensions…" />
+            <LoadingState message={t('settings.extensions.loading_extensions')} />
           {:else if handler.extensionError}
             <EmptyState
               message={t('settings.extensions.failed_to_load')}

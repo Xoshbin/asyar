@@ -114,15 +114,14 @@
   });
 </script>
 
-<div class="section-header">Shell trust</div>
+<div class="section-header">{t('settings.privacy.shell_trust')}</div>
 <SettingsCard>
   <div class="shell-trust-content">
     {#if isLoading}
-      <p class="trust-note text-caption">Loading trusted programs...</p>
+      <p class="trust-note text-caption">{t('settings.privacy.loading_trusted_programs')}</p>
     {:else if groupedTrusts.length > 0}
       <p class="trust-note text-caption">
-        The following programs have been explicitly trusted for execution by specific extensions.
-        Revoking trust will cause the extension to prompt for permission again on next use.
+        {t('settings.privacy.shell_trust_description')}
       </p>
 
       <div class="trust-groups">
@@ -156,7 +155,7 @@
                     class="btn-secondary"
                     onclick={() => revokeTrust(group.extensionId, binary.binaryPath)}
                   >
-                    Revoke
+                    {t('settings.browsers.revoke')}
                   </Button>
                 </div>
               {/each}

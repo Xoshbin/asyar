@@ -12,6 +12,7 @@
   } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { BackupHandler } from './backupHandler.svelte';
+  import { t } from '../../../services/i18n';
 
   let { handler }: { handler: SettingsHandler } = $props();
 
@@ -23,50 +24,57 @@
 
   // Settings is a separate webview with no extensionManager of its own, so
   // opening a Tier 1 view lives in the main launcher window — signal it via
-  // the same asyar:run-command event appInitializer.ts listens for.
-  async function openRaycastImport() {
-    await emit('asyar:run-command', { commandId: 'cmd_raycast-import_import-raycast' });
+  // a Tauri event that App.svelte listens for.
+  function openRaycastImport() {
+    emit('open-raycast-import');
   }
 </script>
 
-<div class="section-header">Export</div>
+<div class="section-header">{t('settings.tabs.backup')}</div>
 <div id="backup-export" class="anchor-group">
   <SettingsCard>
-    {#each backup.providers as provider (provider.id)}
-      <SettingsRow label={provider.displayName}>
-        <Checkbox
-          checked={backup.enabledCategories.has(provider.id)}
-          onchange={() => backup.toggleCategory(provider.id)}
-        />
-      </SettingsRow>
-    {/each}
+    <div class="category-list">
+      {#each backup.exportCategories as cat (cat.id)}
+        <div class="category-row">
+          <Checkbox
+            checked={backup.enabledCategories.has(cat.id)}
+            onchange={() => backup.toggleCategory(cat.id)}
+            disabled={backup.exportStatus === 'exporting'}
+          >
+            {cat.label}
+          </Checkbox>
+        </div>
+      {/each}
+    </div>
 
-    {#if backup.hasSensitiveData}
+    {#if backup.exportWarning}
       <div class="warning-row">
-        <WarningBanner>
-          This backup includes sensitive data (e.g. API keys). Set a password below to encrypt it,
-          or leave it blank — sensitive fields will be stripped from the file.
-        </WarningBanner>
+        <WarningBanner message={backup.exportWarning} />
       </div>
     {/if}
 
-    <SettingsRow label="Password (optional)" description="Encrypt sensitive fields in the export.">
+    <SettingsRow
+      label={t('settings.backup.password_optional')}
+      description={t('settings.backup.password_optional_description')}
+    >
       <Input
         textIntent="exact"
         id="export-password"
         type="password"
-        placeholder="Leave blank to strip sensitive fields"
+        placeholder={t('settings.backup.password_optional_placeholder')}
         bind:value={backup.exportPassword}
       />
     </SettingsRow>
 
-    <SettingsRow label="Export backup">
+    <SettingsRow label={t('settings.backup.export_backup')}>
       <div class="action-row">
         <Button
           onclick={() => backup.handleExport()}
           disabled={backup.exportStatus === 'exporting' || backup.enabledCategories.size === 0}
         >
-          {backup.exportStatus === 'exporting' ? 'Exporting…' : 'Export…'}
+          {backup.exportStatus === 'exporting'
+            ? t('settings.backup.exporting')
+            : t('settings.backup.export_button')}
         </Button>
         {#if backup.exportMessage}
           <span class="status-text" class:error={backup.exportStatus === 'error'}>
@@ -78,29 +86,35 @@
   </SettingsCard>
 </div>
 
-<div class="section-header">Raycast</div>
+<div class="section-header">{t('settings.backup.section_raycast')}</div>
 <div id="backup-raycast" class="anchor-group">
   <SettingsCard>
-    <SettingsRow label="Migrate from Raycast" description="Snippets, quicklinks, and app hotkeys.">
+    <SettingsRow
+      label={t('settings.backup.migrate_raycast')}
+      description={t('settings.backup.migrate_raycast_description')}
+    >
       <div class="action-row">
-        <Button onclick={openRaycastImport}>Import from Raycast…</Button>
+        <Button onclick={openRaycastImport}>{t('settings.backup.import_raycast_button')}</Button>
       </div>
     </SettingsRow>
   </SettingsCard>
 </div>
 
-<div class="section-header">Restore</div>
+<div class="section-header">{t('settings.backup.section_restore')}</div>
 <div id="backup-import" class="anchor-group">
   <SettingsCard>
-    <SettingsRow label="Backup file" description="Choose an Asyar backup archive to preview.">
+    <SettingsRow
+      label={t('settings.backup.backup_file')}
+      description={t('settings.backup.backup_file_description')}
+    >
       <div class="action-row">
         <Button
           onclick={() => backup.handleChooseFile()}
           disabled={backup.importStatus === 'importing'}
         >
           {backup.importStatus === 'importing' && !backup.importNeedsPassword
-            ? 'Reading…'
-            : 'Choose Backup File…'}
+            ? t('settings.backup.reading')
+            : t('settings.backup.choose_backup_file')}
         </Button>
         {#if backup.importMessage && !backup.importModalOpen}
           <span class="status-text" class:error={backup.importStatus === 'error'}>
@@ -111,24 +125,29 @@
     </SettingsRow>
 
     {#if backup.importNeedsPassword}
-      <SettingsRow label="Password" description="Unlock the encrypted backup archive.">
+      <SettingsRow
+        label={t('settings.backup.password')}
+        description={t('settings.backup.password_description')}
+      >
         <div class="import-password-row">
           <Input
             textIntent="exact"
             type="password"
-            placeholder="Backup password"
+            placeholder={t('settings.backup.backup_password_placeholder')}
             bind:value={backup.importPassword}
           />
           <Button
             onclick={() => backup.handleFileWithPassword()}
             disabled={backup.importStatus === 'importing'}
           >
-            {backup.importStatus === 'importing' ? 'Unlocking…' : 'Unlock'}
+            {backup.importStatus === 'importing'
+              ? t('settings.backup.unlocking')
+              : t('settings.backup.unlock')}
           </Button>
         </div>
       </SettingsRow>
       {#if backup.importStatus === 'error' && backup.importMessage}
-        <SettingsRow label="Import error">
+        <SettingsRow label={t('settings.backup.import_error')}>
           <span class="status-text error">{backup.importMessage}</span>
         </SettingsRow>
       {/if}
@@ -140,7 +159,7 @@
 {#if backup.importModalOpen && backup.importManifest}
   <Modal
     isOpen={true}
-    title="Restore from Backup"
+    title={t('settings.backup.restore_modal_title')}
     subtitle={new Date(backup.importManifest.exportedAt).toLocaleDateString(undefined, {
       year: 'numeric',
       month: 'long',

@@ -126,11 +126,11 @@
 </script>
 
 <Card>
-  <h1>Pick a theme</h1>
-  <p>Optional — make Asyar feel like home.</p>
+  <h1>{t('onboarding.theme_heading')}</h1>
+  <p>{t('onboarding.theme_desc')}</p>
 
   {#if loading}
-    <LoadingState message="Loading themes…" />
+    <LoadingState message={t('common.loading')} />
   {:else if themes.length === 0}
     <EmptyState message={t('onboarding.theme_load_error')}>
       <Button onclick={load}>Retry</Button>
@@ -139,8 +139,8 @@
     <ul class="grid">
       <li class="grid__item" class:grid__item--active={activeThemeId === null}>
         <div class="grid__label">
-          <span class="grid__name">Default</span>
-          <span class="grid__hint">Built-in Asyar theme</span>
+          <span class="grid__name">{t('settings.general.default_theme')}</span>
+          <span class="grid__hint">{t('settings.general.default_theme_meta')}</span>
         </div>
         {#if activeThemeId === null}
           <span class="grid__status grid__status--applied">Applied</span>

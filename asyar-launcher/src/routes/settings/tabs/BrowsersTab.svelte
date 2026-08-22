@@ -100,7 +100,7 @@
   });
 </script>
 
-<div class="section-header">Connected browsers</div>
+<div class="section-header">{t('settings.browsers.section_connected')}</div>
 <div id="browsers-connected" class="anchor-group">
   {#if pendingPairings.length > 0}
     <SettingsCard>
@@ -108,16 +108,16 @@
         {#each pendingPairings as p (p.id)}
           <div class="browser-row">
             <span class="browser-label">{p.family} · {p.variant}</span>
-            <span class="pending-tag">Pending</span>
+            <span class="pending-tag">{t('settings.browsers.pending')}</span>
             <button
               class="action-btn"
               onclick={() => resolve(p.id, 'allow')}
-              data-testid="allow-{p.id}">Allow</button
+              data-testid="allow-{p.id}">{t('settings.browsers.allow')}</button
             >
             <button
               class="action-btn action-btn-danger"
               onclick={() => resolve(p.id, 'deny')}
-              data-testid="deny-{p.id}">Deny</button
+              data-testid="deny-{p.id}">{t('settings.browsers.deny')}</button
             >
           </div>
         {/each}
@@ -147,7 +147,7 @@
               onclick={() => revoke(b.family, b.variant)}
               data-testid="revoke-{familyKey(b.family, b.variant)}"
             >
-              Revoke
+              {t('settings.browsers.revoke')}
             </button>
           </div>
         {/each}
@@ -156,26 +156,22 @@
   {/if}
 </div>
 
-<div class="section-header">Install companion</div>
+<div class="section-header">{t('settings.browsers.install_companion')}</div>
 <div id="browsers-install">
   <SettingsCard>
     <div class="install-links">
       <p class="companion-intro">
-        Asyar's browser features need a small companion extension installed in your browser. The two
-        work as a pair: the companion streams your open tabs, bookmarks, and history to Asyar so you
-        can search and control them from here. Install it, and it pairs with this launcher
-        automatically.
+        {t('settings.browsers.companion_description')}
       </p>
       <button
         class="btn btn-primary install-btn"
         onclick={installChromiumCompanion}
         data-testid="install-chromium"
       >
-        Install for Chrome
+        {t('settings.browsers.install_for_chrome')}
       </button>
       <p class="companion-note">
-        Works for Chrome, Brave, Edge, Arc, and Vivaldi. Firefox and Safari companions are coming
-        soon.
+        {t('settings.browsers.install_chrome_note')}
       </p>
     </div>
   </SettingsCard>

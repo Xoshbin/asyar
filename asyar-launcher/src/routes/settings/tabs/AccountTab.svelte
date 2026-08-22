@@ -23,6 +23,7 @@
   import RecoverWithMnemonicDialog from '../../../components/settings/RecoverWithMnemonicDialog.svelte';
   import RecoveryPhraseDialog from '../../../components/settings/RecoveryPhraseDialog.svelte';
   import DisableE2eeDialog from '../../../components/settings/DisableE2eeDialog.svelte';
+  import { t } from '../../../services/i18n';
 
   function reportSyncFailure(err: unknown): void {
     logService.error(`[AccountTab] cloud sync failed: ${err}`);
@@ -146,75 +147,87 @@
     </SettingsCard>
   </div>
 
-  <div class="section-header">Subscription</div>
+  <div class="section-header">{t('settings.account.section_subscription')}</div>
   <div id="account-subscription" class="anchor-group">
     <SettingsCard>
-      <SettingsRow label="Subscription" description="Finish signing in to manage your plan.">
-        <span class="secondary-text">Pending login</span>
+      <SettingsRow
+        label={t('settings.account.section_subscription')}
+        description={t('settings.account.subscription_pending')}
+      >
+        <span class="secondary-text">{t('settings.account.pending_login')}</span>
       </SettingsRow>
     </SettingsCard>
   </div>
 
-  <div class="section-header">Sync</div>
+  <div class="section-header">{t('settings.account.section_sync')}</div>
   <div id="account-sync" class="anchor-group">
     <SettingsCard>
-      <SettingsRow label="Cloud Sync" description="Finish signing in to sync settings.">
-        <span class="secondary-text">Pending login</span>
+      <SettingsRow
+        label={t('settings.account.section_sync')}
+        description={t('settings.account.sync_pending')}
+      >
+        <span class="secondary-text">{t('settings.account.pending_login')}</span>
       </SettingsRow>
     </SettingsCard>
   </div>
 {:else if !authService.isLoggedIn}
-  <div class="section-header">Profile</div>
+  <div class="section-header">{t('settings.account.section_profile')}</div>
   <div id="account-profile" class="anchor-group">
     <SettingsCard>
       {#if authService.loginError}
-        <SettingsRow label="Sign-in error">
+        <SettingsRow label={t('settings.account.sign_in_error')}>
           <div class="error-banner">{authService.loginError}</div>
         </SettingsRow>
       {/if}
 
-      <SettingsRow label="GitHub" description="Use your GitHub account with Asyar.">
+      <SettingsRow label="GitHub" description={t('settings.account.github_desc')}>
         <Button onclick={() => handleSignIn('github')} disabled={authService.isLoading}>
-          Sign in
+          {t('settings.account.sign_in')}
         </Button>
       </SettingsRow>
 
-      <SettingsRow label="Google" description="Use your Google account with Asyar.">
+      <SettingsRow label="Google" description={t('settings.account.google_desc')}>
         <Button onclick={() => handleSignIn('google')} disabled={authService.isLoading}>
-          Sign in
+          {t('settings.account.sign_in')}
         </Button>
       </SettingsRow>
 
-      <SettingsRow label="Terms">
+      <SettingsRow label={t('settings.account.terms')}>
         <p class="terms-text">
-          By signing in, you agree to the Asyar Terms of Service and Privacy Policy.
+          {t('settings.account.terms_text')}
         </p>
       </SettingsRow>
     </SettingsCard>
   </div>
 
-  <div class="section-header">Subscription</div>
+  <div class="section-header">{t('settings.account.section_subscription')}</div>
   <div id="account-subscription" class="anchor-group">
     <SettingsCard>
-      <SettingsRow label="Subscription" description="Sign in to manage your plan.">
-        <span class="secondary-text">Not signed in</span>
+      <SettingsRow
+        label={t('settings.account.section_subscription')}
+        description={t('settings.account.subscription_not_signed_in_desc')}
+      >
+        <span class="secondary-text">{t('settings.account.not_signed_in')}</span>
       </SettingsRow>
     </SettingsCard>
   </div>
 
-  <div class="section-header">Sync</div>
+  <div class="section-header">{t('settings.account.section_sync')}</div>
   <div id="account-sync" class="anchor-group">
     <SettingsCard>
-      <SettingsRow label="Cloud Sync" description="Sign in to sync settings across devices.">
-        <span class="secondary-text">Not signed in</span>
+      <SettingsRow
+        label={t('settings.account.section_sync')}
+        description={t('settings.account.sync_not_signed_in_desc')}
+      >
+        <span class="secondary-text">{t('settings.account.not_signed_in')}</span>
       </SettingsRow>
     </SettingsCard>
   </div>
 {:else}
-  <div class="section-header">Profile</div>
+  <div class="section-header">{t('settings.account.section_profile')}</div>
   <div id="account-profile" class="anchor-group">
     <SettingsCard>
-      <SettingsRow label="Profile">
+      <SettingsRow label={t('settings.account.section_profile')}>
         <div class="profile-row">
           {#if authService.user?.avatarUrl}
             <img src={authService.user.avatarUrl} alt="Avatar" class="avatar" />
@@ -228,7 +241,7 @@
             <span class="profile-email">{authService.user?.email ?? ''}</span>
           </div>
           <Button onclick={handleSignOut} disabled={authService.isLoading}>
-            {authService.isLoading ? 'Signing out…' : 'Sign Out'}
+            {authService.isLoading ? 'Signing out…' : t('settings.account.sign_out')}
           </Button>
         </div>
       </SettingsRow>
@@ -278,10 +291,13 @@
     </SettingsCard>
   </div>
 
-  <div class="section-header">Subscription</div>
+  <div class="section-header">{t('settings.account.section_subscription')}</div>
   <div id="account-subscription" class="anchor-group">
     <SettingsCard>
-      <SettingsRow label="Subscription" description="Open your hosted billing and plan settings.">
+      <SettingsRow
+        label={t('settings.account.section_subscription')}
+        description={t('settings.account.open_billing_desc')}
+      >
         <Button
           onclick={() => {
             import('@tauri-apps/plugin-opener').then((m) =>
@@ -289,17 +305,17 @@
             );
           }}
         >
-          Open
+          {t('settings.account.manage_subscription')}
         </Button>
       </SettingsRow>
     </SettingsCard>
   </div>
 
-  <div class="section-header">Sync</div>
+  <div class="section-header">{t('settings.account.section_sync')}</div>
   <div id="account-sync" class="anchor-group">
     <SettingsCard>
       {#if entitlementService.check('sync:settings')}
-        <SettingsRow label="Cloud Sync">
+        <SettingsRow label={t('settings.account.section_sync')}>
           <div class="sync-enable-row">
             <span class="secondary-text">
               {syncToggleState
@@ -314,7 +330,7 @@
         </SettingsRow>
 
         {#if cloudSyncService.enabled}
-          <SettingsRow label="Last Synced">
+          <SettingsRow label={t('settings.account.last_synced')}>
             <div class="sync-status">
               <span class="secondary-text">
                 {cloudSyncService.lastSyncedAt
@@ -327,16 +343,18 @@
             </div>
           </SettingsRow>
 
-          <SettingsRow label="Sync Now">
+          <SettingsRow label={t('settings.account.sync_now')}>
             <Button
               onclick={() => cloudSyncService.syncNow().catch((err) => reportSyncFailure(err))}
               disabled={cloudSyncService.status === 'syncing'}
             >
-              {cloudSyncService.status === 'syncing' ? 'Syncing…' : 'Sync Now'}
+              {cloudSyncService.status === 'syncing'
+                ? t('settings.account.syncing')
+                : t('settings.account.sync_now')}
             </Button>
           </SettingsRow>
 
-          <SettingsRow label="Encrypted Sync">
+          <SettingsRow label={t('settings.account.encrypted_sync')}>
             <div class="e2ee-row">
               <div class="e2ee-status">
                 {#if !syncEncryptionService.enabled}
@@ -345,7 +363,7 @@
                 {:else if syncEncryptionService.locked}
                   <div class="e2ee-badge-with-dot">
                     <StatusDot color="warning" />
-                    <Badge text="Locked" variant="warning" />
+                    <Badge text={t('settings.account.locked')} variant="warning" />
                   </div>
                   <span class="secondary-text">Passphrase needed to continue.</span>
                 {:else}
@@ -369,10 +387,10 @@
                 <Button onclick={() => (activeDialog = 'unlock')}>Enter passphrase</Button>
               </SettingsRow>
             {/if}
-            <SettingsRow label="Passphrase">
+            <SettingsRow label={t('settings.account.passphrase')}>
               <Button onclick={() => (activeDialog = 'rotate')}>Change passphrase</Button>
             </SettingsRow>
-            <SettingsRow label="Recovery phrase">
+            <SettingsRow label={t('settings.account.recovery_phrase')}>
               <div class="e2ee-phrase-actions">
                 <Button onclick={() => (activeDialog = 'phrase')}>View recovery phrase</Button>
                 <Button onclick={() => (activeDialog = 'recover')}>I forgot my passphrase</Button>
@@ -381,7 +399,10 @@
           {/if}
         {/if}
       {:else}
-        <SettingsRow label="Cloud Sync" description="Your current plan does not include sync.">
+        <SettingsRow
+          label={t('settings.account.section_sync')}
+          description={t('settings.account.plan_no_sync')}
+        >
           <span class="secondary-text">Unavailable</span>
         </SettingsRow>
       {/if}

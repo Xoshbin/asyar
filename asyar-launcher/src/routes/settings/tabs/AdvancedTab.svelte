@@ -8,6 +8,7 @@
     snippetService,
     enabledPersistence,
   } from '../../../built-in-features/snippets/snippetService';
+  import { t } from '../../../services/i18n';
 
   let {
     handler,
@@ -19,46 +20,45 @@
   let snippetsToggleError = $state<string | null>(null);
 
   async function toggleSnippets() {
-    const desiredState = !snippetsEnabled;
-    const result = await snippetService.setEnabled(desiredState);
-    if (result.ok) {
-      snippetsEnabled = desiredState;
-      enabledPersistence.save(snippetsEnabled);
-      snippetsToggleError = null;
-    } else {
-      snippetsToggleError = result.error || 'Failed to change expansion setting';
+    snippetsToggleError = null;
+    const next = !snippetsEnabled;
+    try {
+      await snippetService.setEnabled(next);
+      snippetsEnabled = next;
+    } catch (e) {
+      snippetsToggleError = (e as Error).message || 'Failed to update snippets state';
     }
   }
 
-  let autoUpdate = $derived(settingsService.currentSettings.extensions?.autoUpdate !== false);
+  let autoUpdate = $derived(
+    (settingsService.settings.extensions as Record<string, unknown> | undefined)?.autoUpdate !==
+      false,
+  );
 
   async function toggleAutoUpdate() {
-    const newValue = !autoUpdate;
-    await settingsService.updateSettings('extensions', {
-      ...settingsService.currentSettings.extensions,
-      autoUpdate: newValue,
-    });
+    await settingsService.set('extensions.autoUpdate', !autoUpdate);
   }
 
-  type EscapeBehavior = 'go-back' | 'close-window' | 'hide-and-reset';
-  let escapeValue = $state<EscapeBehavior>('go-back');
+  type EscapeBehavior = 'hide-and-reset' | 'go-back' | 'close-window';
+
+  let escapeValue = $state<EscapeBehavior>(
+    handler.settings.general?.escapeBehavior ?? 'hide-and-reset',
+  );
+
   $effect(() => {
-    escapeValue = (handler.settings.general.escapeInViewBehavior ?? 'go-back') as EscapeBehavior;
-  });
-  $effect(() => {
-    const current = handler.settings.general.escapeInViewBehavior ?? 'go-back';
+    const current = handler.settings.general?.escapeBehavior ?? 'hide-and-reset';
     if (escapeValue !== current) {
       handler.updateEscapeBehavior(escapeValue);
     }
   });
 </script>
 
-<div class="section-header">Extension surface</div>
+<div class="section-header">{t('settings.advanced.section_extension_surface')}</div>
 <SettingsCard>
   <div id="advanced-extension-surface">
     <SettingsRow
-      label="Extension results in search"
-      description="Allow extensions to contribute results in the search bar."
+      label={t('settings.advanced.extension_search')}
+      description={t('settings.advanced.extension_search_description')}
     >
       <Toggle
         checked={handler.settings.search.enableExtensionSearch}
@@ -66,8 +66,8 @@
       />
     </SettingsRow>
     <SettingsRow
-      label="Extension actions in ⌘K"
-      description="When off, only Asyar's built-in actions appear in the action panel."
+      label={t('settings.advanced.extension_actions')}
+      description={t('settings.advanced.extension_actions_description')}
     >
       <Toggle
         checked={handler.settings.search.allowExtensionActions}
@@ -75,36 +75,39 @@
       />
     </SettingsRow>
     <SettingsRow
-      label="Auto-update extensions"
-      description="Updates install silently in the background."
+      label={t('settings.advanced.auto_update_extensions')}
+      description={t('settings.advanced.auto_update_extensions_description')}
     >
       <Toggle checked={autoUpdate} onchange={toggleAutoUpdate} />
     </SettingsRow>
   </div>
 </SettingsCard>
 
-<div class="section-header">Input</div>
+<div class="section-header">{t('settings.advanced.section_input')}</div>
 <SettingsCard>
   <div id="advanced-input">
-    <SettingsRow label="Escape key" description="What Escape does inside the launcher.">
+    <SettingsRow
+      label={t('settings.advanced.escape_key')}
+      description={t('settings.advanced.escape_key_description')}
+    >
       <SegmentedControl
         options={[
-          { value: 'hide-and-reset', label: 'Reset Launcher' },
-          { value: 'go-back', label: 'Step Backwards' },
-          { value: 'close-window', label: 'Hide Window' },
+          { value: 'hide-and-reset', label: t('settings.advanced.escape_reset') },
+          { value: 'go-back', label: t('settings.advanced.escape_back') },
+          { value: 'close-window', label: t('settings.advanced.escape_hide') },
         ]}
         bind:value={escapeValue}
       />
     </SettingsRow>
     <SettingsRow
-      label="Text expansion"
-      description="Expand snippets as you type. Requires Accessibility permission on macOS."
+      label={t('settings.advanced.text_expansion')}
+      description={t('settings.advanced.text_expansion_description')}
     >
       <Toggle checked={snippetsEnabled} onchange={toggleSnippets} />
     </SettingsRow>
     <SettingsRow
-      label="Developer mode"
-      description="Enables the extension inspector, verbose logging, and sideloading."
+      label={t('settings.advanced.developer_mode')}
+      description={t('settings.advanced.developer_mode_description')}
     >
       <Toggle
         checked={handler.settings.developer?.enabled ?? false}

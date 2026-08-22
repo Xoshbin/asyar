@@ -214,7 +214,7 @@
         <header class="chat-header">
           <h2>{agent.name}</h2>
           {#if sending}
-            <span class="streaming-tag">Streaming… ⌘K to cancel</span>
+            <span class="streaming-tag">{t('features.agents.streaming_cancel')}</span>
           {/if}
         </header>
 
@@ -243,7 +243,7 @@
                   {#if variant === 'assistant'}
                     <div class="avatar assistant-avatar">AI</div>
                   {:else if variant === 'user'}
-                    <div class="avatar user-avatar">You</div>
+                    <div class="avatar user-avatar">{t('features.agents.you')}</div>
                   {:else}
                     <div class="avatar tool-avatar">⚙</div>
                   {/if}
@@ -266,9 +266,9 @@
                     <IconButton
                       class="copy-message-btn"
                       onclick={() => copyText(text)}
-                      title="Copy message"
+                      title={t('features.agents.copy_message')}
                       tabindex={-1}
-                      ariaLabel="Copy message"
+                      ariaLabel={t('features.agents.copy_message')}
                       size="sm"
                     >
                       <svg
@@ -300,7 +300,7 @@
                 <div class="message-row assistant">
                   <div class="avatar assistant-avatar">AI</div>
                   <div class="message-bubble assistant activity-status">
-                    <span class="activity-label">Searching…</span>
+                    <span class="activity-label">{t('features.agents.searching')}</span>
                     <span class="streaming-cursor">▊</span>
                   </div>
                 </div>

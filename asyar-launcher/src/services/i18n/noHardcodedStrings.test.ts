@@ -103,6 +103,9 @@ describe('i18n Static Analysis & Hardcoded String Prevention', () => {
       'Select an extension to view details',
       'No custom layouts yet',
       'No scripts found',
+      'Streaming… ⌘K to cancel',
+      'Set up your AI',
+      'Start chatting',
     ];
 
     const coreDirs = [
@@ -112,6 +115,7 @@ describe('i18n Static Analysis & Hardcoded String Prevention', () => {
       path.join(srcDir, 'built-in-features/window-management'),
       path.join(srcDir, 'built-in-features/store'),
       path.join(srcDir, 'built-in-features/scripts'),
+      path.join(srcDir, 'built-in-features/agents'),
     ];
 
     const violations: { file: string; phrase: string }[] = [];

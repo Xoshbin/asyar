@@ -99,20 +99,20 @@
 
 <div class="developer-tab">
   <div id="developer-tools" class="anchor-group">
-    <div class="section-header">Tools</div>
+    <div class="section-header">{t('settings.developer.section_tools')}</div>
     <SettingsCard>
       <SettingsRow
-        label="Developer mode"
-        description="These tools are intended for extension developers."
+        label={t('settings.developer.developer_mode')}
+        description={t('settings.developer.developer_mode_description')}
       >
         {#snippet children()}
-          <Badge text="Active" variant="warning" />
+          <Badge text={t('settings.developer.active')} variant="warning" />
         {/snippet}
       </SettingsRow>
 
       <SettingsRow
-        label="DevEx Inspector"
-        description="Show the extension inspector panel in the main launcher window. Access runtime state, events, IPC/RPC traces, and more."
+        label={t('settings.developer.devex_inspector')}
+        description={t('settings.developer.devex_inspector_description')}
       >
         {#snippet children()}
           <Toggle
@@ -123,8 +123,8 @@
       </SettingsRow>
 
       <SettingsRow
-        label="Verbose logging"
-        description="Increase log verbosity for all loaded extensions. Useful for debugging extension behavior."
+        label={t('settings.developer.verbose_logging')}
+        description={t('settings.developer.verbose_logging_description')}
       >
         {#snippet children()}
           <Toggle
@@ -135,8 +135,8 @@
       </SettingsRow>
 
       <SettingsRow
-        label="IPC/RPC tracing"
-        description="Record message traces between extensions and the host. Visible in the DevEx Inspector's IPC and RPC tabs."
+        label={t('settings.developer.tracing')}
+        description={t('settings.developer.tracing_description')}
       >
         {#snippet children()}
           <Toggle
@@ -147,8 +147,8 @@
       </SettingsRow>
 
       <SettingsRow
-        label="Sideload extensions"
-        description="Allow installing extension bundles from local files instead of the store."
+        label={t('settings.developer.sideload')}
+        description={t('settings.developer.sideload_description')}
       >
         {#snippet children()}
           <Toggle
@@ -161,10 +161,10 @@
   </div>
 
   <div id="developer-extensions" class="anchor-group">
-    <div class="section-header">Dev Extensions</div>
+    <div class="section-header">{t('settings.developer.section_dev_extensions')}</div>
     <SettingsCard>
       {#if isLoadingDevExts}
-        <div class="dev-ext-state text-caption">Loading…</div>
+        <div class="dev-ext-state text-caption">{t('common.loading')}</div>
       {:else if devExtError}
         <div class="dev-ext-state error-text text-caption">{devExtError}</div>
       {:else if devExtEntries.length === 0}
@@ -188,7 +188,9 @@
                   disabled={detachingExt === extId}
                   onclick={() => detachDevExtension(extId)}
                 >
-                  {detachingExt === extId ? 'Detaching…' : 'Detach'}
+                  {detachingExt === extId
+                    ? t('settings.developer.detaching')
+                    : t('settings.developer.detach')}
                 </Button>
               </div>
             {/snippet}

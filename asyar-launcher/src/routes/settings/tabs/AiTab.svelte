@@ -277,12 +277,12 @@
 
 <div class="ai-tab">
   {#if mode === 'full'}
-    <div class="section-header">Behavior</div>
+    <div class="section-header">{t('settings.ai.behavior_section')}</div>
     <div id="ai-behavior" class="anchor-group">
       <SettingsCard>
         <SettingsRow
-          label="Tab continues last thread"
-          description="Pressing Tab in the launcher reopens your previous conversation instead of starting a new one."
+          label={t('settings.ai.tab_continues_last_thread')}
+          description={t('settings.ai.tab_continues_last_thread_description')}
         >
           <Toggle
             checked={settings.tabContinuesLastThread}
@@ -295,7 +295,7 @@
   {/if}
 
   {#if mode === 'full'}
-    <div class="section-header">Providers</div>
+    <div class="section-header">{t('settings.ai.providers_section')}</div>
   {/if}
 
   <!-- Provider rows -->
@@ -304,7 +304,7 @@
       <div class="providers-section">
         {#if configuredIds.length === 0 && !draftActive}
           <EmptyState compact bordered message={t('settings.ai.no_provider')}>
-            <Button onclick={addProviderRow}>+ Add provider</Button>
+            <Button onclick={addProviderRow}>{t('settings.ai.add_provider')}</Button>
           </EmptyState>
         {:else}
           <!-- Top toolbar: explanation on the left, Add button on the right -->
@@ -314,7 +314,9 @@
               Tab in the launcher.
             </p>
             {#if !draftActive && availableForDraft.length > 0}
-              <button class="add-provider-btn" onclick={addProviderRow}>+ Add provider</button>
+              <button class="add-provider-btn" onclick={addProviderRow}
+                >{t('settings.ai.add_provider')}</button
+              >
             {/if}
           </div>
 

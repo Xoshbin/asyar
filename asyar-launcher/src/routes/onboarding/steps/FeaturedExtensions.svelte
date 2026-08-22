@@ -68,11 +68,11 @@
 </script>
 
 <Card>
-  <h1>Try a few extensions</h1>
-  <p>Optional — pick any you like and we'll install them now.</p>
+  <h1>{t('onboarding.featured_heading')}</h1>
+  <p>{t('onboarding.featured_desc')}</p>
 
   {#if loading}
-    <LoadingState message="Loading…" />
+    <LoadingState message={t('common.loading')} />
   {:else if extensions.length === 0}
     <EmptyState message={t('onboarding.featured_store_error')}>
       <Button onclick={load}>Retry</Button>

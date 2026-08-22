@@ -177,7 +177,7 @@
       <ShortcutRecorder
         bind:modifier={handler.selectedModifier}
         bind:key={handler.selectedKey}
-        placeholder="Click to set shortcut"
+        placeholder={t('settings.general.hotkey_placeholder')}
         disabled={handler.isSaving}
         onsave={handleSave}
         {conflictChecker}
@@ -191,7 +191,7 @@
   <div id="general-appearance">
     <SettingsRow
       label={t('settings.appearance.theme')}
-      description="Match the system or lock one appearance."
+      description={t('settings.general.theme_description')}
     >
       <AppearanceThemeSelector
         value={handler.selectedTheme as 'light' | 'dark' | 'system'}
@@ -217,7 +217,7 @@
   <div id="general-placement">
     <SettingsRow
       label={t('settings.general.display')}
-      description="Which screen the launcher opens on."
+      description={t('settings.general.display_description')}
     >
       <SegmentedControl
         options={[
@@ -230,14 +230,14 @@
       />
     </SettingsRow>
     <SettingsRow
-      label="Vertical position"
-      description="Drag the launcher itself to set a custom spot."
+      label={t('settings.general.vertical_position')}
+      description={t('settings.general.vertical_position_description')}
     >
       <SegmentedControl
         options={[
-          { value: 'top', label: 'Top' },
-          { value: 'center', label: 'Centre' },
-          { value: 'custom', label: 'Custom' },
+          { value: 'top', label: t('settings.general.vertical_top') },
+          { value: 'center', label: t('settings.general.vertical_center') },
+          { value: 'custom', label: t('settings.general.vertical_custom') },
         ]}
         value={placement.vertical ?? ''}
         onchange={(v) =>
@@ -248,7 +248,7 @@
       />
     </SettingsRow>
     {#if placement.vertical === 'custom'}
-      <SettingsRow label="Distance from top">
+      <SettingsRow label={t('settings.general.distance_from_top')}>
         <SettingsRangeSlider
           min={0}
           max={100}
@@ -258,7 +258,10 @@
         />
       </SettingsRow>
     {/if}
-    <SettingsRow label="Snap while dragging" description="Snap to screen edges and centre lines.">
+    <SettingsRow
+      label={t('settings.general.snap_dragging')}
+      description={t('settings.general.snap_dragging_description')}
+    >
       <Toggle
         checked={placement.placement.snapEnabled}
         onchange={() =>
@@ -270,14 +273,14 @@
     </SettingsRow>
     {#if placement.isDragged}
       <SettingsRow
-        label="Custom position"
-        description="Set by dragging the launcher. Stored relative to the display."
+        label={t('settings.general.custom_position')}
+        description={t('settings.general.custom_position_description')}
       >
         <Button
           class="btn-secondary"
           onclick={() => updatePlacement(() => placement.reset(), 'position')}
         >
-          Reset
+          {t('settings.general.reset')}
         </Button>
       </SettingsRow>
     {/if}
@@ -286,14 +289,19 @@
 
 <SettingsCard>
   <div id="general-onboarding">
-    <SettingsRow label="Onboarding" description="Walk through the welcome flow again.">
-      <Button class="btn-secondary" onclick={rerunOnboarding}>Re-run onboarding</Button>
+    <SettingsRow
+      label={t('settings.general.onboarding')}
+      description={t('settings.general.onboarding_description')}
+    >
+      <Button class="btn-secondary" onclick={rerunOnboarding}
+        >{t('settings.general.rerun_onboarding')}</Button
+      >
     </SettingsRow>
   </div>
 </SettingsCard>
 
 {#if themeExtensions.length > 0}
-  <div class="section-header">Custom Themes</div>
+  <div class="section-header">{t('settings.general.custom_themes')}</div>
   <SettingsCard>
     <div class="themes-list">
       <label class="theme-item" class:theme-active={activeThemeId === null}>
@@ -305,8 +313,8 @@
           class="sr-only"
         />
         <div class="theme-item-body">
-          <div class="theme-item-name">Default</div>
-          <div class="theme-item-meta">Built-in Asyar theme</div>
+          <div class="theme-item-name">{t('settings.general.default_theme')}</div>
+          <div class="theme-item-meta">{t('settings.general.default_theme_meta')}</div>
         </div>
       </label>
 

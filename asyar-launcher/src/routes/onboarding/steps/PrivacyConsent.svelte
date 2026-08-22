@@ -61,11 +61,10 @@
   });
 </script>
 
-<GuidanceStep kicker="Help improve Asyar" title="Privacy choices">
+<GuidanceStep kicker={t('onboarding.privacy_title')} title={t('onboarding.privacy_heading')}>
   {#snippet body()}
     <p>
-      When Asyar crashes, it can send a small report so the team can fix the problem faster. You are
-      always in control — choose what feels right for you.
+      {t('onboarding.privacy_desc')}
     </p>
     <SettingsRadioGroup
       name="crashReportMode"
@@ -74,10 +73,9 @@
       onchange={handleChange}
       noBorder={true}
     />
-    <p class="text-section">Anonymous usage share (optional)</p>
+    <p class="text-section">{t('onboarding.anonymous_usage')}</p>
     <p>
-      Share anonymous daily counts of which commands you run. No search text, no file paths, no
-      personal data.
+      {t('onboarding.anonymous_usage_desc')}
     </p>
     <SettingsRadioGroup
       name="usageShareMode"
