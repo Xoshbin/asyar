@@ -133,3 +133,26 @@ export type ParsedLocale = {
   raw: string;
 };
 ```
+
+---
+
+## 7. Frontend I18n Architecture (`I18nService` & Catalogs)
+
+On the presentation layer, [`I18nService`](file:///Users/khoshbin/develop/Asyar-Project/asyar-launcher/src/services/i18n/i18nService.svelte.ts) consumes the system locale and resolves translated strings reactively:
+
+- **Candidate Fallback Chains**: When looking up a key (e.g. for `zh-Hans-CN`), the service checks `zh-Hans-CN` → `zh-Hans` → `zh` → `en` before falling back to the raw key.
+- **Dynamic Parameter Interpolation**: `t('features.mcp.detected_configs_description', { sources: 'VS Code' })` dynamically replaces `{param}` placeholders.
+- **Extension Manifest Localization**: `resolveLocalized(value, fallback)` transparently resolves multi-lingual JSON objects (`{ "en": "Clear", "ckb": "سڕینەوە" }`) declared in extension manifests.
+- **Svelte 5 Reactivity**: The global `t` helper works seamlessly with Svelte 5 `$derived` state, ensuring all labels, placeholders, and action titles update instantly when the active locale changes.
+
+---
+
+## 8. Static AST Translation Enforcement
+
+To guarantee that no untranslated text reaches production, Asyar implements an automated AST static analysis test suite in [`noHardcodedStrings.test.ts`](file:///Users/khoshbin/develop/Asyar-Project/asyar-launcher/src/services/i18n/noHardcodedStrings.test.ts):
+
+1. **Catalog Integrity**: Ensures every `t("key")` call references an existing, non-empty key in `en.json`.
+2. **Template Sensitive Props**: Scans all Svelte component invocations and HTML tags to prevent literal strings on sensitive props (`label`, `description`, `placeholder`, `message`, `emptyMessage`, `kicker`, `hint`, `subtitle`, `error`).
+3. **Interactive Elements**: Asserts that all text inside interactive elements (`<button>`, `<Button>`, `<option>`, `<label>`) is wrapped with `{t('...')}`.
+4. **Script Block Literals**: Walks AST property nodes in `<script>` blocks to catch unlocalized action definitions, default prop assignments, and notification payloads.
+5. **Technical Whitelisting**: Employs an exact heuristic (`isTechnicalOrSymbol`) to permit symbols (⌘K, +), numbers/units (12px, 100%), paths/URLs, and recognized system identifiers (e.g. `github`, `tauri`, `json`).
