@@ -8,11 +8,11 @@
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { t } from '../../services/i18n';
 
-  const categories: { id: string; label: string }[] = [
-    { id: 'idea', label: 'Idea' },
-    { id: 'bug', label: 'Bug' },
-    { id: 'other', label: 'Other' },
-  ];
+  let categories = $derived<{ id: string; label: string }[]>([
+    { id: 'idea', label: t('features.feedback.category_idea') },
+    { id: 'bug', label: t('features.feedback.category_bug') },
+    { id: 'other', label: t('features.feedback.category_other') },
+  ]);
 
   onMount(() => {
     if (authService.user?.email) feedbackViewState.email = authService.user.email;
@@ -28,7 +28,7 @@
         kind: 'manual',
         severity: 'success',
         retryable: false,
-        context: { message: 'Feedback sent — thank you!' },
+        context: { message: t('features.feedback.success_sent') },
       });
       feedbackViewState.reset();
     } catch (e) {
@@ -37,7 +37,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: 'Failed to send feedback. Please try again.' },
+        context: { message: t('features.feedback.error_failed') },
         developerDetail: String(e),
       });
     } finally {

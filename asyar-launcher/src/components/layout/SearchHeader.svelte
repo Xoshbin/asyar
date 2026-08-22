@@ -157,9 +157,12 @@
   // that in sync without a ResizeObserver.
   const ARG_HINT_GAP = 12;
   // Stand-in while a dynamic command's schema is still resolving over IPC.
-  const FALLBACK_HINT_FIELDS: NonNullable<typeof argumentHintFields> = [
-    { arg: { name: 'input', type: 'text', placeholder: 'Input…' }, value: '' },
-  ];
+  const FALLBACK_HINT_FIELDS = $derived([
+    {
+      arg: { name: 'input', type: 'text', placeholder: t('components.arg_input.placeholder') },
+      value: '',
+    },
+  ] as NonNullable<typeof argumentHintFields>);
   let argMeasureEl = $state<HTMLElement | null>(null);
   let argHintTextW = $state(0);
   // Whatever text the chips currently trail. With the query empty that is the

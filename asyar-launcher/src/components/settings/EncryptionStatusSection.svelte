@@ -5,18 +5,18 @@
 
   let dot = $derived(
     encryptionService.current.status === 'active'
-      ? { color: 'success' as const, label: 'Active' }
+      ? { color: 'success' as const, label: t('settings.privacy.encryption_active') }
       : encryptionService.current.status === 'fallback'
-        ? { color: 'warning' as const, label: 'File-backed (Linux fallback)' }
-        : { color: 'info' as const, label: 'Status unavailable' },
+        ? { color: 'warning' as const, label: t('settings.privacy.encryption_fallback') }
+        : { color: 'info' as const, label: t('settings.privacy.encryption_unavailable') },
   );
 
   let description = $derived(
     encryptionService.current.status === 'active'
-      ? 'Active — your master key is stored in the OS keychain. A stolen disk image alone cannot decrypt your data.'
+      ? t('settings.privacy.encryption_desc_active')
       : encryptionService.current.status === 'fallback'
-        ? 'Falling back to a file-backed key because Secret Service was unavailable. Install gnome-keyring or KWallet for full at-rest protection.'
-        : 'The launcher is still booting or the host status command failed.',
+        ? t('settings.privacy.encryption_desc_fallback')
+        : t('settings.privacy.encryption_desc_unavailable'),
   );
 </script>
 

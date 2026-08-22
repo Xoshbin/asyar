@@ -5,19 +5,23 @@
   import { usageShareState } from './usageShareState.svelte';
   import { t } from '../../services/i18n';
 
-  const options: { value: string; label: string; description?: string }[] = [
-    { value: 'off', label: 'Off', description: 'Nothing leaves your device.' },
+  let options = $derived<{ value: string; label: string; description?: string }[]>([
+    {
+      value: 'off',
+      label: t('settings.privacy.mode_off'),
+      description: t('settings.privacy.usage_off_desc'),
+    },
     {
       value: 'ask',
-      label: 'Ask me each time',
-      description: 'Review the exact data before it is sent.',
+      label: t('settings.privacy.mode_ask'),
+      description: t('settings.privacy.usage_ask_desc'),
     },
     {
       value: 'auto',
-      label: 'Share automatically',
-      description: 'Send anonymous daily counts in the background.',
+      label: t('settings.privacy.mode_share_auto'),
+      description: t('settings.privacy.usage_auto_desc'),
     },
-  ];
+  ]);
 
   let mode = $derived(settingsService.currentSettings.privacy.usageShareMode);
 

@@ -1,12 +1,13 @@
 <script lang="ts">
   import Modal from './Modal.svelte';
   import Button from './Button.svelte';
+  import { t } from '../../services/i18n';
 
   let {
-    title = 'Confirm Action',
-    message = 'Are you sure you want to continue?',
-    confirmButtonText = 'Confirm',
-    cancelButtonText = 'Cancel',
+    title = t('dialogs.confirm.title'),
+    message = t('dialogs.confirm.message'),
+    confirmButtonText = t('common.confirm'),
+    cancelButtonText = t('common.cancel'),
     isOpen = $bindable(false),
     onconfirm,
     oncancel,

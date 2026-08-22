@@ -108,7 +108,7 @@
       const picked = await open({
         directory: true,
         multiple: false,
-        title: 'Add Application Directory',
+        title: t('settings.applications.add_directory_title'),
       });
       if (!picked || typeof picked !== 'string') return;
 

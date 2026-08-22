@@ -113,7 +113,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: true,
-        context: { message: 'Could not revert to default theme' },
+        context: { message: t('settings.general.error_revert_default') },
       });
     }
   }
@@ -133,7 +133,7 @@
     <LoadingState message={t('common.loading')} />
   {:else if themes.length === 0}
     <EmptyState message={t('onboarding.theme_load_error')}>
-      <Button onclick={load}>Retry</Button>
+      <Button onclick={load}>{t('common.retry')}</Button>
     </EmptyState>
   {:else}
     <ul class="grid">
@@ -143,10 +143,10 @@
           <span class="grid__hint">{t('settings.general.default_theme_meta')}</span>
         </div>
         {#if activeThemeId === null}
-          <span class="grid__status grid__status--applied">Applied</span>
+          <span class="grid__status grid__status--applied">{t('settings.general.applied')}</span>
         {:else}
           <Button class="btn-secondary" onclick={useDefault} disabled={installingId !== null}>
-            Use default
+            {t('settings.general.use_default')}
           </Button>
         {/if}
       </li>
@@ -156,12 +156,12 @@
         <li class="grid__item" class:grid__item--active={status === 'applied'}>
           <span class="grid__name">{theme.name}</span>
           {#if status === 'installing'}
-            <span class="grid__status">Installing…</span>
+            <span class="grid__status">{t('common.installing')}</span>
           {:else if status === 'applied'}
-            <span class="grid__status grid__status--applied">Applied</span>
+            <span class="grid__status grid__status--applied">{t('settings.general.applied')}</span>
           {:else}
             <Button onclick={() => install(theme)} disabled={installingId !== null}>
-              {status === 'installed' ? 'Apply' : 'Install'}
+              {status === 'installed' ? t('common.apply') : t('common.install')}
             </Button>
           {/if}
         </li>

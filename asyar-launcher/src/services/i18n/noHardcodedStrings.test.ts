@@ -99,6 +99,9 @@ const SENSITIVE_PROPS = new Set([
   'message',
   'emptyMessage',
   'kicker',
+  'hint',
+  'subtitle',
+  'error',
 ]);
 
 function isIgnoredTag(name: string): boolean {
@@ -138,18 +141,20 @@ describe('i18n AST Static Analysis & Translation Enforcement', () => {
 
     for (const file of allSourceFiles) {
       const content = fs.readFileSync(file, 'utf-8');
+      const rel = path.relative(srcDir, file);
+
       let match;
       while ((match = tCallRegex.exec(content)) !== null) {
         const key = match[1];
         if (!catalogKeys.has(key)) {
-          missingKeys.push({ file: path.relative(srcDir, file), key });
+          missingKeys.push({ file: rel, key });
         }
       }
     }
 
     expect(
       missingKeys,
-      `Found calls to t() with undefined keys in en.json:\n${missingKeys.map((m) => `  ${m.file}: t('${m.key}')`).join('\n')}`,
+      `Found calls to t() with undefined keys in en.json:\n${missingKeys.map((k) => `  ${k.file}: t('${k.key}')`).join('\n')}`,
     ).toEqual([]);
   });
 
@@ -175,21 +180,18 @@ describe('i18n AST Static Analysis & Translation Enforcement', () => {
             for (const attr of node.attributes) {
               if (attr.type === 'Attribute' && SENSITIVE_PROPS.has(attr.name)) {
                 if (Array.isArray(attr.value)) {
-                  for (const v of attr.value) {
-                    if (v.type === 'Text' && !isTechnicalOrSymbol(v.data)) {
-                      violations.push({
-                        file: rel,
-                        prop: attr.name,
-                        text: v.data.trim(),
-                      });
+                  for (const part of attr.value) {
+                    if (part.type === 'Text') {
+                      const text = part.data.trim();
+                      if (text && !isTechnicalOrSymbol(text) && /[a-zA-Z]{2,}/.test(text)) {
+                        violations.push({
+                          file: rel,
+                          prop: attr.name,
+                          text,
+                        });
+                      }
                     }
                   }
-                } else if (typeof attr.value === 'string' && !isTechnicalOrSymbol(attr.value)) {
-                  violations.push({
-                    file: rel,
-                    prop: attr.name,
-                    text: attr.value.trim(),
-                  });
                 }
               }
             }
@@ -248,7 +250,7 @@ describe('i18n AST Static Analysis & Translation Enforcement', () => {
             }
           }
         } else if (node.type === 'Text') {
-          if (parentTag && ['button', 'Button', 'option', 'a'].includes(parentTag)) {
+          if (parentTag && ['button', 'Button', 'option', 'a', 'label'].includes(parentTag)) {
             const text = node.data.trim();
             if (text && !isTechnicalOrSymbol(text) && /[a-zA-Z]{2,}/.test(text)) {
               violations.push({
@@ -276,7 +278,99 @@ describe('i18n AST Static Analysis & Translation Enforcement', () => {
 
     expect(
       violations,
-      `Found hardcoded text in interactive elements (<button>, <Button>, <option>). Use {t('...')} instead:\n${violations.map((v) => `  ${v.file} (<${v.tag}>): "${v.text}"`).join('\n')}`,
+      `Found hardcoded text in interactive elements (<button>, <Button>, <option>, <label>). Use {t('...')} instead:\n${violations.map((v) => `  ${v.file} (<${v.tag}>): "${v.text}"`).join('\n')}`,
+    ).toEqual([]);
+  });
+
+  it('prevents hardcoded user-facing strings in <script> blocks', () => {
+    const violations: { file: string; prop: string | null; text: string }[] = [];
+
+    for (const file of svelteFiles) {
+      const content = fs.readFileSync(file, 'utf-8');
+      const rel = path.relative(srcDir, file);
+
+      let ast;
+      try {
+        ast = parse(content, { modern: true });
+      } catch (err: any) {
+        throw new Error(`Failed to parse Svelte AST for ${rel}: ${err.message}`);
+      }
+
+      if (ast.instance?.content) {
+        function walkScript(node: any, parentProp: string | null = null) {
+          if (!node || typeof node !== 'object') return;
+
+          // Skip imports, typescript declarations, and logger/event calls
+          if (
+            node.type === 'ImportDeclaration' ||
+            node.type === 'TSTypeAliasDeclaration' ||
+            node.type === 'TSInterfaceDeclaration' ||
+            node.type === 'TSTypeAnnotation'
+          ) {
+            return;
+          }
+
+          if (node.type === 'CallExpression') {
+            const calleeName = node.callee?.name || node.callee?.property?.name;
+            const objectName = node.callee?.object?.name;
+            if (
+              calleeName === 't' ||
+              objectName === 'logService' ||
+              objectName === 'console' ||
+              calleeName === 'emit' ||
+              calleeName === 'listen' ||
+              calleeName === 'postMessage'
+            ) {
+              return;
+            }
+          }
+
+          if (node.type === 'Property' && node.key) {
+            const propName = node.key.name || node.key.value;
+            if (node.value) walkScript(node.value, propName);
+            return;
+          }
+
+          if (node.type === 'Literal' && typeof node.value === 'string') {
+            const text = node.value.trim();
+            if (text && !isTechnicalOrSymbol(text) && /[a-zA-Z]{2,}/.test(text)) {
+              const isSensitiveProp =
+                parentProp &&
+                [
+                  'label',
+                  'description',
+                  'title',
+                  'message',
+                  'placeholder',
+                  'hint',
+                  'error',
+                  'subtitle',
+                  'kicker',
+                ].includes(parentProp);
+              if (isSensitiveProp) {
+                violations.push({ file: rel, prop: parentProp, text });
+              }
+            }
+          }
+
+          for (const [key, value] of Object.entries(node)) {
+            if (key !== 'key' && typeof value === 'object') {
+              if (Array.isArray(value)) {
+                for (const item of value) walkScript(item, parentProp);
+              } else {
+                walkScript(value, parentProp);
+              }
+            }
+          }
+        }
+
+        walkScript(ast.instance.content);
+      }
+    }
+
+    expect(
+      violations,
+      `Found hardcoded user-facing strings in <script> blocks. Use t('...') instead:\n${violations.map((v) => `  ${v.file} (${v.prop}): "${v.text}"`).join('\n')}`,
     ).toEqual([]);
   });
 });

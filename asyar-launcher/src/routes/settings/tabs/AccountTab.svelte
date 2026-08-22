@@ -32,7 +32,7 @@
       kind: 'manual',
       severity: 'error',
       retryable: false,
-      context: { message: 'Cloud sync failed' },
+      context: { message: t('settings.account.error_sync_failed') },
     });
   }
 

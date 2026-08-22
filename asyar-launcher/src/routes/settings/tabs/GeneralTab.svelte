@@ -63,7 +63,7 @@
         kind: 'manual',
         severity: 'warning',
         retryable: false,
-        context: { message: 'Could not load theme extensions list' },
+        context: { message: t('settings.general.error_load_themes') },
       });
     }
   });
@@ -128,7 +128,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: 'Could not re-run onboarding' },
+        context: { message: t('settings.general.error_rerun_onboarding') },
       });
     }
   }
@@ -151,7 +151,9 @@
         severity: 'error',
         retryable: false,
         context: {
-          message: themeId ? `Could not apply theme "${themeId}"` : 'Could not remove active theme',
+          message: themeId
+            ? `Could not apply theme "${themeId}"`
+            : t('settings.general.error_remove_active_theme'),
         },
       });
     }

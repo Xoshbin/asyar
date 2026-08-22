@@ -32,7 +32,7 @@
     const result = await getDevExtensionPaths();
     if (result === null) {
       logService.error('Failed to load dev extensions');
-      devExtError = 'Failed to load dev extensions.';
+      devExtError = t('settings.developer.error_load_dev_extensions');
       devExtensions = {};
     } else {
       devExtensions = result;
@@ -59,7 +59,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: 'Reload failed' },
+        context: { message: t('settings.developer.error_reload_failed') },
       });
     }
     reloadingExt = null;
@@ -68,9 +68,9 @@
   async function detachDevExtension(extensionId: string) {
     if (detachingExt) return;
     const confirmed = await feedbackService.confirmAlert({
-      title: 'Detach Dev Extension',
+      title: t('settings.developer.detach_title'),
       message: `Remove "${extensionId}" from the dev extension registry? The extension files will not be deleted.`,
-      confirmText: 'Detach',
+      confirmText: t('settings.developer.detach'),
       variant: 'danger',
     });
     if (!confirmed) return;

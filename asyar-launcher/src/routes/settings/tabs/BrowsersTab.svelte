@@ -64,7 +64,7 @@
         kind: 'browser:settings.resolve-failed',
         severity: 'error',
         retryable: false,
-        context: { message: 'browser_resolve_pairing failed' },
+        context: { message: t('settings.browsers.error_resolve_failed') },
       });
       return;
     }
@@ -79,7 +79,7 @@
         kind: 'browser:settings.revoke-failed',
         severity: 'error',
         retryable: false,
-        context: { message: 'browser_revoke_pairing failed' },
+        context: { message: t('settings.browsers.error_revoke_failed') },
       });
       return;
     }

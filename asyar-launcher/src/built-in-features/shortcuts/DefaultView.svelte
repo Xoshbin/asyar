@@ -37,7 +37,7 @@
     }
     actionService.registerAction({
       id: 'shortcuts:change',
-      title: 'Change',
+      title: t('features.shortcuts.action_change'),
       icon: 'icon:pencil',
       extensionId: 'shortcuts',
       category: 'Shortcuts',
@@ -48,7 +48,7 @@
     });
     actionService.registerAction({
       id: 'shortcuts:remove',
-      title: 'Remove',
+      title: t('features.shortcuts.action_remove'),
       icon: 'icon:trash',
       extensionId: 'shortcuts',
       category: 'Shortcuts',
@@ -117,9 +117,9 @@
 
   async function handleRemove(id: string, name: string) {
     const confirmed = await feedbackService.confirmAlert({
-      title: 'Remove shortcut',
+      title: t('features.shortcuts.remove_confirm_title'),
       message: `Remove the shortcut for "${name}"?`,
-      confirmText: 'Remove',
+      confirmText: t('common.remove'),
       variant: 'danger',
     });
     if (!confirmed) return;

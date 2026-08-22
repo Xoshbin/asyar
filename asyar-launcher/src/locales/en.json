@@ -23,6 +23,10 @@
     "close": "Close"
   },
   "dialogs": {
+    "confirm": {
+      "title": "Confirm Action",
+      "message": "Are you sure you want to continue?"
+    },
     "action_list": {
       "no_matching_actions": "No matching actions",
       "search_placeholder": "Search for actions..."
@@ -114,7 +118,13 @@
       "rerun_onboarding": "Re-run onboarding",
       "custom_themes": "Custom Themes",
       "default_theme": "Default",
-      "default_theme_meta": "Built-in Asyar theme"
+      "default_theme_meta": "Built-in Asyar theme",
+      "error_load_themes": "Could not load theme extensions list",
+      "error_rerun_onboarding": "Could not re-run onboarding",
+      "error_remove_active_theme": "Could not remove active theme",
+      "applied": "Applied",
+      "use_default": "Use default",
+      "error_revert_default": "Could not revert to default theme"
     },
     "appearance": {
       "theme": "Theme",
@@ -181,7 +191,8 @@
       "change_passphrase": "Change passphrase",
       "view_recovery_phrase": "View recovery phrase",
       "forgot_passphrase": "I forgot my passphrase",
-      "view_plans": "View plans"
+      "view_plans": "View plans",
+      "error_sync_failed": "Cloud sync failed"
     },
     "backup": {
       "password_optional": "Password (optional)",
@@ -219,7 +230,8 @@
       "search_roots": "Search roots",
       "search_roots_description": "Empty ⇒ your entire home folder. Add specific directories to narrow the scope.",
       "exclude_patterns": "Exclude patterns",
-      "exclude_patterns_description": "Glob patterns to skip during indexing."
+      "exclude_patterns_description": "Glob patterns to skip during indexing.",
+      "add_search_root_title": "Add Search Root"
     },
     "extensions": {
       "installed": "Installed Extensions",
@@ -246,7 +258,18 @@
       "loading_extensions": "Loading extensions…",
       "create_extension": "Create Extension",
       "add_alias": "Add Alias",
-      "record_hotkey": "Record Hotkey"
+      "record_hotkey": "Record Hotkey",
+      "revoke_permissions_title": "Revoke Permissions",
+      "revoke_permissions_msg": "\"{title}\" will lose access to its granted permissions until you review and re-allow them. It stays installed and enabled.",
+      "revoke": "Revoke",
+      "download_runtime": "Download runtime",
+      "download": "Download",
+      "uninstalling": "Uninstalling…",
+      "uninstall": "Uninstall",
+      "permissions_need_review": "Permissions need review",
+      "needs_runtime_download": "Needs runtime download",
+      "review_permissions": "Review permissions",
+      "reset_to_defaults": "Reset to Defaults"
     },
     "ai": {
       "no_provider": "No AI provider configured yet",
@@ -272,8 +295,10 @@
       "table_name": "Name",
       "table_alias": "Alias",
       "table_hotkey": "Hotkey",
-      "table_enabled": "Enabled"
+      "table_enabled": "Enabled",
+      "add_directory_title": "Add Application Directory"
     },
+
     "browsers": {
       "no_browsers": "No browsers paired yet",
       "no_browsers_description": "Install the Asyar Companion extension below — once it's running, it pairs automatically and your browser shows up here.",
@@ -287,7 +312,9 @@
       "install_for_chrome": "Install for Chrome",
       "install_chrome_note": "Works for Chrome, Brave, Edge, Arc, and Vivaldi. Firefox and Safari companions are coming soon.",
       "connected": "Connected",
-      "offline": "Offline"
+      "offline": "Offline",
+      "error_resolve_failed": "browser_resolve_pairing failed",
+      "error_revoke_failed": "browser_revoke_pairing failed"
     },
     "developer": {
       "no_dev_extensions": "No dev extensions attached",
@@ -308,13 +335,27 @@
       "detach": "Detach",
       "detaching": "Detaching…",
       "hot_reload": "Hot Reload",
-      "reloading": "Reloading…"
+      "reloading": "Reloading…",
+      "error_load_dev_extensions": "Failed to load dev extensions.",
+      "error_reload_failed": "Reload failed",
+      "detach_title": "Detach Dev Extension"
     },
     "scripts": {
       "no_directories": "No script directories added yet",
       "section_directories": "Script directories",
       "directories_description": "Directories added here will be watched for executable scripts. Scripts are discovered automatically — no restart required.",
       "add_directory": "Add directory…"
+    },
+    "runtimes": {
+      "title": "Installed Runtimes",
+      "error_load_list": "Could not load installed runtimes list",
+      "remove_runtime_title": "Remove Runtime",
+      "remove_anyway": "Remove Anyway",
+      "removing": "Removing…"
+    },
+    "tasks": {
+      "title": "Scheduled Tasks",
+      "error_load_list": "Could not load scheduled tasks list"
     },
     "privacy": {
       "no_defaults": "No defaults loaded",
@@ -353,7 +394,36 @@
       "your_additions_desc": "Apps you have added to the denylist.",
       "crash_reports": "Crash & Error Reports",
       "crash_reports_desc": "Asyar sends no telemetry by default. Opt in to help fix crashes — you choose how.",
-      "encryption_at_rest": "Encryption at Rest"
+      "encryption_at_rest": "Encryption at Rest",
+      "mode_off": "Off",
+      "crash_off_desc": "Never send anything.",
+      "mode_ask": "Ask me each time",
+      "crash_ask_desc": "Preview the exact report before sending.",
+      "usage_ask_desc": "Show me what will be sent before sharing usage data.",
+      "mode_auto": "Send automatically",
+      "crash_auto_desc": "Send crash reports silently.",
+      "usage_off_desc": "Nothing leaves your device.",
+      "mode_share_auto": "Share automatically",
+      "usage_auto_desc": "Send anonymous daily counts in the background.",
+      "mode_share_anon": "Share anonymously",
+      "usage_anon_desc": "Daily counts, no personal data.",
+      "encryption_active": "Active",
+      "encryption_fallback": "File-backed (Linux fallback)",
+      "encryption_unavailable": "Status unavailable",
+      "encryption_desc_active": "Active — your master key is stored in the OS keychain. A stolen disk image alone cannot decrypt your data.",
+      "encryption_desc_fallback": "Falling back to a file-backed key because Secret Service was unavailable. Install gnome-keyring or KWallet for full at-rest protection.",
+      "encryption_desc_unavailable": "The launcher is still booting or the host status command failed.",
+      "unlock_sync_title": "Unlock encrypted sync",
+      "unlock_sync_desc": "Encrypted sync needs your passphrase to continue.",
+      "error_incorrect_passphrase": "Incorrect passphrase. Try again.",
+      "use_recovery_phrase": "Use recovery phrase instead",
+      "unlocking": "Unlocking…",
+      "unlock": "Unlock",
+      "change_passphrase": "Change passphrase",
+      "rotate_dialog_body": "Your recovery phrase will not change — only the passphrase used to unlock encrypted sync.",
+      "error_rotate_failed": "Couldn't change passphrase. Check the old passphrase and try again.",
+      "error_passwords_mismatch": "New passphrases don't match.",
+      "changing": "Changing…"
     },
     "about": {
       "section_updates": "Updates",
@@ -379,6 +449,16 @@
     }
   },
   "onboarding": {
+    "open_asyar": "Open Asyar",
+    "youre_set": "You're set",
+    "thats_asyar": "That's Asyar — go fast",
+    "cheatsheet_desc": "Keep these five shortcuts handy. You can re-run this tour anytime from Settings.",
+    "shortcut_toggle": "Open / hide Asyar",
+    "shortcut_ai": "Ask AI · fill command arguments",
+    "shortcut_action_panel": "Open the action panel",
+    "shortcut_run": "Run the selected result",
+    "shortcut_back": "Go back · hide",
+    "error_skip_ai": "Could not skip AI setup.",
     "featured_store_error": "Couldn't reach the extension store.",
     "theme_load_error": "Couldn't load themes.",
     "welcome_title": "Welcome",
@@ -426,6 +506,17 @@
     "no_subscriptions": "No active subscriptions."
   },
   "features": {
+    "aliases": {
+      "change_alias": "Change alias",
+      "assign_alias": "Assign alias",
+      "reassign_alias": "Reassign alias",
+      "reassign": "Reassign",
+      "hint": "1–10 lowercase letters or digits",
+      "error_empty": "Please enter an alias.",
+      "error_too_long": "Alias must be at most 10 characters.",
+      "error_invalid_chars": "Alias may only contain lowercase letters and digits.",
+      "error_save_failed": "Failed to save alias. Please try again."
+    },
     "clipboard": {
       "title": "Clipboard History",
       "search_placeholder": "Search clipboard history...",
@@ -469,13 +560,7 @@
       "no_other_notes": "No other notes yet",
       "link_to_note": "Link to note"
     },
-    "portals": {
-      "title": "Portals",
-      "no_portals": "No portals yet",
-      "select_portal": "Select a portal",
-      "no_portals_description": "Add a URL shortcut to get started.",
-      "select_portal_description": "Choose a portal from the list to view its details."
-    },
+
     "walkthrough": {
       "title": "Walkthrough",
       "no_tasks": "No walkthrough tasks yet",
@@ -501,7 +586,10 @@
       "title": "Shortcuts",
       "no_shortcuts": "No shortcuts configured yet",
       "no_shortcuts_description": "Use ⌘K on any search result and choose \"Assign Shortcut\" to add one.",
-      "no_matching_shortcuts": "No matching shortcuts"
+      "no_matching_shortcuts": "No matching shortcuts",
+      "action_change": "Change",
+      "action_remove": "Remove",
+      "remove_confirm_title": "Remove shortcut"
     },
     "scripts": {
       "title": "Scripts",
@@ -544,17 +632,7 @@
       "write_placeholder": "Write something…",
       "note_deleted": "This note no longer exists."
     },
-    "mcp": {
-      "no_activity": "No MCP activity yet",
-      "no_activity_description": "Tool calls made by AI agents through MCP servers appear here.",
-      "no_configs": "No existing MCP configs detected on this system",
-      "detected_configs_description": "We found configs from {sources}. Use the Import action to bring them in.",
-      "loading_servers": "Loading servers…",
-      "no_servers": "No MCP servers installed",
-      "no_servers_install_description": "Use the Install action to add your first server.",
-      "no_permissions": "No saved permissions",
-      "no_permissions_description": "Permission decisions appear here after you allow or deny an MCP tool call from an agent."
-    },
+
     "runs": {
       "no_runs": "No runs yet",
       "no_runs_description": "Runs from AI chat or shell scripts will appear here.",
@@ -570,9 +648,17 @@
     },
     "raycast_import": {
       "import_title": "Import from Raycast",
-      "import_description": "Choose a .rayconfig file from Raycast's “Export Settings & Data”, or a JSON file from “Export Snippets” / “Export Quicklinks”.",
+      "import_description": "Choose a .rayconfig file from Raycast’s “Export Settings & Data”, or a JSON file from “Export Snippets” / “Export Quicklinks”.",
       "import_complete": "Import complete",
-      "import_complete_description": "Duplicates already in Asyar were skipped."
+      "import_complete_description": "Duplicates already in Asyar were skipped.",
+      "category_snippets": "Snippets",
+      "category_snippets_hint": "Keywords and text expansions",
+      "category_portals": "Quicklinks → Portals",
+      "category_portals_hint": "{argument} becomes {query}",
+      "category_shortcuts": "Hotkeys → Shortcuts",
+      "category_shortcuts_hint": "App and quicklink hotkeys",
+      "category_aliases": "Aliases",
+      "category_aliases_hint": "App and quicklink aliases"
     },
     "create_extension": {
       "no_extensions": "No extensions yet",
@@ -584,11 +670,35 @@
       "description": "Description",
       "select_folder": "Select a parent folder...",
       "placeholder_name": "My Awesome Tool",
-      "placeholder_desc": "What does your extension do?"
+      "placeholder_desc": "What does your extension do?",
+      "title": "Create Extension",
+      "subtitle": "Scaffold a new Asyar extension project automatically.",
+      "type_view": "UI View",
+      "type_view_desc": "Full-page Svelte interface opened directly by a command.",
+      "type_result": "Search + View",
+      "type_result_desc": "Returns filterable results; clicking one opens a detail view.",
+      "type_logic": "Action Only",
+      "type_logic_desc": "Runs logic directly with no UI — appears in search as actionable items.",
+      "type_theme": "Theme",
+      "type_theme_desc": "Customizes Asyar's appearance with CSS variables. No JavaScript required.",
+      "select_save_location": "Select Extension Save Location",
+      "initializing_scaffold": "Initializing scaffold...",
+      "default_description": "An Asyar extension.",
+      "generated_success": "Generated successfully!",
+      "error_dot_notation": "Must use dot-notation format (e.g., com.author.my-tool)",
+      "error_name_length": "Must be between 2 and 50 characters",
+      "error_desc_length": "Must be between 10 and 200 characters",
+      "create_button": "Create Scaffold",
+      "creating_button": "Creating…"
     },
     "feedback": {
       "placeholder_tell_us": "Tell us what's on your mind…",
-      "placeholder_email": "Email (optional — or clear to send anonymously)"
+      "placeholder_email": "Email (optional — or clear to send anonymously)",
+      "category_idea": "Idea",
+      "category_bug": "Bug",
+      "category_other": "Other",
+      "success_sent": "Feedback sent — thank you!",
+      "error_failed": "Failed to send feedback. Please try again."
     },
     "mcp": {
       "placeholder_server_name": "My Server",
@@ -601,14 +711,33 @@
       "detected_configs_description": "No external MCP configurations were detected on your system.",
       "no_servers_install_description": "Install a server to start using MCP tools and resources.",
       "no_permissions": "No permissions granted",
-      "no_permissions_description": "Servers that request permissions will appear here once approved."
+      "no_permissions_description": "Servers that request permissions will appear here once approved.",
+      "display_name": "Display Name",
+      "transport": "Transport",
+      "command": "Command",
+      "arguments": "Arguments",
+      "add_argument": "+ Add Argument",
+      "env_vars": "Environment Variables",
+      "add_variable": "+ Add Variable",
+      "working_directory": "Working Directory",
+      "headers": "Headers",
+      "add_header": "+ Add Header",
+      "test_connection": "Test Connection",
+      "testing": "Testing…",
+      "install": "Install Server",
+      "save_changes": "Save Changes"
     },
     "portals": {
+      "title": "Portals",
       "no_portals": "No portals yet",
       "placeholder_search": "Search Google",
       "select_portal": "Select a portal",
       "no_portals_description": "Create portals to quickly search websites and web apps.",
-      "select_portal_description": "Choose a portal from the left to edit or run it."
+      "select_portal_description": "Choose a portal from the left to edit or run it.",
+      "action_edit": "Edit",
+      "action_duplicate": "Duplicate",
+      "action_delete": "Delete",
+      "delete_confirm_title": "Delete portal"
     }
   },
   "common": {
@@ -646,6 +775,39 @@
     "type_disable_to_confirm": "Type DISABLE to confirm",
     "current_passphrase": "Current passphrase",
     "new_passphrase": "New passphrase (12+ characters)",
-    "confirm_new_passphrase": "Confirm new passphrase"
+    "confirm_new_passphrase": "Confirm new passphrase",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "default": "Default",
+    "compact": "Compact",
+    "off": "Off",
+    "active": "Active",
+    "paused": "Paused",
+    "remove": "Remove",
+    "apply": "Apply",
+    "install": "Install",
+    "installing": "Installing…",
+    "downloading": "Downloading…",
+    "no_items_found": "No items found"
+  },
+  "components": {
+    "shortcut_recorder": {
+      "placeholder": "Click to record shortcut"
+    },
+    "arg_input": {
+      "placeholder": "Input…"
+    },
+    "calc_card": {
+      "calculator": "Calculator",
+      "units": "Units",
+      "currency": "Currency",
+      "date": "Date",
+      "time": "Time",
+      "base": "Base",
+      "color": "Color",
+      "percent": "Percent",
+      "ratio": "Ratio"
+    }
   }
 }

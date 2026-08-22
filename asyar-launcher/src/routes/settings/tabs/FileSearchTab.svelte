@@ -79,7 +79,11 @@
     errorMessage = null;
     try {
       await setFocusLock(true);
-      const picked = await open({ directory: true, multiple: false, title: 'Add Search Root' });
+      const picked = await open({
+        directory: true,
+        multiple: false,
+        title: t('settings.file_search.add_search_root_title'),
+      });
       if (!picked || typeof picked !== 'string') return;
       if (!canAddRoot(picked, roots)) {
         errorMessage = `${picked} is already in the list`;

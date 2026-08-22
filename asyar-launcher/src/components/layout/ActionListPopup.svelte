@@ -94,9 +94,9 @@
 
     if (action.confirm) {
       const confirmed = await feedbackService.confirmAlert({
-        title: 'Confirm Action',
+        title: t('dialogs.confirm.title'),
         message: `Are you sure you want to run '${action.label}'? This cannot be undone.`,
-        confirmText: 'Confirm',
+        confirmText: t('common.confirm'),
         variant: 'danger',
       });
       if (!confirmed) return;

@@ -34,27 +34,27 @@
   const categories = $derived([
     {
       key: 'snippets' as const,
-      label: 'Snippets',
+      label: t('features.raycast_import.category_snippets'),
       count: state.bundle?.snippets.length ?? 0,
-      hint: 'Keywords and text expansions',
+      hint: t('features.raycast_import.category_snippets_hint'),
     },
     {
       key: 'portals' as const,
-      label: 'Quicklinks → Portals',
+      label: t('features.raycast_import.category_portals'),
       count: state.bundle?.portals.length ?? 0,
-      hint: '{argument} becomes {query}',
+      hint: t('features.raycast_import.category_portals_hint'),
     },
     {
       key: 'shortcuts' as const,
-      label: 'Hotkeys → Shortcuts',
+      label: t('features.raycast_import.category_shortcuts'),
       count: state.bundle?.shortcuts.length ?? 0,
-      hint: 'App and quicklink hotkeys',
+      hint: t('features.raycast_import.category_shortcuts_hint'),
     },
     {
       key: 'aliases' as const,
-      label: 'Aliases',
+      label: t('features.raycast_import.category_aliases'),
       count: state.bundle?.aliases.length ?? 0,
-      hint: 'App and quicklink aliases',
+      hint: t('features.raycast_import.category_aliases_hint'),
     },
   ]);
 </script>

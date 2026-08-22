@@ -7,8 +7,8 @@
 
   let {
     isOpen = $bindable(false),
-    title = 'Unlock encrypted sync',
-    description = 'Encrypted sync needs your passphrase to continue.',
+    title = t('settings.privacy.unlock_sync_title'),
+    description = t('settings.privacy.unlock_sync_desc'),
     onComplete,
     onCancel,
     onForgot,
@@ -48,7 +48,7 @@
       onComplete?.();
     } catch (err) {
       logService.warn(`passphrase dialog unlock failed: ${String(err)}`);
-      errorMessage = 'Incorrect passphrase. Try again.';
+      errorMessage = t('settings.privacy.error_incorrect_passphrase');
       submitting = false;
     }
   }
@@ -77,15 +77,20 @@
     {/if}
     <div class="dialog-footer">
       {#if onForgot}
-        <button type="button" class="text-link" onclick={forgot}>Use recovery phrase instead</button
+        <button type="button" class="text-link" onclick={forgot}
+          >{t('settings.privacy.use_recovery_phrase')}</button
         >
       {:else}
         <span></span>
       {/if}
       <div class="flex gap-2">
         <Button onclick={cancel}>{t('common.cancel')}</Button>
-        <Button class="btn-primary" disabled={!canSubmit} onclick={submit}>
-          {submitting ? 'Unlocking…' : 'Unlock'}
+        <Button
+          class="btn-primary"
+          disabled={passphrase.length === 0 || submitting}
+          onclick={submit}
+        >
+          {submitting ? t('settings.privacy.unlocking') : t('settings.privacy.unlock')}
         </Button>
       </div>
     </div>

@@ -54,7 +54,7 @@
     }
     actionService.registerAction({
       id: 'portals:edit',
-      title: 'Edit',
+      title: t('features.portals.action_edit'),
       icon: 'icon:pencil',
       extensionId: 'portals',
       category: 'Portals',
@@ -65,7 +65,7 @@
     });
     actionService.registerAction({
       id: 'portals:duplicate',
-      title: 'Duplicate',
+      title: t('features.portals.action_duplicate'),
       icon: 'icon:copy',
       extensionId: 'portals',
       category: 'Portals',
@@ -76,7 +76,7 @@
     });
     actionService.registerAction({
       id: 'portals:delete',
-      title: 'Delete',
+      title: t('features.portals.action_delete'),
       icon: 'icon:trash',
       extensionId: 'portals',
       category: 'Portals',
@@ -142,9 +142,9 @@
 
   async function handleDelete(portal: Portal) {
     const confirmed = await feedbackService.confirmAlert({
-      title: 'Delete portal',
+      title: t('features.portals.delete_confirm_title'),
       message: `Delete "${portal.name}"? This cannot be undone.`,
-      confirmText: 'Delete',
+      confirmText: t('common.delete'),
       variant: 'danger',
     });
     if (!confirmed) return;
