@@ -149,7 +149,7 @@
   style="top: var(--shell-header-h); height: var(--shell-footer-h); z-index: var(--z-footer); background-color: var(--bg-secondary-full-opacity);"
 >
   <ShowMoreBarHuds />
-  <BottomBarButton label="Show More" keyHint="↓" onclick={() => onexpand?.()} />
+  <BottomBarButton label={t('common.show_more')} keyHint="↓" onclick={() => onexpand?.()} />
 </div>
 
 <style>

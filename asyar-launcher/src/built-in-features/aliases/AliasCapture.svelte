@@ -6,6 +6,7 @@
   import { aliasService } from './aliasService';
   import { aliasStore } from './aliasStore.svelte';
   import { logService } from '../../services/log/logService';
+  import { t } from '../../services/i18n';
 
   type Props = {
     objectId: string;
@@ -99,7 +100,11 @@
         <p class="text-sm text-[var(--text-secondary)] mt-1">{itemName}</p>
       </div>
 
-      <FormField label="Alias" hint="1–10 lowercase letters or digits" error={error ?? undefined}>
+      <FormField
+        label={t('common.alias')}
+        hint="1–10 lowercase letters or digits"
+        error={error ?? undefined}
+      >
         <Input
           textIntent="exact"
           bind:value
@@ -111,8 +116,8 @@
       </FormField>
 
       <div class="flex justify-end gap-3">
-        <Button type="button" onclick={oncancel} disabled={saving}>Cancel</Button>
-        <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+        <Button type="button" onclick={oncancel} disabled={saving}>{t('common.cancel')}</Button>
+        <Button type="submit" disabled={saving}>{saving ? 'Saving…' : t('common.save')}</Button>
       </div>
     </form>
   {/snippet}
@@ -123,7 +128,7 @@
   title="Reassign alias"
   message={conflictName ? `'${conflictName}' already uses '${pendingAlias}'. Reassign?` : ''}
   confirmButtonText="Reassign"
-  cancelButtonText="Cancel"
+  cancelButtonText={t('common.cancel')}
   onconfirm={handleConfirmReassign}
   oncancel={handleCancelReassign}
 />

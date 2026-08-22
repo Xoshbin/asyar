@@ -3,6 +3,7 @@
   import { Button, Input } from '../index';
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
   import { logService } from '../../services/log/logService';
+  import { t } from '../../services/i18n';
 
   let {
     isOpen = $bindable(false),
@@ -66,7 +67,7 @@
     <Input
       textIntent="exact"
       type="password"
-      placeholder="Passphrase"
+      placeholder={t('common.passphrase')}
       bind:value={passphrase}
       maxlength={256}
       autofocus
@@ -82,12 +83,8 @@
         <span></span>
       {/if}
       <div class="flex gap-2">
-        <Button onclick={cancel}>Cancel</Button>
-        <Button
-          class="btn-primary"
-          disabled={submitting || passphrase.length === 0}
-          onclick={submit}
-        >
+        <Button onclick={cancel}>{t('common.cancel')}</Button>
+        <Button class="btn-primary" disabled={!canSubmit} onclick={submit}>
           {submitting ? 'Unlocking…' : 'Unlock'}
         </Button>
       </div>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { SettingsCard, SettingsRow, StatusDot } from '../index';
   import { encryptionService } from '../../services/privacy/encryptionService.svelte';
+  import { t } from '../../services/i18n';
 
   let dot = $derived(
     encryptionService.current.status === 'active'
@@ -19,10 +20,10 @@
   );
 </script>
 
-<div class="section-header">Encryption</div>
+<div class="section-header">{t('settings.privacy.encryption_at_rest')}</div>
 <SettingsCard>
   <SettingsRow
-    label="Encryption at Rest"
+    label={t('settings.privacy.encryption_at_rest')}
     description={`Clipboard items, snippet expansions, AI conversations, and encrypted extension preferences are stored as ciphertext on disk. ${description}`}
   >
     {#snippet children()}

@@ -204,8 +204,10 @@
   </div>
   {#snippet actions()}
     <div class="modal-actions">
-      <Button onclick={cancelRename}>Cancel</Button>
-      <Button variant="primary" onclick={commitRename} disabled={!editingName.trim()}>Save</Button>
+      <Button onclick={cancelRename}>{t('common.cancel')}</Button>
+      <Button variant="primary" onclick={commitRename} disabled={!editingName.trim()}
+        >{t('common.save')}</Button
+      >
     </div>
   {/snippet}
 </Modal>

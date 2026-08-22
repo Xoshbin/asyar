@@ -204,7 +204,7 @@
     minLeftWidth={200}
     maxLeftWidth={500}
     ariaLabel="Portals"
-    emptyMessage="No portals yet"
+    emptyMessage={t('features.portals.no_portals')}
   >
     {#snippet listItem(portal, index)}
       <LauncherListRow

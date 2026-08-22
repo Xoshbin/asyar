@@ -3,6 +3,7 @@
   import SettingsRadioGroup from './SettingsRadioGroup.svelte';
   import { settingsService } from '../../services/settings/settingsService.svelte';
   import type { CrashReportMode } from '../../services/settings/types/AppSettingsType';
+  import { t } from '../../services/i18n';
 
   const options: { value: string; label: string; description?: string }[] = [
     { value: 'off', label: 'Off', description: 'Never send anything.' },
@@ -21,11 +22,11 @@
   }
 </script>
 
-<div class="section-header">Reports</div>
+<div class="section-header">{t('settings.privacy.crash_reports')}</div>
 <SettingsCard>
   <SettingsRadioGroup
-    label="Crash & Error Reports"
-    description="Asyar sends no telemetry by default. Opt in to help fix crashes — you choose how."
+    label={t('settings.privacy.crash_reports')}
+    description={t('settings.privacy.crash_reports_desc')}
     name="crash-report-mode"
     {options}
     value={mode}

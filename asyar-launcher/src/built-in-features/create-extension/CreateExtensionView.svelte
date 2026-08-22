@@ -5,6 +5,7 @@
   import { logService } from '../../services/log/logService';
   import { FormField, Icon } from '../../components';
   import { setFocusLock } from '../../lib/ipc/commands';
+  import { t } from '../../services/i18n';
 
   const typeOptions: { value: ExtensionType; label: string; icon: string; description: string }[] =
     [
@@ -149,7 +150,7 @@
     </div>
 
     <div class="fields">
-      <FormField label="Extension Type">
+      <FormField label={t('features.create_extension.extension_type')}>
         <div class="type-grid">
           {#each typeOptions as opt}
             <label class="type-card" class:selected={extType === opt.value}>
@@ -175,13 +176,13 @@
         </div>
       </FormField>
 
-      <FormField label="Extension Name" error={nameError}>
+      <FormField label={t('features.create_extension.extension_name')} error={nameError}>
         <Input
           unstyled
           textIntent="natural"
           type="text"
           bind:value={extName}
-          placeholder="My Awesome Tool"
+          placeholder={t('features.create_extension.placeholder_name')}
           autocomplete="off"
           onfocus={handleFocus}
           onblur={handleBlur}
@@ -190,7 +191,7 @@
       </FormField>
 
       <FormField
-        label="Extension ID"
+        label={t('features.create_extension.extension_id')}
         hint="Unique dot-notation identifier — e.g. com.author.my-tool"
         error={idError}
       >
@@ -208,7 +209,7 @@
       </FormField>
 
       <FormField
-        label="Description"
+        label={t('features.create_extension.description')}
         hint="Optional — shown in search results (10–200 chars)"
         error={descError}
       >
@@ -217,7 +218,7 @@
           textIntent="natural"
           type="text"
           bind:value={extDesc}
-          placeholder="What does your extension do?"
+          placeholder={t('features.create_extension.placeholder_desc')}
           autocomplete="off"
           onfocus={handleFocus}
           onblur={handleBlur}
@@ -225,7 +226,7 @@
         />
       </FormField>
 
-      <FormField label="Save Location">
+      <FormField label={t('features.create_extension.save_location')}>
         <div class="location-row">
           <Input
             unstyled
@@ -233,13 +234,13 @@
             type="text"
             value={finalSaveLocation || saveLocation}
             readonly
-            placeholder="Select a parent folder..."
+            placeholder={t('features.create_extension.select_folder')}
             onfocus={handleFocus}
             onblur={handleBlur}
             class="field-input text-mono"
           />
           <button onclick={handleBrowse} disabled={isBrowsing} class="btn-secondary">
-            Browse…
+            {t('common.browse')}
           </button>
         </div>
       </FormField>

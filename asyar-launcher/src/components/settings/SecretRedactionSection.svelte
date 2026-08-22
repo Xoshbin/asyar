@@ -24,11 +24,11 @@
   }
 </script>
 
-<div class="section-header">Redaction</div>
+<div class="section-header">{t('settings.privacy.redaction_enabled')}</div>
 <SettingsCard>
   <SettingsRow
-    label="Enabled"
-    description="Master switch for redacting known secret formats before storage. Items still appear in history; the secret value is gone."
+    label={t('settings.privacy.redaction_enabled')}
+    description={t('settings.privacy.redaction_enabled_desc')}
   >
     {#snippet children()}
       <Toggle checked={secretRedactionService.settings.master} onchange={toggleMaster} />
@@ -36,8 +36,8 @@
   </SettingsRow>
 
   <SettingsRow
-    label="Clipboard items"
-    description="Detect and redact secrets in copied text, HTML, and RTF before storing."
+    label={t('settings.privacy.clipboard_items')}
+    description={t('settings.privacy.clipboard_items_desc')}
   >
     {#snippet children()}
       <Toggle
@@ -49,8 +49,8 @@
   </SettingsRow>
 
   <SettingsRow
-    label="Snippets"
-    description="Detect and redact secrets in snippet expansions on save."
+    label={t('settings.privacy.snippets')}
+    description={t('settings.privacy.snippets_desc')}
   >
     {#snippet children()}
       <Toggle
@@ -62,8 +62,8 @@
   </SettingsRow>
 
   <SettingsRow
-    label="AI conversations"
-    description="Redact user-typed messages before storing AND before sending to the AI provider."
+    label={t('settings.privacy.ai_conversations')}
+    description={t('settings.privacy.ai_conversations_desc')}
   >
     {#snippet children()}
       <Toggle
@@ -75,8 +75,8 @@
   </SettingsRow>
 
   <SettingsRow
-    label="This session"
-    description="Number of redaction events since the launcher started."
+    label={t('settings.privacy.this_session')}
+    description={t('settings.privacy.this_session_desc')}
   >
     {#snippet children()}
       <Badge text={`${totalRedacted} redacted`} variant="info" />
@@ -84,8 +84,8 @@
   </SettingsRow>
 
   <SettingsRow
-    label="Active detectors"
-    description="The bundled rule catalog. Updating the catalog requires a launcher update."
+    label={t('settings.privacy.active_detectors')}
+    description={t('settings.privacy.active_detectors_desc')}
   >
     {#snippet children()}
       {#if secretRedactionService.catalog.length === 0}

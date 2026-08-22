@@ -6,6 +6,7 @@
   import { feedbackSubmitService } from '../../services/feedback/feedbackSubmitService';
   import { authService } from '../../services/auth/authService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { t } from '../../services/i18n';
 
   const categories: { id: string; label: string }[] = [
     { id: 'idea', label: 'Idea' },
@@ -52,19 +53,21 @@
     <Textarea
       textIntent="natural"
       class="input feedback-message"
-      placeholder="Tell us what's on your mind…"
+      placeholder={t('features.feedback.placeholder_tell_us')}
       rows="6"
       bind:value={feedbackViewState.message}
     ></Textarea>
 
     <Input
       textIntent="exact"
-      placeholder="Email (optional — or clear to send anonymously)"
+      placeholder={t('features.feedback.placeholder_email')}
       bind:value={feedbackViewState.email}
     />
 
     <div class="feedback-actions">
-      <Button onclick={submit} disabled={!feedbackViewState.canSubmit}>Send Feedback</Button>
+      <Button onclick={submit} disabled={!feedbackViewState.canSubmit}
+        >{t('common.send_feedback')}</Button
+      >
     </div>
   </div>
 </div>

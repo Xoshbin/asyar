@@ -592,7 +592,7 @@
       minLeftWidth={200}
       maxLeftWidth={600}
       ariaLabel="Clipboard Items"
-      emptyMessage="No items found"
+      emptyMessage={t('search.no_results')}
     >
       {#snippet listItem(item, index)}
         {#if index === 0 && favoritesCount > 0}

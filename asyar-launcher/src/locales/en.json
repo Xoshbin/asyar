@@ -329,7 +329,31 @@
       "anonymous_id_description": "A random id, not linked to your account. Reset it any time.",
       "shell_trust": "Shell trust",
       "loading_trusted_programs": "Loading trusted programs...",
-      "shell_trust_description": "The following programs have been explicitly trusted for execution by specific extensions. Revoking trust will cause the extension to prompt for permission again on next use."
+      "shell_trust_description": "The following programs have been explicitly trusted for execution by specific extensions. Revoking trust will cause the extension to prompt for permission again on next use.",
+      "redaction_enabled": "Enabled",
+      "redaction_enabled_desc": "Master switch for redacting known secret formats before storage. Items still appear in history; the secret value is gone.",
+      "clipboard_items": "Clipboard items",
+      "clipboard_items_desc": "Detect and redact secrets in copied text, HTML, and RTF before storing.",
+      "snippets": "Snippets",
+      "snippets_desc": "Detect and redact secrets in snippet expansions on save.",
+      "ai_conversations": "AI conversations",
+      "ai_conversations_desc": "Redact user-typed messages before storing AND before sending to the AI provider.",
+      "this_session": "This session",
+      "this_session_desc": "Number of redaction events since the launcher started.",
+      "active_detectors": "Active detectors",
+      "active_detectors_desc": "The bundled rule catalog. Updating the catalog requires a launcher update.",
+      "clipboard_privacy": "Clipboard Privacy",
+      "clipboard_privacy_desc": "Asyar will not store clipboard items that the OS or source app has marked private.",
+      "clipboard_session_desc": "Clipboard items skipped since the launcher started.",
+      "default_denylist": "Default denylist",
+      "default_denylist_desc": "Built-in password managers — always blocked, not editable.",
+      "add_bundle_id": "Add bundle id",
+      "add_bundle_id_desc": "Bundle id (macOS), executable name (Windows), or .desktop id (Linux).",
+      "your_additions": "Your additions",
+      "your_additions_desc": "Apps you have added to the denylist.",
+      "crash_reports": "Crash & Error Reports",
+      "crash_reports_desc": "Asyar sends no telemetry by default. Opt in to help fix crashes — you choose how.",
+      "encryption_at_rest": "Encryption at Rest"
     },
     "about": {
       "section_updates": "Updates",
@@ -389,7 +413,8 @@
     "anonymous_usage_desc": "Share anonymous daily counts of which commands you run. No search text, no file paths, no personal data.",
     "featured_title": "Extend your launcher",
     "featured_heading": "Essential extensions to start with",
-    "featured_desc": "Install powerful add-ons created by the community. You can discover hundreds more in the Store anytime."
+    "featured_desc": "Install powerful add-ons created by the community. You can discover hundreds more in the Store anytime.",
+    "clipboard_kicker": "Never lose a copy again"
   },
   "dev": {
     "no_enabled_extensions": "No enabled extensions",
@@ -551,7 +576,39 @@
     },
     "create_extension": {
       "no_extensions": "No extensions yet",
-      "no_extensions_description": "Build one with \"Build Extension with AI\"."
+      "no_extensions_description": "Build one with \"Build Extension with AI\".",
+      "extension_type": "Extension Type",
+      "extension_name": "Extension Name",
+      "extension_id": "Extension ID",
+      "save_location": "Save Location",
+      "description": "Description",
+      "select_folder": "Select a parent folder...",
+      "placeholder_name": "My Awesome Tool",
+      "placeholder_desc": "What does your extension do?"
+    },
+    "feedback": {
+      "placeholder_tell_us": "Tell us what's on your mind…",
+      "placeholder_email": "Email (optional — or clear to send anonymously)"
+    },
+    "mcp": {
+      "placeholder_server_name": "My Server",
+      "placeholder_server_desc": "Optional description",
+      "no_activity": "No MCP activity",
+      "no_activity_description": "Tool calls, resource access, and server events will appear here.",
+      "no_configs": "No MCP configurations found",
+      "loading_servers": "Loading servers...",
+      "no_servers": "No servers installed",
+      "detected_configs_description": "No external MCP configurations were detected on your system.",
+      "no_servers_install_description": "Install a server to start using MCP tools and resources.",
+      "no_permissions": "No permissions granted",
+      "no_permissions_description": "Servers that request permissions will appear here once approved."
+    },
+    "portals": {
+      "no_portals": "No portals yet",
+      "placeholder_search": "Search Google",
+      "select_portal": "Select a portal",
+      "no_portals_description": "Create portals to quickly search websites and web apps.",
+      "select_portal_description": "Choose a portal from the left to edit or run it."
     }
   },
   "common": {
@@ -569,6 +626,26 @@
     "add": "Add",
     "restore": "Restore",
     "restoring": "Restoring…",
-    "record": "Record"
+    "record": "Record",
+    "allow": "Allow",
+    "allow_once": "Allow once",
+    "always_allow": "Always allow",
+    "never": "Never",
+    "decline": "Decline",
+    "browse": "Browse…",
+    "clear": "Clear",
+    "download_and_continue": "Download & continue",
+    "send_feedback": "Send Feedback",
+    "copy_details": "Copy details",
+    "show_more": "Show More",
+    "name": "Name",
+    "icon": "Icon",
+    "description": "Description",
+    "alias": "Alias",
+    "passphrase": "Passphrase",
+    "type_disable_to_confirm": "Type DISABLE to confirm",
+    "current_passphrase": "Current passphrase",
+    "new_passphrase": "New passphrase (12+ characters)",
+    "confirm_new_passphrase": "Confirm new passphrase"
   }
 }

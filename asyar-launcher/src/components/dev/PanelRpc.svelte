@@ -28,7 +28,7 @@
 <div class="rpc-panel">
   <div class="toolbar">
     <span>{traces.length} RPCs</span>
-    <button type="button" onclick={clear}>Clear</button>
+    <button type="button" onclick={clear}>{t('common.clear')}</button>
   </div>
 
   {#if !inspectorStore.selectedExtensionId}

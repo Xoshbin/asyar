@@ -145,7 +145,7 @@
     minLeftWidth={200}
     maxLeftWidth={500}
     ariaLabel="Shortcuts"
-    emptyMessage="No shortcuts found"
+    emptyMessage={t('features.shortcuts.no_shortcuts')}
   >
     {#snippet listItem(s, index)}
       {@const section = shouldShowSectionHeader(index)}

@@ -4,6 +4,7 @@
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
   import { evaluatePassphraseStrength } from './EncryptionEnrolmentDialog.logic';
   import { logService } from '../../services/log/logService';
+  import { t } from '../../services/i18n';
 
   let {
     isOpen = $bindable(false),
@@ -69,7 +70,7 @@
         <Input
           textIntent="exact"
           type="password"
-          placeholder="Current passphrase"
+          placeholder={t('common.current_passphrase')}
           bind:value={oldPass}
           maxlength={256}
           autofocus
@@ -79,7 +80,7 @@
         <Input
           textIntent="exact"
           type="password"
-          placeholder="New passphrase (12+ characters)"
+          placeholder={t('common.new_passphrase')}
           bind:value={newPass}
           maxlength={256}
         />
@@ -88,7 +89,7 @@
         <Input
           textIntent="exact"
           type="password"
-          placeholder="Confirm new passphrase"
+          placeholder={t('common.confirm_new_passphrase')}
           bind:value={confirmNew}
           maxlength={256}
         />
@@ -107,7 +108,7 @@
       {/if}
     </div>
     <div class="dialog-actions">
-      <Button onclick={cancel}>Cancel</Button>
+      <Button onclick={cancel}>{t('common.cancel')}</Button>
       <Button class="btn-primary" disabled={submitDisabled} onclick={submit}>
         {submitting ? 'Changing…' : 'Change passphrase'}
       </Button>

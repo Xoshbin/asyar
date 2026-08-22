@@ -15,6 +15,7 @@
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import { runtimeService } from '../../services/runtime/runtimeService.svelte';
   import { formatRuntimeDownloadStatus } from '../../services/runtime/runtimeDownloadStatus';
+  import { t } from '../../services/i18n';
 
   const transportOptions = [
     { value: 'stdio', label: 'Stdio' },
@@ -153,7 +154,7 @@
         id="srv-name"
         class="field-input"
         type="text"
-        placeholder="My Server"
+        placeholder={t('features.mcp.placeholder_server_name')}
         bind:value={form.displayName}
       />
     </div>
@@ -166,7 +167,7 @@
         textIntent="natural"
         id="srv-desc"
         class="field-input"
-        placeholder="Optional description"
+        placeholder={t('features.mcp.placeholder_server_desc')}
         rows={2}
         bind:value={form.description}
       ></Textarea>
@@ -344,7 +345,7 @@
       <Button class="btn-primary" onclick={handleInstall} disabled={installing}>
         {installLabel}
       </Button>
-      <Button onclick={() => viewManager.goBack()}>Cancel</Button>
+      <Button onclick={() => viewManager.goBack()}>{t('common.cancel')}</Button>
     </div>
   </form>
 </div>

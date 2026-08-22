@@ -241,7 +241,7 @@
     minLeftWidth={200}
     maxLeftWidth={500}
     ariaLabel="Snippets"
-    emptyMessage="No snippets found"
+    emptyMessage={t('features.snippets.no_snippets')}
   >
     {#snippet listItem(snippet, index)}
       {#if index === 0 && snippetViewState.pinnedCount > 0}

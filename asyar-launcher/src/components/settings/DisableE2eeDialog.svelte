@@ -3,6 +3,7 @@
   import { Button, Input } from '../index';
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
   import { logService } from '../../services/log/logService';
+  import { t } from '../../services/i18n';
 
   let {
     isOpen = $bindable(false),
@@ -61,14 +62,14 @@
     <Input
       textIntent="exact"
       bind:value={confirmation}
-      placeholder="Type DISABLE to confirm"
+      placeholder={t('common.type_disable_to_confirm')}
       autofocus
     />
     {#if errorMessage}
       <p class="text-caption error mt-2">{errorMessage}</p>
     {/if}
     <div class="dialog-actions">
-      <Button onclick={cancel}>Cancel</Button>
+      <Button onclick={cancel}>{t('common.cancel')}</Button>
       <Button class="btn-danger" disabled={!canSubmit} onclick={submit}>
         {submitting ? 'Disabling…' : 'Disable encrypted sync'}
       </Button>

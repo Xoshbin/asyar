@@ -25,7 +25,7 @@
 <div class="ipc-panel">
   <div class="toolbar">
     <span>{rows.length} records</span>
-    <button type="button" onclick={clear}>Clear</button>
+    <button type="button" onclick={clear}>{t('common.clear')}</button>
   </div>
 
   {#if !inspectorStore.selectedExtensionId}

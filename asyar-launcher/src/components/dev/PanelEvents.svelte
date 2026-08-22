@@ -59,7 +59,7 @@
       Pause display
     </label>
     <span class="count">{rows.length} events{paused ? ' (frozen)' : ''}</span>
-    <button type="button" onclick={clear}>Clear</button>
+    <button type="button" onclick={clear}>{t('common.clear')}</button>
   </div>
 
   {#if !inspectorStore.selectedExtensionId}
