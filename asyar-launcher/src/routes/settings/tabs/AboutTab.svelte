@@ -8,6 +8,7 @@
   import { getVersion } from '@tauri-apps/api/app';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import logoUrl from '../../../resources/images/Square142x142Logo.png';
+  import { t } from '../../../services/i18n';
 
   let {
     handler,
@@ -141,12 +142,12 @@
           description="Will install automatically on next launch."
         >
           {#snippet children()}
-            <Button onclick={restartAndUpdate}>Restart Now</Button>
+            <Button onclick={restartAndUpdate}>{t('settings.about.restart_now')}</Button>
           {/snippet}
         </SettingsRow>
       {/if}
 
-      <SettingsRow label="Updates">
+      <SettingsRow label={t('settings.about.section_updates')}>
         {#snippet children()}
           <div class="update-control">
             <Button
@@ -154,8 +155,8 @@
               disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
             >
               {updateStatus === 'checking' || updateStatus === 'downloading'
-                ? 'Checking...'
-                : 'Check for Updates'}
+                ? t('settings.about.checking')
+                : t('settings.about.check_for_updates')}
             </Button>
             {#if updateStatus !== 'idle'}
               <span
@@ -173,7 +174,7 @@
   </div>
 
   <div id="about-credits" class="anchor-group">
-    <div class="section-header">Credits</div>
+    <div class="section-header">{t('settings.about.section_credits')}</div>
     <SettingsCard>
       <SettingsRow label="Created by">
         {#snippet children()}
@@ -190,7 +191,7 @@
   </div>
 
   <div id="about-links" class="anchor-group">
-    <div class="section-header">Links</div>
+    <div class="section-header">{t('settings.about.section_links')}</div>
     <SettingsCard>
       <SettingsRow label="Project links" description="Open source, policies, and license details.">
         {#snippet children()}

@@ -82,12 +82,18 @@
       "about": "About"
     },
     "general": {
+      "section_startup": "Startup",
+      "section_appearance": "Appearance",
+      "section_placement": "Placement",
       "hotkey": "Launcher Hotkey",
       "hotkey_description": "Global keyboard shortcut to summon Asyar",
       "autostart": "Launch at Login",
       "autostart_description": "Automatically start Asyar when your computer boots",
       "sound_effects": "Sound Effects",
-      "sound_effects_description": "Play subtle feedback sounds on actions"
+      "sound_effects_description": "Play subtle feedback sounds on actions",
+      "display": "Display",
+      "display_cursor": "Display with cursor",
+      "display_primary": "Primary display"
     },
     "appearance": {
       "theme": "Theme",
@@ -96,13 +102,24 @@
       "theme_light": "Light",
       "font_size": "Font Size",
       "compact_mode": "Compact Mode",
-      "compact_mode_description": "Reduce spacing and padding across the launcher"
+      "compact_mode_description": "Reduce spacing and padding across the launcher",
+      "window_mode": "Window mode",
+      "window_mode_description": "How much of the launcher is visible before you type."
     },
     "extensions": {
       "installed": "Installed Extensions",
       "manage": "Manage Extensions",
       "permissions": "Permissions",
       "no_extensions": "No extensions installed"
+    },
+    "about": {
+      "section_updates": "Updates",
+      "section_credits": "Credits",
+      "section_links": "Links",
+      "check_for_updates": "Check for Updates",
+      "checking": "Checking...",
+      "up_to_date": "Up to date",
+      "restart_now": "Restart Now"
     }
   },
   "features": {
@@ -155,12 +172,15 @@
     "scripts": {
       "title": "Scripts",
       "no_scripts": "No scripts found",
+      "no_scripts_description": "Executable files from watched directories appear here.",
       "select_script": "Select a script or issue"
     },
     "store": {
       "title": "Extension Store",
       "select_extension": "Select an extension to view details",
       "details_not_found": "Extension details not found.",
+      "loading_extensions": "Loading extensions...",
+      "no_extensions_found": "No extensions found",
       "install": "Install",
       "uninstall": "Uninstall",
       "update": "Update",
