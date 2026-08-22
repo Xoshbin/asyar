@@ -33,6 +33,7 @@ import { OnboardingServiceProxy } from './services/OnboardingServiceProxy';
 import { BrowserServiceProxy } from './services/BrowserServiceProxy';
 import { FilesServiceProxy } from './services/FilesServiceProxy';
 import { OpenerServiceProxy } from './services/OpenerServiceProxy';
+import { EnvironmentServiceProxy } from './services/EnvironmentServiceProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
 import { PreferencesFacade, type PreferencesSnapshot } from './PreferencesFacade';
@@ -78,6 +79,7 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     onboarding: new OnboardingServiceProxy(),
     browser: new BrowserServiceProxy(),
     files: new FilesServiceProxy(),
+    environment: new EnvironmentServiceProxy(),
   };
 }
 

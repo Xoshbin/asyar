@@ -78,19 +78,22 @@ expands the placement guidance.
 | `ScreenService`            | `IScreenService`            | both                           | `screen:pick-color`                               | Show the OS eyedropper and read the sRGB color of the one screen pixel the user picks                                                  |
 | `BrowserService`           | `IBrowserService`           | both                           | `browser:*` (per method)                          | Read bookmarks / history / open tabs and drive page content in paired browsers — requires the Asyar browser companion                  |
 | `OpenerService`            | `IOpenerService`            | both                           | `shell:open-url`                                  | Open URLs and custom URI schemes in default or registered OS handlers                                                                  |
+| `EnvironmentService`       | `IEnvironmentService`       | both                           | None                                              | Host OS runtime, platform, theme, and locale metadata                                                                                  |
 
-**Utilities (direct import, no `getService()`):**
+**Utilities & Metadata (direct import, no `getService()`):**
 
-| Export            | Type     | Description                                       |
-| ----------------- | -------- | ------------------------------------------------- |
-| `stripHtml(html)` | Function | Strip HTML tags, scripts, styles, decode entities |
-| `stripRtf(rtf)`   | Function | Strip RTF control words and formatting            |
+| Export            | Type     | Description                                                       |
+| ----------------- | -------- | ----------------------------------------------------------------- |
+| `environment`     | Object   | Host runtime metadata (locale, language, region, platform, theme) |
+| `stripHtml(html)` | Function | Strip HTML tags, scripts, styles, decode entities                 |
+| `stripRtf(rtf)`   | Function | Strip RTF control words and formatting                            |
 
 ---
 
 ## Service pages
 
 - **[LogService](./log-service.md)**
+- **[Environment](./environment.md)**
 - **[Background feedback](./notifications.md)**
 - **[ClipboardHistoryService](./clipboard-history-service.md)**
 - **[NetworkService](./network-service.md)**
