@@ -150,6 +150,7 @@ pub mod fs_watcher;
 pub mod hud_window;
 pub mod index_events;
 pub mod launcher_placement;
+pub mod locale;
 pub mod mcp;
 pub mod network;
 mod notes_export;
@@ -348,6 +349,7 @@ pub fn run() {
         .manage(calculator::CalculatorState::default())
         .manage(runtimes::RuntimeManager::new())
         .manage(feedback::channel::FeedbackChannelState::default())
+        .manage(locale::LocaleService::new())
         .manage(crate::agents::cache::AgentResponseCache::default())
         .manage(AppState {
             focus_locked: AtomicBool::new(false),
@@ -541,6 +543,8 @@ pub fn run() {
             commands::auth_check_entitlement,
             commands::auth_logout,
             commands::submit_feedback,
+            commands::get_system_locale,
+            commands::get_locale_candidates,
             commands::get_pending_crash,
             commands::send_pending_crash,
             commands::usage::record_active_day,

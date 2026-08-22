@@ -272,6 +272,27 @@ export type ModelInfo = {
 	reasoningEfforts: string[] | null,
 };
 
+// Which convention a number is written in.
+export type NumberFormat = 
+// `1,234.56` — point decimal, comma grouping.
+"point" | 
+// `1.234,56` — comma decimal, point grouping.
+"comma";
+
+// A normalized, structured locale representation.
+export type ParsedLocale = {
+	// 2- or 3-letter ISO 639 language code (always lowercase, e.g. "en", "zh", "de")
+	language: string,
+	// 4-letter ISO 15924 script subtag (Titlecase, e.g. "Hans", "Hant", "Latn")
+	script: string | null,
+	// 2-letter ISO 3166-1 country code or 3-digit UN M.49 region code (e.g. "US", "DE", "419")
+	region: string | null,
+	// Variant subtag if present (e.g. "1901")
+	variant: string | null,
+	// Original raw tag
+	raw: string,
+};
+
 export type ProviderConfig = {
 	enabled: boolean,
 	name: string | null,
