@@ -13,6 +13,7 @@
   } from './layoutLifecycle';
   import type { IStorageService } from 'asyar-sdk/contracts';
   import { ActionContext } from 'asyar-sdk/contracts';
+  import { t } from '../../services/i18n';
 
   interface Props {
     store?: IStorageService;
@@ -165,11 +166,11 @@
   <div class="list custom-scrollbar">
     {#if layouts.length === 0}
       <EmptyState
-        message="No custom layouts yet"
-        description="Position any window on screen and press ⌘N (or ⌘K → Save Current Window as Layout) to capture it."
+        message={t('features.window_management.no_layouts')}
+        description={t('features.window_management.no_layouts_description')}
       />
     {:else}
-      <div class="section-header">Custom Layouts</div>
+      <div class="section-header">{t('features.window_management.custom_layouts_header')}</div>
       {#each layouts as layout, index (layout.id)}
         <ListItem
           title={layout.name}

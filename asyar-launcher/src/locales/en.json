@@ -21,6 +21,46 @@
     "settings": "Preferences",
     "close": "Close"
   },
+  "dialogs": {
+    "action_list": {
+      "no_matching_actions": "No matching actions",
+      "search_placeholder": "Search for actions..."
+    },
+    "shortcut_capture": {
+      "title": "Assign Shortcut",
+      "subtitle": "Press the combination you want to use",
+      "cancel_hint": "Press Escape to cancel"
+    },
+    "shell_consent": {
+      "title": "External Program Execution",
+      "intent": "wants to access the terminal",
+      "explanation": "Allows the extension to run this command. Revoke in Settings anytime.",
+      "deny": "Deny",
+      "allow_always": "Allow Always"
+    },
+    "crash_report": {
+      "title": "Asyar crashed last time",
+      "subtitle": "Help us fix it by sending a crash report. Your email is optional.",
+      "email_placeholder": "Email (optional — leave blank to send anonymously)",
+      "details_hide": "Hide",
+      "details_view": "View exactly what will be sent",
+      "send": "Send",
+      "sending": "Sending…",
+      "dismiss": "Dismiss"
+    },
+    "usage_share": {
+      "title": "Usage Analytics",
+      "description": "Share anonymous usage statistics to help improve Asyar.",
+      "send": "Share",
+      "dismiss": "Not Now"
+    },
+    "fatal_error": {
+      "title": "Asyar encountered a fatal error",
+      "description": "A fatal error occurred in the application.",
+      "restart": "Restart",
+      "dismiss": "Dismiss"
+    }
+  },
   "settings": {
     "title": "Preferences",
     "tabs": {
@@ -70,12 +110,18 @@
       "title": "Clipboard History",
       "search_placeholder": "Search clipboard history...",
       "no_clips": "No clipboard history yet",
+      "select_item_hint": "Select an item to view details",
       "copy_action": "Copy to Clipboard",
       "paste_action": "Paste to Active App",
       "delete_action": "Delete from History",
       "clear_all": "Clear History",
       "pin_action": "Pin Clip",
-      "unpin_action": "Unpin Clip"
+      "unpin_action": "Unpin Clip",
+      "time_today": "Today",
+      "time_yesterday": "Yesterday",
+      "time_this_week": "This week",
+      "time_this_month": "This month",
+      "time_older": "Older"
     },
     "snippets": {
       "title": "Snippets",
@@ -96,7 +142,29 @@
       "center": "Center",
       "almost_maximize": "Almost Maximize",
       "next_display": "Next Display",
-      "previous_display": "Previous Display"
+      "previous_display": "Previous Display",
+      "no_layouts": "No custom layouts yet",
+      "no_layouts_description": "Position any window on screen and press ⌘N (or ⌘K → Save Current Window as Layout) to capture it.",
+      "custom_layouts_header": "Custom Layouts"
+    },
+    "shortcuts": {
+      "title": "Shortcuts",
+      "no_shortcuts": "No shortcuts configured yet",
+      "no_matching_shortcuts": "No matching shortcuts"
+    },
+    "scripts": {
+      "title": "Scripts",
+      "no_scripts": "No scripts found",
+      "select_script": "Select a script or issue"
+    },
+    "store": {
+      "title": "Extension Store",
+      "select_extension": "Select an extension to view details",
+      "details_not_found": "Extension details not found.",
+      "install": "Install",
+      "uninstall": "Uninstall",
+      "update": "Update",
+      "installed": "Installed"
     }
   },
   "common": {

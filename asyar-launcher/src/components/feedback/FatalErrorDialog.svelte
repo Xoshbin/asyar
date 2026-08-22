@@ -3,14 +3,15 @@
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { DIAGNOSTIC_MESSAGES } from '../../services/diagnostics/messages';
   import type { DiagnosticKind } from '../../services/diagnostics/kinds';
+  import { t } from '../../services/i18n';
 
   let isOpen = $derived(feedbackService.current?.severity === 'fatal');
-  let title = $derived('Asyar encountered a fatal error');
+  let title = $derived(t('dialogs.fatal_error.title'));
   let message = $derived.by(() => {
     const c = feedbackService.current;
     if (!c) return '';
-    const t = DIAGNOSTIC_MESSAGES[c.kind as DiagnosticKind];
-    return t ? t(c.context ?? {}) : (c.developerDetail ?? 'Unknown error');
+    const msgFn = DIAGNOSTIC_MESSAGES[c.kind as DiagnosticKind];
+    return msgFn ? msgFn(c.context ?? {}) : (c.developerDetail ?? 'Unknown error');
   });
 
   function onClose() {
@@ -24,8 +25,8 @@
     {title}
     {message}
     variant="danger"
-    confirmButtonText="Restart"
-    cancelButtonText="Dismiss"
+    confirmButtonText={t('dialogs.fatal_error.restart')}
+    cancelButtonText={t('dialogs.fatal_error.dismiss')}
     oncancel={onClose}
     onconfirm={onClose}
   />
