@@ -1,6 +1,7 @@
 <script lang="ts">
   import { EmptyState } from '../../components';
   import type { Note } from './noteStore.svelte';
+  import { t } from '../../services/i18n';
 
   let {
     candidates,
@@ -49,11 +50,11 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="wikilink-picker">
-  <div class="picker-header">Link to note</div>
+  <div class="picker-header">{t('features.notes.link_to_note')}</div>
   {#if candidates.length === 0}
     <EmptyState
       compact
-      message={query.trim() ? `No notes match "${query.trim()}"` : 'No other notes yet'}
+      message={query.trim() ? t('features.notes.no_notes') : t('features.notes.no_other_notes')}
     />
   {:else}
     <ul class="picker-list custom-scrollbar" role="listbox">

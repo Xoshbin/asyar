@@ -6,6 +6,7 @@
   import type { DiagnosticKind } from '../../services/diagnostics/kinds';
   import Button from '../base/Button.svelte';
   import Modal from '../base/Modal.svelte';
+  import { t } from '../../services/i18n';
 
   let { isOpen = $bindable(false), feedback }: { isOpen?: boolean; feedback: FeedbackItem } =
     $props();
@@ -73,9 +74,11 @@
     </div>
   {/snippet}
   {#snippet actions()}
-    <Button onclick={copyDetails}>Copy details</Button>
+    <Button onclick={copyDetails}>{t('common.copy_details')}</Button>
     {#if feedback.reportActionId}<Button onclick={report}>Report</Button>{/if}
-    {#if feedback.retryable && feedback.retryActionId}<Button onclick={retry}>Retry</Button>{/if}
+    {#if feedback.retryable && feedback.retryActionId}<Button onclick={retry}
+        >{t('common.retry')}</Button
+      >{/if}
   {/snippet}
 </Modal>
 

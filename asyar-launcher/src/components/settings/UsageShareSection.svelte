@@ -3,20 +3,25 @@
   import { settingsService } from '../../services/settings/settingsService.svelte';
   import type { UsageShareMode } from '../../services/settings/types/AppSettingsType';
   import { usageShareState } from './usageShareState.svelte';
+  import { t } from '../../services/i18n';
 
-  const options: { value: string; label: string; description?: string }[] = [
-    { value: 'off', label: 'Off', description: 'Nothing leaves your device.' },
+  let options = $derived<{ value: string; label: string; description?: string }[]>([
+    {
+      value: 'off',
+      label: t('settings.privacy.mode_off'),
+      description: t('settings.privacy.usage_off_desc'),
+    },
     {
       value: 'ask',
-      label: 'Ask me each time',
-      description: 'Review the exact data before it is sent.',
+      label: t('settings.privacy.mode_ask'),
+      description: t('settings.privacy.usage_ask_desc'),
     },
     {
       value: 'auto',
-      label: 'Share automatically',
-      description: 'Send anonymous daily counts in the background.',
+      label: t('settings.privacy.mode_share_auto'),
+      description: t('settings.privacy.usage_auto_desc'),
     },
-  ];
+  ]);
 
   let mode = $derived(settingsService.currentSettings.privacy.usageShareMode);
 
@@ -29,11 +34,11 @@
   });
 </script>
 
-<div class="section-header">Usage</div>
+<div class="section-header">{t('settings.privacy.section_usage')}</div>
 <SettingsCard>
   <SettingsRadioGroup
-    label="Anonymous usage share"
-    description="Help shape Asyar by sharing anonymous daily counts of which commands you run. No search text, no timestamps, no file paths. Off by default."
+    label={t('settings.privacy.usage_share')}
+    description={t('settings.privacy.usage_share_description')}
     name="usage-share-mode"
     {options}
     value={mode}
@@ -41,10 +46,10 @@
   />
 
   <SettingsRow
-    label="Anonymous ID"
-    description="A random id, not linked to your account. Reset it any time."
+    label={t('settings.privacy.anonymous_id')}
+    description={t('settings.privacy.anonymous_id_description')}
   >
     <span class="text-mono text-caption">{usageShareState.anonId}</span>
-    <Button onclick={() => usageShareState.reset()}>Reset</Button>
+    <Button onclick={() => usageShareState.reset()}>{t('settings.general.reset')}</Button>
   </SettingsRow>
 </SettingsCard>

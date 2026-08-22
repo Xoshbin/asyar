@@ -119,3 +119,6 @@ export type {
   WatcherHandle,
 } from './FileSystemWatcherService';
 export { FileSystemWatcherServiceProxy } from './FileSystemWatcherService';
+
+export type { IEnvironmentService, EnvironmentSnapshot } from '../types/EnvironmentType';
+export { EnvironmentServiceProxy } from './EnvironmentServiceProxy';

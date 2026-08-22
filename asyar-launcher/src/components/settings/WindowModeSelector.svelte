@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
+
   type LaunchView = 'default' | 'compact';
 
   let {
@@ -17,10 +19,10 @@
     wellBackground?: 'tertiary' | 'primary';
   } = $props();
 
-  const options: { id: LaunchView; label: string }[] = [
-    { id: 'default', label: 'Default' },
-    { id: 'compact', label: 'Compact' },
-  ];
+  let options = $derived<{ id: LaunchView; label: string }[]>([
+    { id: 'default', label: t('common.default') },
+    { id: 'compact', label: t('common.compact') },
+  ]);
 </script>
 
 <div class="window-mode-selector" role="radiogroup" aria-label="Window mode">

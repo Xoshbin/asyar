@@ -16,6 +16,7 @@
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
+  import { t } from '../../services/i18n';
 
   type Mode = 'view' | 'create' | 'edit';
   let mode = $state<Mode>('view');
@@ -53,7 +54,7 @@
     }
     actionService.registerAction({
       id: 'portals:edit',
-      title: 'Edit',
+      title: t('features.portals.action_edit'),
       icon: 'icon:pencil',
       extensionId: 'portals',
       category: 'Portals',
@@ -64,7 +65,7 @@
     });
     actionService.registerAction({
       id: 'portals:duplicate',
-      title: 'Duplicate',
+      title: t('features.portals.action_duplicate'),
       icon: 'icon:copy',
       extensionId: 'portals',
       category: 'Portals',
@@ -75,7 +76,7 @@
     });
     actionService.registerAction({
       id: 'portals:delete',
-      title: 'Delete',
+      title: t('features.portals.action_delete'),
       icon: 'icon:trash',
       extensionId: 'portals',
       category: 'Portals',
@@ -141,9 +142,9 @@
 
   async function handleDelete(portal: Portal) {
     const confirmed = await feedbackService.confirmAlert({
-      title: 'Delete portal',
+      title: t('features.portals.delete_confirm_title'),
       message: `Delete "${portal.name}"? This cannot be undone.`,
-      confirmText: 'Delete',
+      confirmText: t('common.delete'),
       variant: 'danger',
     });
     if (!confirmed) return;
@@ -203,7 +204,7 @@
     minLeftWidth={200}
     maxLeftWidth={500}
     ariaLabel="Portals"
-    emptyMessage="No portals yet"
+    emptyMessage={t('features.portals.no_portals')}
   >
     {#snippet listItem(portal, index)}
       <LauncherListRow
@@ -283,10 +284,12 @@
         </ActionFooter>
       {:else}
         <EmptyState
-          message={portals.length === 0 ? 'No portals yet' : 'Select a portal'}
+          message={portals.length === 0
+            ? t('features.portals.no_portals')
+            : t('features.portals.select_portal')}
           description={portals.length === 0
-            ? 'Add a URL shortcut to get started.'
-            : 'Choose a portal from the list to view its details.'}
+            ? t('features.portals.no_portals_description')
+            : t('features.portals.select_portal_description')}
         >
           {#snippet icon()}
             <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">

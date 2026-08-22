@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from '../../services/i18n';
+
   type Theme = 'light' | 'dark' | 'system';
 
   let {
@@ -16,11 +18,11 @@
     wellBackground?: 'tertiary' | 'secondary';
   } = $props();
 
-  const options: { id: Theme; label: string }[] = [
-    { id: 'light', label: 'Light' },
-    { id: 'dark', label: 'Dark' },
-    { id: 'system', label: 'System' },
-  ];
+  let options = $derived<{ id: Theme; label: string }[]>([
+    { id: 'light', label: t('common.light') },
+    { id: 'dark', label: t('common.dark') },
+    { id: 'system', label: t('common.system') },
+  ]);
 </script>
 
 <div class="theme-selector" role="radiogroup" aria-label="Appearance theme">

@@ -161,7 +161,10 @@ impl DesktopEntry {
     /// Resolves the display name according to the provided locale (or fallback to `Name=`).
     pub fn display_name(&self, preferred_locale: Option<&str>) -> String {
         if let Some(locale) = preferred_locale {
-            for candidate in locale_candidates(locale) {
+            let candidates = crate::locale::ParsedLocale::parse(locale)
+                .map(|l| l.desktop_entry_candidates())
+                .unwrap_or_default();
+            for candidate in candidates {
                 if let Some(name) = self.localized_names.get(&candidate) {
                     if !name.trim().is_empty() {
                         return name.trim().to_string();
@@ -219,48 +222,6 @@ fn parse_semicolon_list(val: &str) -> Vec<String> {
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
         .collect()
-}
-
-/// Generates locale search candidates from most specific to least specific.
-/// E.g. "de_DE.UTF-8" -> ["de_DE.UTF-8", "de_DE", "de-DE", "de"]
-pub(crate) fn locale_candidates(locale: &str) -> Vec<String> {
-    let mut candidates = Vec::new();
-    let clean = locale.trim();
-    if clean.is_empty() {
-        return candidates;
-    }
-
-    // Strip encoding suffix if present (.UTF-8)
-    let no_encoding = clean.split('.').next().unwrap_or(clean);
-
-    candidates.push(clean.to_string());
-    if no_encoding != clean {
-        candidates.push(no_encoding.to_string());
-    }
-
-    // Handle underscore vs hyphen (e.g. de_DE <-> de-DE)
-    if no_encoding.contains('_') {
-        let hyphenated = no_encoding.replace('_', "-");
-        if !candidates.contains(&hyphenated) {
-            candidates.push(hyphenated);
-        }
-    } else if no_encoding.contains('-') {
-        let underscored = no_encoding.replace('-', "_");
-        if !candidates.contains(&underscored) {
-            candidates.push(underscored);
-        }
-    }
-
-    // Strip country/region part (e.g. "de_DE" -> "de", "de-DE" -> "de", "de@euro" -> "de")
-    let base = no_encoding
-        .split(['_', '-', '@'])
-        .next()
-        .unwrap_or(no_encoding);
-    if !base.is_empty() && !candidates.iter().any(|c| c == base) {
-        candidates.push(base.to_string());
-    }
-
-    candidates
 }
 
 /// Checks if an executable binary exists on the file system or in any `$PATH` directory.

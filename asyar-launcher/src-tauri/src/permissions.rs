@@ -419,6 +419,8 @@ fn is_public_call(call_type: &str) -> bool {
         // never the payload — see INJECTS_EXTENSION_ID) — scoped to the
         // caller, like state:*/feedback:*.
             | "asyar:api:onboarding:complete"
+        // Read-only host environment and locale metadata.
+            | "asyar:api:environment:getEnvironment"
     )
 }
 

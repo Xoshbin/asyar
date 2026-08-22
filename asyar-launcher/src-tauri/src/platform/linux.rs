@@ -7,8 +7,8 @@ use tauri::{Runtime, WebviewWindow};
 /// The localized name a `.desktop` file presents to the user.
 pub fn localized_bundle_name(path: &Path) -> Option<String> {
     let entry = DesktopEntry::from_file(path)?;
-    let locale = sys_locale::get_locale();
-    let name = entry.display_name(locale.as_deref());
+    let locale = crate::locale::detect().raw;
+    let name = entry.display_name(Some(&locale));
     if name.is_empty() {
         None
     } else {

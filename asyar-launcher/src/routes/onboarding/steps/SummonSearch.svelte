@@ -4,6 +4,7 @@
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { saveHotkey } from './summonSearchSetup';
   import { onboardingNav } from '../onboardingNav.svelte';
+  import { t } from '../../../services/i18n';
 
   $effect(() => {
     onboardingNav.set({ primaryLabel: 'Continue', onPrimary: advanceStep });
@@ -16,8 +17,8 @@
 
 <Card>
   <div class="step">
-    <p class="step__kicker">The one shortcut to remember</p>
-    <h1 class="step__title">Summon Asyar, then <span class="onb-hl">just type</span></h1>
+    <p class="step__kicker">{t('onboarding.summon_title')}</p>
+    <h1 class="step__title">{t('onboarding.summon_heading')}</h1>
     <p class="step__lede">
       Press <kbd>{modifier}+{key}</kbd> from anywhere to open Asyar. Try searching an app, or do
       quick math — type <code>1234 * 56</code> and press Enter.
@@ -33,7 +34,7 @@
       </div>
     {:else}
       <button class="step__link" onclick={() => (showRebind = true)}>
-        Prefer a different key? Change it
+        {t('onboarding.change_hotkey_hint')}
       </button>
     {/if}
   </div>

@@ -6,6 +6,7 @@
   import storeExtension from '../../../built-in-features/store/index.svelte';
   import { platform } from '@tauri-apps/plugin-os';
   import { onboardingNav } from '../onboardingNav.svelte';
+  import { t } from '../../../services/i18n';
 
   let extensions = $state<ApiExtension[]>([]);
   let selected = $state<Set<number>>(new Set());
@@ -67,13 +68,13 @@
 </script>
 
 <Card>
-  <h1>Try a few extensions</h1>
-  <p>Optional — pick any you like and we'll install them now.</p>
+  <h1>{t('onboarding.featured_heading')}</h1>
+  <p>{t('onboarding.featured_desc')}</p>
 
   {#if loading}
-    <LoadingState message="Loading…" />
+    <LoadingState message={t('common.loading')} />
   {:else if extensions.length === 0}
-    <EmptyState message="Couldn't reach the extension store.">
+    <EmptyState message={t('onboarding.featured_store_error')}>
       <Button onclick={load}>Retry</Button>
     </EmptyState>
   {:else}

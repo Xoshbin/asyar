@@ -1,7 +1,8 @@
 <script lang="ts">
   import Spinner from '../base/Spinner.svelte';
+  import { t } from '../../services/i18n';
   let {
-    message = 'Loading...',
+    message = t('common.loading'),
   }: {
     message?: string;
   } = $props();

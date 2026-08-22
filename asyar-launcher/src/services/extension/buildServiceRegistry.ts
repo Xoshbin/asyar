@@ -45,7 +45,7 @@ import { browserService } from '../browser/browserService';
 import { filesService } from '../files/filesService';
 import { extensionStateService } from '../extensionState/extensionStateService';
 import { runService } from '../run/runService.svelte';
-import { agentsToolsRegisterTier2, agentsToolsList } from '../../lib/ipc/commands';
+import { agentsToolsRegisterTier2, agentsToolsList, getSystemLocale } from '../../lib/ipc/commands';
 import { completeExtensionOnboarding } from '../../lib/ipc/extensionLifecycleCommands';
 import type { ManifestTool } from 'asyar-sdk/contracts';
 
@@ -213,6 +213,38 @@ export function buildServiceRegistry(deps: {
     onboarding: {
       complete: async (extensionId: string) => {
         await completeExtensionOnboarding(extensionId);
+      },
+    },
+    environment: {
+      getEnvironment: async (extensionId: string) => {
+        const parsed = await getSystemLocale();
+        const isWindows =
+          typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('windows');
+        const isMac =
+          typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('mac');
+        const platform = isMac ? 'macos' : isWindows ? 'windows' : 'linux';
+        const locale =
+          parsed?.raw ?? (typeof navigator !== 'undefined' ? navigator.language : 'en-US');
+        const language = parsed?.language ?? locale.split(/[-_]/)[0] ?? 'en';
+        const region = parsed?.region ?? null;
+        const script = parsed?.script ?? null;
+        const theme =
+          typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+            ? 'dark'
+            : 'light';
+        const isDevelopment = import.meta.env?.DEV ?? false;
+
+        return {
+          locale,
+          language,
+          region,
+          script,
+          numberFormat: 'point',
+          platform,
+          theme,
+          isDevelopment,
+          extensionId: extensionId ?? '',
+        };
       },
     },
   });

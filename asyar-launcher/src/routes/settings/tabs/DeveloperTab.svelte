@@ -9,10 +9,9 @@
   } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import extensionManager from '../../../services/extension/extensionManager.svelte';
-  import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
-  import { logService } from '../../../services/log/logService';
   import { getDevExtensionPaths } from '../../../lib/ipc/commands';
   import { forceRemountWorker } from '../../../lib/ipc/devCommands';
+  import { t } from '../../../services/i18n';
 
   let { handler }: { handler: SettingsHandler } = $props();
 
@@ -33,7 +32,7 @@
     const result = await getDevExtensionPaths();
     if (result === null) {
       logService.error('Failed to load dev extensions');
-      devExtError = 'Failed to load dev extensions.';
+      devExtError = t('settings.developer.error_load_dev_extensions');
       devExtensions = {};
     } else {
       devExtensions = result;
@@ -60,7 +59,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: 'Reload failed' },
+        context: { message: t('settings.developer.error_reload_failed') },
       });
     }
     reloadingExt = null;
@@ -69,9 +68,9 @@
   async function detachDevExtension(extensionId: string) {
     if (detachingExt) return;
     const confirmed = await feedbackService.confirmAlert({
-      title: 'Detach Dev Extension',
+      title: t('settings.developer.detach_title'),
       message: `Remove "${extensionId}" from the dev extension registry? The extension files will not be deleted.`,
-      confirmText: 'Detach',
+      confirmText: t('settings.developer.detach'),
       variant: 'danger',
     });
     if (!confirmed) return;
@@ -100,20 +99,20 @@
 
 <div class="developer-tab">
   <div id="developer-tools" class="anchor-group">
-    <div class="section-header">Tools</div>
+    <div class="section-header">{t('settings.developer.section_tools')}</div>
     <SettingsCard>
       <SettingsRow
-        label="Developer mode"
-        description="These tools are intended for extension developers."
+        label={t('settings.developer.developer_mode')}
+        description={t('settings.developer.developer_mode_description')}
       >
         {#snippet children()}
-          <Badge text="Active" variant="warning" />
+          <Badge text={t('settings.developer.active')} variant="warning" />
         {/snippet}
       </SettingsRow>
 
       <SettingsRow
-        label="DevEx Inspector"
-        description="Show the extension inspector panel in the main launcher window. Access runtime state, events, IPC/RPC traces, and more."
+        label={t('settings.developer.devex_inspector')}
+        description={t('settings.developer.devex_inspector_description')}
       >
         {#snippet children()}
           <Toggle
@@ -124,8 +123,8 @@
       </SettingsRow>
 
       <SettingsRow
-        label="Verbose logging"
-        description="Increase log verbosity for all loaded extensions. Useful for debugging extension behavior."
+        label={t('settings.developer.verbose_logging')}
+        description={t('settings.developer.verbose_logging_description')}
       >
         {#snippet children()}
           <Toggle
@@ -136,8 +135,8 @@
       </SettingsRow>
 
       <SettingsRow
-        label="IPC/RPC tracing"
-        description="Record message traces between extensions and the host. Visible in the DevEx Inspector's IPC and RPC tabs."
+        label={t('settings.developer.tracing')}
+        description={t('settings.developer.tracing_description')}
       >
         {#snippet children()}
           <Toggle
@@ -148,8 +147,8 @@
       </SettingsRow>
 
       <SettingsRow
-        label="Sideload extensions"
-        description="Allow installing extension bundles from local files instead of the store."
+        label={t('settings.developer.sideload')}
+        description={t('settings.developer.sideload_description')}
       >
         {#snippet children()}
           <Toggle
@@ -162,18 +161,18 @@
   </div>
 
   <div id="developer-extensions" class="anchor-group">
-    <div class="section-header">Dev Extensions</div>
+    <div class="section-header">{t('settings.developer.section_dev_extensions')}</div>
     <SettingsCard>
       {#if isLoadingDevExts}
-        <div class="dev-ext-state text-caption">Loading…</div>
+        <div class="dev-ext-state text-caption">{t('common.loading')}</div>
       {:else if devExtError}
         <div class="dev-ext-state error-text text-caption">{devExtError}</div>
       {:else if devExtEntries.length === 0}
         <div class="dev-ext-empty">
           <EmptyState
             compact
-            message="No dev extensions attached"
-            description="Use the Asyar SDK CLI to attach a local extension: asyar-sdk attach <path>"
+            message={t('settings.developer.no_dev_extensions')}
+            description={t('settings.developer.no_dev_extensions_description')}
           />
         </div>
       {:else}
@@ -182,14 +181,18 @@
             {#snippet children()}
               <div class="dev-ext-actions">
                 <Button disabled={reloadingExt === extId} onclick={() => hotReload(extId)}>
-                  {reloadingExt === extId ? 'Reloading…' : 'Hot Reload'}
+                  {reloadingExt === extId
+                    ? t('settings.developer.reloading')
+                    : t('settings.developer.hot_reload')}
                 </Button>
                 <Button
                   class="btn-danger"
                   disabled={detachingExt === extId}
                   onclick={() => detachDevExtension(extId)}
                 >
-                  {detachingExt === extId ? 'Detaching…' : 'Detach'}
+                  {detachingExt === extId
+                    ? t('settings.developer.detaching')
+                    : t('settings.developer.detach')}
                 </Button>
               </div>
             {/snippet}

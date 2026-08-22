@@ -3,29 +3,30 @@
   import { completeStep } from '../stepLogic';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { onboardingNav } from '../onboardingNav.svelte';
+  import { t } from '../../../services/i18n';
 
   $effect(() => {
-    onboardingNav.set({ primaryLabel: 'Open Asyar', onPrimary: completeStep });
+    onboardingNav.set({ primaryLabel: t('onboarding.open_asyar'), onPrimary: completeStep });
   });
 
   const mod = $derived(settingsService.currentSettings.shortcut.modifier);
   const key = $derived(settingsService.currentSettings.shortcut.key);
 
   const rows = $derived([
-    { keys: `${mod}+${key}`, label: 'Open / hide Asyar' },
-    { keys: 'Tab', label: 'Ask AI · fill command arguments' },
-    { keys: '⌘K', label: 'Open the action panel' },
-    { keys: 'Enter', label: 'Run the selected result' },
-    { keys: 'Esc / ⌫', label: 'Go back · hide' },
+    { keys: `${mod}+${key}`, label: t('onboarding.shortcut_toggle') },
+    { keys: 'Tab', label: t('onboarding.shortcut_ai') },
+    { keys: '⌘K', label: t('onboarding.shortcut_action_panel') },
+    { keys: 'Enter', label: t('onboarding.shortcut_run') },
+    { keys: 'Esc / ⌫', label: t('onboarding.shortcut_back') },
   ]);
 </script>
 
 <Card>
   <div class="done">
-    <p class="done__kicker">You're set</p>
-    <h1 class="done__title">That's Asyar — <span class="onb-hl">go fast</span></h1>
+    <p class="done__kicker">{t('onboarding.youre_set')}</p>
+    <h1 class="done__title">{t('onboarding.thats_asyar')}</h1>
     <p class="done__lede">
-      Keep these five shortcuts handy. You can re-run this tour anytime from Settings.
+      {t('onboarding.cheatsheet_desc')}
     </p>
 
     <ul class="done__sheet">

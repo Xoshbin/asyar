@@ -1,6 +1,7 @@
 <script lang="ts">
   import { SettingsCard, SettingsRow, Input, Button, Badge, EmptyState } from '../index';
   import { clipboardPrivacyService } from '../../services/privacy/clipboardPrivacyService.svelte';
+  import { t } from '../../services/i18n';
 
   let newEntry = $state('');
 
@@ -20,11 +21,11 @@
   }
 </script>
 
-<div class="section-header">Clipboard</div>
+<div class="section-header">{t('settings.privacy.clipboard_items')}</div>
 <SettingsCard>
   <SettingsRow
-    label="Clipboard Privacy"
-    description="Asyar will not store clipboard items that the OS or source app has marked private."
+    label={t('settings.privacy.clipboard_privacy')}
+    description={t('settings.privacy.clipboard_privacy_desc')}
   >
     {#snippet children()}
       <Badge text="Protected" variant="info" />
@@ -43,8 +44,8 @@
   {/if}
 
   <SettingsRow
-    label="This session"
-    description="Clipboard items skipped since the launcher started."
+    label={t('settings.privacy.this_session')}
+    description={t('settings.privacy.clipboard_session_desc')}
   >
     {#snippet children()}
       <Badge text={`${totalSkipped} skipped`} variant="info" />
@@ -52,12 +53,12 @@
   </SettingsRow>
 
   <SettingsRow
-    label="Default denylist"
-    description="Built-in password managers — always blocked, not editable."
+    label={t('settings.privacy.default_denylist')}
+    description={t('settings.privacy.default_denylist_desc')}
   >
     {#snippet children()}
       {#if clipboardPrivacyService.defaultDenylist.length === 0}
-        <EmptyState message="No defaults loaded" />
+        <EmptyState message={t('settings.privacy.no_defaults')} />
       {:else}
         <ul class="denylist">
           {#each clipboardPrivacyService.defaultDenylist as bundleId}
@@ -69,21 +70,26 @@
   </SettingsRow>
 
   <SettingsRow
-    label="Add bundle id"
-    description="Bundle id (macOS), executable name (Windows), or .desktop id (Linux)."
+    label={t('settings.privacy.add_bundle_id')}
+    description={t('settings.privacy.add_bundle_id_desc')}
   >
     {#snippet children()}
       <div class="add-row">
         <Input textIntent="exact" bind:value={newEntry} placeholder="com.example.YourVault" />
-        <Button onclick={handleAdd} disabled={newEntry.trim().length === 0}>Add</Button>
+        <Button onclick={handleAdd} disabled={newEntry.trim().length === 0}
+          >{t('common.add')}</Button
+        >
       </div>
     {/snippet}
   </SettingsRow>
 
-  <SettingsRow label="Your additions" description="Apps you have added to the denylist.">
+  <SettingsRow
+    label={t('settings.privacy.your_additions')}
+    description={t('settings.privacy.your_additions_desc')}
+  >
     {#snippet children()}
       {#if clipboardPrivacyService.userDenylist.length === 0}
-        <EmptyState message="No custom entries yet" />
+        <EmptyState message={t('settings.privacy.no_custom_entries')} />
       {:else}
         <ul class="denylist">
           {#each clipboardPrivacyService.userDenylist as bundleId}

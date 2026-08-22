@@ -19,113 +19,21 @@ use std::path::Path;
 /// Returns `None` when the bundle ships no translation for the user's locale,
 /// which is the common case: callers fall back to the on-disk file stem.
 pub fn localized_bundle_name(path: &Path) -> Option<String> {
-    localized_bundle_name_in_locale(path, &sys_locale::get_locale()?)
+    localized_bundle_name_in_locale(path, &crate::locale::detect().raw)
 }
 
 fn localized_bundle_name_in_locale(path: &Path, locale: &str) -> Option<String> {
     let resources = path.join("Contents/Resources");
     let loctable = plist::Value::from_file(resources.join("InfoPlist.loctable")).ok();
     let loctable = loctable.as_ref().and_then(plist::Value::as_dictionary);
-    language_candidates(locale).into_iter().find_map(|lang| {
+    let candidates = crate::locale::ParsedLocale::parse(locale)
+        .map(|l| l.macos_bundle_candidates())
+        .unwrap_or_default();
+    candidates.into_iter().find_map(|lang| {
         name_from_loctable(loctable, &lang).or_else(|| {
             name_from_info_plist_strings(&resources.join(format!("{lang}.lproj/InfoPlist.strings")))
         })
     })
-}
-
-/// Language keys to try, most specific first — `de-DE` before `de`.
-///
-/// Two shapes of the same locale have to be tried, because the tag macOS
-/// reports and the key a bundle uses are written differently. `sys_locale`
-/// returns the user's preferred language as a BCP-47 tag with hyphens
-/// (`de-DE`, `zh-Hans-CN`), while Apple keys its own tables with underscores
-/// and no script subtag — every one of the 166 system `InfoPlist.loctable`s on
-/// macOS 26 uses `zh_CN`, `zh_HK`, `zh_TW`, `pt_PT`, `pt_BR`, `en_GB`,
-/// `es_419` and never a hyphen. Third-party bundles do use the hyphen form, so
-/// both are emitted, hyphen first.
-///
-/// A script subtag also has to be dropped on the way down, not just truncated
-/// off the end: Chinese arrives as `zh-Hans-CN`, and plain RFC 4647 truncation
-/// (`zh-Hans-CN` → `zh-Hans` → `zh`) never reaches `zh_CN` — and Apple ships no
-/// bare `zh` entry at all, so that chain ends in the English name. The order
-/// below matches what CoreFoundation's own resolver
-/// (`CFBundleCopyLocalizationsForPreferences`) picks when asked with Photos'
-/// real key list: `zh-Hans-CN` → `zh_CN`, `zh-Hant-HK` → `zh_HK` then `zh_TW`,
-/// `de-DE` → `de_DE` then `de`, `pt-BR` → `pt`.
-///
-/// What is deliberately not replicated is CoreFoundation's alias and
-/// likely-subtag data: `nb-NO` → `no`, `yue-Hans-CN` → `zh_CN`, `es-MX` →
-/// `es_419`. Those need a table this crate has no business shipping, and a miss
-/// only costs the fallback that has always applied — the on-disk file stem.
-fn language_candidates(locale: &str) -> Vec<String> {
-    let mut subtags = locale.split(['-', '_']).filter(|part| !part.is_empty());
-    let Some(language) = subtags.next() else {
-        return Vec::new();
-    };
-    let (mut script, mut region) = (None, None);
-    for subtag in subtags {
-        match subtag {
-            // A one-character subtag opens an extension ("de-DE-u-co-phonebk"),
-            // and what follows it only looks like a region — "-u-ca-chinese"
-            // would otherwise read as Canada.
-            _ if subtag.len() == 1 => break,
-            _ if script.is_none() && is_script(subtag) => script = Some(subtag),
-            _ if region.is_none() && is_region(subtag) => region = Some(subtag),
-            // Variants ("de-DE-1901") never key a table.
-            _ => {}
-        }
-    }
-
-    let mut candidates = Vec::new();
-    if let (Some(script), Some(region)) = (script, region) {
-        push_both_separators(&mut candidates, &format!("{language}-{script}-{region}"));
-    }
-    if let Some(region) = region {
-        push_both_separators(&mut candidates, &format!("{language}-{region}"));
-    }
-    if let Some(script) = script {
-        push_both_separators(&mut candidates, &format!("{language}-{script}"));
-    }
-    if let Some(region) = implied_region(language, script) {
-        push_both_separators(&mut candidates, &format!("{language}-{region}"));
-    }
-    push_both_separators(&mut candidates, language);
-    candidates
-}
-
-/// The region Apple's tables stand in for a script, for the one language where
-/// it matters. There is no `zh_Hans`/`zh_Hant` key anywhere in macOS and no
-/// bare `zh` either, so a `zh-Hans` or `zh-Hant` preference only resolves
-/// through a region. CoreFoundation resolves the same way (`zh-Hans` → `zh_CN`,
-/// `zh-Hant` → `zh_TW`), and it too keeps a Traditional preference away from
-/// the Simplified `zh` entry — hence this runs before the bare language.
-fn implied_region(language: &str, script: Option<&str>) -> Option<&'static str> {
-    match (language, script) {
-        ("zh", Some("Hant")) => Some("TW"),
-        ("zh", Some("Hans") | None) => Some("CN"),
-        _ => None,
-    }
-}
-
-/// Emits a candidate in both the hyphen and the underscore spelling, skipping
-/// duplicates so `zh-Hans-CN` does not try `zh_CN` twice.
-fn push_both_separators(candidates: &mut Vec<String>, stem: &str) {
-    for candidate in [stem.to_owned(), stem.replace('-', "_")] {
-        if !candidates.contains(&candidate) {
-            candidates.push(candidate);
-        }
-    }
-}
-
-/// A script subtag is four letters (`Hans`), a region two letters (`GB`) or
-/// three digits (`419`, Latin America).
-fn is_script(subtag: &str) -> bool {
-    subtag.len() == 4 && subtag.chars().all(|c| c.is_ascii_alphabetic())
-}
-
-fn is_region(subtag: &str) -> bool {
-    (subtag.len() == 2 && subtag.chars().all(|c| c.is_ascii_alphabetic()))
-        || (subtag.len() == 3 && subtag.chars().all(|c| c.is_ascii_digit()))
 }
 
 fn name_from_loctable(table: Option<&plist::Dictionary>, lang: &str) -> Option<String> {
@@ -258,6 +166,12 @@ mod tests {
     fn returns_none_for_a_missing_path() {
         let missing = Path::new("/nonexistent/asyar/Ghost.app");
         assert_eq!(localized_bundle_name_in_locale(missing, "de-DE"), None);
+    }
+
+    fn language_candidates(locale: &str) -> Vec<String> {
+        crate::locale::ParsedLocale::parse(locale)
+            .map(|l| l.macos_bundle_candidates())
+            .unwrap_or_default()
     }
 
     #[test]

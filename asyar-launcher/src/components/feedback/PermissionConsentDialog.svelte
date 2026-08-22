@@ -4,6 +4,7 @@
   import PermissionList from '../settings/PermissionList.svelte';
   import RuntimeDownloadList from '../settings/RuntimeDownloadList.svelte';
   import type { PermissionConsentRequest } from '../../services/extension/permissionConsentService.svelte';
+  import { t } from '../../services/i18n';
 
   let { request, onAccept, onDecline } = $props<{
     request: PermissionConsentRequest;
@@ -38,8 +39,8 @@
     </div>
   {/snippet}
   {#snippet actions()}
-    <Button onclick={onDecline}>Cancel</Button>
-    <Button autofocus onclick={onAccept} class="btn-consent-primary">Allow</Button>
+    <Button onclick={onDecline}>{t('common.cancel')}</Button>
+    <Button autofocus onclick={onAccept} class="btn-consent-primary">{t('common.allow')}</Button>
   {/snippet}
 </Modal>
 

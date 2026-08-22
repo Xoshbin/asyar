@@ -23,6 +23,7 @@
   import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
   import { initValidKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
   import { listen } from '@tauri-apps/api/event';
+  import { i18nService, t } from '../../services/i18n';
 
   import '../../resources/styles/style.css';
 
@@ -33,26 +34,27 @@
   const handler = new SettingsHandler();
 
   const settingsTabs = $derived([
-    { id: 'general', label: 'General', icon: 'settings' },
-    { id: 'extensions', label: 'Extensions', icon: 'puzzle' },
-    { id: 'browsers', label: 'Browsers', icon: 'globe' },
-    { id: 'applications', label: 'Applications', icon: 'layers' },
-    { id: 'file-search', label: 'File Search', icon: 'folder-search' },
-    { id: 'scripts', label: 'Scripts', icon: 'dev-tools' },
-    { id: 'ai', label: 'AI', icon: 'ai-chat' },
-    { id: 'backup', label: 'Backup', icon: 'cloud-upload' },
-    { id: 'account', label: 'Account', icon: 'user' },
-    { id: 'privacy', label: 'Privacy', icon: 'lock' },
-    { id: 'advanced', label: 'Advanced', icon: 'layers' },
+    { id: 'general', label: t('settings.tabs.general'), icon: 'settings' },
+    { id: 'extensions', label: t('settings.tabs.extensions'), icon: 'puzzle' },
+    { id: 'browsers', label: t('settings.tabs.browsers'), icon: 'globe' },
+    { id: 'applications', label: t('settings.tabs.applications'), icon: 'layers' },
+    { id: 'file-search', label: t('settings.tabs.file_search'), icon: 'folder-search' },
+    { id: 'scripts', label: t('settings.tabs.scripts'), icon: 'dev-tools' },
+    { id: 'ai', label: t('settings.tabs.ai'), icon: 'ai-chat' },
+    { id: 'backup', label: t('settings.tabs.backup'), icon: 'cloud-upload' },
+    { id: 'account', label: t('settings.tabs.account'), icon: 'user' },
+    { id: 'privacy', label: t('settings.tabs.privacy'), icon: 'lock' },
+    { id: 'advanced', label: t('settings.tabs.advanced'), icon: 'layers' },
     ...(handler.settings.developer?.enabled
-      ? [{ id: 'developer', label: 'Developer', icon: 'dev-tools' }]
+      ? [{ id: 'developer', label: t('settings.tabs.developer'), icon: 'dev-tools' }]
       : []),
-    { id: 'about', label: 'About', icon: 'info' },
+    { id: 'about', label: t('settings.tabs.about'), icon: 'info' },
   ]);
 
   let unlistenNavTab: (() => void) | undefined;
 
   onMount(async () => {
+    void i18nService.init();
     handler.init();
     await authService.init();
     await shortcutStore.init();

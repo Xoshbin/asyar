@@ -16,6 +16,7 @@
   import { logService } from '../../../services/log/logService';
   import type { IndexStatus } from '../../../bindings';
   import { canAddRoot, canAddExcludePattern } from './fileSearchTab.helpers';
+  import { t } from '../../../services/i18n';
 
   let roots = $derived(settingsService.currentSettings.fileSearch.includeRoots ?? []);
   let excludePatterns = $derived(settingsService.currentSettings.fileSearch.excludePatterns ?? []);
@@ -78,7 +79,11 @@
     errorMessage = null;
     try {
       await setFocusLock(true);
-      const picked = await open({ directory: true, multiple: false, title: 'Add Search Root' });
+      const picked = await open({
+        directory: true,
+        multiple: false,
+        title: t('settings.file_search.add_search_root_title'),
+      });
       if (!picked || typeof picked !== 'string') return;
       if (!canAddRoot(picked, roots)) {
         errorMessage = `${picked} is already in the list`;
@@ -131,12 +136,12 @@
   }
 </script>
 
-<div class="section-header">Status</div>
+<div class="section-header">{t('settings.file_search.section_status')}</div>
 <div id="file-search-status">
   <SettingsCard>
     <SettingsRow
-      label="File search"
-      description="Indexing runs in the background and excludes caches, dependency folders, and system directories by default."
+      label={t('settings.file_search.file_search_title')}
+      description={t('settings.file_search.file_search_description')}
     >
       <Toggle checked={enabled} onchange={handleToggleEnabled} />
     </SettingsRow>
@@ -150,7 +155,7 @@
         <span class="text-caption opacity-70">last scan {status.lastScanMs}ms</span>
       {/if}
       {#if status.snapshotLoaded}
-        <span class="text-caption opacity-70">restored from snapshot</span>
+        <span class="text-caption opacity-70">{t('settings.file_search.restored_snapshot')}</span>
       {/if}
       <Button onclick={handleRebuild} disabled={isRebuilding}>
         {isRebuilding ? 'Rebuilding…' : 'Rebuild Index'}
@@ -158,17 +163,16 @@
     </div>
     {#if status.capReached}
       <div class="warning" role="alert">
-        The index hit its size cap — some files may not be searchable. Add exclude patterns to
-        narrow the scan, or reduce your search roots.
+        {t('settings.file_search.index_size_warning')}
       </div>
     {/if}
   {/if}
 </div>
 
-<div class="section-header">Search roots</div>
+<div class="section-header">{t('settings.file_search.search_roots')}</div>
 <div id="file-search-roots">
   <p class="section-description">
-    Empty ⇒ your entire home folder. Add specific directories to narrow the scope.
+    {t('settings.file_search.search_roots_description')}
   </p>
 
   <div class="add-row">
@@ -206,10 +210,10 @@
   {/if}
 </div>
 
-<div class="section-header">Exclude patterns</div>
+<div class="section-header">{t('settings.file_search.exclude_patterns')}</div>
 <div id="file-search-excludes">
   <p class="section-description">
-    Layered on top of the built-in exclusions (node_modules, .git, caches, etc).
+    {t('settings.file_search.exclude_patterns_description')}
   </p>
 
   <div class="add-row exclude-add-row">
@@ -222,7 +226,7 @@
       bind:value={newExcludePattern}
       onkeydown={(e) => e.key === 'Enter' && handleAddExcludePattern()}
     />
-    <Button onclick={handleAddExcludePattern}>Add</Button>
+    <Button onclick={handleAddExcludePattern}>{t('common.add')}</Button>
   </div>
 
   {#if excludePatterns.length > 0}

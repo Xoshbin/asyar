@@ -5,6 +5,7 @@
   import SettingsRow from './SettingsRow.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
+  import { t } from '../../services/i18n';
 
   let tasks = $state<ScheduledTaskInfo[]>([]);
   let isLoading = $state(true);
@@ -26,7 +27,7 @@
         kind: 'manual',
         severity: 'warning',
         retryable: false,
-        context: { message: 'Could not load scheduled tasks list' },
+        context: { message: t('settings.tasks.error_load_list') },
       });
       tasks = [];
     } finally {
@@ -40,7 +41,7 @@
 </script>
 
 {#if !isLoading && tasks.length > 0}
-  <div class="section-header">Scheduled Tasks</div>
+  <div class="section-header">{t('settings.tasks.title')}</div>
   <SettingsCard>
     <div id="advanced-scheduled-tasks">
       {#each tasks as task}
@@ -51,10 +52,10 @@
           {#if task.active}
             <span class="badge badge-active">
               <span class="badge-dot"></span>
-              Active
+              {t('common.active')}
             </span>
           {:else}
-            <span class="badge badge-paused">Paused</span>
+            <span class="badge badge-paused">{t('common.paused')}</span>
           {/if}
         </SettingsRow>
       {/each}

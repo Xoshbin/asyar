@@ -2,6 +2,7 @@
   import EmptyState from '../feedback/EmptyState.svelte';
   import { inspectorStore, type EventRow } from '../../services/dev/inspectorStore.svelte';
   import StreamTail from './StreamTail.svelte';
+  import { t } from '../../services/i18n';
 
   let paused = $state(false);
   let frozen = $state<EventRow[]>([]);
@@ -55,16 +56,16 @@
   <div class="toolbar">
     <label>
       <input type="checkbox" bind:checked={paused} />
-      Pause display
+      {t('components.panel_events.pause_display')}
     </label>
     <span class="count">{rows.length} events{paused ? ' (frozen)' : ''}</span>
-    <button type="button" onclick={clear}>Clear</button>
+    <button type="button" onclick={clear}>{t('common.clear')}</button>
   </div>
 
   {#if !inspectorStore.selectedExtensionId}
-    <EmptyState compact message="Select an extension from the sidebar." />
+    <EmptyState compact message={t('dev.select_extension')} />
   {:else if rows.length === 0}
-    <EmptyState compact message="No events yet." />
+    <EmptyState compact message={t('dev.no_events')} />
   {:else}
     <StreamTail {rows}>
       {#snippet row(item)}

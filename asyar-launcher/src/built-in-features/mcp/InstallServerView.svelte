@@ -15,11 +15,12 @@
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import { runtimeService } from '../../services/runtime/runtimeService.svelte';
   import { formatRuntimeDownloadStatus } from '../../services/runtime/runtimeDownloadStatus';
+  import { t } from '../../services/i18n';
 
-  const transportOptions = [
-    { value: 'stdio', label: 'Stdio' },
-    { value: 'http', label: 'HTTP' },
-  ];
+  const transportOptions = $derived([
+    { value: 'stdio', label: t('features.mcp.transport_stdio') },
+    { value: 'http', label: t('features.mcp.transport_http') },
+  ]);
 
   let form = $state<InstallFormState>({
     id: '',
@@ -44,7 +45,7 @@
   const installLabel = $derived(
     installing
       ? formatRuntimeDownloadStatus(runtimeService.downloadProgress, 'Installing…')
-      : 'Install',
+      : t('features.mcp.install'),
   );
 
   function addArg(): void {
@@ -146,27 +147,29 @@
 
     <!-- Display Name -->
     <div class="field">
-      <label for="srv-name" class="field-label">Display Name <span class="required">*</span></label>
+      <label for="srv-name" class="field-label"
+        >{t('features.mcp.display_name')} <span class="required">*</span></label
+      >
       <Input
         unstyled
         textIntent="natural"
         id="srv-name"
         class="field-input"
         type="text"
-        placeholder="My Server"
+        placeholder={t('features.mcp.placeholder_server_name')}
         bind:value={form.displayName}
       />
     </div>
 
     <!-- Description -->
     <div class="field">
-      <label for="srv-desc" class="field-label">Description</label>
+      <label for="srv-desc" class="field-label">{t('common.description')}</label>
       <Textarea
         unstyled
         textIntent="natural"
         id="srv-desc"
         class="field-input"
-        placeholder="Optional description"
+        placeholder={t('features.mcp.placeholder_server_desc')}
         rows={2}
         bind:value={form.description}
       ></Textarea>
@@ -174,14 +177,16 @@
 
     <!-- Transport Kind -->
     <div class="field">
-      <span class="field-label">Transport</span>
+      <span class="field-label">{t('features.mcp.transport')}</span>
       <SegmentedControl options={transportOptions} bind:value={form.transportKind} />
     </div>
 
     {#if form.transportKind === 'stdio'}
       <!-- Command -->
       <div class="field">
-        <label for="srv-cmd" class="field-label">Command <span class="required">*</span></label>
+        <label for="srv-cmd" class="field-label"
+          >{t('features.mcp.command')} <span class="required">*</span></label
+        >
         <Input
           unstyled
           textIntent="exact"
@@ -195,7 +200,7 @@
 
       <!-- Args -->
       <div class="field">
-        <span class="field-label">Arguments</span>
+        <span class="field-label">{t('features.mcp.arguments')}</span>
         {#each form.args as arg, i (i)}
           <div class="array-row">
             <Input
@@ -215,12 +220,14 @@
             >
           </div>
         {/each}
-        <button type="button" class="add-btn" onclick={addArg}>+ Add Argument</button>
+        <button type="button" class="add-btn" onclick={addArg}
+          >{t('features.mcp.add_argument')}</button
+        >
       </div>
 
       <!-- Env vars -->
       <div class="field">
-        <span class="field-label">Environment Variables</span>
+        <span class="field-label">{t('features.mcp.env_vars')}</span>
         {#each form.env as row, i (i)}
           <div class="kv-row">
             <Input
@@ -249,12 +256,14 @@
             >
           </div>
         {/each}
-        <button type="button" class="add-btn" onclick={addEnvRow}>+ Add Variable</button>
+        <button type="button" class="add-btn" onclick={addEnvRow}
+          >{t('features.mcp.add_variable')}</button
+        >
       </div>
 
       <!-- CWD -->
       <div class="field">
-        <label for="srv-cwd" class="field-label">Working Directory</label>
+        <label for="srv-cwd" class="field-label">{t('features.mcp.working_directory')}</label>
         <Input
           unstyled
           textIntent="exact"
@@ -282,7 +291,7 @@
 
       <!-- Headers -->
       <div class="field">
-        <span class="field-label">Headers</span>
+        <span class="field-label">{t('features.mcp.headers')}</span>
         {#each form.headers as row, i (i)}
           <div class="kv-row">
             <Input
@@ -311,7 +320,9 @@
             >
           </div>
         {/each}
-        <button type="button" class="add-btn" onclick={addHeader}>+ Add Header</button>
+        <button type="button" class="add-btn" onclick={addHeader}
+          >{t('features.mcp.add_header')}</button
+        >
       </div>
     {/if}
 
@@ -339,12 +350,12 @@
 
     <div class="form-actions">
       <Button onclick={handleTest} disabled={testing}>
-        {testing ? 'Testing…' : 'Test Connection'}
+        {testing ? t('features.mcp.testing') : t('features.mcp.test_connection')}
       </Button>
       <Button class="btn-primary" onclick={handleInstall} disabled={installing}>
         {installLabel}
       </Button>
-      <Button onclick={() => viewManager.goBack()}>Cancel</Button>
+      <Button onclick={() => viewManager.goBack()}>{t('common.cancel')}</Button>
     </div>
   </form>
 </div>

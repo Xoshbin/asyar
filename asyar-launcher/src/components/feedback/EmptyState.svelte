@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { t } from '../../services/i18n';
 
   let {
     icon,
-    message = 'No items found',
+    message = t('common.no_items_found'),
     description,
     children,
     compact = false,

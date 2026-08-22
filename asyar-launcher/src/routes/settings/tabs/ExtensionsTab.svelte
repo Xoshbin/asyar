@@ -18,6 +18,7 @@
   import { aliasStore } from '../../../built-in-features/aliases/aliasStore.svelte';
   import { aliasService } from '../../../built-in-features/aliases/aliasService';
   import AliasCapture from '../../../built-in-features/aliases/AliasCapture.svelte';
+  import { t } from '../../../services/i18n';
   import ShortcutCapture from '../../../built-in-features/shortcuts/ShortcutCapture.svelte';
   import {
     shortcutStore,
@@ -250,11 +251,11 @@
     };
   });
 
-  const FILTERS: { id: ExtensionFilter; label: string }[] = [
-    { id: 'all', label: 'All' },
-    { id: 'commands', label: 'Commands' },
-    { id: 'extension', label: 'Extensions' },
-    { id: 'theme', label: 'Theme' },
+  const FILTERS: { id: ExtensionFilter; labelKey: string }[] = [
+    { id: 'all', labelKey: 'settings.extensions.filter_all' },
+    { id: 'commands', labelKey: 'settings.extensions.filter_commands' },
+    { id: 'extension', labelKey: 'settings.extensions.filter_extensions' },
+    { id: 'theme', labelKey: 'settings.extensions.filter_theme' },
   ];
 </script>
 
@@ -278,7 +279,7 @@
         {updateCount} extension{updateCount === 1 ? '' : 's'} can be updated
       </span>
       <button class="btn btn-primary" onclick={handleUpdateAll} disabled={isUpdatingAll}>
-        {isUpdatingAll ? 'Updating…' : 'Update All'}
+        {isUpdatingAll ? t('settings.extensions.updating') : t('settings.extensions.update_all')}
       </button>
     </div>
   {/if}
@@ -295,7 +296,7 @@
               textIntent="exact"
               class="search-input"
               type="text"
-              placeholder="Search…"
+              placeholder={t('settings.extensions.search_placeholder')}
               bind:value={searchQuery}
             />
           </div>
@@ -308,14 +309,14 @@
                 activeFilter = f.id;
               }}
             >
-              {f.label}
+              {t(f.labelKey)}
             </button>
           {/each}
 
           <div class="plus-wrapper">
             <button
               class="plus-btn"
-              aria-label="Add extension"
+              aria-label={t('settings.extensions.add_extension')}
               bind:this={plusBtnEl}
               onclick={openPlusDropdown}
             >
@@ -334,31 +335,36 @@
 
         <!-- column headers -->
         <div class="col-headers">
-          <span class="col-name">Name</span>
-          <span class="col-type">Type</span>
-          <span class="col-alias">Alias</span>
-          <span class="col-hotkey">Hotkey</span>
-          <span class="col-on">Enabled</span>
+          <span class="col-name">{t('settings.extensions.table_name')}</span>
+          <span class="col-type">{t('settings.extensions.table_type')}</span>
+          <span class="col-alias">{t('settings.extensions.table_alias')}</span>
+          <span class="col-hotkey">{t('settings.extensions.table_hotkey')}</span>
+          <span class="col-on">{t('settings.extensions.table_enabled')}</span>
         </div>
 
         <!-- table -->
         <div class="table-body custom-scrollbar">
           {#if handler.isLoadingExtensions}
-            <LoadingState message="Loading extensions…" />
+            <LoadingState message={t('settings.extensions.loading_extensions')} />
           {:else if handler.extensionError}
-            <EmptyState message="Failed to load extensions" description={handler.extensionError}>
+            <EmptyState
+              message={t('settings.extensions.failed_to_load')}
+              description={handler.extensionError}
+            >
               {#snippet icon()}<span style="font-size: var(--font-size-2xl); opacity: 0.5;">⚠️</span
                 >{/snippet}
               <button class="btn btn-secondary" onclick={() => handler.loadExtensions()}
-                >Retry</button
+                >{t('common.retry')}</button
               >
             </EmptyState>
           {:else if filteredExtensions.length === 0}
             <EmptyState
-              message={handler.extensions.length === 0 ? 'No extensions installed' : 'No results'}
+              message={handler.extensions.length === 0
+                ? t('settings.extensions.no_extensions')
+                : t('search.no_results')}
               description={handler.extensions.length === 0
-                ? 'Extensions add new functionality to Asyar'
-                : 'Try a different search or filter'}
+                ? t('settings.extensions.no_extensions_description')
+                : t('settings.extensions.no_results_description')}
             />
           {:else}
             {#each filteredExtensions as ext (ext.id ?? ext.title)}
@@ -470,7 +476,8 @@
                       </div>
                       <span class="ext-title">{cmd.name}</span>
                     </div>
-                    <span class="col-type row-type">Command</span>
+                    <span class="col-type row-type">{t('settings.extensions.filter_commands')}</span
+                    >
                     <span class="col-alias">
                       {#if cmdAlias}
                         <button
@@ -504,7 +511,7 @@
                             openAliasCaptureForCommand(ext, cmd);
                           }}
                         >
-                          Add Alias
+                          {t('settings.extensions.add_alias')}
                         </button>
                       {/if}
                     </span>
@@ -541,7 +548,7 @@
                             openShortcutCaptureForCommand(ext, cmd);
                           }}
                         >
-                          Record Hotkey
+                          {t('settings.extensions.record_hotkey')}
                         </button>
                       {/if}
                     </span>
@@ -573,7 +580,7 @@
 
 {#if plusOpen}
   <div class="plus-dropdown" style="top: {dropdownPos.top}px; right: {dropdownPos.right}px;">
-    <div class="dd-section-label">Extensions</div>
+    <div class="dd-section-label">{t('settings.extensions.filter_extensions')}</div>
     {#if developerSettingsService.allowSideloading}
       <button
         class="dd-item"
@@ -597,7 +604,7 @@
       </button>
       <div class="dd-separator"></div>
     {/if}
-    <div class="dd-section-label">Create</div>
+    <div class="dd-section-label">{t('settings.developer.section_tools')}</div>
     <button class="dd-item dd-item-disabled" disabled title="Coming soon">
       <svg
         viewBox="0 0 24 24"
@@ -609,7 +616,7 @@
         <rect x="3" y="3" width="18" height="18" rx="2" />
         <path d="M12 8v8M8 12h8" />
       </svg>
-      Create Extension
+      {t('settings.extensions.create_extension')}
     </button>
   </div>
 {/if}

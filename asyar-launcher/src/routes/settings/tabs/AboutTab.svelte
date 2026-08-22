@@ -8,6 +8,7 @@
   import { getVersion } from '@tauri-apps/api/app';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import logoUrl from '../../../resources/images/Square142x142Logo.png';
+  import { t } from '../../../services/i18n';
 
   let {
     handler,
@@ -100,7 +101,7 @@
 
 <div class="about-tab">
   <div id="about-updates" class="anchor-group">
-    <div class="section-header">Updates</div>
+    <div class="section-header">{t('settings.about.section_updates')}</div>
     <SettingsCard>
       <div class="app-header">
         <img src={logoUrl} alt="Asyar" class="app-logo" />
@@ -109,14 +110,14 @@
       </div>
 
       <SettingsRow
-        label="Release channel"
-        description="Stable: tested releases only. Beta: early access to pre-release versions."
+        label={t('settings.about.release_channel')}
+        description={t('settings.about.release_channel_description')}
       >
         {#snippet children()}
           <SegmentedControl
             options={[
-              { value: 'stable', label: 'Stable' },
-              { value: 'beta', label: 'Beta' },
+              { value: 'stable', label: t('settings.about.channel_stable') },
+              { value: 'beta', label: t('settings.about.channel_beta') },
             ]}
             bind:value={selectedChannel}
           />
@@ -124,8 +125,8 @@
       </SettingsRow>
 
       <SettingsRow
-        label="Automatic updates"
-        description="Check for and download updates in the background."
+        label={t('settings.about.auto_updates')}
+        description={t('settings.about.auto_updates_description')}
       >
         {#snippet children()}
           <Toggle
@@ -138,15 +139,15 @@
       {#if appUpdateState.phase === 'ready'}
         <SettingsRow
           label={`Update ${appUpdateState.pendingVersion} ready`}
-          description="Will install automatically on next launch."
+          description={t('settings.about.auto_install_next_launch')}
         >
           {#snippet children()}
-            <Button onclick={restartAndUpdate}>Restart Now</Button>
+            <Button onclick={restartAndUpdate}>{t('settings.about.restart_now')}</Button>
           {/snippet}
         </SettingsRow>
       {/if}
 
-      <SettingsRow label="Updates">
+      <SettingsRow label={t('settings.about.section_updates')}>
         {#snippet children()}
           <div class="update-control">
             <Button
@@ -154,8 +155,8 @@
               disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
             >
               {updateStatus === 'checking' || updateStatus === 'downloading'
-                ? 'Checking...'
-                : 'Check for Updates'}
+                ? t('settings.about.checking')
+                : t('settings.about.check_for_updates')}
             </Button>
             {#if updateStatus !== 'idle'}
               <span
@@ -173,15 +174,15 @@
   </div>
 
   <div id="about-credits" class="anchor-group">
-    <div class="section-header">Credits</div>
+    <div class="section-header">{t('settings.about.section_credits')}</div>
     <SettingsCard>
-      <SettingsRow label="Created by">
+      <SettingsRow label={t('settings.about.created_by')}>
         {#snippet children()}
           <span class="info-text">Khoshbin Ali</span>
         {/snippet}
       </SettingsRow>
 
-      <SettingsRow label="Built with">
+      <SettingsRow label={t('settings.about.built_with')}>
         {#snippet children()}
           <span class="info-text">Tauri, Rust, Svelte, TypeScript</span>
         {/snippet}
@@ -190,18 +191,23 @@
   </div>
 
   <div id="about-links" class="anchor-group">
-    <div class="section-header">Links</div>
+    <div class="section-header">{t('settings.about.section_links')}</div>
     <SettingsCard>
-      <SettingsRow label="Project links" description="Open source, policies, and license details.">
+      <SettingsRow
+        label={t('settings.about.project_links')}
+        description={t('settings.about.project_links_description')}
+      >
         {#snippet children()}
           <div class="links-row">
             <Button onclick={() => openUrl('https://github.com/Xoshbin/asyar-launcher')}>
               GitHub
             </Button>
             <Button onclick={() => openUrl('https://discord.gg/vvYRXrs7Xa')}>Discord</Button>
-            <Button onclick={() => openUrl('https://asyar.org/privacy')}>Privacy Policy</Button>
+            <Button onclick={() => openUrl('https://asyar.org/privacy')}
+              >{t('settings.about.privacy_policy')}</Button
+            >
             <Button onclick={() => openUrl('https://github.com/Xoshbin/asyar/blob/main/LICENSE')}>
-              License
+              {t('settings.about.license')}
             </Button>
           </div>
         {/snippet}

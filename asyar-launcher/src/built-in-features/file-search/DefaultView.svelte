@@ -18,6 +18,7 @@
     type TypeFilter,
   } from './state.svelte';
   import type { FileHit } from 'asyar-sdk/contracts';
+  import { t } from '../../services/i18n';
   import { primeAiChipForFile } from './aiChipBridge';
   import { getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
   import { readTextPreview } from '../../lib/ipc/fileSearchCommands';
@@ -370,8 +371,8 @@
       {:else}
         <EmptyState
           message={fileSearchViewState.searchQuery
-            ? 'Select a file to preview'
-            : 'Start typing to find files'}
+            ? t('features.file_search.select_file_preview')
+            : t('features.file_search.start_typing_files')}
         >
           {#snippet icon()}
             <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">

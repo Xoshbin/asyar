@@ -6,12 +6,13 @@
   import { feedbackSubmitService } from '../../services/feedback/feedbackSubmitService';
   import { authService } from '../../services/auth/authService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { t } from '../../services/i18n';
 
-  const categories: { id: string; label: string }[] = [
-    { id: 'idea', label: 'Idea' },
-    { id: 'bug', label: 'Bug' },
-    { id: 'other', label: 'Other' },
-  ];
+  let categories = $derived<{ id: string; label: string }[]>([
+    { id: 'idea', label: t('features.feedback.category_idea') },
+    { id: 'bug', label: t('features.feedback.category_bug') },
+    { id: 'other', label: t('features.feedback.category_other') },
+  ]);
 
   onMount(() => {
     if (authService.user?.email) feedbackViewState.email = authService.user.email;
@@ -27,7 +28,7 @@
         kind: 'manual',
         severity: 'success',
         retryable: false,
-        context: { message: 'Feedback sent — thank you!' },
+        context: { message: t('features.feedback.success_sent') },
       });
       feedbackViewState.reset();
     } catch (e) {
@@ -36,7 +37,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: 'Failed to send feedback. Please try again.' },
+        context: { message: t('features.feedback.error_failed') },
         developerDetail: String(e),
       });
     } finally {
@@ -52,19 +53,21 @@
     <Textarea
       textIntent="natural"
       class="input feedback-message"
-      placeholder="Tell us what's on your mind…"
+      placeholder={t('features.feedback.placeholder_tell_us')}
       rows="6"
       bind:value={feedbackViewState.message}
     ></Textarea>
 
     <Input
       textIntent="exact"
-      placeholder="Email (optional — or clear to send anonymously)"
+      placeholder={t('features.feedback.placeholder_email')}
       bind:value={feedbackViewState.email}
     />
 
     <div class="feedback-actions">
-      <Button onclick={submit} disabled={!feedbackViewState.canSubmit}>Send Feedback</Button>
+      <Button onclick={submit} disabled={!feedbackViewState.canSubmit}
+        >{t('common.send_feedback')}</Button
+      >
     </div>
   </div>
 </div>

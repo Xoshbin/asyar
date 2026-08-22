@@ -3,6 +3,7 @@
   import { inspectorStore } from '../../services/dev/inspectorStore.svelte';
   import JsonTree from './JsonTree.svelte';
   import TimestampRelative from './TimestampRelative.svelte';
+  import { t } from '../../services/i18n';
 
   const rows = $derived.by(() => {
     const id = inspectorStore.selectedExtensionId;
@@ -24,9 +25,9 @@
 
 <div class="state-panel">
   {#if !inspectorStore.selectedExtensionId}
-    <EmptyState compact message="Select an extension from the sidebar." />
+    <EmptyState compact message={t('dev.select_extension')} />
   {:else if rows.length === 0}
-    <EmptyState compact message="No state rows for this extension." />
+    <EmptyState compact message={t('dev.no_state_rows')} />
   {:else}
     <table>
       <thead>

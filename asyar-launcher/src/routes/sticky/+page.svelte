@@ -10,6 +10,7 @@
   } from '../../lib/ipc/commands';
   import { createWindowDragController } from '../../services/launcher/windowDragController';
   import '../../resources/styles/style.css';
+  import { t } from '../../services/i18n';
 
   let noteId = $state<string | null>(null);
   let title = $state('');
@@ -116,24 +117,34 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <header class="sticky-bar" onpointerdown={onDragPointerDown}>
     <span class="sticky-grip"></span>
-    <button class="sticky-btn" title="New sticky note" onclick={newSticky} aria-label="New sticky">
+    <button
+      class="sticky-btn"
+      title={t('features.sticky.new_sticky')}
+      onclick={newSticky}
+      aria-label={t('features.sticky.new_sticky')}
+    >
       +
     </button>
-    <button class="sticky-btn" title="Unstick this note" onclick={close} aria-label="Unstick">
+    <button
+      class="sticky-btn"
+      title={t('features.sticky.unstick')}
+      onclick={close}
+      aria-label={t('features.sticky.unstick')}
+    >
       ×
     </button>
   </header>
 
   {#if !loaded}
-    <div class="sticky-state">Loading…</div>
+    <div class="sticky-state">{t('common.loading')}</div>
   {:else if missing}
-    <div class="sticky-state">This note no longer exists.</div>
+    <div class="sticky-state">{t('features.sticky.note_deleted')}</div>
   {:else}
     <input
       class="sticky-title"
       type="text"
       bind:value={title}
-      placeholder="Untitled Note"
+      placeholder={t('features.sticky.untitled_note')}
       oninput={scheduleSave}
       onfocus={() => (isEditing = true)}
       onblur={() => {
@@ -144,7 +155,7 @@
     <textarea
       class="sticky-body custom-scrollbar"
       bind:value={body}
-      placeholder="Write something…"
+      placeholder={t('features.sticky.write_placeholder')}
       oninput={scheduleSave}
       onfocus={() => (isEditing = true)}
       onblur={() => {

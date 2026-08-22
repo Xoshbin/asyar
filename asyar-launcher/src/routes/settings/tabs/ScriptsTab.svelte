@@ -8,6 +8,7 @@
     scriptsRemoveDirectory,
   } from '../../../lib/ipc/commands';
   import { logService } from '../../../services/log/logService';
+  import { t } from '../../../services/i18n';
 
   let directories = $state<string[]>([]);
   let isLoading = $state(true);
@@ -64,18 +65,17 @@
   }
 </script>
 
-<div class="section-header">Script directories</div>
+<div class="section-header">{t('settings.scripts.section_directories')}</div>
 <div id="scripts-directories">
   <p class="section-description">
-    Directories added here will be watched for executable scripts. Scripts are discovered
-    automatically — no restart required.
+    {t('settings.scripts.directories_description')}
   </p>
 
   <div class="add-row">
     <Button onclick={handleAddDirectory} disabled={isBrowsing}>
       <span class="btn-content">
         <Icon name="plus" size={14} />
-        {isBrowsing ? 'Opening…' : 'Add Directory'}
+        {isBrowsing ? 'Opening…' : t('settings.scripts.add_directory')}
       </span>
     </Button>
   </div>
@@ -85,9 +85,9 @@
   {/if}
 
   {#if isLoading}
-    <div class="empty">Loading…</div>
+    <div class="empty">{t('common.loading')}</div>
   {:else if directories.length === 0}
-    <EmptyState message="No script directories added yet" />
+    <EmptyState message={t('settings.scripts.no_directories')} />
   {:else}
     <SettingsCard>
       <ul class="path-list">

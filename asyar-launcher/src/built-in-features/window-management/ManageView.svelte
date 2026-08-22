@@ -13,6 +13,7 @@
   } from './layoutLifecycle';
   import type { IStorageService } from 'asyar-sdk/contracts';
   import { ActionContext } from 'asyar-sdk/contracts';
+  import { t } from '../../services/i18n';
 
   interface Props {
     store?: IStorageService;
@@ -92,8 +93,8 @@
     // Register base save action
     actionService.registerAction({
       id: 'window-management:save-current-window',
-      title: 'Save Current Window as Layout',
-      description: 'Capture the frontmost window position and size as a custom layout',
+      title: t('features.window_management.save_current_layout_title'),
+      description: t('features.window_management.save_current_layout_desc'),
       icon: 'icon:plus',
       shortcut: '⌘N',
       extensionId: 'window-management',
@@ -165,11 +166,11 @@
   <div class="list custom-scrollbar">
     {#if layouts.length === 0}
       <EmptyState
-        message="No custom layouts yet"
-        description="Position any window on screen and press ⌘N (or ⌘K → Save Current Window as Layout) to capture it."
+        message={t('features.window_management.no_layouts')}
+        description={t('features.window_management.no_layouts_description')}
       />
     {:else}
-      <div class="section-header">Custom Layouts</div>
+      <div class="section-header">{t('features.window_management.custom_layouts_header')}</div>
       {#each layouts as layout, index (layout.id)}
         <ListItem
           title={layout.name}
@@ -193,18 +194,23 @@
 
 <Modal
   bind:isOpen={isRenameModalOpen}
-  title="Rename Layout"
-  subtitle="Give this window layout a recognizable name"
+  title={t('features.window_management.rename_layout_title')}
+  subtitle={t('features.window_management.rename_layout_subtitle')}
   onEnter={commitRename}
   onEscape={cancelRename}
 >
   <div class="modal-body">
-    <Input placeholder="e.g. Work Setup, Right Focus..." bind:value={editingName} />
+    <Input
+      placeholder={t('features.window_management.rename_layout_placeholder')}
+      bind:value={editingName}
+    />
   </div>
   {#snippet actions()}
     <div class="modal-actions">
-      <Button onclick={cancelRename}>Cancel</Button>
-      <Button variant="primary" onclick={commitRename} disabled={!editingName.trim()}>Save</Button>
+      <Button onclick={cancelRename}>{t('common.cancel')}</Button>
+      <Button variant="primary" onclick={commitRename} disabled={!editingName.trim()}
+        >{t('common.save')}</Button
+      >
     </div>
   {/snippet}
 </Modal>

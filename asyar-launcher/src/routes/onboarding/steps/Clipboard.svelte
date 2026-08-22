@@ -3,6 +3,7 @@
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { advanceStep } from '../stepLogic';
   import { onboardingNav } from '../onboardingNav.svelte';
+  import { t } from '../../../services/i18n';
 
   const mod = $derived(settingsService.currentSettings.shortcut.modifier);
   const key = $derived(settingsService.currentSettings.shortcut.key);
@@ -12,7 +13,7 @@
   });
 </script>
 
-<GuidanceStep kicker="Never lose a copy again" title="Clipboard history">
+<GuidanceStep kicker={t('onboarding.clipboard_kicker')} title={t('features.clipboard.title')}>
   {#snippet body()}
     <p>
       Everything you copy is saved and searchable — text, links, even images. Find an old copy and

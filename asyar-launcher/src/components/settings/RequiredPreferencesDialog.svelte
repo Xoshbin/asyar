@@ -3,6 +3,7 @@
   import { Button } from '../index';
   import type { PreferenceDeclaration } from 'asyar-sdk/contracts';
   import ExtensionPreferencesForm from './ExtensionPreferencesForm.svelte';
+  import { t } from '../../services/i18n';
 
   interface Props {
     extensionId: string;
@@ -75,7 +76,7 @@
     </div>
   {/snippet}
   {#snippet actions()}
-    <Button disabled={isSaving} onclick={handleCancel}>Cancel</Button>
+    <Button disabled={isSaving} onclick={handleCancel}>{t('common.cancel')}</Button>
     <Button class="btn-primary" disabled={!isComplete || isSaving} onclick={handleSave}>
       {isSaving ? 'Saving…' : 'Save & Continue'}
     </Button>

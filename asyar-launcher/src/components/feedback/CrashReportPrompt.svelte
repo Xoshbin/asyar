@@ -2,16 +2,17 @@
   import { crashPromptState } from '../../services/feedback/crashPromptState.svelte';
   import Button from '../base/Button.svelte';
   import Input from '../base/Input.svelte';
+  import { t } from '../../services/i18n';
 
   let showDetails = $state(false);
 </script>
 
 {#if crashPromptState.visible && crashPromptState.payload}
-  <div class="crash-prompt" role="region" aria-label="Crash report">
+  <div class="crash-prompt" role="region" aria-label={t('dialogs.crash_report.title')}>
     <div class="crash-prompt-header">
-      <span class="crash-prompt-title">Asyar crashed last time</span>
+      <span class="crash-prompt-title">{t('dialogs.crash_report.title')}</span>
       <span class="crash-prompt-subtitle">
-        Help us fix it by sending a crash report. Your email is optional.
+        {t('dialogs.crash_report.subtitle')}
       </span>
     </div>
 
@@ -20,7 +21,7 @@
         textIntent="exact"
         bind:value={crashPromptState.email}
         type="email"
-        placeholder="Email (optional — leave blank to send anonymously)"
+        placeholder={t('dialogs.crash_report.email_placeholder')}
         disabled={crashPromptState.isSending}
       />
     </div>
@@ -33,7 +34,9 @@
       }}
       aria-expanded={showDetails}
     >
-      {showDetails ? 'Hide' : 'View exactly what will be sent'}
+      {showDetails
+        ? t('dialogs.crash_report.details_hide')
+        : t('dialogs.crash_report.details_view')}
     </button>
 
     {#if showDetails}
@@ -54,14 +57,16 @@
         disabled={crashPromptState.isSending}
         class="btn-primary"
       >
-        {crashPromptState.isSending ? 'Sending…' : 'Send'}
+        {crashPromptState.isSending
+          ? t('dialogs.crash_report.sending')
+          : t('dialogs.crash_report.send')}
       </Button>
       <Button
         onclick={() => crashPromptState.dismiss()}
         disabled={crashPromptState.isSending}
         class="btn-secondary"
       >
-        Not now
+        {t('dialogs.crash_report.dismiss')}
       </Button>
     </div>
   </div>

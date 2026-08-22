@@ -16,6 +16,7 @@
   } from '../../components';
   import { isAnyModalOpen } from '../../components/base/Modal.logic';
   import type { ScriptScanIssueReason } from './types';
+  import { t } from '../../services/i18n';
 
   const scripts = $derived(scriptsManager.scripts);
   const issues = $derived(scriptsManager.issues);
@@ -112,8 +113,8 @@
     <div class="h-full p-2" role="listbox" aria-label="Scripts and issues">
       {#if scripts.length === 0 && issues.length === 0}
         <EmptyState
-          message="No scripts found"
-          description="Executable files from watched directories appear here."
+          message={t('features.scripts.no_scripts')}
+          description={t('features.scripts.no_scripts_description')}
         >
           {#snippet icon()}
             <Icon name="terminal" size={28} />
@@ -238,7 +239,7 @@
         </div>
       </div>
     {:else}
-      <EmptyState message="Select a script or issue" />
+      <EmptyState message={t('features.scripts.select_script')} />
     {/if}
   {/snippet}
 </SplitView>

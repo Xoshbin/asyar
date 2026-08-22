@@ -5,34 +5,36 @@
   import { logService } from '../../services/log/logService';
   import { FormField, Icon } from '../../components';
   import { setFocusLock } from '../../lib/ipc/commands';
+  import { t } from '../../services/i18n';
 
-  const typeOptions: { value: ExtensionType; label: string; icon: string; description: string }[] =
-    [
-      {
-        value: 'view',
-        icon: 'image',
-        label: 'UI View',
-        description: 'Full-page Svelte interface opened directly by a command.',
-      },
-      {
-        value: 'result',
-        icon: 'filter',
-        label: 'Search + View',
-        description: 'Returns filterable results; clicking one opens a detail view.',
-      },
-      {
-        value: 'logic',
-        icon: 'snippets',
-        label: 'Action Only',
-        description: 'Runs logic directly with no UI — appears in search as actionable items.',
-      },
-      {
-        value: 'theme',
-        icon: 'layers',
-        label: 'Theme',
-        description: "Customizes Asyar's appearance with CSS variables. No JavaScript required.",
-      },
-    ];
+  let typeOptions = $derived<
+    { value: ExtensionType; label: string; icon: string; description: string }[]
+  >([
+    {
+      value: 'view',
+      icon: 'image',
+      label: t('features.create_extension.type_view'),
+      description: t('features.create_extension.type_view_desc'),
+    },
+    {
+      value: 'result',
+      icon: 'filter',
+      label: t('features.create_extension.type_result'),
+      description: t('features.create_extension.type_result_desc'),
+    },
+    {
+      value: 'logic',
+      icon: 'snippets',
+      label: t('features.create_extension.type_logic'),
+      description: t('features.create_extension.type_logic_desc'),
+    },
+    {
+      value: 'theme',
+      icon: 'layers',
+      label: t('features.create_extension.type_theme'),
+      description: t('features.create_extension.type_theme_desc'),
+    },
+  ]);
 
   let extType = $state<ExtensionType>('view');
   let extName = $state('');
@@ -52,7 +54,7 @@
       const selectedPath = await open({
         directory: true,
         multiple: false,
-        title: 'Select Extension Save Location',
+        title: t('features.create_extension.select_save_location'),
       });
       if (selectedPath && typeof selectedPath === 'string') {
         saveLocation = selectedPath;
@@ -69,13 +71,13 @@
     if (!extName || !extId || !saveLocation) return;
 
     isGenerating = true;
-    generateStatus = 'Initializing scaffold...';
+    generateStatus = t('features.create_extension.initializing_scaffold');
 
     try {
       await generateExtension({
         name: extName,
         id: extId,
-        description: extDesc || 'An Asyar extension.',
+        description: extDesc || t('features.create_extension.default_description'),
         location: finalSaveLocation,
         extensionType: extType,
         onProgress: (status) => {
@@ -85,7 +87,7 @@
 
       setTimeout(() => {
         isGenerating = false;
-        generateStatus = 'Generated successfully!';
+        generateStatus = t('features.create_extension.generated_success');
       }, 1500);
 
       try {
@@ -102,17 +104,17 @@
 
   let idError = $derived(
     extId && !/^[a-z][a-z0-9\-]*(\.[a-z][a-z0-9\-]*)+$/.test(extId)
-      ? 'Must use dot-notation format (e.g., com.author.my-tool)'
+      ? t('features.create_extension.error_dot_notation')
       : '',
   );
   let nameError = $derived(
     extName && (extName.length < 2 || extName.length > 50)
-      ? 'Must be between 2 and 50 characters'
+      ? t('features.create_extension.error_name_length')
       : '',
   );
   let descError = $derived(
     extDesc && (extDesc.length < 10 || extDesc.length > 200)
-      ? 'Must be between 10 and 200 characters'
+      ? t('features.create_extension.error_desc_length')
       : '',
   );
 
@@ -144,12 +146,12 @@
 <div class="view-container">
   <div class="form-body custom-scrollbar">
     <div class="header">
-      <h1 class="text-page-title">Create Extension</h1>
-      <p class="text-subtitle">Scaffold a new Asyar extension project automatically.</p>
+      <h1 class="text-page-title">{t('features.create_extension.title')}</h1>
+      <p class="text-subtitle">{t('features.create_extension.subtitle')}</p>
     </div>
 
     <div class="fields">
-      <FormField label="Extension Type">
+      <FormField label={t('features.create_extension.extension_type')}>
         <div class="type-grid">
           {#each typeOptions as opt}
             <label class="type-card" class:selected={extType === opt.value}>
@@ -175,13 +177,13 @@
         </div>
       </FormField>
 
-      <FormField label="Extension Name" error={nameError}>
+      <FormField label={t('features.create_extension.extension_name')} error={nameError}>
         <Input
           unstyled
           textIntent="natural"
           type="text"
           bind:value={extName}
-          placeholder="My Awesome Tool"
+          placeholder={t('features.create_extension.placeholder_name')}
           autocomplete="off"
           onfocus={handleFocus}
           onblur={handleBlur}
@@ -190,8 +192,8 @@
       </FormField>
 
       <FormField
-        label="Extension ID"
-        hint="Unique dot-notation identifier — e.g. com.author.my-tool"
+        label={t('features.create_extension.extension_id')}
+        hint={t('features.create_extension.hint_id')}
         error={idError}
       >
         <Input
@@ -208,8 +210,8 @@
       </FormField>
 
       <FormField
-        label="Description"
-        hint="Optional — shown in search results (10–200 chars)"
+        label={t('features.create_extension.description')}
+        hint={t('features.create_extension.hint_desc')}
         error={descError}
       >
         <Input
@@ -217,7 +219,7 @@
           textIntent="natural"
           type="text"
           bind:value={extDesc}
-          placeholder="What does your extension do?"
+          placeholder={t('features.create_extension.placeholder_desc')}
           autocomplete="off"
           onfocus={handleFocus}
           onblur={handleBlur}
@@ -225,7 +227,7 @@
         />
       </FormField>
 
-      <FormField label="Save Location">
+      <FormField label={t('features.create_extension.save_location')}>
         <div class="location-row">
           <Input
             unstyled
@@ -233,13 +235,13 @@
             type="text"
             value={finalSaveLocation || saveLocation}
             readonly
-            placeholder="Select a parent folder..."
+            placeholder={t('features.create_extension.select_folder')}
             onfocus={handleFocus}
             onblur={handleBlur}
             class="field-input text-mono"
           />
           <button onclick={handleBrowse} disabled={isBrowsing} class="btn-secondary">
-            Browse…
+            {t('common.browse')}
           </button>
         </div>
       </FormField>
@@ -255,7 +257,9 @@
       {/if}
     </span>
     <button onclick={handleCreate} disabled={!isValidForm || isGenerating} class="btn-primary">
-      {isGenerating ? 'Creating…' : 'Create Scaffold'}
+      {isGenerating
+        ? t('features.create_extension.creating_button')
+        : t('features.create_extension.create_button')}
     </button>
   </footer>
 </div>

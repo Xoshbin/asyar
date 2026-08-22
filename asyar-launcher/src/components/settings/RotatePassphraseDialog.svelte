@@ -4,6 +4,7 @@
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
   import { evaluatePassphraseStrength } from './EncryptionEnrolmentDialog.logic';
   import { logService } from '../../services/log/logService';
+  import { t } from '../../services/i18n';
 
   let {
     isOpen = $bindable(false),
@@ -48,7 +49,7 @@
       onComplete?.();
     } catch (err) {
       logService.warn(`rotate dialog submit failed: ${String(err)}`);
-      errorMessage = "Couldn't change passphrase. Check the old passphrase and try again.";
+      errorMessage = t('settings.privacy.error_rotate_failed');
       submitting = false;
     }
   }
@@ -60,16 +61,16 @@
 
 <Modal bind:isOpen labelledBy="rotate-title" onEscape={cancel} onEnter={handleEnter}>
   {#snippet children()}
-    <h2 id="rotate-title" class="dialog-title">Change passphrase</h2>
+    <h2 id="rotate-title" class="dialog-title">{t('settings.privacy.change_passphrase')}</h2>
     <p class="dialog-body">
-      Your recovery phrase will not change — only the passphrase used to unlock encrypted sync.
+      {t('settings.privacy.rotate_dialog_body')}
     </p>
     <div class="flex-col gap-3">
       <div class="input-gap">
         <Input
           textIntent="exact"
           type="password"
-          placeholder="Current passphrase"
+          placeholder={t('common.current_passphrase')}
           bind:value={oldPass}
           maxlength={256}
           autofocus
@@ -79,7 +80,7 @@
         <Input
           textIntent="exact"
           type="password"
-          placeholder="New passphrase (12+ characters)"
+          placeholder={t('common.new_passphrase')}
           bind:value={newPass}
           maxlength={256}
         />
@@ -88,7 +89,7 @@
         <Input
           textIntent="exact"
           type="password"
-          placeholder="Confirm new passphrase"
+          placeholder={t('common.confirm_new_passphrase')}
           bind:value={confirmNew}
           maxlength={256}
         />
@@ -100,16 +101,16 @@
         </p>
       {/if}
       {#if confirmNew.length > 0 && !confirmsMatch}
-        <p class="text-caption error">New passphrases don't match.</p>
+        <p class="text-caption error">{t('settings.privacy.error_passwords_mismatch')}</p>
       {/if}
       {#if errorMessage}
         <p class="text-caption error">{errorMessage}</p>
       {/if}
     </div>
     <div class="dialog-actions">
-      <Button onclick={cancel}>Cancel</Button>
+      <Button onclick={cancel}>{t('common.cancel')}</Button>
       <Button class="btn-primary" disabled={submitDisabled} onclick={submit}>
-        {submitting ? 'Changing…' : 'Change passphrase'}
+        {submitting ? t('settings.privacy.changing') : t('settings.privacy.change_passphrase')}
       </Button>
     </div>
   {/snippet}

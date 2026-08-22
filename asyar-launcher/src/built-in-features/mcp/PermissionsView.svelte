@@ -4,6 +4,7 @@
   import LoadingState from '../../components/feedback/LoadingState.svelte';
   import Badge from '../../components/base/Badge.svelte';
   import Button from '../../components/base/Button.svelte';
+  import { t } from '../../services/i18n';
 
   let loading = $state(false);
 
@@ -36,8 +37,8 @@
     <LoadingState message="Loading…" />
   {:else if mcpService.permissions.length === 0}
     <EmptyState
-      message="No saved permissions"
-      description="Permission decisions appear here after you allow or deny an MCP tool call from an agent."
+      message={t('features.mcp.no_permissions')}
+      description={t('features.mcp.no_permissions_description')}
     />
   {:else}
     <table class="permissions-table">

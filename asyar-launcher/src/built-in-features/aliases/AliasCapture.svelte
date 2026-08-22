@@ -6,6 +6,7 @@
   import { aliasService } from './aliasService';
   import { aliasStore } from './aliasStore.svelte';
   import { logService } from '../../services/log/logService';
+  import { t } from '../../services/i18n';
 
   type Props = {
     objectId: string;
@@ -29,11 +30,11 @@
   function reasonMessage(reason: 'empty' | 'too-long' | 'invalid-chars'): string {
     switch (reason) {
       case 'empty':
-        return 'Please enter an alias.';
+        return t('features.aliases.error_empty');
       case 'too-long':
-        return 'Alias must be at most 10 characters.';
+        return t('features.aliases.error_too_long');
       case 'invalid-chars':
-        return 'Alias may only contain lowercase letters and digits.';
+        return t('features.aliases.error_invalid_chars');
     }
   }
 
@@ -45,7 +46,7 @@
       onsave();
     } catch (e) {
       logService.error(`Failed to register alias '${alias}' for ${objectId}: ${e}`);
-      error = 'Failed to save alias. Please try again.';
+      error = t('features.aliases.error_save_failed');
     } finally {
       saving = false;
     }
@@ -94,12 +95,16 @@
     <form onsubmit={handleFormSubmit} class="flex flex-col gap-4">
       <div>
         <h2 id="alias-capture-title" class="text-xl font-semibold text-[var(--text-primary)]">
-          {currentAlias ? 'Change alias' : 'Assign alias'}
+          {currentAlias ? t('features.aliases.change_alias') : t('features.aliases.assign_alias')}
         </h2>
         <p class="text-sm text-[var(--text-secondary)] mt-1">{itemName}</p>
       </div>
 
-      <FormField label="Alias" hint="1–10 lowercase letters or digits" error={error ?? undefined}>
+      <FormField
+        label={t('common.alias')}
+        hint={t('features.aliases.hint')}
+        error={error ?? undefined}
+      >
         <Input
           textIntent="exact"
           bind:value
@@ -111,8 +116,8 @@
       </FormField>
 
       <div class="flex justify-end gap-3">
-        <Button type="button" onclick={oncancel} disabled={saving}>Cancel</Button>
-        <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+        <Button type="button" onclick={oncancel} disabled={saving}>{t('common.cancel')}</Button>
+        <Button type="submit" disabled={saving}>{saving ? 'Saving…' : t('common.save')}</Button>
       </div>
     </form>
   {/snippet}
@@ -120,10 +125,10 @@
 
 <ConfirmDialog
   bind:isOpen={confirmOpen}
-  title="Reassign alias"
+  title={t('features.aliases.reassign_alias')}
   message={conflictName ? `'${conflictName}' already uses '${pendingAlias}'. Reassign?` : ''}
-  confirmButtonText="Reassign"
-  cancelButtonText="Cancel"
+  confirmButtonText={t('features.aliases.reassign')}
+  cancelButtonText={t('common.cancel')}
   onconfirm={handleConfirmReassign}
   oncancel={handleCancelReassign}
 />
