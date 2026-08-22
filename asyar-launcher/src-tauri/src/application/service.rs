@@ -26,6 +26,74 @@ pub struct SyncResult {
     pub total: u32,
 }
 
+#[cfg(target_os = "linux")]
+#[derive(Debug, PartialEq, Eq)]
+enum ApplicationLaunchRoute {
+    GioDesktopEntry,
+    Opener,
+}
+
+#[cfg(target_os = "linux")]
+fn application_launch_route(path: &Path) -> ApplicationLaunchRoute {
+    if path
+        .extension()
+        .is_some_and(|extension| extension == "desktop")
+    {
+        ApplicationLaunchRoute::GioDesktopEntry
+    } else {
+        ApplicationLaunchRoute::Opener
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn load_linux_desktop_app_info(path: &Path) -> Result<gio::DesktopAppInfo, AppError> {
+    gio::DesktopAppInfo::from_filename(path).ok_or_else(|| {
+        AppError::Platform(format!(
+            "Failed to load desktop entry '{}': invalid or missing desktop entry",
+            path.display()
+        ))
+    })
+}
+
+/// Launches an application using the platform-native mechanism for its path.
+pub fn open_application_path<R: tauri::Runtime>(
+    app_handle: &AppHandle<R>,
+    path: String,
+) -> Result<(), AppError> {
+    #[cfg(target_os = "windows")]
+    {
+        if path.starts_with("shell:AppsFolder\\") {
+            use std::process::Command;
+            Command::new("explorer.exe")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| AppError::Platform(format!("Failed to launch AppX app: {}", e)))?;
+            return Ok(());
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    if application_launch_route(Path::new(&path)) == ApplicationLaunchRoute::GioDesktopEntry {
+        use gio::prelude::AppInfoExt;
+
+        let desktop_app = load_linux_desktop_app_info(Path::new(&path))?;
+        return desktop_app
+            .launch(&[], None::<&gio::AppLaunchContext>)
+            .map_err(|error| {
+                AppError::Platform(format!(
+                    "Failed to launch desktop entry '{}': {}",
+                    path, error
+                ))
+            });
+    }
+
+    use tauri_plugin_opener::OpenerExt;
+    app_handle
+        .opener()
+        .open_path(&path, None::<&str>)
+        .map_err(|e| AppError::Platform(format!("Failed to open path '{}': {}", path, e)))
+}
+
 /// Retrieves metadata about the currently focused application.
 pub fn get_frontmost_application() -> Result<FrontmostApplication, AppError> {
     #[cfg(target_os = "macos")]
@@ -1767,5 +1835,45 @@ mod tests {
         let name = crate::platform::linux::localized_bundle_name(&app_path);
         // Returns some localized name or fallback
         assert!(name.is_some());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_desktop_path_selects_gio_launch_route() {
+        assert_eq!(
+            application_launch_route(Path::new("/usr/share/applications/AmneziaVPN.desktop")),
+            ApplicationLaunchRoute::GioDesktopEntry
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_non_desktop_path_selects_opener_route() {
+        assert_eq!(
+            application_launch_route(Path::new("/opt/example/bin/example")),
+            ApplicationLaunchRoute::Opener
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_desktop_path_with_spaces_is_not_tokenized() {
+        assert_eq!(
+            application_launch_route(Path::new(
+                "/home/example/My Applications/Example App.desktop"
+            )),
+            ApplicationLaunchRoute::GioDesktopEntry
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn nonexistent_linux_desktop_entry_returns_controlled_error() {
+        let missing = Path::new("/definitely/missing/Example App.desktop");
+
+        let error = load_linux_desktop_app_info(missing).unwrap_err();
+
+        assert!(matches!(error, AppError::Platform(_)));
+        assert!(error.to_string().contains("Example App.desktop"));
     }
 }
