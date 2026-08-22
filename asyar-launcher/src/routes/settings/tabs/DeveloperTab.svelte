@@ -181,7 +181,9 @@
             {#snippet children()}
               <div class="dev-ext-actions">
                 <Button disabled={reloadingExt === extId} onclick={() => hotReload(extId)}>
-                  {reloadingExt === extId ? 'Reloading…' : 'Hot Reload'}
+                  {reloadingExt === extId
+                    ? t('settings.developer.reloading')
+                    : t('settings.developer.hot_reload')}
                 </Button>
                 <Button
                   class="btn-danger"

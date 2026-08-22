@@ -354,7 +354,7 @@
               {#snippet icon()}<span style="font-size: var(--font-size-2xl); opacity: 0.5;">⚠️</span
                 >{/snippet}
               <button class="btn btn-secondary" onclick={() => handler.loadExtensions()}
-                >Retry</button
+                >{t('common.retry')}</button
               >
             </EmptyState>
           {:else if filteredExtensions.length === 0}
@@ -476,7 +476,8 @@
                       </div>
                       <span class="ext-title">{cmd.name}</span>
                     </div>
-                    <span class="col-type row-type">Command</span>
+                    <span class="col-type row-type">{t('settings.extensions.filter_commands')}</span
+                    >
                     <span class="col-alias">
                       {#if cmdAlias}
                         <button
@@ -510,7 +511,7 @@
                             openAliasCaptureForCommand(ext, cmd);
                           }}
                         >
-                          Add Alias
+                          {t('settings.extensions.add_alias')}
                         </button>
                       {/if}
                     </span>
@@ -547,7 +548,7 @@
                             openShortcutCaptureForCommand(ext, cmd);
                           }}
                         >
-                          Record Hotkey
+                          {t('settings.extensions.record_hotkey')}
                         </button>
                       {/if}
                     </span>
@@ -579,7 +580,7 @@
 
 {#if plusOpen}
   <div class="plus-dropdown" style="top: {dropdownPos.top}px; right: {dropdownPos.right}px;">
-    <div class="dd-section-label">Extensions</div>
+    <div class="dd-section-label">{t('settings.extensions.filter_extensions')}</div>
     {#if developerSettingsService.allowSideloading}
       <button
         class="dd-item"
@@ -603,7 +604,7 @@
       </button>
       <div class="dd-separator"></div>
     {/if}
-    <div class="dd-section-label">Create</div>
+    <div class="dd-section-label">{t('settings.developer.section_tools')}</div>
     <button class="dd-item dd-item-disabled" disabled title="Coming soon">
       <svg
         viewBox="0 0 24 24"
@@ -615,7 +616,7 @@
         <rect x="3" y="3" width="18" height="18" rx="2" />
         <path d="M12 8v8M8 12h8" />
       </svg>
-      Create Extension
+      {t('settings.extensions.create_extension')}
     </button>
   </div>
 {/if}

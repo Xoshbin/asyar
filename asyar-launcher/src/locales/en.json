@@ -176,7 +176,12 @@
       "passphrase": "Passphrase",
       "recovery_phrase": "Recovery phrase",
       "plan_no_sync": "Your current plan does not include sync.",
-      "upgrade": "Upgrade"
+      "upgrade": "Upgrade",
+      "enter_passphrase": "Enter passphrase",
+      "change_passphrase": "Change passphrase",
+      "view_recovery_phrase": "View recovery phrase",
+      "forgot_passphrase": "I forgot my passphrase",
+      "view_plans": "View plans"
     },
     "backup": {
       "password_optional": "Password (optional)",
@@ -200,7 +205,10 @@
       "unlocking": "Unlocking…",
       "unlock": "Unlock",
       "import_error": "Import error",
-      "restore_modal_title": "Restore from Backup"
+      "restore_modal_title": "Restore from Backup",
+      "strategy_merge": "Merge",
+      "strategy_replace": "Replace",
+      "strategy_skip": "Skip"
     },
     "file_search": {
       "section_status": "Status",
@@ -235,7 +243,10 @@
       "table_enabled": "Enabled",
       "update_all": "Update All",
       "updating": "Updating…",
-      "loading_extensions": "Loading extensions…"
+      "loading_extensions": "Loading extensions…",
+      "create_extension": "Create Extension",
+      "add_alias": "Add Alias",
+      "record_hotkey": "Record Hotkey"
     },
     "ai": {
       "no_provider": "No AI provider configured yet",
@@ -243,7 +254,11 @@
       "tab_continues_last_thread_description": "Pressing Tab in the launcher reopens your previous conversation instead of starting a new one.",
       "behavior_section": "Behavior",
       "providers_section": "Providers",
-      "add_provider": "+ Add provider"
+      "add_provider": "+ Add provider",
+      "test_and_fetch": "Test & Fetch Models",
+      "fetching": "Fetching…",
+      "back_to_list": "Back to list",
+      "choose_provider": "Choose provider…"
     },
     "applications": {
       "no_match": "No applications match your filter",
@@ -270,7 +285,9 @@
       "install_companion": "Install companion",
       "companion_description": "Asyar's browser features need a small companion extension installed in your browser. The two work as a pair: the companion streams your open tabs, bookmarks, and history to Asyar so you can search and control them from here. Install it, and it pairs with this launcher automatically.",
       "install_for_chrome": "Install for Chrome",
-      "install_chrome_note": "Works for Chrome, Brave, Edge, Arc, and Vivaldi. Firefox and Safari companions are coming soon."
+      "install_chrome_note": "Works for Chrome, Brave, Edge, Arc, and Vivaldi. Firefox and Safari companions are coming soon.",
+      "connected": "Connected",
+      "offline": "Offline"
     },
     "developer": {
       "no_dev_extensions": "No dev extensions attached",
@@ -289,7 +306,9 @@
       "sideload_description": "Allow installing extension bundles from local files instead of the store.",
       "section_dev_extensions": "Dev Extensions",
       "detach": "Detach",
-      "detaching": "Detaching…"
+      "detaching": "Detaching…",
+      "hot_reload": "Hot Reload",
+      "reloading": "Reloading…"
     },
     "scripts": {
       "no_directories": "No script directories added yet",
@@ -546,6 +565,10 @@
     "close": "Close",
     "loading": "Loading...",
     "error": "An error occurred",
-    "retry": "Retry"
+    "retry": "Retry",
+    "add": "Add",
+    "restore": "Restore",
+    "restoring": "Restoring…",
+    "record": "Record"
   }
 }

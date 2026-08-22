@@ -137,12 +137,12 @@
 </script>
 
 {#if authService.isAwaitingOAuth}
-  <div class="section-header">Profile</div>
+  <div class="section-header">{t('settings.account.section_profile')}</div>
   <div id="account-profile" class="anchor-group">
     <SettingsCard>
       <div class="awaiting-container">
         <LoadingState message="Waiting for browser login..." />
-        <Button onclick={handleCancel}>Cancel</Button>
+        <Button onclick={handleCancel}>{t('common.cancel')}</Button>
       </div>
     </SettingsCard>
   </div>
@@ -383,17 +383,25 @@
 
           {#if syncEncryptionService.enabled}
             {#if syncEncryptionService.locked}
-              <SettingsRow label="Unlock">
-                <Button onclick={() => (activeDialog = 'unlock')}>Enter passphrase</Button>
+              <SettingsRow label={t('settings.account.locked')}>
+                <Button onclick={() => (activeDialog = 'unlock')}
+                  >{t('settings.account.enter_passphrase')}</Button
+                >
               </SettingsRow>
             {/if}
             <SettingsRow label={t('settings.account.passphrase')}>
-              <Button onclick={() => (activeDialog = 'rotate')}>Change passphrase</Button>
+              <Button onclick={() => (activeDialog = 'rotate')}
+                >{t('settings.account.change_passphrase')}</Button
+              >
             </SettingsRow>
             <SettingsRow label={t('settings.account.recovery_phrase')}>
               <div class="e2ee-phrase-actions">
-                <Button onclick={() => (activeDialog = 'phrase')}>View recovery phrase</Button>
-                <Button onclick={() => (activeDialog = 'recover')}>I forgot my passphrase</Button>
+                <Button onclick={() => (activeDialog = 'phrase')}
+                  >{t('settings.account.view_recovery_phrase')}</Button
+                >
+                <Button onclick={() => (activeDialog = 'recover')}
+                  >{t('settings.account.forgot_passphrase')}</Button
+                >
               </div>
             </SettingsRow>
           {/if}
@@ -421,8 +429,8 @@
   {:else if activeDialog === 'unlock'}
     <PassphraseDialog
       isOpen={true}
-      title="Unlock encrypted sync"
-      description="Enter your passphrase to unlock the cached encryption key on this device."
+      title={t('settings.account.encrypted_sync')}
+      description={t('settings.account.unlock_key_desc')}
       onComplete={() => (activeDialog = null)}
       onCancel={() => (activeDialog = null)}
       onForgot={() => (activeDialog = 'recover')}

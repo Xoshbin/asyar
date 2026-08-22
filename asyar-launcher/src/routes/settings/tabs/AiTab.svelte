@@ -519,7 +519,7 @@
                       onclick={() => plugin && fetchModels(providerId, plugin)}
                       disabled={isFetching || !canTestAndFetch(plugin ?? null, config)}
                     >
-                      {isFetching ? 'Fetching…' : 'Test & Fetch Models'}
+                      {isFetching ? t('settings.ai.fetching') : t('settings.ai.test_and_fetch')}
                     </Button>
                   </div>
 
@@ -620,7 +620,7 @@
                             onclick={() =>
                               (customModelMode = { ...customModelMode, [providerId]: false })}
                           >
-                            Back to list
+                            {t('settings.ai.back_to_list')}
                           </button>
                         {/if}
                       </div>
@@ -725,12 +725,14 @@
             <div class="provider-row draft-row">
               <div class="row-header">
                 <select class="card-select provider-picker" value="" onchange={onDraftProviderPick}>
-                  <option value="" disabled>Choose provider…</option>
+                  <option value="" disabled>{t('settings.ai.choose_provider')}</option>
                   {#each availableForDraft as p (p.id)}
                     <option value={p.id}>{p.name}</option>
                   {/each}
                 </select>
-                <button class="remove-btn" onclick={cancelDraft} aria-label="Cancel">×</button>
+                <button class="remove-btn" onclick={cancelDraft} aria-label={t('common.cancel')}
+                  >×</button
+                >
               </div>
             </div>
           {/if}

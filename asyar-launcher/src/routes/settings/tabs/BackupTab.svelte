@@ -219,9 +219,9 @@
                 }}
                 class="strategy-select"
               >
-                <option value="merge">Merge</option>
-                <option value="replace">Replace</option>
-                <option value="skip">Skip</option>
+                <option value="merge">{t('settings.backup.strategy_merge')}</option>
+                <option value="replace">{t('settings.backup.strategy_replace')}</option>
+                <option value="skip">{t('settings.backup.strategy_skip')}</option>
               </select>
             </div>
           {/if}
@@ -234,9 +234,9 @@
     {/snippet}
 
     {#snippet actions()}
-      <Button onclick={() => backup.closeImportModal()}>Cancel</Button>
+      <Button onclick={() => backup.closeImportModal()}>{t('common.cancel')}</Button>
       <Button onclick={() => backup.handleImport()} disabled={backup.importStatus === 'importing'}>
-        {backup.importStatus === 'importing' ? 'Restoring…' : 'Restore'}
+        {backup.importStatus === 'importing' ? t('common.restoring') : t('common.restore')}
       </Button>
     {/snippet}
   </Modal>

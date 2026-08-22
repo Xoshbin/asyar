@@ -307,7 +307,7 @@
                 </button>
               {:else}
                 <button type="button" class="row-action" onclick={() => openAliasCapture(app)}>
-                  Add alias
+                  {t('settings.extensions.add_alias')}
                 </button>
               {/if}
             </div>
@@ -331,7 +331,7 @@
                 </button>
               {:else}
                 <button type="button" class="row-action" onclick={() => openShortcutCapture(app)}>
-                  Record
+                  {t('common.record')}
                 </button>
               {/if}
             </div>

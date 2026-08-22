@@ -222,7 +222,7 @@
       bind:value={newExcludePattern}
       onkeydown={(e) => e.key === 'Enter' && handleAddExcludePattern()}
     />
-    <Button onclick={handleAddExcludePattern}>Add</Button>
+    <Button onclick={handleAddExcludePattern}>{t('common.add')}</Button>
   </div>
 
   {#if excludePatterns.length > 0}

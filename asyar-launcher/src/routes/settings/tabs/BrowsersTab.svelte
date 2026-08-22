@@ -140,7 +140,9 @@
           <div class="browser-row">
             <span class="browser-label">{b.family} · {b.variant}</span>
             <span class="status" class:connected={connectionStatus[b.family]}>
-              {connectionStatus[b.family] ? 'Connected' : 'Offline'}
+              {connectionStatus[b.family]
+                ? t('settings.browsers.connected')
+                : t('settings.browsers.offline')}
             </span>
             <button
               class="action-btn"
