@@ -6,6 +6,7 @@
   import storeExtension from '../../../built-in-features/store/index.svelte';
   import { platform } from '@tauri-apps/plugin-os';
   import { onboardingNav } from '../onboardingNav.svelte';
+  import { t } from '../../../services/i18n';
 
   let extensions = $state<ApiExtension[]>([]);
   let selected = $state<Set<number>>(new Set());
@@ -73,7 +74,7 @@
   {#if loading}
     <LoadingState message="Loading…" />
   {:else if extensions.length === 0}
-    <EmptyState message="Couldn't reach the extension store.">
+    <EmptyState message={t('onboarding.featured_store_error')}>
       <Button onclick={load}>Retry</Button>
     </EmptyState>
   {:else}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { SettingsCard, SettingsRow, Toggle, Badge, EmptyState } from '../index';
   import { secretRedactionService } from '../../services/privacy/secretRedactionService.svelte';
+  import { t } from '../../services/i18n';
 
   let totalRedacted = $derived(
     Object.values(secretRedactionService.sessionStats).reduce((a, b) => a + b, 0),
@@ -88,7 +89,7 @@
   >
     {#snippet children()}
       {#if secretRedactionService.catalog.length === 0}
-        <EmptyState message="No detectors loaded" />
+        <EmptyState message={t('settings.privacy.no_detectors')} />
       {:else}
         <ul class="catalog">
           {#each secretRedactionService.catalog as rule}

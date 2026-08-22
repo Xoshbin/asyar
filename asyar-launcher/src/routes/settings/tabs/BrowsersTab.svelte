@@ -5,6 +5,7 @@
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { browserService } from '../../../services/browser/browserService';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
+  import { t } from '../../../services/i18n';
   import {
     browserListPendingPairings,
     browserResolvePairing,
@@ -128,8 +129,8 @@
     <div class="paired-list" data-testid="paired-list">
       <EmptyState
         compact
-        message="No browsers paired yet"
-        description="Install the Asyar Companion extension below — once it's running, it pairs automatically and your browser shows up here."
+        message={t('settings.browsers.no_browsers')}
+        description={t('settings.browsers.no_browsers_description')}
       />
     </div>
   {:else}

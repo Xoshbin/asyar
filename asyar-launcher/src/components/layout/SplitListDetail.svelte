@@ -4,6 +4,7 @@
   import EmptyState from '../feedback/EmptyState.svelte';
   import LoadingState from '../feedback/LoadingState.svelte';
   import { scrollSelectedIntoView } from '../../lib/listScroll';
+  import { t } from '../../services/i18n';
 
   let {
     items,
@@ -56,7 +57,7 @@
       {#if isLoading}
         <LoadingState message={loadingMessage} />
       {:else if error}
-        <EmptyState message="Error loading items" description={error} />
+        <EmptyState message={t('common.error')} description={error} />
       {:else if items.length === 0}
         <EmptyState message={emptyMessage} />
       {:else}

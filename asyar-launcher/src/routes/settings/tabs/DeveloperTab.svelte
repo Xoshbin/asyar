@@ -9,10 +9,9 @@
   } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import extensionManager from '../../../services/extension/extensionManager.svelte';
-  import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
-  import { logService } from '../../../services/log/logService';
   import { getDevExtensionPaths } from '../../../lib/ipc/commands';
   import { forceRemountWorker } from '../../../lib/ipc/devCommands';
+  import { t } from '../../../services/i18n';
 
   let { handler }: { handler: SettingsHandler } = $props();
 
@@ -172,8 +171,8 @@
         <div class="dev-ext-empty">
           <EmptyState
             compact
-            message="No dev extensions attached"
-            description="Use the Asyar SDK CLI to attach a local extension: asyar-sdk attach <path>"
+            message={t('settings.developer.no_dev_extensions')}
+            description={t('settings.developer.no_dev_extensions_description')}
           />
         </div>
       {:else}

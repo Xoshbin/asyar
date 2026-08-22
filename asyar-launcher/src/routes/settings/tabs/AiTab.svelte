@@ -12,6 +12,7 @@
   import { providerRegistry } from '../../../services/ai/providerRegistry';
   import { agentService } from '../../../built-in-features/agents/agentService.svelte';
   import { agentsProviderRemovalBlockers } from '../../../lib/ipc/commands';
+  import { t } from '../../../services/i18n';
   import {
     availableProvidersForNewRow,
     canTestAndFetch,
@@ -302,7 +303,7 @@
     <SettingsCard>
       <div class="providers-section">
         {#if configuredIds.length === 0 && !draftActive}
-          <EmptyState compact bordered message="No AI provider configured yet">
+          <EmptyState compact bordered message={t('settings.ai.no_provider')}>
             <Button onclick={addProviderRow}>+ Add provider</Button>
           </EmptyState>
         {:else}

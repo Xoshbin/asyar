@@ -17,6 +17,7 @@
   import { actionService } from '../../services/action/actionService.svelte';
   import { searchStores } from '../../services/search/stores/search.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
+  import { t } from '../../services/i18n';
 
   let mode = $state<'view' | 'edit'>('view');
   let captureModifier = $state('');
@@ -216,18 +217,15 @@
         </ActionFooter>
       {:else if shortcutStore.shortcuts.length === 0}
         <EmptyState
-          message="No shortcuts configured yet"
-          description={`Use ⌘K on any search result and choose "Assign Shortcut" to add one.`}
+          message={t('features.shortcuts.no_shortcuts')}
+          description={t('features.shortcuts.no_shortcuts_description')}
         >
           {#snippet icon()}
             <span class="text-4xl opacity-50">⌨️</span>
           {/snippet}
         </EmptyState>
       {:else}
-        <EmptyState
-          message="No matching shortcuts"
-          description={`Nothing matches "${searchStores.query}".`}
-        >
+        <EmptyState message={t('features.shortcuts.no_matching_shortcuts')}>
           {#snippet icon()}
             <span class="text-4xl opacity-50">🔍</span>
           {/snippet}

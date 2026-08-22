@@ -1,6 +1,7 @@
 <script lang="ts">
   import { SettingsCard, SettingsRow, Input, Button, Badge, EmptyState } from '../index';
   import { clipboardPrivacyService } from '../../services/privacy/clipboardPrivacyService.svelte';
+  import { t } from '../../services/i18n';
 
   let newEntry = $state('');
 
@@ -57,7 +58,7 @@
   >
     {#snippet children()}
       {#if clipboardPrivacyService.defaultDenylist.length === 0}
-        <EmptyState message="No defaults loaded" />
+        <EmptyState message={t('settings.privacy.no_defaults')} />
       {:else}
         <ul class="denylist">
           {#each clipboardPrivacyService.defaultDenylist as bundleId}
@@ -83,7 +84,7 @@
   <SettingsRow label="Your additions" description="Apps you have added to the denylist.">
     {#snippet children()}
       {#if clipboardPrivacyService.userDenylist.length === 0}
-        <EmptyState message="No custom entries yet" />
+        <EmptyState message={t('settings.privacy.no_custom_entries')} />
       {:else}
         <ul class="denylist">
           {#each clipboardPrivacyService.userDenylist as bundleId}

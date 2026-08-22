@@ -4,6 +4,7 @@
   import { raycastImportState as state } from './raycastImportState.svelte';
   import { setFocusLock } from '../../lib/ipc/commands';
   import { logService } from '../../services/log/logService';
+  import { t } from '../../services/i18n';
 
   async function pickFile() {
     // The native file dialog steals window focus; without a lock the
@@ -62,8 +63,8 @@
   <div class="import-body custom-scrollbar">
     {#if state.phase === 'pick'}
       <EmptyState
-        message="Import from Raycast"
-        description="Choose a .rayconfig file from Raycast's “Export Settings & Data”, or a JSON file from “Export Snippets” / “Export Quicklinks”."
+        message={t('features.raycast_import.import_title')}
+        description={t('features.raycast_import.import_description')}
       >
         {#snippet icon()}
           <Icon name="download" size={28} />
@@ -160,7 +161,10 @@
         </div>
       </div>
     {:else if state.phase === 'done' && state.summary}
-      <EmptyState message="Import complete" description="Duplicates already in Asyar were skipped.">
+      <EmptyState
+        message={t('features.raycast_import.import_complete')}
+        description={t('features.raycast_import.import_complete_description')}
+      >
         {#snippet icon()}
           <Icon name="download" size={28} />
         {/snippet}

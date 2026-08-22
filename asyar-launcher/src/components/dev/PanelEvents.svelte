@@ -2,6 +2,7 @@
   import EmptyState from '../feedback/EmptyState.svelte';
   import { inspectorStore, type EventRow } from '../../services/dev/inspectorStore.svelte';
   import StreamTail from './StreamTail.svelte';
+  import { t } from '../../services/i18n';
 
   let paused = $state(false);
   let frozen = $state<EventRow[]>([]);
@@ -62,9 +63,9 @@
   </div>
 
   {#if !inspectorStore.selectedExtensionId}
-    <EmptyState compact message="Select an extension from the sidebar." />
+    <EmptyState compact message={t('dev.select_extension')} />
   {:else if rows.length === 0}
-    <EmptyState compact message="No events yet." />
+    <EmptyState compact message={t('dev.no_events')} />
   {:else}
     <StreamTail {rows}>
       {#snippet row(item)}

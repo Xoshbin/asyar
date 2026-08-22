@@ -8,6 +8,7 @@
     scriptsRemoveDirectory,
   } from '../../../lib/ipc/commands';
   import { logService } from '../../../services/log/logService';
+  import { t } from '../../../services/i18n';
 
   let directories = $state<string[]>([]);
   let isLoading = $state(true);
@@ -87,7 +88,7 @@
   {#if isLoading}
     <div class="empty">Loading…</div>
   {:else if directories.length === 0}
-    <EmptyState message="No script directories added yet" />
+    <EmptyState message={t('settings.scripts.no_directories')} />
   {:else}
     <SettingsCard>
       <ul class="path-list">

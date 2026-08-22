@@ -11,6 +11,7 @@
   import { discoverExtensions } from '../../../lib/ipc/commands';
   import { logService } from '../../../services/log/logService';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
+  import { t } from '../../../services/i18n';
 
   let themes = $state<ApiExtension[]>([]);
   let loading = $state(true);
@@ -131,7 +132,7 @@
   {#if loading}
     <LoadingState message="Loading themes…" />
   {:else if themes.length === 0}
-    <EmptyState message="Couldn't load themes.">
+    <EmptyState message={t('onboarding.theme_load_error')}>
       <Button onclick={load}>Retry</Button>
     </EmptyState>
   {:else}

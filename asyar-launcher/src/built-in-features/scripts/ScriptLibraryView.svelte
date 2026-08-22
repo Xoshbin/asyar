@@ -239,7 +239,7 @@
         </div>
       </div>
     {:else}
-      <EmptyState message="Select a script or issue" />
+      <EmptyState message={t('features.scripts.select_script')} />
     {/if}
   {/snippet}
 </SplitView>

@@ -18,6 +18,7 @@
   import { aliasStore } from '../../../built-in-features/aliases/aliasStore.svelte';
   import { aliasService } from '../../../built-in-features/aliases/aliasService';
   import AliasCapture from '../../../built-in-features/aliases/AliasCapture.svelte';
+  import { t } from '../../../services/i18n';
   import ShortcutCapture from '../../../built-in-features/shortcuts/ShortcutCapture.svelte';
   import {
     shortcutStore,
@@ -346,7 +347,10 @@
           {#if handler.isLoadingExtensions}
             <LoadingState message="Loading extensions…" />
           {:else if handler.extensionError}
-            <EmptyState message="Failed to load extensions" description={handler.extensionError}>
+            <EmptyState
+              message={t('settings.extensions.failed_to_load')}
+              description={handler.extensionError}
+            >
               {#snippet icon()}<span style="font-size: var(--font-size-2xl); opacity: 0.5;">⚠️</span
                 >{/snippet}
               <button class="btn btn-secondary" onclick={() => handler.loadExtensions()}
@@ -355,10 +359,12 @@
             </EmptyState>
           {:else if filteredExtensions.length === 0}
             <EmptyState
-              message={handler.extensions.length === 0 ? 'No extensions installed' : 'No results'}
+              message={handler.extensions.length === 0
+                ? t('settings.extensions.no_extensions')
+                : t('search.no_results')}
               description={handler.extensions.length === 0
-                ? 'Extensions add new functionality to Asyar'
-                : 'Try a different search or filter'}
+                ? t('settings.extensions.no_extensions_description')
+                : t('settings.extensions.no_results_description')}
             />
           {:else}
             {#each filteredExtensions as ext (ext.id ?? ext.title)}

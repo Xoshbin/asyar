@@ -2,6 +2,7 @@
   import type { ThreadDef } from './types';
   import ListItem from '../../components/list/ListItem.svelte';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
+  import { t } from '../../services/i18n';
 
   let {
     threads,
@@ -24,7 +25,10 @@
 <aside class="thread-sidebar w-60" data-no-focus-steal>
   <div class="thread-list custom-scrollbar">
     {#if threads.length === 0}
-      <EmptyState message="No threads" description="Type a message to start the first thread." />
+      <EmptyState
+        message={t('features.agents.no_threads')}
+        description={t('features.agents.no_threads_description')}
+      />
     {:else}
       {#each threads as t (t.id)}
         <ListItem

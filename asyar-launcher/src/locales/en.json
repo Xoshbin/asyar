@@ -2,6 +2,7 @@
   "search": {
     "placeholder": "Search applications and commands...",
     "no_results": "No results found",
+    "no_matches": "No matches",
     "empty_prompt": "Type to search applications, commands, and extensions",
     "actions_hint": "Actions",
     "navigate_hint": "Navigate",
@@ -110,7 +111,38 @@
       "installed": "Installed Extensions",
       "manage": "Manage Extensions",
       "permissions": "Permissions",
-      "no_extensions": "No extensions installed"
+      "no_extensions": "No extensions installed",
+      "no_extensions_description": "Extensions add new functionality to Asyar",
+      "no_results_description": "Try a different search or filter",
+      "failed_to_load": "Failed to load extensions",
+      "select_extension_or_command": "Select an extension or command"
+    },
+    "ai": {
+      "no_provider": "No AI provider configured yet"
+    },
+    "applications": {
+      "no_match": "No applications match your filter",
+      "no_match_description": "Try a different search term.",
+      "no_applications": "No applications found",
+      "no_applications_description": "Add a directory above to scan for apps."
+    },
+    "browsers": {
+      "no_browsers": "No browsers paired yet",
+      "no_browsers_description": "Install the Asyar Companion extension below — once it's running, it pairs automatically and your browser shows up here."
+    },
+    "developer": {
+      "no_dev_extensions": "No dev extensions attached",
+      "no_dev_extensions_description": "Use the Asyar SDK CLI to attach a local extension: asyar-sdk attach <path>"
+    },
+    "scripts": {
+      "no_directories": "No script directories added yet"
+    },
+    "privacy": {
+      "no_defaults": "No defaults loaded",
+      "no_custom_entries": "No custom entries yet",
+      "no_detectors": "No detectors loaded",
+      "no_trusted_programs": "No trusted programs",
+      "no_trusted_programs_description": "When an extension runs a binary, or you approve its declared binaries at install, they will appear here."
     },
     "about": {
       "section_updates": "Updates",
@@ -121,6 +153,19 @@
       "up_to_date": "Up to date",
       "restart_now": "Restart Now"
     }
+  },
+  "onboarding": {
+    "featured_store_error": "Couldn't reach the extension store.",
+    "theme_load_error": "Couldn't load themes."
+  },
+  "dev": {
+    "no_enabled_extensions": "No enabled extensions",
+    "select_extension": "Select an extension from the sidebar.",
+    "no_events": "No events yet.",
+    "no_ipc": "No IPC traffic yet.",
+    "no_rpc": "No RPC activity. Make sure the dev flag is active (reload extension).",
+    "no_state_rows": "No state rows for this extension.",
+    "no_subscriptions": "No active subscriptions."
   },
   "features": {
     "clipboard": {
@@ -144,10 +189,40 @@
       "title": "Snippets",
       "search_placeholder": "Search snippets...",
       "no_snippets": "No snippets found",
+      "select_snippet": "Select a snippet",
+      "no_snippets_description": "Create your first snippet to expand text automatically.",
+      "select_snippet_description": "Choose a snippet from the list to view its details.",
       "create_snippet": "Create Snippet",
       "name_label": "Name",
       "keyword_label": "Keyword",
       "content_label": "Snippet Content"
+    },
+    "file_search": {
+      "title": "File Search",
+      "select_file_preview": "Select a file to preview",
+      "start_typing_files": "Start typing to find files"
+    },
+    "notes": {
+      "title": "Notes",
+      "no_notes": "No notes yet",
+      "select_note": "Select a note",
+      "no_notes_description": "Write your first note — it saves as you type.",
+      "select_note_description": "Choose a note from the list to read or edit it.",
+      "no_other_notes": "No other notes yet",
+      "link_to_note": "Link to note"
+    },
+    "portals": {
+      "title": "Portals",
+      "no_portals": "No portals yet",
+      "select_portal": "Select a portal",
+      "no_portals_description": "Add a URL shortcut to get started.",
+      "select_portal_description": "Choose a portal from the list to view its details."
+    },
+    "walkthrough": {
+      "title": "Walkthrough",
+      "no_tasks": "No walkthrough tasks yet",
+      "no_matching_tasks": "No tasks match your search",
+      "no_tasks_description": "Extensions add their own tasks here as you install them."
     },
     "window_management": {
       "title": "Window Management",
@@ -167,6 +242,7 @@
     "shortcuts": {
       "title": "Shortcuts",
       "no_shortcuts": "No shortcuts configured yet",
+      "no_shortcuts_description": "Use ⌘K on any search result and choose \"Assign Shortcut\" to add one.",
       "no_matching_shortcuts": "No matching shortcuts"
     },
     "scripts": {
@@ -185,6 +261,53 @@
       "uninstall": "Uninstall",
       "update": "Update",
       "installed": "Installed"
+    },
+    "agents": {
+      "setup_ai": "Set up your AI",
+      "setup_ai_description": "Configure your AI provider to start chatting with Asyar Assistant.",
+      "setup_ai_button": "Set up AI",
+      "loading_agent": "Loading agent…",
+      "start_chatting": "Start chatting",
+      "start_chatting_description": "Type a message to begin.",
+      "no_cached_responses": "No responses cached yet",
+      "no_agents": "No agents yet",
+      "no_agents_description": "Open Actions (⌘K) and pick “New Agent” to create one.",
+      "no_threads": "No threads",
+      "no_threads_description": "Type a message to start the first thread."
+    },
+    "mcp": {
+      "no_activity": "No MCP activity yet",
+      "no_activity_description": "Tool calls made by AI agents through MCP servers appear here.",
+      "no_configs": "No existing MCP configs detected on this system",
+      "detected_configs_description": "We found configs from {sources}. Use the Import action to bring them in.",
+      "loading_servers": "Loading servers…",
+      "no_servers": "No MCP servers installed",
+      "no_servers_install_description": "Use the Install action to add your first server.",
+      "no_permissions": "No saved permissions",
+      "no_permissions_description": "Permission decisions appear here after you allow or deny an MCP tool call from an agent."
+    },
+    "runs": {
+      "no_runs": "No runs yet",
+      "no_runs_description": "Runs from AI chat or shell scripts will appear here.",
+      "no_output": "No output yet",
+      "streaming_output": "Output will appear as it streams.",
+      "dismissed_output": "Output has been dismissed.",
+      "select_run": "Select a run",
+      "select_run_description": "Choose a run from the left to see its details."
+    },
+    "usage_stats": {
+      "no_usage": "No usage yet",
+      "no_usage_description": "Run some commands and your stats will appear here."
+    },
+    "raycast_import": {
+      "import_title": "Import from Raycast",
+      "import_description": "Choose a .rayconfig file from Raycast's “Export Settings & Data”, or a JSON file from “Export Snippets” / “Export Quicklinks”.",
+      "import_complete": "Import complete",
+      "import_complete_description": "Duplicates already in Asyar were skipped."
+    },
+    "create_extension": {
+      "no_extensions": "No extensions yet",
+      "no_extensions_description": "Build one with \"Build Extension with AI\"."
     }
   },
   "common": {

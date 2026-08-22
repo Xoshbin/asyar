@@ -16,6 +16,7 @@
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { actionService } from '../../services/action/actionService.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
+  import { t } from '../../services/i18n';
 
   type Mode = 'view' | 'create' | 'edit';
   let mode = $state<Mode>('view');
@@ -283,10 +284,12 @@
         </ActionFooter>
       {:else}
         <EmptyState
-          message={portals.length === 0 ? 'No portals yet' : 'Select a portal'}
+          message={portals.length === 0
+            ? t('features.portals.no_portals')
+            : t('features.portals.select_portal')}
           description={portals.length === 0
-            ? 'Add a URL shortcut to get started.'
-            : 'Choose a portal from the list to view its details.'}
+            ? t('features.portals.no_portals_description')
+            : t('features.portals.select_portal_description')}
         >
           {#snippet icon()}
             <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">

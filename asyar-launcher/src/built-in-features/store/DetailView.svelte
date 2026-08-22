@@ -22,6 +22,7 @@
   import PermissionList from '../../components/settings/PermissionList.svelte';
   import { renderMarkdown, handleMarkdownCopyClick } from '../../utils/markdown';
   import type { ManifestCommand, ManifestPreference } from './state.svelte';
+  import { t } from '../../services/i18n';
 
   // Define structure for detailed API response
   interface ExtensionDetail {
@@ -281,10 +282,10 @@
 
   <div class="flex-1 overflow-y-auto custom-scrollbar">
     {#if isLoading}
-      <LoadingState message="Loading details..." />
+      <LoadingState message={t('common.loading')} />
     {:else if error}
       <div class="p-6">
-        <EmptyState message="Error" description={error}>
+        <EmptyState message={t('common.error')} description={error}>
           {#snippet icon()}
             <span style="color: var(--accent-danger);">⚠️</span>
           {/snippet}
@@ -616,7 +617,7 @@
         </div>
       </div>
     {:else}
-      <EmptyState message="Extension details not found." />
+      <EmptyState message={t('features.store.details_not_found')} />
     {/if}
   </div>
 </div>

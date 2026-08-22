@@ -8,6 +8,7 @@
   import ListItem from '../../components/list/ListItem.svelte';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
   import { isAnyModalOpen } from '../../components/base/Modal.logic';
+  import { t } from '../../services/i18n';
 
   const deps = $derived({ service: agentService, manager: agentsManager, viewManager });
   const agents = $derived(agentService.agents);
@@ -74,8 +75,8 @@
 <div class="agents-list-view">
   {#if agents.length === 0}
     <EmptyState
-      message="No agents yet"
-      description="Open Actions (⌘K) and pick “New Agent” to create one."
+      message={t('features.agents.no_agents')}
+      description={t('features.agents.no_agents_description')}
     />
   {:else}
     <div class="agents-list custom-scrollbar">

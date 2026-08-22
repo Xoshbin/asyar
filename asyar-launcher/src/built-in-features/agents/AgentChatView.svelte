@@ -16,6 +16,7 @@
   import type { AgentDef, ThreadDef, MessageDef } from './types';
   import { showSettingsWindow } from '../../lib/ipc/commands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { t } from '../../services/i18n';
   import { isAnyModalOpen } from '../../components/base/Modal.logic';
 
   const agentId = $derived(agentsManager.currentAgentId);
@@ -193,18 +194,18 @@
   {#if !agentId}
     <div class="empty-state-wrapper">
       <EmptyState
-        message="Set up your AI"
-        description="Configure your AI provider to start chatting with Asyar Assistant."
+        message={t('features.agents.setup_ai')}
+        description={t('features.agents.setup_ai_description')}
       >
         {#snippet icon()}
           <span class="text-4xl">🤖</span>
         {/snippet}
-        <Button onclick={handleSetUpAi}>Set up AI</Button>
+        <Button onclick={handleSetUpAi}>{t('features.agents.setup_ai_button')}</Button>
       </EmptyState>
     </div>
   {:else if !agent}
     <div class="empty-state-wrapper">
-      <EmptyState message="Loading agent…" />
+      <EmptyState message={t('features.agents.loading_agent')} />
     </div>
   {:else}
     <div class="chat-layout">
@@ -226,7 +227,10 @@
           {#if loadError}
             <p class="error">{loadError}</p>
           {:else if messages.length === 0 && !sending}
-            <EmptyState message="Start chatting" description="Type a message to begin." />
+            <EmptyState
+              message={t('features.agents.start_chatting')}
+              description={t('features.agents.start_chatting_description')}
+            />
           {:else}
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->

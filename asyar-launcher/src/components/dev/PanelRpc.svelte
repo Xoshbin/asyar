@@ -1,6 +1,7 @@
 <script lang="ts">
   import EmptyState from '../feedback/EmptyState.svelte';
   import { inspectorStore, type RpcTrace } from '../../services/dev/inspectorStore.svelte';
+  import { t } from '../../services/i18n';
 
   const traces = $derived.by(() => {
     const id = inspectorStore.selectedExtensionId;
@@ -31,12 +32,9 @@
   </div>
 
   {#if !inspectorStore.selectedExtensionId}
-    <EmptyState compact message="Select an extension from the sidebar." />
+    <EmptyState compact message={t('dev.select_extension')} />
   {:else if traces.length === 0}
-    <EmptyState
-      compact
-      message="No RPC activity. Make sure the dev flag is active (reload extension)."
-    />
+    <EmptyState compact message={t('dev.no_rpc')} />
   {:else}
     <table>
       <thead>

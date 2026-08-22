@@ -2,6 +2,7 @@
   import { Textarea, EmptyState } from '../../components';
   import { mcpService } from './mcpService.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { t } from '../../services/i18n';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { runtimeService } from '../../services/runtime/runtimeService.svelte';
   import { formatRuntimeDownloadStatus } from '../../services/runtime/runtimeDownloadStatus';
@@ -123,7 +124,7 @@
   <div class="tab-content custom-scrollbar">
     {#if activeTab === 'detected'}
       {#if detectedConfigs.length === 0}
-        <EmptyState compact message="No existing MCP configs detected on this system" />
+        <EmptyState compact message={t('features.mcp.no_configs')} />
       {:else}
         {#each detectedConfigs as config (config.path)}
           <div class="config-group">

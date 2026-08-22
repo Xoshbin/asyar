@@ -17,6 +17,7 @@
     PlaceholderPicker,
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { t } from '../../services/i18n';
 
   let permissionGranted = $state(true);
   let prefillExpansion = $state<string | null>(null);
@@ -410,10 +411,12 @@
       {:else}
         <!-- Nothing selected -->
         <EmptyState
-          message={filteredSnippets.length === 0 ? 'No snippets yet' : 'Select a snippet'}
+          message={filteredSnippets.length === 0
+            ? t('features.snippets.no_snippets')
+            : t('features.snippets.select_snippet')}
           description={filteredSnippets.length === 0
-            ? 'Create your first snippet to expand text automatically.'
-            : 'Choose a snippet from the list to view its details.'}
+            ? t('features.snippets.no_snippets_description')
+            : t('features.snippets.select_snippet_description')}
         >
           {#snippet icon()}
             <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">

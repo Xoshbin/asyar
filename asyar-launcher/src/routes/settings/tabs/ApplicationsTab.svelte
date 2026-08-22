@@ -11,6 +11,7 @@
     setFocusLock,
   } from '../../../lib/ipc/commands';
   import { logService } from '../../../services/log/logService';
+  import { t } from '../../../services/i18n';
   import ShortcutCapture from '../../../built-in-features/shortcuts/ShortcutCapture.svelte';
   import {
     shortcutStore,
@@ -251,13 +252,13 @@
   {:else if filteredApps.length === 0}
     {#if appFilterQuery.trim()}
       <EmptyState
-        message="No applications match your filter"
-        description="Try a different search term."
+        message={t('settings.applications.no_match')}
+        description={t('settings.applications.no_match_description')}
       />
     {:else}
       <EmptyState
-        message="No applications found"
-        description="Add a directory above to scan for apps."
+        message={t('settings.applications.no_applications')}
+        description={t('settings.applications.no_applications_description')}
       />
     {/if}
   {:else}

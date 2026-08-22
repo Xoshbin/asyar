@@ -6,6 +6,7 @@
   import PermissionList from './PermissionList.svelte';
   import type { ExtensionItem } from '../../routes/settings/settingsHandlers.svelte';
   import type { ExtensionCommand } from 'asyar-sdk/contracts';
+  import { t } from '../../services/i18n';
   import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
   import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -376,7 +377,7 @@
     {/if}
   </div>
 {:else}
-  <EmptyState message="Select an extension or command" />
+  <EmptyState message={t('settings.extensions.select_extension_or_command')} />
 {/if}
 
 <style>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import EmptyState from '../feedback/EmptyState.svelte';
   import extensionManager from '../../services/extension/extensionManager.svelte';
+  import { t } from '../../services/i18n';
 
   type Props = {
     selectedId: string | null;
@@ -26,7 +27,7 @@
 <nav class="ext-nav custom-scrollbar" aria-label="Extensions">
   <div class="nav-header">Extensions</div>
   {#if items.length === 0}
-    <EmptyState compact message="No enabled extensions" />
+    <EmptyState compact message={t('dev.no_enabled_extensions')} />
   {:else}
     <ul>
       {#each items as item (item.id)}

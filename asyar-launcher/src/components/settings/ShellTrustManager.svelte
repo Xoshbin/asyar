@@ -9,6 +9,7 @@
   } from '../../lib/ipc/commands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
+  import { t } from '../../services/i18n';
 
   interface GroupedTrust {
     extensionId: string;
@@ -166,8 +167,8 @@
     {:else}
       <EmptyState
         compact
-        message="No trusted programs"
-        description="When an extension runs a binary, or you approve its declared binaries at install, they will appear here."
+        message={t('settings.privacy.no_trusted_programs')}
+        description={t('settings.privacy.no_trusted_programs_description')}
       />
     {/if}
   </div>
