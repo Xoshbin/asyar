@@ -13,6 +13,7 @@
   import { logService } from '../../services/log/logService';
   import { looksLikeAIIntent } from './aiHintIntensity';
   import { createWindowDragController } from '../../services/launcher/windowDragController';
+  import { t } from '../../services/i18n';
 
   // Public handle exposed via `bind:accessoryRef={...}` so the global
   // keyboard chain (⌘P) can call togglePopover() from outside this component.
@@ -22,7 +23,7 @@
     value = $bindable(''),
     showBack = false,
     searchable = true,
-    placeholder = 'Search...',
+    placeholder = t('search.placeholder'),
     ref = $bindable(null as HTMLInputElement | null),
     accessoryRef = $bindable(null as AccessoryHandle | null),
     activeContext = null,

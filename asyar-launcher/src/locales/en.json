@@ -1,0 +1,115 @@
+{
+  "search": {
+    "placeholder": "Search applications and commands...",
+    "no_results": "No results found",
+    "empty_prompt": "Type to search applications, commands, and extensions",
+    "actions_hint": "Actions",
+    "navigate_hint": "Navigate",
+    "select_hint": "Open",
+    "back": "Back"
+  },
+  "actions": {
+    "title": "Actions",
+    "open": "Open",
+    "run": "Run",
+    "copy": "Copy to Clipboard",
+    "copy_text": "Copy Text",
+    "copy_path": "Copy Path",
+    "open_in_finder": "Reveal in Finder",
+    "open_in_terminal": "Open in Terminal",
+    "delete": "Delete",
+    "settings": "Preferences",
+    "close": "Close"
+  },
+  "settings": {
+    "title": "Preferences",
+    "tabs": {
+      "general": "General",
+      "appearance": "Appearance",
+      "shortcuts": "Shortcuts",
+      "extensions": "Extensions",
+      "browsers": "Browsers",
+      "applications": "Applications",
+      "file_search": "File Search",
+      "scripts": "Scripts",
+      "ai": "AI",
+      "backup": "Backup",
+      "sync": "Sync",
+      "account": "Account",
+      "privacy": "Privacy",
+      "advanced": "Advanced",
+      "developer": "Developer",
+      "about": "About"
+    },
+    "general": {
+      "hotkey": "Launcher Hotkey",
+      "hotkey_description": "Global keyboard shortcut to summon Asyar",
+      "autostart": "Launch at Login",
+      "autostart_description": "Automatically start Asyar when your computer boots",
+      "sound_effects": "Sound Effects",
+      "sound_effects_description": "Play subtle feedback sounds on actions"
+    },
+    "appearance": {
+      "theme": "Theme",
+      "theme_system": "System",
+      "theme_dark": "Dark",
+      "theme_light": "Light",
+      "font_size": "Font Size",
+      "compact_mode": "Compact Mode",
+      "compact_mode_description": "Reduce spacing and padding across the launcher"
+    },
+    "extensions": {
+      "installed": "Installed Extensions",
+      "manage": "Manage Extensions",
+      "permissions": "Permissions",
+      "no_extensions": "No extensions installed"
+    }
+  },
+  "features": {
+    "clipboard": {
+      "title": "Clipboard History",
+      "search_placeholder": "Search clipboard history...",
+      "no_clips": "No clipboard history yet",
+      "copy_action": "Copy to Clipboard",
+      "paste_action": "Paste to Active App",
+      "delete_action": "Delete from History",
+      "clear_all": "Clear History",
+      "pin_action": "Pin Clip",
+      "unpin_action": "Unpin Clip"
+    },
+    "snippets": {
+      "title": "Snippets",
+      "search_placeholder": "Search snippets...",
+      "no_snippets": "No snippets found",
+      "create_snippet": "Create Snippet",
+      "name_label": "Name",
+      "keyword_label": "Keyword",
+      "content_label": "Snippet Content"
+    },
+    "window_management": {
+      "title": "Window Management",
+      "maximize": "Maximize",
+      "left_half": "Left Half",
+      "right_half": "Right Half",
+      "top_half": "Top Half",
+      "bottom_half": "Bottom Half",
+      "center": "Center",
+      "almost_maximize": "Almost Maximize",
+      "next_display": "Next Display",
+      "previous_display": "Previous Display"
+    }
+  },
+  "common": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "done": "Done",
+    "back": "Back",
+    "close": "Close",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "retry": "Retry"
+  }
+}

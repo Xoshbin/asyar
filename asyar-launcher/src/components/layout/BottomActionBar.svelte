@@ -13,6 +13,7 @@
   import StatusDot from '../base/StatusDot.svelte';
   import InformationPanel from './InformationPanel.svelte';
   import ShowMoreBarHuds from './ShowMoreBarHuds.svelte';
+  import { t } from '../../services/i18n';
 
   let {
     selectedItem = null,
@@ -125,7 +126,7 @@
     {/if}
 
     <BottomBarButton
-      label="Actions"
+      label={t('actions.title')}
       keyHint={['⌘', 'K']}
       onclick={handleActionClick}
       ariaHaspopup="true"
