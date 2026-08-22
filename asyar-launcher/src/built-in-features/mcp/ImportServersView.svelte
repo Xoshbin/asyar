@@ -15,10 +15,10 @@
   type Tab = 'detected' | 'paste';
 
   let activeTab = $state<Tab>('detected');
-  const tabs = [
-    { id: 'detected', label: 'From Detected Configs' },
-    { id: 'paste', label: 'Paste JSON' },
-  ];
+  const tabs = $derived([
+    { id: 'detected', label: t('features.mcp.tab_detected_configs') },
+    { id: 'paste', label: t('features.mcp.tab_paste_json') },
+  ]);
   let pasteJson = $state('');
   let parsedServers = $state<McpServerInstallInput[]>([]);
   let parseError = $state<string | null>(null);

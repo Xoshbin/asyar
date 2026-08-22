@@ -544,7 +544,9 @@
       "create_snippet": "Create Snippet",
       "name_label": "Name",
       "keyword_label": "Keyword",
-      "content_label": "Snippet Content"
+      "content_label": "Snippet Content",
+      "delete_confirm_title": "Delete snippet",
+      "this_snippet": "this snippet"
     },
     "file_search": {
       "title": "File Search",
@@ -580,7 +582,12 @@
       "previous_display": "Previous Display",
       "no_layouts": "No custom layouts yet",
       "no_layouts_description": "Position any window on screen and press ⌘N (or ⌘K → Save Current Window as Layout) to capture it.",
-      "custom_layouts_header": "Custom Layouts"
+      "custom_layouts_header": "Custom Layouts",
+      "save_current_layout_title": "Save Current Window as Layout",
+      "save_current_layout_desc": "Capture the frontmost window position and size as a custom layout",
+      "rename_layout_title": "Rename Layout",
+      "rename_layout_subtitle": "Give this window layout a recognizable name",
+      "rename_layout_placeholder": "e.g. Work Setup, Right Focus..."
     },
     "shortcuts": {
       "title": "Shortcuts",
@@ -606,7 +613,8 @@
       "install": "Install",
       "uninstall": "Uninstall",
       "update": "Update",
-      "installed": "Installed"
+      "installed": "Installed",
+      "uninstall_confirm_title": "Uninstall extension"
     },
     "agents": {
       "setup_ai": "Set up your AI",
@@ -623,7 +631,8 @@
       "streaming_cancel": "Streaming… ⌘K to cancel",
       "you": "You",
       "copy_message": "Copy message",
-      "searching": "Searching…"
+      "searching": "Searching…",
+      "error_open_ai_settings": "Could not open AI settings. Try again."
     },
     "sticky": {
       "new_sticky": "New sticky",
@@ -689,7 +698,21 @@
       "error_name_length": "Must be between 2 and 50 characters",
       "error_desc_length": "Must be between 10 and 200 characters",
       "create_button": "Create Scaffold",
-      "creating_button": "Creating…"
+      "creating_button": "Creating…",
+      "hint_id": "Unique dot-notation identifier — e.g. com.author.my-tool",
+      "hint_desc": "Optional — shown in search results (10–200 chars)",
+      "action_cancel_build": "Cancel Build",
+      "action_cancel_build_desc": "Stop the current build",
+      "action_open_in_editor": "Open in Editor",
+      "action_open_in_editor_desc": "Open the built extension folder in your code editor",
+      "action_build_another": "Build Another",
+      "action_build_another_desc": "Start a new AI-assisted extension build",
+      "action_publish_store": "Publish to Asyar Store",
+      "action_publish_store_desc": "Publish this extension to the Asyar Store via asyar publish",
+      "action_retry_build": "Refine & Retry",
+      "action_retry_build_desc": "Retry the build with the same prompt",
+      "action_start_over": "Start Over",
+      "action_start_over_desc": "Clear the failed build and start fresh"
     },
     "feedback": {
       "placeholder_tell_us": "Tell us what's on your mind…",
@@ -725,7 +748,11 @@
       "test_connection": "Test Connection",
       "testing": "Testing…",
       "install": "Install Server",
-      "save_changes": "Save Changes"
+      "save_changes": "Save Changes",
+      "tab_detected_configs": "From Detected Configs",
+      "tab_paste_json": "Paste JSON",
+      "transport_stdio": "Stdio",
+      "transport_http": "HTTP"
     },
     "portals": {
       "title": "Portals",
@@ -808,6 +835,9 @@
       "color": "Color",
       "percent": "Percent",
       "ratio": "Ratio"
+    },
+    "panel_events": {
+      "pause_display": "Pause display"
     }
   }
 }

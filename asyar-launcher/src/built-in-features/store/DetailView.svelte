@@ -208,9 +208,9 @@
     if (!extensionDetail || !currentSlug) return;
 
     const confirmed = await feedbackService.confirmAlert({
-      title: 'Uninstall extension',
+      title: t('features.store.uninstall_confirm_title'),
       message: `Uninstall ${extensionDetail.name}? You can reinstall it from the store.`,
-      confirmText: 'Uninstall',
+      confirmText: t('features.store.uninstall'),
       variant: 'danger',
     });
     if (!confirmed) return;

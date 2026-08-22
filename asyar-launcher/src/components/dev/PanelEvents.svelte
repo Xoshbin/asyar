@@ -56,7 +56,7 @@
   <div class="toolbar">
     <label>
       <input type="checkbox" bind:checked={paused} />
-      Pause display
+      {t('components.panel_events.pause_display')}
     </label>
     <span class="count">{rows.length} events{paused ? ' (frozen)' : ''}</span>
     <button type="button" onclick={clear}>{t('common.clear')}</button>

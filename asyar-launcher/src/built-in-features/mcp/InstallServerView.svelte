@@ -17,10 +17,10 @@
   import { formatRuntimeDownloadStatus } from '../../services/runtime/runtimeDownloadStatus';
   import { t } from '../../services/i18n';
 
-  const transportOptions = [
-    { value: 'stdio', label: 'Stdio' },
-    { value: 'http', label: 'HTTP' },
-  ];
+  const transportOptions = $derived([
+    { value: 'stdio', label: t('features.mcp.transport_stdio') },
+    { value: 'http', label: t('features.mcp.transport_http') },
+  ]);
 
   let form = $state<InstallFormState>({
     id: '',

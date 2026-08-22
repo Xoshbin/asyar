@@ -168,7 +168,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: true,
-        context: { message: 'Could not open AI settings. Try again.' },
+        context: { message: t('features.agents.error_open_ai_settings') },
         developerDetail: String(err),
       });
     }

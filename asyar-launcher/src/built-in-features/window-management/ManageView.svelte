@@ -93,8 +93,8 @@
     // Register base save action
     actionService.registerAction({
       id: 'window-management:save-current-window',
-      title: 'Save Current Window as Layout',
-      description: 'Capture the frontmost window position and size as a custom layout',
+      title: t('features.window_management.save_current_layout_title'),
+      description: t('features.window_management.save_current_layout_desc'),
       icon: 'icon:plus',
       shortcut: '⌘N',
       extensionId: 'window-management',
@@ -194,13 +194,16 @@
 
 <Modal
   bind:isOpen={isRenameModalOpen}
-  title="Rename Layout"
-  subtitle="Give this window layout a recognizable name"
+  title={t('features.window_management.rename_layout_title')}
+  subtitle={t('features.window_management.rename_layout_subtitle')}
   onEnter={commitRename}
   onEscape={cancelRename}
 >
   <div class="modal-body">
-    <Input placeholder="e.g. Work Setup, Right Focus..." bind:value={editingName} />
+    <Input
+      placeholder={t('features.window_management.rename_layout_placeholder')}
+      bind:value={editingName}
+    />
   </div>
   {#snippet actions()}
     <div class="modal-actions">

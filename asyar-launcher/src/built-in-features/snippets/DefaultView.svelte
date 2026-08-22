@@ -167,9 +167,9 @@
 
   async function confirmDeleteSnippet(id: string, name: string | null) {
     const confirmed = await feedbackService.confirmAlert({
-      title: 'Delete snippet',
-      message: `Delete "${name ?? 'this snippet'}"? This cannot be undone.`,
-      confirmText: 'Delete',
+      title: t('features.snippets.delete_confirm_title'),
+      message: `Delete "${name ?? t('features.snippets.this_snippet')}"? This cannot be undone.`,
+      confirmText: t('common.delete'),
       variant: 'danger',
     });
     if (!confirmed) return;

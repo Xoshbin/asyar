@@ -193,7 +193,7 @@
 
       <FormField
         label={t('features.create_extension.extension_id')}
-        hint="Unique dot-notation identifier — e.g. com.author.my-tool"
+        hint={t('features.create_extension.hint_id')}
         error={idError}
       >
         <Input
@@ -211,7 +211,7 @@
 
       <FormField
         label={t('features.create_extension.description')}
-        hint="Optional — shown in search results (10–200 chars)"
+        hint={t('features.create_extension.hint_desc')}
         error={descError}
       >
         <Input
