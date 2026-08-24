@@ -11,7 +11,33 @@ Snippets let you expand a short keyword into a longer piece of text — anywhere
 
 Expansion happens in the background as soon as you type the keyword followed by a space or other word-boundary character. You do not need to open Asyar first.
 
-Snippets also support dynamic placeholders inside the expansion text: `{Selected Text}`, `{Clipboard Text}`, `{UUID}`, `{Date}`, `{Time}`, `{Weekday}`, and `{Date & Time}`. These are resolved at the moment you trigger the snippet.
+Snippets also support dynamic placeholders inside the expansion text (such as `{Date}`, `{Time}`, `{Selected Text}`, etc.), with optional custom format attributes. These are resolved at the moment you trigger the snippet.
+
+## Dynamic placeholders & formatting
+
+| Placeholder        | Description                                  | Example output                         |
+| ------------------ | -------------------------------------------- | -------------------------------------- |
+| `{Selected Text}`  | Text currently selected in the frontmost app | `selected text`                        |
+| `{Clipboard Text}` | Current text content of your clipboard       | `copied text`                          |
+| `{UUID}`           | Randomly generated UUID v4                   | `9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d` |
+| `{Date}`           | Today's date (default format)                | `8/25/2026`                            |
+| `{Time}`           | Current time (default format)                | `3:45:00 PM`                           |
+| `{Date & Time}`    | Today's date and time (default format)       | `8/25/2026, 3:45:00 PM`                |
+| `{Weekday}`        | Current day name                             | `Tuesday`                              |
+
+### Custom date & time formats
+
+You can customize the output format by specifying a `format="..."` attribute:
+
+- **ISO Date**: `{Date format="YYYY-MM-DD"}` → `2026-08-25`
+- **European Date**: `{Date format="dd/MM/yyyy"}` → `25/08/2026`
+- **Long Textual Date**: `{Date format="MMMM d, yyyy"}` → `August 25, 2026`
+- **24-Hour Time**: `{Time format="HH:mm"}` → `14:30`
+- **12-Hour Time with AM/PM**: `{Time format="hh:mm a"}` → `02:30 PM`
+- **Full Timestamp**: `{Date & Time format="YYYY-MM-DD HH:mm:ss"}` → `2026-08-25 14:30:00`
+- **Abbreviated Day**: `{Weekday format="EEE"}` → `Tue`
+
+Standard formatting tokens (`YYYY`, `yyyy`, `MMMM`, `MMM`, `MM`, `dd`, `d`, `HH`, `hh`, `mm`, `ss`, `a`, `SSS`, `Z`) as well as native `strftime` patterns (e.g. `%Y-%m-%d`) are supported.
 
 > **Note (macOS only):** Background text expansion requires the macOS Accessibility permission. If you have not granted it yet, Asyar will show a warning banner inside the Snippets view with a button to open System Settings. On Windows and Linux this permission is not required — expansion works without any extra setup.
 

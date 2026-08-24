@@ -701,14 +701,39 @@ fn translate_placeholders(text: &str, _is_url: bool) -> String {
             .next()
             .unwrap_or("")
             .to_ascii_lowercase();
+        let rest_of_token = token_body[token_name.len()..].trim();
         match token_name.as_str() {
             "argument" | "query" => out.push_str("{query}"),
             "clipboard" => out.push_str("{Clipboard Text}"),
             "selection" => out.push_str("{Selected Text}"),
-            "date" => out.push_str("{Date}"),
-            "time" => out.push_str("{Time}"),
-            "datetime" => out.push_str("{Date & Time}"),
-            "day" => out.push_str("{Weekday}"),
+            "date" => {
+                if !rest_of_token.is_empty() {
+                    out.push_str(&format!("{{Date {rest_of_token}}}"));
+                } else {
+                    out.push_str("{Date}");
+                }
+            }
+            "time" => {
+                if !rest_of_token.is_empty() {
+                    out.push_str(&format!("{{Time {rest_of_token}}}"));
+                } else {
+                    out.push_str("{Time}");
+                }
+            }
+            "datetime" => {
+                if !rest_of_token.is_empty() {
+                    out.push_str(&format!("{{Date & Time {rest_of_token}}}"));
+                } else {
+                    out.push_str("{Date & Time}");
+                }
+            }
+            "day" => {
+                if !rest_of_token.is_empty() {
+                    out.push_str(&format!("{{Weekday {rest_of_token}}}"));
+                } else {
+                    out.push_str("{Weekday}");
+                }
+            }
             "uuid" => out.push_str("{UUID}"),
             "cursor" => {}
             _ => {
@@ -1137,5 +1162,15 @@ mod tests {
         resolve_app_targets(&mut b2, &[]);
         assert_eq!(b2.aliases.len(), 1);
         assert_eq!(b2.skipped.aliases, skipped_aliases_before + 1);
+    }
+
+    #[test]
+    fn test_translate_placeholders_preserves_date_time_format() {
+        let input = "Today is {date format=\"YYYY-MM-DD\"} at {time format=\"HH:mm\"} ({datetime format=\"YYYY-MM-DD HH:mm:ss\"})";
+        let translated = translate_placeholders(input, false);
+        assert_eq!(
+            translated,
+            "Today is {Date format=\"YYYY-MM-DD\"} at {Time format=\"HH:mm\"} ({Date & Time format=\"YYYY-MM-DD HH:mm:ss\"})"
+        );
     }
 }

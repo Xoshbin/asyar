@@ -53,16 +53,16 @@ Type `portals` and press `Enter` to open the Portals view. Use `↑` / `↓` to 
 
 When building a dynamic portal URL, press `{` or click the `{ }` button to insert any of these:
 
-| Placeholder        | What it inserts                                           |
-| ------------------ | --------------------------------------------------------- |
-| `{query}`          | The text you type after pressing `Tab` on the portal chip |
-| `{Selected Text}`  | Text currently selected in the frontmost app              |
-| `{Clipboard Text}` | Current text content of the clipboard                     |
-| `{UUID}`           | A randomly generated UUID v4                              |
-| `{Date}`           | Today's date                                              |
-| `{Time}`           | Current time                                              |
-| `{Date & Time}`    | Today's date and current time                             |
-| `{Weekday}`        | Current day name (e.g. Tuesday)                           |
+| Placeholder        | What it inserts                                                           |
+| ------------------ | ------------------------------------------------------------------------- |
+| `{query}`          | The text you type after pressing `Tab` on the portal chip                 |
+| `{Selected Text}`  | Text currently selected in the frontmost app                              |
+| `{Clipboard Text}` | Current text content of the clipboard                                     |
+| `{UUID}`           | A randomly generated UUID v4                                              |
+| `{Date}`           | Today's date (supports `format="..."`, e.g. `{Date format="YYYY-MM-DD"}`) |
+| `{Time}`           | Current time (supports `format="..."`, e.g. `{Time format="HH:mm"}`)      |
+| `{Date & Time}`    | Today's date and current time (supports `format="..."`)                   |
+| `{Weekday}`        | Current day name (supports `format="..."`, e.g. `{Weekday format="EEE"}`) |
 
 ## Tips
 

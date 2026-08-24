@@ -336,8 +336,9 @@
                 {/if}
               </div>
               <p class="text-caption mt-2">
-                Supported: {`{Selected Text}, {Clipboard Text}, {UUID}, {Date}, {Time}, {Weekday}`}.<br
-                />
+                Supported: {`{Selected Text}, {Clipboard Text}, {UUID}, {Date}, {Time}, {Weekday}`}.
+                Custom format supported e.g.
+                <code class="code-inline">{'{Date format="YYYY-MM-DD"}'}</code>.<br />
                 Press <code class="code-inline">{'{'}</code> to browse.
               </p>
             </FormField>
