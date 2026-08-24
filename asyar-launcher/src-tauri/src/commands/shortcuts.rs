@@ -298,6 +298,18 @@ pub(crate) fn get_code_from_string(key: &str) -> Result<Code, AppError> {
         "F10" => Ok(Code::F10),
         "F11" => Ok(Code::F11),
         "F12" => Ok(Code::F12),
+        "F13" => Ok(Code::F13),
+        "F14" => Ok(Code::F14),
+        "F15" => Ok(Code::F15),
+        "F16" => Ok(Code::F16),
+        "F17" => Ok(Code::F17),
+        "F18" => Ok(Code::F18),
+        "F19" => Ok(Code::F19),
+        "F20" => Ok(Code::F20),
+        "F21" => Ok(Code::F21),
+        "F22" => Ok(Code::F22),
+        "F23" => Ok(Code::F23),
+        "F24" => Ok(Code::F24),
         "Space" => Ok(Code::Space),
         // Punctuation
         "-" => Ok(Code::Minus),
@@ -378,6 +390,18 @@ pub(crate) fn code_to_str(code: Code) -> &'static str {
         Code::F10 => "F10",
         Code::F11 => "F11",
         Code::F12 => "F12",
+        Code::F13 => "F13",
+        Code::F14 => "F14",
+        Code::F15 => "F15",
+        Code::F16 => "F16",
+        Code::F17 => "F17",
+        Code::F18 => "F18",
+        Code::F19 => "F19",
+        Code::F20 => "F20",
+        Code::F21 => "F21",
+        Code::F22 => "F22",
+        Code::F23 => "F23",
+        Code::F24 => "F24",
         Code::Space => "Space",
         // Punctuation
         Code::Minus => "-",
@@ -573,6 +597,18 @@ pub fn get_valid_shortcut_keys() -> Vec<String> {
         "F10",
         "F11",
         "F12",
+        "F13",
+        "F14",
+        "F15",
+        "F16",
+        "F17",
+        "F18",
+        "F19",
+        "F20",
+        "F21",
+        "F22",
+        "F23",
+        "F24",
         "Space",
         "-",
         "=",
@@ -699,6 +735,11 @@ mod tests {
     }
 
     #[test]
+    fn test_code_f23() {
+        assert!(matches!(get_code_from_string("F23"), Ok(Code::F23)));
+    }
+
+    #[test]
     fn test_code_invalid_key_returns_err() {
         let result = get_code_from_string("InvalidKey");
         assert!(result.is_err());
@@ -721,6 +762,12 @@ mod tests {
     #[test]
     fn test_parse_shift_a() {
         assert!(parse_shortcut("Shift+A").is_ok());
+    }
+
+    #[test]
+    fn test_parse_copilot_key() {
+        // Windows Copilot hardware key emits Win + Shift + F23
+        assert!(parse_shortcut("Super+Shift+F23").is_ok());
     }
 
     #[test]
@@ -839,6 +886,18 @@ mod tests {
             "F10",
             "F11",
             "F12",
+            "F13",
+            "F14",
+            "F15",
+            "F16",
+            "F17",
+            "F18",
+            "F19",
+            "F20",
+            "F21",
+            "F22",
+            "F23",
+            "F24",
             "Space",
             "-",
             "=",
