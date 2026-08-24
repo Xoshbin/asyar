@@ -12,6 +12,7 @@
   import { scrollSelectedIntoView } from '../../lib/listScroll';
   import { useListSelection } from '../../lib/listSelection.svelte';
   import { groupActionsForDisplay } from './actionListOrdering';
+  import { t } from '../../services/i18n';
 
   type ActionForDisplay = ApplicationAction & { displayCategory: string };
 
@@ -93,9 +94,9 @@
 
     if (action.confirm) {
       const confirmed = await feedbackService.confirmAlert({
-        title: 'Confirm Action',
+        title: t('dialogs.confirm.title'),
         message: `Are you sure you want to run '${action.label}'? This cannot be undone.`,
-        confirmText: 'Confirm',
+        confirmText: t('common.confirm'),
         variant: 'danger',
       });
       if (!confirmed) return;
@@ -188,7 +189,7 @@
         {/each}
       </div>
     {:else}
-      <EmptyState message="No matching actions" />
+      <EmptyState message={t('dialogs.action_list.no_matching_actions')} />
     {/each}
   </div>
 
@@ -196,7 +197,7 @@
     <Input
       textIntent="exact"
       bind:value={searchQuery}
-      placeholder="Search for actions..."
+      placeholder={t('dialogs.action_list.search_placeholder')}
       autocomplete="off"
     />
   </div>

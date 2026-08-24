@@ -2,6 +2,7 @@
   import Icon from '../base/Icon.svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import { createFitGroup, fitText } from '../../lib/fitText';
+  import { t } from '../../services/i18n';
 
   import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
@@ -19,17 +20,29 @@
 
   type CalcIconMeta = { color: string; label: string; name: string };
   // Keys are the icons emitted by the calculator extension (one per CalcKind).
-  const CALC_ICONS: Record<string, CalcIconMeta> = {
-    '🧮': { color: 'var(--accent-primary)', label: 'Calculator', name: 'calculator' },
-    '📏': { color: 'rgb(52,199,89)', label: 'Units', name: 'calc-units' },
-    '💵': { color: 'rgb(255,149,0)', label: 'Currency', name: 'calc-currency' },
-    '📅': { color: 'rgb(175,82,222)', label: 'Date', name: 'calc-date' },
-    '🕒': { color: 'rgb(90,200,250)', label: 'Time', name: 'calc-time' },
-    '🔢': { color: 'rgb(255,59,48)', label: 'Base', name: 'calc-base' },
-    '🎨': { color: 'rgb(255,45,85)', label: 'Color', name: 'palette' },
-    '％': { color: 'rgb(88,86,214)', label: 'Percent', name: 'calc-percent' },
-    '➗': { color: 'rgb(0,199,190)', label: 'Ratio', name: 'calc-ratio' },
-  };
+  const CALC_ICONS = $derived<Record<string, CalcIconMeta>>({
+    '🧮': {
+      color: 'var(--accent-primary)',
+      label: t('components.calc_card.calculator'),
+      name: 'calculator',
+    },
+    '📏': { color: 'rgb(52,199,89)', label: t('components.calc_card.units'), name: 'calc-units' },
+    '💵': {
+      color: 'rgb(255,149,0)',
+      label: t('components.calc_card.currency'),
+      name: 'calc-currency',
+    },
+    '📅': { color: 'rgb(175,82,222)', label: t('components.calc_card.date'), name: 'calc-date' },
+    '🕒': { color: 'rgb(90,200,250)', label: t('components.calc_card.time'), name: 'calc-time' },
+    '🔢': { color: 'rgb(255,59,48)', label: t('components.calc_card.base'), name: 'calc-base' },
+    '🎨': { color: 'rgb(255,45,85)', label: t('components.calc_card.color'), name: 'palette' },
+    '％': {
+      color: 'rgb(88,86,214)',
+      label: t('components.calc_card.percent'),
+      name: 'calc-percent',
+    },
+    '➗': { color: 'rgb(0,199,190)', label: t('components.calc_card.ratio'), name: 'calc-ratio' },
+  });
   const CALC_ICON_FALLBACK: CalcIconMeta = {
     color: 'var(--accent-primary)',
     label: '',

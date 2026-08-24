@@ -3,6 +3,7 @@
   import { mcpService } from './mcpService.svelte';
   import { formatRelativeTime, truncateArgs } from './manageServersView.helpers';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
+  import { t } from '../../services/i18n';
 
   const audit = $derived(mcpService.audit);
 
@@ -14,8 +15,8 @@
 <div class="activity-view">
   {#if audit.length === 0}
     <EmptyState
-      message="No MCP activity yet"
-      description="Tool calls made by AI agents through MCP servers appear here."
+      message={t('features.mcp.no_activity')}
+      description={t('features.mcp.no_activity_description')}
     />
   {:else}
     <ul class="audit-list custom-scrollbar">

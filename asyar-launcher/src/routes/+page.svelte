@@ -45,6 +45,7 @@
   import { authService } from '../services/auth/authService.svelte';
   import { runWhenIdle } from '../lib/idle';
   import { prewarmEmojiFont } from '../lib/emojiPrewarm';
+  import { i18nService } from '../services/i18n';
   import '../resources/styles/style.css';
 
   // Instantiate the controller
@@ -203,6 +204,7 @@
     // compactSync reveal own the first frames; the prewarm only needs to
     // happen before the user first sees emoji-bearing content.
     runWhenIdle(() => prewarmEmojiFont(), { timeout: 3000 });
+    void i18nService.init();
     return compactSync.onMount();
   });
 

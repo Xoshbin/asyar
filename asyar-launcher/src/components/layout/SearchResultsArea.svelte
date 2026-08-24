@@ -5,6 +5,7 @@
   import { ErrorState } from '../index';
   import { logService } from '../../services/log/logService';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { t } from '../../services/i18n';
 
   const SEARCH_FATAL_KINDS = new Set(['search_lock_poisoned', 'search_io_failure', 'search_other']);
 
@@ -70,7 +71,7 @@
         />
       {/if}
     {:else if localSearchValue && !isSearchLoading}
-      <EmptyState message="No results found." />
+      <EmptyState message={t('search.no_results')} />
     {/if}
   </div>
 </div>

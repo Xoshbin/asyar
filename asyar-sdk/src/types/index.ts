@@ -7,3 +7,4 @@ export type * from './CommandType';
 export type * from './SearchBarAccessoryType';
 export type * from './NetworkType';
 export type * from './SyncType';
+export * from './EnvironmentType';

@@ -38,6 +38,7 @@ export const NAMESPACES = [
   'files',
   'screen',
   'notes',
+  'environment',
 ] as const;
 
 export type Namespace = (typeof NAMESPACES)[number];

@@ -9,6 +9,8 @@
   import { logService } from '../../services/log/logService';
   import type { InstalledRuntimeInfo } from '../../lib/ipc/runtimeCommands';
 
+  import { t } from '../../services/i18n';
+
   let runtimes = $state<InstalledRuntimeInfo[]>([]);
   let isLoading = $state(true);
   let removingName = $state<string | null>(null);
@@ -23,7 +25,7 @@
         kind: 'manual',
         severity: 'warning',
         retryable: false,
-        context: { message: 'Could not load installed runtimes list' },
+        context: { message: t('settings.runtimes.error_load_list') },
       });
       runtimes = [];
     } finally {
@@ -38,9 +40,9 @@
       const warning = describeRuntimeRemovalWarning(consumers);
       if (warning) {
         const confirmed = await feedbackService.confirmAlert({
-          title: 'Remove Runtime',
+          title: t('settings.runtimes.remove_runtime_title'),
           message: warning,
-          confirmText: 'Remove Anyway',
+          confirmText: t('settings.runtimes.remove_anyway'),
           variant: 'danger',
         });
         if (!confirmed) return;
@@ -67,7 +69,7 @@
 </script>
 
 {#if !isLoading && runtimes.length > 0}
-  <div class="section-header">Installed Runtimes</div>
+  <div class="section-header">{t('settings.runtimes.title')}</div>
   <SettingsCard>
     {#each runtimes as runtime (runtime.name + runtime.version)}
       <SettingsRow
@@ -79,7 +81,7 @@
           onclick={() => removeRuntime(runtime.name)}
           disabled={removingName === runtime.name}
         >
-          {removingName === runtime.name ? 'Removing…' : 'Remove'}
+          {removingName === runtime.name ? t('settings.runtimes.removing') : t('common.remove')}
         </button>
       </SettingsRow>
     {/each}

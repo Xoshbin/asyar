@@ -3,6 +3,7 @@
   import { Textarea, EmptyState } from '../../components';
   import { agentsManager } from './agentsManager.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
+  import { t } from '../../services/i18n';
   import {
     agentsEditorLoad,
     agentsEditorListModels,
@@ -440,7 +441,7 @@
               </div>
               <button class="clear-button" onclick={clearCache}>Clear Cache</button>
             {:else}
-              <EmptyState compact message="No responses cached yet" />
+              <EmptyState compact message={t('features.agents.no_cached_responses')} />
             {/if}
           </div>
         {/if}

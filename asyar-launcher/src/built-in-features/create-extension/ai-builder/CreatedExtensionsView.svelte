@@ -1,6 +1,7 @@
 <script lang="ts">
   import { EmptyState, ListItem } from '../../../components';
   import { createdExtensionsViewState } from './createdExtensionsViewState.svelte';
+  import { t } from '../../../services/i18n';
 
   const items = $derived(createdExtensionsViewState.filtered());
   const selectedIndex = $derived(createdExtensionsViewState.selectedIndex);
@@ -10,8 +11,8 @@
   <div class="form-body custom-scrollbar">
     {#if items.length === 0}
       <EmptyState
-        message="No extensions yet"
-        description={'Build one with "Build Extension with AI".'}
+        message={t('features.create_extension.no_extensions')}
+        description={t('features.create_extension.no_extensions_description')}
       />
     {:else}
       {#each items as ext, i (ext.path)}

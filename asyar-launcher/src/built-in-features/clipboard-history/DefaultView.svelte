@@ -29,8 +29,9 @@
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { logService } from '../../services/log/logService';
+  import { t } from '../../services/i18n';
 
-  const detailDateFormat = new Intl.DateTimeFormat('en-US', {
+  const detailDateFormat = new Intl.DateTimeFormat(undefined, {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
@@ -46,12 +47,12 @@
     const itemDay = new Date(d);
     itemDay.setHours(0, 0, 0, 0);
     const diffDays = Math.round((today.getTime() - itemDay.getTime()) / 86400000);
-    if (diffDays <= 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return 'This week';
+    if (diffDays <= 0) return t('features.clipboard.time_today');
+    if (diffDays === 1) return t('features.clipboard.time_yesterday');
+    if (diffDays < 7) return t('features.clipboard.time_this_week');
     if (d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear())
-      return 'This month';
-    return 'Older';
+      return t('features.clipboard.time_this_month');
+    return t('features.clipboard.time_older');
   }
 
   function formatDetailDate(timestamp: number): string {
@@ -591,7 +592,7 @@
       minLeftWidth={200}
       maxLeftWidth={600}
       ariaLabel="Clipboard Items"
-      emptyMessage="No items found"
+      emptyMessage={t('search.no_results')}
     >
       {#snippet listItem(item, index)}
         {#if index === 0 && favoritesCount > 0}
@@ -955,7 +956,7 @@
             {/snippet}
           </ActionFooter>
         {:else}
-          <EmptyState message="Select an item to view details">
+          <EmptyState message={t('features.clipboard.select_item_hint')}>
             {#snippet icon()}
               <svg
                 class="w-16 h-16 opacity-30"

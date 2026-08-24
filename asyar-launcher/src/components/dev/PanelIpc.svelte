@@ -2,6 +2,7 @@
   import EmptyState from '../feedback/EmptyState.svelte';
   import { inspectorStore, type IpcTrace } from '../../services/dev/inspectorStore.svelte';
   import StreamTail from './StreamTail.svelte';
+  import { t } from '../../services/i18n';
 
   const rows = $derived.by(() => {
     const id = inspectorStore.selectedExtensionId;
@@ -24,13 +25,13 @@
 <div class="ipc-panel">
   <div class="toolbar">
     <span>{rows.length} records</span>
-    <button type="button" onclick={clear}>Clear</button>
+    <button type="button" onclick={clear}>{t('common.clear')}</button>
   </div>
 
   {#if !inspectorStore.selectedExtensionId}
-    <EmptyState compact message="Select an extension from the sidebar." />
+    <EmptyState compact message={t('dev.select_extension')} />
   {:else if rows.length === 0}
-    <EmptyState compact message="No IPC traffic yet." />
+    <EmptyState compact message={t('dev.no_ipc')} />
   {:else}
     <StreamTail {rows} tail={250}>
       {#snippet row(item)}

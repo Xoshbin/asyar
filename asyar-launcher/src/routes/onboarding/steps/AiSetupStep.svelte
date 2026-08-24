@@ -4,6 +4,8 @@
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { onboardingNav } from '../onboardingNav.svelte';
 
+  import { t } from '../../../services/i18n';
+
   async function handleAiSetupDone() {
     try {
       await onboardingService.completeAi();
@@ -22,7 +24,7 @@
         kind: 'manual',
         severity: 'warning',
         retryable: false,
-        context: { message: 'Could not skip AI setup.' },
+        context: { message: t('onboarding.error_skip_ai') },
         developerDetail: String(err),
       });
     }

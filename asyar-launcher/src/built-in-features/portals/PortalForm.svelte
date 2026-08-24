@@ -3,6 +3,7 @@
   import { FormField, Input, PlaceholderPicker } from '../../components';
   import type { Portal } from './portalStore.svelte';
   import { fetchPlaceholders } from '../../lib/placeholders/placeholderResolver';
+  import { t } from '../../services/i18n';
 
   let {
     portal = {},
@@ -109,7 +110,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="portal-form p-4">
-  <FormField label="Name" id="portal-name">
+  <FormField label={t('common.name')} id="portal-name">
     <Input
       unstyled
       textIntent="natural"
@@ -117,7 +118,7 @@
       class="field-input"
       type="text"
       bind:value={name}
-      placeholder="Search Google"
+      placeholder={t('features.portals.placeholder_search')}
       autofocus
     />
   </FormField>
@@ -150,7 +151,7 @@
     {/if}
   </div>
 
-  <FormField label="Icon" id="portal-icon">
+  <FormField label={t('common.icon')} id="portal-icon">
     <Input
       unstyled
       textIntent="exact"
@@ -170,9 +171,9 @@
   </p>
 
   <div class="flex justify-end gap-2 pt-1">
-    <button class="btn-secondary" onclick={() => oncancel?.()}>Cancel</button>
+    <button class="btn-secondary" onclick={() => oncancel?.()}>{t('common.cancel')}</button>
     <button class="btn-primary" onclick={handleSave} disabled={!name.trim() || !url.trim()}>
-      {isEditing ? 'Update' : 'Save'} <span class="shortcut-hint">⌘S</span>
+      {isEditing ? 'Update' : t('common.save')} <span class="shortcut-hint">⌘S</span>
     </button>
   </div>
 </div>

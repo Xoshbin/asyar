@@ -4,6 +4,7 @@
   import { advanceStep } from '../stepLogic';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { onboardingNav } from '../onboardingNav.svelte';
+  import { t } from '../../../services/i18n';
 
   $effect(() => {
     onboardingNav.set({ showBack: false, primaryLabel: 'Start the tour', onPrimary: advanceStep });
@@ -31,38 +32,36 @@
 
 <Card>
   <div class="welcome">
-    <p class="welcome__kicker">Welcome</p>
+    <p class="welcome__kicker">{t('onboarding.welcome_title')}</p>
     <h1 class="welcome__title">
       Meet Asyar — your keyboard-first <span class="onb-hl">command center</span>
     </h1>
     <p class="welcome__lede">
-      Search apps, do math, ask AI, rewrite text anywhere, expand snippets, and more — all from one
-      box. Let's take a 2-minute tour and set you up.
+      {t('onboarding.welcome_desc')}
     </p>
 
     <div class="welcome__row">
       <div class="welcome__row-label">
-        <span class="welcome__row-title">Appearance</span>
-        <span class="welcome__row-hint">Light, dark, or follow your system.</span>
+        <span class="welcome__row-title">{t('onboarding.tour_appearance')}</span>
+        <span class="welcome__row-hint">{t('onboarding.tour_appearance_desc')}</span>
       </div>
       <AppearanceThemeSelector value={currentTheme} onchange={pickTheme} />
     </div>
     <div class="welcome__row">
       <div class="welcome__row-label">
-        <span class="welcome__row-title">Window mode</span>
-        <span class="welcome__row-hint"
-          >Default shows results panel; Compact is just the search bar.</span
-        >
+        <span class="welcome__row-title">{t('onboarding.tour_window_mode')}</span>
+        <span class="welcome__row-hint">{t('onboarding.tour_window_mode_desc')}</span>
       </div>
       <WindowModeSelector value={currentLaunchView} onchange={pickLaunchView} />
     </div>
     <div class="welcome__row">
       <div class="welcome__row-label">
-        <span class="welcome__row-title">Coming from Raycast?</span>
-        <span class="welcome__row-hint">Bring over your snippets, quicklinks, and app hotkeys.</span
-        >
+        <span class="welcome__row-title">{t('onboarding.tour_raycast')}</span>
+        <span class="welcome__row-hint">{t('onboarding.tour_raycast_desc')}</span>
       </div>
-      <Button class="btn-secondary" onclick={openRaycastImport}>Import from Raycast…</Button>
+      <Button class="btn-secondary" onclick={openRaycastImport}
+        >{t('settings.backup.import_raycast_button')}</Button
+      >
     </div>
   </div>
 </Card>

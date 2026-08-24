@@ -53,6 +53,7 @@ export const INJECTS_EXTENSION_ID = new Set<Namespace>([
   'onboarding',
   'runs',
   'tools',
+  'environment',
 ] as const satisfies readonly Namespace[]);
 
 /**

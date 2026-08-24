@@ -1,6 +1,7 @@
 <script lang="ts">
   import Modal from '../base/Modal.svelte';
   import { Button, ExtensionAvatar, WarningBanner } from '../index';
+  import { t } from '../../services/i18n';
 
   interface Props {
     extensionName: string;
@@ -55,7 +56,7 @@
 
       <div class="header-texts">
         <span id="shell-consent-title" class="app-name">{extensionName}</span>
-        <span class="app-intent">wants to access the terminal</span>
+        <span class="app-intent">{t('dialogs.shell_consent.intent')}</span>
       </div>
     </div>
 
@@ -99,13 +100,17 @@
 
     <!-- Clean Explanation Row -->
     <p class="explanation-text">
-      Allows the extension to run this command. Revoke in Settings anytime.
+      {t('dialogs.shell_consent.explanation')}
     </p>
 
     <!-- Actions using Button Component -->
     <div class="button-actions">
-      <Button class="btn-secondary" onclick={handleDeny} fullWidth={true}>Deny</Button>
-      <Button class="btn-primary" onclick={handleAllow} fullWidth={true}>Allow Always</Button>
+      <Button class="btn-secondary" onclick={handleDeny} fullWidth={true}
+        >{t('dialogs.shell_consent.deny')}</Button
+      >
+      <Button class="btn-primary" onclick={handleAllow} fullWidth={true}
+        >{t('dialogs.shell_consent.allow_always')}</Button
+      >
     </div>
   </div>
 </Modal>

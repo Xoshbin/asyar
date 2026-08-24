@@ -11,6 +11,7 @@
     setFocusLock,
   } from '../../../lib/ipc/commands';
   import { logService } from '../../../services/log/logService';
+  import { t } from '../../../services/i18n';
   import ShortcutCapture from '../../../built-in-features/shortcuts/ShortcutCapture.svelte';
   import {
     shortcutStore,
@@ -107,7 +108,7 @@
       const picked = await open({
         directory: true,
         multiple: false,
-        title: 'Add Application Directory',
+        title: t('settings.applications.add_directory_title'),
       });
       if (!picked || typeof picked !== 'string') return;
 
@@ -191,7 +192,7 @@
   }
 </script>
 
-<div class="section-header">Search scope</div>
+<div class="section-header">{t('settings.applications.search_scope')}</div>
 <div id="applications-scope">
   <SettingsCard>
     <ul class="path-list">
@@ -200,7 +201,7 @@
           <Icon name="layers" size={14} class="path-icon" />
           <span class="path-text" title={row.path}>{row.path}</span>
           {#if row.readonly}
-            <span class="default-tag">Default</span>
+            <span class="default-tag">{t('settings.applications.default_scope')}</span>
           {:else}
             <button
               type="button"
@@ -221,7 +222,7 @@
           disabled={isBrowsing}
         >
           <Icon name="plus" size={14} />
-          {isBrowsing ? 'Opening…' : 'Add directory'}
+          {isBrowsing ? 'Opening…' : t('settings.scripts.add_directory')}
         </button>
       </li>
     </ul>
@@ -232,14 +233,14 @@
 </div>
 
 <div class="applications-header-row">
-  <div class="section-header applications-header-label">Applications</div>
+  <div class="section-header applications-header-label">{t('settings.tabs.applications')}</div>
   <div class="filter-box">
     <Icon name="search" size={13} strokeWidth={2} class="filter-icon" />
     <input
       type="text"
       class="filter-input"
-      placeholder="Filter apps"
-      aria-label="Filter applications"
+      placeholder={t('settings.applications.filter_placeholder')}
+      aria-label={t('settings.applications.filter_label')}
       bind:value={appFilterQuery}
     />
   </div>
@@ -247,27 +248,32 @@
 
 <div id="applications-list">
   {#if isLoading}
-    <div class="empty">Loading applications…</div>
+    <div class="empty">{t('common.loading')}</div>
   {:else if filteredApps.length === 0}
     {#if appFilterQuery.trim()}
       <EmptyState
-        message="No applications match your filter"
-        description="Try a different search term."
+        message={t('settings.applications.no_match')}
+        description={t('settings.applications.no_match_description')}
       />
     {:else}
       <EmptyState
-        message="No applications found"
-        description="Add a directory above to scan for apps."
+        message={t('settings.applications.no_applications')}
+        description={t('settings.applications.no_applications_description')}
       />
     {/if}
   {:else}
     <SettingsCard>
       <div class="app-table" role="table">
         <div class="app-table-head" role="row">
-          <span class="col-name" role="columnheader">Name</span>
-          <span class="col-alias" role="columnheader">Alias</span>
-          <span class="col-hotkey" role="columnheader">Hotkey</span>
-          <span class="col-enabled" role="columnheader">On</span>
+          <span class="col-name" role="columnheader">{t('settings.applications.table_name')}</span>
+          <span class="col-alias" role="columnheader">{t('settings.applications.table_alias')}</span
+          >
+          <span class="col-hotkey" role="columnheader"
+            >{t('settings.applications.table_hotkey')}</span
+          >
+          <span class="col-enabled" role="columnheader"
+            >{t('settings.applications.table_enabled')}</span
+          >
         </div>
 
         {#each filteredApps as app (app.id)}
@@ -301,7 +307,7 @@
                 </button>
               {:else}
                 <button type="button" class="row-action" onclick={() => openAliasCapture(app)}>
-                  Add alias
+                  {t('settings.extensions.add_alias')}
                 </button>
               {/if}
             </div>
@@ -325,7 +331,7 @@
                 </button>
               {:else}
                 <button type="button" class="row-action" onclick={() => openShortcutCapture(app)}>
-                  Record
+                  {t('common.record')}
                 </button>
               {/if}
             </div>

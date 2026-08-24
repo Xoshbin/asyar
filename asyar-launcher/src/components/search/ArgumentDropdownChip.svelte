@@ -6,6 +6,7 @@
   import EmptyState from '../feedback/EmptyState.svelte';
   import { tick } from 'svelte';
   import type { CommandArgument } from 'asyar-sdk/contracts';
+  import { t } from '../../services/i18n';
 
   /**
    * A dropdown argument, as a chip that carries its own filterable list.
@@ -300,7 +301,7 @@
         />
       </div>
       {#if rows.length === 0}
-        <EmptyState message="No Results" />
+        <EmptyState message={t('search.no_results')} />
       {:else}
         <!-- Pressing a row must not move focus off the search box: the list
              closes itself when focus leaves, and it would do so on the press,

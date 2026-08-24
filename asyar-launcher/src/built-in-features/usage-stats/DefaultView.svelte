@@ -1,6 +1,7 @@
 <script lang="ts">
   import { AppBar, Card, EmptyState, StatTile, RankedStatRow } from '../../components';
   import { usageStatsState } from './usageStatsState.svelte';
+  import { t } from '../../services/i18n';
 
   $effect(() => {
     void usageStatsState.load();
@@ -53,8 +54,8 @@
       </section>
     {:else}
       <EmptyState
-        message="No usage yet"
-        description="Run some commands and your stats will appear here."
+        message={t('features.usage_stats.no_usage')}
+        description={t('features.usage_stats.no_usage_description')}
       />
     {/if}
   </div>

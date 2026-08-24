@@ -3,6 +3,7 @@
   import { tick } from 'svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+  import { t } from '../../services/i18n';
 
   type Option = { value: string; title: string };
 
@@ -238,7 +239,7 @@
         />
       </div>
       {#if filteredOptions.length === 0}
-        <EmptyState compact message="No matches" />
+        <EmptyState compact message={t('search.no_matches')} />
       {:else}
         {#each filteredOptions as opt, i}
           <button

@@ -3,16 +3,25 @@
   import SettingsRadioGroup from './SettingsRadioGroup.svelte';
   import { settingsService } from '../../services/settings/settingsService.svelte';
   import type { CrashReportMode } from '../../services/settings/types/AppSettingsType';
+  import { t } from '../../services/i18n';
 
-  const options: { value: string; label: string; description?: string }[] = [
-    { value: 'off', label: 'Off', description: 'Never send anything.' },
+  let options = $derived<{ value: string; label: string; description?: string }[]>([
+    {
+      value: 'off',
+      label: t('settings.privacy.mode_off'),
+      description: t('settings.privacy.crash_off_desc'),
+    },
     {
       value: 'ask',
-      label: 'Ask me each time',
-      description: 'Preview the exact report before sending.',
+      label: t('settings.privacy.mode_ask'),
+      description: t('settings.privacy.crash_ask_desc'),
     },
-    { value: 'auto', label: 'Send automatically', description: 'Send crash reports silently.' },
-  ];
+    {
+      value: 'auto',
+      label: t('settings.privacy.mode_auto'),
+      description: t('settings.privacy.crash_auto_desc'),
+    },
+  ]);
 
   let mode = $derived(settingsService.currentSettings.privacy.crashReportMode);
 
@@ -21,11 +30,11 @@
   }
 </script>
 
-<div class="section-header">Reports</div>
+<div class="section-header">{t('settings.privacy.crash_reports')}</div>
 <SettingsCard>
   <SettingsRadioGroup
-    label="Crash & Error Reports"
-    description="Asyar sends no telemetry by default. Opt in to help fix crashes — you choose how."
+    label={t('settings.privacy.crash_reports')}
+    description={t('settings.privacy.crash_reports_desc')}
     name="crash-report-mode"
     {options}
     value={mode}

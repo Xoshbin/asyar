@@ -3,6 +3,7 @@
   import Badge from '../base/Badge.svelte';
   import EmptyState from '../feedback/EmptyState.svelte';
   import TimestampRelative from './TimestampRelative.svelte';
+  import { t } from '../../services/i18n';
 
   const entries = $derived(inspectorStore.entriesForSelected());
 
@@ -31,7 +32,7 @@
 
 <div class="runtime-panel">
   {#if !inspectorStore.selectedExtensionId}
-    <EmptyState compact message="Select an extension from the sidebar." />
+    <EmptyState compact message={t('dev.select_extension')} />
   {:else}
     <section class="role-block">
       <header>

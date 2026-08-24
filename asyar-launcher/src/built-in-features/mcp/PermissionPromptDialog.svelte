@@ -3,6 +3,7 @@
   import Button from '../../components/base/Button.svelte';
   import { mcpService } from './mcpService.svelte';
   import { agentService } from '../agents/agentService.svelte';
+  import { t } from '../../services/i18n';
 
   let { serverId, toolId, agentId, onDecide } = $props<{
     serverId: string;
@@ -57,11 +58,11 @@
     {/if}
   {/snippet}
   {#snippet actions()}
-    <Button onclick={() => onDecide('cancel')}>Cancel</Button>
-    <Button onclick={() => onDecide('never')}>Never</Button>
-    <Button onclick={() => onDecide('allow_always')}>Always allow</Button>
+    <Button onclick={() => onDecide('cancel')}>{t('common.cancel')}</Button>
+    <Button onclick={() => onDecide('never')}>{t('common.never')}</Button>
+    <Button onclick={() => onDecide('allow_always')}>{t('common.always_allow')}</Button>
     <Button autofocus onclick={() => onDecide('allow_once')} class="btn-confirm-primary">
-      Allow once
+      {t('common.allow_once')}
     </Button>
   {/snippet}
 </Modal>

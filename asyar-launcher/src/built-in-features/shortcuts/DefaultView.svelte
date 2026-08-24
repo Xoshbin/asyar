@@ -17,6 +17,7 @@
   import { actionService } from '../../services/action/actionService.svelte';
   import { searchStores } from '../../services/search/stores/search.svelte';
   import { ActionContext } from 'asyar-sdk/contracts';
+  import { t } from '../../services/i18n';
 
   let mode = $state<'view' | 'edit'>('view');
   let captureModifier = $state('');
@@ -36,7 +37,7 @@
     }
     actionService.registerAction({
       id: 'shortcuts:change',
-      title: 'Change',
+      title: t('features.shortcuts.action_change'),
       icon: 'icon:pencil',
       extensionId: 'shortcuts',
       category: 'Shortcuts',
@@ -47,7 +48,7 @@
     });
     actionService.registerAction({
       id: 'shortcuts:remove',
-      title: 'Remove',
+      title: t('features.shortcuts.action_remove'),
       icon: 'icon:trash',
       extensionId: 'shortcuts',
       category: 'Shortcuts',
@@ -116,9 +117,9 @@
 
   async function handleRemove(id: string, name: string) {
     const confirmed = await feedbackService.confirmAlert({
-      title: 'Remove shortcut',
+      title: t('features.shortcuts.remove_confirm_title'),
       message: `Remove the shortcut for "${name}"?`,
-      confirmText: 'Remove',
+      confirmText: t('common.remove'),
       variant: 'danger',
     });
     if (!confirmed) return;
@@ -144,7 +145,7 @@
     minLeftWidth={200}
     maxLeftWidth={500}
     ariaLabel="Shortcuts"
-    emptyMessage="No shortcuts found"
+    emptyMessage={t('features.shortcuts.no_shortcuts')}
   >
     {#snippet listItem(s, index)}
       {@const section = shouldShowSectionHeader(index)}
@@ -216,18 +217,15 @@
         </ActionFooter>
       {:else if shortcutStore.shortcuts.length === 0}
         <EmptyState
-          message="No shortcuts configured yet"
-          description={`Use ⌘K on any search result and choose "Assign Shortcut" to add one.`}
+          message={t('features.shortcuts.no_shortcuts')}
+          description={t('features.shortcuts.no_shortcuts_description')}
         >
           {#snippet icon()}
             <span class="text-4xl opacity-50">⌨️</span>
           {/snippet}
         </EmptyState>
       {:else}
-        <EmptyState
-          message="No matching shortcuts"
-          description={`Nothing matches "${searchStores.query}".`}
-        >
+        <EmptyState message={t('features.shortcuts.no_matching_shortcuts')}>
           {#snippet icon()}
             <span class="text-4xl opacity-50">🔍</span>
           {/snippet}

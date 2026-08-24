@@ -20,6 +20,7 @@
   import { publishExtension } from './publishExtension';
   import { runtimeService } from '../../../services/runtime/runtimeService.svelte';
   import { formatRuntimeDownloadStatus } from '../../../services/runtime/runtimeDownloadStatus';
+  import { t } from '../../../services/i18n';
 
   // ── local reactive state ──────────────────────────────────────────────────
   let prompt = $state('');
@@ -51,9 +52,9 @@
     if (status === 'working') {
       actionService.registerAction({
         id: 'ai-builder:cancel',
-        label: 'Cancel Build',
+        label: t('features.create_extension.action_cancel_build'),
         icon: 'icon:scissors',
-        description: 'Stop the current build',
+        description: t('features.create_extension.action_cancel_build_desc'),
         category: 'AI Builder',
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
@@ -70,9 +71,9 @@
       const resultPath = job.result.path;
       actionService.registerAction({
         id: 'ai-builder:open-editor',
-        label: 'Open in Editor',
+        label: t('features.create_extension.action_open_in_editor'),
         icon: 'icon:terminal',
-        description: 'Open the built extension folder in your code editor',
+        description: t('features.create_extension.action_open_in_editor_desc'),
         category: 'AI Builder',
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
@@ -82,9 +83,9 @@
       });
       actionService.registerAction({
         id: 'ai-builder:build-another',
-        label: 'Build Another',
+        label: t('features.create_extension.action_build_another'),
         icon: 'icon:sparkles',
-        description: 'Start a new AI-assisted extension build',
+        description: t('features.create_extension.action_build_another_desc'),
         category: 'AI Builder',
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
@@ -94,9 +95,9 @@
       });
       actionService.registerAction({
         id: 'ai-builder:publish',
-        label: 'Publish to Asyar Store',
+        label: t('features.create_extension.action_publish_store'),
         icon: 'icon:cloud-upload',
-        description: 'Publish this extension to the Asyar Store via asyar publish',
+        description: t('features.create_extension.action_publish_store_desc'),
         category: 'AI Builder',
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
@@ -115,9 +116,9 @@
       const failedPrompt = job.prompt;
       actionService.registerAction({
         id: 'ai-builder:retry',
-        label: 'Refine & Retry',
+        label: t('features.create_extension.action_retry_build'),
         icon: 'icon:refresh',
-        description: 'Retry the build with the same prompt',
+        description: t('features.create_extension.action_retry_build_desc'),
         category: 'AI Builder',
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,
@@ -130,9 +131,9 @@
       });
       actionService.registerAction({
         id: 'ai-builder:start-over',
-        label: 'Start Over',
+        label: t('features.create_extension.action_start_over'),
         icon: 'icon:trash',
-        description: 'Clear the failed build and start fresh',
+        description: t('features.create_extension.action_start_over_desc'),
         category: 'AI Builder',
         extensionId: 'create-extension',
         context: ActionContext.EXTENSION_VIEW,

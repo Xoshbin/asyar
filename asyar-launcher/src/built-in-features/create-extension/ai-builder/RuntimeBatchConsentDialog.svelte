@@ -2,6 +2,7 @@
   import Modal from '../../../components/base/Modal.svelte';
   import Button from '../../../components/base/Button.svelte';
   import type { MissingRuntime } from '../../../lib/ipc/extensionBuilderCommands';
+  import { t } from '../../../services/i18n';
 
   let { runtimes, onDecide } = $props<{
     runtimes: MissingRuntime[];
@@ -46,9 +47,9 @@
     </p>
   {/snippet}
   {#snippet actions()}
-    <Button onclick={() => onDecide(false)}>Decline</Button>
+    <Button onclick={() => onDecide(false)}>{t('common.decline')}</Button>
     <Button autofocus onclick={() => onDecide(true)} class="btn-confirm-primary">
-      Download &amp; continue
+      {t('common.download_and_continue')}
     </Button>
   {/snippet}
 </Modal>

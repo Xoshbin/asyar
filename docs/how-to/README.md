@@ -5,6 +5,7 @@ Goal-oriented recipes for solving specific problems. Each guide assumes you alre
 ## Pages in this section
 
 - **[Use the Create Extension tool](./use-create-extension-tool.md)** — The built-in scaffolder that writes a ready-to-run project for you.
+- **[Add and maintain translations](./add-translations.md)** — Zero-hardcoded-strings policy, Svelte 5 runes with `t()`, and adding new language catalogs.
 - **[Publishing](./publishing.md)** — GitHub release workflow and the Asyar Store submission pipeline.
 - **[Debugging](./debugging.md)** — Developer log, DevTools, raw IPC messages, and common issue recipes.
 - **[Best practices](./best-practices.md)** — Do / Don't lists and performance tips for production-ready extensions.

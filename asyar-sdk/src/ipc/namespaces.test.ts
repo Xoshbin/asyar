@@ -43,6 +43,7 @@ describe('NAMESPACES', () => {
       'files',
       'screen',
       'notes',
+      'environment',
     ]);
   });
 

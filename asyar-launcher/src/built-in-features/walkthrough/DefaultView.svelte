@@ -6,6 +6,7 @@
   import { taskProgressFraction, taskProgressLabel } from './taskProgressLabel';
   import { walkthroughService } from '../../services/walkthrough/walkthroughService.svelte';
   import { walkthroughViewState } from './walkthroughViewState.svelte';
+  import { t } from '../../services/i18n';
 
   const progress = $derived(walkthroughService.progress);
   const task = $derived(walkthroughViewState.openTask);
@@ -88,10 +89,10 @@
     {#if walkthroughViewState.visible.length === 0}
       <EmptyState
         message={walkthroughService.tasks.length === 0
-          ? 'No walkthrough tasks yet'
-          : 'No tasks match your search'}
+          ? t('features.walkthrough.no_tasks')
+          : t('features.walkthrough.no_matching_tasks')}
         description={walkthroughService.tasks.length === 0
-          ? 'Extensions add their own tasks here as you install them.'
+          ? t('features.walkthrough.no_tasks_description')
           : undefined}
       />
     {:else}

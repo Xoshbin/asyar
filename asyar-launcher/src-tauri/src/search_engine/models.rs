@@ -510,7 +510,9 @@ mod bindings_export {
             .register::<crate::system_actions::SystemAction>()
             .register::<crate::launcher_placement::LauncherPlacement>()
             .register::<crate::launcher_placement::LauncherMonitorChoice>()
-            .register::<crate::launcher_placement::LauncherAnchor>();
+            .register::<crate::launcher_placement::LauncherAnchor>()
+            .register::<crate::locale::ParsedLocale>()
+            .register::<crate::locale::NumberFormat>();
 
         Typescript::default()
             .bigint(BigIntExportBehavior::Number)

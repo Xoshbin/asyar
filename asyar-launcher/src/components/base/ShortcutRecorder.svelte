@@ -2,11 +2,12 @@
   import { untrack } from 'svelte';
   import { useShortcutCapture } from '../../lib/useShortcutCapture.svelte';
   import { MODIFIER_ORDER } from '../../built-in-features/shortcuts/shortcutFormatter';
+  import { t } from '../../services/i18n';
 
   let {
     modifier = $bindable(''),
     key = $bindable(''),
-    placeholder = 'Click to record shortcut',
+    placeholder = t('components.shortcut_recorder.placeholder'),
     disabled = false,
     autoRecord = false,
     onsave,

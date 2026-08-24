@@ -1,28 +1,28 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import {
-    SettingsCard,
-    SettingsRow,
-    Checkbox,
-    ShortcutRecorder,
-    AppearanceThemeSelector,
-    WindowModeSelector,
-    Button,
-    SegmentedControl,
-    SettingsRangeSlider,
-    Toggle,
-  } from '../../../components';
-  import { launcherPlacementService } from '../../../services/launcher/launcherPlacementService.svelte';
-  import { onboardingCommands } from '../../../lib/ipc/commands';
-  import type { SettingsHandler } from '../settingsHandlers.svelte';
-  import { shortcutService } from '../../../built-in-features/shortcuts/shortcutService';
-  import { normalizeShortcut } from '../../../built-in-features/shortcuts/shortcutFormatter';
-  import { applyTheme, removeTheme } from '../../../services/theme/themeService';
-  import { discoverExtensions } from '../../../lib/ipc/commands';
-  import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { emit } from '@tauri-apps/api/event';
+  import { onMount } from 'svelte';
+  import { normalizeShortcut } from '../../../built-in-features/shortcuts/shortcutFormatter';
+  import { shortcutService } from '../../../built-in-features/shortcuts/shortcutService';
+  import {
+    AppearanceThemeSelector,
+    Button,
+    Checkbox,
+    SegmentedControl,
+    SettingsCard,
+    SettingsRangeSlider,
+    SettingsRow,
+    ShortcutRecorder,
+    Toggle,
+    WindowModeSelector,
+  } from '../../../components';
+  import { discoverExtensions, onboardingCommands } from '../../../lib/ipc/commands';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
+  import { t } from '../../../services/i18n';
+  import { launcherPlacementService } from '../../../services/launcher/launcherPlacementService.svelte';
   import { logService } from '../../../services/log/logService';
+  import { settingsService } from '../../../services/settings/settingsService.svelte';
+  import { applyTheme, removeTheme } from '../../../services/theme/themeService';
+  import type { SettingsHandler } from '../settingsHandlers.svelte';
 
   let {
     handler,
@@ -63,7 +63,7 @@
         kind: 'manual',
         severity: 'warning',
         retryable: false,
-        context: { message: 'Could not load theme extensions list' },
+        context: { message: t('settings.general.error_load_themes') },
       });
     }
   });
@@ -128,7 +128,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: false,
-        context: { message: 'Could not re-run onboarding' },
+        context: { message: t('settings.general.error_rerun_onboarding') },
       });
     }
   }
@@ -151,30 +151,35 @@
         severity: 'error',
         retryable: false,
         context: {
-          message: themeId ? `Could not apply theme "${themeId}"` : 'Could not remove active theme',
+          message: themeId
+            ? `Could not apply theme "${themeId}"`
+            : t('settings.general.error_remove_active_theme'),
         },
       });
     }
   }
 </script>
 
-<div class="section-header">Startup</div>
+<div class="section-header">{t('settings.general.section_startup')}</div>
 <SettingsCard>
   <div id="general-startup">
     <SettingsRow
-      label="Launch Asyar at login"
-      description="Asyar starts in the background when you sign in."
+      label={t('settings.general.autostart')}
+      description={t('settings.general.autostart_description')}
     >
       <Checkbox
         checked={handler.settings.general.startAtLogin}
         onchange={() => handler.handleAutostartToggle()}
       />
     </SettingsRow>
-    <SettingsRow label="Global hotkey" description="Summon the launcher from any app.">
+    <SettingsRow
+      label={t('settings.general.hotkey')}
+      description={t('settings.general.hotkey_description')}
+    >
       <ShortcutRecorder
         bind:modifier={handler.selectedModifier}
         bind:key={handler.selectedKey}
-        placeholder="Click to set shortcut"
+        placeholder={t('settings.general.hotkey_placeholder')}
         disabled={handler.isSaving}
         onsave={handleSave}
         {conflictChecker}
@@ -183,10 +188,13 @@
   </div>
 </SettingsCard>
 
-<div class="section-header">Appearance</div>
+<div class="section-header">{t('settings.general.section_appearance')}</div>
 <SettingsCard>
   <div id="general-appearance">
-    <SettingsRow label="Theme" description="Match the system or lock one appearance.">
+    <SettingsRow
+      label={t('settings.appearance.theme')}
+      description={t('settings.general.theme_description')}
+    >
       <AppearanceThemeSelector
         value={handler.selectedTheme as 'light' | 'dark' | 'system'}
         onchange={(v) => handler.updateThemeSetting(v)}
@@ -194,8 +202,8 @@
       />
     </SettingsRow>
     <SettingsRow
-      label="Window mode"
-      description="How much of the launcher is visible before you type."
+      label={t('settings.appearance.window_mode')}
+      description={t('settings.appearance.window_mode_description')}
     >
       <WindowModeSelector
         value={handler.selectedLaunchView}
@@ -206,14 +214,17 @@
   </div>
 </SettingsCard>
 
-<div class="section-header">Placement</div>
+<div class="section-header">{t('settings.general.section_placement')}</div>
 <SettingsCard>
   <div id="general-placement">
-    <SettingsRow label="Display" description="Which screen the launcher opens on.">
+    <SettingsRow
+      label={t('settings.general.display')}
+      description={t('settings.general.display_description')}
+    >
       <SegmentedControl
         options={[
-          { value: 'cursor', label: 'Display with cursor' },
-          { value: 'primary', label: 'Primary display' },
+          { value: 'cursor', label: t('settings.general.display_cursor') },
+          { value: 'primary', label: t('settings.general.display_primary') },
         ]}
         value={placement.placement.monitor}
         onchange={(v) =>
@@ -221,14 +232,14 @@
       />
     </SettingsRow>
     <SettingsRow
-      label="Vertical position"
-      description="Drag the launcher itself to set a custom spot."
+      label={t('settings.general.vertical_position')}
+      description={t('settings.general.vertical_position_description')}
     >
       <SegmentedControl
         options={[
-          { value: 'top', label: 'Top' },
-          { value: 'center', label: 'Centre' },
-          { value: 'custom', label: 'Custom' },
+          { value: 'top', label: t('settings.general.vertical_top') },
+          { value: 'center', label: t('settings.general.vertical_center') },
+          { value: 'custom', label: t('settings.general.vertical_custom') },
         ]}
         value={placement.vertical ?? ''}
         onchange={(v) =>
@@ -239,7 +250,7 @@
       />
     </SettingsRow>
     {#if placement.vertical === 'custom'}
-      <SettingsRow label="Distance from top">
+      <SettingsRow label={t('settings.general.distance_from_top')}>
         <SettingsRangeSlider
           min={0}
           max={100}
@@ -249,7 +260,10 @@
         />
       </SettingsRow>
     {/if}
-    <SettingsRow label="Snap while dragging" description="Snap to screen edges and centre lines.">
+    <SettingsRow
+      label={t('settings.general.snap_dragging')}
+      description={t('settings.general.snap_dragging_description')}
+    >
       <Toggle
         checked={placement.placement.snapEnabled}
         onchange={() =>
@@ -261,14 +275,14 @@
     </SettingsRow>
     {#if placement.isDragged}
       <SettingsRow
-        label="Custom position"
-        description="Set by dragging the launcher. Stored relative to the display."
+        label={t('settings.general.custom_position')}
+        description={t('settings.general.custom_position_description')}
       >
         <Button
           class="btn-secondary"
           onclick={() => updatePlacement(() => placement.reset(), 'position')}
         >
-          Reset
+          {t('settings.general.reset')}
         </Button>
       </SettingsRow>
     {/if}
@@ -277,14 +291,19 @@
 
 <SettingsCard>
   <div id="general-onboarding">
-    <SettingsRow label="Onboarding" description="Walk through the welcome flow again.">
-      <Button class="btn-secondary" onclick={rerunOnboarding}>Re-run onboarding</Button>
+    <SettingsRow
+      label={t('settings.general.onboarding')}
+      description={t('settings.general.onboarding_description')}
+    >
+      <Button class="btn-secondary" onclick={rerunOnboarding}
+        >{t('settings.general.rerun_onboarding')}</Button
+      >
     </SettingsRow>
   </div>
 </SettingsCard>
 
 {#if themeExtensions.length > 0}
-  <div class="section-header">Custom Themes</div>
+  <div class="section-header">{t('settings.general.custom_themes')}</div>
   <SettingsCard>
     <div class="themes-list">
       <label class="theme-item" class:theme-active={activeThemeId === null}>
@@ -296,8 +315,8 @@
           class="sr-only"
         />
         <div class="theme-item-body">
-          <div class="theme-item-name">Default</div>
-          <div class="theme-item-meta">Built-in Asyar theme</div>
+          <div class="theme-item-name">{t('settings.general.default_theme')}</div>
+          <div class="theme-item-meta">{t('settings.general.default_theme_meta')}</div>
         </div>
       </label>
 

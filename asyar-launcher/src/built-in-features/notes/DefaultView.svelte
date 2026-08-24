@@ -15,6 +15,7 @@
   import { extractTags, findWikilinkAtCursor } from './noteLinks';
   import { noteBacklinks } from '../../lib/ipc/commands';
   import WikilinkPicker from './WikilinkPicker.svelte';
+  import { t } from '../../services/i18n';
 
   let filteredNotes = $derived(noteViewState.getFilteredNotes());
   let selectedIndex = $derived(noteViewState.selectedIndex);
@@ -280,10 +281,12 @@
       </ActionFooter>
     {:else}
       <EmptyState
-        message={filteredNotes.length === 0 ? 'No notes yet' : 'Select a note'}
+        message={filteredNotes.length === 0
+          ? t('features.notes.no_notes')
+          : t('features.notes.select_note')}
         description={filteredNotes.length === 0
-          ? 'Write your first note — it saves as you type.'
-          : 'Choose a note from the list to read or edit it.'}
+          ? t('features.notes.no_notes_description')
+          : t('features.notes.select_note_description')}
       >
         {#snippet icon()}
           <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">

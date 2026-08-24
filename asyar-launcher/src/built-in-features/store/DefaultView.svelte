@@ -10,6 +10,7 @@
     KeyboardHint,
   } from '../../components';
   import { nameToGradient } from '../../lib/extensionAvatar';
+  import { t } from '../../services/i18n';
 
   let isLoading = $derived(store.isLoading);
   let error = $derived(store.loadError ? store.errorMessage : null);
@@ -37,13 +38,13 @@
   items={filteredItems}
   {selectedIndex}
   {isLoading}
-  loadingMessage="Loading extensions..."
+  loadingMessage={t('features.store.loading_extensions')}
   {error}
   leftWidth={320}
   minLeftWidth={250}
   maxLeftWidth={500}
   ariaLabel="Store Extensions"
-  emptyMessage="No extensions found"
+  emptyMessage={t('features.store.no_extensions_found')}
 >
   {#snippet listItem(item, index)}
     <ListItem
@@ -146,7 +147,7 @@
         {/snippet}
       </ActionFooter>
     {:else}
-      <EmptyState message="Select an extension to view details">
+      <EmptyState message={t('features.store.select_extension')}>
         {#snippet icon()}
           <svg class="w-16 h-16 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path

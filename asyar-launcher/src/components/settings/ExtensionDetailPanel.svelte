@@ -6,6 +6,7 @@
   import PermissionList from './PermissionList.svelte';
   import type { ExtensionItem } from '../../routes/settings/settingsHandlers.svelte';
   import type { ExtensionCommand } from 'asyar-sdk/contracts';
+  import { t } from '../../services/i18n';
   import { extensionPreferencesService } from '../../services/extension/extensionPreferencesService.svelte';
   import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
@@ -52,8 +53,8 @@
 
   const runtimeDownloadLabel = $derived(
     isDownloadingRuntime
-      ? formatRuntimeDownloadStatus(runtimeService.downloadProgress, 'Downloading…')
-      : 'Download runtime',
+      ? formatRuntimeDownloadStatus(runtimeService.downloadProgress, t('common.downloading'))
+      : t('settings.extensions.download_runtime'),
   );
 
   // Settings is a separate webview from the main window (see the consent
@@ -100,7 +101,7 @@
       const confirmed = await feedbackService.confirmAlert({
         title,
         message,
-        confirmText: 'Download',
+        confirmText: t('settings.extensions.download'),
       });
       if (!confirmed) return;
     }
@@ -149,9 +150,9 @@
     const ext = extension;
     if (!ext?.id) return;
     const confirmed = await feedbackService.confirmAlert({
-      title: 'Revoke Permissions',
+      title: t('settings.extensions.revoke_permissions_title'),
       message: `"${ext.title}" will lose access to its granted permissions until you review and re-allow them. It stays installed and enabled.`,
-      confirmText: 'Revoke',
+      confirmText: t('settings.extensions.revoke'),
       variant: 'danger',
     });
     if (!confirmed) return;
@@ -281,7 +282,9 @@
           onclick={() => onUninstall?.(extension!)}
           disabled={isUninstalling}
         >
-          {isUninstalling ? 'Uninstalling…' : 'Uninstall'}
+          {isUninstalling
+            ? t('settings.extensions.uninstalling')
+            : t('settings.extensions.uninstall')}
         </button>
       {/if}
     </div>
@@ -290,7 +293,7 @@
   <div class="panel-body">
     {#if extension.subtitle}
       <div class="panel-section">
-        <div class="section-header">Description</div>
+        <div class="section-header">{t('common.description')}</div>
         <p class="panel-desc">{extension.subtitle}</p>
       </div>
     {/if}
@@ -312,10 +315,10 @@
         <Badge text="{extension.compatibility.platform} not supported" variant="danger" />
       {/if}
       {#if needsPermissionReview}
-        <Badge text="Permissions need review" variant="danger" />
+        <Badge text={t('settings.extensions.permissions_need_review')} variant="danger" />
       {/if}
       {#if needsRuntimeDownload}
-        <Badge text="Needs runtime download" variant="danger" />
+        <Badge text={t('settings.extensions.needs_runtime_download')} variant="danger" />
       {/if}
     </div>
 
@@ -341,11 +344,15 @@
     {#if !extension.isBuiltIn && extension.permissions && extension.permissions.length > 0}
       <div class="panel-section">
         <div class="section-header flex-header">
-          <span>Permissions</span>
+          <span>{t('settings.extensions.permissions')}</span>
           {#if needsPermissionReview}
-            <button class="review-link" onclick={reviewPermissions}>Review permissions</button>
+            <button class="review-link" onclick={reviewPermissions}
+              >{t('settings.extensions.review_permissions')}</button
+            >
           {:else}
-            <button class="revoke-link" onclick={revokePermissions}>Revoke</button>
+            <button class="revoke-link" onclick={revokePermissions}
+              >{t('settings.extensions.revoke')}</button
+            >
           {/if}
         </div>
         <PermissionList
@@ -363,7 +370,7 @@
             class="reset-link"
             onclick={() => extensionPreferencesService.reset(extension!.id!)}
           >
-            Reset to Defaults
+            {t('settings.extensions.reset_to_defaults')}
           </button>
         </div>
         <ExtensionPreferencesForm
@@ -376,7 +383,7 @@
     {/if}
   </div>
 {:else}
-  <EmptyState message="Select an extension or command" />
+  <EmptyState message={t('settings.extensions.select_extension_or_command')} />
 {/if}
 
 <style>

@@ -109,3 +109,13 @@ export async function openUrl(url: string): Promise<void> {
 export async function openerOpenUrl(extensionId: string | null, url: string): Promise<void> {
   await invoke('opener_open_url', { extensionId, url });
 }
+
+export async function getSystemLocale(): Promise<{
+  language: string;
+  script: string | null;
+  region: string | null;
+  variant: string | null;
+  raw: string;
+} | null> {
+  return invokeSafe('get_system_locale');
+}

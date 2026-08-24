@@ -104,7 +104,7 @@ describe('ArgumentDropdownChip', () => {
     await fireEvent.keyDown(trigger, { key: 'z' });
     await tick();
     expect(filter()?.value).toBe('z');
-    expect(view.container.querySelector('.empty-state')?.textContent).toContain('No Results');
+    expect(view.container.querySelector('.empty-state')?.textContent).toContain('No results found');
   });
 
   it('clicking toggles the list, and the chevron follows', async () => {

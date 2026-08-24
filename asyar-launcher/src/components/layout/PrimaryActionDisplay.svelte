@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { SearchResult } from '../../services/search/interfaces/SearchResult';
   import { logService } from '../../services/log/logService';
+  import { t } from '../../services/i18n';
   import KeyboardHint from '../base/KeyboardHint.svelte';
 
   let {
@@ -17,11 +18,11 @@
       if (!selectedItem) return null;
       switch (selectedItem.type) {
         case 'application':
-          return 'Open Application';
+          return t('actions.open');
         case 'command':
-          return 'Run Command';
+          return t('actions.run');
         default:
-          return 'Execute Action';
+          return t('actions.open');
       }
     })(),
   );

@@ -16,6 +16,7 @@
   import type { AgentDef, ThreadDef, MessageDef } from './types';
   import { showSettingsWindow } from '../../lib/ipc/commands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { t } from '../../services/i18n';
   import { isAnyModalOpen } from '../../components/base/Modal.logic';
 
   const agentId = $derived(agentsManager.currentAgentId);
@@ -167,7 +168,7 @@
         kind: 'manual',
         severity: 'error',
         retryable: true,
-        context: { message: 'Could not open AI settings. Try again.' },
+        context: { message: t('features.agents.error_open_ai_settings') },
         developerDetail: String(err),
       });
     }
@@ -193,18 +194,18 @@
   {#if !agentId}
     <div class="empty-state-wrapper">
       <EmptyState
-        message="Set up your AI"
-        description="Configure your AI provider to start chatting with Asyar Assistant."
+        message={t('features.agents.setup_ai')}
+        description={t('features.agents.setup_ai_description')}
       >
         {#snippet icon()}
           <span class="text-4xl">🤖</span>
         {/snippet}
-        <Button onclick={handleSetUpAi}>Set up AI</Button>
+        <Button onclick={handleSetUpAi}>{t('features.agents.setup_ai_button')}</Button>
       </EmptyState>
     </div>
   {:else if !agent}
     <div class="empty-state-wrapper">
-      <EmptyState message="Loading agent…" />
+      <EmptyState message={t('features.agents.loading_agent')} />
     </div>
   {:else}
     <div class="chat-layout">
@@ -213,7 +214,7 @@
         <header class="chat-header">
           <h2>{agent.name}</h2>
           {#if sending}
-            <span class="streaming-tag">Streaming… ⌘K to cancel</span>
+            <span class="streaming-tag">{t('features.agents.streaming_cancel')}</span>
           {/if}
         </header>
 
@@ -226,7 +227,10 @@
           {#if loadError}
             <p class="error">{loadError}</p>
           {:else if messages.length === 0 && !sending}
-            <EmptyState message="Start chatting" description="Type a message to begin." />
+            <EmptyState
+              message={t('features.agents.start_chatting')}
+              description={t('features.agents.start_chatting_description')}
+            />
           {:else}
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -239,7 +243,7 @@
                   {#if variant === 'assistant'}
                     <div class="avatar assistant-avatar">AI</div>
                   {:else if variant === 'user'}
-                    <div class="avatar user-avatar">You</div>
+                    <div class="avatar user-avatar">{t('features.agents.you')}</div>
                   {:else}
                     <div class="avatar tool-avatar">⚙</div>
                   {/if}
@@ -262,9 +266,9 @@
                     <IconButton
                       class="copy-message-btn"
                       onclick={() => copyText(text)}
-                      title="Copy message"
+                      title={t('features.agents.copy_message')}
                       tabindex={-1}
-                      ariaLabel="Copy message"
+                      ariaLabel={t('features.agents.copy_message')}
                       size="sm"
                     >
                       <svg
@@ -296,7 +300,7 @@
                 <div class="message-row assistant">
                   <div class="avatar assistant-avatar">AI</div>
                   <div class="message-bubble assistant activity-status">
-                    <span class="activity-label">Searching…</span>
+                    <span class="activity-label">{t('features.agents.searching')}</span>
                     <span class="streaming-cursor">▊</span>
                   </div>
                 </div>

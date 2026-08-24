@@ -5,6 +5,7 @@
   import { shortcutStore } from './shortcutStore.svelte';
   import { ShortcutRecorder, KeyboardHint } from '../../components';
   import { normalizeShortcut } from './shortcutFormatter';
+  import { t } from '../../services/i18n';
 
   let {
     onsave,
@@ -47,8 +48,8 @@
 
 <Modal
   isOpen={true}
-  title="Assign Shortcut"
-  subtitle="Press the combination you want to use"
+  title={t('dialogs.shortcut_capture.title')}
+  subtitle={t('dialogs.shortcut_capture.subtitle')}
   onEscape={handleCancel}
 >
   <div class="capture-recorder">

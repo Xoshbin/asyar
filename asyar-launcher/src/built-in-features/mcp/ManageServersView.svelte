@@ -4,6 +4,7 @@
   import ServerCard from './ServerCard.svelte';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
   import Badge from '../../components/base/Badge.svelte';
+  import { t } from '../../services/i18n';
 
   const servers = $derived(mcpService.servers);
   const detectedConfigs = $derived(mcpService.detectedConfigs);
@@ -25,19 +26,19 @@
   {/if}
 
   {#if loading}
-    <EmptyState message="Loading servers…" />
+    <EmptyState message={t('features.mcp.loading_servers')} />
   {:else if servers.length === 0}
     {#if detectedConfigs.length > 0}
       <EmptyState
-        message="No MCP servers installed"
-        description="We found configs from {detectedConfigs
-          .map((c) => c.source)
-          .join(', ')}. Use the Import action to bring them in."
+        message={t('features.mcp.no_servers')}
+        description={t('features.mcp.detected_configs_description', {
+          sources: detectedConfigs.map((c) => c.source).join(', '),
+        })}
       />
     {:else}
       <EmptyState
-        message="No MCP servers installed"
-        description="Use the Install action to add your first server."
+        message={t('features.mcp.no_servers')}
+        description={t('features.mcp.no_servers_install_description')}
       />
     {/if}
   {:else}

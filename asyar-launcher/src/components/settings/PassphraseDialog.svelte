@@ -3,11 +3,12 @@
   import { Button, Input } from '../index';
   import { syncEncryptionService } from '../../services/sync/syncEncryptionService.svelte';
   import { logService } from '../../services/log/logService';
+  import { t } from '../../services/i18n';
 
   let {
     isOpen = $bindable(false),
-    title = 'Unlock encrypted sync',
-    description = 'Encrypted sync needs your passphrase to continue.',
+    title = t('settings.privacy.unlock_sync_title'),
+    description = t('settings.privacy.unlock_sync_desc'),
     onComplete,
     onCancel,
     onForgot,
@@ -47,7 +48,7 @@
       onComplete?.();
     } catch (err) {
       logService.warn(`passphrase dialog unlock failed: ${String(err)}`);
-      errorMessage = 'Incorrect passphrase. Try again.';
+      errorMessage = t('settings.privacy.error_incorrect_passphrase');
       submitting = false;
     }
   }
@@ -66,7 +67,7 @@
     <Input
       textIntent="exact"
       type="password"
-      placeholder="Passphrase"
+      placeholder={t('common.passphrase')}
       bind:value={passphrase}
       maxlength={256}
       autofocus
@@ -76,19 +77,20 @@
     {/if}
     <div class="dialog-footer">
       {#if onForgot}
-        <button type="button" class="text-link" onclick={forgot}>Use recovery phrase instead</button
+        <button type="button" class="text-link" onclick={forgot}
+          >{t('settings.privacy.use_recovery_phrase')}</button
         >
       {:else}
         <span></span>
       {/if}
       <div class="flex gap-2">
-        <Button onclick={cancel}>Cancel</Button>
+        <Button onclick={cancel}>{t('common.cancel')}</Button>
         <Button
           class="btn-primary"
-          disabled={submitting || passphrase.length === 0}
+          disabled={passphrase.length === 0 || submitting}
           onclick={submit}
         >
-          {submitting ? 'Unlocking…' : 'Unlock'}
+          {submitting ? t('settings.privacy.unlocking') : t('settings.privacy.unlock')}
         </Button>
       </div>
     </div>

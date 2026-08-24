@@ -8,6 +8,7 @@
   import { invokeSafe } from '../../lib/ipc/invokeSafe';
   import { scrollSelectedIntoView } from '../../lib/listScroll';
   import type { Run } from 'asyar-sdk/contracts';
+  import { t } from '../../services/i18n';
 
   let combinedRuns = $derived(runService.combined);
   let selectedRun = $derived(combinedRuns.find((r) => r.id === runService.selectedRunId) ?? null);
@@ -99,8 +100,8 @@
       {/each}
       {#if combinedRuns.length === 0}
         <EmptyState
-          message="No runs yet"
-          description="Runs from AI chat or shell scripts will appear here."
+          message={t('features.runs.no_runs')}
+          description={t('features.runs.no_runs_description')}
         />
       {/if}
     </div>
@@ -177,16 +178,16 @@
           </div>
         {:else}
           <EmptyState
-            message="No output yet"
+            message={t('features.runs.no_output')}
             description={selectedRun.status === 'running'
-              ? 'Output will appear as it streams.'
-              : 'Output has been dismissed.'}
+              ? t('features.runs.streaming_output')
+              : t('features.runs.dismissed_output')}
           />
         {/if}
       {:else}
         <EmptyState
-          message="Select a run"
-          description="Choose a run from the left to see its details."
+          message={t('features.runs.select_run')}
+          description={t('features.runs.select_run_description')}
         />
       {/if}
     </div>
