@@ -183,6 +183,32 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build --target ${{ matrix.rust-target }}
 
+      - name: Package Portable Windows ${{ matrix.arch }} Zip
+        shell: pwsh
+        run: |
+          $target = "${{ matrix.rust-target }}"
+          $arch = "${{ matrix.arch }}"
+          $releaseDir = "src-tauri/target/$target/release"
+          $portableDir = "$releaseDir/portable/asyar"
+
+          if (Test-Path "$releaseDir/portable") {
+            Remove-Item -Recurse -Force "$releaseDir/portable"
+          }
+          New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+
+          Copy-Item "$releaseDir/asyar.exe" -Destination "$portableDir/"
+
+          if (Test-Path "src-tauri/built-in-features") {
+            Copy-Item -Recurse "src-tauri/built-in-features" -Destination "$portableDir/"
+          }
+          if (Test-Path "src-tauri/resources") {
+            Copy-Item -Recurse "src-tauri/resources" -Destination "$portableDir/"
+          }
+
+          $zipPath = "$releaseDir/asyar_windows_${arch}_portable.zip"
+          Compress-Archive -Path "$portableDir/*" -DestinationPath $zipPath -Force
+          Write-Host "Created portable archive at $zipPath"
+
       - name: Upload Windows ${{ matrix.arch }} Artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -190,6 +216,7 @@ jobs:
           path: |
             asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/msi/*.msi
             asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/msi/*.msi.sig
+            asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/*.zip
 
   build-linux:
     needs: test-and-lint
@@ -329,6 +356,7 @@ jobs:
             artifacts/**/*.AppImage
             artifacts/**/*.AppImage.sig
             artifacts/**/*.deb
+            artifacts/**/*.zip
           draft: false
           prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
           generate_release_notes: true
