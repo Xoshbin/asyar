@@ -35,6 +35,7 @@ fn sidecar_candidates(resource_dir: Option<&std::path::Path>, dev_path: PathBuf)
     let mut out = Vec::new();
     if let Some(dir) = resource_dir {
         out.push(dir.join("ext-builder").join("sidecar.js"));
+        out.push(dir.join("resources").join("ext-builder").join("sidecar.js"));
     }
     out.push(dev_path);
     out
@@ -456,6 +457,10 @@ mod tests {
             got,
             vec![
                 PathBuf::from("/res").join("ext-builder").join("sidecar.js"),
+                PathBuf::from("/res")
+                    .join("resources")
+                    .join("ext-builder")
+                    .join("sidecar.js"),
                 dev
             ]
         );
