@@ -63,7 +63,13 @@ pub fn capture_active_window_id() -> u64 {
 
 #[cfg(target_os = "linux")]
 pub fn check_x11(prev_wid: u64) -> Result<(), AppError> {
-    if std::env::var("WAYLAND_DISPLAY").is_ok() {
+    let is_wayland = std::env::var("WAYLAND_DISPLAY").is_ok();
+    check_x11_inner(prev_wid, is_wayland)
+}
+
+#[cfg(target_os = "linux")]
+fn check_x11_inner(prev_wid: u64, is_wayland: bool) -> Result<(), AppError> {
+    if is_wayland {
         return Err(AppError::Platform(
             "Window management is not supported on Wayland. \
              Start Asyar in an X11/XOrg session."
@@ -173,12 +179,11 @@ mod tests {
         assert!(parse_xdotool_geometry("").is_err());
     }
 
-    // These tests use check_x11 which is Linux-only
+    // These tests use check_x11_inner which is Linux-only
     #[cfg(target_os = "linux")]
     #[test]
     fn check_x11_rejects_zero_wid_on_x11() {
-        std::env::remove_var("WAYLAND_DISPLAY");
-        let result = check_x11(0);
+        let result = check_x11_inner(0, false);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), AppError::NotFound(_)));
     }
@@ -186,9 +191,7 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn check_x11_rejects_wayland() {
-        std::env::set_var("WAYLAND_DISPLAY", "wayland-0");
-        let result = check_x11(12345);
-        std::env::remove_var("WAYLAND_DISPLAY");
+        let result = check_x11_inner(12345, true);
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("Wayland"));
