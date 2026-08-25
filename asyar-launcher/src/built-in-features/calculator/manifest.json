@@ -5,6 +5,7 @@
   "version": "1.0.0",
   "description": "Natural-language calculator: math, unit and currency conversion, percentages and tips, dates (\"days until christmas\"), world clocks (\"5pm ldn in sf\"), number bases, ratios, and color conversions — right in the search bar.",
   "type": "extension",
+  "permissions": ["notifications:send"],
   "commands": [],
   "searchable": true,
   "preferences": [

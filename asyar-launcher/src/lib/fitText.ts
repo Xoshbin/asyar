@@ -122,8 +122,23 @@ export function fitText(node: HTMLElement, group?: FitGroup): { destroy(): void 
 
   const mutations = new MutationObserver(g.refit);
   mutations.observe(node, { childList: true, characterData: true, subtree: true });
-  const resizes = new ResizeObserver(g.refit);
-  resizes.observe(node);
+
+  let lastWidth = -1;
+  const resizes = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const width =
+        entry.contentBoxSize && entry.contentBoxSize[0]
+          ? entry.contentBoxSize[0].inlineSize
+          : entry.contentRect.width;
+      if (Math.abs(width - lastWidth) > 0.5) {
+        lastWidth = width;
+        g.refit();
+      }
+    }
+  });
+
+  const observedTarget = node.parentElement ?? node;
+  resizes.observe(observedTarget);
   g.add(node);
 
   return {

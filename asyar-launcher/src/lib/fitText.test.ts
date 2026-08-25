@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+/** @vitest-environment jsdom */
+import { describe, it, expect, vi } from 'vitest';
 import { computeFitFontSize, computeSharedFitSize } from './fitText';
 
 describe('computeFitFontSize', () => {
@@ -46,5 +47,88 @@ describe('computeSharedFitSize', () => {
     expect(computeSharedFitSize([m(0, 0, 0), m(32, 600, 300)])).toBe(16);
     expect(computeSharedFitSize([m(32, 600, 0)])).toBe(32);
     expect(computeSharedFitSize([])).toBe(0);
+  });
+});
+
+describe('fitText action', () => {
+  it('observes the parent element for resize rather than the text node itself', async () => {
+    const { fitText } = await import('./fitText');
+
+    let observedTarget: any = null;
+    class MockResizeObserver {
+      observe(target: Element) {
+        observedTarget = target;
+      }
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.stubGlobal('ResizeObserver', MockResizeObserver);
+
+    class MockMutationObserver {
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('MutationObserver', MockMutationObserver);
+
+    const parent = document.createElement('div');
+    const textNode = document.createElement('span');
+    parent.appendChild(textNode);
+
+    const action = fitText(textNode);
+    expect(observedTarget).toBe(parent);
+    action.destroy();
+
+    vi.unstubAllGlobals();
+  });
+
+  it('ignores height-only resize notifications to prevent font-size oscillation loops', async () => {
+    const { fitText } = await import('./fitText');
+
+    let resizeCallback: (entries: any[]) => void = () => {};
+    class MockResizeObserver {
+      constructor(cb: (entries: any[]) => void) {
+        resizeCallback = cb;
+      }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.stubGlobal('ResizeObserver', MockResizeObserver);
+
+    class MockMutationObserver {
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('MutationObserver', MockMutationObserver);
+
+    const mockGroup = {
+      add: vi.fn(),
+      remove: vi.fn(),
+      refit: vi.fn(),
+    };
+
+    const parent = document.createElement('div');
+    const textNode = document.createElement('span');
+    parent.appendChild(textNode);
+
+    const action = fitText(textNode, mockGroup as any);
+    mockGroup.refit.mockClear();
+
+    // First resize callback with width 200, height 40
+    resizeCallback([{ contentRect: { width: 200, height: 40 } }]);
+    expect(mockGroup.refit).toHaveBeenCalledTimes(1);
+    mockGroup.refit.mockClear();
+
+    // Second resize callback with same width 200, but height 15 (due to font shrink)
+    resizeCallback([{ contentRect: { width: 200, height: 15 } }]);
+    // Must NOT call refit because width did not change
+    expect(mockGroup.refit).not.toHaveBeenCalled();
+
+    // Third resize callback with changed width 250
+    resizeCallback([{ contentRect: { width: 250, height: 15 } }]);
+    expect(mockGroup.refit).toHaveBeenCalledTimes(1);
+
+    action.destroy();
+    vi.unstubAllGlobals();
   });
 });
