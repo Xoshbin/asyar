@@ -49,7 +49,8 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
 
     let menu = Menu::with_items(app, &[&settings_i, &check_updates_i, &quit_i])?;
 
-    TrayIconBuilder::with_id(TRAY_ID)
+    let show_tray = crate::read_show_tray_icon(app.app_handle());
+    let tray = TrayIconBuilder::with_id(TRAY_ID)
         .icon(
             app.default_window_icon()
                 .ok_or("Default window icon not configured")?
@@ -77,6 +78,8 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
             _ => {}
         })
         .build(app)?;
+
+    let _ = tray.set_visible(show_tray);
 
     Ok(())
 }

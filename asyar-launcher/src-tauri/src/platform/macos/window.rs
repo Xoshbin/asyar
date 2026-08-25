@@ -1168,6 +1168,19 @@ pub fn position_launcher<R: Runtime>(
 ) -> Result<(), crate::error::AppError> {
     crate::launcher_placement::service::apply(window.app_handle())
 }
+
+/// Activates the current application, bringing its windows forward.
+pub fn activate_app() {
+    unsafe {
+        if let Some(ns_app_cls) = AnyClass::get("NSApplication") {
+            let app: *mut AnyObject = msg_send![ns_app_cls, sharedApplication];
+            if !app.is_null() {
+                let _: () = msg_send![app, activateIgnoringOtherApps: true];
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

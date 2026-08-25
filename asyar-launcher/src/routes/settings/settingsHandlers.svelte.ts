@@ -39,7 +39,8 @@ export interface ExtensionItem {
 export const DEFAULT_SETTINGS: AppSettings = {
   general: {
     startAtLogin: false,
-    showDockIcon: true,
+    showDockIcon: false,
+    showTrayIcon: true,
   },
   search: {
     searchApplications: true,
@@ -467,6 +468,48 @@ export class SettingsHandler {
       logService.error(`Failed to update autostart setting: ${error}`);
       this.saveError = true;
       this.saveMessage = 'Failed to update startup setting';
+
+      setTimeout(() => {
+        this.saveMessage = '';
+        this.saveError = false;
+      }, 3000);
+    }
+  }
+
+  async handleDockIconToggle() {
+    try {
+      const success = await settingsService.updateSettings('general', {
+        showDockIcon: !this.settings.general.showDockIcon,
+      });
+
+      if (!success) {
+        throw new Error('Failed to update dock icon setting');
+      }
+    } catch (error) {
+      logService.error(`Failed to update dock icon setting: ${error}`);
+      this.saveError = true;
+      this.saveMessage = 'Failed to update dock icon setting';
+
+      setTimeout(() => {
+        this.saveMessage = '';
+        this.saveError = false;
+      }, 3000);
+    }
+  }
+
+  async handleTrayIconToggle() {
+    try {
+      const success = await settingsService.updateSettings('general', {
+        showTrayIcon: !this.settings.general.showTrayIcon,
+      });
+
+      if (!success) {
+        throw new Error('Failed to update menu bar icon setting');
+      }
+    } catch (error) {
+      logService.error(`Failed to update menu bar icon setting: ${error}`);
+      this.saveError = true;
+      this.saveMessage = 'Failed to update menu bar icon setting';
 
       setTimeout(() => {
         this.saveMessage = '';

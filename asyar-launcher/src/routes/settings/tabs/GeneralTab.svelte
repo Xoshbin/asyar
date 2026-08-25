@@ -185,6 +185,26 @@
         {conflictChecker}
       />
     </SettingsRow>
+    <SettingsRow
+      label={t('settings.general.show_tray_icon')}
+      description={handler.settings.general.showTrayIcon
+        ? t('settings.general.show_tray_icon_description')
+        : t('settings.general.show_tray_icon_tip')}
+    >
+      <Checkbox
+        checked={handler.settings.general.showTrayIcon}
+        onchange={() => handler.handleTrayIconToggle()}
+      />
+    </SettingsRow>
+    <SettingsRow
+      label={t('settings.general.show_dock_icon')}
+      description={t('settings.general.show_dock_icon_description')}
+    >
+      <Checkbox
+        checked={handler.settings.general.showDockIcon}
+        onchange={() => handler.handleDockIconToggle()}
+      />
+    </SettingsRow>
   </div>
 </SettingsCard>
 

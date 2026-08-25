@@ -385,6 +385,54 @@ pub fn quit_app(app_handle: AppHandle) {
     app_handle.exit(0);
 }
 
+/// Shows or hides the app from the macOS Dock / application switcher.
+/// On non-macOS platforms, this is a graceful no-op.
+#[tauri::command]
+pub fn set_dock_icon_visible(app_handle: AppHandle, visible: bool) -> Result<(), AppError> {
+    #[cfg(target_os = "macos")]
+    {
+        let policy = if visible {
+            tauri::ActivationPolicy::Regular
+        } else {
+            tauri::ActivationPolicy::Accessory
+        };
+
+        let settings_was_visible = app_handle
+            .get_webview_window("settings")
+            .and_then(|w| w.is_visible().ok())
+            .unwrap_or(false);
+
+        let _ = app_handle.set_activation_policy(policy);
+
+        if visible {
+            crate::platform::macos::set_dock_icon_image();
+        }
+
+        if settings_was_visible {
+            if let Some(settings_win) = app_handle.get_webview_window("settings") {
+                let _ = settings_win.show();
+                let _ = settings_win.set_focus();
+                crate::platform::macos::activate_app();
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app_handle, visible);
+    }
+    Ok(())
+}
+
+/// Shows or hides Asyar's main menu-bar / system tray icon.
+#[tauri::command]
+pub fn set_tray_icon_visible(app_handle: AppHandle, visible: bool) -> Result<(), AppError> {
+    if let Some(tray) = app_handle.tray_by_id(crate::tray::TRAY_ID) {
+        tray.set_visible(visible)
+            .map_err(|e| AppError::Platform(format!("Failed to set tray visibility: {e}")))?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

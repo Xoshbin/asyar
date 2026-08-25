@@ -18,7 +18,8 @@ import { createPersistence } from '../../lib/persistence/extensionStore';
 const DEFAULT_SETTINGS: AppSettings = {
   general: {
     startAtLogin: false,
-    showDockIcon: true,
+    showDockIcon: false,
+    showTrayIcon: true,
     escapeInViewBehavior: 'go-back',
   },
   search: {
@@ -163,6 +164,10 @@ class SettingsService implements ISettingsService {
       // Initialize the system shortcut based on settings
       await this.syncShortcut();
 
+      // Sync Dock and Tray visibility based on settings
+      await this.syncDockVisibility();
+      await this.syncTrayVisibility();
+
       return true;
     } catch (error) {
       logService.error(`Failed to initialize settings: ${error}`);
@@ -258,11 +263,19 @@ class SettingsService implements ISettingsService {
       } as AppSettings[K];
 
       // Special handling for certain settings
-      if (section === 'general' && 'startAtLogin' in values) {
-        try {
-          await this.syncAutostart();
-        } catch (error) {
-          logService.error(`Failed to sync autostart: ${error}`);
+      if (section === 'general') {
+        if ('startAtLogin' in values) {
+          try {
+            await this.syncAutostart();
+          } catch (error) {
+            logService.error(`Failed to sync autostart: ${error}`);
+          }
+        }
+        if ('showDockIcon' in values) {
+          await this.syncDockVisibility();
+        }
+        if ('showTrayIcon' in values) {
+          await this.syncTrayVisibility();
         }
       }
 
@@ -322,6 +335,28 @@ class SettingsService implements ISettingsService {
       await commands.initializeShortcutFromSettings(modifier, key);
     } catch (error) {
       logService.error(`Failed to sync shortcut: ${error}`);
+    }
+  }
+
+  /**
+   * Sync Dock visibility with system
+   */
+  private async syncDockVisibility() {
+    try {
+      await commands.setDockIconVisible(this.currentSettings.general.showDockIcon);
+    } catch (error) {
+      logService.error(`Failed to sync dock visibility: ${error}`);
+    }
+  }
+
+  /**
+   * Sync Menu Bar / System Tray visibility with system
+   */
+  private async syncTrayVisibility() {
+    try {
+      await commands.setTrayIconVisible(this.currentSettings.general.showTrayIcon);
+    } catch (error) {
+      logService.error(`Failed to sync tray visibility: ${error}`);
     }
   }
 

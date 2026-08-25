@@ -12,6 +12,8 @@ Open Settings with `⌘,` from anywhere inside the launcher, or search for "Sett
 The General tab covers the most common settings:
 
 - **Startup** — Toggle "Launch Asyar at login" to have Asyar start automatically when you log in to your computer.
+- **Menu Bar Icon** — Toggle "Show icon in menu bar" to control whether Asyar appears in the system menu bar / system tray.
+- **Dock Icon** (macOS) — Toggle "Show icon in Dock" to control whether Asyar appears in the macOS Dock and ⌘Tab application switcher.
 - **Hotkey** — Change the global show/hide shortcut. Click inside the recorder, press your new combination, and click Save.
 - **Appearance** — Switch between Light, Dark, or System (follows your operating system) colour scheme.
 - **Window Mode** — Choose between Default (search bar + results list visible immediately) and Compact (search bar only; results expand when you type).
