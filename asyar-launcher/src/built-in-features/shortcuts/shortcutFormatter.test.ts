@@ -58,6 +58,9 @@ beforeEach(() => {
     '9',
     'F1',
     'F12',
+    'F13',
+    'F23',
+    'F24',
     'Space',
     '/',
     '-',
@@ -233,6 +236,13 @@ describe('fromKeyboardEvent', () => {
     expect(result).toBe('Super+Shift+K');
   });
 
+  it('builds Super+Shift+F23 from Copilot key event', () => {
+    const result = fromKeyboardEvent(
+      makeEvent({ key: 'F23', code: 'F23', metaKey: true, shiftKey: true }),
+    );
+    expect(result).toBe('Super+Shift+F23');
+  });
+
   it('uses event.code to resolve physical key, ignoring Shift modification', () => {
     // Shift + / produces '?' as event.key but code is still 'Slash'
     const result = fromKeyboardEvent(makeEvent({ key: '?', code: 'Slash', shiftKey: true }));
@@ -264,6 +274,9 @@ describe('isValidKey', () => {
   it('accepts function keys', () => {
     expect(isValidKey('F1')).toBe(true);
     expect(isValidKey('F12')).toBe(true);
+    expect(isValidKey('F13')).toBe(true);
+    expect(isValidKey('F23')).toBe(true);
+    expect(isValidKey('F24')).toBe(true);
   });
 
   it('accepts Space', () => {
@@ -329,6 +342,12 @@ describe('constants', () => {
   it('CODE_TO_KEY maps digit codes', () => {
     for (let i = 0; i <= 9; i++) {
       expect(CODE_TO_KEY[`Digit${i}`]).toBe(String(i));
+    }
+  });
+
+  it('CODE_TO_KEY maps function keys F1 through F24', () => {
+    for (let i = 1; i <= 24; i++) {
+      expect(CODE_TO_KEY[`F${i}`]).toBe(`F${i}`);
     }
   });
 

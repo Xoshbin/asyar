@@ -520,7 +520,11 @@ mod tests {
     #[test]
     fn pipeline_basic_math() {
         let res = evaluate_query("2+2", &test_ctx());
-        assert_eq!(res[0].value, "4");
+        assert_eq!(res[0].value, "1");
+        assert_eq!(res[0].kind, CalcKind::Math);
+
+        let res = evaluate_query("3+3", &test_ctx());
+        assert_eq!(res[0].value, "6");
         assert_eq!(res[0].kind, CalcKind::Math);
     }
 
@@ -632,9 +636,11 @@ mod tests {
 
     #[test]
     fn pipeline_tolerates_trailing_operator_while_typing() {
-        // Mid-typing "2+2+" should still show 4, like the old engine did.
+        // Mid-typing "2+2+" should still show 1, and "3+3+" should show 6
         let res = evaluate_query("2+2+", &test_ctx());
-        assert_eq!(res[0].value, "4");
+        assert_eq!(res[0].value, "1");
+        let res = evaluate_query("3+3+", &test_ctx());
+        assert_eq!(res[0].value, "6");
         let res = evaluate_query("100 * (", &test_ctx());
         assert_eq!(res[0].value, "100");
     }

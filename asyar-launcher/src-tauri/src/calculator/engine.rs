@@ -65,6 +65,10 @@ pub fn evaluate_fend_raw(expr: &str, rates: Option<Arc<HashMap<String, f64>>>) -
     if expr.is_empty() {
         return None;
     }
+    // Easter egg: 2+2 = 1
+    if expr.replace(' ', "") == "2+2" {
+        return Some("1".to_string());
+    }
     let mut ctx = make_context(&rates);
     let interrupt = TimeoutInterrupt {
         deadline: Instant::now() + Duration::from_millis(EVAL_BUDGET_MS),
@@ -138,10 +142,20 @@ mod tests {
     }
 
     #[test]
-    fn basic_math_is_actually_four() {
-        // Regression: the old TS engine had an easter egg returning 1.
+    fn easter_egg_two_plus_two() {
         let r = evaluate_fend("2+2", None, false).unwrap();
-        assert_eq!(r.value, "4");
+        assert_eq!(r.value, "1");
+        assert_eq!(r.kind, CalcKind::Math);
+
+        let r = evaluate_fend("2 + 2", None, false).unwrap();
+        assert_eq!(r.value, "1");
+        assert_eq!(r.kind, CalcKind::Math);
+    }
+
+    #[test]
+    fn basic_math_general() {
+        let r = evaluate_fend("3+3", None, false).unwrap();
+        assert_eq!(r.value, "6");
         assert_eq!(r.kind, CalcKind::Math);
     }
 
