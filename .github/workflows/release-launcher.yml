@@ -246,7 +246,7 @@ jobs:
         working-directory: .
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libfuse2t64 xdg-utils
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libfuse2t64 xdg-utils zsync
 
       - uses: actions/setup-node@v6
         with:
@@ -299,7 +299,17 @@ jobs:
           # Ubuntu 24.04 blocks their default FUSE/userns mount path, so tell them
           # to self-extract to a temp dir instead. Official CI-mode flag, not a hack.
           APPIMAGE_EXTRACT_AND_RUN: '1'
-        run: pnpm tauri build -v --target ${{ matrix.rust-target }}
+          # Embed AppImage update metadata for AppImageUpdate / zsync delta updates (issue #668)
+          UPDATE_INFORMATION: 'gh-releases-zsync|Xoshbin|asyar|latest|*${{ matrix.arch }}*.AppImage.zsync'
+          LDAI_UPDATE_INFORMATION: 'gh-releases-zsync|Xoshbin|asyar|latest|*${{ matrix.arch }}*.AppImage.zsync'
+        run: |
+          pnpm tauri build -v --target ${{ matrix.rust-target }}
+          cd src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage
+          for f in *.AppImage; do
+            if [ -f "$f" ] && [ ! -f "$f.zsync" ]; then
+              zsyncmake -u "$f" "$f"
+            fi
+          done
 
       - name: Upload Linux ${{ matrix.arch }} Artifacts
         uses: actions/upload-artifact@v7
@@ -309,6 +319,7 @@ jobs:
           path: |
             asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage/*.AppImage
             asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage/*.AppImage.sig
+            asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage/*.zsync
             asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/deb/*.deb
 
   publish:
@@ -355,6 +366,7 @@ jobs:
             artifacts/**/*.msi.sig
             artifacts/**/*.AppImage
             artifacts/**/*.AppImage.sig
+            artifacts/**/*.zsync
             artifacts/**/*.deb
             artifacts/**/*.zip
           draft: false
