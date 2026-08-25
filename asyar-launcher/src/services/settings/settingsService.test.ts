@@ -24,7 +24,12 @@ vi.mock('@tauri-apps/api/path', () => ({
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn().mockResolvedValue(undefined) }));
 
 const DEFAULT: AppSettings = {
-  general: { startAtLogin: false, showDockIcon: true, escapeInViewBehavior: 'go-back' },
+  general: {
+    startAtLogin: false,
+    showDockIcon: false,
+    showTrayIcon: true,
+    escapeInViewBehavior: 'go-back',
+  },
   search: {
     searchApplications: true,
     searchSystemPreferences: true,
@@ -248,6 +253,14 @@ describe('updateSettings', () => {
     const s = settingsService.getSettings().search;
     expect(s.fuzzySearch).toBe(false);
     expect(s.searchApplications).toBe(true);
+  });
+
+  it('updates showDockIcon and showTrayIcon in general settings', async () => {
+    await settingsService.updateSettings('general', { showDockIcon: true });
+    expect(settingsService.getSettings().general.showDockIcon).toBe(true);
+
+    await settingsService.updateSettings('general', { showTrayIcon: false });
+    expect(settingsService.getSettings().general.showTrayIcon).toBe(false);
   });
 
   it('returns false (save fails) when the store is not initialized', async () => {

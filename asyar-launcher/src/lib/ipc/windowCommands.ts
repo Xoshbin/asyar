@@ -83,6 +83,14 @@ export async function setPanelAppearance(pref: 'system' | 'light' | 'dark'): Pro
   await invokeSafe('set_panel_appearance', { pref });
 }
 
+export async function setDockIconVisible(visible: boolean): Promise<void> {
+  await invokeSafe('set_dock_icon_visible', { visible });
+}
+
+export async function setTrayIconVisible(visible: boolean): Promise<void> {
+  await invokeSafe('set_tray_icon_visible', { visible });
+}
+
 export async function appRelaunch(): Promise<void> {
   await invokeSafe('app_relaunch');
 }

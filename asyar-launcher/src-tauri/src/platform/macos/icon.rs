@@ -175,6 +175,34 @@ fn extract_icon_via_nsworkspace(path: &Path) -> Option<Vec<u8>> {
     }
 }
 
+/// Sets the macOS Dock icon image explicitly from the bundled application icon.
+/// This prevents macOS from showing the generic unix executable ('exec') icon
+/// when switching to ActivationPolicy::Regular dynamically in development/release.
+pub fn set_dock_icon_image() {
+    use objc2_foundation::NSData;
+
+    unsafe {
+        let Some(ns_app_cls) = AnyClass::get("NSApplication") else {
+            return;
+        };
+        let app: *mut AnyObject = msg_send![ns_app_cls, sharedApplication];
+        if app.is_null() {
+            return;
+        }
+        let Some(ns_image_cls) = AnyClass::get("NSImage") else {
+            return;
+        };
+        const ICON_BYTES: &[u8] = include_bytes!("../../../icons/icon.png");
+        let data = NSData::with_bytes(ICON_BYTES);
+        let image: *mut AnyObject = msg_send![ns_image_cls, alloc];
+        let image: *mut AnyObject = msg_send![image, initWithData: &*data];
+        if !image.is_null() {
+            let _: () = msg_send![app, setApplicationIconImage: image];
+            let _: () = msg_send![image, release];
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

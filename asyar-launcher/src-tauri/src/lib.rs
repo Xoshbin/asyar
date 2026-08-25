@@ -389,6 +389,8 @@ pub fn run() {
             commands::confirm_launcher_paint,
             commands::cancel_launcher_resize,
             commands::set_panel_appearance,
+            commands::set_dock_icon_visible,
+            commands::set_tray_icon_visible,
             commands::quit_app,
             commands::list_applications,
             commands::sync_application_index,
@@ -934,6 +936,44 @@ pub fn parse_appearance_theme(settings_root: Option<&serde_json::Value>) -> Them
     }
 }
 
+/// Pure JSON-navigation helper for `general.showTrayIcon`.
+/// Defaults to `true` (tray icon visible by default).
+pub fn parse_show_tray_icon(settings_root: Option<&serde_json::Value>) -> bool {
+    settings_root
+        .and_then(|s| s.get("general"))
+        .and_then(|g| g.get("showTrayIcon"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true)
+}
+
+/// Reads `settings.general.showTrayIcon` from `settings.dat` synchronously.
+pub fn read_show_tray_icon(app: &tauri::AppHandle) -> bool {
+    use tauri_plugin_store::StoreExt;
+    let Ok(store) = app.store("settings.dat") else {
+        return true;
+    };
+    parse_show_tray_icon(store.get("settings").as_ref())
+}
+
+/// Pure JSON-navigation helper for `general.showDockIcon`.
+/// Defaults to `false` (hidden from macOS Dock by default).
+pub fn parse_show_dock_icon(settings_root: Option<&serde_json::Value>) -> bool {
+    settings_root
+        .and_then(|s| s.get("general"))
+        .and_then(|g| g.get("showDockIcon"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+/// Reads `settings.general.showDockIcon` from `settings.dat` synchronously.
+pub fn read_show_dock_icon(app: &tauri::AppHandle) -> bool {
+    use tauri_plugin_store::StoreExt;
+    let Ok(store) = app.store("settings.dat") else {
+        return false;
+    };
+    parse_show_dock_icon(store.get("settings").as_ref())
+}
+
 /// Pure JSON-navigation helper extracted from `read_launch_view`. Returns
 /// `"compact"` only when the value at `appearance.launchView` is the string
 /// `"compact"`; any other shape or value yields `"default"`.
@@ -1270,7 +1310,18 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     #[cfg(target_os = "macos")]
-    app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+    {
+        let show_dock = read_show_dock_icon(app.app_handle());
+        let policy = if show_dock {
+            tauri::ActivationPolicy::Regular
+        } else {
+            tauri::ActivationPolicy::Accessory
+        };
+        app.set_activation_policy(policy);
+        if show_dock {
+            crate::platform::macos::set_dock_icon_image();
+        }
+    }
 
     let handle = app.app_handle();
     let window = handle
@@ -2515,6 +2566,76 @@ mod appearance_theme_tests {
     fn returns_system_when_json_is_empty_object() {
         let v = json!({});
         assert_eq!(parse_appearance_theme(Some(&v)), ThemePreference::System);
+    }
+}
+
+#[cfg(test)]
+mod tray_icon_preference_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn returns_true_by_default_when_settings_root_is_none() {
+        assert!(parse_show_tray_icon(None));
+    }
+
+    #[test]
+    fn returns_true_by_default_when_general_key_missing() {
+        let v = json!({ "appearance": { "theme": "dark" } });
+        assert!(parse_show_tray_icon(Some(&v)));
+    }
+
+    #[test]
+    fn returns_true_by_default_when_show_tray_icon_key_missing() {
+        let v = json!({ "general": { "startAtLogin": true } });
+        assert!(parse_show_tray_icon(Some(&v)));
+    }
+
+    #[test]
+    fn returns_false_when_explicitly_set_to_false() {
+        let v = json!({ "general": { "showTrayIcon": false } });
+        assert!(!parse_show_tray_icon(Some(&v)));
+    }
+
+    #[test]
+    fn returns_true_when_explicitly_set_to_true() {
+        let v = json!({ "general": { "showTrayIcon": true } });
+        assert!(parse_show_tray_icon(Some(&v)));
+    }
+}
+
+#[cfg(test)]
+mod dock_icon_preference_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn returns_false_by_default_when_settings_root_is_none() {
+        assert!(!parse_show_dock_icon(None));
+    }
+
+    #[test]
+    fn returns_false_by_default_when_general_key_missing() {
+        let v = json!({ "appearance": { "theme": "dark" } });
+        assert!(!parse_show_dock_icon(Some(&v)));
+    }
+
+    #[test]
+    fn returns_false_by_default_when_show_dock_icon_key_missing() {
+        let v = json!({ "general": { "startAtLogin": true } });
+        assert!(!parse_show_dock_icon(Some(&v)));
+    }
+
+    #[test]
+    fn returns_true_when_explicitly_set_to_true() {
+        let v = json!({ "general": { "showDockIcon": true } });
+        assert!(parse_show_dock_icon(Some(&v)));
+    }
+
+    #[test]
+    fn returns_false_when_explicitly_set_to_false() {
+        let v = json!({ "general": { "showDockIcon": false } });
+        assert!(!parse_show_dock_icon(Some(&v)));
     }
 }
 
