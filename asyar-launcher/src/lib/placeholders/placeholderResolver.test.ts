@@ -9,6 +9,7 @@ import {
 const mockPlaceholders: PlaceholderDefinition[] = [
   { id: 'query', label: 'Search Query', token: 'query' },
   { id: 'trigger', label: 'Agent Trigger', token: 'trigger' },
+  { id: 'date', label: 'Date', token: 'Date', aliases: ['date'] },
 ];
 
 vi.mock('../ipc/invokeSafe', () => ({
@@ -36,6 +37,11 @@ describe('placeholderResolver', () => {
 
   it('hasPlaceholders returns true when template contains a known placeholder', async () => {
     expect(await hasPlaceholders('https://google.com/search?q={query}')).toBe(true);
+  });
+
+  it('hasPlaceholders returns true when template contains a parameterized placeholder', async () => {
+    expect(await hasPlaceholders('Today is {date format="YYYY-MM-DD"}')).toBe(true);
+    expect(await hasPlaceholders('Today is {Date format="YYYY-MM-DD"}')).toBe(true);
   });
 
   it('hasPlaceholders returns false when template has no placeholders', async () => {

@@ -67,30 +67,30 @@ pub fn get_available_placeholders() -> Vec<PlaceholderMetadata> {
         PlaceholderMetadata {
             id: "date".to_string(),
             label: "Date".to_string(),
-            token: "date".to_string(),
-            description: "Today's date (e.g. 4/7/2026)".to_string(),
-            aliases: None,
+            token: "Date".to_string(),
+            description: "Today's date (supports format, e.g. {Date format=\"YYYY-MM-DD\"})".to_string(),
+            aliases: Some(vec!["date".to_string()]),
         },
         PlaceholderMetadata {
             id: "time".to_string(),
             label: "Time".to_string(),
-            token: "time".to_string(),
-            description: "Current time (e.g. 3:45:00 PM)".to_string(),
-            aliases: None,
+            token: "Time".to_string(),
+            description: "Current time (supports format, e.g. {Time format=\"HH:mm\"})".to_string(),
+            aliases: Some(vec!["time".to_string()]),
         },
         PlaceholderMetadata {
             id: "date-time".to_string(),
             label: "Date & Time".to_string(),
-            token: "date-time".to_string(),
-            description: "Today's date and current time".to_string(),
-            aliases: None,
+            token: "Date & Time".to_string(),
+            description: "Today's date and time (supports format, e.g. {Date & Time format=\"YYYY-MM-DD HH:mm\"})".to_string(),
+            aliases: Some(vec!["date-time".to_string(), "datetime".to_string()]),
         },
         PlaceholderMetadata {
             id: "weekday".to_string(),
             label: "Weekday".to_string(),
-            token: "weekday".to_string(),
-            description: "Current day name (e.g. Tuesday)".to_string(),
-            aliases: None,
+            token: "Weekday".to_string(),
+            description: "Current day name (supports format, e.g. {Weekday format=\"EEE\"})".to_string(),
+            aliases: Some(vec!["weekday".to_string(), "day".to_string()]),
         },
     ]
 }
@@ -139,40 +139,43 @@ pub async fn resolve_template(
     }
 
     // Time-based placeholders
-    if result.contains("{date}")
-        || result.contains("{Date}")
-        || result.contains("{time}")
-        || result.contains("{Time}")
-        || result.contains("{date-time}")
-        || result.contains("{Date & Time}")
-        || result.contains("{weekday}")
-        || result.contains("{Weekday}")
-    {
+    if result.contains('{') {
         let now = chrono::Local::now();
-        if result.contains("{date}") || result.contains("{Date}") {
-            let formatted = now.format("%-m/%-d/%Y").to_string();
-            result = result
-                .replace("{date}", &formatted)
-                .replace("{Date}", &formatted);
-        }
-        if result.contains("{time}") || result.contains("{Time}") {
-            let formatted = now.format("%-I:%M:%S %p").to_string();
-            result = result
-                .replace("{time}", &formatted)
-                .replace("{Time}", &formatted);
-        }
-        if result.contains("{date-time}") || result.contains("{Date & Time}") {
-            let formatted = now.format("%-m/%-d/%Y, %-I:%M:%S %p").to_string();
-            result = result
-                .replace("{date-time}", &formatted)
-                .replace("{Date & Time}", &formatted);
-        }
-        if result.contains("{weekday}") || result.contains("{Weekday}") {
-            let formatted = now.format("%A").to_string();
-            result = result
-                .replace("{weekday}", &formatted)
-                .replace("{Weekday}", &formatted);
-        }
+        use std::sync::LazyLock;
+        static TEMPORAL_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+            regex::Regex::new(
+                r#"\{(?i:(date|time|datetime|date-time|date\s+&\s+time|weekday|day))(?:\s+format=(?:"([^"]*)"|'([^']*)'|(\S+)))?\}"#,
+            )
+            .expect("valid temporal regex")
+        });
+
+        result = TEMPORAL_RE
+            .replace_all(&result, |caps: &regex::Captures| {
+                let tag = caps.get(1).map(|m| m.as_str()).unwrap_or("");
+                let format_arg = caps
+                    .get(2)
+                    .or_else(|| caps.get(3))
+                    .or_else(|| caps.get(4))
+                    .map(|m| m.as_str());
+
+                let tag_lower = tag.to_ascii_lowercase();
+                let default_fmt = match tag_lower.as_str() {
+                    "date" => "%-m/%-d/%Y",
+                    "time" => "%-I:%M:%S %p",
+                    "date-time" | "datetime" => "%-m/%-d/%Y, %-I:%M:%S %p",
+                    s if s.contains("date") && s.contains("time") => "%-m/%-d/%Y, %-I:%M:%S %p",
+                    "weekday" | "day" => "%A",
+                    _ => "%-m/%-d/%Y",
+                };
+
+                let chrono_fmt = match format_arg {
+                    Some(fmt) if !fmt.trim().is_empty() => convert_date_format(fmt.trim()),
+                    _ => default_fmt.to_string(),
+                };
+
+                now.format(&chrono_fmt).to_string()
+            })
+            .to_string();
     }
 
     // {clipboard-text}, {Clipboard Text}, {clipboard}, {Clipboard}
@@ -212,4 +215,244 @@ pub async fn resolve_template(
 
 fn is_uuid(s: &str) -> bool {
     uuid::Uuid::parse_str(s).is_ok()
+}
+
+/// Converts user-facing date-time format tokens into `chrono`'s `strftime` specifiers.
+///
+/// Supported tokens include standard Moment/Unicode formatting tokens:
+/// - `yyyy` / `YYYY` -> `%Y`
+/// - `yy` / `YY` -> `%y`
+/// - `MMMM` -> `%B`
+/// - `MMM` -> `%b`
+/// - `MM` -> `%m`
+/// - `M` -> `%-m`
+/// - `dddd` / `EEEE` -> `%A`
+/// - `ddd` / `EEE` -> `%a`
+/// - `dd` / `DD` -> `%d`
+/// - `d` / `D` -> `%-d`
+/// - `HH` -> `%H`
+/// - `H` -> `%-H`
+/// - `hh` -> `%I`
+/// - `h` -> `%-I`
+/// - `mm` -> `%M`
+/// - `m` -> `%-M`
+/// - `ss` -> `%S`
+/// - `s` -> `%-S`
+/// - `a` / `A` -> `%p`
+/// - `SSS` -> `%3f`
+/// - `ZZ` / `Z` -> `%z`
+/// - `zzz` / `z` -> `%Z`
+/// - Quoted literals `'text'` -> `text`
+/// - Strftime specifiers `%...` -> preserved verbatim
+pub fn convert_date_format(format: &str) -> String {
+    use std::sync::LazyLock;
+    static TOKEN_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(
+            r"('([^']*)'|%[a-zA-Z%]|yyyy|YYYY|yy|YY|MMMM|MMM|MM|M|dddd|ddd|dd|DD|d|D|EEEE|EEE|HH|H|hh|h|mm|m|ss|s|SSS|ZZ|Z|zzz|z|a|A)",
+        )
+        .expect("valid token regex")
+    });
+
+    let mut out = String::with_capacity(format.len());
+    let mut last_end = 0;
+
+    for mat in TOKEN_RE.find_iter(format) {
+        if mat.start() > last_end {
+            out.push_str(&format[last_end..mat.start()]);
+        }
+        let matched = mat.as_str();
+        if matched.starts_with('\'') && matched.ends_with('\'') && matched.len() >= 2 {
+            // Quoted literal, strip outer quotes
+            out.push_str(&matched[1..matched.len() - 1]);
+        } else if matched.starts_with('%') {
+            out.push_str(matched);
+        } else {
+            match matched {
+                "yyyy" | "YYYY" => out.push_str("%Y"),
+                "yy" | "YY" => out.push_str("%y"),
+                "MMMM" => out.push_str("%B"),
+                "MMM" => out.push_str("%b"),
+                "MM" => out.push_str("%m"),
+                "M" => out.push_str("%-m"),
+                "dddd" | "EEEE" => out.push_str("%A"),
+                "ddd" | "EEE" => out.push_str("%a"),
+                "dd" | "DD" => out.push_str("%d"),
+                "d" | "D" => out.push_str("%-d"),
+                "HH" => out.push_str("%H"),
+                "H" => out.push_str("%-H"),
+                "hh" => out.push_str("%I"),
+                "h" => out.push_str("%-I"),
+                "mm" => out.push_str("%M"),
+                "m" => out.push_str("%-M"),
+                "ss" => out.push_str("%S"),
+                "s" => out.push_str("%-S"),
+                "a" | "A" => out.push_str("%p"),
+                "SSS" => out.push_str("%3f"),
+                "ZZ" | "Z" => out.push_str("%z"),
+                "zzz" | "z" => out.push_str("%Z"),
+                _ => out.push_str(matched),
+            }
+        }
+        last_end = mat.end();
+    }
+
+    if last_end < format.len() {
+        out.push_str(&format[last_end..]);
+    }
+
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_default_date_and_time_placeholders() {
+        let ctx = TemplateContext::default();
+        let now = chrono::Local::now();
+
+        let date_res = resolve_template("Today is {date}", &ctx).await.unwrap();
+        assert_eq!(date_res, format!("Today is {}", now.format("%-m/%-d/%Y")));
+
+        let date_cap_res = resolve_template("Today is {Date}", &ctx).await.unwrap();
+        assert_eq!(
+            date_cap_res,
+            format!("Today is {}", now.format("%-m/%-d/%Y"))
+        );
+
+        let time_res = resolve_template("Time: {time}", &ctx).await.unwrap();
+        assert_eq!(time_res, format!("Time: {}", now.format("%-I:%M:%S %p")));
+
+        let weekday_res = resolve_template("Day: {weekday}", &ctx).await.unwrap();
+        assert_eq!(weekday_res, format!("Day: {}", now.format("%A")));
+    }
+
+    #[tokio::test]
+    async fn test_custom_date_format_placeholders() {
+        let ctx = TemplateContext::default();
+        let now = chrono::Local::now();
+
+        // ISO format YYYY-MM-DD
+        let res = resolve_template("ISO: {date format=\"YYYY-MM-DD\"}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, format!("ISO: {}", now.format("%Y-%m-%d")));
+
+        // Lowercase yyyy-MM-dd
+        let res = resolve_template("ISO: {date format=\"yyyy-MM-dd\"}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, format!("ISO: {}", now.format("%Y-%m-%d")));
+
+        // MM/dd/yy with single quotes
+        let res = resolve_template("Short: {date format='MM/dd/yy'}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, format!("Short: {}", now.format("%m/%d/%y")));
+
+        // Long textual date MMMM d, yyyy
+        let res = resolve_template("Long: {date format=\"MMMM d, yyyy\"}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, format!("Long: {}", now.format("%B %-d, %Y")));
+
+        // Capitalized {Date format="YYYY-MM-DD"}
+        let res = resolve_template("{Date format=\"YYYY-MM-DD\"}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, now.format("%Y-%m-%d").to_string());
+    }
+
+    #[tokio::test]
+    async fn test_custom_time_format_placeholders() {
+        let ctx = TemplateContext::default();
+        let now = chrono::Local::now();
+
+        let res = resolve_template("24h: {time format=\"HH:mm\"}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, format!("24h: {}", now.format("%H:%M")));
+
+        let res = resolve_template("12h: {time format=\"hh:mm a\"}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, format!("12h: {}", now.format("%I:%M %p")));
+
+        let res = resolve_template("With seconds: {time format=\"HH:mm:ss\"}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, format!("With seconds: {}", now.format("%H:%M:%S")));
+    }
+
+    #[tokio::test]
+    async fn test_custom_datetime_format_placeholders() {
+        let ctx = TemplateContext::default();
+        let now = chrono::Local::now();
+
+        let res = resolve_template("{datetime format=\"YYYY-MM-DD HH:mm:ss\"}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, now.format("%Y-%m-%d %H:%M:%S").to_string());
+
+        let res = resolve_template("{date-time format=\"YYYY-MM-DD HH:mm:ss\"}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, now.format("%Y-%m-%d %H:%M:%S").to_string());
+
+        let res = resolve_template("{Date & Time format=\"YYYY-MM-DD HH:mm:ss\"}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, now.format("%Y-%m-%d %H:%M:%S").to_string());
+    }
+
+    #[tokio::test]
+    async fn test_custom_weekday_format_placeholders() {
+        let ctx = TemplateContext::default();
+        let now = chrono::Local::now();
+
+        let res = resolve_template("Day: {weekday format=\"EEE\"}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, format!("Day: {}", now.format("%a")));
+
+        let res = resolve_template("Day: {weekday format=\"EEEE\"}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, format!("Day: {}", now.format("%A")));
+    }
+
+    #[tokio::test]
+    async fn test_direct_strftime_specifiers() {
+        let ctx = TemplateContext::default();
+        let now = chrono::Local::now();
+
+        let res = resolve_template("{date format=\"%Y/%m/%d\"}", &ctx)
+            .await
+            .unwrap();
+        assert_eq!(res, now.format("%Y/%m/%d").to_string());
+    }
+
+    #[tokio::test]
+    async fn test_mixed_template_placeholders() {
+        let ctx = TemplateContext {
+            query: Some("rust lang".to_string()),
+            trigger: Some("!g".to_string()),
+        };
+        let now = chrono::Local::now();
+
+        let res = resolve_template(
+            "Query: {query}, Trigger: {trigger}, Date: {date format=\"YYYY-MM-DD\"}",
+            &ctx,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            res,
+            format!(
+                "Query: rust lang, Trigger: !g, Date: {}",
+                now.format("%Y-%m-%d")
+            )
+        );
+    }
 }

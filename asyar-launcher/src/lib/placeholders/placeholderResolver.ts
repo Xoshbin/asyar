@@ -70,9 +70,23 @@ export async function hasPlaceholders(template: string): Promise<boolean> {
   const placeholders = await fetchPlaceholders();
   const TOKEN_RE = /\{([^{}]+)\}/g;
   for (const m of template.matchAll(TOKEN_RE)) {
-    const tokenText = m[1];
-    if (placeholders.find((p) => p.token === tokenText || p.aliases?.includes(tokenText)))
+    const rawToken = m[1].trim();
+    const baseToken = rawToken.split(/\s+/)[0];
+    if (
+      placeholders.some(
+        (p) =>
+          p.token === rawToken ||
+          p.token === baseToken ||
+          p.token.toLowerCase() === rawToken.toLowerCase() ||
+          p.token.toLowerCase() === baseToken.toLowerCase() ||
+          p.aliases?.includes(rawToken) ||
+          p.aliases?.includes(baseToken) ||
+          p.aliases?.some((a) => a.toLowerCase() === rawToken.toLowerCase()) ||
+          p.aliases?.some((a) => a.toLowerCase() === baseToken.toLowerCase()),
+      )
+    ) {
       return true;
+    }
   }
   return false;
 }
