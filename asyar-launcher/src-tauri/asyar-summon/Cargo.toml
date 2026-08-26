@@ -1,0 +1,9 @@
+[package]
+name = "asyar-summon"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+publish = false
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "=4.4.0", default-features = false, features = ["async-io"] }
