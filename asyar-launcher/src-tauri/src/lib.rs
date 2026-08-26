@@ -362,6 +362,7 @@ pub fn run() {
         .manage(calculator::CalculatorState::default())
         .manage(runtimes::RuntimeManager::new())
         .manage(feedback::channel::FeedbackChannelState::default())
+        .manage(feedback::PendingCrash::default())
         .manage(locale::LocaleService::new())
         .manage(crate::agents::cache::AgentResponseCache::default())
         .manage(AppState {
@@ -1166,7 +1167,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     {
         use tauri_plugin_store::StoreExt;
         let handle = app.handle().clone();
-        app.manage(feedback::PendingCrash::default());
 
         if let Ok(data_dir) = app.path().app_data_dir() {
             let _ = std::fs::create_dir_all(&data_dir);
