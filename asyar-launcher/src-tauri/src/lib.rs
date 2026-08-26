@@ -1148,6 +1148,15 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     launcher_coordinator
         .attach_app(app.handle().clone())
         .map_err(|error| format!("failed to attach launcher coordinator: {error}"))?;
+    #[cfg(target_os = "linux")]
+    match platform::linux::launcher_dbus::start(&app.config().identifier, &launcher_coordinator) {
+        Ok(service) => {
+            app.manage(service);
+        }
+        Err(error) => {
+            log::warn!("[launcher-dbus] {error}");
+        }
+    }
     let initial_args = std::env::args().collect::<Vec<_>>();
     if let Some(action) =
         launcher::classify_initial_launch(&initial_args, deeplink::deep_link_scheme(app.handle()))
