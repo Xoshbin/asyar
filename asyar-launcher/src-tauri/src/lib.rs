@@ -278,6 +278,14 @@ pub fn run() {
             // the 40 kB delete-on-rotate file sink loses all history within
             // minutes under a flood. Asyar's own logs are unaffected.
             tauri_plugin_log::Builder::new()
+                .targets([
+                    #[cfg(debug_assertions)]
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                        file_name: None,
+                    }),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+                ])
                 .level_for("axum", log::LevelFilter::Warn)
                 .level_for("hyper", log::LevelFilter::Warn)
                 .level_for("hyper_util", log::LevelFilter::Warn)
