@@ -1,6 +1,14 @@
 use std::ffi::OsStr;
 use std::fmt;
 #[cfg(target_os = "linux")]
+use std::fs;
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::PermissionsExt;
+#[cfg(target_os = "linux")]
+use std::path::{Path, PathBuf};
+#[cfg(target_os = "linux")]
+use std::process::{Command, Stdio};
+#[cfg(target_os = "linux")]
 use std::sync::mpsc;
 #[cfg(target_os = "linux")]
 use std::thread;
@@ -32,6 +40,7 @@ pub enum SummonError {
     BusUnavailable(String),
     CallFailed(String),
     TimedOut,
+    LaunchFailed(String),
 }
 
 impl fmt::Display for SummonError {
@@ -47,6 +56,7 @@ impl fmt::Display for SummonError {
             }
             Self::CallFailed(error) => write!(formatter, "launcher request failed: {error}"),
             Self::TimedOut => write!(formatter, "launcher request timed out"),
+            Self::LaunchFailed(error) => write!(formatter, "failed to start Asyar: {error}"),
         }
     }
 }
@@ -82,7 +92,25 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    summon(parse_args(args)?)
+    run_with(args, summon, cold_start)
+}
+
+fn run_with<I, S, Invoke, ColdStart>(
+    args: I,
+    invoke: Invoke,
+    cold_start: ColdStart,
+) -> Result<(), SummonError>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+    Invoke: FnOnce(Flavor) -> Result<(), SummonError>,
+    ColdStart: FnOnce() -> Result<(), SummonError>,
+{
+    let flavor = parse_args(args)?;
+    match invoke(flavor) {
+        Err(SummonError::ServiceUnavailable) => cold_start(),
+        result => result,
+    }
 }
 
 fn summon(flavor: Flavor) -> Result<(), SummonError> {
@@ -158,9 +186,90 @@ fn classify_call_error(error: zbus::Error) -> SummonError {
     }
 }
 
+#[cfg(target_os = "linux")]
+#[derive(Debug, PartialEq, Eq)]
+enum LaunchTarget {
+    Sibling(PathBuf),
+    Path,
+}
+
+#[cfg(target_os = "linux")]
+fn cold_start() -> Result<(), SummonError> {
+    let current_exe = std::env::current_exe().ok();
+    let target = discover_launch_target(current_exe.as_deref());
+    spawn_cold_start(&target)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn cold_start() -> Result<(), SummonError> {
+    Err(SummonError::UnsupportedPlatform)
+}
+
+#[cfg(target_os = "linux")]
+fn discover_launch_target(current_exe: Option<&Path>) -> LaunchTarget {
+    let sibling = current_exe
+        .and_then(Path::parent)
+        .map(|directory| directory.join("asyar"));
+
+    match (sibling, current_exe) {
+        (Some(candidate), Some(helper)) if is_valid_sibling(&candidate, helper) => {
+            LaunchTarget::Sibling(candidate)
+        }
+        _ => LaunchTarget::Path,
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn is_valid_sibling(candidate: &Path, helper: &Path) -> bool {
+    let Ok(metadata) = fs::metadata(candidate) else {
+        return false;
+    };
+    if !metadata.is_file() || metadata.permissions().mode() & 0o111 == 0 {
+        return false;
+    }
+
+    !matches!(
+        (fs::canonicalize(candidate), fs::canonicalize(helper)),
+        (Ok(candidate), Ok(helper)) if candidate == helper
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn cold_start_command(target: &LaunchTarget) -> Command {
+    let mut command = match target {
+        LaunchTarget::Sibling(path) => Command::new(path),
+        LaunchTarget::Path => Command::new("asyar"),
+    };
+    command
+        .arg("--show-on-start")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    command
+}
+
+#[cfg(target_os = "linux")]
+fn spawn_cold_start(target: &LaunchTarget) -> Result<(), SummonError> {
+    cold_start_command(target)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| {
+            let target = match target {
+                LaunchTarget::Sibling(path) => path.display().to_string(),
+                LaunchTarget::Path => "asyar from PATH".to_string(),
+            };
+            SummonError::LaunchFailed(format!("{target}: {error}"))
+        })
+}
+
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
     use std::ffi::OsString;
+    #[cfg(target_os = "linux")]
+    use std::fs;
+    #[cfg(target_os = "linux")]
+    use std::path::PathBuf;
     #[cfg(target_os = "linux")]
     use std::sync::atomic::{AtomicUsize, Ordering};
     #[cfg(target_os = "linux")]
@@ -286,33 +395,270 @@ mod tests {
     }
 
     #[test]
+    fn warm_success_does_not_attempt_cold_launch() {
+        let launches = Cell::new(0);
+
+        let result = run_with(
+            Vec::<OsString>::new(),
+            |_| Ok(()),
+            || {
+                launches.set(launches.get() + 1);
+                Ok(())
+            },
+        );
+
+        assert_eq!(result, Ok(()));
+        assert_eq!(launches.get(), 0);
+    }
+
+    #[test]
+    fn service_unavailable_attempts_cold_launch() {
+        let launches = Cell::new(0);
+
+        let result = run_with(
+            Vec::<OsString>::new(),
+            |_| Err(SummonError::ServiceUnavailable),
+            || {
+                launches.set(launches.get() + 1);
+                Ok(())
+            },
+        );
+
+        assert_eq!(result, Ok(()));
+        assert_eq!(launches.get(), 1);
+    }
+
+    #[test]
+    fn unsafe_failures_never_attempt_cold_launch() {
+        for error in [
+            SummonError::TimedOut,
+            SummonError::CallFailed("failed".to_string()),
+            SummonError::BusUnavailable("unavailable".to_string()),
+            SummonError::UnsupportedPlatform,
+            SummonError::LaunchFailed("failed".to_string()),
+        ] {
+            let launches = Cell::new(0);
+            let result = run_with(
+                Vec::<OsString>::new(),
+                |_| Err(error),
+                || {
+                    launches.set(launches.get() + 1);
+                    Ok(())
+                },
+            );
+
+            assert!(result.is_err());
+            assert_eq!(launches.get(), 0);
+        }
+    }
+
+    #[test]
+    fn invalid_arguments_do_not_invoke_or_launch() {
+        let invokes = Cell::new(0);
+        let launches = Cell::new(0);
+
+        let result = run_with(
+            [OsString::from("--unknown")],
+            |_| {
+                invokes.set(invokes.get() + 1);
+                Ok(())
+            },
+            || {
+                launches.set(launches.get() + 1);
+                Ok(())
+            },
+        );
+
+        assert_eq!(result, Err(SummonError::InvalidArguments));
+        assert_eq!(invokes.get(), 0);
+        assert_eq!(launches.get(), 0);
+    }
+
+    #[test]
+    fn cold_launch_failure_is_returned() {
+        let result = run_with(
+            Vec::<OsString>::new(),
+            |_| Err(SummonError::ServiceUnavailable),
+            || Err(SummonError::LaunchFailed("not found".to_string())),
+        );
+
+        assert_eq!(
+            result,
+            Err(SummonError::LaunchFailed("not found".to_string()))
+        );
+    }
+
+    #[test]
+    fn two_sequential_cold_requests_may_each_request_an_idempotent_show() {
+        let launches = Cell::new(0);
+
+        for _ in 0..2 {
+            run_with(
+                Vec::<OsString>::new(),
+                |_| Err(SummonError::ServiceUnavailable),
+                || {
+                    launches.set(launches.get() + 1);
+                    Ok(())
+                },
+            )
+            .unwrap();
+        }
+
+        assert_eq!(launches.get(), 2);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn valid_sibling_executable_wins() {
+        let fixture = ExecutableFixture::new(true);
+
+        assert_eq!(
+            discover_launch_target(Some(&fixture.helper)),
+            LaunchTarget::Sibling(fixture.sibling.clone())
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn absent_sibling_selects_path_fallback() {
+        let fixture = ExecutableFixture::new(false);
+
+        assert_eq!(
+            discover_launch_target(Some(&fixture.helper)),
+            LaunchTarget::Path
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn non_executable_sibling_selects_path_fallback() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let fixture = ExecutableFixture::new(true);
+        fs::set_permissions(&fixture.sibling, fs::Permissions::from_mode(0o644)).unwrap();
+
+        assert_eq!(
+            discover_launch_target(Some(&fixture.helper)),
+            LaunchTarget::Path
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn sibling_resolving_to_helper_selects_path_fallback() {
+        use std::os::unix::fs::symlink;
+
+        let fixture = ExecutableFixture::new(false);
+        symlink(&fixture.helper, &fixture.sibling).unwrap();
+
+        assert_eq!(
+            discover_launch_target(Some(&fixture.helper)),
+            LaunchTarget::Path
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn cold_commands_use_exact_show_argument() {
+        let fixture = ExecutableFixture::new(true);
+
+        for (target, expected_program) in [
+            (LaunchTarget::Path, OsStr::new("asyar")),
+            (
+                LaunchTarget::Sibling(fixture.sibling.clone()),
+                fixture.sibling.as_os_str(),
+            ),
+        ] {
+            let command = cold_start_command(&target);
+            assert_eq!(command.get_program(), expected_program);
+            assert_eq!(
+                command.get_args().collect::<Vec<_>>(),
+                vec![OsStr::new("--show-on-start")]
+            );
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn cold_child_standard_streams_are_detached() {
+        let fixture = ExecutableFixture::new(true);
+        fs::write(&fixture.sibling, b"#!/bin/sh\nsleep 5\n").unwrap();
+
+        let mut command = cold_start_command(&LaunchTarget::Sibling(fixture.sibling.clone()));
+        let mut child = command.spawn().unwrap();
+        let file_descriptors = (0..=2)
+            .map(|descriptor| {
+                fs::read_link(format!("/proc/{}/fd/{descriptor}", child.id())).unwrap()
+            })
+            .collect::<Vec<_>>();
+        let _ = child.kill();
+        let _ = child.wait();
+
+        assert_eq!(file_descriptors, vec![PathBuf::from("/dev/null"); 3]);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn missing_explicit_launch_target_returns_launch_failed() {
+        let target =
+            LaunchTarget::Sibling(PathBuf::from("/definitely/missing/asyar-stage-four-test"));
+
+        assert!(matches!(
+            spawn_cold_start(&target),
+            Err(SummonError::LaunchFailed(_))
+        ));
+    }
+
+    #[test]
     #[ignore = "requires an isolated D-Bus session"]
     #[cfg(target_os = "linux")]
     fn isolated_session_routes_flavors_classifies_unavailable_and_times_out() {
+        let fallback_attempts = Cell::new(0);
         assert_eq!(
-            run(Vec::<String>::new()),
-            Err(SummonError::ServiceUnavailable)
+            run_with(Vec::<OsString>::new(), summon, || {
+                fallback_attempts.set(fallback_attempts.get() + 1);
+                Ok(())
+            }),
+            Ok(())
         );
+        assert_eq!(fallback_attempts.get(), 1);
 
         let (production_service, production_toggles) =
             start_fake_service(Flavor::Production, Duration::ZERO);
         let (development_service, development_toggles) =
             start_fake_service(Flavor::Development, Duration::ZERO);
 
-        run(Vec::<String>::new()).unwrap();
+        run_with(Vec::<OsString>::new(), summon, || {
+            fallback_attempts.set(fallback_attempts.get() + 1);
+            Ok(())
+        })
+        .unwrap();
         assert_eq!(production_toggles.load(Ordering::SeqCst), 1);
         assert_eq!(development_toggles.load(Ordering::SeqCst), 0);
+        assert_eq!(fallback_attempts.get(), 1);
 
-        run(["--dev"]).unwrap();
+        run_with(["--dev"], summon, || {
+            fallback_attempts.set(fallback_attempts.get() + 1);
+            Ok(())
+        })
+        .unwrap();
         assert_eq!(production_toggles.load(Ordering::SeqCst), 1);
         assert_eq!(development_toggles.load(Ordering::SeqCst), 1);
+        assert_eq!(fallback_attempts.get(), 1);
 
         let development_identity = identity(Flavor::Development);
         assert!(development_service
             .release_name(development_identity.bus_name)
             .unwrap());
         let _failing_service = start_failing_service(Flavor::Development);
-        assert!(matches!(run(["--dev"]), Err(SummonError::CallFailed(_))));
+        assert!(matches!(
+            run_with(["--dev"], summon, || {
+                fallback_attempts.set(fallback_attempts.get() + 1);
+                Ok(())
+            }),
+            Err(SummonError::CallFailed(_))
+        ));
+        assert_eq!(fallback_attempts.get(), 1);
 
         let production_identity = identity(Flavor::Production);
         assert!(production_service
@@ -321,7 +667,14 @@ mod tests {
         let (_slow_service, _) =
             start_fake_service(Flavor::Production, CALL_TIMEOUT.saturating_mul(4));
 
-        assert_eq!(summon(Flavor::Production), Err(SummonError::TimedOut));
+        assert_eq!(
+            run_with(Vec::<OsString>::new(), summon, || {
+                fallback_attempts.set(fallback_attempts.get() + 1);
+                Ok(())
+            }),
+            Err(SummonError::TimedOut)
+        );
+        assert_eq!(fallback_attempts.get(), 1);
     }
 
     #[cfg(target_os = "linux")]
@@ -373,4 +726,49 @@ mod tests {
 
         connection
     }
+
+    #[cfg(target_os = "linux")]
+    struct ExecutableFixture {
+        directory: PathBuf,
+        helper: PathBuf,
+        sibling: PathBuf,
+    }
+
+    #[cfg(target_os = "linux")]
+    impl ExecutableFixture {
+        fn new(create_sibling: bool) -> Self {
+            use std::os::unix::fs::PermissionsExt;
+
+            let directory = std::env::temp_dir().join(format!(
+                "asyar-summon-stage4-{}-{}",
+                std::process::id(),
+                TEST_FIXTURE_ID.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&directory).unwrap();
+            let helper = directory.join("asyar-summon");
+            fs::write(&helper, b"helper").unwrap();
+            fs::set_permissions(&helper, fs::Permissions::from_mode(0o755)).unwrap();
+            let sibling = directory.join("asyar");
+            if create_sibling {
+                fs::write(&sibling, b"asyar").unwrap();
+                fs::set_permissions(&sibling, fs::Permissions::from_mode(0o755)).unwrap();
+            }
+
+            Self {
+                directory,
+                helper,
+                sibling,
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    impl Drop for ExecutableFixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.directory);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    static TEST_FIXTURE_ID: AtomicUsize = AtomicUsize::new(0);
 }
