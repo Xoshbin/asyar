@@ -212,6 +212,19 @@ pub fn apply_linux_webkit_dmabuf_workaround() {
     }
 }
 
+/// Pure decision logic for skipping snap-guides click-through configuration on Linux (issue #672).
+///
+/// On Linux (both X11 and Wayland), the snap-guides overlay is created with `visible: false`.
+/// An unmapped GTK window does not have an underlying GdkWindow surface yet (until realized/shown).
+/// Calling `set_ignore_cursor_events` dispatches `CursorIgnoreEvents` to tao's GTK event loop,
+/// which performs `window.window().unwrap()` and panics in an `extern "C"` FFI callback,
+/// causing a fatal non-unwinding abort.
+///
+/// Returns `true` if click-through initialization at startup should be skipped.
+fn should_skip_snap_guides_click_through(is_linux: bool) -> bool {
+    is_linux
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Build the MCP transport factory before entering the builder chain. Its
@@ -1376,20 +1389,17 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // The snap-guides overlay must never intercept the drag it's decorating
     // — click-through once at startup, not per-drag.
     //
-    // Skipped on Wayland: the overlay is declared `visible: false`, and an
-    // unmapped GTK window has no GDK surface there (X11 realises one much
-    // earlier). tao's CursorIgnoreEvents handler does `window.window().unwrap()`
-    // — see tao/src/platform_impl/linux/event_loop.rs — so the call aborts the
-    // whole process, and it aborts rather than returning Err because the panic
-    // happens on the event-loop thread in a non-unwinding context. The `Err`
-    // arm below can never catch it.
-    let skip_click_through = cfg!(target_os = "linux")
-        && std::env::var_os("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty());
+    // Skipped on Linux (issue #672): the overlay is declared `visible: false`,
+    // and an unmapped GTK window has no GDK surface yet on either X11 or
+    // Wayland (until realized/shown). tao's CursorIgnoreEvents handler does
+    // `window.window().unwrap()` — see tao/src/platform_impl/linux/event_loop.rs —
+    // so calling this at startup aborts the whole process with a non-unwinding
+    // panic on the event-loop thread.
+    let skip_click_through = should_skip_snap_guides_click_through(cfg!(target_os = "linux"));
     if skip_click_through {
         log::warn!(
-            "[snap-guides] Wayland session: skipping set_ignore_cursor_events \
-             on the hidden overlay (would abort the process). The overlay may \
-             intercept pointer events during a launcher drag."
+            "[snap-guides] Linux session: skipping set_ignore_cursor_events \
+             on the hidden overlay (would abort the process in tao)."
         );
     } else if let Some(guides_window) =
         handle.get_webview_window(crate::snap_guides::service::SNAP_GUIDES_WINDOW_LABEL)
@@ -2800,5 +2810,22 @@ mod linux_webkit_dmabuf_workaround_tests {
     #[test]
     fn does_nothing_on_non_linux() {
         assert_eq!(linux_webkit_dmabuf_env_var(false), None);
+    }
+}
+
+#[cfg(test)]
+mod snap_guides_click_through_tests {
+    use super::should_skip_snap_guides_click_through;
+
+    // Issue #672: Calling `set_ignore_cursor_events(true)` on a hidden GTK window
+    // panics in tao on both X11 and Wayland.
+    #[test]
+    fn skips_click_through_on_linux() {
+        assert!(should_skip_snap_guides_click_through(true));
+    }
+
+    #[test]
+    fn enables_click_through_on_non_linux() {
+        assert!(!should_skip_snap_guides_click_through(false));
     }
 }
