@@ -149,6 +149,7 @@ pub mod files_scope;
 pub mod fs_watcher;
 pub mod hud_window;
 pub mod index_events;
+mod launcher;
 pub mod launcher_placement;
 pub mod locale;
 pub mod mcp;
@@ -238,6 +239,8 @@ pub fn run() {
         mcp_factory,
         mcp::SupervisorConfig::default(),
     ));
+    let launcher_coordinator = std::sync::Arc::new(launcher::LauncherCoordinator::new());
+    let single_instance_coordinator = launcher_coordinator.clone();
 
     let builder = tauri::Builder::default()
         // Single-instance must be the FIRST plugin: it intercepts a second
@@ -245,26 +248,28 @@ pub fn run() {
         // feature) forwards that instance's asyar:// URL argv into on_open_url
         // — the only way a deep link reaches an already-running app on
         // Windows/Linux.
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            // A bare re-exec (`asyar` with no URL argv) is a summon request:
-            // it is the only way a Wayland compositor can drive the launcher,
-            // since the X11 key grab behind tauri-plugin-global-shortcut never
-            // sees keystrokes there. Bind a compositor key to the binary and
-            // this callback toggles the already-running instance.
-            //
-            // Skip when argv carries an asyar:// URL — those instances exist to
-            // deliver a deep link, and the deep-link handler decides on its own
-            // whether to reveal the window (view commands do, background ones
-            // do not). Toggling here would fight that, and would *hide* the
-            // launcher whenever a deep link arrived while it was open.
-            let scheme = deeplink::deep_link_scheme(app);
-            let carries_deeplink = args
-                .iter()
-                .any(|arg| arg.starts_with(&format!("{scheme}://")));
-            if !carries_deeplink {
-                commands::toggle_launcher(app);
-            }
-        }))
+        .plugin(tauri_plugin_single_instance::init(
+            move |app, args, _cwd| {
+                // A bare re-exec (`asyar` with no URL argv) is a summon request:
+                // it is the only way a Wayland compositor can drive the launcher,
+                // since the X11 key grab behind tauri-plugin-global-shortcut never
+                // sees keystrokes there. Bind a compositor key to the binary and
+                // this callback toggles the already-running instance.
+                //
+                // Skip when argv carries an asyar:// URL — those instances exist to
+                // deliver a deep link, and the deep-link handler decides on its own
+                // whether to reveal the window (view commands do, background ones
+                // do not). Toggling here would fight that, and would *hide* the
+                // launcher whenever a deep link arrived while it was open.
+                if let Some(action) =
+                    launcher::classify_secondary_launch(&args, deeplink::deep_link_scheme(app))
+                {
+                    if let Err(error) = single_instance_coordinator.request(action) {
+                        log::warn!("[launcher] failed to queue secondary launch action: {error}");
+                    }
+                }
+            },
+        ))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_clipboard_x::init())
@@ -372,6 +377,7 @@ pub fn run() {
         .manage(feedback::channel::FeedbackChannelState::default())
         .manage(feedback::PendingCrash::default())
         .manage(locale::LocaleService::new())
+        .manage(launcher_coordinator)
         .manage(crate::agents::cache::AgentResponseCache::default())
         .manage(AppState {
             focus_locked: AtomicBool::new(false),
@@ -1133,6 +1139,22 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // one-shot.
     if commands::perform_pending_factory_reset_if_marked(app.handle()) {
         log::warn!("[setup_app] factory reset performed; continuing fresh boot");
+    }
+
+    let launcher_coordinator = app
+        .state::<std::sync::Arc<launcher::LauncherCoordinator>>()
+        .inner()
+        .clone();
+    launcher_coordinator
+        .attach_app(app.handle().clone())
+        .map_err(|error| format!("failed to attach launcher coordinator: {error}"))?;
+    let initial_args = std::env::args().collect::<Vec<_>>();
+    if let Some(action) =
+        launcher::classify_initial_launch(&initial_args, deeplink::deep_link_scheme(app.handle()))
+    {
+        launcher_coordinator
+            .request(action)
+            .map_err(|error| format!("failed to queue initial launcher action: {error}"))?;
     }
 
     // Must run before any window/webview is created — WKWebView reads this
@@ -2408,6 +2430,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
         app.manage(bridge_state);
     }
+
+    launcher_coordinator
+        .mark_ready()
+        .map_err(|error| format!("failed to mark launcher coordinator ready: {error}"))?;
 
     Ok(())
 }
