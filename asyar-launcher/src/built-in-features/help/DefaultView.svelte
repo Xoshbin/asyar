@@ -3,9 +3,21 @@
   import { LAUNCHER_SHORTCUTS } from '../../lib/keyboard/shortcutCatalog';
   import Icon from '../../components/base/Icon.svelte';
   import { getBuiltInIconName, isBuiltInIcon } from '../../lib/iconUtils';
+  import { scrollSelectedIntoView } from '../../lib/listScroll';
+
+  let listEl = $state<HTMLDivElement | undefined>();
+
+  // Keyboard selection lives in helpViewState; keep the selected topic row visible.
+  $effect(() => {
+    const index = helpViewState.selectedIndex;
+    if (!listEl || helpViewState.filtered.length === 0) return;
+    requestAnimationFrame(() => {
+      if (listEl) scrollSelectedIntoView(listEl, index);
+    });
+  });
 </script>
 
-<div class="help-view custom-scrollbar">
+<div class="help-view custom-scrollbar" bind:this={listEl}>
   <section class="cheat-sheet">
     <h2 class="section-title">Keyboard Shortcuts</h2>
     <ul class="shortcut-list">
@@ -24,7 +36,7 @@
     <h2 class="section-title">Feature Guides</h2>
     <ul class="topic-list">
       {#each helpViewState.filtered as topic, i}
-        <li class="topic-row" class:selected={i === helpViewState.selectedIndex}>
+        <li class="topic-row" class:selected={i === helpViewState.selectedIndex} data-index={i}>
           {#if isBuiltInIcon(topic.icon)}
             <Icon name={getBuiltInIconName(topic.icon)} />
           {/if}
