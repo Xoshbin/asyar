@@ -1,4 +1,11 @@
-# Local dev-only runtime binaries
+# External and local-development binaries
+
+Linux release bundling automatically builds `asyar-summon` and stages it here
+with its Rust target-triple suffix. Tauri packages that generated executable as
+`asyar-summon`; the staged file remains gitignored.
+
+The runtime binaries described below remain local-development conveniences and
+are not bundled.
 
 Asyar no longer bundles `bun`, `uv`, or `claude` at build time — they're
 downloaded on demand at runtime by `RuntimeManager`
@@ -29,9 +36,8 @@ manually, named with the Rust target triple suffix:
 | Windows x86_64 | `-x86_64-pc-windows-msvc.exe`  |
 | Windows arm64  | `-aarch64-pc-windows-msvc.exe` |
 
-e.g. `bun-aarch64-apple-darwin`. This is purely a local convenience — nothing
-populates this directory automatically, and it is not part of any shipped
-build (`tauri.conf.json` no longer declares `externalBin`).
+e.g. `bun-aarch64-apple-darwin`. This is purely a local convenience. The global
+`tauri.conf.json` does not declare these runtime binaries as `externalBin`.
 
 ## Why these runtimes?
 

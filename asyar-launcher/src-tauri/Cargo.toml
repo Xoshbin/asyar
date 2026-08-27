@@ -11,6 +11,9 @@ members = [".", "asyar-summon"]
 default-members = ["."]
 resolver = "2"
 
+[profile.release.package.asyar-summon]
+strip = "symbols"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
@@ -23,6 +26,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 semver = "1"
+serde_json = "1"
 
 [dependencies]
 percent-encoding = "2.3"

@@ -3,6 +3,8 @@ use std::path::PathBuf;
 fn main() {
     let base_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
 
+    omit_missing_linux_external_binary(&base_dir);
+
     // Expose the build-time target triple to the crate so process.rs can locate
     // the `tauri dev` sidecar/binary layout (`binaries/<name>-<triple>`). Baked
     // at compile time; in a shipped binary the production resource paths match
@@ -146,6 +148,54 @@ fn main() {
             .windows_attributes(tauri_build::WindowsAttributes::new_without_app_manifest());
     }
     tauri_build::try_build(attributes).expect("failed to run tauri-build");
+}
+
+/// Direct Cargo operations do not run Tauri's before-build hook. Suppress the
+/// Linux-only sidecar when its target-specific staged file is absent; a Tauri
+/// build provisions that file first and therefore preserves the sidecar in
+/// both debug and release builds.
+fn omit_missing_linux_external_binary(base_dir: &std::path::Path) {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("linux") {
+        return;
+    }
+
+    let target = std::env::var("TARGET").expect("TARGET env var not set");
+    if !matches!(
+        target.as_str(),
+        "x86_64-unknown-linux-gnu" | "aarch64-unknown-linux-gnu"
+    ) {
+        return;
+    }
+
+    let staged_helper = base_dir
+        .join("binaries")
+        .join(format!("asyar-summon-{target}"));
+    println!("cargo:rerun-if-changed={}", staged_helper.display());
+    if staged_helper.is_file() {
+        return;
+    }
+
+    let mut overlay = std::env::var("TAURI_CONFIG")
+        .map(|value| serde_json::from_str(&value).expect("TAURI_CONFIG must be valid JSON"))
+        .unwrap_or_else(|_| serde_json::json!({}));
+    let overlay = overlay
+        .as_object_mut()
+        .expect("TAURI_CONFIG must be a JSON object");
+    let bundle = overlay
+        .entry("bundle")
+        .or_insert_with(|| serde_json::json!({}))
+        .as_object_mut()
+        .expect("TAURI_CONFIG bundle must be a JSON object");
+    // The Linux platform config currently declares only asyar-summon, enforced
+    // by external-bin-provisioning.test.mjs. JSON Merge Patch replaces arrays,
+    // so an empty overlay is the narrow simple option until another sidecar is
+    // deliberately added to that config.
+    bundle.insert("externalBin".into(), serde_json::json!([]));
+
+    std::env::set_var(
+        "TAURI_CONFIG",
+        serde_json::to_string(&overlay).expect("TAURI_CONFIG overlay must serialize"),
+    );
 }
 
 /// Recursively copy the capability spec tree, skipping dev-only `*.test.ts`
