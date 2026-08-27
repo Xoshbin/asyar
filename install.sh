@@ -38,11 +38,15 @@ esac
 TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/asyar-install.XXXXXX")
 MOUNTED=0
 mount_point="$TMP_DIR/mnt"
+linux_app_tmp=""
+linux_helper_tmp=""
 
 cleanup() {
   if [ "$MOUNTED" = "1" ]; then
     hdiutil detach "$mount_point" -quiet >/dev/null 2>&1 || true
   fi
+  [ -z "$linux_app_tmp" ] || rm -f "$linux_app_tmp"
+  [ -z "$linux_helper_tmp" ] || rm -f "$linux_helper_tmp"
   rm -rf "$TMP_DIR"
 }
 trap cleanup EXIT INT TERM
@@ -78,14 +82,23 @@ case "$platform" in
     ;;
   linux)
     case "$arch" in
-      aarch64) asset_url=$(find_asset_url '_aarch64\.AppImage"') ;;
-      x86_64) asset_url=$(find_asset_url '_amd64\.AppImage"') ;;
+      aarch64)
+        asset_url=$(find_asset_url '_aarch64\.AppImage"')
+        helper_url=$(find_asset_url 'asyar-summon_aarch64"')
+        ;;
+      x86_64)
+        asset_url=$(find_asset_url '_amd64\.AppImage"')
+        helper_url=$(find_asset_url 'asyar-summon_amd64"')
+        ;;
       *) err "Unsupported Linux architecture: $arch" ;;
     esac
     ;;
 esac
 
 [ -n "$asset_url" ] || err "Could not find a release asset for ${platform}/${arch}"
+if [ "$platform" = "linux" ]; then
+  [ -n "$helper_url" ] || err "Could not find the summon helper for Linux/${arch}"
+fi
 
 asset_file=$(printf '%s' "$asset_url" | sed 's#.*/##')
 version=$(printf '%s' "$asset_file" | sed -E 's/^asyar_([^_]+)_.*/\1/')
@@ -120,15 +133,33 @@ case "$platform" in
     ;;
   linux)
     target="$INSTALL_DIR/asyar"
+    helper_target="$INSTALL_DIR/asyar-summon"
+    [ ! -d "$target" ] || err "Installation target is a directory: ${target}"
+    [ ! -d "$helper_target" ] || err "Summon helper target is a directory: ${helper_target}"
     if [ -e "$target" ]; then
       log "Found an existing install at ${target} — it will be replaced."
     fi
+    if [ -e "$helper_target" ]; then
+      log "Found an existing summon helper at ${helper_target} — it will be replaced."
+    fi
 
     mkdir -p "$INSTALL_DIR"
-    curl -fsSL -o "$target" "$asset_url"
-    chmod +x "$target"
+    linux_app_tmp=$(mktemp "$INSTALL_DIR/.asyar.XXXXXX")
+    linux_helper_tmp=$(mktemp "$INSTALL_DIR/.asyar-summon.XXXXXX")
 
-    log "Installed to ${target}"
+    curl -fsSL -o "$linux_app_tmp" "$asset_url"
+    curl -fsSL -o "$linux_helper_tmp" "$helper_url"
+    [ -s "$linux_app_tmp" ] || err "Downloaded AppImage is empty"
+    [ -s "$linux_helper_tmp" ] || err "Downloaded summon helper is empty"
+    chmod 0755 "$linux_app_tmp" "$linux_helper_tmp"
+
+    mv -f "$linux_app_tmp" "$target"
+    linux_app_tmp=""
+    mv -f "$linux_helper_tmp" "$helper_target"
+    linux_helper_tmp=""
+
+    log "Installed Asyar to ${target}"
+    log "Installed summon helper to ${helper_target}"
     case ":$PATH:" in
       *":$INSTALL_DIR:"*) ;;
       *)
@@ -137,5 +168,6 @@ case "$platform" in
         ;;
     esac
     log "Run it with: asyar"
+    log "Use asyar-summon for a lightweight Linux global shortcut."
     ;;
 esac

@@ -8,6 +8,14 @@ import { runLinuxBuild } from './build-linux.mjs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TAURI_CONF = resolve(__dirname, '..', 'src-tauri', 'tauri.conf.json');
 const TAURI_LINUX_CONF = resolve(__dirname, '..', 'src-tauri', 'tauri.linux.conf.json');
+const RELEASE_WORKFLOW = resolve(
+  __dirname,
+  '..',
+  '..',
+  '.github',
+  'workflows',
+  'release-launcher.yml',
+);
 
 // Sidecars (bun/uv/claude) are no longer build-time-bundled via Tauri
 // `externalBin` — they're downloaded on demand at first use by
@@ -117,5 +125,20 @@ describe('Linux build wrapper', () => {
     ]);
     expect(calls.flatMap((call) => call.args ?? [])).not.toContain('tauri');
     expect(calls).not.toContainEqual(expect.objectContaining({ command: 'node' }));
+  });
+});
+
+describe('standalone summon release assets', () => {
+  it.each([
+    ['x86_64-unknown-linux-gnu', 'asyar-summon-x86_64-unknown-linux-gnu', 'asyar-summon_amd64'],
+    ['aarch64-unknown-linux-gnu', 'asyar-summon-aarch64-unknown-linux-gnu', 'asyar-summon_aarch64'],
+  ])('keeps the source and public name together for %s', (target, source, asset) => {
+    const workflow = readFileSync(RELEASE_WORKFLOW, 'utf8');
+
+    expect(workflow).toMatch(
+      new RegExp(
+        `rust-target: ${target}\\n\\s+summon-source: ${source}\\n\\s+summon-asset: ${asset}`,
+      ),
+    );
   });
 });

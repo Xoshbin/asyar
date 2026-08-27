@@ -229,10 +229,14 @@ jobs:
           - arch: amd64
             runner: ubuntu-latest
             rust-target: x86_64-unknown-linux-gnu
+            summon-source: asyar-summon-x86_64-unknown-linux-gnu
+            summon-asset: asyar-summon_amd64
             artifact-name: linux-amd64-artifacts
           - arch: arm64
             runner: ubuntu-24.04-arm
             rust-target: aarch64-unknown-linux-gnu
+            summon-source: asyar-summon-aarch64-unknown-linux-gnu
+            summon-asset: asyar-summon_aarch64
             artifact-name: linux-arm64-artifacts
     defaults:
       run:
@@ -304,6 +308,10 @@ jobs:
           LDAI_UPDATE_INFORMATION: 'gh-releases-zsync|Xoshbin|asyar|latest|*${{ matrix.arch }}*.AppImage.zsync'
         run: |
           pnpm tauri build -v --target ${{ matrix.rust-target }}
+          SUMMON_SOURCE="src-tauri/binaries/${{ matrix.summon-source }}"
+          SUMMON_ASSET="src-tauri/target/${{ matrix.rust-target }}/release/${{ matrix.summon-asset }}"
+          test -x "$SUMMON_SOURCE"
+          install -m 0755 "$SUMMON_SOURCE" "$SUMMON_ASSET"
           cd src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage
           for f in *.AppImage; do
             if [ -f "$f" ] && [ ! -f "$f.zsync" ]; then
@@ -321,6 +329,7 @@ jobs:
             asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage/*.AppImage.sig
             asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage/*.zsync
             asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/bundle/deb/*.deb
+            asyar-launcher/src-tauri/target/${{ matrix.rust-target }}/release/${{ matrix.summon-asset }}
 
   publish:
     needs: [build-macos, build-windows, build-linux]
@@ -369,6 +378,7 @@ jobs:
             artifacts/**/*.zsync
             artifacts/**/*.deb
             artifacts/**/*.zip
+            artifacts/**/asyar-summon_*
           draft: false
           prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
           generate_release_notes: true
