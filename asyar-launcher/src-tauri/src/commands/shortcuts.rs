@@ -3,6 +3,7 @@
 //! Handles registering, unregistering, pausing, and persisting shortcuts.
 
 use crate::error::AppError;
+use crate::launcher::LauncherAction;
 use crate::AppState;
 use crate::SPOTLIGHT_LABEL;
 use log::info;
@@ -501,18 +502,21 @@ pub fn toggle_launcher(app: &tauri::AppHandle) {
         // Branch on the logical flag, NOT panel.is_visible(): a parked panel
         // is ordered in (isVisible == true) even though the user perceives it
         // as hidden, so the NSWindow check would make the toggle hide-only.
-        if state.asyar_visible.load(Ordering::Relaxed) {
+        if !launcher_visibility_after(
+            LauncherAction::Toggle,
+            state.asyar_visible.load(Ordering::Relaxed),
+        ) {
             state.asyar_visible.store(false, Ordering::Relaxed);
             crate::platform::macos::park_launcher_panel(&window, &panel);
         } else {
-            state.asyar_visible.store(true, Ordering::Relaxed);
-            crate::platform::macos::reveal_launcher_panel(&window, &panel);
+            reveal_launcher(&state, &window, &panel);
         }
     }
 
     #[cfg(not(target_os = "macos"))]
     {
-        if window.is_visible().unwrap_or(false) {
+        let currently_visible = window.is_visible().unwrap_or(false);
+        if !launcher_visibility_after(LauncherAction::Toggle, currently_visible) {
             state.asyar_visible.store(false, Ordering::Relaxed);
             let _ = window.hide();
             #[cfg(target_os = "windows")]
@@ -521,21 +525,80 @@ pub fn toggle_launcher(app: &tauri::AppHandle) {
             }
         } else {
             #[cfg(target_os = "windows")]
+            if should_capture_foreground(LauncherAction::Toggle, currently_visible) {
+                if let Ok(mut hwnd) = state.previous_hwnd.lock() {
+                    *hwnd = crate::platform::windows::capture_foreground_window();
+                }
+            }
+            reveal_launcher(&state, &window);
+        }
+    }
+}
+
+/// Reveals and focuses the launcher without hiding it when it is already visible.
+pub(crate) fn show_spotlight_launcher(app: &tauri::AppHandle) {
+    let state = app.state::<AppState>();
+    let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) else {
+        log::warn!("[show_spotlight_launcher] no window labelled {SPOTLIGHT_LABEL}");
+        return;
+    };
+
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_nspanel::ManagerExt;
+        let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) else {
+            log::warn!("[show_spotlight_launcher] no panel labelled {SPOTLIGHT_LABEL}");
+            return;
+        };
+        reveal_launcher(&state, &window, &panel);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        #[cfg(target_os = "windows")]
+        if should_capture_foreground(LauncherAction::Show, window.is_visible().unwrap_or(false)) {
             if let Ok(mut hwnd) = state.previous_hwnd.lock() {
                 *hwnd = crate::platform::windows::capture_foreground_window();
             }
-            state.asyar_visible.store(true, Ordering::Relaxed);
-            #[cfg(target_os = "windows")]
-            let _ = crate::platform::windows::setup_spotlight_window(&window);
-            #[cfg(target_os = "linux")]
-            let _ = crate::platform::linux::setup_spotlight_window(&window);
-
-            let _ = window.show();
-            let _ = window.set_focus();
-            #[cfg(target_os = "linux")]
-            crate::mark_launcher_shown(&state);
         }
+        reveal_launcher(&state, &window);
     }
+}
+
+#[cfg(target_os = "macos")]
+fn reveal_launcher(
+    state: &tauri::State<'_, AppState>,
+    window: &tauri::WebviewWindow,
+    panel: &tauri_nspanel::Panel,
+) {
+    state.asyar_visible.store(true, Ordering::Relaxed);
+    crate::platform::macos::reveal_launcher_panel(window, panel);
+}
+
+#[cfg(not(target_os = "macos"))]
+fn reveal_launcher(state: &tauri::State<'_, AppState>, window: &tauri::WebviewWindow) {
+    state.asyar_visible.store(true, Ordering::Relaxed);
+    #[cfg(target_os = "windows")]
+    let _ = crate::platform::windows::setup_spotlight_window(window);
+    #[cfg(target_os = "linux")]
+    let _ = crate::platform::linux::setup_spotlight_window(window);
+
+    let _ = window.show();
+    let _ = window.set_focus();
+    #[cfg(target_os = "linux")]
+    crate::mark_launcher_shown(state);
+}
+
+fn launcher_visibility_after(action: LauncherAction, currently_visible: bool) -> bool {
+    match action {
+        LauncherAction::Show => true,
+        LauncherAction::Toggle => !currently_visible,
+    }
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn should_capture_foreground(action: LauncherAction, currently_visible: bool) -> bool {
+    matches!(action, LauncherAction::Toggle | LauncherAction::Show) && !currently_visible
 }
 
 /// Returns the currently persisted global shortcut configuration from disk.
@@ -695,6 +758,36 @@ pub(crate) fn canonicalize_shortcut(shortcut_str: &str) -> Result<String, AppErr
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn show_hidden_becomes_visible() {
+        assert!(launcher_visibility_after(LauncherAction::Show, false));
+    }
+
+    #[test]
+    fn show_visible_remains_visible() {
+        assert!(launcher_visibility_after(LauncherAction::Show, true));
+    }
+
+    #[test]
+    fn toggle_hidden_becomes_visible() {
+        assert!(launcher_visibility_after(LauncherAction::Toggle, false));
+    }
+
+    #[test]
+    fn toggle_visible_becomes_hidden() {
+        assert!(!launcher_visibility_after(LauncherAction::Toggle, true));
+    }
+
+    #[test]
+    fn hidden_show_captures_previous_foreground_window() {
+        assert!(should_capture_foreground(LauncherAction::Show, false));
+    }
+
+    #[test]
+    fn visible_show_does_not_replace_previous_foreground_window() {
+        assert!(!should_capture_foreground(LauncherAction::Show, true));
+    }
     use tauri_plugin_global_shortcut::Code;
 
     // --- get_code_from_string ---

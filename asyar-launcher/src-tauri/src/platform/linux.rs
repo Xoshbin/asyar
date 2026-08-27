@@ -1,4 +1,6 @@
 pub mod desktop_entry;
+#[cfg(target_os = "linux")]
+pub(crate) mod launcher_dbus;
 pub use desktop_entry::*;
 
 use std::path::{Path, PathBuf};

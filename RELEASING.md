@@ -59,6 +59,12 @@ pnpm run release <patch|minor|major|beta>
 
 > The Rust `SUPPORTED_SDK_VERSION` is **not** set by the release script — `src-tauri/build.rs` injects it at compile time from the local `asyar-sdk/package.json`, so it can never drift.
 
+Linux builds also publish the standalone summon helpers `asyar-summon_amd64`
+and `asyar-summon_aarch64`. `install.sh` installs the matching helper beside the
+AppImage, and re-running it refreshes both files. The versioned
+`org.asyar.Launcher1` interface and `--show-on-start` argument must remain
+backward compatible because the AppImage updater does not update the helper.
+
 ### Manual step after CI
 
 The tag triggers the build from the `release/vX.Y.Z` branch, so the installers always carry the correct version even before the PR is merged. After CI is green:
