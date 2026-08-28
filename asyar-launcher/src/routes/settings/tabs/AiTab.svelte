@@ -658,14 +658,20 @@
                   <div class="card-field">
                     <div class="field-header-row">
                       <label class="field-label" for="temp-{providerId}">
-                        Temperature: {(config.temperature ?? 0.7).toFixed(2)}
+                        Temperature: {config.temperature !== undefined
+                          ? config.temperature.toFixed(2)
+                          : 'Model default'}
+                        {#if config.temperature === undefined}
+                          <span class="field-hint">(omitted)</span>
+                        {/if}
                       </label>
-                      {#if config.temperature !== undefined && config.temperature !== 0.7}
+                      {#if config.temperature !== undefined}
                         <button
                           class="text-btn"
-                          onclick={() => updateProviderConfig(providerId, { temperature: 0.7 })}
+                          onclick={() =>
+                            updateProviderConfig(providerId, { temperature: undefined })}
                         >
-                          Reset (0.70)
+                          Use model default
                         </button>
                       {/if}
                     </div>

@@ -170,7 +170,7 @@ mod tests {
             }],
             ChatParams {
                 model_id: "test".to_string(),
-                temperature: 0.7,
+                temperature: Some(0.7),
                 max_tokens: 100,
                 system_prompt: None,
                 tools: None,

@@ -32,7 +32,7 @@ fn chat_message(role: &str, content: &str) -> crate::ai::types::ChatMessage {
 fn run_config(
     provider_id: &str,
     provider: crate::ai::types::ProviderConfig,
-    temperature: f64,
+    temperature: Option<f64>,
     max_tokens: u32,
 ) -> AgentRunConfig {
     AgentRunConfig {
@@ -212,7 +212,7 @@ async fn test_silent_runner_rejects_non_silent_agent() {
         &agent,
         &ToolRegistry::new(),
         "hello".to_string(),
-        run_config("openai", provider, 0.7, 2048),
+        run_config("openai", provider, Some(0.7), 2048),
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
         None,
@@ -282,7 +282,7 @@ async fn run_shortcode_miss_with_mocked_reply(reply_chunks: &[&str]) -> String {
         &shortcode_miss_agent(),
         &ToolRegistry::new(),
         "party".to_string(),
-        run_config("openai", provider, 0.7, 2048),
+        run_config("openai", provider, Some(0.7), 2048),
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
         None,
@@ -367,7 +367,7 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
         "thread-2",
         "hello".to_string(),
         None,
-        run_config("openai", provider, 0.7, 2048),
+        run_config("openai", provider, Some(0.7), 2048),
         |_| {},
         |_| async { Err(AppError::Other("unexpected tool dispatch".to_string())) },
         None,
@@ -478,7 +478,7 @@ async fn test_run_thread_loop_text_only() {
         &thread_id,
         "Hello".to_string(),
         None,
-        run_config("openai", config, 0.25, 123),
+        run_config("openai", config, Some(0.25), 123),
         on_event,
         |_| async {
             Err(AppError::Other(
@@ -628,7 +628,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
         &thread_id,
         "Calculate".to_string(),
         None,
-        run_config("openai", config, 0.7, 2048),
+        run_config("openai", config, Some(0.7), 2048),
         on_event,
         |_| async {
             Err(AppError::Other(
@@ -771,7 +771,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
         &thread_id,
         "Run extension".to_string(),
         None,
-        run_config("openai", config, 0.7, 2048),
+        run_config("openai", config, Some(0.7), 2048),
         on_event,
         move |request| {
             events_for_dispatch
@@ -898,7 +898,7 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
         &registry,
         &agent_id,
         "helo".to_string(),
-        run_config("openai", config, 0.7, 2048),
+        run_config("openai", config, Some(0.7), 2048),
         |_| {},
         |_| async {
             Err(AppError::Other(
