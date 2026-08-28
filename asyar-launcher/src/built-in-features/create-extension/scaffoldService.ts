@@ -38,7 +38,7 @@ async function getLatestSdkVersion(): Promise<string> {
       return `^${output.stdout.trim()}`;
     }
   } catch {}
-  return '^4.9.0'; // Offline fallback
+  return '^4.10.0'; // Offline fallback
 }
 
 // ── Shared templates (all non-theme types) ──────────────────────────────────
