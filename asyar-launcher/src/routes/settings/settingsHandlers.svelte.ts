@@ -41,6 +41,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     startAtLogin: false,
     showDockIcon: false,
     showTrayIcon: true,
+    escapeInViewBehavior: 'go-back',
   },
   search: {
     searchApplications: true,
@@ -64,6 +65,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   extensions: {
     enabled: {},
+    autoUpdate: true,
   },
   onboarding: {
     completed: false,
@@ -552,6 +554,24 @@ export class SettingsHandler {
       logService.error(`Failed to update extension actions setting: ${error}`);
       this.saveError = true;
       this.saveMessage = 'Failed to update extension actions setting';
+      setTimeout(() => {
+        this.saveMessage = '';
+        this.saveError = false;
+      }, 3000);
+    }
+  }
+
+  async handleExtensionAutoUpdateToggle() {
+    try {
+      const autoUpdate = this.settings.extensions?.autoUpdate !== false;
+      const success = await settingsService.updateSettings('extensions', {
+        autoUpdate: !autoUpdate,
+      });
+      if (!success) throw new Error('Failed to update extension auto-update setting');
+    } catch (error) {
+      logService.error(`Failed to update extension auto-update setting: ${error}`);
+      this.saveError = true;
+      this.saveMessage = 'Failed to update auto-update setting';
       setTimeout(() => {
         this.saveMessage = '';
         this.saveError = false;
