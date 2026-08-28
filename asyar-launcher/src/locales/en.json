@@ -286,7 +286,14 @@
       "test_and_fetch": "Test & Fetch Models",
       "fetching": "Fetching…",
       "back_to_list": "Back to list",
-      "choose_provider": "Choose provider…"
+      "choose_provider": "Choose provider…",
+      "select_model": "Select a model…",
+      "filter_models": "Filter models…",
+      "no_models_available": "No models available",
+      "no_models_matching": "No models matching \"{query}\"",
+      "use_custom_model": "Use custom model \"{query}\"",
+      "enter_custom_model": "Enter custom model ID…",
+      "custom_model_badge": "custom"
     },
     "applications": {
       "no_match": "No applications match your filter",
