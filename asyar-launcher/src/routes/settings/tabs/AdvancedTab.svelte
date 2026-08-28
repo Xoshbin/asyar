@@ -1,7 +1,6 @@
 <script lang="ts">
   import { SettingsCard, SettingsRow, Toggle, SegmentedControl } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
-  import { settingsService } from '../../../services/settings/settingsService.svelte';
   import ScheduledTasksSection from '../../../components/settings/ScheduledTasksSection.svelte';
   import RuntimesSection from '../../../components/settings/RuntimesSection.svelte';
   import {
@@ -30,27 +29,7 @@
     }
   }
 
-  let autoUpdate = $derived(
-    (settingsService.settings.extensions as Record<string, unknown> | undefined)?.autoUpdate !==
-      false,
-  );
-
-  async function toggleAutoUpdate() {
-    await settingsService.set('extensions.autoUpdate', !autoUpdate);
-  }
-
   type EscapeBehavior = 'hide-and-reset' | 'go-back' | 'close-window';
-
-  let escapeValue = $state<EscapeBehavior>(
-    handler.settings.general?.escapeBehavior ?? 'hide-and-reset',
-  );
-
-  $effect(() => {
-    const current = handler.settings.general?.escapeBehavior ?? 'hide-and-reset';
-    if (escapeValue !== current) {
-      handler.updateEscapeBehavior(escapeValue);
-    }
-  });
 </script>
 
 <div class="section-header">{t('settings.advanced.section_extension_surface')}</div>
@@ -61,7 +40,7 @@
       description={t('settings.advanced.extension_search_description')}
     >
       <Toggle
-        checked={handler.settings.search.enableExtensionSearch}
+        checked={handler.settings.search?.enableExtensionSearch ?? false}
         onchange={() => handler.handleExtensionSearchToggle()}
       />
     </SettingsRow>
@@ -70,7 +49,7 @@
       description={t('settings.advanced.extension_actions_description')}
     >
       <Toggle
-        checked={handler.settings.search.allowExtensionActions}
+        checked={handler.settings.search?.allowExtensionActions ?? false}
         onchange={() => handler.handleExtensionActionsToggle()}
       />
     </SettingsRow>
@@ -78,7 +57,10 @@
       label={t('settings.advanced.auto_update_extensions')}
       description={t('settings.advanced.auto_update_extensions_description')}
     >
-      <Toggle checked={autoUpdate} onchange={toggleAutoUpdate} />
+      <Toggle
+        checked={handler.settings.extensions?.autoUpdate !== false}
+        onchange={() => handler.handleExtensionAutoUpdateToggle()}
+      />
     </SettingsRow>
   </div>
 </SettingsCard>
@@ -96,7 +78,8 @@
           { value: 'go-back', label: t('settings.advanced.escape_back') },
           { value: 'close-window', label: t('settings.advanced.escape_hide') },
         ]}
-        bind:value={escapeValue}
+        value={handler.settings.general?.escapeInViewBehavior ?? 'go-back'}
+        onchange={(v) => handler.updateEscapeBehavior(v as EscapeBehavior)}
       />
     </SettingsRow>
     <SettingsRow
