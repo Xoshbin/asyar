@@ -142,3 +142,34 @@ describe('standalone summon release assets', () => {
     );
   });
 });
+
+describe('Linux AppImage graphics ABI', () => {
+  const workflow = readFileSync(RELEASE_WORKFLOW, 'utf8');
+
+  it('installs an exclusion-capable linuxdeploy before the Tauri build', () => {
+    const installStep = workflow.indexOf(
+      '- name: Install linuxdeploy with library exclusion support',
+    );
+    const buildStep = workflow.indexOf('- name: Build Linux ${{ matrix.arch }}');
+
+    expect(installStep).toBeGreaterThan(-1);
+    expect(buildStep).toBeGreaterThan(installStep);
+    expect(workflow).toContain(
+      'linuxdeploy/releases/download/continuous/linuxdeploy-${linuxdeploy_arch}.AppImage',
+    );
+    expect(workflow).toContain(
+      'linuxdeploy_cache_path="${tauri_tools_dir}/linuxdeploy-${linuxdeploy_arch}.AppImage"',
+    );
+  });
+
+  it('excludes the build host Wayland client and verifies the finished AppImage', () => {
+    expect(workflow).toContain("LINUXDEPLOY_EXCLUDED_LIBRARIES: 'libwayland-client.so*'");
+    expect(workflow).toContain('- name: Verify AppImage graphics ABI');
+    expect(workflow).toContain(
+      '"$appimage_path" --appimage-extract \'usr/lib/libwayland-client.so*\'',
+    );
+    expect(workflow).toContain(
+      "find squashfs-root \\( -type f -o -type l \\) -name 'libwayland-client.so*'",
+    );
+  });
+});
