@@ -25,6 +25,7 @@ vi.mock('../../services/context/contextModeService.svelte', () => ({
     activate: vi.fn(),
     deactivate: vi.fn(),
     getHint: vi.fn().mockReturnValue(null),
+    updateQuery: vi.fn(),
     pinnedHintProviderId: null,
   },
   contextActivationId: null,
@@ -41,8 +42,12 @@ vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: { report: vi.fn(), dismiss: vi.fn() },
 }));
 
-import { nextContextHint } from './searchController.svelte';
+import { nextContextHint, createSearchHandlers } from './searchController.svelte';
 import type { ContextHint } from '../../services/context/contextModeService.svelte';
+import { searchStores } from '../../services/search/stores/search.svelte';
+import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+import { contextModeService } from '../../services/context/contextModeService.svelte';
+import { searchOrchestrator } from '../../services/search/searchOrchestrator.svelte';
 
 const aiHint: ContextHint = {
   provider: {
@@ -114,5 +119,63 @@ describe('nextContextHint', () => {
       computeHint: () => portalHint,
     });
     expect(result).toBe(portalHint);
+  });
+});
+
+describe('createSearchHandlers', () => {
+  function makeMockState() {
+    let listContainerEl: HTMLDivElement | undefined;
+    return {
+      localSearchValue: '',
+      activeViewVal: null,
+      state: {},
+      setListContainer(el: HTMLDivElement | undefined) {
+        listContainerEl = el;
+      },
+      getListContainer() {
+        return listContainerEl;
+      },
+    } as any;
+  }
+
+  it('handleSearchInput resets listContainer scroll position to 0 when typing a query', () => {
+    const state = makeMockState();
+    const container = document.createElement('div');
+    container.scrollTop = 300;
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
+      return {
+        overflowY: el === container ? 'auto' : 'visible',
+      } as unknown as CSSStyleDeclaration;
+    });
+    state.setListContainer(container);
+
+    const handlers = createSearchHandlers(state);
+    const event = { target: { value: 'calculator' } } as unknown as Event;
+
+    handlers.handleSearchInput(event);
+
+    expect(state.localSearchValue).toBe('calculator');
+    expect(searchStores.query).toBe('calculator');
+    expect(feedbackService.dismiss).toHaveBeenCalled();
+    expect(container.scrollTop).toBe(0);
+  });
+
+  it('handleContextQueryChange resets listContainer scroll position to 0 when typing in context mode', () => {
+    const state = makeMockState();
+    const container = document.createElement('div');
+    container.scrollTop = 250;
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
+      return {
+        overflowY: el === container ? 'auto' : 'visible',
+      } as unknown as CSSStyleDeclaration;
+    });
+    state.setListContainer(container);
+
+    const handlers = createSearchHandlers(state);
+    handlers.handleContextQueryChange({ query: 'translate hello' });
+
+    expect(contextModeService.updateQuery).toHaveBeenCalledWith('translate hello');
+    expect(searchOrchestrator.handleSearch).toHaveBeenCalledWith('translate hello');
+    expect(container.scrollTop).toBe(0);
   });
 });

@@ -68,6 +68,7 @@
 
   $effect(() => {
     const len = listItems.length;
+    const _query = searchQuery;
     if (len === 0) {
       highlightedIndex = 0;
       return;
@@ -76,6 +77,17 @@
       highlightedIndex = len - 1;
     } else if (highlightedIndex < 0) {
       highlightedIndex = 0;
+    }
+    if (open && listRef) {
+      requestAnimationFrame(() => {
+        if (listRef) {
+          if (highlightedIndex === 0) {
+            listRef.scrollTop = 0;
+          } else {
+            scrollHighlightedIntoView();
+          }
+        }
+      });
     }
   });
 

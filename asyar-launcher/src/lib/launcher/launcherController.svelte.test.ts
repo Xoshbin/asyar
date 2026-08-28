@@ -52,6 +52,11 @@ vi.mock('../../services/context/contextModeService.svelte', () => ({
   contextActivationId: null,
 }));
 
+vi.mock('../listScroll', () => ({
+  scrollSelectedIntoView: vi.fn(),
+  resetListScroll: vi.fn(),
+}));
+
 vi.mock('../../built-in-features/shortcuts/shortcutStore.svelte', () => ({
   shortcutStore: { shortcuts: [] },
 }));
@@ -97,6 +102,7 @@ import { viewManager } from '../../services/extension/viewManager.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { commandArgumentsService } from '../../services/search/commandArguments';
 import { extensionManager } from '../../services/extension/extensionManager.svelte';
+import { scrollSelectedIntoView, resetListScroll } from '../listScroll';
 
 describe('LauncherController.handleEnterKey — nav-stack observation guard', () => {
   let controller: LauncherController;
@@ -293,5 +299,45 @@ describe('LauncherController.handleEnterKey — nav-stack observation guard', ()
       }),
     );
     expect(searchStores.query).toBe('hello');
+  });
+});
+
+describe('LauncherController.setupEffects scroll behavior', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('calls scrollSelectedIntoView when selectedIndex >= 0 and listContainer is set', async () => {
+    let dispose: (() => void) | undefined;
+    const controller = new LauncherController();
+    const listContainer = document.createElement('div');
+    controller.setListContainer(listContainer);
+    searchStores.selectedIndex = 0;
+
+    dispose = $effect.root(() => {
+      controller.setupEffects();
+    });
+
+    await new Promise((r) => requestAnimationFrame(r));
+
+    expect(scrollSelectedIntoView).toHaveBeenCalledWith(listContainer, 0);
+    dispose?.();
+  });
+
+  it('calls resetListScroll when selectedIndex < 0 and listContainer is set', async () => {
+    let dispose: (() => void) | undefined;
+    const controller = new LauncherController();
+    const listContainer = document.createElement('div');
+    controller.setListContainer(listContainer);
+    searchStores.selectedIndex = -1;
+
+    dispose = $effect.root(() => {
+      controller.setupEffects();
+    });
+
+    await new Promise((r) => requestAnimationFrame(r));
+
+    expect(resetListScroll).toHaveBeenCalledWith(listContainer);
+    dispose?.();
   });
 });

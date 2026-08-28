@@ -8,6 +8,7 @@ import { searchOrchestrator } from '../../services/search/searchOrchestrator.sve
 import type { LauncherState } from './launcherState.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import type { ContextHint, ActiveContext } from '../../services/context/contextModeService.svelte';
+import { resetListScroll } from '../listScroll';
 
 /**
  * Pure derivation: decides what `contextModeService.contextHint` should be.
@@ -90,6 +91,8 @@ export function createSearchHandlers(state: LauncherState) {
       state.localSearchValue = value;
       searchStores.query = value;
       feedbackService.dismiss();
+      const listContainer = state.getListContainer();
+      if (listContainer) resetListScroll(listContainer);
     },
 
     handleContextDismiss(_clearAll = false) {
@@ -97,6 +100,8 @@ export function createSearchHandlers(state: LauncherState) {
       state.localSearchValue = '';
       searchStores.query = '';
       state.contextQuery = '';
+      const listContainer = state.getListContainer();
+      if (listContainer) resetListScroll(listContainer);
       tick().then(() => state.getSearchInput()?.focus());
     },
 
@@ -111,6 +116,8 @@ export function createSearchHandlers(state: LauncherState) {
       const query = detail.query;
       contextModeService.updateQuery(query);
       searchOrchestrator.handleSearch(query);
+      const listContainer = state.getListContainer();
+      if (listContainer) resetListScroll(listContainer);
     },
 
     handleBackClick() {

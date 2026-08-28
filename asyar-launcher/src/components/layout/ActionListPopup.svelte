@@ -9,7 +9,7 @@
   import type { ApplicationAction } from '../../services/action/actionService.svelte';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { filterActions } from './actionFilter';
-  import { scrollSelectedIntoView } from '../../lib/listScroll';
+  import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
   import { useListSelection } from '../../lib/listSelection.svelte';
   import { groupActionsForDisplay } from './actionListOrdering';
   import { t } from '../../services/i18n';
@@ -47,6 +47,21 @@
       if (popupRef) scrollSelectedIntoView(popupRef, selection.selectedIndex);
     });
   }
+
+  $effect(() => {
+    const _query = searchQuery;
+    const _actions = flatActions;
+    const idx = selection.selectedIndex;
+    if (popupRef && idx >= 0) {
+      requestAnimationFrame(() => {
+        if (popupRef) scrollSelectedIntoView(popupRef, idx);
+      });
+    } else if (popupRef && idx < 0) {
+      requestAnimationFrame(() => {
+        if (popupRef) resetListScroll(popupRef);
+      });
+    }
+  });
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
