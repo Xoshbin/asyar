@@ -70,7 +70,8 @@ export const snippetService = {
 
   async setEnabled(enabled: boolean): Promise<{ ok: boolean; error?: string }> {
     const ok = await commands.setSnippetsEnabled(enabled);
-    return ok ? { ok: true } : { ok: false, error: 'set_snippets_enabled failed' };
+    if (!ok) return { ok: false, error: 'set_snippets_enabled failed' };
+    return { ok: true };
   },
 
   async openAccessibilityPreferences(): Promise<void> {

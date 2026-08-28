@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { SettingsCard, SettingsRow, Toggle, SegmentedControl } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
@@ -16,37 +17,42 @@
     handler: SettingsHandler;
   } = $props();
 
-  let snippetsEnabled = $state(enabledPersistence.loadSync(true));
+  let snippetsEnabled = $state(true);
   let snippetsToggleError = $state<string | null>(null);
 
-  async function toggleSnippets() {
+  onMount(async () => {
+    snippetsEnabled = await enabledPersistence.load(true);
+  });
+
+  async function toggleSnippets(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
     snippetsToggleError = null;
     const next = !snippetsEnabled;
     try {
-      await snippetService.setEnabled(next);
+      const result = await snippetService.setEnabled(next);
+      if (!result.ok) throw new Error(result.error);
+      await enabledPersistence.save(next);
       snippetsEnabled = next;
     } catch (e) {
+      input.checked = snippetsEnabled;
       snippetsToggleError = (e as Error).message || 'Failed to update snippets state';
     }
   }
 
-  let autoUpdate = $derived(
-    (settingsService.settings.extensions as Record<string, unknown> | undefined)?.autoUpdate !==
-      false,
-  );
+  let autoUpdate = $derived(handler.settings.extensions.autoUpdate !== false);
 
   async function toggleAutoUpdate() {
-    await settingsService.set('extensions.autoUpdate', !autoUpdate);
+    await settingsService.updateSettings('extensions', { autoUpdate: !autoUpdate });
   }
 
   type EscapeBehavior = 'hide-and-reset' | 'go-back' | 'close-window';
 
   let escapeValue = $state<EscapeBehavior>(
-    handler.settings.general?.escapeBehavior ?? 'hide-and-reset',
+    handler.settings.general.escapeInViewBehavior ?? 'hide-and-reset',
   );
 
   $effect(() => {
-    const current = handler.settings.general?.escapeBehavior ?? 'hide-and-reset';
+    const current = handler.settings.general.escapeInViewBehavior ?? 'hide-and-reset';
     if (escapeValue !== current) {
       handler.updateEscapeBehavior(escapeValue);
     }

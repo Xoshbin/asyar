@@ -105,7 +105,7 @@
   onMount(async () => {
     const result = await snippetService.onViewOpen();
     permissionGranted = result.permissionGranted;
-    const currentEnabled = enabledPersistence.loadSync(true);
+    const currentEnabled = await enabledPersistence.load(true);
     await snippetService.setEnabled(currentEnabled && permissionGranted);
   });
 
@@ -180,8 +180,8 @@
   async function recheckPermission() {
     const result = await snippetService.onViewOpen();
     permissionGranted = result.permissionGranted;
-    const currentEnabled = enabledPersistence.loadSync(true);
-    if (permissionGranted && currentEnabled) await snippetService.setEnabled(true);
+    const currentEnabled = await enabledPersistence.load(true);
+    await snippetService.setEnabled(currentEnabled && permissionGranted);
   }
 
   function duplicateSnippet(snippet: Snippet) {

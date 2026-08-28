@@ -122,6 +122,12 @@ describe('mergeWithDefaults', () => {
     expect(result.extensions.enabled.store).toBe(true);
   });
 
+  it('preserves a persisted extensions.autoUpdate=false value', () => {
+    const result = merge({ extensions: { enabled: {}, autoUpdate: false } });
+
+    expect(result.extensions.autoUpdate).toBe(false);
+  });
+
   it('preserves the user field when present', () => {
     const result = merge({ user: { id: 'u1', syncEnabled: true } });
     expect(result.user).toEqual({ id: 'u1', syncEnabled: true });

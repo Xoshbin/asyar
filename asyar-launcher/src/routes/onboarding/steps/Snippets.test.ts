@@ -4,6 +4,7 @@ const add = vi.hoisted(() => vi.fn());
 const snippets = vi.hoisted(() => vi.fn().mockReturnValue([]));
 const setEnabled = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true }));
 const syncToRust = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const saveEnabled = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('../../../built-in-features/snippets/snippetStore.svelte', () => ({
   snippetStore: {
@@ -14,6 +15,7 @@ vi.mock('../../../built-in-features/snippets/snippetStore.svelte', () => ({
   },
 }));
 vi.mock('../../../built-in-features/snippets/snippetService', () => ({
+  enabledPersistence: { save: saveEnabled },
   snippetService: { setEnabled, syncToRust },
 }));
 
@@ -37,6 +39,7 @@ describe('Snippets setup', () => {
     const ok = await enableExpansion();
     expect(syncToRust).toHaveBeenCalled();
     expect(setEnabled).toHaveBeenCalledWith(true);
+    expect(saveEnabled).toHaveBeenCalledWith(true);
     expect(ok).toBe(true);
   });
 });

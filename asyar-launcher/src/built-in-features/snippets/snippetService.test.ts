@@ -182,11 +182,18 @@ describe('setEnabled', () => {
     expect(mockInvoke).toHaveBeenCalledWith('set_snippets_enabled', { enabled: false });
   });
 
+  it.each([true, false])('does not persist runtime enabled=%s', async (enabled) => {
+    await snippetService.setEnabled(enabled);
+
+    expect(mockSave).not.toHaveBeenCalled();
+  });
+
   it('returns { ok: false, error } when invoke rejects', async () => {
     mockInvoke.mockRejectedValueOnce(new Error('permission denied'));
     const result = await snippetService.setEnabled(true);
     expect(result.ok).toBe(false);
     expect(result.error).toContain('set_snippets_enabled failed');
+    expect(mockSave).not.toHaveBeenCalled();
   });
 });
 

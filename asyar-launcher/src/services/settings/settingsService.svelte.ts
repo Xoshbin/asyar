@@ -384,6 +384,8 @@ class SettingsService implements ISettingsService {
           ...typedStored?.appearance,
         },
         extensions: {
+          ...DEFAULT_SETTINGS.extensions,
+          ...typedStored?.extensions,
           enabled: {
             ...DEFAULT_SETTINGS.extensions.enabled,
             ...typedStored?.extensions?.enabled,

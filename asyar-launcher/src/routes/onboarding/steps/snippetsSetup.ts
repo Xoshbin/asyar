@@ -1,5 +1,8 @@
 import { snippetStore } from '../../../built-in-features/snippets/snippetStore.svelte';
-import { snippetService } from '../../../built-in-features/snippets/snippetService';
+import {
+  enabledPersistence,
+  snippetService,
+} from '../../../built-in-features/snippets/snippetService';
 
 const SAMPLE_KEYWORD = ';email';
 
@@ -17,5 +20,6 @@ export function seedSampleSnippet(): void {
 export async function enableExpansion(): Promise<boolean> {
   await snippetService.syncToRust();
   const res = await snippetService.setEnabled(true);
+  if (res.ok) await enabledPersistence.save(true);
   return res.ok === true;
 }
