@@ -417,9 +417,9 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-2);
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
+    padding: var(--space-2) var(--space-3);
+    background: transparent;
+    border-bottom: 1px solid var(--separator);
     box-sizing: border-box;
   }
 
@@ -433,20 +433,19 @@
   .ms-search-input {
     flex: 1;
     min-width: 0;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-xs);
+    background: transparent;
+    border: none;
+    outline: none;
     color: var(--text-primary);
     font-family: var(--font-ui);
-    font-size: var(--font-size-xs);
-    padding: var(--space-1) var(--space-2);
-    outline: none;
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) 0;
+    line-height: 1.4;
     box-sizing: border-box;
-    transition: border-color var(--transition-fast);
   }
 
-  .ms-search-input:focus {
-    border-color: var(--accent-primary);
+  .ms-search-input::placeholder {
+    color: var(--text-tertiary);
   }
 
   .ms-clear-btn {
@@ -461,6 +460,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: color var(--transition-fast);
   }
 
   .ms-clear-btn:hover {
