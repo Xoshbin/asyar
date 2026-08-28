@@ -7,6 +7,7 @@ vi.mock('./agentsManager.svelte', () => ({
 }));
 vi.mock('../../components', async () => ({
   Textarea: (await import('../../components/base/Textarea.svelte')).default,
+  ModelSelector: (await import('../../components/form/ModelSelector.svelte')).default,
 }));
 vi.mock('../../services/extension/viewManager.svelte', () => ({
   viewManager: { goBack: vi.fn() },
@@ -28,7 +29,8 @@ vi.mock('../../lib/ipc/commands', () => ({
 }));
 
 import AgentEditView from './AgentEditView.svelte';
-import { agentsEditorLoad, agentsEditorSave } from '../../lib/ipc/commands';
+import { agentsEditorLoad, agentsEditorListModels, agentsEditorSave } from '../../lib/ipc/commands';
+import { settingsService } from '../../services/settings/settingsService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 
 const form = {
@@ -86,5 +88,48 @@ describe('AgentEditView', () => {
 
     expect(await screen.findByText('name must not be empty')).toBeTruthy();
     expect(viewManager.goBack).not.toHaveBeenCalled();
+  });
+
+  it('allows picking a model using ModelSelector', async () => {
+    vi.mocked(agentsEditorLoad).mockResolvedValue({
+      form: { ...form, providerId: 'anthropic', modelId: 'claude-3-7-sonnet' },
+      providers: [{ id: 'anthropic', name: 'Anthropic' }],
+      toolGroups: [],
+    });
+    vi.mocked(settingsService.getSettings).mockReturnValue({
+      ai: {
+        providers: {
+          anthropic: { enabled: true, apiKey: 'sk-ant' },
+        },
+        defaultAgentId: 'default-agent-1',
+      },
+    } as any);
+    vi.mocked(agentsEditorListModels).mockResolvedValue({
+      models: [
+        { id: 'claude-3-7-sonnet', label: 'Claude 3.7 Sonnet' },
+        { id: 'claude-3-5-haiku', label: 'Claude 3.5 Haiku' },
+      ],
+      selectedModelId: 'claude-3-7-sonnet',
+    });
+
+    render(AgentEditView);
+
+    const trigger = await screen.findByText('Claude 3.7 Sonnet');
+    await fireEvent.click(trigger);
+
+    const searchInput = screen.getByRole('textbox', { name: /Filter models/i });
+    await fireEvent.input(searchInput, { target: { value: 'haiku' } });
+
+    const haikuOption = screen.getByText('Claude 3.5 Haiku');
+    await fireEvent.click(haikuOption);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(agentsEditorSave).toHaveBeenCalledWith(
+        null,
+        expect.objectContaining({ modelId: 'claude-3-5-haiku' }),
+      ),
+    );
   });
 });

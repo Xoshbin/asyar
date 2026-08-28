@@ -7,6 +7,7 @@
     InlineError,
     EmptyState,
     SettingsCard,
+    ModelSelector,
   } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { providerRegistry } from '../../../services/ai/providerRegistry';
@@ -531,16 +532,11 @@
                   {#if cachedModels.length > 0 && !useCustomInput}
                     <div class="card-field">
                       <label class="field-label" for="model-{providerId}">Model</label>
-                      <select
-                        class="card-select"
+                      <ModelSelector
                         id="model-{providerId}"
+                        models={cachedModels}
                         value={config.lastModelId ?? cachedModels[0]?.id}
-                        onchange={async (e) => {
-                          const val = (e.currentTarget as HTMLSelectElement).value;
-                          if (val === '__custom__') {
-                            customModelMode = { ...customModelMode, [providerId]: true };
-                            return;
-                          }
+                        onchange={async (val) => {
                           updateProviderConfig(providerId, {
                             lastModelId: val,
                             reasoningEffort: reasoningEffortAfterModelChange(
@@ -563,12 +559,7 @@
                             await maybeAutoSetAsDefault(providerId, val);
                           }
                         }}
-                      >
-                        {#each cachedModels as m (m.id)}
-                          <option value={m.id}>{m.label}</option>
-                        {/each}
-                        <option value="__custom__">Enter a custom model id…</option>
-                      </select>
+                      />
                     </div>
                   {:else if useCustomInput || fetchError || (!cachedModels.length && !isFetching && !plugin?.requiresApiKey && !plugin?.requiresBaseUrl)}
                     <div class="card-field">

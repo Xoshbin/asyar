@@ -11,6 +11,7 @@ vi.mock('../../../components', async () => ({
   SettingsFormRow: (await import('../../../components/settings/SettingsFormRow.svelte')).default,
   SettingsCard: (await import('../../../components/settings/SettingsCard.svelte')).default,
   Toggle: (await import('../../../components/base/Toggle.svelte')).default,
+  ModelSelector: (await import('../../../components/form/ModelSelector.svelte')).default,
 }));
 vi.mock('../../../services/settings/settingsService.svelte', () => ({
   settingsService: {
@@ -210,6 +211,64 @@ describe('AiTab', () => {
       providers: {
         anthropic: expect.objectContaining({
           temperature: undefined,
+        }),
+      },
+    });
+  });
+
+  it('allows searching and selecting a model via ModelSelector', async () => {
+    const getModelsMock = vi.fn().mockResolvedValue([
+      { id: 'claude-3-7-sonnet', label: 'Claude 3.7 Sonnet' },
+      { id: 'claude-3-5-haiku', label: 'Claude 3.5 Haiku' },
+      { id: 'claude-3-opus', label: 'Claude 3 Opus' },
+    ]);
+
+    vi.mocked(settingsService).currentSettings = {
+      ai: {
+        providers: {
+          anthropic: { enabled: true, apiKey: 'sk-ant' },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+      },
+    } as any;
+    vi.mocked(providerRegistry.list).mockReturnValue([
+      {
+        id: 'anthropic',
+        name: 'Anthropic',
+        requiresApiKey: true,
+        requiresBaseUrl: false,
+        getModels: getModelsMock,
+      },
+    ]);
+
+    render(AiTab, { mode: 'providers-only' });
+
+    // Expand Anthropic row
+    await fireEvent.click(screen.getByText('Anthropic'));
+
+    // Fetch models
+    const fetchBtn = screen.getByRole('button', { name: 'Test & Fetch Models' });
+    await fireEvent.click(fetchBtn);
+
+    // Open model selector
+    const trigger = await screen.findByText('Claude 3.7 Sonnet');
+    await fireEvent.click(trigger);
+
+    // Filter models
+    const searchInput = screen.getByRole('textbox', { name: /Filter models/i });
+    await fireEvent.input(searchInput, { target: { value: 'haiku' } });
+
+    // Select filtered model
+    const haikuOption = screen.getByText('Claude 3.5 Haiku');
+    await fireEvent.click(haikuOption);
+
+    expect(settingsService.updateSettings).toHaveBeenCalledWith('ai', {
+      providers: {
+        anthropic: expect.objectContaining({
+          lastModelId: 'claude-3-5-haiku',
         }),
       },
     });

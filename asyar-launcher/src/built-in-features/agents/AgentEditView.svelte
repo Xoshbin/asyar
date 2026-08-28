@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Textarea, EmptyState } from '../../components';
+  import { Textarea, EmptyState, PlaceholderPicker, ModelSelector } from '../../components';
   import { agentsManager } from './agentsManager.svelte';
   import { viewManager } from '../../services/extension/viewManager.svelte';
   import { t } from '../../services/i18n';
@@ -23,7 +23,6 @@
   import ToolPickerTree from './ToolPickerTree.svelte';
   import Button from '../../components/base/Button.svelte';
   import Input from '../../components/base/Input.svelte';
-  import { PlaceholderPicker } from '../../components';
   import { fetchPlaceholders } from '../../lib/placeholders/placeholderResolver';
 
   const editAgentId = $derived(agentsManager.currentAgentId);
@@ -308,15 +307,14 @@
           <Button onclick={() => fetchModelsForProvider(activeForm.providerId)}>Refresh</Button>
         {:else}
           <div class="model-row">
-            <select id="agent-model" class="field-select" bind:value={activeForm.modelId}>
-              <option value="">Select…</option>
-              {#each modelsForProvider as m (m.id)}
-                <option value={m.id}>{m.label}</option>
-              {/each}
-              {#if activeForm.modelId && !modelsForProvider.some((m) => m.id === activeForm.modelId)}
-                <option value={activeForm.modelId}>{activeForm.modelId} (custom)</option>
-              {/if}
-            </select>
+            <ModelSelector
+              id="agent-model"
+              models={modelsForProvider}
+              bind:value={activeForm.modelId}
+              onchange={(val) => {
+                activeForm.modelId = val;
+              }}
+            />
             <Button onclick={() => fetchModelsForProvider(activeForm.providerId)}>Refresh</Button>
           </div>
         {/if}
@@ -545,7 +543,7 @@
     align-items: center;
   }
 
-  .model-row .field-select {
+  .model-row :global(.model-selector) {
     flex: 1;
   }
 
