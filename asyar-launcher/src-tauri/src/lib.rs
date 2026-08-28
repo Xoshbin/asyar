@@ -513,6 +513,8 @@ pub fn run() {
             commands::browser::browser_close_tab,
             commands::browser::browser_open_url,
             commands::opener_open_url,
+            commands::opener_open_path,
+            commands::opener_reveal,
             commands::browser::browser_list_paired_browsers,
             commands::browser::browser_list_pending_pairings,
             commands::browser::browser_resolve_pairing,

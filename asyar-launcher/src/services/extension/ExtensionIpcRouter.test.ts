@@ -893,3 +893,76 @@ describe('ExtensionIpcRouter — protocol frames bypass the permission gate', ()
     expect(storageGet).not.toHaveBeenCalled();
   });
 });
+
+describe('ExtensionIpcRouter — opener dispatch and caller injection', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivilegedHostContext: boolean,
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
+  }
+
+  it('opener:open from an iframe receives extensionId and url', async () => {
+    const open = vi.fn(async () => undefined);
+    const registry = { opener: { open } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:opener:open',
+      { url: 'https://example.com' },
+      'ext.opener',
+      false,
+    );
+
+    expect(open).toHaveBeenCalledWith('ext.opener', 'https://example.com');
+  });
+
+  it('opener:openPath from an iframe receives extensionId, path, and options', async () => {
+    const openPath = vi.fn(async () => undefined);
+    const registry = { opener: { openPath } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:opener:openPath',
+      { path: '/my/path', options: { with: 'Zed' } },
+      'ext.opener',
+      false,
+    );
+
+    expect(openPath).toHaveBeenCalledWith('ext.opener', '/my/path', { with: 'Zed' });
+  });
+
+  it('opener:reveal from an iframe receives extensionId and path', async () => {
+    const reveal = vi.fn(async () => undefined);
+    const registry = { opener: { reveal } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:opener:reveal',
+      { path: '/my/file.txt' },
+      'ext.opener',
+      false,
+    );
+
+    expect(reveal).toHaveBeenCalledWith('ext.opener', '/my/file.txt');
+  });
+
+  it('passes null as callerId for privileged host-context calls', async () => {
+    const openPath = vi.fn(async () => undefined);
+    const registry = { opener: { openPath } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:opener:openPath',
+      { path: '/my/path', options: { with: 'Ghostty' } },
+      undefined,
+      true,
+    );
+
+    expect(openPath).toHaveBeenCalledWith(null, '/my/path', { with: 'Ghostty' });
+  });
+});

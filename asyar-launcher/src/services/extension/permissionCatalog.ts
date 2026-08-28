@@ -93,6 +93,11 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     description:
       'Open web links (http, https, mailto, tel) in the default browser — plus any additional URL schemes the extension declares, which can launch the apps registered for them.',
   },
+  'shell:open-path': {
+    title: 'Open files and folders',
+    description:
+      'Open local files, folders, and workspaces with default or specified applications.',
+  },
   'entitlements:read': {
     title: 'Read subscription status',
     description: "Read the user's active subscription entitlements.",
