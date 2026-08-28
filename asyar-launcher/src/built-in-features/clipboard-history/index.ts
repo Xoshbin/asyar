@@ -173,15 +173,6 @@ class ClipboardHistoryExtension implements Extension {
       );
     }
 
-    if ((event.metaKey || event.ctrlKey) && event.key === 'Backspace') {
-      event.preventDefault();
-      event.stopPropagation();
-      if (state.selectedItem) {
-        await clipboardViewState.deleteItem(state.selectedItem.id);
-      }
-      return;
-    }
-
     if (
       (event.metaKey || event.ctrlKey) &&
       (event.key === 'ArrowUp' || event.key === 'ArrowDown')
@@ -309,7 +300,6 @@ class ClipboardHistoryExtension implements Extension {
       title: 'Delete',
       description: 'Delete the selected clipboard item',
       icon: 'icon:trash',
-      shortcut: 'Super+Backspace',
       category: 'clipboard-action',
       extensionId: 'clipboard-history',
       destructive: true,
