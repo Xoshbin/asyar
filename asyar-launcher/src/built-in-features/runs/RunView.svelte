@@ -6,7 +6,7 @@
   import { formatRunSubtitle } from './runViewLogic';
   import { statusIconName } from '../../components/run/runningSectionLogic';
   import { invokeSafe } from '../../lib/ipc/invokeSafe';
-  import { scrollSelectedIntoView } from '../../lib/listScroll';
+  import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
   import type { Run } from 'asyar-sdk/contracts';
   import { t } from '../../services/i18n';
 
@@ -50,9 +50,16 @@
 
   $effect(() => {
     const idx = selectedIndex;
-    if (idx < 0 || !listEl) return;
+    const _runs = combinedRuns;
+    if (!listEl) return;
     requestAnimationFrame(() => {
-      if (listEl) scrollSelectedIntoView(listEl, idx);
+      if (listEl) {
+        if (idx >= 0) {
+          scrollSelectedIntoView(listEl, idx);
+        } else {
+          resetListScroll(listEl);
+        }
+      }
     });
   });
 
