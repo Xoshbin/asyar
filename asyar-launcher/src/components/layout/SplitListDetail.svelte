@@ -3,7 +3,7 @@
   import SplitView from '../list/SplitView.svelte';
   import EmptyState from '../feedback/EmptyState.svelte';
   import LoadingState from '../feedback/LoadingState.svelte';
-  import { scrollSelectedIntoView } from '../../lib/listScroll';
+  import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
   import { t } from '../../services/i18n';
 
   let {
@@ -37,9 +37,16 @@
   let listContainer = $state<HTMLDivElement>();
 
   $effect(() => {
+    // Track items array so that whenever the list changes (filtering, search updates, deletions, refreshes),
+    // the scroll position is updated to keep the selected item in view or reset to top.
+    const _items = items;
     if (selectedIndex >= 0 && !isLoading && !error) {
       requestAnimationFrame(() => {
         if (listContainer) scrollSelectedIntoView(listContainer, selectedIndex);
+      });
+    } else if (listContainer && selectedIndex < 0) {
+      requestAnimationFrame(() => {
+        if (listContainer) resetListScroll(listContainer);
       });
     }
   });

@@ -3,16 +3,23 @@
   import { LAUNCHER_SHORTCUTS } from '../../lib/keyboard/shortcutCatalog';
   import Icon from '../../components/base/Icon.svelte';
   import { getBuiltInIconName, isBuiltInIcon } from '../../lib/iconUtils';
-  import { scrollSelectedIntoView } from '../../lib/listScroll';
+  import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
 
   let listEl = $state<HTMLDivElement | undefined>();
 
   // Keyboard selection lives in helpViewState; keep the selected topic row visible.
   $effect(() => {
     const index = helpViewState.selectedIndex;
-    if (!listEl || helpViewState.filtered.length === 0) return;
+    const _filtered = helpViewState.filtered;
+    if (!listEl) return;
     requestAnimationFrame(() => {
-      if (listEl) scrollSelectedIntoView(listEl, index);
+      if (listEl) {
+        if (index >= 0) {
+          scrollSelectedIntoView(listEl, index);
+        } else {
+          resetListScroll(listEl);
+        }
+      }
     });
   });
 </script>

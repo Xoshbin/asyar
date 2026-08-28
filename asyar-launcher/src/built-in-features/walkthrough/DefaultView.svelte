@@ -2,7 +2,7 @@
   import { Badge, EmptyState, Icon, ListItem, MeterBar } from '../../components';
   import { getBuiltInIconName, isBuiltInIcon } from '../../lib/iconUtils';
   import { renderMarkdown } from '../../utils/markdown';
-  import { scrollSelectedIntoView } from '../../lib/listScroll';
+  import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
   import { taskProgressFraction, taskProgressLabel } from './taskProgressLabel';
   import { walkthroughService } from '../../services/walkthrough/walkthroughService.svelte';
   import { walkthroughViewState } from './walkthroughViewState.svelte';
@@ -18,9 +18,16 @@
   // told to follow it. rAF waits for the row to exist after a re-render.
   $effect(() => {
     const index = walkthroughViewState.selectedIndex;
+    const _tasks = walkthroughViewState.tasks;
     if (walkthroughViewState.mode !== 'list' || !listEl) return;
     requestAnimationFrame(() => {
-      if (listEl) scrollSelectedIntoView(listEl, index);
+      if (listEl) {
+        if (index >= 0) {
+          scrollSelectedIntoView(listEl, index);
+        } else {
+          resetListScroll(listEl);
+        }
+      }
     });
   });
 

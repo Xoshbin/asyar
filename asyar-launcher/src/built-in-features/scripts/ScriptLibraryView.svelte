@@ -14,7 +14,9 @@
     SplitView,
     WarningBanner,
   } from '../../components';
+  import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
   import { isAnyModalOpen } from '../../components/base/Modal.logic';
+
   import type { ScriptScanIssueReason } from './types';
   import { t } from '../../services/i18n';
 
@@ -22,6 +24,34 @@
   const issues = $derived(scriptsManager.issues);
   const selectedScript = $derived(scriptsManager.selectedScript);
   const selectedIssue = $derived(scriptsManager.selectedIssue);
+  let listContainer = $state<HTMLDivElement>();
+
+  $effect(() => {
+    const selectedId = scriptsManager.selectedEntryId;
+    const _scripts = scripts;
+    const _issues = issues;
+    if (!listContainer) return;
+
+    let selectedIndex = -1;
+    if (selectedId?.startsWith('script:')) {
+      const scriptId = selectedId.replace('script:', '');
+      selectedIndex = scripts.findIndex((s) => s.dynamicId === scriptId);
+    } else if (selectedId?.startsWith('issue:')) {
+      const issuePath = selectedId.replace('issue:', '');
+      const issueIdx = issues.findIndex((i) => i.absolutePath === issuePath);
+      selectedIndex = issueIdx >= 0 ? scripts.length + issueIdx : -1;
+    }
+
+    requestAnimationFrame(() => {
+      if (listContainer) {
+        if (selectedIndex >= 0) {
+          scrollSelectedIntoView(listContainer, selectedIndex);
+        } else {
+          resetListScroll(listContainer);
+        }
+      }
+    });
+  });
 
   // What Enter does for the current selection — null when it does nothing.
   const primaryActionLabel = $derived(
@@ -110,7 +140,12 @@
 
 <SplitView leftWidth="38%">
   {#snippet left()}
-    <div class="h-full p-2" role="listbox" aria-label="Scripts and issues">
+    <div
+      class="h-full p-2"
+      bind:this={listContainer}
+      role="listbox"
+      aria-label="Scripts and issues"
+    >
       {#if scripts.length === 0 && issues.length === 0}
         <EmptyState
           message={t('features.scripts.no_scripts')}
@@ -129,6 +164,7 @@
               </div>
             {/if}
             <LauncherListRow
+              data-index={index}
               icon={script.header.icon ?? 'icon:terminal'}
               title={script.displayName}
               subtitle={script.fileName}
@@ -148,6 +184,7 @@
               </div>
             {/if}
             <LauncherListRow
+              data-index={scripts.length + index}
               icon="icon:info"
               title={issue.fileName}
               subtitle={issue.message}

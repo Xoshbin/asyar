@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { scrollSelectedIntoView } from './listScroll';
+import { scrollSelectedIntoView, findScrollContainer, resetListScroll } from './listScroll';
 
 // jsdom skips layout, so we fake the reads the function performs
 // (overflowY, scrollHeight, clientHeight, getBoundingClientRect). Writes to
@@ -145,6 +145,65 @@ describe('scrollSelectedIntoView', () => {
     });
     scrollSelectedIntoView(container, 1);
     expect(container.scrollTop).toBe(50);
+  });
+
+  it('snaps the scroller to the top for index 0 even when container has no rows', () => {
+    const container = makeContainer({
+      rows: [],
+      scrollerInitialScrollTop: 150,
+      scrollerScrollHeight: 400,
+      scrollerClientHeight: 100,
+    });
+    scrollSelectedIntoView(container, 0);
+    expect(container.scrollTop).toBe(0);
+  });
+
+  it('resets scroll to top when listContainer is a child of a scrollable parent', () => {
+    const parentScroller = document.createElement('div');
+    parentScroller.scrollTop = 200;
+    const childContainer = document.createElement('div');
+    const row0 = makeRow(0, 0, 30);
+    childContainer.appendChild(row0);
+    parentScroller.appendChild(childContainer);
+    document.body.appendChild(parentScroller);
+
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
+      return {
+        overflowY: el === parentScroller ? 'auto' : 'visible',
+      } as unknown as CSSStyleDeclaration;
+    });
+
+    scrollSelectedIntoView(childContainer, 0);
+    expect(parentScroller.scrollTop).toBe(0);
+  });
+
+  it('finds the nearest scrollable ancestor with findScrollContainer', () => {
+    const parentScroller = document.createElement('div');
+    const child = document.createElement('div');
+    const grandChild = document.createElement('div');
+    child.appendChild(grandChild);
+    parentScroller.appendChild(child);
+    document.body.appendChild(parentScroller);
+
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
+      return {
+        overflowY: el === parentScroller ? 'auto' : 'visible',
+      } as unknown as CSSStyleDeclaration;
+    });
+
+    expect(findScrollContainer(grandChild)).toBe(parentScroller);
+    expect(findScrollContainer(parentScroller)).toBe(parentScroller);
+  });
+
+  it('resets scroll position to top with resetListScroll', () => {
+    const container = makeContainer({
+      rows: [],
+      scrollerInitialScrollTop: 350,
+      scrollerScrollHeight: 600,
+      scrollerClientHeight: 100,
+    });
+    resetListScroll(container);
+    expect(container.scrollTop).toBe(0);
   });
 
   it('falls back to scrollIntoView when no scrollable ancestor exists', () => {

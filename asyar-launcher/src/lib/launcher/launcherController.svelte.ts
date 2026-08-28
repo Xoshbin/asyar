@@ -9,7 +9,7 @@ import { setupSelectionEffects } from './selectionEffects.svelte';
 import extensionManager from '../../services/extension/extensionManager.svelte';
 import { commandArgumentsService } from '../../services/search/commandArguments';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
-import { scrollSelectedIntoView } from '../listScroll';
+import { scrollSelectedIntoView, resetListScroll } from '../listScroll';
 
 export class LauncherController {
   readonly state = new LauncherState();
@@ -116,9 +116,24 @@ export class LauncherController {
     $effect(() => {
       const idx = this.state.selectedIndexVal;
       const listContainer = this.state.getListContainer();
-      if (listContainer && idx >= 0) {
-        requestAnimationFrame(() => scrollSelectedIntoView(listContainer, idx));
-      }
+      // Track query, contextQuery, and mapped result list so typing a new query or
+      // getting new results immediately resets/ensures the selection (e.g. top item)
+      // is scrolled into view.
+      const _query = this.state.localSearchValue;
+      const _contextQuery = this.state.contextQuery;
+      const _items = this.state.searchResultItemsMapped;
+
+      if (!listContainer) return;
+
+      requestAnimationFrame(() => {
+        const container = this.state.getListContainer();
+        if (!container) return;
+        if (idx >= 0) {
+          scrollSelectedIntoView(container, idx);
+        } else {
+          resetListScroll(container);
+        }
+      });
     });
 
     // 5. App initialization

@@ -242,9 +242,11 @@ Before adding any capability, action, IPC route, shortcut, event listener, or st
 
 When introducing or modifying keyboard shortcuts or action identifiers:
 
-1. **Conflict Verification**: Always verify that the proposed key combination (e.g. `Super+Shift+,`, `Super+Shift+E`, `Super+Backspace`) is not already bound in `actionService.svelte.ts` or consumed by `launcherKeyboard.ts`.
-2. **Platform Neutrality**: Use `Super` for macOS Command and `Ctrl` for Windows/Linux.
-3. **No Unrequested Companion Features ("Propose, Don't Presume")**: If you identify a high-value companion action, command, or shortcut while implementing a task, **mention and propose it to the user with its rationale first** rather than silently adding extra unrequested features.
+1. **Conflict Verification**: Always verify that the proposed key combination (e.g. `Super+Shift+,`, `Super+Shift+E`) is not already bound in `actionService.svelte.ts` or consumed by `launcherKeyboard.ts`.
+2. **Preserve Native Text Editing**: In views where a search bar or text input is active, never bind native text editing shortcuts (`Cmd+Backspace`, `Option+Backspace`, `Cmd+A`, `Cmd+C`, `Cmd+V`, `Cmd+X`, `Cmd+Z`) to list actions or item deletion.
+3. **Destructive Actions in ⌘K**: Destructive item operations (Delete, Move to Trash, Uninstall) belong in the `⌘K` Action Panel with `destructive: true` and appropriate confirmation dialogs, never bound to `Cmd+Backspace` / `Super+Backspace`.
+4. **Platform Neutrality**: Use `Super` for macOS Command and `Ctrl` for Windows/Linux.
+5. **No Unrequested Companion Features ("Propose, Don't Presume")**: If you identify a high-value companion action, command, or shortcut while implementing a task, **mention and propose it to the user with its rationale first** rather than silently adding extra unrequested features.
 
 ### Never Let IPC Boundaries Leak Implementation Details
 

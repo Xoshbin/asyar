@@ -142,14 +142,14 @@ describe('ClipboardHistoryExtension', () => {
   });
 });
 
-describe('Keyboard shortcut: Cmd+Backspace to delete', () => {
+describe('Keyboard shortcut: Cmd+Backspace does not delete', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(window, 'addEventListener');
     vi.spyOn(window, 'removeEventListener');
   });
 
-  it('calls deleteItem when Cmd+Backspace is pressed with a selected item', async () => {
+  it('does not call deleteItem when Cmd+Backspace is pressed with a selected item', async () => {
     const mockContext = {
       getService: vi.fn().mockImplementation((name: string) => {
         if (name === 'extensions') {
@@ -187,7 +187,8 @@ describe('Keyboard shortcut: Cmd+Backspace to delete', () => {
     // Wait for async
     await new Promise((r) => setTimeout(r, 10));
 
-    expect(mockState.clipboardViewState.deleteItem).toHaveBeenCalledWith('test-1');
+    expect(mockState.clipboardViewState.deleteItem).not.toHaveBeenCalled();
+    expect(event.preventDefault).not.toHaveBeenCalled();
   });
 });
 

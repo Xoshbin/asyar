@@ -49,7 +49,12 @@ Or manually run the steps:
 - **Svelte 5 Runes Only**: Always use runes (`$state`, `$derived`, `$props`, `$bindable`, `$effect`). Svelte 4 syntax (`export let`, `$:`) is strictly forbidden.
 - **Tauri 2 APIs**: Use modular `@tauri-apps/api/*` and Tauri 2 plugins.
 
-## 7. Rules, Skills & Memories Structure
+## 7. Keyboard Shortcuts & Input Safety
+
+- **Preserve Text Editing**: Never bind native text editing shortcuts (`Cmd+Backspace`, `Option+Backspace`, `Cmd+A`, etc.) to list actions or item deletion.
+- **Destructive Actions in ⌘K**: Item deletion and trashing belong in the `⌘K` Action Panel, never bound directly to `Cmd+Backspace` / `Super+Backspace`.
+
+## 8. Rules, Skills & Memories Structure
 
 - Modular rules: `.agents/rules/*.md`
 - On-demand procedural skills: `.agents/skills/*/SKILL.md`

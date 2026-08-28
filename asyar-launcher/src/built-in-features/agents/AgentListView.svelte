@@ -8,17 +8,35 @@
   import ListItem from '../../components/list/ListItem.svelte';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
   import { isAnyModalOpen } from '../../components/base/Modal.logic';
+  import { scrollSelectedIntoView, resetListScroll } from '../../lib/listScroll';
   import { t } from '../../services/i18n';
 
   const deps = $derived({ service: agentService, manager: agentsManager, viewManager });
   const agents = $derived(agentService.agents);
   const selectedAgentId = $derived(agentsManager.currentAgentId);
+  let listEl = $state<HTMLDivElement>();
 
   // Default selection on first paint when nothing is highlighted yet.
   $effect(() => {
     if (agents.length > 0 && !agentsManager.currentAgentId) {
       agentsManager.currentAgentId = agents[0].id;
     }
+  });
+
+  $effect(() => {
+    const id = selectedAgentId;
+    const _agents = agents;
+    const idx = id ? agents.findIndex((a) => a.id === id) : -1;
+    if (!listEl) return;
+    requestAnimationFrame(() => {
+      if (listEl) {
+        if (idx >= 0) {
+          scrollSelectedIntoView(listEl, idx);
+        } else {
+          resetListScroll(listEl);
+        }
+      }
+    });
   });
 
   function moveSelection(direction: 1 | -1) {
@@ -79,10 +97,11 @@
       description={t('features.agents.no_agents_description')}
     />
   {:else}
-    <div class="agents-list custom-scrollbar">
-      {#each agents as agent (agent.id)}
+    <div class="agents-list custom-scrollbar" bind:this={listEl}>
+      {#each agents as agent, i (agent.id)}
         {@const row = buildAgentRowProps(agent)}
         <ListItem
+          data-index={i}
           title={row.title}
           subtitle={row.subtitle}
           selected={selectedAgentId === agent.id}

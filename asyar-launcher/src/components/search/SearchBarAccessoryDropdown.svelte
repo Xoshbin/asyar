@@ -64,11 +64,10 @@
       : options.filter((o) => o.title.toLowerCase().includes(filterQuery.trim().toLowerCase())),
   );
 
-  // Re-clamp highlightedIndex whenever the filtered list changes (typing
-  // into the filter can shrink the list past the current highlight).
+  // Re-clamp highlightedIndex and reset/adjust scroll position whenever the filtered list changes
   $effect(() => {
-    // Touch filteredOptions so this re-runs when the filter changes.
     const len = filteredOptions.length;
+    const _query = filterQuery;
     if (len === 0) {
       highlightedIndex = 0;
       return;
@@ -77,6 +76,20 @@
       highlightedIndex = len - 1;
     } else if (highlightedIndex < 0) {
       highlightedIndex = 0;
+    }
+    if (open && popoverRef) {
+      requestAnimationFrame(() => {
+        if (popoverRef) {
+          if (highlightedIndex === 0) {
+            popoverRef.scrollTop = 0;
+          } else {
+            const optEl = popoverRef.querySelector<HTMLElement>(
+              `[data-index="${highlightedIndex}"]`,
+            );
+            optEl?.scrollIntoView({ block: 'nearest' });
+          }
+        }
+      });
     }
   });
 
@@ -245,6 +258,7 @@
           <button
             type="button"
             class="accessory-option"
+            data-index={i}
             class:highlighted={i === highlightedIndex}
             class:selected={opt.value === value}
             role="option"

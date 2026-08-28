@@ -51,14 +51,15 @@ A few built-in features add extra shortcuts while their view is active.
 | Shortcut | What it does                        |
 | -------- | ----------------------------------- |
 | `⌘N`     | Create a new snippet                |
-| `⌘⌫`     | Delete the selected snippet         |
 | `⌘S`     | Save changes when editing a snippet |
 
 **Clipboard History**
 
-| Shortcut | What it does                        |
-| -------- | ----------------------------------- |
-| `⌘⌫`     | Delete the selected clipboard entry |
+| Shortcut    | What it does                      |
+| ----------- | --------------------------------- |
+| `Enter`     | Paste selected item               |
+| `⇧Enter`    | Paste as plain text               |
+| `⌘↑` / `⌘↓` | Extend selection for merged paste |
 
 **Portals**
 
@@ -76,7 +77,6 @@ A few built-in features add extra shortcuts while their view is active.
 | `⌘⌥C`        | Copy Name                                 |
 | `⌘T`         | Open in Terminal                          |
 | `⌘P`         | Toggle Pin                                |
-| `⌘⌫`         | Move to Trash                             |
 | `Tab` / `⌘I` | Send to Asyar AI                          |
 | `⌘⇧F`        | Search Everywhere (deep OS-native search) |
 

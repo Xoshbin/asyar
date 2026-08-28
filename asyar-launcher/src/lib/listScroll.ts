@@ -1,23 +1,6 @@
-/** Scroll a row into view inside a list container. At the first/last index
- * the container snaps fully to its edge so padding and section headers stay
- * visible; otherwise the row is nudged just enough to keep an 8px gap from
- * the viewport edge. */
-export function scrollSelectedIntoView(listContainer: HTMLElement, selectedIndex: number): void {
-  if (selectedIndex < 0) return;
-  const selectedElement = listContainer.querySelector<HTMLElement>(
-    `[data-index="${selectedIndex}"]`,
-  );
-  if (!selectedElement) return;
-
-  const isFirst = selectedIndex === 0;
-  const lastIndex = Math.max(
-    ...Array.from(listContainer.querySelectorAll<HTMLElement>('[data-index]')).map(
-      (el) => Number(el.getAttribute('data-index')) || 0,
-    ),
-  );
-  const isLast = selectedIndex === lastIndex;
-
-  let scroller: HTMLElement | null = selectedElement;
+/** Find the nearest scrollable ancestor of an element (or the element itself). */
+export function findScrollContainer(element: HTMLElement | null): HTMLElement | null {
+  let scroller: HTMLElement | null = element;
   while (
     scroller &&
     getComputedStyle(scroller).overflowY !== 'auto' &&
@@ -25,15 +8,50 @@ export function scrollSelectedIntoView(listContainer: HTMLElement, selectedIndex
   ) {
     scroller = scroller.parentElement;
   }
+  return scroller;
+}
+
+/** Reset the scroll position of a list container's scrollable parent to top (0). */
+export function resetListScroll(listContainer: HTMLElement): void {
+  const scroller = findScrollContainer(listContainer);
+  if (scroller) {
+    scroller.scrollTop = 0;
+  }
+}
+
+/** Scroll a row into view inside a list container. At the first/last index
+ * the container snaps fully to its edge so padding and section headers stay
+ * visible; otherwise the row is nudged just enough to keep an 8px gap from
+ * the viewport edge. */
+export function scrollSelectedIntoView(listContainer: HTMLElement, selectedIndex: number): void {
+  if (selectedIndex < 0) return;
+
+  const selectedElement = listContainer.querySelector<HTMLElement>(
+    `[data-index="${selectedIndex}"]`,
+  );
+
+  const isFirst = selectedIndex === 0;
+  const scroller = findScrollContainer(selectedElement ?? listContainer);
+
+  if (isFirst && scroller) {
+    scroller.scrollTop = 0;
+    return;
+  }
+
+  if (!selectedElement) return;
+
+  const lastIndex = Math.max(
+    ...Array.from(listContainer.querySelectorAll<HTMLElement>('[data-index]')).map(
+      (el) => Number(el.getAttribute('data-index')) || 0,
+    ),
+  );
+  const isLast = selectedIndex === lastIndex;
+
   if (!scroller) {
     selectedElement.scrollIntoView({ block: 'nearest' });
     return;
   }
 
-  if (isFirst) {
-    scroller.scrollTop = 0;
-    return;
-  }
   if (isLast) {
     scroller.scrollTop = scroller.scrollHeight;
     return;

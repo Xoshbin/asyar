@@ -202,7 +202,6 @@ class FileSearchExtension implements Extension {
         extensionId: 'file-search',
         category: 'file-action',
         context: ActionContext.EXTENSION_VIEW,
-        shortcut: 'Super+Backspace',
         destructive: true,
         execute: async () => {
           const f = getSelectedFile();
