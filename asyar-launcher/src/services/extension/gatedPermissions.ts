@@ -41,6 +41,7 @@ export const GATED_PERMISSIONS = [
   "runs:track",
   "screen:pick-color",
   "selection:read",
+  "shell:open-path",
   "shell:open-url",
   "shell:spawn",
   "snippets:contribute",

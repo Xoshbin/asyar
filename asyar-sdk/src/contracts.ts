@@ -62,6 +62,7 @@ export type {
   IShellService,
   IFileManagerService,
   IOpenerService,
+  OpenPathOptions,
   IInteropService,
   IApplicationService,
   FrontmostApplication,

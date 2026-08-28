@@ -110,6 +110,22 @@ export async function openerOpenUrl(extensionId: string | null, url: string): Pr
   await invoke('opener_open_url', { extensionId, url });
 }
 
+export async function openerOpenPath(
+  extensionId: string | null,
+  path: string,
+  withApp?: string,
+): Promise<void> {
+  await invoke('opener_open_path', {
+    extensionId,
+    path,
+    with: withApp ?? null,
+  });
+}
+
+export async function openerReveal(extensionId: string | null, path: string): Promise<void> {
+  await invoke('opener_reveal', { extensionId, path });
+}
+
 export async function getSystemLocale(): Promise<{
   language: string;
   script: string | null;

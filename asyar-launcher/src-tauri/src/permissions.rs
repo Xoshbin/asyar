@@ -163,6 +163,8 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:network:wsClose" => Some("network"),
         // Opener
         "asyar:api:opener:open" => Some("shell:open-url"),
+        "asyar:api:opener:openPath" => Some("shell:open-path"),
+        "asyar:api:opener:reveal" => Some("fs:read"),
         "asyar:api:fs:showInFileManager" => Some("fs:read"),
         "asyar:api:fs:trash" => Some("fs:write"),
         "asyar:api:shell:spawn" => Some("shell:spawn"),
@@ -641,6 +643,22 @@ mod tests {
         assert_eq!(
             get_required_permission("asyar:api:network:fetch"),
             Some("network")
+        );
+    }
+
+    #[test]
+    fn test_get_required_permission_opener() {
+        assert_eq!(
+            get_required_permission("asyar:api:opener:open"),
+            Some("shell:open-url")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:opener:openPath"),
+            Some("shell:open-path")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:opener:reveal"),
+            Some("fs:read")
         );
     }
 

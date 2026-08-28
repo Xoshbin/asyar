@@ -191,6 +191,7 @@ export const VALID_PERMISSIONS = [
   'fs:watch',
   'shell:spawn',
   'shell:open-url',
+  'shell:open-path',
   'network',
   'selection:read',
   'storage:read',
