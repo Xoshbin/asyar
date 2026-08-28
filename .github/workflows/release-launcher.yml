@@ -295,6 +295,28 @@ jobs:
           which ldd
           head -3 "$(which ldd)"
 
+      # Tauri's mirrored linuxdeploy predates support for the
+      # LINUXDEPLOY_EXCLUDED_LIBRARIES environment variable. A current
+      # upstream binary must be present in Tauri's tool cache before the
+      # bundle starts so the signed AppImage never contains the build
+      # runner's libwayland-client.
+      - name: Install linuxdeploy with library exclusion support
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64) linuxdeploy_arch="x86_64" ;;
+            aarch64|arm64) linuxdeploy_arch="aarch64" ;;
+            *) echo "Unsupported linuxdeploy architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          tauri_tools_dir="${XDG_CACHE_HOME:-${HOME}/.cache}/tauri"
+          linuxdeploy_cache_path="${tauri_tools_dir}/linuxdeploy-${linuxdeploy_arch}.AppImage"
+          mkdir -p "$tauri_tools_dir"
+          curl -L --fail --show-error --retry 3 \
+            -o "$linuxdeploy_cache_path" \
+            "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${linuxdeploy_arch}.AppImage"
+          chmod 0755 "$linuxdeploy_cache_path"
+          "$linuxdeploy_cache_path" --appimage-extract-and-run --version
+
       - name: Build Linux ${{ matrix.arch }}
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -303,6 +325,10 @@ jobs:
           # Ubuntu 24.04 blocks their default FUSE/userns mount path, so tell them
           # to self-extract to a temp dir instead. Official CI-mode flag, not a hack.
           APPIMAGE_EXTRACT_AND_RUN: '1'
+          # libwayland-client is part of the host graphics ABI. Bundling the
+          # Ubuntu runner's copy alongside a newer host Mesa makes WebKitGTK's
+          # eglGetDisplay(EGL_DEFAULT_DISPLAY) fail with EGL_BAD_PARAMETER.
+          LINUXDEPLOY_EXCLUDED_LIBRARIES: 'libwayland-client.so*'
           # Embed AppImage update metadata for AppImageUpdate / zsync delta updates (issue #668)
           UPDATE_INFORMATION: 'gh-releases-zsync|Xoshbin|asyar|latest|*${{ matrix.arch }}*.AppImage.zsync'
           LDAI_UPDATE_INFORMATION: 'gh-releases-zsync|Xoshbin|asyar|latest|*${{ matrix.arch }}*.AppImage.zsync'
@@ -318,6 +344,31 @@ jobs:
               zsyncmake -u "$f" "$f"
             fi
           done
+
+      - name: Verify AppImage graphics ABI
+        run: |
+          set -euo pipefail
+          appimage_dir="src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage"
+          appimage_path="$(find "$appimage_dir" -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          if [ -z "$appimage_path" ]; then
+            echo "No AppImage found in ${appimage_dir}" >&2
+            exit 1
+          fi
+          appimage_path="$(readlink -f "$appimage_path")"
+          verification_dir="$(mktemp -d)"
+          cleanup() {
+            rm -rf "$verification_dir"
+          }
+          trap cleanup EXIT INT TERM
+          (
+            cd "$verification_dir"
+            "$appimage_path" --appimage-extract 'usr/lib/libwayland-client.so*' >/dev/null
+            if find squashfs-root \( -type f -o -type l \) -name 'libwayland-client.so*' -print -quit | grep -q .; then
+              echo "AppImage incorrectly bundles libwayland-client:" >&2
+              find squashfs-root \( -type f -o -type l \) -name 'libwayland-client.so*' -print >&2
+              exit 1
+            fi
+          )
 
       - name: Upload Linux ${{ matrix.arch }} Artifacts
         uses: actions/upload-artifact@v7
