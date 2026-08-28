@@ -222,7 +222,9 @@ mod tests {
 
     #[test]
     fn resolve_path_rejects_nonexistent() {
-        let err = resolve_path("/tmp/__asyar_nonexistent_opener_test__").unwrap_err();
+        let tmp = TempDir::new().unwrap();
+        let nonexistent = tmp.path().join("__asyar_nonexistent_opener_test__");
+        let err = resolve_path(nonexistent.to_str().unwrap()).unwrap_err();
         assert!(format!("{err}").contains("does not exist"), "got: {err}");
     }
 
