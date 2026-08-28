@@ -469,7 +469,6 @@ export class ActionService implements IActionService {
         : 'Launch the installer to remove this application',
       category: 'Danger',
       context: ActionContext.CORE,
-      shortcut: 'Super+Backspace',
       confirm: true,
       destructive: true,
       visible: () => {

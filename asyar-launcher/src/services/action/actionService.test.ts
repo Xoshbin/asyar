@@ -939,7 +939,7 @@ describe('uninstall_application built-in action', () => {
     const action = svc.getAllActions().find((a) => a.id === 'uninstall_application');
     expect(action).toBeDefined();
     expect(action!.icon).toBe('icon:trash');
-    expect(action!.shortcut).toBe('Super+Backspace');
+    expect(action!.shortcut).toBeUndefined();
     expect(action!.category).toBe('Danger');
     expect(action!.confirm).toBe(true);
     expect(action!.context).toBe(ActionContext.CORE);

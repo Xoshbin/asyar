@@ -615,6 +615,8 @@ Other rules:
   (`a11y_no_static_element_interactions`). The Svelte 4 hyphenated names
   silently suppress nothing.
 - Decorative icons get `aria-hidden="true"`; meaningful ones get a label.
+- **Never hijack text editing shortcuts**: In views with a search bar or text input, never bind native text editing shortcuts (`⌘⌫` / `Cmd+Backspace`, `⌥⌫`, `⌘A`, `⌘C`, `⌘V`, `⌘X`, `⌘Z`) to list actions or item deletion.
+- **Destructive actions belong in ⌘K**: Operations that delete, trash, or uninstall items belong in the `⌘K` Action Panel (styled with `destructive: true`), not bound directly to `⌘⌫`.
 
 ---
 

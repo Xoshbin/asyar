@@ -32,7 +32,6 @@ Asyar also records which app each item came from, so you can see the source appl
 | Toggle an item in the selection | `⌘Click`    |
 | Extend the selection            | `⌘↑` / `⌘↓` |
 | Merge & paste the selection     | `Enter`     |
-| Delete item                     | `⌘⌫`        |
 | Open action panel               | `⌘K`        |
 
 **Action panel (⌘K) entries while the list is open:**
@@ -42,7 +41,7 @@ Asyar also records which app each item came from, so you can see the source appl
 - **Toggle HTML Rendered / Source** — switches the detail pane between rendered HTML and raw source (useful for HTML or RTF items).
 - **Open in Browser** — opens a selected URL item in your default browser.
 - **Save as Snippet** — sends the selected text item directly to the Snippets editor so you can give it a keyword.
-- **Delete** — removes the selected item permanently (`⌘⌫`).
+- **Delete** — removes the selected item permanently.
 - **Clear Selection** — deselects all multi-selected items, without leaving the view. Only appears while a selection is active.
 - **Ask AI about this** — opens AI Chat with the selected text pre-filled.
 - **Clear Clipboard History** — removes all non-favourited items (available from the root search bar too, without opening the view).

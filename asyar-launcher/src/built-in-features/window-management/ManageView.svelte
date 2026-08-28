@@ -140,7 +140,6 @@
       id: 'window-management:delete-layout',
       title: `Delete "${name}"`,
       icon: 'icon:trash',
-      shortcut: '⌘⌫',
       extensionId: 'window-management',
       category: 'window-management',
       context: ActionContext.EXTENSION_VIEW,
