@@ -506,7 +506,9 @@ fn build_openai_request(
 
         if let Some(obj) = body_map.as_object_mut() {
             obj.insert("max_output_tokens".to_string(), json!(params.max_tokens));
-            obj.insert("temperature".to_string(), json!(params.temperature));
+            if let Some(temperature) = params.temperature {
+                obj.insert("temperature".to_string(), json!(temperature));
+            }
 
             if let Some(ref effort) = config.reasoning_effort {
                 obj.insert("reasoning".to_string(), json!({ "effort": effort }));
@@ -554,7 +556,9 @@ fn build_openai_request(
 
         if let Some(obj) = body_map.as_object_mut() {
             obj.insert("max_tokens".to_string(), json!(params.max_tokens));
-            obj.insert("temperature".to_string(), json!(params.temperature));
+            if let Some(temperature) = params.temperature {
+                obj.insert("temperature".to_string(), json!(temperature));
+            }
 
             if let Some(ref effort) = config.reasoning_effort {
                 obj.insert("reasoning_effort".to_string(), json!(effort));
@@ -633,6 +637,15 @@ fn build_anthropic_request(
         "max_tokens": params.max_tokens,
         "stream": true,
     });
+
+    if let Some(temperature) = params.temperature {
+        if config.reasoning_effort.is_none() {
+            body_map
+                .as_object_mut()
+                .unwrap()
+                .insert("temperature".to_string(), json!(temperature));
+        }
+    }
 
     if let Some(ref sys) = params.system_prompt {
         if !sys.trim().is_empty() {
@@ -750,12 +763,19 @@ fn build_google_request(
         })
         .collect::<Vec<_>>();
 
+    let mut generation_config = json!({
+        "maxOutputTokens": params.max_tokens,
+    });
+    if let Some(temperature) = params.temperature {
+        generation_config
+            .as_object_mut()
+            .unwrap()
+            .insert("temperature".to_string(), json!(temperature));
+    }
+
     let mut body_map = json!({
         "contents": contents,
-        "generationConfig": {
-            "temperature": params.temperature,
-            "maxOutputTokens": params.max_tokens,
-        }
+        "generationConfig": generation_config,
     });
 
     if let Some(ref sys) = params.system_prompt {
@@ -838,6 +858,13 @@ fn build_ollama_request(
         "stream": true,
     });
 
+    if let Some(temperature) = params.temperature {
+        body_map
+            .as_object_mut()
+            .unwrap()
+            .insert("options".to_string(), json!({ "temperature": temperature }));
+    }
+
     if let Some(ref effort) = config.reasoning_effort {
         body_map
             .as_object_mut()
@@ -891,7 +918,9 @@ fn build_openrouter_request(
 
     if let Some(obj) = body_map.as_object_mut() {
         obj.insert("max_tokens".to_string(), json!(params.max_tokens));
-        obj.insert("temperature".to_string(), json!(params.temperature));
+        if let Some(temperature) = params.temperature {
+            obj.insert("temperature".to_string(), json!(temperature));
+        }
 
         if let Some(ref effort) = config.reasoning_effort {
             obj.insert("reasoning".to_string(), json!({ "effort": effort }));
@@ -950,7 +979,9 @@ fn build_custom_request(
 
         if let Some(obj) = body_map.as_object_mut() {
             obj.insert("max_output_tokens".to_string(), json!(params.max_tokens));
-            obj.insert("temperature".to_string(), json!(params.temperature));
+            if let Some(temperature) = params.temperature {
+                obj.insert("temperature".to_string(), json!(temperature));
+            }
 
             if let Some(ref effort) = config.reasoning_effort {
                 obj.insert("reasoning".to_string(), json!({ "effort": effort }));
@@ -998,7 +1029,9 @@ fn build_custom_request(
 
         if let Some(obj) = body_map.as_object_mut() {
             obj.insert("max_tokens".to_string(), json!(params.max_tokens));
-            obj.insert("temperature".to_string(), json!(params.temperature));
+            if let Some(temperature) = params.temperature {
+                obj.insert("temperature".to_string(), json!(temperature));
+            }
 
             if let Some(ref effort) = config.reasoning_effort {
                 obj.insert("reasoning_effort".to_string(), json!(effort));

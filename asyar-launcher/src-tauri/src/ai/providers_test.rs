@@ -30,7 +30,7 @@ fn mock_messages() -> Vec<ChatMessage> {
 fn mock_params(system: Option<&str>) -> ChatParams {
     ChatParams {
         model_id: "gpt-4o".to_string(),
-        temperature: 0.7,
+        temperature: Some(0.7),
         max_tokens: 1024,
         system_prompt: system.map(|s| s.to_string()),
         tools: None,
@@ -435,4 +435,146 @@ fn test_build_request_and_parser_with_custom_named_instance() {
         &events[0],
         ChatStreamEvent::Token { token } if token == "hello"
     ));
+}
+
+#[test]
+fn test_build_openai_request_omits_temperature_when_none() {
+    let config = mock_config();
+    let messages = mock_messages();
+    let mut params = mock_params(None);
+    params.temperature = None;
+
+    let req = build_request("openai", &config, &messages, &params).unwrap();
+    assert!(req.body.get("temperature").is_none());
+}
+
+#[test]
+fn test_build_openai_request_includes_temperature_when_some() {
+    let config = mock_config();
+    let messages = mock_messages();
+    let mut params = mock_params(None);
+    params.temperature = Some(0.85);
+
+    let req = build_request("openai", &config, &messages, &params).unwrap();
+    assert_eq!(req.body["temperature"], 0.85);
+}
+
+#[test]
+fn test_build_custom_request_omits_temperature_when_none() {
+    let mut config = mock_config();
+    config.base_url = Some("https://api.opencode.ai/v1".to_string());
+    let messages = mock_messages();
+    let mut params = mock_params(None);
+    params.model_id = "gpt-5.6-luna".to_string();
+    params.temperature = None;
+
+    let req = build_request("custom", &config, &messages, &params).unwrap();
+    assert_eq!(req.url, "https://api.opencode.ai/v1/chat/completions");
+    assert_eq!(req.body["model"], "gpt-5.6-luna");
+    assert!(
+        req.body.get("temperature").is_none(),
+        "Custom OpenAI-compatible provider must omit temperature when None"
+    );
+}
+
+#[test]
+fn test_build_custom_request_includes_temperature_when_some() {
+    let mut config = mock_config();
+    config.base_url = Some("https://api.opencode.ai/v1".to_string());
+    let messages = mock_messages();
+    let mut params = mock_params(None);
+    params.temperature = Some(0.3);
+
+    let req = build_request("custom", &config, &messages, &params).unwrap();
+    assert_eq!(req.body["temperature"], 0.3);
+}
+
+#[test]
+fn test_build_custom_responses_request_omits_temperature_when_none() {
+    let mut config = mock_config();
+    config.base_url = Some("https://api.custom.ai/v1".to_string());
+    config.open_ai_api_mode = Some("responses".to_string());
+    let messages = mock_messages();
+    let mut params = mock_params(None);
+    params.temperature = None;
+
+    let req = build_request("custom", &config, &messages, &params).unwrap();
+    assert!(req.body.get("temperature").is_none());
+}
+
+#[test]
+fn test_build_openrouter_request_omits_temperature_when_none() {
+    let config = mock_config();
+    let messages = mock_messages();
+    let mut params = mock_params(None);
+    params.temperature = None;
+
+    let req = build_request("openrouter", &config, &messages, &params).unwrap();
+    assert!(req.body.get("temperature").is_none());
+}
+
+#[test]
+fn test_build_google_request_omits_temperature_when_none() {
+    let config = mock_config();
+    let messages = mock_messages();
+    let mut params = mock_params(None);
+    params.temperature = None;
+
+    let req = build_request("google", &config, &messages, &params).unwrap();
+    assert!(req.body["generationConfig"].get("temperature").is_none());
+}
+
+#[test]
+fn test_build_google_request_includes_temperature_when_some() {
+    let config = mock_config();
+    let messages = mock_messages();
+    let mut params = mock_params(None);
+    params.temperature = Some(0.4);
+
+    let req = build_request("google", &config, &messages, &params).unwrap();
+    assert_eq!(req.body["generationConfig"]["temperature"], 0.4);
+}
+
+#[test]
+fn test_build_anthropic_request_includes_temperature_when_some() {
+    let config = mock_config();
+    let messages = mock_messages();
+    let mut params = mock_params(None);
+    params.temperature = Some(0.5);
+
+    let req = build_request("anthropic", &config, &messages, &params).unwrap();
+    assert_eq!(req.body["temperature"], 0.5);
+}
+
+#[test]
+fn test_build_anthropic_request_omits_temperature_when_none() {
+    let config = mock_config();
+    let messages = mock_messages();
+    let mut params = mock_params(None);
+    params.temperature = None;
+
+    let req = build_request("anthropic", &config, &messages, &params).unwrap();
+    assert!(req.body.get("temperature").is_none());
+}
+
+#[test]
+fn test_build_ollama_request_omits_temperature_when_none() {
+    let config = mock_config();
+    let messages = mock_messages();
+    let mut params = mock_params(None);
+    params.temperature = None;
+
+    let req = build_request("ollama", &config, &messages, &params).unwrap();
+    assert!(req.body.get("options").is_none());
+}
+
+#[test]
+fn test_build_ollama_request_includes_temperature_when_some() {
+    let config = mock_config();
+    let messages = mock_messages();
+    let mut params = mock_params(None);
+    params.temperature = Some(0.6);
+
+    let req = build_request("ollama", &config, &messages, &params).unwrap();
+    assert_eq!(req.body["options"]["temperature"], 0.6);
 }

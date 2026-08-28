@@ -81,7 +81,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     providers: toAgentProviderDescriptors(providerRegistry.list()),
     configs: settings.ai.providers,
     defaultAgentId: settings.ai.defaultAgentId,
-    temperature: providerConfig?.temperature ?? settings.ai.temperature,
+    temperature: providerConfig?.temperature ?? null,
     maxTokens: providerConfig?.maxTokens ?? settings.ai.maxTokens,
   };
 

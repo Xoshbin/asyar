@@ -86,7 +86,7 @@ const runConfig = {
   providers,
   configs: { openai: config },
   defaultAgentId: null,
-  temperature: 0.7,
+  temperature: null,
   maxTokens: 2048,
 };
 

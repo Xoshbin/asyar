@@ -22,7 +22,7 @@ export type AgentRunConfig = {
 	providers: AgentProviderDescriptor[],
 	configs: { [key in string]: ProviderConfig },
 	defaultAgentId: string | null,
-	temperature: number,
+	temperature: number | null,
 	maxTokens: number,
 };
 
@@ -83,7 +83,7 @@ export type ChatMessage = {
 
 export type ChatParams = {
 	modelId: string,
-	temperature: number,
+	temperature: number | null,
 	maxTokens: number,
 	systemPrompt: string | null,
 	tools: ToolDefinition[] | null,

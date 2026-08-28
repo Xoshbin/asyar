@@ -61,7 +61,7 @@ pub struct ModelInfo {
 #[serde(rename_all = "camelCase")]
 pub struct ChatParams {
     pub model_id: String,
-    pub temperature: f64,
+    pub temperature: Option<f64>,
     pub max_tokens: u32,
     pub system_prompt: Option<String>,
     pub tools: Option<Vec<ToolDefinition>>,

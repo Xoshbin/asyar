@@ -70,7 +70,7 @@ pub struct AgentRunConfig {
     pub providers: Vec<AgentProviderDescriptor>,
     pub configs: HashMap<String, ProviderConfig>,
     pub default_agent_id: Option<String>,
-    pub temperature: f64,
+    pub temperature: Option<f64>,
     pub max_tokens: u32,
 }
 

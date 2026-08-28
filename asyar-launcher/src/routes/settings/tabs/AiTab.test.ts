@@ -125,4 +125,93 @@ describe('AiTab', () => {
     expect(screen.getByText('Custom (OpenAI-compatible)')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Remove Local Ollama' })).toBeTruthy();
   });
+
+  it('renders model default for temperature when undefined and allows setting custom value', async () => {
+    vi.mocked(settingsService).currentSettings = {
+      ai: {
+        providers: {
+          anthropic: { enabled: true, apiKey: 'sk-ant', lastModelId: 'claude-sonnet-5' },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+      },
+    } as any;
+    vi.mocked(providerRegistry.list).mockReturnValue([
+      {
+        id: 'anthropic',
+        name: 'Anthropic',
+        requiresApiKey: true,
+        requiresBaseUrl: false,
+        getModels: vi.fn(),
+      },
+    ]);
+
+    render(AiTab, { mode: 'providers-only' });
+
+    // Expand the Anthropic row
+    await fireEvent.click(screen.getByText('Anthropic'));
+
+    expect(screen.getByText(/Temperature:\s*Model default/)).toBeTruthy();
+    expect(screen.getByText('(omitted)')).toBeTruthy();
+
+    const rangeInput = screen.getByLabelText(/Temperature:/) as HTMLInputElement;
+    await fireEvent.input(rangeInput, { target: { value: '0.85' } });
+
+    expect(settingsService.updateSettings).toHaveBeenCalledWith('ai', {
+      providers: {
+        anthropic: expect.objectContaining({
+          temperature: 0.85,
+        }),
+      },
+    });
+  });
+
+  it('renders custom temperature and allows resetting to model default', async () => {
+    vi.mocked(settingsService).currentSettings = {
+      ai: {
+        providers: {
+          anthropic: {
+            enabled: true,
+            apiKey: 'sk-ant',
+            lastModelId: 'claude-sonnet-5',
+            temperature: 0.85,
+          },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+      },
+    } as any;
+    vi.mocked(providerRegistry.list).mockReturnValue([
+      {
+        id: 'anthropic',
+        name: 'Anthropic',
+        requiresApiKey: true,
+        requiresBaseUrl: false,
+        getModels: vi.fn(),
+      },
+    ]);
+
+    render(AiTab, { mode: 'providers-only' });
+
+    // Expand the Anthropic row
+    await fireEvent.click(screen.getByText('Anthropic'));
+
+    expect(screen.getByText(/Temperature:\s*0\.85/)).toBeTruthy();
+    const resetBtn = screen.getByRole('button', { name: 'Use model default' });
+    expect(resetBtn).toBeTruthy();
+
+    await fireEvent.click(resetBtn);
+
+    expect(settingsService.updateSettings).toHaveBeenCalledWith('ai', {
+      providers: {
+        anthropic: expect.objectContaining({
+          temperature: undefined,
+        }),
+      },
+    });
+  });
 });
