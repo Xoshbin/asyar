@@ -35,11 +35,9 @@ pub fn show<R: Runtime>(
         }))
         .map_err(|e| AppError::Platform(format!("snap-guides set_position: {e}")))?;
     let _ = window.show();
-    #[cfg(target_os = "linux")]
-    {
-        // On Linux, set_ignore_cursor_events must be deferred until after the window is shown/realized
-        let _ = window.set_ignore_cursor_events(true);
-    }
+    // set_ignore_cursor_events must be deferred until after the window is shown/realized
+    // to avoid event loop / tao aborts on hidden/unmapped windows on Linux and Windows.
+    let _ = window.set_ignore_cursor_events(true);
     Ok(())
 }
 
