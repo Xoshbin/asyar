@@ -77,14 +77,26 @@ pub fn open_application_path<R: tauri::Runtime>(
         use gio::prelude::AppInfoExt;
 
         let desktop_app = load_linux_desktop_app_info(Path::new(&path))?;
+        let launch_context = crate::platform::linux::create_sanitized_app_launch_context();
         return desktop_app
-            .launch(&[], None::<&gio::AppLaunchContext>)
+            .launch(&[], Some(&launch_context))
             .map_err(|error| {
                 AppError::Platform(format!(
                     "Failed to launch desktop entry '{}': {}",
                     path, error
                 ))
             });
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        use gio::prelude::*;
+        let launch_context = crate::platform::linux::create_sanitized_app_launch_context();
+        let file = gio::File::for_path(&path);
+        let uri = file.uri();
+        if gio::AppInfo::launch_default_for_uri(uri.as_str(), Some(&launch_context)).is_ok() {
+            return Ok(());
+        }
     }
 
     use tauri_plugin_opener::OpenerExt;

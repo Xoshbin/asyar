@@ -77,12 +77,12 @@ pub(crate) fn reveal_in_file_manager(path_str: &str) -> Result<(), AppError> {
         let parent_dir = Path::new(path_str)
             .parent()
             .ok_or_else(|| AppError::Other("Cannot get parent directory".to_string()))?;
-        Command::new("xdg-open")
-            .arg(parent_dir)
-            .spawn()
-            .map_err(|e| {
-                AppError::Other(format!("Failed to reveal path in file manager: {}", e))
-            })?;
+        let mut cmd = Command::new("xdg-open");
+        cmd.arg(parent_dir);
+        crate::platform::linux::sanitize_command(&mut cmd);
+        cmd.spawn().map_err(|e| {
+            AppError::Other(format!("Failed to reveal path in file manager: {}", e))
+        })?;
     }
 
     Ok(())
@@ -163,9 +163,10 @@ pub async fn open_in_terminal(path_str: String) -> Result<(), AppError> {
 
     #[cfg(target_os = "linux")]
     {
-        Command::new("x-terminal-emulator")
-            .current_dir(&dir)
-            .spawn()
+        let mut cmd = Command::new("x-terminal-emulator");
+        cmd.current_dir(&dir);
+        crate::platform::linux::sanitize_command(&mut cmd);
+        cmd.spawn()
             .map_err(|e| AppError::Other(format!("Failed to open terminal: {}", e)))?;
     }
 
