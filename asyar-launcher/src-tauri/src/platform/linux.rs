@@ -106,7 +106,7 @@ fn get_x11_server_time(gdk_window: Option<&gdk::Window>) -> Option<u32> {
     use gtk::glib::Cast;
     let gdk_win = gdk_window?;
     let x11_win = gdk_win.downcast_ref::<gdkx11::X11Window>()?;
-    Some(gdkx11::x11_get_server_time(x11_win))
+    Some(gdkx11::functions::x11_get_server_time(x11_win))
 }
 
 #[cfg(target_os = "linux")]
