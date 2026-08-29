@@ -584,6 +584,9 @@ fn reveal_launcher(state: &tauri::State<'_, AppState>, window: &tauri::WebviewWi
     let _ = crate::platform::linux::setup_spotlight_window(window);
 
     let _ = window.show();
+    #[cfg(target_os = "linux")]
+    let _ = crate::platform::linux::present_and_focus_spotlight_window(window);
+    #[cfg(not(target_os = "linux"))]
     let _ = window.set_focus();
     #[cfg(target_os = "linux")]
     crate::mark_launcher_shown(state);

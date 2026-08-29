@@ -211,6 +211,7 @@ dependencies = [
  "futures-util",
  "fuzzy-matcher",
  "gdk",
+ "gdkx11",
  "gio",
  "globset",
  "gtk",

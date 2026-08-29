@@ -101,6 +101,9 @@ pub fn commit_show(
             .get_webview_window(SPOTLIGHT_LABEL)
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         crate::launcher_placement::service::apply(&app_handle)?;
+        #[cfg(target_os = "linux")]
+        let _ = crate::platform::linux::present_and_focus_spotlight_window(&window);
+        #[cfg(not(target_os = "linux"))]
         let _ = window.set_focus();
         #[cfg(target_os = "linux")]
         crate::mark_launcher_shown(&state);
@@ -138,6 +141,9 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         crate::launcher_placement::service::apply(&app_handle)?;
         let _ = window.show();
+        #[cfg(target_os = "linux")]
+        let _ = crate::platform::linux::present_and_focus_spotlight_window(&window);
+        #[cfg(not(target_os = "linux"))]
         let _ = window.set_focus();
         #[cfg(target_os = "linux")]
         crate::mark_launcher_shown(&state);
@@ -374,6 +380,9 @@ pub fn show_launcher(app: &AppHandle) -> Result<(), AppError> {
             .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
         crate::launcher_placement::service::apply(app)?;
         let _ = window.show();
+        #[cfg(target_os = "linux")]
+        let _ = crate::platform::linux::present_and_focus_spotlight_window(&window);
+        #[cfg(not(target_os = "linux"))]
         let _ = window.set_focus();
     }
     Ok(())
