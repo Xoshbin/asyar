@@ -145,9 +145,15 @@
     const handleBlur = () => {
       compactSync.compactExpanded = false;
     };
+    const handleFocus = () => {
+      if (!isAnyModalOpen(document) && !isActionPanelOpen) {
+        keyboard.restoreSearchFocus({ select: true });
+      }
+    };
     document.addEventListener('click', keyboard.maintainSearchFocus, true);
     window.addEventListener('keydown', keyboard.handleGlobalKeydown, true);
     window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
 
     // Close the action popup when the panel hides — the NSPanel doesn't fire
     // DOM blur, so without this its keydown listener keeps swallowing arrows
@@ -181,6 +187,7 @@
       window.removeEventListener('keydown', keyboard.handleGlobalKeydown, true);
       document.removeEventListener('click', keyboard.maintainSearchFocus, true);
       window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
       unlistenResignKey?.();
       unlistenBecomeKey?.();
     };
