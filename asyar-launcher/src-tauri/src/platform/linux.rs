@@ -76,12 +76,15 @@ pub fn present_and_focus_spotlight_window<R: Runtime>(
     #[cfg(target_os = "linux")]
     {
         use gtk::prelude::*;
+
+        const GDK_CURRENT_TIME: u32 = 0;
+
         let gtk_window = window.gtk_window()?;
         gtk_window.set_accept_focus(true);
         gtk_window.set_focus_on_map(true);
 
         let gdk_window = gtk_window.window();
-        let server_time = get_x11_server_time(gdk_window.as_ref()).unwrap_or(gdk::CURRENT_TIME);
+        let server_time = get_x11_server_time(gdk_window.as_ref()).unwrap_or(GDK_CURRENT_TIME);
 
         gtk_window.present_with_time(server_time);
 
@@ -100,7 +103,7 @@ pub fn present_and_focus_spotlight_window<R: Runtime>(
 
 #[cfg(target_os = "linux")]
 fn get_x11_server_time(gdk_window: Option<&gdk::Window>) -> Option<u32> {
-    use gdkx11::traits::X11WindowExt;
+    use gtk::glib::Cast;
     let gdk_win = gdk_window?;
     let x11_win = gdk_win.downcast_ref::<gdkx11::X11Window>()?;
     Some(gdkx11::x11_get_server_time(x11_win))
@@ -108,8 +111,8 @@ fn get_x11_server_time(gdk_window: Option<&gdk::Window>) -> Option<u32> {
 
 #[cfg(target_os = "linux")]
 fn activate_x11_window(gtk_window: &gtk::ApplicationWindow, server_time: u32) {
-    use gdkx11::traits::X11WindowExt;
-    use gtk::prelude::GtkWindowExt;
+    use gtk::glib::Cast;
+    use gtk::prelude::*;
 
     let Some(gdk_win) = gtk_window.window() else {
         return;
