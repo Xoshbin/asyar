@@ -1,7 +1,9 @@
 pub mod desktop_entry;
+pub mod environment;
 #[cfg(target_os = "linux")]
 pub(crate) mod launcher_dbus;
 pub use desktop_entry::*;
+pub use environment::*;
 
 use std::path::{Path, PathBuf};
 use tauri::{Runtime, WebviewWindow};
