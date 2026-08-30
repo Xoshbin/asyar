@@ -33,14 +33,53 @@ class AuthService {
   public loginError = $state<string | null>(null);
 
   private deepLinkUnlisten: (() => void) | null = null;
+  private authChangedUnlisten: (() => void) | null = null;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private pollTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Initialize auth on app startup.
-   * Loads cached auth from Rust, then attempts a background entitlement refresh.
+   * Loads cached auth from Rust, registers cross-window event listeners,
+   * then attempts a background entitlement refresh if logged in.
    */
   async init(): Promise<void> {
+    if (!this.authChangedUnlisten) {
+      try {
+        this.authChangedUnlisten = await listen<commands.AuthStateResponse>(
+          'asyar:auth-changed',
+          async (event) => {
+            const payload = event.payload;
+            if (!payload) return;
+            if (payload.isLoggedIn) {
+              this.isLoggedIn = true;
+              this.user = payload.user ?? null;
+              this.entitlements = payload.entitlements ?? [];
+              try {
+                const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
+                await cloudSyncService.init();
+              } catch (err) {
+                logService.warn(`Auth: cloud sync init failed on auth change: ${err}`);
+              }
+            } else {
+              try {
+                const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
+                cloudSyncService.dispose();
+              } catch (err) {
+                logService.warn(`Auth: cloud sync dispose failed on auth change: ${err}`);
+              }
+              this.isLoggedIn = false;
+              this.user = null;
+              this.entitlements = [];
+              this.loginError = null;
+              this.isLoading = false;
+            }
+          },
+        );
+      } catch (err) {
+        logService.warn(`Auth: failed to listen for asyar:auth-changed: ${err}`);
+      }
+    }
+
     try {
       const cached = await commands.authLoadCached();
 
@@ -178,10 +217,8 @@ class AuthService {
       // Stop the cloud-sync periodic timer + provider change subscriptions
       // before clearing auth state, so an in-flight syncNow() can't fire
       // again post-logout (the entitlement gate inside syncNow would reject
-      // it, but that surfaces a misleading `lastError`). Dynamic import to
-      // avoid the cycle authService → cloudSyncService → entitlementService
-      // → authService — both modules are already loaded by the time logout
-      // runs.
+      // it, but that surfaces a misleading `lastError`).
+      // Dynamic import to avoid the cycle authService → cloudSyncService → gateService → authService
       try {
         const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
         cloudSyncService.dispose();

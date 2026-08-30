@@ -37,8 +37,11 @@ vi.mock('../search/searchBarAccessoryService.svelte', () => ({
     clearForExtension: vi.fn(),
   },
 }));
-vi.mock('../auth/entitlementService.svelte', () => ({
-  entitlementService: { check: vi.fn(), getAll: vi.fn() },
+vi.mock('../auth/gateService.svelte', () => ({
+  gate: { allows: vi.fn(), gate: vi.fn() },
+}));
+vi.mock('../auth/authService.svelte', () => ({
+  authService: { isLoggedIn: true, entitlements: [] },
 }));
 vi.mock('../storage/extensionStorageService', () => ({
   extensionStorageService: {},

@@ -2,7 +2,7 @@ use crate::auth::api_client::{self, ApiClient};
 use crate::auth::state::{AuthState, AuthStateResponse};
 use crate::auth::token_store;
 use crate::error::AppError;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 /// Open the browser for OAuth login. Returns session_code and the URL to open.
 #[tauri::command]
@@ -44,6 +44,17 @@ pub async fn auth_poll(
                 .entitlements_cached_at
                 .lock()
                 .map_err(|_| AppError::Lock)? = Some(now);
+
+            // Broadcast login event across all windows
+            let _ = app.emit(
+                "asyar:auth-changed",
+                AuthStateResponse {
+                    is_logged_in: true,
+                    user: Some(user.clone()),
+                    entitlements: entitlements.clone(),
+                    entitlements_cached_at: Some(now),
+                },
+            );
         }
     }
 
@@ -132,31 +143,48 @@ pub async fn auth_refresh_entitlements(
     Ok(entitlements)
 }
 
-/// Check if the current user has a specific entitlement (synchronous).
+/// Evaluate whether a specific ability is authorized under the central Gate policy.
 #[tauri::command]
-pub fn auth_check_entitlement(
-    entitlement: String,
+pub fn gate_check(
+    ability: crate::auth::policy::Ability,
+    sync_enabled: Option<bool>,
+    crash_report_mode: Option<String>,
+    usage_share_mode: Option<String>,
     auth_state: State<'_, AuthState>,
 ) -> Result<bool, AppError> {
-    let entitlements = auth_state.entitlements.lock().map_err(|_| AppError::Lock)?;
-    Ok(entitlements.contains(&entitlement))
+    let token_guard = auth_state.token.lock().map_err(|_| AppError::Lock)?;
+    let user_guard = auth_state.user.lock().map_err(|_| AppError::Lock)?;
+    let entitlements_guard = auth_state.entitlements.lock().map_err(|_| AppError::Lock)?;
+
+    let ctx = crate::auth::policy::PolicyContext {
+        is_logged_in: token_guard.is_some(),
+        token: token_guard.as_deref(),
+        user: user_guard.as_ref(),
+        entitlements: &entitlements_guard,
+        sync_enabled: sync_enabled.unwrap_or(true),
+        crash_report_mode: crash_report_mode.as_deref().unwrap_or("off"),
+        usage_share_mode: usage_share_mode.as_deref().unwrap_or("off"),
+    };
+
+    Ok(crate::auth::policy::Gate::allows(&ctx, ability))
 }
 
 /// Revoke token on backend and clear all local auth state.
+/// Always purges local auth state and emits `asyar:auth-changed` even if remote revocation fails.
 #[tauri::command]
 pub async fn auth_logout(
     app: AppHandle,
     auth_state: State<'_, AuthState>,
     api_client: State<'_, ApiClient>,
 ) -> Result<(), AppError> {
-    // Best-effort revoke on backend
+    // Best-effort revoke on backend — never block local logout on network/server errors
     let token = auth_state.token.lock().map_err(|_| AppError::Lock)?.clone();
 
     if let Some(t) = token {
-        api_client.revoke_token(&t).await?;
+        let _ = api_client.revoke_token(&t).await;
     }
 
-    // Clear in-memory state
+    // Unconditionally clear in-memory state
     *auth_state.token.lock().map_err(|_| AppError::Lock)? = None;
     *auth_state.user.lock().map_err(|_| AppError::Lock)? = None;
     *auth_state.entitlements.lock().map_err(|_| AppError::Lock)? = vec![];
@@ -165,8 +193,19 @@ pub async fn auth_logout(
         .lock()
         .map_err(|_| AppError::Lock)? = None;
 
-    // Clear disk
-    token_store::clear_auth(&app)?;
+    // Unconditionally clear disk
+    let _ = token_store::clear_auth(&app);
+
+    // Emit cross-window auth change event
+    let _ = app.emit(
+        "asyar:auth-changed",
+        AuthStateResponse {
+            is_logged_in: false,
+            user: None,
+            entitlements: vec![],
+            entitlements_cached_at: None,
+        },
+    );
 
     Ok(())
 }

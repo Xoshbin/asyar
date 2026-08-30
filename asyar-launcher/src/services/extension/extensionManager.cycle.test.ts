@@ -183,9 +183,11 @@ vi.mock('../../lib/ipc/commands', () => ({
   setExtensionEnabled: vi.fn().mockResolvedValue(true),
   uninstallExtension: vi.fn().mockResolvedValue(undefined),
 }));
-// aiService.svelte removed with AI Chat feature; no mock needed.
-vi.mock('../auth/entitlementService.svelte', () => ({
-  entitlementService: { check: vi.fn().mockReturnValue(true), getAll: vi.fn().mockReturnValue([]) },
+vi.mock('../auth/gateService.svelte', () => ({
+  gate: { allows: vi.fn().mockReturnValue(true), gate: vi.fn().mockReturnValue({ allowed: true }) },
+}));
+vi.mock('../auth/authService.svelte', () => ({
+  authService: { isLoggedIn: true, entitlements: [] },
 }));
 vi.mock('../feedback/feedbackService.svelte', () => ({
   feedbackService: { submit: vi.fn() },

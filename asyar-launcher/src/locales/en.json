@@ -177,6 +177,8 @@
       "not_signed_in": "Not signed in",
       "subscription_not_signed_in_desc": "Sign in to manage your plan.",
       "sync_not_signed_in_desc": "Sign in to sync settings across devices.",
+      "sync_will_sync_desc": "Data will sync when signed in.",
+      "sync_stays_local_desc": "Your data stays on this device.",
       "features": "Features",
       "open_billing_desc": "Open your hosted billing and plan settings.",
       "manage_subscription": "Manage Subscription",

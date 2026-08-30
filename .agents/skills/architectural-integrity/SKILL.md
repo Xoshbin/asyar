@@ -256,6 +256,20 @@ For auditing specific IPC contracts, permission gate coverage, and type string c
 
 ---
 
+## Principle 5: Centralized Gate & Policy Engine (Fail-Closed Egress & Authorization)
+
+### The Pattern
+
+Privacy and data security in Asyar are **fail-closed** by default. No private user data, telemetry, or privileged cloud requests ever leave the device unless explicitly authorized by authentication, entitlement, and user consent.
+
+- **Rust Core is the Policy Brain**: All policy evaluations and authorization rules are defined and enforced in native Rust (`crate::auth::policy::Gate`).
+- **Typed `Ability` Enum**: All privileged operations are represented by typed variants (`Ability::CloudSyncEgress`, `Ability::AiCloudModels`, `Ability::AiConversationSync`, `Ability::TelemetryCrashReport`, `Ability::TelemetryUsageShare`). String-matching checks are strictly forbidden for core abilities.
+- **Fail-Closed by Default**: If an ability is evaluated against an unauthenticated context or missing entitlement, `Gate::evaluate` rejects immediately with `Err(PolicyError::Unauthenticated)` or `Err(PolicyError::MissingEntitlement)`.
+- **Frontend Svelte 5 `GateService`**: The frontend UI and services consume `gate.allows(ability)`, `gate.denies(ability)`, and `gate.gate(ability)`.
+- **Zero Legacy Fallbacks**: Never implement legacy fallbacks that assume signed-out users are "free tier unrestricted" for outbound network egress. Signed-out state is completely inert.
+
+---
+
 ## Session Start Protocol
 
 At the start of every conversation:

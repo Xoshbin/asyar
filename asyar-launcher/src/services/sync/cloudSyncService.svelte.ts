@@ -1,6 +1,6 @@
 import { profileService } from '../profile/profileService';
 import { authService } from '../auth/authService.svelte';
-import { entitlementService } from '../auth/entitlementService.svelte';
+import { gate } from '../auth/gateService.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import { logService } from '../log/logService';
 import { feedbackService } from '../feedback/feedbackService.svelte';
@@ -55,6 +55,7 @@ class CloudSyncService {
   private providerUnsubs: Unsubscribe[] = [];
   private settingsUnsub: (() => void) | null = null;
   private lastEnabledSeen: boolean | null = null;
+  private lastLoggedFailureSummary: string | null = null;
 
   /**
    * User preference (`user.syncEnabled`), defaulting to `true` so existing
@@ -67,18 +68,13 @@ class CloudSyncService {
   }
 
   /**
-   * Why sync must not run right now, or `null` when it may. Sync needs an
-   * authenticated session (`sync_run` rejects without a token, so running
-   * signed-out just raises `sync.run-failed` diagnostics forever), the
-   * `sync:settings` entitlement, and the user preference. The entitlement
-   * check alone is NOT a sufficient gate: it fails open for signed-out
-   * users ("free tier: unrestricted").
+   * Why sync must not run right now, or `null` when it may. Evaluates the
+   * central Gate policy for 'cloud-sync-egress' (requires authenticated session,
+   * active 'sync:settings' entitlement, and user.syncEnabled preference).
    */
   private blockedReason(): string | null {
-    if (!authService.isLoggedIn) return 'cloud sync requires a signed-in account';
-    if (!entitlementService.check('sync:settings')) return 'sync:settings entitlement required';
-    if (!this.enabled) return 'cloud sync is disabled in settings';
-    return null;
+    const result = gate.gate('cloud-sync-egress');
+    return result.allowed ? null : (result.reason ?? 'Cloud sync denied by policy');
   }
 
   async init(): Promise<void> {
@@ -94,7 +90,10 @@ class CloudSyncService {
    * handlers first.
    */
   private async start(): Promise<void> {
-    if (this.blockedReason() !== null) return;
+    if (this.blockedReason() !== null) {
+      this.stop();
+      return;
+    }
 
     await this.checkStatus().catch((err) => {
       logService.warn(`Cloud sync checkStatus failed: ${err}`);
@@ -266,7 +265,20 @@ class CloudSyncService {
       this.status = 'idle';
     } catch (err: unknown) {
       this.status = 'error';
-      this.lastError = err instanceof Error ? err.message : String(err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      this.lastError = errMsg;
+
+      if (
+        errMsg.includes('Token expired') ||
+        errMsg.includes('Not logged in') ||
+        errMsg.includes('401')
+      ) {
+        logService.warn(`Cloud sync: auth token rejected/expired (${errMsg}); disposing sync`);
+        this.dispose();
+        authService.logout().catch(() => {});
+        return;
+      }
+
       logService.error(`Cloud sync run failed: ${err}`);
     }
   }
@@ -280,7 +292,7 @@ class CloudSyncService {
     const allProviders = profileService.getProviders();
     const allowedProviders = allProviders.filter((p) => {
       if (p.syncTier === 'core') return true;
-      return entitlementService.check('sync:ai-conversations');
+      return gate.allows('sync.ai-conversations');
     });
 
     const sources: commands.LocalItemSourceWire[] = [];
@@ -396,8 +408,19 @@ class CloudSyncService {
         });
     }
     if (report.failed.length > 0) {
+      const summary = `${report.failed.length}:${report.failed
+        .map((f) => f.itemId)
+        .sort()
+        .join(',')}`;
       const detail = report.failed.map((f) => `${f.itemId} (${f.reason})`).join(', ');
-      logService.warn(`Cloud sync had ${report.failed.length} failed items: ${detail}`);
+
+      if (this.lastLoggedFailureSummary !== summary) {
+        this.lastLoggedFailureSummary = summary;
+        logService.warn(`Cloud sync had ${report.failed.length} failed items: ${detail}`);
+      } else {
+        logService.debug(`Cloud sync repeated failure (${report.failed.length} items): ${detail}`);
+      }
+
       // Mirror the failure into the diagnostic bar so the user sees it
       // alongside other sync warnings.
       feedbackService
@@ -414,6 +437,8 @@ class CloudSyncService {
         .catch((err) => {
           logService.warn(`Cloud sync: failed to surface push-failure diagnostic: ${err}`);
         });
+    } else {
+      this.lastLoggedFailureSummary = null;
     }
   }
 

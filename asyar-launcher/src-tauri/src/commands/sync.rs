@@ -23,7 +23,8 @@
 //! production path.
 
 use crate::auth::api_client::ApiClient;
-use crate::auth::state::AuthState;
+use crate::auth::state::{AuthState, AuthStateResponse};
+use crate::auth::token_store;
 use crate::error::AppError;
 use crate::storage::cloud_sync_state::{self, ItemJournalEntry};
 use crate::storage::DataStore;
@@ -35,7 +36,7 @@ use crate::sync::types::{
 };
 use serde::{Deserialize, Serialize};
 use std::future::Future;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 /// Server-side cap on the pull page size. The server clamps anything higher
 /// to 1000; we use 500 to keep page latency predictable.
@@ -189,25 +190,77 @@ impl SyncHttp for ApiClient {
 /// decide which items need to be pushed.
 #[tauri::command]
 pub async fn sync_run(
+    app: AppHandle,
     sources: Vec<LocalItemSourceWire>,
     auth_state: State<'_, AuthState>,
     api_client: State<'_, ApiClient>,
     data_store: State<'_, DataStore>,
     keystore: State<'_, std::sync::Arc<dyn crate::crypto::keystore::KeyStore>>,
 ) -> Result<SyncRunReport, AppError> {
-    let token = auth_state
-        .token
-        .lock()
-        .map_err(|_| AppError::Lock)?
-        .clone()
-        .ok_or_else(|| AppError::Auth("Not logged in".to_string()))?;
+    let token = {
+        let token_guard = auth_state.token.lock().map_err(|_| AppError::Lock)?;
+        let user_guard = auth_state.user.lock().map_err(|_| AppError::Lock)?;
+        let entitlements_guard = auth_state.entitlements.lock().map_err(|_| AppError::Lock)?;
+
+        let token = match token_guard.as_ref() {
+            Some(t) if !t.is_empty() => t.clone(),
+            _ => return Err(AppError::Auth("Not logged in".to_string())),
+        };
+
+        let policy_ctx = crate::auth::policy::PolicyContext {
+            is_logged_in: true,
+            token: Some(&token),
+            user: user_guard.as_ref(),
+            entitlements: &entitlements_guard,
+            sync_enabled: true,
+            crash_report_mode: "off",
+            usage_share_mode: "off",
+        };
+
+        crate::auth::policy::Gate::evaluate(
+            &policy_ctx,
+            crate::auth::policy::Ability::CloudSyncEgress,
+        )?;
+
+        token
+    };
     let svc = crate::sync::e2ee::service::E2eeService {
         api: &api_client,
         keystore: &**keystore,
         data_store: &data_store,
     };
     let mode = svc.load_mode()?;
-    sync_run_inner(&sources, &token, &*api_client, &data_store, &mode).await
+    let result = sync_run_inner(&sources, &token, &*api_client, &data_store, &mode).await;
+
+    if let Err(AppError::Auth(ref msg)) = result {
+        if msg.contains("Token expired") || msg.contains("Not logged in") || msg.contains("401") {
+            log::warn!("[sync] auth token expired or invalid; purging local auth state");
+            if let Ok(mut t) = auth_state.token.lock() {
+                *t = None;
+            }
+            if let Ok(mut u) = auth_state.user.lock() {
+                *u = None;
+            }
+            if let Ok(mut e) = auth_state.entitlements.lock() {
+                *e = vec![];
+            }
+            if let Ok(mut c) = auth_state.entitlements_cached_at.lock() {
+                *c = None;
+            }
+            let _ = token_store::clear_auth(&app);
+            let _ = app.emit(
+                "asyar:auth-changed",
+                AuthStateResponse {
+                    is_logged_in: false,
+                    user: None,
+                    entitlements: vec![],
+                    entitlements_cached_at: None,
+                },
+            );
+        }
+    }
+
+    result
 }
 
 /// Read the current sync status from local state.
@@ -469,6 +522,13 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
                     report.uploaded.push(assignment.id.clone());
                 }
             }
+            Err(AppError::Auth(msg))
+                if msg.contains("Token expired")
+                    || msg.contains("Not logged in")
+                    || msg.contains("401") =>
+            {
+                return Err(AppError::Auth(msg));
+            }
             Err(e) => {
                 let reason = e.to_string();
                 for id in chunk_ids {
@@ -549,6 +609,10 @@ mod tests {
 
         fn enqueue_pull(&self, page: ItemPullPage) {
             self.pull_responses.lock().unwrap().push(Ok(page));
+        }
+
+        fn enqueue_pull_err(&self, err: AppError) {
+            self.pull_responses.lock().unwrap().push(Err(err));
         }
 
         fn enqueue_push(&self, response: ItemPushBatchResponse) {
@@ -1219,5 +1283,39 @@ mod tests {
         assert!(!report.applied_records[0].deleted);
 
         assert_eq!(report.uploaded, vec!["push-me".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn sync_run_pull_401_aborts_with_auth_error() {
+        let http = MockSyncHttp::new();
+        http.enqueue_pull_err(AppError::Auth("Token expired or invalid".into()));
+        let store = create_test_store();
+
+        let err = sync_run_inner(&[], "tok", &http, &store, &Mode::Off)
+            .await
+            .expect_err("pull 401 must fail sync_run");
+
+        match err {
+            AppError::Auth(msg) => assert!(msg.contains("Token expired")),
+            other => panic!("expected AppError::Auth, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn sync_run_push_401_aborts_with_auth_error() {
+        let http = MockSyncHttp::new();
+        http.enqueue_pull(empty_pull_page(0));
+        http.enqueue_push_err(AppError::Auth("Token expired or invalid".into()));
+        let store = create_test_store();
+
+        let sources = vec![local_wire("item-1", "snippets", "test-payload")];
+        let err = sync_run_inner(&sources, "tok", &http, &store, &Mode::Off)
+            .await
+            .expect_err("push 401 must fail sync_run");
+
+        match err {
+            AppError::Auth(msg) => assert!(msg.contains("Token expired")),
+            other => panic!("expected AppError::Auth, got {other:?}"),
+        }
     }
 }

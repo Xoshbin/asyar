@@ -39,6 +39,9 @@ pub enum AppError {
     #[error("Permission denied: {0}")]
     Permission(String),
 
+    #[error("Policy error: {0}")]
+    Policy(#[from] crate::auth::policy::PolicyError),
+
     #[error("Authentication error: {0}")]
     Auth(String),
 
@@ -95,6 +98,7 @@ impl HasSeverity for AppError {
             AppError::Validation(_) => "validation_failure",
             AppError::Encryption(_) => "encryption_failure",
             AppError::Permission(_) => "permission_denied",
+            AppError::Policy(_) => "policy_denied",
             AppError::Auth(_) => "auth_failure",
             AppError::Database(_) => "database_failure",
             AppError::OAuth(_) => "oauth_failure",
@@ -109,6 +113,7 @@ impl HasSeverity for AppError {
         match self {
             AppError::Lock | AppError::Database(_) | AppError::Encryption(_) => Severity::Fatal,
             AppError::Permission(_)
+            | AppError::Policy(_)
             | AppError::Validation(_)
             | AppError::NotFound(_)
             | AppError::RunFailed { .. }
@@ -129,6 +134,9 @@ impl HasSeverity for AppError {
         match self {
             AppError::Permission(s) => {
                 ctx.insert("permission", s.clone());
+            }
+            AppError::Policy(p) => {
+                ctx.insert("policyError", p.to_string());
             }
             AppError::NotFound(s) => {
                 ctx.insert("target", s.clone());

@@ -50,12 +50,31 @@ export async function authRefreshEntitlements(): Promise<string[] | null> {
   return invokeSafe<string[]>('auth_refresh_entitlements');
 }
 
-export async function authCheckEntitlement(entitlement: string): Promise<boolean | null> {
-  return invokeSafe<boolean>('auth_check_entitlement', { entitlement });
-}
-
 export async function authLogout(): Promise<void> {
   await invokeSafe('auth_logout');
+}
+
+export type Ability =
+  | 'cloud-sync-egress'
+  | 'ai-cloud-models'
+  | 'ai-conversation-sync'
+  | 'telemetry-crash-report'
+  | 'telemetry-usage-share';
+
+export async function gateCheck(
+  ability: Ability,
+  opts?: {
+    syncEnabled?: boolean;
+    crashReportMode?: string;
+    usageShareMode?: string;
+  },
+): Promise<boolean | null> {
+  return invokeSafe<boolean>('gate_check', {
+    ability,
+    syncEnabled: opts?.syncEnabled,
+    crashReportMode: opts?.crashReportMode,
+    usageShareMode: opts?.usageShareMode,
+  });
 }
 
 // ── OAuth PKCE for Extensions ─────────────────────────────────────────────────

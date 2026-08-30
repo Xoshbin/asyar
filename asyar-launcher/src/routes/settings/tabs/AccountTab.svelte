@@ -13,7 +13,7 @@
   import { authService } from '../../../services/auth/authService.svelte';
   import { cloudSyncService } from '../../../services/sync/cloudSyncService.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
-  import { entitlementService } from '../../../services/auth/entitlementService.svelte';
+  import { gate } from '../../../services/auth/gateService.svelte';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { logService } from '../../../services/log/logService';
   import { syncEncryptionService } from '../../../services/sync/syncEncryptionService.svelte';
@@ -219,7 +219,17 @@
         label={t('settings.account.section_sync')}
         description={t('settings.account.sync_not_signed_in_desc')}
       >
-        <span class="secondary-text">{t('settings.account.not_signed_in')}</span>
+        <div class="sync-enable-row">
+          <span class="secondary-text">
+            {syncToggleState
+              ? t('settings.account.sync_will_sync_desc')
+              : t('settings.account.sync_stays_local_desc')}
+          </span>
+          <Toggle
+            bind:checked={syncToggleState}
+            onchange={(e) => onSyncToggleClick((e.target as HTMLInputElement).checked)}
+          />
+        </div>
       </SettingsRow>
     </SettingsCard>
   </div>
@@ -314,7 +324,7 @@
   <div class="section-header">{t('settings.account.section_sync')}</div>
   <div id="account-sync" class="anchor-group">
     <SettingsCard>
-      {#if entitlementService.check('sync:settings')}
+      {#if !authService.isLoggedIn || authService.entitlements.includes('sync:settings')}
         <SettingsRow label={t('settings.account.section_sync')}>
           <div class="sync-enable-row">
             <span class="secondary-text">

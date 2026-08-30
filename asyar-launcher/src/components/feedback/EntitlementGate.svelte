@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { entitlementService } from '../../services/auth/entitlementService.svelte';
+  import { gate } from '../../services/auth/gateService.svelte';
   import { authService } from '../../services/auth/authService.svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
 
@@ -9,14 +9,14 @@
     featureName,
     children,
   }: {
-    /** The entitlement string to check (e.g. "sync:settings"). */
+    /** The entitlement string or ability to check (e.g. "sync:settings", "sync.egress"). */
     entitlement: string;
     /** Human-readable name of the feature for the upsell message. */
     featureName: string;
     children: Snippet;
   } = $props();
 
-  const result = $derived(entitlementService.gate(entitlement));
+  const result = $derived(gate.gate(entitlement as any));
 </script>
 
 {#if result.allowed}

@@ -32,7 +32,7 @@ When sync is enabled:
 
 If a sync error occurs, an error message appears below the Last Synced row.
 
-Cloud sync is always on for eligible accounts — there is no separate toggle to enable it once the entitlement is active.
+You can turn Cloud Sync on or off at any time using the **Sync** toggle in **Settings → Account**. When turned off or when signed out, Asyar operates in strict local-first mode: all outbound sync egress is blocked at the native core, and your data stays completely on this device.
 
 ## End-to-end encryption
 

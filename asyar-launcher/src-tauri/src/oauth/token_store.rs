@@ -4,19 +4,20 @@ use crate::profile::encryption;
 use rusqlite::{params, Connection};
 use tauri::{AppHandle, Manager};
 
-fn machine_key(app: &AppHandle) -> String {
+fn machine_key(app: &AppHandle) -> Result<String, AppError> {
     app.path()
         .app_data_dir()
         .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|_| "asyar-fallback".to_string())
+        .map_err(|e| AppError::Other(format!("Failed to resolve app data directory: {e}")))
 }
 
-fn oauth_salt(app: &AppHandle) -> [u8; 32] {
+fn oauth_salt(app: &AppHandle) -> Result<[u8; 32], AppError> {
     use sha2::{Digest, Sha256};
+    let key = machine_key(app)?;
     let mut hasher = Sha256::new();
-    hasher.update(machine_key(app).as_bytes());
+    hasher.update(key.as_bytes());
     hasher.update(b":oauth-salt-v1");
-    hasher.finalize().into()
+    Ok(hasher.finalize().into())
 }
 
 pub fn init_table(conn: &Connection) -> Result<(), AppError> {
@@ -53,8 +54,8 @@ pub fn store_token(
     provider_id: &str,
     token: &OAuthToken,
 ) -> Result<(), AppError> {
-    let password = machine_key(app);
-    let salt = oauth_salt(app);
+    let password = machine_key(app)?;
+    let salt = oauth_salt(app)?;
     let composite_key = format!("{extension_id}:{provider_id}");
     let now = now_secs();
 
@@ -123,8 +124,8 @@ pub fn get_token(
 
     match result {
         Ok((access_enc, refresh_enc, token_type, scopes_json, expires_at)) => {
-            let password = machine_key(app);
-            let salt = oauth_salt(app);
+            let password = machine_key(app)?;
+            let salt = oauth_salt(app)?;
             let access_token = encryption::decrypt_value(&access_enc, &password, &salt)?;
             let refresh_token = refresh_enc
                 .map(|enc| encryption::decrypt_value(&enc, &password, &salt))

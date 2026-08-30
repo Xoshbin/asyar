@@ -80,6 +80,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     crashReportMode: 'off',
     usageShareMode: 'off',
   },
+  user: {
+    syncEnabled: true,
+  },
   fileSearch: {
     enabled: true,
     includeRoots: [],
