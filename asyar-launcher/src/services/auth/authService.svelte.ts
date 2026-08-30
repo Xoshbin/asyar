@@ -217,10 +217,8 @@ class AuthService {
       // Stop the cloud-sync periodic timer + provider change subscriptions
       // before clearing auth state, so an in-flight syncNow() can't fire
       // again post-logout (the entitlement gate inside syncNow would reject
-      // it, but that surfaces a misleading `lastError`). Dynamic import to
-      // avoid the cycle authService → cloudSyncService → entitlementService
-      // → authService — both modules are already loaded by the time logout
-      // runs.
+      // it, but that surfaces a misleading `lastError`).
+      // Dynamic import to avoid the cycle authService → cloudSyncService → gateService → authService
       try {
         const { cloudSyncService } = await import('../sync/cloudSyncService.svelte');
         cloudSyncService.dispose();

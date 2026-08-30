@@ -26,12 +26,6 @@ vi.mock('../auth/authService.svelte', () => ({
   },
 }));
 
-vi.mock('../auth/entitlementService.svelte', () => ({
-  entitlementService: {
-    check: vi.fn(),
-  },
-}));
-
 vi.mock('../settings/settingsService.svelte', () => ({
   settingsService: {
     getSettings: vi.fn(),
@@ -59,7 +53,6 @@ import { cloudSyncService, PERIODIC_SYNC_INTERVAL_MS } from './cloudSyncService.
 import * as commands from '../../lib/ipc/commands';
 import { profileService } from '../profile/profileService';
 import { authService } from '../auth/authService.svelte';
-import { entitlementService } from '../auth/entitlementService.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import { feedbackService } from '../feedback/feedbackService.svelte';
 import { logService } from '../log/logService';
@@ -199,7 +192,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
     // `sync.run-failed` diagnostic each 60 s tick and provider change.
     it('init_skips_when_signed_out_even_though_entitlement_check_passes', async () => {
       authService.isLoggedIn = false;
-      vi.mocked(entitlementService.check).mockReturnValue(true);
+      authService.entitlements = ['sync:settings'];
 
       await cloudSyncService.init();
 

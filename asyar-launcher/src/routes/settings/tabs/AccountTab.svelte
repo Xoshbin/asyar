@@ -13,7 +13,7 @@
   import { authService } from '../../../services/auth/authService.svelte';
   import { cloudSyncService } from '../../../services/sync/cloudSyncService.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
-  import { entitlementService } from '../../../services/auth/entitlementService.svelte';
+  import { gate } from '../../../services/auth/gateService.svelte';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { logService } from '../../../services/log/logService';
   import { syncEncryptionService } from '../../../services/sync/syncEncryptionService.svelte';
@@ -324,7 +324,7 @@
   <div class="section-header">{t('settings.account.section_sync')}</div>
   <div id="account-sync" class="anchor-group">
     <SettingsCard>
-      {#if entitlementService.check('sync:settings')}
+      {#if !authService.isLoggedIn || authService.entitlements.includes('sync:settings')}
         <SettingsRow label={t('settings.account.section_sync')}>
           <div class="sync-enable-row">
             <span class="secondary-text">

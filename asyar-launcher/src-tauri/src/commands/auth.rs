@@ -143,16 +143,6 @@ pub async fn auth_refresh_entitlements(
     Ok(entitlements)
 }
 
-/// Check if the current user has a specific entitlement (synchronous).
-#[tauri::command]
-pub fn auth_check_entitlement(
-    entitlement: String,
-    auth_state: State<'_, AuthState>,
-) -> Result<bool, AppError> {
-    let entitlements = auth_state.entitlements.lock().map_err(|_| AppError::Lock)?;
-    Ok(entitlements.contains(&entitlement))
-}
-
 /// Evaluate whether a specific ability is authorized under the central Gate policy.
 #[tauri::command]
 pub fn gate_check(

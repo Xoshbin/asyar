@@ -561,7 +561,6 @@ pub fn run() {
             commands::auth_load_cached,
             commands::auth_get_state,
             commands::auth_refresh_entitlements,
-            commands::auth_check_entitlement,
             commands::auth_logout,
             commands::gate_check,
             commands::submit_feedback,

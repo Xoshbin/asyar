@@ -50,10 +50,6 @@ export async function authRefreshEntitlements(): Promise<string[] | null> {
   return invokeSafe<string[]>('auth_refresh_entitlements');
 }
 
-export async function authCheckEntitlement(entitlement: string): Promise<boolean | null> {
-  return invokeSafe<boolean>('auth_check_entitlement', { entitlement });
-}
-
 export async function authLogout(): Promise<void> {
   await invokeSafe('auth_logout');
 }

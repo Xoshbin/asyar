@@ -101,6 +101,19 @@ class GateService {
       }
 
       default: {
+        // Support direct entitlement checks (e.g. 'sync:settings', 'ai:chat') with strict fail-closed
+        if (typeof ability === 'string' && ability.includes(':')) {
+          if (!authService.isLoggedIn) {
+            return { allowed: false, reason: 'This feature requires a signed-in account.' };
+          }
+          if (authService.entitlements?.includes(ability)) {
+            return { allowed: true };
+          }
+          return {
+            allowed: false,
+            reason: `This feature requires the '${ability}' subscription entitlement.`,
+          };
+        }
         // Fail-closed for unknown abilities
         return { allowed: false, reason: `Unknown ability '${ability}'.` };
       }

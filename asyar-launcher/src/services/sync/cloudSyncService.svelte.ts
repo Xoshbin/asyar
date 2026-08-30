@@ -1,6 +1,5 @@
 import { profileService } from '../profile/profileService';
 import { authService } from '../auth/authService.svelte';
-import { entitlementService } from '../auth/entitlementService.svelte';
 import { gate } from '../auth/gateService.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import { logService } from '../log/logService';
@@ -69,12 +68,9 @@ class CloudSyncService {
   }
 
   /**
-   * Why sync must not run right now, or `null` when it may. Sync needs an
-   * authenticated session (`sync_run` rejects without a token, so running
-   * signed-out just raises `sync.run-failed` diagnostics forever), the
-   * `sync:settings` entitlement, and the user preference. The entitlement
-   * check alone is NOT a sufficient gate: it fails open for signed-out
-   * users ("free tier: unrestricted").
+   * Why sync must not run right now, or `null` when it may. Evaluates the
+   * central Gate policy for 'cloud-sync-egress' (requires authenticated session,
+   * active 'sync:settings' entitlement, and user.syncEnabled preference).
    */
   private blockedReason(): string | null {
     const result = gate.gate('cloud-sync-egress');
