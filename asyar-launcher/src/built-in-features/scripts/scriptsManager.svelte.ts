@@ -12,6 +12,7 @@ import {
 import { logService } from '../../services/log/logService';
 import { commandService } from '../../services/extension/commandService.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import type { ScannedScript, ScriptScanIssue } from './types';
 import type { DynamicCommandRegistration } from 'asyar-sdk/contracts';
 
@@ -42,9 +43,12 @@ export class ScriptsManager {
         logService.warn(`[scripts] refresh on event failed: ${err}`);
       });
     });
-    this.unlistenInlineTick = await listen<InlineTickPayload>('scripts:inline:tick', (event) => {
-      this.applyInlineTick(event.payload);
-    });
+    this.unlistenInlineTick = await bridgeListen<InlineTickPayload>(
+      'scripts:inline:tick',
+      (event) => {
+        this.applyInlineTick(event.payload);
+      },
+    );
     try {
       await this.refresh();
     } catch (err) {

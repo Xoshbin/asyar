@@ -1,6 +1,7 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
+import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 
 interface EventEnvelope {
   extensionId: string;
@@ -38,7 +39,7 @@ export function createPushBridge(
   return {
     async init(): Promise<void> {
       if (unlisten) return;
-      unlisten = await listen<EventEnvelope>(tauriEventName, (msg) => {
+      unlisten = await bridgeListen<EventEnvelope>(tauriEventName, (msg) => {
         const { extensionId, event } = msg.payload;
         // Prefer the worker iframe. Push-event subscribers (systemEvents,
         // appEvents, etc.) are installed from the worker so their callbacks

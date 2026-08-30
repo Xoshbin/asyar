@@ -53,6 +53,7 @@ import { iframeDeliveryListener } from './extension/iframeDeliveryListener.svelt
 import { restoreWorkers } from '../lib/ipc/iframeLifecycleCommands';
 import { feedbackService } from './feedback/feedbackService.svelte';
 import { setInvokeFailureReporter } from '../lib/ipc/invokeSafe';
+import { startBridgeLoop } from '../lib/ipc/bridgeEvents';
 
 // Flag to prevent multiple initializations
 let isInitialized = false;
@@ -83,6 +84,10 @@ export const appInitializer = {
     isInitialized = true; // Set early to prevent concurrent calls
 
     try {
+      // Start the eval-free event bridge loop first so early Rust events
+      // get buffered rather than lost before listeners register.
+      startBridgeLoop();
+
       logService.info(`Application starting initialization...`);
 
       // Route invoke failures to the diagnostics UI. Wired here (composition

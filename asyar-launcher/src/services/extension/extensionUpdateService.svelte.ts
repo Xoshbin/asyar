@@ -4,6 +4,7 @@ import { logService } from '../log/logService';
 import { permissionConsentService } from './permissionConsentService.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import type { AvailableUpdate, UpdateProgressStatus } from '../../types/ExtensionUpdate';
 
 class ExtensionUpdateService {
@@ -40,7 +41,7 @@ class ExtensionUpdateService {
         this.updateProgress = event.payload;
       },
     );
-    this.unlistenTick = await listen<void>('asyar:extension-update:tick', () => {
+    this.unlistenTick = await bridgeListen<void>('asyar:extension-update:tick', () => {
       this.checkAndAutoApply();
     });
   }

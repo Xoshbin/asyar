@@ -13,6 +13,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
 import extensionManager from '../extension/extensionManager.svelte';
 import { developerSettingsService } from '../settings/developerSettingsService.svelte';
+import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 import { getExtensionRuntimeSnapshot } from '../../lib/ipc/iframeLifecycleCommands';
 import {
   forceRemountWorker as forceRemountWorkerCommand,
@@ -200,7 +201,7 @@ class InspectorStore {
       void this.refreshSubscriptions(id);
     }, SUBS_POLL_MS);
 
-    const unsubMount = await listen<{
+    const unsubMount = await bridgeListen<{
       extensionId: string;
       mountToken?: number;
       role?: ContextRoleWire;
@@ -213,7 +214,7 @@ class InspectorStore {
       });
     });
 
-    const unsubUnmount = await listen<{
+    const unsubUnmount = await bridgeListen<{
       extensionId: string;
       role?: ContextRoleWire;
       reason?: string;
@@ -226,7 +227,7 @@ class InspectorStore {
       }
     });
 
-    const unsubDegraded = await listen<{
+    const unsubDegraded = await bridgeListen<{
       extensionId: string;
       strikes?: number;
       role?: ContextRoleWire;
@@ -239,7 +240,7 @@ class InspectorStore {
       });
     });
 
-    const unsubStateChanged = await listen<{
+    const unsubStateChanged = await bridgeListen<{
       extensionId: string;
       key: string;
       value: unknown;
@@ -252,8 +253,19 @@ class InspectorStore {
 
     this.#unlisteners.push(unsubMount, unsubUnmount, unsubDegraded, unsubStateChanged);
 
+    const BRIDGED_EVENTS = new Set([
+      'asyar:iframe:mount',
+      'asyar:iframe:unmount',
+      'asyar:iframe:degraded',
+      'asyar:state-changed',
+      'asyar:state-rpc-reply',
+      'asyar:system-event',
+      'asyar:app-event',
+    ]);
+
     for (const channel of TAPPED_EVENTS) {
-      const un = await listen<unknown>(channel, (event) => {
+      const subscribe = BRIDGED_EVENTS.has(channel) ? bridgeListen<unknown> : listen<unknown>;
+      const un = await subscribe(channel, (event) => {
         this.recordEvent(channel, event.payload);
       });
       this.#unlisteners.push(un);

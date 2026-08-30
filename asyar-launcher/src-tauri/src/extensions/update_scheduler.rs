@@ -1,6 +1,6 @@
 use log::info;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 const STARTUP_DELAY_SECS: u64 = 60;
 const CHECK_INTERVAL_SECS: u64 = 3600; // 1 hour
@@ -29,7 +29,7 @@ fn read_auto_update_setting(app: &AppHandle) -> bool {
 fn run_tick(app: &AppHandle) {
     if read_auto_update_setting(app) {
         info!("extension_updater: scheduled check running...");
-        let _ = app.emit("asyar:extension-update:tick", serde_json::json!({}));
+        crate::event_bridge::bridge_emit(app, "asyar:extension-update:tick", serde_json::json!({}));
     } else {
         info!("extension_updater: auto-update is disabled, skipping scheduled tick");
     }

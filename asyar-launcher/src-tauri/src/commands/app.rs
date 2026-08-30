@@ -113,6 +113,7 @@ pub fn commit_show(
     // reads is_visible mid-prepare would take the single-shot `show` path and
     // composite at alpha 1 before the new view has committed a fresh frame.
     state.asyar_visible.store(true, Ordering::Relaxed);
+    crate::scripts::inline_scheduler::nudge_reveal();
     Ok(())
 }
 
@@ -148,6 +149,7 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
         #[cfg(target_os = "linux")]
         crate::mark_launcher_shown(&state);
     }
+    crate::scripts::inline_scheduler::nudge_reveal();
     Ok(())
 }
 

@@ -297,17 +297,11 @@ pub struct TauriStateEmitter {
 
 impl StateEventEmitter for TauriStateEmitter {
     fn emit_state_changed(&self, payload: &StateChangedPayload) {
-        use tauri::Emitter;
-        if let Err(e) = self.app.emit("asyar:state-changed", payload) {
-            log::warn!("[extension_state] emit state-changed failed: {e}");
-        }
+        crate::event_bridge::bridge_emit(&self.app, "asyar:state-changed", payload);
     }
 
     fn emit_rpc_reply(&self, payload: &RpcReplyPayload) {
-        use tauri::Emitter;
-        if let Err(e) = self.app.emit("asyar:state-rpc-reply", payload) {
-            log::warn!("[extension_state] emit rpc-reply failed: {e}");
-        }
+        crate::event_bridge::bridge_emit(&self.app, "asyar:state-rpc-reply", payload);
     }
 }
 

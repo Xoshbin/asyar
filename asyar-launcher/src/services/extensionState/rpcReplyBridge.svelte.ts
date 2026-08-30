@@ -1,6 +1,7 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
+import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 
 /**
  * Bridges Rust-relayed worker → view RPC replies to the calling view
@@ -31,7 +32,7 @@ class RpcReplyBridge implements PushBridge {
 
   async init(): Promise<void> {
     if (this.unlisten) return;
-    this.unlisten = await listen<RpcReplyEnvelope>('asyar:state-rpc-reply', (msg) => {
+    this.unlisten = await bridgeListen<RpcReplyEnvelope>('asyar:state-rpc-reply', (msg) => {
       const { extensionId, correlationId, result, error } = msg.payload;
       const iframe = document.querySelector(
         `iframe[data-extension-id="${extensionId}"][data-role="view"]`,

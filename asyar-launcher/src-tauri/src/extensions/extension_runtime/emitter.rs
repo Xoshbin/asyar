@@ -30,7 +30,7 @@ pub fn emit_typed<T: Serialize>(emitter: &dyn EventEmitter, event: &str, payload
     emitter.emit_json(event, v);
 }
 
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 pub struct TauriEventEmitter {
     pub app: AppHandle,
@@ -38,9 +38,7 @@ pub struct TauriEventEmitter {
 
 impl EventEmitter for TauriEventEmitter {
     fn emit_json(&self, event: &str, payload: serde_json::Value) {
-        if let Err(e) = self.app.emit(event, &payload) {
-            log::warn!("[extension-runtime] emit {event} failed: {e}");
-        }
+        crate::event_bridge::bridge_emit(&self.app, event, &payload);
     }
 }
 

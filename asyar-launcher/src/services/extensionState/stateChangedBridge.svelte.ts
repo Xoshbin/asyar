@@ -1,6 +1,7 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { type UnlistenFn } from '@tauri-apps/api/event';
 import { logService } from '../log/logService';
 import { getExtensionFrameOrigin } from '../../lib/ipc/extensionOrigin';
+import { bridgeListen } from '../../lib/ipc/bridgeEvents';
 
 /**
  * Bridges Rust-emitted `asyar:state-changed` Tauri events to the matching
@@ -32,7 +33,7 @@ class StateChangedBridge implements PushBridge {
 
   async init(): Promise<void> {
     if (this.unlisten) return;
-    this.unlisten = await listen<StateChangedEnvelope>('asyar:state-changed', (msg) => {
+    this.unlisten = await bridgeListen<StateChangedEnvelope>('asyar:state-changed', (msg) => {
       const { extensionId, key, value, role } = msg.payload;
       const iframe = document.querySelector(
         `iframe[data-extension-id="${extensionId}"][data-role="${role}"]`,

@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn().mockResolvedValue(vi.fn()) }));
+vi.mock('../../lib/ipc/bridgeEvents', () => ({
+  bridgeListen: vi.fn().mockResolvedValue(vi.fn()),
+}));
 vi.mock('../envService', () => ({
   envService: { storeApiBaseUrl: 'http://localhost' },
 }));
@@ -24,16 +27,20 @@ vi.mock('../../lib/ipc/commands', () => ({
 describe('extensionUpdateService', () => {
   let extensionUpdateService: any;
   let listen: any;
+  let bridgeListen: any;
   let commands: any;
 
   beforeEach(async () => {
     vi.resetModules();
     ({ extensionUpdateService } = await import('./extensionUpdateService.svelte'));
     ({ listen } = await import('@tauri-apps/api/event'));
+    ({ bridgeListen } = await import('../../lib/ipc/bridgeEvents'));
     commands = await import('../../lib/ipc/commands');
     // Reset call history only, keep mock implementations from factory
     vi.mocked(listen).mockClear();
     vi.mocked(listen).mockResolvedValue(vi.fn());
+    vi.mocked(bridgeListen).mockClear();
+    vi.mocked(bridgeListen).mockResolvedValue(vi.fn());
     vi.mocked(commands.checkExtensionUpdates).mockClear();
   });
 
@@ -43,8 +50,8 @@ describe('extensionUpdateService', () => {
       async () => {},
     );
 
-    // listen must have been called with the tick event
-    const listenCalls = vi.mocked(listen).mock.calls;
+    // the tick subscription goes through the eval-free bridge
+    const listenCalls = vi.mocked(bridgeListen).mock.calls;
     const tickCall = listenCalls.find(
       ([eventName]: [string]) => eventName === 'asyar:extension-update:tick',
     );

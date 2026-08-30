@@ -3,8 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const listeners = new Map<string, (e: { payload: unknown }) => void>();
 
-vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(async (event: string, cb: (e: { payload: unknown }) => void) => {
+vi.mock('../../lib/ipc/bridgeEvents', () => ({
+  bridgeListen: vi.fn(async (event: string, cb: (e: { payload: unknown }) => void) => {
     listeners.set(event, cb);
     return () => listeners.delete(event);
   }),
