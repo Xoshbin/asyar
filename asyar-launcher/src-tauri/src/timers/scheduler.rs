@@ -49,6 +49,12 @@ pub fn start(app: AppHandle, registry: TimerRegistry) {
         let mut last_prune_ms: u64 = 0;
 
         loop {
+            // App Nap can add leeway to this sleep while the app idles
+            // hidden. Tolerable for the 1s cadence: a stretched tick fires a
+            // due timer late but never loses it (poll_due surfaces everything
+            // with fire_at <= now, and startup catch-up covers a relaunch),
+            // and observed coalescing on short intervals is far below the
+            // hours-scale stretch that hits minutes-long sleeps.
             tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
             let now = now_millis();
             let plan = TickPlan::new(registry.should_poll(), now, last_prune_ms);
