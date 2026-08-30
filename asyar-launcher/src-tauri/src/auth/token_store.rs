@@ -22,16 +22,23 @@ pub struct StoredAuth {
 
 /// Derive a stable "machine password" from the app data dir path.
 /// Not a cryptographic secret — provides defense-in-depth against
-/// casual file reading. Uses the path string as a password with a
-/// fixed salt so the key is deterministic per installation.
-fn machine_key(app: &AppHandle) -> (String, Vec<u8>) {
+/// casual file reading. Uses the path string as key material with a
+/// dynamic hash salt so the key is deterministic per installation.
+fn machine_key(app: &AppHandle) -> Result<(String, Vec<u8>), AppError> {
     let path = app
         .path()
         .app_data_dir()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|_| "asyar-fallback".to_string());
-    let salt = b"asyar-auth-salt-v1".to_vec();
-    (path, salt)
+        .map_err(|e| AppError::Other(format!("Failed to resolve app data directory: {e}")))?
+        .to_string_lossy()
+        .to_string();
+
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(path.as_bytes());
+    hasher.update(b":auth-token-salt");
+    let salt = hasher.finalize().to_vec();
+
+    Ok((path, salt))
 }
 
 /// Persist auth data to auth.dat. The token is encrypted; user and
@@ -46,7 +53,7 @@ pub fn save_auth(
         .store(AUTH_STORE_FILE)
         .map_err(|e| AppError::Other(format!("Failed to open auth store: {}", e)))?;
 
-    let (password, salt) = machine_key(app);
+    let (password, salt) = machine_key(app)?;
     let encrypted_token = encryption::encrypt_value(token, &password, &salt)?;
 
     let cached_at = std::time::SystemTime::now()
@@ -80,7 +87,13 @@ pub fn load_auth(app: &AppHandle) -> Result<Option<StoredAuth>, AppError> {
         return Ok(None);
     }
 
-    let (password, salt) = machine_key(app);
+    let (password, salt) = match machine_key(app) {
+        Ok(res) => res,
+        Err(e) => {
+            log::warn!("Failed to resolve machine key: {e}");
+            return Ok(None);
+        }
+    };
     let token = match encryption::decrypt_value(&encrypted_token, &password, &salt) {
         Ok(t) => t,
         Err(e) => {
