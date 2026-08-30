@@ -3,6 +3,8 @@ import { defineDiagnosticMessages } from './defineDiagnosticMessages';
 export const DIAGNOSTIC_MESSAGES = defineDiagnosticMessages({
   // Rust-derived (AppError)
   permission_denied: ({ permission }) => `Access to ${permission ?? 'a resource'} was denied`,
+  policy_denied: ({ policyError }) =>
+    policyError ? `Action denied: ${policyError}` : 'Action denied by policy',
   network_failure: () => 'Network error',
   lock_poisoned: () => 'Internal lock corrupted; please restart Asyar',
   database_failure: () => 'Database error',

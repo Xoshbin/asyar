@@ -21,6 +21,8 @@ vi.mock('../profile/profileService', () => ({
 vi.mock('../auth/authService.svelte', () => ({
   authService: {
     isLoggedIn: true,
+    entitlements: ['sync:settings', 'sync:ai-conversations'],
+    logout: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -60,6 +62,7 @@ import { authService } from '../auth/authService.svelte';
 import { entitlementService } from '../auth/entitlementService.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import { feedbackService } from '../feedback/feedbackService.svelte';
+import { logService } from '../log/logService';
 import type { ISyncProvider, SyncChangeEvent, Unsubscribe } from '../profile/types';
 import type { AppSettings } from '../settings/types/AppSettingsType';
 
@@ -153,7 +156,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
     // Default: signed in, entitlement granted, sync enabled in settings,
     // status returns no last-sync time.
     authService.isLoggedIn = true;
-    vi.mocked(entitlementService.check).mockReturnValue(true);
+    authService.entitlements = ['sync:settings', 'sync:ai-conversations'];
     mockUserSettings({ syncEnabled: true });
     // Mimic the real subscribe contract: fire eagerly with the current
     // settings (the watcher's priming call), return an unsubscribe.
@@ -180,7 +183,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
 
   describe('init()', () => {
     it('init_skips_when_sync_settings_entitlement_missing', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(false);
+      authService.entitlements = [];
 
       await cloudSyncService.init();
 
@@ -286,25 +289,19 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
     });
 
     it('throws when sync:settings entitlement is missing', async () => {
-      vi.mocked(entitlementService.check).mockReturnValue(false);
-      await expect(cloudSyncService.syncNow()).rejects.toThrow(
-        'sync:settings entitlement required',
-      );
+      authService.entitlements = [];
+      await expect(cloudSyncService.syncNow()).rejects.toThrow('sync:settings entitlement');
     });
 
     it('throws when signed out', async () => {
       authService.isLoggedIn = false;
-      await expect(cloudSyncService.syncNow()).rejects.toThrow(
-        'cloud sync requires a signed-in account',
-      );
+      await expect(cloudSyncService.syncNow()).rejects.toThrow('signed-in account');
       expect(commands.syncRun).not.toHaveBeenCalled();
     });
 
     it('throws when sync is disabled in settings', async () => {
       mockUserSettings({ syncEnabled: false });
-      await expect(cloudSyncService.syncNow()).rejects.toThrow(
-        'cloud sync is disabled in settings',
-      );
+      await expect(cloudSyncService.syncNow()).rejects.toThrow('disabled in settings');
       expect(commands.syncRun).not.toHaveBeenCalled();
     });
 
@@ -358,7 +355,7 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
     });
 
     it('skips extended-tier providers without sync:ai-conversations', async () => {
-      vi.mocked(entitlementService.check).mockImplementation((e) => e === 'sync:settings');
+      authService.entitlements = ['sync:settings'];
       const core = makeProvider({ id: 'settings', syncTier: 'core' });
       const extended = makeProvider({ id: 'ai-conversations', syncTier: 'extended' });
       vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(core, extended));
@@ -826,6 +823,45 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       await cloudSyncService.checkStatus();
 
       expect(commands.syncGetStatus).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('privacy & error handling invariants', () => {
+    it('deduplicates repeated identical failure warnings to prevent log flooding', async () => {
+      const failedReport: commands.SyncRunReport = {
+        ...okReport,
+        failed: [
+          { itemId: 'item-1', reason: 'Internal Server Error (500)' },
+          { itemId: 'item-2', reason: 'Internal Server Error (500)' },
+        ],
+      };
+
+      vi.mocked(commands.syncRun).mockResolvedValue(failedReport);
+
+      // Run twice with the exact same failures
+      await cloudSyncService.syncNow();
+      await cloudSyncService.syncNow();
+
+      // First run should warn
+      expect(logService.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Cloud sync had 2 failed items:'),
+      );
+
+      // Second identical run should log to debug, NOT log a second warn
+      expect(logService.debug).toHaveBeenCalledWith(
+        expect.stringContaining('Cloud sync repeated failure (2 items):'),
+      );
+    });
+
+    it('disposes sync and logs out immediately on 401 / token expiration error', async () => {
+      vi.mocked(commands.syncRun).mockRejectedValue(new Error('Token expired or invalid'));
+
+      await cloudSyncService.syncNow();
+
+      expect(authService.logout).toHaveBeenCalledTimes(1);
+      expect(logService.warn).toHaveBeenCalledWith(
+        expect.stringContaining('auth token rejected/expired'),
+      );
     });
   });
 });

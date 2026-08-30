@@ -563,6 +563,7 @@ pub fn run() {
             commands::auth_refresh_entitlements,
             commands::auth_check_entitlement,
             commands::auth_logout,
+            commands::gate_check,
             commands::submit_feedback,
             commands::get_system_locale,
             commands::get_locale_candidates,

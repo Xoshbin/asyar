@@ -219,7 +219,17 @@
         label={t('settings.account.section_sync')}
         description={t('settings.account.sync_not_signed_in_desc')}
       >
-        <span class="secondary-text">{t('settings.account.not_signed_in')}</span>
+        <div class="sync-enable-row">
+          <span class="secondary-text">
+            {syncToggleState
+              ? t('settings.account.sync_will_sync_desc')
+              : t('settings.account.sync_stays_local_desc')}
+          </span>
+          <Toggle
+            bind:checked={syncToggleState}
+            onchange={(e) => onSyncToggleClick((e.target as HTMLInputElement).checked)}
+          />
+        </div>
       </SettingsRow>
     </SettingsCard>
   </div>

@@ -20,7 +20,7 @@ pub struct AuthUser {
 }
 
 /// Serializable snapshot of auth state for the Tauri command response.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthStateResponse {
     pub is_logged_in: bool,

@@ -28,6 +28,7 @@ export const DIAGNOSTIC_KINDS = [
   "panic",
   "permission_denied",
   "platform_failure",
+  "policy_denied",
   "power_failure",
   "render_error",
   "rpc_timeout",

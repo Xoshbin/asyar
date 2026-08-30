@@ -81,12 +81,26 @@ pub fn load_auth(app: &AppHandle) -> Result<Option<StoredAuth>, AppError> {
     }
 
     let (password, salt) = machine_key(app);
-    let token = encryption::decrypt_value(&encrypted_token, &password, &salt)?;
+    let token = match encryption::decrypt_value(&encrypted_token, &password, &salt) {
+        Ok(t) => t,
+        Err(e) => {
+            log::warn!("Failed to decrypt auth token, clearing auth store: {e}");
+            let _ = clear_auth(app);
+            return Ok(None);
+        }
+    };
 
-    let user: AuthUser = store
+    let user: AuthUser = match store
         .get(KEY_USER)
         .and_then(|v| serde_json::from_value(v).ok())
-        .ok_or_else(|| AppError::Other("Missing user in auth store".into()))?;
+    {
+        Some(u) => u,
+        None => {
+            log::warn!("Missing or invalid user in auth store, clearing auth store");
+            let _ = clear_auth(app);
+            return Ok(None);
+        }
+    };
 
     let entitlements: Vec<String> = store
         .get(KEY_ENTITLEMENTS)
