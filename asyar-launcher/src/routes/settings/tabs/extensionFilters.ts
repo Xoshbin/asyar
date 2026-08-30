@@ -16,10 +16,10 @@ export function filterExtensions(
 ): ExtensionItem[] {
   let result = extensions;
 
-  if (filter === 'extension') result = result.filter((e) => e.type === 'extension' || !e.type);
+  if (filter === 'extension')
+    result = result.filter((e) => !e.isBuiltIn && (e.type === 'extension' || !e.type));
   else if (filter === 'theme') result = result.filter((e) => e.type === 'theme');
   else if (filter === 'commands') result = result.filter((e) => (e.commands?.length ?? 0) > 0);
-
   const q = query.trim().toLowerCase();
   if (!q) return result;
 

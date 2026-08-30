@@ -20,7 +20,8 @@
     formatRuntimeDownloadStatus,
     describeMissingRuntimesForConfirm,
   } from '../../services/runtime/runtimeDownloadStatus';
-
+  import Icon from '../base/Icon.svelte';
+  import { isBuiltInIcon, isIconImage, getBuiltInIconName } from '../../lib/iconUtils';
   let {
     extension = null,
     command = null,
@@ -215,56 +216,38 @@
 {#if command}
   <div class="panel-header">
     <div class="panel-icon">
-      {command.parent.title[0]?.toUpperCase() ?? 'E'}
+      {#if command.cmd.icon && isBuiltInIcon(command.cmd.icon)}
+        <Icon name={getBuiltInIconName(command.cmd.icon)} size={28} />
+      {:else if command.cmd.icon && isIconImage(command.cmd.icon)}
+        <img src={command.cmd.icon} alt={command.cmd.name} class="panel-icon-img" />
+      {:else if command.cmd.icon}
+        <span class="panel-icon-emoji">{command.cmd.icon}</span>
+      {:else if command.parent.iconUrl && isBuiltInIcon(command.parent.iconUrl)}
+        <Icon name={getBuiltInIconName(command.parent.iconUrl)} size={28} />
+      {:else if command.parent.iconUrl && isIconImage(command.parent.iconUrl)}
+        <img src={command.parent.iconUrl} alt={command.parent.title} class="panel-icon-img" />
+      {:else if command.parent.iconUrl}
+        <span class="panel-icon-emoji">{command.parent.iconUrl}</span>
+      {:else}
+        <span class="panel-icon-letter">{command.parent.title[0]?.toUpperCase() ?? 'E'}</span>
+      {/if}
     </div>
     <div class="panel-meta">
       <div class="panel-title">{command.cmd.name}</div>
       <div class="panel-parent">{command.parent.title}</div>
     </div>
   </div>
-
-  <div class="panel-body">
-    {#if command.cmd.description}
-      <div class="panel-section">
-        <div class="section-header">Description</div>
-        <p class="panel-desc">{command.cmd.description}</p>
-      </div>
-    {/if}
-
-    <div class="panel-section">
-      <div class="section-header">Trigger</div>
-      <code class="trigger-chip text-mono">{command.cmd.trigger}</code>
-    </div>
-
-    <div class="panel-section">
-      <div class="section-header">Alias</div>
-      <span class="placeholder-action">Add alias…</span>
-    </div>
-
-    <div class="panel-section">
-      <div class="section-header">Hotkey</div>
-      <span class="placeholder-action">Record hotkey…</span>
-    </div>
-
-    {#if command.cmd.preferences && command.cmd.preferences.length > 0}
-      <div class="panel-section">
-        <div class="section-header">Preferences</div>
-        <ExtensionPreferencesForm
-          preferences={command.cmd.preferences}
-          values={preferenceValues}
-          disabled={isLoadingPrefs}
-          onChange={handlePreferenceChange}
-        />
-      </div>
-    {/if}
-  </div>
 {:else if extension}
   <div class="panel-header">
     <div class="panel-icon">
-      {#if extension.iconUrl}
-        <img src={extension.iconUrl} alt={extension.title} class="icon-img" />
+      {#if extension.iconUrl && isBuiltInIcon(extension.iconUrl)}
+        <Icon name={getBuiltInIconName(extension.iconUrl)} size={28} />
+      {:else if extension.iconUrl && isIconImage(extension.iconUrl)}
+        <img src={extension.iconUrl} alt={extension.title} class="panel-icon-img" />
+      {:else if extension.iconUrl}
+        <span class="panel-icon-emoji">{extension.iconUrl}</span>
       {:else}
-        {extension.title[0]?.toUpperCase() ?? 'E'}
+        <span class="panel-icon-letter">{extension.title[0]?.toUpperCase() ?? 'E'}</span>
       {/if}
     </div>
     <div class="panel-meta">
@@ -298,8 +281,29 @@
       </div>
     {/if}
 
+    {#if needsRuntimeDownload}
+      <div class="panel-section">
+        <div class="section-header flex-header">
+          <span>Runtime</span>
+          <button
+            class="review-link"
+            onclick={retryRuntimeDownload}
+            disabled={isDownloadingRuntime}
+          >
+            {runtimeDownloadLabel}
+          </button>
+        </div>
+        <p class="panel-desc">
+          A required runtime failed to download or was declined. Commands are hidden until it's
+          installed — retry from here.
+        </p>
+      </div>
+    {/if}
+
     <div class="panel-section panel-badges">
-      {#if extension.type}
+      {#if extension.isBuiltIn}
+        <Badge text="BUILT-IN" variant="info" />
+      {:else if extension.type}
         <Badge text={extension.type.toUpperCase()} variant="info" />
       {/if}
       {#if extension.version}
@@ -321,25 +325,6 @@
         <Badge text={t('settings.extensions.needs_runtime_download')} variant="danger" />
       {/if}
     </div>
-
-    {#if needsRuntimeDownload}
-      <div class="panel-section">
-        <div class="section-header flex-header">
-          <span>Runtime</span>
-          <button
-            class="review-link"
-            onclick={retryRuntimeDownload}
-            disabled={isDownloadingRuntime}
-          >
-            {runtimeDownloadLabel}
-          </button>
-        </div>
-        <p class="panel-desc">
-          A required runtime failed to download or was declined. Commands are hidden until it's
-          installed — retry from here.
-        </p>
-      </div>
-    {/if}
 
     {#if !extension.isBuiltIn && extension.permissions && extension.permissions.length > 0}
       <div class="panel-section">
@@ -407,6 +392,25 @@
     font-weight: 700;
     color: var(--accent-primary);
     flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .panel-icon-img {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+  }
+
+  .panel-icon-emoji {
+    font-size: 24px; /* design-ok: emoji precise optical size beyond type scale */
+    line-height: 1;
+  }
+
+  .panel-icon-letter {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--accent-primary);
   }
 
   .icon-img {
@@ -414,7 +418,6 @@
     height: 28px;
     border-radius: var(--radius-sm);
   }
-
   .panel-meta {
     flex: 1;
     min-width: 0;

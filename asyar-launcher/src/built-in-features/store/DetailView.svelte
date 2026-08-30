@@ -39,6 +39,7 @@
     updatedAt: string;
     readme?: string | null;
     author: {
+      id: number;
       name: string;
       githubUsername: string | null;
       avatarUrl: string | null;
@@ -261,12 +262,10 @@
   async function openPreferences() {
     if (!extensionDetail?.id) return;
     try {
-      await commands.showSettingsWindow({
-        tab: 'extensions',
-        extensionId: String(extensionDetail.id),
-      });
-    } catch (e: any) {
-      logService?.error(`Failed to open preferences in settings: ${e}`);
+      await commands.showSettingsWindow('extensions', String(extensionDetail.id));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      logService?.error(`Failed to open preferences in settings: ${msg}`);
     }
   }
 </script>
