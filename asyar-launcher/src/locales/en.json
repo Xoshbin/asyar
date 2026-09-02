@@ -280,6 +280,7 @@
       "section_builtin": "Built-in Features",
       "section_installed": "Installed Extensions",
       "type_builtin": "Built-in",
+      "type_command": "Command",
       "type_extension": "Extension",
       "type_theme": "Theme"
     },

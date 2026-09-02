@@ -383,7 +383,7 @@
             </div>
             <span class="ext-title">{cmd.name}</span>
           </div>
-          <span class="col-type row-type">Command</span>
+          <span class="col-type row-type">{t('settings.extensions.type_command')}</span>
           <span class="col-alias">
             {#if cmdAlias}
               <button
