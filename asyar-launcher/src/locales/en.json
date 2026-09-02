@@ -276,7 +276,12 @@
       "permissions_need_review": "Permissions need review",
       "needs_runtime_download": "Needs runtime download",
       "review_permissions": "Review permissions",
-      "reset_to_defaults": "Reset to Defaults"
+      "reset_to_defaults": "Reset to Defaults",
+      "section_builtin": "Built-in Features",
+      "section_installed": "Installed Extensions",
+      "type_builtin": "Built-in",
+      "type_extension": "Extension",
+      "type_theme": "Theme"
     },
     "ai": {
       "no_provider": "No AI provider configured yet",

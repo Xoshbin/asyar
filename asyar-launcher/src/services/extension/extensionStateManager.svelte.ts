@@ -103,7 +103,7 @@ export class ExtensionStateManager {
           if (isSystemScheme) {
             iconUrl = rawIcon;
           } else if (rawIcon.includes('.') || rawIcon.includes('/')) {
-            iconUrl = `asyar-icon://${manifest.id}/${rawIcon}`;
+            iconUrl = `asyar-extension://${manifest.id}/${rawIcon}`;
           } else {
             iconUrl = rawIcon;
           }

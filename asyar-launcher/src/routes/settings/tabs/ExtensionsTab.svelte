@@ -202,9 +202,9 @@
   let installedExtensions = $derived(filteredExtensions.filter((e) => !e.isBuiltIn));
 
   function getTypeLabel(ext: ExtensionItem): string {
-    if (ext.isBuiltIn) return 'Built-in';
-    if (ext.type === 'theme') return 'Theme';
-    return 'Extension';
+    if (ext.isBuiltIn) return t('settings.extensions.type_builtin');
+    if (ext.type === 'theme') return t('settings.extensions.type_theme');
+    return t('settings.extensions.type_extension');
   }
 
   let selectedExtension = $derived(
@@ -575,14 +575,14 @@
           {:else}
             {#if builtInExtensions.length > 0}
               <div class="section-header-row">
-                <span class="section-label">Built-in Features</span>
+                <span class="section-label">{t('settings.extensions.section_builtin')}</span>
                 <span class="section-count">{builtInExtensions.length}</span>
               </div>
               {@render extensionRows(builtInExtensions)}
             {/if}
             {#if installedExtensions.length > 0}
               <div class="section-header-row">
-                <span class="section-label">Installed Extensions</span>
+                <span class="section-label">{t('settings.extensions.section_installed')}</span>
                 <span class="section-count">{installedExtensions.length}</span>
               </div>
               {@render extensionRows(installedExtensions)}

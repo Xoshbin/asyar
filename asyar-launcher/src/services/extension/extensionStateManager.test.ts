@@ -80,10 +80,10 @@ describe('extensionStateManager — iconUrl', () => {
     expect(ext.iconUrl).toBe('🧪');
   });
 
-  it('prefixes bare filename to asyar-icon://', async () => {
+  it('prefixes bare filename to asyar-extension://', async () => {
     vi.mocked(discoverExtensions).mockResolvedValueOnce([makeRecord('ext', 'icon.png')] as never);
     const [ext] = await extensionStateManager.getAllExtensionsWithState();
-    expect(ext.iconUrl).toBe('asyar-icon://ext/icon.png');
+    expect(ext.iconUrl).toBe('asyar-extension://ext/icon.png');
   });
 
   it('keeps asyar-icon:// and https:// as-is', async () => {

@@ -237,6 +237,42 @@
       <div class="panel-parent">{command.parent.title}</div>
     </div>
   </div>
+
+  <div class="panel-body">
+    {#if command.cmd.description}
+      <div class="panel-section">
+        <div class="section-header">Description</div>
+        <p class="panel-desc">{command.cmd.description}</p>
+      </div>
+    {/if}
+
+    <div class="panel-section">
+      <div class="section-header">Trigger</div>
+      <code class="trigger-chip text-mono">{command.cmd.trigger}</code>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-header">Alias</div>
+      <span class="placeholder-action">Add alias…</span>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-header">Hotkey</div>
+      <span class="placeholder-action">Record hotkey…</span>
+    </div>
+
+    {#if command.cmd.preferences && command.cmd.preferences.length > 0}
+      <div class="panel-section">
+        <div class="section-header">Preferences</div>
+        <ExtensionPreferencesForm
+          preferences={command.cmd.preferences}
+          values={preferenceValues}
+          disabled={isLoadingPrefs}
+          onChange={handlePreferenceChange}
+        />
+      </div>
+    {/if}
+  </div>
 {:else if extension}
   <div class="panel-header">
     <div class="panel-icon">
@@ -302,9 +338,11 @@
 
     <div class="panel-section panel-badges">
       {#if extension.isBuiltIn}
-        <Badge text="BUILT-IN" variant="info" />
+        <Badge text={t('settings.extensions.type_builtin')} variant="info" />
+      {:else if extension.type === 'theme'}
+        <Badge text={t('settings.extensions.type_theme')} variant="info" />
       {:else if extension.type}
-        <Badge text={extension.type.toUpperCase()} variant="info" />
+        <Badge text={t('settings.extensions.type_extension')} variant="info" />
       {/if}
       {#if extension.version}
         <Badge text="v{extension.version}" variant="default" mono />
