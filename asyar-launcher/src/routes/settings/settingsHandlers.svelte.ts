@@ -342,6 +342,7 @@ export class SettingsHandler {
   }
 
   async toggleExtension(extension: ExtensionItem) {
+    if (extension.isBuiltIn) return;
     if (this.togglingExtension === extension.title) return;
 
     this.togglingExtension = extension.title;

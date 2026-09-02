@@ -335,8 +335,9 @@
       <span class="col-hotkey row-muted">—</span>
       <div class="col-on">
         <Toggle
-          checked={ext.enabled === true}
-          disabled={handler.togglingExtension === ext.title ||
+          checked={ext.isBuiltIn ? true : ext.enabled === true}
+          disabled={ext.isBuiltIn ||
+            handler.togglingExtension === ext.title ||
             extensionStateManager.extensionUninstallInProgress === ext.id ||
             (ext.compatibility?.status !== 'compatible' && ext.compatibility?.status !== 'unknown')}
           onchange={() => handler.toggleExtension(ext)}

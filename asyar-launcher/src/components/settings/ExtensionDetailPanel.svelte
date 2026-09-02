@@ -291,8 +291,8 @@
     </div>
     <div class="panel-actions">
       <Toggle
-        checked={extension.enabled === true}
-        disabled={isToggling}
+        checked={extension.isBuiltIn ? true : extension.enabled === true}
+        disabled={extension.isBuiltIn || isToggling}
         onchange={() => onToggle?.(extension!)}
       />
       {#if !extension.isBuiltIn}
