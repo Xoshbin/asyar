@@ -6,7 +6,7 @@ import { settingsService } from '../services/settings/settingsService.svelte';
  * Update the global shortcut
  */
 export async function updateShortcut(modifier: string, key: string): Promise<boolean> {
-  logService.info(`Updating shortcut to: ${modifier}+${key}`);
+  logService.info(`Updating shortcut to: ${modifier ? `${modifier}+${key}` : key}`);
 
   // Update the system shortcut via Rust
   const ok = await updateGlobalShortcut(modifier, key);

@@ -111,7 +111,10 @@ class ShortcutService {
     try {
       if (excludeObjectId !== 'launcher') {
         const persisted = settingsService.getSettings().shortcut;
-        const launcherShortcut = normalizeShortcut(`${persisted.modifier}+${persisted.key}`);
+        const launcherRaw = persisted.modifier
+          ? `${persisted.modifier}+${persisted.key}`
+          : persisted.key;
+        const launcherShortcut = normalizeShortcut(launcherRaw);
         if (normalized === launcherShortcut) {
           return { objectId: 'launcher', itemName: 'Launcher Toggle' };
         }

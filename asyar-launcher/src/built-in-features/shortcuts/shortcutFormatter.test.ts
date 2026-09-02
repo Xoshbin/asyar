@@ -14,6 +14,7 @@ import {
   MODIFIER_ORDER,
   KEY_DISPLAY,
   DOM_TO_MODIFIER,
+  isBareKeyAllowed,
 } from './shortcutFormatter';
 
 beforeEach(() => {
@@ -173,8 +174,17 @@ describe('isValid', () => {
     }
   });
 
-  it('returns false when there is only one part (no +)', () => {
+  it('returns true for bare function keys F1 to F24 without modifiers', () => {
+    expect(isValid('F1')).toBe(true);
+    expect(isValid('F12')).toBe(true);
+    expect(isValid('F16')).toBe(true);
+    expect(isValid('F24')).toBe(true);
+  });
+
+  it('returns false when non-function key has only one part (no modifier)', () => {
     expect(isValid('K')).toBe(false);
+    expect(isValid('Space')).toBe(false);
+    expect(isValid('A')).toBe(false);
   });
 
   it('returns false when no recognised modifier is present', () => {
@@ -183,6 +193,25 @@ describe('isValid', () => {
 
   it('returns false for empty string', () => {
     expect(isValid('')).toBe(false);
+  });
+});
+
+// ── isBareKeyAllowed ─────────────────────────────────────────────────────────
+
+describe('isBareKeyAllowed', () => {
+  it('allows F1 through F24', () => {
+    for (let i = 1; i <= 24; i++) {
+      expect(isBareKeyAllowed(`F${i}`)).toBe(true);
+    }
+  });
+
+  it('rejects alphanumeric and special keys', () => {
+    expect(isBareKeyAllowed('A')).toBe(false);
+    expect(isBareKeyAllowed('Space')).toBe(false);
+    expect(isBareKeyAllowed('Enter')).toBe(false);
+    expect(isBareKeyAllowed('F0')).toBe(false);
+    expect(isBareKeyAllowed('F25')).toBe(false);
+    expect(isBareKeyAllowed('F99')).toBe(false);
   });
 });
 

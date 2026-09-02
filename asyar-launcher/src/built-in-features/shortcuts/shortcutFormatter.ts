@@ -181,7 +181,14 @@ export function parseShortcut(s: string): [string, string] {
   return [parts.join('+'), key];
 }
 
+export function isBareKeyAllowed(key: string): boolean {
+  return /^F([1-9]|1[0-9]|2[0-4])$/.test(key);
+}
+
 export function isValid(s: string): boolean {
+  if (isBareKeyAllowed(s)) {
+    return true;
+  }
   const parts = s.split('+');
   return parts.length >= 2 && parts.some((p) => ['Super', 'Control', 'Alt', 'Shift'].includes(p));
 }

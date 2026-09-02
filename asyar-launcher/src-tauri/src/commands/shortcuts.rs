@@ -41,7 +41,7 @@ pub async fn update_global_shortcut(
     // Get the global shortcut manager
     let shortcut_manager = app_handle.global_shortcut();
 
-    let new_shortcut_str = canonicalize_shortcut(&format!("{}+{}", modifier, key))?;
+    let new_shortcut_str = canonicalize_shortcut(&combine_modifier_and_key(&modifier, &key))?;
     let new_shortcut = parse_shortcut(&new_shortcut_str)?;
 
     let mut launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
@@ -107,7 +107,7 @@ pub fn register_item_shortcut(
     object_id: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), AppError> {
-    let shortcut_str = canonicalize_shortcut(&format!("{}+{}", modifier, key))?;
+    let shortcut_str = canonicalize_shortcut(&combine_modifier_and_key(&modifier, &key))?;
 
     // Check conflict with launcher shortcut
     let launcher_shortcut = state.launcher_shortcut.lock().map_err(|_| AppError::Lock)?;
@@ -149,7 +149,7 @@ pub fn unregister_item_shortcut(
     key: String,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), AppError> {
-    let shortcut_str = canonicalize_shortcut(&format!("{}+{}", modifier, key))?;
+    let shortcut_str = canonicalize_shortcut(&combine_modifier_and_key(&modifier, &key))?;
 
     if let Ok(shortcut) = parse_shortcut(&shortcut_str) {
         let shortcut_manager = app_handle.global_shortcut();
@@ -721,8 +721,21 @@ pub async fn initialize_shortcut_from_settings(
     update_global_shortcut(app_handle, modifier, key, state).await
 }
 
+pub(crate) fn combine_modifier_and_key(modifier: &str, key: &str) -> String {
+    let trimmed = modifier.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("none") {
+        key.to_string()
+    } else {
+        format!("{}+{}", trimmed, key)
+    }
+}
+
 pub(crate) fn canonicalize_shortcut(shortcut_str: &str) -> Result<String, AppError> {
-    let parts: Vec<&str> = shortcut_str.split('+').collect();
+    let parts: Vec<&str> = shortcut_str
+        .split('+')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
     if parts.is_empty() {
         return Err(AppError::Shortcut(format!(
             "Empty shortcut: {}",
@@ -1058,5 +1071,21 @@ mod tests {
     #[test]
     fn canonicalize_rejects_unknown_modifier() {
         assert!(canonicalize_shortcut("Option+K").is_err());
+    }
+
+    #[test]
+    fn test_combine_modifier_and_key() {
+        assert_eq!(combine_modifier_and_key("", "F16"), "F16");
+        assert_eq!(combine_modifier_and_key("   ", "F16"), "F16");
+        assert_eq!(combine_modifier_and_key("None", "F16"), "F16");
+        assert_eq!(combine_modifier_and_key("none", "F16"), "F16");
+        assert_eq!(combine_modifier_and_key("Super", "K"), "Super+K");
+    }
+
+    #[test]
+    fn test_canonicalize_bare_function_key() {
+        assert_eq!(canonicalize_shortcut("F16").unwrap(), "F16");
+        assert_eq!(canonicalize_shortcut("+F16").unwrap(), "F16");
+        assert_eq!(canonicalize_shortcut(" F16 ").unwrap(), "F16");
     }
 }
