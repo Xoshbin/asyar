@@ -88,14 +88,38 @@ export class ExtensionStateManager {
 
       for (const record of records ?? []) {
         const manifest = record.manifest;
+        const rawIcon = (manifest as { icon?: string }).icon;
+        let iconUrl: string | undefined;
+        if (rawIcon) {
+          const isSystemScheme =
+            rawIcon.startsWith('icon:') ||
+            rawIcon.startsWith('asyar-icon://') ||
+            rawIcon.startsWith('asyar-extension://') ||
+            rawIcon.startsWith('data:image') ||
+            rawIcon.startsWith('http://') ||
+            rawIcon.startsWith('https://') ||
+            rawIcon.startsWith('file://') ||
+            rawIcon.startsWith('/');
+          if (isSystemScheme) {
+            iconUrl = rawIcon;
+          } else if (rawIcon.includes('.') || rawIcon.includes('/')) {
+            iconUrl = `asyar-extension://${manifest.id}/${rawIcon}`;
+          } else {
+            iconUrl = rawIcon;
+          }
+        }
         allExtensionsData.push({
           title: manifest.name,
           subtitle: manifest.description || '',
           type: manifest.type || 'unknown',
-          keywords: manifest.commands?.map((cmd: any) => cmd.trigger || cmd.name).join(' ') || '',
+          keywords:
+            manifest.commands
+              ?.map((cmd: { trigger?: string; name: string }) => cmd.trigger || cmd.name)
+              .join(' ') || '',
           enabled: record.enabled,
           id: manifest.id,
           version: manifest.version || 'N/A',
+          iconUrl,
           isBuiltIn: record.isBuiltIn,
           compatibility: record.compatibility,
           commands: manifest.commands ?? [],

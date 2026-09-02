@@ -3,10 +3,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SettingsHandler, DEFAULT_SETTINGS } from './settingsHandlers.svelte';
 import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
 
-const { mockGetAll } = vi.hoisted(() => ({ mockGetAll: vi.fn() }));
+const { mockGetAll, mockToggleExtensionState } = vi.hoisted(() => ({
+  mockGetAll: vi.fn(),
+  mockToggleExtensionState: vi.fn().mockResolvedValue(true),
+}));
 
 vi.mock('../../services/extension/extensionManager.svelte', () => ({
-  default: { getAllExtensionsWithState: mockGetAll },
+  default: {
+    getAllExtensionsWithState: mockGetAll,
+    toggleExtensionState: mockToggleExtensionState,
+  },
 }));
 const { listenMock, onFocusChangedMock, getCurrentWindowMock } = vi.hoisted(() => {
   const onFocusChangedMock = vi.fn();
@@ -315,5 +321,39 @@ describe('SettingsHandler — general settings handlers', () => {
     handler.settings.general.showTrayIcon = true;
     await handler.handleTrayIconToggle();
     expect(mockUpdateSettings).toHaveBeenCalledWith('general', { showTrayIcon: false });
+  });
+});
+
+describe('SettingsHandler.toggleExtension', () => {
+  beforeEach(() => {
+    mockToggleExtensionState.mockClear();
+  });
+
+  it('does nothing when extension is built-in', async () => {
+    const handler = new SettingsHandler();
+    const ext = {
+      id: 'calculator',
+      title: 'Calculator',
+      isBuiltIn: true,
+      enabled: true,
+      commands: [],
+    };
+    await handler.toggleExtension(ext as any);
+    expect(mockToggleExtensionState).not.toHaveBeenCalled();
+    expect(ext.enabled).toBe(true);
+  });
+
+  it('toggles state for non-built-in extensions', async () => {
+    const handler = new SettingsHandler();
+    const ext = {
+      id: 'com.example.test',
+      title: 'Custom Ext',
+      isBuiltIn: false,
+      enabled: true,
+      commands: [],
+    };
+    await handler.toggleExtension(ext as any);
+    expect(mockToggleExtensionState).toHaveBeenCalledWith('com.example.test', false);
+    expect(ext.enabled).toBe(false);
   });
 });

@@ -29,7 +29,7 @@
   import KeyboardHint from '../../../components/base/KeyboardHint.svelte';
   import { logService } from '../../../services/log/logService';
   import { developerSettingsService } from '../../../services/settings/developerSettingsService.svelte';
-
+  import { isBuiltInIcon, isIconImage, getBuiltInIconName } from '../../../lib/iconUtils';
   type AliasEditTarget = {
     objectId: string;
     name: string;
@@ -195,6 +195,18 @@
     filterExtensions(handler.extensions, searchQuery, activeFilter),
   );
 
+  // Split into built-ins vs installed to make the distinction obvious.
+  // The table was previously a flat list where type === 'extension' for
+  // both, causing the reported confusion.
+  let builtInExtensions = $derived(filteredExtensions.filter((e) => e.isBuiltIn));
+  let installedExtensions = $derived(filteredExtensions.filter((e) => !e.isBuiltIn));
+
+  function getTypeLabel(ext: ExtensionItem): string {
+    if (ext.isBuiltIn) return t('settings.extensions.type_builtin');
+    if (ext.type === 'theme') return t('settings.extensions.type_theme');
+    return t('settings.extensions.type_extension');
+  }
+
   let selectedExtension = $derived(
     handler.extensions.find((e) => (e.id ?? e.title) === selectedExtensionId) ?? null,
   );
@@ -258,6 +270,201 @@
     { id: 'theme', labelKey: 'settings.extensions.filter_theme' },
   ];
 </script>
+
+{#snippet extensionRows(list: ExtensionItem[])}
+  {#each list as ext (ext.id ?? ext.title)}
+    {@const isExpanded = expandedIds.has(ext.id ?? ext.title)}
+    {@const isExtSelected = selectedExtensionId === (ext.id ?? ext.title) && !selectedCommandId}
+    <div
+      class="ext-row"
+      class:selected={isExtSelected}
+      role="row"
+      tabindex="0"
+      onclick={() => selectExtension(ext)}
+      onkeydown={(e) => e.key === 'Enter' && selectExtension(ext)}
+    >
+      <div class="col-name row-name-cell">
+        <button
+          class="chevron"
+          class:expanded={isExpanded}
+          onclick={(e) => {
+            e.stopPropagation();
+            toggleExpand(ext.id ?? ext.title);
+          }}
+          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+          disabled={!ext.commands?.length}
+        >
+          <svg
+            viewBox="0 0 10 10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="3,2 7,5 3,8" />
+          </svg>
+        </button>
+        <div class="ext-icon shrink-0">
+          {#if ext.iconUrl && isBuiltInIcon(ext.iconUrl)}
+            <Icon name={getBuiltInIconName(ext.iconUrl)} size={20} />
+          {:else if ext.iconUrl && isIconImage(ext.iconUrl)}
+            <img src={ext.iconUrl} alt={ext.title} class="ext-icon-img" />
+          {:else if ext.iconUrl}
+            <span class="ext-icon-emoji">{ext.iconUrl}</span>
+          {:else}
+            <span class="ext-icon-letter">{ext.title[0]?.toUpperCase() ?? 'E'}</span>
+          {/if}
+        </div>
+        <span class="ext-title">{ext.title}</span>
+        {#if ext.id && extensionUpdateService.getUpdateForExtension(ext.id)}
+          <button
+            class="update-link"
+            onclick={(e) => {
+              e.stopPropagation();
+              ext.id && handleUpdateExtension(ext.id);
+            }}
+            disabled={ext.id ? extensionUpdateService.isExtensionUpdating(ext.id) : false}
+          >
+            {ext.id && extensionUpdateService.isExtensionUpdating(ext.id) ? 'Updating…' : 'Update'}
+          </button>
+        {/if}
+      </div>
+      <span class="col-type row-type">{getTypeLabel(ext)}</span>
+      <span class="col-alias row-muted">—</span>
+      <span class="col-hotkey row-muted">—</span>
+      <div class="col-on">
+        <Toggle
+          checked={ext.isBuiltIn ? true : ext.enabled === true}
+          disabled={ext.isBuiltIn ||
+            handler.togglingExtension === ext.title ||
+            extensionStateManager.extensionUninstallInProgress === ext.id ||
+            (ext.compatibility?.status !== 'compatible' && ext.compatibility?.status !== 'unknown')}
+          onchange={() => handler.toggleExtension(ext)}
+        />
+      </div>
+    </div>
+    {#if isExpanded && ext.commands?.length}
+      {#each ext.commands as cmd (cmd.id)}
+        {@const isCmdSelected = selectedCommandId === cmd.id && selectedExtensionId === ext.id}
+        {@const cmdObjId = ext.id ? commandObjectId(ext.id, cmd.id) : ''}
+        {@const cmdAlias = cmdObjId ? aliasStore.byObjectId.get(cmdObjId) : undefined}
+        {@const cmdShortcut = cmdObjId ? shortcutsByObjectId.get(cmdObjId) : undefined}
+        <div
+          class="cmd-row"
+          class:selected={isCmdSelected}
+          role="row"
+          tabindex="0"
+          onclick={() => selectCommand(ext, cmd)}
+          onkeydown={(e) => e.key === 'Enter' && selectCommand(ext, cmd)}
+        >
+          <div class="col-name row-name-cell cmd-indent">
+            <div class="cmd-icon shrink-0">
+              {#if cmd.icon && isBuiltInIcon(cmd.icon)}
+                <Icon name={getBuiltInIconName(cmd.icon)} size={14} />
+              {:else if cmd.icon && isIconImage(cmd.icon)}
+                <img src={cmd.icon} alt={cmd.name} class="cmd-icon-img" />
+              {:else if cmd.icon}
+                <span class="cmd-icon-emoji">{cmd.icon}</span>
+              {:else if ext.iconUrl && isBuiltInIcon(ext.iconUrl)}
+                <Icon name={getBuiltInIconName(ext.iconUrl)} size={14} />
+              {:else if ext.iconUrl && isIconImage(ext.iconUrl)}
+                <img src={ext.iconUrl} alt={cmd.name} class="cmd-icon-img" />
+              {:else}
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                >
+                  <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
+                </svg>
+              {/if}
+            </div>
+            <span class="ext-title">{cmd.name}</span>
+          </div>
+          <span class="col-type row-type">{t('settings.extensions.type_command')}</span>
+          <span class="col-alias">
+            {#if cmdAlias}
+              <button
+                type="button"
+                class="alias-cell-btn"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  openAliasCaptureForCommand(ext, cmd);
+                }}
+                title="Change alias"
+              >
+                <span class="alias-pill text-mono">{cmdAlias}</span>
+              </button>
+              <button
+                type="button"
+                class="clear-btn"
+                aria-label="Remove alias for {cmd.name}"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveCommandAlias(ext, cmd);
+                }}
+              >
+                ✕
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="row-action-btn"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  openAliasCaptureForCommand(ext, cmd);
+                }}
+              >
+                {t('settings.extensions.add_alias')}
+              </button>
+            {/if}
+          </span>
+          <span class="col-hotkey">
+            {#if cmdShortcut}
+              <button
+                type="button"
+                class="alias-cell-btn"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  openShortcutCaptureForCommand(ext, cmd);
+                }}
+                title="Reassign hotkey"
+              >
+                <KeyboardHint keys={toDisplayString(cmdShortcut.shortcut)} />
+              </button>
+              <button
+                type="button"
+                class="clear-btn"
+                aria-label="Remove hotkey for {cmd.name}"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  handleRemoveCommandShortcut(ext, cmd);
+                }}
+              >
+                ✕
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="row-action-btn"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  openShortcutCaptureForCommand(ext, cmd);
+                }}
+              >
+                {t('settings.extensions.record_hotkey')}
+              </button>
+            {/if}
+          </span>
+          <span class="col-on row-check">✓</span>
+        </div>
+      {/each}
+    {/if}
+  {/each}
+{/snippet}
 
 <!-- ── Extensions table + detail panel ─────────────────────────────────── -->
 <div class="ext-shell">
@@ -367,196 +574,20 @@
                 : t('settings.extensions.no_results_description')}
             />
           {:else}
-            {#each filteredExtensions as ext (ext.id ?? ext.title)}
-              {@const isExpanded = expandedIds.has(ext.id ?? ext.title)}
-              {@const isExtSelected =
-                selectedExtensionId === (ext.id ?? ext.title) && !selectedCommandId}
-
-              <!-- extension row -->
-              <div
-                class="ext-row"
-                class:selected={isExtSelected}
-                role="row"
-                tabindex="0"
-                onclick={() => selectExtension(ext)}
-                onkeydown={(e) => e.key === 'Enter' && selectExtension(ext)}
-              >
-                <div class="col-name row-name-cell">
-                  <button
-                    class="chevron"
-                    class:expanded={isExpanded}
-                    onclick={(e) => {
-                      e.stopPropagation();
-                      toggleExpand(ext.id ?? ext.title);
-                    }}
-                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                    disabled={!ext.commands?.length}
-                  >
-                    <svg
-                      viewBox="0 0 10 10"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <polyline points="3,2 7,5 3,8" />
-                    </svg>
-                  </button>
-                  <div class="ext-icon shrink-0">
-                    {#if ext.iconUrl}
-                      <img src={ext.iconUrl} alt={ext.title} class="ext-icon-img" />
-                    {:else}
-                      {ext.title[0]?.toUpperCase() ?? 'E'}
-                    {/if}
-                  </div>
-                  <span class="ext-title">{ext.title}</span>
-                  {#if ext.id && extensionUpdateService.getUpdateForExtension(ext.id)}
-                    <button
-                      class="update-link"
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        ext.id && handleUpdateExtension(ext.id);
-                      }}
-                      disabled={ext.id ? extensionUpdateService.isExtensionUpdating(ext.id) : false}
-                    >
-                      {ext.id && extensionUpdateService.isExtensionUpdating(ext.id)
-                        ? 'Updating…'
-                        : 'Update'}
-                    </button>
-                  {/if}
-                </div>
-                <span class="col-type row-type">{ext.type ?? '—'}</span>
-                <span class="col-alias row-muted">—</span>
-                <span class="col-hotkey row-muted">—</span>
-                <div class="col-on">
-                  <Toggle
-                    checked={ext.enabled === true}
-                    disabled={handler.togglingExtension === ext.title ||
-                      extensionStateManager.extensionUninstallInProgress === ext.id ||
-                      (ext.compatibility?.status !== 'compatible' &&
-                        ext.compatibility?.status !== 'unknown')}
-                    onchange={() => handler.toggleExtension(ext)}
-                  />
-                </div>
+            {#if builtInExtensions.length > 0}
+              <div class="section-header-row">
+                <span class="section-label">{t('settings.extensions.section_builtin')}</span>
+                <span class="section-count">{builtInExtensions.length}</span>
               </div>
-
-              <!-- command rows (shown when expanded) -->
-              {#if isExpanded && ext.commands?.length}
-                {#each ext.commands as cmd (cmd.id)}
-                  {@const isCmdSelected =
-                    selectedCommandId === cmd.id && selectedExtensionId === ext.id}
-                  {@const cmdObjId = ext.id ? commandObjectId(ext.id, cmd.id) : ''}
-                  {@const cmdAlias = cmdObjId ? aliasStore.byObjectId.get(cmdObjId) : undefined}
-                  {@const cmdShortcut = cmdObjId ? shortcutsByObjectId.get(cmdObjId) : undefined}
-                  <div
-                    class="cmd-row"
-                    class:selected={isCmdSelected}
-                    role="row"
-                    tabindex="0"
-                    onclick={() => selectCommand(ext, cmd)}
-                    onkeydown={(e) => e.key === 'Enter' && selectCommand(ext, cmd)}
-                  >
-                    <div class="col-name row-name-cell cmd-indent">
-                      <div class="cmd-icon shrink-0">
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                        >
-                          <polyline points="4 17 10 11 4 5" /><line
-                            x1="12"
-                            y1="19"
-                            x2="20"
-                            y2="19"
-                          />
-                        </svg>
-                      </div>
-                      <span class="ext-title">{cmd.name}</span>
-                    </div>
-                    <span class="col-type row-type">{t('settings.extensions.filter_commands')}</span
-                    >
-                    <span class="col-alias">
-                      {#if cmdAlias}
-                        <button
-                          type="button"
-                          class="alias-cell-btn"
-                          onclick={(e) => {
-                            e.stopPropagation();
-                            openAliasCaptureForCommand(ext, cmd);
-                          }}
-                          title="Change alias"
-                        >
-                          <span class="alias-pill text-mono">{cmdAlias}</span>
-                        </button>
-                        <button
-                          type="button"
-                          class="clear-btn"
-                          aria-label="Remove alias for {cmd.name}"
-                          onclick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveCommandAlias(ext, cmd);
-                          }}
-                        >
-                          ✕
-                        </button>
-                      {:else}
-                        <button
-                          type="button"
-                          class="row-action-btn"
-                          onclick={(e) => {
-                            e.stopPropagation();
-                            openAliasCaptureForCommand(ext, cmd);
-                          }}
-                        >
-                          {t('settings.extensions.add_alias')}
-                        </button>
-                      {/if}
-                    </span>
-                    <span class="col-hotkey">
-                      {#if cmdShortcut}
-                        <button
-                          type="button"
-                          class="alias-cell-btn"
-                          onclick={(e) => {
-                            e.stopPropagation();
-                            openShortcutCaptureForCommand(ext, cmd);
-                          }}
-                          title="Reassign hotkey"
-                        >
-                          <KeyboardHint keys={toDisplayString(cmdShortcut.shortcut)} />
-                        </button>
-                        <button
-                          type="button"
-                          class="clear-btn"
-                          aria-label="Remove hotkey for {cmd.name}"
-                          onclick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveCommandShortcut(ext, cmd);
-                          }}
-                        >
-                          ✕
-                        </button>
-                      {:else}
-                        <button
-                          type="button"
-                          class="row-action-btn"
-                          onclick={(e) => {
-                            e.stopPropagation();
-                            openShortcutCaptureForCommand(ext, cmd);
-                          }}
-                        >
-                          {t('settings.extensions.record_hotkey')}
-                        </button>
-                      {/if}
-                    </span>
-                    <span class="col-on row-check">✓</span>
-                  </div>
-                {/each}
-              {/if}
-            {/each}
+              {@render extensionRows(builtInExtensions)}
+            {/if}
+            {#if installedExtensions.length > 0}
+              <div class="section-header-row">
+                <span class="section-label">{t('settings.extensions.section_installed')}</span>
+                <span class="section-count">{installedExtensions.length}</span>
+              </div>
+              {@render extensionRows(installedExtensions)}
+            {/if}
           {/if}
         </div>
       </div>
@@ -976,11 +1007,24 @@
     font-size: var(--font-size-md);
     font-weight: 700;
     color: var(--text-secondary);
+    overflow: hidden;
   }
 
   .ext-icon-img {
     width: 20px;
     height: 20px;
+    object-fit: contain;
+  }
+
+  .ext-icon-emoji {
+    font-size: var(--font-size-section);
+    line-height: 1;
+  }
+
+  .ext-icon-letter {
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    color: var(--text-secondary);
   }
 
   .cmd-icon {
@@ -992,12 +1036,55 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    overflow: hidden;
   }
 
   .cmd-icon svg {
     width: 12px;
     height: 12px;
     color: var(--text-tertiary);
+  }
+
+  .cmd-icon-img {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+  }
+
+  .cmd-icon-emoji {
+    font-size: var(--font-size-sm);
+    line-height: 1;
+  }
+
+  .section-header-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-3) var(--space-1);
+    border-bottom: 1px solid var(--separator);
+    background: var(--bg-secondary);
+    position: sticky;
+    top: 0;
+    z-index: var(--z-base);
+  }
+
+  .section-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  .section-count {
+    font-size: var(--font-size-2xs);
+    font-weight: 500;
+    color: var(--text-tertiary);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-full);
+    padding: 2px 6px; /* design-ok: compact pill needs tighter vertical padding than --space-0-5 */
+    min-width: 18px;
+    text-align: center;
   }
 
   .ext-title {

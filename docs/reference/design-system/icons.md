@@ -4,11 +4,21 @@ Reference for all built-in icons available in the Asyar SDK.
 
 ## Usage
 
-**In manifests, commands, search results, and actions** — use the `icon:name` prefix:
+**In manifests, commands, search results, and actions** — you can use:
 
-```json
-{ "icon": "icon:calculator" }
-```
+1. **Built-in icons** via the `icon:name` prefix:
+   ```json
+   { "icon": "icon:calculator" }
+   ```
+2. **Emojis** directly as string characters:
+   ```json
+   { "icon": "🧪" }
+   ```
+3. **Custom image assets** as relative paths within your extension package (e.g. `"icon.png"`, `"assets/logo.svg"`):
+   ```json
+   { "icon": "icon.png" }
+   ```
+   _Note: Relative paths are resolved and securely loaded via the `asyar-extension://` protocol. Provide transparent PNGs or SVGs to ensure crisp contrast across both Dark and Light themes._
 
 **Inside your extension view** — use the SDK utilities:
 

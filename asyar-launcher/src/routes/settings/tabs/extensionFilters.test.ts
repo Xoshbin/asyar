@@ -5,14 +5,15 @@ function makeExt(
   title: string,
   type: string,
   commands: { id: string; name: string; trigger: string }[] = [],
+  isBuiltIn = false,
 ): ExtensionItem {
   return {
     title,
     type,
+    isBuiltIn,
     commands: commands.map((c) => ({ ...c, description: '' })),
   };
 }
-
 // After the Tier 2 worker/view split there are only two extension types:
 // "extension" (everything with commands) and "theme". The per-command
 // view/background distinction is filtered elsewhere.
@@ -80,6 +81,40 @@ describe('filterExtensions', () => {
     it('filter commands returns only extensions that have commands', () => {
       const result = filterExtensions(extensions, '', 'commands');
       expect(result).toHaveLength(2);
+    });
+  });
+
+  describe('built-in vs installed', () => {
+    it('filter extension excludes built-ins', () => {
+      const mixed: ExtensionItem[] = [
+        makeExt('Calculator', 'extension', [], true),
+        makeExt('My Extension', 'extension', [], false),
+        makeExt('Catppuccin', 'theme', [], false),
+      ];
+      const result = filterExtensions(mixed, '', 'extension');
+      expect(result).toHaveLength(1);
+      expect(result[0].title).toBe('My Extension');
+    });
+
+    it('filter all includes both built-ins and installed', () => {
+      const mixed: ExtensionItem[] = [
+        makeExt('Calculator', 'extension', [], true),
+        makeExt('My Extension', 'extension', [], false),
+      ];
+      expect(filterExtensions(mixed, '', 'all')).toHaveLength(2);
+    });
+
+    it('filter theme still returns theme regardless of built-in flag', () => {
+      const mixed: ExtensionItem[] = [
+        makeExt('Built-in Theme', 'theme', [], true),
+        makeExt('Catppuccin', 'theme', [], false),
+      ];
+      expect(filterExtensions(mixed, '', 'theme')).toHaveLength(2);
+    });
+
+    it('filter extension with only built-ins returns empty', () => {
+      const onlyBuiltIns: ExtensionItem[] = [makeExt('Calculator', 'extension', [], true)];
+      expect(filterExtensions(onlyBuiltIns, '', 'extension')).toHaveLength(0);
     });
   });
 

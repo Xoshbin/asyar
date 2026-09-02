@@ -36,3 +36,7 @@ img-src     asyar-extension: data:;
 ```
 
 External URLs in `<script src="">` tags are blocked. All networking goes through `NetworkService`.
+
+### Host Window Asset Resolution
+
+The `asyar-extension://` protocol is also used by the host application (Settings and launcher search results) to load extension-bundled icon images (e.g. `asyar-extension://<extensionId>/icon.png`). The host window's Content Security Policy allows `asyar-extension:` in `img-src`, and the Rust protocol handler validates that the file is located within an approved extension directory before serving it.

@@ -299,36 +299,32 @@ export class SettingsHandler {
       // not uninstalled — the detail panel hides the uninstall button based
       // on `isBuiltIn`.
       this.extensions = allExtensions
-        .filter((ext: any) => {
-          const key = ext.id ?? ext.title;
+        .filter((ext: unknown) => {
+          const typed = ext as ExtensionItem;
+          const key = typed.id ?? typed.title;
           if (seen.has(key)) return false;
           seen.add(key);
           return true;
         })
-        .map((ext: any) => ({
-          ...ext,
-          commands: ext.commands ?? [],
-        }));
+        .map((ext: unknown) => {
+          const typed = ext as ExtensionItem;
+          return {
+            ...typed,
+            commands: typed.commands ?? [],
+          };
+        });
 
-      // Register preference declarations with extensionPreferencesService.
-      // The settings window is a separate Tauri webview with its own JS
-      // context — its extensionPreferencesService instance has never been
-      // seeded by ExtensionLoader (which only runs in the main window), so
-      // without this step `getEffectivePreferences` returns an empty bundle
-      // and the detail panel renders blank values.
       for (const ext of this.extensions) {
         if (!ext.id) continue;
         const extPrefs: PreferenceDeclaration[] = (ext.preferences ??
           []) as PreferenceDeclaration[];
         const cmdPrefs: Record<string, PreferenceDeclaration[]> = {};
         for (const cmd of ext.commands ?? []) {
-          const cmdAny = cmd as any;
-          if (
-            cmdAny.preferences &&
-            Array.isArray(cmdAny.preferences) &&
-            cmdAny.preferences.length > 0
-          ) {
-            cmdPrefs[cmd.id] = cmdAny.preferences as PreferenceDeclaration[];
+          if (cmd && typeof cmd === 'object' && 'preferences' in cmd) {
+            const maybePrefs = cmd.preferences;
+            if (Array.isArray(maybePrefs) && maybePrefs.length > 0) {
+              cmdPrefs[cmd.id] = maybePrefs as PreferenceDeclaration[];
+            }
           }
         }
         extensionPreferencesService.registerManifest(ext.id, {
@@ -346,6 +342,7 @@ export class SettingsHandler {
   }
 
   async toggleExtension(extension: ExtensionItem) {
+    if (extension.isBuiltIn) return;
     if (this.togglingExtension === extension.title) return;
 
     this.togglingExtension = extension.title;

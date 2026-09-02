@@ -45,12 +45,17 @@ This tab has two sub-sections that share a tab.
 - **Scan directories** — Asyar scans your Applications folder by default. Click "Add Directory" to add more folders (for example, a custom tools folder). Default folders are shown as read-only; custom folders can be removed.
 - **Per-app toggles** — A list of every discovered app. You can hide individual apps from search results by turning off their toggle. You can also assign a keyboard shortcut or a search alias to any app from its row.
 
-**Extensions** (the Extensions tab) lists all installed extensions with their commands:
+**Extensions** (the Extensions tab) manages both built-in features and installed extensions:
 
-- Enable or disable an individual extension with its toggle.
-- Assign a keyboard shortcut or alias to any command from its row.
-- Install an extension from a file using the "Install from file" button.
-- Update available extensions from this view. Auto-update behaviour is controlled in Advanced.
+- **Built-in Features vs. Installed Extensions** — The list is organized into distinct sections with item counts for built-in capabilities (like Calculator, Snippets, and Clipboard) and installed third-party extensions.
+- **Filter Chips** — Scope the list using filter chips at the top:
+  - **All** — Shows all built-in features and installed extensions.
+  - **Commands** — Shows only extensions and features that declare runnable commands.
+  - **Extensions** — Scopes specifically to third-party installed extensions (excluding built-in features).
+  - **Themes** — Shows only installed theme extensions.
+- **Toggles & Row Actions** — Turn any extension or feature on or off with its toggle. Expand an extension with the chevron to view its individual commands and directly assign search aliases or global hotkeys.
+- **Detail Panel** — Selecting any feature, extension, or command opens the right-hand panel displaying its icon, metadata badges (`Built-in`, `Extension`, `Theme`, `Command`), description, trigger chip, permissions, runtime status, and configuration preferences.
+- **Install & Update** — Use the **+** button in the toolbar to create or install extensions from a file (developer mode), and update available extensions directly from this view. Auto-update behaviour is controlled in Advanced.
 
 ## File Search
 
