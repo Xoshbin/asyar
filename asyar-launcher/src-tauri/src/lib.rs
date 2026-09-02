@@ -2438,11 +2438,12 @@ fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
 
     // Convert stored config to modifiers and code
     let mod_key = match shortcut_config.modifier.as_str() {
-        "Super" => Modifiers::SUPER,
-        "Shift" => Modifiers::SHIFT,
-        "Control" => Modifiers::CONTROL,
-        "Alt" => Modifiers::ALT,
-        _ => Modifiers::ALT, // Default to ALT if invalid
+        "Super" => Some(Modifiers::SUPER),
+        "Shift" => Some(Modifiers::SHIFT),
+        "Control" => Some(Modifiers::CONTROL),
+        "Alt" => Some(Modifiers::ALT),
+        "" | "None" | "none" => None,
+        _ => Some(Modifiers::ALT), // Default to ALT if invalid
     };
 
     let code = match commands::get_code_from_string(&shortcut_config.key) {
@@ -2451,7 +2452,7 @@ fn setup_global_shortcut(app_handle: &tauri::AppHandle) {
     };
 
     // Register the shortcut without a handler (it will be handled by the global handler)
-    let shortcut = Shortcut::new(Some(mod_key), code);
+    let shortcut = Shortcut::new(mod_key, code);
 
     // Register the shortcut
     if let Err(e) = shortcut_manager.register(shortcut) {

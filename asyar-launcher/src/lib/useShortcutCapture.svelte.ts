@@ -7,6 +7,7 @@ import {
   KEY_DISPLAY,
   DOM_TO_MODIFIER,
   VALID_KEYS,
+  isBareKeyAllowed,
 } from '../built-in-features/shortcuts/shortcutFormatter';
 
 export interface CaptureConfig {
@@ -77,15 +78,14 @@ export function useShortcutCapture(config: CaptureConfig) {
 
   async function attemptSave(capturedModifier: string, capturedKey: string) {
     if (config.conflictChecker) {
-      const shortcutString = `${capturedModifier}+${capturedKey}`;
+      const shortcutString = capturedModifier ? `${capturedModifier}+${capturedKey}` : capturedKey;
       const conflict = await config.conflictChecker(shortcutString);
       if (conflict) {
         errorType = 'conflict';
         conflictInfo = conflict.name;
-        failedChips = [
-          ...capturedModifier.split('+').map((m) => modifierSymbol(m)),
-          displayKey(capturedKey),
-        ];
+        failedChips = capturedModifier
+          ? [...capturedModifier.split('+').map((m) => modifierSymbol(m)), displayKey(capturedKey)]
+          : [displayKey(capturedKey)];
         startRejectedTimeout();
         return;
       }
@@ -111,10 +111,9 @@ export function useShortcutCapture(config: CaptureConfig) {
     } else {
       saveState = 'error';
       errorType = 'generic';
-      failedChips = [
-        ...capturedModifier.split('+').map((m) => modifierSymbol(m)),
-        displayKey(capturedKey),
-      ];
+      failedChips = capturedModifier
+        ? [...capturedModifier.split('+').map((m) => modifierSymbol(m)), displayKey(capturedKey)]
+        : [displayKey(capturedKey)];
       errorMessage = result || 'Failed to save shortcut';
       savedModifier = '';
       savedKey = '';
@@ -229,7 +228,33 @@ export function useShortcutCapture(config: CaptureConfig) {
     if (event.metaKey) modifierParts.push('Super');
 
     const hasStrongModifier = event.ctrlKey || event.altKey || event.metaKey;
-    if (modifierParts.length === 0 || !hasStrongModifier) {
+    if (modifierParts.length === 0) {
+      if (isBareKeyAllowed(capturedKey)) {
+        if (invalidKeys.size > 0) {
+          clearRejectedTimer();
+          if (!rejectedKeys.includes(capturedKey)) {
+            rejectedKeys = [...rejectedKeys, capturedKey];
+          }
+          rejectedKeysHeld = new Set([...rejectedKeysHeld, capturedKey]);
+          startRejectedTimeout();
+          return;
+        }
+        attemptSave('', capturedKey);
+        return;
+      }
+      if (!rejectedKeys.includes(capturedKey)) {
+        rejectedKeys = [...rejectedKeys, capturedKey];
+      }
+      rejectedKeysHeld = new Set([...rejectedKeysHeld, capturedKey]);
+      if (errorType !== 'invalid-key') {
+        errorType = 'no-modifier';
+        errorMessage = 'no-modifier';
+      }
+      startRejectedTimeout();
+      return;
+    }
+
+    if (!hasStrongModifier && !isBareKeyAllowed(capturedKey)) {
       if (!rejectedKeys.includes(capturedKey)) {
         rejectedKeys = [...rejectedKeys, capturedKey];
       }

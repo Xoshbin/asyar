@@ -85,12 +85,15 @@
   });
 
   let idleChips = $derived.by(() => {
-    if (modifier && key) {
-      const mods = modifier
-        .split('+')
-        .sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))
-        .map((m) => capture.modifierSymbol(m));
-      return [...mods, capture.displayKey(key)];
+    if (key) {
+      if (modifier) {
+        const mods = modifier
+          .split('+')
+          .sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))
+          .map((m) => capture.modifierSymbol(m));
+        return [...mods, capture.displayKey(key)];
+      }
+      return [capture.displayKey(key)];
     }
     return [];
   });
