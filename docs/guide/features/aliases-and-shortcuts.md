@@ -78,6 +78,7 @@ The shortcuts and aliases themselves are configured via the action panel on sear
 - **Shortcuts vs aliases** — shortcuts work even when Asyar is hidden; aliases require you to open the launcher and type. Use shortcuts for the apps you reach dozens of times a day, aliases for everything else.
 - **One alias per item** — each app or command can have only one alias, but the same alias cannot be shared.
 - **Shortcuts view** — type `shortcuts` in the search bar to open a dedicated view that lists every shortcut you have assigned, grouped by Applications and Commands. It is handy for a quick audit.
+- **Single-key function shortcuts (`F1`–`F24`)** — while typing characters (`A–Z`, `0–9`, symbols) strictly require at least one modifier key (`⌘`, `⌥`, `⌃`, `⇧`) to protect normal text input, standalone function keys (`F1` through `F24`, including extended keys `F13`–`F20`) can be assigned directly without any modifiers. This is particularly useful for hardware macro pads, Stream Decks, gaming mice, or remapped keys like `Caps Lock`.
 
 ## Related
 

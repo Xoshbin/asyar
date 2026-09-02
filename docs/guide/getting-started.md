@@ -23,7 +23,7 @@ Asyar walks you through a short onboarding flow the first time you launch it. He
 
 1. **Welcome** — A quick introduction, plus theme and window-mode pickers. If you're switching from Raycast, click **Import from Raycast…** here to bring over your snippets, quicklinks, and app hotkeys — see [Import from Raycast](./features/raycast-import.md). Click **Start the tour** to continue.
 
-2. **Pick your global hotkey** — Press the key combination you want to use to summon Asyar from anywhere on your computer. Click inside the recorder, press your desired keys (for example, a modifier + letter), then click **Continue**. You can change this at any time in Settings.
+2. **Pick your global hotkey** — Press the key combination you want to use to summon Asyar from anywhere on your computer. Click inside the recorder, press your desired keys (for example, a modifier + letter, or a standalone function key like `F1`–`F24`), then click **Continue**. You can change this at any time in Settings.
 
 3. **Grant accessibility access (macOS only)** — On macOS, Asyar uses the Accessibility API to paste text snippets and capture your selected text. Click **Open System Settings**, find Asyar in the list, and enable the toggle. Windows and Linux users can skip this step — it is not required there. On macOS, text expansion won't work until you grant it.
 
@@ -42,6 +42,12 @@ You can re-run onboarding at any time from **Settings → General → Re-run onb
 The global hotkey you chose during setup shows or hides Asyar from anywhere on your computer — even when Asyar is not the active app. It works system-wide, so you do not need to switch apps first.
 
 To change your hotkey after setup, open **Settings → General** (or **Settings → Shortcuts**) and click inside the shortcut recorder. Press your new combination and click **Save**.
+
+Asyar supports:
+
+- **Modifier combinations**: For example `⌥Space`, `⌘Space`, or `Ctrl+Alt+Space`.
+- **Standalone function keys (`F1`–`F24`)**: Function keys (including extended function keys like `F13`–`F20`) can be assigned directly without any modifier keys. This allows you to use remapped keys (such as `Caps Lock` mapped to `F16` via Karabiner-Elements or PowerToys), hardware macro pads, or Stream Decks as dedicated one-tap launcher triggers.
+- **Typing protection**: Standard alphanumeric characters (`A–Z`, `0–9`, space, punctuation) strictly require at least one modifier key so that normal typing in other applications is never intercepted.
 
 > **Linux (Wayland) Users:** Wayland compositors do not allow background apps to capture global hotkeys directly. Instead, bind a custom shortcut in your desktop settings (GNOME, KDE Plasma, Hyprland, Sway) to run the `asyar` command. Re-running `asyar` automatically toggles the visibility of the running instance. See [Troubleshooting](./troubleshooting.md#the-hotkey-doesnt-open-asyar) for step-by-step instructions.
 

@@ -32,7 +32,7 @@ The Appearance tab gives you a larger visual picker for the same settings:
 
 The Shortcuts tab has one purpose: changing the global activation shortcut.
 
-- **Asyar activation shortcut** — Click inside the recorder and press the key combination you want. Asyar checks for conflicts with other registered shortcuts and warns you if the combination is already in use. Click Save to apply it.
+- **Asyar activation shortcut** — Click inside the recorder and press the shortcut you want. Asyar supports standard modifier combinations (e.g. `⌥Space`) as well as standalone function keys (`F1`–`F24`, including extended keys `F13`–`F20`) without modifiers for dedicated macro keys or remapped `Caps Lock`. Asyar checks for conflicts with other registered shortcuts and warns you if the combination is already in use. Click Save to apply it.
 
 All other per-item shortcuts (for commands, snippets, scripts, and agents) are managed from the **Applications & Extensions** tab and from each item's row in the launcher.
 
