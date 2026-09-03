@@ -100,6 +100,22 @@ describe('WindowManagementExtension', () => {
       expect(result).toEqual({ type: 'no-view' });
     });
 
+    it('first-fourth saves previous bounds then calls applyPreset and returns no-view', async () => {
+      const result = await extension.executeCommand('first-fourth');
+      expect(windowManagementState.savePreviousBounds).toHaveBeenCalled();
+      expect(windowManagementService.applyPreset).toHaveBeenCalledWith('first-fourth');
+      expect(feedbackService.showHUD).toHaveBeenCalledWith('First Fourth');
+      expect(result).toEqual({ type: 'no-view' });
+    });
+
+    it('last-fourth saves previous bounds then calls applyPreset and returns no-view', async () => {
+      const result = await extension.executeCommand('last-fourth');
+      expect(windowManagementState.savePreviousBounds).toHaveBeenCalled();
+      expect(windowManagementService.applyPreset).toHaveBeenCalledWith('last-fourth');
+      expect(feedbackService.showHUD).toHaveBeenCalledWith('Last Fourth');
+      expect(result).toEqual({ type: 'no-view' });
+    });
+
     it('next-display saves previous bounds then calls applyPreset and returns no-view', async () => {
       const result = await extension.executeCommand('next-display');
       expect(windowManagementState.savePreviousBounds).toHaveBeenCalled();

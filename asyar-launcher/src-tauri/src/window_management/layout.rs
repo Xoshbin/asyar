@@ -170,6 +170,10 @@ pub fn calculate_preset_action(
         "right-third" => (mx + (mw / 3.0) * 2.0, my, mw / 3.0, mh),
         "left-two-thirds" => (mx, my, (mw / 3.0) * 2.0, mh),
         "right-two-thirds" => (mx + mw / 3.0, my, (mw / 3.0) * 2.0, mh),
+        "first-fourth" => (mx, my, mw / 4.0, mh),
+        "second-fourth" => (mx + mw / 4.0, my, mw / 4.0, mh),
+        "third-fourth" => (mx + (mw / 4.0) * 2.0, my, mw / 4.0, mh),
+        "last-fourth" => (mx + (mw / 4.0) * 3.0, my, mw / 4.0, mh),
         "center" => (mx + mw * 0.1, my + mh * 0.1, mw * 0.8, mh * 0.8),
         "almost-maximize" => (mx + mw * 0.05, my + mh * 0.05, mw * 0.9, mh * 0.9),
         _ => {
@@ -424,5 +428,64 @@ mod tests {
 
         // Unknown preset returns Validation error
         assert!(calculate_preset_action("invalid-preset", &win, &monitors).is_err());
+    }
+
+    #[test]
+    fn preset_action_calculates_fourths_correctly() {
+        let monitors = sample_monitors_two();
+        let win = WindowBounds {
+            x: 100.0,
+            y: 100.0,
+            width: 800.0,
+            height: 600.0,
+        };
+
+        // First fourth: x=0, w=1920/4=480
+        let act1 = calculate_preset_action("first-fourth", &win, &monitors).unwrap();
+        assert_eq!(
+            act1,
+            PresetAction::Bounds(WindowBoundsUpdate {
+                x: Some(0.0),
+                y: Some(0.0),
+                width: Some(480.0),
+                height: Some(1080.0),
+            })
+        );
+
+        // Second fourth: x=480, w=480
+        let act2 = calculate_preset_action("second-fourth", &win, &monitors).unwrap();
+        assert_eq!(
+            act2,
+            PresetAction::Bounds(WindowBoundsUpdate {
+                x: Some(480.0),
+                y: Some(0.0),
+                width: Some(480.0),
+                height: Some(1080.0),
+            })
+        );
+
+        // Third fourth: x=960, w=480
+        let act3 = calculate_preset_action("third-fourth", &win, &monitors).unwrap();
+        assert_eq!(
+            act3,
+            PresetAction::Bounds(WindowBoundsUpdate {
+                x: Some(960.0),
+                y: Some(0.0),
+                width: Some(480.0),
+                height: Some(1080.0),
+            })
+        );
+
+        // Last fourth: x=1440, w=480
+        let act4 = calculate_preset_action("last-fourth", &win, &monitors).unwrap();
+        assert_eq!(
+            act4,
+            PresetAction::Bounds(WindowBoundsUpdate {
+                x: Some(1440.0),
+                y: Some(0.0),
+                width: Some(480.0),
+                height: Some(1080.0),
+            })
+        );
     }
 }

@@ -77,6 +77,26 @@ describe('getPresetBounds', () => {
     });
   });
 
+  it('first-fourth fills first 25% column', () => {
+    const result = getPresetBounds('first-fourth', SW, SH);
+    expect(result).toEqual({ bounds: { x: 0, y: 0, width: SW / 4, height: SH } });
+  });
+
+  it('second-fourth fills second 25% column', () => {
+    const result = getPresetBounds('second-fourth', SW, SH);
+    expect(result).toEqual({ bounds: { x: SW / 4, y: 0, width: SW / 4, height: SH } });
+  });
+
+  it('third-fourth fills third 25% column', () => {
+    const result = getPresetBounds('third-fourth', SW, SH);
+    expect(result).toEqual({ bounds: { x: (SW / 4) * 2, y: 0, width: SW / 4, height: SH } });
+  });
+
+  it('last-fourth fills last 25% column', () => {
+    const result = getPresetBounds('last-fourth', SW, SH);
+    expect(result).toEqual({ bounds: { x: (SW / 4) * 3, y: 0, width: SW / 4, height: SH } });
+  });
+
   it('almost-maximize is 90% centered', () => {
     const result = getPresetBounds('almost-maximize', SW, SH);
     expect(result).toEqual({
@@ -94,10 +114,14 @@ describe('getPresetBounds', () => {
     expect(result).toBeNull();
   });
 
-  it('PRESET_IDS contains all 16 layout preset ids', () => {
-    expect(PRESET_IDS).toHaveLength(16);
+  it('PRESET_IDS contains all 20 layout preset ids', () => {
+    expect(PRESET_IDS).toHaveLength(20);
     expect(PRESET_IDS).toContain('left-half');
     expect(PRESET_IDS).toContain('maximize');
+    expect(PRESET_IDS).toContain('first-fourth');
+    expect(PRESET_IDS).toContain('second-fourth');
+    expect(PRESET_IDS).toContain('third-fourth');
+    expect(PRESET_IDS).toContain('last-fourth');
     expect(PRESET_IDS).not.toContain('restore');
     expect(PRESET_IDS).not.toContain('manage-layouts');
   });
