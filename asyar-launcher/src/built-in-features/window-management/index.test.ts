@@ -258,6 +258,7 @@ describe('WindowManagementExtension', () => {
 
       const result = await extension.executeCommand('apply-layout', { name: 'Nonexistent' });
 
+      expect(feedbackService.showHUD).toHaveBeenCalledWith(expect.stringContaining('Nonexistent'));
       expect(feedbackService.report).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: 'manual',
@@ -275,6 +276,7 @@ describe('WindowManagementExtension', () => {
 
       const result = await extension.executeCommand('apply-layout', {});
 
+      expect(feedbackService.showHUD).toHaveBeenCalledWith('No layout name or ID provided');
       expect(feedbackService.report).toHaveBeenCalledWith(
         expect.objectContaining({
           kind: 'manual',

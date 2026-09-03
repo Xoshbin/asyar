@@ -74,6 +74,7 @@ class WindowManagementExtension implements Extension {
     const rawId = typeof args?.id === 'string' ? args.id.trim() : undefined;
 
     if (!rawName && !rawId) {
+      await feedbackService.showHUD('No layout name or ID provided');
       await feedbackService.report({
         source: 'frontend',
         kind: 'manual',
@@ -93,6 +94,7 @@ class WindowManagementExtension implements Extension {
       await applyCustomLayout(layout, this.store);
     } else {
       const missing = rawName || rawId || 'unknown';
+      await feedbackService.showHUD(`Layout "${missing}" not found`);
       await feedbackService.report({
         source: 'frontend',
         kind: 'manual',
