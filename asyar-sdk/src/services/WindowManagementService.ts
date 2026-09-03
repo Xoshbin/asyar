@@ -57,6 +57,24 @@ export interface IWindowManagementService {
    * Requires `window:manage` permission.
    */
   applyPreset(presetId: string): Promise<void>;
+
+  /**
+   * Moves the frontmost OS application window to the previous display, keeping relative size and position.
+   *
+   * On single-display setups, this is a no-op.
+   *
+   * Requires `window:manage` permission.
+   */
+  previousDisplay(): Promise<void>;
+
+  /**
+   * Moves the frontmost OS application window to the next display, keeping relative size and position.
+   *
+   * On single-display setups, this is a no-op.
+   *
+   * Requires `window:manage` permission.
+   */
+  nextDisplay(): Promise<void>;
 }
 
 export class WindowManagementServiceProxy
@@ -86,5 +104,13 @@ export class WindowManagementServiceProxy
 
   async applyPreset(presetId: string): Promise<void> {
     return this.broker.invoke('window:applyPreset', { presetId });
+  }
+
+  async previousDisplay(): Promise<void> {
+    return this.applyPreset('previous-display');
+  }
+
+  async nextDisplay(): Promise<void> {
+    return this.applyPreset('next-display');
   }
 }

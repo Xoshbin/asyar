@@ -73,4 +73,24 @@ describe('WindowManagementServiceProxy', () => {
 
     expect(mockBroker.invoke).toHaveBeenCalledWith('window:applyPreset', { presetId: 'left-half' });
   });
+
+  it('previousDisplay calls window:applyPreset with previous-display', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(undefined);
+
+    await proxy.previousDisplay();
+
+    expect(mockBroker.invoke).toHaveBeenCalledWith('window:applyPreset', {
+      presetId: 'previous-display',
+    });
+  });
+
+  it('nextDisplay calls window:applyPreset with next-display', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(undefined);
+
+    await proxy.nextDisplay();
+
+    expect(mockBroker.invoke).toHaveBeenCalledWith('window:applyPreset', {
+      presetId: 'next-display',
+    });
+  });
 });

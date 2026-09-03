@@ -23,6 +23,18 @@ interface IWindowManagementService {
    * On Windows this maps to maximize / restore.
    */
   setFullscreen(enable: boolean): Promise<void>;
+
+  /** Returns a list of all available monitors and their logical bounds. */
+  getMonitors(): Promise<WindowBounds[]>;
+
+  /** Applies a preset layout to the frontmost OS application window. */
+  applyPreset(presetId: string): Promise<void>;
+
+  /** Moves frontmost window to the previous display, keeping relative size and position. */
+  previousDisplay(): Promise<void>;
+
+  /** Moves frontmost window to the next display, keeping relative size and position. */
+  nextDisplay(): Promise<void>;
 }
 
 interface WindowBounds {

@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WindowBounds {
     pub x: f64,
     pub y: f64,
@@ -9,7 +9,7 @@ pub struct WindowBounds {
     pub height: f64,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct WindowBoundsUpdate {
     pub x: Option<f64>,
     pub y: Option<f64>,

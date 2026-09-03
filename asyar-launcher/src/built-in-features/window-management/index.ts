@@ -3,7 +3,7 @@ import { windowManagementService } from '../../services/windowManagement/windowM
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { actionService } from '../../services/action/actionService.svelte';
 import { windowManagementState } from './state.svelte';
-import { getPresetBounds, PRESET_IDS } from './presets';
+import { DISPLAY_COMMAND_IDS, PRESET_IDS } from './presets';
 import { applyCustomLayout, syncLayoutToIndex, removeLayoutFromIndex } from './layoutLifecycle';
 import { isAnyModalOpen } from '../../components/base/Modal.logic';
 import ManageView from './ManageView.svelte';
@@ -52,7 +52,10 @@ class WindowManagementExtension implements Extension {
       return { type: 'no-view' };
     }
 
-    if ((PRESET_IDS as readonly string[]).includes(commandId)) {
+    if (
+      (PRESET_IDS as readonly string[]).includes(commandId) ||
+      (DISPLAY_COMMAND_IDS as readonly string[]).includes(commandId)
+    ) {
       await this.applyPreset(commandId);
       return { type: 'no-view' };
     }

@@ -89,4 +89,24 @@ describe('WindowManagementService', () => {
       expect(commands.windowApplyPreset).toHaveBeenCalledWith('left-half');
     });
   });
+
+  describe('previousDisplay', () => {
+    it('calls windowApplyPreset with previous-display', async () => {
+      vi.mocked(commands.windowApplyPreset).mockResolvedValueOnce(undefined);
+
+      await service.previousDisplay();
+
+      expect(commands.windowApplyPreset).toHaveBeenCalledWith('previous-display');
+    });
+  });
+
+  describe('nextDisplay', () => {
+    it('calls windowApplyPreset with next-display', async () => {
+      vi.mocked(commands.windowApplyPreset).mockResolvedValueOnce(undefined);
+
+      await service.nextDisplay();
+
+      expect(commands.windowApplyPreset).toHaveBeenCalledWith('next-display');
+    });
+  });
 });
