@@ -208,6 +208,29 @@
       "trigger": "next display screen monitor window",
       "icon": "icon:store",
       "mode": "background"
+    },
+    {
+      "id": "apply-layout",
+      "name": "Apply Layout",
+      "description": "Apply a custom window layout by name or ID",
+      "trigger": "apply window layout",
+      "icon": "icon:store",
+      "mode": "background",
+      "searchable": false,
+      "arguments": [
+        {
+          "name": "name",
+          "type": "text",
+          "placeholder": "Layout Name",
+          "required": false
+        },
+        {
+          "name": "id",
+          "type": "text",
+          "placeholder": "Layout ID",
+          "required": false
+        }
+      ]
     }
   ],
   "background": {

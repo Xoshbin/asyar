@@ -197,6 +197,8 @@ export interface ExtensionCommand {
 }
 
 export interface ExtensionResult {
+  /** Optional stable identifier for this result (e.g. for dynamic or addressable commands). */
+  id?: string;
   score: number;
   title: string;
   subtitle?: string;
