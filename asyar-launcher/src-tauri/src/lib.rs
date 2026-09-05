@@ -249,9 +249,22 @@ pub fn run() {
                 // whether to reveal the window (view commands do, background ones
                 // do not). Toggling here would fight that, and would *hide* the
                 // launcher whenever a deep link arrived while it was open.
-                if let Some(action) =
-                    launcher::classify_secondary_launch(&args, deeplink::deep_link_scheme(app))
+                let scheme = deeplink::deep_link_scheme(app);
+
+                // On macOS, tauri-plugin-deep-link's handle_cli_arguments is a no-op
+                // because it assumes all macOS deep links arrive via Apple Events.
+                // For CLI invocations (`asyar asyar://...` or `asyar-dev://...`),
+                // dispatch directly to deeplink::dispatch_url so CLI-based triggers work.
+                #[cfg(target_os = "macos")]
                 {
+                    for arg in &args {
+                        if arg.starts_with(&format!("{scheme}://")) {
+                            deeplink::dispatch_url(app, scheme, arg);
+                        }
+                    }
+                }
+
+                if let Some(action) = launcher::classify_secondary_launch(&args, scheme) {
                     if let Err(error) = single_instance_coordinator.request(action) {
                         log::warn!("[launcher] failed to queue secondary launch action: {error}");
                     }

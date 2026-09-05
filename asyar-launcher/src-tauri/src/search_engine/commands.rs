@@ -287,15 +287,14 @@ pub fn sync_command_index_internal_with_aliases(
         .difference(&indexed_set)
         .map(|s| s.to_string())
         .collect();
-    // Dynamic commands (id pattern `cmd_<ext>_dyn_<id>`) own a separate
-    // registration path via `replace_dynamic_commands` /
-    // `replace_dynamic_commands_builtin` — they MUST NOT be wiped by the
-    // manifest-driven diff. Without this filter, Tier 1 built-in features
-    // (like Scripts) that register dynamic commands during `activate()` see
-    // their entries silently deleted moments later.
+    // Dynamic commands (id pattern `cmd_<ext>_dyn_<id>`) and custom layout commands
+    // (id pattern `cmd_window-management_layout_<id>`) own a separate
+    // registration path — they MUST NOT be wiped by the manifest-driven diff.
+    // Without this filter, Tier 1 features that register dynamic commands
+    // or custom window layouts see their entries silently deleted on manifest sync.
     let to_remove: Vec<String> = indexed_set
         .difference(&current_set)
-        .filter(|id| !id.contains("_dyn_"))
+        .filter(|id| !id.contains("_dyn_") && !id.starts_with("cmd_window-management_layout_"))
         .map(|s| s.to_string())
         .collect();
 
@@ -543,6 +542,13 @@ mod tests {
             .index_one(make_cmd("cmd_scripts_dyn_abcdef0123456789", "Hello", 0))
             .unwrap();
         state
+            .index_one(make_cmd(
+                "cmd_window-management_layout_123",
+                "Custom Layout",
+                0,
+            ))
+            .unwrap();
+        state
             .index_one(make_cmd("cmd_static_one", "Static", 0))
             .unwrap();
 
@@ -557,11 +563,15 @@ mod tests {
         }];
 
         let result = sync_command_index_internal(input, &state).unwrap();
-        assert_eq!(result.removed, 0, "dynamic command must not be removed");
+        assert_eq!(
+            result.removed, 0,
+            "dynamic and custom layout commands must not be removed"
+        );
 
         let items = state.items.read().unwrap();
         let ids: Vec<&str> = items.iter().map(|i| i.id()).collect();
         assert!(ids.contains(&"cmd_scripts_dyn_abcdef0123456789"));
+        assert!(ids.contains(&"cmd_window-management_layout_123"));
         assert!(ids.contains(&"cmd_static_one"));
     }
 

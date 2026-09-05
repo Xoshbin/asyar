@@ -53,6 +53,7 @@ import extension from './index';
 import { windowManagementService } from '../../services/windowManagement/windowManagementService';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { windowManagementState } from './state.svelte';
+import { applyCustomLayout } from './layoutLifecycle';
 import type { ExtensionContext } from 'asyar-sdk/contracts';
 
 function makeContext(): ExtensionContext {
@@ -223,6 +224,72 @@ describe('WindowManagementExtension', () => {
     });
   });
 
+  describe('executeCommand — apply-layout', () => {
+    const layout = {
+      id: 'videocall-id',
+      name: 'Videocall',
+      bounds: { x: 100, y: 100, width: 600, height: 400 },
+    };
+
+    beforeEach(async () => {
+      await extension.initialize(makeContext());
+      Object.defineProperty(windowManagementState, 'customLayouts', {
+        value: [layout],
+        configurable: true,
+      });
+    });
+
+    it('applies layout by name case-insensitively', async () => {
+      const result = await extension.executeCommand('apply-layout', { name: 'videocall' });
+
+      expect(applyCustomLayout).toHaveBeenCalledWith(layout, expect.anything());
+      expect(result).toEqual({ type: 'no-view' });
+    });
+
+    it('applies layout by id', async () => {
+      const result = await extension.executeCommand('apply-layout', { id: 'videocall-id' });
+
+      expect(applyCustomLayout).toHaveBeenCalledWith(layout, expect.anything());
+      expect(result).toEqual({ type: 'no-view' });
+    });
+
+    it('reports error when layout is not found', async () => {
+      vi.mocked(feedbackService.report).mockResolvedValue();
+
+      const result = await extension.executeCommand('apply-layout', { name: 'Nonexistent' });
+
+      expect(feedbackService.showHUD).toHaveBeenCalledWith(expect.stringContaining('Nonexistent'));
+      expect(feedbackService.report).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'manual',
+          severity: 'error',
+          context: expect.objectContaining({
+            message: expect.stringContaining('Nonexistent'),
+          }),
+        }),
+      );
+      expect(result).toEqual({ type: 'no-view' });
+    });
+
+    it('reports error when neither name nor id is provided', async () => {
+      vi.mocked(feedbackService.report).mockResolvedValue();
+
+      const result = await extension.executeCommand('apply-layout', {});
+
+      expect(feedbackService.showHUD).toHaveBeenCalledWith('No layout name or ID provided');
+      expect(feedbackService.report).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'manual',
+          severity: 'error',
+          context: expect.objectContaining({
+            message: expect.stringContaining('No layout name or ID provided'),
+          }),
+        }),
+      );
+      expect(result).toEqual({ type: 'no-view' });
+    });
+  });
+
   describe('search', () => {
     it('returns custom layouts as ExtensionResult entries', async () => {
       const layout = {
@@ -238,6 +305,7 @@ describe('WindowManagementExtension', () => {
       const results = await extension.search('my');
       expect(results.length).toBeGreaterThan(0);
       expect(results[0].title).toContain('My Layout');
+      expect(results[0].id).toBe('cmd_window-management_layout_1');
     });
 
     it('returns empty array when no custom layouts match', async () => {

@@ -385,4 +385,28 @@ describe('searchOrchestrator characterization tests', () => {
 
     expect(searchOrchestrator.tryExecuteResultAction(objectId)).toBe(false);
   });
+
+  it('preserves extRes.id when provided by extension search results', async () => {
+    vi.mocked(extensionManager.searchAll).mockResolvedValue([
+      {
+        id: 'cmd_window-management_layout_custom-123',
+        title: 'Videocall',
+        subtitle: 'Top-center layout',
+        score: 0.8,
+        extensionId: 'window-management',
+        action: vi.fn(),
+      } as any,
+    ]);
+
+    let passedExternalResults: any[] = [];
+    vi.mocked(commands.mergedSearch).mockImplementation(async (_query, external) => {
+      passedExternalResults = external;
+      return { results: [], aliasMatch: null };
+    });
+
+    await searchOrchestrator.handleSearch('Videocall');
+
+    expect(passedExternalResults).toHaveLength(1);
+    expect(passedExternalResults[0].objectId).toBe('cmd_window-management_layout_custom-123');
+  });
 });

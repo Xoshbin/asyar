@@ -52,6 +52,11 @@ class WindowManagementExtension implements Extension {
       return { type: 'no-view' };
     }
 
+    if (commandId === 'apply-layout') {
+      await this.applyLayoutByArgs(_args);
+      return { type: 'no-view' };
+    }
+
     if (
       (PRESET_IDS as readonly string[]).includes(commandId) ||
       (DISPLAY_COMMAND_IDS as readonly string[]).includes(commandId)
@@ -62,6 +67,42 @@ class WindowManagementExtension implements Extension {
 
     logService.warn(`[WindowManagement] Unknown command: ${commandId}`);
     return { type: 'no-view' };
+  }
+
+  private async applyLayoutByArgs(args?: Record<string, any>): Promise<void> {
+    const rawName = typeof args?.name === 'string' ? args.name.trim() : undefined;
+    const rawId = typeof args?.id === 'string' ? args.id.trim() : undefined;
+
+    if (!rawName && !rawId) {
+      await feedbackService.showHUD('No layout name or ID provided');
+      await feedbackService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: 'No layout name or ID provided' },
+      });
+      return;
+    }
+
+    const targetName = rawName?.toLowerCase();
+    const layout = windowManagementState.customLayouts.find(
+      (l) => (rawId && l.id === rawId) || (targetName && l.name.toLowerCase() === targetName),
+    );
+
+    if (layout) {
+      await applyCustomLayout(layout, this.store);
+    } else {
+      const missing = rawName || rawId || 'unknown';
+      await feedbackService.showHUD(`Layout "${missing}" not found`);
+      await feedbackService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: false,
+        context: { message: `Layout "${missing}" not found` },
+      });
+    }
   }
 
   private async applyPreset(presetId: string): Promise<void> {

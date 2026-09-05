@@ -77,7 +77,9 @@ class SearchOrchestratorClass {
       // Map extension results to serializable format for Rust
       const externalResults = resultsFromExtensions.map(
         (extRes: ExtensionResult & { extensionId?: string }, index: number) => {
-          const objectId = `ext_${extRes.extensionId || 'unknown'}_${extRes.title.replace(/\s+/g, '_')}_${index}`;
+          const objectId =
+            extRes.id ||
+            `ext_${extRes.extensionId || 'unknown'}_${extRes.title.replace(/\s+/g, '_')}_${index}`;
           if (extRes.actionId && extRes.extensionId) {
             this.#resultActions.set(objectId, {
               extensionId: extRes.extensionId,
