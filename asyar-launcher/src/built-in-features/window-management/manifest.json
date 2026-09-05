@@ -160,6 +160,22 @@
       "trigger": "save window layout position custom",
       "icon": "icon:plus",
       "mode": "background"
+    },
+    {
+      "id": "previous-display",
+      "name": "Previous Display",
+      "description": "Move frontmost window to the previous display",
+      "trigger": "previous display screen monitor window",
+      "icon": "icon:store",
+      "mode": "background"
+    },
+    {
+      "id": "next-display",
+      "name": "Next Display",
+      "description": "Move frontmost window to the next display",
+      "trigger": "next display screen monitor window",
+      "icon": "icon:store",
+      "mode": "background"
     }
   ],
   "background": {

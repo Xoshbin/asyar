@@ -76,3 +76,6 @@ export const PRESET_IDS: readonly string[] = [
   'almost-maximize',
   'maximize',
 ] as const;
+
+/** Multi-display window movement command IDs. */
+export const DISPLAY_COMMAND_IDS: readonly string[] = ['previous-display', 'next-display'] as const;

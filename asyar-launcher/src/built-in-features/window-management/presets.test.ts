@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPresetBounds, PRESET_IDS } from './presets';
+import { getPresetBounds, PRESET_IDS, DISPLAY_COMMAND_IDS } from './presets';
 
 const SW = 2560;
 const SH = 1440;
@@ -100,5 +100,11 @@ describe('getPresetBounds', () => {
     expect(PRESET_IDS).toContain('maximize');
     expect(PRESET_IDS).not.toContain('restore');
     expect(PRESET_IDS).not.toContain('manage-layouts');
+  });
+
+  it('DISPLAY_COMMAND_IDS contains multi-display command ids', () => {
+    expect(DISPLAY_COMMAND_IDS).toHaveLength(2);
+    expect(DISPLAY_COMMAND_IDS).toContain('previous-display');
+    expect(DISPLAY_COMMAND_IDS).toContain('next-display');
   });
 });

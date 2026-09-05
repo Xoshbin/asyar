@@ -100,6 +100,22 @@ describe('WindowManagementExtension', () => {
       expect(result).toEqual({ type: 'no-view' });
     });
 
+    it('next-display saves previous bounds then calls applyPreset and returns no-view', async () => {
+      const result = await extension.executeCommand('next-display');
+      expect(windowManagementState.savePreviousBounds).toHaveBeenCalled();
+      expect(windowManagementService.applyPreset).toHaveBeenCalledWith('next-display');
+      expect(feedbackService.showHUD).toHaveBeenCalledWith('Next Display');
+      expect(result).toEqual({ type: 'no-view' });
+    });
+
+    it('previous-display saves previous bounds then calls applyPreset and returns no-view', async () => {
+      const result = await extension.executeCommand('previous-display');
+      expect(windowManagementState.savePreviousBounds).toHaveBeenCalled();
+      expect(windowManagementService.applyPreset).toHaveBeenCalledWith('previous-display');
+      expect(feedbackService.showHUD).toHaveBeenCalledWith('Previous Display');
+      expect(result).toEqual({ type: 'no-view' });
+    });
+
     it('reports error diagnostic when getWindowBounds throws', async () => {
       vi.mocked(windowManagementService.getWindowBounds).mockRejectedValue(
         new Error('Accessibility permission required'),
