@@ -46,6 +46,14 @@ export function getPresetBounds(
       return { bounds: { x: 0, y: 0, width: (sw / 3) * 2, height: sh } };
     case 'right-two-thirds':
       return { bounds: { x: sw / 3, y: 0, width: (sw / 3) * 2, height: sh } };
+    case 'first-fourth':
+      return { bounds: { x: 0, y: 0, width: sw / 4, height: sh } };
+    case 'second-fourth':
+      return { bounds: { x: sw / 4, y: 0, width: sw / 4, height: sh } };
+    case 'third-fourth':
+      return { bounds: { x: (sw / 4) * 2, y: 0, width: sw / 4, height: sh } };
+    case 'last-fourth':
+      return { bounds: { x: (sw / 4) * 3, y: 0, width: sw / 4, height: sh } };
     case 'center':
       return { bounds: { x: sw * 0.1, y: sh * 0.1, width: sw * 0.8, height: sh * 0.8 } };
     case 'almost-maximize':
@@ -72,6 +80,10 @@ export const PRESET_IDS: readonly string[] = [
   'right-third',
   'left-two-thirds',
   'right-two-thirds',
+  'first-fourth',
+  'second-fourth',
+  'third-fourth',
+  'last-fourth',
   'center',
   'almost-maximize',
   'maximize',

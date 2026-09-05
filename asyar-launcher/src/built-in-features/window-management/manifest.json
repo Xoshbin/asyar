@@ -113,6 +113,38 @@
       "mode": "background"
     },
     {
+      "id": "first-fourth",
+      "name": "First Fourth",
+      "description": "First 25% of screen",
+      "trigger": "first fourth window column quarter",
+      "icon": "icon:store",
+      "mode": "background"
+    },
+    {
+      "id": "second-fourth",
+      "name": "Second Fourth",
+      "description": "Second 25% of screen",
+      "trigger": "second fourth window column quarter",
+      "icon": "icon:store",
+      "mode": "background"
+    },
+    {
+      "id": "third-fourth",
+      "name": "Third Fourth",
+      "description": "Third 25% of screen",
+      "trigger": "third fourth window column quarter",
+      "icon": "icon:store",
+      "mode": "background"
+    },
+    {
+      "id": "last-fourth",
+      "name": "Last Fourth",
+      "description": "Last 25% of screen",
+      "trigger": "last fourth window column quarter",
+      "icon": "icon:store",
+      "mode": "background"
+    },
+    {
       "id": "center",
       "name": "Center",
       "description": "Centered, 80% × 80% of screen",
@@ -188,7 +220,7 @@
       "summary": "Move a window with a command instead of a drag",
       "icon": "icon:layers",
       "order": 70,
-      "body": "Halves, thirds, quarters, centre, maximize, restore — every window layout you drag for is a command you can run or bind to a hotkey.\n\nThe payoff comes when they are on hotkeys: two key presses to put two apps side by side.\n\n## To complete the task\n\n1. Search `left half` or `maximize` and run it.\n2. Bind your two favourites to hotkeys.",
+      "body": "Halves, thirds, fourths, quarters, centre, maximize, restore — every window layout you drag for is a command you can run or bind to a hotkey.\n\nThe payoff comes when they are on hotkeys: two key presses to put two apps side by side.\n\n## To complete the task\n\n1. Search `left half` or `maximize` and run it.\n2. Bind your two favourites to hotkeys.",
       "completion": {
         "type": "launch",
         "target": "cmd_window-management_*"
