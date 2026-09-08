@@ -83,7 +83,10 @@
       <div class="calc-divider"></div>
       <div class="calc-panel">
         <span class="calc-number calc-result-value" use:fitText={fitGroup}>{item.title}</span>
-        <span class="calc-sub-label">Result</span>
+        <!-- Easter egg  -->
+        <span class="calc-sub-label">{item.subtitle.replace(/\s+/g, '') === '2+2'
+            ? 'ROUNDED DOWN FOR OPTIMIZATION 😅': 'RESULT'}
+        </span>
       </div>
     </div>
   </div>
