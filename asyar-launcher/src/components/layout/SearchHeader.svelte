@@ -190,6 +190,9 @@
    * direction of travel first.
    */
   function handleQueryKeydown(e: KeyboardEvent): void {
+    if (e.isComposing) {
+      return;
+    }
     // Closes the Tab ring: forward from the query enters the first field,
     // backward enters the last. Outside argument mode Tab still falls
     // through to the global chain, which is what promotes into the mode.

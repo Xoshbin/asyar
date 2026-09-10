@@ -111,6 +111,10 @@
   }
 
   function handleFieldKeydown(idx: number, e: KeyboardEvent) {
+    if (e.isComposing) {
+      e.stopPropagation();
+      return;
+    }
     const atFirst = idx === 0;
     const isEmpty = (active.values[active.args[idx].name] ?? '') === '';
 

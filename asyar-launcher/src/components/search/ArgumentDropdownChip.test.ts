@@ -165,6 +165,41 @@ describe('ArgumentDropdownChip', () => {
     expect(reset.onReset).toHaveBeenCalled();
   });
 
+  it.each(['Enter', 'Escape', 'ArrowDown', 'ArrowUp', 'Tab'])(
+    'leaves %s to the input method while composing a search',
+    async (key) => {
+      const { trigger, filter, highlighted, onSelect, onReset, onKeydown } = await renderChip();
+      await fireEvent.click(trigger);
+      await fireEvent.input(filter()!, { target: { value: 'a' } });
+      await fireEvent.keyDown(filter()!, { key: 'ArrowDown' });
+      expect(highlighted()).toBe('All');
+
+      const input = filter()!;
+      const event = new KeyboardEvent('keydown', {
+        key,
+        isComposing: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      await fireEvent(input, event);
+      await tick();
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(filter()).toBe(input);
+      expect(input.value).toBe('a');
+      expect(document.activeElement).toBe(input);
+      expect(highlighted()).toBe('All');
+      expect(onSelect).not.toHaveBeenCalled();
+      expect(onReset).not.toHaveBeenCalled();
+      expect(onKeydown).not.toHaveBeenCalled();
+
+      // Once composition ends, Enter still selects the highlighted option.
+      await fireEvent.keyDown(input, { key: 'Enter' });
+      expect(onSelect).toHaveBeenCalledWith('all');
+      expect(filter()).toBeNull();
+    },
+  );
+
   it('deleting the query keeps the list up; Escape clears it, then closes it', async () => {
     const { trigger, filter, view, optionTitles, onKeydown } = await renderChip();
     await fireEvent.keyDown(trigger, { key: 'a' });

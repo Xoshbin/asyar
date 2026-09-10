@@ -345,6 +345,9 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
       // bare only skips the launcher's own logic below.
       return;
     }
+    if (event.isComposing) {
+      return;
+    }
     // Searchbar accessory popover open: bail for navigation keys so the
     // popover's own keydown handler (Escape/Arrow/Enter/Tab) wins. The
     // launcher's listener is registered window+capture at page mount and
@@ -596,6 +599,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   function handleKeydown(event: KeyboardEvent) {
     if (shortcutStore.isCapturing || isAnyModalOpen(document)) return;
     if (event.defaultPrevented) return;
+    if (event.isComposing) return;
     if (tryHandleEscape(event)) return;
     if (tryHandleBackspaceInView(event)) return;
     if (tryHandleSearchNavigation(event)) return;

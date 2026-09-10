@@ -279,5 +279,29 @@ describe('ArgumentChipRow', () => {
       await fireEvent.keyDown(trigger, { key: 'Enter' });
       expect(onSubmit).toHaveBeenCalled();
     });
+
+    it.each(['Enter', 'Escape', 'ArrowLeft', 'ArrowRight', 'Tab'])(
+      'leaves %s to the input method while composing text in a field',
+      async (key) => {
+        const row = await renderRow(makeActive());
+        const input = row.inputs[0];
+        const event = new KeyboardEvent('keydown', {
+          key,
+          isComposing: true,
+          bubbles: true,
+          cancelable: true,
+        });
+        await fireEvent(input, event);
+        await tick();
+
+        expect(event.defaultPrevented).toBe(false);
+        expect(row.onSubmit).not.toHaveBeenCalled();
+        expect(row.onExit).not.toHaveBeenCalled();
+        expect(row.onNext).not.toHaveBeenCalled();
+        expect(row.onPrev).not.toHaveBeenCalled();
+        expect(row.onMoveToQuery).not.toHaveBeenCalled();
+        expect(row.onFocusField).not.toHaveBeenCalled();
+      },
+    );
   });
 });

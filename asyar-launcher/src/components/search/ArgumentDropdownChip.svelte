@@ -173,6 +173,12 @@
   }
 
   function onListKeydown(e: KeyboardEvent): void {
+    // Candidate navigation and confirmation belong to the input method until
+    // composition ends, not to the dropdown or the launcher's keyboard handlers.
+    if (e.isComposing) {
+      e.stopPropagation();
+      return;
+    }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       e.stopPropagation();

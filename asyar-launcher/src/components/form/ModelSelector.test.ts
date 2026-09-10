@@ -168,4 +168,32 @@ describe('ModelSelector', () => {
 
     expect(screen.queryByRole('region', { name: /Model selector popover/i })).toBeNull();
   });
+
+  it.each(['Enter', 'Escape', 'ArrowDown', 'ArrowUp', 'Tab'])(
+    'leaves %s to the input method while composing in the filter input',
+    async (key) => {
+      const onchange = vi.fn();
+      render(ModelSelector, {
+        models: sampleModels,
+        value: 'openai/gpt-4o',
+        onchange,
+      });
+
+      await fireEvent.click(screen.getByRole('button', { name: /GPT-4o/ }));
+      const popover = screen.getByRole('region', { name: /Model selector popover/i });
+      expect(popover).toBeTruthy();
+
+      const event = new KeyboardEvent('keydown', {
+        key,
+        isComposing: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      await fireEvent(popover, event);
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(screen.getByRole('region', { name: /Model selector popover/i })).toBeTruthy();
+      expect(onchange).not.toHaveBeenCalled();
+    },
+  );
 });
