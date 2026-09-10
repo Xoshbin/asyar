@@ -269,6 +269,17 @@ describe('launcherKeyboard characterization tests', () => {
       expect(deps.handleEnterKey).not.toHaveBeenCalled();
     });
 
+    it('ignores global shortcuts when event.isComposing is true', () => {
+      const deps = createMockDeps();
+      const { handleGlobalKeydown } = createKeyboardHandlers(deps);
+      const event = createKeyEvent('Tab', { isComposing: true });
+
+      handleGlobalKeydown(event);
+
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(event.stopPropagation).not.toHaveBeenCalled();
+    });
+
     describe('Cmd/Ctrl+Q Block Quit', () => {
       it('Cmd+Q is blocked', () => {
         const deps = createMockDeps();
@@ -942,6 +953,20 @@ describe('launcherKeyboard characterization tests', () => {
   });
 
   describe('handleKeydown', () => {
+    it('ignores navigation and submission keys when event.isComposing is true', () => {
+      searchStores.selectedIndex = 0;
+      const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
+      const { handleKeydown } = createKeyboardHandlers(deps);
+
+      for (const key of ['ArrowDown', 'ArrowUp', 'Enter', 'Escape']) {
+        const event = createKeyEvent(key, { isComposing: true });
+        handleKeydown(event);
+        expect(event.preventDefault).not.toHaveBeenCalled();
+        expect(searchStores.selectedIndex).toBe(0);
+        expect(deps.handleEnterKey).not.toHaveBeenCalled();
+      }
+    });
+
     describe('Search Navigation (no active view)', () => {
       it('ArrowDown increments selectedIndex', () => {
         searchStores.selectedIndex = 0;

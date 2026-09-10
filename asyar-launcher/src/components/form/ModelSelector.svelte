@@ -143,6 +143,10 @@
   }
 
   function handlePopoverKeydown(e: KeyboardEvent): void {
+    if (e.isComposing) {
+      e.stopPropagation();
+      return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       e.stopPropagation();

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Input, EmptyState } from '..';
+  import Input from '../base/Input.svelte';
+  import EmptyState from '../feedback/EmptyState.svelte';
   import { tick } from 'svelte';
   import KeyboardHint from '../base/KeyboardHint.svelte';
   import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
@@ -145,6 +146,10 @@
   }
 
   function onPopoverKeydown(e: KeyboardEvent) {
+    if (e.isComposing) {
+      e.stopPropagation();
+      return;
+    }
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
