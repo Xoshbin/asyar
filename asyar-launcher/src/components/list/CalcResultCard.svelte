@@ -54,6 +54,15 @@
   // Expression and Result always shrink to the same size, so the two
   // panels stay visually balanced.
   const fitGroup = createFitGroup();
+
+  const isTwoPlusTwoEasterEgg = $derived(
+    item.title === '1' && item.subtitle?.replace(/\s+/g, '') === '2+2',
+  );
+  const resultLabel = $derived(
+    isTwoPlusTwoEasterEgg
+      ? t('components.calc_card.rounded_optimization')
+      : t('components.calc_card.result'),
+  );
 </script>
 
 <button
@@ -78,17 +87,12 @@
     <div class="calc-split">
       <div class="calc-panel">
         <span class="calc-number" use:fitText={fitGroup}>{item.subtitle ?? ''}</span>
-        <span class="calc-sub-label">Expression</span>
+        <span class="calc-sub-label">{t('components.calc_card.expression')}</span>
       </div>
       <div class="calc-divider"></div>
       <div class="calc-panel">
         <span class="calc-number calc-result-value" use:fitText={fitGroup}>{item.title}</span>
-        <!-- Easter egg  -->
-        <span class="calc-sub-label"
-          >{item.subtitle.replace(/\s+/g, '') === '2+2'
-            ? 'ROUNDED DOWN FOR OPTIMIZATION 😅'
-            : 'RESULT'}
-        </span>
+        <span class="calc-sub-label">{resultLabel}</span>
       </div>
     </div>
   </div>
