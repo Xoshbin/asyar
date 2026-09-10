@@ -62,4 +62,12 @@ describe('I18nService', () => {
     expect(i18n.resolveLocalized('Plain String')).toBe('Plain String');
     expect(i18n.resolveLocalized({ default: 'Fallback Only' })).toBe('Fallback Only');
   });
+
+  it('resolves pt-BR catalog when locale is pt-BR or pt', () => {
+    const service = new I18nService('pt-BR');
+    expect(service.t('search.placeholder')).toBe('Pesquisar aplicativos e comandos...');
+
+    service.setLocale('pt');
+    expect(service.t('search.placeholder')).toBe('Pesquisar aplicativos e comandos...');
+  });
 });

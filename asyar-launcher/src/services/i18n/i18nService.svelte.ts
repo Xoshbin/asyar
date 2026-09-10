@@ -1,4 +1,5 @@
 import enCatalog from '../../locales/en.json';
+import ptBRCatalog from '../../locales/pt-BR.json';
 import { getSystemLocale } from '../../lib/ipc/commands';
 
 function getNestedValue(obj: Record<string, any>, path: string): string | undefined {
@@ -36,6 +37,8 @@ export class I18nService {
   constructor(defaultLocale: string = 'en') {
     this.locale = defaultLocale;
     this.catalogs.set('en', enCatalog as Record<string, any>);
+    this.catalogs.set('pt-BR', ptBRCatalog as Record<string, any>);
+    this.catalogs.set('pt', ptBRCatalog as Record<string, any>);
   }
 
   registerCatalog(locale: string, catalog: Record<string, any>): void {
