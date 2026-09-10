@@ -854,7 +854,10 @@
       "base": "Base",
       "color": "Color",
       "percent": "Percent",
-      "ratio": "Ratio"
+      "ratio": "Ratio",
+      "expression": "Expression",
+      "result": "Result",
+      "rounded_optimization": "Rounded down for optimization 😅"
     },
     "panel_events": {
       "pause_display": "Pause display"

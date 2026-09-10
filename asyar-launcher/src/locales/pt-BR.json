@@ -851,7 +851,10 @@
       "base": "Base",
       "color": "Cor",
       "percent": "Porcentagem",
-      "ratio": "Proporção"
+      "ratio": "Proporção",
+      "expression": "Expressão",
+      "result": "Resultado",
+      "rounded_optimization": "Arredondado para baixo para otimização 😅"
     },
     "panel_events": {
       "pause_display": "Pausar exibição"
