@@ -1015,3 +1015,19 @@ fn resolve_provider_config_errors_when_base_url_is_missing() {
         .to_string()
         .contains("Base URL for provider 'ollama' is not configured"));
 }
+
+#[test]
+fn coalescing_preserves_provider_context_boundaries() {
+    let mut first = chat_message("assistant", "First");
+    first.provider_context = Some(vec![
+        json!({"geminiPart": {"text": "First", "thoughtSignature": "signed"}}),
+    ]);
+    let mut second = chat_message("assistant", "Second");
+    second.provider_context = Some(vec![json!({"geminiPart": {"text": "Second"}})]);
+    let messages = coalesce_consecutive_messages(vec![first, second]);
+    assert_eq!(messages.len(), 2);
+    assert_eq!(
+        messages[1].provider_context.as_ref().unwrap()[0]["geminiPart"]["text"],
+        "Second"
+    );
+}

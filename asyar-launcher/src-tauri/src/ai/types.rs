@@ -126,3 +126,19 @@ pub enum ChatStreamEventPayload {
         error: String,
     },
 }
+
+/// Presentation data derived from Gemini grounding metadata. The complete
+/// provider metadata remains in provider_context for attribution/history.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GeminiGrounding {
+    pub sources: Vec<GroundingSource>,
+    pub search_suggestions_html: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GroundingSource {
+    pub title: String,
+    pub url: String,
+}

@@ -43,6 +43,7 @@ pub struct ProviderStreamParser {
     openai_tools: BTreeMap<u32, PendingToolCall>,
     anthropic_tool: Option<AnthropicToolBlock>,
     google_tool_counter: u32,
+    google_grounding: serde_json::Map<String, Value>,
     ollama_tool_counter: u32,
 }
 
@@ -58,6 +59,7 @@ impl ProviderStreamParser {
             openai_tools: BTreeMap::new(),
             anthropic_tool: None,
             google_tool_counter: 0,
+            google_grounding: serde_json::Map::new(),
             ollama_tool_counter: 0,
         }
     }
@@ -99,6 +101,10 @@ impl ProviderStreamParser {
                 name: pending.name,
                 input,
             });
+        }
+        if !self.google_grounding.is_empty() {
+            let metadata = Value::Object(std::mem::take(&mut self.google_grounding));
+            events.push(google_grounding_event(metadata));
         }
         Ok(events)
     }
@@ -299,6 +305,14 @@ impl ProviderStreamParser {
             .into_iter()
             .flatten()
         {
+            // Preserve every part (including signed thoughts and server-side tool
+            // context) unchanged for Gemini's next tool-continuation request.
+            if part.get("thought").and_then(Value::as_bool) == Some(true) {
+                events.push(ChatStreamEvent::ProviderContext {
+                    item: json!({ "geminiPart": part }),
+                });
+                continue;
+            }
             if let Some(token) = part.get("text").and_then(Value::as_str) {
                 if !token.is_empty() {
                     events.push(ChatStreamEvent::Token {
@@ -321,6 +335,17 @@ impl ProviderStreamParser {
                     input: call.get("args").cloned().unwrap_or_else(|| json!({})),
                 });
             }
+            events.push(ChatStreamEvent::ProviderContext {
+                item: json!({ "geminiPart": part }),
+            });
+        }
+        if let Some(metadata) = value
+            .pointer("/candidates/0/groundingMetadata")
+            .and_then(Value::as_object)
+        {
+            // Metadata may arrive separately from text and in several chunks.
+            // Keep the latest value for each field and publish one presentation.
+            self.google_grounding.extend(metadata.clone());
         }
         Ok(events)
     }
@@ -356,6 +381,48 @@ impl ProviderStreamParser {
             });
         }
         Ok(events)
+    }
+}
+
+fn google_grounding_event(metadata: Value) -> ChatStreamEvent {
+    let sources = metadata
+        .get("groundingChunks")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|chunk| {
+            let web = chunk.get("web")?;
+            let uri = web.get("uri")?.as_str()?;
+            let url = url::Url::parse(uri).ok()?;
+            if !matches!(url.scheme(), "http" | "https")
+                || url.host_str().is_none()
+                || !url.username().is_empty()
+                || url.password().is_some()
+            {
+                return None;
+            }
+            Some(crate::ai::types::GroundingSource {
+                title: web
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .unwrap_or(uri)
+                    .to_owned(),
+                url: uri.to_owned(),
+            })
+        })
+        .collect();
+    let display = crate::ai::types::GeminiGrounding {
+        sources,
+        search_suggestions_html: metadata
+            .pointer("/searchEntryPoint/renderedContent")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+    };
+    ChatStreamEvent::ProviderContext {
+        item: json!({
+            "geminiGrounding": metadata,
+            "geminiGroundingDisplay": display,
+        }),
     }
 }
 
@@ -697,6 +764,15 @@ fn build_google_request(
     messages: &[ChatMessage],
     params: &ChatParams,
 ) -> Result<RequestSpec, AppError> {
+    let custom_tools = params.tools.as_deref().unwrap_or_default();
+    let search_enabled = config.hosted_web_search == Some(true);
+    let gemini_3 =
+        params.model_id.starts_with("gemini-3-") || params.model_id.starts_with("gemini-3.");
+    if search_enabled && !custom_tools.is_empty() && !gemini_3 {
+        return Err(AppError::Validation(
+            "Google Search with agent tools requires Gemini 3. Select a Gemini 3 model, remove the agent's tools, or disable Google Search in AI settings.".into(),
+        ));
+    }
     let api_key = config.api_key.as_deref().unwrap_or("");
     let url = format!(
         "https://generativelanguage.googleapis.com/v1beta/models/{}:streamGenerateContent?alt=sse",
@@ -717,11 +793,46 @@ fn build_google_request(
             )
         })
         .collect();
+    // Internal IDs also identify calls from older Gemini models that omit IDs
+    // on the wire. Pair calls by their original order, without editing signatures.
+    let mut wire_ids = HashMap::new();
+    for message in messages {
+        let original_calls: Vec<&Value> = message
+            .provider_context
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|item| item.pointer("/geminiPart/functionCall"))
+            .collect();
+        for (index, call) in message
+            .tool_calls
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .enumerate()
+        {
+            let wire_id = original_calls
+                .get(index)
+                .map(|original| original.get("id").cloned())
+                .unwrap_or_else(|| Some(json!(call.id)));
+            wire_ids.insert(call.id.as_str(), wire_id);
+        }
+    }
     let contents = messages
         .iter()
         .filter(|message| message.role != "system")
         .map(|message| match message.role.as_str() {
             "assistant" => {
+                let original_parts: Vec<Value> = message
+                    .provider_context
+                    .as_deref()
+                    .unwrap_or_default()
+                    .iter()
+                    .filter_map(|item| item.get("geminiPart").cloned())
+                    .collect();
+                if !original_parts.is_empty() {
+                    return json!({ "role": "model", "parts": original_parts });
+                }
                 let mut parts = Vec::new();
                 if !message.content.is_empty() {
                     parts.push(json!({ "text": message.content }));
@@ -748,16 +859,14 @@ fn build_google_request(
                 let tool_call_id = message.tool_call_id.as_deref().unwrap_or_default();
                 let output = serde_json::from_str::<Value>(&message.content)
                     .unwrap_or_else(|_| Value::String(message.content.clone()));
-                json!({
-                    "role": "user",
-                    "parts": [{
-                        "functionResponse": {
-                            "id": tool_call_id,
-                            "name": tool_names_by_id.get(tool_call_id).cloned().unwrap_or_default(),
-                            "response": { "output": output },
-                        }
-                    }]
-                })
+                let mut response = json!({
+                    "name": tool_names_by_id.get(tool_call_id).cloned().unwrap_or_default(),
+                    "response": { "output": output },
+                });
+                if let Some(Some(id)) = wire_ids.get(tool_call_id) {
+                    response["id"] = id.clone();
+                }
+                json!({ "role": "user", "parts": [{ "functionResponse": response }] })
             }
             _ => json!({ "role": "user", "parts": [{ "text": message.content }] }),
         })
@@ -806,19 +915,24 @@ fn build_google_request(
             .insert("thinkingConfig".to_string(), thinking_config);
     }
 
-    if let Some(tools) = &params.tools {
-        if !tools.is_empty() {
-            body_map.as_object_mut().unwrap().insert(
-                "tools".to_string(),
-                json!([{
-                    "functionDeclarations": tools.iter().map(|tool| json!({
-                        "name": tool.name,
-                        "description": tool.description,
-                        "parameters": tool.parameters,
-                    })).collect::<Vec<_>>()
-                }]),
-            );
+    let mut tools = Vec::new();
+    if !custom_tools.is_empty() {
+        tools.push(json!({
+            "functionDeclarations": custom_tools.iter().map(|tool| json!({
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.parameters,
+            })).collect::<Vec<_>>()
+        }));
+    }
+    if search_enabled {
+        tools.push(json!({ "google_search": {} }));
+        if !custom_tools.is_empty() {
+            body_map["toolConfig"] = json!({ "includeServerSideToolInvocations": true });
         }
+    }
+    if !tools.is_empty() {
+        body_map["tools"] = json!(tools);
     }
 
     Ok(RequestSpec {

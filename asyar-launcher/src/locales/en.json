@@ -285,6 +285,8 @@
       "type_theme": "Theme"
     },
     "ai": {
+      "google_search": "Google Search",
+      "google_search_description": "Let Gemini search the web and show sources. Uses your Gemini API key. Combining search with agent tools requires a Gemini 3 model; provider search charges may apply.",
       "no_provider": "No AI provider configured yet",
       "tab_continues_last_thread": "Tab continues last thread",
       "tab_continues_last_thread_description": "Pressing Tab in the launcher reopens your previous conversation instead of starting a new one.",
@@ -652,6 +654,8 @@
       "you": "You",
       "copy_message": "Copy message",
       "searching": "Searching…",
+      "sources": "Sources",
+      "google_search_suggestions": "Google Search Suggestions",
       "error_open_ai_settings": "Could not open AI settings. Try again."
     },
     "sticky": {
