@@ -285,6 +285,9 @@
       "type_theme": "Tema"
     },
     "ai": {
+      "hosted_web_search": "Pesquisa na web",
+      "anthropic_search_description": "Permita que o Claude pesquise na web e cite fontes usando sua chave de API da Anthropic. Exige um modelo compatível e pesquisa na web habilitada para sua organização. Podem ser aplicadas cobranças de pesquisa do provedor.",
+      "openrouter_search_description": "Pesquise na web com o plugin web do OpenRouter e mostre fontes. Usa sua chave de API do OpenRouter; há cobranças adicionais de pesquisa, inclusive em modelos gratuitos.",
       "google_search": "Pesquisa Google",
       "google_search_description": "Permita que o Gemini pesquise na web e mostre fontes. Usa sua chave de API do Gemini. Combinar pesquisa com ferramentas do agente exige um modelo Gemini 3; podem ser aplicadas cobranças de pesquisa do provedor.",
       "no_provider": "Nenhum provedor de IA configurado ainda",

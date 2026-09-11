@@ -29,9 +29,8 @@ struct PendingToolCall {
 }
 
 #[derive(Default)]
-struct AnthropicToolBlock {
-    id: String,
-    name: String,
+struct AnthropicContentBlock {
+    value: Value,
     arguments: String,
 }
 
@@ -41,7 +40,9 @@ pub struct ProviderStreamParser {
     provider_id: String,
     config: ProviderConfig,
     openai_tools: BTreeMap<u32, PendingToolCall>,
-    anthropic_tool: Option<AnthropicToolBlock>,
+    anthropic_blocks: BTreeMap<u64, AnthropicContentBlock>,
+    search_sources: Vec<crate::ai::types::GroundingSource>,
+    search_error: Option<String>,
     google_tool_counter: u32,
     google_grounding: serde_json::Map<String, Value>,
     ollama_tool_counter: u32,
@@ -57,7 +58,9 @@ impl ProviderStreamParser {
             provider_id: engine_type,
             config: config.clone(),
             openai_tools: BTreeMap::new(),
-            anthropic_tool: None,
+            anthropic_blocks: BTreeMap::new(),
+            search_sources: Vec::new(),
+            search_error: None,
             google_tool_counter: 0,
             google_grounding: serde_json::Map::new(),
             ollama_tool_counter: 0,
@@ -93,6 +96,10 @@ impl ProviderStreamParser {
     }
 
     pub fn finish(&mut self) -> Result<Vec<ChatStreamEvent>, AppError> {
+        // Native content blocks have already been emitted for conversation replay.
+        if let Some(error) = self.search_error.take() {
+            return Err(AppError::Other(error));
+        }
         let mut events = Vec::new();
         for (_, pending) in std::mem::take(&mut self.openai_tools) {
             let input = serde_json::from_str(&pending.arguments).unwrap_or_else(|_| json!({}));
@@ -106,6 +113,13 @@ impl ProviderStreamParser {
             let metadata = Value::Object(std::mem::take(&mut self.google_grounding));
             events.push(google_grounding_event(metadata));
         }
+        if !self.search_sources.is_empty() {
+            events.push(ChatStreamEvent::ProviderContext {
+                item: json!({"webSearchGroundingDisplay": crate::ai::types::WebSearchGrounding {
+                    sources: std::mem::take(&mut self.search_sources), search_suggestions_html: None,
+                }}),
+            });
+        }
         Ok(events)
     }
 
@@ -117,6 +131,28 @@ impl ProviderStreamParser {
             return Ok(Vec::new());
         };
         let mut events = Vec::new();
+        if self.provider_id == "openrouter" {
+            for annotations in [
+                choice.pointer("/delta/annotations"),
+                choice.pointer("/message/annotations"),
+            ]
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_array)
+            {
+                for annotation in annotations {
+                    if annotation["type"] == "url_citation" {
+                        if let Some(source) = web_source(&annotation["url_citation"], "url") {
+                            add_source(&mut self.search_sources, source);
+                        }
+                    }
+                    events.push(ChatStreamEvent::ProviderContext {
+                        item: json!({"openrouterAnnotation": annotation}),
+                    });
+                }
+            }
+        }
+
         if let Some(delta) = choice.get("delta") {
             for item in delta
                 .get("reasoning_details")
@@ -230,69 +266,149 @@ impl ProviderStreamParser {
     fn parse_anthropic(&mut self, payload: &str) -> Result<Vec<ChatStreamEvent>, AppError> {
         let value: Value = serde_json::from_str(payload)
             .map_err(|error| AppError::Other(format!("invalid Anthropic stream event: {error}")))?;
+        let index = value.get("index").and_then(Value::as_u64).unwrap_or(0);
+        let mut events = Vec::new();
         match value.get("type").and_then(Value::as_str) {
             Some("content_block_start") => {
-                let block = value.get("content_block").unwrap_or(&Value::Null);
-                if block.get("type").and_then(Value::as_str) == Some("tool_use") {
-                    self.anthropic_tool = Some(AnthropicToolBlock {
-                        id: block
-                            .get("id")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default()
-                            .to_string(),
-                        name: block
-                            .get("name")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default()
-                            .to_string(),
-                        arguments: String::new(),
+                let block = value.get("content_block").cloned().unwrap_or(Value::Null);
+                if let Some(code) = block.pointer("/content/error_code").and_then(Value::as_str) {
+                    if block["type"] == "web_search_tool_result" {
+                        self.search_error = Some(format!("Anthropic web search failed: {code}"));
+                    }
+                }
+                if block["type"] == "server_tool_use" && block["name"] == "web_search" {
+                    events.push(ChatStreamEvent::Status {
+                        status: "searching".into(),
                     });
                 }
-                Ok(Vec::new())
+                if let Some(text) = block
+                    .get("text")
+                    .and_then(Value::as_str)
+                    .filter(|text| !text.is_empty())
+                {
+                    events.push(ChatStreamEvent::Token {
+                        token: text.to_owned(),
+                    });
+                }
+                self.anthropic_blocks.insert(
+                    index,
+                    AnthropicContentBlock {
+                        value: block,
+                        arguments: String::new(),
+                    },
+                );
             }
             Some("content_block_delta") => {
-                let delta = value.get("delta").unwrap_or(&Value::Null);
-                match delta.get("type").and_then(Value::as_str) {
-                    Some("text_delta") => Ok(delta
-                        .get("text")
-                        .and_then(Value::as_str)
-                        .map(|token| {
-                            vec![ChatStreamEvent::Token {
-                                token: token.to_string(),
-                            }]
-                        })
-                        .unwrap_or_default()),
-                    Some("input_json_delta") => {
-                        if let (Some(tool), Some(partial)) = (
-                            self.anthropic_tool.as_mut(),
-                            delta.get("partial_json").and_then(Value::as_str),
-                        ) {
-                            tool.arguments.push_str(partial);
-                        }
-                        Ok(Vec::new())
+                let delta = &value["delta"];
+                if delta["type"] == "text_delta" {
+                    if let Some(text) = delta["text"].as_str() {
+                        events.push(ChatStreamEvent::Token {
+                            token: text.to_owned(),
+                        });
                     }
-                    _ => Ok(Vec::new()),
+                }
+                if let Some(block) = self.anthropic_blocks.get_mut(&index) {
+                    match delta["type"].as_str() {
+                        Some("text_delta") | Some("thinking_delta") | Some("signature_delta") => {
+                            let field = match delta["type"].as_str() {
+                                Some("thinking_delta") => "thinking",
+                                Some("signature_delta") => "signature",
+                                _ => "text",
+                            };
+                            if let Some(text) = delta[field].as_str() {
+                                let previous = block.value[field].as_str().unwrap_or_default();
+                                block.value[field] = json!(format!("{previous}{text}"));
+                            }
+                        }
+                        Some("input_json_delta") => {
+                            if let Some(partial) = delta["partial_json"].as_str() {
+                                block.arguments.push_str(partial);
+                            }
+                        }
+                        Some("citations_delta") => {
+                            if let Some(citation) = delta.get("citation") {
+                                if !block.value["citations"].is_array() {
+                                    block.value["citations"] = json!([]);
+                                }
+                                block.value["citations"]
+                                    .as_array_mut()
+                                    .unwrap()
+                                    .push(citation.clone());
+                            }
+                        }
+                        _ => {}
+                    }
                 }
             }
             Some("content_block_stop") => {
-                let Some(tool) = self.anthropic_tool.take() else {
-                    return Ok(Vec::new());
-                };
-                Ok(vec![ChatStreamEvent::ToolCall {
-                    id: tool.id,
-                    name: tool.name,
-                    input: serde_json::from_str(&tool.arguments).unwrap_or_else(|_| json!({})),
-                }])
+                if let Some(mut block) = self.anthropic_blocks.remove(&index) {
+                    if !block.arguments.is_empty() {
+                        block.value["input"] =
+                            serde_json::from_str(&block.arguments).map_err(|error| {
+                                AppError::Other(format!("invalid Anthropic tool input: {error}"))
+                            })?;
+                    }
+                    if block.value["type"] == "tool_use" {
+                        events.push(ChatStreamEvent::ToolCall {
+                            id: block.value["id"].as_str().unwrap_or_default().into(),
+                            name: block.value["name"].as_str().unwrap_or_default().into(),
+                            input: block
+                                .value
+                                .get("input")
+                                .cloned()
+                                .unwrap_or_else(|| json!({})),
+                        });
+                    }
+                    // Citation links are presentation only. Native text, encrypted
+                    // references and server results are replayed without these links.
+                    for citation in block
+                        .value
+                        .get("citations")
+                        .and_then(Value::as_array)
+                        .into_iter()
+                        .flatten()
+                    {
+                        if citation["type"] == "web_search_result_location" {
+                            if let Some(source) = web_source(citation, "url") {
+                                let destination = url::Url::parse(&source.url)
+                                    .unwrap()
+                                    .to_string()
+                                    .replace('(', "%28")
+                                    .replace(')', "%29")
+                                    .replace('<', "%3C")
+                                    .replace('>', "%3E");
+                                let number = add_source(&mut self.search_sources, source);
+                                events.push(ChatStreamEvent::Token {
+                                    token: format!(" [{number}]({destination})"),
+                                });
+                            }
+                        }
+                    }
+                    events.push(ChatStreamEvent::ProviderContext {
+                        item: json!({"anthropicBlock": block.value}),
+                    });
+                }
+            }
+            Some("message_delta")
+                if value.pointer("/delta/stop_reason").and_then(Value::as_str)
+                    == Some("pause_turn") =>
+            {
+                events.push(ChatStreamEvent::ProviderContext {
+                    item: json!({"continueTurn": true}),
+                });
             }
             Some("error") => {
-                let message = value
-                    .pointer("/error/message")
-                    .and_then(Value::as_str)
-                    .unwrap_or("Anthropic request failed");
-                Err(AppError::Other(message.to_string()))
+                return Err(AppError::Other(
+                    value
+                        .pointer("/error/message")
+                        .and_then(Value::as_str)
+                        .unwrap_or("Anthropic request failed")
+                        .into(),
+                ));
             }
-            _ => Ok(Vec::new()),
+            _ => {}
         }
+        Ok(events)
     }
 
     fn parse_google(&mut self, payload: &str) -> Result<Vec<ChatStreamEvent>, AppError> {
@@ -384,34 +500,52 @@ impl ProviderStreamParser {
     }
 }
 
+fn web_source(value: &Value, url_key: &str) -> Option<crate::ai::types::GroundingSource> {
+    let uri = value.get(url_key)?.as_str()?;
+    if uri.chars().any(char::is_control) {
+        return None;
+    }
+    let url = url::Url::parse(uri).ok()?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return None;
+    }
+    Some(crate::ai::types::GroundingSource {
+        title: value
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or(uri)
+            .to_owned(),
+        url: uri.to_owned(),
+    })
+}
+
+fn add_source(
+    sources: &mut Vec<crate::ai::types::GroundingSource>,
+    source: crate::ai::types::GroundingSource,
+) -> usize {
+    if let Some(index) = sources
+        .iter()
+        .position(|existing| existing.url == source.url)
+    {
+        return index + 1;
+    }
+    sources.push(source);
+    sources.len()
+}
+
 fn google_grounding_event(metadata: Value) -> ChatStreamEvent {
     let sources = metadata
         .get("groundingChunks")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .filter_map(|chunk| {
-            let web = chunk.get("web")?;
-            let uri = web.get("uri")?.as_str()?;
-            let url = url::Url::parse(uri).ok()?;
-            if !matches!(url.scheme(), "http" | "https")
-                || url.host_str().is_none()
-                || !url.username().is_empty()
-                || url.password().is_some()
-            {
-                return None;
-            }
-            Some(crate::ai::types::GroundingSource {
-                title: web
-                    .get("title")
-                    .and_then(Value::as_str)
-                    .unwrap_or(uri)
-                    .to_owned(),
-                url: uri.to_owned(),
-            })
-        })
+        .filter_map(|chunk| web_source(chunk.get("web")?, "uri"))
         .collect();
-    let display = crate::ai::types::GeminiGrounding {
+    let display = crate::ai::types::WebSearchGrounding {
         sources,
         search_suggestions_html: metadata
             .pointer("/searchEntryPoint/renderedContent")
@@ -462,8 +596,24 @@ fn openai_messages(messages: &[ChatMessage], stringify_tool_arguments: bool) -> 
                     );
                 }
                 if let Some(context) = &message.provider_context {
-                    if !context.is_empty() {
-                        value["reasoning_details"] = Value::Array(context.clone());
+                    let reasoning: Vec<Value> = context
+                        .iter()
+                        .filter(|item| {
+                            item.get("type")
+                                .and_then(Value::as_str)
+                                .is_some_and(|kind| kind.starts_with("reasoning."))
+                        })
+                        .cloned()
+                        .collect();
+                    if !reasoning.is_empty() {
+                        value["reasoning_details"] = json!(reasoning);
+                    }
+                    let annotations: Vec<Value> = context
+                        .iter()
+                        .filter_map(|item| item.get("openrouterAnnotation").cloned())
+                        .collect();
+                    if !annotations.is_empty() {
+                        value["annotations"] = json!(annotations);
                     }
                 }
                 value
@@ -665,6 +815,16 @@ fn build_anthropic_request(
         .filter(|message| message.role != "system")
         .map(|message| match message.role.as_str() {
             "assistant" => {
+                let original_blocks: Vec<Value> = message
+                    .provider_context
+                    .as_deref()
+                    .unwrap_or_default()
+                    .iter()
+                    .filter_map(|item| item.get("anthropicBlock").cloned())
+                    .collect();
+                if !original_blocks.is_empty() {
+                    return json!({ "role": "assistant", "content": original_blocks });
+                }
                 let mut blocks = Vec::new();
                 if !message.content.is_empty() {
                     blocks.push(json!({ "type": "text", "text": message.content }));
@@ -730,24 +890,24 @@ fn build_anthropic_request(
         );
     }
 
-    if let Some(tools) = &params.tools {
-        if !tools.is_empty() {
-            body_map.as_object_mut().unwrap().insert(
-                "tools".to_string(),
-                Value::Array(
-                    tools
-                        .iter()
-                        .map(|tool| {
-                            json!({
-                                "name": tool.name,
-                                "description": tool.description,
-                                "input_schema": tool.parameters,
-                            })
-                        })
-                        .collect(),
-                ),
-            );
-        }
+    let mut tools: Vec<Value> = params
+        .tools
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .map(|tool| {
+            json!({
+                "name": tool.name,
+                "description": tool.description,
+                "input_schema": tool.parameters,
+            })
+        })
+        .collect();
+    if config.hosted_web_search == Some(true) {
+        tools.push(json!({"type": "web_search_20250305", "name": "web_search", "max_uses": 5}));
+    }
+    if !tools.is_empty() {
+        body_map["tools"] = json!(tools);
     }
 
     Ok(RequestSpec {
@@ -1043,6 +1203,10 @@ fn build_openrouter_request(
         if !tools.is_empty() {
             obj.insert("tools".to_string(), Value::Array(tools));
         }
+    }
+
+    if config.hosted_web_search == Some(true) {
+        body_map["plugins"] = json!([{ "id": "web" }]);
     }
 
     Ok(RequestSpec {

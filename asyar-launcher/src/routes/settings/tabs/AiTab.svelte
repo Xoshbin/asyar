@@ -497,7 +497,7 @@
                         <label class="field-label" for="hosted-web-search-{providerId}">
                           {plugin.id === 'google'
                             ? t('settings.ai.google_search')
-                            : 'OpenAI Hosted Web Search'}
+                            : t('settings.ai.hosted_web_search')}
                         </label>
                         <Toggle
                           id="hosted-web-search-{providerId}"
@@ -511,6 +511,10 @@
                       <p class="field-description">
                         {#if plugin.id === 'google'}
                           {t('settings.ai.google_search_description')}
+                        {:else if plugin.id === 'anthropic'}
+                          {t('settings.ai.anthropic_search_description')}
+                        {:else if plugin.id === 'openrouter'}
+                          {t('settings.ai.openrouter_search_description')}
                         {:else}
                           Lets compatible OpenAI/Codex proxy endpoints search the live web. No
                           separate search API key is needed; unsupported endpoints may reject

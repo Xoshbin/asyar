@@ -188,15 +188,6 @@ export type FileSearchResponse = {
  */
 export type FileType = "document" | "image" | "code" | "audio-video" | "archive" | "folder" | "other";
 
-/**
- *  Presentation data derived from Gemini grounding metadata. The complete
- *  provider metadata remains in provider_context for attribution/history.
- */
-export type GeminiGrounding = {
-	sources: GroundingSource[],
-	searchSuggestionsHtml: string | null,
-};
-
 export type GroundingSource = {
 	title: string,
 	url: string,
@@ -391,6 +382,15 @@ export type ToolDefinition = {
 export type UpdateCommandMetadataInput = {
 	commandObjectId: string,
 	subtitle: string | null,
+};
+
+/**
+ *  Presentation data derived from provider web search metadata. The complete
+ *  provider metadata remains in provider_context for attribution/history.
+ */
+export type WebSearchGrounding = {
+	sources: GroundingSource[],
+	searchSuggestionsHtml: string | null,
 };
 
 /**

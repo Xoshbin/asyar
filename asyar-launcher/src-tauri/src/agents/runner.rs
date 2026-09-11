@@ -730,6 +730,10 @@ where
             });
         }
 
+        let continue_turn = turn
+            .provider_context
+            .iter()
+            .any(|item| item["continueTurn"] == true);
         let assistant_persisted = conversation.push_assistant(
             turn.text.clone(),
             resolved_calls.clone(),
@@ -740,7 +744,7 @@ where
         }
 
         stream_result?;
-        if resolved_calls.is_empty() {
+        if resolved_calls.is_empty() && !continue_turn {
             return Ok(Some(turn.text));
         }
 

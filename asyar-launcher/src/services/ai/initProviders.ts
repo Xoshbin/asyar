@@ -25,6 +25,7 @@ const PROVIDERS: IProviderPlugin[] = [
   descriptor({
     id: 'anthropic',
     name: 'Anthropic',
+    supportsHostedWebSearch: true,
     requiresApiKey: true,
     requiresBaseUrl: false,
   }),
@@ -46,6 +47,7 @@ const PROVIDERS: IProviderPlugin[] = [
   descriptor({
     id: 'openrouter',
     name: 'OpenRouter',
+    supportsHostedWebSearch: true,
     requiresApiKey: true,
     requiresBaseUrl: false,
     reasoningEfforts: ALL_REASONING_EFFORTS,

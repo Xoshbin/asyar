@@ -124,6 +124,16 @@
         .catch((error) => logService.warn(`[agents] Cannot open source: ${error}`));
   }
 
+  function handleMessageClick(event: MouseEvent) {
+    handleMarkdownCopyClick(event);
+    const link = event.target instanceof Element ? event.target.closest('.md-content a') : null;
+    if (link) {
+      event.preventDefault();
+      const href = link.getAttribute('href');
+      if (href) openSearchSource(href);
+    }
+  }
+
   function copyText(text: string) {
     void navigator.clipboard.writeText(text).catch(() => {});
   }
@@ -245,7 +255,7 @@
           {:else}
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div class="messages-list" onclick={handleMarkdownCopyClick}>
+            <div class="messages-list" onclick={handleMessageClick}>
               {#each messages as message (message.id)}
                 {@const variant = messageBubbleVariant(message)}
                 {@const text = extractTextFromMessage(message)}

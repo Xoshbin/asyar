@@ -1,5 +1,5 @@
 import type { ThreadDef, MessageDef } from './types';
-import type { GeminiGrounding } from '../../bindings';
+import type { WebSearchGrounding } from '../../bindings';
 import type { ToolCall } from '../../services/ai/IProviderPlugin';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -112,16 +112,20 @@ export function resolveThreadId(
 }
 
 /** Rust prepares safe source URLs; this only reads the saved presentation. */
-export function extractGroundingFromMessage(msg: MessageDef): GeminiGrounding[] {
+export function extractGroundingFromMessage(msg: MessageDef): WebSearchGrounding[] {
   if (msg.role !== 'assistant') return [];
   const context = (
     msg.content as {
-      providerContext?: { geminiGroundingDisplay?: GeminiGrounding }[];
+      providerContext?: {
+        geminiGroundingDisplay?: WebSearchGrounding;
+        webSearchGroundingDisplay?: WebSearchGrounding;
+      }[];
     }
   ).providerContext;
   return (
-    context?.flatMap((item) =>
-      item.geminiGroundingDisplay ? [item.geminiGroundingDisplay] : [],
-    ) ?? []
+    context?.flatMap((item) => {
+      const display = item.webSearchGroundingDisplay ?? item.geminiGroundingDisplay;
+      return display ? [display] : [];
+    }) ?? []
   );
 }

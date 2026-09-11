@@ -11,11 +11,9 @@ describe('initProviders', () => {
     vi.clearAllMocks();
   });
 
-  it('exposes native Google Search', () => {
+  it.each(['google', 'anthropic', 'openrouter'])('exposes hosted search for %s', (id) => {
     initProviders();
-    expect(providerRegistry.list().find((p) => p.id === 'google')?.supportsHostedWebSearch).toBe(
-      true,
-    );
+    expect(providerRegistry.list().find((p) => p.id === id)?.supportsHostedWebSearch).toBe(true);
   });
 
   it('registers exactly 6 provider plugins', () => {

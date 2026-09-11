@@ -285,6 +285,9 @@
       "type_theme": "Theme"
     },
     "ai": {
+      "hosted_web_search": "Web search",
+      "anthropic_search_description": "Let Claude search the web and cite sources using your Anthropic API key. Requires a supported model and web search enabled for your organization. Provider search charges may apply.",
+      "openrouter_search_description": "Search the web with OpenRouter’s web plugin and show sources. Uses your OpenRouter API key; additional search charges apply, including on free models.",
       "google_search": "Google Search",
       "google_search_description": "Let Gemini search the web and show sources. Uses your Gemini API key. Combining search with agent tools requires a Gemini 3 model; provider search charges may apply.",
       "no_provider": "No AI provider configured yet",
