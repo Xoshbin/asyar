@@ -495,7 +495,9 @@
                     <div class="hosted-search-setting">
                       <div class="hosted-search-heading">
                         <label class="field-label" for="hosted-web-search-{providerId}">
-                          OpenAI Hosted Web Search
+                          {plugin.id === 'google'
+                            ? t('settings.ai.google_search')
+                            : t('settings.ai.hosted_web_search')}
                         </label>
                         <Toggle
                           id="hosted-web-search-{providerId}"
@@ -507,9 +509,17 @@
                         />
                       </div>
                       <p class="field-description">
-                        Lets compatible OpenAI/Codex proxy endpoints search the live web. No
-                        separate search API key is needed; unsupported endpoints may reject requests
-                        while this is enabled.
+                        {#if plugin.id === 'google'}
+                          {t('settings.ai.google_search_description')}
+                        {:else if plugin.id === 'anthropic'}
+                          {t('settings.ai.anthropic_search_description')}
+                        {:else if plugin.id === 'openrouter'}
+                          {t('settings.ai.openrouter_search_description')}
+                        {:else}
+                          Lets compatible OpenAI/Codex proxy endpoints search the live web. No
+                          separate search API key is needed; unsupported endpoints may reject
+                          requests while this is enabled.
+                        {/if}
                       </p>
                     </div>
                   {/if}

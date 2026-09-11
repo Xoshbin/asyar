@@ -29,6 +29,11 @@ vi.mock('../../lib/ipc/commands', () => ({
   showSettingsWindow: vi.fn(),
 }));
 
+vi.mock('../../services/opener/openerService', () => ({
+  openerService: { open: vi.fn().mockResolvedValue(undefined) },
+}));
+
+import { openerService } from '../../services/opener/openerService';
 import AgentChatView from './AgentChatView.svelte';
 import { agentService } from './agentService.svelte';
 import { agentsManager } from './agentsManager.svelte';
@@ -80,6 +85,32 @@ describe('AgentChatView', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('opens citation links externally and prevents launcher navigation', async () => {
+    mockedAgentService.listMessages.mockResolvedValue([
+      {
+        id: 'citation-message',
+        threadId: thread.id,
+        role: 'assistant',
+        content: { text: 'Answer [1](https://example.com/a%28b%29)' },
+        createdAt: 1,
+        runId: null,
+      },
+    ]);
+    render(AgentChatView);
+    const citation = await screen.findByRole('link', { name: '1' });
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+    citation.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(openerService.open).toHaveBeenCalledWith(null, 'https://example.com/a%28b%29');
+
+    vi.mocked(openerService.open).mockClear();
+    citation.setAttribute('href', 'javascript:alert(1)');
+    const unsafeClick = new MouseEvent('click', { bubbles: true, cancelable: true });
+    citation.dispatchEvent(unsafeClick);
+    expect(unsafeClick.defaultPrevented).toBe(true);
+    expect(openerService.open).not.toHaveBeenCalled();
   });
 
   it('refreshes the sidebar when the selected thread is cleared after deletion', async () => {

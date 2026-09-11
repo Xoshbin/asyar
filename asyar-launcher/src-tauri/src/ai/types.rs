@@ -126,3 +126,19 @@ pub enum ChatStreamEventPayload {
         error: String,
     },
 }
+
+/// Presentation data derived from provider web search metadata. The complete
+/// provider metadata remains in provider_context for attribution/history.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct WebSearchGrounding {
+    pub sources: Vec<GroundingSource>,
+    pub search_suggestions_html: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GroundingSource {
+    pub title: String,
+    pub url: String,
+}

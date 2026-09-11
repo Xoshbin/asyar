@@ -188,6 +188,11 @@ export type FileSearchResponse = {
  */
 export type FileType = "document" | "image" | "code" | "audio-video" | "archive" | "folder" | "other";
 
+export type GroundingSource = {
+	title: string,
+	url: string,
+};
+
 /**
  *  Where a hit came from: the local index or an on-demand deep-search
  *  provider (mdfind / Everything / plocate).
@@ -377,6 +382,15 @@ export type ToolDefinition = {
 export type UpdateCommandMetadataInput = {
 	commandObjectId: string,
 	subtitle: string | null,
+};
+
+/**
+ *  Presentation data derived from provider web search metadata. The complete
+ *  provider metadata remains in provider_context for attribution/history.
+ */
+export type WebSearchGrounding = {
+	sources: GroundingSource[],
+	searchSuggestionsHtml: string | null,
 };
 
 /**

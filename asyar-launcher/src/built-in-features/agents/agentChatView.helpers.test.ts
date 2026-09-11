@@ -288,3 +288,28 @@ describe('resolveThreadId', () => {
     expect(resolveThreadId(null, [])).toBeNull();
   });
 });
+
+describe('persisted web search grounding', () => {
+  it.each(['geminiGroundingDisplay', 'webSearchGroundingDisplay'])(
+    'rehydrates %s and ignores unrelated messages',
+    async (key) => {
+      const { extractGroundingFromMessage } = await import('./agentChatView.helpers');
+      const display = {
+        sources: [{ title: 'Example', url: 'https://example.com' }],
+        searchSuggestionsHtml: '<div>Google</div>',
+      };
+      const message = {
+        role: 'assistant',
+        content: {
+          text: 'Answer',
+          providerContext: [{ geminiPart: { text: 'Answer' } }, { [key]: display }],
+        },
+      } as MessageDef;
+      expect(extractGroundingFromMessage(message)).toEqual([display]);
+      expect(extractGroundingFromMessage({ ...message, content: { text: 'No search' } })).toEqual(
+        [],
+      );
+      expect(extractGroundingFromMessage({ ...message, role: 'user' })).toEqual([]);
+    },
+  );
+});

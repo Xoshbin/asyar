@@ -578,3 +578,368 @@ fn test_build_ollama_request_includes_temperature_when_some() {
     let req = build_request("ollama", &config, &messages, &params).unwrap();
     assert_eq!(req.body["options"]["temperature"], 0.6);
 }
+
+#[test]
+fn google_search_preserves_custom_tools_on_gemini_3() {
+    let mut config = mock_config();
+    config.hosted_web_search = Some(true);
+    let mut params = tool_params();
+    params.model_id = "gemini-3-flash-preview".into();
+    let request = build_request("google", &config, &[], &params).unwrap();
+    assert_eq!(request.body["tools"][1], json!({"google_search": {}}));
+    assert_eq!(
+        request.body["toolConfig"]["includeServerSideToolInvocations"],
+        true
+    );
+    assert_eq!(
+        request.body["tools"][0]["functionDeclarations"][0]["name"],
+        "builtin__echo"
+    );
+}
+
+#[test]
+fn google_search_rejects_unsupported_custom_tool_combination() {
+    let mut config = mock_config();
+    config.hosted_web_search = Some(true);
+    let mut params = tool_params();
+    params.model_id = "gemini-2.5-flash".into();
+    assert!(build_request("google", &config, &[], &params)
+        .unwrap_err()
+        .to_string()
+        .contains("Gemini 3"));
+    params.tools = None;
+    assert_eq!(
+        build_request("google", &config, &[], &params).unwrap().body["tools"],
+        json!([{"google_search": {}}])
+    );
+    config.hosted_web_search = Some(false);
+    assert!(build_request("google", &config, &[], &params)
+        .unwrap()
+        .body
+        .get("tools")
+        .is_none());
+}
+
+#[test]
+fn google_retains_grounding_and_signed_parts_for_continuation() {
+    let config = mock_config();
+    let mut parser = ProviderStreamParser::new("google", &config);
+    let part = json!({"functionCall": {"id": "call-1", "name": "builtin__echo", "args": {}}, "thoughtSignature": "opaque"});
+    let grounding = json!({"webSearchQueries": ["weather"], "groundingChunks": [{"web": {"uri": "https://example.com", "title": "Weather"}}]});
+    let mut events = parser.push_line(&format!("data: {}", json!({"candidates": [{"content": {"parts": [part.clone()]}, "groundingMetadata": grounding.clone()}]}))).unwrap();
+    events.extend(parser.finish().unwrap());
+    let context: Vec<_> = events
+        .into_iter()
+        .filter_map(|event| match event {
+            ChatStreamEvent::ProviderContext { item } => Some(item),
+            _ => None,
+        })
+        .collect();
+    assert!(context.iter().any(|item| item["geminiPart"] == part));
+    assert!(context
+        .iter()
+        .any(|item| item["geminiGrounding"] == grounding));
+    let mut history = tool_history();
+    history[1].provider_context = Some(context);
+    let request = build_request("google", &config, &history, &tool_params()).unwrap();
+    assert_eq!(request.body["contents"][1]["parts"], json!([part]));
+}
+
+#[test]
+fn google_metadata_only_chunk_has_safe_typed_sources() {
+    let mut parser = ProviderStreamParser::new("google", &mock_config());
+    let mut events = parser.push_line(&format!("data: {}", json!({"candidates": [{"groundingMetadata": {
+        "groundingChunks": [{"web": {"uri": "https://example.com/a", "title": "A"}}, {"web": {"uri": "javascript:alert(1)", "title": "Unsafe"}}],
+        "searchEntryPoint": {"renderedContent": "<div>Search suggestions</div>"},
+        "groundingSupports": [{"segment": {"text": "Claim"}, "groundingChunkIndices": [0]}]
+    }}]}))).unwrap();
+    events.extend(parser.finish().unwrap());
+    let display = events
+        .iter()
+        .find_map(|event| match event {
+            ChatStreamEvent::ProviderContext { item } => item.get("geminiGroundingDisplay"),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        display["sources"],
+        json!([{"title": "A", "url": "https://example.com/a"}])
+    );
+    assert_eq!(
+        display["searchSuggestionsHtml"],
+        "<div>Search suggestions</div>"
+    );
+    assert!(events.iter().any(|event| matches!(event, ChatStreamEvent::ProviderContext { item } if item["geminiGrounding"]["groundingSupports"].is_array())));
+}
+
+#[test]
+fn google_continuation_does_not_send_synthetic_id_to_api() {
+    let mut parser = ProviderStreamParser::new("google", &mock_config());
+    let events = parser.push_line("data: {\"candidates\":[{\"content\":{\"parts\":[{\"functionCall\":{\"name\":\"builtin__echo\",\"args\":{}}}]}}]}").unwrap();
+    let mut history = tool_history();
+    history[1].provider_context = Some(
+        events
+            .iter()
+            .filter_map(|event| match event {
+                ChatStreamEvent::ProviderContext { item } => Some(item.clone()),
+                _ => None,
+            })
+            .collect(),
+    );
+    history[1].tool_calls.as_mut().unwrap()[0].id = "gemini-1".into();
+    history[2].tool_call_id = Some("gemini-1".into());
+    let request = build_request("google", &mock_config(), &history, &tool_params()).unwrap();
+    assert!(request.body["contents"][1]["parts"][0]["functionCall"]
+        .get("id")
+        .is_none());
+    assert!(request.body["contents"][2]["parts"][0]["functionResponse"]
+        .get("id")
+        .is_none());
+}
+
+#[test]
+fn google_emits_one_grounding_display_after_partial_metadata_chunks() {
+    let mut parser = ProviderStreamParser::new("google", &mock_config());
+    for metadata in [
+        json!({}),
+        json!({"groundingChunks": [{"web": {"uri": "https://example.com", "title": "Source"}}]}),
+        json!({"searchEntryPoint": {"renderedContent": "Suggestions"}}),
+    ] {
+        parser
+            .push_line(&format!(
+                "data: {}",
+                json!({"candidates": [{"groundingMetadata": metadata}]})
+            ))
+            .unwrap();
+    }
+    let events = parser.finish().unwrap();
+    assert_eq!(events.len(), 1);
+    let ChatStreamEvent::ProviderContext { item } = &events[0] else {
+        panic!("Expected grounding");
+    };
+    assert_eq!(
+        item["geminiGroundingDisplay"]["sources"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        item["geminiGroundingDisplay"]["searchSuggestionsHtml"],
+        "Suggestions"
+    );
+    assert!(parser.finish().unwrap().is_empty());
+}
+
+#[test]
+fn hosted_search_provider_requests_keep_client_tools() {
+    let mut config = mock_config();
+    config.hosted_web_search = Some(true);
+    let mut params = mock_params(None);
+    params.model_id = "claude-sonnet-4-5".into();
+    params.tools = Some(vec![ToolDefinition {
+        name: "local".into(),
+        description: "Local".into(),
+        parameters: json!({"type":"object"}),
+    }]);
+    let anthropic = build_request("anthropic", &config, &mock_messages(), &params).unwrap();
+    assert_eq!(
+        anthropic.body["tools"][1],
+        json!({"type":"web_search_20250305","name":"web_search","max_uses":5})
+    );
+    let router = build_request("openrouter", &config, &mock_messages(), &params).unwrap();
+    assert_eq!(router.body["plugins"], json!([{"id":"web"}]));
+    assert_eq!(router.body["tools"][0]["function"]["name"], "local");
+    config.hosted_web_search = Some(false);
+    assert!(build_request("openrouter", &config, &[], &params)
+        .unwrap()
+        .body
+        .get("plugins")
+        .is_none());
+    assert_eq!(
+        build_request("anthropic", &config, &[], &params)
+            .unwrap()
+            .body["tools"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn anthropic_search_stream_preserves_native_blocks_and_cites_text() {
+    let config = mock_config();
+    let mut parser = ProviderStreamParser::new("anthropic", &config);
+    let blocks = vec![
+        json!({"type":"server_tool_use","id":"srvtoolu_1","name":"web_search","input":{"query":"news"}}),
+        json!({"type":"web_search_tool_result","tool_use_id":"srvtoolu_1","content":[{"type":"web_search_result","url":"https://example.com","title":"News","encrypted_content":"opaque"}]}),
+        json!({"type":"text","text":"News today.","citations":[{"type":"web_search_result_location","url":"https://example.com","title":"News","encrypted_index":"encrypted","cited_text":"Today"}]}),
+        json!({"type":"tool_use","id":"toolu_1","name":"local","input":{"value":1}}),
+    ];
+    let mut events = Vec::new();
+    for (index, block) in blocks.iter().enumerate() {
+        events.extend(
+            parser
+                .push_line(&format!(
+                    "data: {}",
+                    json!({"type":"content_block_start","index":index,"content_block":block})
+                ))
+                .unwrap(),
+        );
+        events.extend(
+            parser
+                .push_line(&format!(
+                    "data: {}",
+                    json!({"type":"content_block_stop","index":index})
+                ))
+                .unwrap(),
+        );
+    }
+    events.extend(parser.finish().unwrap());
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| matches!(e, ChatStreamEvent::ToolCall { .. }))
+            .count(),
+        1
+    );
+    let context: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            ChatStreamEvent::ProviderContext { item } => Some(item.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        context
+            .iter()
+            .filter_map(|c| c.get("anthropicBlock").cloned())
+            .collect::<Vec<_>>(),
+        blocks
+    );
+    assert!(events.iter().any(
+        |e| matches!(e, ChatStreamEvent::Token {token} if token.contains("https://example.com"))
+    ));
+    let mut message = mock_messages().pop().unwrap();
+    message.provider_context = Some(context);
+    let request = build_request("anthropic", &config, &[message], &mock_params(None)).unwrap();
+    assert_eq!(request.body["messages"][0]["content"], json!(blocks));
+}
+
+#[test]
+fn openrouter_stream_annotations_are_not_reasoning_details() {
+    let config = mock_config();
+    let mut parser = ProviderStreamParser::new("openrouter", &config);
+    let annotation = json!({"type":"url_citation","url_citation":{"url":"https://example.com","title":"Example","start_index":0,"end_index":5}});
+    let mut events = parser.push_line(&format!("data: {}", json!({"choices":[{"delta":{"content":"Hello","annotations":[annotation.clone()],"reasoning_details":[{"type":"reasoning.text","text":"Reason"}]}}]}))).unwrap();
+    events.extend(parser.finish().unwrap());
+    let context: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            ChatStreamEvent::ProviderContext { item } => Some(item.clone()),
+            _ => None,
+        })
+        .collect();
+    assert!(context
+        .iter()
+        .any(|c| c["webSearchGroundingDisplay"]["sources"][0]["url"] == "https://example.com"));
+    let mut message = mock_messages().pop().unwrap();
+    message.provider_context = Some(context);
+    let request = build_request("openrouter", &config, &[message], &mock_params(None)).unwrap();
+    assert_eq!(
+        request.body["messages"][0]["annotations"],
+        json!([annotation])
+    );
+    assert_eq!(
+        request.body["messages"][0]["reasoning_details"],
+        json!([{"type":"reasoning.text","text":"Reason"}])
+    );
+}
+
+#[test]
+fn anthropic_pause_turn_requests_continuation_and_search_errors_surface() {
+    let mut parser = ProviderStreamParser::new("anthropic", &mock_config());
+    let events = parser
+        .push_line(r#"data: {"type":"message_delta","delta":{"stop_reason":"pause_turn"}}"#)
+        .unwrap();
+    assert!(events.iter().any(|event| matches!(event, ChatStreamEvent::ProviderContext {item} if item["continueTurn"] == true)));
+    parser.push_line(r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"web_search_tool_result","content":{"type":"web_search_tool_result_error","error_code":"unavailable"}}}"#).unwrap();
+    let events = parser
+        .push_line(r#"data: {"type":"content_block_stop","index":0}"#)
+        .unwrap();
+    assert!(events.iter().any(|event| matches!(event, ChatStreamEvent::ProviderContext {item} if item["anthropicBlock"]["content"]["error_code"] == "unavailable")));
+    assert!(parser
+        .finish()
+        .unwrap_err()
+        .to_string()
+        .contains("unavailable"));
+}
+
+#[test]
+fn anthropic_streamed_citations_and_inputs_round_trip_without_markdown_injection() {
+    let mut parser = ProviderStreamParser::new("anthropic", &mock_config());
+    let citation = json!({"type":"web_search_result_location","url":"https://example.com/a(b)<c>","title":"[unsafe](javascript:alert(1))","encrypted_index":"opaque"});
+    let chunks = [
+        json!({"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srv_1","name":"web_search","input":{}}}),
+        json!({"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"query\":\"news\"}"}}),
+        json!({"type":"content_block_stop","index":0}),
+        json!({"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}),
+        json!({"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Answer"}}),
+        json!({"type":"content_block_delta","index":1,"delta":{"type":"citations_delta","citation":citation}}),
+        json!({"type":"content_block_delta","index":1,"delta":{"type":"citations_delta","citation":{"type":"web_search_result_location","url":"javascript:alert(1)"}}}),
+        json!({"type":"content_block_stop","index":1}),
+    ];
+    let mut events = Vec::new();
+    for chunk in chunks {
+        events.extend(parser.push_line(&format!("data: {chunk}")).unwrap());
+    }
+    events.extend(parser.finish().unwrap());
+    let tokens = events
+        .iter()
+        .filter_map(|event| match event {
+            ChatStreamEvent::Token { token } => Some(token.as_str()),
+            _ => None,
+        })
+        .collect::<String>();
+    assert_eq!(tokens, "Answer [1](https://example.com/a%28b%29%3Cc%3E)");
+    assert!(!events
+        .iter()
+        .any(|event| matches!(event, ChatStreamEvent::ToolCall { .. })));
+    assert!(events.iter().any(|event| matches!(event, ChatStreamEvent::ProviderContext {item} if item["anthropicBlock"]["input"]["query"] == "news")));
+    assert!(events.iter().any(|event| matches!(event, ChatStreamEvent::ProviderContext {item} if item["anthropicBlock"]["text"] == "Answer" && item["anthropicBlock"]["citations"][0]["encrypted_index"] == "opaque")));
+    let display = events
+        .iter()
+        .find_map(|event| match event {
+            ChatStreamEvent::ProviderContext { item } => item.get("webSearchGroundingDisplay"),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(display["sources"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn openrouter_message_annotations_filter_unsafe_urls_and_deduplicate_sources() {
+    let mut parser = ProviderStreamParser::new("openrouter", &mock_config());
+    let annotations = [
+        "https://example.com",
+        "https://example.com",
+        "javascript:alert(1)",
+        "https://user:password@example.com",
+        "https://example.com/\npath",
+    ]
+    .into_iter()
+    .map(|url| json!({"type":"url_citation","url_citation":{"url":url,"title":"Example"}}))
+    .collect::<Vec<_>>();
+    parser
+        .push_line(&format!(
+            "data: {}",
+            json!({"choices":[{"message":{"annotations":annotations}}]})
+        ))
+        .unwrap();
+    let events = parser.finish().unwrap();
+    assert!(
+        matches!(&events[0], ChatStreamEvent::ProviderContext {item} if item["webSearchGroundingDisplay"]["sources"].as_array().unwrap().len() == 1)
+    );
+    assert!(parser.finish().unwrap().is_empty());
+}

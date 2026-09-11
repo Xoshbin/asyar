@@ -1015,3 +1015,169 @@ fn resolve_provider_config_errors_when_base_url_is_missing() {
         .to_string()
         .contains("Base URL for provider 'ollama' is not configured"));
 }
+
+#[test]
+fn coalescing_preserves_provider_context_boundaries() {
+    let mut first = chat_message("assistant", "First");
+    first.provider_context = Some(vec![
+        json!({"geminiPart": {"text": "First", "thoughtSignature": "signed"}}),
+    ]);
+    let mut second = chat_message("assistant", "Second");
+    second.provider_context = Some(vec![json!({"geminiPart": {"text": "Second"}})]);
+    let messages = coalesce_consecutive_messages(vec![first, second]);
+    assert_eq!(messages.len(), 2);
+    assert_eq!(
+        messages[1].provider_context.as_ref().unwrap()[0]["geminiPart"]["text"],
+        "Second"
+    );
+}
+
+#[tokio::test]
+async fn anthropic_paused_search_continues_with_native_context() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+
+    let server = tokio::spawn(async move {
+        let mut requests = Vec::new();
+        for paused in [true, false] {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut bytes = Vec::new();
+            loop {
+                let mut chunk = [0; 8192];
+                let count = tokio::io::AsyncReadExt::read(&mut socket, &mut chunk)
+                    .await
+                    .unwrap();
+                bytes.extend_from_slice(&chunk[..count]);
+                if let Some(split) = bytes.windows(4).position(|part| part == b"\r\n\r\n") {
+                    let headers = String::from_utf8_lossy(&bytes[..split]);
+                    let length: usize = headers
+                        .lines()
+                        .find_map(|line| {
+                            line.to_lowercase()
+                                .strip_prefix("content-length: ")
+                                .map(str::to_owned)
+                        })
+                        .unwrap()
+                        .parse()
+                        .unwrap();
+                    if bytes.len() >= split + 4 + length {
+                        requests.push(
+                            serde_json::from_slice::<serde_json::Value>(&bytes[split + 4..])
+                                .unwrap(),
+                        );
+                        break;
+                    }
+                }
+                assert!(count > 0);
+            }
+            let block = if paused {
+                json!({"type":"server_tool_use","id":"srvtoolu_1","name":"web_search","input":{"query":"news"}})
+            } else {
+                json!({"type":"text","text":"Corrected text"})
+            };
+            let body = [json!({"type":"content_block_start","index":0,"content_block":block}), json!({"type":"content_block_stop","index":0}), json!({"type":"message_delta","delta":{"stop_reason":if paused {"pause_turn"} else {"end_turn"}}})]
+                .into_iter().map(|event| format!("data: {event}\n\n")).collect::<String>();
+            socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).as_bytes()).await.unwrap();
+        }
+        requests
+    });
+
+    let store = make_store();
+    let agent_id = "silent-agent".to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+    insert_agent(
+        &store.conn().unwrap(),
+        &AgentRow {
+            id: agent_id.clone(),
+            name: "Silent Agent".to_string(),
+            description: None,
+            system_prompt: "Correct grammar".to_string(),
+            provider_id: "anthropic".to_string(),
+            model_id: "claude-sonnet-4-5".to_string(),
+            tool_selection: vec![],
+            silent: true,
+            input_source: crate::storage::agents::SilentInputSource::Argument,
+            output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    let registry = Arc::new(ToolRegistry::new());
+    let config = crate::ai::types::ProviderConfig {
+        enabled: true,
+        name: None,
+        provider_type: None,
+        api_key: Some("test-key".to_string()),
+        base_url: Some(format!("http://127.0.0.1:{}", port)),
+        last_model_id: None,
+        open_ai_api_mode: None,
+        hosted_web_search: None,
+        reasoning_effort: None,
+        temperature: None,
+        max_tokens: None,
+    };
+
+    let before = {
+        let conn = store.conn().unwrap();
+        (
+            conn.query_row("SELECT COUNT(*) FROM threads", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap(),
+            conn.query_row("SELECT COUNT(*) FROM messages", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap(),
+        )
+    };
+
+    let result = run_silent_loop_impl(
+        &store,
+        &registry,
+        &agent_id,
+        "helo".to_string(),
+        run_config("anthropic", config, Some(0.7), 2048),
+        |_| {},
+        |_| async {
+            Err(AppError::Other(
+                "unexpected external tool dispatch".to_string(),
+            ))
+        },
+        None,
+    )
+    .await
+    .unwrap();
+
+    let after = {
+        let conn = store.conn().unwrap();
+        (
+            conn.query_row("SELECT COUNT(*) FROM threads", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap(),
+            conn.query_row("SELECT COUNT(*) FROM messages", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap(),
+        )
+    };
+
+    assert_eq!(result, "Corrected text");
+    let requests = tokio::time::timeout(std::time::Duration::from_secs(3), server)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(requests[1]["messages"][1]["content"][0]["id"], "srvtoolu_1");
+    assert_eq!(
+        requests[1]["messages"][1]["content"][0]["input"]["query"],
+        "news"
+    );
+    assert_eq!(
+        after, before,
+        "silent execution must not write threads or messages"
+    );
+}

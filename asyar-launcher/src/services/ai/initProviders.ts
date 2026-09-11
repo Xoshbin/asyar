@@ -25,12 +25,14 @@ const PROVIDERS: IProviderPlugin[] = [
   descriptor({
     id: 'anthropic',
     name: 'Anthropic',
+    supportsHostedWebSearch: true,
     requiresApiKey: true,
     requiresBaseUrl: false,
   }),
   descriptor({
     id: 'google',
     name: 'Google Gemini',
+    supportsHostedWebSearch: true,
     requiresApiKey: true,
     requiresBaseUrl: false,
     reasoningEfforts: ['minimal', 'low', 'medium', 'high'],
@@ -45,6 +47,7 @@ const PROVIDERS: IProviderPlugin[] = [
   descriptor({
     id: 'openrouter',
     name: 'OpenRouter',
+    supportsHostedWebSearch: true,
     requiresApiKey: true,
     requiresBaseUrl: false,
     reasoningEfforts: ALL_REASONING_EFFORTS,
