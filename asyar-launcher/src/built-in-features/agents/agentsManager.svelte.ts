@@ -26,6 +26,14 @@ export class AgentsManager {
   /** True while a `runAgent` invocation is in-flight for the active thread. */
   sending = $state<boolean>(false);
   /**
+   * Markdown text of the latest assistant message in the active thread, or
+   * null when there isn't one yet. Set by AgentChatView whenever it
+   * (re)loads messages for the current thread; read by the
+   * `agents:copy-last-response` action so it can gate its visibility and
+   * copy the text without an extra async fetch.
+   */
+  lastAssistantMessageText = $state<string | null>(null);
+  /**
    * AbortController for the active send. The chat view's Cancel button (and
    * the launcher Esc handler) call `.abort()` on this; agentLoop watches it
    * via the abortSignal arg.
