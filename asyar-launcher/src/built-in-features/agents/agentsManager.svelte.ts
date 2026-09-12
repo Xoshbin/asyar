@@ -25,6 +25,9 @@ export class AgentsManager {
   streamingStatus = $state<ChatStreamStatus | null>(null);
   /** True while a `runAgent` invocation is in-flight for the active thread. */
   sending = $state<boolean>(false);
+  /** Latest assistant message's text in the active thread, or null. Set by
+   * AgentChatView on message load; read by the copy-last-response action. */
+  lastAssistantMessageText = $state<string | null>(null);
   /**
    * AbortController for the active send. The chat view's Cancel button (and
    * the launcher Esc handler) call `.abort()` on this; agentLoop watches it
