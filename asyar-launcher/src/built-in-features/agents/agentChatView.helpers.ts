@@ -87,10 +87,7 @@ export function extractToolUsesFromMessage(msg: MessageDef): ToolCall[] {
 
 // ── lastAssistantMessageText ──────────────────────────────────────────────────
 
-/** Markdown text of the most recent assistant message, or null if none exists
- * yet (empty thread, or only user/tool messages so far). Used to mirror the
- * copy-able text onto `agentsManager.lastAssistantMessageText` so the
- * `agents:copy-last-response` action can read and gate on it synchronously. */
+/** Text of the most recent assistant message, or null if there is none yet. */
 export function lastAssistantMessageText(messages: MessageDef[]): string | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === 'assistant') return extractTextFromMessage(messages[i]);

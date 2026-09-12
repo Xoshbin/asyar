@@ -25,13 +25,8 @@ export class AgentsManager {
   streamingStatus = $state<ChatStreamStatus | null>(null);
   /** True while a `runAgent` invocation is in-flight for the active thread. */
   sending = $state<boolean>(false);
-  /**
-   * Markdown text of the latest assistant message in the active thread, or
-   * null when there isn't one yet. Set by AgentChatView whenever it
-   * (re)loads messages for the current thread; read by the
-   * `agents:copy-last-response` action so it can gate its visibility and
-   * copy the text without an extra async fetch.
-   */
+  /** Latest assistant message's text in the active thread, or null. Set by
+   * AgentChatView on message load; read by the copy-last-response action. */
   lastAssistantMessageText = $state<string | null>(null);
   /**
    * AbortController for the active send. The chat view's Cancel button (and
