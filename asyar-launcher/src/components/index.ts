@@ -152,3 +152,6 @@ export { default as InspectorShell } from './dev/InspectorShell.svelte';
 //                       services/feedback/feedbackBoundary.test.ts.
 // dev/Panel*, dev/JsonTree, dev/StreamTail, dev/ExtensionNav, dev/HelpPanel,
 // dev/TimestampRelative — internals of InspectorShell (see above).
+
+// AI
+export { default as GoogleSearchSuggestions } from './ai/GoogleSearchSuggestions.svelte';

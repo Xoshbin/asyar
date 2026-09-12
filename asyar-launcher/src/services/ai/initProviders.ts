@@ -31,6 +31,7 @@ const PROVIDERS: IProviderPlugin[] = [
   descriptor({
     id: 'google',
     name: 'Google Gemini',
+    supportsHostedWebSearch: true,
     requiresApiKey: true,
     requiresBaseUrl: false,
     reasoningEfforts: ['minimal', 'low', 'medium', 'high'],

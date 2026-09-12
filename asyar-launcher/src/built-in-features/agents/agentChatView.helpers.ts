@@ -1,4 +1,5 @@
 import type { ThreadDef, MessageDef } from './types';
+import type { GeminiGrounding } from '../../bindings';
 import type { ToolCall } from '../../services/ai/IProviderPlugin';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -108,4 +109,19 @@ export function resolveThreadId(
 ): string | null {
   if (!currentThreadId) return null;
   return threads.some((t) => t.id === currentThreadId) ? currentThreadId : null;
+}
+
+/** Rust prepares safe source URLs; this only reads the saved presentation. */
+export function extractGroundingFromMessage(msg: MessageDef): GeminiGrounding[] {
+  if (msg.role !== 'assistant') return [];
+  const context = (
+    msg.content as {
+      providerContext?: { geminiGroundingDisplay?: GeminiGrounding }[];
+    }
+  ).providerContext;
+  return (
+    context?.flatMap((item) =>
+      item.geminiGroundingDisplay ? [item.geminiGroundingDisplay] : [],
+    ) ?? []
+  );
 }

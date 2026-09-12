@@ -461,6 +461,9 @@ pub(crate) fn coalesce_consecutive_messages(messages: Vec<ChatMessage>) -> Vec<C
                 && matches!(message.role.as_str(), "user" | "assistant")
                 && previous.tool_calls.as_ref().is_none_or(Vec::is_empty)
                 && message.tool_calls.as_ref().is_none_or(Vec::is_empty)
+                // Signed provider parts must retain their original message boundary.
+                && previous.provider_context.as_ref().is_none_or(Vec::is_empty)
+                && message.provider_context.as_ref().is_none_or(Vec::is_empty)
         });
         if can_merge {
             let previous = output.last_mut().expect("checked above");

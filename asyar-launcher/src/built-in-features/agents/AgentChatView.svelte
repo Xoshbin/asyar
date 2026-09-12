@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { openerService } from '../../services/opener/openerService';
+  import { externalSearchUrl } from '../../components/ai/googleSearchSuggestions';
   import { onMount, onDestroy, tick } from 'svelte';
   import { agentService } from './agentService.svelte';
   import { agentsManager } from './agentsManager.svelte';
@@ -7,12 +9,13 @@
   import { logService } from '../../services/log/logService';
   import {
     extractTextFromMessage,
+    extractGroundingFromMessage,
     extractToolUsesFromMessage,
     messageBubbleVariant,
     resolveThreadId,
   } from './agentChatView.helpers';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
-  import { Button, IconButton } from '../../components';
+  import { Button, IconButton, GoogleSearchSuggestions } from '../../components';
   import ThreadListSidebar from './ThreadListSidebar.svelte';
   import type { AgentDef, ThreadDef, MessageDef } from './types';
   import { showSettingsWindow } from '../../lib/ipc/commands';
@@ -112,6 +115,14 @@
     if (!messagesEl) return;
     const atBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 40;
     userScrolledUp = !atBottom;
+  }
+
+  function openSearchSource(value: string) {
+    const url = externalSearchUrl(value);
+    if (url)
+      void openerService
+        .open(null, url)
+        .catch((error) => logService.warn(`[agents] Cannot open source: ${error}`));
   }
 
   function onSelectThread(threadId: string) {
@@ -236,6 +247,7 @@
               {#each messages as message (message.id)}
                 {@const variant = messageBubbleVariant(message)}
                 {@const text = extractTextFromMessage(message)}
+                {@const grounding = extractGroundingFromMessage(message)}
                 {@const toolUses = extractToolUsesFromMessage(message)}
                 <div class="message-row {variant}">
                   {#if variant === 'assistant'}
@@ -250,6 +262,28 @@
                       {#if text.length > 0}
                         <div class="md-content">{@html renderMarkdown(text)}</div>
                       {/if}
+                      {#each grounding as search}
+                        {#if search.sources.length > 0}
+                          <div class="grounding-sources">
+                            <span class="text-caption">{t('features.agents.sources')}</span>
+                            {#each search.sources as source, index}
+                              <a
+                                href={source.url}
+                                onclick={(event) => {
+                                  event.preventDefault();
+                                  openSearchSource(source.url);
+                                }}>{index + 1}. {source.title}</a
+                              >
+                            {/each}
+                          </div>
+                        {/if}
+                        {#if search.searchSuggestionsHtml}
+                          <GoogleSearchSuggestions
+                            html={search.searchSuggestionsHtml}
+                            onOpen={openSearchSource}
+                          />
+                        {/if}
+                      {/each}
                       {#each toolUses as tu (tu.id)}
                         <div class="tool-use-chip">
                           <span class="chip-name">{tu.name}</span>
@@ -458,6 +492,17 @@
   .chip-input {
     -webkit-user-select: text;
     user-select: text;
+  }
+
+  .grounding-sources {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-top: var(--space-3);
+    font-size: var(--font-size-sm);
+  }
+  .grounding-sources a {
+    color: var(--accent-primary);
   }
 
   .tool-use-chip {

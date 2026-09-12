@@ -189,6 +189,20 @@ export type FileSearchResponse = {
 export type FileType = "document" | "image" | "code" | "audio-video" | "archive" | "folder" | "other";
 
 /**
+ *  Presentation data derived from Gemini grounding metadata. The complete
+ *  provider metadata remains in provider_context for attribution/history.
+ */
+export type GeminiGrounding = {
+	sources: GroundingSource[],
+	searchSuggestionsHtml: string | null,
+};
+
+export type GroundingSource = {
+	title: string,
+	url: string,
+};
+
+/**
  *  Where a hit came from: the local index or an on-demand deep-search
  *  provider (mdfind / Everything / plocate).
  */

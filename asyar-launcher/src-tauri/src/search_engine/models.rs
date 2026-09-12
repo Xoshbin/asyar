@@ -498,6 +498,7 @@ mod bindings_export {
             .register::<crate::calculator::CalcResult>()
             .register::<crate::calculator::CalcKind>()
             .register::<crate::ai::types::ChatMessage>()
+            .register::<crate::ai::types::GeminiGrounding>()
             .register::<crate::ai::types::ProviderConfig>()
             .register::<crate::ai::types::ModelInfo>()
             .register::<crate::ai::types::ChatParams>()

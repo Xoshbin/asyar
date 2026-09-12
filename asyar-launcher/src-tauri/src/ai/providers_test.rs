@@ -578,3 +578,155 @@ fn test_build_ollama_request_includes_temperature_when_some() {
     let req = build_request("ollama", &config, &messages, &params).unwrap();
     assert_eq!(req.body["options"]["temperature"], 0.6);
 }
+
+#[test]
+fn google_search_preserves_custom_tools_on_gemini_3() {
+    let mut config = mock_config();
+    config.hosted_web_search = Some(true);
+    let mut params = tool_params();
+    params.model_id = "gemini-3-flash-preview".into();
+    let request = build_request("google", &config, &[], &params).unwrap();
+    assert_eq!(request.body["tools"][1], json!({"google_search": {}}));
+    assert_eq!(
+        request.body["toolConfig"]["includeServerSideToolInvocations"],
+        true
+    );
+    assert_eq!(
+        request.body["tools"][0]["functionDeclarations"][0]["name"],
+        "builtin__echo"
+    );
+}
+
+#[test]
+fn google_search_rejects_unsupported_custom_tool_combination() {
+    let mut config = mock_config();
+    config.hosted_web_search = Some(true);
+    let mut params = tool_params();
+    params.model_id = "gemini-2.5-flash".into();
+    assert!(build_request("google", &config, &[], &params)
+        .unwrap_err()
+        .to_string()
+        .contains("Gemini 3"));
+    params.tools = None;
+    assert_eq!(
+        build_request("google", &config, &[], &params).unwrap().body["tools"],
+        json!([{"google_search": {}}])
+    );
+    config.hosted_web_search = Some(false);
+    assert!(build_request("google", &config, &[], &params)
+        .unwrap()
+        .body
+        .get("tools")
+        .is_none());
+}
+
+#[test]
+fn google_retains_grounding_and_signed_parts_for_continuation() {
+    let config = mock_config();
+    let mut parser = ProviderStreamParser::new("google", &config);
+    let part = json!({"functionCall": {"id": "call-1", "name": "builtin__echo", "args": {}}, "thoughtSignature": "opaque"});
+    let grounding = json!({"webSearchQueries": ["weather"], "groundingChunks": [{"web": {"uri": "https://example.com", "title": "Weather"}}]});
+    let mut events = parser.push_line(&format!("data: {}", json!({"candidates": [{"content": {"parts": [part.clone()]}, "groundingMetadata": grounding.clone()}]}))).unwrap();
+    events.extend(parser.finish().unwrap());
+    let context: Vec<_> = events
+        .into_iter()
+        .filter_map(|event| match event {
+            ChatStreamEvent::ProviderContext { item } => Some(item),
+            _ => None,
+        })
+        .collect();
+    assert!(context.iter().any(|item| item["geminiPart"] == part));
+    assert!(context
+        .iter()
+        .any(|item| item["geminiGrounding"] == grounding));
+    let mut history = tool_history();
+    history[1].provider_context = Some(context);
+    let request = build_request("google", &config, &history, &tool_params()).unwrap();
+    assert_eq!(request.body["contents"][1]["parts"], json!([part]));
+}
+
+#[test]
+fn google_metadata_only_chunk_has_safe_typed_sources() {
+    let mut parser = ProviderStreamParser::new("google", &mock_config());
+    let mut events = parser.push_line(&format!("data: {}", json!({"candidates": [{"groundingMetadata": {
+        "groundingChunks": [{"web": {"uri": "https://example.com/a", "title": "A"}}, {"web": {"uri": "javascript:alert(1)", "title": "Unsafe"}}],
+        "searchEntryPoint": {"renderedContent": "<div>Search suggestions</div>"},
+        "groundingSupports": [{"segment": {"text": "Claim"}, "groundingChunkIndices": [0]}]
+    }}]}))).unwrap();
+    events.extend(parser.finish().unwrap());
+    let display = events
+        .iter()
+        .find_map(|event| match event {
+            ChatStreamEvent::ProviderContext { item } => item.get("geminiGroundingDisplay"),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        display["sources"],
+        json!([{"title": "A", "url": "https://example.com/a"}])
+    );
+    assert_eq!(
+        display["searchSuggestionsHtml"],
+        "<div>Search suggestions</div>"
+    );
+    assert!(events.iter().any(|event| matches!(event, ChatStreamEvent::ProviderContext { item } if item["geminiGrounding"]["groundingSupports"].is_array())));
+}
+
+#[test]
+fn google_continuation_does_not_send_synthetic_id_to_api() {
+    let mut parser = ProviderStreamParser::new("google", &mock_config());
+    let events = parser.push_line("data: {\"candidates\":[{\"content\":{\"parts\":[{\"functionCall\":{\"name\":\"builtin__echo\",\"args\":{}}}]}}]}").unwrap();
+    let mut history = tool_history();
+    history[1].provider_context = Some(
+        events
+            .iter()
+            .filter_map(|event| match event {
+                ChatStreamEvent::ProviderContext { item } => Some(item.clone()),
+                _ => None,
+            })
+            .collect(),
+    );
+    history[1].tool_calls.as_mut().unwrap()[0].id = "gemini-1".into();
+    history[2].tool_call_id = Some("gemini-1".into());
+    let request = build_request("google", &mock_config(), &history, &tool_params()).unwrap();
+    assert!(request.body["contents"][1]["parts"][0]["functionCall"]
+        .get("id")
+        .is_none());
+    assert!(request.body["contents"][2]["parts"][0]["functionResponse"]
+        .get("id")
+        .is_none());
+}
+
+#[test]
+fn google_emits_one_grounding_display_after_partial_metadata_chunks() {
+    let mut parser = ProviderStreamParser::new("google", &mock_config());
+    for metadata in [
+        json!({}),
+        json!({"groundingChunks": [{"web": {"uri": "https://example.com", "title": "Source"}}]}),
+        json!({"searchEntryPoint": {"renderedContent": "Suggestions"}}),
+    ] {
+        parser
+            .push_line(&format!(
+                "data: {}",
+                json!({"candidates": [{"groundingMetadata": metadata}]})
+            ))
+            .unwrap();
+    }
+    let events = parser.finish().unwrap();
+    assert_eq!(events.len(), 1);
+    let ChatStreamEvent::ProviderContext { item } = &events[0] else {
+        panic!("Expected grounding");
+    };
+    assert_eq!(
+        item["geminiGroundingDisplay"]["sources"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        item["geminiGroundingDisplay"]["searchSuggestionsHtml"],
+        "Suggestions"
+    );
+    assert!(parser.finish().unwrap().is_empty());
+}
