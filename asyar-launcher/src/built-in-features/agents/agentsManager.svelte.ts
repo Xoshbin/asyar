@@ -16,6 +16,8 @@ export class AgentsManager {
    * routes the query into the right thread.
    */
   currentThreadId = $state<string | null>(null);
+  /** Latest copyable reply loaded by the chat view, bound to its source thread. */
+  lastAssistantResponse = $state<{ threadId: string; text: string } | null>(null);
   /**
    * In-flight assistant response. While a turn is streaming, tokens land
    * here and the chat view renders them as a temporary bubble. Cleared
