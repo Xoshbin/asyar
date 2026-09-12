@@ -1,7 +1,8 @@
 <script lang="ts">
   import { openerService } from '../../services/opener/openerService';
   import { externalSearchUrl } from '../../components/ai/googleSearchSuggestions';
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onMount, onDestroy, tick, untrack } from 'svelte';
+  import { actionService } from '../../services/action/actionService.svelte';
   import { agentService } from './agentService.svelte';
   import { agentsManager } from './agentsManager.svelte';
   import { renderMarkdown, handleMarkdownCopyClick } from '../../utils/markdown';
@@ -42,6 +43,8 @@
     const currentThreadId = agentsManager.currentThreadId;
     void agentsManager.sending;
     let cancelled = false;
+    agentsManager.lastAssistantResponse = null;
+    untrack(() => actionService.refreshFiltered());
 
     void (async () => {
       if (!currentAgentId) {
@@ -80,7 +83,18 @@
 
       try {
         const nextMessages = await agentService.listMessages(resolvedThreadId);
-        if (!cancelled) messages = nextMessages;
+        if (!cancelled) {
+          messages = nextMessages;
+          for (let i = nextMessages.length - 1; i >= 0; i -= 1) {
+            const message = nextMessages[i];
+            const text = extractTextFromMessage(message);
+            if (message.role === 'assistant' && text.trim()) {
+              agentsManager.lastAssistantResponse = { threadId: resolvedThreadId, text };
+              break;
+            }
+          }
+          actionService.refreshFiltered();
+        }
       } catch (err) {
         if (cancelled) return;
         logService.warn(`[agents] listMessages failed: ${err}`);
@@ -190,6 +204,8 @@
   });
 
   onDestroy(() => {
+    agentsManager.lastAssistantResponse = null;
+    actionService.refreshFiltered();
     window.removeEventListener('keydown', handleWindowKeydown, true);
     // Intentionally do NOT abort the active controller here. The user can
     // navigate away (Esc to launcher) and the run should keep streaming so

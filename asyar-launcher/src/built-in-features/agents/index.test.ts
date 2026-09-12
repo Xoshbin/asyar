@@ -24,6 +24,8 @@ vi.mock('../../services/action/actionService.svelte', () => ({
   },
 }));
 
+vi.mock('../../utils/copyText', () => ({ copyText: vi.fn() }));
+
 vi.mock('../../services/log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -47,6 +49,7 @@ vi.mock('./agentsManager.svelte', () => ({
   agentsManager: {
     currentAgentId: null,
     currentThreadId: null,
+    lastAssistantResponse: null,
     sending: false,
     streamingText: '',
     start: vi.fn().mockResolvedValue(undefined),
@@ -120,6 +123,8 @@ import { agentsManager } from './agentsManager.svelte';
 import { agentService } from './agentService.svelte';
 import { runAgent } from './agentLoop';
 import { ensureThread } from './agentChatView.helpers';
+import { actionService } from '../../services/action/actionService.svelte';
+import { copyText } from '../../utils/copyText';
 
 describe('AgentsExtension', () => {
   let mockExtensionManager: any;
@@ -128,6 +133,7 @@ describe('AgentsExtension', () => {
     vi.clearAllMocks();
     agentsManager.currentAgentId = null;
     agentsManager.currentThreadId = null;
+    agentsManager.lastAssistantResponse = null;
     agentsManager.sending = false;
     agentsManager.streamingText = '';
     agentsManager.activeAbortController = null;
@@ -135,6 +141,41 @@ describe('AgentsExtension', () => {
       navigateToView: vi.fn(),
       setActiveViewSubtitle: vi.fn(),
     };
+  });
+
+  it('scopes Copy Last Response to a loaded, idle chat and preserves markdown', async () => {
+    await agentsExtension.viewActivated?.('agents/AgentChatView');
+    const action = vi.mocked(actionService.registerAction).mock.calls[0][0];
+    expect(action).toMatchObject({
+      id: 'agents.copy-last-response',
+      label: 'Copy Last Response',
+      context: 'EXTENSION_VIEW',
+      shortcut: 'Super+Shift+C',
+    });
+    const visible = (action as { visible: () => boolean }).visible;
+    expect(visible()).toBe(false);
+    agentsManager.currentThreadId = 'thread-1';
+    expect(visible()).toBe(false);
+    await action.execute();
+    expect(copyText).not.toHaveBeenCalled();
+
+    const text = '    indented code\n\n**answer**\n';
+    agentsManager.lastAssistantResponse = { threadId: 'thread-1', text };
+    expect(visible()).toBe(true);
+    await action.execute();
+    expect(copyText).toHaveBeenCalledExactlyOnceWith(text);
+
+    agentsManager.sending = true;
+    expect(visible()).toBe(false);
+    await action.execute();
+    agentsManager.sending = false;
+    agentsManager.currentThreadId = 'thread-2';
+    expect(visible()).toBe(false);
+    await action.execute();
+    expect(copyText).toHaveBeenCalledTimes(1);
+
+    await agentsExtension.viewDeactivated?.('agents/AgentChatView');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('agents.copy-last-response');
   });
 
   describe('chat submission', () => {

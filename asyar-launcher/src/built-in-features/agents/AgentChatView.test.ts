@@ -19,6 +19,10 @@ vi.mock('../../services/log/logService', () => ({
   logService: { warn: vi.fn() },
 }));
 
+vi.mock('../../services/action/actionService.svelte', () => ({
+  actionService: { refreshFiltered: vi.fn() },
+}));
+
 vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: { report: vi.fn() },
 }));
@@ -132,6 +136,26 @@ describe('AgentChatView', () => {
     await waitFor(() => expect(screen.queryByText(thread.title)).toBeNull());
   });
 
+  it('publishes the last non-empty assistant reply and clears it for an empty thread', async () => {
+    const text = '    code\n';
+    const message = { threadId: thread.id, createdAt: 1, runId: null };
+    mockedAgentService.listMessages.mockResolvedValue([
+      { ...message, id: 'old', role: 'assistant', content: { text: 'older' } },
+      { ...message, id: 'reply', role: 'assistant', content: { text } },
+      { ...message, id: 'empty', role: 'assistant', content: { text: '  ' } },
+      { ...message, id: 'user', role: 'user', content: { text: 'question' } },
+    ]);
+    const view = render(AgentChatView);
+    await waitFor(() =>
+      expect(agentsManager.lastAssistantResponse).toEqual({ threadId: thread.id, text }),
+    );
+    mockedAgentService.listMessages.mockResolvedValue([]);
+    agentsManager.sending = true;
+    await waitFor(() => expect(agentsManager.lastAssistantResponse).toBeNull());
+    view.unmount();
+    expect(agentsManager.lastAssistantResponse).toBeNull();
+  });
+
   it('fetches the initial thread list only once', async () => {
     render(AgentChatView);
 
@@ -178,6 +202,7 @@ describe('AgentChatView', () => {
 
     await waitFor(() => expect(screen.queryByText('Stale message')).toBeNull());
     expect(screen.getByText('Current message')).toBeTruthy();
+    expect(agentsManager.lastAssistantResponse).toBeNull();
   });
 
   it('keeps pending scroll callbacks safe after unmount', async () => {

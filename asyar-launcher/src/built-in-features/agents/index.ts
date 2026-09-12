@@ -5,6 +5,8 @@ import { agentsManager } from './agentsManager.svelte';
 import { agentService } from './agentService.svelte';
 import { runAgent } from './agentLoop';
 import { ensureThread } from './agentChatView.helpers';
+import { copyText } from '../../utils/copyText';
+import { t } from '../../services/i18n';
 import { actionService } from '../../services/action/actionService.svelte';
 import { logService } from '../../services/log/logService';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
@@ -27,6 +29,7 @@ const ACTION_DELETE_AGENT = 'agents:delete-agent';
 const ACTION_NEW_THREAD = 'agents:new-thread';
 const ACTION_DELETE_THREAD = 'agents:delete-thread';
 const ACTION_CANCEL_SEND = 'agents:cancel-send';
+const ACTION_COPY_LAST_RESPONSE = 'agents.copy-last-response';
 
 class AgentsExtension implements Extension {
   private extensionManager?: IExtensionManager;
@@ -154,6 +157,13 @@ class AgentsExtension implements Extension {
     agentsManager.activeAbortController?.abort();
   }
 
+  private async runCopyLastResponse(): Promise<void> {
+    const response = agentsManager.lastAssistantResponse;
+    if (!response || response.threadId !== agentsManager.currentThreadId || agentsManager.sending)
+      return;
+    await copyText(response.text);
+  }
+
   // ── View-context action registration ───────────────────────────────────────
 
   private registerListViewActions(): void {
@@ -197,6 +207,21 @@ class AgentsExtension implements Extension {
 
   private registerChatViewActions(): void {
     actionService.registerAction({
+      id: ACTION_COPY_LAST_RESPONSE,
+      label: t('features.agents.copy_last_response'),
+      icon: '📋',
+      description: t('features.agents.copy_last_response_description'),
+      category: 'Agents',
+      extensionId: 'agents',
+      context: ActionContext.EXTENSION_VIEW,
+      shortcut: 'Super+Shift+C',
+      visible: () =>
+        !!agentsManager.lastAssistantResponse &&
+        agentsManager.lastAssistantResponse.threadId === agentsManager.currentThreadId &&
+        !agentsManager.sending,
+      execute: async () => this.runCopyLastResponse(),
+    });
+    actionService.registerAction({
       id: ACTION_NEW_THREAD,
       label: 'New Thread',
       icon: '💬',
@@ -233,6 +258,7 @@ class AgentsExtension implements Extension {
     actionService.unregisterAction(ACTION_NEW_THREAD);
     actionService.unregisterAction(ACTION_DELETE_THREAD);
     actionService.unregisterAction(ACTION_CANCEL_SEND);
+    actionService.unregisterAction(ACTION_COPY_LAST_RESPONSE);
   }
 
   async executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
