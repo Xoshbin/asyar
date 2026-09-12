@@ -5,6 +5,7 @@
   import { agentService } from './agentService.svelte';
   import { agentsManager } from './agentsManager.svelte';
   import { renderMarkdown, handleMarkdownCopyClick } from '../../utils/markdown';
+  import { copyText } from '../../utils/copyText';
   import { logService } from '../../services/log/logService';
   import {
     extractTextFromMessage,
@@ -124,10 +125,6 @@
         .catch((error) => logService.warn(`[agents] Cannot open source: ${error}`));
   }
 
-  function copyText(text: string) {
-    void navigator.clipboard.writeText(text).catch(() => {});
-  }
-
   function onSelectThread(threadId: string) {
     agentsManager.currentThreadId = threadId;
   }
@@ -154,7 +151,7 @@
 
   function handleWindowKeydown(event: KeyboardEvent) {
     // Skip when modifiers are held — those are launcher / OS shortcuts.
-    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
     // When the action panel (Cmd+K) is open, let it own keyboard navigation.
     if (document.querySelector('.action-popup')) return;
     // A modal dialog can open on top of this view — don't steal its keys.
@@ -231,6 +228,7 @@
 
         <div
           class="messages-container custom-scrollbar"
+          data-no-focus-steal
           bind:this={messagesEl}
           onscroll={handleScroll}
           role="log"
@@ -301,7 +299,6 @@
                       class="copy-message-btn"
                       onclick={() => copyText(text)}
                       title={t('features.agents.copy_message')}
-                      tabindex={-1}
                       ariaLabel={t('features.agents.copy_message')}
                       size="sm"
                     >
@@ -476,15 +473,25 @@
     right: var(--space-1);
     opacity: 0;
   }
-  .message-bubble:hover :global(.copy-message-btn) {
+  .message-bubble:hover :global(.copy-message-btn),
+  .message-bubble:focus-within :global(.copy-message-btn) {
     opacity: 1;
   }
   .message-bubble.user :global(.copy-message-btn) {
     color: inherit;
     opacity: 0;
   }
-  .message-bubble.user:hover :global(.copy-message-btn) {
+  .message-bubble.user:hover :global(.copy-message-btn),
+  .message-bubble.user:focus-within :global(.copy-message-btn) {
     opacity: 0.7;
+  }
+
+  .md-content,
+  .user-text,
+  .tool-result,
+  .chip-input {
+    -webkit-user-select: text;
+    user-select: text;
   }
 
   .grounding-sources {

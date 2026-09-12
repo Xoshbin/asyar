@@ -863,5 +863,11 @@
     "panel_events": {
       "pause_display": "Pausar exibição"
     }
+  },
+  "clipboard_copy": {
+    "copy": "Copiar",
+    "copied": "Copiado!",
+    "success": "Copiado para a área de transferência",
+    "error": "Não foi possível copiar para a área de transferência. Tente novamente."
   }
 }

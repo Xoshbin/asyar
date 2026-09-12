@@ -12,6 +12,9 @@
  *   - LaTeX math: `$...$`, `$$...$$`, `\(...\)`, `\[...\]`
  *   - HTML sanitisation (strips `<script>`, event handlers)
  */
+import { t } from '../services/i18n';
+import { feedbackService } from '../services/feedback/feedbackService.svelte';
+import { copyText } from './copyText';
 import { marked } from 'marked';
 import Prism from 'prismjs';
 import { extractLatexBeforeMarkdown, containsLatex } from './latex';
@@ -31,6 +34,10 @@ import 'prismjs/components/prism-php';
 
 // ── Configure marked ────────────────────────────────────────────────────
 
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function highlight(code: string, lang: string): string {
   if (lang && Prism.languages[lang]) {
     try {
@@ -40,7 +47,7 @@ function highlight(code: string, lang: string): string {
     }
   }
   // Fallback to escaped plain text
-  return code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return escapeHtml(code);
 }
 
 // Custom renderer to inject a copy-button header into fenced code blocks
@@ -60,7 +67,7 @@ renderer.code = function (token) {
 
   return (
     `<div class="md-code-block">` +
-    `<div class="md-code-header">${langLabel}<button class="md-copy-btn btn btn-secondary" data-code="${encodeURIComponent(code)}">Copy</button></div>` +
+    `<div class="md-code-header">${langLabel}<button type="button" class="md-copy-btn btn btn-secondary" data-code="${encodeURIComponent(code)}">${escapeHtml(t('clipboard_copy.copy'))}</button></div>` +
     `<pre><code class="language-${lang}">${highlightedCode}</code></pre>` +
     `</div>`
   );
@@ -223,16 +230,33 @@ export function renderMarkdown(text: string, options: RenderMarkdownOptions = {}
  * </div>
  * ```
  */
-export function handleMarkdownCopyClick(e: MouseEvent): void {
-  const btn = (e.target as HTMLElement).closest('button.md-copy-btn') as HTMLButtonElement | null;
-  if (!btn) return;
+export async function handleMarkdownCopyClick(e: MouseEvent): Promise<void> {
+  if (!(e.target instanceof Element)) return;
+  const btn = e.target.closest<HTMLButtonElement>('button.md-copy-btn');
+  if (!btn || btn.disabled) return;
 
-  const code = decodeURIComponent(btn.dataset.code ?? '');
-  navigator.clipboard
-    .writeText(code)
-    .catch((err) => console.warn('[markdown] Copy to clipboard failed:', err));
-  btn.textContent = 'Copied!';
+  let code: string;
+  try {
+    code = decodeURIComponent(btn.dataset.code ?? '');
+  } catch {
+    await feedbackService.report({
+      source: 'frontend',
+      kind: 'manual',
+      severity: 'error',
+      retryable: false,
+      context: { message: t('clipboard_copy.error') },
+    });
+    return;
+  }
+  btn.disabled = true;
+  const copied = await copyText(code);
+  if (!copied) {
+    btn.disabled = false;
+    return;
+  }
+  btn.textContent = t('clipboard_copy.copied');
   setTimeout(() => {
-    btn.textContent = 'Copy';
+    btn.textContent = t('clipboard_copy.copy');
+    btn.disabled = false;
   }, 2000);
 }

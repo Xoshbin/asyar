@@ -866,5 +866,11 @@
     "panel_events": {
       "pause_display": "Pause display"
     }
+  },
+  "clipboard_copy": {
+    "copy": "Copy",
+    "copied": "Copied!",
+    "success": "Copied to clipboard",
+    "error": "Could not copy to clipboard. Try again."
   }
 }
