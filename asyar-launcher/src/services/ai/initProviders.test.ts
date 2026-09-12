@@ -11,6 +11,13 @@ describe('initProviders', () => {
     vi.clearAllMocks();
   });
 
+  it('exposes native Google Search', () => {
+    initProviders();
+    expect(providerRegistry.list().find((p) => p.id === 'google')?.supportsHostedWebSearch).toBe(
+      true,
+    );
+  });
+
   it('registers exactly 6 provider plugins', () => {
     initProviders();
     expect(providerRegistry.list()).toHaveLength(6);

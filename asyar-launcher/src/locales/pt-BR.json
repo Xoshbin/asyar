@@ -285,6 +285,8 @@
       "type_theme": "Tema"
     },
     "ai": {
+      "google_search": "Pesquisa Google",
+      "google_search_description": "Permita que o Gemini pesquise na web e mostre fontes. Usa sua chave de API do Gemini. Combinar pesquisa com ferramentas do agente exige um modelo Gemini 3; podem ser aplicadas cobranças de pesquisa do provedor.",
       "no_provider": "Nenhum provedor de IA configurado ainda",
       "tab_continues_last_thread": "Tab continua a última conversa",
       "tab_continues_last_thread_description": "Pressionar Tab no launcher reabre a conversa anterior em vez de iniciar uma nova.",
@@ -650,7 +652,9 @@
       "you": "Você",
       "copy_message": "Copiar mensagem",
       "searching": "Pesquisando…",
-      "error_open_ai_settings": "Não foi possível abrir as configurações de IA. Tente novamente."
+      "error_open_ai_settings": "Não foi possível abrir as configurações de IA. Tente novamente.",
+      "sources": "Fontes",
+      "google_search_suggestions": "Sugestões da Pesquisa Google"
     },
     "sticky": {
       "new_sticky": "Novo lembrete",
