@@ -216,6 +216,28 @@ pub fn apply_linux_webkit_dmabuf_workaround() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|arg| arg == "mcp-server" || arg == "--mcp") {
+        let rt = match tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(rt) => rt,
+            Err(e) => {
+                eprintln!("[asyar mcp] Failed to create Tokio runtime: {e}");
+                std::process::exit(1);
+            }
+        };
+
+        rt.block_on(async {
+            let registry = mcp::server::create_default_mcp_registry();
+            if let Err(e) = mcp::server::run_stdio_server(registry).await {
+                eprintln!("[asyar mcp] Server exited with error: {e}");
+            }
+        });
+        return;
+    }
+
     // Build the MCP transport factory before entering the builder chain. Its
     // runtime resolver starts with no `AppHandle`; `setup_app` wires the real
     // one in once it's available (see `AppRuntimeResolver`).

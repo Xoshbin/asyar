@@ -336,6 +336,80 @@ pub fn parse_cli_stream_line(engine: &str, line: &str) -> Vec<ChatStreamEventPay
     events
 }
 
+/// Helper that registers or updates the "asyar" MCP server entry in the given config JSON file.
+pub fn register_mcp_server_in_config(config_file: &Path, current_exe_str: &str) -> bool {
+    let mut doc: serde_json::Value = if config_file.is_file() {
+        match std::fs::read_to_string(config_file) {
+            Ok(content) => serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({})),
+            Err(_) => serde_json::json!({}),
+        }
+    } else {
+        serde_json::json!({})
+    };
+
+    if !doc.is_object() {
+        doc = serde_json::json!({});
+    }
+
+    let mcp_servers = match doc.get_mut("mcpServers") {
+        Some(v) if v.is_object() => v,
+        _ => {
+            doc["mcpServers"] = serde_json::json!({});
+            &mut doc["mcpServers"]
+        }
+    };
+
+    let needs_update = match mcp_servers.get("asyar") {
+        Some(asyar_entry) => {
+            let cmd = asyar_entry.get("command").and_then(|c| c.as_str());
+            let args = asyar_entry.get("args").and_then(|a| a.as_array());
+            let has_mcp_arg =
+                args.is_some_and(|arr| arr.iter().any(|v| v.as_str() == Some("mcp-server")));
+            cmd != Some(current_exe_str) || !has_mcp_arg
+        }
+        None => true,
+    };
+
+    if needs_update {
+        if let Some(servers_map) = mcp_servers.as_object_mut() {
+            servers_map.insert(
+                "asyar".to_string(),
+                serde_json::json!({
+                    "command": current_exe_str,
+                    "args": ["mcp-server"]
+                }),
+            );
+
+            if let Some(parent) = config_file.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if let Ok(formatted) = serde_json::to_string_pretty(&doc) {
+                if std::fs::write(config_file, formatted).is_ok() {
+                    log::info!("[asyar mcp] Registered asyar MCP server in {config_file:?}");
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Ensures that Asyar is registered as a local MCP server in Google Antigravity CLI's configuration
+/// (~/.gemini/config/mcp_config.json), allowing `agy` to discover and invoke Asyar's tools.
+pub fn ensure_mcp_registered_for_agy() {
+    let Some(home) = resolve_home_dir() else {
+        return;
+    };
+    let config_file = home.join(".gemini/config/mcp_config.json");
+
+    let Ok(current_exe) = std::env::current_exe() else {
+        return;
+    };
+    let current_exe_str = current_exe.to_string_lossy().to_string();
+
+    register_mcp_server_in_config(&config_file, &current_exe_str);
+}
+
 /// Executes a prompt using a local CLI runtime process and streams tokens back to `on_event`.
 pub async fn cli_stream_chat_impl<F>(
     provider_id: &str,
@@ -365,12 +439,16 @@ where
 
     match normalize_engine(engine_type) {
         "google" => {
-            // agy -p <prompt> --output-format stream-json --disable-slash-commands
+            // Ensure Asyar's MCP server is registered with agy so agy can discover Asyar's tools
+            ensure_mcp_registered_for_agy();
+
+            // agy -p <prompt> --output-format stream-json --disable-slash-commands --dangerously-skip-permissions
             cmd.arg("-p")
                 .arg(&prompt)
                 .arg("--output-format")
                 .arg("stream-json")
-                .arg("--disable-slash-commands");
+                .arg("--disable-slash-commands")
+                .arg("--dangerously-skip-permissions");
 
             let model = params.model_id.trim();
             // If the model is an obsolete/incompatible API-only model name like "gemini-2.5-flash", "gemini-1.5-flash", etc.,
@@ -603,5 +681,52 @@ mod tests {
         assert!(prompt.contains("User: First question"));
         assert!(prompt.contains("Assistant: First answer"));
         assert!(prompt.contains("User: Second question"));
+    }
+
+    #[test]
+    fn test_register_mcp_server_in_config_creates_and_preserves() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("asyar_test_mcp_{}", uuid::Uuid::new_v4()));
+        let config_file = temp_dir.join("mcp_config.json");
+
+        // Seed with existing server
+        let initial = serde_json::json!({
+            "mcpServers": {
+                "other-server": {
+                    "command": "node",
+                    "args": ["server.js"]
+                }
+            }
+        });
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        std::fs::write(&config_file, initial.to_string()).unwrap();
+
+        // Register asyar
+        let updated = register_mcp_server_in_config(&config_file, "/path/to/asyar");
+        assert!(updated, "Should update config on first registration");
+
+        // Read back and verify
+        let content = std::fs::read_to_string(&config_file).unwrap();
+        let doc: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        assert_eq!(
+            doc["mcpServers"]["other-server"]["command"], "node",
+            "Existing server must be preserved"
+        );
+        assert_eq!(doc["mcpServers"]["asyar"]["command"], "/path/to/asyar");
+        assert_eq!(
+            doc["mcpServers"]["asyar"]["args"],
+            serde_json::json!(["mcp-server"])
+        );
+
+        // Calling again with same path should not update
+        let second_call = register_mcp_server_in_config(&config_file, "/path/to/asyar");
+        assert!(
+            !second_call,
+            "Should not update if already configured identically"
+        );
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }
