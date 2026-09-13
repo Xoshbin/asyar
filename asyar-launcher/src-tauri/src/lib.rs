@@ -824,6 +824,7 @@ pub fn run() {
             commands::agents::agents_clear_cached,
             commands::agents::agents_promote_cached,
             ai::models::ai_list_models,
+            ai::commands::ai_check_cli_status,
             agents::editor::agents_editor_load,
             agents::editor::agents_editor_list_models,
             agents::editor::agents_editor_save,

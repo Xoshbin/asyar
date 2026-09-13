@@ -1,3 +1,14 @@
+<script module lang="ts">
+  import type { ModelInfo } from '../../../services/ai/IProviderPlugin';
+
+  // Module-level session cache for fetched model lists across tab transitions
+  let sessionModelCache = $state<Record<string, ModelInfo[]>>({});
+
+  export function clearSessionModelCache(): void {
+    sessionModelCache = {};
+  }
+</script>
+
 <script lang="ts">
   import {
     SettingsRow,
@@ -12,7 +23,7 @@
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { providerRegistry } from '../../../services/ai/providerRegistry';
   import { agentService } from '../../../built-in-features/agents/agentService.svelte';
-  import { agentsProviderRemovalBlockers } from '../../../lib/ipc/commands';
+  import { agentsProviderRemovalBlockers, aiCheckCliStatus } from '../../../lib/ipc/commands';
   import { t } from '../../../services/i18n';
   import {
     availableProvidersForNewRow,
@@ -23,12 +34,13 @@
     reasoningEffortsForModel,
   } from './AiTab.helpers';
   import type {
+    ConnectionMode,
     IProviderPlugin,
-    ModelInfo,
     OpenAIApiMode,
     ProviderConfig,
     ReasoningEffort,
   } from '../../../services/ai/IProviderPlugin';
+  import type { CliStatus } from '../../../bindings';
   import type { ProviderId } from '../../../services/settings/types/AppSettingsType';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
 
@@ -37,10 +49,12 @@
 
   let settings = $derived(settingsService.currentSettings.ai);
 
-  // Session-cached model lists — not persisted, re-fetched on next launch
-  let modelCache = $state<Record<string, ModelInfo[]>>({});
+  // Session-cached model lists — persists across tab switches in the same session
+  let modelCache = $derived(sessionModelCache);
   let fetchingModels = $state<Record<string, boolean>>({});
   let fetchErrors = $state<Record<string, string>>({});
+  let cliStatuses = $state<Record<string, CliStatus>>({});
+  let checkingCli = $state<Record<string, boolean>>({});
   // Track custom-model-id input mode per provider
   let customModelMode = $state<Record<string, boolean>>({});
   // Why a provider removal was refused, keyed by provider id. Shown inline
@@ -115,7 +129,7 @@
     try {
       const config = getConfig(providerId);
       const models = await plugin.getModels(config);
-      modelCache = { ...modelCache, [providerId]: models };
+      sessionModelCache = { ...sessionModelCache, [providerId]: models };
       fetchErrors = { ...fetchErrors, [providerId]: '' };
       // Seed the effective model so the ★ default button is enabled even when
       // the user keeps the pre-selected first entry (which fires no onchange).
@@ -135,11 +149,57 @@
         ...fetchErrors,
         [providerId]: e instanceof Error ? e.message : 'Failed to fetch models',
       };
-      modelCache = { ...modelCache, [providerId]: [] };
+      sessionModelCache = { ...sessionModelCache, [providerId]: [] };
     } finally {
       fetchingModels = { ...fetchingModels, [providerId]: false };
     }
   }
+
+  async function checkCli(providerId: string, customPath?: string) {
+    checkingCli = { ...checkingCli, [providerId]: true };
+    try {
+      const plugin = getPlugin(providerId);
+      const engineType = plugin?.id ?? providerId;
+      const status = await aiCheckCliStatus(engineType, customPath);
+      cliStatuses = { ...cliStatuses, [providerId]: status };
+    } catch (e: unknown) {
+      cliStatuses = {
+        ...cliStatuses,
+        [providerId]: {
+          installed: false,
+          path: null,
+          version: null,
+          error: e instanceof Error ? e.message : t('settings.ai.probe_cli_error'),
+        },
+      };
+    } finally {
+      checkingCli = { ...checkingCli, [providerId]: false };
+    }
+  }
+
+  $effect(() => {
+    for (const id of configuredIds) {
+      const p = getPlugin(id);
+      const cfg = getConfig(id);
+      if (
+        p?.supportsCliMode &&
+        cfg.connectionMode === 'cli' &&
+        !cliStatuses[id] &&
+        !checkingCli[id]
+      ) {
+        checkCli(id, cfg.cliBinaryPath);
+      }
+      if (
+        p &&
+        canTestAndFetch(p, cfg) &&
+        (cfg.connectionMode === 'cli' || cfg.lastModelId) &&
+        !sessionModelCache[id]?.length &&
+        !fetchingModels[id]
+      ) {
+        void fetchModels(id, p);
+      }
+    }
+  });
 
   function isDefault(id: string): boolean {
     const agent = agentService.getDefaultAgent();
@@ -325,18 +385,24 @@
             {@const plugin = getPlugin(providerId)}
             {@const config = getConfig(providerId)}
             {@const cachedModels = modelCache[providerId] ?? []}
+            {@const effectiveModels =
+              cachedModels.length > 0
+                ? cachedModels
+                : config.lastModelId
+                  ? [{ id: config.lastModelId, label: config.lastModelId }]
+                  : []}
             {@const isFetching = !!fetchingModels[providerId]}
             {@const fetchError = fetchErrors[providerId] ?? ''}
             {@const removeError = removeErrors[providerId] ?? ''}
             {@const defaultAgentError = defaultAgentErrors[providerId] ?? ''}
             {@const defaultRow = isDefault(providerId)}
-            {@const canBeDefault = !!config.lastModelId || cachedModels.length > 0}
+            {@const canBeDefault = !!config.lastModelId || effectiveModels.length > 0}
             {@const useCustomInput = customModelMode[providerId] ?? false}
             {@const openAIApiMode = config.openAIApiMode ?? 'chat-completions'}
-            {@const selectedModelId = config.lastModelId ?? cachedModels[0]?.id}
+            {@const selectedModelId = config.lastModelId ?? effectiveModels[0]?.id}
             {@const reasoningEfforts = reasoningEffortsForModel(
               plugin,
-              cachedModels,
+              effectiveModels,
               selectedModelId,
             )}
 
@@ -418,7 +484,99 @@
                     />
                   </div>
 
-                  {#if plugin?.requiresApiKey || plugin?.optionalApiKey}
+                  {#if plugin?.supportsCliMode}
+                    <div class="card-field">
+                      <label class="field-label" for="connection-mode-{providerId}"
+                        >Connection method</label
+                      >
+                      <select
+                        class="card-select"
+                        id="connection-mode-{providerId}"
+                        value={config.connectionMode ?? 'api_key'}
+                        onchange={(e) => {
+                          const mode = (e.currentTarget as HTMLSelectElement)
+                            .value as ConnectionMode;
+                          updateProviderConfig(providerId, { connectionMode: mode });
+                          if (mode === 'cli') {
+                            checkCli(providerId, config.cliBinaryPath);
+                          }
+                        }}
+                      >
+                        <option value="api_key">Direct API Key (HTTP)</option>
+                        <option value="cli">Local CLI ({plugin.cliName ?? 'CLI'})</option>
+                      </select>
+                      <p class="field-description">
+                        {#if config.connectionMode === 'cli'}
+                          Runs your local {plugin.cliName} CLI directly. Uses your existing terminal /
+                          subscription authentication without requiring an API key.
+                        {:else}
+                          Direct HTTP requests to the provider API using an API key.
+                        {/if}
+                      </p>
+                    </div>
+                  {/if}
+
+                  {#if config.connectionMode === 'cli'}
+                    <div class="cli-status-card">
+                      <div class="cli-status-header">
+                        <div class="cli-status-info">
+                          {#if checkingCli[providerId]}
+                            <span class="cli-status-pill checking">Checking CLI...</span>
+                          {:else if cliStatuses[providerId]?.installed}
+                            <span class="cli-status-pill installed">● Installed</span>
+                            {#if cliStatuses[providerId]?.version}
+                              <span class="cli-version">{cliStatuses[providerId]?.version}</span>
+                            {/if}
+                          {:else}
+                            <span class="cli-status-pill not-installed">○ Not Detected</span>
+                          {/if}
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="small"
+                          onclick={() => checkCli(providerId, config.cliBinaryPath)}
+                          disabled={checkingCli[providerId]}
+                        >
+                          {checkingCli[providerId] ? 'Checking...' : 'Refresh'}
+                        </Button>
+                      </div>
+                      {#if cliStatuses[providerId]?.installed && cliStatuses[providerId]?.path}
+                        <p class="cli-path-note">
+                          Binary: <code>{cliStatuses[providerId]?.path}</code>
+                        </p>
+                      {:else if cliStatuses[providerId] && !cliStatuses[providerId]?.installed}
+                        <p class="cli-path-error">
+                          {cliStatuses[providerId]?.error ??
+                            `${plugin?.cliName ?? 'CLI'} was not found in standard system paths.`}
+                        </p>
+                      {/if}
+                      <div class="card-field">
+                        <label class="field-label" for="cli-path-{providerId}">
+                          Custom CLI binary path <span class="field-hint">(optional)</span>
+                        </label>
+                        <Input
+                          unstyled
+                          textIntent="exact"
+                          class="card-input"
+                          id="cli-path-{providerId}"
+                          type="text"
+                          value={config.cliBinaryPath ?? ''}
+                          placeholder={plugin?.id === 'google'
+                            ? '/Users/.../.local/bin/agy'
+                            : '/opt/homebrew/bin/codex'}
+                          autocomplete="off"
+                          onblur={(e) => {
+                            const path =
+                              (e.currentTarget as HTMLInputElement).value.trim() || undefined;
+                            updateProviderConfig(providerId, { cliBinaryPath: path });
+                            checkCli(providerId, path);
+                          }}
+                        />
+                      </div>
+                    </div>
+                  {/if}
+
+                  {#if (plugin?.requiresApiKey || plugin?.optionalApiKey) && config.connectionMode !== 'cli'}
                     <div class="card-field">
                       <label class="field-label" for="apikey-{providerId}">
                         API Key{#if !plugin?.requiresApiKey}
@@ -464,7 +622,7 @@
                     </div>
                   {/if}
 
-                  {#if plugin?.supportsOpenAIApiMode}
+                  {#if plugin?.supportsOpenAIApiMode && config.connectionMode !== 'cli'}
                     <div class="card-field">
                       <label class="field-label" for="openai-api-mode-{providerId}"
                         >API format</label
@@ -491,7 +649,7 @@
                     </div>
                   {/if}
 
-                  {#if plugin?.supportsHostedWebSearch && (providerId !== 'openai' || openAIApiMode === 'responses')}
+                  {#if plugin?.supportsHostedWebSearch && config.connectionMode !== 'cli' && (providerId !== 'openai' || openAIApiMode === 'responses')}
                     <div class="hosted-search-setting">
                       <div class="hosted-search-heading">
                         <label class="field-label" for="hosted-web-search-{providerId}">
@@ -535,19 +693,19 @@
                   {/if}
 
                   <!-- Model picker -->
-                  {#if cachedModels.length > 0 && !useCustomInput}
+                  {#if effectiveModels.length > 0 && !useCustomInput}
                     <div class="card-field">
                       <label class="field-label" for="model-{providerId}">Model</label>
                       <ModelSelector
                         id="model-{providerId}"
-                        models={cachedModels}
-                        value={config.lastModelId ?? cachedModels[0]?.id}
+                        models={effectiveModels}
+                        value={config.lastModelId ?? effectiveModels[0]?.id}
                         onchange={async (val) => {
                           updateProviderConfig(providerId, {
                             lastModelId: val,
                             reasoningEffort: reasoningEffortAfterModelChange(
                               plugin,
-                              cachedModels,
+                              effectiveModels,
                               val,
                               config.reasoningEffort,
                             ),
@@ -567,7 +725,7 @@
                         }}
                       />
                     </div>
-                  {:else if useCustomInput || fetchError || (!cachedModels.length && !isFetching && !plugin?.requiresApiKey && !plugin?.requiresBaseUrl)}
+                  {:else if useCustomInput || fetchError || (!effectiveModels.length && !isFetching && (config.connectionMode === 'cli' || (!plugin?.requiresApiKey && !plugin?.requiresBaseUrl)))}
                     <div class="card-field">
                       <label class="field-label" for="model-manual-{providerId}">
                         Model
@@ -591,7 +749,7 @@
                                 lastModelId: val,
                                 reasoningEffort: reasoningEffortAfterModelChange(
                                   plugin,
-                                  cachedModels,
+                                  effectiveModels,
                                   val,
                                   config.reasoningEffort,
                                 ),
@@ -1042,6 +1200,78 @@
     padding: 0;
     white-space: nowrap;
     text-decoration: underline;
+  }
+
+  .cli-status-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+  }
+
+  .cli-status-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .cli-status-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .cli-status-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: var(--space-0-5) var(--space-2);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+  }
+
+  .cli-status-pill.installed {
+    color: var(--accent-success);
+    background: var(--bg-primary);
+  }
+
+  .cli-status-pill.not-installed {
+    color: var(--accent-danger);
+    background: var(--bg-primary);
+  }
+
+  .cli-status-pill.checking {
+    color: var(--text-tertiary);
+    background: var(--bg-primary);
+  }
+
+  .cli-version {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+  }
+
+  .cli-path-note {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+
+  .cli-path-note code {
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+  }
+
+  .cli-path-error {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--accent-danger);
   }
 
   .anchor-group {

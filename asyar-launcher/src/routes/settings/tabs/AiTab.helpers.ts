@@ -27,6 +27,7 @@ export function canTestAndFetch(
 ): boolean {
   if (!plugin) return false;
   if (!config) return false;
+  if (config.connectionMode === 'cli') return true;
   if (plugin.requiresApiKey && !config.apiKey?.trim()) return false;
   if (plugin.requiresBaseUrl && !config.baseUrl?.trim()) return false;
   return true;

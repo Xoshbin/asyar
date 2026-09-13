@@ -29,12 +29,24 @@ pub async fn ai_stream_chat_impl<F>(
     config: ProviderConfig,
     messages: Vec<ChatMessage>,
     params: ChatParams,
-    _stream_id: String,
+    stream_id: String,
     on_event: F,
 ) -> Result<(), AppError>
 where
     F: Fn(ChatStreamEventPayload) + Send + Sync + 'static,
 {
+    if config.connection_mode.as_deref() == Some("cli") {
+        return crate::ai::cli::cli_stream_chat_impl(
+            provider_id,
+            config,
+            messages,
+            params,
+            stream_id,
+            on_event,
+        )
+        .await;
+    }
+
     let spec = providers::build_request(provider_id, &config, &messages, &params)?;
 
     let client = reqwest::Client::new();
@@ -110,6 +122,14 @@ where
     Ok(())
 }
 
+#[tauri::command]
+pub async fn ai_check_cli_status(
+    provider_id: String,
+    custom_path: Option<String>,
+) -> Result<crate::ai::types::CliStatus, AppError> {
+    Ok(crate::ai::cli::check_cli_status(&provider_id, custom_path.as_deref()).await)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,16 +164,9 @@ mod tests {
 
         let config = ProviderConfig {
             enabled: true,
-            name: None,
-            provider_type: None,
             api_key: Some("key".to_string()),
             base_url: Some(format!("http://{}", addr)),
-            last_model_id: None,
-            open_ai_api_mode: None,
-            hosted_web_search: None,
-            reasoning_effort: None,
-            temperature: None,
-            max_tokens: None,
+            ..Default::default()
         };
 
         let result = ai_stream_chat_impl(

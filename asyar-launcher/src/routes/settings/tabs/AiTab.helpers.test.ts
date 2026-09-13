@@ -59,6 +59,11 @@ describe('canTestAndFetch', () => {
       true,
     );
   });
+
+  it('returns true when connectionMode is cli even if requiresApiKey is true and apiKey is missing', () => {
+    const plugin = makePlugin('google', { requiresApiKey: true, supportsCliMode: true });
+    expect(canTestAndFetch(plugin, { enabled: true, connectionMode: 'cli' })).toBe(true);
+  });
 });
 
 describe('configForNewProvider', () => {

@@ -10,6 +10,8 @@ export interface ModelInfo {
   reasoningEfforts?: ReasoningEffort[];
 }
 
+export type ConnectionMode = 'api_key' | 'cli';
+
 export interface ProviderConfig {
   enabled: boolean;
   name?: string;
@@ -22,6 +24,8 @@ export interface ProviderConfig {
   reasoningEffort?: ReasoningEffort;
   temperature?: number;
   maxTokens?: number;
+  connectionMode?: ConnectionMode;
+  cliBinaryPath?: string;
 }
 
 export type ChatStreamStatus = 'searching';
@@ -51,6 +55,8 @@ export interface IProviderPlugin {
 
   readonly supportsOpenAIApiMode?: boolean;
   readonly supportsHostedWebSearch?: boolean;
+  readonly supportsCliMode?: boolean;
+  readonly cliName?: string;
   readonly reasoningEfforts?: readonly ReasoningEffort[];
 
   getModels(config: ProviderConfig): Promise<ModelInfo[]>;

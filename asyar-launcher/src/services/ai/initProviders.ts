@@ -21,6 +21,8 @@ const PROVIDERS: IProviderPlugin[] = [
     requiresBaseUrl: false,
     supportsOpenAIApiMode: true,
     supportsHostedWebSearch: true,
+    supportsCliMode: true,
+    cliName: 'OpenAI Codex CLI (codex)',
   }),
   descriptor({
     id: 'anthropic',
@@ -34,6 +36,8 @@ const PROVIDERS: IProviderPlugin[] = [
     supportsHostedWebSearch: true,
     requiresApiKey: true,
     requiresBaseUrl: false,
+    supportsCliMode: true,
+    cliName: 'Google Antigravity CLI (agy)',
     reasoningEfforts: ['minimal', 'low', 'medium', 'high'],
   }),
   descriptor({
