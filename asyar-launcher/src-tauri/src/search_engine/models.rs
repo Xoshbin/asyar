@@ -501,6 +501,7 @@ mod bindings_export {
             .register::<crate::ai::types::GeminiGrounding>()
             .register::<crate::ai::types::ProviderConfig>()
             .register::<crate::ai::types::CliStatus>()
+            .register::<crate::ai::types::CliAccountInfo>()
             .register::<crate::ai::types::ModelInfo>()
             .register::<crate::ai::types::ChatParams>()
             .register::<crate::ai::types::ChatStreamEvent>()

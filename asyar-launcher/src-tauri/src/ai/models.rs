@@ -506,7 +506,18 @@ pub async fn list_models_impl(
 ) -> Result<Vec<ModelInfo>, AppError> {
     let engine_type = config.provider_type.as_deref().unwrap_or(provider_id);
     if config.connection_mode.as_deref() == Some("cli") {
-        if crate::ai::cli::normalize_engine(engine_type) == "google" {
+        let normalized = crate::ai::cli::normalize_engine(engine_type);
+        if normalized == "openai" {
+            if let Some(bin) =
+                crate::ai::cli::resolve_cli_binary(engine_type, config.cli_binary_path.as_deref())
+            {
+                if let Ok(models) = crate::ai::codex_client::CodexClient::list_models(&bin).await {
+                    if !models.is_empty() {
+                        return Ok(models);
+                    }
+                }
+            }
+        } else if normalized == "google" {
             if let Some(bin) =
                 crate::ai::cli::resolve_cli_binary(engine_type, config.cli_binary_path.as_deref())
             {

@@ -53,11 +53,21 @@ pub struct ProviderConfig {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
+pub struct CliAccountInfo {
+    pub email: Option<String>,
+    pub plan_type: Option<String>,
+    pub quota_used_percent: Option<u32>,
+    pub quota_resets_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
 pub struct CliStatus {
     pub installed: bool,
     pub path: Option<String>,
     pub version: Option<String>,
     pub error: Option<String>,
+    pub account: Option<CliAccountInfo>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]

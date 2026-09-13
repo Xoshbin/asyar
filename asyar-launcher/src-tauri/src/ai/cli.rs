@@ -115,10 +115,24 @@ pub async fn check_cli_status(engine: &str, custom_path: Option<&str>) -> CliSta
             path: None,
             version: None,
             error: Some(format!("{name} CLI binary not found on this machine.")),
+            account: None,
         };
     };
 
     let path_str = bin_path.to_string_lossy().to_string();
+
+    // If OpenAI, ensure MCP registration and probe account & rate limits via codex app-server
+    let account = if normalize_engine(engine) == "openai" {
+        ensure_mcp_registered_for_codex();
+        crate::ai::codex_client::CodexClient::probe_account(&bin_path)
+            .await
+            .ok()
+    } else {
+        if normalize_engine(engine) == "google" {
+            ensure_mcp_registered_for_agy();
+        }
+        None
+    };
 
     // Query version with a short timeout
     let version_cmd = Command::new(&bin_path).arg("--version").output();
@@ -137,6 +151,7 @@ pub async fn check_cli_status(engine: &str, custom_path: Option<&str>) -> CliSta
                     path: Some(path_str),
                     version: Some(version),
                     error: None,
+                    account,
                 }
             } else {
                 let err_msg = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -149,6 +164,7 @@ pub async fn check_cli_status(engine: &str, custom_path: Option<&str>) -> CliSta
                     } else {
                         err_msg
                     }),
+                    account,
                 }
             }
         }
@@ -157,12 +173,14 @@ pub async fn check_cli_status(engine: &str, custom_path: Option<&str>) -> CliSta
             path: Some(path_str),
             version: None,
             error: Some(format!("Failed to execute CLI binary: {e}")),
+            account: None,
         },
         Err(_) => CliStatus {
             installed: true,
             path: Some(path_str),
             version: None,
             error: Some("Timeout querying CLI version".to_string()),
+            account: None,
         },
     }
 }
@@ -410,6 +428,55 @@ pub fn ensure_mcp_registered_for_agy() {
     register_mcp_server_in_config(&config_file, &current_exe_str);
 }
 
+/// Ensures that Asyar is registered as a local MCP server in OpenAI Codex's configuration
+/// (~/.codex/config.toml), allowing `codex` / `codex app-server` to discover and invoke Asyar's tools.
+pub fn ensure_mcp_registered_for_codex() {
+    let Some(home) = resolve_home_dir() else {
+        return;
+    };
+    let config_file = home.join(".codex/config.toml");
+
+    let Ok(current_exe) = std::env::current_exe() else {
+        return;
+    };
+    let current_exe_str = current_exe.to_string_lossy().to_string();
+
+    let content = std::fs::read_to_string(&config_file).unwrap_or_default();
+    if content.contains("[mcp_servers.asyar]") && content.contains(&current_exe_str) {
+        return;
+    }
+
+    if let Some(parent) = config_file.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    let new_section = format!(
+        "\n[mcp_servers.asyar]\ncommand = \"{current_exe_str}\"\nargs = [\"mcp-server\"]\n"
+    );
+
+    if content.contains("[mcp_servers.asyar]") {
+        let mut lines = Vec::new();
+        let mut skipping = false;
+        for line in content.lines() {
+            if line.trim() == "[mcp_servers.asyar]" {
+                skipping = true;
+                continue;
+            }
+            if skipping && line.trim().starts_with('[') {
+                skipping = false;
+            }
+            if !skipping {
+                lines.push(line);
+            }
+        }
+        let updated = format!("{}\n{}", lines.join("\n"), new_section);
+        let _ = std::fs::write(&config_file, updated);
+    } else {
+        let updated = format!("{}{}", content, new_section);
+        let _ = std::fs::write(&config_file, updated);
+    }
+}
+
 /// Executes a prompt using a local CLI runtime process and streams tokens back to `on_event`.
 pub async fn cli_stream_chat_impl<F>(
     provider_id: &str,
@@ -435,13 +502,34 @@ where
 
     let prompt = build_cli_prompt(&messages, &params);
 
+    match normalize_engine(engine_type) {
+        "openai" => {
+            ensure_mcp_registered_for_codex();
+            let model = if params.model_id.trim().is_empty() {
+                None
+            } else {
+                Some(params.model_id.trim())
+            };
+            return crate::ai::codex_client::CodexClient::stream_turn(
+                &bin_path,
+                &prompt,
+                model,
+                config.reasoning_effort.as_deref(),
+                on_event,
+            )
+            .await;
+        }
+        "google" => {
+            // Ensure Asyar's MCP server is registered with agy so agy can discover Asyar's tools
+            ensure_mcp_registered_for_agy();
+        }
+        _ => {}
+    }
+
     let mut cmd = Command::new(&bin_path);
 
     match normalize_engine(engine_type) {
         "google" => {
-            // Ensure Asyar's MCP server is registered with agy so agy can discover Asyar's tools
-            ensure_mcp_registered_for_agy();
-
             // agy -p <prompt> --output-format stream-json --disable-slash-commands --dangerously-skip-permissions
             cmd.arg("-p")
                 .arg(&prompt)
@@ -469,19 +557,6 @@ where
                     cmd.arg("--effort").arg(effort);
                 }
             }
-        }
-        "openai" => {
-            // codex exec --json --ephemeral [prompt]
-            cmd.arg("exec")
-                .arg("--json")
-                .arg("--ephemeral")
-                .arg("--skip-git-repo-check");
-
-            if !params.model_id.trim().is_empty() {
-                cmd.arg("-m").arg(&params.model_id);
-            }
-
-            cmd.arg(&prompt);
         }
         _ => {
             cmd.arg(&prompt);
@@ -728,5 +803,18 @@ mod tests {
 
         // Cleanup
         let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[tokio::test]
+    async fn test_check_cli_status_codex_if_installed() {
+        if resolve_cli_binary("openai", None).is_some() {
+            let status = check_cli_status("openai", None).await;
+            assert!(status.installed);
+            assert!(status.version.is_some());
+            if let Some(account) = status.account {
+                assert!(account.email.is_some());
+                assert!(account.plan_type.is_some());
+            }
+        }
     }
 }

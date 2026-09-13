@@ -170,6 +170,7 @@
           path: null,
           version: null,
           error: e instanceof Error ? e.message : t('settings.ai.probe_cli_error'),
+          account: null,
         },
       };
     } finally {
@@ -526,6 +527,21 @@
                             <span class="cli-status-pill installed">● Installed</span>
                             {#if cliStatuses[providerId]?.version}
                               <span class="cli-version">{cliStatuses[providerId]?.version}</span>
+                            {/if}
+                            {#if cliStatuses[providerId]?.account?.email}
+                              <span class="cli-account-pill">
+                                {cliStatuses[providerId]?.account?.email}
+                                {#if cliStatuses[providerId]?.account?.planType}
+                                  <span class="cli-plan-badge"
+                                    >({cliStatuses[providerId]?.account?.planType})</span
+                                  >
+                                {/if}
+                              </span>
+                            {/if}
+                            {#if cliStatuses[providerId]?.account?.quotaUsedPercent !== null && cliStatuses[providerId]?.account?.quotaUsedPercent !== undefined}
+                              <span class="cli-quota-pill"
+                                >{cliStatuses[providerId]?.account?.quotaUsedPercent}% quota used</span
+                              >
                             {/if}
                           {:else}
                             <span class="cli-status-pill not-installed">○ Not Detected</span>
@@ -1254,6 +1270,33 @@
   .cli-version {
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
+    font-family: var(--font-mono);
+  }
+
+  .cli-account-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-primary);
+    padding: var(--space-0-5) var(--space-2);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+  }
+
+  .cli-plan-badge {
+    text-transform: capitalize;
+    font-weight: 600;
+    color: var(--accent-primary);
+  }
+
+  .cli-quota-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
     font-family: var(--font-mono);
   }
 
