@@ -1,5 +1,5 @@
 use crate::ai::types::{
-    ChatMessage, ChatParams, ChatStreamEventPayload, CliStatus, ProviderConfig,
+    ChatMessage, ChatParams, ChatStreamEventPayload, CliAccountInfo, CliStatus, ProviderConfig,
 };
 use crate::error::AppError;
 use futures_util::StreamExt;
@@ -121,16 +121,17 @@ pub async fn check_cli_status(engine: &str, custom_path: Option<&str>) -> CliSta
 
     let path_str = bin_path.to_string_lossy().to_string();
 
-    // If OpenAI, ensure MCP registration and probe account & rate limits via codex app-server
+    // If OpenAI, ensure MCP registration and probe account & rate limits via codex app-server.
+    // If Google, ensure MCP registration and probe active account from ~/.gemini.
     let account = if normalize_engine(engine) == "openai" {
         ensure_mcp_registered_for_codex();
         crate::ai::codex_client::CodexClient::probe_account(&bin_path)
             .await
             .ok()
+    } else if normalize_engine(engine) == "google" {
+        ensure_mcp_registered_for_agy();
+        probe_agy_account()
     } else {
-        if normalize_engine(engine) == "google" {
-            ensure_mcp_registered_for_agy();
-        }
         None
     };
 
@@ -410,6 +411,49 @@ pub fn register_mcp_server_in_config(config_file: &Path, current_exe_str: &str) 
         }
     }
     false
+}
+
+/// Probes Google Antigravity account status from ~/.gemini/google_accounts.json and settings.json
+pub fn probe_agy_account() -> Option<CliAccountInfo> {
+    let home = resolve_home_dir()?;
+    let accounts_file = home.join(".gemini/google_accounts.json");
+    if !accounts_file.is_file() {
+        return None;
+    }
+
+    let content = std::fs::read_to_string(&accounts_file).ok()?;
+    let doc: serde_json::Value = serde_json::from_str(&content).ok()?;
+    let active_email = doc
+        .get("active")
+        .and_then(|v| v.as_str())?
+        .trim()
+        .to_string();
+    if active_email.is_empty() {
+        return None;
+    }
+
+    let mut plan_type = None;
+    let settings_file = home.join(".gemini/settings.json");
+    if let Ok(settings_content) = std::fs::read_to_string(&settings_file) {
+        if let Ok(settings_doc) = serde_json::from_str::<serde_json::Value>(&settings_content) {
+            if let Some(auth_type) = settings_doc
+                .get("security")
+                .and_then(|s| s.get("auth"))
+                .and_then(|a| a.get("selectedType"))
+                .and_then(|t| t.as_str())
+            {
+                let clean_plan = auth_type.strip_prefix("oauth-").unwrap_or(auth_type);
+                plan_type = Some(clean_plan.to_string());
+            }
+        }
+    }
+
+    Some(CliAccountInfo {
+        email: Some(active_email),
+        plan_type,
+        quota_used_percent: None,
+        quota_resets_at: None,
+    })
 }
 
 /// Ensures that Asyar is registered as a local MCP server in Google Antigravity CLI's configuration
@@ -815,6 +859,19 @@ mod tests {
                 assert!(account.email.is_some());
                 assert!(account.plan_type.is_some());
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_check_cli_status_agy_if_installed() {
+        if resolve_cli_binary("google", None).is_some() {
+            let status = check_cli_status("google", None).await;
+            println!("Google CLI status: {status:?}");
+            assert!(status.installed);
+            assert!(status.version.is_some());
+            let account = status.account.expect("Should resolve agy account");
+            assert_eq!(account.email.as_deref(), Some("xoshbin@gmail.com"));
+            assert_eq!(account.plan_type.as_deref(), Some("personal"));
         }
     }
 }
