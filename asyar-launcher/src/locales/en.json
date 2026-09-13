@@ -653,6 +653,8 @@
       "streaming_cancel": "Streaming… ⌘K to cancel",
       "you": "You",
       "copy_message": "Copy message",
+      "copy_last_response": "Copy Last Response",
+      "copy_last_response_description": "Copy the latest assistant response in this thread",
       "searching": "Searching…",
       "sources": "Sources",
       "google_search_suggestions": "Google Search Suggestions",

@@ -9,6 +9,7 @@ import {
   messageBubbleVariant,
   handleCancelSend,
   resolveThreadId,
+  lastAssistantMessageText,
 } from './agentChatView.helpers';
 
 import type { ThreadDef, MessageDef } from './types';
@@ -306,5 +307,29 @@ describe('persisted Gemini grounding', () => {
     expect(extractGroundingFromMessage(message)).toEqual([display]);
     expect(extractGroundingFromMessage({ ...message, content: { text: 'No search' } })).toEqual([]);
     expect(extractGroundingFromMessage({ ...message, role: 'user' })).toEqual([]);
+  });
+});
+
+// ── lastAssistantMessageText ─────────────────────────────────────────────────
+
+describe('lastAssistantMessageText', () => {
+  it('returns null for an empty thread', () => {
+    expect(lastAssistantMessageText([])).toBeNull();
+  });
+
+  it('returns null when the thread only has user messages', () => {
+    const messages = [makeMessage({ role: 'user', content: { text: 'Hi' } })];
+    expect(lastAssistantMessageText(messages)).toBeNull();
+  });
+
+  it('returns the most recent assistant message, ignoring later user/tool messages', () => {
+    const messages = [
+      makeMessage({ id: 'm1', role: 'user', content: { text: 'first question' } }),
+      makeMessage({ id: 'm2', role: 'assistant', content: { text: 'first answer' } }),
+      makeMessage({ id: 'm3', role: 'user', content: { text: 'second question' } }),
+      makeMessage({ id: 'm4', role: 'assistant', content: { text: 'second answer' } }),
+      makeMessage({ id: 'm5', role: 'tool', content: { toolResult: { output: 'ignored' } } }),
+    ];
+    expect(lastAssistantMessageText(messages)).toBe('second answer');
   });
 });

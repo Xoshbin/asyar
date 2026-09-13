@@ -85,6 +85,16 @@ export function extractToolUsesFromMessage(msg: MessageDef): ToolCall[] {
   return toolUse ?? [];
 }
 
+// ── lastAssistantMessageText ──────────────────────────────────────────────────
+
+/** Text of the most recent assistant message, or null if there is none yet. */
+export function lastAssistantMessageText(messages: MessageDef[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'assistant') return extractTextFromMessage(messages[i]);
+  }
+  return null;
+}
+
 // ── messageBubbleVariant ──────────────────────────────────────────────────────
 
 export function messageBubbleVariant(msg: MessageDef): 'user' | 'assistant' | 'tool' {

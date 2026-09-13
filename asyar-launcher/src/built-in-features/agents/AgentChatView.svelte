@@ -13,6 +13,7 @@
     extractToolUsesFromMessage,
     messageBubbleVariant,
     resolveThreadId,
+    lastAssistantMessageText,
   } from './agentChatView.helpers';
   import EmptyState from '../../components/feedback/EmptyState.svelte';
   import { Button, IconButton, GoogleSearchSuggestions } from '../../components';
@@ -48,6 +49,7 @@
         agent = null;
         threads = [];
         messages = [];
+        agentsManager.lastAssistantMessageText = null;
         return;
       }
 
@@ -70,17 +72,22 @@
       if (resolvedThreadId !== currentThreadId) {
         agentsManager.currentThreadId = resolvedThreadId;
         messages = [];
+        agentsManager.lastAssistantMessageText = null;
         return;
       }
 
       if (!resolvedThreadId) {
         messages = [];
+        agentsManager.lastAssistantMessageText = null;
         return;
       }
 
       try {
         const nextMessages = await agentService.listMessages(resolvedThreadId);
-        if (!cancelled) messages = nextMessages;
+        if (!cancelled) {
+          messages = nextMessages;
+          agentsManager.lastAssistantMessageText = lastAssistantMessageText(nextMessages);
+        }
       } catch (err) {
         if (cancelled) return;
         logService.warn(`[agents] listMessages failed: ${err}`);

@@ -79,6 +79,7 @@ describe('AgentChatView', () => {
     agentsManager.currentAgentId = agent.id;
     agentsManager.currentThreadId = thread.id;
     agentsManager.sending = false;
+    agentsManager.lastAssistantMessageText = null;
   });
 
   afterEach(() => {
@@ -178,6 +179,52 @@ describe('AgentChatView', () => {
 
     await waitFor(() => expect(screen.queryByText('Stale message')).toBeNull());
     expect(screen.getByText('Current message')).toBeTruthy();
+  });
+
+  it('mirrors the latest assistant message onto agentsManager for copy-last-response', async () => {
+    mockedAgentService.listMessages.mockResolvedValue([
+      {
+        id: 'm1',
+        threadId: thread.id,
+        role: 'user',
+        content: { text: 'Hi' },
+        createdAt: 1,
+        runId: null,
+      },
+      {
+        id: 'm2',
+        threadId: thread.id,
+        role: 'assistant',
+        content: { text: 'Hello there' },
+        createdAt: 2,
+        runId: null,
+      },
+    ]);
+
+    render(AgentChatView);
+    await screen.findByText(thread.title);
+
+    await waitFor(() => expect(agentsManager.lastAssistantMessageText).toBe('Hello there'));
+  });
+
+  it('clears the mirrored assistant text once the thread is cleared', async () => {
+    mockedAgentService.listMessages.mockResolvedValue([
+      {
+        id: 'm2',
+        threadId: thread.id,
+        role: 'assistant',
+        content: { text: 'Hello there' },
+        createdAt: 2,
+        runId: null,
+      },
+    ]);
+    render(AgentChatView);
+    await waitFor(() => expect(agentsManager.lastAssistantMessageText).toBe('Hello there'));
+
+    mockedAgentService.listThreads.mockResolvedValue([]);
+    agentsManager.currentThreadId = null;
+
+    await waitFor(() => expect(agentsManager.lastAssistantMessageText).toBeNull());
   });
 
   it('keeps pending scroll callbacks safe after unmount', async () => {

@@ -651,6 +651,8 @@
       "streaming_cancel": "Transmitindo… ⌘K para cancelar",
       "you": "Você",
       "copy_message": "Copiar mensagem",
+      "copy_last_response": "Copiar última resposta",
+      "copy_last_response_description": "Copiar a resposta mais recente do assistente nesta conversa",
       "searching": "Pesquisando…",
       "error_open_ai_settings": "Não foi possível abrir as configurações de IA. Tente novamente.",
       "sources": "Fontes",
