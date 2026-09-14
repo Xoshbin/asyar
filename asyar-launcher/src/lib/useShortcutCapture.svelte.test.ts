@@ -215,4 +215,34 @@ describe('useShortcutCapture', () => {
     });
     expect(onCapture).not.toHaveBeenCalled();
   });
+
+  it('collapses partialChips to ✦ when all 4 modifiers are held during recording', () => {
+    const capture = useShortcutCapture({ onCapture: async () => true });
+    capture.startRecording();
+    window.dispatchEvent(makeKeyEvent('keydown', { key: 'Control', code: 'ControlLeft' }));
+    window.dispatchEvent(makeKeyEvent('keydown', { key: 'Alt', code: 'AltLeft' }));
+    window.dispatchEvent(makeKeyEvent('keydown', { key: 'Shift', code: 'ShiftLeft' }));
+    window.dispatchEvent(makeKeyEvent('keydown', { key: 'Meta', code: 'MetaLeft' }));
+
+    expect(capture.partialChips).toEqual(['✦']);
+  });
+
+  it('displays Hyper ✦ in displayChips after saving all 4 modifiers', async () => {
+    const onCapture = vi.fn().mockResolvedValue(true);
+    const capture = useShortcutCapture({ onCapture });
+    capture.startRecording();
+    window.dispatchEvent(
+      makeKeyEvent('keydown', {
+        key: 'k',
+        code: 'KeyK',
+        ctrlKey: true,
+        altKey: true,
+        shiftKey: true,
+        metaKey: true,
+      }),
+    );
+    await vi.waitFor(() => {
+      expect(capture.displayChips).toEqual(['✦', 'K']);
+    });
+  });
 });

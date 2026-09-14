@@ -7,6 +7,8 @@ import {
   isValid,
   isValidKey,
   normalizeShortcut,
+  isHyperModifier,
+  HYPER_SYMBOL,
   MODIFIER_KEYS,
   CODE_TO_KEY,
   VALID_KEYS,
@@ -100,6 +102,12 @@ describe('toDisplayString', () => {
   it('leaves plain keys unchanged', () => {
     expect(toDisplayString('K')).toBe('K');
   });
+
+  it('formats Hyper combination (all 4 modifiers) with ✦ glyph', () => {
+    expect(toDisplayString('Control+Alt+Shift+Super+A')).toBe('✦A');
+    expect(toDisplayString('Super+Shift+Alt+Control+K')).toBe('✦K');
+    expect(toDisplayString('Hyper+K')).toBe('✦K');
+  });
 });
 
 // ── toDisplayKeys ─────────────────────────────────────────────────────────────
@@ -113,8 +121,14 @@ describe('toDisplayKeys', () => {
     expect(toDisplayKeys('Super+Shift+K')).toEqual(['⌘', '⇧', 'K']);
   });
 
-  it('maps every modifier name to its glyph', () => {
-    expect(toDisplayKeys('Control+Alt+Shift+Super+A')).toEqual(['⌃', '⌥', '⇧', '⌘', 'A']);
+  it('collapses all 4 modifiers into the Hyper ✦ chip', () => {
+    expect(toDisplayKeys('Control+Alt+Shift+Super+A')).toEqual(['✦', 'A']);
+    expect(toDisplayKeys('Super+Shift+Alt+Control+K')).toEqual(['✦', 'K']);
+    expect(toDisplayKeys('Hyper+K')).toEqual(['✦', 'K']);
+  });
+
+  it('does not collapse when fewer than 4 modifiers are present', () => {
+    expect(toDisplayKeys('Control+Alt+Super+A')).toEqual(['⌃', '⌥', '⌘', 'A']);
   });
 
   it('passes through plain key when no modifier is present', () => {
@@ -155,6 +169,37 @@ describe('parseShortcut', () => {
   it('works with three modifiers', () => {
     expect(parseShortcut('Super+Shift+Alt+X')).toEqual(['Super+Shift+Alt', 'X']);
   });
+
+  it('expands Hyper to canonical 4-way modifier string', () => {
+    expect(parseShortcut('Hyper+K')).toEqual(['Control+Alt+Shift+Super', 'K']);
+  });
+});
+
+// ── isHyperModifier ──────────────────────────────────────────────────────────
+
+describe('isHyperModifier', () => {
+  it('returns true when all 4 modifiers are present in a string', () => {
+    expect(isHyperModifier('Control+Alt+Shift+Super')).toBe(true);
+    expect(isHyperModifier('Super+Shift+Alt+Control')).toBe(true);
+    expect(isHyperModifier('Ctrl+Alt+Shift+Super')).toBe(true);
+  });
+
+  it('returns true for literal "Hyper"', () => {
+    expect(isHyperModifier('Hyper')).toBe(true);
+    expect(isHyperModifier(['Hyper'])).toBe(true);
+  });
+
+  it('returns true when all 4 modifiers are in an array', () => {
+    expect(isHyperModifier(['Control', 'Alt', 'Shift', 'Super'])).toBe(true);
+    expect(isHyperModifier(['Super', 'Shift', 'Alt', 'Control'])).toBe(true);
+  });
+
+  it('returns false when fewer than 4 modifiers are present', () => {
+    expect(isHyperModifier('Control+Alt+Super')).toBe(false);
+    expect(isHyperModifier(['Super', 'Shift'])).toBe(false);
+    expect(isHyperModifier('Super')).toBe(false);
+    expect(isHyperModifier('')).toBe(false);
+  });
 });
 
 // ── isValid ───────────────────────────────────────────────────────────────────
@@ -162,6 +207,11 @@ describe('parseShortcut', () => {
 describe('isValid', () => {
   it('returns true for a valid single-modifier shortcut', () => {
     expect(isValid('Super+K')).toBe(true);
+  });
+
+  it('returns true for Hyper shortcut', () => {
+    expect(isValid('Hyper+K')).toBe(true);
+    expect(isValid('Control+Alt+Shift+Super+K')).toBe(true);
   });
 
   it('returns true for multi-modifier shortcut', () => {
@@ -344,6 +394,10 @@ describe('isValidKey', () => {
 describe('normalizeShortcut', () => {
   it('replaces Ctrl with Control', () => {
     expect(normalizeShortcut('Ctrl+K')).toBe('Control+K');
+  });
+
+  it('normalizes Hyper to canonical 4-modifier string', () => {
+    expect(normalizeShortcut('Hyper+K')).toBe('Control+Alt+Shift+Super+K');
   });
 
   it('leaves Control unchanged', () => {
