@@ -33,6 +33,11 @@ pub fn cli_candidates(engine: &str) -> Vec<PathBuf> {
         "google" => {
             if let Some(ref h) = home {
                 candidates.push(h.join(".local/bin/agy"));
+                #[cfg(windows)]
+                {
+                    candidates.push(h.join(".local/bin/agy.exe"));
+                    candidates.push(h.join("AppData/Local/Programs/agy/agy.exe"));
+                }
             }
             candidates.push(PathBuf::from("/opt/homebrew/bin/agy"));
             candidates.push(PathBuf::from("/usr/local/bin/agy"));
@@ -43,6 +48,12 @@ pub fn cli_candidates(engine: &str) -> Vec<PathBuf> {
             if let Some(ref h) = home {
                 candidates.push(h.join(".local/bin/codex"));
                 candidates.push(h.join(".cargo/bin/codex"));
+                #[cfg(windows)]
+                {
+                    candidates.push(h.join(".local/bin/codex.exe"));
+                    candidates.push(h.join(".cargo/bin/codex.exe"));
+                    candidates.push(h.join("AppData/Roaming/npm/codex.cmd"));
+                }
             }
         }
         _ => {}
@@ -78,21 +89,26 @@ pub fn resolve_cli_binary(engine: &str, custom_path: Option<&str>) -> Option<Pat
         }
     }
 
-    // Fallback: search system PATH via `which <binary>`
+    // Fallback: search system PATH via `which <binary>` on Unix or `where <binary>` on Windows
     let binary_name = match normalize_engine(engine) {
         "google" => "agy",
         "openai" => "codex",
         other => other,
     };
 
-    if let Ok(output) = std::process::Command::new("which")
+    let which_cmd = if cfg!(windows) { "where" } else { "which" };
+
+    if let Ok(output) = std::process::Command::new(which_cmd)
         .arg(binary_name)
         .output()
     {
         if output.status.success() {
-            let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path_str.is_empty() && Path::new(&path_str).is_file() {
-                return Some(PathBuf::from(path_str));
+            let stdout_str = String::from_utf8_lossy(&output.stdout);
+            for line in stdout_str.lines() {
+                let path_str = line.trim();
+                if !path_str.is_empty() && Path::new(path_str).is_file() {
+                    return Some(PathBuf::from(path_str));
+                }
             }
         }
     }

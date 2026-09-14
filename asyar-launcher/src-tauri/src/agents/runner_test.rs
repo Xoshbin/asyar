@@ -971,7 +971,11 @@ fn resolve_provider_config_handles_cli_mode() {
         .to_string()
         .contains("CLI executable for provider 'openai' was not found"));
 
-    config.cli_binary_path = Some("/bin/sh".to_string());
+    let current_exe = std::env::current_exe()
+        .expect("current_exe")
+        .to_string_lossy()
+        .to_string();
+    config.cli_binary_path = Some(current_exe);
     let valid_configs = std::collections::HashMap::from([("openai".to_string(), config)]);
     let resolved = resolve_provider_config("openai", &valid_configs).unwrap();
     assert_eq!(resolved.connection_mode.as_deref(), Some("cli"));
