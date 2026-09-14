@@ -53,14 +53,14 @@
     "@types/semver": "^7.7.1",
     "jsdom": "^29.0.1",
     "typescript": "~5.6.2",
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.0"
   },
   "files": [
     "dist",
     "src/styles"
   ],
   "dependencies": {
-    "adm-zip": "^0.6.0",
+    "adm-zip": "^0.6.1",
     "chalk": "^5.6.2",
     "chokidar": "^3.6.0",
     "commander": "^12.1.0",
