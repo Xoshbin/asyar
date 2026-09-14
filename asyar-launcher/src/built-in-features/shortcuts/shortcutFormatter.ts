@@ -9,12 +9,33 @@ export const DOM_TO_MODIFIER: Record<string, string> = {
 
 export const MODIFIER_ORDER = ['Control', 'Alt', 'Shift', 'Super'];
 
+export const HYPER_SYMBOL = '✦';
+export const HYPER_MODIFIERS = 'Control+Alt+Shift+Super';
+
 export const MODIFIER_SYMBOL: Record<string, string> = {
   Super: '⌘',
   Shift: '⇧',
   Alt: '⌥',
   Control: '⌃',
 };
+
+export function isHyperModifier(modifier: string | string[]): boolean {
+  if (!modifier) return false;
+  const rawParts = Array.isArray(modifier) ? modifier : modifier.split('+');
+  if (rawParts.length === 1 && rawParts[0].trim() === 'Hyper') return true;
+  const parts = rawParts.map((s) => {
+    const trimmed = s.trim();
+    if (trimmed === 'Ctrl') return 'Control';
+    if (trimmed === 'Meta') return 'Super';
+    return trimmed;
+  });
+  return (
+    parts.includes('Control') &&
+    parts.includes('Alt') &&
+    parts.includes('Shift') &&
+    parts.includes('Super')
+  );
+}
 
 const KEY_SYMBOL: Record<string, string> = {
   Backspace: '⌫',
@@ -139,6 +160,15 @@ export function isValidKey(key: string): boolean {
 }
 
 export function toDisplayString(s: string): string {
+  if (!s) return '';
+  const parts = s.split('+');
+  if (parts.length > 1) {
+    const key = parts[parts.length - 1];
+    const modifiers = parts.slice(0, -1);
+    if (isHyperModifier(modifiers)) {
+      return `${HYPER_SYMBOL}${key}`;
+    }
+  }
   return s
     .replace('Super', '⌘')
     .replace('Shift', '⇧')
@@ -149,6 +179,17 @@ export function toDisplayString(s: string): string {
 
 /** Splits a `Super+Shift+K` shortcut into per-chip glyphs: `['⌘', '⇧', 'K']`. */
 export function toDisplayKeys(s: string): string[] {
+  if (!s) return [];
+  const parts = s.split('+');
+  if (parts.length === 1) {
+    const key = parts[0];
+    return [KEY_SYMBOL[key] ?? key];
+  }
+  const key = parts[parts.length - 1];
+  const modifiers = parts.slice(0, -1);
+  if (isHyperModifier(modifiers)) {
+    return [HYPER_SYMBOL, KEY_SYMBOL[key] ?? key];
+  }
   return s.split('+').map((part) => MODIFIER_SYMBOL[part] ?? KEY_SYMBOL[part] ?? part);
 }
 
@@ -178,7 +219,11 @@ export function fromKeyboardEvent(e: KeyboardEvent): string | null {
 export function parseShortcut(s: string): [string, string] {
   const parts = s.split('+');
   const key = parts.pop()!;
-  return [parts.join('+'), key];
+  const modifier = parts.join('+');
+  if (modifier === 'Hyper') {
+    return [HYPER_MODIFIERS, key];
+  }
+  return [modifier, key];
 }
 
 export function isBareKeyAllowed(key: string): boolean {
@@ -190,12 +235,16 @@ export function isValid(s: string): boolean {
     return true;
   }
   const parts = s.split('+');
-  return parts.length >= 2 && parts.some((p) => ['Super', 'Control', 'Alt', 'Shift'].includes(p));
+  return (
+    parts.length >= 2 &&
+    parts.some((p) => ['Super', 'Control', 'Alt', 'Shift', 'Hyper'].includes(p))
+  );
 }
 
-/** Normalize a shortcut string so `Ctrl` → `Control` and modifiers are in canonical order. */
+/** Normalize a shortcut string so `Ctrl` → `Control`, `Hyper` → 4-way modifier, and modifiers are in canonical order. */
 export function normalizeShortcut(s: string): string {
-  const parts = s.replace(/\bCtrl\b/g, 'Control').split('+');
+  const expanded = s.replace(/\bHyper\b/g, HYPER_MODIFIERS);
+  const parts = expanded.replace(/\bCtrl\b/g, 'Control').split('+');
   const key = parts[parts.length - 1];
   const modifiers = parts.slice(0, -1);
   modifiers.sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b));

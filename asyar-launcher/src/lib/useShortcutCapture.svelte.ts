@@ -8,6 +8,8 @@ import {
   DOM_TO_MODIFIER,
   VALID_KEYS,
   isBareKeyAllowed,
+  isHyperModifier,
+  HYPER_SYMBOL,
 } from '../built-in-features/shortcuts/shortcutFormatter';
 
 export interface CaptureConfig {
@@ -84,7 +86,12 @@ export function useShortcutCapture(config: CaptureConfig) {
         errorType = 'conflict';
         conflictInfo = conflict.name;
         failedChips = capturedModifier
-          ? [...capturedModifier.split('+').map((m) => modifierSymbol(m)), displayKey(capturedKey)]
+          ? isHyperModifier(capturedModifier)
+            ? [HYPER_SYMBOL, displayKey(capturedKey)]
+            : [
+                ...capturedModifier.split('+').map((m) => modifierSymbol(m)),
+                displayKey(capturedKey),
+              ]
           : [displayKey(capturedKey)];
         startRejectedTimeout();
         return;
@@ -112,7 +119,9 @@ export function useShortcutCapture(config: CaptureConfig) {
       saveState = 'error';
       errorType = 'generic';
       failedChips = capturedModifier
-        ? [...capturedModifier.split('+').map((m) => modifierSymbol(m)), displayKey(capturedKey)]
+        ? isHyperModifier(capturedModifier)
+          ? [HYPER_SYMBOL, displayKey(capturedKey)]
+          : [...capturedModifier.split('+').map((m) => modifierSymbol(m)), displayKey(capturedKey)]
         : [displayKey(capturedKey)];
       errorMessage = result || 'Failed to save shortcut';
       savedModifier = '';
@@ -329,14 +338,22 @@ export function useShortcutCapture(config: CaptureConfig) {
   }
 
   let partialChips = $derived.by(() => {
+    const mapped = partialModifiers.map((m) => DOM_TO_MODIFIER[m] ?? m);
+    if (isHyperModifier(mapped)) {
+      return [HYPER_SYMBOL];
+    }
     return [...partialModifiers]
       .sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))
       .map((m) => modifierSymbol(DOM_TO_MODIFIER[m] ?? m));
   });
 
-  let rejectedModifierChips = $derived(
-    partialModifiers.map((m) => modifierSymbol(DOM_TO_MODIFIER[m] ?? m)),
-  );
+  let rejectedModifierChips = $derived.by(() => {
+    const mapped = partialModifiers.map((m) => DOM_TO_MODIFIER[m] ?? m);
+    if (isHyperModifier(mapped)) {
+      return [HYPER_SYMBOL];
+    }
+    return mapped.map((m) => modifierSymbol(m));
+  });
 
   let hasValidRejectedKeys = $derived(rejectedKeys.some((k) => !invalidKeys.has(k)));
 
@@ -344,6 +361,9 @@ export function useShortcutCapture(config: CaptureConfig) {
     const mod = savedModifier || '';
     const k = savedKey || '';
     if (mod && k) {
+      if (isHyperModifier(mod)) {
+        return [HYPER_SYMBOL, displayKey(k)];
+      }
       const mods = mod
         .split('+')
         .sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))

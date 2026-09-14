@@ -1,7 +1,11 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { useShortcutCapture } from '../../lib/useShortcutCapture.svelte';
-  import { MODIFIER_ORDER } from '../../built-in-features/shortcuts/shortcutFormatter';
+  import {
+    MODIFIER_ORDER,
+    isHyperModifier,
+    HYPER_SYMBOL,
+  } from '../../built-in-features/shortcuts/shortcutFormatter';
   import { t } from '../../services/i18n';
 
   let {
@@ -87,6 +91,9 @@
   let idleChips = $derived.by(() => {
     if (key) {
       if (modifier) {
+        if (isHyperModifier(modifier)) {
+          return [HYPER_SYMBOL, capture.displayKey(key)];
+        }
         const mods = modifier
           .split('+')
           .sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))
