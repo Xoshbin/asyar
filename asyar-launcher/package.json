@@ -1,6 +1,6 @@
 {
   "name": "asyar",
-  "version": "0.1.1-46",
+  "version": "0.1.1-47",
   "description": "A fast, open-source launcher for macOS, Windows, and Linux.",
   "type": "module",
   "scripts": {
