@@ -32,7 +32,7 @@ impl FileType {
         let e = ext.to_ascii_lowercase();
         match e.as_str() {
             "pdf" | "docx" | "doc" | "xlsx" | "xls" | "pptx" | "ppt" | "txt" | "md" | "rtf"
-            | "odt" => Self::Document,
+            | "odt" | "csv" => Self::Document,
             "png" | "jpg" | "jpeg" | "heic" | "webp" | "gif" | "bmp" | "tiff" | "svg" => {
                 Self::Image
             }
@@ -262,6 +262,7 @@ mod tests {
         assert_eq!(FileType::from_extension("pdf"), FileType::Document);
         assert_eq!(FileType::from_extension("DOCX"), FileType::Document);
         assert_eq!(FileType::from_extension("md"), FileType::Document);
+        assert_eq!(FileType::from_extension("csv"), FileType::Document);
     }
 
     #[test]

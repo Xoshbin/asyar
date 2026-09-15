@@ -7,6 +7,7 @@
 //! - `haptics`    — trackpad haptic feedback (drag-to-snap)
 //! - `input`      — global key monitors (Cmd-Q, snippet expansion) + press-and-hold
 //! - `system`     — accessibility, frontmost app, and the native Show-More bar
+//! - `quicklook`  — native QLPreviewPanel hosting (file preview)
 //!
 //! Every item is re-exported here, so `crate::platform::macos::<name>` paths are
 //! unchanged. `ResolvedTheme` is defined here because both `appearance` and
@@ -24,6 +25,7 @@ mod display_name;
 mod haptics;
 mod icon;
 mod input;
+mod quicklook;
 mod system;
 mod window;
 
@@ -32,5 +34,6 @@ pub use display_name::*;
 pub use haptics::*;
 pub use icon::*;
 pub use input::*;
+pub use quicklook::*;
 pub use system::*;
 pub use window::*;
