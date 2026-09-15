@@ -64,7 +64,12 @@
     try {
       const [paths, loaded] = await Promise.all([
         getDefaultAppScanPaths(),
-        listApplications(userPaths),
+        Promise.race([
+          listApplications(userPaths),
+          new Promise<Application[]>((_, reject) =>
+            setTimeout(() => reject(new Error('Timed out loading applications')), 10000),
+          ),
+        ]),
       ]);
       defaultPaths = paths ?? [];
       apps = withIds(loaded ?? []);
@@ -73,6 +78,7 @@
       });
     } catch (err) {
       logService.warn(`Failed to load applications: ${err}`);
+      errorMessage = 'Failed to load applications. You can try refreshing.';
     } finally {
       isLoading = false;
     }

@@ -389,6 +389,9 @@ struct AppScanner {
     /// Paths already recorded, to skip duplicates when scan roots overlap
     /// (e.g. a custom scan path that is an ancestor of a default one — #410).
     seen: HashSet<String>,
+    /// Canonical paths of directories already scanned, preventing infinite
+    /// recursion caused by circular symlinks or overlapping scan trees.
+    visited_dirs: HashSet<PathBuf>,
     #[cfg(target_os = "windows")]
     uwp_apps: Vec<UwpApp>,
 }
@@ -398,6 +401,7 @@ impl AppScanner {
         Self {
             paths: Vec::new(),
             seen: HashSet::new(),
+            visited_dirs: HashSet::new(),
             #[cfg(target_os = "windows")]
             uwp_apps: Vec::new(),
         }
@@ -420,6 +424,15 @@ impl AppScanner {
     }
 
     fn scan_directory(&mut self, dir_path: &Path) -> Result<(), AppError> {
+        self.scan_directory_inner(dir_path, 0)
+    }
+
+    fn scan_directory_inner(&mut self, dir_path: &Path, depth: usize) -> Result<(), AppError> {
+        const MAX_SCAN_DEPTH: usize = 3;
+        if depth > MAX_SCAN_DEPTH {
+            return Ok(());
+        }
+
         // A scan root may name a single bundle rather than a folder of them —
         // the Finder entry in the macOS defaults, or a custom path a user
         // aimed straight at one app. That bundle *is* the app: record it and
@@ -431,12 +444,26 @@ impl AppScanner {
         if !dir_path.is_dir() {
             return Ok(());
         }
+
+        // Guard against cycles: canonicalize directory path before descending.
+        let canonical_dir = dir_path
+            .canonicalize()
+            .unwrap_or_else(|_| dir_path.to_path_buf());
+        if !self.visited_dirs.insert(canonical_dir) {
+            return Ok(());
+        }
+
         for entry in fs::read_dir(dir_path)?.filter_map(Result::ok) {
             let path = entry.path();
             if is_app_bundle(&path) {
                 self.record(&path);
-            } else if path.is_dir() {
-                let _ = self.scan_directory(&path);
+            } else {
+                let is_symlink = entry.file_type().map(|ft| ft.is_symlink()).unwrap_or(false);
+                // Never recurse into directory symlinks (prevents recursive loops,
+                // escaping the app directory, and scanning unbounded trees).
+                if !is_symlink && path.is_dir() {
+                    let _ = self.scan_directory_inner(&path, depth + 1);
+                }
             }
         }
         Ok(())
@@ -1652,6 +1679,116 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_scanner_handles_symlink_loop_without_hanging() {
+        let tmp = std::env::temp_dir().join("asyar_test_symlink_loop");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        // Create a circular symlink: tmp/loop -> tmp
+        let loop_link = tmp.join("loop");
+        let _ = std::os::unix::fs::symlink(&tmp, &loop_link);
+
+        #[cfg(target_os = "macos")]
+        let app_path = tmp.join("Normal.app");
+        #[cfg(not(target_os = "macos"))]
+        let app_path = tmp.join("normal.desktop");
+
+        #[cfg(target_os = "macos")]
+        fs::create_dir_all(&app_path).unwrap();
+        #[cfg(not(target_os = "macos"))]
+        fs::write(
+            &app_path,
+            b"[Desktop Entry]\nType=Application\nName=Normal\nExec=normal\n",
+        )
+        .unwrap();
+
+        let mut scanner = AppScanner::new();
+        // Must complete promptly without recursion stack overflow or hang
+        let res = scanner.scan_directory(&tmp);
+        assert!(res.is_ok());
+        assert_eq!(scanner.paths.len(), 1);
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_scanner_respects_max_depth() {
+        let tmp = std::env::temp_dir().join("asyar_test_max_depth");
+        let _ = fs::remove_dir_all(&tmp);
+
+        // depth 0: tmp
+        // depth 1: d1
+        // depth 2: d2
+        // depth 3: d3
+        // depth 4: d4 -> TooDeep.app (exceeds MAX_SCAN_DEPTH = 3)
+        let deep_dir = tmp.join("d1").join("d2").join("d3").join("d4");
+        fs::create_dir_all(&deep_dir).unwrap();
+
+        #[cfg(target_os = "macos")]
+        let app_path = deep_dir.join("TooDeep.app");
+        #[cfg(not(target_os = "macos"))]
+        let app_path = deep_dir.join("toodeep.desktop");
+
+        #[cfg(target_os = "macos")]
+        fs::create_dir_all(&app_path).unwrap();
+        #[cfg(not(target_os = "macos"))]
+        fs::write(
+            &app_path,
+            b"[Desktop Entry]\nType=Application\nName=TooDeep\nExec=toodeep\n",
+        )
+        .unwrap();
+
+        let mut scanner = AppScanner::new();
+        scanner.scan_directory(&tmp).unwrap();
+        assert!(
+            scanner.paths.is_empty(),
+            "App bundles beyond MAX_SCAN_DEPTH must not be indexed, found: {:?}",
+            scanner.paths
+        );
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_scanner_skips_directory_symlinks_to_external_trees() {
+        let base = std::env::temp_dir().join("asyar_test_symlink_dir_skip");
+        let _ = fs::remove_dir_all(&base);
+        let scan_dir = base.join("scan_root");
+        let external_dir = base.join("external");
+        fs::create_dir_all(&scan_dir).unwrap();
+        fs::create_dir_all(&external_dir).unwrap();
+
+        #[cfg(target_os = "macos")]
+        let app_path = external_dir.join("External.app");
+        #[cfg(not(target_os = "macos"))]
+        let app_path = external_dir.join("external.desktop");
+
+        #[cfg(target_os = "macos")]
+        fs::create_dir_all(&app_path).unwrap();
+        #[cfg(not(target_os = "macos"))]
+        fs::write(
+            &app_path,
+            b"[Desktop Entry]\nType=Application\nName=External\nExec=external\n",
+        )
+        .unwrap();
+
+        // Symlink a directory inside scan_root pointing to external
+        let link_dir = scan_dir.join("external_link");
+        let _ = std::os::unix::fs::symlink(&external_dir, &link_dir);
+
+        let mut scanner = AppScanner::new();
+        scanner.scan_directory(&scan_dir).unwrap();
+        assert!(
+            scanner.paths.is_empty(),
+            "Directory symlinks outside app bundles must not be followed"
+        );
+
+        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]

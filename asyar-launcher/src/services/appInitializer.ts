@@ -154,7 +154,14 @@ export const appInitializer = {
       // Must precede applicationService.init() — its first scan reads additionalScanPaths.
       await settingsService.init();
 
-      await applicationService.init();
+      // Application scanning should never block extension loading or app startup if
+      // disk I/O is slow or an external volume takes time to respond.
+      await Promise.race([
+        applicationService.init(),
+        new Promise((resolve) => setTimeout(resolve, 5000)),
+      ]).catch((err: unknown) => {
+        logService.warn(`Initial application sync did not complete within timeout: ${err}`);
+      });
 
       // Push the user-configured additionalScanPaths down to the Rust
       // IndexWatcher and keep them in sync with settings changes. Runs
