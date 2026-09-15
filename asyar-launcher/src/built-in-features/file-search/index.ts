@@ -4,11 +4,14 @@ import type { ExtensionAction, FileHit } from 'asyar-sdk/contracts';
 import { tick } from 'svelte';
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
+import { openerService } from '../../services/opener/openerService';
 import { actionService } from '../../services/action/actionService.svelte';
 import { fileManagerService } from '../../services/fileManager/fileManagerService';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { logService } from '../../services/log/logService';
+import { viewManager } from '../../services/extension/viewManager.svelte';
+import { t } from '../../services/i18n';
 import {
   openInTerminal,
   quickLookPath,
@@ -73,6 +76,12 @@ class FileSearchExtension implements Extension {
 
   async viewActivated(viewPath: string): Promise<void> {
     this.inView = true;
+    // Claim the bottom-bar primary action for the view's duration: a
+    // selected file's Enter opens it with the system default app, so the
+    // hint must read "Open" — and registering it here also overrides the
+    // stale root-search selection label that used to leak in as "Run".
+    // Same pipeline ScriptLibraryView uses for its "Run Script" hint.
+    viewManager.activeViewPrimaryActionLabel = t('actions.open');
     logService.debug(`[FileSearch] view activated: ${viewPath}`);
     if (typeof window !== 'undefined') {
       window.addEventListener('keydown', this.handleKeydownBound);
@@ -102,7 +111,7 @@ class FileSearchExtension implements Extension {
       } catch (err) {
         logService.debug(`[FileSearch] recordSelectionForCurrentQuery failed: ${err}`);
       }
-      await openPath(selected.path);
+      await openerService.openPath(null, selected.path);
       return;
     }
 
@@ -113,7 +122,7 @@ class FileSearchExtension implements Extension {
       event.preventDefault();
       event.stopPropagation();
       const ok = await quickLookPath(selected.path);
-      if (!ok) await openPath(selected.path);
+      if (!ok) await openerService.openPath(null, selected.path);
     }
   }
 
@@ -230,6 +239,7 @@ class FileSearchExtension implements Extension {
         title: 'Quick Look',
         description: 'Preview the file',
         icon: 'icon:eye',
+        shortcut: 'Space',
         extensionId: 'file-search',
         category: 'file-action',
         context: ActionContext.EXTENSION_VIEW,
@@ -293,6 +303,11 @@ class FileSearchExtension implements Extension {
       window.removeEventListener('keydown', this.handleKeydownBound);
     }
     this.unregisterViewActions();
+    // Guarded clear, mirroring ScriptLibraryView: if another view claimed
+    // the label in the interim, leave theirs alone.
+    if (viewManager.activeViewPrimaryActionLabel === t('actions.open')) {
+      viewManager.activeViewPrimaryActionLabel = null;
+    }
     this.inView = false;
     logService.debug(`[FileSearch] view deactivated: ${viewPath}`);
   }

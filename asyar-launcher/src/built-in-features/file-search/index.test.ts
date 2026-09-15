@@ -11,6 +11,14 @@ vi.mock('../../lib/ipc/fileSearchCommands', () => ({
   fileSearchClearHistory: vi.fn().mockResolvedValue(true),
 }));
 
+vi.mock('../../services/opener/openerService', () => ({
+  openerService: {
+    open: vi.fn().mockResolvedValue(undefined),
+    openPath: vi.fn().mockResolvedValue(undefined),
+    reveal: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 vi.mock('../../services/fileManager/fileManagerService', () => ({
   fileManagerService: { trash: vi.fn() },
 }));
@@ -22,6 +30,12 @@ vi.mock('../../services/feedback/feedbackService.svelte', () => ({
 vi.mock('../../services/log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+
+vi.mock('../../services/extension/viewManager.svelte', () => ({
+  viewManager: { activeViewPrimaryActionLabel: null },
+}));
+
+vi.mock('../../services/i18n', () => ({ t: (key: string) => key }));
 
 vi.mock('./aiChipBridge', () => ({
   primeAiChipForFile: vi.fn(),
@@ -53,6 +67,7 @@ import { actionService } from '../../services/action/actionService.svelte';
 import { fileSearchClearHistory } from '../../lib/ipc/fileSearchCommands';
 import { fileSearchViewState, runSearch, checkDeepSearchAvailability } from './state.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
 import { tick } from 'svelte';
 
 function makeContext(manager: object) {
@@ -148,5 +163,25 @@ describe('executeCommand("show-files") with query seed', () => {
     await extension.executeCommand('show-files');
 
     expect(runSearch).not.toHaveBeenCalled();
+  });
+});
+
+describe('view primary action label', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('claims the Open label while the view is active and clears it on exit', async () => {
+    await extension.viewActivated('file-search/DefaultView');
+    expect(viewManager.activeViewPrimaryActionLabel).toBe('actions.open');
+
+    await extension.viewDeactivated('file-search/DefaultView');
+    expect(viewManager.activeViewPrimaryActionLabel).toBeNull();
+  });
+
+  it('leaves a foreign label alone when deactivating', async () => {
+    await extension.viewActivated('file-search/DefaultView');
+    viewManager.activeViewPrimaryActionLabel = 'Run Script';
+
+    await extension.viewDeactivated('file-search/DefaultView');
+    expect(viewManager.activeViewPrimaryActionLabel).toBe('Run Script');
   });
 });

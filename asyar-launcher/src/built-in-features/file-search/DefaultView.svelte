@@ -1,6 +1,6 @@
 <script lang="ts">
   import { stat } from '@tauri-apps/plugin-fs';
-  import { openPath } from '@tauri-apps/plugin-opener';
+  import { openerService } from '../../services/opener/openerService';
   import {
     SplitListDetail,
     EmptyState,
@@ -223,7 +223,7 @@
       });
     }
     try {
-      await openPath(item.path);
+      await openerService.openPath(null, item.path);
     } catch (err) {
       feedbackService.report({
         source: 'frontend',
