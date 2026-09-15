@@ -63,7 +63,7 @@ extern "C" fn preview_item_at_index_imp(
             return std::ptr::null_mut();
         };
         let ns_path = NSString::from_str(&path.to_string_lossy());
-        msg_send![url_cls, fileURLWithPath: &*ns_path isDirectory: false]
+        msg_send![url_cls, fileURLWithPath: &*ns_path isDirectory: Bool::from(path.is_dir())]
     }
 }
 

@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../services/action/actionService.svelte', () => ({
   actionService: { setActionExecutor: vi.fn(), registerAction: vi.fn(), unregisterAction: vi.fn() },
@@ -62,13 +62,13 @@ vi.mock('svelte', () => ({
   tick: vi.fn().mockResolvedValue(undefined),
 }));
 
-import extension from './index';
-import { actionService } from '../../services/action/actionService.svelte';
-import { fileSearchClearHistory } from '../../lib/ipc/fileSearchCommands';
-import { fileSearchViewState, runSearch, checkDeepSearchAvailability } from './state.svelte';
-import { searchStores } from '../../services/search/stores/search.svelte';
-import { viewManager } from '../../services/extension/viewManager.svelte';
 import { tick } from 'svelte';
+import { fileSearchClearHistory } from '../../lib/ipc/fileSearchCommands';
+import { actionService } from '../../services/action/actionService.svelte';
+import { viewManager } from '../../services/extension/viewManager.svelte';
+import { searchStores } from '../../services/search/stores/search.svelte';
+import extension from './index';
+import { checkDeepSearchAvailability, fileSearchViewState, runSearch } from './state.svelte';
 
 function makeContext(manager: object) {
   return {

@@ -1,27 +1,27 @@
 <script lang="ts">
   import { stat } from '@tauri-apps/plugin-fs';
-  import { openerService } from '../../services/opener/openerService';
+  import type { FileHit } from 'asyar-sdk/contracts';
   import {
-    SplitListDetail,
+    ActionFooter,
+    Badge,
     EmptyState,
     LauncherListRow,
-    Badge,
-    ActionFooter,
+    SplitListDetail,
   } from '../../components';
-  import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+  import { readTextPreview } from '../../lib/ipc/fileSearchCommands';
+  import { getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { t } from '../../services/i18n';
   import { logService } from '../../services/log/logService';
+  import { openerService } from '../../services/opener/openerService';
+  import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+  import { primeAiChipForFile } from './aiChipBridge';
   import {
     fileSearchViewState,
-    runSearch,
     recordSelectionForCurrentQuery,
+    runSearch,
     type TypeFilter,
   } from './state.svelte';
-  import type { FileHit } from 'asyar-sdk/contracts';
-  import { t } from '../../services/i18n';
-  import { primeAiChipForFile } from './aiChipBridge';
-  import { getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
-  import { readTextPreview } from '../../lib/ipc/fileSearchCommands';
 
   const ROW_THUMB_DIM = 56; // 2x a 28px row icon, for retina
   const DETAIL_THUMB_DIM = 800;

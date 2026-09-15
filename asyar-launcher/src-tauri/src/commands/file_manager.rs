@@ -185,6 +185,15 @@ pub async fn quick_look_path<R: tauri::Runtime>(
     path_str: String,
 ) -> Result<(), AppError> {
     let path = Path::new(&path_str).to_path_buf();
+    // `fileURLWithPath:` requires an absolute path — a relative one would
+    // resolve against the app bundle directory. Same guard as
+    // `validate_show_path`.
+    if !path.is_absolute() {
+        return Err(AppError::Other(format!(
+            "Path must be absolute: {}",
+            path_str
+        )));
+    }
     if !path.exists() {
         return Err(AppError::Other(format!(
             "Path does not exist: {}",
@@ -194,14 +203,14 @@ pub async fn quick_look_path<R: tauri::Runtime>(
 
     #[cfg(target_os = "macos")]
     {
-        let (tx, rx) = std::sync::mpsc::channel::<bool>();
+        let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
         app_handle
             .run_on_main_thread(move || {
                 let _ = tx.send(crate::platform::macos::quick_look_toggle(&path));
             })
             .map_err(|e| AppError::Other(format!("Failed to schedule Quick Look: {}", e)))?;
         if rx
-            .recv()
+            .await
             .map_err(|e| AppError::Other(format!("Quick Look thread failed: {}", e)))?
         {
             Ok(())
@@ -255,6 +264,14 @@ mod tests {
     }
 
     // --- quick_look_path validation tests ---
+
+    #[tokio::test]
+    async fn test_quick_look_rejects_relative_path() {
+        let app = tauri::test::mock_app();
+        let result =
+            quick_look_path(app.handle().clone(), "relative/path/file.txt".to_string()).await;
+        assert!(result.is_err());
+    }
 
     #[tokio::test]
     async fn test_quick_look_rejects_nonexistent_path() {
