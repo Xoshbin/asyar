@@ -147,14 +147,51 @@ pub async fn read_text_file_absolute<R: tauri::Runtime>(
 /// `read_text_file_absolute`. Truncation lands mid-codepoint only for
 /// pathological inputs; `from_utf8_lossy` degrades those to `U+FFFD`
 /// rather than erroring.
+///
+/// Binary content resolves to `Ok(None)`: the preview pane renders the
+/// result as text, and a misclassified binary file (PDFs and Office
+/// documents share the `Document` bucket with `.txt`/`.md`) would
+/// otherwise show up as a dump of raw bytes. Trailing truncation noise
+/// still degrades through `from_utf8_lossy` for text files.
 #[tauri::command]
 pub async fn read_text_preview<R: tauri::Runtime>(
     app_handle: tauri::AppHandle<R>,
     path_str: String,
     max_bytes: Option<u32>,
-) -> Result<String, AppError> {
+) -> Result<Option<String>, AppError> {
     validate_path_allowed(&path_str, &app_handle)?;
-    read_bounded(Path::new(&path_str), max_bytes.unwrap_or(50_000) as u64)
+    read_text_bounded(Path::new(&path_str), max_bytes.unwrap_or(50_000) as u64)
+}
+
+/// First `BINARY_SNIFF_BYTES` of a read are inspected for binary
+/// signatures. Eight KiB covers the header of every common container
+/// (`%PDF`, ZIP `PK\x03\x04`, OLE `\xD0\xCF\x11\xE0`, …) many times over.
+const BINARY_SNIFF_BYTES: usize = 8 * 1024;
+
+/// A sniff chunk counts as binary when it starts with the PDF magic (its
+/// header is ASCII, so a NUL-byte probe alone can miss tiny valid PDFs) or
+/// contains a NUL byte, which real prose in any UTF encoding never does.
+fn looks_binary(chunk: &[u8]) -> bool {
+    chunk.starts_with(b"%PDF") || chunk.contains(&0)
+}
+
+/// Like [`read_bounded`], but refuses binary content — see
+/// [`read_text_preview`]. Deliberately separate from `read_bounded`, which
+/// backs the extension-facing `files_read_text` and must keep returning
+/// lossy bytes unchanged.
+fn read_text_bounded(path: &Path, cap: u64) -> Result<Option<String>, AppError> {
+    use std::io::Read;
+
+    let file = fs::File::open(path)?;
+    let mut buf = Vec::with_capacity(cap.min(64 * 1024) as usize);
+    file.take(cap).read_to_end(&mut buf)?;
+
+    let sniff_len = buf.len().min(BINARY_SNIFF_BYTES);
+    if looks_binary(&buf[..sniff_len]) {
+        return Ok(None);
+    }
+
+    Ok(Some(String::from_utf8_lossy(&buf).into_owned()))
 }
 
 /// The shared bounded-read primitive behind `read_text_preview` and
@@ -723,7 +760,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(content, "hello world");
+        assert_eq!(content, Some("hello world".to_string()));
     }
 
     #[tokio::test]
@@ -741,7 +778,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(content.len(), 100);
+        assert_eq!(content.unwrap().len(), 100);
     }
 
     #[tokio::test]
@@ -759,7 +796,82 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(content.len(), 50_000, "default cap must be 50,000 bytes");
+        assert_eq!(
+            content.unwrap().len(),
+            50_000,
+            "default cap must be 50,000 bytes"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_read_text_preview_pdf_magic_returns_none() {
+        let app = tauri::test::mock_app();
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("report.pdf");
+        // A real PDF's header is ASCII (`%PDF-1.7`) — only the magic bytes
+        // catch it before the first NUL appears in the body streams.
+        let mut body = b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\n".to_vec();
+        body.extend(std::iter::repeat_n(0u8, 64));
+        std::fs::write(&path, body).unwrap();
+
+        let content = read_text_preview(
+            app.handle().clone(),
+            path.to_str().unwrap().to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(content, None, "PDF magic must resolve to None");
+    }
+
+    #[tokio::test]
+    async fn test_read_text_preview_nul_byte_returns_none() {
+        let app = tauri::test::mock_app();
+        let tmp = TempDir::new().unwrap();
+        // Office documents (docx/xlsx) are ZIP containers — binary from the
+        // first bytes, with no PDF-style ASCII header.
+        let mut body = b"PK\x03\x04some zip local header".to_vec();
+        body.extend(std::iter::repeat_n(0u8, 32));
+        let path = tmp.path().join("book.docx");
+        std::fs::write(&path, body).unwrap();
+
+        let content = read_text_preview(
+            app.handle().clone(),
+            path.to_str().unwrap().to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            content, None,
+            "NUL byte in sniff window must resolve to None"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_read_text_preview_binary_after_sniff_window_still_text() {
+        let app = tauri::test::mock_app();
+        let tmp = TempDir::new().unwrap();
+        // NUL appearing only after the sniff window is truncation noise,
+        // not a binary file — the read stays lossy text.
+        let mut body = b"plain prose prefix ".to_vec();
+        body.resize(BINARY_SNIFF_BYTES + 16, b'a');
+        body.extend(std::iter::repeat_n(0u8, 8));
+        let path = tmp.path().join("mixed.txt");
+        std::fs::write(&path, body).unwrap();
+
+        let content = read_text_preview(
+            app.handle().clone(),
+            path.to_str().unwrap().to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert!(content.is_some(), "binary past the sniff window stays text");
+        assert!(content.unwrap().starts_with("plain prose prefix "));
     }
 
     #[tokio::test]

@@ -30,6 +30,15 @@
   // existing metadata/text fallback is used).
   const THUMBNAILABLE_TYPES = new Set(['image', 'audio-video', 'archive', 'other']);
 
+  // PDFs are `Document`-typed (shared with .txt/.md), so they can't ride
+  // THUMBNAILABLE_TYPES — that gate is row-thumbnail logic. Instead they
+  // divert from the text-preview path to the same detail-pane thumbnail
+  // pipeline (qlmanage first page on macOS, cached + debounced like every
+  // other detail thumbnail). Reading one as text would dump raw PDF bytes.
+  function isPdf(item: FileHit): boolean {
+    return !item.isDir && item.name.toLowerCase().endsWith('.pdf');
+  }
+
   function handleWindowKeydown(event: KeyboardEvent) {
     if (event.key !== 'Tab') return;
     if (!selected) return;
@@ -78,6 +87,7 @@
   let selectedId = $derived(fileSearchViewState.selectedFileId);
   let selectedIndex = $derived(items.findIndex((i) => i.fileId === selectedId));
   let selected = $derived(items.find((i) => i.fileId === selectedId));
+  let pdfSelected = $derived(selected !== undefined && isPdf(selected));
   let pinnedIds = $derived(new Set(fileSearchViewState.pinnedFiles.map((p) => p.fileId)));
 
   // Row-list thumbnails: fileId -> url (present+truthy), or null (requested,
@@ -131,7 +141,7 @@
 
   $effect(() => {
     const item = selected;
-    const wantsThumbnail = item && THUMBNAILABLE_TYPES.has(item.type);
+    const wantsThumbnail = item && (THUMBNAILABLE_TYPES.has(item.type) || isPdf(item));
     clearTimeout(detailThumbTimer);
     if (wantsThumbnail && item.path !== currentThumbnailPath) {
       // Debounced: holding an arrow key steps through many rows a second.
@@ -144,7 +154,7 @@
       currentThumbnailPath = '';
     }
 
-    const isText = item && (item.type === 'document' || item.type === 'code');
+    const isText = item && ((item.type === 'document' && !isPdf(item)) || item.type === 'code');
     if (isText && item.path !== currentTextPath) {
       void loadText(item.path);
     } else if (!isText) {
@@ -323,7 +333,19 @@
     {#snippet detail()}
       {#if selected}
         <div class="preview-pane custom-scrollbar">
-          {#if selected.type === 'document' || selected.type === 'code'}
+          {#if pdfSelected}
+            <div class="image-pane">
+              {#if detailThumbnailLoading}
+                <div class="text-caption opacity-50">Loading preview…</div>
+              {:else if detailThumbnailUrl}
+                <img src={detailThumbnailUrl} alt="" class="preview-image" />
+              {:else}
+                <div class="text-caption opacity-70 p-4">
+                  pdf{selectedSize !== null ? ` · ${formatBytes(selectedSize)}` : ''}
+                </div>
+              {/if}
+            </div>
+          {:else if selected.type === 'document' || selected.type === 'code'}
             <div class="text-pane">
               {#if textPreviewLoading}
                 <div class="text-caption opacity-50">Loading…</div>
