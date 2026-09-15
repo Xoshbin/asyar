@@ -207,6 +207,12 @@ describe('readTextPreview', () => {
     });
   });
 
+  it('passes through the host binary classification as null', async () => {
+    mockInvoke.mockResolvedValue(null);
+    const result = await readTextPreview('/tmp/a.pdf', 50_000);
+    expect(result).toBeNull();
+  });
+
   it('returns null (not throw) on invoke failure', async () => {
     mockInvoke.mockRejectedValue(new Error('boom'));
     const result = await readTextPreview('/tmp/a.txt');
