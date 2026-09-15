@@ -8,16 +8,9 @@ use serde_json::json;
 fn config(api_key: Option<&str>, base_url: Option<&str>) -> ProviderConfig {
     ProviderConfig {
         enabled: true,
-        name: None,
-        provider_type: None,
         api_key: api_key.map(str::to_owned),
         base_url: base_url.map(str::to_owned),
-        last_model_id: None,
-        open_ai_api_mode: None,
-        hosted_web_search: None,
-        reasoning_effort: None,
-        temperature: None,
-        max_tokens: None,
+        ..Default::default()
     }
 }
 

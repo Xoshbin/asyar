@@ -273,4 +273,35 @@ describe('AiTab', () => {
       },
     });
   });
+
+  it('renders ModelSelector with saved lastModelId even before manual fetch', async () => {
+    vi.mocked(settingsService).currentSettings = {
+      ai: {
+        providers: {
+          anthropic: { enabled: true, apiKey: 'sk-ant', lastModelId: 'claude-sonnet-5' },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+      },
+    } as any;
+    vi.mocked(providerRegistry.list).mockReturnValue([
+      {
+        id: 'anthropic',
+        name: 'Anthropic',
+        requiresApiKey: true,
+        requiresBaseUrl: false,
+        getModels: vi.fn(),
+      },
+    ]);
+
+    render(AiTab, { mode: 'providers-only' });
+
+    // Expand Anthropic row
+    await fireEvent.click(screen.getByText('Anthropic'));
+
+    // Model selector is immediately visible with the saved lastModelId
+    expect(screen.getByText(/claude-sonnet-5/)).toBeTruthy();
+  });
 });

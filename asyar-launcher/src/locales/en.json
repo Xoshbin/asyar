@@ -303,7 +303,8 @@
       "no_models_matching": "No models matching \"{query}\"",
       "use_custom_model": "Use custom model \"{query}\"",
       "enter_custom_model": "Enter custom model ID…",
-      "custom_model_badge": "custom"
+      "custom_model_badge": "custom",
+      "probe_cli_error": "Failed to probe CLI status"
     },
     "applications": {
       "no_match": "No applications match your filter",

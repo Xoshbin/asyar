@@ -420,11 +420,148 @@ async fn enrich_ollama_reasoning_efforts(
     .await
 }
 
+pub fn cli_models(engine: &str) -> Vec<ModelInfo> {
+    match crate::ai::cli::normalize_engine(engine) {
+        "google" => vec![
+            ModelInfo {
+                id: "gemini-3.7-flash-medium".into(),
+                label: "Gemini 3.7 Flash (Medium)".into(),
+                reasoning_efforts: Some(vec!["low".into(), "medium".into(), "high".into()]),
+            },
+            ModelInfo {
+                id: "gemini-3.7-flash-high".into(),
+                label: "Gemini 3.7 Flash (High)".into(),
+                reasoning_efforts: Some(vec!["low".into(), "medium".into(), "high".into()]),
+            },
+            ModelInfo {
+                id: "gemini-3.7-flash-low".into(),
+                label: "Gemini 3.7 Flash (Low)".into(),
+                reasoning_efforts: Some(vec!["low".into(), "medium".into(), "high".into()]),
+            },
+            ModelInfo {
+                id: "gemini-3.8-flash-high".into(),
+                label: "Gemini 3.8 Flash (High)".into(),
+                reasoning_efforts: Some(vec!["low".into(), "medium".into(), "high".into()]),
+            },
+            ModelInfo {
+                id: "gemini-3.8-flash-medium".into(),
+                label: "Gemini 3.8 Flash (Medium)".into(),
+                reasoning_efforts: Some(vec!["low".into(), "medium".into(), "high".into()]),
+            },
+            ModelInfo {
+                id: "gemini-3.8-flash-low".into(),
+                label: "Gemini 3.8 Flash (Low)".into(),
+                reasoning_efforts: Some(vec!["low".into(), "medium".into(), "high".into()]),
+            },
+            ModelInfo {
+                id: "gemini-3.1-pro-high".into(),
+                label: "Gemini 3.1 Pro (High)".into(),
+                reasoning_efforts: Some(vec!["low".into(), "medium".into(), "high".into()]),
+            },
+            ModelInfo {
+                id: "gemini-3.1-pro-low".into(),
+                label: "Gemini 3.1 Pro (Low)".into(),
+                reasoning_efforts: Some(vec!["low".into(), "medium".into(), "high".into()]),
+            },
+            ModelInfo {
+                id: "claude-sonnet-4-6".into(),
+                label: "Claude Sonnet 4.6 (Thinking)".into(),
+                reasoning_efforts: None,
+            },
+            ModelInfo {
+                id: "gpt-oss-120b-medium".into(),
+                label: "GPT-OSS 120B (Medium)".into(),
+                reasoning_efforts: None,
+            },
+        ],
+        "openai" => vec![
+            ModelInfo {
+                id: "gpt-4o".into(),
+                label: "GPT-4o".into(),
+                reasoning_efforts: None,
+            },
+            ModelInfo {
+                id: "o3-mini".into(),
+                label: "o3-mini".into(),
+                reasoning_efforts: Some(vec!["low".into(), "medium".into(), "high".into()]),
+            },
+            ModelInfo {
+                id: "o1".into(),
+                label: "o1".into(),
+                reasoning_efforts: Some(vec!["low".into(), "medium".into(), "high".into()]),
+            },
+            ModelInfo {
+                id: "gpt-4o-mini".into(),
+                label: "GPT-4o Mini".into(),
+                reasoning_efforts: None,
+            },
+        ],
+        _ => vec![],
+    }
+}
+
 pub async fn list_models_impl(
     provider_id: &str,
     config: &ProviderConfig,
 ) -> Result<Vec<ModelInfo>, AppError> {
     let engine_type = config.provider_type.as_deref().unwrap_or(provider_id);
+    if config.connection_mode.as_deref() == Some("cli") {
+        let normalized = crate::ai::cli::normalize_engine(engine_type);
+        if normalized == "openai" {
+            if let Some(bin) =
+                crate::ai::cli::resolve_cli_binary(engine_type, config.cli_binary_path.as_deref())
+            {
+                if let Ok(models) = crate::ai::codex_client::CodexClient::list_models(&bin).await {
+                    if !models.is_empty() {
+                        return Ok(models);
+                    }
+                }
+            }
+        } else if normalized == "google" {
+            if let Some(bin) =
+                crate::ai::cli::resolve_cli_binary(engine_type, config.cli_binary_path.as_deref())
+            {
+                if let Ok(output) = tokio::process::Command::new(&bin)
+                    .arg("models")
+                    .output()
+                    .await
+                {
+                    if output.status.success() {
+                        let text = String::from_utf8_lossy(&output.stdout);
+                        let models: Vec<ModelInfo> = text
+                            .lines()
+                            .filter_map(|line| {
+                                let trimmed = line.trim();
+                                if trimmed.is_empty() || trimmed.starts_with("Fetching") {
+                                    return None;
+                                }
+                                let mut parts = trimmed.split('\t');
+                                let id = parts.next()?.trim();
+                                let label = parts.next().map(|l| l.trim()).unwrap_or(id);
+                                let reasoning_efforts = if label.contains("(High)")
+                                    || label.contains("(Medium)")
+                                    || label.contains("(Low)")
+                                {
+                                    Some(vec!["low".into(), "medium".into(), "high".into()])
+                                } else {
+                                    None
+                                };
+                                Some(ModelInfo {
+                                    id: id.to_string(),
+                                    label: label.to_string(),
+                                    reasoning_efforts,
+                                })
+                            })
+                            .collect();
+                        if !models.is_empty() {
+                            return Ok(models);
+                        }
+                    }
+                }
+            }
+        }
+        return Ok(cli_models(engine_type));
+    }
     let spec = provider_model_request(engine_type, config)?;
     let client = reqwest::Client::new();
     let mut request = client

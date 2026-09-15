@@ -147,8 +147,13 @@ pub fn is_provider_usable(
     let Some(config) = config else {
         return false;
     };
-    config.enabled
-        && (!provider.requires_api_key || has_non_blank(config.api_key.as_ref()))
+    if !config.enabled {
+        return false;
+    }
+    if config.connection_mode.as_deref() == Some("cli") {
+        return true;
+    }
+    (!provider.requires_api_key || has_non_blank(config.api_key.as_ref()))
         && (!provider.requires_base_url || has_non_blank(config.base_url.as_ref()))
 }
 

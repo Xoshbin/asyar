@@ -1,3 +1,5 @@
+pub mod cli;
+pub mod codex_client;
 pub mod commands;
 pub mod models;
 pub mod providers;
