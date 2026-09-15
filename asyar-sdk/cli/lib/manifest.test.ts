@@ -177,6 +177,96 @@ describe('manifest validation', () => {
   });
 });
 
+describe('manifest validation — actionable diagnostics', () => {
+  it.each(['extension', 'command'])('explains text preferences at %s scope', (scope) => {
+    const preferences = [{ name: 'username', title: 'Username', type: 'text' }];
+    const manifest = {
+      ...viewOnly,
+      ...(scope === 'extension' ? { preferences } : {}),
+      commands: [{ ...viewOnly.commands[0], ...(scope === 'command' ? { preferences } : {}) }],
+    } as unknown as AsyarManifest;
+    const field = scope === 'extension' ? 'preferences[0].type' : 'commands[0].preferences[0].type';
+
+    expect(validateManifest(manifest, './')).toEqual([
+      {
+        field,
+        message: expect.stringContaining(
+          'Use "type": "textfield" for a text preference; "text" is a command argument type.',
+        ),
+      },
+    ]);
+  });
+
+  it('explains textfield arguments without changing their accepted type', () => {
+    const manifest = {
+      ...viewOnly,
+      commands: [{ ...viewOnly.commands[0], arguments: [{ name: 'query', type: 'textfield' }] }],
+    } as unknown as AsyarManifest;
+
+    expect(validateManifest(manifest, './')).toEqual([
+      {
+        field: 'commands[0].arguments[0].type',
+        message: expect.stringContaining(
+          'Use "type": "text" for a text argument; "textfield" is a preference type.',
+        ),
+      },
+    ]);
+    manifest.commands[0].arguments![0].type = 'text';
+    expect(validateManifest(manifest, './')).toEqual([]);
+  });
+
+  it('accepts textfield preferences at both scopes', () => {
+    const preferences = [{ name: 'username', title: 'Username', type: 'textfield' as const }];
+    expect(
+      validateManifest(
+        { ...viewOnly, preferences, commands: [{ ...viewOnly.commands[0], preferences }] },
+        './',
+      ),
+    ).toEqual([]);
+  });
+
+  it('keeps the allowed types for unrelated invalid preference types', () => {
+    const manifest = {
+      ...viewOnly,
+      preferences: [{ name: 'username', title: 'Username', type: 'invalid' }],
+    } as unknown as AsyarManifest;
+    expect(validateManifest(manifest, './')).toEqual([
+      {
+        field: 'preferences[0].type',
+        message:
+          "Unknown preference type 'invalid'. Must be one of: textfield, password, number, checkbox, dropdown, appPicker, file, directory",
+      },
+    ]);
+  });
+
+  it.each(['cep endereco', '', 'café', 'cep!', 123, null])(
+    'explains the trigger format for %j',
+    (trigger) => {
+      const manifest = {
+        ...viewOnly,
+        commands: [{ ...viewOnly.commands[0], trigger }],
+      } as unknown as AsyarManifest;
+      expect(validateManifest(manifest, './')).toEqual([
+        {
+          field: 'commands[0].trigger',
+          message: expect.stringContaining(
+            'must be a single non-empty keyword using only A-Z, a-z, 0-9, "_" or "-" (e.g., "search-cep"); spaces and keyword lists are not allowed',
+          ),
+        },
+      ]);
+    },
+  );
+
+  it.each([undefined, 'cep', 'Search-CEP', 'search_cep', '123'])(
+    'continues accepting trigger %j',
+    (trigger) => {
+      expect(
+        validateManifest({ ...viewOnly, commands: [{ ...viewOnly.commands[0], trigger }] }, './'),
+      ).toEqual([]);
+    },
+  );
+});
+
 describe('manifest validation — schedule', () => {
   const scheduled = (
     intervalSeconds: number,

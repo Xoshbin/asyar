@@ -57,6 +57,8 @@ At runtime a command sees the union: command-scoped keys shadow extension-scoped
 
 ## Supported Types
 
+For a text preference, use `"type": "textfield"`. The `"text"` type is for command arguments, not preferences. This applies to both extension-level and command-level preferences.
+
 | Type        | Value type      | Rendered as            |
 | ----------- | --------------- | ---------------------- |
 | `textfield` | `string`        | Text input             |

@@ -623,7 +623,8 @@ function validateCommand(cmd: ManifestCommand, i: number, errors: ValidationErro
     if (typeof cmd.trigger !== 'string' || !/^[a-z0-9_-]+$/i.test(cmd.trigger)) {
       errors.push({
         field: `${base}.trigger`,
-        message: 'trigger must be alphanumeric without spaces',
+        message:
+          'must be a single non-empty keyword using only A-Z, a-z, 0-9, "_" or "-" (e.g., "search-cep"); spaces and keyword lists are not allowed',
       });
     }
   }
@@ -792,11 +793,15 @@ export function validateArguments(
     if (!a.type) {
       errors.push({ field: `${base}.type`, message: 'type is required' });
     } else if (!VALID_ARGUMENT_TYPES.includes(a.type)) {
+      const hint =
+        (a.type as string) === 'textfield'
+          ? '. Use "type": "text" for a text argument; "textfield" is a preference type.'
+          : '';
       errors.push({
         field: `${base}.type`,
         message: `Unknown argument type '${
           a.type
-        }'. Must be one of: ${VALID_ARGUMENT_TYPES.join(', ')}`,
+        }'. Must be one of: ${VALID_ARGUMENT_TYPES.join(', ')}${hint}`,
       });
     }
 
@@ -972,11 +977,15 @@ export function validatePreferences(
     if (!p.type) {
       errors.push({ field: `${base}.type`, message: 'type is required' });
     } else if (!VALID_PREFERENCE_TYPES.includes(p.type)) {
+      const hint =
+        (p.type as string) === 'text'
+          ? '. Use "type": "textfield" for a text preference; "text" is a command argument type.'
+          : '';
       errors.push({
         field: `${base}.type`,
         message: `Unknown preference type '${
           p.type
-        }'. Must be one of: ${VALID_PREFERENCE_TYPES.join(', ')}`,
+        }'. Must be one of: ${VALID_PREFERENCE_TYPES.join(', ')}${hint}`,
       });
     }
 
