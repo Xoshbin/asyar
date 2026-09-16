@@ -1,34 +1,30 @@
 <script lang="ts">
   import { stat } from '@tauri-apps/plugin-fs';
-  import { openPath } from '@tauri-apps/plugin-opener';
+  import type { FileHit } from 'asyar-sdk/contracts';
   import {
-    SplitListDetail,
+    ActionFooter,
+    Badge,
     EmptyState,
     LauncherListRow,
-    Badge,
-    ActionFooter,
+    SplitListDetail,
   } from '../../components';
-  import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+  import { readTextPreview } from '../../lib/ipc/fileSearchCommands';
+  import { getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+  import { t } from '../../services/i18n';
   import { logService } from '../../services/log/logService';
+  import { openerService } from '../../services/opener/openerService';
+  import { searchBarAccessoryService } from '../../services/search/searchBarAccessoryService.svelte';
+  import { primeAiChipForFile } from './aiChipBridge';
   import {
     fileSearchViewState,
-    runSearch,
     recordSelectionForCurrentQuery,
+    runSearch,
     type TypeFilter,
   } from './state.svelte';
-  import type { FileHit } from 'asyar-sdk/contracts';
-  import { t } from '../../services/i18n';
-  import { primeAiChipForFile } from './aiChipBridge';
-  import { getFileThumbnail } from '../../lib/ipc/thumbnailCommands';
-  import { readTextPreview } from '../../lib/ipc/fileSearchCommands';
 
   const ROW_THUMB_DIM = 56; // 2x a 28px row icon, for retina
   const DETAIL_THUMB_DIM = 800;
-  // Types with a Rust thumbnail strategy (image: cross-platform; the rest:
-  // macOS qlmanage only today — `null` comes back everywhere else, and the
-  // existing metadata/text fallback is used).
-  const THUMBNAILABLE_TYPES = new Set(['image', 'audio-video', 'archive', 'other']);
 
   function handleWindowKeydown(event: KeyboardEvent) {
     if (event.key !== 'Tab') return;
@@ -115,41 +111,39 @@
     rowThumbnails[fileId] = url;
   }
 
-  // Detail pane state
-  let detailThumbnailUrl = $state<string | null>(null);
-  let detailThumbnailLoading = $state(false);
-  let currentThumbnailPath = $state('');
-  let textPreview = $state('');
-  let textPreviewLoading = $state(false);
-  let currentTextPath = $state('');
+  // Detail pane state — one unified preview chain, no extension lists on
+  // this side: Rust's binary sniff decides text vs "ask the OS".
+  //   1. bounded text read → real text? render the text pane
+  //   2. binary (null) → OS thumbnail (Quick Look on macOS, image crate for
+  //      images; `null` on platforms without a generator)
+  //   3. still nothing → "No preview available" caption
+  // Raw bytes can never reach the pane: the #741 guard runs inside step 1.
+  let previewText = $state<string | null>(null);
+  let previewThumbUrl = $state<string | null>(null);
+  let previewLoading = $state(false);
+  let currentPreviewPath = $state('');
   // `FileHit` doesn't carry size — the preview pane stats the one selected
   // file lazily instead of keeping it in the hot per-keystroke struct.
   let selectedSize = $state<number | null>(null);
 
   const MAX_TEXT_PREVIEW = 50_000;
-  let detailThumbTimer: ReturnType<typeof setTimeout> | undefined;
+  let previewTimer: ReturnType<typeof setTimeout> | undefined;
 
   $effect(() => {
     const item = selected;
-    const wantsThumbnail = item && THUMBNAILABLE_TYPES.has(item.type);
-    clearTimeout(detailThumbTimer);
-    if (wantsThumbnail && item.path !== currentThumbnailPath) {
+    clearTimeout(previewTimer);
+    if (item && !item.isDir) {
       // Debounced: holding an arrow key steps through many rows a second.
-      // Non-image thumbnails here go through `qlmanage` — without this,
-      // scrolling through 20 archive/video files fires 20 subprocess spawns
-      // for files the user only glanced at for a few milliseconds each.
-      detailThumbTimer = setTimeout(() => void loadDetailThumbnail(item.path), 150);
-    } else if (!wantsThumbnail) {
-      detailThumbnailUrl = null;
-      currentThumbnailPath = '';
-    }
-
-    const isText = item && (item.type === 'document' || item.type === 'code');
-    if (isText && item.path !== currentTextPath) {
-      void loadText(item.path);
-    } else if (!isText) {
-      textPreview = '';
-      currentTextPath = '';
+      // The thumbnail half of the chain spawns `qlmanage` for binaries —
+      // without this, scrolling through 20 archive/video files fires 20
+      // subprocess spawns for files the user only glanced at for a few
+      // milliseconds each.
+      previewTimer = setTimeout(() => void loadPreview(item.path), 150);
+    } else {
+      previewText = null;
+      previewThumbUrl = null;
+      previewLoading = false;
+      currentPreviewPath = '';
     }
 
     if (item && !item.isDir) {
@@ -158,32 +152,35 @@
       selectedSize = null;
     }
 
-    return () => clearTimeout(detailThumbTimer);
+    return () => clearTimeout(previewTimer);
   });
 
-  async function loadDetailThumbnail(path: string) {
-    detailThumbnailLoading = true;
-    currentThumbnailPath = path;
+  async function loadPreview(path: string) {
+    previewLoading = true;
+    currentPreviewPath = path;
+    // Clear BOTH render states before the awaits — otherwise a text file
+    // followed by a binary one keeps rendering the old text (the text
+    // branch is checked before the thumbnail branch), exactly what the
+    // selection change was supposed to replace.
+    previewText = null;
+    previewThumbUrl = null;
     try {
-      detailThumbnailUrl = await getFileThumbnail(path, DETAIL_THUMB_DIM);
-    } finally {
-      detailThumbnailLoading = false;
-    }
-  }
+      // Step 1 — bounded text read (via std::fs, not the webview fs scope;
+      // binary-sniffed on the Rust side so raw bytes never reach the pane).
+      const text = await readTextPreview(path, MAX_TEXT_PREVIEW);
+      if (currentPreviewPath !== path) return; // superseded mid-flight
+      if (text !== null && text.length > 0) {
+        previewText = text;
+        return;
+      }
 
-  async function loadText(path: string) {
-    textPreviewLoading = true;
-    currentTextPath = path;
-    try {
-      // Rust-side read (bounded, via std::fs) — not subject to the
-      // webview's fs capability scope, which never covered arbitrary
-      // $HOME paths in the first place.
-      textPreview = (await readTextPreview(path, MAX_TEXT_PREVIEW)) ?? '';
+      // Step 2 — binary (or empty): ask the OS for a thumbnail.
+      previewThumbUrl = await getFileThumbnail(path, DETAIL_THUMB_DIM);
+      if (currentPreviewPath !== path) return; // superseded mid-flight
     } catch (err) {
-      logService.warn(`[FileSearch] text load failed: ${err}`);
-      textPreview = '';
+      logService.warn(`[FileSearch] preview load failed: ${err}`);
     } finally {
-      textPreviewLoading = false;
+      if (currentPreviewPath === path) previewLoading = false;
     }
   }
 
@@ -213,7 +210,7 @@
       });
     }
     try {
-      await openPath(item.path);
+      await openerService.openPath(null, item.path);
     } catch (err) {
       feedbackService.report({
         source: 'frontend',
@@ -323,29 +320,17 @@
     {#snippet detail()}
       {#if selected}
         <div class="preview-pane custom-scrollbar">
-          {#if selected.type === 'document' || selected.type === 'code'}
-            <div class="text-pane">
-              {#if textPreviewLoading}
-                <div class="text-caption opacity-50">Loading…</div>
-              {:else if textPreview}
-                <pre class="text-preview">{textPreview}</pre>
-              {:else}
-                <div class="text-caption opacity-50">No preview available</div>
-              {/if}
-            </div>
-          {:else if selected.type === 'folder'}
+          {#if selected.isDir}
             <div class="text-caption opacity-70 p-4">Folder — {selected.path}</div>
-          {:else if THUMBNAILABLE_TYPES.has(selected.type)}
+          {:else if previewLoading}
+            <div class="text-caption opacity-50">Loading preview…</div>
+          {:else if previewText}
+            <div class="text-pane">
+              <pre class="text-preview">{previewText}</pre>
+            </div>
+          {:else if previewThumbUrl}
             <div class="image-pane">
-              {#if detailThumbnailLoading}
-                <div class="text-caption opacity-50">Loading preview…</div>
-              {:else if detailThumbnailUrl}
-                <img src={detailThumbnailUrl} alt="" class="preview-image" />
-              {:else}
-                <div class="text-caption opacity-70 p-4">
-                  {selected.type}{selectedSize !== null ? ` · ${formatBytes(selectedSize)}` : ''}
-                </div>
-              {/if}
+              <img src={previewThumbUrl} alt="" class="preview-image" />
             </div>
           {:else}
             <div class="text-caption opacity-70 p-4">

@@ -66,9 +66,14 @@ export async function quickLookPath(pathStr: string): Promise<boolean> {
  * (`std::fs`) rather than `@tauri-apps/plugin-fs`, so it isn't subject to
  * the webview's fs capability scope (which never covered arbitrary
  * `$HOME` paths, only `$APPDATA/extensions/**` and
- * `$APPDATA/clipboard_cache/**`). */
+ * `$APPDATA/clipboard_cache/**`).
+ *
+ * Resolves to `null` when the host classified the file as binary (PDF
+ * magic / NUL byte in the first 8 KiB) — the preview pane must never
+ * render raw bytes as text. `null` is also what an IPC failure collapses
+ * to via `invokeSafe`. */
 export async function readTextPreview(pathStr: string, maxBytes?: number): Promise<string | null> {
-  return invokeSafe<string>('read_text_preview', { pathStr, maxBytes });
+  return invokeSafe<string | null>('read_text_preview', { pathStr, maxBytes });
 }
 
 /** Extension-scoped bounded content read (`asyar:api:files:read` →
