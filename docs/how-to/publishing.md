@@ -16,6 +16,15 @@ The publish command is a **resumable multi-step pipeline**. Each step is idempot
 
 Runs `asyar validate`. Exits immediately on failure before touching GitHub or the Store.
 
+Validation errors identify the field to fix in `manifest.json`. Array indexes start at zero: `commands[0].trigger` refers to the first command's `trigger`.
+
+Common corrections:
+
+- **Text preferences:** use `"type": "textfield"` in `preferences`. Command arguments use `"type": "text"` instead.
+- **Command triggers:** use one non-empty keyword such as `"trigger": "search-cep"`. Only ASCII letters, digits, underscores, and hyphens are accepted; a space-separated keyword list such as `"cep endereco"` is invalid.
+
+Run `asyar validate` to check the corrected manifest locally, then retry `asyar publish`.
+
 #### Step 2 — Build
 
 Runs `vite build` automatically. Verifies `dist/index.html` was produced.
