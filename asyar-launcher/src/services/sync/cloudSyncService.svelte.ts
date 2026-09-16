@@ -215,6 +215,20 @@ class CloudSyncService {
     return this.currentRun;
   }
 
+  /**
+   * Reset local sync tracking (journal and cursor) and immediately run
+   * a full sync pass. This pulls all server records from scratch without
+   * skipping items and reapplies them to local providers.
+   */
+  async resetAndSync(): Promise<void> {
+    const blocked = this.blockedReason();
+    if (blocked !== null) {
+      throw new Error(blocked);
+    }
+    await commands.syncReset();
+    await this.syncNow();
+  }
+
   async checkStatus(): Promise<void> {
     if (this.blockedReason() !== null) return;
     const statusResp = await commands.syncGetStatus();

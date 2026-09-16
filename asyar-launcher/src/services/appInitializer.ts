@@ -23,6 +23,7 @@ import { shortcutStore } from '../built-in-features/shortcuts/shortcutStore.svel
 import { snippetStore } from '../built-in-features/snippets/snippetStore.svelte';
 import { snippetService } from '../built-in-features/snippets/snippetService';
 import { portalStore } from '../built-in-features/portals/portalStore.svelte';
+import { noteStore } from '../built-in-features/notes/noteStore.svelte';
 import { profileService } from './profile/profileService';
 import { extensionUpdateService } from './extension/extensionUpdateService.svelte';
 import { extensionOAuthService } from './oauth/extensionOAuthService.svelte';
@@ -108,12 +109,6 @@ export const appInitializer = {
       registerProfileProviders();
       logService.info('Profile sync providers registered.');
 
-      // Initialize cloud sync — background, do not block startup
-      cloudSyncService.init().catch((err: any) => {
-        logService.warn(`Cloud sync init failed: ${err}`);
-      });
-      logService.info('Cloud sync service initialized.');
-
       // Initialize performance service first
       await performanceService.init();
 
@@ -179,6 +174,7 @@ export const appInitializer = {
       await shortcutStore.init();
       await snippetStore.init();
       await portalStore.init();
+      await noteStore.init();
 
       // After a cloud restore from the settings window, reload stores so the main window
       // picks up the newly written data without requiring a full restart.
@@ -186,10 +182,17 @@ export const appInitializer = {
         await shortcutStore.reload();
         await snippetStore.reload();
         await portalStore.reload();
+        await noteStore.reload();
         logService.info('Stores reloaded after cloud restore.');
       }).catch((err: any) => {
         logService.warn(`Failed to register stores-restored listener: ${err}`);
       });
+
+      // Initialize cloud sync — background, now that stores have loaded their local items
+      cloudSyncService.init().catch((err: any) => {
+        logService.warn(`Cloud sync init failed: ${err}`);
+      });
+      logService.info('Cloud sync service initialized.');
 
       // Bridge Rust `asyar:system-event` push events to extension iframes.
       // Must be ready before extensions initialize so early subscriptions
