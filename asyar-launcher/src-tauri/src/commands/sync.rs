@@ -302,6 +302,15 @@ pub async fn sync_mark_tombstone(
     result
 }
 
+/// Reset the local sync state — wipes the item journal and resets the cursor
+/// to 0, allowing a clean, full re-sync from the cloud.
+#[tauri::command]
+pub async fn sync_reset(data_store: State<'_, DataStore>) -> Result<(), AppError> {
+    log::info!("[sync] sync_reset: clearing journal and resetting cursor to 0");
+    let conn = data_store.conn()?;
+    cloud_sync_state::clear_all(&conn)
+}
+
 // ── _inner pure-but-async functions ──────────────────────────────────────────
 
 /// Drive the pull-then-push round-trip against an arbitrary [`SyncHttp`].
@@ -405,17 +414,38 @@ pub(crate) async fn sync_run_inner<H: SyncHttp + Sync>(
 
         report.lww_warnings.extend(merge_report.lww_warnings);
 
-        // Advance cursor after each page. We use `now_ms = 0` if the system
-        // clock is unavailable; the journal's `last_full_sync_at_ms` is a UI
-        // affordance, not load-bearing.
+        // Advance cursor after each page.
+        // If the server indicates more items remain (`has_more = true`), we must
+        // advance `cursor` to the maximum version among the items in the current page
+        // so that the next query requests items *since* this page's last item.
+        // Only once all pages have been pulled (`!has_more`) do we advance `cursor`
+        // to the server's global head version (`page.server_version`).
+        // Advancing directly to `page.server_version` while `has_more` is true causes
+        // subsequent pages to be completely skipped.
         let now_ms = current_unix_ms();
-        cursor = page.server_version;
-        {
+        let max_page_item_version = page.items.iter().map(|i| i.version).max();
+
+        if page.has_more {
+            match max_page_item_version {
+                Some(v) if v > cursor => {
+                    cursor = v;
+                    let conn = data_store.conn()?;
+                    cloud_sync_state::advance_cursor(&conn, cursor, now_ms)?;
+                }
+                _ => {
+                    // Defensive: if has_more is true but no items were returned
+                    // with a version strictly greater than cursor (e.g. all filtered),
+                    // advance to server_version and break to prevent an infinite loop.
+                    cursor = page.server_version.max(cursor);
+                    let conn = data_store.conn()?;
+                    cloud_sync_state::advance_cursor(&conn, cursor, now_ms)?;
+                    break;
+                }
+            }
+        } else {
+            cursor = page.server_version.max(cursor);
             let conn = data_store.conn()?;
             cloud_sync_state::advance_cursor(&conn, cursor, now_ms)?;
-        }
-
-        if !page.has_more {
             break;
         }
     }
@@ -837,17 +867,18 @@ mod tests {
 
     #[tokio::test]
     async fn sync_run_advances_cursor_across_multiple_pages() {
-        // Defensive — proves the loop walks multiple pages.
+        // Defensive — proves the loop walks multiple pages even when server_version
+        // is the global maximum version (e.g. 5000) on every page.
         let store = create_test_store();
         let http = MockSyncHttp::new();
         http.enqueue_pull(ItemPullPage {
             items: vec![live_record("a", "snippets", "p", 5)],
-            server_version: 5,
+            server_version: 5000,
             has_more: true,
         });
         http.enqueue_pull(ItemPullPage {
             items: vec![live_record("b", "snippets", "q", 9)],
-            server_version: 9,
+            server_version: 5000,
             has_more: false,
         });
 
@@ -855,7 +886,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(report.server_version, 9);
+        assert_eq!(report.server_version, 5000);
         assert_eq!(
             http.pull_calls(),
             vec![(0, PULL_PAGE_LIMIT), (5, PULL_PAGE_LIMIT)]
@@ -864,6 +895,31 @@ mod tests {
             report.applied_from_pull,
             vec!["a".to_string(), "b".to_string()]
         );
+        let conn = store.conn().unwrap();
+        let cursor = cloud_sync_state::get_cursor(&conn).unwrap();
+        assert_eq!(cursor.cursor, 5000);
+    }
+
+    #[tokio::test]
+    async fn sync_reset_clears_journal_and_resets_cursor() {
+        let store = create_test_store();
+        {
+            let conn = store.conn().unwrap();
+            cloud_sync_state::advance_cursor(&conn, 500, 1_000_000).unwrap();
+            cloud_sync_state::mark_dirty(&conn, "snip-1", "snippets").unwrap();
+        }
+
+        {
+            let conn = store.conn().unwrap();
+            assert_eq!(cloud_sync_state::get_cursor(&conn).unwrap().cursor, 500);
+            assert_eq!(cloud_sync_state::get_all(&conn).unwrap().len(), 1);
+        }
+
+        let conn = store.conn().unwrap();
+        cloud_sync_state::clear_all(&conn).unwrap();
+
+        assert_eq!(cloud_sync_state::get_cursor(&conn).unwrap().cursor, 0);
+        assert!(cloud_sync_state::get_all(&conn).unwrap().is_empty());
     }
 
     // ── required test #5 ─────────────────────────────────────────────────────

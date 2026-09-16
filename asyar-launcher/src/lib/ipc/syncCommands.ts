@@ -80,6 +80,15 @@ export async function syncMarkTombstone(itemId: string, categoryId: string): Pro
   await invokeSafe<void>('sync_mark_tombstone', { itemId, categoryId });
 }
 
+/**
+ * Reset local sync state (journal entries and cursor).
+ * Used when recovering from corrupted sync state or when requesting a
+ * full re-sync from the cloud.
+ */
+export async function syncReset(): Promise<void> {
+  await invokeSafe<void>('sync_reset');
+}
+
 // ── E2EE cloud sync (Layer 4b/4c) ─────────────────────────────────────────────
 
 export interface SyncE2eeStatusReport {

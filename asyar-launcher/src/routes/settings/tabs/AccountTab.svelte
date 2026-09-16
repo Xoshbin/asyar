@@ -364,6 +364,17 @@
             </Button>
           </SettingsRow>
 
+          <SettingsRow label={t('settings.account.resync_cloud')}>
+            <Button
+              onclick={() => cloudSyncService.resetAndSync().catch((err) => reportSyncFailure(err))}
+              disabled={cloudSyncService.status === 'syncing'}
+            >
+              {cloudSyncService.status === 'syncing'
+                ? t('settings.account.resyncing')
+                : t('settings.account.resync_cloud')}
+            </Button>
+          </SettingsRow>
+
           <SettingsRow label={t('settings.account.encrypted_sync')}>
             <div class="e2ee-row">
               <div class="e2ee-status">

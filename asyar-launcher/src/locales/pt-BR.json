@@ -186,6 +186,8 @@
       "last_synced": "Última sincronização",
       "sync_now": "Sincronizar Agora",
       "syncing": "Sincronizando…",
+      "resync_cloud": "Restaurar da Nuvem",
+      "resyncing": "Restaurando…",
       "encrypted_sync": "Sincronização Criptografada",
       "locked": "Bloqueado",
       "unlocked": "Desbloqueado",

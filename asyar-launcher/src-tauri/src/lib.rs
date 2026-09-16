@@ -598,6 +598,7 @@ pub fn run() {
             commands::sync::sync_run,
             commands::sync::sync_get_status,
             commands::sync::sync_mark_tombstone,
+            commands::sync::sync_reset,
             commands::sync_e2ee::sync_e2ee_get_status,
             commands::sync_e2ee::sync_e2ee_enrol,
             commands::sync_e2ee::sync_e2ee_unlock,

@@ -9,6 +9,7 @@ vi.mock('../../lib/ipc/commands', () => ({
   syncRun: vi.fn(),
   syncGetStatus: vi.fn(),
   syncMarkTombstone: vi.fn(),
+  syncReset: vi.fn(),
 }));
 
 vi.mock('../profile/profileService', () => ({
@@ -855,6 +856,25 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
       expect(logService.warn).toHaveBeenCalledWith(
         expect.stringContaining('auth token rejected/expired'),
       );
+    });
+  });
+
+  describe('resetAndSync', () => {
+    it('calls syncReset and immediately triggers syncNow', async () => {
+      vi.mocked(commands.syncReset).mockResolvedValue(undefined);
+      vi.mocked(commands.syncRun).mockResolvedValue(okReport);
+
+      await cloudSyncService.resetAndSync();
+
+      expect(commands.syncReset).toHaveBeenCalledTimes(1);
+      expect(commands.syncRun).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects if sync is blocked by policy or auth', async () => {
+      authService.isLoggedIn = false;
+
+      await expect(cloudSyncService.resetAndSync()).rejects.toThrow();
+      expect(commands.syncReset).not.toHaveBeenCalled();
     });
   });
 });
