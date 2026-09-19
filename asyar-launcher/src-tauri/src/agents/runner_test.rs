@@ -996,3 +996,179 @@ fn coalescing_preserves_provider_context_boundaries() {
         "Second"
     );
 }
+
+#[tokio::test]
+async fn test_run_thread_loop_with_web_search_tool() {
+    use crate::agents::builtin_tools::web_search::WebSearchTool;
+
+    // 1. Setup mock search backend using mockito
+    let mut search_server = mockito::Server::new_async().await;
+    let mock_html = r#"
+    <div class="result">
+        <a class="result__title" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fblog.rust-lang.org%2F2024%2F07%2F25%2FRust-1.80.0.html">Announcing Rust 1.80.0</a>
+        <a class="result__snippet">The Rust team is happy to announce a new version of Rust, 1.80.0.</a>
+    </div>
+    "#;
+    let _search_mock = search_server
+        .mock("POST", "/")
+        .match_body(mockito::Matcher::UrlEncoded(
+            "q".to_string(),
+            "rust 1.80".to_string(),
+        ))
+        .with_status(200)
+        .with_body(mock_html)
+        .create_async()
+        .await;
+
+    // 2. Setup mock LLM server
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+
+    tokio::spawn(async move {
+        // Turn 0: Model calls builtin:web-search
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut buf = [0; 4096];
+        let _ = tokio::io::AsyncReadExt::read(&mut socket, &mut buf)
+            .await
+            .unwrap();
+
+        let response_turn_0 = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\n\
+data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call-search-1\",\"type\":\"function\",\"function\":{\"name\":\"builtin__web-search\",\"arguments\":\"{\\\"query\\\":\\\"rust 1.80\\\"}\"}}]}}]}\n\ndata: [DONE]\n\n";
+        socket.write_all(response_turn_0.as_bytes()).await.unwrap();
+        drop(socket);
+
+        // Turn 1: Model synthesizes answer citing search results
+        let (mut socket2, _) = listener.accept().await.unwrap();
+        let _ = tokio::io::AsyncReadExt::read(&mut socket2, &mut buf)
+            .await
+            .unwrap();
+
+        let response_turn_1 = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\n\
+data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announced!\"}}]}\n\ndata: [DONE]\n\n";
+        socket2.write_all(response_turn_1.as_bytes()).await.unwrap();
+    });
+
+    let store = make_store();
+    let agent_id = "agent-search".to_string();
+    let thread_id = "thread-search".to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+
+    insert_agent(
+        &store.conn().unwrap(),
+        &AgentRow {
+            id: agent_id.clone(),
+            name: "Search Agent".to_string(),
+            description: None,
+            system_prompt: "Web researcher".to_string(),
+            provider_id: "openai".to_string(),
+            model_id: "gpt-4o".to_string(),
+            tool_selection: vec!["builtin:web-search".to_string()],
+            silent: false,
+            input_source: crate::storage::agents::SilentInputSource::Argument,
+            output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    insert_thread(
+        &store.conn().unwrap(),
+        &ThreadRow {
+            id: thread_id.clone(),
+            agent_id: agent_id.clone(),
+            title: Some("Search Thread".to_string()),
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    let registry = Arc::new(ToolRegistry::new());
+    registry
+        .register_builtin(Arc::new(WebSearchTool::with_base_url(search_server.url())))
+        .unwrap();
+
+    let config = crate::ai::types::ProviderConfig {
+        enabled: true,
+        api_key: Some("test-key".to_string()),
+        base_url: Some(format!("http://127.0.0.1:{}", port)),
+        ..Default::default()
+    };
+
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let e_clone = events.clone();
+    let on_event = move |event| {
+        e_clone.lock().unwrap().push(event);
+    };
+
+    run_thread_loop_impl(
+        &store,
+        &registry,
+        &agent_id,
+        &thread_id,
+        "What is in Rust 1.80?".to_string(),
+        None,
+        run_config("openai", config, Some(0.7), 2048),
+        on_event,
+        |_| async {
+            Err(AppError::Other(
+                "unexpected external tool dispatch".to_string(),
+            ))
+        },
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Verify searching status events occurred
+    let event_list = events.lock().unwrap().clone();
+    let saw_searching = event_list.iter().any(|e| {
+        matches!(
+            e,
+            AgentStreamEvent::Status {
+                status: Some(s)
+            } if s == "searching"
+        )
+    });
+    assert!(
+        saw_searching,
+        "expected 'searching' status event during web-search"
+    );
+
+    let msgs = list_messages_for_thread(&store.conn().unwrap(), &thread_id).unwrap();
+    assert_eq!(msgs.len(), 4);
+    assert_eq!(msgs[0].role, MessageRole::User);
+
+    // Assistant invoked builtin:web-search
+    assert_eq!(msgs[1].role, MessageRole::Assistant);
+    let tool_calls = msgs[1].content["toolUse"].as_array().unwrap();
+    assert_eq!(tool_calls.len(), 1);
+    assert_eq!(
+        tool_calls[0]["name"].as_str().unwrap(),
+        "builtin:web-search"
+    );
+
+    // Tool result stored sources and results
+    assert_eq!(msgs[2].role, MessageRole::Tool);
+    let output = &msgs[2].content["toolResult"]["output"];
+    let sources = output["sources"].as_array().unwrap();
+    assert_eq!(sources.len(), 1);
+    assert_eq!(
+        sources[0]["title"].as_str().unwrap(),
+        "Announcing Rust 1.80.0"
+    );
+    assert_eq!(
+        sources[0]["url"].as_str().unwrap(),
+        "https://blog.rust-lang.org/2024/07/25/Rust-1.80.0.html"
+    );
+
+    // Final assistant message
+    assert_eq!(msgs[3].role, MessageRole::Assistant);
+    assert_eq!(
+        msgs[3].content["text"].as_str().unwrap(),
+        "Rust 1.80.0 was officially announced!"
+    );
+}

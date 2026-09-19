@@ -641,9 +641,14 @@ where
     let provider_config = resolve_provider_config(&agent.provider_id, &config.configs)?.clone();
     let (tool_definitions, wire_to_fqid) = resolve_tools(agent, registry)?;
     let tools = (!tool_definitions.is_empty()).then_some(tool_definitions);
+    let has_web_search = provider_config.hosted_web_search.unwrap_or(false)
+        || agent
+            .tool_selection
+            .iter()
+            .any(|t| t == "builtin:web-search");
     let system_prompt = build_system_prompt(
         &agent.system_prompt,
-        provider_config.hosted_web_search.unwrap_or(false),
+        has_web_search,
         Some(&agent.shortcode_trigger),
         query,
     )
@@ -762,12 +767,22 @@ where
 
         for tool_call in resolved_calls {
             let output = if let Some(builtin_id) = tool_call.name.strip_prefix("builtin:") {
-                crate::agents::tools::agents_invoke_builtin_tool_impl(
+                let is_web_search = builtin_id == "web-search";
+                if is_web_search {
+                    on_event(AgentStreamEvent::Status {
+                        status: Some("searching".to_string()),
+                    });
+                }
+                let res = crate::agents::tools::agents_invoke_builtin_tool_impl(
                     registry,
                     builtin_id,
                     tool_call.input.clone(),
                 )
-                .await?
+                .await;
+                if is_web_search {
+                    on_event(AgentStreamEvent::Status { status: None });
+                }
+                res?
             } else {
                 let request = ExternalToolRequest {
                     tool_call_id: tool_call.id.clone(),
