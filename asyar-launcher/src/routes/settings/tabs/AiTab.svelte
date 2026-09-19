@@ -41,13 +41,30 @@
     ReasoningEffort,
   } from '../../../services/ai/IProviderPlugin';
   import type { CliStatus } from '../../../bindings';
-  import type { ProviderId } from '../../../services/settings/types/AppSettingsType';
+  import type {
+    ProviderId,
+    WebSearchEngine,
+    WebSearchSettings,
+  } from '../../../services/settings/types/AppSettingsType';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
 
   let { handler, mode = 'full' }: { handler?: SettingsHandler; mode?: 'full' | 'providers-only' } =
     $props();
 
   let settings = $derived(settingsService.currentSettings.ai);
+  let webSearchSettings = $derived(
+    settings.webSearch ?? { engine: 'duckduckgo' as WebSearchEngine },
+  );
+
+  function updateWebSearch(partial: Partial<WebSearchSettings>) {
+    const current = settings.webSearch ?? { engine: 'duckduckgo' as WebSearchEngine };
+    return settingsService.updateSettings('ai', {
+      webSearch: {
+        ...current,
+        ...partial,
+      },
+    });
+  }
 
   // Session-cached model lists — persists across tab switches in the same session
   let modelCache = $derived(sessionModelCache);
@@ -917,6 +934,113 @@
       </div>
     </SettingsCard>
   </div>
+
+  {#if mode === 'full'}
+    <div class="section-header">Web Search</div>
+    <div id="ai-web-search" class="anchor-group">
+      <SettingsCard>
+        <div class="web-search-card">
+          <div class="card-field">
+            <label class="field-label" for="web-search-engine">Search engine</label>
+            <select
+              id="web-search-engine"
+              class="card-select"
+              value={webSearchSettings.engine}
+              onchange={(e) =>
+                updateWebSearch({
+                  engine: (e.currentTarget as HTMLSelectElement).value as WebSearchEngine,
+                })}
+            >
+              <option value="duckduckgo">DuckDuckGo (Free &amp; Privacy-first)</option>
+              <option value="brave">Brave Search API</option>
+              <option value="tavily">Tavily Search API</option>
+              <option value="searxng">SearXNG / Custom Endpoint</option>
+            </select>
+          </div>
+
+          {#if webSearchSettings.engine === 'duckduckgo'}
+            <p class="field-description">
+              Zero configuration, local and privacy-friendly. Automatically falls back to Instant
+              Answers and Wikipedia if rate limits or anti-bot checks occur.
+            </p>
+          {:else if webSearchSettings.engine === 'brave'}
+            <div class="card-field">
+              <label class="field-label" for="web-search-brave-key">Brave API key</label>
+              <Input
+                unstyled
+                textIntent="exact"
+                class="card-input"
+                id="web-search-brave-key"
+                type="password"
+                placeholder="BSA..."
+                value={webSearchSettings.apiKey ?? ''}
+                onblur={(e) =>
+                  updateWebSearch({
+                    apiKey: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
+                  })}
+              />
+            </div>
+            <p class="field-description">
+              Fast, independent web search index. Provides 2,000 free queries per month at
+              <a
+                href="https://brave.com/search/api/"
+                target="_blank"
+                rel="noreferrer"
+                class="external-link"
+              >
+                brave.com/search/api
+              </a>.
+            </p>
+          {:else if webSearchSettings.engine === 'tavily'}
+            <div class="card-field">
+              <label class="field-label" for="web-search-tavily-key">Tavily API key</label>
+              <Input
+                unstyled
+                textIntent="exact"
+                class="card-input"
+                id="web-search-tavily-key"
+                type="password"
+                placeholder="tvly-..."
+                value={webSearchSettings.apiKey ?? ''}
+                onblur={(e) =>
+                  updateWebSearch({
+                    apiKey: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
+                  })}
+              />
+            </div>
+            <p class="field-description">
+              AI-optimized search engine for LLM agents. Provides 1,000 free searches per month at
+              <a href="https://tavily.com" target="_blank" rel="noreferrer" class="external-link">
+                tavily.com
+              </a>.
+            </p>
+          {:else if webSearchSettings.engine === 'searxng'}
+            <div class="card-field">
+              <label class="field-label" for="web-search-base-url">SearXNG base URL</label>
+              <Input
+                unstyled
+                textIntent="exact"
+                class="card-input"
+                id="web-search-base-url"
+                type="url"
+                placeholder="http://localhost:8080"
+                value={webSearchSettings.baseUrl ?? ''}
+                onblur={(e) =>
+                  updateWebSearch({
+                    baseUrl: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
+                  })}
+              />
+            </div>
+            <p class="field-description">
+              Self-hosted or public metasearch instance. Must support JSON format (<code
+                >/search?format=json</code
+              >).
+            </p>
+          {/if}
+        </div>
+      </SettingsCard>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -924,6 +1048,18 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+  }
+
+  .web-search-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .external-link {
+    color: var(--accent-primary);
+    text-decoration: underline;
   }
 
   .providers-section {

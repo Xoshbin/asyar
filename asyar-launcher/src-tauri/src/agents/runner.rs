@@ -58,6 +58,14 @@ pub enum AgentStreamEvent {
     Cancelled,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WebSearchConfig {
+    pub engine: Option<String>,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+}
+
 /// Everything Rust needs to resolve *and* validate an agent's provider for a
 /// run, without owning the settings store itself: the frontend still owns
 /// `settings.ai.providers`/`defaultAgentId` and passes them through as data
@@ -72,6 +80,8 @@ pub struct AgentRunConfig {
     pub default_agent_id: Option<String>,
     pub temperature: Option<f64>,
     pub max_tokens: u32,
+    #[serde(default)]
+    pub web_search: Option<WebSearchConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -773,10 +783,19 @@ where
                         status: Some("searching".to_string()),
                     });
                 }
+                let mut input = tool_call.input.clone();
+                if is_web_search {
+                    if let Some(ref ws) = config.web_search {
+                        if let Some(obj) = input.as_object_mut() {
+                            obj.insert(
+                                "__config".to_string(),
+                                serde_json::to_value(ws).unwrap_or_default(),
+                            );
+                        }
+                    }
+                }
                 let res = crate::agents::tools::agents_invoke_builtin_tool_impl(
-                    registry,
-                    builtin_id,
-                    tool_call.input.clone(),
+                    registry, builtin_id, input,
                 )
                 .await;
                 if is_web_search {

@@ -20,14 +20,32 @@ fn test_descriptor_schema() {
 #[test]
 fn test_parse_web_search_args() {
     // Valid with limit
-    let (q, l) = parse_web_search_args(json!({ "query": "rust lang", "limit": 10 })).unwrap();
+    let (q, l, cfg) = parse_web_search_args(json!({ "query": "rust lang", "limit": 10 })).unwrap();
     assert_eq!(q, "rust lang");
     assert_eq!(l, 10);
+    assert!(cfg.is_none());
 
     // Valid with default limit
-    let (q2, l2) = parse_web_search_args(json!({ "query": "  tauri v2  " })).unwrap();
+    let (q2, l2, cfg2) = parse_web_search_args(json!({ "query": "  tauri v2  " })).unwrap();
     assert_eq!(q2, "tauri v2");
     assert_eq!(l2, 5);
+    assert!(cfg2.is_none());
+
+    // Valid with __config
+    let (q3, l3, cfg3) = parse_web_search_args(json!({
+        "query": "spacex",
+        "limit": 3,
+        "__config": {
+            "engine": "brave",
+            "apiKey": "test-key-123"
+        }
+    }))
+    .unwrap();
+    assert_eq!(q3, "spacex");
+    assert_eq!(l3, 3);
+    let config = cfg3.unwrap();
+    assert_eq!(config.engine.as_deref(), Some("brave"));
+    assert_eq!(config.api_key.as_deref(), Some("test-key-123"));
 
     // Missing query
     assert!(matches!(
@@ -248,4 +266,94 @@ async fn test_web_search_tool_invoke_server_error() {
     let tool = WebSearchTool::with_base_url(server.url());
     let result = tool.invoke(json!({ "query": "fail query" })).await;
     assert!(result.is_err());
+}
+
+#[test]
+fn test_parse_wikipedia_json() {
+    let mock_json = r#"{
+        "query": {
+            "search": [
+                {
+                    "title": "SpaceX Starship",
+                    "snippet": "Starship is a <span class=\"searchmatch\">reusable</span> launch vehicle."
+                },
+                {
+                    "title": "Rust (programming language)",
+                    "snippet": "Rust is a <span class=\"searchmatch\">multi-paradigm</span> language."
+                }
+            ]
+        }
+    }"#;
+
+    let (sources, results) = parse_search_response(mock_json, 2);
+    assert_eq!(sources.len(), 2);
+    assert_eq!(sources[0].title, "SpaceX Starship");
+    assert_eq!(
+        sources[0].url,
+        "https://en.wikipedia.org/wiki/SpaceX_Starship"
+    );
+    assert_eq!(results[0].snippet, "Starship is a reusable launch vehicle.");
+
+    assert_eq!(sources[1].title, "Rust (programming language)");
+    assert_eq!(
+        sources[1].url,
+        "https://en.wikipedia.org/wiki/Rust_(programming_language)"
+    );
+}
+
+#[test]
+fn test_parse_ddg_abstract_json() {
+    let mock_json = r#"{
+        "Heading": "SpaceX",
+        "AbstractText": "SpaceX is an American spacecraft manufacturer.",
+        "AbstractURL": "https://en.wikipedia.org/wiki/SpaceX"
+    }"#;
+
+    let (sources, results) = parse_search_response(mock_json, 5);
+    assert_eq!(sources.len(), 1);
+    assert_eq!(sources[0].title, "SpaceX");
+    assert_eq!(sources[0].url, "https://en.wikipedia.org/wiki/SpaceX");
+    assert_eq!(
+        results[0].snippet,
+        "SpaceX is an American spacecraft manufacturer."
+    );
+}
+
+#[tokio::test]
+async fn test_web_search_with_searxng_config() {
+    let mut server = mockito::Server::new_async().await;
+    let mock_json = r#"{
+        "results": [
+            {
+                "title": "SearXNG Result",
+                "url": "https://example.com/searxng",
+                "content": "Privacy metasearch content."
+            }
+        ]
+    }"#;
+
+    let _m = server
+        .mock("GET", "/search?q=test+query&format=json")
+        .with_status(200)
+        .with_body(mock_json)
+        .create_async()
+        .await;
+
+    let tool = WebSearchTool::new();
+    let output = tool
+        .invoke(json!({
+            "query": "test query",
+            "limit": 5,
+            "__config": {
+                "engine": "searxng",
+                "baseUrl": server.url()
+            }
+        }))
+        .await
+        .unwrap();
+
+    let sources = output["sources"].as_array().unwrap();
+    assert_eq!(sources.len(), 1);
+    assert_eq!(sources[0]["title"], "SearXNG Result");
+    assert_eq!(sources[0]["url"], "https://example.com/searxng");
 }

@@ -46,6 +46,7 @@ fn run_config(
         default_agent_id: None,
         temperature,
         max_tokens,
+        web_search: None,
     }
 }
 
