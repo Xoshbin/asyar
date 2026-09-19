@@ -47,14 +47,15 @@ class SnippetViewStateClass {
     return this.selection.selectedItem;
   }
 
-  async setSearch(query: string) {
+  async setSearch(query: string, force = false) {
+    if (!force && this.searchQuery === query) return;
     this.searchQuery = query;
-    this.selection.setIndex(0);
     if (this.mode !== 'create' && this.mode !== 'edit') this.mode = 'view';
 
     const q = query.trim();
     if (!q) {
       this.rankedIds = null;
+      this.selection.setIndex(0);
       return;
     }
 
@@ -69,6 +70,7 @@ class SnippetViewStateClass {
     // superseded this query while Rust was ranking.
     if (this.searchQuery.trim() !== q) return;
     this.rankedIds = ranked.map((s) => s.id);
+    this.selection.setIndex(0);
   }
 
   /**
@@ -79,7 +81,7 @@ class SnippetViewStateClass {
    */
   async selectAfterMutation(id: string) {
     if (this.searchQuery.trim()) {
-      await this.setSearch(this.searchQuery);
+      await this.setSearch(this.searchQuery, true);
     }
     const idx = this.getFilteredSnippets().findIndex((s) => s.id === id);
     if (idx >= 0) this.selectItem(idx);
