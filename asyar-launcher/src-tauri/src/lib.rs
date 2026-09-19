@@ -1057,6 +1057,7 @@ fn register_builtin_tools(
         search::SearchTool,
         shell::ShellExecTool,
         web_fetch::WebFetchTool,
+        web_search::WebSearchTool,
     };
     use std::sync::Arc;
     use tauri::Manager;
@@ -1088,6 +1089,9 @@ fn register_builtin_tools(
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     registry
         .register_builtin(Arc::new(WebFetchTool::new()))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry
+        .register_builtin(Arc::new(WebSearchTool::new()))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     registry
         .register_builtin(Arc::new(SearchTool::new(search_state)))

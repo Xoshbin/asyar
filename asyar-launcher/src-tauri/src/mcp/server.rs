@@ -9,6 +9,7 @@ use crate::agents::builtin_tools::{
     fs::{FsReadTool, FsWriteTool},
     shell::ShellExecTool,
     web_fetch::WebFetchTool,
+    web_search::WebSearchTool,
 };
 use crate::agents::tools::ToolRegistry;
 use crate::error::AppError;
@@ -56,6 +57,7 @@ pub fn create_default_mcp_registry() -> Arc<ToolRegistry> {
     let _ = registry.register_builtin(Arc::new(FsWriteTool::new()));
     let _ = registry.register_builtin(Arc::new(ShellExecTool::new()));
     let _ = registry.register_builtin(Arc::new(WebFetchTool::new()));
+    let _ = registry.register_builtin(Arc::new(WebSearchTool::new()));
 
     registry
 }

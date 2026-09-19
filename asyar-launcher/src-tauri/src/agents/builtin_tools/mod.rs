@@ -5,6 +5,7 @@ pub mod notes;
 pub mod search;
 pub mod shell;
 pub mod web_fetch;
+pub mod web_search;
 
 #[cfg(test)]
 mod calculator_test;
@@ -20,3 +21,5 @@ mod search_test;
 mod shell_test;
 #[cfg(test)]
 mod web_fetch_test;
+#[cfg(test)]
+mod web_search_test;

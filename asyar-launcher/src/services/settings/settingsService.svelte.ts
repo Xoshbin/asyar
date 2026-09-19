@@ -68,6 +68,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     maxTokens: 2048,
     defaultAgentId: null,
     tabContinuesLastThread: false,
+    webSearch: {
+      engine: 'duckduckgo',
+    },
   } satisfies AISettings,
   developer: {
     enabled: false,

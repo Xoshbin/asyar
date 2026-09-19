@@ -83,6 +83,7 @@ export async function runAgent(input: RunAgentInput): Promise<void> {
     defaultAgentId: settings.ai.defaultAgentId,
     temperature: providerConfig?.temperature ?? null,
     maxTokens: providerConfig?.maxTokens ?? settings.ai.maxTokens,
+    webSearch: settings.ai.webSearch,
   };
 
   let runnerCancelled = false;
