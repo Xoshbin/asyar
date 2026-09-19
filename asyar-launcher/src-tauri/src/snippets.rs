@@ -62,38 +62,137 @@ pub fn merge_active_snippets(
     merged
 }
 
-#[cfg(not(target_os = "macos"))]
+#[derive(Debug, PartialEq, Eq)]
+pub enum SnippetMatchAction {
+    Expand {
+        keyword_len: usize,
+        expansion: String,
+    },
+    ShortcodeMiss {
+        candidate: String,
+    },
+    None,
+}
+
+/// Pure buffer evaluation: appends a char (capped at 64), checks for keyword matches,
+/// and checks for shortcode miss candidates against registered triggers.
+pub fn evaluate_snippet_buffer(
+    buffer: &mut Vec<char>,
+    c: char,
+    merged_snippets: &ShortcodeMap,
+    triggers: &[String],
+) -> SnippetMatchAction {
+    const MAX_LEN: usize = 64;
+    buffer.push(c);
+    if buffer.len() > MAX_LEN {
+        buffer.remove(0);
+    }
+    let current: String = buffer.iter().collect();
+    for (keyword, expansion) in merged_snippets.iter() {
+        if current.ends_with(keyword.as_str()) {
+            let kw_len = keyword.chars().count();
+            let exp = expansion.clone();
+            buffer.clear();
+            return SnippetMatchAction::Expand {
+                keyword_len: kw_len,
+                expansion: exp,
+            };
+        }
+    }
+    for trigger in triggers {
+        if trigger.ends_with(c) {
+            if let Some(candidate) = detect_completed_shortcode_at_end(&current, trigger) {
+                if !merged_snippets.contains_key(&candidate) {
+                    buffer.clear();
+                    return SnippetMatchAction::ShortcodeMiss { candidate };
+                }
+            }
+        }
+    }
+    SnippetMatchAction::None
+}
+
+/// Appends a typed character to the snippet buffer, checks for active snippet expansions,
+/// and detects completed shortcodes for miss reporting.
+pub fn process_snippet_char(app_handle: &AppHandle, buffer: &mut Vec<char>, c: char) {
+    let state = app_handle.state::<crate::AppState>();
+    let merged = {
+        let user_guard = state
+            .active_snippets
+            .lock()
+            .unwrap_or_else(|p: std::sync::PoisonError<_>| p.into_inner());
+        let contributed_guard = state
+            .contributed_snippets
+            .lock()
+            .unwrap_or_else(|p: std::sync::PoisonError<_>| p.into_inner());
+        merge_active_snippets(&user_guard, &contributed_guard)
+    };
+    let triggers = {
+        if let Ok(guard) = state.shortcode_triggers.lock() {
+            guard.clone()
+        } else {
+            vec![":".to_string()]
+        }
+    };
+
+    match evaluate_snippet_buffer(buffer, c, &merged, &triggers) {
+        SnippetMatchAction::Expand {
+            keyword_len,
+            expansion,
+        } => {
+            let _ = app_handle.emit_to(
+                crate::SPOTLIGHT_LABEL,
+                "expand-snippet",
+                serde_json::json!({
+                    "keywordLen": keyword_len,
+                    "expansion": expansion
+                }),
+            );
+        }
+        SnippetMatchAction::ShortcodeMiss { candidate } => {
+            let _ = app_handle.emit_to(
+                crate::SPOTLIGHT_LABEL,
+                "shortcode-miss",
+                serde_json::json!({ "shortcode": candidate }),
+            );
+        }
+        SnippetMatchAction::None => {}
+    }
+}
+
+#[cfg(target_os = "linux")]
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 
 // rdev delivers events serially on a single thread, so Relaxed ordering is sufficient.
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 static SHIFT_HELD: AtomicBool = AtomicBool::new(false);
 
 #[cfg(target_os = "macos")]
 pub fn start_listener(app_handle: AppHandle) {
-    #[cfg(target_os = "macos")]
+    let app = app_handle.clone();
+    // NSEvent monitors must be registered on the main thread
+    if let Err(e) =
+        app_handle.run_on_main_thread(move || crate::platform::macos::register_snippet_monitor(app))
     {
-        let app = app_handle.clone();
-        // NSEvent monitors must be registered on the main thread
-        if let Err(e) = app_handle
-            .run_on_main_thread(move || crate::platform::macos::register_snippet_monitor(app))
-        {
-            log::error!(
-                "[snippets] failed to schedule NSEvent monitor on main thread: {:?}",
-                e
-            );
-        }
+        log::error!(
+            "[snippets] failed to schedule NSEvent monitor on main thread: {:?}",
+            e
+        );
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+pub fn start_listener(app_handle: AppHandle) {
+    crate::platform::windows::register_snippet_monitor(app_handle);
+}
+
+#[cfg(target_os = "linux")]
 pub fn start_listener(app_handle: AppHandle) {
     std::thread::spawn(move || {
         use rdev::{listen, EventType, Key};
         use std::sync::atomic::Ordering;
 
         let mut buffer: Vec<char> = Vec::new();
-        const MAX_LEN: usize = 64;
 
         if let Err(e) = listen(move |event| {
             match event.event_type {
@@ -133,67 +232,7 @@ pub fn start_listener(app_handle: AppHandle) {
                     _ => {
                         let shift = SHIFT_HELD.load(AtomicOrdering::Relaxed);
                         if let Some(c) = resolve_keypress_for_current_platform(&key, shift) {
-                            buffer.push(c);
-                            if buffer.len() > MAX_LEN {
-                                buffer.remove(0);
-                            }
-                            let current: String = buffer.iter().collect();
-                            let merged = {
-                                let user_guard = state
-                                    .active_snippets
-                                    .lock()
-                                    .unwrap_or_else(|p: std::sync::PoisonError<_>| p.into_inner());
-                                let contributed_guard = state
-                                    .contributed_snippets
-                                    .lock()
-                                    .unwrap_or_else(|p: std::sync::PoisonError<_>| p.into_inner());
-                                crate::snippets::merge_active_snippets(
-                                    &user_guard,
-                                    &contributed_guard,
-                                )
-                            };
-                            for (keyword, expansion) in merged.iter() {
-                                if current.ends_with(keyword.as_str()) {
-                                    let kw_len = keyword.chars().count();
-                                    let exp = expansion.clone();
-                                    buffer.clear();
-                                    let _ = app_handle.emit_to(
-                                        crate::SPOTLIGHT_LABEL,
-                                        "expand-snippet",
-                                        serde_json::json!({
-                                            "keywordLen": kw_len,
-                                            "expansion": exp
-                                        }),
-                                    );
-                                    return;
-                                }
-                            }
-                            let triggers = {
-                                if let Ok(guard) = state.shortcode_triggers.lock() {
-                                    guard.clone()
-                                } else {
-                                    vec![":".to_string()]
-                                }
-                            };
-                            for trigger in triggers {
-                                if trigger.ends_with(c) {
-                                    if let Some(candidate) =
-                                        crate::snippets::detect_completed_shortcode_at_end(
-                                            &current, &trigger,
-                                        )
-                                    {
-                                        if !merged.contains_key(&candidate) {
-                                            let _ = app_handle.emit_to(
-                                                crate::SPOTLIGHT_LABEL,
-                                                "shortcode-miss",
-                                                serde_json::json!({ "shortcode": candidate }),
-                                            );
-                                            buffer.clear();
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
+                            process_snippet_char(&app_handle, &mut buffer, c);
                         }
                     }
                 }
@@ -336,5 +375,70 @@ mod tests {
         assert!(!super::is_valid_shortcode_key(":party!:", ":"));
         let too_long = ":".to_string() + &"a".repeat(33) + ":";
         assert!(!super::is_valid_shortcode_key(&too_long, ":"));
+    }
+
+    #[test]
+    fn evaluate_snippet_buffer_expands_on_keyword_match() {
+        use super::{evaluate_snippet_buffer, SnippetMatchAction};
+        use std::collections::HashMap;
+
+        let mut buffer = Vec::new();
+        let mut snippets = HashMap::new();
+        snippets.insert(":fire:".to_string(), "🔥".to_string());
+        let triggers = vec![":".to_string()];
+
+        for ch in ":fir".chars() {
+            let action = evaluate_snippet_buffer(&mut buffer, ch, &snippets, &triggers);
+            assert_eq!(action, SnippetMatchAction::None);
+        }
+        let action = evaluate_snippet_buffer(&mut buffer, 'e', &snippets, &triggers);
+        assert_eq!(action, SnippetMatchAction::None);
+
+        let action = evaluate_snippet_buffer(&mut buffer, ':', &snippets, &triggers);
+        assert_eq!(
+            action,
+            SnippetMatchAction::Expand {
+                keyword_len: 6,
+                expansion: "🔥".to_string()
+            }
+        );
+        assert!(buffer.is_empty());
+    }
+
+    #[test]
+    fn evaluate_snippet_buffer_reports_shortcode_miss_on_unknown() {
+        use super::{evaluate_snippet_buffer, SnippetMatchAction};
+        use std::collections::HashMap;
+
+        let mut buffer = Vec::new();
+        let snippets = HashMap::new();
+        let triggers = vec![":".to_string()];
+
+        for ch in ":unknown".chars() {
+            evaluate_snippet_buffer(&mut buffer, ch, &snippets, &triggers);
+        }
+        let action = evaluate_snippet_buffer(&mut buffer, ':', &snippets, &triggers);
+        assert_eq!(
+            action,
+            SnippetMatchAction::ShortcodeMiss {
+                candidate: ":unknown:".to_string()
+            }
+        );
+        assert!(buffer.is_empty());
+    }
+
+    #[test]
+    fn evaluate_snippet_buffer_caps_at_max_len() {
+        use super::evaluate_snippet_buffer;
+        use std::collections::HashMap;
+
+        let mut buffer = Vec::new();
+        let snippets = HashMap::new();
+        let triggers = vec![":".to_string()];
+
+        for _ in 0..100 {
+            evaluate_snippet_buffer(&mut buffer, 'a', &snippets, &triggers);
+        }
+        assert_eq!(buffer.len(), 64);
     }
 }
