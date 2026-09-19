@@ -8,6 +8,7 @@ import { actionService } from '../../services/action/actionService.svelte';
 import { snippetUiState } from './snippetUiState.svelte';
 import { snippetViewState } from './snippetViewState.svelte';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
+import { isAnyModalOpen } from '../../components/base/Modal.logic';
 
 class SnippetsExtension implements Extension {
   onUnload = () => {};
@@ -28,20 +29,26 @@ class SnippetsExtension implements Extension {
 
   private async handleKeydown(e: KeyboardEvent) {
     if (!this.inView) return;
+    if (typeof document !== 'undefined') {
+      if (document.querySelector('.action-popup') || isAnyModalOpen(document)) return;
+    }
     if (snippetViewState.mode !== 'view') return; // let form handle its own keys
 
     if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
       e.preventDefault();
+      e.stopPropagation();
       snippetViewState.startCreate();
       return;
     }
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       e.preventDefault();
+      e.stopPropagation();
       snippetViewState.moveSelection(e.key === 'ArrowUp' ? 'up' : 'down');
       return;
     }
     if (e.key === 'Enter' && snippetViewState.selectedSnippet) {
       e.preventDefault();
+      e.stopPropagation();
       await snippetService.pasteSnippet(snippetViewState.selectedSnippet.expansion);
     }
   }
@@ -55,7 +62,7 @@ class SnippetsExtension implements Extension {
 
   async viewActivated(_viewId: string): Promise<void> {
     this.inView = true;
-    window.addEventListener('keydown', this.handleKeydownBound);
+    window.addEventListener('keydown', this.handleKeydownBound, true);
     const result = await snippetService.onViewOpen();
     this.extensionManager?.setActiveViewActionLabel('Paste');
     actionService.registerAction({
@@ -192,7 +199,7 @@ class SnippetsExtension implements Extension {
 
   async viewDeactivated(_viewId: string): Promise<void> {
     this.inView = false;
-    window.removeEventListener('keydown', this.handleKeydownBound);
+    window.removeEventListener('keydown', this.handleKeydownBound, true);
     snippetViewState.reset();
     this.extensionManager?.setActiveViewActionLabel(null);
     actionService.unregisterAction('snippets:add');
@@ -210,7 +217,10 @@ class SnippetsExtension implements Extension {
   }
 
   async activate(): Promise<void> {}
-  async deactivate(): Promise<void> {}
+  async deactivate(): Promise<void> {
+    this.inView = false;
+    window.removeEventListener('keydown', this.handleKeydownBound, true);
+  }
 }
 
 export default new SnippetsExtension();
