@@ -93,6 +93,21 @@ export type ChatStreamEvent = { type: "token"; token: string } | { type: "status
 
 export type ChatStreamEventPayload = { type: "token"; token: string } | { type: "status"; status: string } | { type: "toolCall"; id: string; name: string; input: any } | { type: "providerContext"; item: any } | { type: "done" } | { type: "error"; error: string };
 
+export type CliAccountInfo = {
+	email: string | null,
+	planType: string | null,
+	quotaUsedPercent: number | null,
+	quotaResetsAt: number | null,
+};
+
+export type CliStatus = {
+	installed: boolean,
+	path: string | null,
+	version: string | null,
+	error: string | null,
+	account: CliAccountInfo | null,
+};
+
 export type Command = {
 	id: string,
 	name: string,
@@ -319,6 +334,8 @@ export type ProviderConfig = {
 	reasoningEffort: string | null,
 	temperature: number | null,
 	maxTokens: number | null,
+	connectionMode: string | null,
+	cliBinaryPath: string | null,
 };
 
 /**

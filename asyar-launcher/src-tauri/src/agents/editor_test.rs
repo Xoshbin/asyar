@@ -44,16 +44,9 @@ fn provider(id: &str, requires_api_key: bool, requires_base_url: bool) -> AgentP
 fn config(enabled: bool, api_key: Option<&str>, base_url: Option<&str>) -> ProviderConfig {
     ProviderConfig {
         enabled,
-        name: None,
-        provider_type: None,
         api_key: api_key.map(str::to_owned),
         base_url: base_url.map(str::to_owned),
-        last_model_id: None,
-        open_ai_api_mode: None,
-        hosted_web_search: None,
-        reasoning_effort: None,
-        temperature: None,
-        max_tokens: None,
+        ..Default::default()
     }
 }
 
@@ -157,6 +150,20 @@ fn editor_catalog_requires_non_blank_credentials() {
     let catalog = agents_editor_catalog_impl(&registry, &providers, &configs).unwrap();
 
     assert!(catalog.providers.is_empty());
+}
+
+#[test]
+fn editor_catalog_allows_cli_provider_without_api_key() {
+    let registry = ToolRegistry::new();
+    let providers = vec![provider("google", true, false)];
+    let mut cli_config = config(true, None, None);
+    cli_config.connection_mode = Some("cli".to_string());
+    let configs = HashMap::from([("google".into(), cli_config)]);
+
+    let catalog = agents_editor_catalog_impl(&registry, &providers, &configs).unwrap();
+
+    assert_eq!(catalog.providers.len(), 1);
+    assert_eq!(catalog.providers[0].id, "google");
 }
 
 #[test]

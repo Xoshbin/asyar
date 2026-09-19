@@ -548,31 +548,47 @@ pub(crate) fn resolve_provider_config<'a>(
             "provider '{provider_id}' is not registered"
         )));
     }
-    if matches!(
-        engine_type,
-        "openai" | "anthropic" | "google" | "openrouter"
-    ) && config
-        .api_key
-        .as_deref()
-        .unwrap_or_default()
-        .trim()
-        .is_empty()
-    {
-        return Err(AppError::Validation(format!(
-            "API key for provider '{provider_id}' is not configured"
-        )));
-    }
-    if matches!(engine_type, "ollama" | "custom")
-        && config
-            .base_url
+    let is_cli = config.connection_mode.as_deref() == Some("cli");
+    if is_cli {
+        if !matches!(engine_type, "google" | "openai") {
+            return Err(AppError::Validation(format!(
+                "CLI mode is not supported for provider '{provider_id}'"
+            )));
+        }
+        if crate::ai::cli::resolve_cli_binary(engine_type, config.cli_binary_path.as_deref())
+            .is_none()
+        {
+            return Err(AppError::Validation(format!(
+                "CLI executable for provider '{provider_id}' was not found"
+            )));
+        }
+    } else {
+        if matches!(
+            engine_type,
+            "openai" | "anthropic" | "google" | "openrouter"
+        ) && config
+            .api_key
             .as_deref()
             .unwrap_or_default()
             .trim()
             .is_empty()
-    {
-        return Err(AppError::Validation(format!(
-            "Base URL for provider '{provider_id}' is not configured"
-        )));
+        {
+            return Err(AppError::Validation(format!(
+                "API key for provider '{provider_id}' is not configured"
+            )));
+        }
+        if matches!(engine_type, "ollama" | "custom")
+            && config
+                .base_url
+                .as_deref()
+                .unwrap_or_default()
+                .trim()
+                .is_empty()
+        {
+            return Err(AppError::Validation(format!(
+                "Base URL for provider '{provider_id}' is not configured"
+            )));
+        }
     }
     Ok(config)
 }

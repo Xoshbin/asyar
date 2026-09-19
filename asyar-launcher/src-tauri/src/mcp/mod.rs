@@ -1,6 +1,9 @@
 pub mod client;
 pub mod install;
 pub mod lifecycle;
+pub mod server;
+#[cfg(test)]
+pub mod server_test;
 pub mod sidecar;
 pub mod supervisor;
 pub mod tool_adapter;

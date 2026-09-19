@@ -305,7 +305,8 @@
       "no_models_matching": "Nenhum modelo correspondente a \"{query}\"",
       "use_custom_model": "Usar modelo personalizado \"{query}\"",
       "enter_custom_model": "Digite o ID do modelo personalizado…",
-      "custom_model_badge": "personalizado"
+      "custom_model_badge": "personalizado",
+      "probe_cli_error": "Falha ao verificar status da CLI"
     },
     "applications": {
       "no_match": "Nenhum aplicativo corresponde ao seu filtro",
