@@ -4,7 +4,8 @@
 #![cfg(target_os = "windows")]
 
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetKeyboardLayout, MapVirtualKeyExW, ToUnicodeEx, HKL, MAPVK_VSC_TO_VK_EX, VK_SHIFT,
+    GetKeyboardLayout, MapVirtualKeyExW, ToUnicodeEx, HKL, MAPVK_VK_TO_VSC_EX, MAPVK_VSC_TO_VK_EX,
+    VK_SHIFT,
 };
 use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
@@ -100,6 +101,55 @@ fn scan_code_for(key: rdev::Key) -> Option<u32> {
     })
 }
 
+/// Resolve a physical virtual-key and scan-code to the character the OS would deliver to a
+/// focused text input. Returns `None` for non-character keys (modifiers, function keys,
+/// dead-key states that don't yet commit a glyph) and for IME-composition states.
+///
+/// Uses `wFlags = 0x4` (pure query) so it NEVER consumes or corrupts the OS dead-key buffer.
+pub fn resolve_vk_scan(vk: u32, scan: u32, shift_held: bool) -> Option<char> {
+    let hkl: HKL = unsafe {
+        let hwnd = GetForegroundWindow();
+        let thread_id = if hwnd.0.is_null() {
+            0
+        } else {
+            windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, None)
+        };
+        GetKeyboardLayout(thread_id)
+    };
+    resolve_vk_scan_with_hkl(vk, scan, shift_held, hkl)
+}
+
+/// Core resolution for virtual-key and scan-code against an explicit keyboard layout.
+pub fn resolve_vk_scan_with_hkl(
+    vk: u32,
+    mut scan: u32,
+    shift_held: bool,
+    hkl: HKL,
+) -> Option<char> {
+    unsafe {
+        if scan == 0 {
+            scan = MapVirtualKeyExW(vk, MAPVK_VK_TO_VSC_EX, Some(hkl));
+        }
+
+        let mut state = [0u8; 256];
+        if shift_held {
+            state[VK_SHIFT.0 as usize] = 0x80;
+        }
+
+        let mut buf = [0u16; 8];
+        // wFlags bit 2 (= 0x4) makes the call a pure query — does NOT consume dead-key
+        // state into the kernel layout buffer. Required for global listeners that
+        // must not corrupt the user's foreground app composition state.
+        let written = ToUnicodeEx(vk, scan, &state, &mut buf, 0x4, Some(hkl));
+        if written <= 0 {
+            return None;
+        }
+        let slice = &buf[..written as usize];
+        let s = String::from_utf16_lossy(slice);
+        s.chars().next()
+    }
+}
+
 /// Resolve a physical keypress to the character the OS would deliver to a focused
 /// text input. Returns `None` for non-character keys (modifiers, function keys,
 /// dead-key states that don't yet commit a glyph) and for IME-composition states.
@@ -124,37 +174,11 @@ pub fn resolve_keypress(rdev_key: rdev::Key, shift_held: bool) -> Option<char> {
 /// anything — either would mutate the user's input list / language bar.
 fn resolve_with_hkl(rdev_key: rdev::Key, shift_held: bool, hkl: HKL) -> Option<char> {
     let scan = scan_code_for(rdev_key)?;
-
-    // SAFETY:
-    // - `state` is exactly 256 bytes, the ABI-required size for ToUnicodeEx's
-    //   keyboard-state arg.
-    // - `buf` is 8 u16s, well above ToUnicodeEx's minimum.
-    // - `hkl` is either a valid HKL from GetKeyboardLayout/LoadKeyboardLayoutW,
-    //   or HKL(0) — all accepted by ToUnicodeEx per the Win32 docs.
-    // - `scan` and `vk` are passed by value; no aliasing concerns.
-    unsafe {
-        let mut state = [0u8; 256];
-        if shift_held {
-            state[VK_SHIFT.0 as usize] = 0x80;
-        }
-
-        let vk = MapVirtualKeyExW(scan, MAPVK_VSC_TO_VK_EX, Some(hkl));
-        if vk == 0 {
-            return None;
-        }
-
-        let mut buf = [0u16; 8];
-        // wFlags bit 2 (= 0x4) makes the call a pure query — does NOT consume dead-key
-        // state into the kernel layout buffer. Required for global listeners that
-        // must not corrupt the user's foreground app composition state.
-        let written = ToUnicodeEx(vk, scan, &state, &mut buf, 0x4, Some(hkl));
-        if written <= 0 {
-            return None;
-        }
-        let slice = &buf[..written as usize];
-        let s = String::from_utf16_lossy(slice);
-        s.chars().next()
+    let vk = unsafe { MapVirtualKeyExW(scan, MAPVK_VSC_TO_VK_EX, Some(hkl)) };
+    if vk == 0 {
+        return None;
     }
+    resolve_vk_scan_with_hkl(vk, scan, shift_held, hkl)
 }
 
 #[cfg(test)]
@@ -268,5 +292,23 @@ mod tests {
         let hkl = hkl_or_skip!(LANGID_US, "US-English");
         let _ = resolve_with_hkl(Key::Num6, true, hkl); // ^ dead key: no commit
         assert_eq!(resolve_with_hkl(Key::KeyE, false, hkl), Some('e'));
+    }
+
+    #[test]
+    fn resolves_vk_scan_on_us_layout() {
+        let hkl = hkl_or_skip!(LANGID_US, "US");
+        // VK_A = 0x41, scan code for A = 0x1E
+        assert_eq!(resolve_vk_scan_with_hkl(0x41, 0x1E, false, hkl), Some('a'));
+        assert_eq!(resolve_vk_scan_with_hkl(0x41, 0x1E, true, hkl), Some('A'));
+    }
+
+    #[test]
+    fn dead_key_vk_scan_returns_none_and_leaves_no_state() {
+        let hkl = hkl_or_skip!(LANGID_US, "US-English");
+        // On US-Intl, VK_OEM_7 (0xDE, scan 0x28) with shift is the `"` dead key.
+        // It must return None without corrupting the kernel state.
+        let _ = resolve_vk_scan_with_hkl(0xDE, 0x28, true, hkl);
+        // Subsequent keypress (e.g. 'o', VK_O = 0x4F, scan 0x18) remains unaffected
+        assert_eq!(resolve_vk_scan_with_hkl(0x4F, 0x18, false, hkl), Some('o'));
     }
 }
