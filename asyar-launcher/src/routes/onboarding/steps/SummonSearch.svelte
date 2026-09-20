@@ -28,6 +28,11 @@
       steps={[`Press ${modifier}+${key}`, 'Type an app name, or "1234 * 56"', 'Press Enter']}
     />
 
+    <p class="step__tip">
+      💡 <strong>Quick Look:</strong>
+      {t('onboarding.summon_quick_look_tip')}
+    </p>
+
     {#if showRebind}
       <div class="step__rebind">
         <ShortcutRecorder bind:modifier bind:key onsave={saveHotkey} />
@@ -66,6 +71,12 @@
     color: var(--text-secondary);
     font-size: var(--font-size-xl);
     line-height: 1.6;
+  }
+  .step__tip {
+    margin: var(--space-1) 0 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
   }
   .step__lede kbd,
   .step__lede code {

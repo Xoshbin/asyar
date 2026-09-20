@@ -29,6 +29,8 @@ const PROVIDERS: IProviderPlugin[] = [
     name: 'Anthropic',
     requiresApiKey: true,
     requiresBaseUrl: false,
+    supportsCliMode: true,
+    cliName: 'Claude Code CLI (claude)',
   }),
   descriptor({
     id: 'google',

@@ -40,6 +40,22 @@
       {t('onboarding.welcome_desc')}
     </p>
 
+    <div class="welcome__highlights">
+      <span class="welcome__tag">⚡️ {t('onboarding.welcome_highlight_zero_key_ai')}</span>
+      <span class="welcome__tag">🌐 {t('onboarding.welcome_highlight_web_search')}</span>
+      <span class="welcome__tag">👁️ {t('onboarding.welcome_highlight_quick_look')}</span>
+      <span class="welcome__tag">📦 {t('onboarding.welcome_highlight_raycast')}</span>
+    </div>
+
+    <div class="welcome__row">
+      <div class="welcome__row-label">
+        <span class="welcome__row-title">{t('onboarding.tour_raycast')}</span>
+        <span class="welcome__row-hint">{t('onboarding.tour_raycast_desc')}</span>
+      </div>
+      <Button class="btn-secondary" onclick={openRaycastImport}
+        >{t('settings.backup.import_raycast_button')}</Button
+      >
+    </div>
     <div class="welcome__row">
       <div class="welcome__row-label">
         <span class="welcome__row-title">{t('onboarding.tour_appearance')}</span>
@@ -53,15 +69,6 @@
         <span class="welcome__row-hint">{t('onboarding.tour_window_mode_desc')}</span>
       </div>
       <WindowModeSelector value={currentLaunchView} onchange={pickLaunchView} />
-    </div>
-    <div class="welcome__row">
-      <div class="welcome__row-label">
-        <span class="welcome__row-title">{t('onboarding.tour_raycast')}</span>
-        <span class="welcome__row-hint">{t('onboarding.tour_raycast_desc')}</span>
-      </div>
-      <Button class="btn-secondary" onclick={openRaycastImport}
-        >{t('settings.backup.import_raycast_button')}</Button
-      >
     </div>
   </div>
 </Card>
@@ -92,6 +99,23 @@
     color: var(--text-secondary);
     font-size: var(--font-size-xl);
     line-height: 1.6;
+  }
+  .welcome__highlights {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: var(--space-1) 0 var(--space-2);
+  }
+  .welcome__tag {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-3);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--text-secondary);
   }
   .welcome__row {
     display: flex;
