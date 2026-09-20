@@ -17,10 +17,22 @@
     "./utils": {
       "types": "./dist/utils/index.d.ts",
       "default": "./dist/utils/index.js"
+    },
+    "./runner": {
+      "types": "./dist/runner/index.d.ts",
+      "default": "./dist/runner/index.js"
+    },
+    "./compiler": {
+      "types": "./dist/compiler/index.d.ts",
+      "default": "./dist/compiler/index.js"
     }
+  },
+  "bin": {
+    "asyar-raycast-compile": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
+    "compile": "node ./dist/cli.js",
     "test": "vitest",
     "test:run": "vitest run"
   },

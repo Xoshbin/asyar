@@ -133,6 +133,8 @@ export function adaptRaycastPackageJson(
     'feedback:report',
   ];
 
+  const hasBackground = commands.some((c) => c.mode === 'background');
+
   return {
     id,
     name,
@@ -143,9 +145,11 @@ export function adaptRaycastPackageJson(
     type: 'extension',
     asyarSdk: sdkVersion,
     searchable: true,
-    background: {
-      main: 'dist/worker.js',
-    },
+    background: hasBackground
+      ? {
+          main: 'dist/worker.js',
+        }
+      : undefined,
     permissions,
     preferences: preferences.length > 0 ? preferences : undefined,
     commands,
