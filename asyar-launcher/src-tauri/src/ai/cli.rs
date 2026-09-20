@@ -13,18 +13,20 @@ fn resolve_home_dir() -> Option<PathBuf> {
     std::env::var_os("HOME").map(PathBuf::from)
 }
 
-/// Normalizes an engine name or provider identifier (e.g. "google_d5019aba" -> "google", "openai_8f12b" -> "openai").
+/// Normalizes an engine name or provider identifier (e.g. "google_d5019aba" -> "google", "openai_8f12b" -> "openai", "anthropic_123" -> "claude").
 pub fn normalize_engine(engine: &str) -> &str {
     if engine.starts_with("google") {
         "google"
     } else if engine.starts_with("openai") {
         "openai"
+    } else if engine.starts_with("anthropic") || engine.starts_with("claude") {
+        "claude"
     } else {
         engine
     }
 }
 
-/// Resolves candidate paths for a given engine ("google" -> agy, "openai" -> codex).
+/// Resolves candidate paths for a given engine ("google" -> agy, "openai" -> codex, "claude" -> claude).
 pub fn cli_candidates(engine: &str) -> Vec<PathBuf> {
     let home = resolve_home_dir();
     let mut candidates = Vec::new();
@@ -55,6 +57,19 @@ pub fn cli_candidates(engine: &str) -> Vec<PathBuf> {
                     candidates.push(h.join("AppData/Roaming/npm/codex.cmd"));
                 }
             }
+        }
+        "claude" => {
+            if let Some(ref h) = home {
+                candidates.push(h.join(".local/bin/claude"));
+                candidates.push(h.join(".npm-global/bin/claude"));
+                #[cfg(windows)]
+                {
+                    candidates.push(h.join(".local/bin/claude.exe"));
+                    candidates.push(h.join("AppData/Roaming/npm/claude.cmd"));
+                }
+            }
+            candidates.push(PathBuf::from("/opt/homebrew/bin/claude"));
+            candidates.push(PathBuf::from("/usr/local/bin/claude"));
         }
         _ => {}
     }
@@ -93,6 +108,7 @@ pub fn resolve_cli_binary(engine: &str, custom_path: Option<&str>) -> Option<Pat
     let binary_name = match normalize_engine(engine) {
         "google" => "agy",
         "openai" => "codex",
+        "claude" => "claude",
         other => other,
     };
 
@@ -124,6 +140,7 @@ pub async fn check_cli_status(engine: &str, custom_path: Option<&str>) -> CliSta
         let name = match normalize_engine(engine) {
             "google" => "Google Antigravity (agy)",
             "openai" => "OpenAI Codex (codex)",
+            "claude" => "Claude Code (claude)",
             other => other,
         };
         return CliStatus {
@@ -139,6 +156,7 @@ pub async fn check_cli_status(engine: &str, custom_path: Option<&str>) -> CliSta
 
     // If OpenAI, ensure MCP registration and probe account & rate limits via codex app-server.
     // If Google, ensure MCP registration and probe active account from ~/.gemini.
+    // If Claude, ensure MCP registration and probe active account from ~/.claude.json.
     let account = if normalize_engine(engine) == "openai" {
         ensure_mcp_registered_for_codex();
         crate::ai::codex_client::CodexClient::probe_account(&bin_path)
@@ -147,6 +165,9 @@ pub async fn check_cli_status(engine: &str, custom_path: Option<&str>) -> CliSta
     } else if normalize_engine(engine) == "google" {
         ensure_mcp_registered_for_agy();
         probe_agy_account()
+    } else if normalize_engine(engine) == "claude" {
+        ensure_mcp_registered_for_claude();
+        probe_claude_account()
     } else {
         None
     };
@@ -353,6 +374,37 @@ pub fn parse_cli_stream_line(engine: &str, line: &str) -> Vec<ChatStreamEventPay
                 });
             }
         }
+        "claude" => {
+            if let Some(delta) = val
+                .get("delta")
+                .and_then(|d| d.get("text"))
+                .and_then(|t| t.as_str())
+            {
+                events.push(ChatStreamEventPayload::Token {
+                    token: delta.to_string(),
+                });
+            } else if let Some(content) = val
+                .get("message")
+                .and_then(|m| m.get("content"))
+                .and_then(|c| c.as_array())
+            {
+                for part in content {
+                    if let Some(text) = part.get("text").and_then(|t| t.as_str()) {
+                        events.push(ChatStreamEventPayload::Token {
+                            token: text.to_string(),
+                        });
+                    }
+                }
+            } else if let Some(text) = val.get("text").and_then(|t| t.as_str()) {
+                events.push(ChatStreamEventPayload::Token {
+                    token: text.to_string(),
+                });
+            } else if let Some(result) = val.get("result").and_then(|r| r.as_str()) {
+                events.push(ChatStreamEventPayload::Token {
+                    token: result.to_string(),
+                });
+            }
+        }
         _ => {
             // General token or content extraction
             if let Some(token) = val
@@ -537,6 +589,56 @@ pub fn ensure_mcp_registered_for_codex() {
     }
 }
 
+/// Probes Claude Code account status from ~/.claude.json
+pub fn probe_claude_account() -> Option<CliAccountInfo> {
+    let home = resolve_home_dir()?;
+    let claude_file = home.join(".claude.json");
+    if !claude_file.is_file() {
+        return None;
+    }
+
+    let content = std::fs::read_to_string(&claude_file).ok()?;
+    let doc: serde_json::Value = serde_json::from_str(&content).ok()?;
+    let oauth = doc.get("oauthAccount")?;
+    let email = oauth
+        .get("emailAddress")
+        .and_then(|v| v.as_str())?
+        .trim()
+        .to_string();
+    if email.is_empty() {
+        return None;
+    }
+
+    let plan_type = oauth
+        .get("seatTier")
+        .or_else(|| oauth.get("billingType"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    Some(CliAccountInfo {
+        email: Some(email),
+        plan_type,
+        quota_used_percent: None,
+        quota_resets_at: None,
+    })
+}
+
+/// Ensures that Asyar is registered as a local MCP server in Claude Code CLI's configuration
+/// (~/.claude.json), allowing `claude` to discover and invoke Asyar's tools.
+pub fn ensure_mcp_registered_for_claude() {
+    let Some(home) = resolve_home_dir() else {
+        return;
+    };
+    let config_file = home.join(".claude.json");
+
+    let Ok(current_exe) = std::env::current_exe() else {
+        return;
+    };
+    let current_exe_str = current_exe.to_string_lossy().to_string();
+
+    register_mcp_server_in_config(&config_file, &current_exe_str);
+}
+
 /// Executes a prompt using a local CLI runtime process and streams tokens back to `on_event`.
 pub async fn cli_stream_chat_impl<F>(
     provider_id: &str,
@@ -583,6 +685,10 @@ where
             // Ensure Asyar's MCP server is registered with agy so agy can discover Asyar's tools
             ensure_mcp_registered_for_agy();
         }
+        "claude" => {
+            // Ensure Asyar's MCP server is registered with claude so claude can discover Asyar's tools
+            ensure_mcp_registered_for_claude();
+        }
         _ => {}
     }
 
@@ -616,6 +722,21 @@ where
                 {
                     cmd.arg("--effort").arg(effort);
                 }
+            }
+        }
+        "claude" => {
+            // claude -p <prompt> --output-format stream-json --verbose --permission-mode bypassPermissions
+            cmd.arg("-p")
+                .arg(&prompt)
+                .arg("--output-format")
+                .arg("stream-json")
+                .arg("--verbose")
+                .arg("--permission-mode")
+                .arg("bypassPermissions");
+
+            let model = params.model_id.trim();
+            if !model.is_empty() {
+                cmd.arg("--model").arg(model);
             }
         }
         _ => {
@@ -888,6 +1009,19 @@ mod tests {
             let account = status.account.expect("Should resolve agy account");
             assert_eq!(account.email.as_deref(), Some("xoshbin@gmail.com"));
             assert_eq!(account.plan_type.as_deref(), Some("personal"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_check_cli_status_claude_if_installed() {
+        if resolve_cli_binary("claude", None).is_some() {
+            let status = check_cli_status("claude", None).await;
+            println!("Claude CLI status: {status:?}");
+            assert!(status.installed);
+            assert!(status.version.is_some());
+            if let Some(account) = status.account {
+                assert!(account.email.is_some());
+            }
         }
     }
 }
