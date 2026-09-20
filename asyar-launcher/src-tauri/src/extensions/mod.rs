@@ -11,6 +11,7 @@ pub mod installer;
 pub mod lifecycle;
 pub mod onboarding_intercept;
 pub mod onboarding_state;
+pub mod raycast_installer;
 pub mod scheduler;
 pub mod update_scheduler;
 pub mod updater;

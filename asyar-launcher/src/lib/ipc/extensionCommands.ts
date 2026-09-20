@@ -36,6 +36,17 @@ export async function installExtensionFromUrl(params: {
   });
 }
 
+export async function installRaycastExtension(params: {
+  name: string;
+  downloadUrl?: string;
+}): Promise<void> {
+  const { name, downloadUrl } = params;
+  await invokeSafe('install_raycast_extension', {
+    name,
+    downloadUrl: downloadUrl ?? null,
+  });
+}
+
 export async function getBuiltinFeaturesPath(): Promise<string | null> {
   return invokeSafe<string>('get_builtin_features_path');
 }

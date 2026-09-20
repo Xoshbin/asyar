@@ -470,6 +470,7 @@ pub fn run() {
             commands::filter_compatible_extensions,
             commands::uninstall_extension,
             commands::install_extension_from_url,
+            commands::install_raycast_extension,
             commands::open_application_path,
             commands::uninstall_application,
             commands::scan_uninstall_targets,

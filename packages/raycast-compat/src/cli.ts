@@ -2,12 +2,16 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import {
   compileRaycastExtension,
   searchRaycastStore,
   downloadRaycastExtension,
 } from './compiler/index.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function getAppDataDir(isDev = false): string {
   const bundleId = isDev ? 'org.asyar.dev' : 'org.asyar.app';
@@ -27,6 +31,21 @@ function getAppDataDir(isDev = false): string {
   }
 }
 
+function resolveViteBin(): string {
+  const binName = process.platform === 'win32' ? 'vite.cmd' : 'vite';
+  for (const startDir of [__dirname, process.cwd()]) {
+    let cur = startDir;
+    while (cur !== path.dirname(cur)) {
+      const candidate = path.join(cur, 'node_modules', '.bin', binName);
+      if (fs.existsSync(candidate)) {
+        return `"${candidate}"`;
+      }
+      cur = path.dirname(cur);
+    }
+  }
+  return 'npx vite';
+}
+
 function linkExtension(extensionId: string, extensionDir: string, isDev = false): void {
   const appData = getAppDataDir(isDev);
   const extensionsDir = path.join(appData, 'extensions');
@@ -36,21 +55,41 @@ function linkExtension(extensionId: string, extensionDir: string, isDev = false)
     fs.mkdirSync(extensionsDir, { recursive: true });
   }
 
+  const isSamePath = (p1: string, p2: string) => {
+    try {
+      return path.resolve(p1) === path.resolve(p2);
+    } catch {
+      return false;
+    }
+  };
+
   // Remove existing symlink or directory
   try {
     const stat = fs.lstatSync(targetSymlink);
     if (stat) {
-      fs.unlinkSync(targetSymlink);
+      if (stat.isSymbolicLink()) {
+        fs.unlinkSync(targetSymlink);
+      } else if (stat.isDirectory()) {
+        if (!isSamePath(targetSymlink, extensionDir)) {
+          fs.rmSync(targetSymlink, { recursive: true, force: true });
+        }
+      } else {
+        fs.unlinkSync(targetSymlink);
+      }
     }
   } catch {
     // doesn't exist yet
   }
 
-  try {
-    fs.symlinkSync(extensionDir, targetSymlink, 'junction');
-    console.log(`✓ Linked symlink to: ${targetSymlink}`);
-  } catch (err: any) {
-    console.warn(`⚠️  Could not create symlink: ${err.message}`);
+  if (!isSamePath(targetSymlink, extensionDir)) {
+    try {
+      fs.symlinkSync(extensionDir, targetSymlink, 'junction');
+      console.log(`✓ Linked symlink to: ${targetSymlink}`);
+    } catch (err: any) {
+      console.warn(`⚠️  Could not create symlink: ${err.message}`);
+    }
+  } else {
+    console.log(`✓ Extension already installed at: ${targetSymlink}`);
   }
 
   // Register in dev_extensions.json
@@ -158,17 +197,20 @@ Options:
     shouldBuild = true;
     shouldLink = true;
 
+    let downloadUrlArg: string | undefined = undefined;
     for (let i = 2; i < args.length; i++) {
       const arg = args[i];
       if (arg === '--out-dir' && i + 1 < args.length) {
         outDir = args[++i];
+      } else if (arg === '--download-url' && i + 1 < args.length) {
+        downloadUrlArg = args[++i];
       } else if (arg === '--prod') {
         isDev = false;
       }
     }
 
     try {
-      const { extensionDir } = await downloadRaycastExtension(identifier, outDir);
+      const { extensionDir } = await downloadRaycastExtension(identifier, outDir, downloadUrlArg);
       sourceDir = extensionDir;
       outDir = extensionDir;
     } catch (err: any) {
@@ -213,7 +255,8 @@ Options:
 
     if (shouldBuild) {
       console.log(`\nBuilding bundle in ${finalTargetDir}...`);
-      execSync('npx vite build', { cwd: finalTargetDir, stdio: 'inherit' });
+      const viteBin = resolveViteBin();
+      execSync(`${viteBin} build`, { cwd: finalTargetDir, stdio: 'inherit' });
       console.log('✓ Build complete.');
     }
 

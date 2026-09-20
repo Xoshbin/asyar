@@ -35,7 +35,7 @@ fn node_candidates() -> Vec<String> {
 }
 
 /// Returns the path to the Node.js binary, or None if not found anywhere.
-fn resolve_node_binary() -> Option<String> {
+pub(crate) fn resolve_node_binary() -> Option<String> {
     for candidate in node_candidates() {
         // For bare names (no path separator), try running with --version to test PATH resolution
         // For full paths, check existence first

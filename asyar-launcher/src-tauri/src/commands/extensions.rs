@@ -57,6 +57,16 @@ pub async fn install_extension_from_url(
 }
 
 #[tauri::command]
+pub async fn install_raycast_extension(
+    app_handle: AppHandle,
+    name: String,
+    download_url: Option<String>,
+) -> Result<(), AppError> {
+    extensions::raycast_installer::install_raycast(&app_handle, &name, download_url.as_deref())
+        .await
+}
+
+#[tauri::command]
 pub async fn get_extensions_dir(app_handle: AppHandle) -> Result<String, AppError> {
     extensions::get_extensions_dir(&app_handle)
 }

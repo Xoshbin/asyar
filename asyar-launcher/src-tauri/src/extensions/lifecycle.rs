@@ -45,11 +45,17 @@ pub(crate) async fn uninstall(
         }
     };
 
-    // Remove directory
+    // Remove directory or symlink
     let install_dir = get_app_data_dir(app_handle)?
         .join("extensions")
         .join(extension_id);
-    if install_dir.exists() {
+    if install_dir.is_symlink() {
+        info!(
+            "Removing extension symlink '{}' at {:?}",
+            extension_id, install_dir
+        );
+        let _ = fs::remove_file(&install_dir);
+    } else if install_dir.exists() {
         info!(
             "Uninstalling extension '{}' at {:?}",
             extension_id, install_dir
@@ -60,6 +66,25 @@ pub(crate) async fn uninstall(
             "Extension directory not found for '{}', cleaning up settings only",
             extension_id
         );
+    }
+
+    // Clean up dev_extensions.json if present
+    if let Ok(app_data) = get_app_data_dir(app_handle) {
+        let dev_extensions_file = app_data.join("dev_extensions.json");
+        if dev_extensions_file.exists() {
+            if let Ok(content) = fs::read_to_string(&dev_extensions_file) {
+                if let Ok(mut dev_extensions) =
+                    serde_json::from_str::<std::collections::HashMap<String, String>>(&content)
+                {
+                    if dev_extensions.remove(extension_id).is_some() {
+                        let _ = fs::write(
+                            &dev_extensions_file,
+                            serde_json::to_string_pretty(&dev_extensions).unwrap_or_default(),
+                        );
+                    }
+                }
+            }
+        }
     }
 
     // Clean up settings atomically

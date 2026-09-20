@@ -45,7 +45,7 @@ const launcherDev = spawn('pnpm', ['tauri', 'dev', '--config', 'src-tauri/tauri.
 const cleanup = (code) => {
   sdkWatch.kill();
   launcherDev.kill();
-  process.exit(code ?? 0);
+  process.exit(typeof code === 'number' ? code : 0);
 };
 
 sdkWatch.on('exit', cleanup);

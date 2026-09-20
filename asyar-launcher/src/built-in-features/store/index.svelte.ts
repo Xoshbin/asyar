@@ -109,7 +109,9 @@ class StoreExtension implements Extension {
     // metadata before anything is downloaded. The packaged manifest is
     // reconciled against this acceptance after install, so listing/package
     // drift re-prompts rather than slipping through.
-    const listing = store?.allItems.find((item) => item.slug === slug);
+    const listing =
+      store?.raycastItems.find((item) => item.slug === slug) ??
+      store?.allItems.find((item) => item.slug === slug);
     const acceptedPermissions = listing?.manifest?.permissions ?? [];
     const acceptedArgs = listing?.manifest?.permissionArgs ?? {};
     const listedRuntimes = listing?.manifest?.runtimes ?? [];
@@ -136,6 +138,36 @@ class StoreExtension implements Extension {
     const installProgress = await this.feedbackService?.showProgress({
       title: `Installing ${displayName}`,
     });
+
+    if (listing?.source === 'raycast' || String(extensionId).startsWith('org.asyar.raycast.')) {
+      this.logService?.info(`Installing Raycast extension: ${displayName} (${slug})`);
+      try {
+        await commands.installRaycastExtension({
+          name: slug,
+          downloadUrl: listing?.download_url,
+        });
+        await this.extensionManager?.reloadExtensions();
+        store?.updateItemStatus(slug, 'INSTALLED');
+        window.dispatchEvent(
+          new CustomEvent('store-extension-installed', {
+            detail: { slug, id: `org.asyar.raycast.${slug}` },
+          }),
+        );
+        this.sendNotification({
+          title: 'Installation Complete',
+          body: `${displayName} installed successfully.`,
+        });
+        await installProgress?.succeed(`${displayName} installed successfully!`);
+      } catch (err: any) {
+        this.logService?.error(`Failed to install Raycast extension: ${err}`);
+        await installProgress?.fail(`Failed to install ${displayName}`, err.message || String(err));
+        throw err;
+      } finally {
+        store?.setInstallingSlug(null);
+      }
+      return;
+    }
+
     try {
       // 1. Get install info
       const installInfoResponse = await fetch(

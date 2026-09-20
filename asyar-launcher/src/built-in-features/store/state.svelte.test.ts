@@ -113,3 +113,60 @@ describe('getInstallCount', () => {
     expect(getInstallCount({} as ApiExtension)).toBe(0);
   });
 });
+
+describe('StoreViewStateClass Raycast source and filtering', () => {
+  let state: StoreViewStateClass;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    state = new StoreViewStateClass();
+    state.setItems([...items]);
+  });
+
+  it('defaults to all source', () => {
+    expect(state.currentSource).toBe('all');
+    expect(state.filteredItems).toHaveLength(3);
+  });
+
+  it('switches source to asyar and filters correctly', () => {
+    state.setSource('asyar');
+    expect(state.currentSource).toBe('asyar');
+    expect(state.filteredItems).toHaveLength(3);
+  });
+
+  it('switches source to raycast and displays raycastItems', () => {
+    state.raycastItems = [
+      {
+        id: 'org.asyar.raycast.uuid-generator',
+        name: 'UUID Generator',
+        slug: 'uuid-generator',
+        description: 'Generate UUIDs',
+        category: 'Raycast',
+        status: 'NOT_INSTALLED',
+        author: { id: 0, name: 'Mathias' },
+        source: 'raycast',
+      },
+    ];
+    state.setSource('raycast');
+    expect(state.currentSource).toBe('raycast');
+    expect(state.filteredItems).toHaveLength(1);
+    expect(state.filteredItems[0].name).toBe('UUID Generator');
+  });
+
+  it('updates status in both allItems and raycastItems on updateItemStatus', () => {
+    state.raycastItems = [
+      {
+        id: 'org.asyar.raycast.uuid-generator',
+        name: 'UUID Generator',
+        slug: 'uuid-generator',
+        description: '',
+        category: 'Raycast',
+        status: 'NOT_INSTALLED',
+        author: { id: 0, name: 'Author' },
+        source: 'raycast',
+      },
+    ];
+    state.updateItemStatus('uuid-generator', 'INSTALLED');
+    expect(state.raycastItems[0].status).toBe('INSTALLED');
+  });
+});

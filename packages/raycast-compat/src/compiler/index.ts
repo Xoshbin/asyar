@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import {
   adaptRaycastPackageJson,
   type AsyarManifest,
@@ -17,6 +18,31 @@ export interface CompileRaycastOptions {
   sdkVersion?: string;
   /** Whether to copy source code into outDir when outDir !== sourceDir (default: true) */
   copySource?: boolean;
+  /** Optional directory of @asyar/raycast-compat package (auto-detected if omitted) */
+  compatDir?: string;
+}
+
+/**
+ * Traverses up from this module to locate the @asyar/raycast-compat package root.
+ */
+export function findSelfCompatDir(): string {
+  try {
+    const currentFile = fileURLToPath(import.meta.url);
+    let cur = path.dirname(currentFile);
+    while (cur !== path.dirname(cur)) {
+      const pkgCandidate = path.join(cur, 'package.json');
+      if (fs.existsSync(pkgCandidate)) {
+        try {
+          const pkg = JSON.parse(fs.readFileSync(pkgCandidate, 'utf-8'));
+          if (pkg.name === '@asyar/raycast-compat') {
+            return cur;
+          }
+        } catch {}
+      }
+      cur = path.dirname(cur);
+    }
+  } catch {}
+  return '';
 }
 
 export interface CompileRaycastResult {
@@ -154,9 +180,11 @@ export function compileRaycastExtension(options: CompileRaycastOptions): Compile
   }
 
   // Generate vite.config.ts
+  const compatDir = options.compatDir || findSelfCompatDir();
   const viteConfigContent = generateViteConfig({
     hasView: viewCommands.length > 0,
     hasWorker: workerCommands.length > 0 || !!manifest.background,
+    compatDir,
   });
   const viteConfigPath = path.join(outDir, 'vite.config.ts');
   fs.writeFileSync(viteConfigPath, viteConfigContent, 'utf-8');
@@ -285,7 +313,11 @@ function generateWorkerHtml(title: string): string {
 `;
 }
 
-function generateViteConfig(opts: { hasView: boolean; hasWorker: boolean }): string {
+function generateViteConfig(opts: {
+  hasView: boolean;
+  hasWorker: boolean;
+  compatDir?: string;
+}): string {
   const inputs: string[] = [];
   if (opts.hasView) {
     inputs.push("        view: resolve(__dirname, 'view.html'),");
@@ -294,21 +326,46 @@ function generateViteConfig(opts: { hasView: boolean; hasWorker: boolean }): str
     inputs.push("        worker: resolve(__dirname, 'worker.html'),");
   }
 
+  const knownCompatDir = opts.compatDir ? JSON.stringify(opts.compatDir) : "''";
+
   return `import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import * as fs from 'fs';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
+const knownCompatDir = ${knownCompatDir};
 let compatDir = '';
-try {
-  compatDir = resolve(require.resolve('@asyar/raycast-compat/package.json'), '..');
-} catch {
-  compatDir = resolve(__dirname, '../../packages/raycast-compat');
+
+if (knownCompatDir && fs.existsSync(knownCompatDir)) {
+  compatDir = knownCompatDir;
+} else {
+  try {
+    compatDir = resolve(require.resolve('@asyar/raycast-compat/package.json'), '..');
+  } catch {
+    let cur = __dirname;
+    while (cur !== resolve(cur, '..')) {
+      const candidatePkg = resolve(cur, 'packages/raycast-compat');
+      if (fs.existsSync(candidatePkg)) {
+        compatDir = candidatePkg;
+        break;
+      }
+      const candidateNm = resolve(cur, 'node_modules/@asyar/raycast-compat');
+      if (fs.existsSync(candidateNm)) {
+        compatDir = candidateNm;
+        break;
+      }
+      cur = resolve(cur, '..');
+    }
+    if (!compatDir) {
+      compatDir = resolve(__dirname, '../../packages/raycast-compat');
+    }
+  }
 }
 
 const resolveCompat = (id: string) => {
   try {
-    return require.resolve(id, { paths: [compatDir] });
+    return require.resolve(id, { paths: [compatDir, __dirname, process.cwd()] });
   } catch {
     return id;
   }

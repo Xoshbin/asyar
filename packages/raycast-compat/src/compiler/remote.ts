@@ -59,22 +59,54 @@ export async function searchRaycastStore(query: string): Promise<RaycastStoreLis
 export async function downloadRaycastExtension(
   identifierOrUrl: string,
   outDir?: string,
+  directDownloadUrl?: string,
 ): Promise<{ extensionDir: string; listing?: RaycastStoreListing }> {
-  let downloadUrl = '';
+  let downloadUrl = directDownloadUrl ?? '';
   let extensionName = '';
   let matchedListing: RaycastStoreListing | undefined;
 
-  if (identifierOrUrl.startsWith('http://') || identifierOrUrl.startsWith('https://')) {
-    if (identifierOrUrl.endsWith('.zip')) {
-      downloadUrl = identifierOrUrl;
-      extensionName = path.basename(identifierOrUrl, '.zip');
-    } else {
-      const match = identifierOrUrl.match(/raycast\.com\/[^/]+\/([^/?#]+)/);
-      if (match) {
-        extensionName = match[1];
-      } else {
-        extensionName = path.basename(identifierOrUrl);
+  const extractNameFromUrl = (urlStr: string): string => {
+    try {
+      const parsed = new URL(urlStr);
+      const disposition = parsed.searchParams.get('response-content-disposition') || '';
+      const fnMatch = disposition.match(/filename(?:\*=[^']*''|="?)([^";]+)"?/);
+      if (fnMatch) {
+        return path.basename(fnMatch[1].trim(), '.zip');
       }
+      return path.basename(parsed.pathname, '.zip');
+    } catch {
+      return path.basename(urlStr, '.zip');
+    }
+  };
+
+  if (downloadUrl) {
+    extensionName = identifierOrUrl.startsWith('http')
+      ? extractNameFromUrl(downloadUrl)
+      : identifierOrUrl;
+  } else if (identifierOrUrl.startsWith('http://') || identifierOrUrl.startsWith('https://')) {
+    try {
+      const parsed = new URL(identifierOrUrl);
+      const disposition = parsed.searchParams.get('response-content-disposition') || '';
+      const isZip =
+        parsed.pathname.endsWith('.zip') ||
+        identifierOrUrl.includes('.zip') ||
+        parsed.hostname.includes('raycast-store-extensions') ||
+        parsed.hostname.includes('amazonaws.com') ||
+        disposition.includes('.zip');
+
+      if (isZip) {
+        downloadUrl = identifierOrUrl;
+        extensionName = extractNameFromUrl(identifierOrUrl);
+      } else {
+        const match = identifierOrUrl.match(/raycast\.com\/[^/]+\/([^/?#]+)/);
+        if (match) {
+          extensionName = match[1];
+        } else {
+          extensionName = path.basename(parsed.pathname);
+        }
+      }
+    } catch {
+      extensionName = path.basename(identifierOrUrl, '.zip');
     }
   } else {
     extensionName = identifierOrUrl;

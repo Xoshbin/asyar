@@ -6,13 +6,16 @@
     ListItem,
     ExtensionAvatar,
     Badge,
+    SegmentedControl,
     ActionFooter,
     KeyboardHint,
   } from '../../components';
   import { nameToGradient } from '../../lib/extensionAvatar';
   import { t } from '../../services/i18n';
 
-  let isLoading = $derived(store.isLoading);
+  let isLoading = $derived(
+    store.currentSource === 'raycast' ? store.isRaycastLoading : store.isLoading,
+  );
   let error = $derived(store.loadError ? store.errorMessage : null);
   let filteredItems = $derived(store.filteredItems);
   let selectedIndex = $derived(store.selectedIndex);
@@ -46,6 +49,20 @@
   ariaLabel="Store Extensions"
   emptyMessage={t('features.store.no_extensions_found')}
 >
+  {#snippet leftHeader()}
+    <div class="source-toggle">
+      <SegmentedControl
+        options={[
+          { value: 'all', label: 'All' },
+          { value: 'asyar', label: 'Asyar' },
+          { value: 'raycast', label: 'Raycast' },
+        ]}
+        value={store.currentSource}
+        onchange={(val) => store.setSource(val as 'all' | 'asyar' | 'raycast')}
+      />
+    </div>
+  {/snippet}
+
   {#snippet listItem(item, index)}
     <ListItem
       data-index={index}
@@ -56,13 +73,21 @@
       subtitle={`By ${item.author.name}`}
     >
       {#snippet leading()}
-        <ExtensionAvatar name={item.name} size="sm" />
+        {#if item.iconUrl}
+          <div class="store-item-avatar">
+            <img src={item.iconUrl} alt={item.name} class="store-item-icon" />
+          </div>
+        {:else}
+          <ExtensionAvatar name={item.name} size="sm" />
+        {/if}
       {/snippet}
       {#snippet trailing()}
         {#if item.status === 'UPDATE_AVAILABLE'}
           <Badge text="Update" variant="warning" mono />
         {:else if item.status === 'INSTALLED'}
           <Badge text="Installed" variant="success" mono />
+        {:else if item.source === 'raycast'}
+          <Badge text="Raycast" variant="default" mono />
         {:else}
           <Badge text={item.category} variant="default" mono />
         {/if}
@@ -80,7 +105,13 @@
       <div
         class="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar flex flex-col items-center pt-12"
       >
-        <ExtensionAvatar name={selectedItem.name} size="xl" />
+        {#if selectedItem.iconUrl}
+          <div class="store-detail-avatar">
+            <img src={selectedItem.iconUrl} alt={selectedItem.name} class="store-detail-icon" />
+          </div>
+        {:else}
+          <ExtensionAvatar name={selectedItem.name} size="xl" />
+        {/if}
 
         <h2 class="store-detail-title">{selectedItem.name}</h2>
 
@@ -114,6 +145,30 @@
           {selectedItem.description}
         </p>
 
+        {#if selectedItem.manifest?.commands && selectedItem.manifest.commands.length > 0}
+          <div class="raycast-commands-box">
+            <div class="raycast-commands-title">
+              Commands ({selectedItem.manifest.commands.length})
+            </div>
+            <div class="raycast-commands-list">
+              {#each selectedItem.manifest.commands.slice(0, 5) as cmd}
+                <div class="raycast-command-row">
+                  <span class="font-medium text-body">{cmd.name}</span>
+                  <Badge text={cmd.mode || 'view'} variant="default" mono />
+                </div>
+              {/each}
+              {#if selectedItem.manifest.commands.length > 5}
+                <div
+                  class="text-caption"
+                  style="color: var(--text-tertiary); margin-top: var(--space-1);"
+                >
+                  +{selectedItem.manifest.commands.length - 5} more commands
+                </div>
+              {/if}
+            </div>
+          </div>
+        {/if}
+
         {#if selectedItem.screenshot_urls && selectedItem.screenshot_urls.length > 0}
           <div class="store-screenshot">
             <img
@@ -132,14 +187,18 @@
               <Badge text="Update Available" variant="warning" mono />
             {:else if selectedItem.status === 'INSTALLED'}
               <Badge text="Installed" variant="success" mono />
+            {:else if selectedItem.source === 'raycast'}
+              <Badge text="Raycast Extension" variant="default" mono />
             {:else}
               <Badge text={selectedItem.category} variant="default" mono />
             {/if}
-            <span class="text-caption"
-              >Added {new Date(
-                selectedItem.created_at ?? (selectedItem as any).createdAt,
-              ).toLocaleDateString()}</span
-            >
+            <span class="text-caption">
+              {selectedItem.created_at || (selectedItem as any).createdAt
+                ? `Added ${new Date(selectedItem.created_at ?? (selectedItem as any).createdAt).toLocaleDateString()}`
+                : selectedItem.source === 'raycast'
+                  ? 'Raycast Store'
+                  : ''}
+            </span>
           </div>
         {/snippet}
         {#snippet right()}
@@ -164,6 +223,46 @@
 </SplitListDetail>
 
 <style>
+  .source-toggle {
+    margin-bottom: var(--space-1);
+  }
+
+  .store-item-avatar {
+    width: var(--size-lg);
+    height: var(--size-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .store-item-icon {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .store-detail-avatar {
+    width: var(--size-3xl);
+    height: var(--size-3xl);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    padding: var(--space-2);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .store-detail-icon {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
   .detail-accent-strip {
     height: 3px;
     width: 100%;
@@ -176,6 +275,44 @@
     color: var(--text-primary);
     margin: var(--space-8) 0 var(--space-3);
     text-align: center;
+  }
+
+  .raycast-commands-box {
+    margin-top: var(--space-6);
+    width: 100%;
+    max-width: 24rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .raycast-commands-title {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-2);
+  }
+
+  .raycast-commands-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .raycast-command-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) 0;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .raycast-command-row:last-child {
+    border-bottom: none;
   }
 
   .store-screenshot {

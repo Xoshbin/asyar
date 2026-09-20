@@ -91,12 +91,14 @@
   // Use reactive subscriptions to the store instance
   let currentSlug = $derived(store.selectedExtensionSlug);
   let extensionManager = $derived(store.extensionManager);
+  let isInstalling = $derived(store.installingExtensionSlug === currentSlug);
 
   // Manifest metadata from the detail response or store listing
   let manifest = $derived(
     extensionDetail?.manifest ??
       (currentSlug
-        ? store?.allItems.find((item) => item.slug === currentSlug)?.manifest
+        ? (store?.raycastItems.find((item) => item.slug === currentSlug)?.manifest ??
+          store?.allItems.find((item) => item.slug === currentSlug)?.manifest)
         : undefined),
   );
   let listedPermissions = $derived(manifest?.permissions ?? []);
@@ -171,6 +173,58 @@
     error = null;
     extensionDetail = null;
     logService?.info(`Fetching details for slug: ${slug}`);
+
+    const raycastItem =
+      store.raycastItems.find((it) => it.slug === slug) ??
+      (store.selectedItem?.source === 'raycast' && store.selectedItem.slug === slug
+        ? store.selectedItem
+        : null);
+
+    if (raycastItem) {
+      logService?.info(`Loading Raycast details for ${raycastItem.name}`);
+      let readmeContent: string | null = null;
+      if (raycastItem.readme_url) {
+        try {
+          const rRes = await fetch(raycastItem.readme_url);
+          if (rRes.ok) {
+            readmeContent = await rRes.text();
+          }
+        } catch (rErr) {
+          logService?.warn(`Could not load Raycast README: ${rErr}`);
+        }
+      }
+
+      extensionDetail = {
+        id: String(raycastItem.id),
+        name: raycastItem.name,
+        slug: raycastItem.slug,
+        description: raycastItem.description,
+        category: raycastItem.category || 'Raycast',
+        status: raycastItem.status,
+        repoUrl: '',
+        installCount: raycastItem.installCount ?? 0,
+        iconUrl: raycastItem.iconUrl ?? null,
+        createdAt: '',
+        updatedAt: '',
+        readme: readmeContent,
+        author: {
+          id: 0,
+          name: raycastItem.author.name,
+          githubUsername: null,
+          avatarUrl: null,
+          isVerifiedPublisher: false,
+        },
+        version: '1.0.0',
+        manifest: {
+          commands: raycastItem.manifest?.commands || [],
+          readme: readmeContent ?? undefined,
+        },
+      };
+      isLoading = false;
+      logService.debug(`[DetailView] Raycast extension details loaded for ${slug}`);
+      return;
+    }
+
     try {
       const response = await fetch(`${envService.storeApiBaseUrl}/api/extensions/${slug}`);
       if (!response.ok) {
@@ -294,7 +348,17 @@
       <div class="w-full max-w-5xl mx-auto px-6 py-8 md:px-12 md:py-12">
         <!-- Header Section -->
         <div class="flex flex-col md:flex-row items-start md:items-center gap-8 mb-12">
-          <ExtensionAvatar name={extensionDetail.name} size="xl" />
+          {#if extensionDetail.iconUrl}
+            <div class="store-detail-avatar">
+              <img
+                src={extensionDetail.iconUrl}
+                alt={extensionDetail.name}
+                class="store-detail-icon"
+              />
+            </div>
+          {:else}
+            <ExtensionAvatar name={extensionDetail.name} size="xl" />
+          {/if}
 
           <div class="flex-1 min-w-0">
             <h1 class="text-page-title mb-3" style="font-size: var(--font-size-3xl);">
@@ -350,8 +414,12 @@
                   Uninstall
                 </Button>
               {:else}
-                <Button class="btn-primary h-10 px-6 font-semibold" onclick={installExtension}>
-                  {isTheme ? 'Install Theme' : 'Install Extension'}
+                <Button
+                  class="btn-primary h-10 px-6 font-semibold"
+                  disabled={isInstalling}
+                  onclick={installExtension}
+                >
+                  {isInstalling ? 'Installing...' : isTheme ? 'Install Theme' : 'Install Extension'}
                 </Button>
               {/if}
 
@@ -626,6 +694,25 @@
     height: 3px;
     width: 100%;
     flex-shrink: 0;
+  }
+
+  .store-detail-avatar {
+    width: var(--size-3xl);
+    height: var(--size-3xl);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    padding: var(--space-2);
+    box-shadow: var(--shadow-sm);
+    flex-shrink: 0;
+  }
+
+  .store-detail-icon {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
 
   .command-card {

@@ -17,6 +17,7 @@
     loadingMessage = 'Loading...',
     error = undefined,
     emptyMessage = 'No items found',
+    leftHeader,
     listItem,
     detail,
   }: {
@@ -30,6 +31,7 @@
     loadingMessage?: string;
     error?: string | null;
     emptyMessage?: string;
+    leftHeader?: Snippet;
     listItem: Snippet<[item: any, index: number]>;
     detail: Snippet;
   } = $props();
@@ -54,24 +56,31 @@
 
 <SplitView {leftWidth} {minLeftWidth} {maxLeftWidth}>
   {#snippet left()}
-    <div
-      bind:this={listContainer}
-      class="list-panel custom-scrollbar"
-      role="listbox"
-      aria-label={ariaLabel}
-      tabindex="0"
-    >
-      {#if isLoading}
-        <LoadingState message={loadingMessage} />
-      {:else if error}
-        <EmptyState message={t('common.error')} description={error} />
-      {:else if items.length === 0}
-        <EmptyState message={emptyMessage} />
-      {:else}
-        {#each items as item, index (item.id)}
-          {@render listItem(item, index)}
-        {/each}
+    <div class="left-container">
+      {#if leftHeader}
+        <div class="left-header">
+          {@render leftHeader()}
+        </div>
       {/if}
+      <div
+        bind:this={listContainer}
+        class="list-panel custom-scrollbar"
+        role="listbox"
+        aria-label={ariaLabel}
+        tabindex="0"
+      >
+        {#if isLoading}
+          <LoadingState message={loadingMessage} />
+        {:else if error}
+          <EmptyState message={t('common.error')} description={error} />
+        {:else if items.length === 0}
+          <EmptyState message={emptyMessage} />
+        {:else}
+          {#each items as item, index (item.id)}
+            {@render listItem(item, index)}
+          {/each}
+        {/if}
+      </div>
     </div>
   {/snippet}
 
@@ -83,8 +92,21 @@
 </SplitView>
 
 <style>
-  .list-panel {
+  .left-container {
+    display: flex;
+    flex-direction: column;
     height: 100%;
+    min-height: 0;
+  }
+
+  .left-header {
+    flex-shrink: 0;
+    padding: var(--space-2) var(--space-3) 0;
+  }
+
+  .list-panel {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: var(--space-3);
   }
