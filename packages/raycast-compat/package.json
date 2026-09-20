@@ -13,6 +13,10 @@
     "./manifest": {
       "types": "./dist/manifest/index.d.ts",
       "default": "./dist/manifest/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "default": "./dist/utils/index.js"
     }
   },
   "scripts": {
