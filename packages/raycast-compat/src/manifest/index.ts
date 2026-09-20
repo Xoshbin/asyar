@@ -97,7 +97,22 @@ export function adaptRaycastPackageJson(
   const version = pkg.version || '1.0.0';
   const description = pkg.description || '';
   const author = pkg.author || 'Raycast Community';
-  const icon = pkg.icon || 'icon.png';
+  const formatIcon = (raw?: string) => {
+    if (!raw) return undefined;
+    if (
+      raw.startsWith('http://') ||
+      raw.startsWith('https://') ||
+      raw.startsWith('data:') ||
+      raw.startsWith('asyar-') ||
+      raw.startsWith('icon:')
+    ) {
+      return raw;
+    }
+    const clean = raw.replace(/^\.?\//, '');
+    return `asyar-extension://${id}/${clean}`;
+  };
+
+  const icon = formatIcon(pkg.icon) || `asyar-extension://${id}/icon.png`;
 
   const commands: AsyarCommandItem[] = (pkg.commands || []).map((cmd) => {
     const isView = cmd.mode === 'view';
@@ -105,7 +120,7 @@ export function adaptRaycastPackageJson(
       id: cmd.name,
       name: cmd.title || cmd.name,
       description: cmd.description,
-      icon: cmd.icon,
+      icon: formatIcon(cmd.icon),
       mode: isView ? 'view' : 'background',
       component: isView ? cmd.name : undefined,
     };
