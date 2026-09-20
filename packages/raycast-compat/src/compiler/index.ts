@@ -185,6 +185,11 @@ export function compileRaycastExtension(options: CompileRaycastOptions): Compile
           fs.mkdirSync(destDir, { recursive: true });
         }
         fs.copyFileSync(iconPath, destIconPath);
+
+        const distDir = path.join(outDir, 'dist');
+        if (fs.existsSync(distDir)) {
+          fs.copyFileSync(iconPath, path.join(distDir, path.basename(pkg.icon)));
+        }
       }
     }
   }
