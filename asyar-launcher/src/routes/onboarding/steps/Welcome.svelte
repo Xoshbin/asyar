@@ -41,7 +41,10 @@
     </p>
 
     <div class="welcome__highlights">
-      <span class="welcome__tag">⚡️ {t('onboarding.welcome_highlight_zero_key_ai')}</span>
+      <span class="welcome__tag">
+        ⚡️ {t('onboarding.welcome_highlight_zero_key_ai')}
+        <span class="welcome__tag-pill">{t('common.experimental')}</span>
+      </span>
       <span class="welcome__tag">🌐 {t('onboarding.welcome_highlight_web_search')}</span>
       <span class="welcome__tag">👁️ {t('onboarding.welcome_highlight_quick_look')}</span>
       <span class="welcome__tag">📦 {t('onboarding.welcome_highlight_raycast')}</span>
@@ -116,6 +119,17 @@
     font-size: var(--font-size-xs);
     font-weight: 500;
     color: var(--text-secondary);
+  }
+  .welcome__tag-pill {
+    margin-left: var(--space-2);
+    padding: var(--space-0-5) var(--space-2);
+    background: color-mix(in srgb, var(--accent-warning) 14%, transparent);
+    color: var(--accent-warning);
+    border-radius: var(--radius-xs);
+    font-size: var(--font-size-2xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
   .welcome__row {
     display: flex;

@@ -499,6 +499,7 @@
     "ai_step_quick_connect": "Conectar com 1 Clique",
     "ai_step_connected": "✓ Conectado como padrão",
     "ai_step_scanning_clis": "Verificando CLIs locais...",
+    "ai_step_feature_zero_key": "IA sem chave",
     "ai_step_feature_web_search": "Pesquisa Web ao Vivo",
     "ai_step_feature_web_search_desc": "Todos os modelos podem pesquisar na web ao vivo e citar fontes através do DuckDuckGo / SearXNG integrado, com zero configuração.",
     "ai_step_feature_mcp": "Servidor MCP Local",
@@ -813,6 +814,7 @@
     }
   },
   "common": {
+    "experimental": "Experimental",
     "cancel": "Cancelar",
     "confirm": "Confirmar",
     "save": "Salvar",

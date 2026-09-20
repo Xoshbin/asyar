@@ -439,6 +439,9 @@
                   {#if config.name && plugin && config.name !== plugin.name}
                     <span class="provider-type-badge">{plugin.name}</span>
                   {/if}
+                  {#if config.connectionMode === 'cli'}
+                    <span class="cli-experimental-badge">CLI (Experimental)</span>
+                  {/if}
                   {#if !expanded && config.lastModelId}
                     <span class="row-summary">{config.lastModelId}</span>
                   {/if}
@@ -521,7 +524,9 @@
                         }}
                       >
                         <option value="api_key">Direct API Key (HTTP)</option>
-                        <option value="cli">Local CLI ({plugin.cliName ?? 'CLI'})</option>
+                        <option value="cli"
+                          >Local CLI ({plugin.cliName ?? 'CLI'}) (Experimental)</option
+                        >
                       </select>
                       <p class="field-description">
                         {#if config.connectionMode === 'cli'}
@@ -542,6 +547,7 @@
                             <span class="cli-status-pill checking">Checking CLI...</span>
                           {:else if cliStatuses[providerId]?.installed}
                             <span class="cli-status-pill installed">● Installed</span>
+                            <span class="cli-experimental-badge">Experimental</span>
                             {#if cliStatuses[providerId]?.version}
                               <span class="cli-version">{cliStatuses[providerId]?.version}</span>
                             {/if}
@@ -1426,6 +1432,19 @@
     text-transform: capitalize;
     font-weight: 600;
     color: var(--accent-primary);
+  }
+
+  .cli-experimental-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-0-5) var(--space-2);
+    background: color-mix(in srgb, var(--accent-warning) 14%, transparent);
+    color: var(--accent-warning);
+    border-radius: var(--radius-xs);
+    font-size: var(--font-size-2xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
 
   .cli-quota-pill {

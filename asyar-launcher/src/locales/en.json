@@ -500,6 +500,7 @@
     "ai_step_quick_connect": "Connect 1-Click",
     "ai_step_connected": "✓ Connected as default",
     "ai_step_scanning_clis": "Scanning for local CLIs...",
+    "ai_step_feature_zero_key": "Zero-Key AI",
     "ai_step_feature_web_search": "Live Web Search",
     "ai_step_feature_web_search_desc": "All models can search the live web and cite sources via built-in DuckDuckGo / SearXNG with zero configuration.",
     "ai_step_feature_mcp": "Local MCP Server",
@@ -816,6 +817,7 @@
     }
   },
   "common": {
+    "experimental": "Experimental",
     "cancel": "Cancel",
     "confirm": "Confirm",
     "save": "Save",

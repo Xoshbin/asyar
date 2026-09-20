@@ -7,7 +7,7 @@
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { onboardingNav } from '../onboardingNav.svelte';
   import { aiCheckCliStatus, type CliStatus } from '../../../lib/ipc/commands';
-  import { Button, Card } from '../../../components';
+  import { Button, Card, Badge } from '../../../components';
   import { t } from '../../../services/i18n';
 
   let scanning = $state(true);
@@ -167,7 +167,7 @@
     <div class="superpower-card">
       <div class="superpower-card__header">
         <span class="superpower-icon" aria-hidden="true">⚡️</span>
-        <span class="superpower-title">{t('onboarding.welcome_highlight_zero_key_ai')}</span>
+        <span class="superpower-title">{t('onboarding.ai_step_feature_zero_key')}</span>
       </div>
       <p class="superpower-desc">{t('onboarding.ai_step_cli_detected_sub')}</p>
     </div>
@@ -199,6 +199,7 @@
         <div class="detected-badge-wrapper">
           <span class="detected-live-dot" aria-hidden="true"></span>
           <span class="detected-kicker">{t('onboarding.ai_step_cli_detected_badge')}</span>
+          <Badge text={t('common.experimental')} variant="warning" />
         </div>
         <p class="detected-desc">{t('onboarding.ai_step_cli_detected_sub')}</p>
       </div>
