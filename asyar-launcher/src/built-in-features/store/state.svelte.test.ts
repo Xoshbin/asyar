@@ -169,4 +169,41 @@ describe('StoreViewStateClass Raycast source and filtering', () => {
     state.updateItemStatus('uuid-generator', 'INSTALLED');
     expect(state.raycastItems[0].status).toBe('INSTALLED');
   });
+
+  it('caches Raycast listings and retrieves them via getRaycastItem', () => {
+    const rawListing = {
+      name: 'antigravity',
+      title: 'Antigravity',
+      description: 'Antigravity control',
+      download_count: 500,
+      author: { name: 'meshal' },
+      commands: [{ name: 'index', title: 'Search Projects', mode: 'view' }],
+    };
+
+    const cached = state.cacheRaycastListing(rawListing);
+    expect(cached.slug).toBe('antigravity');
+    expect(cached.name).toBe('Antigravity');
+    expect(state.getRaycastItem('antigravity')).toEqual(cached);
+    expect(state.getRaycastItem('org.asyar.raycast.antigravity')).toEqual(cached);
+  });
+
+  it('preserves selectedExtension even when raycastItems is re-populated', () => {
+    const rawListing = {
+      name: 'visual-studio-code',
+      title: 'Visual Studio Code',
+      description: 'VS Code integration',
+      author: { name: 'Thomas' },
+    };
+
+    const cached = state.cacheRaycastListing(rawListing);
+    state.setSelectedExtension(cached);
+
+    expect(state.selectedExtensionSlug).toBe('visual-studio-code');
+    expect(state.selectedExtension?.name).toBe('Visual Studio Code');
+
+    // Simulate search query clearing and raycastItems being replaced by top 50
+    state.raycastItems = [];
+    expect(state.getRaycastItem('visual-studio-code')).toBeDefined();
+    expect(state.selectedExtension?.slug).toBe('visual-studio-code');
+  });
 });

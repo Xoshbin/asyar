@@ -29,8 +29,8 @@
     store.setSelectedItemByIndex(index);
   }
 
-  function handleDoubleClick(slug: string) {
-    store.setSelectedExtensionSlug(slug);
+  function handleDoubleClick(item: any) {
+    store.setSelectedExtension(item);
     if (extensionManager) {
       extensionManager.navigateToView(`store/DetailView`);
     }
@@ -68,7 +68,7 @@
       data-index={index}
       selected={selectedIndex === index}
       onclick={() => selectItem(index)}
-      ondblclick={() => handleDoubleClick(item.slug)}
+      ondblclick={() => handleDoubleClick(item)}
       title={item.name}
       subtitle={`By ${item.author.name}`}
     >

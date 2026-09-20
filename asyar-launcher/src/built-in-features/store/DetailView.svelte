@@ -97,7 +97,8 @@
   let manifest = $derived(
     extensionDetail?.manifest ??
       (currentSlug
-        ? (store?.raycastItems.find((item) => item.slug === currentSlug)?.manifest ??
+        ? (store?.getRaycastItem(currentSlug)?.manifest ??
+          store?.raycastItems.find((item) => item.slug === currentSlug)?.manifest ??
           store?.allItems.find((item) => item.slug === currentSlug)?.manifest)
         : undefined),
   );
@@ -174,11 +175,48 @@
     extensionDetail = null;
     logService?.info(`Fetching details for slug: ${slug}`);
 
-    const raycastItem =
-      store.raycastItems.find((it) => it.slug === slug) ??
+    let raycastItem =
+      store.getRaycastItem(slug) ??
+      (store.selectedExtension?.slug === slug ? store.selectedExtension : null) ??
       (store.selectedItem?.source === 'raycast' && store.selectedItem.slug === slug
         ? store.selectedItem
-        : null);
+        : null) ??
+      store.raycastItems.find((it) => it.slug === slug);
+
+    // Fallback: If not found in cache, query the Raycast Store API directly if appropriate
+    if (
+      !raycastItem &&
+      (store.currentSource === 'raycast' ||
+        slug.startsWith('org.asyar.raycast.') ||
+        !store.allItems.some((it) => it.slug === slug))
+    ) {
+      try {
+        const cleanSlug = slug.replace(/^org\.asyar\.raycast\./, '');
+        logService?.info(`Fallback querying Raycast store API for: ${cleanSlug}`);
+        const rayRes = await fetch(
+          `https://backend.raycast.com/api/v1/store_listings/search?q=${encodeURIComponent(cleanSlug)}`,
+          {
+            headers: {
+              'User-Agent': 'Raycast/1.0',
+              Accept: 'application/json',
+            },
+          },
+        );
+        if (rayRes.ok) {
+          const rJson = await rayRes.json();
+          const list = (rJson.data || rJson || []) as any[];
+          const match =
+            list.find((l: any) => l.name === cleanSlug || l.name === slug) ||
+            list.find((l: any) => l.title?.toLowerCase() === cleanSlug.toLowerCase()) ||
+            list[0];
+          if (match) {
+            raycastItem = store.cacheRaycastListing(match);
+          }
+        }
+      } catch (fErr) {
+        logService?.warn(`Could not fallback query Raycast store: ${fErr}`);
+      }
+    }
 
     if (raycastItem) {
       logService?.info(`Loading Raycast details for ${raycastItem.name}`);

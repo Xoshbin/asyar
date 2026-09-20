@@ -94,8 +94,9 @@ export class StoreViewStateClass {
   isLoading = $state(true);
   isRaycastLoading = $state(false);
   loadError = $state(false);
-  errorMessage = $state('');
   selectedExtensionSlug = $state<string | null>(null); // Keep track of slug for detail view
+  selectedExtension = $state<ApiExtension | null>(null); // Cached selected extension object
+  private raycastCache = new Map<string, ApiExtension>();
   extensionManager = $state<IExtensionManager | null>(null); // Store the extension manager instance
   logService = $state<ILogService | null>(null); // Store the log service instance
   installingExtensionSlug = $state<string | null>(null);
@@ -185,40 +186,60 @@ export class StoreViewStateClass {
       } catch {}
 
       this.raycastItems = listings.map((l: any): ApiExtension => {
-        const extensionId = `org.asyar.raycast.${l.name}`;
-        const isInstalled = installedIds.has(extensionId) || installedIds.has(l.name);
-        return {
-          id: extensionId,
-          name: l.title || l.name,
-          slug: l.name,
-          description: l.description || '',
-          category: l.categories?.[0] || 'Raycast',
-          status: isInstalled ? 'INSTALLED' : 'NOT_INSTALLED',
-          installCount: l.download_count ?? 0,
-          iconUrl: l.icons?.light || l.icons?.dark || null,
-          source: 'raycast',
-          download_url: l.download_url,
-          readme_url: l.readme_url,
-          author: {
-            id: 0,
-            name: l.author?.name || l.author?.handle || 'Raycast Contributor',
-          },
-          manifest: {
-            readme: undefined,
-            commands: (l.commands || []).map((c: any) => ({
-              id: c.name,
-              name: c.title,
-              description: c.description,
-              mode: c.mode === 'view' ? 'view' : 'background',
-            })),
-          },
-        };
+        return this.cacheRaycastListing(l, installedIds);
       });
     } catch (err: any) {
       this.logService?.warn(`Failed to fetch Raycast extensions: ${err.message}`);
     } finally {
       this.isRaycastLoading = false;
     }
+  }
+
+  cacheRaycastListing(l: any, installedIds?: Set<string>): ApiExtension {
+    const extensionId = `org.asyar.raycast.${l.name}`;
+    const isInstalled = installedIds
+      ? installedIds.has(extensionId) || installedIds.has(l.name)
+      : false;
+    const item: ApiExtension = {
+      id: extensionId,
+      name: l.title || l.name,
+      slug: l.name,
+      description: l.description || '',
+      category: l.categories?.[0] || 'Raycast',
+      status: isInstalled ? 'INSTALLED' : 'NOT_INSTALLED',
+      installCount: l.download_count ?? 0,
+      iconUrl: l.icons?.light || l.icons?.dark || null,
+      source: 'raycast',
+      download_url: l.download_url,
+      readme_url: l.readme_url,
+      author: {
+        id: 0,
+        name: l.author?.name || l.author?.handle || 'Raycast Contributor',
+      },
+      manifest: {
+        readme: undefined,
+        commands: (l.commands || []).map((c: any) => ({
+          id: c.name,
+          name: c.title,
+          description: c.description,
+          mode: c.mode === 'view' ? 'view' : 'background',
+        })),
+      },
+    };
+    this.raycastCache.set(item.slug, item);
+    this.raycastCache.set(String(item.id), item);
+    return item;
+  }
+
+  getRaycastItem(slugOrId: string): ApiExtension | undefined {
+    return (
+      this.raycastCache.get(slugOrId) ||
+      this.raycastItems.find((it) => it.slug === slugOrId || String(it.id) === slugOrId) ||
+      (this.selectedExtension &&
+      (this.selectedExtension.slug === slugOrId || String(this.selectedExtension.id) === slugOrId)
+        ? this.selectedExtension
+        : undefined)
+    );
   }
 
   async setSearch(query: string) {
@@ -260,14 +281,53 @@ export class StoreViewStateClass {
 
   moveSelection(direction: 'up' | 'down') {
     this.selection.moveSelection(direction);
+    if (this.selectedItem) {
+      this.selectedExtension = this.selectedItem;
+      this.selectedExtensionSlug = this.selectedItem.slug;
+      if (this.selectedItem.source === 'raycast') {
+        this.raycastCache.set(this.selectedItem.slug, this.selectedItem);
+        this.raycastCache.set(String(this.selectedItem.id), this.selectedItem);
+      }
+    }
   }
 
   setSelectedItemByIndex(index: number) {
     this.selection.setIndex(index);
+    if (this.selectedItem) {
+      this.selectedExtension = this.selectedItem;
+      this.selectedExtensionSlug = this.selectedItem.slug;
+      if (this.selectedItem.source === 'raycast') {
+        this.raycastCache.set(this.selectedItem.slug, this.selectedItem);
+        this.raycastCache.set(String(this.selectedItem.id), this.selectedItem);
+      }
+    }
   }
 
   setSelectedExtensionSlug(slug: string | null) {
     this.selectedExtensionSlug = slug;
+    if (slug) {
+      const found =
+        this.getRaycastItem(slug) ||
+        this.allItems.find((it) => it.slug === slug || String(it.id) === slug);
+      if (found) {
+        this.selectedExtension = found;
+      }
+    } else {
+      this.selectedExtension = null;
+    }
+  }
+
+  setSelectedExtension(item: ApiExtension | null) {
+    this.selectedExtension = item;
+    if (item) {
+      this.selectedExtensionSlug = item.slug;
+      if (item.source === 'raycast') {
+        this.raycastCache.set(item.slug, item);
+        this.raycastCache.set(String(item.id), item);
+      }
+    } else {
+      this.selectedExtensionSlug = null;
+    }
   }
 
   setInstallingSlug(slug: string | null) {
@@ -292,6 +352,13 @@ export class StoreViewStateClass {
   updateItemStatus(slug: string, status: string) {
     this.allItems = this.allItems.map((it) => (it.slug === slug ? { ...it, status } : it));
     this.raycastItems = this.raycastItems.map((it) => (it.slug === slug ? { ...it, status } : it));
+    const cached = this.raycastCache.get(slug);
+    if (cached) {
+      cached.status = status;
+    }
+    if (this.selectedExtension && this.selectedExtension.slug === slug) {
+      this.selectedExtension.status = status;
+    }
   }
 
   applyUpdateStatus(updates: AvailableUpdate[]): void {

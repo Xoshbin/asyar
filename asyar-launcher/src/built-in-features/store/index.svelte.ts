@@ -110,6 +110,7 @@ class StoreExtension implements Extension {
     // reconciled against this acceptance after install, so listing/package
     // drift re-prompts rather than slipping through.
     const listing =
+      store?.getRaycastItem(slug) ??
       store?.raycastItems.find((item) => item.slug === slug) ??
       store?.allItems.find((item) => item.slug === slug);
     const acceptedPermissions = listing?.manifest?.permissions ?? [];
@@ -139,7 +140,11 @@ class StoreExtension implements Extension {
       title: `Installing ${displayName}`,
     });
 
-    if (listing?.source === 'raycast' || String(extensionId).startsWith('org.asyar.raycast.')) {
+    if (
+      listing?.source === 'raycast' ||
+      String(extensionId).startsWith('org.asyar.raycast.') ||
+      (store && store.currentSource === 'raycast')
+    ) {
       this.logService?.info(`Installing Raycast extension: ${displayName} (${slug})`);
       try {
         await commands.installRaycastExtension({
@@ -507,6 +512,7 @@ class StoreExtension implements Extension {
       event.stopPropagation();
       const selectedItem = state.filteredItems[state.selectedIndex];
       if (selectedItem) {
+        state.setSelectedExtension(selectedItem);
         this.viewExtensionDetail(selectedItem.slug);
       }
     }
