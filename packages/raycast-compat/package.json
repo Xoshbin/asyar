@@ -1,0 +1,49 @@
+{
+  "name": "@asyar/raycast-compat",
+  "version": "1.0.0",
+  "description": "Raycast API (@raycast/api) compatibility shim for Asyar",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./manifest": {
+      "types": "./dist/manifest/index.d.ts",
+      "default": "./dist/manifest/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "asyar-sdk": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.2.0",
+    "@types/node": "^22.14.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "~5.6.2",
+    "vitest": "^4.1.10"
+  }
+}

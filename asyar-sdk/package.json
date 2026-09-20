@@ -19,6 +19,10 @@
       "types": "./dist/view.d.ts",
       "default": "./dist/view.js"
     },
+    "./compat/raycast": {
+      "types": "./dist/compat/raycast/index.d.ts",
+      "default": "./dist/compat/raycast/index.js"
+    },
     "./tokens.css": "./src/styles/tokens.css"
   },
   "scripts": {
