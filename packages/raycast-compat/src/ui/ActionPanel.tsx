@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Clipboard } from '../clipboard';
 import { open } from '../navigation';
 import type { Keyboard } from '../constants';
+import { renderIconElement } from './iconUtils';
 
 export interface ActionDescriptor {
   id: string;
@@ -41,7 +42,7 @@ export function Action(props: ActionProps): React.ReactElement {
       }}
     >
       <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {props.icon && <span>{String(props.icon)}</span>}
+        {props.icon && renderIconElement(props.icon, '14px')}
         <span>{props.title}</span>
       </span>
       {props.shortcut && (

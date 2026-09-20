@@ -138,4 +138,22 @@ describe('React UI Primitives', () => {
 
     expect(open).toHaveBeenCalledWith('https://asyar.org');
   });
+
+  it('renders complex icon objects with source and tintColor without [object Object]', () => {
+    const { container } = render(
+      <List>
+        <List.Item
+          id="item-code"
+          title="Code Snippet"
+          icon={{ source: '💻', tintColor: '#ec4899' }}
+          accessories={[{ text: 'Tagged', icon: { source: '🏷️' } }]}
+        />
+      </List>,
+    );
+
+    expect(container.textContent).not.toContain('[object Object]');
+    expect(screen.getByText('Code Snippet')).toBeDefined();
+    expect(screen.getByText('💻')).toBeDefined();
+    expect(screen.getByText('🏷️')).toBeDefined();
+  });
 });

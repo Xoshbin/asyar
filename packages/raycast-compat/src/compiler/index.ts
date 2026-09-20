@@ -57,6 +57,8 @@ export function resolveCommandSourceFile(sourceDir: string, commandName: string)
   return `./src/${commandName}`;
 }
 
+export * from './remote.js';
+
 /**
  * Copies a directory recursively.
  */
@@ -203,12 +205,16 @@ export function compileRaycastExtension(options: CompileRaycastOptions): Compile
 }
 
 function generateViewEntry(commands: Array<{ name: string; file: string }>): string {
-  const imports = commands.map((cmd, i) => `import Cmd_${i} from '${cmd.file}';`).join('\n');
-
+  const imports = commands.map((cmd, i) => `import * as Mod_${i} from '${cmd.file}';`).join('\n');
+  const unwrap = commands
+    .map((cmd, i) => `const Cmd_${i} = (Mod_${i} as any).default ?? Mod_${i};`)
+    .join('\n');
   const mapEntries = commands.map((cmd, i) => `  '${cmd.name}': Cmd_${i},`).join('\n');
 
   return `import { mountRaycastView } from '@asyar/raycast-compat/runner';
 ${imports}
+
+${unwrap}
 
 mountRaycastView({
 ${mapEntries}
@@ -217,13 +223,19 @@ ${mapEntries}
 }
 
 function generateWorkerEntry(commands: Array<{ name: string; file: string }>): string {
-  const imports = commands.map((cmd, i) => `import WorkerCmd_${i} from '${cmd.file}';`).join('\n');
-
+  const imports = commands
+    .map((cmd, i) => `import * as WorkerMod_${i} from '${cmd.file}';`)
+    .join('\n');
+  const unwrap = commands
+    .map((cmd, i) => `const WorkerCmd_${i} = (WorkerMod_${i} as any).default ?? WorkerMod_${i};`)
+    .join('\n');
   const mapEntries = commands.map((cmd, i) => `  '${cmd.name}': WorkerCmd_${i},`).join('\n');
 
   return `import { startWorkerRunner } from '@asyar/raycast-compat/runner';
 import manifest from './manifest.json';
 ${imports}
+
+${unwrap}
 
 startWorkerRunner({
   manifest,

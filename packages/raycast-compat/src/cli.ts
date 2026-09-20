@@ -3,7 +3,11 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { compileRaycastExtension } from './compiler/index.js';
+import {
+  compileRaycastExtension,
+  searchRaycastStore,
+  downloadRaycastExtension,
+} from './compiler/index.js';
 
 function getAppDataDir(isDev = false): string {
   const bundleId = isDev ? 'org.asyar.dev' : 'org.asyar.app';
@@ -67,58 +71,133 @@ function linkExtension(extensionId: string, extensionDir: string, isDev = false)
   console.log(`✓ Registered ${extensionId} in: ${devFile}`);
 }
 
-function main() {
+async function main() {
   const args = process.argv.slice(2);
   if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
     console.log(`
 Usage: asyar-raycast-compile <sourceDir> [outDir] [options]
+       asyar-raycast-compile --install <extension-name|url> [options]
+       asyar-raycast-compile --search <query>
 
-Compiles, builds, and links an unpacked Raycast extension into Asyar.
+Compiles, builds, and links Raycast extensions into Asyar.
+
+Commands:
+  --search <query>    Search official Raycast Store for extensions
+  --install <name>    Download, compile, build, and link an extension directly
 
 Arguments:
-  sourceDir         Path to unpacked Raycast extension (containing package.json)
-  outDir            Target output directory (defaults to sourceDir if omitted)
+  sourceDir           Path to unpacked Raycast extension (containing package.json)
+  outDir              Target output directory (defaults to sourceDir if omitted)
 
 Options:
-  --build           Automatically run vite build after compilation
-  --link            Link extension into Asyar's extensions folder and dev registry
-  --dev             Target development flavor (org.asyar.dev) when linking
-  --id-prefix       Custom ID prefix (default: org.asyar.raycast)
-  --sdk-version     Target Asyar SDK version (default: ^4.11.0)
-  --help, -h        Show this help message
+  --build             Automatically run vite build after compilation
+  --link              Link extension into Asyar's extensions folder and dev registry
+  --dev               Target development flavor (org.asyar.dev) when linking (default: true for --install)
+  --id-prefix         Custom ID prefix (default: org.asyar.raycast)
+  --sdk-version       Target Asyar SDK version (default: ^4.11.0)
+  --help, -h          Show this help message
 `);
     process.exit(0);
   }
 
-  const sourceDir = args[0];
+  // Handle --search
+  if (args[0] === '--search') {
+    const query = args[1];
+    if (!query) {
+      console.error(
+        'Error: Please provide a search query (e.g. asyar-raycast-compile --search git)',
+      );
+      process.exit(1);
+    }
+    console.log(`🔍 Searching Raycast Store for "${query}"...`);
+    try {
+      const results = await searchRaycastStore(query);
+      if (results.length === 0) {
+        console.log('No extensions found.');
+      } else {
+        console.log(`\nFound ${results.length} extensions:\n`);
+        for (const item of results.slice(0, 15)) {
+          console.log(
+            `• \x1b[1m${item.title}\x1b[0m (\x1b[36m${item.name}\x1b[0m) by ${item.author?.name || item.author?.handle}`,
+          );
+          console.log(`  ${item.description || 'No description'}`);
+          console.log(
+            `  ⬇️  ${item.download_count?.toLocaleString() ?? 0} downloads | Commands: ${(item.commands || []).map((c) => c.title).join(', ')}\n`,
+          );
+        }
+        console.log(`To install any extension, run:`);
+        console.log(`  asyar-raycast-compile --install <name>\n`);
+      }
+    } catch (err: any) {
+      console.error(`✗ Search failed: ${err.message}`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  // Handle --install
+  let sourceDir = args[0];
+  let isRemoteInstall = false;
   let outDir: string | undefined = undefined;
   let idPrefix: string | undefined = undefined;
   let sdkVersion: string | undefined = undefined;
   let shouldBuild = false;
   let shouldLink = false;
-  let isDev = false;
+  let isDev = true;
 
-  for (let i = 1; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === '--id-prefix' && i + 1 < args.length) {
-      idPrefix = args[++i];
-    } else if (arg === '--sdk-version' && i + 1 < args.length) {
-      sdkVersion = args[++i];
-    } else if (arg === '--build') {
-      shouldBuild = true;
-    } else if (arg === '--link') {
-      shouldLink = true;
-    } else if (arg === '--dev') {
-      isDev = true;
-    } else if (!arg.startsWith('-') && !outDir) {
-      outDir = arg;
+  if (args[0] === '--install') {
+    isRemoteInstall = true;
+    const identifier = args[1];
+    if (!identifier) {
+      console.error(
+        'Error: Please provide an extension name or URL (e.g. asyar-raycast-compile --install clean-keyboard)',
+      );
+      process.exit(1);
+    }
+
+    shouldBuild = true;
+    shouldLink = true;
+
+    for (let i = 2; i < args.length; i++) {
+      const arg = args[i];
+      if (arg === '--out-dir' && i + 1 < args.length) {
+        outDir = args[++i];
+      } else if (arg === '--prod') {
+        isDev = false;
+      }
+    }
+
+    try {
+      const { extensionDir } = await downloadRaycastExtension(identifier, outDir);
+      sourceDir = extensionDir;
+      outDir = extensionDir;
+    } catch (err: any) {
+      console.error(`✗ Download failed: ${err.message}`);
+      process.exit(1);
+    }
+  } else {
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+      if (arg === '--id-prefix' && i + 1 < args.length) {
+        idPrefix = args[++i];
+      } else if (arg === '--sdk-version' && i + 1 < args.length) {
+        sdkVersion = args[++i];
+      } else if (arg === '--build') {
+        shouldBuild = true;
+      } else if (arg === '--link') {
+        shouldLink = true;
+      } else if (arg === '--dev') {
+        isDev = true;
+      } else if (!arg.startsWith('-') && !outDir) {
+        outDir = arg;
+      }
     }
   }
 
   const finalTargetDir = path.resolve(outDir || sourceDir);
 
   try {
-    console.log(`Adapting Raycast extension from: ${path.resolve(sourceDir)}`);
+    console.log(`\nAdapting Raycast extension from: ${path.resolve(sourceDir)}`);
     const result = compileRaycastExtension({
       sourceDir,
       outDir,
@@ -153,4 +232,4 @@ Options:
   }
 }
 
-main();
+void main();
