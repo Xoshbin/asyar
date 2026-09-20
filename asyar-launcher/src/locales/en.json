@@ -7,7 +7,8 @@
     "actions_hint": "Actions",
     "navigate_hint": "Navigate",
     "select_hint": "Open",
-    "back": "Back"
+    "back": "Back",
+    "scoped_tools_hint": "Tools & Commands"
   },
   "actions": {
     "title": "Actions",
