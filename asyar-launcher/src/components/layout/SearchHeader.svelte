@@ -234,6 +234,7 @@
   let hintLabel = $derived(contextHint?.type === 'ai' ? 'Ask AI' : 'Tab');
   let chipColor = $derived(activeContext?.color ?? 'var(--accent-primary)');
   let aiHintMuted = $derived(contextHint?.type === 'ai' && !looksLikeAIIntent(value));
+  let isScopedCommandSearch = $derived(value.startsWith('@'));
 
   // `accessoryRef` is exposed as a $bindable prop above so the global
   // keyboard chain (⌘P) can open the popover from outside this component.
@@ -387,6 +388,15 @@
               />
             {/each}
           </div>
+        {:else if isScopedCommandSearch}
+          <span class="context-hint">
+            <span class="hint-text">
+              <span class="hint-icon">
+                <Icon name="puzzle" size={13} />
+              </span>
+              <span class="hint-label">{t('search.scoped_tools_hint')}</span>
+            </span>
+          </span>
         {:else if contextHint}
           <span class="context-hint" class:context-hint--muted={aiHintMuted}>
             <span class="hint-text">
