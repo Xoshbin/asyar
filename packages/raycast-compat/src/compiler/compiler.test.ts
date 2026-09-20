@@ -103,8 +103,8 @@ describe('Raycast Extension Compiler', () => {
       expect(workerTs).toContain("'quick-copy': WorkerCmd_0");
 
       const viteConfig = fs.readFileSync(path.join(outDir, 'vite.config.ts'), 'utf-8');
-      expect(viteConfig).toContain("'@raycast/api': '@asyar/raycast-compat'");
-      expect(viteConfig).toContain("'@raycast/utils': '@asyar/raycast-compat/utils'");
+      expect(viteConfig).toContain("'@raycast/api': resolve(compatDir, 'src/index.ts')");
+      expect(viteConfig).toContain("'@raycast/utils': resolve(compatDir, 'src/utils/index.ts')");
     });
 
     it('generates only view entrypoints for view-only extension', () => {

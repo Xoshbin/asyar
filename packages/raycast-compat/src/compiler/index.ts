@@ -278,16 +278,42 @@ function generateViteConfig(opts: { hasView: boolean; hasWorker: boolean }): str
   }
 
   return `import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+let compatDir = '';
+try {
+  compatDir = resolve(require.resolve('@asyar/raycast-compat/package.json'), '..');
+} catch {
+  compatDir = resolve(__dirname, '../../packages/raycast-compat');
+}
+
+const resolveCompat = (id: string) => {
+  try {
+    return require.resolve(id, { paths: [compatDir] });
+  } catch {
+    return id;
+  }
+};
 
 export default defineConfig({
-  plugins: [react()],
   base: './',
+  esbuild: {
+    jsx: 'automatic',
+  },
   resolve: {
     alias: {
-      '@raycast/api': '@asyar/raycast-compat',
-      '@raycast/utils': '@asyar/raycast-compat/utils',
+      '@raycast/api': resolve(compatDir, 'src/index.ts'),
+      '@raycast/utils': resolve(compatDir, 'src/utils/index.ts'),
+      '@asyar/raycast-compat/runner': resolve(compatDir, 'src/runner/index.ts'),
+      '@asyar/raycast-compat/utils': resolve(compatDir, 'src/utils/index.ts'),
+      '@asyar/raycast-compat': resolve(compatDir, 'src/index.ts'),
+      'react/jsx-runtime': resolveCompat('react/jsx-runtime'),
+      'react/jsx-dev-runtime': resolveCompat('react/jsx-dev-runtime'),
+      'react-dom/client': resolveCompat('react-dom/client'),
+      'react-dom': resolveCompat('react-dom'),
+      'react': resolveCompat('react'),
     },
   },
   build: {

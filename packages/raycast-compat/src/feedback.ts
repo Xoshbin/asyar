@@ -66,7 +66,8 @@ export class Toast {
       kind: 'toast',
       severity,
       retryable: false,
-      developerDetail: this.message,
+      context: { title: this.title },
+      developerDetail: this.message || this.title,
     });
   }
 

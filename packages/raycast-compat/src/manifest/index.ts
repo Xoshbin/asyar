@@ -33,12 +33,21 @@ export interface RaycastPackageJson {
 
 export interface AsyarPreferenceItem {
   name: string;
-  type: 'text' | 'password' | 'checkbox' | 'select' | 'number';
+  type:
+    | 'textfield'
+    | 'password'
+    | 'checkbox'
+    | 'dropdown'
+    | 'number'
+    | 'appPicker'
+    | 'file'
+    | 'directory';
   title: string;
   description?: string;
   default?: unknown;
   required?: boolean;
-  options?: Array<{ title: string; value: string }>;
+  placeholder?: string;
+  data?: Array<{ title: string; value: string }>;
 }
 
 export interface AsyarCommandItem {
@@ -103,8 +112,8 @@ export function adaptRaycastPackageJson(
   });
 
   const preferences: AsyarPreferenceItem[] = (pkg.preferences || []).map((pref) => {
-    let type: AsyarPreferenceItem['type'] = 'text';
-    let options: Array<{ title: string; value: string }> | undefined = undefined;
+    let type: AsyarPreferenceItem['type'] = 'textfield';
+    let data: Array<{ title: string; value: string }> | undefined = undefined;
 
     switch (pref.type) {
       case 'password':
@@ -114,17 +123,21 @@ export function adaptRaycastPackageJson(
         type = 'checkbox';
         break;
       case 'dropdown':
-        type = 'select';
-        options = (pref.data || []).map((item) => ({
+        type = 'dropdown';
+        data = (pref.data || []).map((item) => ({
           title: item.title,
           value: item.value,
         }));
         break;
-      case 'textfield':
       case 'appPicker':
+        type = 'appPicker';
+        break;
       case 'file':
+        type = 'file';
+        break;
+      case 'textfield':
       default:
-        type = typeof pref.default === 'number' ? 'number' : 'text';
+        type = typeof pref.default === 'number' ? 'number' : 'textfield';
         break;
     }
 
@@ -135,7 +148,8 @@ export function adaptRaycastPackageJson(
       type,
       default: pref.default,
       required: pref.required,
-      options,
+      placeholder: pref.placeholder,
+      data,
     };
   });
 

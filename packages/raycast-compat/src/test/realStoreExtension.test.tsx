@@ -325,10 +325,11 @@ describe('Real Live Raycast Store Extension Scenarios', () => {
       name: 'action',
       title: 'Default Action',
       description: 'What you would like to happen when running the command',
-      type: 'select',
+      type: 'dropdown',
       default: 'clipboard',
       required: undefined,
-      options: [
+      placeholder: undefined,
+      data: [
         { value: 'clipboard', title: 'Copy to Clipboard' },
         { value: 'paste', title: 'Paste to Active App' },
         { value: 'pasteAndCopy', title: 'Paste and Copy to Clipboard' },

@@ -79,7 +79,7 @@ describe('Raycast Manifest Adapter', () => {
     expect(workerCmd?.name).toBe('Star Active Repo');
   });
 
-  it('converts preferences schema including dropdown to select', () => {
+  it('converts preferences schema including dropdown to dropdown', () => {
     const asyarManifest = adaptRaycastPackageJson(sampleRaycastPkg);
 
     expect(asyarManifest.preferences).toHaveLength(3);
@@ -93,8 +93,8 @@ describe('Raycast Manifest Adapter', () => {
     expect(checkboxPref?.default).toBe(false);
 
     const dropdownPref = asyarManifest.preferences?.find((p) => p.name === 'sortOrder');
-    expect(dropdownPref?.type).toBe('select');
-    expect(dropdownPref?.options).toEqual([
+    expect(dropdownPref?.type).toBe('dropdown');
+    expect(dropdownPref?.data).toEqual([
       { title: 'Stars', value: 'stars' },
       { title: 'Updated', value: 'updated' },
     ]);
