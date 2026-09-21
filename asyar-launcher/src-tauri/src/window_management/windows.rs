@@ -1,10 +1,13 @@
 #![cfg(target_os = "windows")]
 
 use crate::error::AppError;
-use crate::window_management::types::{WindowBounds, WindowBoundsUpdate};
-use windows::Win32::Foundation::{HWND, RECT};
+use crate::window_management::types::{AppWindowInfo, WindowBounds, WindowBoundsUpdate};
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowRect, MoveWindow, ShowWindow, SW_MAXIMIZE, SW_RESTORE,
+    BringWindowToTop, EnumWindows, GetWindowLongW, GetWindowRect, GetWindowTextLengthW,
+    GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, MoveWindow, PostMessageW,
+    SetForegroundWindow, ShowWindow, GWL_EXSTYLE, SW_MAXIMIZE, SW_RESTORE, WM_CLOSE,
+    WS_EX_TOOLWINDOW,
 };
 
 /// Converts a Win32 RECT (left, top, right, bottom) to WindowBounds.
@@ -78,6 +81,116 @@ pub fn set_window_fullscreen(previous_hwnd: isize, enable: bool) -> Result<(), A
     Ok(())
 }
 
+/// Enumerates visible top-level application windows on Windows.
+pub fn list_windows(_app: &tauri::AppHandle) -> Result<Vec<AppWindowInfo>, AppError> {
+    struct EnumState {
+        windows: Vec<AppWindowInfo>,
+        our_pid: u32,
+    }
+
+    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let state = &mut *(lparam.0 as *mut EnumState);
+
+        if !IsWindowVisible(hwnd).as_bool() {
+            return BOOL(1);
+        }
+
+        let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
+        if (ex_style & WS_EX_TOOLWINDOW.0) != 0 {
+            return BOOL(1);
+        }
+
+        let len = GetWindowTextLengthW(hwnd);
+        if len == 0 {
+            return BOOL(1);
+        }
+
+        let mut title_buf = vec![0u16; (len + 1) as usize];
+        let actual_len = GetWindowTextW(hwnd, &mut title_buf);
+        if actual_len == 0 {
+            return BOOL(1);
+        }
+        let title = String::from_utf16_lossy(&title_buf[..actual_len as usize]);
+        let title = title.trim().to_string();
+        if title.is_empty() {
+            return BOOL(1);
+        }
+
+        let mut pid: u32 = 0;
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        if pid == 0 || pid == state.our_pid {
+            return BOOL(1);
+        }
+
+        let is_minimized = IsIconic(hwnd).as_bool();
+        let is_focused = state.windows.is_empty();
+
+        let app_name = title.clone();
+
+        state.windows.push(AppWindowInfo {
+            id: format!("win:{}", hwnd.0 as isize),
+            pid: pid as i32,
+            app_name,
+            app_bundle_id: None,
+            title,
+            is_minimized,
+            is_focused,
+            app_icon: None,
+        });
+
+        BOOL(1)
+    }
+
+    let mut state = EnumState {
+        windows: Vec::new(),
+        our_pid: std::process::id(),
+    };
+
+    unsafe {
+        let _ = EnumWindows(Some(enum_proc), LPARAM(&mut state as *mut _ as isize));
+    }
+
+    Ok(state.windows)
+}
+
+/// Restores and brings the target window to the foreground on Windows.
+pub fn focus_window(id: &str) -> Result<(), AppError> {
+    let raw = id.strip_prefix("win:").unwrap_or(id);
+    let hwnd_val: isize = raw
+        .parse()
+        .map_err(|_| AppError::Validation(format!("Invalid Windows HWND: {id}")))?;
+    if hwnd_val == 0 {
+        return Err(AppError::NotFound("Null HWND".to_string()));
+    }
+
+    unsafe {
+        let hwnd = HWND(hwnd_val as *mut _);
+        if IsIconic(hwnd).as_bool() {
+            ShowWindow(hwnd, SW_RESTORE);
+        }
+        BringWindowToTop(hwnd);
+        SetForegroundWindow(hwnd);
+    }
+    Ok(())
+}
+
+/// Closes the target window on Windows by posting WM_CLOSE.
+pub fn close_window(id: &str) -> Result<(), AppError> {
+    let raw = id.strip_prefix("win:").unwrap_or(id);
+    let hwnd_val: isize = raw
+        .parse()
+        .map_err(|_| AppError::Validation(format!("Invalid Windows HWND: {id}")))?;
+    if hwnd_val == 0 {
+        return Err(AppError::NotFound("Null HWND".to_string()));
+    }
+
+    unsafe {
+        let hwnd = HWND(hwnd_val as *mut _);
+        let _ = PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,5 +246,17 @@ mod tests {
     #[test]
     fn set_window_fullscreen_rejects_null_hwnd() {
         assert!(set_window_fullscreen(0, true).is_err());
+    }
+
+    #[test]
+    fn focus_window_rejects_invalid_hwnd() {
+        assert!(focus_window("win:0").is_err());
+        assert!(focus_window("invalid").is_err());
+    }
+
+    #[test]
+    fn close_window_rejects_invalid_hwnd() {
+        assert!(close_window("win:0").is_err());
+        assert!(close_window("invalid").is_err());
     }
 }

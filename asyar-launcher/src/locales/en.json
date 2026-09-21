@@ -633,7 +633,18 @@
       "save_current_layout_desc": "Capture the frontmost window position and size as a custom layout",
       "rename_layout_title": "Rename Layout",
       "rename_layout_subtitle": "Give this window layout a recognizable name",
-      "rename_layout_placeholder": "e.g. Work Setup, Right Focus..."
+      "rename_layout_placeholder": "e.g. Work Setup, Right Focus...",
+      "switch_windows_title": "Switch Windows",
+      "switch_windows_desc": "Switch to an active application window",
+      "search_windows_placeholder": "Search open windows...",
+      "no_windows": "No open windows found",
+      "no_matching_windows": "No windows match your search",
+      "focus_window": "Switch to Window",
+      "close_window": "Close Window",
+      "copy_title": "Copy Title",
+      "title_copied": "Title copied to clipboard",
+      "badge_active": "Active",
+      "badge_minimized": "Minimized"
     },
     "shortcuts": {
       "title": "Shortcuts",

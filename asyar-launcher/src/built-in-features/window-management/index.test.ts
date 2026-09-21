@@ -48,6 +48,7 @@ vi.mock('./layoutLifecycle', () => ({
   removeLayoutFromIndex: vi.fn(),
 }));
 vi.mock('./ManageView.svelte', () => ({ default: {} }));
+vi.mock('./SwitchWindowsView.svelte', () => ({ default: {} }));
 
 import extension from './index';
 import { windowManagementService } from '../../services/windowManagement/windowManagementService';
@@ -221,6 +222,18 @@ describe('WindowManagementExtension', () => {
       await extension.initialize(ctx);
       const result = await extension.executeCommand('manage-layouts');
       expect(result).toMatchObject({ type: 'view', viewPath: 'window-management/ManageView' });
+    });
+  });
+
+  describe('executeCommand — switch-windows', () => {
+    it('navigates to SwitchWindowsView and returns view type', async () => {
+      const ctx = makeContext();
+      await extension.initialize(ctx);
+      const result = await extension.executeCommand('switch-windows');
+      expect(result).toMatchObject({
+        type: 'view',
+        viewPath: 'window-management/SwitchWindowsView',
+      });
     });
   });
 

@@ -515,7 +515,8 @@ mod bindings_export {
             .register::<crate::launcher_placement::LauncherMonitorChoice>()
             .register::<crate::launcher_placement::LauncherAnchor>()
             .register::<crate::locale::ParsedLocale>()
-            .register::<crate::locale::NumberFormat>();
+            .register::<crate::locale::NumberFormat>()
+            .register::<crate::window_management::types::AppWindowInfo>();
 
         Typescript::default()
             .bigint(BigIntExportBehavior::Number)

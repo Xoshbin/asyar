@@ -40,6 +40,17 @@ export type AliasMatch = {
 	autoExecute: boolean,
 };
 
+export type AppWindowInfo = {
+	id: string,
+	pid: number,
+	appName: string,
+	appBundleId: string | null,
+	title: string,
+	isMinimized: boolean,
+	isFocused: boolean,
+	appIcon: string | null,
+};
+
 export type Application = {
 	id?: string,
 	name: string,

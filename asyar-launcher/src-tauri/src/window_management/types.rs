@@ -17,6 +17,19 @@ pub struct WindowBoundsUpdate {
     pub height: Option<f64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AppWindowInfo {
+    pub id: String,
+    pub pid: i32,
+    pub app_name: String,
+    pub app_bundle_id: Option<String>,
+    pub title: String,
+    pub is_minimized: bool,
+    pub is_focused: bool,
+    pub app_icon: Option<String>,
+}
+
 /// Validates a WindowBoundsUpdate: at least one field must be set, and
 /// width/height (if present) must be positive and finite.
 pub fn validate_bounds_update(u: &WindowBoundsUpdate) -> Result<(), AppError> {
@@ -131,5 +144,25 @@ mod tests {
         };
         let err = validate_bounds_update(&u).unwrap_err();
         assert!(matches!(err, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn app_window_info_serialization_camel_case() {
+        let info = AppWindowInfo {
+            id: "macos:123:456".to_string(),
+            pid: 123,
+            app_name: "Google Chrome".to_string(),
+            app_bundle_id: Some("com.google.chrome".to_string()),
+            title: "Pull Requests".to_string(),
+            is_minimized: false,
+            is_focused: true,
+            app_icon: Some("asyar-icon://localhost/chrome.png".to_string()),
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("\"appName\":\"Google Chrome\""));
+        assert!(json.contains("\"appBundleId\":\"com.google.chrome\""));
+        assert!(json.contains("\"isMinimized\":false"));
+        assert!(json.contains("\"isFocused\":true"));
+        assert!(json.contains("\"appIcon\":"));
     }
 }

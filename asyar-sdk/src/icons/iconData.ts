@@ -265,6 +265,13 @@ export const ICON_DATA: Record<string, string> = {
     <line x1="9" y1="8" x2="15" y2="8" />
     <line x1="17" y1="16" x2="23" y2="16" />
   `,
+  window: `
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <line x1="3" y1="9" x2="21" y2="9" />
+    <line x1="7" y1="6.5" x2="7.01" y2="6.5" />
+    <line x1="10" y1="6.5" x2="10.01" y2="6.5" />
+    <line x1="13" y1="6.5" x2="13.01" y2="6.5" />
+  `,
 };
 
 export const ICON_NAMES: readonly string[] = Object.keys(ICON_DATA);
