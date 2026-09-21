@@ -50,10 +50,13 @@
       <span class="welcome__tag">📦 {t('onboarding.welcome_highlight_raycast')}</span>
     </div>
 
-    <div class="welcome__row">
-      <div class="welcome__row-label">
-        <span class="welcome__row-title">{t('onboarding.tour_raycast')}</span>
-        <span class="welcome__row-hint">{t('onboarding.tour_raycast_desc')}</span>
+    <div class="welcome__migration-card">
+      <div class="welcome__migration-content">
+        <div class="welcome__migration-header">
+          <span class="welcome__migration-badge">Raycast</span>
+          <span class="welcome__migration-title">{t('onboarding.tour_raycast')}</span>
+        </div>
+        <span class="welcome__migration-hint">{t('onboarding.tour_raycast_desc')}</span>
       </div>
       <Button class="btn-secondary" onclick={openRaycastImport}
         >{t('settings.backup.import_raycast_button')}</Button
@@ -130,6 +133,47 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+  }
+  .welcome__migration-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--bg-secondary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-md);
+    margin: var(--space-2) 0;
+  }
+  .welcome__migration-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0-5);
+  }
+  .welcome__migration-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .welcome__migration-badge {
+    padding: var(--space-0-5) var(--space-2);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-xs);
+    font-size: var(--font-size-2xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--asyar-brand);
+  }
+  .welcome__migration-title {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .welcome__migration-hint {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
   }
   .welcome__row {
     display: flex;

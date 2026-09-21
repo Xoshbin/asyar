@@ -15,3 +15,5 @@ does, how to use it, shortcuts, tips, and related pages.
 - [MCP](./mcp.md) — Connect external tools to your agents.
 - [Browser Integration](./browser-integration.md) — Search bookmarks, history, and tabs.
 - [Extensions](./extensions.md) — Browse, install, and manage extensions from the store.
+- [Import from Raycast](./raycast-import.md) — Bring snippets, quicklinks, and app hotkeys over in one click.
+- [Migrating from Raycast](./migrating-from-raycast.md) — Full migration guide, feature mapping, and FAQ.
