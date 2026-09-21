@@ -94,8 +94,19 @@
   }
 
   async function handleCopyTitle(title: string) {
+    const textToCopy = title.trim();
+    if (!textToCopy) return;
+
     try {
-      await writeText(title);
+      try {
+        await writeText(textToCopy);
+      } catch (clipErr) {
+        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(textToCopy);
+        } else {
+          throw clipErr;
+        }
+      }
       await feedbackService.showHUD(t('features.window_management.title_copied'));
     } catch (err: any) {
       logService.error(`[SwitchWindowsView] copy title failed: ${err}`);
@@ -119,8 +130,52 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
+    if (document.querySelector('.action-popup')) return;
     if (isAnyModalOpen(document)) return;
+    if ((event.target as HTMLElement | null)?.closest?.('.action-popup')) return;
     if (filteredWindows.length === 0) return;
+
+    // Direct shortcuts while inside the window switcher view
+    if (event.metaKey || event.ctrlKey) {
+      // ⌘⇧C: Copy Window Title
+      if (event.shiftKey && (event.key === 'c' || event.key === 'C')) {
+        if (selectedWindow) {
+          event.preventDefault();
+          event.stopPropagation();
+          const text = (selectedWindow.title?.trim() || selectedWindow.appName || '').trim();
+          void handleCopyTitle(text);
+        }
+        return;
+      }
+      // ⌘W: Close Window
+      if (!event.shiftKey && (event.key === 'w' || event.key === 'W')) {
+        if (selectedWindow) {
+          event.preventDefault();
+          event.stopPropagation();
+          void handleClose(selectedWindow.id);
+        }
+        return;
+      }
+      // ⌘C: Copy title if user is not selecting text inside an input
+      if (!event.shiftKey && (event.key === 'c' || event.key === 'C')) {
+        const active = document.activeElement;
+        const hasSelection =
+          active instanceof HTMLInputElement &&
+          active.selectionStart !== null &&
+          active.selectionEnd !== null &&
+          active.selectionStart !== active.selectionEnd;
+        if (!hasSelection && selectedWindow) {
+          event.preventDefault();
+          event.stopPropagation();
+          const text = (selectedWindow.title?.trim() || selectedWindow.appName || '').trim();
+          void handleCopyTitle(text);
+        }
+        return;
+      }
+      return;
+    }
+
+    if (event.altKey) return;
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
@@ -151,7 +206,7 @@
     }
 
     const id = current.id;
-    const title = current.title;
+    const textToCopy = (current.title?.trim() || current.appName || '').trim();
 
     actionService.registerAction({
       id: 'window-management:focus-window',
@@ -168,7 +223,7 @@
       id: 'window-management:close-window',
       title: t('features.window_management.close_window'),
       icon: 'icon:x',
-      shortcut: '⌘W',
+      shortcut: 'Super+W',
       extensionId: 'window-management',
       category: 'window-management',
       context: ActionContext.EXTENSION_VIEW,
@@ -179,11 +234,11 @@
       id: 'window-management:copy-title',
       title: t('features.window_management.copy_title'),
       icon: 'icon:copy',
-      shortcut: '⌘C',
+      shortcut: 'Super+Shift+C',
       extensionId: 'window-management',
       category: 'window-management',
       context: ActionContext.EXTENSION_VIEW,
-      execute: () => handleCopyTitle(title),
+      execute: () => handleCopyTitle(textToCopy),
     });
 
     return () => {

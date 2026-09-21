@@ -203,4 +203,72 @@ describe('SwitchWindowsView', () => {
     expect(mockCloseWindow).toHaveBeenCalledWith('win-1');
     expect(mockListWindows).toHaveBeenCalledTimes(2);
   });
+
+  it('does not intercept ArrowDown or Enter when action-popup is open in the DOM', async () => {
+    render(SwitchWindowsView);
+    await flush();
+
+    const popup = document.createElement('div');
+    popup.className = 'action-popup';
+    document.body.appendChild(popup);
+
+    try {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+      await flush();
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      await flush();
+
+      // Window focus should NOT have been called because action popup has precedence
+      expect(mockFocusWindow).not.toHaveBeenCalled();
+    } finally {
+      popup.remove();
+    }
+  });
+
+  it('supports direct Cmd+Shift+C shortcut to copy title', async () => {
+    render(SwitchWindowsView);
+    await flush();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', metaKey: true, shiftKey: true }));
+    await flush();
+
+    expect(mockWriteText).toHaveBeenCalledWith('GitHub - PR #123');
+    expect(mockShowHUD).toHaveBeenCalledWith('features.window_management.title_copied');
+  });
+
+  it('supports direct Cmd+W shortcut to close window', async () => {
+    render(SwitchWindowsView);
+    await flush();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', metaKey: true }));
+    await flush();
+
+    expect(mockCloseWindow).toHaveBeenCalledWith('win-1');
+  });
+
+  it('falls back to appName when window title is blank', async () => {
+    mockListWindows.mockResolvedValue([
+      {
+        id: 'win-empty-title',
+        pid: 303,
+        appName: 'Finder',
+        appBundleId: 'com.apple.finder',
+        title: '   ',
+        isMinimized: false,
+        isFocused: true,
+        appIcon: null,
+      },
+    ]);
+
+    render(SwitchWindowsView);
+    await flush();
+
+    const copyAction = mockRegisterAction.mock.calls.find(
+      (c) => c[0].id === 'window-management:copy-title',
+    )?.[0];
+    await copyAction.execute();
+
+    expect(mockWriteText).toHaveBeenCalledWith('Finder');
+  });
 });
