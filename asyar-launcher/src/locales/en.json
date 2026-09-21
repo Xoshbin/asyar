@@ -540,6 +540,8 @@
     "featured_title": "Extend your launcher",
     "featured_heading": "Essential extensions to start with",
     "featured_desc": "Install powerful add-ons created by the community. You can discover hundreds more in the Store anytime.",
+    "featured_empty_tip_badge": "Store feels empty? Don't be disappointed!",
+    "featured_empty_store_tip": "If you think the store is empty, don't be disappointed! You can easily create your own extension with the \"Create Extension with AI\" command. That's what people do — they create their own extensions, but forget to push them to the store, so you can easily create your own.",
     "clipboard_kicker": "Never lose a copy again"
   },
   "dev": {

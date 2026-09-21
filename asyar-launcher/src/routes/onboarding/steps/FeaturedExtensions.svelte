@@ -68,41 +68,79 @@
 </script>
 
 <Card>
-  <h1>{t('onboarding.featured_heading')}</h1>
-  <p>{t('onboarding.featured_desc')}</p>
+  <div class="step">
+    <p class="step__kicker">{t('onboarding.featured_title')}</p>
+    <h1 class="step__title">{t('onboarding.featured_heading')}</h1>
+    <p class="step__lede">{t('onboarding.featured_desc')}</p>
 
-  {#if loading}
-    <LoadingState message={t('common.loading')} />
-  {:else if extensions.length === 0}
-    <EmptyState message={t('onboarding.featured_store_error')}>
-      <Button onclick={load}>Retry</Button>
-    </EmptyState>
-  {:else}
-    <ul class="list">
-      {#each extensions as ext (ext.id)}
-        <li>
-          <label>
-            <input
-              type="checkbox"
-              checked={selected.has(ext.id)}
-              onchange={() => toggle(ext.id)}
-              disabled={installingIds.has(ext.id)}
-            />
-            <span class="name">{ext.name}</span>
-            {#if installingIds.has(ext.id)}<span class="hint">Installing…</span>{/if}
-            {#if failedIds.has(ext.id)}<span class="error">Failed</span>{/if}
-          </label>
-        </li>
-      {/each}
-    </ul>
-  {/if}
+    {#if loading}
+      <LoadingState message={t('common.loading')} />
+    {:else}
+      {#if extensions.length === 0}
+        <EmptyState message={t('onboarding.featured_store_error')} compact>
+          <Button onclick={load}>{t('common.retry')}</Button>
+        </EmptyState>
+      {:else}
+        <ul class="list">
+          {#each extensions as ext (ext.id)}
+            <li>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selected.has(ext.id)}
+                  onchange={() => toggle(ext.id)}
+                  disabled={installingIds.has(ext.id)}
+                />
+                <span class="name">{ext.name}</span>
+                {#if installingIds.has(ext.id)}<span class="hint">Installing…</span>{/if}
+                {#if failedIds.has(ext.id)}<span class="error">Failed</span>{/if}
+              </label>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+
+      <div class="step__tip">
+        <span class="step__tip-badge">💡 {t('onboarding.featured_empty_tip_badge')}</span>
+        <p class="step__tip-text">
+          {t('onboarding.featured_empty_store_tip')}
+        </p>
+      </div>
+    {/if}
+  </div>
 </Card>
 
 <style>
+  .step {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .step__kicker {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--asyar-brand);
+  }
+  .step__title {
+    margin: 0;
+    font-size: var(--font-size-display);
+    font-weight: 600;
+    letter-spacing: var(--tracking-display);
+    color: var(--text-primary);
+  }
+  .step__lede {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-xl);
+    line-height: 1.6;
+  }
   .list {
     list-style: none;
     padding: 0;
-    margin: var(--space-4) 0;
+    margin: var(--space-2) 0;
   }
   .list li {
     padding: var(--space-2) 0;
@@ -119,5 +157,26 @@
     margin-left: var(--space-2);
     color: var(--accent-danger);
     font-size: var(--font-size-sm);
+  }
+  .step__tip {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    border: 1px solid var(--separator);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    background: var(--bg-tertiary);
+  }
+  .step__tip-badge {
+    align-self: flex-start;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--asyar-brand);
+  }
+  .step__tip-text {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-md);
+    line-height: 1.5;
   }
 </style>
