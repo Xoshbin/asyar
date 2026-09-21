@@ -4,7 +4,7 @@ order: 12
 
 # Built-in Tools Reference
 
-Eight Tier 1 tools are registered at launcher startup and are available to any agent running on a tool-capable provider. Their fully-qualified IDs follow the pattern `builtin:<bare-id>`.
+Nine Tier 1 tools are registered at launcher startup and are available to any agent running on a tool-capable provider. Their fully-qualified IDs follow the pattern `builtin:<bare-id>`.
 
 **Wire encoding.** Provider APIs (including Anthropic) restrict tool names to `^[a-zA-Z0-9_-]{1,64}$`. The Rust provider layer encodes FQIDs before sending them: `:` becomes `__` and `.` becomes `--`. A per-request map decodes incoming tool names back to FQIDs before invocation. Source: `asyar-launcher/src-tauri/src/ai/providers.rs`.
 
@@ -23,6 +23,7 @@ Example: `builtin:calculator` is sent to Anthropic as `builtin__calculator`.
 | `builtin:fs-write`        | Write File            | `path`, `content` | —                                        | `{ ok, bytesWritten }`                      |
 | `builtin:shell-exec`      | Run Shell Command     | `command`         | `args`, `cwd`                            | `{ stdout, stderr, exitCode }`              |
 | `builtin:web-fetch`       | Fetch URL             | `url`             | `method`, `headers`, `body`, `timeoutMs` | `{ status, statusText, headers, body, ok }` |
+| `builtin:web-search`      | Web Search            | `query`           | `limit`                                  | `{ sources: [...], results: [...] }`        |
 | `builtin:search`          | Search Launcher Index | `query`           | `limit`                                  | `{ results[] }`                             |
 
 ---
@@ -270,6 +271,61 @@ Performs an HTTP request using `reqwest` and returns the response envelope.
 
 ---
 
+## builtin:web-search
+
+Searches the live internet for recent news, facts, and documentation using configurable search providers or built-in fallback scrapers.
+
+### Parameters
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Search query or keywords"
+    },
+    "limit": {
+      "type": "number",
+      "description": "Maximum number of results to return (default: 5)"
+    }
+  },
+  "required": ["query"]
+}
+```
+
+### Returns
+
+```json
+{
+  "sources": [
+    {
+      "title": "Rust Programming Language",
+      "url": "https://www.rust-lang.org"
+    }
+  ],
+  "results": [
+    {
+      "title": "Rust Programming Language",
+      "url": "https://www.rust-lang.org",
+      "snippet": "A language empowering everyone to build reliable and efficient software."
+    }
+  ]
+}
+```
+
+Each result entry contains `title`, `url`, and `snippet`. The `sources` array contains `{ title, url }` pairs displayed in the AI chat UI as interactive grounding pills.
+
+### Notes
+
+- **Wire encoding:** Sent to provider APIs as `builtin__web-search`.
+- **Search backends:** Supports configurable providers including DuckDuckGo HTML / Lite (zero-configuration fallback, no API key required), Brave Search API (`brave`), Tavily AI Search (`tavily`), SearXNG (`searxng`), and Wikipedia API fallback.
+- **Redirect unwrapping:** Unwraps intermediate redirect links (such as DuckDuckGo `//duckduckgo.com/l/?uddg=...`) to direct destination URLs.
+- **HTML stripping:** Cleans and strips HTML markup and decodes common HTML entities from titles and snippets before returning them to the agent.
+- `limit` defaults to 5 if omitted or null.
+
+---
+
 ## builtin:search
 
 Queries the launcher's in-memory frecency-ranked search index.
@@ -309,7 +365,7 @@ Each result item: `id` (object_id from the index), `name`, `type`, `score` (frec
 
 ---
 
-## Adding a 9th built-in tool — contributor recipe
+## Adding a built-in tool — contributor recipe
 
 Built-in tools are compiled into the launcher binary (Tier 1). This is distinct from the Tier 2 path, where extension authors declare tools in their manifest and implement handlers in a worker iframe. See [`../how-to/register-extension-tools.md`](../how-to/register-extension-tools.md) for the Tier 2 approach.
 

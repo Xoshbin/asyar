@@ -78,7 +78,9 @@ The shortcuts and aliases themselves are configured via the action panel on sear
 - **Shortcuts vs aliases** — shortcuts work even when Asyar is hidden; aliases require you to open the launcher and type. Use shortcuts for the apps you reach dozens of times a day, aliases for everything else.
 - **One alias per item** — each app or command can have only one alias, but the same alias cannot be shared.
 - **Shortcuts view** — type `shortcuts` in the search bar to open a dedicated view that lists every shortcut you have assigned, grouped by Applications and Commands. It is handy for a quick audit.
-- **Single-key function shortcuts (`F1`–`F24`)** — while typing characters (`A–Z`, `0–9`, symbols) strictly require at least one modifier key (`⌘`, `⌥`, `⌃`, `⇧`) to protect normal text input, standalone function keys (`F1` through `F24`, including extended keys `F13`–`F20`) can be assigned directly without any modifiers. This is particularly useful for hardware macro pads, Stream Decks, gaming mice, or remapped keys like `Caps Lock`.
+- **Hyper Key (`✦`) Support** — If you use a physical or remapped Hyper key (such as `Caps Lock` mapped to `Ctrl+Alt+Shift+Cmd`), Asyar detects when all four modifiers are pressed together and renders them concisely in the UI using the special `✦` glyph (e.g. `✦Space` or `✦K`).
+- **Single-key function shortcuts (`F1`–`F24`) & Copilot Key** — While alphanumeric characters (`A–Z`, `0–9`, symbols) strictly require at least one modifier key (`⌘`, `⌥`, `⌃`, `⇧`) to protect normal text input, standalone function keys (`F1` through `F24`, including extended keys `F13`–`F24` and the Windows Copilot key `F23`) can be assigned directly without any modifiers. This is particularly useful for hardware macro pads, Stream Decks, gaming mice, or remapped keys like `Caps Lock`.
+- **Destructive action safety** — Deleting items or clearing history is never bound to quick deletion hotkeys like `Cmd+Backspace`. Destructive actions are deliberately housed in the `⌘K` action panel and guarded by confirmation dialogs.
 
 ## Related
 

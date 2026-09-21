@@ -77,7 +77,8 @@ expands the placement guidance.
 | `FilesService`             | `IFilesService`             | both                           | `files:search`                                    | Search the same bounded, cached local file index that backs the host's "Search Files" view                                             |
 | `ScreenService`            | `IScreenService`            | both                           | `screen:pick-color`                               | Show the OS eyedropper and read the sRGB color of the one screen pixel the user picks                                                  |
 | `BrowserService`           | `IBrowserService`           | both                           | `browser:*` (per method)                          | Read bookmarks / history / open tabs and drive page content in paired browsers — requires the Asyar browser companion                  |
-| `OpenerService`            | `IOpenerService`            | both                           | `shell:open-url`                                  | Open URLs and custom URI schemes in default or registered OS handlers                                                                  |
+| `OpenerService`            | `IOpenerService`            | both                           | `shell:open-url`, `shell:open-path`, `fs:read`    | Open URLs, local paths in external applications, or reveal files/folders in the system file manager                                    |
+| `OnboardingService`        | `IOnboardingService`        | both                           | None (implicit)                                   | Signal first-run onboarding completion and trigger automatic re-dispatch of pending commands                                           |
 | `EnvironmentService`       | `IEnvironmentService`       | both                           | None                                              | Host OS runtime, platform, theme, and locale metadata                                                                                  |
 
 **Utilities & Metadata (direct import, no `getService()`):**
@@ -124,6 +125,7 @@ expands the placement guidance.
 - **[ScreenService](./screen-service.md)**
 - **[BrowserService](./browser-service.md)**
 - **[OpenerService](./opener-service.md)**
+- **[OnboardingService](./onboarding-service.md)**
 - **[Preferences (declarative settings)](./preferences.md)**
 - **[User-authored templates pattern](./user-templates-pattern.md)**
 - **[Error Handling & Error Classes](./errors.md)**

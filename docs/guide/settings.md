@@ -9,15 +9,17 @@ Open Settings with `⌘,` from anywhere inside the launcher, or search for "Sett
 
 ## General
 
-The General tab covers the most common settings:
+The General tab covers core appearance, window placement, and system integration:
 
 - **Startup** — Toggle "Launch Asyar at login" to have Asyar start automatically when you log in to your computer.
 - **Menu Bar Icon** — Toggle "Show icon in menu bar" to control whether Asyar appears in the system menu bar / system tray.
 - **Dock Icon** (macOS) — Toggle "Show icon in Dock" to control whether Asyar appears in the macOS Dock and ⌘Tab application switcher.
-- **Hotkey** — Change the global show/hide shortcut. Click inside the recorder, press your new combination, and click Save.
+- **Placement & Drag to Snap** — Toggle "Drag to Snap" to control whether alignment snap guide lines and haptic feedback appear when you reposition the launcher window. Note: launcher window placement is stored locally per machine and is deliberately excluded from cloud sync so multi-monitor differences don't clash across machines.
+- **Hotkey** — Change the global show/hide shortcut. Click inside the recorder, press your new combination (including standalone `F1`–`F24` keys or Hyper key combinations), and click Save.
 - **Appearance** — Switch between Light, Dark, or System (follows your operating system) colour scheme.
 - **Window Mode** — Choose between Default (search bar + results list visible immediately) and Compact (search bar only; results expand when you type).
 - **Custom Themes** — If you have installed community themes, a theme picker appears here. Select a theme to apply it instantly.
+- **Language** — Choose your preferred language (including English and Brazilian Portuguese `pt-BR`).
 - **Onboarding** — Click "Re-run onboarding" to walk through the welcome flow again — useful if you skipped any steps the first time.
 
 ## Appearance
@@ -32,7 +34,7 @@ The Appearance tab gives you a larger visual picker for the same settings:
 
 The Shortcuts tab has one purpose: changing the global activation shortcut.
 
-- **Asyar activation shortcut** — Click inside the recorder and press the shortcut you want. Asyar supports standard modifier combinations (e.g. `⌥Space`) as well as standalone function keys (`F1`–`F24`, including extended keys `F13`–`F20`) without modifiers for dedicated macro keys or remapped `Caps Lock`. Asyar checks for conflicts with other registered shortcuts and warns you if the combination is already in use. Click Save to apply it.
+- **Asyar activation shortcut** — Click inside the recorder and press the shortcut you want. Asyar supports standard modifier combinations (e.g. `⌥Space`), Hyper key combinations (all four modifiers, rendered as `✦`), and standalone function keys (`F1`–`F24`, including extended keys `F13`–`F24` and the Windows Copilot key `F23`) without modifiers for dedicated macro keys or remapped `Caps Lock`. Asyar checks for conflicts with other registered shortcuts and warns you if the combination is already in use. Click Save to apply it.
 
 All other per-item shortcuts (for commands, snippets, scripts, and agents) are managed from the **Applications & Extensions** tab and from each item's row in the launcher.
 
@@ -47,7 +49,7 @@ This tab has two sub-sections that share a tab.
 
 **Extensions** (the Extensions tab) manages both built-in features and installed extensions:
 
-- **Built-in Features vs. Installed Extensions** — The list is organized into distinct sections with item counts for built-in capabilities (like Calculator, Snippets, and Clipboard) and installed third-party extensions.
+- **Built-in Features vs. Installed Extensions** — The list is organized into distinct sections with item counts for built-in capabilities (like Calculator, Snippets, Screen OCR, Window Management, and Clipboard) and installed third-party extensions.
 - **Filter Chips** — Scope the list using filter chips at the top:
   - **All** — Shows all built-in features and installed extensions.
   - **Commands** — Shows only extensions and features that declare runnable commands.
@@ -73,10 +75,16 @@ This section is split across two related tabs.
 **AI** tab:
 
 - **Tab continues last thread** — When on, pressing `Tab` to enter AI mode resumes your previous conversation instead of starting a new one.
-- **Providers** — Add one or more AI providers (Anthropic, OpenAI, OpenRouter, Google, Ollama, or a custom endpoint). For each provider, configure your API key and choose a model. Click the star (★) next to a provider to make it the default — this is what the AI chip uses when you press `Tab` in the launcher.
-- **Advanced AI settings** — Max tokens and temperature controls for fine-tuning AI responses.
+- **Providers** — Add one or more AI providers (Anthropic, OpenAI, OpenRouter, Google, Ollama, or a custom endpoint).
+- **Local CLI Providers (Zero-Key)** — Connect directly to your local authenticated Google (`agy`) and OpenAI (`codex`) CLIs without needing to enter an API key.
+- **Searchable Model Filter** — Easily search and filter through large provider catalogs (e.g. OpenRouter or Ollama).
+- **Web Search & Grounding** — Configure web search capabilities for your agents:
+  - **Default engine** — Choose between DuckDuckGo (free, unauthenticated fallback), Brave Search, or Tavily.
+  - **API Keys** — Enter Brave or Tavily API keys for higher volume queries.
+  - **Google Search Grounding** — Enable native Google Search grounding for Gemini models.
+- **Advanced AI settings** — Max tokens, temperature, and reasoning controls.
 - **Manage Agents** — Open the Agents view to create, edit, and assign hotkeys to AI agents.
-- **MCP** — Connect Model Context Protocol servers to give your AI agents access to external tools and data. Each server you add expands what your agents can do.
+- **MCP** — Connect Model Context Protocol servers to give your AI agents access to external tools and data.
 
 **Browsers** tab:
 
@@ -119,7 +127,7 @@ This section is split across two related tabs.
 
 - **Export** — Select which data categories to include, optionally set a password, and click Export to save a local backup file.
 - **Import** — Choose a backup file to restore from. You can pick which categories to restore and how to handle conflicts (Merge, Replace, or Skip).
-- **Migrate from Raycast** — Click **Import from Raycast…** to bring in snippets, quicklinks, and app hotkeys from a Raycast export file. See [Import from Raycast](./features/raycast-import.md).
+- **Migrate from Raycast** — Click **Import from Raycast…** to bring in snippets, quicklinks, and app hotkeys from Raycast exports (both compressed and uncompressed JSON formats supported). See [Import from Raycast](./features/raycast-import.md).
 
 **About** tab:
 
@@ -134,3 +142,7 @@ This section is split across two related tabs.
 - [Getting Started](./getting-started.md)
 - [Keyboard Shortcuts](./keyboard-shortcuts.md)
 - [Troubleshooting](./troubleshooting.md)
+- [Screen OCR](./features/screen-ocr.md)
+- [System Commands](./features/system.md)
+- [Walkthrough](./features/walkthrough.md)
+- [Usage Statistics](./features/usage-stats.md)
