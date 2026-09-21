@@ -722,8 +722,8 @@
       "category_snippets_hint": "Palavras-chave e expansões de texto",
       "category_portals": "Quicklinks → Portais",
       "category_portals_hint": "{argument} torna-se {query}",
-      "category_shortcuts": "Atalhos rápidos → Atalhos",
-      "category_shortcuts_hint": "Atalhos de aplicativos e links rápidos",
+      "category_shortcuts": "Teclas de atalho → Atalhos",
+      "category_shortcuts_hint": "Teclas de atalho para aplicativos e links rápidos",
       "category_aliases": "Apelidos",
       "category_aliases_hint": "Apelidos de aplicativos e links rápidos"
     },

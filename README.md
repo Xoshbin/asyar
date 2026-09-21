@@ -37,7 +37,7 @@ on screen. Reproduce with [`benchmarks/bench.sh`](benchmarks/README.md).</sub>
 
 <!-- benchmarks:end -->
 
-Don't take our word for it: [`benchmarks/bench.sh`](benchmarks/README.md) measures Asyar and Raycast (stable and beta) black-box on your own machine — hotkey-to-window latency, cold start, full-process-group memory, idle CPU, and disk size — and regenerates this table with `--update-readme`.
+Don't take my word for it: [`benchmarks/bench.sh`](benchmarks/README.md) measures Asyar and Raycast (stable and beta) black-box on your own machine — hotkey-to-window latency, cold start, full-process-group memory, idle CPU, and disk size — and regenerates this table with `--update-readme`.
 
 ---
 
@@ -94,25 +94,41 @@ The Linux installer places the AppImage at `~/.local/bin/asyar` and a lightweigh
 
 ---
 
+### Switching from Raycast?
+
+If you are moving over from Raycast, you don't have to rebuild your configuration from scratch. I built an instant importer directly into Asyar so you can carry over your setup in seconds:
+
+- **1-Click Migration:** Export your data from Raycast (**Export Settings & Data** ➔ `.rayconfig`), summon Asyar, and search **Import from Raycast** (or click the button on the Welcome onboarding screen).
+- **What Carries Over:** Snippets (with keywords and dynamic expansions), Quicklinks (mapped directly to Portals with `{query}` support), and App Hotkeys/Aliases.
+- **Privacy & Safety First:** Duplicate items are skipped cleanly, your Raycast setup is never altered, and imported data is protected locally with AES-256-GCM encryption backed by your OS Keychain.
+
+👉 Read the full [Migrating from Raycast Guide](docs/guide/features/migrating-from-raycast.md) or the [Raycast Importer Reference](docs/guide/features/raycast-import.md).
+
+---
+
 ## Asyar vs. The Alternatives
 
-|                                                              | **Asyar** |      Raycast      |     Alfred     |
-| ------------------------------------------------------------ | :-------: | :---------------: | :------------: |
-| Open Source                                                  |    ✅     |        ❌         |       ❌       |
-| Local-First (data never leaves device)                       |    ✅     |        ❌         |       ✅       |
-| No Account Required                                          |    ✅     | ❌ (Pro features) |       ✅       |
-| No Cloud Required                                            |    ✅     |        ❌         |       ✅       |
-| Free Extensions                                              |    ✅     |     Freemium      | Paid Powerpack |
-| Linux Support                                                |    ✅     |        ❌         |       ❌       |
-| Native Rust Backend                                          |    ✅     |        ❌         |       ❌       |
-| Reactive Svelte 5 UI                                         |    ✅     |        ❌         |       ❌       |
-| Extension Sandboxing                                         |    ✅     |        ❌         |       ❌       |
-| Root-Search Extension Actions                                |    ✅     |        ❌         |       ❌       |
-| Window Management                                            |    ✅     |        ✅         |       ❌       |
-| Deep Link Integration                                        |    ✅     |        ✅         |       ✅       |
-| Background Scheduling (native Rust daemon)                   |    ✅     |        ❌         |       ❌       |
-| Reactive Live Subtitles (real-time root list updates)        |    ✅     |        ❌         |       ❌       |
-| **Silent AI Commands** (no-window in-place text replacement) |    ✅     |        ❌         |       ❌       |
+|                                                               |       **Asyar**        |               Raycast               |       Alfred        |
+| ------------------------------------------------------------- | :--------------------: | :---------------------------------: | :-----------------: |
+| **Open Source**                                               |      ✅ (GPL/MIT)      |                 ❌                  |         ❌          |
+| **100% Offline & Local-First** (data never leaves device)     |           ✅           |                 ❌                  |         ✅          |
+| **No Account / Cloud Required**                               |           ✅           |       ❌ (Mandatory account)        |         ✅          |
+| **Local Encryption at Rest** (OS Keychain AES-256-GCM)        |           ✅           |                 ❌                  |         ❌          |
+| **Free BYOK AI** (Claude, OpenAI, Gemini, Ollama, OpenRouter) |           ✅           | ❌ ($8–$10/mo Pro + capped credits) | ❌ (Manual scripts) |
+| **Autonomous AI Tool Calling** (MCP + built-in tools)         |           ✅           |            ❌ (Pro only)            |         ❌          |
+| **Silent AI Commands** (no-window in-place text replacement)  |           ✅           |                 ❌                  |         ❌          |
+| **Extension Sandboxing** (Double-gated iframe IPC + Rust)     |           ✅           |      ❌ (Unsandboxed Node.js)       |         ❌          |
+| **1-Click Raycast Migration** (instant `.rayconfig` import)   |           ✅           |                 N/A                 |         ❌          |
+| **Active Window Switcher** (fast fuzzy window search)         |           ✅           |                 ✅                  |         ❌          |
+| **Screen OCR** (local Apple Vision text recognition)          |           ✅           |                 ✅                  |         ❌          |
+| **Window Management** (17 presets, display cycling, custom)   |           ✅           |                 ✅                  |         ❌          |
+| **Root-Search Extension Actions** (stacked ⌘K items)          |           ✅           |                 ❌                  |         ❌          |
+| **Cross-Platform**                                            | ✅ (macOS, Win, Linux) |      ❌ (macOS / Windows beta)      |   ❌ (macOS only)   |
+| **Native Rust Backend**                                       |           ✅           |                 ❌                  |         ❌          |
+| **Reactive Svelte 5 UI**                                      |           ✅           |                 ❌                  |         ❌          |
+| **Deep Link Integration**                                     |           ✅           |                 ✅                  |         ✅          |
+| **Background Scheduling** (native Rust daemon)                |           ✅           |                 ❌                  |         ❌          |
+| **Reactive Live Subtitles** (real-time root list updates)     |           ✅           |                 ❌                  |         ❌          |
 
 ---
 
@@ -473,7 +489,7 @@ See [Use the Create Extension tool](docs/how-to/use-create-extension-tool.md) fo
 
 ## Contributing
 
-We welcome contributions! Check out our [Contributing Guide](CONTRIBUTING.md) to get started, or join our [Discord Community](https://discord.gg/vvYRXrs7Xa) to discuss ideas.
+Contributions are always welcome! Check out the [Contributing Guide](CONTRIBUTING.md) to get started, or join the [Discord Community](https://discord.gg/vvYRXrs7Xa) to discuss ideas.
 
 To set up the full development environment:
 
