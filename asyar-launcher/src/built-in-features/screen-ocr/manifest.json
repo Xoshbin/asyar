@@ -1,0 +1,23 @@
+{
+  "id": "screen-ocr",
+  "name": "Screen OCR",
+  "version": "1.0.0",
+  "description": "Extract and copy text from any region of your screen",
+  "type": "extension",
+  "searchable": true,
+  "icon": "icon:camera",
+  "permissions": ["clipboard:write"],
+  "commands": [
+    {
+      "id": "capture-text",
+      "name": "Capture Text from Screen",
+      "description": "Select a screen area to recognize and copy text",
+      "trigger": "ocr screen capture text recognize copy snip",
+      "icon": "icon:camera",
+      "mode": "background"
+    }
+  ],
+  "background": {
+    "main": "dist/worker.js"
+  }
+}

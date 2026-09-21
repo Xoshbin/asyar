@@ -907,5 +907,8 @@
     "copied": "Copiado!",
     "success": "Copiado para a área de transferência",
     "error": "Não foi possível copiar para a área de transferência. Tente novamente."
-  }
+  },
+  "ocr_copied": "Texto copiado para a área de transferência",
+  "ocr_no_text": "Nenhum texto encontrado na área selecionada",
+  "ocr_cancelled": "Captura de tela cancelada"
 }

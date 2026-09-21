@@ -43,3 +43,4 @@ export * from './agentCommands';
 export * from './feedbackCommands';
 export * from './usageCommands';
 export * from './systemActionCommands';
+export * from './ocrCommands';

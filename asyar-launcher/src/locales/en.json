@@ -910,5 +910,8 @@
     "copied": "Copied!",
     "success": "Copied to clipboard",
     "error": "Could not copy to clipboard. Try again."
-  }
+  },
+  "ocr_copied": "Text copied to clipboard",
+  "ocr_no_text": "No text found in selected area",
+  "ocr_cancelled": "Screen capture cancelled"
 }

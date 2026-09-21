@@ -17,6 +17,9 @@ fn main() {
     if let Ok(service) = std::env::var("ASYAR_KEYCHAIN_SERVICE") {
         println!("cargo:rustc-env=ASYAR_KEYCHAIN_SERVICE={service}");
     }
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        println!("cargo:rustc-link-lib=framework=Vision");
+    }
     let features_source_dir = base_dir.join("../src/built-in-features");
     let staging_dir = base_dir.join("built-in-features");
 
