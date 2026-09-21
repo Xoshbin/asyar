@@ -6,18 +6,23 @@ order: 2
 
 ### Available CLI commands
 
-| Command              | Description                                                |
-| -------------------- | ---------------------------------------------------------- |
-| `asyar validate`     | Validate `manifest.json` against all rules                 |
-| `asyar build`        | Validate + run `vite build` + verify output                |
-| `asyar dev`          | Validate + build + link + watch for changes                |
-| `asyar dev --dev`    | Same as `dev`, but links to the dev flavor of Asyar        |
-| `asyar link`         | Build + create symlink + register in `dev_extensions.json` |
-| `asyar link --watch` | `link` + continuous file watching and rebuild              |
-| `asyar link --dev`   | `link` targeting the dev flavor of Asyar                   |
-| `asyar unlink`       | Remove symlink and unregister from `dev_extensions.json`   |
-| `asyar unlink --dev` | `unlink` targeting the dev flavor of Asyar                 |
-| `asyar publish`      | Full publish pipeline (validate → build → GitHub → Store)  |
+| Command                     | Description                                                |
+| --------------------------- | ---------------------------------------------------------- |
+| `asyar validate`            | Validate `manifest.json` against all rules                 |
+| `asyar build`               | Validate + run `vite build` + verify output                |
+| `asyar dev`                 | Validate + build + link + watch for changes                |
+| `asyar dev --dev`           | Same as `dev`, but links to the dev flavor of Asyar        |
+| `asyar link`                | Build + create symlink + register in `dev_extensions.json` |
+| `asyar link --watch`        | `link` + continuous file watching and rebuild              |
+| `asyar link --dev`          | `link` targeting the dev flavor of Asyar                   |
+| `asyar unlink`              | Remove symlink and unregister from `dev_extensions.json`   |
+| `asyar unlink --dev`        | `unlink` targeting the dev flavor of Asyar                 |
+| `asyar attach [path]`       | Register extension directory in `dev_extensions.json`      |
+| `asyar attach --all [path]` | Scan directory for extensions and attach each one          |
+| `asyar detach [id-or-path]` | Unregister a dev extension from `dev_extensions.json`      |
+| `asyar detach --all`        | Remove all dev extension registrations                     |
+| `asyar doctor`              | Check environment health and diagnose common setup issues  |
+| `asyar publish`             | Full publish pipeline (validate → build → GitHub → Store)  |
 
 ---
 
@@ -127,6 +132,104 @@ asyar unlink
 # Target the dev flavor (org.asyar.dev) instead of production
 asyar unlink --dev
 ```
+
+---
+
+### `asyar attach` — register development extensions
+
+Registers an extension directory for development loading directly into `$APPDATA/dev_extensions.json`. Unlike `asyar link`, `attach` allows mapping arbitrary project folders directly into the launcher's dev registry without requiring symlinks in `$APPDATA/extensions/`.
+
+```bash
+# Attach the current working directory
+asyar attach
+
+# Attach a specific extension directory
+asyar attach ./path/to/my-extension
+
+# Batch attach: scan a folder for all subdirectories containing manifest.json
+asyar attach ./extensions --all
+
+# Attach without triggering an initial Vite build
+asyar attach --no-build
+```
+
+Options:
+
+- `--all`: Scans the target directory for all subdirectories containing a `manifest.json` and attaches each one in batch.
+- `--no-build`: Skips running `vite build` prior to registering.
+
+---
+
+### `asyar detach` — unregister development extensions
+
+Removes an extension from `$APPDATA/dev_extensions.json`. You can identify the extension by its ID, its filesystem path, or by running the command inside the extension directory.
+
+```bash
+# Detach extension in the current directory (reads manifest.id)
+asyar detach
+
+# Detach by extension ID
+asyar detach org.asyar.coffee
+
+# Detach by path
+asyar detach ./extensions/asyar-coffee-extension
+
+# Detach all registered dev extensions
+asyar detach --all
+```
+
+Options:
+
+- `--all`: Clears all registered development extensions from `dev_extensions.json`.
+
+---
+
+### `asyar doctor` — diagnostic environment check
+
+Analyzes your local environment, tooling, and repository configuration to diagnose common issues.
+
+```bash
+asyar doctor
+```
+
+**Diagnostic checks performed:**
+
+1. **Platform & Tooling:** OS architecture, Node version, and `pnpm` availability.
+2. **SDK Freshness:** When running inside or alongside the SDK source, verifies whether `dist/` is newer than `src/` and `cli/` files.
+3. **Workspace Linking:** Inspects `node_modules/asyar-sdk` to ensure it is workspace-linked rather than a frozen npm package copy.
+4. **Extensions Directory:** Validates that `$APPDATA/extensions/` exists and reports the count of installed extensions.
+5. **Store Connectivity:** Pings the Asyar Store API to confirm reachability.
+6. **Monorepo Detection:** Confirms root workspace location and configuration.
+
+Exits with code `0` if all checks pass or show non-critical warnings; exits with code `1` if actionable failures are detected.
+
+---
+
+### `asyar publish` — release to GitHub & Store
+
+Automates the complete publishing pipeline: validation, building, GitHub release creation, and submission to the Asyar Store.
+
+```bash
+asyar publish
+
+# Test packaging and validation without making remote changes
+asyar publish --dry-run
+
+# Clear stored credentials and re-authenticate via GitHub OAuth
+asyar publish --reset-auth
+
+# Explicitly specify repository URL
+asyar publish --repo https://github.com/my-user/my-extension.git
+```
+
+**Pipeline steps:**
+
+1. **Manifest Validation & Linting:** Validates required fields, command definitions, and icon assets.
+2. **Production Build:** Executes `vite build` (skipped for pure themes) and validates that `dist/` is newer than source files.
+3. **Store Authentication:** Authenticates against Asyar Store using GitHub OAuth.
+4. **Version Collision Guard:** Confirms that the target version is not already live in the store.
+5. **GitHub Release:** Packages the bundle, computes SHA-256 checksums, creates a git tag, and uploads the `.zip` asset.
+6. **Store Catalog Submission:** Submits metadata and release URLs to the Asyar Store API.
 
 ---
 

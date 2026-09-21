@@ -29,11 +29,11 @@ Asyar walks you through a short onboarding flow the first time you launch it. He
 
 4. **Pick a theme** — Browse a selection of community themes and install one in one click, or stick with the built-in Asyar theme. This step is optional; you can change or add themes any time from the extension store.
 
-5. **Try a few extensions** — Asyar shows a curated list of popular extensions for your platform. Check the ones you want and click **Install selected**, or click **Skip** to add extensions later from the built-in store.
+5. **Try a few extensions** — Asyar shows a curated list of popular extensions for your platform. Check the ones you want and click **Install selected**, or create your own with the **Create Extension with AI** tool.
 
-6. **One-keystroke AI commands** — If you set up an AI provider, this step offers to create a **Grammar Fix** command: select text in any app, press the hotkey, and the selected text is replaced with the corrected version. You can skip this and create AI commands later.
+6. **One-keystroke AI commands & Zero-Key Setup** — Connect to local authenticated CLIs (Google `agy` or OpenAI `codex`) without an API key, or enter an API key, and set up your initial silent AI commands (like the **Grammar Fix** command: select text in any app, press the hotkey, and the selected text is replaced with the corrected version).
 
-7. **Done** — Onboarding is complete. Press your new hotkey to open the launcher.
+7. **Done & Walkthrough** — Onboarding is complete. Press your new hotkey to open the launcher, or explore the [Walkthrough](./features/walkthrough.md) to turn Asyar features into daily habits as tasks tick themselves off from real use.
 
 You can re-run onboarding at any time from **Settings → General → Re-run onboarding**.
 
@@ -46,7 +46,8 @@ To change your hotkey after setup, open **Settings → General** (or **Settings 
 Asyar supports:
 
 - **Modifier combinations**: For example `⌥Space`, `⌘Space`, or `Ctrl+Alt+Space`.
-- **Standalone function keys (`F1`–`F24`)**: Function keys (including extended function keys like `F13`–`F20`) can be assigned directly without any modifier keys. This allows you to use remapped keys (such as `Caps Lock` mapped to `F16` via Karabiner-Elements or PowerToys), hardware macro pads, or Stream Decks as dedicated one-tap launcher triggers.
+- **Hyper Key combinations (`✦`)**: Using all four modifiers (`Ctrl + Alt + Shift + Cmd/Super`) displays as the clean `✦` glyph.
+- **Standalone function keys (`F1`–`F24`) & Copilot key**: Function keys (including extended function keys like `F13`–`F24` and the Windows Copilot key `F23`) can be assigned directly without any modifier keys. This allows you to use remapped keys (such as `Caps Lock` mapped to `F16` via Karabiner-Elements or PowerToys), hardware macro pads, or Stream Decks as dedicated one-tap launcher triggers.
 - **Typing protection**: Standard alphanumeric characters (`A–Z`, `0–9`, space, punctuation) strictly require at least one modifier key so that normal typing in other applications is never intercepted.
 
 > **Linux (Wayland) Users:** Wayland compositors do not allow background apps to capture global hotkeys directly. Instead, bind a custom shortcut in your desktop settings (GNOME, KDE Plasma, Hyprland, Sway) to run the `asyar` command. Re-running `asyar` automatically toggles the visibility of the running instance. See [Troubleshooting](./troubleshooting.md#the-hotkey-doesnt-open-asyar) for step-by-step instructions.

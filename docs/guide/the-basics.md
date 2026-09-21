@@ -1,6 +1,6 @@
 # The Basics
 
-> How search, results, navigation, and the action panel fit together.
+> How search, results, navigation, window placement, and the action panel fit together.
 
 ![Results list with the action panel visible](../images/the-basics-results.png)
 _Figure: results list with the action panel visible._
@@ -12,6 +12,7 @@ When you open Asyar with your global hotkey, the cursor is already in the search
 The search bar does several things depending on what you type and which features are active:
 
 - **Plain text** — Asyar searches your apps, commands, snippets, files, and installed extensions in real time.
+- **Scoped search with `@`** — Type `@` to scope the search exclusively to runnable commands. A scope badge appears, and matching narrows to command titles and triggers.
 - **URLs** — Type a URL and press `Enter` to open it directly in your browser.
 - **Calculations** — Type a maths expression and the result appears immediately in the list.
 - **AI mode** — When the AI chip is visible at the right of the search bar, press `Tab` to enter AI mode and ask a question (see [The AI chip and Tab](#the-ai-chip-and-tab) below).
@@ -46,11 +47,20 @@ Asyar is designed to be used entirely with the keyboard:
 
 Asyar keeps focus in the search bar automatically. You can click a result to select it, but you do not have to.
 
+## Repositioning the launcher (drag & snap)
+
+By default, Asyar centers itself on your active display. You can reposition the window to suit your screen layout:
+
+- **Drag to move**: Click and drag the launcher from any non-interactive header or padding area to place it anywhere on your screen.
+- **Snap guides**: As you drag near screen edges or vertical/horizontal centers, subtle alignment snap guide lines appear. On macOS, alignment haptic feedback confirms when the launcher snaps into alignment.
+- **Toggle snap**: You can enable or disable drag snapping in **Settings → General → Placement**.
+- Note that launcher placement is deliberately kept local per-machine rather than synced, ensuring optimal positions across varying multi-monitor setups.
+
 ## The action panel (⌘K)
 
 Every result in Asyar can have multiple actions beyond the default one. Press `⌘K` with a result selected (or highlighted) to open the **action panel** at the bottom of the window.
 
-The action panel shows all available actions for that item. For example, an application might offer actions like Open, Reveal in Finder, or Hide All Windows. A command might offer Edit or Delete.
+The action panel shows all available actions for that item. For example, an application might offer actions like Open, Reveal in Finder, or Hide All Windows. A command might offer Edit, Assign Shortcut, or Delete.
 
 Use `↑` / `↓` inside the action panel to move between actions, then press `Enter` to run one. Press `Esc`, `⌫`, or `⌘K` again to close the panel without taking any action.
 
@@ -73,11 +83,11 @@ AI agents can also be assigned a direct hotkey during onboarding or from the Man
 
 ## Command arguments
 
-Some commands declare inline argument fields — for example, a "Create Note" command might ask for a title before running. When you select such a command in the results list, a `Tab` hint appears in the search bar.
+Some commands declare inline argument fields — for example, a "Translate" command might ask for text and a target language before running. When you select such a command in the results list, a `Tab` hint appears in the search bar.
 
-Press `Tab` to enter argument mode. A row of input chips appears below the search bar, one for each declared argument. Fill in the fields and press `Enter` to run the command with those inputs.
+Press `Tab` to enter argument mode. A row of input chips appears inline in the search bar, one for each declared argument. Fill in the fields and press `Enter` to run the command with those inputs.
 
-Asyar remembers the last value you typed for each argument field, so repeat invocations are fast.
+Asyar remembers the last value you typed for each argument field (unless the extension explicitly disables seeding), so repeat invocations are fast.
 
 To exit argument mode without running the command, press `Esc` or `⌫`.
 
@@ -87,3 +97,7 @@ To exit argument mode without running the command, press `Esc` or `⌫`.
 - [Keyboard Shortcuts](./keyboard-shortcuts.md)
 - [Settings](./settings.md)
 - [AI & Agents](./features/ai-and-agents.md)
+- [Window Management](./features/window-management.md)
+- [Screen OCR](./features/screen-ocr.md)
+- [Walkthrough](./features/walkthrough.md)
+- [Usage Statistics](./features/usage-stats.md)
