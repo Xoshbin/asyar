@@ -2,7 +2,8 @@
 
 use crate::error::AppError;
 use crate::window_management::types::{AppWindowInfo, WindowBounds, WindowBoundsUpdate};
-use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT, WPARAM};
+use windows::core::BOOL;
+use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, EnumWindows, GetWindowLongW, GetWindowRect, GetWindowTextLengthW,
     GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, MoveWindow, PostMessageW,
@@ -186,7 +187,7 @@ pub fn close_window(id: &str) -> Result<(), AppError> {
 
     unsafe {
         let hwnd = HWND(hwnd_val as *mut _);
-        let _ = PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0));
+        let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
     }
     Ok(())
 }
