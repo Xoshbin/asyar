@@ -158,6 +158,7 @@ pub mod network;
 mod notes_export;
 pub mod notifications;
 pub mod oauth;
+pub mod ocr;
 pub mod onboarding;
 pub mod opener_scope;
 pub mod permissions;
@@ -761,6 +762,7 @@ pub fn run() {
             commands::system_actions_supported,
             commands::system_action_run,
             commands::screen_pick_color,
+            commands::ocr_capture_screen_text,
             commands::process::process_list,
             commands::process::process_kill,
             commands::system_events_subscribe,
