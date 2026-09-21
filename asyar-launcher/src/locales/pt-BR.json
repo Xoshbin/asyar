@@ -539,6 +539,8 @@
     "featured_title": "Expanda seu launcher",
     "featured_heading": "Extensões essenciais para começar",
     "featured_desc": "Instale complementos poderosos criados pela comunidade. Você pode descobrir centenas de outros na Loja a qualquer momento.",
+    "featured_empty_tip_badge": "Acha que a loja está vazia? Não se decepcione!",
+    "featured_empty_store_tip": "Se achar que a loja está vazia, não se decepcione! Você pode criar sua própria extensão facilmente com o comando \"Criar Extensão com IA\". É isso que as pessoas fazem — elas criam suas próprias extensões, mas se esquecem de publicá-las na loja, então você pode criar a sua facilmente.",
     "clipboard_kicker": "Nunca mais perca o que você copiou"
   },
   "dev": {
