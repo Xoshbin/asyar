@@ -7,6 +7,9 @@ vi.mock('../../lib/ipc/commands', () => ({
   windowSetFullscreen: vi.fn(),
   windowGetMonitors: vi.fn(),
   windowApplyPreset: vi.fn(),
+  windowListWindows: vi.fn(),
+  windowFocusWindow: vi.fn(),
+  windowCloseWindow: vi.fn(),
 }));
 
 import * as commands from '../../lib/ipc/commands';
@@ -107,6 +110,58 @@ describe('WindowManagementService', () => {
       await service.nextDisplay();
 
       expect(commands.windowApplyPreset).toHaveBeenCalledWith('next-display');
+    });
+  });
+
+  describe('listWindows', () => {
+    it('calls windowListWindows and returns windows array', async () => {
+      const windows = [
+        {
+          id: '123',
+          pid: 456,
+          appName: 'Safari',
+          appBundleId: 'com.apple.Safari',
+          title: 'GitHub',
+          isMinimized: false,
+          isFocused: true,
+          appIcon: null,
+        },
+      ];
+      vi.mocked(commands.windowListWindows).mockResolvedValueOnce(windows);
+
+      const result = await service.listWindows();
+
+      expect(commands.windowListWindows).toHaveBeenCalledOnce();
+      expect(result).toEqual(windows);
+    });
+
+    it('returns empty array if windowListWindows returns null', async () => {
+      vi.mocked(commands.windowListWindows).mockResolvedValueOnce(null);
+
+      const result = await service.listWindows();
+
+      expect(commands.windowListWindows).toHaveBeenCalledOnce();
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('focusWindow', () => {
+    it('calls windowFocusWindow with window id', async () => {
+      vi.mocked(commands.windowFocusWindow).mockResolvedValueOnce(undefined);
+
+      await service.focusWindow('123');
+
+      expect(commands.windowFocusWindow).toHaveBeenCalledWith('123');
+    });
+  });
+
+  describe('closeWindow', () => {
+    it('calls windowCloseWindow with window id', async () => {
+      vi.mocked(commands.windowCloseWindow).mockResolvedValueOnce(undefined);
+
+      await service.closeWindow('123');
+
+      expect(commands.windowCloseWindow).toHaveBeenCalledWith('123');
     });
   });
 });

@@ -5,7 +5,9 @@
 
 use crate::error::AppError;
 use crate::permissions::ExtensionPermissionRegistry;
-use crate::window_management::types::{validate_bounds_update, WindowBounds, WindowBoundsUpdate};
+use crate::window_management::types::{
+    validate_bounds_update, AppWindowInfo, WindowBounds, WindowBoundsUpdate,
+};
 use crate::AppState;
 
 /// Returns the bounds of the frontmost OS application window.
@@ -273,6 +275,103 @@ pub fn window_management_apply_preset(
     }
 
     Ok(())
+}
+
+/// Returns all open OS application windows across displays.
+/// Requires 'window:manage' permission.
+#[tauri::command]
+#[allow(unused_variables)]
+pub async fn window_management_list_windows(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    permissions: tauri::State<'_, ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
+) -> Result<Vec<AppWindowInfo>, AppError> {
+    permissions.check(&extension_id, "window:manage")?;
+
+    #[cfg(target_os = "macos")]
+    return crate::window_management::macos::list_windows(&app);
+
+    #[cfg(target_os = "windows")]
+    return crate::window_management::windows::list_windows(&app);
+
+    #[cfg(target_os = "linux")]
+    return crate::window_management::linux::list_windows(&app);
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    Ok(vec![])
+}
+
+/// Brings the target application window to the foreground and hides the launcher.
+/// Requires 'window:manage' permission.
+#[tauri::command]
+#[allow(unused_variables)]
+pub async fn window_management_focus_window(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    permissions: tauri::State<'_, ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
+    id: String,
+) -> Result<(), AppError> {
+    permissions.check(&extension_id, "window:manage")?;
+
+    #[cfg(target_os = "macos")]
+    {
+        crate::window_management::macos::focus_window(&id)?;
+        let _ = crate::commands::app::hide(app, state);
+        Ok(())
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        crate::window_management::windows::focus_window(&id)?;
+        let _ = crate::commands::app::hide(app, state);
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        crate::window_management::linux::focus_window(&id)?;
+        let _ = crate::commands::app::hide(app, state);
+        Ok(())
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    Err(AppError::Platform(
+        "Window management is not supported on this platform.".to_string(),
+    ))
+}
+
+/// Closes the target application window.
+/// Requires 'window:manage' permission.
+#[tauri::command]
+#[allow(unused_variables)]
+pub async fn window_management_close_window(
+    permissions: tauri::State<'_, ExtensionPermissionRegistry>,
+    extension_id: Option<String>,
+    id: String,
+) -> Result<(), AppError> {
+    permissions.check(&extension_id, "window:manage")?;
+
+    #[cfg(target_os = "macos")]
+    {
+        crate::window_management::macos::close_window(&id)
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        crate::window_management::windows::close_window(&id)
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        crate::window_management::linux::close_window(&id)
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    Err(AppError::Platform(
+        "Window management is not supported on this platform.".to_string(),
+    ))
 }
 
 #[cfg(test)]

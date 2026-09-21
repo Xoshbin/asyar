@@ -631,7 +631,18 @@
       "save_current_layout_desc": "Captura o tamanho e a posição da janela em primeiro plano como layout personalizado",
       "rename_layout_title": "Renomear Layout",
       "rename_layout_subtitle": "Dê um nome reconhecível a este layout de janela",
-      "rename_layout_placeholder": "ex: Trabalho, Foco Direita..."
+      "rename_layout_placeholder": "ex: Trabalho, Foco Direita...",
+      "switch_windows_title": "Alternar Janelas",
+      "switch_windows_desc": "Alternar para uma janela de aplicativo ativa",
+      "search_windows_placeholder": "Pesquisar janelas abertas...",
+      "no_windows": "Nenhuma janela aberta encontrada",
+      "no_matching_windows": "Nenhuma janela corresponde à sua pesquisa",
+      "focus_window": "Alternar para Janela",
+      "close_window": "Fechar Janela",
+      "copy_title": "Copiar Título",
+      "title_copied": "Título copiado para a área de transferência",
+      "badge_active": "Ativa",
+      "badge_minimized": "Minimizada"
     },
     "shortcuts": {
       "title": "Atalhos",
