@@ -16,7 +16,10 @@ import { dispatchSilentAgentCommand } from './silentDispatch';
  *    `viewManager` are not touched. See `silentDispatch.ts` for the
  *    Run-tracker suppression contract.
  */
-export async function dispatchAgentCommand(dynamicId: string, _args?: unknown): Promise<void> {
+export async function dispatchAgentCommand(
+  dynamicId: string,
+  _args?: unknown,
+): Promise<void | { type: 'view'; viewPath: string }> {
   const service = getCurrentAgentService();
   const agent = service.getById(dynamicId);
   if (!agent) {
@@ -32,4 +35,5 @@ export async function dispatchAgentCommand(dynamicId: string, _args?: unknown): 
   const threads = await service.listThreads(agent.id);
   agentsManager.currentThreadId = threads[0]?.id ?? null;
   viewManager.navigateToView('agents/AgentChatView');
+  return { type: 'view', viewPath: 'agents/AgentChatView' };
 }

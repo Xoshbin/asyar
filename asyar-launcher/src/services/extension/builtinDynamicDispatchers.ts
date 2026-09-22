@@ -14,7 +14,7 @@
 export type BuiltinDynamicDispatcher = (
   dynamicId: string,
   args?: Record<string, unknown>,
-) => Promise<void>;
+) => Promise<void | { type: 'view'; viewPath: string }>;
 
 const dispatchers = new Map<string, BuiltinDynamicDispatcher>();
 
