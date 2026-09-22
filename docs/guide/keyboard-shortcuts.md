@@ -69,12 +69,6 @@ A few built-in features add extra shortcuts while their view is active.
 | -------- | ------------------- |
 | `⌘N`     | Create a new portal |
 
-**AI chat**
-
-| Shortcut        | What it does              |
-| --------------- | ------------------------- |
-| `⌘N` / `Ctrl+N` | Create a new conversation |
-
 **File Search**
 
 | Shortcut     | What it does                              |
