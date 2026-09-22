@@ -70,4 +70,17 @@ describe('I18nService', () => {
     service.setLocale('pt');
     expect(service.t('search.placeholder')).toBe('Pesquisar aplicativos e comandos...');
   });
+
+  it('resolves zh-CN catalog when locale is zh-CN, zh-Hans or zh', () => {
+    const expected = '搜索应用与命令……';
+
+    const service = new I18nService('zh-CN');
+    expect(service.t('search.placeholder')).toBe(expected);
+
+    service.setLocale('zh-Hans');
+    expect(service.t('search.placeholder')).toBe(expected);
+
+    service.setLocale('zh');
+    expect(service.t('search.placeholder')).toBe(expected);
+  });
 });

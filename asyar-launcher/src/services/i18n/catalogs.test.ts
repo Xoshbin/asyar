@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import enCatalog from '../../locales/en.json';
 import ptBRCatalog from '../../locales/pt-BR.json';
+import zhCNCatalog from '../../locales/zh-CN.json';
 
 describe('Translation Catalog Integrity', () => {
   const catalogs = [
     { name: 'en.json', catalog: enCatalog },
     { name: 'pt-BR.json', catalog: ptBRCatalog },
+    { name: 'zh-CN.json', catalog: zhCNCatalog },
   ];
 
   for (const { name, catalog } of catalogs) {
@@ -43,7 +45,7 @@ describe('Translation Catalog Integrity', () => {
     });
   }
 
-  it('pt-BR.json contains all keys from en.json', () => {
+  it('translated catalogs contain all keys from en.json', () => {
     function getKeys(obj: Record<string, any>, prefix = ''): Set<string> {
       const keys = new Set<string>();
       for (const [key, value] of Object.entries(obj)) {
@@ -60,10 +62,13 @@ describe('Translation Catalog Integrity', () => {
     }
 
     const enKeys = getKeys(enCatalog);
-    const ptKeys = getKeys(ptBRCatalog);
 
-    for (const key of enKeys) {
-      expect(ptKeys.has(key), `Missing key in pt-BR.json: ${key}`).toBe(true);
+    for (const { name, catalog } of catalogs.filter((c) => c.name !== 'en.json')) {
+      const keys = getKeys(catalog);
+
+      for (const key of enKeys) {
+        expect(keys.has(key), `Missing key in ${name}: ${key}`).toBe(true);
+      }
     }
   });
 });
