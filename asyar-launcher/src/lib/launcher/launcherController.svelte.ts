@@ -178,6 +178,9 @@ export class LauncherController {
 
     const selectedItem = this.state.searchResultItemsMapped[idx];
     if (!selectedItem) return;
+    if (this.state.localSearchValue.trim()) {
+      void this.state.queryHistory.record(this.state.localSearchValue);
+    }
 
     // Argument mode owns running the row, so submit the chips rather than the
     // bare command: doing the latter would ignore the `canSubmit` gate and

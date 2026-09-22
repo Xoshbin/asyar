@@ -35,6 +35,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "walkthrough",
         up: |conn| super::walkthrough::init_table(conn),
     },
+    Migration {
+        version: 3,
+        name: "query_history",
+        up: super::query_history::init_table,
+    },
 ];
 
 /// Bring `conn` up to the newest ledger version. Idempotent.
@@ -115,7 +120,6 @@ fn baseline(conn: &Connection) -> Result<(), AppError> {
     cloud_sync_state::init_table(conn)?;
     cloud_sync_e2ee_local::init_table(conn)?;
     runs_history::init_table(conn)?;
-    query_history::init_table(conn)?;
     script_directories::init_table(conn)?;
     file_search_selections::init_table(conn).map_err(sqlite)?;
     file_search_pinned::init_table(conn).map_err(sqlite)?;
@@ -240,6 +244,31 @@ mod tests {
             MIGRATIONS.last().unwrap().version,
             "fresh DB must land on the newest ledger version"
         );
+    }
+
+    #[test]
+    fn version_two_db_adds_query_history_without_losing_existing_rows() {
+        let conn = Connection::open_in_memory().unwrap();
+        run_ledger(&conn, &MIGRATIONS[..2]).unwrap();
+        assert_eq!(user_version(&conn), 2);
+        assert!(!names_of(&conn, "table").contains(&"query_history".to_string()));
+
+        conn.execute("INSERT INTO snippets (id, expansion, name, created_at) VALUES ('kept', 'text', 'Kept', 1.0)", [])
+            .unwrap();
+
+        run(&conn).unwrap();
+
+        assert!(names_of(&conn, "table").contains(&"query_history".to_string()));
+        assert!(crate::storage::query_history::list(&conn)
+            .unwrap()
+            .is_empty());
+        let name: String = conn
+            .query_row("SELECT name FROM snippets WHERE id = 'kept'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(name, "Kept");
+        assert_eq!(user_version(&conn), MIGRATIONS.last().unwrap().version);
     }
 
     #[test]

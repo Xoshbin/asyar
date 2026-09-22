@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createKeyboardHandlers, type KeyboardDeps } from './launcherKeyboard';
+import { QueryHistory } from '../../services/search/queryHistory.svelte';
 
 // Mocking dependencies
 vi.mock('@tauri-apps/api/core', () => ({
@@ -1088,6 +1089,39 @@ describe('launcherKeyboard characterization tests', () => {
     });
 
     describe('Compact idle mode', () => {
+      it('recalls a cleared query with Up Arrow even after an old result selection', async () => {
+        vi.mocked(settingsService.getSettings).mockReturnValue({
+          general: { escapeInViewBehavior: 'go-back' },
+        } as any);
+        searchStores.selectedIndex = 2;
+        const history = new QueryHistory({
+          list: async () => ['22+5'],
+          record: async () => true,
+          delete: async () => true,
+        });
+        let query = '22+5';
+        const deps = createMockDeps({
+          isCompactIdle: () => true,
+          getLocalSearchValue: () => query,
+          setLocalSearchValue: (value) => {
+            query = value;
+          },
+          recordQueryHistory: (value) => {
+            void history.record(value);
+          },
+          navigateQueryHistory: (direction, selectedIndex) =>
+            history.navigate(direction, query, selectedIndex, (value) => {
+              query = value;
+            }),
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+
+        handleKeydown(createKeyEvent('Escape'));
+        expect(query).toBe('');
+        handleKeydown(createKeyEvent('ArrowUp'));
+        await vi.waitFor(() => expect(query).toBe('22+5'));
+      });
+
       it('ArrowDown in compact idle calls onCompactExpand', () => {
         const onCompactExpand = vi.fn();
         const deps = createMockDeps({

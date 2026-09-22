@@ -22,6 +22,8 @@ These shortcuts work anywhere inside the Asyar launcher window.
 
 The show/hide hotkey is user-configurable. The exact keys depend on what you set during onboarding or in **Settings → Shortcuts**. It is never a fixed combination.
 
+With an empty search field and the first result selected, press `↑` to recall the most recent query. Keep pressing `↑` for older queries and `↓` to move back toward an empty field. Asyar saves a query when you use a result or clear the field with `Esc`.
+
 **Windows & Linux:** Asyar's shortcut display uses macOS symbols (⌘, ⌥, ⌃, ⇧). On Windows and Linux, use **Ctrl** wherever **⌘** is shown, and use the **Windows/Super** key where a Super-key shortcut is shown.
 
 **Linux on Wayland:** Because Wayland protocol security blocks background hotkey grabs, assign your shortcut inside your desktop compositor settings to run the `asyar` command. Executing `asyar` while the daemon is running acts as a toggle.
@@ -66,6 +68,12 @@ A few built-in features add extra shortcuts while their view is active.
 | Shortcut | What it does        |
 | -------- | ------------------- |
 | `⌘N`     | Create a new portal |
+
+**AI chat**
+
+| Shortcut        | What it does              |
+| --------------- | ------------------------- |
+| `⌘N` / `Ctrl+N` | Create a new conversation |
 
 **File Search**
 

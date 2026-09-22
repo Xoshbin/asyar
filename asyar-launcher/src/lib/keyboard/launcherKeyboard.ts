@@ -518,6 +518,11 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
   function tryHandleSearchNavigation(event: KeyboardEvent): boolean {
     if (viewManager.activeView) return false;
     if (deps.isCompactIdle?.()) {
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        deps.navigateQueryHistory?.(-1, -1);
+        return true;
+      }
       if (event.key === 'ArrowDown') {
         event.preventDefault();
         deps.onCompactExpand?.();
