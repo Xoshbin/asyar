@@ -52,6 +52,8 @@ export interface KeyboardDeps {
   onBeforeHide?: () => Promise<void>; // optional: called before invoke('hide')
   isCompactIdle?: () => boolean;
   onCompactExpand?: () => void;
+  navigateQueryHistory?: (direction: -1 | 1, selectedIndex: number) => boolean;
+  recordQueryHistory?: (query: string) => void;
 }
 
 export function createKeyboardHandlers(deps: KeyboardDeps) {
@@ -455,6 +457,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
         // Raycast-style chain: clear search → pop view → (hide handled at root branch on next press)
         const lsv = deps.getLocalSearchValue();
         if (lsv.trim() !== '') {
+          deps.recordQueryHistory?.(lsv);
           deps.setLocalSearchValue('');
           restoreSearchFocus();
         } else {
@@ -470,6 +473,7 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     } else {
       // At root: chain still applies for go-back (clear search before hiding).
       if (escapeBehavior === 'go-back' && deps.getLocalSearchValue().trim() !== '') {
+        deps.recordQueryHistory?.(deps.getLocalSearchValue());
         deps.setLocalSearchValue('');
         restoreSearchFocus();
       } else if (escapeBehavior === 'hide-and-reset') {
@@ -527,14 +531,14 @@ export function createKeyboardHandlers(deps: KeyboardDeps) {
     }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      if (deps.navigateQueryHistory?.(direction, searchStores.selectedIndex)) return true;
       const totalItems = deps.getSearchResultsLength();
       if (totalItems === 0) return true;
 
       const current = searchStores.selectedIndex;
       searchStores.selectedIndex =
-        event.key === 'ArrowDown'
-          ? (current + 1) % totalItems
-          : (current - 1 + totalItems) % totalItems;
+        direction === 1 ? (current + 1) % totalItems : (current - 1 + totalItems) % totalItems;
 
       return true;
     }

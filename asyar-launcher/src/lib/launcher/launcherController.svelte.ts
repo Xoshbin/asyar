@@ -10,6 +10,7 @@ import extensionManager from '../../services/extension/extensionManager.svelte';
 import { commandArgumentsService } from '../../services/search/commandArguments';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { scrollSelectedIntoView, resetListScroll } from '../listScroll';
+import { setupQueryHistoryActions } from './queryHistoryActions.svelte';
 
 export class LauncherController {
   readonly state = new LauncherState();
@@ -112,7 +113,10 @@ export class LauncherController {
     // 3. Selection, mapping & action effects
     setupSelectionEffects(this.state);
 
-    // 4. Scroll-to-selected
+    // 4. Query history actions
+    setupQueryHistoryActions(this.state);
+
+    // 5. Scroll-to-selected
     $effect(() => {
       const idx = this.state.selectedIndexVal;
       const listContainer = this.state.getListContainer();
@@ -136,7 +140,7 @@ export class LauncherController {
       });
     });
 
-    // 5. App initialization
+    // 6. App initialization
     $effect(() => {
       appInitializer.init().then(async () => {
         if (appInitializer.isAppInitialized()) {

@@ -115,6 +115,7 @@ fn baseline(conn: &Connection) -> Result<(), AppError> {
     cloud_sync_state::init_table(conn)?;
     cloud_sync_e2ee_local::init_table(conn)?;
     runs_history::init_table(conn)?;
+    query_history::init_table(conn)?;
     script_directories::init_table(conn)?;
     file_search_selections::init_table(conn).map_err(sqlite)?;
     file_search_pinned::init_table(conn).map_err(sqlite)?;
@@ -159,6 +160,7 @@ mod tests {
         "messages",
         "notes",
         "oauth_tokens",
+        "query_history",
         "runs_history",
         "script_directories",
         "searchbar_accessory_state",

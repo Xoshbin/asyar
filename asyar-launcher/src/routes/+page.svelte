@@ -116,6 +116,19 @@
       return items[idx];
     },
     getBottomBar: () => controller.getBottomBar(),
+    navigateQueryHistory: (direction, selectedIndex) =>
+      controller.state.queryHistory.navigate(
+        direction,
+        controller.localSearchValue,
+        selectedIndex,
+        (query) => {
+          controller.localSearchValue = query;
+          searchStores.query = query;
+        },
+      ),
+    recordQueryHistory: (query) => {
+      void controller.state.queryHistory.record(query);
+    },
     getAccessoryRef: () => accessoryRef,
     handleEnterKey: () => controller.handleEnterKey(),
     handleContextDismiss: (clearAll) => controller.handleContextDismiss(clearAll),

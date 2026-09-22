@@ -992,6 +992,20 @@ describe('launcherKeyboard characterization tests', () => {
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
+      it('gives query recall first use of ArrowUp from the first result', () => {
+        searchStores.selectedIndex = 0;
+        const navigateQueryHistory = vi.fn(() => true);
+        const deps = createMockDeps({ navigateQueryHistory });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('ArrowUp');
+
+        handleKeydown(event);
+
+        expect(navigateQueryHistory).toHaveBeenCalledWith(-1, 0);
+        expect(searchStores.selectedIndex).toBe(0);
+        expect(event.preventDefault).toHaveBeenCalled();
+      });
+
       it('ArrowDown at last item wraps to first', () => {
         searchStores.selectedIndex = 4;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
@@ -1143,6 +1157,27 @@ describe('launcherKeyboard characterization tests', () => {
 
         expect(hideWindow).toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
+      });
+
+      it('records a non-empty root query before clearing it with Escape', () => {
+        vi.mocked(settingsService.getSettings).mockReturnValue({
+          general: {
+            startAtLogin: false,
+            showDockIcon: true,
+            escapeInViewBehavior: 'go-back',
+          },
+        } as any);
+        const recordQueryHistory = vi.fn();
+        const deps = createMockDeps({
+          getLocalSearchValue: vi.fn(() => '22+5'),
+          recordQueryHistory,
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+
+        handleKeydown(createKeyEvent('Escape'));
+
+        expect(recordQueryHistory).toHaveBeenCalledWith('22+5');
+        expect(deps.setLocalSearchValue).toHaveBeenCalledWith('');
       });
 
       it('Escape in view with empty search pops the view when escapeInViewBehavior is "go-back"', () => {
