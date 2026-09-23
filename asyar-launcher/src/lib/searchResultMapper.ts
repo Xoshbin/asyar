@@ -258,7 +258,50 @@ export function buildMappedItems({
     let actionFunction: () => Promise<any>;
     let subtitle = result.description;
 
-    if (typeof extensionAction === 'function') {
+    if (type === 'command' && objectId) {
+      const commandObjectId = objectId;
+      const isPortalCommand =
+        activeContext !== null &&
+        objectId === `cmd_portals_${activeContext.provider.id.replace('portal_', '')}`;
+      const capturedQuery = isPortalCommand ? activeContext!.query : localSearchValue;
+      // `extra` carries the argument values a command declared but was not
+      // stopped to collect — declared defaults and remembered selections, so
+      // running it straight from the list sends what its chips would have.
+      actionFunction = async (extra?: Record<string, unknown>) => {
+        // Tier 2 search results can carry both a worker-side action and a
+        // host-generated view fallback. The action map is authoritative: the
+        // fallback is only for results without an actionId. Running it first
+        // would navigate into a view instead of executing the selected result.
+        if (searchOrchestrator.tryExecuteResultAction(commandObjectId)) {
+          // The companion may raise its own window. macOS has no hide-on-blur,
+          // so dismiss the launcher explicitly.
+          void windowService.hide();
+          return;
+        }
+        if (typeof extensionAction === 'function') {
+          logService.debug(`Executing direct extension action for ${name}`);
+          try {
+            await Promise.resolve(extensionAction());
+            return;
+          } catch (err) {
+            logService.error(`Direct extension action failed: ${err}`);
+            onError(`Action failed for ${name}`);
+            throw err;
+          }
+        }
+        logService.debug(`[searchResultMapper] Executing command: ${commandObjectId}`);
+        try {
+          return await extensionManager.handleCommandAction(commandObjectId, {
+            query: capturedQuery,
+            ...extra,
+          });
+        } catch (err) {
+          logService.error(`extensionManager.handleCommandAction failed: ${err}`);
+          onError(`Failed to run command ${name}`);
+          throw err;
+        }
+      };
+    } else if (typeof extensionAction === 'function') {
       const originalExtAction = extensionAction;
       actionFunction = async () => {
         logService.debug(`Executing direct extension action for ${name}`);
@@ -285,36 +328,6 @@ export function buildMappedItems({
         } catch (err) {
           logService.error(`applicationService.open failed: ${err}`);
           onError(`Failed to open ${name}`);
-          throw err;
-        }
-      };
-    } else if (type === 'command' && objectId) {
-      const commandObjectId = objectId;
-      const isPortalCommand =
-        activeContext !== null &&
-        objectId === `cmd_portals_${activeContext.provider.id.replace('portal_', '')}`;
-      const capturedQuery = isPortalCommand ? activeContext!.query : localSearchValue;
-      // `extra` carries the argument values a command declared but was not
-      // stopped to collect — declared defaults and remembered selections, so
-      // running it straight from the list sends what its chips would have.
-      actionFunction = async (extra?: Record<string, unknown>) => {
-        if (searchOrchestrator.tryExecuteResultAction(commandObjectId)) {
-          // The action was dispatched to the extension worker (e.g. switch
-          // browser tab, which the companion raises to the foreground). Dismiss
-          // the launcher so the target app is unobstructed — macOS has no
-          // hide-on-blur, so hide explicitly.
-          void windowService.hide();
-          return;
-        }
-        logService.debug(`[searchResultMapper] Executing command: ${commandObjectId}`);
-        try {
-          return await extensionManager.handleCommandAction(commandObjectId, {
-            query: capturedQuery,
-            ...extra,
-          });
-        } catch (err) {
-          logService.error(`extensionManager.handleCommandAction failed: ${err}`);
-          onError(`Failed to run command ${name}`);
           throw err;
         }
       };
