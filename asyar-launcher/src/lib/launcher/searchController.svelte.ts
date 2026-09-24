@@ -90,6 +90,7 @@ export function createSearchHandlers(state: LauncherState) {
       const value = (event.target as HTMLInputElement).value;
       state.localSearchValue = value;
       searchStores.query = value;
+      state.queryHistory?.reset();
       feedbackService.dismiss();
       const listContainer = state.getListContainer();
       if (listContainer) resetListScroll(listContainer);
@@ -100,6 +101,7 @@ export function createSearchHandlers(state: LauncherState) {
       state.localSearchValue = '';
       searchStores.query = '';
       state.contextQuery = '';
+      state.queryHistory?.reset();
       const listContainer = state.getListContainer();
       if (listContainer) resetListScroll(listContainer);
       tick().then(() => state.getSearchInput()?.focus());

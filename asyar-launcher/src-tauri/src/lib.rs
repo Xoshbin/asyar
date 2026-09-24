@@ -166,6 +166,7 @@ pub mod platform;
 pub mod power;
 pub mod process_manager;
 pub mod profile;
+pub mod query_history;
 pub mod raycast_import;
 pub mod runs;
 pub mod runtimes;
@@ -397,6 +398,9 @@ pub fn run() {
         .manage(mcp_runtime_resolver)
         .manage(ext_builder::ExtBuilderState::default())
         .manage(calculator::CalculatorState::default())
+        .manage(std::sync::Arc::new(
+            query_history::QueryHistoryService::default(),
+        ))
         .manage(runtimes::RuntimeManager::new())
         .manage(feedback::channel::FeedbackChannelState::default())
         .manage(feedback::PendingCrash::default())
@@ -452,6 +456,8 @@ pub fn run() {
             commands::query_history_list,
             commands::query_history_record,
             commands::query_history_delete,
+            commands::query_history_navigate,
+            commands::query_history_reset,
             commands::normalize_scan_path,
             commands::show,
             commands::prepare_show,

@@ -81,4 +81,27 @@ describe('query recall', () => {
     expect(history.current).toBeNull();
     expect(remove).toHaveBeenCalledWith('22+5');
   });
+
+  it('delegates navigation directly to backend navigate with session id', async () => {
+    const navigate = vi.fn().mockResolvedValueOnce('first').mockResolvedValueOnce('');
+    const reset = vi.fn().mockResolvedValue(true);
+    const history = new QueryHistory({
+      navigate,
+      reset,
+      record: async () => true,
+      delete: async () => true,
+    });
+
+    const apply = vi.fn();
+    expect(history.navigate(-1, '', 0, apply)).toBe(true);
+    await vi.waitFor(() => expect(apply).toHaveBeenCalledWith('first'));
+    expect(history.current).toBe('first');
+    expect(navigate).toHaveBeenCalledWith('session-0', -1);
+
+    expect(await history.move(1, 'first')).toBe('');
+    expect(history.current).toBeNull();
+
+    history.reset();
+    expect(reset).toHaveBeenCalled();
+  });
 });
