@@ -7,7 +7,8 @@
     "actions_hint": "Ações",
     "navigate_hint": "Navegar",
     "select_hint": "Abrir",
-    "back": "Voltar"
+    "back": "Voltar",
+    "scoped_tools_hint": "Ferramentas e comandos"
   },
   "actions": {
     "title": "Ações",
@@ -305,7 +306,8 @@
       "no_models_matching": "Nenhum modelo correspondente a \"{query}\"",
       "use_custom_model": "Usar modelo personalizado \"{query}\"",
       "enter_custom_model": "Digite o ID do modelo personalizado…",
-      "custom_model_badge": "personalizado"
+      "custom_model_badge": "personalizado",
+      "probe_cli_error": "Falha ao verificar status da CLI"
     },
     "applications": {
       "no_match": "Nenhum aplicativo corresponde ao seu filtro",
@@ -484,6 +486,26 @@
     "error_skip_ai": "Não foi possível pular a configuração de IA.",
     "featured_store_error": "Não foi possível conectar à loja de extensões.",
     "theme_load_error": "Não foi possível carregar os temas.",
+    "welcome_highlight_zero_key_ai": "IA sem chaves (Codex, AGY, Claude)",
+    "welcome_highlight_web_search": "Pesquisa web integrada",
+    "welcome_highlight_quick_look": "Pré-visualizações Quick Look",
+    "welcome_highlight_raycast": "Migração completa do Raycast",
+    "summon_quick_look_tip": "Pesquise arquivos e pressione Espaço para pré-visualização instantânea (Quick Look).",
+    "cheatsheet_quick_look": "Pré-visualizar arquivo (Quick Look)",
+    "ai_step_kicker": "IA Integrada e Executáveis Locais",
+    "ai_step_title": "IA sem chaves de API, direto do seu terminal",
+    "ai_step_lede": "Pressione Tab no launcher e faça perguntas — as respostas chegam em streaming. Conecte suas ferramentas de linha de comando autenticadas (OpenAI Codex, Google Antigravity, Claude Code) sem necessidade de chaves de API, ou configure provedores de nuvem.",
+    "ai_step_cli_detected_badge": "CLI Local Detectada",
+    "ai_step_cli_detected_sub": "Sem necessidade de chave de API — usa a autenticação existente no seu terminal.",
+    "ai_step_quick_connect": "Conectar com 1 Clique",
+    "ai_step_connected": "✓ Conectado como padrão",
+    "ai_step_scanning_clis": "Verificando CLIs locais...",
+    "ai_step_feature_zero_key": "IA sem chave",
+    "ai_step_feature_web_search": "Pesquisa Web ao Vivo",
+    "ai_step_feature_web_search_desc": "Todos os modelos podem pesquisar na web ao vivo e citar fontes através do DuckDuckGo / SearXNG integrado, com zero configuração.",
+    "ai_step_feature_mcp": "Servidor MCP Local",
+    "ai_step_feature_mcp_desc": "O Asyar expõe suas ferramentas de calculadora, arquivos e pesquisa web como servidor MCP local para seus agentes CLI.",
+    "ai_step_manual_providers": "Ou configure provedores manualmente",
     "welcome_title": "Boas-vindas",
     "welcome_subtitle": "Conheça o Asyar — sua central de comando focada no teclado",
     "welcome_desc": "Pesquise aplicativos, faça contas, pergunte à IA, reescreva textos em qualquer lugar, expanda snippets e muito mais — tudo a partir de uma única barra. Vamos fazer um tour de 2 minutos para configurar tudo.",
@@ -517,6 +539,8 @@
     "featured_title": "Expanda seu launcher",
     "featured_heading": "Extensões essenciais para começar",
     "featured_desc": "Instale complementos poderosos criados pela comunidade. Você pode descobrir centenas de outros na Loja a qualquer momento.",
+    "featured_empty_tip_badge": "Acha que a loja está vazia? Não se decepcione!",
+    "featured_empty_store_tip": "Se achar que a loja está vazia, não se decepcione! Você pode criar sua própria extensão facilmente com o comando \"Criar Extensão com IA\". É isso que as pessoas fazem — elas criam suas próprias extensões, mas se esquecem de publicá-las na loja, então você pode criar a sua facilmente.",
     "clipboard_kicker": "Nunca mais perca o que você copiou"
   },
   "dev": {
@@ -609,7 +633,18 @@
       "save_current_layout_desc": "Captura o tamanho e a posição da janela em primeiro plano como layout personalizado",
       "rename_layout_title": "Renomear Layout",
       "rename_layout_subtitle": "Dê um nome reconhecível a este layout de janela",
-      "rename_layout_placeholder": "ex: Trabalho, Foco Direita..."
+      "rename_layout_placeholder": "ex: Trabalho, Foco Direita...",
+      "switch_windows_title": "Alternar Janelas",
+      "switch_windows_desc": "Alternar para uma janela de aplicativo ativa",
+      "search_windows_placeholder": "Pesquisar janelas abertas...",
+      "no_windows": "Nenhuma janela aberta encontrada",
+      "no_matching_windows": "Nenhuma janela corresponde à sua pesquisa",
+      "focus_window": "Alternar para Janela",
+      "close_window": "Fechar Janela",
+      "copy_title": "Copiar Título",
+      "title_copied": "Título copiado para a área de transferência",
+      "badge_active": "Ativa",
+      "badge_minimized": "Minimizada"
     },
     "shortcuts": {
       "title": "Atalhos",
@@ -689,8 +724,8 @@
       "category_snippets_hint": "Palavras-chave e expansões de texto",
       "category_portals": "Quicklinks → Portais",
       "category_portals_hint": "{argument} torna-se {query}",
-      "category_shortcuts": "Atalhos rápidos → Atalhos",
-      "category_shortcuts_hint": "Atalhos de aplicativos e links rápidos",
+      "category_shortcuts": "Teclas de atalho → Atalhos",
+      "category_shortcuts_hint": "Teclas de atalho para aplicativos e links rápidos",
       "category_aliases": "Apelidos",
       "category_aliases_hint": "Apelidos de aplicativos e links rápidos"
     },
@@ -793,6 +828,7 @@
     }
   },
   "common": {
+    "experimental": "Experimental",
     "cancel": "Cancelar",
     "confirm": "Confirmar",
     "save": "Salvar",
@@ -873,5 +909,8 @@
     "copied": "Copiado!",
     "success": "Copiado para a área de transferência",
     "error": "Não foi possível copiar para a área de transferência. Tente novamente."
-  }
+  },
+  "ocr_copied": "Texto copiado para a área de transferência",
+  "ocr_no_text": "Nenhum texto encontrado na área selecionada",
+  "ocr_cancelled": "Captura de tela cancelada"
 }

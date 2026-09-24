@@ -6,7 +6,7 @@ pub mod ranker;
 // Import necessary items
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use models::{SearchResult, SearchableItem};
+use models::{Command, SearchResult, SearchableItem};
 use rusqlite::params;
 use std::collections::HashSet;
 use std::fs;
@@ -380,41 +380,11 @@ impl SearchState {
 
         if let Some(stripped) = trimmed.strip_prefix('@') {
             let raw_scope = stripped.trim_start();
-            let (scope_token, subquery) = match raw_scope.split_once(' ') {
-                Some((scope, sub)) => (scope.trim().to_lowercase(), sub.trim()),
-                None => (raw_scope.trim().to_lowercase(), ""),
-            };
-
-            let matching_items: Vec<&SearchableItem> = guard
-                .iter()
-                .filter(|item| match item {
-                    SearchableItem::Command(cmd) => {
-                        if scope_token.is_empty() {
-                            true
-                        } else {
-                            let ext_lower = cmd.extension.to_lowercase();
-                            let last_part = cmd
-                                .extension
-                                .split('.')
-                                .next_back()
-                                .unwrap_or("")
-                                .to_lowercase();
-                            let type_label_match = cmd
-                                .type_label
-                                .as_ref()
-                                .map(|l| l.to_lowercase().contains(&scope_token))
-                                .unwrap_or(false);
-                            ext_lower.contains(&scope_token)
-                                || last_part.contains(&scope_token)
-                                || type_label_match
-                        }
-                    }
-                    SearchableItem::Application(_) => false,
-                })
-                .collect();
-
-            if subquery.is_empty() {
-                let mut sorted: Vec<&SearchableItem> = matching_items;
+            if raw_scope.is_empty() {
+                let mut sorted: Vec<&SearchableItem> = guard
+                    .iter()
+                    .filter(|item| matches!(item, SearchableItem::Command(_)))
+                    .collect();
                 sorted.sort_unstable_by(|a, b| {
                     let score_a = frecency_score(a.usage_count(), a.last_used_at());
                     let score_b = frecency_score(b.usage_count(), b.last_used_at());
@@ -447,8 +417,51 @@ impl SearchState {
                         tier: ranker::Tier::ExactTitle as u8,
                     });
                 }
-            } else {
-                let matcher = SkimMatcherV2::default();
+                return Ok(results);
+            }
+
+            let (first_word, subquery) = match raw_scope.split_once(' ') {
+                Some((scope, sub)) => (scope.trim().to_lowercase(), sub.trim()),
+                None => (raw_scope.trim().to_lowercase(), ""),
+            };
+
+            let ext_matches = |cmd: &Command, token: &str| -> bool {
+                let ext_lower = cmd.extension.to_lowercase();
+                let last_part = cmd
+                    .extension
+                    .split('.')
+                    .next_back()
+                    .unwrap_or("")
+                    .to_lowercase();
+                let type_label_match = cmd
+                    .type_label
+                    .as_ref()
+                    .map(|l| l.to_lowercase() == token || l.to_lowercase().starts_with(token))
+                    .unwrap_or(false);
+                ext_lower == token
+                    || ext_lower.starts_with(token)
+                    || last_part == token
+                    || last_part.starts_with(token)
+                    || type_label_match
+            };
+
+            let has_extension_match = !first_word.is_empty()
+                && guard.iter().any(|item| match item {
+                    SearchableItem::Command(cmd) => ext_matches(cmd, &first_word),
+                    SearchableItem::Application(_) => false,
+                });
+
+            let matcher = SkimMatcherV2::default();
+
+            if has_extension_match && !subquery.is_empty() {
+                let matching_items: Vec<&SearchableItem> = guard
+                    .iter()
+                    .filter(|item| match item {
+                        SearchableItem::Command(cmd) => ext_matches(cmd, &first_word),
+                        SearchableItem::Application(_) => false,
+                    })
+                    .collect();
+
                 let mut scored: Vec<(i64, f32, &SearchableItem)> = matching_items
                     .iter()
                     .filter_map(|item| {
@@ -497,8 +510,129 @@ impl SearchState {
                         });
                     }
                 }
+            } else if has_extension_match && subquery.is_empty() {
+                let mut matching_items: Vec<&SearchableItem> = guard
+                    .iter()
+                    .filter(|item| match item {
+                        SearchableItem::Command(cmd) => {
+                            ext_matches(cmd, &first_word)
+                                || item
+                                    .search_names()
+                                    .iter()
+                                    .any(|name| matcher.fuzzy_match(name, &first_word).is_some())
+                        }
+                        SearchableItem::Application(_) => false,
+                    })
+                    .collect();
+
+                matching_items.sort_unstable_by(|a, b| {
+                    let score_a = frecency_score(a.usage_count(), a.last_used_at());
+                    let score_b = frecency_score(b.usage_count(), b.last_used_at());
+                    score_b
+                        .partial_cmp(&score_a)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                        .then_with(|| a.get_name().cmp(b.get_name()))
+                });
+
+                let mut seen = HashSet::new();
+                for item in matching_items.into_iter().take(limit) {
+                    if seen.insert(item.id().to_string()) {
+                        results.push(SearchResult {
+                            object_id: item.id().to_string(),
+                            name: item.get_name().to_string(),
+                            result_type: item.get_type_str().to_string(),
+                            score: frecency_score(item.usage_count(), item.last_used_at()),
+                            path: None,
+                            icon: match item {
+                                SearchableItem::Application(app) => app.icon.clone(),
+                                SearchableItem::Command(cmd) => cmd.icon.clone(),
+                            },
+                            extension_id: match item {
+                                SearchableItem::Application(_) => None,
+                                SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
+                            },
+                            description: description_for(item),
+                            type_label: type_label_for(item),
+                            has_arguments: has_arguments_for(item),
+                            style: None,
+                            alias: None,
+                            tier: ranker::Tier::ExactTitle as u8,
+                        });
+                    }
+                }
+            } else {
+                // Direct command query: @caff, @sleep, @empty trash, etc.
+                let mut scored: Vec<(i64, f32, &SearchableItem)> = guard
+                    .iter()
+                    .filter(|item| matches!(item, SearchableItem::Command(_)))
+                    .filter_map(|item| {
+                        let best_fuzzy = item
+                            .search_names()
+                            .iter()
+                            .filter_map(|name| matcher.fuzzy_match(name, raw_scope))
+                            .max();
+                        let ext_match = match item {
+                            SearchableItem::Command(cmd) => {
+                                if ext_matches(cmd, raw_scope) {
+                                    Some(50)
+                                } else {
+                                    None
+                                }
+                            }
+                            _ => None,
+                        };
+                        let score = match (best_fuzzy, ext_match) {
+                            (Some(f), Some(e)) => Some(std::cmp::max(f, e)),
+                            (Some(f), None) => Some(f),
+                            (None, Some(e)) => Some(e),
+                            (None, None) => None,
+                        };
+                        score.map(|s| {
+                            (
+                                s,
+                                frecency_score(item.usage_count(), item.last_used_at()),
+                                item,
+                            )
+                        })
+                    })
+                    .collect();
+
+                scored.sort_unstable_by(|a, b| {
+                    b.0.cmp(&a.0)
+                        .then_with(|| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal))
+                });
+
+                let mut seen = HashSet::new();
+                for (score, _, item) in scored.into_iter().take(limit) {
+                    if seen.insert(item.id().to_string()) {
+                        results.push(SearchResult {
+                            object_id: item.id().to_string(),
+                            name: item.get_name().to_string(),
+                            result_type: item.get_type_str().to_string(),
+                            score: score as f32,
+                            path: None,
+                            icon: match item {
+                                SearchableItem::Application(app) => app.icon.clone(),
+                                SearchableItem::Command(cmd) => cmd.icon.clone(),
+                            },
+                            extension_id: match item {
+                                SearchableItem::Application(_) => None,
+                                SearchableItem::Command(cmd) => Some(cmd.extension.clone()),
+                            },
+                            description: description_for(item),
+                            type_label: type_label_for(item),
+                            has_arguments: has_arguments_for(item),
+                            style: None,
+                            alias: None,
+                            tier: ranker::Tier::ExactTitle as u8,
+                        });
+                    }
+                }
             }
-        } else if trimmed.is_empty() {
+            return Ok(results);
+        }
+
+        if trimmed.is_empty() {
             let mut sorted: Vec<&SearchableItem> = guard.iter().collect();
             sorted.sort_unstable_by(|a, b| {
                 let score_a = frecency_score(a.usage_count(), a.last_used_at());
@@ -866,7 +1000,8 @@ impl SearchState {
                 let matches_scope = if scope_token.is_empty() {
                     true
                 } else {
-                    ext.extension_id
+                    let ext_matches = ext
+                        .extension_id
                         .as_deref()
                         .map(|id| {
                             id.to_lowercase().contains(&scope_token)
@@ -877,7 +1012,14 @@ impl SearchState {
                                     .to_lowercase()
                                     .contains(&scope_token)
                         })
-                        .unwrap_or(false)
+                        .unwrap_or(false);
+                    let name_matches = ext.name.to_lowercase().contains(&scope_token)
+                        || ext
+                            .description
+                            .as_deref()
+                            .map(|d| d.to_lowercase().contains(&scope_token))
+                            .unwrap_or(false);
+                    ext_matches || name_matches
                 };
 
                 if matches_scope {
@@ -2575,5 +2717,77 @@ mod service_tests {
 
         let mismatch = state.search("@coffee notes").unwrap();
         assert_eq!(mismatch.len(), 0);
+    }
+
+    #[test]
+    fn test_scoped_search_direct_command_query() {
+        let state = make_state();
+        state
+            .index_one(SearchableItem::Command(Command {
+                id: "cmd_coffee_caffeinate".to_string(),
+                name: "Caffeinate".to_string(),
+                extension: "org.asyar.coffee".to_string(),
+                trigger: "caffeinate".to_string(),
+                command_type: "command".to_string(),
+                usage_count: 2,
+                icon: None,
+                last_used_at: None,
+                subtitle: None,
+                type_label: Some("Coffee".to_string()),
+                has_arguments: false,
+                is_dynamic: false,
+            }))
+            .unwrap();
+        state
+            .index_one(SearchableItem::Command(Command {
+                id: "cmd_system_sleep".to_string(),
+                name: "Sleep".to_string(),
+                extension: "system".to_string(),
+                trigger: "sleep".to_string(),
+                command_type: "command".to_string(),
+                usage_count: 1,
+                icon: None,
+                last_used_at: None,
+                subtitle: None,
+                type_label: Some("System".to_string()),
+                has_arguments: false,
+                is_dynamic: false,
+            }))
+            .unwrap();
+        state
+            .index_one(SearchableItem::Command(Command {
+                id: "cmd_system_empty_trash".to_string(),
+                name: "Empty Trash".to_string(),
+                extension: "system".to_string(),
+                trigger: "empty-trash".to_string(),
+                command_type: "command".to_string(),
+                usage_count: 0,
+                icon: None,
+                last_used_at: None,
+                subtitle: None,
+                type_label: Some("System".to_string()),
+                has_arguments: false,
+                is_dynamic: false,
+            }))
+            .unwrap();
+        state.index_one(app("app_safari", "Safari", 10)).unwrap();
+
+        // Direct command search without knowing the extension
+        let caff_results = state.search("@caff").unwrap();
+        assert_eq!(caff_results.len(), 1);
+        assert_eq!(caff_results[0].name, "Caffeinate");
+
+        let sleep_results = state.search("@sleep").unwrap();
+        assert_eq!(sleep_results.len(), 1);
+        assert_eq!(sleep_results[0].name, "Sleep");
+
+        // Multi-word command search
+        let trash_results = state.search("@empty trash").unwrap();
+        assert_eq!(trash_results.len(), 1);
+        assert_eq!(trash_results[0].name, "Empty Trash");
+
+        // Never returns applications
+        let app_results = state.search("@safari").unwrap();
+        assert_eq!(app_results.len(), 0);
     }
 }

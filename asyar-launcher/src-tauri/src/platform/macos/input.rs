@@ -4,7 +4,7 @@ use objc2::runtime::{AnyClass, AnyObject, Bool};
 use objc2::{msg_send, msg_send_id};
 use objc2_foundation::NSString;
 use std::sync::atomic::Ordering;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 /// Disables macOS's "hold key for accented characters" popup for Asyar's
 /// own process (issue #433, item 3). WKWebView shows this popup on any
@@ -148,64 +148,7 @@ pub fn register_snippet_monitor(app_handle: AppHandle) {
                     continue;
                 }
                 for lc in c.to_lowercase() {
-                    buffer.push(lc);
-                }
-                if buffer.len() > 64 {
-                    buffer.remove(0);
-                }
-            }
-
-            let current: String = buffer.iter().collect();
-            let merged = {
-                let user_guard = state
-                    .active_snippets
-                    .lock()
-                    .unwrap_or_else(|p| p.into_inner());
-                let contributed_guard = state
-                    .contributed_snippets
-                    .lock()
-                    .unwrap_or_else(|p| p.into_inner());
-                crate::snippets::merge_active_snippets(&user_guard, &contributed_guard)
-            };
-
-            for (keyword, expansion) in merged.iter() {
-                if current.ends_with(keyword.as_str()) {
-                    let kw_len = keyword.chars().count();
-                    let exp = expansion.clone();
-                    buffer.clear();
-                    let _ = app.emit_to(
-                        crate::SPOTLIGHT_LABEL,
-                        "expand-snippet",
-                        serde_json::json!({
-                            "keywordLen": kw_len,
-                            "expansion": exp
-                        }),
-                    );
-                    return;
-                }
-            }
-            let triggers = {
-                if let Ok(guard) = state.shortcode_triggers.lock() {
-                    guard.clone()
-                } else {
-                    vec![":".to_string()]
-                }
-            };
-            for trigger in triggers {
-                if current.ends_with(&trigger) {
-                    if let Some(candidate) =
-                        crate::snippets::detect_completed_shortcode_at_end(&current, &trigger)
-                    {
-                        if !merged.contains_key(&candidate) {
-                            let _ = app.emit_to(
-                                crate::SPOTLIGHT_LABEL,
-                                "shortcode-miss",
-                                serde_json::json!({ "shortcode": candidate }),
-                            );
-                            buffer.clear();
-                            break;
-                        }
-                    }
+                    crate::snippets::process_snippet_char(&app, &mut buffer, lc);
                 }
             }
         }

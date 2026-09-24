@@ -186,6 +186,15 @@
       "component": "ManageView"
     },
     {
+      "id": "switch-windows",
+      "name": "Switch Windows",
+      "description": "Switch to an active application window",
+      "trigger": "switch windows active app running",
+      "icon": "icon:window",
+      "mode": "view",
+      "component": "SwitchWindowsView"
+    },
+    {
       "id": "save-current-layout",
       "name": "Save Current Window as Layout",
       "description": "Save the frontmost window position and size as a custom layout",

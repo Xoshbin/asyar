@@ -137,33 +137,48 @@ pub fn parse_export(bytes: &[u8], password: Option<&str>) -> Result<ParseOutcome
         let json = gunzip(bytes)?;
         let value: serde_json::Value = serde_json::from_slice(&json)
             .map_err(|e| AppError::Validation(format!("Unrecognized rayconfig contents: {e}")))?;
-        if value.get("data").is_some() && value.get("schemaVersion").is_some() {
-            return parse_rayconfig_x(&value, password);
-        }
-        if is_classic_config(&value) {
-            return Ok(ParseOutcome::Ok {
-                bundle: parse_classic(&value)?,
-            });
-        }
-        return Err(AppError::Validation(
-            "Unrecognized rayconfig contents".to_string(),
-        ));
+        return parse_json_value(&value, password);
     }
 
-    // Plain JSON exports from "Export Snippets" / "Export Quicklinks".
+    // Plain JSON exports from "Export Snippets" / "Export Quicklinks",
+    // uncompressed Raycast X .json backups, classic JSON, or raw categories.
     if let Ok(value) = serde_json::from_slice::<serde_json::Value>(bytes) {
-        if let Some(items) = value.as_array() {
-            return Ok(ParseOutcome::Ok {
-                bundle: parse_plain_json(items)?,
-            });
-        }
-        return Err(AppError::Validation(
-            "Unrecognized Raycast export file".to_string(),
-        ));
+        return parse_json_value(&value, password);
     }
 
     // Not gzip, not JSON: classic encrypted rayconfig (IV + AES-256-CBC).
     parse_classic_encrypted(bytes, password)
+}
+
+fn parse_json_value(
+    value: &serde_json::Value,
+    password: Option<&str>,
+) -> Result<ParseOutcome, AppError> {
+    if value.get("data").is_some() && value.get("schemaVersion").is_some() {
+        return parse_rayconfig_x(value, password);
+    }
+
+    if is_classic_config(value) {
+        return Ok(ParseOutcome::Ok {
+            bundle: parse_classic(value)?,
+        });
+    }
+
+    if is_x_categories(value) {
+        return Ok(ParseOutcome::Ok {
+            bundle: bundle_from_x_categories(value)?,
+        });
+    }
+
+    if let Some(items) = value.as_array() {
+        return Ok(ParseOutcome::Ok {
+            bundle: parse_plain_json(items)?,
+        });
+    }
+
+    Err(AppError::Validation(
+        "Unrecognized Raycast export file".to_string(),
+    ))
 }
 
 /// Attach Asyar index identity (`object_id`, display name, icon) to app
@@ -238,6 +253,29 @@ fn is_classic_config(value: &serde_json::Value) -> bool {
     value
         .as_object()
         .is_some_and(|o| o.keys().any(|k| k.starts_with("builtin_package_")))
+}
+
+fn is_x_categories(value: &serde_json::Value) -> bool {
+    let Some(obj) = value.as_object() else {
+        return false;
+    };
+    let has_snippets = value
+        .pointer("/snippets/snippets")
+        .and_then(|v| v.as_array())
+        .is_some()
+        || obj.get("snippets").and_then(|v| v.as_array()).is_some();
+    let has_quicklinks = value
+        .pointer("/quicklinks/quicklinks")
+        .and_then(|v| v.as_array())
+        .is_some()
+        || obj.get("quicklinks").and_then(|v| v.as_array()).is_some();
+    let has_commands = value
+        .pointer("/settings/commands")
+        .and_then(|v| v.as_array())
+        .is_some()
+        || obj.get("commands").and_then(|v| v.as_array()).is_some();
+
+    has_snippets || has_quicklinks || has_commands
 }
 
 // ---------------------------------------------------------------------------
@@ -362,12 +400,18 @@ fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBund
         skipped: SkippedCounts::default(),
     };
 
-    if let Some(snippets) = categories
+    let snippets_opt = categories
         .pointer("/snippets/snippets")
         .and_then(|v| v.as_array())
-    {
+        .or_else(|| categories.get("snippets").and_then(|v| v.as_array()));
+
+    if let Some(snippets) = snippets_opt {
         for s in snippets {
-            let Some(title) = s.get("title").and_then(|v| v.as_str()) else {
+            let Some(title) = s
+                .get("title")
+                .or_else(|| s.get("name"))
+                .and_then(|v| v.as_str())
+            else {
                 continue;
             };
             let Some(text) = s.get("text").and_then(|v| v.as_str()) else {
@@ -377,6 +421,7 @@ fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBund
                 name: title.to_string(),
                 keyword: s
                     .get("keyword")
+                    .or_else(|| s.get("alias"))
                     .and_then(|v| v.as_str())
                     .map(str::to_string),
                 expansion: translate_placeholders(text, false),
@@ -389,19 +434,29 @@ fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBund
         }
     }
 
-    if let Some(quicklinks) = categories
+    let quicklinks_opt = categories
         .pointer("/quicklinks/quicklinks")
         .and_then(|v| v.as_array())
-    {
+        .or_else(|| categories.get("quicklinks").and_then(|v| v.as_array()));
+
+    if let Some(quicklinks) = quicklinks_opt {
         for q in quicklinks {
             let Some(name) = q.get("name").and_then(|v| v.as_str()) else {
                 continue;
             };
-            let Some(link) = q.get("link").and_then(|v| v.as_str()) else {
+            let Some(link) = q
+                .get("link")
+                .or_else(|| q.get("url"))
+                .and_then(|v| v.as_str())
+            else {
                 continue;
             };
             bundle.portals.push(ImportPortal {
-                raycast_id: q.get("id").and_then(|v| v.as_str()).map(str::to_string),
+                raycast_id: q
+                    .get("id")
+                    .or_else(|| q.get("uuid"))
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
                 name: name.to_string(),
                 url: translate_placeholders(link, true),
                 icon: PORTAL_ICON.to_string(),
@@ -409,10 +464,12 @@ fn bundle_from_x_categories(categories: &serde_json::Value) -> Result<ImportBund
         }
     }
 
-    if let Some(commands) = categories
+    let commands_opt = categories
         .pointer("/settings/commands")
         .and_then(|v| v.as_array())
-    {
+        .or_else(|| categories.get("commands").and_then(|v| v.as_array()));
+
+    if let Some(commands) = commands_opt {
         for command in commands {
             let id = command.get("id").and_then(|v| v.as_str()).unwrap_or("");
 
@@ -1172,5 +1229,98 @@ mod tests {
             translated,
             "Today is {Date format=\"YYYY-MM-DD\"} at {Time format=\"HH:mm\"} ({Date & Time format=\"YYYY-MM-DD HH:mm:ss\"})"
         );
+    }
+
+    // ---- Uncompressed / Windows JSON exports (#760) ----
+
+    #[test]
+    fn uncompressed_x_plain_json_parses() {
+        let plain_envelope = gunzip(X_PLAIN).unwrap();
+        let b = bundle(parse_export(&plain_envelope, None).unwrap());
+        let expected = bundle(parse_export(X_PLAIN, None).unwrap());
+        assert_eq!(b, expected);
+    }
+
+    #[test]
+    fn uncompressed_x_encrypted_json_password_flow() {
+        let encrypted_envelope = gunzip(X_ENCRYPTED).unwrap();
+
+        assert_eq!(
+            parse_export(&encrypted_envelope, None).unwrap(),
+            ParseOutcome::PasswordRequired
+        );
+        assert_eq!(
+            parse_export(&encrypted_envelope, Some("nope-nope")).unwrap(),
+            ParseOutcome::WrongPassword
+        );
+
+        let plain = bundle(parse_export(X_PLAIN, None).unwrap());
+        let decrypted = bundle(parse_export(&encrypted_envelope, Some(PASSWORD)).unwrap());
+        assert_eq!(plain, decrypted);
+    }
+
+    #[test]
+    fn uncompressed_classic_plain_json_parses() {
+        let classic_envelope = gunzip(CLASSIC_PLAIN).unwrap();
+        let b = bundle(parse_export(&classic_envelope, None).unwrap());
+        let expected = bundle(parse_export(CLASSIC_PLAIN, None).unwrap());
+        assert_eq!(b, expected);
+    }
+
+    #[test]
+    fn raw_categories_json_parses() {
+        let raw_json = r#"{
+            "snippets": {
+                "snippets": [
+                    {
+                        "title": "Raw Snippet",
+                        "keyword": "!raw",
+                        "text": "Raw expansion {date}"
+                    }
+                ]
+            },
+            "quicklinks": {
+                "quicklinks": [
+                    {
+                        "name": "Raw Quicklink",
+                        "link": "https://example.com/?q={query}"
+                    }
+                ]
+            }
+        }"#;
+        let b = bundle(parse_export(raw_json.as_bytes(), None).unwrap());
+        assert_eq!(b.snippets.len(), 1);
+        assert_eq!(b.snippets[0].name, "Raw Snippet");
+        assert_eq!(b.snippets[0].expansion, "Raw expansion {Date}");
+        assert_eq!(b.portals.len(), 1);
+        assert_eq!(b.portals[0].name, "Raw Quicklink");
+        assert_eq!(b.portals[0].url, "https://example.com/?q={query}");
+    }
+
+    #[test]
+    fn flat_categories_json_parses() {
+        let flat_json = r#"{
+            "snippets": [
+                {
+                    "name": "Flat Snippet",
+                    "alias": "!flat",
+                    "text": "Hello {time}"
+                }
+            ],
+            "quicklinks": [
+                {
+                    "name": "Flat Quicklink",
+                    "url": "https://example.com/search?q={argument}"
+                }
+            ]
+        }"#;
+        let b = bundle(parse_export(flat_json.as_bytes(), None).unwrap());
+        assert_eq!(b.snippets.len(), 1);
+        assert_eq!(b.snippets[0].name, "Flat Snippet");
+        assert_eq!(b.snippets[0].keyword.as_deref(), Some("!flat"));
+        assert_eq!(b.snippets[0].expansion, "Hello {Time}");
+        assert_eq!(b.portals.len(), 1);
+        assert_eq!(b.portals[0].name, "Flat Quicklink");
+        assert_eq!(b.portals[0].url, "https://example.com/search?q={query}");
     }
 }

@@ -40,16 +40,8 @@ fn mock_params(system: Option<&str>) -> ChatParams {
 fn mock_config() -> ProviderConfig {
     ProviderConfig {
         enabled: true,
-        name: None,
-        provider_type: None,
         api_key: Some("test-key".to_string()),
-        base_url: None,
-        last_model_id: None,
-        open_ai_api_mode: None,
-        hosted_web_search: None,
-        reasoning_effort: None,
-        temperature: None,
-        max_tokens: None,
+        ..Default::default()
     }
 }
 

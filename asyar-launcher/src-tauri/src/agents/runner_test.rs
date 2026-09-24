@@ -46,6 +46,7 @@ fn run_config(
         default_agent_id: None,
         temperature,
         max_tokens,
+        web_search: None,
     }
 }
 
@@ -196,16 +197,9 @@ async fn test_silent_runner_rejects_non_silent_agent() {
     };
     let provider = crate::ai::types::ProviderConfig {
         enabled: true,
-        name: None,
-        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some("http://127.0.0.1:9".to_string()),
-        last_model_id: None,
-        open_ai_api_mode: None,
-        hosted_web_search: None,
-        reasoning_effort: None,
-        temperature: None,
-        max_tokens: None,
+        ..Default::default()
     };
 
     let error = run_silent_agent_loop_impl(
@@ -266,16 +260,9 @@ async fn run_shortcode_miss_with_mocked_reply(reply_chunks: &[&str]) -> String {
 
     let provider = crate::ai::types::ProviderConfig {
         enabled: true,
-        name: None,
-        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{port}")),
-        last_model_id: None,
-        open_ai_api_mode: None,
-        hosted_web_search: None,
-        reasoning_effort: None,
-        temperature: None,
-        max_tokens: None,
+        ..Default::default()
     };
 
     run_silent_agent_loop_impl(
@@ -348,16 +335,9 @@ async fn test_thread_runner_rejects_thread_owned_by_another_agent() {
     .unwrap();
     let provider = crate::ai::types::ProviderConfig {
         enabled: true,
-        name: None,
-        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some("http://127.0.0.1:9".to_string()),
-        last_model_id: None,
-        open_ai_api_mode: None,
-        hosted_web_search: None,
-        reasoning_effort: None,
-        temperature: None,
-        max_tokens: None,
+        ..Default::default()
     };
 
     let error = run_thread_loop_impl(
@@ -449,16 +429,9 @@ async fn test_run_thread_loop_text_only() {
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        name: None,
-        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
-        last_model_id: None,
-        open_ai_api_mode: None,
-        hosted_web_search: None,
-        reasoning_effort: None,
-        temperature: None,
-        max_tokens: None,
+        ..Default::default()
     };
 
     let tokens_clone = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -603,16 +576,9 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Final result!\"}}]}\n\ndata: [DONE
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        name: None,
-        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
-        last_model_id: None,
-        open_ai_api_mode: None,
-        hosted_web_search: None,
-        reasoning_effort: None,
-        temperature: None,
-        max_tokens: None,
+        ..Default::default()
     };
 
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -743,16 +709,9 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Extension result used\"}}]}\n\ndat
 
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        name: None,
-        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
-        last_model_id: None,
-        open_ai_api_mode: None,
-        hosted_web_search: None,
-        reasoning_effort: None,
-        temperature: None,
-        max_tokens: None,
+        ..Default::default()
     };
 
     let events = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -867,16 +826,9 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
     let registry = Arc::new(ToolRegistry::new());
     let config = crate::ai::types::ProviderConfig {
         enabled: true,
-        name: None,
-        provider_type: None,
         api_key: Some("test-key".to_string()),
         base_url: Some(format!("http://127.0.0.1:{}", port)),
-        last_model_id: None,
-        open_ai_api_mode: None,
-        hosted_web_search: None,
-        reasoning_effort: None,
-        temperature: None,
-        max_tokens: None,
+        ..Default::default()
     };
 
     let before = {
@@ -934,16 +886,8 @@ data: {\"choices\":[{\"delta\":{\"content\":\"Corrected text\"}}]}\n\ndata: [DON
 fn valid_openai_config() -> crate::ai::types::ProviderConfig {
     crate::ai::types::ProviderConfig {
         enabled: true,
-        name: None,
-        provider_type: None,
         api_key: Some("sk-test".to_string()),
-        base_url: None,
-        last_model_id: None,
-        open_ai_api_mode: None,
-        hosted_web_search: None,
-        reasoning_effort: None,
-        temperature: None,
-        max_tokens: None,
+        ..Default::default()
     }
 }
 
@@ -1017,6 +961,28 @@ fn resolve_provider_config_errors_when_base_url_is_missing() {
 }
 
 #[test]
+fn resolve_provider_config_handles_cli_mode() {
+    let mut config = valid_openai_config();
+    config.api_key = None;
+    config.connection_mode = Some("cli".to_string());
+    config.cli_binary_path = Some("/non/existent/path/codex".to_string());
+    let configs = std::collections::HashMap::from([("openai".to_string(), config.clone())]);
+    let error = resolve_provider_config("openai", &configs).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("CLI executable for provider 'openai' was not found"));
+
+    let current_exe = std::env::current_exe()
+        .expect("current_exe")
+        .to_string_lossy()
+        .to_string();
+    config.cli_binary_path = Some(current_exe);
+    let valid_configs = std::collections::HashMap::from([("openai".to_string(), config)]);
+    let resolved = resolve_provider_config("openai", &valid_configs).unwrap();
+    assert_eq!(resolved.connection_mode.as_deref(), Some("cli"));
+}
+
+#[test]
 fn coalescing_preserves_provider_context_boundaries() {
     let mut first = chat_message("assistant", "First");
     first.provider_context = Some(vec![
@@ -1029,5 +995,181 @@ fn coalescing_preserves_provider_context_boundaries() {
     assert_eq!(
         messages[1].provider_context.as_ref().unwrap()[0]["geminiPart"]["text"],
         "Second"
+    );
+}
+
+#[tokio::test]
+async fn test_run_thread_loop_with_web_search_tool() {
+    use crate::agents::builtin_tools::web_search::WebSearchTool;
+
+    // 1. Setup mock search backend using mockito
+    let mut search_server = mockito::Server::new_async().await;
+    let mock_html = r#"
+    <div class="result">
+        <a class="result__title" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fblog.rust-lang.org%2F2024%2F07%2F25%2FRust-1.80.0.html">Announcing Rust 1.80.0</a>
+        <a class="result__snippet">The Rust team is happy to announce a new version of Rust, 1.80.0.</a>
+    </div>
+    "#;
+    let _search_mock = search_server
+        .mock("POST", "/")
+        .match_body(mockito::Matcher::UrlEncoded(
+            "q".to_string(),
+            "rust 1.80".to_string(),
+        ))
+        .with_status(200)
+        .with_body(mock_html)
+        .create_async()
+        .await;
+
+    // 2. Setup mock LLM server
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+
+    tokio::spawn(async move {
+        // Turn 0: Model calls builtin:web-search
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut buf = [0; 4096];
+        let _ = tokio::io::AsyncReadExt::read(&mut socket, &mut buf)
+            .await
+            .unwrap();
+
+        let response_turn_0 = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\n\
+data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call-search-1\",\"type\":\"function\",\"function\":{\"name\":\"builtin__web-search\",\"arguments\":\"{\\\"query\\\":\\\"rust 1.80\\\"}\"}}]}}]}\n\ndata: [DONE]\n\n";
+        socket.write_all(response_turn_0.as_bytes()).await.unwrap();
+        drop(socket);
+
+        // Turn 1: Model synthesizes answer citing search results
+        let (mut socket2, _) = listener.accept().await.unwrap();
+        let _ = tokio::io::AsyncReadExt::read(&mut socket2, &mut buf)
+            .await
+            .unwrap();
+
+        let response_turn_1 = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\n\
+data: {\"choices\":[{\"delta\":{\"content\":\"Rust 1.80.0 was officially announced!\"}}]}\n\ndata: [DONE]\n\n";
+        socket2.write_all(response_turn_1.as_bytes()).await.unwrap();
+    });
+
+    let store = make_store();
+    let agent_id = "agent-search".to_string();
+    let thread_id = "thread-search".to_string();
+    let now = chrono::Utc::now().timestamp_millis();
+
+    insert_agent(
+        &store.conn().unwrap(),
+        &AgentRow {
+            id: agent_id.clone(),
+            name: "Search Agent".to_string(),
+            description: None,
+            system_prompt: "Web researcher".to_string(),
+            provider_id: "openai".to_string(),
+            model_id: "gpt-4o".to_string(),
+            tool_selection: vec!["builtin:web-search".to_string()],
+            silent: false,
+            input_source: crate::storage::agents::SilentInputSource::Argument,
+            output_action: crate::storage::agents::SilentOutputAction::ReplaceSelection,
+            cache_responses: false,
+            shortcode_trigger: ":".to_string(),
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    insert_thread(
+        &store.conn().unwrap(),
+        &ThreadRow {
+            id: thread_id.clone(),
+            agent_id: agent_id.clone(),
+            title: Some("Search Thread".to_string()),
+            created_at: Some(now),
+            updated_at: Some(now),
+        },
+    )
+    .unwrap();
+
+    let registry = Arc::new(ToolRegistry::new());
+    registry
+        .register_builtin(Arc::new(WebSearchTool::with_base_url(search_server.url())))
+        .unwrap();
+
+    let config = crate::ai::types::ProviderConfig {
+        enabled: true,
+        api_key: Some("test-key".to_string()),
+        base_url: Some(format!("http://127.0.0.1:{}", port)),
+        ..Default::default()
+    };
+
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let e_clone = events.clone();
+    let on_event = move |event| {
+        e_clone.lock().unwrap().push(event);
+    };
+
+    run_thread_loop_impl(
+        &store,
+        &registry,
+        &agent_id,
+        &thread_id,
+        "What is in Rust 1.80?".to_string(),
+        None,
+        run_config("openai", config, Some(0.7), 2048),
+        on_event,
+        |_| async {
+            Err(AppError::Other(
+                "unexpected external tool dispatch".to_string(),
+            ))
+        },
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Verify searching status events occurred
+    let event_list = events.lock().unwrap().clone();
+    let saw_searching = event_list.iter().any(|e| {
+        matches!(
+            e,
+            AgentStreamEvent::Status {
+                status: Some(s)
+            } if s == "searching"
+        )
+    });
+    assert!(
+        saw_searching,
+        "expected 'searching' status event during web-search"
+    );
+
+    let msgs = list_messages_for_thread(&store.conn().unwrap(), &thread_id).unwrap();
+    assert_eq!(msgs.len(), 4);
+    assert_eq!(msgs[0].role, MessageRole::User);
+
+    // Assistant invoked builtin:web-search
+    assert_eq!(msgs[1].role, MessageRole::Assistant);
+    let tool_calls = msgs[1].content["toolUse"].as_array().unwrap();
+    assert_eq!(tool_calls.len(), 1);
+    assert_eq!(
+        tool_calls[0]["name"].as_str().unwrap(),
+        "builtin:web-search"
+    );
+
+    // Tool result stored sources and results
+    assert_eq!(msgs[2].role, MessageRole::Tool);
+    let output = &msgs[2].content["toolResult"]["output"];
+    let sources = output["sources"].as_array().unwrap();
+    assert_eq!(sources.len(), 1);
+    assert_eq!(
+        sources[0]["title"].as_str().unwrap(),
+        "Announcing Rust 1.80.0"
+    );
+    assert_eq!(
+        sources[0]["url"].as_str().unwrap(),
+        "https://blog.rust-lang.org/2024/07/25/Rust-1.80.0.html"
+    );
+
+    // Final assistant message
+    assert_eq!(msgs[3].role, MessageRole::Assistant);
+    assert_eq!(
+        msgs[3].content["text"].as_str().unwrap(),
+        "Rust 1.80.0 was officially announced!"
     );
 }

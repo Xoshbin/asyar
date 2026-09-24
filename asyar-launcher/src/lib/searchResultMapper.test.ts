@@ -311,6 +311,36 @@ describe('buildMappedItems command action consults the orchestrator result-actio
     expect(vi.mocked(windowService.hide)).toHaveBeenCalled();
   });
 
+  it('prefers a worker-side result action over the Tier 2 view fallback', async () => {
+    vi.mocked(searchOrchestrator.tryExecuteResultAction).mockReturnValue(true);
+    const openExtensionView = vi.fn();
+
+    const cmdResult = makeResult({
+      objectId: 'ext_org.asyar.browser_Hacker_News_0',
+      name: 'Hacker News',
+      type: 'command',
+      action: openExtensionView,
+    });
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [cmdResult],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: 'hacker',
+      selectedIndex: 0,
+      onError: vi.fn(),
+    });
+
+    await mappedItems[0].action();
+
+    expect(vi.mocked(searchOrchestrator.tryExecuteResultAction)).toHaveBeenCalledWith(
+      'ext_org.asyar.browser_Hacker_News_0',
+    );
+    expect(openExtensionView).not.toHaveBeenCalled();
+    expect(vi.mocked(extensionManager.handleCommandAction)).not.toHaveBeenCalled();
+    expect(vi.mocked(windowService.hide)).toHaveBeenCalled();
+  });
+
   it('falls through to handleCommandAction for a normal command not in the result-action map', async () => {
     vi.mocked(searchOrchestrator.tryExecuteResultAction).mockReturnValue(false);
 

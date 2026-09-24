@@ -500,6 +500,8 @@ mod bindings_export {
             .register::<crate::ai::types::ChatMessage>()
             .register::<crate::ai::types::GeminiGrounding>()
             .register::<crate::ai::types::ProviderConfig>()
+            .register::<crate::ai::types::CliStatus>()
+            .register::<crate::ai::types::CliAccountInfo>()
             .register::<crate::ai::types::ModelInfo>()
             .register::<crate::ai::types::ChatParams>()
             .register::<crate::ai::types::ChatStreamEvent>()
@@ -513,7 +515,8 @@ mod bindings_export {
             .register::<crate::launcher_placement::LauncherMonitorChoice>()
             .register::<crate::launcher_placement::LauncherAnchor>()
             .register::<crate::locale::ParsedLocale>()
-            .register::<crate::locale::NumberFormat>();
+            .register::<crate::locale::NumberFormat>()
+            .register::<crate::window_management::types::AppWindowInfo>();
 
         Typescript::default()
             .bigint(BigIntExportBehavior::Number)

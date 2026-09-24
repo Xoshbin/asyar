@@ -30,6 +30,7 @@ The `asyar` CLI drives the full extension development workflow:
 | `asyar build`     | Production build of your extension                              |
 | `asyar validate`  | Check manifest and project structure                            |
 | `asyar link`      | Symlink your extension into the app's extensions directory      |
+| `asyar unlink`    | Remove symlink and unregister from dev extensions               |
 | `asyar attach`    | Register an extension directory for dev loading in the launcher |
 | `asyar detach`    | Unregister a dev extension from the launcher                    |
 | `asyar publish`   | Build, package, and publish to the Asyar Store                  |
@@ -90,7 +91,7 @@ SDK releases are tag-based. From inside `asyar-sdk/`, run `pnpm run release <pat
 
 This SDK is the bridge between Asyar extensions and the host application. The package has **no default export** — extensions and the launcher must import from one of three explicit subpaths, picked according to where the code runs.
 
-Refer to the [Extension Development Guide](https://github.com/Xoshbin/asyar/blob/main/docs/extension-development.md) for detailed instructions on building extensions.
+Refer to the [Create an Extension Tutorial](../docs/tutorials/create-an-extension.md) and [Extensions Guide](../docs/guide/features/extensions.md) for detailed instructions on building extensions.
 
 ### Subpath exports
 

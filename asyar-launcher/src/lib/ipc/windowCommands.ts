@@ -1,7 +1,7 @@
 // asyar-launcher/src/lib/ipc/windowCommands.ts
 // Tauri command wrappers, re-exported through ./commands (the barrel).
 import { invokeSafe } from './invokeSafe';
-import type { LauncherPlacement } from '../../bindings';
+import type { AppWindowInfo, LauncherPlacement } from '../../bindings';
 
 // ── Window ────────────────────────────────────────────────────────────────────
 
@@ -168,6 +168,18 @@ export async function windowGetMonitors(): Promise<WindowBounds[] | null> {
 
 export async function windowApplyPreset(presetId: string): Promise<void> {
   await invokeSafe('window_management_apply_preset', { presetId });
+}
+
+export async function windowListWindows(): Promise<AppWindowInfo[] | null> {
+  return invokeSafe<AppWindowInfo[]>('window_management_list_windows');
+}
+
+export async function windowFocusWindow(id: string): Promise<void> {
+  await invokeSafe('window_management_focus_window', { id });
+}
+
+export async function windowCloseWindow(id: string): Promise<void> {
+  await invokeSafe('window_management_close_window', { id });
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────

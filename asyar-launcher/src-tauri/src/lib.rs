@@ -158,6 +158,7 @@ pub mod network;
 mod notes_export;
 pub mod notifications;
 pub mod oauth;
+pub mod ocr;
 pub mod onboarding;
 pub mod opener_scope;
 pub mod permissions;
@@ -216,6 +217,28 @@ pub fn apply_linux_webkit_dmabuf_workaround() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|arg| arg == "mcp-server" || arg == "--mcp") {
+        let rt = match tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(rt) => rt,
+            Err(e) => {
+                eprintln!("[asyar mcp] Failed to create Tokio runtime: {e}");
+                std::process::exit(1);
+            }
+        };
+
+        rt.block_on(async {
+            let registry = mcp::server::create_default_mcp_registry();
+            if let Err(e) = mcp::server::run_stdio_server(registry).await {
+                eprintln!("[asyar mcp] Server exited with error: {e}");
+            }
+        });
+        return;
+    }
+
     // Build the MCP transport factory before entering the builder chain. Its
     // runtime resolver starts with no `AppHandle`; `setup_app` wires the real
     // one in once it's available (see `AppRuntimeResolver`).
@@ -728,6 +751,9 @@ pub fn run() {
             commands::window_management_set_fullscreen,
             commands::window_management_get_monitors,
             commands::window_management_apply_preset,
+            commands::window_management_list_windows,
+            commands::window_management_focus_window,
+            commands::window_management_close_window,
             commands::app_updater_check_now,
             commands::app_updater_get_pending,
             commands::app_relaunch,
@@ -739,6 +765,7 @@ pub fn run() {
             commands::system_actions_supported,
             commands::system_action_run,
             commands::screen_pick_color,
+            commands::ocr_capture_screen_text,
             commands::process::process_list,
             commands::process::process_kill,
             commands::system_events_subscribe,
@@ -828,6 +855,7 @@ pub fn run() {
             commands::agents::agents_clear_cached,
             commands::agents::agents_promote_cached,
             ai::models::ai_list_models,
+            ai::commands::ai_check_cli_status,
             agents::editor::agents_editor_load,
             agents::editor::agents_editor_list_models,
             agents::editor::agents_editor_save,
@@ -1037,6 +1065,7 @@ fn register_builtin_tools(
         search::SearchTool,
         shell::ShellExecTool,
         web_fetch::WebFetchTool,
+        web_search::WebSearchTool,
     };
     use std::sync::Arc;
     use tauri::Manager;
@@ -1068,6 +1097,9 @@ fn register_builtin_tools(
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     registry
         .register_builtin(Arc::new(WebFetchTool::new()))
+        .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
+    registry
+        .register_builtin(Arc::new(WebSearchTool::new()))
         .map_err(|e| Box::<dyn std::error::Error>::from(e.to_string()))?;
     registry
         .register_builtin(Arc::new(SearchTool::new(search_state)))

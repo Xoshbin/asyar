@@ -506,6 +506,9 @@ describe('DEFAULT_SETTINGS.ai shape', () => {
       maxTokens: 2048,
       defaultAgentId: null,
       tabContinuesLastThread: false,
+      webSearch: {
+        engine: 'duckduckgo',
+      },
     });
   });
 });

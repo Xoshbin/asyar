@@ -139,6 +139,22 @@ describe('snippetViewState', () => {
       await snippetViewState.setSearch('test');
       expect(snippetViewState.mode).toBe('create');
     });
+
+    it('does not reset selection or re-rank when called with the same query unless forced', async () => {
+      vi.mocked(rankItems).mockResolvedValueOnce([mockSnippets[0], mockSnippets[1]]);
+      await snippetViewState.setSearch('test');
+      snippetViewState.moveSelection('down');
+      expect(snippetViewState.selectedIndex).toBe(1);
+
+      await snippetViewState.setSearch('test');
+      expect(snippetViewState.selectedIndex).toBe(1);
+      expect(rankItems).toHaveBeenCalledTimes(1);
+
+      vi.mocked(rankItems).mockResolvedValueOnce([mockSnippets[0], mockSnippets[1]]);
+      await snippetViewState.setSearch('test', true);
+      expect(snippetViewState.selectedIndex).toBe(0);
+      expect(rankItems).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('selectAfterMutation(id)', () => {

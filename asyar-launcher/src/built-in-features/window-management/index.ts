@@ -7,6 +7,7 @@ import { DISPLAY_COMMAND_IDS, PRESET_IDS } from './presets';
 import { applyCustomLayout, syncLayoutToIndex, removeLayoutFromIndex } from './layoutLifecycle';
 import { isAnyModalOpen } from '../../components/base/Modal.logic';
 import ManageView from './ManageView.svelte';
+import SwitchWindowsView from './SwitchWindowsView.svelte';
 import {
   type Extension,
   type ExtensionContext,
@@ -45,6 +46,11 @@ class WindowManagementExtension implements Extension {
     if (commandId === 'manage-layouts') {
       this.extensionManager?.navigateToView('window-management/ManageView');
       return { type: 'view', viewPath: 'window-management/ManageView' };
+    }
+
+    if (commandId === 'switch-windows') {
+      this.extensionManager?.navigateToView('window-management/SwitchWindowsView');
+      return { type: 'view', viewPath: 'window-management/SwitchWindowsView' };
     }
 
     if (commandId === 'save-current-layout') {
@@ -181,9 +187,11 @@ class WindowManagementExtension implements Extension {
 
   async viewActivated(viewPath: string): Promise<void> {
     this.inView = true;
-    window.addEventListener('keydown', this.handleKeydownBound);
-    this.registerManageActions();
-    this.extensionManager?.setActiveViewActionLabel('Apply');
+    if (viewPath === 'window-management/ManageView') {
+      window.addEventListener('keydown', this.handleKeydownBound);
+      this.registerManageActions();
+      this.extensionManager?.setActiveViewActionLabel('Apply');
+    }
     logService.debug(`[WindowManagement] View activated: ${viewPath}`);
   }
 
@@ -263,4 +271,4 @@ class WindowManagementExtension implements Extension {
 }
 
 export default new WindowManagementExtension();
-export { ManageView };
+export { ManageView, SwitchWindowsView };

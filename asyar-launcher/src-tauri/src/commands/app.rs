@@ -117,6 +117,11 @@ pub fn commit_show(
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+use objc2::msg_send;
+#[cfg(target_os = "macos")]
+use objc2::runtime::{AnyClass, Bool};
+
 /// Single-shot reveal for callers that know the panel is already visible
 /// (no stale-frame risk, so no need for the two-phase dance). Also the
 /// fallback used by the shortcut service when its `panel_is_visible` check
@@ -126,13 +131,23 @@ pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
     state.asyar_visible.store(true, Ordering::Relaxed);
     #[cfg(target_os = "macos")]
     {
-        let panel = app_handle
-            .get_webview_panel(SPOTLIGHT_LABEL)
-            .map_err(|_| AppError::NotFound("launcher panel".to_string()))?;
-        let window = app_handle
-            .get_webview_window(SPOTLIGHT_LABEL)
-            .ok_or_else(|| AppError::NotFound("launcher panel window".to_string()))?;
-        crate::platform::macos::reveal_launcher_panel(&window, &panel);
+        let is_main: Bool = unsafe {
+            let cls = AnyClass::get("NSThread").expect("NSThread class");
+            msg_send![cls, isMainThread]
+        };
+        let app = app_handle.clone();
+        let reveal = move || {
+            if let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) {
+                if let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) {
+                    crate::platform::macos::reveal_launcher_panel(&window, &panel);
+                }
+            }
+        };
+        if is_main.as_bool() {
+            reveal();
+        } else {
+            let _ = app_handle.run_on_main_thread(reveal);
+        }
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -171,13 +186,23 @@ pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<
     state.asyar_visible.store(false, Ordering::Relaxed);
     #[cfg(target_os = "macos")]
     {
-        let panel = app_handle
-            .get_webview_panel(SPOTLIGHT_LABEL)
-            .map_err(|_| AppError::NotFound("launcher panel".to_string()))?;
-        let window = app_handle
-            .get_webview_window(SPOTLIGHT_LABEL)
-            .ok_or_else(|| AppError::NotFound("launcher window".to_string()))?;
-        crate::platform::macos::park_launcher_panel(&window, &panel);
+        let is_main: Bool = unsafe {
+            let cls = AnyClass::get("NSThread").expect("NSThread class");
+            msg_send![cls, isMainThread]
+        };
+        let app = app_handle.clone();
+        let park = move || {
+            if let Ok(panel) = app.get_webview_panel(SPOTLIGHT_LABEL) {
+                if let Some(window) = app.get_webview_window(SPOTLIGHT_LABEL) {
+                    crate::platform::macos::park_launcher_panel(&window, &panel);
+                }
+            }
+        };
+        if is_main.as_bool() {
+            park();
+        } else {
+            let _ = app_handle.run_on_main_thread(park);
+        }
     }
     #[cfg(not(target_os = "macos"))]
     {

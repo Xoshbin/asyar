@@ -10,6 +10,7 @@
   import {
     extractTextFromMessage,
     extractGroundingFromMessage,
+    extractSourcesFromMessage,
     extractToolUsesFromMessage,
     messageBubbleVariant,
     resolveThreadId,
@@ -255,6 +256,7 @@
                 {@const variant = messageBubbleVariant(message)}
                 {@const text = extractTextFromMessage(message)}
                 {@const grounding = extractGroundingFromMessage(message)}
+                {@const sources = extractSourcesFromMessage(message, messages)}
                 {@const toolUses = extractToolUsesFromMessage(message)}
                 <div class="message-row {variant}">
                   {#if variant === 'assistant'}
@@ -269,21 +271,21 @@
                       {#if text.length > 0}
                         <div class="md-content">{@html renderMarkdown(text)}</div>
                       {/if}
+                      {#if sources.length > 0}
+                        <div class="grounding-sources">
+                          <span class="text-caption">{t('features.agents.sources')}</span>
+                          {#each sources as source, index}
+                            <a
+                              href={source.url}
+                              onclick={(event) => {
+                                event.preventDefault();
+                                openSearchSource(source.url);
+                              }}>{index + 1}. {source.title}</a
+                            >
+                          {/each}
+                        </div>
+                      {/if}
                       {#each grounding as search}
-                        {#if search.sources.length > 0}
-                          <div class="grounding-sources">
-                            <span class="text-caption">{t('features.agents.sources')}</span>
-                            {#each search.sources as source, index}
-                              <a
-                                href={source.url}
-                                onclick={(event) => {
-                                  event.preventDefault();
-                                  openSearchSource(source.url);
-                                }}>{index + 1}. {source.title}</a
-                              >
-                            {/each}
-                          </div>
-                        {/if}
                         {#if search.searchSuggestionsHtml}
                           <GoogleSearchSuggestions
                             html={search.searchSuggestionsHtml}
@@ -298,6 +300,20 @@
                         </div>
                       {/each}
                     {:else if variant === 'tool'}
+                      {#if sources.length > 0}
+                        <div class="grounding-sources">
+                          <span class="text-caption">{t('features.agents.sources')}</span>
+                          {#each sources as source, index}
+                            <a
+                              href={source.url}
+                              onclick={(event) => {
+                                event.preventDefault();
+                                openSearchSource(source.url);
+                              }}>{index + 1}. {source.title}</a
+                            >
+                          {/each}
+                        </div>
+                      {/if}
                       <pre class="tool-result">{text}</pre>
                     {:else}
                       <span class="user-text">{text}</span>

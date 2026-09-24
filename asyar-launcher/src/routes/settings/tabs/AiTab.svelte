@@ -1,3 +1,14 @@
+<script module lang="ts">
+  import type { ModelInfo } from '../../../services/ai/IProviderPlugin';
+
+  // Module-level session cache for fetched model lists across tab transitions
+  let sessionModelCache = $state<Record<string, ModelInfo[]>>({});
+
+  export function clearSessionModelCache(): void {
+    sessionModelCache = {};
+  }
+</script>
+
 <script lang="ts">
   import {
     SettingsRow,
@@ -12,7 +23,7 @@
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { providerRegistry } from '../../../services/ai/providerRegistry';
   import { agentService } from '../../../built-in-features/agents/agentService.svelte';
-  import { agentsProviderRemovalBlockers } from '../../../lib/ipc/commands';
+  import { agentsProviderRemovalBlockers, aiCheckCliStatus } from '../../../lib/ipc/commands';
   import { t } from '../../../services/i18n';
   import {
     availableProvidersForNewRow,
@@ -23,24 +34,44 @@
     reasoningEffortsForModel,
   } from './AiTab.helpers';
   import type {
+    ConnectionMode,
     IProviderPlugin,
-    ModelInfo,
     OpenAIApiMode,
     ProviderConfig,
     ReasoningEffort,
   } from '../../../services/ai/IProviderPlugin';
-  import type { ProviderId } from '../../../services/settings/types/AppSettingsType';
+  import type { CliStatus } from '../../../bindings';
+  import type {
+    ProviderId,
+    WebSearchEngine,
+    WebSearchSettings,
+  } from '../../../services/settings/types/AppSettingsType';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
 
   let { handler, mode = 'full' }: { handler?: SettingsHandler; mode?: 'full' | 'providers-only' } =
     $props();
 
   let settings = $derived(settingsService.currentSettings.ai);
+  let webSearchSettings = $derived(
+    settings.webSearch ?? { engine: 'duckduckgo' as WebSearchEngine },
+  );
 
-  // Session-cached model lists — not persisted, re-fetched on next launch
-  let modelCache = $state<Record<string, ModelInfo[]>>({});
+  function updateWebSearch(partial: Partial<WebSearchSettings>) {
+    const current = settings.webSearch ?? { engine: 'duckduckgo' as WebSearchEngine };
+    return settingsService.updateSettings('ai', {
+      webSearch: {
+        ...current,
+        ...partial,
+      },
+    });
+  }
+
+  // Session-cached model lists — persists across tab switches in the same session
+  let modelCache = $derived(sessionModelCache);
   let fetchingModels = $state<Record<string, boolean>>({});
   let fetchErrors = $state<Record<string, string>>({});
+  let cliStatuses = $state<Record<string, CliStatus>>({});
+  let checkingCli = $state<Record<string, boolean>>({});
   // Track custom-model-id input mode per provider
   let customModelMode = $state<Record<string, boolean>>({});
   // Why a provider removal was refused, keyed by provider id. Shown inline
@@ -115,7 +146,7 @@
     try {
       const config = getConfig(providerId);
       const models = await plugin.getModels(config);
-      modelCache = { ...modelCache, [providerId]: models };
+      sessionModelCache = { ...sessionModelCache, [providerId]: models };
       fetchErrors = { ...fetchErrors, [providerId]: '' };
       // Seed the effective model so the ★ default button is enabled even when
       // the user keeps the pre-selected first entry (which fires no onchange).
@@ -135,11 +166,58 @@
         ...fetchErrors,
         [providerId]: e instanceof Error ? e.message : 'Failed to fetch models',
       };
-      modelCache = { ...modelCache, [providerId]: [] };
+      sessionModelCache = { ...sessionModelCache, [providerId]: [] };
     } finally {
       fetchingModels = { ...fetchingModels, [providerId]: false };
     }
   }
+
+  async function checkCli(providerId: string, customPath?: string) {
+    checkingCli = { ...checkingCli, [providerId]: true };
+    try {
+      const plugin = getPlugin(providerId);
+      const engineType = plugin?.id ?? providerId;
+      const status = await aiCheckCliStatus(engineType, customPath);
+      cliStatuses = { ...cliStatuses, [providerId]: status };
+    } catch (e: unknown) {
+      cliStatuses = {
+        ...cliStatuses,
+        [providerId]: {
+          installed: false,
+          path: null,
+          version: null,
+          error: e instanceof Error ? e.message : t('settings.ai.probe_cli_error'),
+          account: null,
+        },
+      };
+    } finally {
+      checkingCli = { ...checkingCli, [providerId]: false };
+    }
+  }
+
+  $effect(() => {
+    for (const id of configuredIds) {
+      const p = getPlugin(id);
+      const cfg = getConfig(id);
+      if (
+        p?.supportsCliMode &&
+        cfg.connectionMode === 'cli' &&
+        !cliStatuses[id] &&
+        !checkingCli[id]
+      ) {
+        checkCli(id, cfg.cliBinaryPath);
+      }
+      if (
+        p &&
+        canTestAndFetch(p, cfg) &&
+        (cfg.connectionMode === 'cli' || cfg.lastModelId) &&
+        !sessionModelCache[id]?.length &&
+        !fetchingModels[id]
+      ) {
+        void fetchModels(id, p);
+      }
+    }
+  });
 
   function isDefault(id: string): boolean {
     const agent = agentService.getDefaultAgent();
@@ -325,18 +403,24 @@
             {@const plugin = getPlugin(providerId)}
             {@const config = getConfig(providerId)}
             {@const cachedModels = modelCache[providerId] ?? []}
+            {@const effectiveModels =
+              cachedModels.length > 0
+                ? cachedModels
+                : config.lastModelId
+                  ? [{ id: config.lastModelId, label: config.lastModelId }]
+                  : []}
             {@const isFetching = !!fetchingModels[providerId]}
             {@const fetchError = fetchErrors[providerId] ?? ''}
             {@const removeError = removeErrors[providerId] ?? ''}
             {@const defaultAgentError = defaultAgentErrors[providerId] ?? ''}
             {@const defaultRow = isDefault(providerId)}
-            {@const canBeDefault = !!config.lastModelId || cachedModels.length > 0}
+            {@const canBeDefault = !!config.lastModelId || effectiveModels.length > 0}
             {@const useCustomInput = customModelMode[providerId] ?? false}
             {@const openAIApiMode = config.openAIApiMode ?? 'chat-completions'}
-            {@const selectedModelId = config.lastModelId ?? cachedModels[0]?.id}
+            {@const selectedModelId = config.lastModelId ?? effectiveModels[0]?.id}
             {@const reasoningEfforts = reasoningEffortsForModel(
               plugin,
-              cachedModels,
+              effectiveModels,
               selectedModelId,
             )}
 
@@ -354,6 +438,9 @@
                   <span class="provider-label">{config.name || plugin?.name || providerId}</span>
                   {#if config.name && plugin && config.name !== plugin.name}
                     <span class="provider-type-badge">{plugin.name}</span>
+                  {/if}
+                  {#if config.connectionMode === 'cli'}
+                    <span class="cli-experimental-badge">CLI (Experimental)</span>
                   {/if}
                   {#if !expanded && config.lastModelId}
                     <span class="row-summary">{config.lastModelId}</span>
@@ -418,7 +505,117 @@
                     />
                   </div>
 
-                  {#if plugin?.requiresApiKey || plugin?.optionalApiKey}
+                  {#if plugin?.supportsCliMode}
+                    <div class="card-field">
+                      <label class="field-label" for="connection-mode-{providerId}"
+                        >Connection method</label
+                      >
+                      <select
+                        class="card-select"
+                        id="connection-mode-{providerId}"
+                        value={config.connectionMode ?? 'api_key'}
+                        onchange={(e) => {
+                          const mode = (e.currentTarget as HTMLSelectElement)
+                            .value as ConnectionMode;
+                          updateProviderConfig(providerId, { connectionMode: mode });
+                          if (mode === 'cli') {
+                            checkCli(providerId, config.cliBinaryPath);
+                          }
+                        }}
+                      >
+                        <option value="api_key">Direct API Key (HTTP)</option>
+                        <option value="cli"
+                          >Local CLI ({plugin.cliName ?? 'CLI'}) (Experimental)</option
+                        >
+                      </select>
+                      <p class="field-description">
+                        {#if config.connectionMode === 'cli'}
+                          Runs your local {plugin.cliName} CLI directly. Uses your existing terminal /
+                          subscription authentication without requiring an API key.
+                        {:else}
+                          Direct HTTP requests to the provider API using an API key.
+                        {/if}
+                      </p>
+                    </div>
+                  {/if}
+
+                  {#if config.connectionMode === 'cli'}
+                    <div class="cli-status-card">
+                      <div class="cli-status-header">
+                        <div class="cli-status-info">
+                          {#if checkingCli[providerId]}
+                            <span class="cli-status-pill checking">Checking CLI...</span>
+                          {:else if cliStatuses[providerId]?.installed}
+                            <span class="cli-status-pill installed">● Installed</span>
+                            <span class="cli-experimental-badge">Experimental</span>
+                            {#if cliStatuses[providerId]?.version}
+                              <span class="cli-version">{cliStatuses[providerId]?.version}</span>
+                            {/if}
+                            {#if cliStatuses[providerId]?.account?.email}
+                              <span class="cli-account-pill">
+                                {cliStatuses[providerId]?.account?.email}
+                                {#if cliStatuses[providerId]?.account?.planType}
+                                  <span class="cli-plan-badge"
+                                    >({cliStatuses[providerId]?.account?.planType})</span
+                                  >
+                                {/if}
+                              </span>
+                            {/if}
+                            {#if cliStatuses[providerId]?.account?.quotaUsedPercent !== null && cliStatuses[providerId]?.account?.quotaUsedPercent !== undefined}
+                              <span class="cli-quota-pill"
+                                >{cliStatuses[providerId]?.account?.quotaUsedPercent}% quota used</span
+                              >
+                            {/if}
+                          {:else}
+                            <span class="cli-status-pill not-installed">○ Not Detected</span>
+                          {/if}
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="small"
+                          onclick={() => checkCli(providerId, config.cliBinaryPath)}
+                          disabled={checkingCli[providerId]}
+                        >
+                          {checkingCli[providerId] ? 'Checking...' : 'Refresh'}
+                        </Button>
+                      </div>
+                      {#if cliStatuses[providerId]?.installed && cliStatuses[providerId]?.path}
+                        <p class="cli-path-note">
+                          Binary: <code>{cliStatuses[providerId]?.path}</code>
+                        </p>
+                      {:else if cliStatuses[providerId] && !cliStatuses[providerId]?.installed}
+                        <p class="cli-path-error">
+                          {cliStatuses[providerId]?.error ??
+                            `${plugin?.cliName ?? 'CLI'} was not found in standard system paths.`}
+                        </p>
+                      {/if}
+                      <div class="card-field">
+                        <label class="field-label" for="cli-path-{providerId}">
+                          Custom CLI binary path <span class="field-hint">(optional)</span>
+                        </label>
+                        <Input
+                          unstyled
+                          textIntent="exact"
+                          class="card-input"
+                          id="cli-path-{providerId}"
+                          type="text"
+                          value={config.cliBinaryPath ?? ''}
+                          placeholder={plugin?.id === 'google'
+                            ? '/Users/.../.local/bin/agy'
+                            : '/opt/homebrew/bin/codex'}
+                          autocomplete="off"
+                          onblur={(e) => {
+                            const path =
+                              (e.currentTarget as HTMLInputElement).value.trim() || undefined;
+                            updateProviderConfig(providerId, { cliBinaryPath: path });
+                            checkCli(providerId, path);
+                          }}
+                        />
+                      </div>
+                    </div>
+                  {/if}
+
+                  {#if (plugin?.requiresApiKey || plugin?.optionalApiKey) && config.connectionMode !== 'cli'}
                     <div class="card-field">
                       <label class="field-label" for="apikey-{providerId}">
                         API Key{#if !plugin?.requiresApiKey}
@@ -464,7 +661,7 @@
                     </div>
                   {/if}
 
-                  {#if plugin?.supportsOpenAIApiMode}
+                  {#if plugin?.supportsOpenAIApiMode && config.connectionMode !== 'cli'}
                     <div class="card-field">
                       <label class="field-label" for="openai-api-mode-{providerId}"
                         >API format</label
@@ -491,7 +688,7 @@
                     </div>
                   {/if}
 
-                  {#if plugin?.supportsHostedWebSearch && (providerId !== 'openai' || openAIApiMode === 'responses')}
+                  {#if plugin?.supportsHostedWebSearch && config.connectionMode !== 'cli' && (providerId !== 'openai' || openAIApiMode === 'responses')}
                     <div class="hosted-search-setting">
                       <div class="hosted-search-heading">
                         <label class="field-label" for="hosted-web-search-{providerId}">
@@ -535,19 +732,19 @@
                   {/if}
 
                   <!-- Model picker -->
-                  {#if cachedModels.length > 0 && !useCustomInput}
+                  {#if effectiveModels.length > 0 && !useCustomInput}
                     <div class="card-field">
                       <label class="field-label" for="model-{providerId}">Model</label>
                       <ModelSelector
                         id="model-{providerId}"
-                        models={cachedModels}
-                        value={config.lastModelId ?? cachedModels[0]?.id}
+                        models={effectiveModels}
+                        value={config.lastModelId ?? effectiveModels[0]?.id}
                         onchange={async (val) => {
                           updateProviderConfig(providerId, {
                             lastModelId: val,
                             reasoningEffort: reasoningEffortAfterModelChange(
                               plugin,
-                              cachedModels,
+                              effectiveModels,
                               val,
                               config.reasoningEffort,
                             ),
@@ -567,7 +764,7 @@
                         }}
                       />
                     </div>
-                  {:else if useCustomInput || fetchError || (!cachedModels.length && !isFetching && !plugin?.requiresApiKey && !plugin?.requiresBaseUrl)}
+                  {:else if useCustomInput || fetchError || (!effectiveModels.length && !isFetching && (config.connectionMode === 'cli' || (!plugin?.requiresApiKey && !plugin?.requiresBaseUrl)))}
                     <div class="card-field">
                       <label class="field-label" for="model-manual-{providerId}">
                         Model
@@ -591,7 +788,7 @@
                                 lastModelId: val,
                                 reasoningEffort: reasoningEffortAfterModelChange(
                                   plugin,
-                                  cachedModels,
+                                  effectiveModels,
                                   val,
                                   config.reasoningEffort,
                                 ),
@@ -743,6 +940,113 @@
       </div>
     </SettingsCard>
   </div>
+
+  {#if mode === 'full'}
+    <div class="section-header">Web Search</div>
+    <div id="ai-web-search" class="anchor-group">
+      <SettingsCard>
+        <div class="web-search-card">
+          <div class="card-field">
+            <label class="field-label" for="web-search-engine">Search engine</label>
+            <select
+              id="web-search-engine"
+              class="card-select"
+              value={webSearchSettings.engine}
+              onchange={(e) =>
+                updateWebSearch({
+                  engine: (e.currentTarget as HTMLSelectElement).value as WebSearchEngine,
+                })}
+            >
+              <option value="duckduckgo">DuckDuckGo (Free &amp; Privacy-first)</option>
+              <option value="brave">Brave Search API</option>
+              <option value="tavily">Tavily Search API</option>
+              <option value="searxng">SearXNG / Custom Endpoint</option>
+            </select>
+          </div>
+
+          {#if webSearchSettings.engine === 'duckduckgo'}
+            <p class="field-description">
+              Zero configuration, local and privacy-friendly. Automatically falls back to Instant
+              Answers and Wikipedia if rate limits or anti-bot checks occur.
+            </p>
+          {:else if webSearchSettings.engine === 'brave'}
+            <div class="card-field">
+              <label class="field-label" for="web-search-brave-key">Brave API key</label>
+              <Input
+                unstyled
+                textIntent="exact"
+                class="card-input"
+                id="web-search-brave-key"
+                type="password"
+                placeholder="BSA..."
+                value={webSearchSettings.apiKey ?? ''}
+                onblur={(e) =>
+                  updateWebSearch({
+                    apiKey: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
+                  })}
+              />
+            </div>
+            <p class="field-description">
+              Fast, independent web search index. Provides 2,000 free queries per month at
+              <a
+                href="https://brave.com/search/api/"
+                target="_blank"
+                rel="noreferrer"
+                class="external-link"
+              >
+                brave.com/search/api
+              </a>.
+            </p>
+          {:else if webSearchSettings.engine === 'tavily'}
+            <div class="card-field">
+              <label class="field-label" for="web-search-tavily-key">Tavily API key</label>
+              <Input
+                unstyled
+                textIntent="exact"
+                class="card-input"
+                id="web-search-tavily-key"
+                type="password"
+                placeholder="tvly-..."
+                value={webSearchSettings.apiKey ?? ''}
+                onblur={(e) =>
+                  updateWebSearch({
+                    apiKey: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
+                  })}
+              />
+            </div>
+            <p class="field-description">
+              AI-optimized search engine for LLM agents. Provides 1,000 free searches per month at
+              <a href="https://tavily.com" target="_blank" rel="noreferrer" class="external-link">
+                tavily.com
+              </a>.
+            </p>
+          {:else if webSearchSettings.engine === 'searxng'}
+            <div class="card-field">
+              <label class="field-label" for="web-search-base-url">SearXNG base URL</label>
+              <Input
+                unstyled
+                textIntent="exact"
+                class="card-input"
+                id="web-search-base-url"
+                type="url"
+                placeholder="http://localhost:8080"
+                value={webSearchSettings.baseUrl ?? ''}
+                onblur={(e) =>
+                  updateWebSearch({
+                    baseUrl: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
+                  })}
+              />
+            </div>
+            <p class="field-description">
+              Self-hosted or public metasearch instance. Must support JSON format (<code
+                >/search?format=json</code
+              >).
+            </p>
+          {/if}
+        </div>
+      </SettingsCard>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -750,6 +1054,18 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+  }
+
+  .web-search-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .external-link {
+    color: var(--accent-primary);
+    text-decoration: underline;
   }
 
   .providers-section {
@@ -1042,6 +1358,118 @@
     padding: 0;
     white-space: nowrap;
     text-decoration: underline;
+  }
+
+  .cli-status-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+  }
+
+  .cli-status-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .cli-status-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .cli-status-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: var(--space-0-5) var(--space-2);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+  }
+
+  .cli-status-pill.installed {
+    color: var(--accent-success);
+    background: var(--bg-primary);
+  }
+
+  .cli-status-pill.not-installed {
+    color: var(--accent-danger);
+    background: var(--bg-primary);
+  }
+
+  .cli-status-pill.checking {
+    color: var(--text-tertiary);
+    background: var(--bg-primary);
+  }
+
+  .cli-version {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+  }
+
+  .cli-account-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-primary);
+    padding: var(--space-0-5) var(--space-2);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+  }
+
+  .cli-plan-badge {
+    text-transform: capitalize;
+    font-weight: 600;
+    color: var(--accent-primary);
+  }
+
+  .cli-experimental-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-0-5) var(--space-2);
+    background: color-mix(in srgb, var(--accent-warning) 14%, transparent);
+    color: var(--accent-warning);
+    border-radius: var(--radius-xs);
+    font-size: var(--font-size-2xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .cli-quota-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+  }
+
+  .cli-path-note {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+  }
+
+  .cli-path-note code {
+    font-family: var(--font-mono);
+    color: var(--text-primary);
+  }
+
+  .cli-path-error {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--accent-danger);
   }
 
   .anchor-group {

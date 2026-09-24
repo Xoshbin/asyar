@@ -10,6 +10,7 @@ import {
   handleCancelSend,
   resolveThreadId,
   lastAssistantMessageText,
+  extractSourcesFromMessage,
 } from './agentChatView.helpers';
 
 import type { ThreadDef, MessageDef } from './types';
@@ -331,5 +332,143 @@ describe('lastAssistantMessageText', () => {
       makeMessage({ id: 'm5', role: 'tool', content: { toolResult: { output: 'ignored' } } }),
     ];
     expect(lastAssistantMessageText(messages)).toBe('second answer');
+  });
+});
+
+// ── extractSourcesFromMessage ────────────────────────────────────────────────
+
+describe('extractSourcesFromMessage', () => {
+  it('extracts sources from tool execution output object', () => {
+    const msg = makeMessage({
+      role: 'tool',
+      content: {
+        toolResult: {
+          toolUseId: 'tu-1',
+          output: {
+            sources: [
+              { title: 'Rust Lang', url: 'https://www.rust-lang.org' },
+              { title: 'Crates.io', url: 'https://crates.io' },
+            ],
+            results: [{ title: 'Rust', url: 'https://www.rust-lang.org', snippet: 'Fast' }],
+          },
+        },
+      },
+    });
+
+    const sources = extractSourcesFromMessage(msg);
+    expect(sources).toEqual([
+      { title: 'Rust Lang', url: 'https://www.rust-lang.org/' },
+      { title: 'Crates.io', url: 'https://crates.io/' },
+    ]);
+  });
+
+  it('extracts sources from stringified JSON tool output', () => {
+    const output = JSON.stringify({
+      sources: [{ title: 'Example', url: 'https://example.com' }],
+    });
+    const msg = makeMessage({
+      role: 'tool',
+      content: {
+        toolResult: {
+          toolUseId: 'tu-2',
+          output,
+        },
+      },
+    });
+
+    expect(extractSourcesFromMessage(msg)).toEqual([
+      { title: 'Example', url: 'https://example.com/' },
+    ]);
+  });
+
+  it('extracts sources from assistant providerContext with webSearchGroundingDisplay', () => {
+    const msg = makeMessage({
+      role: 'assistant',
+      content: {
+        text: 'Found info',
+        providerContext: [
+          {
+            webSearchGroundingDisplay: {
+              sources: [{ title: 'Search Engine', url: 'https://search.example.com' }],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(extractSourcesFromMessage(msg)).toEqual([
+      { title: 'Search Engine', url: 'https://search.example.com/' },
+    ]);
+  });
+
+  it('extracts sources from assistant providerContext with geminiGroundingDisplay', () => {
+    const msg = makeMessage({
+      role: 'assistant',
+      content: {
+        text: 'Gemini answer',
+        providerContext: [
+          {
+            geminiGroundingDisplay: {
+              sources: [{ title: 'Google Docs', url: 'https://docs.google.com' }],
+              searchSuggestionsHtml: '<div>Suggestions</div>',
+            },
+          },
+        ],
+      },
+    });
+
+    expect(extractSourcesFromMessage(msg)).toEqual([
+      { title: 'Google Docs', url: 'https://docs.google.com/' },
+    ]);
+  });
+
+  it('extracts sources for assistant from preceding tool message in the same turn', () => {
+    const toolMsg = makeMessage({
+      id: 'm-tool',
+      role: 'tool',
+      content: {
+        toolResult: {
+          toolUseId: 'tu-search',
+          output: {
+            sources: [{ title: 'Live News', url: 'https://news.example.com' }],
+          },
+        },
+      },
+    });
+    const assistantMsg = makeMessage({
+      id: 'm-assistant',
+      role: 'assistant',
+      content: { text: 'According to Live News [1]...' },
+    });
+    const threadMessages = [
+      makeMessage({ id: 'm-user', role: 'user', content: { text: 'What happened?' } }),
+      toolMsg,
+      assistantMsg,
+    ];
+
+    expect(extractSourcesFromMessage(assistantMsg, threadMessages)).toEqual([
+      { title: 'Live News', url: 'https://news.example.com/' },
+    ]);
+  });
+
+  it('filters out invalid URLs and empty titles', () => {
+    const msg = makeMessage({
+      role: 'tool',
+      content: {
+        toolResult: {
+          toolUseId: 'tu-invalid',
+          output: {
+            sources: [
+              { title: '', url: 'https://valid.com' },
+              { title: 'No URL', url: '' },
+              { title: 'Javascript URL', url: 'javascript:alert(1)' },
+              { title: 'Valid', url: 'https://valid.com' },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(extractSourcesFromMessage(msg)).toEqual([{ title: 'Valid', url: 'https://valid.com/' }]);
   });
 });

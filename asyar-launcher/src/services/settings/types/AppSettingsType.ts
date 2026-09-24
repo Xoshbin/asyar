@@ -93,10 +93,19 @@ export interface DeveloperSettings {
   allowSideloading: boolean;
 }
 
+export type WebSearchEngine = 'duckduckgo' | 'brave' | 'tavily' | 'searxng';
+
+export interface WebSearchSettings {
+  engine: WebSearchEngine;
+  apiKey?: string;
+  baseUrl?: string;
+}
+
 export interface AISettings {
   providers: Record<string, ProviderConfig>;
   temperature: number;
   maxTokens: number;
   defaultAgentId: string | null;
   tabContinuesLastThread: boolean;
+  webSearch?: WebSearchSettings;
 }

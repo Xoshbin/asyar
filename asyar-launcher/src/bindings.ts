@@ -24,6 +24,7 @@ export type AgentRunConfig = {
 	defaultAgentId: string | null,
 	temperature: number | null,
 	maxTokens: number,
+	webSearch?: WebSearchConfig | null,
 };
 
 export type AgentStreamEvent = { type: "user_message_persisted" } | { type: "text_delta"; delta: string; accumulated: string } | { type: "status"; status: string | null } | { type: "assistant_turn_persisted" } | { type: "tool_dispatch"; tool_call_id: string; extension_id: string; tool_id: string; arguments: any } | { type: "tool_dispatch_cancelled"; tool_call_id: string } | { type: "mcp_permission_request"; tool_call_id: string; server_id: string; tool_id: string; agent_id: string } | { type: "mcp_permission_cancelled"; tool_call_id: string } | { type: "error"; message: string } | { type: "completed" } | { type: "cancelled" };
@@ -37,6 +38,17 @@ export type AliasMatch = {
 	objectId: string,
 	itemType: string,
 	autoExecute: boolean,
+};
+
+export type AppWindowInfo = {
+	id: string,
+	pid: number,
+	appName: string,
+	appBundleId: string | null,
+	title: string,
+	isMinimized: boolean,
+	isFocused: boolean,
+	appIcon: string | null,
 };
 
 export type Application = {
@@ -92,6 +104,21 @@ export type ChatParams = {
 export type ChatStreamEvent = { type: "token"; token: string } | { type: "status"; status: string } | { type: "toolCall"; id: string; name: string; input: any } | { type: "providerContext"; item: any };
 
 export type ChatStreamEventPayload = { type: "token"; token: string } | { type: "status"; status: string } | { type: "toolCall"; id: string; name: string; input: any } | { type: "providerContext"; item: any } | { type: "done" } | { type: "error"; error: string };
+
+export type CliAccountInfo = {
+	email: string | null,
+	planType: string | null,
+	quotaUsedPercent: number | null,
+	quotaResetsAt: number | null,
+};
+
+export type CliStatus = {
+	installed: boolean,
+	path: string | null,
+	version: string | null,
+	error: string | null,
+	account: CliAccountInfo | null,
+};
 
 export type Command = {
 	id: string,
@@ -319,6 +346,8 @@ export type ProviderConfig = {
 	reasoningEffort: string | null,
 	temperature: number | null,
 	maxTokens: number | null,
+	connectionMode: string | null,
+	cliBinaryPath: string | null,
 };
 
 /**
@@ -391,6 +420,12 @@ export type ToolDefinition = {
 export type UpdateCommandMetadataInput = {
 	commandObjectId: string,
 	subtitle: string | null,
+};
+
+export type WebSearchConfig = {
+	engine: string | null,
+	apiKey: string | null,
+	baseUrl: string | null,
 };
 
 /**

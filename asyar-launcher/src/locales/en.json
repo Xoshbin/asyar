@@ -7,7 +7,8 @@
     "actions_hint": "Actions",
     "navigate_hint": "Navigate",
     "select_hint": "Open",
-    "back": "Back"
+    "back": "Back",
+    "scoped_tools_hint": "Tools & Commands"
   },
   "actions": {
     "title": "Actions",
@@ -305,7 +306,8 @@
       "no_models_matching": "No models matching \"{query}\"",
       "use_custom_model": "Use custom model \"{query}\"",
       "enter_custom_model": "Enter custom model ID…",
-      "custom_model_badge": "custom"
+      "custom_model_badge": "custom",
+      "probe_cli_error": "Failed to probe CLI status"
     },
     "applications": {
       "no_match": "No applications match your filter",
@@ -485,6 +487,26 @@
     "error_skip_ai": "Could not skip AI setup.",
     "featured_store_error": "Couldn't reach the extension store.",
     "theme_load_error": "Couldn't load themes.",
+    "welcome_highlight_zero_key_ai": "Zero-Key AI (Codex, AGY, Claude)",
+    "welcome_highlight_web_search": "Built-in Web Search",
+    "welcome_highlight_quick_look": "Quick Look File Previews",
+    "welcome_highlight_raycast": "Full Raycast Migration",
+    "summon_quick_look_tip": "Search files and press Space for instant Quick Look previews.",
+    "cheatsheet_quick_look": "Preview file (Quick Look)",
+    "ai_step_kicker": "Built-in AI & Local Runtimes",
+    "ai_step_title": "Zero-key AI, powered by your terminal",
+    "ai_step_lede": "Press Tab in the launcher and ask anything — answers stream right in. Connect your existing terminal-authenticated CLI tools (OpenAI Codex, Google Antigravity, Claude Code) with zero API keys required, or configure cloud providers.",
+    "ai_step_cli_detected_badge": "Local CLI Detected",
+    "ai_step_cli_detected_sub": "No API key needed — uses your existing terminal authentication.",
+    "ai_step_quick_connect": "Connect 1-Click",
+    "ai_step_connected": "✓ Connected as default",
+    "ai_step_scanning_clis": "Scanning for local CLIs...",
+    "ai_step_feature_zero_key": "Zero-Key AI",
+    "ai_step_feature_web_search": "Live Web Search",
+    "ai_step_feature_web_search_desc": "All models can search the live web and cite sources via built-in DuckDuckGo / SearXNG with zero configuration.",
+    "ai_step_feature_mcp": "Local MCP Server",
+    "ai_step_feature_mcp_desc": "Asyar exposes its calculator, file tools, and web search as a local MCP server to your CLI agents.",
+    "ai_step_manual_providers": "Or configure providers manually",
     "welcome_title": "Welcome",
     "welcome_subtitle": "Meet Asyar — your keyboard-first command center",
     "welcome_desc": "Search apps, do math, ask AI, rewrite text anywhere, expand snippets, and more — all from one box. Let's take a 2-minute tour and set you up.",
@@ -518,6 +540,8 @@
     "featured_title": "Extend your launcher",
     "featured_heading": "Essential extensions to start with",
     "featured_desc": "Install powerful add-ons created by the community. You can discover hundreds more in the Store anytime.",
+    "featured_empty_tip_badge": "Store feels empty? Don't be disappointed!",
+    "featured_empty_store_tip": "If you think the store is empty, don't be disappointed! You can easily create your own extension with the \"Create Extension with AI\" command. That's what people do — they create their own extensions, but forget to push them to the store, so you can easily create your own.",
     "clipboard_kicker": "Never lose a copy again"
   },
   "dev": {
@@ -611,7 +635,18 @@
       "save_current_layout_desc": "Capture the frontmost window position and size as a custom layout",
       "rename_layout_title": "Rename Layout",
       "rename_layout_subtitle": "Give this window layout a recognizable name",
-      "rename_layout_placeholder": "e.g. Work Setup, Right Focus..."
+      "rename_layout_placeholder": "e.g. Work Setup, Right Focus...",
+      "switch_windows_title": "Switch Windows",
+      "switch_windows_desc": "Switch to an active application window",
+      "search_windows_placeholder": "Search open windows...",
+      "no_windows": "No open windows found",
+      "no_matching_windows": "No windows match your search",
+      "focus_window": "Switch to Window",
+      "close_window": "Close Window",
+      "copy_title": "Copy Title",
+      "title_copied": "Title copied to clipboard",
+      "badge_active": "Active",
+      "badge_minimized": "Minimized"
     },
     "shortcuts": {
       "title": "Shortcuts",
@@ -796,6 +831,7 @@
     }
   },
   "common": {
+    "experimental": "Experimental",
     "cancel": "Cancel",
     "confirm": "Confirm",
     "save": "Save",
@@ -876,5 +912,8 @@
     "copied": "Copied!",
     "success": "Copied to clipboard",
     "error": "Could not copy to clipboard. Try again."
-  }
+  },
+  "ocr_copied": "Text copied to clipboard",
+  "ocr_no_text": "No text found in selected area",
+  "ocr_cancelled": "Screen capture cancelled"
 }

@@ -1,3 +1,4 @@
+import type { AppWindowInfo } from '../../bindings';
 import type { WindowBounds, WindowBoundsUpdate } from '../../lib/ipc/commands';
 import * as commands from '../../lib/ipc/commands';
 
@@ -9,6 +10,9 @@ export interface IWindowManagementService {
   applyPreset(presetId: string): Promise<void>;
   previousDisplay(): Promise<void>;
   nextDisplay(): Promise<void>;
+  listWindows(): Promise<AppWindowInfo[]>;
+  focusWindow(id: string): Promise<void>;
+  closeWindow(id: string): Promise<void>;
 }
 
 export class WindowManagementService implements IWindowManagementService {
@@ -42,6 +46,19 @@ export class WindowManagementService implements IWindowManagementService {
 
   async nextDisplay(): Promise<void> {
     return this.applyPreset('next-display');
+  }
+
+  async listWindows(): Promise<AppWindowInfo[]> {
+    const result = await commands.windowListWindows();
+    return result ?? [];
+  }
+
+  async focusWindow(id: string): Promise<void> {
+    return commands.windowFocusWindow(id);
+  }
+
+  async closeWindow(id: string): Promise<void> {
+    return commands.windowCloseWindow(id);
   }
 }
 

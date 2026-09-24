@@ -58,6 +58,14 @@ pub enum AgentStreamEvent {
     Cancelled,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WebSearchConfig {
+    pub engine: Option<String>,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+}
+
 /// Everything Rust needs to resolve *and* validate an agent's provider for a
 /// run, without owning the settings store itself: the frontend still owns
 /// `settings.ai.providers`/`defaultAgentId` and passes them through as data
@@ -72,6 +80,8 @@ pub struct AgentRunConfig {
     pub default_agent_id: Option<String>,
     pub temperature: Option<f64>,
     pub max_tokens: u32,
+    #[serde(default)]
+    pub web_search: Option<WebSearchConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -548,31 +558,47 @@ pub(crate) fn resolve_provider_config<'a>(
             "provider '{provider_id}' is not registered"
         )));
     }
-    if matches!(
-        engine_type,
-        "openai" | "anthropic" | "google" | "openrouter"
-    ) && config
-        .api_key
-        .as_deref()
-        .unwrap_or_default()
-        .trim()
-        .is_empty()
-    {
-        return Err(AppError::Validation(format!(
-            "API key for provider '{provider_id}' is not configured"
-        )));
-    }
-    if matches!(engine_type, "ollama" | "custom")
-        && config
-            .base_url
+    let is_cli = config.connection_mode.as_deref() == Some("cli");
+    if is_cli {
+        if !matches!(engine_type, "google" | "openai") {
+            return Err(AppError::Validation(format!(
+                "CLI mode is not supported for provider '{provider_id}'"
+            )));
+        }
+        if crate::ai::cli::resolve_cli_binary(engine_type, config.cli_binary_path.as_deref())
+            .is_none()
+        {
+            return Err(AppError::Validation(format!(
+                "CLI executable for provider '{provider_id}' was not found"
+            )));
+        }
+    } else {
+        if matches!(
+            engine_type,
+            "openai" | "anthropic" | "google" | "openrouter"
+        ) && config
+            .api_key
             .as_deref()
             .unwrap_or_default()
             .trim()
             .is_empty()
-    {
-        return Err(AppError::Validation(format!(
-            "Base URL for provider '{provider_id}' is not configured"
-        )));
+        {
+            return Err(AppError::Validation(format!(
+                "API key for provider '{provider_id}' is not configured"
+            )));
+        }
+        if matches!(engine_type, "ollama" | "custom")
+            && config
+                .base_url
+                .as_deref()
+                .unwrap_or_default()
+                .trim()
+                .is_empty()
+        {
+            return Err(AppError::Validation(format!(
+                "Base URL for provider '{provider_id}' is not configured"
+            )));
+        }
     }
     Ok(config)
 }
@@ -625,9 +651,14 @@ where
     let provider_config = resolve_provider_config(&agent.provider_id, &config.configs)?.clone();
     let (tool_definitions, wire_to_fqid) = resolve_tools(agent, registry)?;
     let tools = (!tool_definitions.is_empty()).then_some(tool_definitions);
+    let has_web_search = provider_config.hosted_web_search.unwrap_or(false)
+        || agent
+            .tool_selection
+            .iter()
+            .any(|t| t == "builtin:web-search");
     let system_prompt = build_system_prompt(
         &agent.system_prompt,
-        provider_config.hosted_web_search.unwrap_or(false),
+        has_web_search,
         Some(&agent.shortcode_trigger),
         query,
     )
@@ -746,12 +777,31 @@ where
 
         for tool_call in resolved_calls {
             let output = if let Some(builtin_id) = tool_call.name.strip_prefix("builtin:") {
-                crate::agents::tools::agents_invoke_builtin_tool_impl(
-                    registry,
-                    builtin_id,
-                    tool_call.input.clone(),
+                let is_web_search = builtin_id == "web-search";
+                if is_web_search {
+                    on_event(AgentStreamEvent::Status {
+                        status: Some("searching".to_string()),
+                    });
+                }
+                let mut input = tool_call.input.clone();
+                if is_web_search {
+                    if let Some(ref ws) = config.web_search {
+                        if let Some(obj) = input.as_object_mut() {
+                            obj.insert(
+                                "__config".to_string(),
+                                serde_json::to_value(ws).unwrap_or_default(),
+                            );
+                        }
+                    }
+                }
+                let res = crate::agents::tools::agents_invoke_builtin_tool_impl(
+                    registry, builtin_id, input,
                 )
-                .await?
+                .await;
+                if is_web_search {
+                    on_event(AgentStreamEvent::Status { status: None });
+                }
+                res?
             } else {
                 let request = ExternalToolRequest {
                     tool_call_id: tool_call.id.clone(),

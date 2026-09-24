@@ -64,6 +64,7 @@ describe('IconRenderer', () => {
   describe('hasIcon', () => {
     it('returns true for existing icon', () => {
       expect(hasIcon('calculator')).toBe(true);
+      expect(hasIcon('camera')).toBe(true);
     });
 
     it('returns false for nonexistent icon', () => {

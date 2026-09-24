@@ -10,6 +10,7 @@ vi.mock('../../../components', async () => ({
   SettingsForm: (await import('../../../components/settings/SettingsForm.svelte')).default,
   SettingsFormRow: (await import('../../../components/settings/SettingsFormRow.svelte')).default,
   SettingsCard: (await import('../../../components/settings/SettingsCard.svelte')).default,
+  SettingsRow: (await import('../../../components/settings/SettingsRow.svelte')).default,
   Toggle: (await import('../../../components/base/Toggle.svelte')).default,
   ModelSelector: (await import('../../../components/form/ModelSelector.svelte')).default,
 }));
@@ -270,6 +271,99 @@ describe('AiTab', () => {
         anthropic: expect.objectContaining({
           lastModelId: 'claude-3-5-haiku',
         }),
+      },
+    });
+  });
+
+  it('renders ModelSelector with saved lastModelId even before manual fetch', async () => {
+    vi.mocked(settingsService).currentSettings = {
+      ai: {
+        providers: {
+          anthropic: { enabled: true, apiKey: 'sk-ant', lastModelId: 'claude-sonnet-5' },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+      },
+    } as any;
+    vi.mocked(providerRegistry.list).mockReturnValue([
+      {
+        id: 'anthropic',
+        name: 'Anthropic',
+        requiresApiKey: true,
+        requiresBaseUrl: false,
+        getModels: vi.fn(),
+      },
+    ]);
+
+    render(AiTab, { mode: 'providers-only' });
+
+    // Expand Anthropic row
+    await fireEvent.click(screen.getByText('Anthropic'));
+
+    // Model selector is immediately visible with the saved lastModelId
+    expect(screen.getByText(/claude-sonnet-5/)).toBeTruthy();
+  });
+
+  it('renders web search card and allows changing engine', async () => {
+    settingsService.currentSettings = {
+      ai: {
+        providers: {
+          anthropic: { enabled: true, apiKey: 'sk-ant', lastModelId: 'claude-sonnet-5' },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+        webSearch: {
+          engine: 'duckduckgo',
+        },
+      },
+    } as any;
+
+    render(AiTab, { mode: 'full' });
+
+    expect(screen.getByText('Web Search')).toBeTruthy();
+    const select = screen.getByRole('combobox') as HTMLSelectElement;
+    expect(select.value).toBe('duckduckgo');
+
+    // Switch to Brave Search
+    await fireEvent.change(select, { target: { value: 'brave' } });
+    expect(settingsService.updateSettings).toHaveBeenCalledWith('ai', {
+      webSearch: {
+        engine: 'brave',
+      },
+    });
+  });
+
+  it('renders api key input when brave engine is configured', async () => {
+    settingsService.currentSettings = {
+      ai: {
+        providers: {
+          anthropic: { enabled: true, apiKey: 'sk-ant', lastModelId: 'claude-sonnet-5' },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+        webSearch: {
+          engine: 'brave',
+        },
+      },
+    } as any;
+
+    render(AiTab, { mode: 'full' });
+
+    const apiKeyInput = screen.getByPlaceholderText('BSA...') as HTMLInputElement;
+    expect(apiKeyInput).toBeTruthy();
+
+    apiKeyInput.value = 'test-brave-key';
+    await fireEvent.blur(apiKeyInput);
+    expect(settingsService.updateSettings).toHaveBeenCalledWith('ai', {
+      webSearch: {
+        engine: 'brave',
+        apiKey: 'test-brave-key',
       },
     });
   });

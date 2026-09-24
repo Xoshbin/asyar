@@ -15,3 +15,9 @@ does, how to use it, shortcuts, tips, and related pages.
 - [MCP](./mcp.md) — Connect external tools to your agents.
 - [Browser Integration](./browser-integration.md) — Search bookmarks, history, and tabs.
 - [Extensions](./extensions.md) — Browse, install, and manage extensions from the store.
+- [Screen OCR](./screen-ocr.md) — Extract and copy text from any region of your screen with on-device recognition and secret redaction.
+- [System Commands](./system.md) — Fast power and session controls: Sleep, Lock Screen, Restart, Shut Down, and Log Out.
+- [Walkthrough](./walkthrough.md) — Short interactive tasks that tick themselves off as you actually use Asyar.
+- [Usage Statistics](./usage-stats.md) — Track your productivity, top commands, and estimated time saved.
+- [Import from Raycast](./raycast-import.md) — Bring snippets, quicklinks, and app hotkeys over in one click.
+- [Migrating from Raycast](./migrating-from-raycast.md) — Full migration guide, feature mapping, and FAQ.

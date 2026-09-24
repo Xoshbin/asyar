@@ -32,7 +32,7 @@ pub struct ChatMessage {
     pub provider_context: Option<Vec<serde_json::Value>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderConfig {
     pub enabled: bool,
@@ -47,6 +47,27 @@ pub struct ProviderConfig {
     pub reasoning_effort: Option<String>, // "none", "minimal", "low", etc.
     pub temperature: Option<f64>,
     pub max_tokens: Option<u32>,
+    pub connection_mode: Option<String>,
+    pub cli_binary_path: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CliAccountInfo {
+    pub email: Option<String>,
+    pub plan_type: Option<String>,
+    pub quota_used_percent: Option<u32>,
+    pub quota_resets_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CliStatus {
+    pub installed: bool,
+    pub path: Option<String>,
+    pub version: Option<String>,
+    pub error: Option<String>,
+    pub account: Option<CliAccountInfo>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]

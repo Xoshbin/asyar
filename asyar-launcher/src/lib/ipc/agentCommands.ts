@@ -8,7 +8,11 @@ import type {
   ProviderId,
   ReasoningEffort,
 } from '../../services/ai/IProviderPlugin';
-import type { AgentProviderDescriptor, ModelInfo as ModelInfoContract } from '../../bindings';
+import type {
+  AgentProviderDescriptor,
+  ModelInfo as ModelInfoContract,
+  CliStatus,
+} from '../../bindings';
 
 // ── Agents ────────────────────────────────────────────────────────────────────
 
@@ -232,4 +236,11 @@ export async function aiListModels(
     label: model.label,
     reasoningEfforts: (model.reasoningEfforts as ReasoningEffort[] | null) ?? undefined,
   }));
+}
+
+export async function aiCheckCliStatus(
+  providerId: string,
+  customPath?: string,
+): Promise<CliStatus> {
+  return invokeRaw<CliStatus>('ai_check_cli_status', { providerId, customPath });
 }

@@ -1,7 +1,7 @@
 use crate::error::AppError;
-use crate::window_management::types::WindowBounds;
 #[cfg(target_os = "linux")]
 use crate::window_management::types::WindowBoundsUpdate;
+use crate::window_management::types::{AppWindowInfo, WindowBounds};
 
 /// Parses xdotool getwindowgeometry --shell output.
 /// Expected format: lines of KEY=VALUE, e.g. X=100\nY=200\nWIDTH=1280\nHEIGHT=800
@@ -152,6 +152,134 @@ pub fn set_window_fullscreen(prev_wid: u64, enable: bool) -> Result<(), AppError
         ));
     }
     Ok(())
+}
+
+/// Enumerates visible application windows on Linux (X11).
+pub fn list_windows(_app: &tauri::AppHandle) -> Result<Vec<AppWindowInfo>, AppError> {
+    #[cfg(target_os = "linux")]
+    {
+        let is_wayland = std::env::var("WAYLAND_DISPLAY").is_ok();
+        if is_wayland {
+            log::warn!(
+                "[window_management] list_windows: Wayland does not support foreign window management"
+            );
+            return Ok(Vec::new());
+        }
+
+        let out = std::process::Command::new("xdotool")
+            .args(["search", "--onlyvisible", "--class", ""])
+            .output();
+
+        let stdout = match out {
+            Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+            _ => return Ok(Vec::new()),
+        };
+
+        let mut results = Vec::new();
+        let our_pid = std::process::id() as u64;
+
+        for line in stdout.lines() {
+            let wid_str = line.trim();
+            if wid_str.is_empty() {
+                continue;
+            }
+            let wid: u64 = match wid_str.parse() {
+                Ok(n) => n,
+                Err(_) => continue,
+            };
+
+            let name_out = std::process::Command::new("xdotool")
+                .args(["getwindowname", wid_str])
+                .output();
+            let title = match name_out {
+                Ok(o) if o.status.success() => {
+                    String::from_utf8_lossy(&o.stdout).trim().to_string()
+                }
+                _ => continue,
+            };
+            if title.is_empty() {
+                continue;
+            }
+
+            let pid_out = std::process::Command::new("xdotool")
+                .args(["getwindowpid", wid_str])
+                .output();
+            let pid: u64 = match pid_out {
+                Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+                    .trim()
+                    .parse()
+                    .unwrap_or(0),
+                _ => 0,
+            };
+
+            if pid == our_pid {
+                continue;
+            }
+
+            let is_focused = results.is_empty();
+            let app_name = title.clone();
+
+            results.push(AppWindowInfo {
+                id: format!("linux:{wid}"),
+                pid: pid as i32,
+                app_name,
+                app_bundle_id: None,
+                title,
+                is_minimized: false,
+                is_focused,
+                app_icon: None,
+            });
+        }
+
+        Ok(results)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    Ok(Vec::new())
+}
+
+/// Activates and brings the target window to the foreground on Linux (X11).
+pub fn focus_window(id: &str) -> Result<(), AppError> {
+    #[cfg(target_os = "linux")]
+    {
+        let wid = id.strip_prefix("linux:").unwrap_or(id);
+        let status = std::process::Command::new("xdotool")
+            .args(["windowactivate", "--sync", wid])
+            .status()
+            .map_err(|e| AppError::Platform(format!("xdotool windowactivate failed: {e}")))?;
+        if !status.success() {
+            return Err(AppError::Platform(
+                "xdotool windowactivate failed".to_string(),
+            ));
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = id;
+        Ok(())
+    }
+}
+
+/// Closes the target window on Linux (X11).
+pub fn close_window(id: &str) -> Result<(), AppError> {
+    #[cfg(target_os = "linux")]
+    {
+        let wid = id.strip_prefix("linux:").unwrap_or(id);
+        let status = std::process::Command::new("xdotool")
+            .args(["windowclose", wid])
+            .status()
+            .map_err(|e| AppError::Platform(format!("xdotool windowclose failed: {e}")))?;
+        if !status.success() {
+            return Err(AppError::Platform("xdotool windowclose failed".to_string()));
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = id;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
