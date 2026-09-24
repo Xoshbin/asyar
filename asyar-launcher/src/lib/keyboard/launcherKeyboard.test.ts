@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createKeyboardHandlers, type KeyboardDeps } from './launcherKeyboard';
+import { QueryHistory } from '../../services/search/queryHistory.svelte';
 
 // Mocking dependencies
 vi.mock('@tauri-apps/api/core', () => ({
@@ -992,6 +993,20 @@ describe('launcherKeyboard characterization tests', () => {
         expect(event.preventDefault).toHaveBeenCalled();
       });
 
+      it('gives query recall first use of ArrowUp from the first result', () => {
+        searchStores.selectedIndex = 0;
+        const navigateQueryHistory = vi.fn(() => true);
+        const deps = createMockDeps({ navigateQueryHistory });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+        const event = createKeyEvent('ArrowUp');
+
+        handleKeydown(event);
+
+        expect(navigateQueryHistory).toHaveBeenCalledWith(-1, 0);
+        expect(searchStores.selectedIndex).toBe(0);
+        expect(event.preventDefault).toHaveBeenCalled();
+      });
+
       it('ArrowDown at last item wraps to first', () => {
         searchStores.selectedIndex = 4;
         const deps = createMockDeps({ getSearchResultsLength: vi.fn(() => 5) });
@@ -1074,6 +1089,39 @@ describe('launcherKeyboard characterization tests', () => {
     });
 
     describe('Compact idle mode', () => {
+      it('recalls a cleared query with Up Arrow even after an old result selection', async () => {
+        vi.mocked(settingsService.getSettings).mockReturnValue({
+          general: { escapeInViewBehavior: 'go-back' },
+        } as any);
+        searchStores.selectedIndex = 2;
+        const history = new QueryHistory({
+          list: async () => ['22+5'],
+          record: async () => true,
+          delete: async () => true,
+        });
+        let query = '22+5';
+        const deps = createMockDeps({
+          isCompactIdle: () => true,
+          getLocalSearchValue: () => query,
+          setLocalSearchValue: (value) => {
+            query = value;
+          },
+          recordQueryHistory: (value) => {
+            void history.record(value);
+          },
+          navigateQueryHistory: (direction, selectedIndex) =>
+            history.navigate(direction, query, selectedIndex, (value) => {
+              query = value;
+            }),
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+
+        handleKeydown(createKeyEvent('Escape'));
+        expect(query).toBe('');
+        handleKeydown(createKeyEvent('ArrowUp'));
+        await vi.waitFor(() => expect(query).toBe('22+5'));
+      });
+
       it('ArrowDown in compact idle calls onCompactExpand', () => {
         const onCompactExpand = vi.fn();
         const deps = createMockDeps({
@@ -1143,6 +1191,27 @@ describe('launcherKeyboard characterization tests', () => {
 
         expect(hideWindow).toHaveBeenCalled();
         expect(event.preventDefault).toHaveBeenCalled();
+      });
+
+      it('records a non-empty root query before clearing it with Escape', () => {
+        vi.mocked(settingsService.getSettings).mockReturnValue({
+          general: {
+            startAtLogin: false,
+            showDockIcon: true,
+            escapeInViewBehavior: 'go-back',
+          },
+        } as any);
+        const recordQueryHistory = vi.fn();
+        const deps = createMockDeps({
+          getLocalSearchValue: vi.fn(() => '22+5'),
+          recordQueryHistory,
+        });
+        const { handleKeydown } = createKeyboardHandlers(deps);
+
+        handleKeydown(createKeyEvent('Escape'));
+
+        expect(recordQueryHistory).toHaveBeenCalledWith('22+5');
+        expect(deps.setLocalSearchValue).toHaveBeenCalledWith('');
       });
 
       it('Escape in view with empty search pops the view when escapeInViewBehavior is "go-back"', () => {

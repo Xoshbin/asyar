@@ -131,6 +131,17 @@ describe('LauncherController.handleEnterKey — nav-stack observation guard', ()
     controller.state.searchResultItemsMapped = [item];
   }
 
+  it('saves the typed query when a result is used', async () => {
+    const record = vi.spyOn(controller.state.queryHistory, 'record').mockResolvedValue(undefined);
+    const action = vi.fn().mockResolvedValue(undefined);
+    selectItem({ type: 'application', object_id: 'app_notes', action });
+
+    await controller.handleEnterKey();
+
+    expect(action).toHaveBeenCalledOnce();
+    expect(record).toHaveBeenCalledWith('hello');
+  });
+
   describe('while argument mode is active', () => {
     it('submits the chips rather than running the command bare', async () => {
       // Running here would ignore the canSubmit gate and drop everything the

@@ -18,6 +18,7 @@ pub mod mcp_settings;
 pub mod migrations;
 pub mod notes;
 pub mod notes_fts;
+pub mod query_history;
 pub mod runs_history;
 pub mod script_directories;
 pub mod searchbar_accessory;

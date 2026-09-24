@@ -42,6 +42,7 @@ vi.mock('../../services/feedback/feedbackService.svelte', () => ({
   feedbackService: { report: vi.fn(), dismiss: vi.fn() },
 }));
 
+import { QueryHistory } from '../../services/search/queryHistory.svelte';
 import { nextContextHint, createSearchHandlers } from './searchController.svelte';
 import type { ContextHint } from '../../services/context/contextModeService.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
@@ -104,6 +105,7 @@ describe('nextContextHint', () => {
   it('returns the AI hint for an empty box in normal mode when stream provider registered', () => {
     const result = nextContextHint({
       activeViewActive: false,
+      queryHistory: { reset: vi.fn() },
       localSearchValue: '',
       activeContext: null,
       computeHint: () => aiHint,
@@ -126,6 +128,7 @@ describe('createSearchHandlers', () => {
   function makeMockState() {
     let listContainerEl: HTMLDivElement | undefined;
     return {
+      queryHistory: { reset: vi.fn() },
       localSearchValue: '',
       activeViewVal: null,
       state: {},
@@ -137,6 +140,33 @@ describe('createSearchHandlers', () => {
       },
     } as any;
   }
+
+  it('typing cancels a pending recall through the real input handler', async () => {
+    let resolve!: (entries: string[]) => void;
+    const history = new QueryHistory({
+      list: () =>
+        new Promise<string[]>((r) => {
+          resolve = r;
+        }),
+      record: async () => true,
+      delete: async () => true,
+    });
+    const state = makeMockState();
+    state.queryHistory = history;
+    const pending = history.move(-1, '', (query) => {
+      state.localSearchValue = query;
+      searchStores.query = query;
+    });
+    await Promise.resolve();
+    createSearchHandlers(state).handleSearchInput({
+      target: { value: 'new draft' },
+    } as unknown as Event);
+    resolve(['old query']);
+    await pending;
+    expect(state.localSearchValue).toBe('new draft');
+    expect(searchStores.query).toBe('new draft');
+    expect(history.current).toBeNull();
+  });
 
   it('handleSearchInput resets listContainer scroll position to 0 when typing a query', () => {
     const state = makeMockState();

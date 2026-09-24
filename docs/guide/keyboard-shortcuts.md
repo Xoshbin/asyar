@@ -27,6 +27,8 @@ The show/hide hotkey is user-configurable in **Settings → Shortcuts**.
 
 **Standalone Function Keys (`F1`–`F24`):** Function keys (including extended keys `F13`–`F24` and the Windows Copilot key `F23`) can be assigned as hotkeys directly without requiring modifiers.
 
+With an empty search field and the first result selected, press `↑` to recall the most recent query. Keep pressing `↑` for older queries and `↓` to move back toward an empty field. Asyar saves a query when you use a result or clear the field with `Esc`.
+
 **Windows & Linux:** Asyar's shortcut display uses macOS symbols (⌘, ⌥, ⌃, ⇧). On Windows and Linux, use **Ctrl** wherever **⌘** is shown, and use the **Windows/Super** key where a Super-key shortcut is shown.
 
 **Linux on Wayland:** Because Wayland protocol security blocks background hotkey grabs, assign your shortcut inside your desktop compositor settings to run the `asyar` command. Executing `asyar` while the daemon is running acts as a toggle.

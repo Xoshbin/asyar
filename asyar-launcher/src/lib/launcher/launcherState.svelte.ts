@@ -15,8 +15,11 @@ import {
 import type { SearchResult } from '../../services/search/interfaces/SearchResult';
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 import type BottomActionBar from '../../components/layout/BottomActionBar.svelte';
+import { QueryHistory } from '../../services/search/queryHistory.svelte';
 
 export class LauncherState {
+  readonly queryHistory = new QueryHistory();
+
   // Core reactive state
   localSearchValue = $state(searchStores.query);
   contextQuery = $state('');
