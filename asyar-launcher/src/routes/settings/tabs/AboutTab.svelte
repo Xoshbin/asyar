@@ -1,8 +1,13 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { SettingsCard, SettingsRow, Button, SegmentedControl, Toggle } from '../../../components';
   import type { SettingsHandler } from '../settingsHandlers.svelte';
   import { runUpdateCheck } from '../../../services/update/updateService';
-  import { appUpdateState } from '../../../services/update/appUpdateStore.svelte';
+  import {
+    appUpdateState,
+    initAppUpdateStore,
+    refreshPendingUpdate,
+  } from '../../../services/update/appUpdateStore.svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { appRelaunch } from '../../../lib/ipc/commands';
   import { getVersion } from '@tauri-apps/api/app';
@@ -32,6 +37,11 @@
     if (selectedChannel !== current) {
       handler.updateChannel(selectedChannel as 'stable' | 'beta');
     }
+  });
+
+  onMount(async () => {
+    await initAppUpdateStore();
+    await refreshPendingUpdate();
   });
 
   $effect(() => {
@@ -68,6 +78,8 @@
     if (result.kind === 'installed') {
       updateVersion = result.version;
       updateStatus = 'installed';
+      appUpdateState.phase = 'ready';
+      appUpdateState.pendingVersion = result.version;
     } else if (result.kind === 'up-to-date') {
       updateStatus = 'up-to-date';
     } else if (result.kind === 'error') {
@@ -77,6 +89,9 @@
       updateStatus = 'idle';
     }
   }
+
+  let isUpdateReady = $derived(appUpdateState.phase === 'ready' || updateStatus === 'installed');
+  let readyVersion = $derived(appUpdateState.pendingVersion || updateVersion);
 
   let updateStatusText = $derived(
     updateStatus === 'checking'
@@ -136,9 +151,9 @@
         {/snippet}
       </SettingsRow>
 
-      {#if appUpdateState.phase === 'ready'}
+      {#if isUpdateReady}
         <SettingsRow
-          label={`Update ${appUpdateState.pendingVersion} ready`}
+          label={`Update ${readyVersion} ready`}
           description={t('settings.about.auto_install_next_launch')}
         >
           {#snippet children()}

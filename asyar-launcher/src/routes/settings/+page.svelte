@@ -24,6 +24,10 @@
   import { initValidKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
   import { listen } from '@tauri-apps/api/event';
   import { i18nService, t } from '../../services/i18n';
+  import {
+    initAppUpdateStore,
+    destroyAppUpdateStore,
+  } from '../../services/update/appUpdateStore.svelte';
 
   import '../../resources/styles/style.css';
 
@@ -61,6 +65,7 @@
     await initValidKeys();
     registerProfileProviders();
     cloudSyncService.checkStatus().catch(() => {});
+    void initAppUpdateStore();
     unlistenNavTab = await listen<{ tab: string; extensionId?: string | null }>(
       'asyar:navigate-settings-tab',
       (e) => {
@@ -75,6 +80,7 @@
   onDestroy(() => {
     handler.destroy();
     unlistenNavTab?.();
+    destroyAppUpdateStore();
   });
 </script>
 
