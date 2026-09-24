@@ -507,6 +507,7 @@ pub fn toggle_launcher(app: &tauri::AppHandle) {
             state.asyar_visible.load(Ordering::Relaxed),
         ) {
             state.asyar_visible.store(false, Ordering::Relaxed);
+            state.mark_interaction();
             crate::platform::macos::park_launcher_panel(&window, &panel);
         } else {
             reveal_launcher(&state, &window, &panel);
@@ -518,6 +519,7 @@ pub fn toggle_launcher(app: &tauri::AppHandle) {
         let currently_visible = window.is_visible().unwrap_or(false);
         if !launcher_visibility_after(LauncherAction::Toggle, currently_visible) {
             state.asyar_visible.store(false, Ordering::Relaxed);
+            state.mark_interaction();
             let _ = window.hide();
             #[cfg(target_os = "windows")]
             if let Ok(hwnd) = state.previous_hwnd.lock() {
@@ -572,6 +574,7 @@ fn reveal_launcher(
     panel: &tauri_nspanel::Panel,
 ) {
     state.asyar_visible.store(true, Ordering::Relaxed);
+    state.mark_interaction();
     crate::platform::macos::reveal_launcher_panel(window, panel);
     crate::scripts::inline_scheduler::nudge_reveal();
 }
@@ -579,6 +582,7 @@ fn reveal_launcher(
 #[cfg(not(target_os = "macos"))]
 fn reveal_launcher(state: &tauri::State<'_, AppState>, window: &tauri::WebviewWindow) {
     state.asyar_visible.store(true, Ordering::Relaxed);
+    state.mark_interaction();
     #[cfg(target_os = "windows")]
     let _ = crate::platform::windows::setup_spotlight_window(window);
     #[cfg(target_os = "linux")]

@@ -113,6 +113,7 @@ pub fn commit_show(
     // reads is_visible mid-prepare would take the single-shot `show` path and
     // composite at alpha 1 before the new view has committed a fresh frame.
     state.asyar_visible.store(true, Ordering::Relaxed);
+    state.mark_interaction();
     crate::scripts::inline_scheduler::nudge_reveal();
     Ok(())
 }
@@ -129,6 +130,7 @@ use objc2::runtime::{AnyClass, Bool};
 #[tauri::command]
 pub fn show(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
     state.asyar_visible.store(true, Ordering::Relaxed);
+    state.mark_interaction();
     #[cfg(target_os = "macos")]
     {
         let is_main: Bool = unsafe {
@@ -184,6 +186,7 @@ pub fn is_visible(state: tauri::State<'_, AppState>) -> bool {
 #[tauri::command]
 pub fn hide(app_handle: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), AppError> {
     state.asyar_visible.store(false, Ordering::Relaxed);
+    state.mark_interaction();
     #[cfg(target_os = "macos")]
     {
         let is_main: Bool = unsafe {

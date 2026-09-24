@@ -14,6 +14,18 @@ class AppUpdateStore {
 
 export const appUpdateState = new AppUpdateStore();
 
+export async function refreshPendingUpdate(): Promise<void> {
+  try {
+    const pending = await appUpdaterGetPending();
+    if (pending) {
+      appUpdateState.phase = 'ready';
+      appUpdateState.pendingVersion = pending.version;
+    }
+  } catch (e) {
+    logService.warn(`appUpdateStore: failed to get pending update — ${e}`);
+  }
+}
+
 let unlisteners: UnlistenFn[] = [];
 let initialized = false;
 
@@ -22,11 +34,7 @@ export async function initAppUpdateStore(): Promise<void> {
   initialized = true;
 
   // Restore state from Rust in case a download completed before the webview loaded
-  const pending = await appUpdaterGetPending();
-  if (pending) {
-    appUpdateState.phase = 'ready';
-    appUpdateState.pendingVersion = pending.version;
-  }
+  await refreshPendingUpdate();
 
   // Listen to Rust-emitted events
   const checking = await listen('asyar:app-update:checking', () => {

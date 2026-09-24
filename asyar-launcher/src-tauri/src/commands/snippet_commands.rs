@@ -148,6 +148,7 @@ mod contribute_tests {
             is_expanding: AtomicBool::new(false),
             #[cfg(target_os = "linux")]
             launcher_shown_at: Mutex::new(None),
+            last_interaction: Mutex::new(std::time::Instant::now()),
         }
     }
 
