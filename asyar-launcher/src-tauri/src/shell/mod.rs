@@ -178,6 +178,14 @@ impl ShellProcessRegistry {
         Ok(out)
     }
 
+    /// Returns true if there is at least one active (not yet finished) shell process.
+    pub fn has_active_processes(&self) -> bool {
+        self.entries
+            .lock()
+            .map(|m| m.values().any(|e| !e.finished))
+            .unwrap_or(false)
+    }
+
     pub fn remove(&self, spawn_id: &str) -> Result<Option<ShellEntry>, AppError> {
         self.remove_stdin_sync(spawn_id);
         let mut map = self.entries.lock().map_err(|_| AppError::Lock)?;
@@ -767,5 +775,17 @@ mod tests {
 
         let status = child.wait().await.unwrap();
         assert!(status.success());
+    }
+
+    #[test]
+    fn test_has_active_processes() {
+        let reg = ShellProcessRegistry::new();
+        assert!(!reg.has_active_processes());
+
+        register_entry(&reg, "s1", "ext1", 1001);
+        assert!(reg.has_active_processes());
+
+        reg.mark_finished("s1", Some(0)).unwrap();
+        assert!(!reg.has_active_processes());
     }
 }

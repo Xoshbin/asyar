@@ -14,6 +14,8 @@
   import InformationPanel from './InformationPanel.svelte';
   import ShowMoreBarHuds from './ShowMoreBarHuds.svelte';
   import { t } from '../../services/i18n';
+  import { appUpdateState } from '../../services/update/appUpdateStore.svelte';
+  import { appRelaunch } from '../../lib/ipc/commands';
 
   let {
     selectedItem = null,
@@ -78,6 +80,13 @@
     return isActionListOpen;
   }
 
+  let isUpdateReady = $derived(appUpdateState.phase === 'ready');
+  let readyVersion = $derived(appUpdateState.pendingVersion);
+
+  async function handleRestart() {
+    await appRelaunch();
+  }
+
   function handleActionClick() {
     onactionListToggled();
   }
@@ -116,6 +125,24 @@
   </div>
 
   <div class="flex items-center gap-3 flex-shrink-0">
+    {#if isUpdateReady}
+      <button
+        type="button"
+        class="update-ready-pill"
+        onclick={handleRestart}
+        title={t('settings.about.restart_now')}
+        aria-label={readyVersion
+          ? `Update ${readyVersion} ready. Click to restart.`
+          : 'Update ready. Click to restart.'}
+      >
+        <StatusDot color="info" size={6} />
+        <span class="update-ready-text"
+          >{readyVersion ? `Update ${readyVersion} ready` : 'Update ready'}</span
+        >
+      </button>
+      <span aria-hidden="true" class="bottom-bar-separator"></span>
+    {/if}
+
     <PrimaryActionDisplay
       {selectedItem}
       activeViewLabel={viewManager.activeViewPrimaryActionLabel}
@@ -149,7 +176,26 @@
   style="top: var(--shell-header-h); height: var(--shell-footer-h); z-index: var(--z-footer); background-color: var(--bg-secondary-full-opacity);"
 >
   <ShowMoreBarHuds />
-  <BottomBarButton label={t('common.show_more')} keyHint="↓" onclick={() => onexpand?.()} />
+  <div class="flex items-center gap-3">
+    {#if isUpdateReady}
+      <button
+        type="button"
+        class="update-ready-pill"
+        onclick={handleRestart}
+        title={t('settings.about.restart_now')}
+        aria-label={readyVersion
+          ? `Update ${readyVersion} ready. Click to restart.`
+          : 'Update ready. Click to restart.'}
+      >
+        <StatusDot color="info" size={6} />
+        <span class="update-ready-text"
+          >{readyVersion ? `Update ${readyVersion} ready` : 'Update ready'}</span
+        >
+      </button>
+      <span aria-hidden="true" class="bottom-bar-separator"></span>
+    {/if}
+    <BottomBarButton label={t('common.show_more')} keyHint="↓" onclick={() => onexpand?.()} />
+  </div>
 </div>
 
 <style>
@@ -192,5 +238,38 @@
     border-radius: var(--radius-full);
     background-color: var(--separator);
     flex-shrink: 0;
+  }
+
+  .update-ready-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+    color: var(--accent-primary);
+    border: none;
+    font-family: var(--font-ui);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      background-color var(--transition-fast),
+      opacity var(--transition-fast);
+  }
+
+  .update-ready-pill:hover {
+    background: color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  }
+
+  .update-ready-pill:focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+  }
+
+  .update-ready-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

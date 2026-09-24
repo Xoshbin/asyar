@@ -52,6 +52,17 @@ pub struct AppState {
     /// compositor has granted keyboard focus. See `blur_hide_is_spurious`.
     #[cfg(target_os = "linux")]
     pub launcher_shown_at: Mutex<Option<std::time::Instant>>,
+    /// Timestamp of the last user interaction with Asyar.
+    /// Used by the auto-update idle restart scheduler.
+    pub last_interaction: Mutex<std::time::Instant>,
+}
+
+impl AppState {
+    pub fn mark_interaction(&self) {
+        if let Ok(mut last) = self.last_interaction.lock() {
+            *last = std::time::Instant::now();
+        }
+    }
 }
 
 /// How long after a reveal a `Focused(false)` is treated as compositor noise
@@ -425,6 +436,7 @@ pub fn run() {
             is_expanding: AtomicBool::new(false),
             #[cfg(target_os = "linux")]
             launcher_shown_at: Mutex::new(None),
+            last_interaction: Mutex::new(std::time::Instant::now()),
         })
         .manage(crate::onboarding::commands::OnboardingCursor::new(cfg!(
             target_os = "macos"
@@ -2087,6 +2099,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let sched = app.state::<crate::scheduler::Scheduler>();
         let handle = app.handle();
         sched.register(crate::app_updater::scheduler::job(handle.clone()));
+        sched.register(crate::app_updater::scheduler::idle_restart_job(
+            handle.clone(),
+        ));
         sched.register(crate::extensions::update_scheduler::job(handle.clone()));
         sched.register(crate::shell::scheduler::job(
             app.state::<crate::shell::ShellProcessRegistry>()
