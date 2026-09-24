@@ -50,8 +50,12 @@ function getLikelyScript(tag: string): string | undefined {
  * `zh-Hans`) so script-qualified catalogs stay reachable without registering a
  * macrolanguage alias that would swallow the other script.
  */
+function normalizeLocaleTag(tag: string): string {
+  return tag.trim().replace(/\..*$/, '').replace(/@.*$/, '').replace(/_/g, '-');
+}
+
 export function computeCandidates(locale: string): string[] {
-  const normalized = locale.trim().replace(/_/g, '-');
+  const normalized = normalizeLocaleTag(locale);
   const candidates: string[] = [];
 
   const add = (candidate: string) => {
@@ -111,13 +115,13 @@ export class I18nService {
   }
 
   registerCatalog(locale: string, catalog: Record<string, any>): void {
-    const norm = locale.trim().replace(/_/g, '-');
+    const norm = normalizeLocaleTag(locale);
     const existing = this.catalogs.get(norm) ?? {};
     this.catalogs.set(norm, { ...existing, ...catalog });
   }
 
   setLocale(locale: string): void {
-    this.locale = locale.trim().replace(/_/g, '-');
+    this.locale = normalizeLocaleTag(locale);
   }
 
   t(key: string, params?: Record<string, string | number>): string {

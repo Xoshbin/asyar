@@ -116,4 +116,24 @@ describe('I18nService', () => {
       expect(computeCandidates('zh-Hant-TW')).toEqual(['zh-Hant-TW', 'zh-Hant', 'en']);
     });
   });
+
+  describe('POSIX locale tag normalization', () => {
+    it.each([
+      ['zh_CN.UTF-8', ['zh-CN', 'zh', 'zh-Hans', 'en']],
+      ['zh_TW.UTF-8', ['zh-TW', 'zh-Hant', 'en']],
+      ['pt_BR.UTF-8', ['pt-BR', 'pt', 'pt-Latn', 'en']],
+      ['en_US.UTF-8', ['en-US', 'en', 'en-Latn']],
+      ['zh_CN@pinyin', ['zh-CN', 'zh', 'zh-Hans', 'en']],
+    ])('normalizes %s into clean BCP-47 candidate chain', (raw, expected) => {
+      expect(computeCandidates(raw)).toEqual(expected);
+    });
+
+    it('resolves correct translation from POSIX locale string', () => {
+      const service = new I18nService('zh_CN.UTF-8');
+      expect(service.t('search.placeholder')).toBe('搜索应用与命令……');
+
+      service.setLocale('zh_TW.UTF-8');
+      expect(service.t('search.placeholder')).toBe('搜尋應用程式與命令……');
+    });
+  });
 });
