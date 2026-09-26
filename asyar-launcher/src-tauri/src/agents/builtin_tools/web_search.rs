@@ -14,6 +14,15 @@ const MAX_LIMIT: usize = 20;
 const REQUEST_TIMEOUT_SECS: u64 = 10;
 const USER_AGENT: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+const SERPLY_SEARCH_URL: &str = "https://api.serply.io/v1/search";
+// Serply returns a single results page of at most 10 rows per request.
+const SERPLY_MAX_NUM: usize = 10;
+// Sent only on Serply requests so the provider can identify the calling app.
+const SERPLY_USER_AGENT: &str = concat!(
+    "asyar/",
+    env!("CARGO_PKG_VERSION"),
+    " (https://github.com/Xoshbin/asyar)"
+);
 
 static HTML_TAG_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<[^>]+>").unwrap());
 static DDG_HTML_RESULT_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -117,6 +126,18 @@ impl WebSearchTool {
                     })?;
                 self.search_tavily(query, limit, &key).await
             }
+            "serply" => {
+                let key = api_key
+                    .map(|s| s.to_string())
+                    .or_else(|| std::env::var("SERPLY_API_KEY").ok())
+                    .filter(|k| !k.trim().is_empty())
+                    .ok_or_else(|| {
+                        AppError::Validation(
+                            "Serply API key is required. Add it in Settings > AI or set SERPLY_API_KEY.".into(),
+                        )
+                    })?;
+                self.search_serply(query, limit, &key).await
+            }
             "searxng" => {
                 let endpoint = base_url.ok_or_else(|| {
                     AppError::Validation(
@@ -136,6 +157,11 @@ impl WebSearchTool {
                     if let Ok(tavily_key) = std::env::var("TAVILY_API_KEY") {
                         if !tavily_key.trim().is_empty() && self.base_url.is_none() {
                             return self.search_tavily(query, limit, &tavily_key).await;
+                        }
+                    }
+                    if let Ok(serply_key) = std::env::var("SERPLY_API_KEY") {
+                        if !serply_key.trim().is_empty() && self.base_url.is_none() {
+                            return self.search_serply(query, limit, &serply_key).await;
                         }
                     }
                 }
@@ -356,6 +382,47 @@ impl WebSearchTool {
             "results": results,
         }))
     }
+
+    pub(crate) fn serply_request(
+        &self,
+        query: &str,
+        limit: usize,
+        api_key: &str,
+    ) -> reqwest::RequestBuilder {
+        let num = limit.min(SERPLY_MAX_NUM).to_string();
+        self.client
+            .get(SERPLY_SEARCH_URL)
+            .query(&[("q", query), ("num", num.as_str())])
+            .header("X-Api-Key", api_key)
+            .header(reqwest::header::USER_AGENT, SERPLY_USER_AGENT)
+    }
+
+    async fn search_serply(
+        &self,
+        query: &str,
+        limit: usize,
+        api_key: &str,
+    ) -> Result<Value, AppError> {
+        let response = self
+            .serply_request(query, limit, api_key)
+            .send()
+            .await
+            .map_err(AppError::Network)?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Other(format!(
+                "Serply search returned HTTP {}",
+                response.status()
+            )));
+        }
+
+        let body = response.text().await.map_err(AppError::Network)?;
+        let (sources, results) = parse_search_response(&body, limit);
+        Ok(json!({
+            "sources": sources,
+            "results": results,
+        }))
+    }
 }
 
 impl Default for WebSearchTool {
@@ -474,17 +541,22 @@ pub(crate) fn parse_search_response(
         }
 
         if let Some(entries) = val.get("results").and_then(Value::as_array) {
-            // SearXNG / Tavily format
+            // SearXNG / Tavily / Serply format (Serply uses `link` and `description`)
             for item in entries.iter().take(limit) {
                 let title = clean_html(
                     item.get("title")
                         .and_then(Value::as_str)
                         .unwrap_or_default(),
                 );
-                let url_raw = item.get("url").and_then(Value::as_str).unwrap_or_default();
+                let url_raw = item
+                    .get("url")
+                    .or_else(|| item.get("link"))
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
                 let snippet = clean_html(
                     item.get("content")
                         .or_else(|| item.get("snippet"))
+                        .or_else(|| item.get("description"))
                         .and_then(Value::as_str)
                         .unwrap_or_default(),
                 );

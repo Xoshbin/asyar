@@ -960,6 +960,7 @@
               <option value="duckduckgo">DuckDuckGo (Free &amp; Privacy-first)</option>
               <option value="brave">Brave Search API</option>
               <option value="tavily">Tavily Search API</option>
+              <option value="serply">Serply Search API</option>
               <option value="searxng">SearXNG / Custom Endpoint</option>
             </select>
           </div>
@@ -1018,6 +1019,29 @@
               AI-optimized search engine for LLM agents. Provides 1,000 free searches per month at
               <a href="https://tavily.com" target="_blank" rel="noreferrer" class="external-link">
                 tavily.com
+              </a>.
+            </p>
+          {:else if webSearchSettings.engine === 'serply'}
+            <div class="card-field">
+              <label class="field-label" for="web-search-serply-key">Serply API key</label>
+              <Input
+                unstyled
+                textIntent="exact"
+                class="card-input"
+                id="web-search-serply-key"
+                type="password"
+                value={webSearchSettings.apiKey ?? ''}
+                onblur={(e) =>
+                  updateWebSearch({
+                    apiKey: (e.currentTarget as HTMLInputElement).value.trim() || undefined,
+                  })}
+              />
+            </div>
+            <p class="field-description">
+              Google search results over a JSON API. Provides 2,500 free credits, no card required,
+              at
+              <a href="https://serply.io" target="_blank" rel="noreferrer" class="external-link">
+                serply.io
               </a>.
             </p>
           {:else if webSearchSettings.engine === 'searxng'}
