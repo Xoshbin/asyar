@@ -1030,6 +1030,7 @@
                 class="card-input"
                 id="web-search-serply-key"
                 type="password"
+                placeholder="Enter your API key"
                 value={webSearchSettings.apiKey ?? ''}
                 onblur={(e) =>
                   updateWebSearch({
@@ -1040,7 +1041,12 @@
             <p class="field-description">
               Google search results over a JSON API. Provides 2,500 free credits, no card required,
               at
-              <a href="https://serply.io" target="_blank" rel="noreferrer" class="external-link">
+              <a
+                href="https://serply.io"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="external-link"
+              >
                 serply.io
               </a>.
             </p>

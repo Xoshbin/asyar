@@ -17,8 +17,8 @@ const USER_AGENT: &str =
 const SERPLY_SEARCH_URL: &str = "https://api.serply.io/v1/search";
 // Serply returns a single results page of at most 10 rows per request.
 const SERPLY_MAX_NUM: usize = 10;
-// Sent only on Serply requests so the provider can identify the calling app.
-const SERPLY_USER_AGENT: &str = concat!(
+// Sent on authenticated API provider requests so providers can identify the client application.
+pub const ASYAR_API_USER_AGENT: &str = concat!(
     "asyar/",
     env!("CARGO_PKG_VERSION"),
     " (https://github.com/Xoshbin/asyar)"
@@ -329,6 +329,7 @@ impl WebSearchTool {
             .get("https://api.search.brave.com/res/v1/web/search")
             .query(&[("q", query), ("count", &limit.to_string())])
             .header("X-Subscription-Token", api_key)
+            .header(reqwest::header::USER_AGENT, ASYAR_API_USER_AGENT)
             .send()
             .await
             .map_err(AppError::Network)?;
@@ -363,6 +364,7 @@ impl WebSearchTool {
         let response = self
             .client
             .post("https://api.tavily.com/search")
+            .header(reqwest::header::USER_AGENT, ASYAR_API_USER_AGENT)
             .json(&payload)
             .send()
             .await
@@ -394,7 +396,7 @@ impl WebSearchTool {
             .get(SERPLY_SEARCH_URL)
             .query(&[("q", query), ("num", num.as_str())])
             .header("X-Api-Key", api_key)
-            .header(reqwest::header::USER_AGENT, SERPLY_USER_AGENT)
+            .header(reqwest::header::USER_AGENT, ASYAR_API_USER_AGENT)
     }
 
     async fn search_serply(

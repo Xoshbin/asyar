@@ -407,6 +407,19 @@ fn test_serply_request_shape() {
 
 #[tokio::test]
 async fn test_web_search_serply_requires_key() {
+    let key = std::env::var("SERPLY_API_KEY").ok();
+    std::env::remove_var("SERPLY_API_KEY");
+
+    struct Guard(Option<String>);
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            if let Some(ref k) = self.0 {
+                std::env::set_var("SERPLY_API_KEY", k);
+            }
+        }
+    }
+    let _guard = Guard(key);
+
     let tool = WebSearchTool::new();
     let err = tool
         .invoke(json!({
