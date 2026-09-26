@@ -357,3 +357,76 @@ async fn test_web_search_with_searxng_config() {
     assert_eq!(sources[0]["title"], "SearXNG Result");
     assert_eq!(sources[0]["url"], "https://example.com/searxng");
 }
+
+#[test]
+fn test_parse_search_response_json_serply() {
+    let json_body = json!({
+        "results": [
+            {
+                "title": "Tokio - An asynchronous Rust runtime",
+                "link": "https://tokio.rs/",
+                "description": "Tokio is an asynchronous runtime for Rust."
+            },
+            {
+                "title": "Second",
+                "link": "https://example.com/second",
+                "description": "Dropped by the limit."
+            }
+        ]
+    })
+    .to_string();
+
+    let (sources, results) = parse_search_response(&json_body, 1);
+    assert_eq!(sources.len(), 1);
+    assert_eq!(sources[0].title, "Tokio - An asynchronous Rust runtime");
+    assert_eq!(sources[0].url, "https://tokio.rs/");
+    assert_eq!(
+        results[0].snippet,
+        "Tokio is an asynchronous runtime for Rust."
+    );
+}
+
+#[test]
+fn test_serply_request_shape() {
+    let tool = WebSearchTool::new();
+    let req = tool
+        .serply_request("rust async", 20, "test-key")
+        .build()
+        .unwrap();
+    assert_eq!(req.method(), "GET");
+    assert_eq!(
+        req.url().as_str(),
+        "https://api.serply.io/v1/search?q=rust+async&num=10"
+    );
+    assert_eq!(req.headers()["x-api-key"], "test-key");
+    assert!(req.headers()["user-agent"]
+        .to_str()
+        .unwrap()
+        .starts_with("asyar/"));
+}
+
+#[tokio::test]
+async fn test_web_search_serply_requires_key() {
+    let key = std::env::var("SERPLY_API_KEY").ok();
+    std::env::remove_var("SERPLY_API_KEY");
+
+    struct Guard(Option<String>);
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            if let Some(ref k) = self.0 {
+                std::env::set_var("SERPLY_API_KEY", k);
+            }
+        }
+    }
+    let _guard = Guard(key);
+
+    let tool = WebSearchTool::new();
+    let err = tool
+        .invoke(json!({
+            "query": "test query",
+            "__config": { "engine": "serply" }
+        }))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, AppError::Validation(_)));
+}
