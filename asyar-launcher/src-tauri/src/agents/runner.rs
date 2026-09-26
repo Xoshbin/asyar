@@ -560,7 +560,7 @@ pub(crate) fn resolve_provider_config<'a>(
     }
     let is_cli = config.connection_mode.as_deref() == Some("cli");
     if is_cli {
-        if !matches!(engine_type, "google" | "openai") {
+        if !matches!(engine_type, "google" | "openai" | "anthropic") {
             return Err(AppError::Validation(format!(
                 "CLI mode is not supported for provider '{provider_id}'"
             )));

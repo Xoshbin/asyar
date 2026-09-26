@@ -211,7 +211,7 @@
         p &&
         canTestAndFetch(p, cfg) &&
         (cfg.connectionMode === 'cli' || cfg.lastModelId) &&
-        !sessionModelCache[id]?.length &&
+        sessionModelCache[id] === undefined &&
         !fetchingModels[id]
       ) {
         void fetchModels(id, p);
@@ -602,7 +602,9 @@
                           value={config.cliBinaryPath ?? ''}
                           placeholder={plugin?.id === 'google'
                             ? '/Users/.../.local/bin/agy'
-                            : '/opt/homebrew/bin/codex'}
+                            : plugin?.id === 'anthropic'
+                              ? '/Users/.../.local/bin/claude'
+                              : '/opt/homebrew/bin/codex'}
                           autocomplete="off"
                           onblur={(e) => {
                             const path =

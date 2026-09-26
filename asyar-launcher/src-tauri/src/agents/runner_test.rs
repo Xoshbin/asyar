@@ -983,6 +983,34 @@ fn resolve_provider_config_handles_cli_mode() {
 }
 
 #[test]
+fn resolve_provider_config_allows_anthropic_cli_mode() {
+    let current_exe = std::env::current_exe()
+        .expect("current_exe")
+        .to_string_lossy()
+        .to_string();
+    let mut config = valid_openai_config();
+    config.api_key = None;
+    config.provider_type = Some("anthropic".to_string());
+    config.connection_mode = Some("cli".to_string());
+    config.cli_binary_path = Some(current_exe);
+    let configs = std::collections::HashMap::from([("anthropic_d503f4b".to_string(), config)]);
+    let resolved = resolve_provider_config("anthropic_d503f4b", &configs).unwrap();
+    assert_eq!(resolved.connection_mode.as_deref(), Some("cli"));
+}
+
+#[test]
+fn resolve_provider_config_rejects_cli_mode_for_unsupported_engines() {
+    let mut config = valid_openai_config();
+    config.provider_type = Some("ollama".to_string());
+    config.connection_mode = Some("cli".to_string());
+    let configs = std::collections::HashMap::from([("ollama_1".to_string(), config)]);
+    let error = resolve_provider_config("ollama_1", &configs).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("CLI mode is not supported for provider 'ollama_1'"));
+}
+
+#[test]
 fn coalescing_preserves_provider_context_boundaries() {
     let mut first = chat_message("assistant", "First");
     first.provider_context = Some(vec![
