@@ -46,13 +46,40 @@ fn application_launch_route(path: &Path) -> ApplicationLaunchRoute {
 }
 
 #[cfg(target_os = "linux")]
-fn load_linux_desktop_app_info(path: &Path) -> Result<gio::DesktopAppInfo, AppError> {
-    gio::DesktopAppInfo::from_filename(path).ok_or_else(|| {
-        AppError::Platform(format!(
-            "Failed to load desktop entry '{}': invalid or missing desktop entry",
+fn linux_desktop_entry_command(path: &Path) -> std::process::Command {
+    let mut command = std::process::Command::new("gio");
+    command.arg("launch").arg(path);
+    crate::platform::linux::sanitize_command(&mut command);
+    command
+}
+
+#[cfg(target_os = "linux")]
+fn launch_linux_desktop_entry(path: &Path) -> Result<(), AppError> {
+    if !path.is_file() {
+        return Err(AppError::Platform(format!(
+            "Failed to load desktop entry '{}': missing desktop entry",
             path.display()
-        ))
-    })
+        )));
+    }
+
+    let status = linux_desktop_entry_command(path)
+        .status()
+        .map_err(|error| {
+            AppError::Platform(format!(
+                "Failed to launch desktop entry '{}': {}",
+                path.display(),
+                error
+            ))
+        })?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(AppError::Platform(format!(
+            "Failed to launch desktop entry '{}': gio exited with {}",
+            path.display(),
+            status
+        )))
+    }
 }
 
 /// Launches an application using the platform-native mechanism for its path.
@@ -74,18 +101,7 @@ pub fn open_application_path<R: tauri::Runtime>(
 
     #[cfg(target_os = "linux")]
     if application_launch_route(Path::new(&path)) == ApplicationLaunchRoute::GioDesktopEntry {
-        use gio::prelude::AppInfoExt;
-
-        let desktop_app = load_linux_desktop_app_info(Path::new(&path))?;
-        let launch_context = crate::platform::linux::create_sanitized_app_launch_context();
-        return desktop_app
-            .launch(&[], Some(&launch_context))
-            .map_err(|error| {
-                AppError::Platform(format!(
-                    "Failed to launch desktop entry '{}': {}",
-                    path, error
-                ))
-            });
+        return launch_linux_desktop_entry(Path::new(&path));
     }
 
     #[cfg(target_os = "linux")]
@@ -2027,10 +2043,23 @@ mod tests {
 
     #[cfg(target_os = "linux")]
     #[test]
+    fn linux_desktop_entry_command_uses_host_gio_with_one_path_argument() {
+        let path = Path::new("/home/example/My Applications/Example App.desktop");
+        let command = linux_desktop_entry_command(path);
+
+        assert_eq!(command.get_program(), "gio");
+        assert_eq!(
+            command.get_args().collect::<Vec<_>>(),
+            vec![std::ffi::OsStr::new("launch"), path.as_os_str()]
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
     fn nonexistent_linux_desktop_entry_returns_controlled_error() {
         let missing = Path::new("/definitely/missing/Example App.desktop");
 
-        let error = load_linux_desktop_app_info(missing).unwrap_err();
+        let error = launch_linux_desktop_entry(missing).unwrap_err();
 
         assert!(matches!(error, AppError::Platform(_)));
         assert!(error.to_string().contains("Example App.desktop"));
