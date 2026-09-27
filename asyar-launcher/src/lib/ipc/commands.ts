@@ -29,6 +29,7 @@ export * from './shortcutCommands';
 export * from './systemMiscCommands';
 export * from './fileCommands';
 export * from './clipboardHistoryCommands';
+export * from './clipboardCaptureCommands';
 export * from './snippetCommands';
 export * from './notesCommands';
 export * from './extensionStorageCommands';

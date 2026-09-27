@@ -47,12 +47,33 @@ describe('ClipboardHistoryServiceProxy', () => {
     expect(call).toBeDefined();
   });
 
-  it('stopMonitoring → "clipboard:stopMonitoring" (fire-and-forget)', async () => {
+  it('subscribeCapture → "clipboard:subscribeCapture"', async () => {
     const { proxy, mockInvoke } = makeProxy();
-    proxy.stopMonitoring();
-    await vi.waitFor(() => expect(mockInvoke).toHaveBeenCalled());
-    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'clipboard:stopMonitoring');
+    await proxy.subscribeCapture();
+    const call = mockInvoke.mock.calls.find(
+      (c: unknown[]) => c[0] === 'clipboard:subscribeCapture',
+    );
     expect(call).toBeDefined();
+  });
+
+  it('unsubscribeCapture → "clipboard:unsubscribeCapture"', async () => {
+    const { proxy, mockInvoke } = makeProxy();
+    await proxy.unsubscribeCapture();
+    const call = mockInvoke.mock.calls.find(
+      (c: unknown[]) => c[0] === 'clipboard:unsubscribeCapture',
+    );
+    expect(call).toBeDefined();
+  });
+
+  it('searchHistory → "clipboard:searchHistory" with query', async () => {
+    const { proxy, mockInvoke } = makeProxy();
+    const item = makeItem();
+    mockInvoke.mockResolvedValue([item]);
+    const results = await proxy.searchHistory('test');
+    const call = mockInvoke.mock.calls.find((c: unknown[]) => c[0] === 'clipboard:searchHistory');
+    expect(call).toBeDefined();
+    expect(call![1]).toMatchObject({ query: 'test' });
+    expect(results).toEqual([item]);
   });
 
   it('pasteItem → "clipboard:pasteItem" with item', async () => {

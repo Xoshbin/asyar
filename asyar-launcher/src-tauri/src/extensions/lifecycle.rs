@@ -297,6 +297,25 @@ pub(crate) async fn uninstall(
         }
     }
 
+    // Drop any clipboard capture subscription held by this extension.
+    if let Some(manager) =
+        app_handle.try_state::<crate::clipboard_capture::ClipboardCaptureManager>()
+    {
+        match manager.force_remove(extension_id) {
+            Ok(res) if res.transition != crate::clipboard_capture::CaptureTransition::NoChange => {
+                let _ = app_handle.emit(
+                    crate::commands::clipboard_capture::CAPTURE_STATE_CHANGED_EVENT,
+                    &res,
+                );
+            }
+            Ok(_) => {}
+            Err(e) => warn!(
+                "Failed to clear clipboard capture consumer for '{}': {}",
+                extension_id, e
+            ),
+        }
+    }
+
     // Kill any shell processes this extension left running. Mirrors the
     // power-inhibitor sweep above so uninstall doesn't orphan child
     // processes whose parent extension is gone.
@@ -1268,6 +1287,27 @@ pub(crate) async fn set_enabled(
                 app_handle,
                 extension_id.to_string(),
             );
+        }
+
+        // Drop any clipboard capture subscription held by this extension.
+        if let Some(manager) =
+            app_handle.try_state::<crate::clipboard_capture::ClipboardCaptureManager>()
+        {
+            match manager.force_remove(extension_id) {
+                Ok(res)
+                    if res.transition != crate::clipboard_capture::CaptureTransition::NoChange =>
+                {
+                    let _ = app_handle.emit(
+                        crate::commands::clipboard_capture::CAPTURE_STATE_CHANGED_EVENT,
+                        &res,
+                    );
+                }
+                Ok(_) => {}
+                Err(e) => warn!(
+                    "Failed to clear clipboard capture consumer for disabled '{}': {}",
+                    extension_id, e
+                ),
+            }
         }
     } else if has_background_main {
         // Register any manifest-declared agent tools so they're available

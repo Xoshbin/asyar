@@ -140,11 +140,11 @@ describe('ClipboardHistoryExtension', () => {
     expect(window.removeEventListener).toHaveBeenCalledWith('keydown', handler);
   });
 
-  it('activate() starts clipboard history monitoring and deactivate() stops monitoring', async () => {
+  it('activate() subscribes to clipboard history capture and deactivate() unsubscribes', async () => {
     const mockClipboard = {
       initialize: vi.fn().mockResolvedValue(undefined),
-      startMonitoring: vi.fn().mockResolvedValue(undefined),
-      stopMonitoring: vi.fn().mockResolvedValue(undefined),
+      subscribeCapture: vi.fn().mockResolvedValue(undefined),
+      unsubscribeCapture: vi.fn().mockResolvedValue(undefined),
       getRecentItems: vi.fn().mockResolvedValue([]),
     };
     const mockContext = {
@@ -160,10 +160,31 @@ describe('ClipboardHistoryExtension', () => {
 
     await extension.activate();
     expect(mockClipboard.initialize).toHaveBeenCalledTimes(1);
-    expect(mockClipboard.startMonitoring).toHaveBeenCalledTimes(1);
+    expect(mockClipboard.subscribeCapture).toHaveBeenCalledWith('clipboard-history');
 
     await extension.deactivate();
-    expect(mockClipboard.stopMonitoring).toHaveBeenCalledTimes(1);
+    expect(mockClipboard.unsubscribeCapture).toHaveBeenCalledWith('clipboard-history');
+  });
+
+  it('activate() propagates capture subscription failures', async () => {
+    const failure = new Error('capture unavailable');
+    const mockClipboard = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      subscribeCapture: vi.fn().mockRejectedValue(failure),
+      getRecentItems: vi.fn().mockResolvedValue([]),
+    };
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === 'clipboard') return mockClipboard;
+        if (name === 'extensions')
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+
+    await extension.initialize(mockContext as any);
+
+    await expect(extension.activate()).rejects.toBe(failure);
   });
 });
 

@@ -29,6 +29,7 @@ vi.mock('tauri-plugin-clipboard-x-api', () => ({
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn().mockResolvedValue(vi.fn()) }));
 
 // Default: the move succeeds, mirroring Rust's `$APPDATA/clipboard_cache/<id>.png`.
 // Tests that care about a failed move override this per case.
@@ -1059,6 +1060,7 @@ describe('Android fallback', () => {
 
     const svc = getInstance(false);
     await svc.initialize();
+    await svc.startMonitoring();
 
     expect(startListening).not.toHaveBeenCalled();
     expect(onClipboardChange).not.toHaveBeenCalled();
@@ -1278,5 +1280,152 @@ describe('monitoring lifecycle and fail-closed gate', () => {
 
     await svc.startMonitoring();
     expect(startListening).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('scoped capture subscriptions and platform service', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('subscribeCapture with first subscriber transitions to start and begins native listening', async () => {
+    const { startListening } = await import('tauri-plugin-clipboard-x-api');
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'clipboard_capture_subscribe') {
+        return { active_consumers: ['clipboard-history'], transition: 'start' };
+      }
+      return null;
+    });
+
+    const svc = getInstance(false);
+    await svc.subscribeCapture('clipboard-history');
+
+    expect(invoke).toHaveBeenCalledWith('clipboard_capture_subscribe', {
+      callerId: 'clipboard-history',
+    });
+    expect(startListening).toHaveBeenCalledTimes(1);
+  });
+
+  it('serializes concurrent start transitions so only one native listener is attached', async () => {
+    const { startListening } = await import('tauri-plugin-clipboard-x-api');
+    const svc = getInstance(false);
+
+    await Promise.all([svc.startMonitoring(), svc.startMonitoring()]);
+
+    expect(startListening).toHaveBeenCalledTimes(1);
+  });
+
+  it('subscribeCapture with second subscriber (noChange) does not duplicate native listening', async () => {
+    const { startListening } = await import('tauri-plugin-clipboard-x-api');
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'clipboard_capture_subscribe') {
+        return {
+          active_consumers: ['clipboard-history', 'org.tier2.history'],
+          transition: 'noChange',
+        };
+      }
+      return null;
+    });
+
+    const svc = getInstance(true);
+    await svc.subscribeCapture('org.tier2.history');
+
+    expect(invoke).toHaveBeenCalledWith('clipboard_capture_subscribe', {
+      callerId: 'org.tier2.history',
+    });
+    expect(startListening).not.toHaveBeenCalled();
+  });
+
+  it('subscribeCapture rolls back consumer in Rust if native start fails', async () => {
+    const { startListening } = await import('tauri-plugin-clipboard-x-api');
+    vi.mocked(startListening).mockRejectedValueOnce(new Error('native listener failed'));
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'clipboard_capture_subscribe') {
+        return { active_consumers: ['clipboard-history'], transition: 'start' };
+      }
+      if (cmd === 'clipboard_capture_force_remove') {
+        return { active_consumers: [], transition: 'stop' };
+      }
+      return null;
+    });
+
+    const svc = getInstance(false);
+    await expect(svc.subscribeCapture('clipboard-history')).rejects.toThrow(
+      'native listener failed',
+    );
+
+    expect(invoke).toHaveBeenCalledWith('clipboard_capture_force_remove', {
+      extensionId: 'clipboard-history',
+    });
+  });
+
+  it('unsubscribeCapture when other consumers remain (noChange) keeps monitoring active', async () => {
+    const { stopListening } = await import('tauri-plugin-clipboard-x-api');
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'clipboard_capture_unsubscribe') {
+        return { active_consumers: ['org.tier2.history'], transition: 'noChange' };
+      }
+      return null;
+    });
+
+    const svc = getInstance(true);
+    await svc.unsubscribeCapture('clipboard-history');
+
+    expect(invoke).toHaveBeenCalledWith('clipboard_capture_unsubscribe', {
+      callerId: 'clipboard-history',
+    });
+    expect(stopListening).not.toHaveBeenCalled();
+  });
+
+  it('unsubscribeCapture of final consumer transitions to stop and stops monitoring', async () => {
+    const { stopListening } = await import('tauri-plugin-clipboard-x-api');
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'clipboard_capture_unsubscribe') {
+        return { active_consumers: [], transition: 'stop' };
+      }
+      return null;
+    });
+
+    const svc = getInstance(true);
+    await svc.unsubscribeCapture('clipboard-history');
+
+    expect(invoke).toHaveBeenCalledWith('clipboard_capture_unsubscribe', {
+      callerId: 'clipboard-history',
+    });
+    expect(stopListening).toHaveBeenCalledTimes(1);
+  });
+
+  it('forceRemoveConsumer of final consumer stops native monitoring', async () => {
+    const { stopListening } = await import('tauri-plugin-clipboard-x-api');
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'clipboard_capture_force_remove') {
+        return { active_consumers: [], transition: 'stop' };
+      }
+      return null;
+    });
+
+    const svc = getInstance(true);
+    await svc.forceRemoveConsumer('ext.uninstalled');
+
+    expect(invoke).toHaveBeenCalledWith('clipboard_capture_force_remove', {
+      extensionId: 'ext.uninstalled',
+    });
+    expect(stopListening).toHaveBeenCalledTimes(1);
+  });
+
+  it('searchHistory delegates to clipboard_search command and returns items', async () => {
+    const mockItem = makeItem(ClipboardItemType.Text, 'queried snippet');
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'clipboard_search') {
+        return { items: [mockItem], indexState: 'ready' };
+      }
+      return null;
+    });
+
+    const svc = getInstance(false);
+    const results = await svc.searchHistory('queried');
+
+    expect(invoke).toHaveBeenCalledWith('clipboard_search', { query: 'queried', limit: 50 });
+    expect(results).toEqual([mockItem]);
   });
 });

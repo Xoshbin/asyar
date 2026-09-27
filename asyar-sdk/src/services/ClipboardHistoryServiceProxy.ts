@@ -11,14 +11,12 @@ export class ClipboardHistoryServiceProxy
     return this.broker.invoke<void>('clipboard:initialize');
   }
 
-  startMonitoring(): Promise<void> {
-    return this.broker.invoke<void>('clipboard:startMonitoring');
+  subscribeCapture(): Promise<void> {
+    return this.broker.invoke<void>('clipboard:subscribeCapture');
   }
 
-  stopMonitoring(): void {
-    this.broker
-      .invoke('clipboard:stopMonitoring')
-      .catch((err) => console.warn('[ClipboardHistoryServiceProxy] stopMonitoring failed:', err));
+  unsubscribeCapture(): Promise<void> {
+    return this.broker.invoke<void>('clipboard:unsubscribeCapture');
   }
 
   formatClipboardItem(item: ClipboardHistoryItem): string {
@@ -57,6 +55,10 @@ export class ClipboardHistoryServiceProxy
 
   getRecentItems(limit?: number): Promise<ClipboardHistoryItem[]> {
     return this.broker.invoke<ClipboardHistoryItem[]>('clipboard:getRecentItems', { limit });
+  }
+
+  searchHistory(query: string): Promise<ClipboardHistoryItem[]> {
+    return this.broker.invoke<ClipboardHistoryItem[]>('clipboard:searchHistory', { query });
   }
 
   toggleItemFavorite(itemId: string): Promise<boolean> {

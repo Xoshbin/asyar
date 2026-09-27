@@ -419,10 +419,11 @@ class ClipboardHistoryExtension implements Extension {
   async activate(): Promise<void> {
     try {
       await this.clipboardService?.initialize();
-      await this.clipboardService?.startMonitoring();
+      await this.clipboardService?.subscribeCapture('clipboard-history');
       this.logService?.info('Clipboard History extension activated');
     } catch (error) {
       this.logService?.error(`Failed to activate Clipboard History extension: ${error}`);
+      throw error;
     }
   }
 
@@ -431,7 +432,7 @@ class ClipboardHistoryExtension implements Extension {
     if (this.inView) {
       this.unregisterViewActions();
     }
-    await this.clipboardService?.stopMonitoring();
+    await this.clipboardService?.unsubscribeCapture('clipboard-history');
     this.logService?.info('Clipboard History extension deactivated');
   }
 }

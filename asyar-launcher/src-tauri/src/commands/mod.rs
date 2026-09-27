@@ -8,6 +8,7 @@ pub mod argument_model;
 pub mod auth;
 pub mod browser;
 pub mod calculator;
+pub mod clipboard_capture;
 pub mod clipboard_markup;
 pub mod clipboard_privacy;
 pub mod command_arg_defaults;

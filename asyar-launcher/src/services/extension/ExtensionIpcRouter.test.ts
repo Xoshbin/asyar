@@ -966,3 +966,87 @@ describe('ExtensionIpcRouter — opener dispatch and caller injection', () => {
     expect(openPath).toHaveBeenCalledWith(null, '/my/path', { with: 'Ghostty' });
   });
 });
+
+describe('ExtensionIpcRouter — clipboard capture caller identity injection', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivileged: boolean,
+    originRole?: 'view' | 'worker',
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
+  }
+
+  it('clipboard:subscribeCapture from iframe injects host-authenticated extensionId as callerId', async () => {
+    const subscribeCapture = vi.fn(async () => undefined);
+    const registry = { clipboard: { subscribeCapture } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:clipboard:subscribeCapture',
+      {},
+      'org.example.replacement',
+      false,
+    );
+
+    expect(subscribeCapture).toHaveBeenCalledWith('org.example.replacement');
+  });
+
+  it('clipboard:subscribeCapture ignores callerId forged in payload by iframe extension', async () => {
+    const subscribeCapture = vi.fn(async () => undefined);
+    const registry = { clipboard: { subscribeCapture } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:clipboard:subscribeCapture',
+      { callerId: 'clipboard-history' },
+      'org.example.evil',
+      false,
+    );
+
+    expect(subscribeCapture).toHaveBeenCalledWith('org.example.evil');
+  });
+
+  it('clipboard:unsubscribeCapture from iframe injects extensionId as callerId', async () => {
+    const unsubscribeCapture = vi.fn(async () => undefined);
+    const registry = { clipboard: { unsubscribeCapture } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:clipboard:unsubscribeCapture',
+      {},
+      'org.example.replacement',
+      false,
+    );
+
+    expect(unsubscribeCapture).toHaveBeenCalledWith('org.example.replacement');
+  });
+
+  it('clipboard:subscribeCapture from privileged host context defaults to clipboard-history', async () => {
+    const subscribeCapture = vi.fn(async () => undefined);
+    const registry = { clipboard: { subscribeCapture } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)('asyar:api:clipboard:subscribeCapture', undefined, undefined, true);
+
+    expect(subscribeCapture).toHaveBeenCalledWith('clipboard-history');
+  });
+
+  it('clipboard:searchHistory forwards query to searchHistory', async () => {
+    const searchHistory = vi.fn(async () => []);
+    const registry = { clipboard: { searchHistory } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:clipboard:searchHistory',
+      { query: 'hello' },
+      'org.example.replacement',
+      false,
+    );
+
+    expect(searchHistory).toHaveBeenCalledWith('hello');
+  });
+});

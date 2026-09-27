@@ -5,14 +5,23 @@ import type { ClipboardHistoryItem, ClipboardItemType } from '../types';
  */
 export interface IClipboardHistoryService {
   initialize(): Promise<void>;
-  startMonitoring(): Promise<void>;
-  stopMonitoring(): void | Promise<void>;
+  /**
+   * Subscribe caller to clipboard capture. Native monitoring begins if this is
+   * the first subscriber. Caller identity is host-injected.
+   */
+  subscribeCapture(): Promise<void>;
+  /**
+   * Unsubscribe caller from clipboard capture. Native monitoring stops if this
+   * is the final subscriber.
+   */
+  unsubscribeCapture(): Promise<void>;
   formatClipboardItem(item: ClipboardHistoryItem): string;
   pasteItem(item: ClipboardHistoryItem): Promise<void>;
   hideWindow(): Promise<void>;
   simulatePaste(): Promise<boolean>;
   writeToClipboard(item: ClipboardHistoryItem): Promise<void>;
   getRecentItems(limit?: number): Promise<ClipboardHistoryItem[]>;
+  searchHistory(query: string): Promise<ClipboardHistoryItem[]>;
   toggleItemFavorite(itemId: string): Promise<boolean>;
   deleteItem(itemId: string): Promise<boolean>;
   clearNonFavorites(): Promise<boolean>;

@@ -31,6 +31,7 @@ import { buildServiceRegistry } from './buildServiceRegistry';
 import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
 import { TimerBridge } from '../timers/timerBridge.svelte';
 import { dispatch } from './extensionDispatcher.svelte';
+import { clipboardHistoryService } from '../clipboard/clipboardHistoryService';
 
 /**
  * Shape of a loaded extension module. Can be either a direct Extension instance
@@ -402,6 +403,7 @@ export class ExtensionManager implements IExtensionManager {
         // Check manifest and id exist
         commandService.clearCommandsForExtension(manifest.id);
         actionService.clearActionsForExtension(manifest.id);
+        void clipboardHistoryService.forceRemoveConsumer(manifest.id);
       }
     });
 

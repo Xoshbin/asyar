@@ -16,6 +16,9 @@ vi.mock('../../../lib/ipc/commands', () => ({
   hideWindow: vi.fn(),
 }));
 vi.mock('../../feedback/feedbackService.svelte', () => ({ feedbackService: { report: vi.fn() } }));
+vi.mock('../../clipboard/clipboardHistoryService', () => ({
+  clipboardHistoryService: { forceRemoveConsumer: vi.fn() },
+}));
 vi.mock('../../dev/inspectorStore.svelte', () => ({
   inspectorStore: { recordRpcLog: vi.fn(), recordIpcLog: vi.fn() },
 }));
@@ -28,6 +31,7 @@ import { extensionIframeManager } from '../extensionIframeManager.svelte';
 import { extensionPreferencesService } from '../extensionPreferencesService.svelte';
 import { streamDispatcher } from '../streamDispatcher.svelte';
 import { feedbackService } from '../../feedback/feedbackService.svelte';
+import { clipboardHistoryService } from '../../clipboard/clipboardHistoryService';
 import { inspectorStore } from '../../dev/inspectorStore.svelte';
 import { isDevInspectorActive } from './devTracing';
 import { ExtensionIpcRouter } from '../ExtensionIpcRouter';
@@ -335,6 +339,23 @@ describe('IPC pipeline — ungated frames never reach the permission gate', () =
     await makeRouter().handleMessage(frameEvent(row.data));
 
     expect(commands.checkExtensionPermission).not.toHaveBeenCalled();
+  });
+});
+
+describe('IPC pipeline — fault telemetry', () => {
+  it('does not revoke clipboard capture for a recoverable worker exception', async () => {
+    await makeRouter().handleMessage(
+      frameEvent(
+        {
+          type: 'asyar:feedback:uncaught',
+          payload: { kind: 'iframe_unhandled_rejection', developerDetail: 'recoverable' },
+        },
+        workerFrame.contentWindow,
+      ),
+    );
+
+    expect(clipboardHistoryService.forceRemoveConsumer).not.toHaveBeenCalled();
+    expect(feedbackService.report).toHaveBeenCalled();
   });
 });
 
