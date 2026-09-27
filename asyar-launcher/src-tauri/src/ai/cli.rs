@@ -445,22 +445,20 @@ pub fn parse_cli_stream_line_stateful(
                         }
                     }
                 }
-                Some("result") => {
-                    // The text was already emitted; only surface failures (e.g. "Not logged in").
-                    if val.get("is_error").and_then(|e| e.as_bool()) == Some(true) {
-                        let error = val
-                            .get("result")
-                            .and_then(|r| r.as_str())
-                            .filter(|r| !r.is_empty())
-                            .map(str::to_string)
-                            .or_else(|| {
-                                val.get("subtype")
-                                    .and_then(|t| t.as_str())
-                                    .map(str::to_string)
-                            })
-                            .unwrap_or_else(|| "Claude Code reported an error".to_string());
-                        events.push(ChatStreamEventPayload::Error { error });
-                    }
+                // The text was already emitted; only surface failures (e.g. "Not logged in").
+                Some("result") if val.get("is_error").and_then(|e| e.as_bool()) == Some(true) => {
+                    let error = val
+                        .get("result")
+                        .and_then(|r| r.as_str())
+                        .filter(|r| !r.is_empty())
+                        .map(str::to_string)
+                        .or_else(|| {
+                            val.get("subtype")
+                                .and_then(|t| t.as_str())
+                                .map(str::to_string)
+                        })
+                        .unwrap_or_else(|| "Claude Code reported an error".to_string());
+                    events.push(ChatStreamEventPayload::Error { error });
                 }
                 _ => {}
             }
