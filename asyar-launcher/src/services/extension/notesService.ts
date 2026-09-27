@@ -2,9 +2,10 @@ import {
   noteSearch as noteSearchIpc,
   noteGetAll,
   noteFind,
+  noteUpsert,
+  noteUpdate,
   type StoredNote,
 } from '../../lib/ipc/commands';
-import { noteStore, type Note } from '../../built-in-features/notes/noteStore.svelte';
 import type { NoteSearchHit, NoteDetail } from 'asyar-sdk/contracts';
 
 /** Display-only preview truncation (same category as formatting a date). */
@@ -17,9 +18,11 @@ function toHit(note: StoredNote): NoteSearchHit {
   return { id: note.id, title: note.title, snippet: snippetOf(note.body) };
 }
 
-// Host dispatch for extension `context.notes.*` (gated in Rust). Reads go to
-// Rust (ordering/lookup is Rust's job); writes go through noteStore for live
-// view updates. No extensionId param → `notes` is NOT in INJECTS_EXTENSION_ID.
+// Host dispatch for extension `context.notes.*` (gated in Rust). Reads and writes
+// go directly to the platform storage/Rust commands (ordering, lookup, SQLite
+// persistence, encryption, and FTS indexing are Rust's job). Rust automatically
+// emits `notes:changed` to synchronize any active Notes or sticky-note views.
+// No extensionId param → `notes` is NOT in INJECTS_EXTENSION_ID.
 export const notesService = {
   async search(query: string, limit?: number): Promise<NoteSearchHit[]> {
     const result = await noteSearchIpc(query, limit ?? 10);
@@ -45,7 +48,7 @@ export const notesService = {
 
   async create(title: string, body?: string): Promise<{ id: string; title: string }> {
     const now = Date.now();
-    const note: Note = {
+    const note: StoredNote = {
       id: crypto.randomUUID(),
       title,
       body: body ?? '',
@@ -53,7 +56,7 @@ export const notesService = {
       updatedAt: now,
       pinned: false,
     };
-    noteStore.add(note);
+    await noteUpsert(note);
     return { id: note.id, title: note.title };
   },
 
@@ -61,7 +64,7 @@ export const notesService = {
     const note = await noteFind(idOrTitle);
     if (!note) throw new Error(`No note matching "${idOrTitle}"`);
     const newBody = note.body.trim() ? `${note.body}\n${text}` : text;
-    noteStore.update(note.id, { body: newBody });
+    await noteUpdate(note.id, { body: newBody }, Date.now());
     return { id: note.id, title: note.title };
   },
 };

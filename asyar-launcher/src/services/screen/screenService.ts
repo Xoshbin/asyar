@@ -14,7 +14,7 @@ export const screenService = {
   async pickColor(extensionId: string | null): Promise<PickedColor | null> {
     return screenPickColor(extensionId);
   },
-  async captureText(): Promise<string | null> {
+  async captureText(_extensionId?: string | null): Promise<string | null> {
     return ocrCaptureScreenText();
   },
 };

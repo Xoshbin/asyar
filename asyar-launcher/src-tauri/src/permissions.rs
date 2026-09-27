@@ -195,8 +195,11 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:cache:set" => Some("cache:write"),
         "asyar:api:cache:delete" => Some("cache:write"),
         "asyar:api:cache:clear" => Some("cache:write"),
-        // Screen sampling (eyedropper)
+        // Screen sampling (eyedropper) and OCR capture
         "asyar:api:screen:pickColor" => Some("screen:pick-color"),
+        "asyar:api:screen:captureText" => Some("screen:capture"),
+        // Calculator evaluation
+        "asyar:api:calculator:evaluate" => Some("calculator:evaluate"),
         // Selection
         "asyar:api:selection:getSelectedText" => Some("selection:read"),
         "asyar:api:selection:getSelectedFinderItems" => Some("selection:read"),
@@ -1486,6 +1489,22 @@ mod tests {
         assert_eq!(
             get_required_permission("asyar:api:screen:pickColor"),
             Some("screen:pick-color")
+        );
+    }
+
+    #[test]
+    fn screen_capture_text_maps_to_screen_capture() {
+        assert_eq!(
+            get_required_permission("asyar:api:screen:captureText"),
+            Some("screen:capture")
+        );
+    }
+
+    #[test]
+    fn calculator_evaluate_maps_to_calculator_evaluate() {
+        assert_eq!(
+            get_required_permission("asyar:api:calculator:evaluate"),
+            Some("calculator:evaluate")
         );
     }
 

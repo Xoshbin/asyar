@@ -42,4 +42,27 @@ describe('ScreenServiceProxy', () => {
 
     await expect(proxy.pickColor()).rejects.toThrow('permission denied');
   });
+
+  it('captureText invokes screen:captureText and returns text', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce('recognized text');
+
+    const result = await proxy.captureText();
+
+    expect(mockBroker.invoke).toHaveBeenCalledWith('screen:captureText', {});
+    expect(result).toBe('recognized text');
+  });
+
+  it('captureText resolves to null when user cancels', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(null);
+
+    const result = await proxy.captureText();
+
+    expect(result).toBeNull();
+  });
+
+  it('captureText propagates broker errors', async () => {
+    vi.mocked(mockBroker.invoke).mockRejectedValueOnce(new Error('permission denied'));
+
+    await expect(proxy.captureText()).rejects.toThrow('permission denied');
+  });
 });

@@ -144,14 +144,14 @@ Asyar enforces an explicit lifecycle policy distinguishing required core infrast
    - **Runs** service/UI boundary:
      - Disabling the bundled `runs` feature removes its commands (`cmd_runs_open-runs`), views (`runs/RunView`), view actions (`runs:clear-recent`, `agents:open-run-in-chat`), and deeplink entry points.
      - Disabling does not stop or disable the underlying run tracking and background task engine (`RunService` / Rust process management).
-     - Permission-authorized Tier 2 extensions retain full access to Asyar's run management APIs (`runs:manage`) via `IRunService` (`runs.start`, `runs.write`, `runs.done`, `runs.fail`, `runs.cancel`, `runs.loadHistory`) while the bundled UI is disabled.
+     - Permission-authorized Tier 2 extensions retain full access to Asyar's run management APIs (`runs:track`) via `IRunService` (`runs.start`, `runs.write`, `runs.done`, `runs.fail`, `runs.cancel`, `runs.loadHistory`) while the bundled UI is disabled.
      - Existing execution history and run logs in SQLite are preserved across disable/re-enable.
      - Re-enabling the bundled feature restores its view contributions and reloads history idempotently.
      - Any active Runs view closes cleanly upon disabling.
    - **Snippets** service/UI boundary:
      - Disabling the bundled `snippets` feature removes its commands (`cmd_snippets_open-snippets`), views (`snippets/DefaultView`), view actions (`snippets:add`, `snippets:paste`, `snippets:edit`, `snippets:delete`, `snippets:copy-expansion`, `snippets:duplicate`, `snippets:toggle-pin`, `snippets:clear-all`), and deeplink entry points.
      - Disabling does not stop or disable the native shortcode text expansion engine in Rust or purge snippet records from SQLite.
-     - Permission-authorized Tier 2 extensions retain full access to contribute or revoke shortcodes dynamically (`asyar:api:snippets:registerShortcodes`, `asyar:api:snippets:unregisterShortcodes` via `snippets:manage`) while the bundled UI is disabled.
+     - Permission-authorized Tier 2 extensions retain full access to contribute or revoke shortcodes dynamically (`asyar:api:snippets:registerShortcodes`, `asyar:api:snippets:unregisterShortcodes` via `snippets:contribute`) while the bundled UI is disabled.
      - Existing user snippets, keyword triggers, and encrypted expansions in SQLite are preserved across disable/re-enable.
      - Re-enabling the bundled feature restores its contributions and reloads snippets idempotently.
      - Any active Snippets view closes cleanly upon disabling.
@@ -171,20 +171,20 @@ Asyar enforces an explicit lifecycle policy distinguishing required core infrast
    - **Agents** service/UI boundary:
      - Disabling the bundled `agents` feature removes its commands (`cmd_agents_open`, `cmd_agents_create-agent`, `cmd_agents_view-chats`), views (`agents/DefaultView`), context mode registrations (`agents`), and deeplink entry points.
      - Disabling does not stop or disable the underlying AI agent runtime or model execution engine in Rust (`AgentManager`, active generation threads, provider integrations, SQLite chat threads).
-     - Permission-authorized Tier 2 extensions retain full access to register custom agent tools (`tools:registerTool`, `tools:unregisterTools` via `ExtensionIpcRouter`), invoke AI models, or access prompt capabilities.
+     - Permission-authorized Tier 2 extensions retain full access to register custom agent tools (`tools:registerTool`, `tools:unregisterTool` via `IToolsService` with `tools:register` permission). Invoking AI models or prompting the agent runtime directly from Tier 2 extensions is not currently exposed as a public API (planned follow-up).
      - Saved chat sessions, custom agents, and model configuration in SQLite are preserved across disable/re-enable.
      - Active chat views close cleanly and in-flight UI generation abort controllers are aborted safely upon deactivation.
      - Re-enabling the bundled feature restores agent chat views, commands, and context modes idempotently.
    - **Calculator** service/UI boundary:
      - Disabling the bundled `calculator` feature removes its root-search calculator interceptor/accessory and commands (`cmd_calculator_calculate`).
      - Disabling does not stop or disable the native calculation engine or live currency exchange rates service in Rust (`calculator_evaluate`, `calculator_configure`, `calculator_refresh_rates`).
-     - Permission-authorized Tier 2 extensions retain full access to math evaluation and currency conversion via IPC (`calculator_evaluate`) and `ExtensionIpcRouter` while the bundled UI is disabled.
+     - Permission-authorized Tier 2 extensions retain full access to math evaluation and currency conversion via `ICalculatorService` (`calculator.evaluate()`) with the `calculator:evaluate` permission while the bundled UI is disabled.
      - User precision preferences and cached currency rates are preserved across disable/re-enable.
      - Re-enabling restores the search-bar math evaluator and calculator commands idempotently.
    - **MCP** service/UI boundary:
      - Disabling the bundled `mcp` feature removes its commands (`cmd_mcp_servers`), views (`mcp/DefaultView`), view actions, and deeplink entry points.
-     - Disabling does not stop or disable the underlying Model Context Protocol client/server manager in Rust/platform service (`McpService`, active stdio/SSE server connections, tool catalog).
-     - Permission-authorized Tier 2 extensions and agent workflows retain full access to discovered MCP server tools and resources while the bundled UI is disabled.
+     - Disabling does not stop or disable the underlying Model Context Protocol client/server manager in Rust/platform service (`McpService`, active stdio/SSE server connections, tool catalog) used internally by the Agent engine.
+     - Disabling the bundled UI removes server management views, while internal server connections remain active. No public Tier 2 API for direct MCP tool/resource access is currently exposed (planned follow-up).
      - Configured MCP servers, environment variables, and connection credentials in SQLite are preserved across disable/re-enable.
      - Active MCP management views close cleanly, and re-enabling restores the server management UI and views idempotently.
    - **Portals** service/UI boundary:
@@ -196,20 +196,20 @@ Asyar enforces an explicit lifecycle policy distinguishing required core infrast
    - **Screen OCR** service/UI boundary:
      - Disabling the bundled `screen-ocr` feature removes its commands (`cmd_screen-ocr_capture`), views, and deeplink entry points.
      - Disabling does not stop or disable the native platform OCR service in Rust (`ocr_capture_screen_text` / Apple Vision & Tesseract OCR backends).
-     - Permission-authorized Tier 2 extensions retain full access to capture and extract screen text (`screenService.captureText()` / `ocr_capture_screen_text` via `ExtensionIpcRouter` with `screen:capture` permission) while the bundled UI is disabled.
+     - Permission-authorized Tier 2 extensions retain full access to capture and extract screen text via `IScreenService` (`screen.captureText()`) with the `screen:capture` permission while the bundled UI is disabled.
      - Re-enabling restores the screen capture OCR command and action bindings idempotently.
      - Any active capture overlays or views close cleanly upon deactivation.
    - **Scripts** service/UI boundary:
      - Disabling the bundled `scripts` feature removes its commands (`cmd_scripts_library`, `cmd_scripts_create`), views (`scripts/DefaultView`), and view actions (`scripts:run`, `scripts:edit`, `scripts:delete`, `scripts:toggle-pin`).
-     - Disabling does not stop or disable the underlying script execution engine in Rust or purge user scripts from SQLite (`user_scripts`).
-     - Permission-authorized Tier 2 extensions retain full access to execute commands and scripts via safe shell/node runtimes (`shell:exec`) while the bundled UI is disabled.
+     - Disabling does not stop or disable process execution in Rust or purge user scripts from SQLite (`user_scripts`).
+     - Permission-authorized Tier 2 extensions retain full access to spawn external processes via `IShellService` (`shell.spawn()`) with the `shell:spawn` permission while the bundled UI is disabled. The user script library in SQLite is internal to the bundled feature and is not exposed as a Tier 2 script management API.
      - Saved script files, arguments, and execution configurations in SQLite are preserved across disable/re-enable.
      - Active script library views close cleanly, and running script processes are managed safely.
      - Re-enabling the bundled feature restores the script library view and command palette entries idempotently.
    - **Shortcuts** service/UI boundary:
      - Disabling the bundled `shortcuts` feature removes its commands (`cmd_shortcuts_manage`), views (`shortcuts/ShortcutManagerView`), and view actions (`shortcuts:record`, `shortcuts:remove`).
-     - Disabling does not stop or disable the global hotkey listening service in Rust (`GlobalShortcutManager`).
-     - Permission-authorized Tier 2 extensions retain access to register and trigger hotkeys via the global shortcuts platform API while the bundled management UI is disabled.
+     - Disabling does not stop or disable the global hotkey listening service in Rust (`GlobalShortcutManager`), which continues listening for manifest-declared extension commands.
+     - Disabling the bundled UI removes shortcut management and recording views; no public Tier 2 runtime API exists for dynamic global shortcut registration (planned follow-up).
      - Configured keybindings and assigned item shortcuts in SQLite (`item_shortcuts`) are preserved across disable/re-enable.
      - Active shortcut management views and recording modal listeners close cleanly upon deactivation.
      - Re-enabling restores the shortcut manager view idempotently.

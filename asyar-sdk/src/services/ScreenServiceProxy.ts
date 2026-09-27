@@ -8,4 +8,8 @@ export class ScreenServiceProxy extends BaseServiceProxy implements IScreenServi
   async pickColor(): Promise<PickedColor | null> {
     return this.broker.invoke<PickedColor | null>('screen:pickColor', {});
   }
+
+  async captureText(): Promise<string | null> {
+    return this.broker.invoke<string | null>('screen:captureText', {});
+  }
 }

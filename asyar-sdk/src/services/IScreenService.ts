@@ -25,4 +25,13 @@ export interface PickedColor {
 export interface IScreenService {
   /** Resolves with the picked color, or `null` if the user cancelled (Esc). */
   pickColor(): Promise<PickedColor | null>;
+
+  /**
+   * Prompts the user with an interactive screen selection crosshair, captures the
+   * bounded region, and performs on-device OCR. Sensitive credentials matching
+   * known secret patterns are automatically redacted.
+   * Resolves with the recognized text, or `null` if cancelled (Esc).
+   * Requires the `screen:capture` manifest permission.
+   */
+  captureText(): Promise<string | null>;
 }

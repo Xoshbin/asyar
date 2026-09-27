@@ -25,6 +25,7 @@ import { InteropServiceProxy } from './services/InteropServiceProxy';
 import { WindowManagementServiceProxy } from './services/WindowManagementService';
 import { PowerServiceProxy } from './services/PowerServiceProxy';
 import { ScreenServiceProxy } from './services/ScreenServiceProxy';
+import { CalculatorServiceProxy } from './services/CalculatorServiceProxy';
 import { ProcessServiceProxy } from './services/ProcessServiceProxy';
 import { SystemEventsServiceProxy } from './services/SystemEventsServiceProxy';
 import { TimerServiceProxy } from './services/TimerServiceProxy';
@@ -72,6 +73,7 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     opener: new OpenerServiceProxy(),
     power: new PowerServiceProxy(),
     screen: new ScreenServiceProxy(),
+    calculator: new CalculatorServiceProxy(),
     process: new ProcessServiceProxy(),
     systemEvents: new SystemEventsServiceProxy(),
     timers: new TimerServiceProxy(),

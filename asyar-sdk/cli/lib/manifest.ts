@@ -205,6 +205,8 @@ export const VALID_PERMISSIONS = [
   'cache:write',
   'window:manage',
   'screen:pick-color',
+  'screen:capture',
+  'calculator:evaluate',
   'application:read',
   'entitlements:read',
   'power:inhibit',

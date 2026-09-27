@@ -140,6 +140,15 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
     title: 'Pick colors from the screen',
     description: 'Show the OS eyedropper and read the color of a screen pixel the user picks.',
   },
+  'screen:capture': {
+    title: 'Capture screen text',
+    description:
+      'Capture screen regions and extract text via on-device optical character recognition (OCR).',
+  },
+  'calculator:evaluate': {
+    title: 'Evaluate math and conversions',
+    description: 'Evaluate mathematical expressions, unit conversions, and currency calculations.',
+  },
   'power:inhibit': {
     title: 'Keep system awake',
     description: 'Prevent the OS from sleeping while extension logic is running.',
