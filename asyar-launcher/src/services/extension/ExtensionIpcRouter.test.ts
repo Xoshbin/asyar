@@ -1050,3 +1050,62 @@ describe('ExtensionIpcRouter — clipboard capture caller identity injection', (
     expect(searchHistory).toHaveBeenCalledWith('hello');
   });
 });
+
+describe('ExtensionIpcRouter — files service dispatch and caller identity injection', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivileged: boolean,
+    originRole?: 'view' | 'worker',
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
+  }
+
+  it('files:search from iframe injects host-authenticated extensionId as callerId', async () => {
+    const search = vi.fn(async () => [{ fileId: 'f1', name: 'report.pdf' }]);
+    const registry = { files: { search } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const result = await dispatchAs(router)(
+      'asyar:api:files:search',
+      { query: 'report', opts: { typeFilter: 'document', limit: 10 } },
+      'org.example.tier2',
+      false,
+    );
+
+    expect(search).toHaveBeenCalledWith('org.example.tier2', 'report', {
+      typeFilter: 'document',
+      limit: 10,
+    });
+    expect(result).toEqual([{ fileId: 'f1', name: 'report.pdf' }]);
+  });
+
+  it('files:status from iframe injects callerId', async () => {
+    const status = vi.fn(async () => ({ state: 'ready', entryCount: 42 }));
+    const registry = { files: { status } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const result = await dispatchAs(router)(
+      'asyar:api:files:status',
+      {},
+      'org.example.tier2',
+      false,
+    );
+
+    expect(status).toHaveBeenCalledWith('org.example.tier2');
+    expect(result).toEqual({ state: 'ready', entryCount: 42 });
+  });
+
+  it('files:search from privileged host context injects null as callerId', async () => {
+    const search = vi.fn(async () => []);
+    const registry = { files: { search } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)('asyar:api:files:search', { query: 'notes' }, undefined, true);
+
+    expect(search).toHaveBeenCalledWith(null, 'notes');
+  });
+});

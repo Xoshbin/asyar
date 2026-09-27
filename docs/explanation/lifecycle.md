@@ -127,6 +127,13 @@ Asyar enforces an explicit lifecycle policy distinguishing required core infrast
      - Existing history in SQLite is preserved (disabling does not delete data).
      - Shared clipboard read/write capabilities (`readCurrentText`, `writeToClipboard`, etc.) remain fully functional for authorized callers.
      - Re-enabling restores the bundled subscription, search contributions, and views idempotently.
+   - **File Search** service/UI boundary:
+     - Disabling the bundled `file-search` feature removes its commands (`cmd_file-search_show-files`), views (`file-search/DefaultView`), view actions, root-search fallback item, and deeplink entry points.
+     - Disabling does not stop or disable the underlying platform service (`FileIndexState`, file watcher, indexing, and SQLite persistence).
+     - Permission-authorized Tier 2 extensions retain full access to Asyar's file APIs (`files:search`, `files:status`, `files:read`, `files:glob`, `files:thumbnail`) via `IFilesService` / `ExtensionIpcRouter` while the bundled UI is disabled.
+     - Existing indexed data, pinned files (`file_search_pinned`), selection learning (`file_search_selections`), and user configuration are preserved across disable/re-enable.
+     - Re-enabling the bundled feature restores its contributions idempotently without duplicate registrations, watchers, or results.
+     - Any active File Search view closes cleanly upon disabling.
 
 3. **Tier 2 Installed Extensions**
    - Installed extensions default to `disableable: true`.

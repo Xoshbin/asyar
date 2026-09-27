@@ -48,7 +48,13 @@ vi.mock('../../services/search/stores/search.svelte', () => ({
 }));
 
 vi.mock('./state.svelte', () => ({
-  fileSearchViewState: { searchQuery: '', allItems: [], results: [], deepResults: [] },
+  fileSearchViewState: {
+    searchQuery: '',
+    allItems: [],
+    results: [],
+    deepResults: [],
+    reset: vi.fn(),
+  },
   loadPinnedFiles: vi.fn().mockResolvedValue(undefined),
   checkDeepSearchAvailability: vi.fn().mockResolvedValue(undefined),
   runDeepSearch: vi.fn().mockResolvedValue(undefined),
@@ -68,7 +74,12 @@ import { actionService } from '../../services/action/actionService.svelte';
 import { viewManager } from '../../services/extension/viewManager.svelte';
 import { searchStores } from '../../services/search/stores/search.svelte';
 import extension from './index';
-import { checkDeepSearchAvailability, fileSearchViewState, runSearch } from './state.svelte';
+import {
+  checkDeepSearchAvailability,
+  fileSearchViewState,
+  loadPinnedFiles,
+  runSearch,
+} from './state.svelte';
 
 function makeContext(manager: object) {
   return {
@@ -183,5 +194,93 @@ describe('view primary action label', () => {
 
     await extension.viewDeactivated('file-search/DefaultView');
     expect(viewManager.activeViewPrimaryActionLabel).toBe('Run Script');
+  });
+});
+
+describe('FileSearchExtension lifecycle: activate and deactivate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(window, 'addEventListener');
+    vi.spyOn(window, 'removeEventListener');
+  });
+
+  it('activate() loads pinned files and probes deep search availability', async () => {
+    await extension.activate();
+    expect(loadPinnedFiles).toHaveBeenCalledTimes(1);
+    expect(checkDeepSearchAvailability).toHaveBeenCalledTimes(1);
+  });
+
+  it('activate() propagates failure when loadPinnedFiles fails', async () => {
+    const error = new Error('database locked');
+    vi.mocked(loadPinnedFiles).mockRejectedValueOnce(error);
+
+    await expect(extension.activate()).rejects.toThrow('database locked');
+  });
+
+  it('deactivate() cleans up keydown listener, unregisters view actions, clears action label, and resets view state', async () => {
+    await extension.viewActivated('file-search/DefaultView');
+    expect(window.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(actionService.registerAction).toHaveBeenCalled();
+    expect(viewManager.activeViewPrimaryActionLabel).toBe('actions.open');
+
+    await extension.deactivate();
+
+    expect(window.removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:reveal-in-finder');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:copy-path');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:copy-name');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:open-in-terminal');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:toggle-pin');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:move-to-trash');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:quick-look');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:send-to-ai');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:deep-search');
+    expect(viewManager.activeViewPrimaryActionLabel).toBeNull();
+    expect(fileSearchViewState.reset).toHaveBeenCalledTimes(1);
+  });
+
+  it('deactivate() is safe and idempotent when not in view', async () => {
+    await extension.deactivate();
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:reveal-in-finder');
+    expect(fileSearchViewState.reset).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-enabling: activate() restores pinned files and checkDeepSearch without duplicate listeners', async () => {
+    await extension.activate();
+    expect(loadPinnedFiles).toHaveBeenCalledTimes(1);
+
+    await extension.deactivate();
+
+    await extension.activate();
+    expect(loadPinnedFiles).toHaveBeenCalledTimes(2);
+    expect(checkDeepSearchAvailability).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('viewActivated and viewDeactivated lifecycle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(window, 'addEventListener');
+    vi.spyOn(window, 'removeEventListener');
+  });
+
+  it('viewActivated registers view actions and attaches keydown listener', async () => {
+    await extension.viewActivated('file-search/DefaultView');
+    expect(window.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(actionService.registerAction).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'file-search:reveal-in-finder' }),
+    );
+  });
+
+  it('viewDeactivated removes keydown listener and unregisters view actions', async () => {
+    await extension.viewActivated('file-search/DefaultView');
+    const handler = vi
+      .mocked(window.addEventListener)
+      .mock.calls.find((call) => call[0] === 'keydown')?.[1];
+
+    await extension.viewDeactivated('file-search/DefaultView');
+    expect(window.removeEventListener).toHaveBeenCalledWith('keydown', handler);
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:reveal-in-finder');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('file-search:copy-path');
   });
 });

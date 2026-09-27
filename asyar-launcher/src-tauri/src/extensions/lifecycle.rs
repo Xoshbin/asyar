@@ -1015,6 +1015,17 @@ mod tests {
     }
 
     #[test]
+    fn file_search_builtin_allows_disable_validation() {
+        let mut fs_record = make_record("file-search", "File Search", true);
+        fs_record.disableable = true;
+
+        assert!(
+            validate_can_disable(&fs_record).is_ok(),
+            "file-search optional built-in must allow disable"
+        );
+    }
+
+    #[test]
     fn installed_extension_allows_disable_validation() {
         let inst_record = make_record("com.example.ext", "Example", false);
         assert!(
@@ -1031,14 +1042,18 @@ mod tests {
         let mut opt_record = make_record("clipboard-history", "Clipboard History", true);
         opt_record.disableable = true;
 
+        let mut fs_record = make_record("file-search", "File Search", true);
+        fs_record.disableable = true;
+
         let mut inst_record = make_record("com.example.ext", "Example", false);
         inst_record.disableable = true;
 
-        let mut records = vec![req_record, opt_record, inst_record];
+        let mut records = vec![req_record, opt_record, fs_record, inst_record];
 
         let mut map = serde_json::Map::new();
         map.insert("system".to_string(), serde_json::json!(false));
         map.insert("clipboard-history".to_string(), serde_json::json!(false));
+        map.insert("file-search".to_string(), serde_json::json!(false));
         map.insert("com.example.ext".to_string(), serde_json::json!(false));
 
         apply_enabled_map(&mut records, &map);
@@ -1056,6 +1071,15 @@ mod tests {
         assert!(
             !clip.enabled,
             "optional built-in MUST be disabled: false when map says false"
+        );
+
+        let fs = records
+            .iter()
+            .find(|r| r.manifest.id == "file-search")
+            .unwrap();
+        assert!(
+            !fs.enabled,
+            "file-search built-in MUST be disabled: false when map says false"
         );
 
         let inst = records

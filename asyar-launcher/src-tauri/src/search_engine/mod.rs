@@ -2454,6 +2454,32 @@ mod service_tests {
             .all(|result| result.extension_id.as_deref() != Some("calculator")));
     }
 
+    #[test]
+    fn merged_search_filters_file_search_commands_when_disabled() {
+        let state = make_state();
+        let external = vec![models::ExternalSearchResult {
+            object_id: "cmd_file-search_show-files".to_string(),
+            name: "Search Files".to_string(),
+            description: Some("Search files by name".to_string()),
+            result_type: "command".to_string(),
+            score: 1.0,
+            icon: Some("icon:folder-search".to_string()),
+            extension_id: Some("file-search".to_string()),
+            category: Some("extension".to_string()),
+            style: None,
+            priority: None,
+        }];
+        let disabled_extensions = vec!["file-search".to_string()];
+
+        let results = state
+            .merged_search_filtered("files", external, 10, &[], &disabled_extensions)
+            .unwrap();
+
+        assert!(results
+            .iter()
+            .all(|result| result.extension_id.as_deref() != Some("file-search")));
+    }
+
     // ------------------------------------------------------------------
     // Alias pin-to-top (rust-first audit #4) — previously done in TS via
     // splice/unshift on the orchestrator after merged_search returned.

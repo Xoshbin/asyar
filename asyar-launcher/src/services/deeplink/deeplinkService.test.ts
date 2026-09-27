@@ -193,6 +193,24 @@ describe('DeeplinkService.handleExtensionDeeplink', () => {
     expect(logService.error).toHaveBeenCalled();
   });
 
+  it('rejects disabled optional built-in extension (file-search) gracefully', async () => {
+    const manifest = makeManifest({
+      id: 'file-search',
+      lifecycle: { disableable: true } as any,
+    });
+    vi.mocked(deps.getManifestById).mockReturnValue(manifest);
+    vi.mocked(deps.isExtensionEnabled).mockReturnValue(false);
+
+    await service.handleExtensionDeeplink({
+      extensionId: 'file-search',
+      commandId: 'show-files',
+      args: {},
+    });
+
+    expect(deps.executeCommand).not.toHaveBeenCalled();
+    expect(logService.error).toHaveBeenCalled();
+  });
+
   // ── Validation: command not in manifest ──────────────────────────────
 
   it('rejects command that does not exist in manifest', async () => {

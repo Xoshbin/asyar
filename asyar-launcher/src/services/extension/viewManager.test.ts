@@ -579,6 +579,24 @@ describe('module resolver forwarding', () => {
       expect(searchStores.query).toBe('initial search query');
     });
 
+    it('safely closes active file-search/DefaultView when file-search is disabled', () => {
+      const fileSearchModule = { viewActivated: vi.fn(), viewDeactivated: vi.fn() };
+      const modules = new Map<string, unknown>([['file-search', fileSearchModule]]);
+      initWithResolver([makeManifest({ id: 'file-search' })], modules);
+
+      searchStores.query = 'my query';
+      viewManager.navigateToView('file-search/DefaultView');
+      expect(viewManager.activeView).toBe('file-search/DefaultView');
+
+      viewManager.closeViewsForExtension('file-search');
+
+      expect(fileSearchModule.viewDeactivated).toHaveBeenCalledWith('file-search/DefaultView');
+      expect(viewManager.activeView).toBeNull();
+      expect(viewManager.isViewActive()).toBe(false);
+      expect(viewManager.getNavigationStackSize()).toBe(0);
+      expect(searchStores.query).toBe('my query');
+    });
+
     it('leaves unrelated active views open when closing views for a different extension', () => {
       const notesModule = { viewActivated: vi.fn(), viewDeactivated: vi.fn() };
       const modules = new Map<string, unknown>([['notes', notesModule]]);

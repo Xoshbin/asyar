@@ -174,6 +174,18 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
         } as ExtendedManifest,
       ],
       [
+        'file-search',
+        {
+          id: 'file-search',
+          name: 'File Search',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
         'third-party',
         {
           id: 'third-party',
@@ -188,6 +200,12 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
     extensionStateManager.init(manifests, reloadCallback);
   });
 
+  describe('isExtensionDisableable', () => {
+    it('reports file-search as disableable', () => {
+      expect(extensionStateManager.isExtensionDisableable('file-search')).toBe(true);
+    });
+  });
+
   describe('isExtensionEnabled', () => {
     it('always returns true for required built-ins even if settings says false', () => {
       vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false);
@@ -200,6 +218,14 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
 
       vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
       expect(extensionStateManager.isExtensionEnabled('clipboard-history')).toBe(true);
+    });
+
+    it('returns settingsService state for optional built-in (file-search)', () => {
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false);
+      expect(extensionStateManager.isExtensionEnabled('file-search')).toBe(false);
+
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
+      expect(extensionStateManager.isExtensionEnabled('file-search')).toBe(true);
     });
 
     it('returns settingsService state for third-party extensions', () => {
@@ -245,6 +271,18 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
       expect(reloadCallback).toHaveBeenCalledTimes(1);
     });
 
+    it('allows disabling file-search, closes active views, updates settings, and reloads', async () => {
+      vi.mocked(setExtensionEnabled).mockResolvedValue(true);
+
+      const ok = await extensionStateManager.toggleExtensionState('file-search', false);
+
+      expect(ok).toBe(true);
+      expect(setExtensionEnabled).toHaveBeenCalledWith('file-search', false);
+      expect(settingsService.updateExtensionState).toHaveBeenCalledWith('file-search', false);
+      expect(viewManager.closeViewsForExtension).toHaveBeenCalledWith('file-search');
+      expect(reloadCallback).toHaveBeenCalledTimes(1);
+    });
+
     it('allows re-enabling optional built-in features and reloads', async () => {
       vi.mocked(setExtensionEnabled).mockResolvedValue(true);
 
@@ -253,6 +291,17 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
       expect(ok).toBe(true);
       expect(setExtensionEnabled).toHaveBeenCalledWith('clipboard-history', true);
       expect(settingsService.updateExtensionState).toHaveBeenCalledWith('clipboard-history', true);
+      expect(reloadCallback).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows re-enabling file-search and reloads', async () => {
+      vi.mocked(setExtensionEnabled).mockResolvedValue(true);
+
+      const ok = await extensionStateManager.toggleExtensionState('file-search', true);
+
+      expect(ok).toBe(true);
+      expect(setExtensionEnabled).toHaveBeenCalledWith('file-search', true);
+      expect(settingsService.updateExtensionState).toHaveBeenCalledWith('file-search', true);
       expect(reloadCallback).toHaveBeenCalledTimes(1);
     });
 

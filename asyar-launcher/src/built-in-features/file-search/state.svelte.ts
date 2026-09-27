@@ -25,6 +25,18 @@ class FileSearchViewState {
   deepSearchProviderId = $state<string | null>(null);
   deepSearchLoading = $state(false);
 
+  reset(): void {
+    this.searchQuery = '';
+    this.typeFilter = 'all';
+    this.results = [];
+    this.deepResults = [];
+    this.selectedFileId = null;
+    this.loading = false;
+    this.pinnedFiles = [];
+    this.deepSearchProviderId = null;
+    this.deepSearchLoading = false;
+  }
+
   setTypeFilter(v: TypeFilter): void {
     this.typeFilter = v;
   }
