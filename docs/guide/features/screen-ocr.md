@@ -46,6 +46,7 @@ Now you can snip and copy text from any application without opening Asyar first.
 - **Unselectable text**: Use Screen OCR on web apps that disable text selection, remote desktop sessions, PDF documents with image-based text, and error modals.
 - **Combine with Clipboard History**: Every captured text snippet is recorded in [Clipboard History](./clipboard-history.md), so you can retrieve previously extracted snippets at any time.
 - **Combine with Asyar AI**: Once text is captured, paste it into [AI & Agents](./ai-and-agents.md) (press `Tab` in the search bar) to summarize, translate, or explain it.
+- **Disabling Screen OCR** — You can turn off the bundled Screen OCR feature in **Settings → Extensions**. Disabling removes the `Capture Text from Screen` command, while the native platform OCR service remains active and available to Tier 2 extensions via `screenService.captureText()`.
 
 ## Related
 

@@ -102,6 +102,7 @@ If you use multiple displays, use display navigation commands:
 - **Switch app first, then open Asyar**: Layout presets apply to whichever window was active immediately before summoning Asyar.
 - **Vertical Fourths on ultrawide monitors**: The `First Fourth` through `Last Fourth` presets are ideal for 34"+ ultrawide and 4K displays where half-screen windows are too wide.
 - **Restore only remembers one step**: Restore undoes the single most recent layout change.
+- **Disabling Window Management** — If you use a third-party tiling window manager or prefer not to have window snap commands in search, you can turn off Window Management in **Settings → Extensions**. Disabling removes preset commands and layouts, while the underlying window management platform APIs (`window:manage`) remain available for extensions.
 
 ## Related
 
