@@ -84,6 +84,17 @@ export interface BackgroundSpec {
   main: string;
 }
 
+/**
+ * Declares the lifecycle policy for the extension.
+ * For built-in features, `disableable: true` allows the feature to be disabled.
+ * When omitted or false for built-in features, the feature is required core infrastructure
+ * and cannot be disabled. Installed extensions are always disableable.
+ */
+export interface LifecycleSpec {
+  disableable?: boolean;
+  background?: boolean;
+}
+
 export interface ExtensionManifest {
   name: string;
   id: string;
@@ -97,6 +108,7 @@ export interface ExtensionManifest {
    * view/background distinction.
    */
   type?: 'extension' | 'theme';
+  lifecycle?: LifecycleSpec;
   /**
    * Worker bundle declaration. Present iff the extension declares at least
    * one `mode: "background"` command (or reserves a push-event subscription

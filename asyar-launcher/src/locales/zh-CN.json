@@ -283,6 +283,7 @@
       "section_builtin": "内置功能",
       "section_installed": "已安装的扩展",
       "type_builtin": "内置",
+      "required_builtin_explanation": "核心必需功能无法禁用",
       "type_command": "命令",
       "type_extension": "扩展",
       "type_theme": "主题"

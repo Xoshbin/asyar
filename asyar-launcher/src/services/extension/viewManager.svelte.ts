@@ -195,6 +195,46 @@ class ViewManagerClass {
     }
   }
 
+  /**
+   * Safely closes any active or stacked views belonging to the given extension.
+   * Cleans up listeners and deactivates views without leaving stale views mounted.
+   */
+  closeViewsForExtension(extensionId: string): void {
+    if (this.navigationStack.length === 0) return;
+
+    const remainingStack: NavigationState[] = [];
+    const removedStates: NavigationState[] = [];
+
+    for (const state of this.navigationStack) {
+      if (state.extensionId === extensionId || state.viewPath.startsWith(`${extensionId}/`)) {
+        removedStates.push(state);
+      } else {
+        remainingStack.push(state);
+      }
+    }
+
+    if (removedStates.length === 0) return;
+
+    // Notify deactivated for the removed states
+    for (const state of removedStates) {
+      this.notifyViewDeactivated(state);
+    }
+
+    this.navigationStack = remainingStack;
+
+    if (this.navigationStack.length === 0) {
+      this.activeView = null;
+      this.activeViewSearchable = false;
+      searchStores.query = this.initialMainQuery ?? '';
+      this.initialMainQuery = null;
+    } else {
+      const topState = this.navigationStack[this.navigationStack.length - 1];
+      this.activeView = topState.viewPath;
+      this.activeViewSearchable = topState.searchable;
+      this.notifyViewActivated(topState);
+    }
+  }
+
   async handleViewSearch(query: string): Promise<void> {
     if (!this.activeView) return;
 

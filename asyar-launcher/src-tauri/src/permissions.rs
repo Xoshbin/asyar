@@ -413,11 +413,12 @@ fn is_public_call(call_type: &str) -> bool {
             | "asyar:api:browser:subscribeEvents"
             | "asyar:api:browser:unsubscribeEvents"
         // TODO(policy): `ai:streamChat` spends the user's configured AI provider
-        // credits with no permission, and `clipboard:stopMonitoring` toggles
-        // clipboard-history capture. Both preserved as public to keep current
-        // behavior; gating either needs a new manifest permission (owner
-        // decision, tracked separately).
+        // credits with no permission, and `clipboard:startMonitoring` /
+        // `clipboard:stopMonitoring` toggle clipboard-history capture. Both
+        // preserved as public to keep current behavior; gating either needs a new
+        // manifest permission (owner decision, tracked separately).
             | "asyar:api:ai:streamChat"
+            | "asyar:api:clipboard:startMonitoring"
             | "asyar:api:clipboard:stopMonitoring"
         // An extension marking its OWN per-extension onboarding complete
         // (extension_id is host-injected from the trusted iframe attribute,
@@ -1456,6 +1457,7 @@ mod tests {
                 description: String::new(),
                 author: None,
                 extension_type: None,
+                lifecycle: None,
                 background: None,
                 searchable: None,
                 icon: None,
@@ -1474,6 +1476,7 @@ mod tests {
             },
             enabled: true,
             is_built_in,
+            disableable: !is_built_in,
             path: format!("/tmp/{id}"),
             compatibility: crate::extensions::CompatibilityStatus::Unknown,
             first_view_component: None,

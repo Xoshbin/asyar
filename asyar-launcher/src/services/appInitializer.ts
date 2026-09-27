@@ -5,7 +5,6 @@ import { cloudSyncService } from './sync/cloudSyncService.svelte';
 
 import { performanceService } from './performance/performanceService.svelte';
 import { runtimeService } from './runtime/runtimeService.svelte';
-import { clipboardHistoryService } from './clipboard/clipboardHistoryService';
 import { clipboardPrivacyService } from './privacy/clipboardPrivacyService.svelte';
 import { secretRedactionService } from './privacy/secretRedactionService.svelte';
 import { encryptionService } from './privacy/encryptionService.svelte';
@@ -141,10 +140,6 @@ export const appInitializer = {
       await runtimeService.init().catch((err: unknown) => {
         logService.warn(`Runtime service init failed: ${err}`);
       });
-
-      // Initialize Clipboard History
-      await clipboardHistoryService.initialize();
-      logService.info(`Clipboard history service initialized.`);
 
       // Must precede applicationService.init() — its first scan reads additionalScanPaths.
       await settingsService.init();

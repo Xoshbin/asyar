@@ -104,3 +104,28 @@ When Asyar discovers an extension, it validates the following constraints from t
 If none of these fields are present, the extension is marked `Unknown` (compatible by default).
 
 ---
+
+### Feature lifecycle & disableability policy
+
+Asyar enforces an explicit lifecycle policy distinguishing required core infrastructure from optional bundled features and installed extensions:
+
+1. **Required Core Infrastructure (Built-ins)**
+   - Core built-ins (e.g. Settings, Calculator, Extensions manager) default to non-disableable (`lifecycle.disableable: false`).
+   - The Rust extension lifecycle strictly rejects any request to disable a non-disableable built-in.
+   - In Settings → Extensions, required built-ins display a non-interactive, checked toggle with a tooltip explaining that core infrastructure cannot be disabled.
+
+2. **Optional Bundled Features (Tier 1 Built-ins)**
+   - Bundled features can declare `"lifecycle": { "disableable": true }` in their `manifest.json`.
+   - **Clipboard History** is the reference implementation:
+     - Disabling it stops background clipboard monitoring and captures immediately via a fail-closed gate.
+     - Native clipboard listeners (macOS `add_clipboard_listener`, Android polling) are completely torn down.
+     - Search contributions and commands are omitted from search indexing.
+     - Any active Clipboard History views are closed cleanly.
+     - Direct command and deeplink invocations are rejected.
+     - Existing history in SQLite is preserved (disabling does not delete data).
+     - Shared clipboard read/write capabilities (`readCurrentText`, `writeToClipboard`, etc.) remain fully functional for authorized callers.
+     - Re-enabling initializes monitoring once and restores search contributions and views idempotently.
+
+3. **Tier 2 Installed Extensions**
+   - Installed extensions default to `disableable: true`.
+   - Disabling an installed extension unloads its iframe/worker, revokes active capabilities, and removes its commands from search indexing.

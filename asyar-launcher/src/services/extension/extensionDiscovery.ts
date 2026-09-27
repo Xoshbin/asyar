@@ -52,6 +52,23 @@ export function isBuiltInFeature(extensionId: string): boolean {
   return !!matchingPath;
 }
 
+export const builtInManifestContext = import.meta.glob<ExtensionManifest>(
+  '../../built-in-features/*/manifest.json',
+  { eager: true, import: 'default' },
+);
+
+export function getBuiltInManifest(extensionId: string): ExtensionManifest | undefined {
+  const match = Object.entries(builtInManifestContext).find(([path]) =>
+    path.includes(`/${extensionId}/manifest.json`),
+  );
+  return match ? match[1] : undefined;
+}
+
+export function isBuiltInDisableable(extensionId: string): boolean {
+  const manifest = getBuiltInManifest(extensionId);
+  return manifest?.lifecycle?.disableable === true;
+}
+
 // Function to get the import path for an extension ID
 export function getExtensionPath(extensionId: string): string {
   if (isBuiltInFeature(extensionId)) {

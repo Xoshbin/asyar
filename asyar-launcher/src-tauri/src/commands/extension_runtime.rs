@@ -1038,6 +1038,7 @@ mod onboarding_dispatch_tests {
             description: String::new(),
             author: None,
             extension_type: None,
+            lifecycle: None,
             background: None,
             searchable: None,
             icon: None,

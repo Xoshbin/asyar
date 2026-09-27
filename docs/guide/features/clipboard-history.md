@@ -53,6 +53,7 @@ Asyar also records which app each item came from, so you can see the source appl
 - **RTF items** — Asyar stores the rich format but "Paste as Plain Text" strips it, which is handy for pasting into apps that don't accept rich text.
 - **Large text is truncated in the preview** — the full content is always pasted correctly; the preview just caps at 50,000 characters to keep the UI fast.
 - **Merged paste is plain text, in selection order** — `⌘Click`/`⌘↑`/`⌘↓` build an ordered multi-selection independent of the normal cursor, so browsing around with plain clicks or arrow keys never loses it. Pressing `Enter` joins every selected item's text with a newline and pastes it as one block, in the order you selected them. Images and files can't be merged as text and are skipped (you'll see a toast if any were).
+- **Disabling Clipboard History** — You can turn off Clipboard History in **Settings → Extensions**. When disabled, background clipboard monitoring and capture immediately stop, active views are closed, and search contributions are hidden. Existing history is safely preserved and will reappear if re-enabled. Shared clipboard read/write actions used by other features continue to function normally.
 
 ## Related
 

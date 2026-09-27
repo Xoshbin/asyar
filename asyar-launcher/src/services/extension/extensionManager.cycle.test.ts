@@ -99,6 +99,7 @@ vi.mock('../extensionLoaderService', () => ({
 vi.mock('./extensionDiscovery', () => ({
   discoverExtensions: vi.fn().mockResolvedValue([]),
   isBuiltInFeature: vi.fn().mockReturnValue(false),
+  isBuiltInDisableable: vi.fn().mockReturnValue(false),
 }));
 vi.mock('./commandService.svelte', () => ({
   commandService: {

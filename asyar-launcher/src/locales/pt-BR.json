@@ -283,6 +283,7 @@
       "section_builtin": "Recursos Integrados",
       "section_installed": "Extensões Instaladas",
       "type_builtin": "Integrado",
+      "required_builtin_explanation": "Recurso essencial não pode ser desativado",
       "type_command": "Comando",
       "type_extension": "Extensão",
       "type_theme": "Tema"

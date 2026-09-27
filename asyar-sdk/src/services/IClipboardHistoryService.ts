@@ -5,7 +5,8 @@ import type { ClipboardHistoryItem, ClipboardItemType } from '../types';
  */
 export interface IClipboardHistoryService {
   initialize(): Promise<void>;
-  stopMonitoring(): void;
+  startMonitoring(): Promise<void>;
+  stopMonitoring(): void | Promise<void>;
   formatClipboardItem(item: ClipboardHistoryItem): string;
   pasteItem(item: ClipboardHistoryItem): Promise<void>;
   hideWindow(): Promise<void>;

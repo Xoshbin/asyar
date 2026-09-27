@@ -407,11 +407,22 @@ pub fn scan_extensions_dir(dir: &Path, is_built_in: bool) -> Vec<ExtensionRecord
                     continue;
                 }
 
+                let disableable = if is_built_in {
+                    manifest
+                        .lifecycle
+                        .as_ref()
+                        .and_then(|l| l.disableable)
+                        .unwrap_or(false)
+                } else {
+                    true
+                };
+
                 records.push(ExtensionRecord {
                     first_view_component: manifest.first_view_component().map(String::from),
                     manifest: manifest.clone(),
                     enabled: true, // Will be updated from settings later
                     is_built_in,
+                    disableable,
                     path: path.to_string_lossy().to_string(),
                     compatibility: if is_built_in {
                         CompatibilityStatus::Compatible
@@ -558,6 +569,7 @@ mod first_view_component_tests {
             description: String::new(),
             author: None,
             extension_type: Some("extension".into()),
+            lifecycle: None,
             background: None,
             searchable: None,
             icon: None,
@@ -710,6 +722,7 @@ mod onboarding_validation_tests {
             description: String::new(),
             author: None,
             extension_type: Some("extension".into()),
+            lifecycle: None,
             background: None,
             searchable: None,
             icon: None,
@@ -864,6 +877,7 @@ mod compatibility_tests {
             description: "Test extension".to_string(),
             author: None,
             extension_type: None,
+            lifecycle: None,
             background: None,
             searchable: None,
             icon: None,
@@ -2028,6 +2042,7 @@ mod manifest_schema_tests {
             description: String::new(),
             author: None,
             extension_type: Some("extension".into()),
+            lifecycle: None,
             background: Some(BackgroundSpec {
                 main: "dist/worker.js".into(),
             }),
@@ -2079,5 +2094,171 @@ mod manifest_schema_tests {
             msg.contains("view"),
             "expected error to mention view, got: {msg}"
         );
+    }
+
+    #[test]
+    fn validate_manifest_accepts_valid_lifecycle() {
+        let json = r#"{
+            "id": "org.test.lifecycle",
+            "name": "Lifecycle Test",
+            "version": "1.0.0",
+            "description": "Tests lifecycle policy declaration",
+            "author": "tester",
+            "type": "extension",
+            "lifecycle": {
+                "disableable": true,
+                "background": true
+            },
+            "commands": [{
+                "id": "run",
+                "name": "Run",
+                "mode": "view",
+                "component": "MainView"
+            }]
+        }"#;
+
+        let manifest: ExtensionManifest =
+            serde_json::from_str(json).expect("valid lifecycle manifest should parse");
+        assert_eq!(
+            manifest.lifecycle.as_ref().and_then(|l| l.disableable),
+            Some(true)
+        );
+        assert_eq!(
+            manifest.lifecycle.as_ref().and_then(|l| l.background),
+            Some(true)
+        );
+        validate_manifest(&manifest).expect("manifest with valid lifecycle should pass validation");
+    }
+
+    #[test]
+    fn validate_manifest_rejects_unknown_fields_in_lifecycle() {
+        let json = r#"{
+            "id": "org.test.lifecycle.bad",
+            "name": "Lifecycle Bad",
+            "version": "1.0.0",
+            "description": "Tests unknown field rejection in lifecycle",
+            "author": "tester",
+            "type": "extension",
+            "lifecycle": {
+                "disableable": true,
+                "nonExistentField": 123
+            },
+            "commands": [{
+                "id": "run",
+                "name": "Run",
+                "mode": "view",
+                "component": "MainView"
+            }]
+        }"#;
+
+        let result: Result<ExtensionManifest, _> = serde_json::from_str(json);
+        assert!(
+            result.is_err(),
+            "unknown field in lifecycle must fail deserialization (deny_unknown_fields)"
+        );
+    }
+
+    fn unique_temp_dir(prefix: &str) -> std::path::PathBuf {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let pid = std::process::id();
+        let dir = std::env::temp_dir().join(format!("{}-{}-{}", prefix, pid, nanos));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn scan_extensions_dir_sets_disableable_flag_appropriately() {
+        let tmp = unique_temp_dir("asyar-test-lifecycle-discovery");
+
+        // 1. Built-in with lifecycle.disableable: true -> disableable: true
+        let ext1_dir = tmp.join("opted-in-builtin");
+        std::fs::create_dir_all(&ext1_dir).unwrap();
+        std::fs::write(
+            ext1_dir.join("manifest.json"),
+            r#"{
+                "id": "opted-in-builtin",
+                "name": "Opted In",
+                "version": "1.0.0",
+                "description": "Optional built-in feature",
+                "lifecycle": { "disableable": true },
+                "commands": [{ "id": "cmd", "name": "Cmd", "mode": "view", "component": "View" }]
+            }"#,
+        )
+        .unwrap();
+
+        // 2. Built-in without lifecycle -> disableable: false (required core)
+        let ext2_dir = tmp.join("required-builtin");
+        std::fs::create_dir_all(&ext2_dir).unwrap();
+        std::fs::write(
+            ext2_dir.join("manifest.json"),
+            r#"{
+                "id": "required-builtin",
+                "name": "Required Builtin",
+                "version": "1.0.0",
+                "description": "Required built-in feature",
+                "commands": [{ "id": "cmd", "name": "Cmd", "mode": "view", "component": "View" }]
+            }"#,
+        )
+        .unwrap();
+
+        // 3. Built-in with lifecycle.disableable: false -> disableable: false
+        let ext3_dir = tmp.join("explicit-required-builtin");
+        std::fs::create_dir_all(&ext3_dir).unwrap();
+        std::fs::write(
+            ext3_dir.join("manifest.json"),
+            r#"{
+                "id": "explicit-required-builtin",
+                "name": "Explicit Required",
+                "version": "1.0.0",
+                "description": "Explicitly required built-in",
+                "lifecycle": { "disableable": false },
+                "commands": [{ "id": "cmd", "name": "Cmd", "mode": "view", "component": "View" }]
+            }"#,
+        )
+        .unwrap();
+
+        let builtin_records = scan_extensions_dir(&tmp, true);
+
+        let opt_in = builtin_records
+            .iter()
+            .find(|r| r.manifest.id == "opted-in-builtin")
+            .unwrap();
+        assert!(
+            opt_in.disableable,
+            "opted-in built-in must be disableable: true"
+        );
+
+        let req = builtin_records
+            .iter()
+            .find(|r| r.manifest.id == "required-builtin")
+            .unwrap();
+        assert!(
+            !req.disableable,
+            "default built-in must be disableable: false"
+        );
+
+        let exp_req = builtin_records
+            .iter()
+            .find(|r| r.manifest.id == "explicit-required-builtin")
+            .unwrap();
+        assert!(
+            !exp_req.disableable,
+            "explicit false built-in must be disableable: false"
+        );
+
+        // 4. Installed extension (is_built_in: false) -> always disableable: true
+        let installed_records = scan_extensions_dir(&tmp, false);
+        for rec in installed_records {
+            assert!(
+                rec.disableable,
+                "installed extension must always be disableable: true"
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

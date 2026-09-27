@@ -335,11 +335,18 @@
       <span class="col-hotkey row-muted">—</span>
       <div class="col-on">
         <Toggle
-          checked={ext.isBuiltIn ? true : ext.enabled === true}
-          disabled={ext.isBuiltIn ||
+          checked={ext.isBuiltIn
+            ? ext.disableable
+              ? ext.enabled === true
+              : true
+            : ext.enabled === true}
+          disabled={(ext.isBuiltIn && !ext.disableable) ||
             handler.togglingExtension === ext.title ||
             extensionStateManager.extensionUninstallInProgress === ext.id ||
             (ext.compatibility?.status !== 'compatible' && ext.compatibility?.status !== 'unknown')}
+          title={ext.isBuiltIn && !ext.disableable
+            ? t('settings.extensions.required_builtin_explanation')
+            : undefined}
           onchange={() => handler.toggleExtension(ext)}
         />
       </div>

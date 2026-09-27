@@ -56,6 +56,7 @@ vi.mock('asyar-sdk/contracts', () => ({
     initializeExtensions: vi.fn().mockResolvedValue(true),
     activateExtensions: vi.fn().mockResolvedValue(true),
     deactivateExtensions: vi.fn().mockResolvedValue(true),
+    clear: vi.fn(),
   },
   messageBroker: { setHostDispatcher: vi.fn() },
 }));
@@ -92,6 +93,7 @@ vi.mock('../extensionLoaderService', () => ({
 vi.mock('./extensionDiscovery', () => ({
   discoverExtensions: vi.fn().mockResolvedValue([]),
   isBuiltInFeature: vi.fn().mockReturnValue(false),
+  isBuiltInDisableable: vi.fn().mockReturnValue(false),
 }));
 vi.mock('./commandService.svelte', () => ({
   commandService: {

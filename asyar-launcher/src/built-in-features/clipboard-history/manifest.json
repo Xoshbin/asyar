@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "description": "Manage and access your clipboard history",
   "type": "extension",
+  "lifecycle": {
+    "disableable": true
+  },
   "searchable": true,
   "icon": "icon:clipboard",
   "actions": [

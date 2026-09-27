@@ -7,8 +7,36 @@ vi.mock('../../lib/ipc/commands', () => ({
   uninstallExtension: vi.fn(),
 }));
 
+vi.mock('../settings/settingsService.svelte', () => ({
+  settingsService: {
+    isExtensionEnabled: vi.fn().mockReturnValue(true),
+    updateExtensionState: vi.fn().mockResolvedValue(true),
+    removeExtensionState: vi.fn().mockResolvedValue(true),
+    getSettings: vi.fn().mockReturnValue({}),
+  },
+}));
+
+vi.mock('../log/logService', () => ({
+  logService: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
+vi.mock('./viewManager.svelte', () => ({
+  viewManager: {
+    closeViewsForExtension: vi.fn(),
+  },
+}));
+
 import { extensionStateManager } from './extensionStateManager.svelte';
-import { discoverExtensions } from '../../lib/ipc/commands';
+import { discoverExtensions, setExtensionEnabled } from '../../lib/ipc/commands';
+import { settingsService } from '../settings/settingsService.svelte';
+import { viewManager } from './viewManager.svelte';
+import { logService } from '../log/logService';
+import type { ExtendedManifest } from '../../types/ExtendedManifest';
 
 describe('extensionStateManager — needsRuntime', () => {
   beforeEach(() => {
@@ -100,5 +128,173 @@ describe('extensionStateManager — iconUrl', () => {
     vi.mocked(discoverExtensions).mockResolvedValueOnce([makeRecord('noicon')] as never);
     const [ext] = await extensionStateManager.getAllExtensionsWithState();
     expect(ext.iconUrl).toBeUndefined();
+  });
+});
+
+describe('extensionStateManager — disableable lifecycle policy', () => {
+  const reloadCallback = vi.fn().mockResolvedValue(undefined);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const manifests = new Map<string, ExtendedManifest>([
+      [
+        'calculator',
+        {
+          id: 'calculator',
+          name: 'Calculator',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'clipboard-history',
+        {
+          id: 'clipboard-history',
+          name: 'Clipboard History',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'third-party',
+        {
+          id: 'third-party',
+          name: 'Third Party',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          commands: [],
+        } as ExtendedManifest,
+      ],
+    ]);
+    extensionStateManager.init(manifests, reloadCallback);
+  });
+
+  describe('isExtensionEnabled', () => {
+    it('always returns true for required built-ins even if settings says false', () => {
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false);
+      expect(extensionStateManager.isExtensionEnabled('calculator')).toBe(true);
+    });
+
+    it('returns settingsService state for optional built-in (clipboard-history)', () => {
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false);
+      expect(extensionStateManager.isExtensionEnabled('clipboard-history')).toBe(false);
+
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
+      expect(extensionStateManager.isExtensionEnabled('clipboard-history')).toBe(true);
+    });
+
+    it('returns settingsService state for third-party extensions', () => {
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false);
+      expect(extensionStateManager.isExtensionEnabled('third-party')).toBe(false);
+
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
+      expect(extensionStateManager.isExtensionEnabled('third-party')).toBe(true);
+    });
+  });
+
+  describe('toggleExtensionState', () => {
+    it('rejects disabling required built-in features without calling IPC or changing state', async () => {
+      const ok = await extensionStateManager.toggleExtensionState('calculator', false);
+
+      expect(ok).toBe(false);
+      expect(setExtensionEnabled).not.toHaveBeenCalled();
+      expect(settingsService.updateExtensionState).not.toHaveBeenCalled();
+      expect(logService.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Cannot disable required built-in feature: calculator'),
+      );
+    });
+
+    it('allows disabling optional built-in features, closes active views, updates settings, and reloads', async () => {
+      vi.mocked(setExtensionEnabled).mockResolvedValue(true);
+
+      const ok = await extensionStateManager.toggleExtensionState('clipboard-history', false);
+
+      expect(ok).toBe(true);
+      expect(setExtensionEnabled).toHaveBeenCalledWith('clipboard-history', false);
+      expect(settingsService.updateExtensionState).toHaveBeenCalledWith('clipboard-history', false);
+      expect(viewManager.closeViewsForExtension).toHaveBeenCalledWith('clipboard-history');
+      expect(reloadCallback).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows re-enabling optional built-in features and reloads', async () => {
+      vi.mocked(setExtensionEnabled).mockResolvedValue(true);
+
+      const ok = await extensionStateManager.toggleExtensionState('clipboard-history', true);
+
+      expect(ok).toBe(true);
+      expect(setExtensionEnabled).toHaveBeenCalledWith('clipboard-history', true);
+      expect(settingsService.updateExtensionState).toHaveBeenCalledWith('clipboard-history', true);
+      expect(reloadCallback).toHaveBeenCalledTimes(1);
+    });
+
+    it('serializes concurrent toggle calls sequentially', async () => {
+      vi.mocked(setExtensionEnabled).mockResolvedValue(true);
+      const executionOrder: string[] = [];
+
+      reloadCallback.mockImplementation(async () => {
+        executionOrder.push('reload');
+      });
+
+      const p1 = extensionStateManager.toggleExtensionState('clipboard-history', false);
+      const p2 = extensionStateManager.toggleExtensionState('clipboard-history', true);
+
+      const [res1, res2] = await Promise.all([p1, p2]);
+      expect(res1).toBe(true);
+      expect(res2).toBe(true);
+      expect(executionOrder).toEqual(['reload', 'reload']);
+    });
+  });
+
+  describe('getAllExtensions', () => {
+    it('omits disabled optional built-in features from returned extension items', async () => {
+      vi.mocked(settingsService.isExtensionEnabled).mockImplementation(
+        (id) => id !== 'clipboard-history',
+      );
+
+      const items = await extensionStateManager.getAllExtensions(vi.fn());
+      const ids = items.map((i) => i.title);
+
+      expect(ids).toContain('Calculator');
+      expect(ids).not.toContain('Clipboard History');
+    });
+
+    it('includes enabled optional built-in features in returned extension items', async () => {
+      vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
+
+      const items = await extensionStateManager.getAllExtensions(vi.fn());
+      const ids = items.map((i) => i.title);
+
+      expect(ids).toContain('Calculator');
+      expect(ids).toContain('Clipboard History');
+    });
+  });
+
+  describe('getAllExtensionsWithState', () => {
+    it('passes disableable flag through to extension item data', async () => {
+      vi.mocked(discoverExtensions).mockResolvedValueOnce([
+        {
+          manifest: { id: 'calc', name: 'Calc', commands: [] },
+          enabled: true,
+          isBuiltIn: true,
+          disableable: false,
+        },
+        {
+          manifest: { id: 'clipboard-history', name: 'Clipboard History', commands: [] },
+          enabled: true,
+          isBuiltIn: true,
+          disableable: true,
+        },
+      ] as never);
+
+      const items = await extensionStateManager.getAllExtensionsWithState();
+      expect(items[0].disableable).toBe(false);
+      expect(items[1].disableable).toBe(true);
+    });
   });
 });

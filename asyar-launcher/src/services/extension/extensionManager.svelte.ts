@@ -396,11 +396,12 @@ export class ExtensionManager implements IExtensionManager {
     this.timerBridge.unsubscribe();
     void walkthroughService.unsubscribe();
 
-    // Clear commands first
+    // Clear commands and actions first
     this.manifestsById.forEach((manifest) => {
       if (manifest && manifest.id) {
         // Check manifest and id exist
         commandService.clearCommandsForExtension(manifest.id);
+        actionService.clearActionsForExtension(manifest.id);
       }
     });
 
@@ -429,7 +430,8 @@ export class ExtensionManager implements IExtensionManager {
       );
     }
 
-    // Clear internal state
+    // Clear bridge and internal state
+    this.bridge.clear?.();
     this.extensionModulesById.clear(); // Clear modules map
     this.manifestsById.clear();
     this.allLoadedCommands = [];

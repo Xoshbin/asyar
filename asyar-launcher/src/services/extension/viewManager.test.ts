@@ -559,4 +559,64 @@ describe('module resolver forwarding', () => {
       expect(tier1ModuleA.viewActivated).toHaveBeenCalledWith('ext-a/ViewOne');
     });
   });
+
+  describe('closeViewsForExtension', () => {
+    it('safely closes the active view if it belongs to the disabled extension', () => {
+      const clipModule = { viewActivated: vi.fn(), viewDeactivated: vi.fn() };
+      const modules = new Map<string, unknown>([['clipboard-history', clipModule]]);
+      initWithResolver([makeManifest({ id: 'clipboard-history' })], modules);
+
+      searchStores.query = 'initial search query';
+      viewManager.navigateToView('clipboard-history/DefaultView');
+      expect(viewManager.activeView).toBe('clipboard-history/DefaultView');
+
+      viewManager.closeViewsForExtension('clipboard-history');
+
+      expect(clipModule.viewDeactivated).toHaveBeenCalledWith('clipboard-history/DefaultView');
+      expect(viewManager.activeView).toBeNull();
+      expect(viewManager.isViewActive()).toBe(false);
+      expect(viewManager.getNavigationStackSize()).toBe(0);
+      expect(searchStores.query).toBe('initial search query');
+    });
+
+    it('leaves unrelated active views open when closing views for a different extension', () => {
+      const notesModule = { viewActivated: vi.fn(), viewDeactivated: vi.fn() };
+      const modules = new Map<string, unknown>([['notes', notesModule]]);
+      initWithResolver([makeManifest({ id: 'notes' })], modules);
+
+      viewManager.navigateToView('notes/MainView');
+      expect(viewManager.activeView).toBe('notes/MainView');
+
+      viewManager.closeViewsForExtension('clipboard-history');
+
+      expect(notesModule.viewDeactivated).not.toHaveBeenCalled();
+      expect(viewManager.activeView).toBe('notes/MainView');
+      expect(viewManager.getNavigationStackSize()).toBe(1);
+    });
+
+    it('removes the disabled extension view from stack and reactivates remaining parent view', () => {
+      const notesModule = { viewActivated: vi.fn(), viewDeactivated: vi.fn() };
+      const clipModule = { viewActivated: vi.fn(), viewDeactivated: vi.fn() };
+      const modules = new Map<string, unknown>([
+        ['notes', notesModule],
+        ['clipboard-history', clipModule],
+      ]);
+      initWithResolver(
+        [makeManifest({ id: 'notes' }), makeManifest({ id: 'clipboard-history' })],
+        modules,
+      );
+
+      viewManager.navigateToView('notes/MainView');
+      viewManager.navigateToView('clipboard-history/DefaultView');
+      expect(viewManager.activeView).toBe('clipboard-history/DefaultView');
+      expect(viewManager.getNavigationStackSize()).toBe(2);
+
+      viewManager.closeViewsForExtension('clipboard-history');
+
+      expect(clipModule.viewDeactivated).toHaveBeenCalledWith('clipboard-history/DefaultView');
+      expect(notesModule.viewActivated).toHaveBeenCalledWith('notes/MainView');
+      expect(viewManager.activeView).toBe('notes/MainView');
+      expect(viewManager.getNavigationStackSize()).toBe(1);
+    });
+  });
 });

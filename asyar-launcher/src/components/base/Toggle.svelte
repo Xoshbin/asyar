@@ -3,16 +3,22 @@
     checked = $bindable(false),
     disabled = false,
     id = '',
+    title,
     onchange,
   }: {
     checked?: boolean;
     disabled?: boolean;
     id?: string;
+    title?: string;
     onchange?: (e: Event) => void;
   } = $props();
 </script>
 
-<label class="relative inline-flex items-center cursor-pointer" class:cursor-not-allowed={disabled}>
+<label
+  class="relative inline-flex items-center cursor-pointer"
+  class:cursor-not-allowed={disabled}
+  {title}
+>
   <input type="checkbox" bind:checked {disabled} {id} class="sr-only peer" {onchange} />
   <div class="toggle-track peer peer-disabled:opacity-50"></div>
 </label>

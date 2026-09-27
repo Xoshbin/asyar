@@ -1,6 +1,6 @@
 import { settingsService } from '../settings/settingsService.svelte';
 import { logService } from '../log/logService';
-import { isBuiltInFeature } from './extensionDiscovery';
+import { isBuiltInFeature, isBuiltInDisableable } from './extensionDiscovery';
 import {
   discoverExtensions,
   setExtensionEnabled,
@@ -8,6 +8,7 @@ import {
 } from '../../lib/ipc/commands';
 import { statusBarService } from '../statusBar/statusBarService.svelte';
 import { removeTheme } from '../theme/themeService';
+import { viewManager } from './viewManager.svelte';
 import type { ExtendedManifest } from '../../types/ExtendedManifest';
 
 export class ExtensionStateManager {
@@ -38,6 +39,7 @@ export class ExtensionStateManager {
 
   private manifestsById: Map<string, ExtendedManifest> = new Map();
   private reloadExtensionsCallback: () => Promise<void> = async () => {};
+  private toggleQueue: Promise<boolean> = Promise.resolve(true);
 
   public init(
     manifestsById: Map<string, ExtendedManifest>,
@@ -47,38 +49,66 @@ export class ExtensionStateManager {
     this.reloadExtensionsCallback = reloadExtensionsCallback;
   }
 
+  /**
+   * Checks whether an extension is disableable.
+   * Required built-in features cannot be disabled, whereas optional built-in features
+   * (with lifecycle.disableable = true) and Tier 2 installed extensions can be disabled.
+   */
+  isExtensionDisableable(extensionId: string): boolean {
+    if (!isBuiltInFeature(extensionId)) {
+      return true;
+    }
+    const manifest = this.manifestsById.get(extensionId);
+    if (manifest?.lifecycle?.disableable !== undefined) {
+      return manifest.lifecycle.disableable;
+    }
+    return isBuiltInDisableable(extensionId);
+  }
+
   isExtensionEnabled(extensionId: string): boolean {
-    if (isBuiltInFeature(extensionId)) {
+    if (!this.isExtensionDisableable(extensionId)) {
       return true;
     }
     return settingsService.isExtensionEnabled(extensionId);
   }
 
   async toggleExtensionState(extensionId: string, enabled: boolean): Promise<boolean> {
-    if (isBuiltInFeature(extensionId) && !enabled) {
-      logService.warn(`Cannot disable built-in feature: ${extensionId}`);
-      return false;
-    }
-
-    try {
-      const ok = await setExtensionEnabled(extensionId, enabled);
-      if (!ok) {
-        // Backend state is unchanged — don't reload and don't report success.
-        logService.error(`Failed to set extension state for '${extensionId}'`);
+    const run = async (): Promise<boolean> => {
+      if (!this.isExtensionDisableable(extensionId) && !enabled) {
+        logService.warn(`Cannot disable required built-in feature: ${extensionId}`);
         return false;
       }
 
-      logService.info(
-        `Extension '${extensionId}' state set to ${
-          enabled ? 'enabled' : 'disabled'
-        }. Reloading extensions...`,
-      );
-      await this.reloadExtensionsCallback();
-      return true;
-    } catch (error) {
-      logService.error(`Failed to toggle extension state for '${extensionId}': ${error}`);
-      return false;
-    }
+      try {
+        const ok = await setExtensionEnabled(extensionId, enabled);
+        if (!ok) {
+          // Backend state is unchanged — don't reload and don't report success.
+          logService.error(`Failed to set extension state for '${extensionId}'`);
+          return false;
+        }
+
+        await settingsService.updateExtensionState(extensionId, enabled);
+
+        if (!enabled) {
+          viewManager.closeViewsForExtension(extensionId);
+        }
+
+        logService.info(
+          `Extension '${extensionId}' state set to ${
+            enabled ? 'enabled' : 'disabled'
+          }. Reloading extensions...`,
+        );
+        await this.reloadExtensionsCallback();
+        return true;
+      } catch (error) {
+        logService.error(`Failed to toggle extension state for '${extensionId}': ${error}`);
+        return false;
+      }
+    };
+
+    // Serialize rapid toggle operations
+    this.toggleQueue = this.toggleQueue.then(run, run);
+    return this.toggleQueue;
   }
 
   async getAllExtensionsWithState(): Promise<any[]> {
@@ -121,6 +151,7 @@ export class ExtensionStateManager {
           version: manifest.version || 'N/A',
           iconUrl,
           isBuiltIn: record.isBuiltIn,
+          disableable: record.disableable ?? this.isExtensionDisableable(manifest.id),
           compatibility: record.compatibility,
           commands: manifest.commands ?? [],
           preferences: manifest.preferences ?? [],
@@ -140,8 +171,7 @@ export class ExtensionStateManager {
   async getAllExtensions(navigateToView: (viewPath: string) => void): Promise<any[]> {
     const allItems: any[] = [];
     this.manifestsById.forEach((manifest) => {
-      const isBuiltIn = isBuiltInFeature(manifest.id);
-      if (isBuiltIn || this.isExtensionEnabled(manifest.id)) {
+      if (this.isExtensionEnabled(manifest.id)) {
         allItems.push({
           title: manifest.name,
           subtitle: manifest.description,

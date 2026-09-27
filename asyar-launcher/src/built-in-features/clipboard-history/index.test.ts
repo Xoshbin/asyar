@@ -137,8 +137,33 @@ describe('ClipboardHistoryExtension', () => {
     // Deactivate view
     await extension.viewDeactivated('some/path');
 
-    // This should fail (RED) because viewDeactivated doesn't call removeEventListener currently
     expect(window.removeEventListener).toHaveBeenCalledWith('keydown', handler);
+  });
+
+  it('activate() starts clipboard history monitoring and deactivate() stops monitoring', async () => {
+    const mockClipboard = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      startMonitoring: vi.fn().mockResolvedValue(undefined),
+      stopMonitoring: vi.fn().mockResolvedValue(undefined),
+      getRecentItems: vi.fn().mockResolvedValue([]),
+    };
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === 'clipboard') return mockClipboard;
+        if (name === 'extensions')
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+
+    await extension.initialize(mockContext as any);
+
+    await extension.activate();
+    expect(mockClipboard.initialize).toHaveBeenCalledTimes(1);
+    expect(mockClipboard.startMonitoring).toHaveBeenCalledTimes(1);
+
+    await extension.deactivate();
+    expect(mockClipboard.stopMonitoring).toHaveBeenCalledTimes(1);
   });
 });
 

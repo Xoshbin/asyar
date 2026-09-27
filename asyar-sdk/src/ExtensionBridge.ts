@@ -487,6 +487,18 @@ export class ExtensionBridge {
       .filter(([_, value]) => value.extensionId === extensionId)
       .map(([key, _]) => key);
   }
+
+  /**
+   * Clears all registered manifests, implementations, commands, active contexts, and preferences.
+   * Called on unload to ensure no stale extension state persists across reloads.
+   */
+  clear(): void {
+    this.extensionManifests.clear();
+    this.extensionImplementations.clear();
+    this.commandRegistry.clear();
+    this.activeContexts.clear();
+    this.preferences.clear();
+  }
 }
 
 export const extensionBridge = new ExtensionBridge();

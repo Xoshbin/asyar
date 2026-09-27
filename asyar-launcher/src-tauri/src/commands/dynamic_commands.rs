@@ -365,6 +365,7 @@ mod tests {
                 manifest,
                 enabled: true,
                 is_built_in,
+                disableable: !is_built_in,
                 path: String::new(),
                 compatibility: CompatibilityStatus::Compatible,
                 first_view_component: None,

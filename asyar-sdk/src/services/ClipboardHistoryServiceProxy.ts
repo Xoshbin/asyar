@@ -11,6 +11,10 @@ export class ClipboardHistoryServiceProxy
     return this.broker.invoke<void>('clipboard:initialize');
   }
 
+  startMonitoring(): Promise<void> {
+    return this.broker.invoke<void>('clipboard:startMonitoring');
+  }
+
   stopMonitoring(): void {
     this.broker
       .invoke('clipboard:stopMonitoring')
