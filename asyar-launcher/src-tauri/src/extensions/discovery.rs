@@ -1941,6 +1941,45 @@ mod manifest_schema_tests {
     }
 
     #[test]
+    fn bundled_feature_disableability_policy_is_explicit() {
+        let builtin_root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/built-in-features");
+        if !builtin_root.exists() {
+            return;
+        }
+
+        let required = ["settings", "system"];
+        for entry in std::fs::read_dir(&builtin_root).unwrap().flatten() {
+            let path = entry.path().join("manifest.json");
+            if !path.exists() {
+                continue;
+            }
+            let manifest = read_manifest(&path)
+                .unwrap_or_else(|error| panic!("manifest at {path:?} failed validation: {error}"));
+            let disableable = manifest
+                .lifecycle
+                .as_ref()
+                .and_then(|lifecycle| lifecycle.disableable);
+
+            if required.contains(&manifest.id.as_str()) {
+                assert_eq!(
+                    disableable,
+                    Some(false),
+                    "required built-in '{}' must explicitly declare lifecycle.disableable=false",
+                    manifest.id
+                );
+            } else {
+                assert_eq!(
+                    disableable,
+                    Some(true),
+                    "optional built-in '{}' must explicitly declare lifecycle.disableable=true",
+                    manifest.id
+                );
+            }
+        }
+    }
+
+    #[test]
     fn background_only_extension_with_no_commands_is_allowed() {
         // Future push-event-only extensions reserve a worker bundle without
         // any user-invocable commands.

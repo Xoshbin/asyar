@@ -3,6 +3,7 @@
   "name": "Walkthrough",
   "icon": "icon:star",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "Short tasks that turn Asyar's features into habits, ticked off as you actually use them",
   "author": "Core",
   "type": "extension",

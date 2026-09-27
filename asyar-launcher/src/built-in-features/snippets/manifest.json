@@ -4,6 +4,7 @@
   "icon": "icon:snippets",
   "description": "Text expansion — type a keyword, get the full text",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "author": "Asyar",
   "type": "extension",
   "searchable": true,

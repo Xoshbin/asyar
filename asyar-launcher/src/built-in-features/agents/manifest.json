@@ -3,6 +3,7 @@
   "name": "Agents",
   "icon": "icon:sparkles",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "Run AI agents with tool access",
   "permissions": ["notifications:send"],
   "author": "Core",

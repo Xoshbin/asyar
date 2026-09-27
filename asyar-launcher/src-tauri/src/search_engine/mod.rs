@@ -925,12 +925,36 @@ impl SearchState {
         min_results: usize,
         disabled_object_ids: &[String],
     ) -> Result<Vec<models::SearchResult>, SearchError> {
+        self.merged_search_filtered(
+            query,
+            external_results,
+            min_results,
+            disabled_object_ids,
+            &[],
+        )
+    }
+
+    pub fn merged_search_filtered(
+        &self,
+        query: &str,
+        external_results: Vec<models::ExternalSearchResult>,
+        min_results: usize,
+        disabled_object_ids: &[String],
+        disabled_extension_ids: &[String],
+    ) -> Result<Vec<models::SearchResult>, SearchError> {
         let skim_max: f32 = 100_000.0;
         let limit: usize = 20;
         let is_disabled_app = |r: &models::SearchResult| -> bool {
             r.result_type == "application"
                 && disabled_object_ids.iter().any(|id| id == &r.object_id)
         };
+        let is_disabled_extension = |r: &models::SearchResult| -> bool {
+            r.extension_id.as_ref().is_some_and(|extension_id| {
+                disabled_extension_ids.iter().any(|id| id == extension_id)
+            })
+        };
+        let is_disabled =
+            |r: &models::SearchResult| -> bool { is_disabled_app(r) || is_disabled_extension(r) };
 
         // Empty-query short-circuit: pure frecency sort, no tier overhead.
         if query.trim().is_empty() {
@@ -979,7 +1003,7 @@ impl SearchState {
             }
             let mut ordered = pinned;
             ordered.append(&mut combined);
-            ordered.retain(|r| !is_disabled_app(r));
+            ordered.retain(|r| !is_disabled(r));
             let mut seen = std::collections::HashSet::new();
             ordered.retain(|r| seen.insert(r.object_id.clone()));
             ordered.truncate(limit);
@@ -1040,7 +1064,7 @@ impl SearchState {
                     });
                 }
             }
-            combined.retain(|r| !is_disabled_app(r));
+            combined.retain(|r| !is_disabled(r));
             let mut seen = std::collections::HashSet::new();
             combined.retain(|r| seen.insert(r.object_id.clone()));
             combined.truncate(limit);
@@ -1172,7 +1196,7 @@ impl SearchState {
         let mut results: Vec<models::SearchResult> = combined.into_iter().map(|(r, _)| r).collect();
         // Filter before the min_results check below so a disabled app never
         // occupies a backfill slot that an enabled item could have filled.
-        results.retain(|r| !is_disabled_app(r));
+        results.retain(|r| !is_disabled(r));
 
         // Backfill with top frecency items when fewer than min_results matched.
         // Safe: the read lock was already released above.
@@ -1191,7 +1215,7 @@ impl SearchState {
                 }
                 if !existing_ids.contains(&suggestion.object_id)
                     && !existing_names.contains(&suggestion.name)
-                    && !is_disabled_app(&suggestion)
+                    && !is_disabled(&suggestion)
                 {
                     suggestion.score = -1.0; // backfill marker
                     results.push(suggestion);
@@ -1212,8 +1236,32 @@ impl SearchState {
         aliases: &crate::aliases::AliasState,
         disabled_object_ids: &[String],
     ) -> Result<models::MergedSearchResponse, SearchError> {
-        let mut results =
-            self.merged_search(query, external_results, min_results, disabled_object_ids)?;
+        self.merged_search_with_aliases_filtered(
+            query,
+            external_results,
+            min_results,
+            aliases,
+            disabled_object_ids,
+            &[],
+        )
+    }
+
+    pub fn merged_search_with_aliases_filtered(
+        &self,
+        query: &str,
+        external_results: Vec<models::ExternalSearchResult>,
+        min_results: usize,
+        aliases: &crate::aliases::AliasState,
+        disabled_object_ids: &[String],
+        disabled_extension_ids: &[String],
+    ) -> Result<models::MergedSearchResponse, SearchError> {
+        let mut results = self.merged_search_filtered(
+            query,
+            external_results,
+            min_results,
+            disabled_object_ids,
+            disabled_extension_ids,
+        )?;
 
         // Decorate every row with its alias (if any).
         for r in results.iter_mut() {
@@ -2378,6 +2426,32 @@ mod service_tests {
 
         assert!(results.iter().any(|r| r.object_id == "app_enabled"));
         assert!(results.iter().all(|r| r.object_id != "app_disabled"));
+    }
+
+    #[test]
+    fn merged_search_filters_results_from_disabled_extensions() {
+        let state = make_state();
+        let external = vec![models::ExternalSearchResult {
+            object_id: "calculator:result".to_string(),
+            name: "42".to_string(),
+            description: None,
+            result_type: "command".to_string(),
+            score: 1.0,
+            icon: None,
+            extension_id: Some("calculator".to_string()),
+            category: Some("extension".to_string()),
+            style: None,
+            priority: None,
+        }];
+        let disabled_extensions = vec!["calculator".to_string()];
+
+        let results = state
+            .merged_search_filtered("6 * 7", external, 10, &[], &disabled_extensions)
+            .unwrap();
+
+        assert!(results
+            .iter()
+            .all(|result| result.extension_id.as_deref() != Some("calculator")));
     }
 
     // ------------------------------------------------------------------

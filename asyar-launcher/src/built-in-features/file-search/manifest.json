@@ -2,6 +2,7 @@
   "name": "File Search",
   "id": "file-search",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "Search files across your home folder",
   "type": "extension",
   "searchable": true,

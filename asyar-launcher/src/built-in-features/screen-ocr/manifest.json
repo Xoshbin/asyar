@@ -2,6 +2,7 @@
   "id": "screen-ocr",
   "name": "Screen OCR",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "Extract and copy text from any region of your screen",
   "type": "extension",
   "searchable": true,

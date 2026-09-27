@@ -145,6 +145,19 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
           description: '',
           version: '1.0.0',
           type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'settings',
+        {
+          id: 'settings',
+          name: 'Settings',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: false },
           commands: [],
         } as ExtendedManifest,
       ],
@@ -178,7 +191,7 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
   describe('isExtensionEnabled', () => {
     it('always returns true for required built-ins even if settings says false', () => {
       vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false);
-      expect(extensionStateManager.isExtensionEnabled('calculator')).toBe(true);
+      expect(extensionStateManager.isExtensionEnabled('settings')).toBe(true);
     });
 
     it('returns settingsService state for optional built-in (clipboard-history)', () => {
@@ -200,14 +213,24 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
 
   describe('toggleExtensionState', () => {
     it('rejects disabling required built-in features without calling IPC or changing state', async () => {
-      const ok = await extensionStateManager.toggleExtensionState('calculator', false);
+      const ok = await extensionStateManager.toggleExtensionState('settings', false);
 
       expect(ok).toBe(false);
       expect(setExtensionEnabled).not.toHaveBeenCalled();
       expect(settingsService.updateExtensionState).not.toHaveBeenCalled();
       expect(logService.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Cannot disable required built-in feature: calculator'),
+        expect.stringContaining('Cannot disable required built-in feature: settings'),
       );
+    });
+
+    it('allows disabling migrated optional built-ins', async () => {
+      vi.mocked(setExtensionEnabled).mockResolvedValue(true);
+
+      const ok = await extensionStateManager.toggleExtensionState('calculator', false);
+
+      expect(ok).toBe(true);
+      expect(setExtensionEnabled).toHaveBeenCalledWith('calculator', false);
+      expect(viewManager.closeViewsForExtension).toHaveBeenCalledWith('calculator');
     });
 
     it('allows disabling optional built-in features, closes active views, updates settings, and reloads', async () => {

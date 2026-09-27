@@ -11,6 +11,7 @@ vi.mock('asyar-sdk/contracts', () => ({
 vi.mock('../../services/context/contextModeService.svelte', () => ({
   contextModeService: {
     registerProvider: vi.fn(),
+    unregisterProvider: vi.fn(),
     activate: vi.fn(),
     updateQuery: vi.fn(),
   },
@@ -176,6 +177,12 @@ describe('AgentsExtension', () => {
           type: 'stream',
         }),
       );
+    });
+
+    it('unregisters its context provider when deactivated', async () => {
+      await agentsExtension.deactivate();
+
+      expect(contextModeService.unregisterProvider).toHaveBeenCalledWith('agents:default');
     });
   });
 

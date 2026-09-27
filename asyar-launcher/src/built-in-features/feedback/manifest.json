@@ -3,6 +3,7 @@
   "name": "Send Feedback",
   "icon": "icon:info",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "Send feedback, feature ideas, or report a problem to the Asyar team",
   "type": "extension",
   "searchable": true,

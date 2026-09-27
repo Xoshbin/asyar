@@ -4,6 +4,7 @@
   "icon": "icon:keyboard",
   "description": "Global user shortcuts for applications and commands",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "author": "Asyar",
   "type": "extension",
   "searchable": true,

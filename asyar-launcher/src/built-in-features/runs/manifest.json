@@ -3,6 +3,7 @@
   "name": "Runs",
   "icon": "icon:activity",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "View and manage active and recent runs",
   "author": "Core",
   "searchable": true,

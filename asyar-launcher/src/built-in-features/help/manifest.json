@@ -3,6 +3,7 @@
   "name": "Help",
   "icon": "icon:info",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "Keyboard shortcuts, feature guides, and the Asyar user manual",
   "type": "extension",
   "searchable": true,

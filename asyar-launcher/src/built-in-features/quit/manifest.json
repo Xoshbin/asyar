@@ -3,6 +3,7 @@
   "name": "Quit Asyar",
   "icon": "icon:power",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "Quit the Asyar application",
   "type": "extension",
   "searchable": true,

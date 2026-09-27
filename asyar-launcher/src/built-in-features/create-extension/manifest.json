@@ -3,6 +3,7 @@
   "name": "Developer Tools",
   "icon": "icon:dev-tools",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "Scaffold new Asyar extensions",
   "author": "Core",
   "searchable": true,

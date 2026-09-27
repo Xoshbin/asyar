@@ -110,21 +110,23 @@ If none of these fields are present, the extension is marked `Unknown` (compatib
 Asyar enforces an explicit lifecycle policy distinguishing required core infrastructure from optional bundled features and installed extensions:
 
 1. **Required Core Infrastructure (Built-ins)**
-   - Core built-ins (e.g. Settings, Calculator, Extensions manager) default to non-disableable (`lifecycle.disableable: false`).
+   - Only recovery/platform infrastructure (`settings` and `system`) is non-disableable (`lifecycle.disableable: false`).
    - The Rust extension lifecycle strictly rejects any request to disable a non-disableable built-in.
    - In Settings → Extensions, required built-ins display a non-interactive, checked toggle with a tooltip explaining that core infrastructure cannot be disabled.
 
 2. **Optional Bundled Features (Tier 1 Built-ins)**
-   - Bundled features can declare `"lifecycle": { "disableable": true }` in their `manifest.json`.
-   - **Clipboard History** is the reference implementation:
-     - Disabling it stops background clipboard monitoring and captures immediately via a fail-closed gate.
-     - Native clipboard listeners (macOS `add_clipboard_listener`, Android polling) are completely torn down.
+   - Every user-facing bundled feature explicitly declares `"lifecycle": { "disableable": true }` in its `manifest.json`.
+   - Disabling removes that bundled feature's commands, search contributions, actions, accessories, views, and deeplink entry points without deleting its stored data.
+   - Platform services remain available to permission-authorized Tier 2 replacements; disabling an Asyar-provided interface does not disable the underlying extension API.
+   - **Clipboard History** is the reference service/feature split:
+     - Disabling it releases the bundled feature's scoped capture subscription immediately.
+     - Native clipboard listeners are torn down only when no other authorized capture consumer remains.
      - Search contributions and commands are omitted from search indexing.
      - Any active Clipboard History views are closed cleanly.
      - Direct command and deeplink invocations are rejected.
      - Existing history in SQLite is preserved (disabling does not delete data).
      - Shared clipboard read/write capabilities (`readCurrentText`, `writeToClipboard`, etc.) remain fully functional for authorized callers.
-     - Re-enabling initializes monitoring once and restores search contributions and views idempotently.
+     - Re-enabling restores the bundled subscription, search contributions, and views idempotently.
 
 3. **Tier 2 Installed Extensions**
    - Installed extensions default to `disableable: true`.

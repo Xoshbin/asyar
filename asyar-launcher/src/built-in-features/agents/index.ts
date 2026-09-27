@@ -86,6 +86,7 @@ class AgentsExtension implements Extension {
   }
 
   async deactivate(): Promise<void> {
+    contextModeService.unregisterProvider('agents:default');
     this.unregisterListViewActions();
     this.unregisterChatViewActions();
     await agentsManager.stop();

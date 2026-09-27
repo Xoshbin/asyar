@@ -3,6 +3,7 @@
   "name": "System",
   "icon": "icon:power",
   "version": "1.0.0",
+  "lifecycle": { "disableable": false },
   "description": "System commands: sleep, lock screen, restart, shut down",
   "type": "extension",
   "searchable": false,
