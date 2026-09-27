@@ -186,6 +186,66 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
         } as ExtendedManifest,
       ],
       [
+        'notes',
+        {
+          id: 'notes',
+          name: 'Notes',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'runs',
+        {
+          id: 'runs',
+          name: 'Runs',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'snippets',
+        {
+          id: 'snippets',
+          name: 'Snippets',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'store',
+        {
+          id: 'store',
+          name: 'Store',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'walkthrough',
+        {
+          id: 'walkthrough',
+          name: 'Walkthrough',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
         'third-party',
         {
           id: 'third-party',
@@ -201,8 +261,13 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
   });
 
   describe('isExtensionDisableable', () => {
-    it('reports file-search as disableable', () => {
+    it('reports optional built-in features as disableable', () => {
       expect(extensionStateManager.isExtensionDisableable('file-search')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('notes')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('runs')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('snippets')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('store')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('walkthrough')).toBe(true);
     });
   });
 
@@ -226,6 +291,16 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
 
       vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
       expect(extensionStateManager.isExtensionEnabled('file-search')).toBe(true);
+    });
+
+    it('returns settingsService state for optional built-in features (notes, runs, snippets, store, walkthrough)', () => {
+      for (const id of ['notes', 'runs', 'snippets', 'store', 'walkthrough']) {
+        vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false);
+        expect(extensionStateManager.isExtensionEnabled(id)).toBe(false);
+
+        vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(true);
+        expect(extensionStateManager.isExtensionEnabled(id)).toBe(true);
+      }
     });
 
     it('returns settingsService state for third-party extensions', () => {
@@ -283,6 +358,21 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
       expect(reloadCallback).toHaveBeenCalledTimes(1);
     });
 
+    it('allows disabling notes, runs, snippets, store, and walkthrough', async () => {
+      for (const id of ['notes', 'runs', 'snippets', 'store', 'walkthrough']) {
+        vi.clearAllMocks();
+        vi.mocked(setExtensionEnabled).mockResolvedValue(true);
+
+        const ok = await extensionStateManager.toggleExtensionState(id, false);
+
+        expect(ok).toBe(true);
+        expect(setExtensionEnabled).toHaveBeenCalledWith(id, false);
+        expect(settingsService.updateExtensionState).toHaveBeenCalledWith(id, false);
+        expect(viewManager.closeViewsForExtension).toHaveBeenCalledWith(id);
+        expect(reloadCallback).toHaveBeenCalledTimes(1);
+      }
+    });
+
     it('allows re-enabling optional built-in features and reloads', async () => {
       vi.mocked(setExtensionEnabled).mockResolvedValue(true);
 
@@ -303,6 +393,20 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
       expect(setExtensionEnabled).toHaveBeenCalledWith('file-search', true);
       expect(settingsService.updateExtensionState).toHaveBeenCalledWith('file-search', true);
       expect(reloadCallback).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows re-enabling notes, runs, snippets, store, and walkthrough', async () => {
+      for (const id of ['notes', 'runs', 'snippets', 'store', 'walkthrough']) {
+        vi.clearAllMocks();
+        vi.mocked(setExtensionEnabled).mockResolvedValue(true);
+
+        const ok = await extensionStateManager.toggleExtensionState(id, true);
+
+        expect(ok).toBe(true);
+        expect(setExtensionEnabled).toHaveBeenCalledWith(id, true);
+        expect(settingsService.updateExtensionState).toHaveBeenCalledWith(id, true);
+        expect(reloadCallback).toHaveBeenCalledTimes(1);
+      }
     });
 
     it('serializes concurrent toggle calls sequentially', async () => {

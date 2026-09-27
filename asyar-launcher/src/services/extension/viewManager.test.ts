@@ -597,6 +597,32 @@ describe('module resolver forwarding', () => {
       expect(searchStores.query).toBe('my query');
     });
 
+    it('safely closes active views when notes, runs, snippets, store, or walkthrough are disabled', () => {
+      const cases = [
+        { extId: 'notes', viewPath: 'notes/DefaultView' },
+        { extId: 'runs', viewPath: 'runs/RunView' },
+        { extId: 'snippets', viewPath: 'snippets/DefaultView' },
+        { extId: 'store', viewPath: 'store/DefaultView' },
+        { extId: 'walkthrough', viewPath: 'walkthrough/DefaultView' },
+      ];
+
+      for (const { extId, viewPath } of cases) {
+        const mod = { viewActivated: vi.fn(), viewDeactivated: vi.fn() };
+        const modules = new Map<string, unknown>([[extId, mod]]);
+        initWithResolver([makeManifest({ id: extId })], modules);
+
+        viewManager.navigateToView(viewPath);
+        expect(viewManager.activeView).toBe(viewPath);
+
+        viewManager.closeViewsForExtension(extId);
+
+        expect(mod.viewDeactivated).toHaveBeenCalledWith(viewPath);
+        expect(viewManager.activeView).toBeNull();
+        expect(viewManager.isViewActive()).toBe(false);
+        expect(viewManager.getNavigationStackSize()).toBe(0);
+      }
+    });
+
     it('leaves unrelated active views open when closing views for a different extension', () => {
       const notesModule = { viewActivated: vi.fn(), viewDeactivated: vi.fn() };
       const modules = new Map<string, unknown>([['notes', notesModule]]);

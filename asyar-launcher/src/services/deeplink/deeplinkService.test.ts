@@ -211,6 +211,38 @@ describe('DeeplinkService.handleExtensionDeeplink', () => {
     expect(logService.error).toHaveBeenCalled();
   });
 
+  it('rejects disabled optional built-in extensions (notes, runs, snippets, store, walkthrough) gracefully', async () => {
+    const cases = [
+      { id: 'notes', command: 'open-notes' },
+      { id: 'runs', command: 'open-runs' },
+      { id: 'snippets', command: 'open-snippets' },
+      { id: 'store', command: 'browse' },
+      { id: 'walkthrough', command: 'show-walkthrough' },
+    ];
+
+    for (const { id, command } of cases) {
+      vi.clearAllMocks();
+      const manifest = makeManifest({
+        id,
+        commands: [{ id: command, name: command, mode: 'view' }],
+        lifecycle: { disableable: true } as any,
+      });
+      vi.mocked(deps.getManifestById).mockReturnValue(manifest);
+      vi.mocked(deps.isExtensionEnabled).mockReturnValue(false);
+
+      await service.handleExtensionDeeplink({
+        extensionId: id,
+        commandId: command,
+        args: {},
+      });
+
+      expect(deps.executeCommand).not.toHaveBeenCalled();
+      expect(logService.error).toHaveBeenCalledWith(
+        expect.stringContaining(`[Deeplink] Extension is disabled: ${id}`),
+      );
+    }
+  });
+
   // ── Validation: command not in manifest ──────────────────────────────
 
   it('rejects command that does not exist in manifest', async () => {

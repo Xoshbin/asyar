@@ -19,12 +19,21 @@ vi.mock('./snippetService', () => ({
   },
 }));
 
+vi.mock('../../services/action/actionService.svelte', () => ({
+  actionService: {
+    setActionExecutor: vi.fn(),
+    registerAction: vi.fn(),
+    unregisterAction: vi.fn(),
+  },
+}));
+
 import snippetsExtension from './index';
 import { snippetStore } from './snippetStore.svelte';
 import { snippetViewState } from './snippetViewState.svelte';
 import { rankItems } from '../../lib/rankItems';
 import { isAnyModalOpen } from '../../components/base/Modal.logic';
 import { snippetService } from './snippetService';
+import { actionService } from '../../services/action/actionService.svelte';
 
 describe('SnippetsExtension keyboard navigation and search', () => {
   beforeEach(() => {
@@ -183,5 +192,52 @@ describe('SnippetsExtension keyboard navigation and search', () => {
     } finally {
       document.body.removeChild(popup);
     }
+  });
+});
+
+describe('SnippetsExtension lifecycle: activate and deactivate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(window, 'addEventListener');
+    vi.spyOn(window, 'removeEventListener');
+  });
+
+  it('activate() reloads snippetStore', async () => {
+    const reloadSpy = vi.spyOn(snippetStore, 'reload').mockResolvedValue(undefined);
+    await snippetsExtension.activate();
+    expect(reloadSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('viewActivated registers view actions', async () => {
+    await snippetsExtension.viewActivated('snippets/DefaultView');
+    expect(actionService.registerAction).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'snippets:add' }),
+    );
+    expect(actionService.registerAction).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'snippets:paste' }),
+    );
+    expect(actionService.registerAction).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'snippets:delete' }),
+    );
+  });
+
+  it('deactivate() cleans up keydown listener, resets view state, and unregisters actions', async () => {
+    await snippetsExtension.viewActivated('snippets/DefaultView');
+    await snippetsExtension.deactivate();
+
+    expect(window.removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function), true);
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:add');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:paste');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:edit');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:delete');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:copy-expansion');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:duplicate');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:toggle-pin');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:clear-all');
+  });
+
+  it('deactivate() is safe and idempotent when not in view', async () => {
+    await snippetsExtension.deactivate();
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:add');
   });
 });

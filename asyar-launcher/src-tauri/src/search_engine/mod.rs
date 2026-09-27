@@ -2480,6 +2480,90 @@ mod service_tests {
             .all(|result| result.extension_id.as_deref() != Some("file-search")));
     }
 
+    #[test]
+    fn merged_search_filters_optional_builtins_commands_when_disabled() {
+        let state = make_state();
+        let external = vec![
+            models::ExternalSearchResult {
+                object_id: "cmd_notes_open-notes".to_string(),
+                name: "Open Notes".to_string(),
+                description: Some("Browse notes".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:type".to_string()),
+                extension_id: Some("notes".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_runs_open-runs".to_string(),
+                name: "Runs".to_string(),
+                description: Some("Open runs".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:activity".to_string()),
+                extension_id: Some("runs".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_snippets_open-snippets".to_string(),
+                name: "Open Snippets".to_string(),
+                description: Some("Manage snippets".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:snippets".to_string()),
+                extension_id: Some("snippets".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_store_browse".to_string(),
+                name: "Browse Extension Store".to_string(),
+                description: Some("Find extensions".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:store".to_string()),
+                extension_id: Some("store".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_walkthrough_show-walkthrough".to_string(),
+                name: "Walkthrough".to_string(),
+                description: Some("Learn Asyar".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:star".to_string()),
+                extension_id: Some("walkthrough".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+        ];
+        let disabled_extensions = vec![
+            "notes".to_string(),
+            "runs".to_string(),
+            "snippets".to_string(),
+            "store".to_string(),
+            "walkthrough".to_string(),
+        ];
+
+        let results = state
+            .merged_search_filtered("test", external, 10, &[], &disabled_extensions)
+            .unwrap();
+
+        for id in ["notes", "runs", "snippets", "store", "walkthrough"] {
+            assert!(results
+                .iter()
+                .all(|result| result.extension_id.as_deref() != Some(id)));
+        }
+    }
+
     // ------------------------------------------------------------------
     // Alias pin-to-top (rust-first audit #4) — previously done in TS via
     // splice/unshift on the orchestrator after merged_search returned.

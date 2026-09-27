@@ -60,11 +60,7 @@ class SnippetsExtension implements Extension {
     }
   }
 
-  async viewActivated(_viewId: string): Promise<void> {
-    this.inView = true;
-    window.addEventListener('keydown', this.handleKeydownBound, true);
-    const result = await snippetService.onViewOpen();
-    this.extensionManager?.setActiveViewActionLabel('Paste');
+  private registerViewActions(): void {
     actionService.registerAction({
       id: 'snippets:add',
       label: 'Add Snippet',
@@ -197,11 +193,7 @@ class SnippetsExtension implements Extension {
     });
   }
 
-  async viewDeactivated(_viewId: string): Promise<void> {
-    this.inView = false;
-    window.removeEventListener('keydown', this.handleKeydownBound, true);
-    snippetViewState.reset();
-    this.extensionManager?.setActiveViewActionLabel(null);
+  private unregisterViewActions(): void {
     actionService.unregisterAction('snippets:add');
     actionService.unregisterAction('snippets:paste');
     actionService.unregisterAction('snippets:edit');
@@ -212,14 +204,43 @@ class SnippetsExtension implements Extension {
     actionService.unregisterAction('snippets:clear-all');
   }
 
+  async viewActivated(_viewId: string): Promise<void> {
+    this.inView = true;
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound, true);
+      window.addEventListener('keydown', this.handleKeydownBound, true);
+    }
+    await snippetService.onViewOpen();
+    this.extensionManager?.setActiveViewActionLabel('Paste');
+    this.registerViewActions();
+  }
+
+  async viewDeactivated(_viewId: string): Promise<void> {
+    this.inView = false;
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound, true);
+    }
+    snippetViewState.reset();
+    this.extensionManager?.setActiveViewActionLabel(null);
+    this.unregisterViewActions();
+  }
+
   async onViewSearch(query: string): Promise<void> {
     await snippetViewState.setSearch(query);
   }
 
-  async activate(): Promise<void> {}
+  async activate(): Promise<void> {
+    await snippetStore.reload();
+  }
+
   async deactivate(): Promise<void> {
     this.inView = false;
-    window.removeEventListener('keydown', this.handleKeydownBound, true);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound, true);
+    }
+    snippetViewState.reset();
+    this.extensionManager?.setActiveViewActionLabel(null);
+    this.unregisterViewActions();
   }
 }
 

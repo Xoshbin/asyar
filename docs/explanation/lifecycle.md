@@ -134,6 +134,40 @@ Asyar enforces an explicit lifecycle policy distinguishing required core infrast
      - Existing indexed data, pinned files (`file_search_pinned`), selection learning (`file_search_selections`), and user configuration are preserved across disable/re-enable.
      - Re-enabling the bundled feature restores its contributions idempotently without duplicate registrations, watchers, or results.
      - Any active File Search view closes cleanly upon disabling.
+   - **Notes** service/UI boundary:
+     - Disabling the bundled `notes` feature removes its commands (`cmd_notes_open-notes`, `cmd_notes_quick-note`, `cmd_notes_new-sticky`, `cmd_notes_append-today`), views (`notes/DefaultView`), view actions (`notes:add`, `notes:toggle-pin`, `notes:duplicate`, `notes:copy-markdown`, `notes:stick-to-desktop`, `notes:export-markdown`, `notes:delete`), and deeplink entry points.
+     - Disabling does not stop or disable the underlying notes platform service (`notesService` / Rust SQLite persistence layer).
+     - Permission-authorized Tier 2 extensions retain full access to Asyar's notes APIs (`notes:read`, `notes:write`) via `INotesService` (`notes.search`, `notes.get`, `notes.create`, `notes.append`, `notes.list`) while the bundled UI is disabled.
+     - Existing stored notes and pinned note states in SQLite are preserved across disable/re-enable.
+     - Re-enabling the bundled feature restores its contributions and reloads the note store idempotently without duplicate listeners or state leaks.
+     - Any active Notes view closes cleanly upon disabling.
+   - **Runs** service/UI boundary:
+     - Disabling the bundled `runs` feature removes its commands (`cmd_runs_open-runs`), views (`runs/RunView`), view actions (`runs:clear-recent`, `agents:open-run-in-chat`), and deeplink entry points.
+     - Disabling does not stop or disable the underlying run tracking and background task engine (`RunService` / Rust process management).
+     - Permission-authorized Tier 2 extensions retain full access to Asyar's run management APIs (`runs:manage`) via `IRunService` (`runs.start`, `runs.write`, `runs.done`, `runs.fail`, `runs.cancel`, `runs.loadHistory`) while the bundled UI is disabled.
+     - Existing execution history and run logs in SQLite are preserved across disable/re-enable.
+     - Re-enabling the bundled feature restores its view contributions and reloads history idempotently.
+     - Any active Runs view closes cleanly upon disabling.
+   - **Snippets** service/UI boundary:
+     - Disabling the bundled `snippets` feature removes its commands (`cmd_snippets_open-snippets`), views (`snippets/DefaultView`), view actions (`snippets:add`, `snippets:paste`, `snippets:edit`, `snippets:delete`, `snippets:copy-expansion`, `snippets:duplicate`, `snippets:toggle-pin`, `snippets:clear-all`), and deeplink entry points.
+     - Disabling does not stop or disable the native shortcode text expansion engine in Rust or purge snippet records from SQLite.
+     - Permission-authorized Tier 2 extensions retain full access to contribute or revoke shortcodes dynamically (`asyar:api:snippets:registerShortcodes`, `asyar:api:snippets:unregisterShortcodes` via `snippets:manage`) while the bundled UI is disabled.
+     - Existing user snippets, keyword triggers, and encrypted expansions in SQLite are preserved across disable/re-enable.
+     - Re-enabling the bundled feature restores its contributions and reloads snippets idempotently.
+     - Any active Snippets view closes cleanly upon disabling.
+   - **Store infrastructure** service/UI boundary:
+     - Disabling the bundled `store` feature removes its commands (`cmd_store_browse`), views (`store/DefaultView`, `store/DetailView`), and detail/list view actions (`install`, `uninstall`, `update`).
+     - Disabling does not stop or disable the core extension/runtime management APIs, download pipeline, or runtime registry in Rust (`install_extension_from_url`, `uninstall_extension`, `list_installed_extensions`, `check_extension_consent`).
+     - Installed extensions, consent configurations, downloaded runtimes, and local installations remain intact and continue executing while the Store UI is disabled.
+     - Re-enabling the bundled feature restores store browsing and detail views idempotently without dangling modal or keyboard subscriptions.
+     - Any active Store views close cleanly upon disabling.
+   - **Walkthrough engine** service/UI boundary:
+     - Disabling the bundled `walkthrough` feature removes its commands (`cmd_walkthrough_show-walkthrough`), views (`walkthrough/DefaultView`), view actions (`walkthrough:mark-complete`, `walkthrough:mark-all-complete`, `walkthrough:dismiss`, `walkthrough:reset`), root-search progress accessory, and deeplink entry points.
+     - Disabling does not stop or disable the underlying walkthrough rules engine or erase task progress.
+     - Platform launch observers, state probe evaluations, and task completions in SQLite (`walkthrough_completions`) continue tracking habit formation seamlessly in the background.
+     - Earned completion timestamps and dismissed states are preserved across disable/re-enable.
+     - Re-enabling the bundled feature restores the walkthrough view and search progress accessory idempotently.
+     - Any active Walkthrough view closes cleanly upon disabling.
 
 3. **Tier 2 Installed Extensions**
    - Installed extensions default to `disableable: true`.

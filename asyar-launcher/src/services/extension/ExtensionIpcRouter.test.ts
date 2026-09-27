@@ -1109,3 +1109,69 @@ describe('ExtensionIpcRouter — files service dispatch and caller identity inje
     expect(search).toHaveBeenCalledWith(null, 'notes');
   });
 });
+
+describe('ExtensionIpcRouter — notes platform service dispatch', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivileged: boolean,
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
+  }
+
+  it('dispatches notes:search and notes:get to registry.notes', async () => {
+    const search = vi.fn(async () => [{ id: 'n1', title: 'Note 1', snippet: 'preview' }]);
+    const get = vi.fn(async () => ({ id: 'n1', title: 'Note 1', body: 'full' }));
+    const registry = { notes: { search, get } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const searchResult = await dispatchAs(router)(
+      'asyar:api:notes:search',
+      { query: 'test', limit: 5 },
+      'org.example.tier2',
+      false,
+    );
+    expect(search).toHaveBeenCalledWith('test', 5);
+    expect(searchResult).toEqual([{ id: 'n1', title: 'Note 1', snippet: 'preview' }]);
+
+    const getResult = await dispatchAs(router)(
+      'asyar:api:notes:get',
+      { idOrTitle: 'n1' },
+      'org.example.tier2',
+      false,
+    );
+    expect(get).toHaveBeenCalledWith('n1');
+    expect(getResult).toEqual({ id: 'n1', title: 'Note 1', body: 'full' });
+  });
+});
+
+describe('ExtensionIpcRouter — runs platform service dispatch with injected callerId', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivileged: boolean,
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
+  }
+
+  it('runs:write injects caller extensionId as first argument', async () => {
+    const write = vi.fn(async () => undefined);
+    const registry = { runs: { write } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:runs:write',
+      { id: 'run-1', line: 'hello stdout' },
+      'org.example.runner',
+      false,
+    );
+
+    expect(write).toHaveBeenCalledWith('org.example.runner', 'run-1', 'hello stdout');
+  });
+});
