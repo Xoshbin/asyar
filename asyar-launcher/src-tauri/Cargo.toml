@@ -156,7 +156,7 @@ mac-notification-sys = "0.6"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 png = "0.17"
-windows = { version = "0.61", features = [
+windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_Graphics_Dwm",
     "Win32_Graphics_Gdi",
