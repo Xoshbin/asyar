@@ -168,6 +168,70 @@ Asyar enforces an explicit lifecycle policy distinguishing required core infrast
      - Earned completion timestamps and dismissed states are preserved across disable/re-enable.
      - Re-enabling the bundled feature restores the walkthrough view and search progress accessory idempotently.
      - Any active Walkthrough view closes cleanly upon disabling.
+   - **Agents** service/UI boundary:
+     - Disabling the bundled `agents` feature removes its commands (`cmd_agents_open`, `cmd_agents_create-agent`, `cmd_agents_view-chats`), views (`agents/DefaultView`), context mode registrations (`agents`), and deeplink entry points.
+     - Disabling does not stop or disable the underlying AI agent runtime or model execution engine in Rust (`AgentManager`, active generation threads, provider integrations, SQLite chat threads).
+     - Permission-authorized Tier 2 extensions retain full access to register custom agent tools (`tools:registerTool`, `tools:unregisterTools` via `ExtensionIpcRouter`), invoke AI models, or access prompt capabilities.
+     - Saved chat sessions, custom agents, and model configuration in SQLite are preserved across disable/re-enable.
+     - Active chat views close cleanly and in-flight UI generation abort controllers are aborted safely upon deactivation.
+     - Re-enabling the bundled feature restores agent chat views, commands, and context modes idempotently.
+   - **Calculator** service/UI boundary:
+     - Disabling the bundled `calculator` feature removes its root-search calculator interceptor/accessory and commands (`cmd_calculator_calculate`).
+     - Disabling does not stop or disable the native calculation engine or live currency exchange rates service in Rust (`calculator_evaluate`, `calculator_configure`, `calculator_refresh_rates`).
+     - Permission-authorized Tier 2 extensions retain full access to math evaluation and currency conversion via IPC (`calculator_evaluate`) and `ExtensionIpcRouter` while the bundled UI is disabled.
+     - User precision preferences and cached currency rates are preserved across disable/re-enable.
+     - Re-enabling restores the search-bar math evaluator and calculator commands idempotently.
+   - **MCP** service/UI boundary:
+     - Disabling the bundled `mcp` feature removes its commands (`cmd_mcp_servers`), views (`mcp/DefaultView`), view actions, and deeplink entry points.
+     - Disabling does not stop or disable the underlying Model Context Protocol client/server manager in Rust/platform service (`McpService`, active stdio/SSE server connections, tool catalog).
+     - Permission-authorized Tier 2 extensions and agent workflows retain full access to discovered MCP server tools and resources while the bundled UI is disabled.
+     - Configured MCP servers, environment variables, and connection credentials in SQLite are preserved across disable/re-enable.
+     - Active MCP management views close cleanly, and re-enabling restores the server management UI and views idempotently.
+   - **Portals** service/UI boundary:
+     - Disabling the bundled `portals` feature removes its commands (`cmd_portals_manage`), views (`portals/PortalManagerView`), view actions, and search index contributions (`portal:*`).
+     - Disabling does not delete configured portals or credentials in SQLite (`portal_items`).
+     - Custom web shortcuts and portals are purged from the search index on deactivation and re-indexed cleanly on activation.
+     - Active portal manager views close cleanly upon deactivation.
+     - Re-enabling restores the portal manager view and repopulates quick-launch portal search results idempotently.
+   - **Screen OCR** service/UI boundary:
+     - Disabling the bundled `screen-ocr` feature removes its commands (`cmd_screen-ocr_capture`), views, and deeplink entry points.
+     - Disabling does not stop or disable the native platform OCR service in Rust (`ocr_capture_screen_text` / Apple Vision & Tesseract OCR backends).
+     - Permission-authorized Tier 2 extensions retain full access to capture and extract screen text (`screenService.captureText()` / `ocr_capture_screen_text` via `ExtensionIpcRouter` with `screen:capture` permission) while the bundled UI is disabled.
+     - Re-enabling restores the screen capture OCR command and action bindings idempotently.
+     - Any active capture overlays or views close cleanly upon deactivation.
+   - **Scripts** service/UI boundary:
+     - Disabling the bundled `scripts` feature removes its commands (`cmd_scripts_library`, `cmd_scripts_create`), views (`scripts/DefaultView`), and view actions (`scripts:run`, `scripts:edit`, `scripts:delete`, `scripts:toggle-pin`).
+     - Disabling does not stop or disable the underlying script execution engine in Rust or purge user scripts from SQLite (`user_scripts`).
+     - Permission-authorized Tier 2 extensions retain full access to execute commands and scripts via safe shell/node runtimes (`shell:exec`) while the bundled UI is disabled.
+     - Saved script files, arguments, and execution configurations in SQLite are preserved across disable/re-enable.
+     - Active script library views close cleanly, and running script processes are managed safely.
+     - Re-enabling the bundled feature restores the script library view and command palette entries idempotently.
+   - **Shortcuts** service/UI boundary:
+     - Disabling the bundled `shortcuts` feature removes its commands (`cmd_shortcuts_manage`), views (`shortcuts/ShortcutManagerView`), and view actions (`shortcuts:record`, `shortcuts:remove`).
+     - Disabling does not stop or disable the global hotkey listening service in Rust (`GlobalShortcutManager`).
+     - Permission-authorized Tier 2 extensions retain access to register and trigger hotkeys via the global shortcuts platform API while the bundled management UI is disabled.
+     - Configured keybindings and assigned item shortcuts in SQLite (`item_shortcuts`) are preserved across disable/re-enable.
+     - Active shortcut management views and recording modal listeners close cleanly upon deactivation.
+     - Re-enabling restores the shortcut manager view idempotently.
+   - **Usage Stats** service/UI boundary:
+     - Disabling the bundled `usage-stats` feature removes its commands (`cmd_usage-stats_view`), views (`usage-stats/DefaultView`), and view actions (`usage-stats:export`, `usage-stats:reset`).
+     - Disabling does not stop or disable the telemetry and usage logging platform service in Rust (`UsageTracker` / SQLite event logging).
+     - App launch frequencies, command invocations, and extension usage metrics continue recording silently to ensure analytics consistency.
+     - Historical usage data and streaks in SQLite are preserved across disable/re-enable.
+     - Active usage stats views close cleanly, and re-enabling restores the stats dashboard idempotently.
+   - **Window Management** service/UI boundary:
+     - Disabling the bundled `window-management` feature removes its commands (`cmd_window-management_presets`, `cmd_window-management_left-half`, `cmd_window-management_right-half`, `cmd_window-management_maximize`, etc.), views (`window-management/PresetView`), and window switcher UI.
+     - Disabling does not stop or disable the underlying native window manipulation and display geometry platform service in Rust (`window_move_resize`, `window_get_bounds`, `screen_get_displays`).
+     - Permission-authorized Tier 2 extensions retain full access to window placement, tiling, and monitor query APIs via `ExtensionIpcRouter` while the bundled UI is disabled.
+     - Saved window layouts and monitor presets in SQLite are preserved across disable/re-enable.
+     - Active window management views close cleanly upon deactivation.
+     - Re-enabling restores window preset views and quick-snap command contributions idempotently.
+   - **Raycast Import** service/UI boundary:
+     - Disabling the bundled `raycast-import` feature removes its commands (`cmd_raycast-import_import`), views (`raycast-import/ImportWizardView`), and view actions.
+     - Disabling does not stop or disable the underlying manifest parser, Raycast script translator, or extension installer in Rust.
+     - Any previously imported snippets, scripts, or extensions remain installed and functional in their respective platform stores.
+     - In-progress import wizard state is cleared cleanly upon deactivation without leaking file handles.
+     - Re-enabling restores the import wizard command and view idempotently.
 
 3. **Tier 2 Installed Extensions**
    - Installed extensions default to `disableable: true`.

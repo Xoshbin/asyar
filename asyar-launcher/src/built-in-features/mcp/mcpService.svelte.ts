@@ -275,6 +275,18 @@ export class McpService {
     if (!p) return;
     p.resolve(decision);
   }
+
+  reset(): void {
+    this.servers = [];
+    this.audit = [];
+    this.detectedConfigs = [];
+    this.permissions = [];
+    this.loading = false;
+    this.permissionPrompt = null;
+    this.runtimeConsentPrompt = null;
+    this.installError = null;
+    this.enableError = null;
+  }
 }
 
 export const mcpService = new McpService();

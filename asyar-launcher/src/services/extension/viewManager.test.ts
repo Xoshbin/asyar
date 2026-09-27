@@ -597,13 +597,24 @@ describe('module resolver forwarding', () => {
       expect(searchStores.query).toBe('my query');
     });
 
-    it('safely closes active views when notes, runs, snippets, store, or walkthrough are disabled', () => {
+    it('safely closes active views when optional built-in features are disabled', () => {
       const cases = [
         { extId: 'notes', viewPath: 'notes/DefaultView' },
         { extId: 'runs', viewPath: 'runs/RunView' },
         { extId: 'snippets', viewPath: 'snippets/DefaultView' },
         { extId: 'store', viewPath: 'store/DefaultView' },
         { extId: 'walkthrough', viewPath: 'walkthrough/DefaultView' },
+        { extId: 'agents', viewPath: 'agents/AgentListView' },
+        { extId: 'agents', viewPath: 'agents/AgentChatView' },
+        { extId: 'mcp', viewPath: 'mcp/ManageServersView' },
+        { extId: 'mcp', viewPath: 'mcp/PermissionsView' },
+        { extId: 'portals', viewPath: 'portals/DefaultView' },
+        { extId: 'scripts', viewPath: 'scripts/ScriptLibraryView' },
+        { extId: 'shortcuts', viewPath: 'shortcuts/DefaultView' },
+        { extId: 'usage-stats', viewPath: 'usage-stats/DefaultView' },
+        { extId: 'window-management', viewPath: 'window-management/ManageView' },
+        { extId: 'window-management', viewPath: 'window-management/SwitchWindowsView' },
+        { extId: 'raycast-import', viewPath: 'raycast-import/DefaultView' },
       ];
 
       for (const { extId, viewPath } of cases) {

@@ -6,6 +6,10 @@ class UsageStatsState {
   async load(): Promise<void> {
     this.stats = await getUsageStats();
   }
+
+  reset(): void {
+    this.stats = null;
+  }
 }
 
 export const usageStatsState = new UsageStatsState();

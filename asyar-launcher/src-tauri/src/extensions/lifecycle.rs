@@ -1033,6 +1033,16 @@ mod tests {
             ("snippets", "Snippets"),
             ("store", "Store"),
             ("walkthrough", "Walkthrough"),
+            ("agents", "Agents"),
+            ("calculator", "Calculator"),
+            ("mcp", "MCP"),
+            ("portals", "Portals"),
+            ("screen-ocr", "Screen OCR"),
+            ("scripts", "Scripts"),
+            ("shortcuts", "Shortcuts"),
+            ("usage-stats", "Usage Stats"),
+            ("window-management", "Window Management"),
+            ("raycast-import", "Raycast Import"),
         ] {
             let mut record = make_record(id, name, true);
             record.disableable = true;
@@ -1058,51 +1068,41 @@ mod tests {
         let mut req_record = make_record("system", "System", true);
         req_record.disableable = false;
 
-        let mut opt_record = make_record("clipboard-history", "Clipboard History", true);
-        opt_record.disableable = true;
-
-        let mut fs_record = make_record("file-search", "File Search", true);
-        fs_record.disableable = true;
-
-        let mut notes_record = make_record("notes", "Notes", true);
-        notes_record.disableable = true;
-
-        let mut runs_record = make_record("runs", "Runs", true);
-        runs_record.disableable = true;
-
-        let mut snippets_record = make_record("snippets", "Snippets", true);
-        snippets_record.disableable = true;
-
-        let mut store_record = make_record("store", "Store", true);
-        store_record.disableable = true;
-
-        let mut walkthrough_record = make_record("walkthrough", "Walkthrough", true);
-        walkthrough_record.disableable = true;
+        let opt_ids = [
+            "clipboard-history",
+            "file-search",
+            "notes",
+            "runs",
+            "snippets",
+            "store",
+            "walkthrough",
+            "agents",
+            "calculator",
+            "mcp",
+            "portals",
+            "screen-ocr",
+            "scripts",
+            "shortcuts",
+            "usage-stats",
+            "window-management",
+            "raycast-import",
+        ];
 
         let mut inst_record = make_record("com.example.ext", "Example", false);
         inst_record.disableable = true;
 
-        let mut records = vec![
-            req_record,
-            opt_record,
-            fs_record,
-            notes_record,
-            runs_record,
-            snippets_record,
-            store_record,
-            walkthrough_record,
-            inst_record,
-        ];
-
+        let mut records = vec![req_record];
         let mut map = serde_json::Map::new();
         map.insert("system".to_string(), serde_json::json!(false));
-        map.insert("clipboard-history".to_string(), serde_json::json!(false));
-        map.insert("file-search".to_string(), serde_json::json!(false));
-        map.insert("notes".to_string(), serde_json::json!(false));
-        map.insert("runs".to_string(), serde_json::json!(false));
-        map.insert("snippets".to_string(), serde_json::json!(false));
-        map.insert("store".to_string(), serde_json::json!(false));
-        map.insert("walkthrough".to_string(), serde_json::json!(false));
+
+        for id in opt_ids {
+            let mut rec = make_record(id, id, true);
+            rec.disableable = true;
+            records.push(rec);
+            map.insert(id.to_string(), serde_json::json!(false));
+        }
+
+        records.push(inst_record);
         map.insert("com.example.ext".to_string(), serde_json::json!(false));
 
         apply_enabled_map(&mut records, &map);
@@ -1113,15 +1113,7 @@ mod tests {
             "required built-in MUST remain enabled: true even if map says false"
         );
 
-        for id in [
-            "clipboard-history",
-            "file-search",
-            "notes",
-            "runs",
-            "snippets",
-            "store",
-            "walkthrough",
-        ] {
+        for id in opt_ids {
             let rec = records.iter().find(|r| r.manifest.id == id).unwrap();
             assert!(
                 !rec.enabled,

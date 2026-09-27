@@ -211,13 +211,23 @@ describe('DeeplinkService.handleExtensionDeeplink', () => {
     expect(logService.error).toHaveBeenCalled();
   });
 
-  it('rejects disabled optional built-in extensions (notes, runs, snippets, store, walkthrough) gracefully', async () => {
+  it('rejects disabled optional built-in extensions gracefully', async () => {
     const cases = [
       { id: 'notes', command: 'open-notes' },
       { id: 'runs', command: 'open-runs' },
       { id: 'snippets', command: 'open-snippets' },
       { id: 'store', command: 'browse' },
       { id: 'walkthrough', command: 'show-walkthrough' },
+      { id: 'agents', command: 'open' },
+      { id: 'calculator', command: 'calculate' },
+      { id: 'mcp', command: 'servers' },
+      { id: 'portals', command: 'manage' },
+      { id: 'screen-ocr', command: 'capture' },
+      { id: 'scripts', command: 'library' },
+      { id: 'shortcuts', command: 'manage' },
+      { id: 'usage-stats', command: 'view' },
+      { id: 'window-management', command: 'presets' },
+      { id: 'raycast-import', command: 'import' },
     ];
 
     for (const { id, command } of cases) {

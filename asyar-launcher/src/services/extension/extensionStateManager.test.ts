@@ -246,6 +246,126 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
         } as ExtendedManifest,
       ],
       [
+        'agents',
+        {
+          id: 'agents',
+          name: 'Agents',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'calculator',
+        {
+          id: 'calculator',
+          name: 'Calculator',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'mcp',
+        {
+          id: 'mcp',
+          name: 'MCP',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'portals',
+        {
+          id: 'portals',
+          name: 'Portals',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'screen-ocr',
+        {
+          id: 'screen-ocr',
+          name: 'Screen OCR',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'scripts',
+        {
+          id: 'scripts',
+          name: 'Scripts',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'shortcuts',
+        {
+          id: 'shortcuts',
+          name: 'Shortcuts',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'usage-stats',
+        {
+          id: 'usage-stats',
+          name: 'Usage Stats',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'window-management',
+        {
+          id: 'window-management',
+          name: 'Window Management',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
+        'raycast-import',
+        {
+          id: 'raycast-import',
+          name: 'Raycast Import',
+          description: '',
+          version: '1.0.0',
+          type: 'extension',
+          lifecycle: { disableable: true },
+          commands: [],
+        } as ExtendedManifest,
+      ],
+      [
         'third-party',
         {
           id: 'third-party',
@@ -268,6 +388,16 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
       expect(extensionStateManager.isExtensionDisableable('snippets')).toBe(true);
       expect(extensionStateManager.isExtensionDisableable('store')).toBe(true);
       expect(extensionStateManager.isExtensionDisableable('walkthrough')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('agents')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('calculator')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('mcp')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('portals')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('screen-ocr')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('scripts')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('shortcuts')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('usage-stats')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('window-management')).toBe(true);
+      expect(extensionStateManager.isExtensionDisableable('raycast-import')).toBe(true);
     });
   });
 
@@ -293,8 +423,24 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
       expect(extensionStateManager.isExtensionEnabled('file-search')).toBe(true);
     });
 
-    it('returns settingsService state for optional built-in features (notes, runs, snippets, store, walkthrough)', () => {
-      for (const id of ['notes', 'runs', 'snippets', 'store', 'walkthrough']) {
+    it('returns settingsService state for optional built-in features', () => {
+      for (const id of [
+        'notes',
+        'runs',
+        'snippets',
+        'store',
+        'walkthrough',
+        'agents',
+        'calculator',
+        'mcp',
+        'portals',
+        'screen-ocr',
+        'scripts',
+        'shortcuts',
+        'usage-stats',
+        'window-management',
+        'raycast-import',
+      ]) {
         vi.mocked(settingsService.isExtensionEnabled).mockReturnValue(false);
         expect(extensionStateManager.isExtensionEnabled(id)).toBe(false);
 
@@ -395,8 +541,24 @@ describe('extensionStateManager — disableable lifecycle policy', () => {
       expect(reloadCallback).toHaveBeenCalledTimes(1);
     });
 
-    it('allows re-enabling notes, runs, snippets, store, and walkthrough', async () => {
-      for (const id of ['notes', 'runs', 'snippets', 'store', 'walkthrough']) {
+    it('allows re-enabling optional built-in features', async () => {
+      for (const id of [
+        'notes',
+        'runs',
+        'snippets',
+        'store',
+        'walkthrough',
+        'agents',
+        'calculator',
+        'mcp',
+        'portals',
+        'screen-ocr',
+        'scripts',
+        'shortcuts',
+        'usage-stats',
+        'window-management',
+        'raycast-import',
+      ]) {
         vi.clearAllMocks();
         vi.mocked(setExtensionEnabled).mockResolvedValue(true);
 

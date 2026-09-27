@@ -34,11 +34,14 @@ class McpExtension implements Extension {
   }
 
   async activate(): Promise<void> {
-    // no-op
+    await mcpService.refresh();
   }
 
   async deactivate(): Promise<void> {
-    // no-op
+    for (const id of ALL_ACTIONS) {
+      actionService.unregisterAction(id);
+    }
+    mcpService.reset();
   }
 
   async viewActivated(viewId: string): Promise<void> {

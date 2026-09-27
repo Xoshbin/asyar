@@ -19,6 +19,8 @@ const EXTENSION_INVOKE_DISPATCH: Record<string, (args: any) => Promise<any>> = {
   get_autostart_status: () => commands.getAutostartStatus(),
   get_persisted_shortcut: () => commands.getPersistedShortcut(),
   check_snippet_permission: () => commands.checkSnippetPermission(),
+  calculator_evaluate: (args) => commands.calculatorEvaluate(args?.query ?? ''),
+  ocr_capture_screen_text: () => commands.ocrCaptureScreenText(),
 };
 
 // Kept for documentation — actual dispatch uses EXTENSION_INVOKE_DISPATCH

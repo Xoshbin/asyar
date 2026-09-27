@@ -40,6 +40,7 @@ vi.mock('./state.svelte', () => ({
     renameCustomLayout: vi.fn(),
     setIndex: vi.fn(),
     moveSelection: vi.fn(),
+    reset: vi.fn(),
   },
 }));
 vi.mock('./layoutLifecycle', () => ({
@@ -53,8 +54,9 @@ vi.mock('./SwitchWindowsView.svelte', () => ({ default: {} }));
 import extension from './index';
 import { windowManagementService } from '../../services/windowManagement/windowManagementService';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
+import { actionService } from '../../services/action/actionService.svelte';
 import { windowManagementState } from './state.svelte';
-import { applyCustomLayout } from './layoutLifecycle';
+import { applyCustomLayout, syncLayoutToIndex } from './layoutLifecycle';
 import type { ExtensionContext } from 'asyar-sdk/contracts';
 
 function makeContext(): ExtensionContext {
@@ -329,6 +331,40 @@ describe('WindowManagementExtension', () => {
       await extension.initialize(makeContext());
       const results = await extension.search('anything');
       expect(results).toEqual([]);
+    });
+  });
+
+  describe('lifecycle (activate and deactivate)', () => {
+    it('unregisters manage actions and resets state on deactivate', async () => {
+      await extension.initialize(makeContext());
+      await extension.viewActivated('window-management/ManageView');
+      expect(actionService.registerAction).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'window-management:save-current-window' }),
+      );
+
+      await extension.deactivate();
+      expect(actionService.unregisterAction).toHaveBeenCalledWith(
+        'window-management:save-current-window',
+      );
+      expect(windowManagementState.reset).toHaveBeenCalled();
+    });
+
+    it('reloads from storage and syncs custom layouts to index on activate', async () => {
+      const layout = {
+        id: '1',
+        name: 'My Layout',
+        bounds: { x: 0, y: 0, width: 800, height: 600 },
+      };
+      Object.defineProperty(windowManagementState, 'customLayouts', {
+        value: [layout],
+        configurable: true,
+      });
+
+      await extension.initialize(makeContext());
+      await extension.activate();
+
+      expect(windowManagementState.loadFromStorage).toHaveBeenCalled();
+      expect(syncLayoutToIndex).toHaveBeenCalled();
     });
   });
 });

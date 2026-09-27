@@ -37,4 +37,13 @@ describe('screenService (host)', () => {
 
     expect(color).toBeNull();
   });
+
+  it('captureText forwards to ocr_capture_screen_text and returns text', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce('recognized text');
+
+    const result = await screenService.captureText();
+
+    expect(result).toBe('recognized text');
+    expect(invoke).toHaveBeenCalledWith('ocr_capture_screen_text', undefined);
+  });
 });

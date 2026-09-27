@@ -7,7 +7,11 @@ import type {
 } from 'asyar-sdk/contracts';
 import { writeText } from 'tauri-plugin-clipboard-x-api';
 
-import { invokeSafe } from '../../lib/ipc/invokeSafe';
+import {
+  calculatorConfigure,
+  calculatorEvaluate,
+  calculatorRefreshRates,
+} from '../../lib/ipc/commands';
 import type { CalcResult } from '../../bindings';
 
 // All evaluation lives in Rust (src-tauri/src/calculator). This extension
@@ -27,6 +31,7 @@ const KIND_ICONS: Record<CalcResult['kind'], string> = {
 class CalculatorExtension implements Extension {
   private logService?: ILogService;
   private feedbackService?: IFeedbackService;
+  private enabled = true;
 
   onUnload: any;
 
@@ -53,7 +58,7 @@ class CalculatorExtension implements Extension {
       args.numberFormat = numberFormat.trim();
     }
     if (Object.keys(args).length > 0) {
-      await invokeSafe('calculator_configure', args, { silent: true });
+      await calculatorConfigure(args);
     }
   }
 
@@ -62,22 +67,21 @@ class CalculatorExtension implements Extension {
   }
 
   async activate(): Promise<void> {
+    this.enabled = true;
     // Warm the exchange-rate cache; Rust refreshes lazily on stale reads.
-    await invokeSafe('calculator_refresh_rates', undefined, { silent: true });
+    await calculatorRefreshRates();
   }
 
-  async deactivate(): Promise<void> {}
+  async deactivate(): Promise<void> {
+    this.enabled = false;
+  }
 
   async search(query: string): Promise<ExtensionResult[]> {
+    if (!this.enabled) return [];
     const trimmed = query.trim();
     if (!trimmed) return [];
 
-    const results =
-      (await invokeSafe<CalcResult[]>(
-        'calculator_evaluate',
-        { query: trimmed },
-        { silent: true },
-      )) ?? [];
+    const results = (await calculatorEvaluate(trimmed)) ?? [];
 
     return results.map((r) => ({
       score: 1.0,

@@ -14,6 +14,8 @@ vi.mock('./extensionPreferencesService.svelte', () => ({
 vi.mock('./streamDispatcher.svelte', () => ({ streamDispatcher: { abort: vi.fn() } }));
 vi.mock('../../lib/ipc/commands', () => ({
   checkExtensionPermission: vi.fn(),
+  calculatorEvaluate: vi.fn(),
+  ocrCaptureScreenText: vi.fn(),
 }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('../feedback/feedbackService.svelte', () => ({
@@ -1173,5 +1175,72 @@ describe('ExtensionIpcRouter — runs platform service dispatch with injected ca
     );
 
     expect(write).toHaveBeenCalledWith('org.example.runner', 'run-1', 'hello stdout');
+  });
+
+  it('dispatches calculator_evaluate via asyar:api:invoke for Tier 2 caller', async () => {
+    vi.mocked(commands.calculatorEvaluate).mockResolvedValueOnce([
+      { value: '42', detail: '6 * 7', kind: 'math' },
+    ]);
+    const router = new ExtensionIpcRouter({} as ServiceRegistry, vi.fn(), vi.fn(), vi.fn());
+
+    const result = await dispatchAs(router)(
+      'asyar:api:invoke',
+      { cmd: 'calculator_evaluate', args: { query: '6 * 7' } },
+      'org.example.calculator',
+      false,
+    );
+
+    expect(commands.calculatorEvaluate).toHaveBeenCalledWith('6 * 7');
+    expect(result).toEqual([{ value: '42', detail: '6 * 7', kind: 'math' }]);
+  });
+
+  it('dispatches ocr_capture_screen_text via asyar:api:invoke for Tier 2 caller', async () => {
+    vi.mocked(commands.ocrCaptureScreenText).mockResolvedValueOnce('recognized text');
+    const router = new ExtensionIpcRouter({} as ServiceRegistry, vi.fn(), vi.fn(), vi.fn());
+
+    const result = await dispatchAs(router)(
+      'asyar:api:invoke',
+      { cmd: 'ocr_capture_screen_text' },
+      'org.example.ocr',
+      false,
+    );
+
+    expect(commands.ocrCaptureScreenText).toHaveBeenCalled();
+    expect(result).toBe('recognized text');
+  });
+
+  it('dispatches tools:registerTool injecting caller extensionId', async () => {
+    const registerTool = vi.fn(async () => undefined);
+    const registry = { tools: { registerTool } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const tool = { id: 'search-api', name: 'Search API', description: 'Search' };
+    await dispatchAs(router)('asyar:api:tools:registerTool', { tool }, 'org.example.tools', false);
+
+    expect(registerTool).toHaveBeenCalledWith('org.example.tools', tool);
+  });
+
+  it('dispatches window management commands to registry.window', async () => {
+    const applyPreset = vi.fn(async () => undefined);
+    const getWindowBounds = vi.fn(async () => ({ x: 0, y: 0, width: 800, height: 600 }));
+    const registry = { window: { applyPreset, getWindowBounds } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:window:applyPreset',
+      { presetId: 'left-half' },
+      'org.example.tiler',
+      false,
+    );
+    expect(applyPreset).toHaveBeenCalledWith('left-half');
+
+    const bounds = await dispatchAs(router)(
+      'asyar:api:window:getWindowBounds',
+      undefined,
+      'org.example.tiler',
+      false,
+    );
+    expect(getWindowBounds).toHaveBeenCalled();
+    expect(bounds).toEqual({ x: 0, y: 0, width: 800, height: 600 });
   });
 });

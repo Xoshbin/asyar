@@ -188,7 +188,10 @@ class WindowManagementExtension implements Extension {
   async viewActivated(viewPath: string): Promise<void> {
     this.inView = true;
     if (viewPath === 'window-management/ManageView') {
-      window.addEventListener('keydown', this.handleKeydownBound);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('keydown', this.handleKeydownBound);
+        window.addEventListener('keydown', this.handleKeydownBound);
+      }
       this.registerManageActions();
       this.extensionManager?.setActiveViewActionLabel('Apply');
     }
@@ -197,7 +200,9 @@ class WindowManagementExtension implements Extension {
 
   async viewDeactivated(viewPath: string): Promise<void> {
     this.inView = false;
-    window.removeEventListener('keydown', this.handleKeydownBound);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+    }
     this.unregisterManageActions();
     logService.debug(`[WindowManagement] View deactivated: ${viewPath}`);
   }
@@ -264,9 +269,22 @@ class WindowManagementExtension implements Extension {
     }
   }
 
-  async activate(): Promise<void> {}
+  async activate(): Promise<void> {
+    if (this.store) {
+      await windowManagementState.loadFromStorage(this.store);
+      for (const layout of windowManagementState.customLayouts) {
+        await syncLayoutToIndex(layout, this.store);
+      }
+    }
+  }
+
   async deactivate(): Promise<void> {
-    if (this.inView) this.unregisterManageActions();
+    this.inView = false;
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+    }
+    this.unregisterManageActions();
+    windowManagementState.reset();
   }
 }
 

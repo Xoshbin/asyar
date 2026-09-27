@@ -94,4 +94,16 @@ describe('UsageStatsExtension', () => {
     expect(d.severity).toBe('error');
     expect(d.developerDetail).toContain('network down');
   });
+
+  it('unregisters action and resets state on deactivate', async () => {
+    await (extension as any).viewActivated('usage-stats/DefaultView');
+    await (extension as any).deactivate();
+
+    expect(mockUnregister).toHaveBeenCalledWith('usage-stats:send-now');
+  });
+
+  it('loads stats on activate', async () => {
+    await (extension as any).activate();
+    expect(getUsageStats).toHaveBeenCalled();
+  });
 });

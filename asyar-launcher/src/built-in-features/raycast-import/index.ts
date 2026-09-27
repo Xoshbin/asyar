@@ -21,8 +21,13 @@ class RaycastImportExtension implements Extension {
     throw new Error(`Unknown command: ${commandId}`);
   }
 
-  async activate(): Promise<void> {}
-  async deactivate(): Promise<void> {}
+  async activate(): Promise<void> {
+    raycastImportState.reset();
+  }
+
+  async deactivate(): Promise<void> {
+    raycastImportState.reset();
+  }
 }
 
 export default new RaycastImportExtension();

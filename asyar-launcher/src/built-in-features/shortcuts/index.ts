@@ -33,17 +33,31 @@ class ShortcutsExtension implements Extension {
 
   async viewActivated(_viewId: string): Promise<void> {
     this.inView = true;
-    window.addEventListener('keydown', this.handleKeydownBound);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+      window.addEventListener('keydown', this.handleKeydownBound);
+    }
   }
 
   async viewDeactivated(_viewId: string): Promise<void> {
     this.inView = false;
-    window.removeEventListener('keydown', this.handleKeydownBound);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+    }
     shortcutViewState.reset();
   }
 
-  async activate(): Promise<void> {}
-  async deactivate(): Promise<void> {}
+  async activate(): Promise<void> {
+    shortcutViewState.reset();
+  }
+
+  async deactivate(): Promise<void> {
+    this.inView = false;
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+    }
+    shortcutViewState.reset();
+  }
 }
 
 export default new ShortcutsExtension();

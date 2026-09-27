@@ -45,3 +45,4 @@ export * from './feedbackCommands';
 export * from './usageCommands';
 export * from './systemActionCommands';
 export * from './ocrCommands';
+export * from './calculatorCommands';

@@ -113,6 +113,7 @@ vi.mock('./AgentEditView.svelte', () => ({ default: {} }));
 vi.mock('./AgentChatView.svelte', () => ({ default: {} }));
 
 import agentsExtension from './index';
+import { actionService } from '../../services/action/actionService.svelte';
 import { contextModeService } from '../../services/context/contextModeService.svelte';
 import { openAgentForTab } from './threadOpener';
 import { settingsService } from '../../services/settings/settingsService.svelte';
@@ -243,6 +244,39 @@ describe('AgentsExtension', () => {
       await onActivate('hello');
 
       expect(openAgentForTab).toHaveBeenCalledWith('agent-1', 'hello', false);
+    });
+  });
+
+  describe('lifecycle & view actions', () => {
+    it('registers actions on viewActivated and unregisters on viewDeactivated', async () => {
+      await agentsExtension.viewActivated('agents/AgentListView');
+      expect(actionService.registerAction).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'agents:new-agent' }),
+      );
+
+      await agentsExtension.viewDeactivated('agents/AgentListView');
+      expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:new-agent');
+      expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:edit-agent');
+      expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:delete-agent');
+    });
+
+    it('deactivates and reactivates cleanly and idempotently', async () => {
+      const abort = vi.fn();
+      agentsManager.activeAbortController = { abort } as any;
+
+      await agentsExtension.deactivate();
+
+      expect(contextModeService.unregisterProvider).toHaveBeenCalledWith('agents:default');
+      expect(abort).toHaveBeenCalledTimes(1);
+      expect(agentsManager.activeAbortController).toBeNull();
+      expect(agentsManager.stop).toHaveBeenCalled();
+
+      await agentsExtension.activate();
+
+      expect(contextModeService.registerProvider).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'agents:default' }),
+      );
+      expect(agentsManager.start).toHaveBeenCalled();
     });
   });
 });

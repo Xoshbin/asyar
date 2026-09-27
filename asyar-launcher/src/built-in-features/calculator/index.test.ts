@@ -112,4 +112,17 @@ describe('calculator extension (thin presenter)', () => {
     expect(writeText).toHaveBeenCalledWith('62.14 miles');
     expect(feedbackService.sendBackground).toHaveBeenCalled();
   });
+
+  it('search returns empty when deactivated and resumes when reactivated', async () => {
+    const rust: CalcResult[] = [{ value: '4', detail: '2+2', kind: 'math' }];
+    vi.mocked(invokeSafe).mockResolvedValue(rust);
+
+    await calculator.deactivate();
+    expect(await calculator.search('2+2')).toEqual([]);
+
+    await calculator.activate();
+    const results = await calculator.search('2+2');
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe('4');
+  });
 });
