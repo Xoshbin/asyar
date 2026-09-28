@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 
 const { invokeMock, listenMock } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
@@ -34,6 +34,7 @@ vi.mock('../../../built-in-features/store/index.svelte', () => ({
 vi.mock('../../../lib/ipc/commands', () => ({ listInstalledExtensions }));
 
 import FeaturedExtensions from './FeaturedExtensions.svelte';
+import { onboardingNav } from '../onboardingNav.svelte';
 
 describe('FeaturedExtensions step', () => {
   beforeEach(() => {
@@ -84,6 +85,124 @@ describe('FeaturedExtensions step', () => {
           content.includes('forget to push them to the store'),
       ),
     ).toBeTruthy();
+  });
+
+  it('marks installed extensions and prevents selecting them again', async () => {
+    listInstalledExtensions.mockResolvedValueOnce(['org.example.github']);
+    fetchTopExtensions.mockResolvedValueOnce([
+      {
+        id: 101,
+        name: 'GitHub Assistant',
+        slug: 'github-assistant',
+        manifest: { id: 'org.example.github' },
+      },
+    ]);
+
+    render(FeaturedExtensions);
+
+    expect(await screen.findByText('Installed')).toBeTruthy();
+    expect(
+      (screen.getByRole('checkbox', { name: /GitHub Assistant/ }) as HTMLInputElement).disabled,
+    ).toBe(true);
+  });
+
+  it('refreshes installed status after installing a selected extension', async () => {
+    listInstalledExtensions.mockResolvedValueOnce([]).mockResolvedValueOnce(['org.example.github']);
+    fetchTopExtensions.mockResolvedValueOnce([
+      {
+        id: 101,
+        name: 'GitHub Assistant',
+        slug: 'github-assistant',
+        manifest: { id: 'org.example.github' },
+      },
+    ]);
+
+    render(FeaturedExtensions);
+    const checkbox = await screen.findByRole('checkbox', { name: /GitHub Assistant/ });
+    await fireEvent.click(checkbox);
+    await onboardingNav.current.onPrimary();
+
+    expect(await screen.findByText('Installed')).toBeTruthy();
+    expect(listInstalledExtensions).toHaveBeenCalledTimes(2);
+  });
+
+  it('detects installed status from full filesystem directory paths', async () => {
+    listInstalledExtensions.mockResolvedValueOnce([
+      '/Users/test/Library/Application Support/org.asyar.app/extensions/org.example.github',
+    ]);
+    fetchTopExtensions.mockResolvedValueOnce([
+      {
+        id: 101,
+        name: 'GitHub Assistant',
+        slug: 'github-assistant',
+        manifest: { id: 'org.example.github' },
+      },
+    ]);
+
+    render(FeaturedExtensions);
+
+    expect(await screen.findByText('Installed')).toBeTruthy();
+    expect(
+      (screen.getByRole('checkbox', { name: /GitHub Assistant/ }) as HTMLInputElement).disabled,
+    ).toBe(true);
+  });
+
+  it('updates installed status in real time when extensions_updated event fires', async () => {
+    let onExtensionsUpdated: (() => void) | undefined;
+    listenMock.mockImplementation((event: string, handler: any) => {
+      if (event === 'extensions_updated') {
+        onExtensionsUpdated = handler;
+      }
+      return Promise.resolve(() => {});
+    });
+
+    listInstalledExtensions
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        '/Users/test/Library/Application Support/org.asyar.app/extensions/org.example.github',
+      ]);
+    fetchTopExtensions.mockResolvedValueOnce([
+      {
+        id: 101,
+        name: 'GitHub Assistant',
+        slug: 'github-assistant',
+        manifest: { id: 'org.example.github' },
+      },
+    ]);
+
+    render(FeaturedExtensions);
+    expect(await screen.findByText('GitHub Assistant')).toBeTruthy();
+    expect(screen.queryByText('Installed')).toBeNull();
+
+    // Simulate backend emitting extensions_updated
+    onExtensionsUpdated?.();
+
+    expect(await screen.findByText('Installed')).toBeTruthy();
+    expect(
+      (screen.getByRole('checkbox', { name: /GitHub Assistant/ }) as HTMLInputElement).disabled,
+    ).toBe(true);
+  });
+
+  it('updates installed status in real time when window event fires', async () => {
+    listInstalledExtensions.mockResolvedValueOnce([]).mockResolvedValueOnce(['org.example.github']);
+    fetchTopExtensions.mockResolvedValueOnce([
+      {
+        id: 101,
+        name: 'GitHub Assistant',
+        slug: 'github-assistant',
+        manifest: { id: 'org.example.github' },
+      },
+    ]);
+
+    render(FeaturedExtensions);
+    expect(await screen.findByText('GitHub Assistant')).toBeTruthy();
+    expect(screen.queryByText('Installed')).toBeNull();
+
+    window.dispatchEvent(
+      new CustomEvent('store-extension-installed', { detail: { id: 'org.example.github' } }),
+    );
+
+    expect(await screen.findByText('Installed')).toBeTruthy();
   });
 
   it('renders empty state and AI creation tip when no extensions are returned', async () => {

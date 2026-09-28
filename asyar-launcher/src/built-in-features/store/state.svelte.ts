@@ -63,6 +63,7 @@ export interface ApiExtension {
   last_polled_at?: string | null;
   author: ExtensionAuthor;
   manifest?: {
+    id?: string;
     type?: 'extension' | 'theme' | string;
     platforms?: string[];
     permissions?: string[];

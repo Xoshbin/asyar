@@ -1,30 +1,47 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Card, Button, EmptyState, LoadingState } from '../../../components';
+  import { Badge, Card, Button, EmptyState, LoadingState } from '../../../components';
   import { advanceStep, fetchTopExtensions } from '../stepLogic';
   import type { ApiExtension } from '../../../built-in-features/store/state.svelte';
   import storeExtension from '../../../built-in-features/store/index.svelte';
   import { platform } from '@tauri-apps/plugin-os';
+  import { listen } from '@tauri-apps/api/event';
   import { onboardingNav } from '../onboardingNav.svelte';
   import { t } from '../../../services/i18n';
   import { listInstalledExtensions } from '../../../lib/ipc/commands';
   import { EMOJI_ID } from './emojiSetup';
+  import { isExtensionInstalled, isEmojiInstalled } from '../../../lib/installedExtensions';
 
   let extensions = $state<ApiExtension[]>([]);
-  let selected = $state<Set<number>>(new Set());
+  let selected = $state<Set<number | string>>(new Set());
   let loading = $state(true);
-  let installingIds = $state<Set<number>>(new Set());
-  let failedIds = $state<Set<number>>(new Set());
+  let installingIds = $state<Set<number | string>>(new Set());
+  let failedIds = $state<Set<number | string>>(new Set());
+  let installedPaths = $state<string[]>([]);
+
+  function isInstalled(extension: ApiExtension): boolean {
+    return isExtensionInstalled(extension, installedPaths);
+  }
+
+  async function refreshInstalled(): Promise<void> {
+    installedPaths = (await listInstalledExtensions()) ?? [];
+    if (selected.size > 0) {
+      selected = new Set(
+        Array.from(selected).filter((id) => {
+          const extension = extensions.find((item) => item.id === id);
+          return extension !== undefined && !isInstalled(extension);
+        }),
+      );
+    }
+  }
 
   async function load() {
     loading = true;
     try {
       const p = platform();
-      const [featured, installed] = await Promise.all([
-        fetchTopExtensions(5, p),
-        listInstalledExtensions(),
-      ]);
-      extensions = installed?.includes(EMOJI_ID)
+      const featured = await fetchTopExtensions(5, p);
+      await refreshInstalled();
+      extensions = isEmojiInstalled(installedPaths, EMOJI_ID)
         ? featured.filter((extension) => extension.slug !== 'emoji')
         : featured;
     } finally {
@@ -32,7 +49,9 @@
     }
   }
 
-  function toggle(id: number) {
+  function toggle(id: number | string) {
+    const ext = extensions.find((item) => item.id === id);
+    if (ext && isInstalled(ext)) return;
     const next = new Set(selected);
     if (next.has(id)) {
       next.delete(id);
@@ -59,20 +78,53 @@
         }
       }),
     );
+    await refreshInstalled();
     await advanceStep();
   }
 
   $effect(() => {
+    const installableSelected = Array.from(selected).filter((id) => {
+      const ext = extensions.find((e) => e.id === id);
+      return ext !== undefined && !isInstalled(ext);
+    });
+
     onboardingNav.set({
       showSkip: true,
-      primaryLabel: `Install ${selected.size} selected`,
-      primaryDisabled: selected.size === 0,
+      primaryLabel: `Install ${installableSelected.length} selected`,
+      primaryDisabled: installableSelected.length === 0 || installingIds.size > 0,
       onSkip: advanceStep,
       onPrimary: installSelected,
     });
   });
 
-  onMount(load);
+  onMount(() => {
+    let unlisten: (() => void) | undefined;
+
+    const handleUpdate = () => {
+      void refreshInstalled();
+    };
+
+    window.addEventListener('store-extension-installed', handleUpdate);
+    window.addEventListener('store-extension-uninstalled', handleUpdate);
+    window.addEventListener('store-extension-updated', handleUpdate);
+
+    try {
+      void listen('extensions_updated', handleUpdate).then((fn) => {
+        unlisten = fn;
+      });
+    } catch {
+      // Web / test environments
+    }
+
+    void load();
+
+    return () => {
+      window.removeEventListener('store-extension-installed', handleUpdate);
+      window.removeEventListener('store-extension-uninstalled', handleUpdate);
+      window.removeEventListener('store-extension-updated', handleUpdate);
+      if (unlisten) unlisten();
+    };
+  });
 </script>
 
 <Card>
@@ -91,15 +143,17 @@
       {:else}
         <ul class="list">
           {#each extensions as ext (ext.id)}
+            {@const installed = isInstalled(ext)}
             <li>
               <label>
                 <input
                   type="checkbox"
-                  checked={selected.has(ext.id)}
+                  checked={!installed && selected.has(ext.id)}
                   onchange={() => toggle(ext.id)}
-                  disabled={installingIds.has(ext.id)}
+                  disabled={installed || installingIds.has(ext.id)}
                 />
                 <span class="name">{ext.name}</span>
+                {#if installed}<Badge text="Installed" variant="success" />{/if}
                 {#if installingIds.has(ext.id)}<span class="hint">Installing…</span>{/if}
                 {#if failedIds.has(ext.id)}<span class="error">Failed</span>{/if}
               </label>

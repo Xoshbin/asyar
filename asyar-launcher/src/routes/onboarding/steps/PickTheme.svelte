@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { emit } from '@tauri-apps/api/event';
+  import { emit, listen } from '@tauri-apps/api/event';
   import { Card, Button, EmptyState, LoadingState } from '../../../components';
   import { advanceStep, fetchTopThemes } from '../stepLogic';
   import { onboardingNav } from '../onboardingNav.svelte';
@@ -118,7 +118,21 @@
     onboardingNav.set({ showSkip: true, onPrimary: advanceStep, onSkip: advanceStep });
   });
 
-  onMount(load);
+  onMount(() => {
+    let unlisten: (() => void) | undefined;
+    void load();
+    try {
+      void listen('extensions_updated', () => {
+        void refreshDiscovery();
+      }).then((fn) => {
+        unlisten = fn;
+      });
+    } catch {}
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  });
 </script>
 
 <Card>

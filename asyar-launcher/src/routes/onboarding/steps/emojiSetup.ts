@@ -2,12 +2,13 @@ import storeExtension from '../../../built-in-features/store/index.svelte';
 import { listInstalledExtensions } from '../../../lib/ipc/commands';
 import { agentService } from '../../../built-in-features/agents/agentService.svelte';
 import { fetchAllStoreItems } from '../../../built-in-features/store/storeFetch';
+import { isEmojiInstalled } from '../../../lib/installedExtensions';
 
 export const EMOJI_ID = 'org.asyar.emoji';
 
 export async function installEmoji(): Promise<boolean> {
   const installed = (await listInstalledExtensions()) ?? [];
-  if (installed.includes(EMOJI_ID)) return true;
+  if (isEmojiInstalled(installed, EMOJI_ID)) return true;
   const listings = await fetchAllStoreItems();
   const listing = listings.find((item) => item.slug === 'emoji');
   await storeExtension.installExtension('emoji', EMOJI_ID, 'Emoji', listing);

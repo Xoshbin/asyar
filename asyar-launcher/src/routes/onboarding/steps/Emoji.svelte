@@ -1,9 +1,13 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { listen } from '@tauri-apps/api/event';
   import { Card, Button, ExpansionDemo } from '../../../components';
   import { advanceStep } from '../stepLogic';
   import AccessibilityGate from './AccessibilityGate.svelte';
-  import { installEmoji } from './emojiSetup';
+  import { installEmoji, EMOJI_ID } from './emojiSetup';
   import { onboardingNav } from '../onboardingNav.svelte';
+  import { listInstalledExtensions } from '../../../lib/ipc/commands';
+  import { isEmojiInstalled } from '../../../lib/installedExtensions';
 
   let installed = $state(false);
   let installing = $state(false);
@@ -13,6 +17,15 @@
   $effect(() => {
     onboardingNav.set({ primaryLabel: installed ? 'Continue' : 'Skip', onPrimary: advanceStep });
   });
+
+  async function checkInstalled() {
+    try {
+      const paths = await listInstalledExtensions();
+      if (isEmojiInstalled(paths, EMOJI_ID)) {
+        installed = true;
+      }
+    } catch {}
+  }
 
   async function doInstall() {
     installing = true;
@@ -25,6 +38,26 @@
       installing = false;
     }
   }
+
+  onMount(() => {
+    let unlisten: (() => void) | undefined;
+    void checkInstalled();
+
+    window.addEventListener('store-extension-installed', checkInstalled);
+    window.addEventListener('store-extension-uninstalled', checkInstalled);
+
+    try {
+      void listen('extensions_updated', checkInstalled).then((fn) => {
+        unlisten = fn;
+      });
+    } catch {}
+
+    return () => {
+      window.removeEventListener('store-extension-installed', checkInstalled);
+      window.removeEventListener('store-extension-uninstalled', checkInstalled);
+      if (unlisten) unlisten();
+    };
+  });
 </script>
 
 <Card>
