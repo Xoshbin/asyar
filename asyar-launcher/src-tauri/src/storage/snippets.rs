@@ -3,17 +3,13 @@ use crate::error::AppError;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-/// Decrypt an encrypted expansion. Pre-Layer-3 plaintext rows surface
-/// as empty strings — beta-phase clean break, no migration of legacy
-/// values.
+/// Decrypt an encrypted expansion. If encrypted with `enc:v1:`,
+/// decrypts under `master_key`. Plaintext values are preserved as-is.
 fn decrypt_expansion(stored: String, master_key: &[u8; 32]) -> String {
     if cipher::is_encrypted_value(&stored) {
         cipher::decrypt(&stored, master_key).unwrap_or_default()
     } else {
-        // Legacy plaintext from a pre-Layer-3 build: surface as empty so
-        // the row is still listed (id, keyword, name) but the body is
-        // hidden. The user re-edits the snippet to reseed it.
-        String::new()
+        stored
     }
 }
 
@@ -82,7 +78,29 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
 /// the global keystroke matcher needs to compare incoming keystrokes
 /// against keywords without decrypting every row on every press.
 pub fn upsert(conn: &Connection, snippet: &Snippet, master_key: &[u8; 32]) -> Result<(), AppError> {
-    let encrypted_expansion = cipher::encrypt(&snippet.expansion, master_key)?;
+    let existing_expansion: Option<String> = conn
+        .query_row(
+            "SELECT expansion FROM snippets WHERE id = ?1",
+            params![snippet.id],
+            |r| r.get(0),
+        )
+        .ok();
+
+    // If incoming expansion is empty, but an existing record has non-empty expansion, preserve it!
+    let encrypted_expansion = if snippet.expansion.trim().is_empty() {
+        if let Some(ref existing) = existing_expansion {
+            if !existing.trim().is_empty() {
+                existing.clone()
+            } else {
+                cipher::encrypt(&snippet.expansion, master_key)?
+            }
+        } else {
+            cipher::encrypt(&snippet.expansion, master_key)?
+        }
+    } else {
+        cipher::encrypt(&snippet.expansion, master_key)?
+    };
+
     conn.execute(
         "INSERT OR REPLACE INTO snippets (id, keyword, expansion, name, created_at, pinned, redacted_kinds)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -359,5 +377,39 @@ mod tests {
         clear_all(&conn).unwrap();
         let items = get_all(&conn, &key).unwrap();
         assert_eq!(items.len(), 0);
+    }
+
+    #[test]
+    fn test_decrypt_expansion_preserves_plaintext() {
+        let conn = setup();
+        let key = test_key();
+        // Insert plaintext row directly
+        conn.execute(
+            "INSERT INTO snippets (id, keyword, expansion, name, created_at, pinned)
+             VALUES ('plain-1', ';p', 'raw plaintext expansion', 'Plain', 1.0, 0)",
+            [],
+        )
+        .unwrap();
+
+        let items = get_all(&conn, &key).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].expansion, "raw plaintext expansion");
+    }
+
+    #[test]
+    fn test_upsert_preserves_existing_expansion_when_incoming_is_empty() {
+        let conn = setup();
+        let key = test_key();
+        upsert(&conn, &make_snippet("1", ";a", "real expansion code"), &key).unwrap();
+
+        // Simulate incoming sync with empty expansion
+        let mut empty_incoming = make_snippet("1", ";a", "");
+        empty_incoming.name = "Updated Label".to_string();
+        upsert(&conn, &empty_incoming, &key).unwrap();
+
+        let items = get_all(&conn, &key).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].expansion, "real expansion code");
+        assert_eq!(items[0].name, "Updated Label");
     }
 }

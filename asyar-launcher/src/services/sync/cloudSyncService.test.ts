@@ -5,6 +5,11 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
+vi.mock('@tauri-apps/api/event', () => ({
+  emit: vi.fn().mockResolvedValue(undefined),
+  listen: vi.fn().mockResolvedValue(() => {}),
+}));
+
 vi.mock('../../lib/ipc/commands', () => ({
   syncRun: vi.fn(),
   syncGetStatus: vi.fn(),
@@ -51,6 +56,7 @@ vi.mock('../log/logService', () => ({
 
 // Import AFTER mocks are declared.
 import { cloudSyncService, PERIODIC_SYNC_INTERVAL_MS } from './cloudSyncService.svelte';
+import { emit } from '@tauri-apps/api/event';
 import * as commands from '../../lib/ipc/commands';
 import { profileService } from '../profile/profileService';
 import { authService } from '../auth/authService.svelte';
@@ -665,6 +671,68 @@ describe('CloudSyncService (Task 4B delta-sync rewrite)', () => {
         expect(commands.syncMarkTombstone).toHaveBeenCalledTimes(1);
         expect(commands.syncRun).toHaveBeenCalledTimes(2);
       });
+    });
+
+    it('suppresses change events from providers during pull application', async () => {
+      let subscriberCallback: ((ev: SyncChangeEvent) => void) | undefined;
+      const provider = makeProvider({
+        id: 'snippets',
+        applyItemUpsert: vi.fn(async () => {
+          // Store emits a change event while applying
+          subscriberCallback?.({ type: 'upsert', itemId: 's-pulled', categoryId: 'snippets' });
+        }),
+      });
+      provider.subscribeToChanges = vi.fn((cb) => {
+        subscriberCallback = cb;
+        return () => {};
+      });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+
+      const pullReport: commands.SyncRunReport = {
+        ...okReport,
+        appliedRecords: [
+          {
+            itemId: 's-pulled',
+            categoryId: 'snippets',
+            content: '{"expansion":"text"}',
+            version: 2,
+            deleted: false,
+          },
+        ],
+      };
+      vi.mocked(commands.syncRun).mockResolvedValue(pullReport);
+
+      await cloudSyncService.init();
+
+      await vi.waitFor(() => {
+        expect(commands.syncRun).toHaveBeenCalledTimes(1);
+      });
+      await settleInFlightRun();
+
+      // Only 1 syncRun must have happened (startup), NO recursive syncRun from pull application!
+      expect(commands.syncRun).toHaveBeenCalledTimes(1);
+    });
+
+    it('emits asyar:stores-restored when appliedRecords has items', async () => {
+      const provider = makeProvider({ id: 'snippets' });
+      vi.mocked(profileService.getProviders).mockReturnValue(asProviderList(provider));
+      const pullReport: commands.SyncRunReport = {
+        ...okReport,
+        appliedRecords: [
+          {
+            itemId: 's-pulled',
+            categoryId: 'snippets',
+            content: '{"expansion":"text"}',
+            version: 2,
+            deleted: false,
+          },
+        ],
+      };
+      vi.mocked(commands.syncRun).mockResolvedValue(pullReport);
+
+      await cloudSyncService.syncNow();
+
+      expect(emit).toHaveBeenCalledWith('asyar:stores-restored');
     });
   });
 

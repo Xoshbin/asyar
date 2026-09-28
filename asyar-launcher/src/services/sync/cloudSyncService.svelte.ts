@@ -4,6 +4,7 @@ import { gate } from '../auth/gateService.svelte';
 import { settingsService } from '../settings/settingsService.svelte';
 import { logService } from '../log/logService';
 import { feedbackService } from '../feedback/feedbackService.svelte';
+import { emit } from '@tauri-apps/api/event';
 import * as commands from '../../lib/ipc/commands';
 import type { ISyncProvider, SyncChangeEvent, Unsubscribe } from '../profile/types';
 
@@ -56,6 +57,7 @@ class CloudSyncService {
   private settingsUnsub: (() => void) | null = null;
   private lastEnabledSeen: boolean | null = null;
   private lastLoggedFailureSummary: string | null = null;
+  private isApplyingSync = false;
 
   /**
    * User preference (`user.syncEnabled`), defaulting to `true` so existing
@@ -273,6 +275,12 @@ class CloudSyncService {
       await this.applyPullRecords(report.appliedRecords);
       this.surfaceWarnings(report);
 
+      if (report.appliedRecords.length > 0) {
+        emit('asyar:stores-restored').catch((err) => {
+          logService.warn(`Cloud sync: failed to emit asyar:stores-restored: ${err}`);
+        });
+      }
+
       this.lastReport = report;
       this.lastSyncedAt = new Date();
       this.lastError = null;
@@ -310,10 +318,15 @@ class CloudSyncService {
     });
 
     const sources: commands.LocalItemSourceWire[] = [];
+    let processedCount = 0;
     for (const provider of allowedProviders) {
       const items = await provider.exportItems();
       const hasSensitiveFields = provider.sensitiveFields.length > 0;
       for (const item of items) {
+        processedCount++;
+        if (processedCount % 50 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
         // We always stringify for the wire, so the deep-clone-via-
         // structuredClone path was both redundant AND buggy: Svelte 5
         // `$state` proxies (which several providers' content objects
@@ -351,46 +364,56 @@ class CloudSyncService {
    */
   private async applyPullRecords(records: commands.AppliedRecord[]): Promise<void> {
     if (records.length === 0) return;
-    const byId = new Map<string, ISyncProvider>();
-    for (const p of profileService.getProviders()) {
-      byId.set(p.id, p);
-    }
-    for (const record of records) {
-      const provider = byId.get(record.categoryId);
-      if (!provider) {
-        logService.warn(
-          `Cloud sync: no provider registered for categoryId='${record.categoryId}', skipping ${record.itemId}`,
-        );
-        continue;
+    this.isApplyingSync = true;
+    try {
+      const byId = new Map<string, ISyncProvider>();
+      for (const p of profileService.getProviders()) {
+        byId.set(p.id, p);
       }
-      try {
-        if (record.deleted) {
-          await provider.applyItemDelete(record.itemId);
-        } else {
-          const content = record.content === null ? null : (JSON.parse(record.content) as unknown);
-          await provider.applyItemUpsert({
-            id: record.itemId,
-            categoryId: record.categoryId,
-            content,
+      for (let i = 0; i < records.length; i++) {
+        if (i > 0 && i % 10 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+        const record = records[i];
+        const provider = byId.get(record.categoryId);
+        if (!provider) {
+          logService.warn(
+            `Cloud sync: no provider registered for categoryId='${record.categoryId}', skipping ${record.itemId}`,
+          );
+          continue;
+        }
+        try {
+          if (record.deleted) {
+            await provider.applyItemDelete(record.itemId);
+          } else {
+            const content =
+              record.content === null ? null : (JSON.parse(record.content) as unknown);
+            await provider.applyItemUpsert({
+              id: record.itemId,
+              categoryId: record.categoryId,
+              content,
+            });
+          }
+        } catch (err: unknown) {
+          const detail = err instanceof Error ? err.message : String(err);
+          logService.warn(
+            `Cloud sync: provider '${record.categoryId}' failed to apply ${record.itemId}: ${detail}`,
+          );
+          await feedbackService.report({
+            source: 'frontend',
+            kind: 'sync.apply-failed',
+            severity: 'warning',
+            retryable: false,
+            context: {
+              categoryId: record.categoryId,
+              itemId: record.itemId,
+            },
+            developerDetail: detail,
           });
         }
-      } catch (err: unknown) {
-        const detail = err instanceof Error ? err.message : String(err);
-        logService.warn(
-          `Cloud sync: provider '${record.categoryId}' failed to apply ${record.itemId}: ${detail}`,
-        );
-        await feedbackService.report({
-          source: 'frontend',
-          kind: 'sync.apply-failed',
-          severity: 'warning',
-          retryable: false,
-          context: {
-            categoryId: record.categoryId,
-            itemId: record.itemId,
-          },
-          developerDetail: detail,
-        });
       }
+    } finally {
+      this.isApplyingSync = false;
     }
   }
 
@@ -477,6 +500,12 @@ class CloudSyncService {
     for (const provider of profileService.getProviders()) {
       try {
         const unsub = provider.subscribeToChanges((ev: SyncChangeEvent) => {
+          // If we are currently applying pulled records from the cloud,
+          // ignore the resulting store change events so we do not trigger
+          // a cascading re-sync loop.
+          if (this.isApplyingSync) {
+            return;
+          }
           // For deletes, the provider's `exportItems()` no longer includes
           // the removed item — so the orchestrator wouldn't see a tombstone
           // to push. We have to mark the journal entry explicitly. Without

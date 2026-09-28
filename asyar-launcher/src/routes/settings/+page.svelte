@@ -21,6 +21,9 @@
   import { initProviders } from '../../services/ai/initProviders';
   import { cloudSyncService } from '../../services/sync/cloudSyncService.svelte';
   import { shortcutStore } from '../../built-in-features/shortcuts/shortcutStore.svelte';
+  import { snippetStore } from '../../built-in-features/snippets/snippetStore.svelte';
+  import { noteStore } from '../../built-in-features/notes/noteStore.svelte';
+  import { portalStore } from '../../built-in-features/portals/portalStore.svelte';
   import { initValidKeys } from '../../built-in-features/shortcuts/shortcutFormatter';
   import { listen } from '@tauri-apps/api/event';
   import { i18nService, t } from '../../services/i18n';
@@ -61,7 +64,12 @@
     void i18nService.init();
     handler.init();
     await authService.init();
-    await shortcutStore.init();
+    await Promise.all([
+      shortcutStore.init(),
+      snippetStore.init(),
+      noteStore.init(),
+      portalStore.init(),
+    ]);
     await initValidKeys();
     registerProfileProviders();
     cloudSyncService.checkStatus().catch(() => {});

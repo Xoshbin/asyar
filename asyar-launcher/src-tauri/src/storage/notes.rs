@@ -11,7 +11,7 @@ fn decrypt_field(stored: String, master_key: &[u8; 32]) -> String {
     if cipher::is_encrypted_value(&stored) {
         cipher::decrypt(&stored, master_key).unwrap_or_default()
     } else {
-        String::new()
+        stored
     }
 }
 

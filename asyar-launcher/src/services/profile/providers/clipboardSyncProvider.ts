@@ -31,6 +31,9 @@ async function collectAllItems(): Promise<StoredClipboardItem[]> {
     }
     all.push(...page.items);
     cursor = page.nextCursor;
+    if (cursor) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
   } while (cursor);
   return all;
 }
@@ -128,7 +131,11 @@ export class ClipboardSyncProvider implements ISyncProvider {
     const local = await collectAllItems();
     const localIds = new Set(local.map((i) => i.id));
     let added = 0;
-    for (const item of incomingItems) {
+    for (let i = 0; i < incomingItems.length; i++) {
+      if (i > 0 && i % 10 === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      const item = incomingItems[i];
       if (!localIds.has(item.id)) {
         await clipboardHistoryStore.addHistoryItem(item);
         added++;
@@ -149,6 +156,11 @@ export class ClipboardSyncProvider implements ISyncProvider {
     const items = await collectAllItems();
     return items
       .filter((i) => i.type !== 'image')
+      .filter(
+        (i) =>
+          (i.content !== undefined && i.content !== null && i.content.trim() !== '') ||
+          (i.preview !== undefined && i.preview !== null && i.preview.trim() !== ''),
+      )
       .map((i) => ({
         id: i.id,
         categoryId: this.id,
@@ -157,7 +169,15 @@ export class ClipboardSyncProvider implements ISyncProvider {
   }
 
   async applyItemUpsert(item: SyncItem): Promise<void> {
-    await clipboardHistoryStore.addHistoryItem(item.content as ClipboardHistoryItem);
+    const incoming = item.content as ClipboardHistoryItem;
+    if (!incoming) return;
+    if (
+      (!incoming.content || incoming.content.trim() === '') &&
+      (!incoming.preview || incoming.preview.trim() === '')
+    ) {
+      return;
+    }
+    await clipboardHistoryStore.addHistoryItem(incoming);
   }
 
   async applyItemDelete(itemId: string): Promise<void> {

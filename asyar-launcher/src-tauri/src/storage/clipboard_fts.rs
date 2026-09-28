@@ -74,14 +74,14 @@ pub fn rebuild_from_disk(
             if cipher::is_encrypted_value(v) {
                 cipher::decrypt(v, master_key).ok()
             } else {
-                None
+                Some(v.clone())
             }
         });
         let preview = row.raw_preview.as_ref().and_then(|v| {
             if cipher::is_encrypted_value(v) {
                 cipher::decrypt(v, master_key).ok()
             } else {
-                None
+                Some(v.clone())
             }
         });
         fts.upsert(&row.id, preview.as_deref(), content.as_deref())?;
