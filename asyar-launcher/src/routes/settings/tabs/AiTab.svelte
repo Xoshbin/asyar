@@ -917,6 +917,98 @@
                       }}
                     />
                   </div>
+
+                  {#if config.connectionMode !== 'cli'}
+                    {@const headerEntries = Object.entries(config.customHeaders ?? {})}
+                    <div class="card-field">
+                      <div class="field-header-row">
+                        <label class="field-label">Custom Headers</label>
+                        <button
+                          class="text-btn"
+                          onclick={() => {
+                            const existing = { ...(config.customHeaders ?? {}) };
+                            existing[''] = '';
+                            updateProviderConfig(providerId, { customHeaders: existing });
+                          }}
+                        >
+                          + Add
+                        </button>
+                      </div>
+                      {#if headerEntries.length > 0}
+                        <p class="field-description">
+                          Extra HTTP headers sent with every request to this provider.
+                        </p>
+                        {#each headerEntries as [hKey, hValue], hi (hi)}
+                          <div class="custom-header-row">
+                            <Input
+                              unstyled
+                              textIntent="exact"
+                              class="card-input custom-header-key"
+                              type="text"
+                              value={hKey}
+                              placeholder="Header name"
+                              autocomplete="off"
+                              onblur={(e) => {
+                                const newKey = (e.currentTarget as HTMLInputElement).value.trim();
+                                const entries = Object.entries(config.customHeaders ?? {});
+                                const rebuilt: Record<string, string> = {};
+                                for (let i = 0; i < entries.length; i++) {
+                                  const [k, v] = entries[i];
+                                  rebuilt[i === hi ? newKey : k] = v;
+                                }
+                                updateProviderConfig(providerId, {
+                                  customHeaders:
+                                    Object.keys(rebuilt).length > 0 ? rebuilt : undefined,
+                                });
+                              }}
+                            />
+                            <Input
+                              unstyled
+                              textIntent="exact"
+                              class="card-input custom-header-value"
+                              type="text"
+                              value={hValue}
+                              placeholder="Header value"
+                              autocomplete="off"
+                              onblur={(e) => {
+                                const newVal = (e.currentTarget as HTMLInputElement).value;
+                                const entries = Object.entries(config.customHeaders ?? {});
+                                const rebuilt: Record<string, string> = {};
+                                for (let i = 0; i < entries.length; i++) {
+                                  const [k, v] = entries[i];
+                                  rebuilt[k] = i === hi ? newVal : v;
+                                }
+                                updateProviderConfig(providerId, {
+                                  customHeaders:
+                                    Object.keys(rebuilt).length > 0 ? rebuilt : undefined,
+                                });
+                              }}
+                            />
+                            <button
+                              class="remove-btn"
+                              aria-label="Remove header"
+                              onclick={() => {
+                                const entries = Object.entries(config.customHeaders ?? {});
+                                const rebuilt: Record<string, string> = {};
+                                for (let i = 0; i < entries.length; i++) {
+                                  if (i !== hi) {
+                                    const [k, v] = entries[i];
+                                    rebuilt[k] = v;
+                                  }
+                                }
+                                updateProviderConfig(providerId, {
+                                  customHeaders:
+                                    Object.keys(rebuilt).length > 0 ? rebuilt : undefined,
+                                });
+                              }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        {/each}
+                      {/if}
+                    </div>
+                  {/if}
                 </div>
               {/if}
             </div>
@@ -1506,5 +1598,28 @@
 
   .anchor-group {
     scroll-margin-top: var(--space-6);
+  }
+
+  .custom-header-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    margin-bottom: var(--space-2);
+  }
+
+  .custom-header-row .custom-header-key {
+    flex: 2;
+    min-width: 0;
+  }
+
+  .custom-header-row .custom-header-value {
+    flex: 3;
+    min-width: 0;
+  }
+
+  .custom-header-row .remove-btn {
+    flex-shrink: 0;
+    font-size: var(--font-size-base);
+    padding: var(--space-1);
   }
 </style>

@@ -588,6 +588,11 @@ pub async fn list_models_impl(
     for (key, value) in spec.headers {
         request = request.header(key, value);
     }
+    if let Some(ref custom) = config.custom_headers {
+        for (k, v) in custom {
+            request = request.header(k, v);
+        }
+    }
     let response = request.send().await?;
     if !response.status().is_success() {
         let status = response.status();

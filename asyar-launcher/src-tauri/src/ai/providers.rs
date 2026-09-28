@@ -10,7 +10,7 @@ pub fn build_request(
     params: &ChatParams,
 ) -> Result<RequestSpec, AppError> {
     let engine_type = config.provider_type.as_deref().unwrap_or(provider_id);
-    match engine_type {
+    let mut spec = match engine_type {
         "openai" => build_openai_request(config, messages, params),
         "anthropic" => build_anthropic_request(config, messages, params),
         "google" => build_google_request(config, messages, params),
@@ -18,7 +18,13 @@ pub fn build_request(
         "openrouter" => build_openrouter_request(config, messages, params),
         "custom" => build_custom_request(config, messages, params),
         _ => Err(AppError::Other(format!("Unknown provider: {provider_id}"))),
+    }?;
+    if let Some(ref custom) = config.custom_headers {
+        for (k, v) in custom {
+            spec.headers.insert(k.clone(), v.clone());
+        }
     }
+    Ok(spec)
 }
 
 #[derive(Default)]

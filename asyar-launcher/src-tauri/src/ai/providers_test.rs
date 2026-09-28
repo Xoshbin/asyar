@@ -722,3 +722,48 @@ fn google_emits_one_grounding_display_after_partial_metadata_chunks() {
     );
     assert!(parser.finish().unwrap().is_empty());
 }
+
+// ─── Custom headers ────────────────────────────────────────────────────────────
+
+#[test]
+fn test_custom_headers_are_merged_into_request() {
+    let mut config = mock_config();
+    config.custom_headers = Some(
+        [("x-opencode-session".to_string(), "sess-123".to_string())]
+            .into_iter()
+            .collect(),
+    );
+
+    let spec = build_request("openai", &config, &mock_messages(), &mock_params(None)).unwrap();
+    assert_eq!(
+        spec.headers.get("x-opencode-session"),
+        Some(&"sess-123".to_string())
+    );
+    // Default headers are still present
+    assert!(spec.headers.contains_key("Authorization"));
+    assert!(spec.headers.contains_key("Content-Type"));
+}
+
+#[test]
+fn test_custom_headers_override_defaults() {
+    let mut config = mock_config();
+    config.custom_headers = Some(
+        [("Authorization".to_string(), "Custom-Token xyz".to_string())]
+            .into_iter()
+            .collect(),
+    );
+
+    let spec = build_request("openai", &config, &mock_messages(), &mock_params(None)).unwrap();
+    assert_eq!(
+        spec.headers.get("Authorization"),
+        Some(&"Custom-Token xyz".to_string())
+    );
+}
+
+#[test]
+fn test_no_custom_headers_leaves_defaults_intact() {
+    let config = mock_config();
+    let spec = build_request("openai", &config, &mock_messages(), &mock_params(None)).unwrap();
+    assert!(spec.headers.contains_key("Authorization"));
+    assert_eq!(config.custom_headers, None);
+}

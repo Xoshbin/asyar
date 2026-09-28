@@ -348,6 +348,7 @@ export type ProviderConfig = {
 	maxTokens: number | null,
 	connectionMode: string | null,
 	cliBinaryPath: string | null,
+	customHeaders: { [key in string]: string } | null,
 };
 
 /**
