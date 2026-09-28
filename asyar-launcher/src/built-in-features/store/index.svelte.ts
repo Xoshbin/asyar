@@ -92,6 +92,7 @@ class StoreExtension implements Extension {
     slug: string,
     extensionId: string | number,
     name?: string,
+    sourceListing?: ApiExtension,
   ): Promise<void> {
     if (!slug) {
       this.logService?.error('Install function called without a slug.');
@@ -109,7 +110,7 @@ class StoreExtension implements Extension {
     // metadata before anything is downloaded. The packaged manifest is
     // reconciled against this acceptance after install, so listing/package
     // drift re-prompts rather than slipping through.
-    const listing = store?.allItems.find((item) => item.slug === slug);
+    const listing = sourceListing ?? store?.allItems.find((item) => item.slug === slug);
     const acceptedPermissions = listing?.manifest?.permissions ?? [];
     const acceptedArgs = listing?.manifest?.permissionArgs ?? {};
     const listedRuntimes = listing?.manifest?.runtimes ?? [];

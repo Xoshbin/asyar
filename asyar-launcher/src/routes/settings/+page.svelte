@@ -1,7 +1,7 @@
 <!-- src/routes/settings/+page.svelte -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { LoadingState, DialogHost, SettingsTopBar } from '../../components';
+  import { LoadingState, SettingsTopBar } from '../../components';
   import { SettingsHandler } from './settingsHandlers.svelte';
   import GeneralTab from './tabs/GeneralTab.svelte';
   import AiTab from './tabs/AiTab.svelte';
@@ -146,8 +146,6 @@
     </main>
   </div>
 {/if}
-
-<DialogHost />
 
 <style>
   .settings-page {

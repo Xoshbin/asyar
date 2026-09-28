@@ -10,7 +10,6 @@
   import BottomActionBar from '../components/layout/BottomActionBar.svelte';
   import ActionListPopup from '../components/layout/ActionListPopup.svelte';
   import ToastHost from '../components/feedback/ToastHost.svelte';
-  import DialogHost from '../components/feedback/DialogHost.svelte';
   import FatalErrorDialog from '../components/feedback/FatalErrorDialog.svelte';
   import { isAnyModalOpen } from '../components/base/Modal.logic';
   import { createKeyboardHandlers } from '../lib/keyboard/launcherKeyboard';
@@ -579,7 +578,6 @@
   {/if}
 
   <ToastHost />
-  <DialogHost />
   <FatalErrorDialog />
   <CrashReportPrompt />
   <UsageSharePrompt />

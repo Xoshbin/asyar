@@ -7,10 +7,29 @@ import type { ApiExtension } from './state.svelte';
  * not apply local install-status overrides — callers add those if needed.
  */
 export async function fetchAllStoreItems(): Promise<ApiExtension[]> {
-  const response = await fetch(`${envService.storeApiBaseUrl}/api/extensions`);
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+  const items: ApiExtension[] = [];
+  let url: string | null = `${envService.storeApiBaseUrl}/api/extensions?per_page=100`;
+  let pageCount = 0;
+  const maxPages = 20;
+
+  while (url && pageCount < maxPages) {
+    pageCount++;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    if (Array.isArray(data)) {
+      items.push(...data);
+      break;
+    }
+    if (data?.data && Array.isArray(data.data)) {
+      items.push(...data.data);
+    } else {
+      break;
+    }
+    url = data?.next_page_url ?? null;
   }
-  const data = await response.json();
-  return Array.isArray(data) ? data : data.data || [];
+
+  return items;
 }

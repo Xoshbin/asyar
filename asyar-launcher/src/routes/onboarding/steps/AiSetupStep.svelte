@@ -3,12 +3,12 @@
   import AiTab from '../../settings/tabs/AiTab.svelte';
   import { onboardingService } from '../../../services/onboarding/onboardingService.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
-  import { agentService } from '../../../built-in-features/agents/agentService.svelte';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { onboardingNav } from '../onboardingNav.svelte';
   import { aiCheckCliStatus, type CliStatus } from '../../../lib/ipc/commands';
   import { Button, Card, Badge } from '../../../components';
   import { t } from '../../../services/i18n';
+  import { connectCliProvider } from './aiSetup';
 
   let scanning = $state(true);
   let cliResults = $state<Record<string, CliStatus>>({});
@@ -78,27 +78,7 @@
     connecting = spec.id;
     try {
       const status = cliResults[spec.id];
-      const modelId = spec.defaultModel;
-
-      await settingsService.updateSettings('ai', {
-        providers: {
-          ...settingsService.currentSettings.ai.providers,
-          [spec.id]: {
-            enabled: true,
-            connectionMode: 'cli',
-            cliBinaryPath: status?.path ?? undefined,
-            lastModelId: modelId,
-          },
-        },
-      });
-
-      const defaultAgent = agentService.getDefaultAgent();
-      if (defaultAgent) {
-        await agentService.updateAgent(defaultAgent.id, {
-          providerId: spec.id,
-          modelId,
-        });
-      }
+      await connectCliProvider(spec, status ?? { path: null });
 
       await onboardingService.completeAi();
     } catch (err) {
