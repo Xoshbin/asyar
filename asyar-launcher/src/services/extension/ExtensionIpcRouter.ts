@@ -233,6 +233,20 @@ export class ExtensionIpcRouter {
       const values = Object.values(payload as Record<string, unknown>);
       args = values.length === 0 ? [] : values;
     }
+    if (
+      ns === 'clipboard' &&
+      (methodName === 'subscribeCapture' || methodName === 'unsubscribeCapture')
+    ) {
+      const callerId = isPrivilegedHostContext
+        ? (extensionId ??
+          (typeof payload === 'string' ? payload : payload?.callerId) ??
+          'clipboard-history')
+        : extensionId;
+      if (!callerId) {
+        throw new Error(`Caller identity missing for ${type}`);
+      }
+      args = [callerId];
+    }
     if (INJECTS_EXTENSION_ID.has(ns) && extensionId) {
       args = [extensionId, ...args];
     } else if (ALWAYS_INJECTS_CALLER_ID.has(ns)) {

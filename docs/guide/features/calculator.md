@@ -55,6 +55,7 @@ The calculator result row has no action panel (⌘K) entries — its single acti
 - **Base literals** — paste a hex color like `0xFF8C00` and see its decimal, binary, and octal values side by side.
 - **Your decimal mark** — type `61,78 * 1,19` and it means what you wrote. Asyar follows your system's region setting, so a comma-decimal locale reads commas as decimals and gets its answers grouped the same way (`73,5182`, `1.234.567`).
 - **Currency refresh interval, preferred currency & number format** — go to Settings → Extensions → Calculator to change how often rates refresh (1–24 hours, default 6), which currency bare amounts convert to, and — if the detected region is not how you actually write numbers — the number format to read and render (Automatic, `1,234.56`, or `1.234,56`).
+- **Disabling Calculator** — If you use an alternative calculation extension or prefer a clean search bar without inline math evaluation, you can turn off Calculator in **Settings → Extensions**. Disabling removes the search-bar math interceptor and calculator commands, while the underlying calculation and currency conversion platform services remain active for Tier 2 extensions.
 
 ## Related
 

@@ -84,7 +84,7 @@ jobs:
         run: cargo test
         working-directory: asyar-launcher/src-tauri
 
-      # Regenerates src/bindings.ts (specta) from the Rust types registered in
+      # Regenerates launcher and SDK bindings (specta) from Rust types registered in
       # search_engine/models.rs::export_bindings — normally run manually, so
       # this is the only thing that catches "added/changed a #[derive(Type)]
       # struct and forgot to regenerate."
@@ -92,8 +92,8 @@ jobs:
         run: cargo test export_bindings -- --ignored
         working-directory: asyar-launcher/src-tauri
 
-      - name: Verify bindings.ts is up to date
-        run: git diff --exit-code -- asyar-launcher/src/bindings.ts
+      - name: Verify generated TypeScript bindings are up to date
+        run: git diff --exit-code -- asyar-launcher/src/bindings.ts asyar-sdk/src/generated/calculator.ts
 
       - name: Run Clippy
         run: cargo clippy --all-targets -- -D warnings

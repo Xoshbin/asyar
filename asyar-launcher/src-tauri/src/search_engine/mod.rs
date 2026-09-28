@@ -925,12 +925,36 @@ impl SearchState {
         min_results: usize,
         disabled_object_ids: &[String],
     ) -> Result<Vec<models::SearchResult>, SearchError> {
+        self.merged_search_filtered(
+            query,
+            external_results,
+            min_results,
+            disabled_object_ids,
+            &[],
+        )
+    }
+
+    pub fn merged_search_filtered(
+        &self,
+        query: &str,
+        external_results: Vec<models::ExternalSearchResult>,
+        min_results: usize,
+        disabled_object_ids: &[String],
+        disabled_extension_ids: &[String],
+    ) -> Result<Vec<models::SearchResult>, SearchError> {
         let skim_max: f32 = 100_000.0;
         let limit: usize = 20;
         let is_disabled_app = |r: &models::SearchResult| -> bool {
             r.result_type == "application"
                 && disabled_object_ids.iter().any(|id| id == &r.object_id)
         };
+        let is_disabled_extension = |r: &models::SearchResult| -> bool {
+            r.extension_id.as_ref().is_some_and(|extension_id| {
+                disabled_extension_ids.iter().any(|id| id == extension_id)
+            })
+        };
+        let is_disabled =
+            |r: &models::SearchResult| -> bool { is_disabled_app(r) || is_disabled_extension(r) };
 
         // Empty-query short-circuit: pure frecency sort, no tier overhead.
         if query.trim().is_empty() {
@@ -979,7 +1003,7 @@ impl SearchState {
             }
             let mut ordered = pinned;
             ordered.append(&mut combined);
-            ordered.retain(|r| !is_disabled_app(r));
+            ordered.retain(|r| !is_disabled(r));
             let mut seen = std::collections::HashSet::new();
             ordered.retain(|r| seen.insert(r.object_id.clone()));
             ordered.truncate(limit);
@@ -1040,7 +1064,7 @@ impl SearchState {
                     });
                 }
             }
-            combined.retain(|r| !is_disabled_app(r));
+            combined.retain(|r| !is_disabled(r));
             let mut seen = std::collections::HashSet::new();
             combined.retain(|r| seen.insert(r.object_id.clone()));
             combined.truncate(limit);
@@ -1172,7 +1196,7 @@ impl SearchState {
         let mut results: Vec<models::SearchResult> = combined.into_iter().map(|(r, _)| r).collect();
         // Filter before the min_results check below so a disabled app never
         // occupies a backfill slot that an enabled item could have filled.
-        results.retain(|r| !is_disabled_app(r));
+        results.retain(|r| !is_disabled(r));
 
         // Backfill with top frecency items when fewer than min_results matched.
         // Safe: the read lock was already released above.
@@ -1191,7 +1215,7 @@ impl SearchState {
                 }
                 if !existing_ids.contains(&suggestion.object_id)
                     && !existing_names.contains(&suggestion.name)
-                    && !is_disabled_app(&suggestion)
+                    && !is_disabled(&suggestion)
                 {
                     suggestion.score = -1.0; // backfill marker
                     results.push(suggestion);
@@ -1212,8 +1236,32 @@ impl SearchState {
         aliases: &crate::aliases::AliasState,
         disabled_object_ids: &[String],
     ) -> Result<models::MergedSearchResponse, SearchError> {
-        let mut results =
-            self.merged_search(query, external_results, min_results, disabled_object_ids)?;
+        self.merged_search_with_aliases_filtered(
+            query,
+            external_results,
+            min_results,
+            aliases,
+            disabled_object_ids,
+            &[],
+        )
+    }
+
+    pub fn merged_search_with_aliases_filtered(
+        &self,
+        query: &str,
+        external_results: Vec<models::ExternalSearchResult>,
+        min_results: usize,
+        aliases: &crate::aliases::AliasState,
+        disabled_object_ids: &[String],
+        disabled_extension_ids: &[String],
+    ) -> Result<models::MergedSearchResponse, SearchError> {
+        let mut results = self.merged_search_filtered(
+            query,
+            external_results,
+            min_results,
+            disabled_object_ids,
+            disabled_extension_ids,
+        )?;
 
         // Decorate every row with its alias (if any).
         for r in results.iter_mut() {
@@ -2378,6 +2426,288 @@ mod service_tests {
 
         assert!(results.iter().any(|r| r.object_id == "app_enabled"));
         assert!(results.iter().all(|r| r.object_id != "app_disabled"));
+    }
+
+    #[test]
+    fn merged_search_filters_results_from_disabled_extensions() {
+        let state = make_state();
+        let external = vec![models::ExternalSearchResult {
+            object_id: "calculator:result".to_string(),
+            name: "42".to_string(),
+            description: None,
+            result_type: "command".to_string(),
+            score: 1.0,
+            icon: None,
+            extension_id: Some("calculator".to_string()),
+            category: Some("extension".to_string()),
+            style: None,
+            priority: None,
+        }];
+        let disabled_extensions = vec!["calculator".to_string()];
+
+        let results = state
+            .merged_search_filtered("6 * 7", external, 10, &[], &disabled_extensions)
+            .unwrap();
+
+        assert!(results
+            .iter()
+            .all(|result| result.extension_id.as_deref() != Some("calculator")));
+    }
+
+    #[test]
+    fn merged_search_filters_file_search_commands_when_disabled() {
+        let state = make_state();
+        let external = vec![models::ExternalSearchResult {
+            object_id: "cmd_file-search_show-files".to_string(),
+            name: "Search Files".to_string(),
+            description: Some("Search files by name".to_string()),
+            result_type: "command".to_string(),
+            score: 1.0,
+            icon: Some("icon:folder-search".to_string()),
+            extension_id: Some("file-search".to_string()),
+            category: Some("extension".to_string()),
+            style: None,
+            priority: None,
+        }];
+        let disabled_extensions = vec!["file-search".to_string()];
+
+        let results = state
+            .merged_search_filtered("files", external, 10, &[], &disabled_extensions)
+            .unwrap();
+
+        assert!(results
+            .iter()
+            .all(|result| result.extension_id.as_deref() != Some("file-search")));
+    }
+
+    #[test]
+    fn merged_search_filters_optional_builtins_commands_when_disabled() {
+        let state = make_state();
+        let external = vec![
+            models::ExternalSearchResult {
+                object_id: "cmd_notes_open-notes".to_string(),
+                name: "Open Notes".to_string(),
+                description: Some("Browse notes".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:type".to_string()),
+                extension_id: Some("notes".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_runs_open-runs".to_string(),
+                name: "Runs".to_string(),
+                description: Some("Open runs".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:activity".to_string()),
+                extension_id: Some("runs".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_snippets_open-snippets".to_string(),
+                name: "Open Snippets".to_string(),
+                description: Some("Manage snippets".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:snippets".to_string()),
+                extension_id: Some("snippets".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_store_browse".to_string(),
+                name: "Browse Extension Store".to_string(),
+                description: Some("Find extensions".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:store".to_string()),
+                extension_id: Some("store".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_walkthrough_show-walkthrough".to_string(),
+                name: "Walkthrough".to_string(),
+                description: Some("Learn Asyar".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:star".to_string()),
+                extension_id: Some("walkthrough".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_agents_open".to_string(),
+                name: "Agents".to_string(),
+                description: Some("AI agents".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:bot".to_string()),
+                extension_id: Some("agents".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_calculator_calculate".to_string(),
+                name: "Calculator".to_string(),
+                description: Some("Evaluate math".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:calculator".to_string()),
+                extension_id: Some("calculator".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_mcp_servers".to_string(),
+                name: "MCP Servers".to_string(),
+                description: Some("Manage MCP".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:server".to_string()),
+                extension_id: Some("mcp".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_portals_manage".to_string(),
+                name: "Portals".to_string(),
+                description: Some("Web portals".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:globe".to_string()),
+                extension_id: Some("portals".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_screen-ocr_capture".to_string(),
+                name: "Screen OCR".to_string(),
+                description: Some("OCR text".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:crop".to_string()),
+                extension_id: Some("screen-ocr".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_scripts_library".to_string(),
+                name: "Scripts Library".to_string(),
+                description: Some("Run scripts".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:terminal".to_string()),
+                extension_id: Some("scripts".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_shortcuts_manage".to_string(),
+                name: "Shortcuts".to_string(),
+                description: Some("Manage shortcuts".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:keyboard".to_string()),
+                extension_id: Some("shortcuts".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_usage-stats_view".to_string(),
+                name: "Usage Stats".to_string(),
+                description: Some("View stats".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:chart".to_string()),
+                extension_id: Some("usage-stats".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_window-management_presets".to_string(),
+                name: "Window Presets".to_string(),
+                description: Some("Manage windows".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:layout".to_string()),
+                extension_id: Some("window-management".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+            models::ExternalSearchResult {
+                object_id: "cmd_raycast-import_import".to_string(),
+                name: "Import Raycast".to_string(),
+                description: Some("Import extensions".to_string()),
+                result_type: "command".to_string(),
+                score: 1.0,
+                icon: Some("icon:download".to_string()),
+                extension_id: Some("raycast-import".to_string()),
+                category: Some("extension".to_string()),
+                style: None,
+                priority: None,
+            },
+        ];
+        let disabled_extensions = vec![
+            "notes".to_string(),
+            "runs".to_string(),
+            "snippets".to_string(),
+            "store".to_string(),
+            "walkthrough".to_string(),
+            "agents".to_string(),
+            "calculator".to_string(),
+            "mcp".to_string(),
+            "portals".to_string(),
+            "screen-ocr".to_string(),
+            "scripts".to_string(),
+            "shortcuts".to_string(),
+            "usage-stats".to_string(),
+            "window-management".to_string(),
+            "raycast-import".to_string(),
+        ];
+
+        let results = state
+            .merged_search_filtered("test", external, 20, &[], &disabled_extensions)
+            .unwrap();
+
+        for id in [
+            "notes",
+            "runs",
+            "snippets",
+            "store",
+            "walkthrough",
+            "agents",
+            "calculator",
+            "mcp",
+            "portals",
+            "screen-ocr",
+            "scripts",
+            "shortcuts",
+            "usage-stats",
+            "window-management",
+            "raycast-import",
+        ] {
+            assert!(results
+                .iter()
+                .all(|result| result.extension_id.as_deref() != Some(id)));
+        }
     }
 
     // ------------------------------------------------------------------

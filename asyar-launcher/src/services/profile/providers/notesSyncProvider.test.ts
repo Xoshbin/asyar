@@ -2,6 +2,32 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NotesSyncProvider } from './notesSyncProvider';
 import type { SyncProviderData } from '../types';
 
+const mockNoteGetAll = vi.fn();
+const mockNoteUpsert = vi.fn();
+const mockNoteUpdate = vi.fn();
+const mockNoteRemove = vi.fn();
+vi.mock('../../../lib/ipc/commands', () => ({
+  noteGetAllForService: (...args: unknown[]) => mockNoteGetAll(...args),
+  noteUpsert: (...args: unknown[]) => mockNoteUpsert(...args),
+  noteUpdate: (...args: unknown[]) => mockNoteUpdate(...args),
+  noteRemove: (...args: unknown[]) => mockNoteRemove(...args),
+}));
+
+let noteChangeListener:
+  ((event: { payload: { id: string; type: 'upsert' | 'delete' } }) => void) | undefined;
+const mockUnlisten = vi.fn();
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(
+    async (
+      _event: string,
+      callback: (event: { payload: { id: string; type: 'upsert' | 'delete' } }) => void,
+    ) => {
+      noteChangeListener = callback;
+      return mockUnlisten;
+    },
+  ),
+}));
+
 const mockNotes = [
   {
     id: '1',
@@ -21,31 +47,13 @@ const mockNotes = [
   },
 ];
 
-vi.mock('../../../built-in-features/notes/noteStore.svelte', () => {
-  type ChangeCb = (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
-  const subscribers = new Set<ChangeCb>();
-  return {
-    noteStore: {
-      getAll: vi.fn(() => [...mockNotes]),
-      add: vi.fn(),
-      update: vi.fn(),
-      remove: vi.fn(),
-      subscribe: vi.fn((cb: ChangeCb) => {
-        subscribers.add(cb);
-        return () => subscribers.delete(cb);
-      }),
-      __emit: (ev: { type: 'upsert' | 'delete'; itemId: string }) => {
-        subscribers.forEach((cb) => cb(ev));
-      },
-    },
-  };
-});
-
 describe('NotesSyncProvider', () => {
   let provider: NotesSyncProvider;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockNoteGetAll.mockResolvedValue([...mockNotes]);
+    noteChangeListener = undefined;
     provider = new NotesSyncProvider();
   });
 
@@ -64,6 +72,7 @@ describe('NotesSyncProvider', () => {
   describe('exportFull', () => {
     it('exports all notes', async () => {
       const result = await provider.exportFull();
+      expect(mockNoteGetAll).toHaveBeenCalledOnce();
       expect(result.providerId).toBe('notes');
       expect(result.version).toBe(1);
       expect(result.data).toEqual(mockNotes);
@@ -116,7 +125,6 @@ describe('NotesSyncProvider', () => {
 
   describe('applyImport', () => {
     it('replaces all items on replace strategy', async () => {
-      const { noteStore } = await import('../../../built-in-features/notes/noteStore.svelte');
       const incoming: SyncProviderData = {
         providerId: 'notes',
         version: 1,
@@ -138,17 +146,16 @@ describe('NotesSyncProvider', () => {
       // everything" action for a document store is a deliberately omitted,
       // more-destructive-than-warranted feature (see the plan doc). Replace
       // strategy removes existing items individually instead.
-      expect(noteStore.remove).toHaveBeenCalledTimes(2);
-      expect(noteStore.remove).toHaveBeenCalledWith('1');
-      expect(noteStore.remove).toHaveBeenCalledWith('2');
-      expect(noteStore.add).toHaveBeenCalledTimes(1);
+      expect(mockNoteRemove).toHaveBeenCalledTimes(2);
+      expect(mockNoteRemove).toHaveBeenCalledWith('1');
+      expect(mockNoteRemove).toHaveBeenCalledWith('2');
+      expect(mockNoteUpsert).toHaveBeenCalledTimes(1);
       expect(result.success).toBe(true);
       expect(result.itemsAdded).toBe(1);
       expect(result.itemsRemoved).toBe(2);
     });
 
     it('merges new items and updates ones with a newer updatedAt', async () => {
-      const { noteStore } = await import('../../../built-in-features/notes/noteStore.svelte');
       const incoming: SyncProviderData = {
         providerId: 'notes',
         version: 1,
@@ -182,8 +189,12 @@ describe('NotesSyncProvider', () => {
       };
 
       const result = await provider.applyImport(incoming, 'merge');
-      expect(noteStore.add).toHaveBeenCalledTimes(1); // id '3'
-      expect(noteStore.update).toHaveBeenCalledTimes(1); // id '1' (newer)
+      expect(mockNoteUpsert).toHaveBeenCalledTimes(1); // id '3'
+      expect(mockNoteUpdate).toHaveBeenCalledWith(
+        '1',
+        { title: 'Grocery List', body: 'Updated', pinned: false },
+        9999,
+      );
       expect(result.itemsAdded).toBe(1);
       expect(result.itemsUpdated).toBe(1);
     });
@@ -221,8 +232,7 @@ describe('NotesSyncProvider', () => {
   });
 
   describe('applyItemUpsert', () => {
-    it('routes to noteStore.add', async () => {
-      const { noteStore } = await import('../../../built-in-features/notes/noteStore.svelte');
+    it('routes to the platform note command', async () => {
       const content = {
         id: '99',
         title: 'N',
@@ -232,37 +242,32 @@ describe('NotesSyncProvider', () => {
         pinned: false,
       };
       await provider.applyItemUpsert({ id: '99', categoryId: 'notes', content });
-      expect(noteStore.add).toHaveBeenCalledWith(content);
+      expect(mockNoteUpsert).toHaveBeenCalledWith(content);
     });
   });
 
   describe('applyItemDelete', () => {
-    it('routes to noteStore.remove', async () => {
-      const { noteStore } = await import('../../../built-in-features/notes/noteStore.svelte');
+    it('routes to the platform note command', async () => {
       await provider.applyItemDelete('1');
-      expect(noteStore.remove).toHaveBeenCalledWith('1');
+      expect(mockNoteRemove).toHaveBeenCalledWith('1');
     });
   });
 
   describe('subscribeToChanges', () => {
-    it('propagates store events with categoryId attached', async () => {
+    it('propagates Rust platform events with categoryId attached', async () => {
       const events: Array<{ type: string; itemId: string; categoryId: string }> = [];
       const unsub = provider.subscribeToChanges((ev) => events.push(ev));
 
-      const { noteStore } = await import('../../../built-in-features/notes/noteStore.svelte');
-      const emit = (
-        noteStore as unknown as {
-          __emit: (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
-        }
-      ).__emit;
-      emit({ type: 'upsert', itemId: '1' });
-      emit({ type: 'delete', itemId: '2' });
+      await vi.waitFor(() => expect(noteChangeListener).toBeDefined());
+      noteChangeListener?.({ payload: { type: 'upsert', id: '1' } });
+      noteChangeListener?.({ payload: { type: 'delete', id: '2' } });
 
       expect(events).toEqual([
         { type: 'upsert', itemId: '1', categoryId: 'notes' },
         { type: 'delete', itemId: '2', categoryId: 'notes' },
       ]);
       unsub();
+      expect(mockUnlisten).toHaveBeenCalledOnce();
     });
   });
 });

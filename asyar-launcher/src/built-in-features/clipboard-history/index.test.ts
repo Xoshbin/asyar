@@ -137,8 +137,54 @@ describe('ClipboardHistoryExtension', () => {
     // Deactivate view
     await extension.viewDeactivated('some/path');
 
-    // This should fail (RED) because viewDeactivated doesn't call removeEventListener currently
     expect(window.removeEventListener).toHaveBeenCalledWith('keydown', handler);
+  });
+
+  it('activate() subscribes to clipboard history capture and deactivate() unsubscribes', async () => {
+    const mockClipboard = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      subscribeCapture: vi.fn().mockResolvedValue(undefined),
+      unsubscribeCapture: vi.fn().mockResolvedValue(undefined),
+      getRecentItems: vi.fn().mockResolvedValue([]),
+    };
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === 'clipboard') return mockClipboard;
+        if (name === 'extensions')
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+
+    await extension.initialize(mockContext as any);
+
+    await extension.activate();
+    expect(mockClipboard.initialize).toHaveBeenCalledTimes(1);
+    expect(mockClipboard.subscribeCapture).toHaveBeenCalledWith('clipboard-history');
+
+    await extension.deactivate();
+    expect(mockClipboard.unsubscribeCapture).toHaveBeenCalledWith('clipboard-history');
+  });
+
+  it('activate() propagates capture subscription failures', async () => {
+    const failure = new Error('capture unavailable');
+    const mockClipboard = {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      subscribeCapture: vi.fn().mockRejectedValue(failure),
+      getRecentItems: vi.fn().mockResolvedValue([]),
+    };
+    const mockContext = {
+      getService: vi.fn().mockImplementation((name: string) => {
+        if (name === 'clipboard') return mockClipboard;
+        if (name === 'extensions')
+          return { setActiveViewActionLabel: vi.fn(), navigateToView: vi.fn() };
+        return { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      }),
+    };
+
+    await extension.initialize(mockContext as any);
+
+    await expect(extension.activate()).rejects.toBe(failure);
   });
 });
 

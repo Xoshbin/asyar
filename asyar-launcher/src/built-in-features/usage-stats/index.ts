@@ -73,8 +73,14 @@ class UsageStatsExtension implements Extension {
     actionService.unregisterAction(ACTION_SEND_NOW);
   }
 
-  async activate(): Promise<void> {}
-  async deactivate(): Promise<void> {}
+  async activate(): Promise<void> {
+    await usageStatsState.load();
+  }
+
+  async deactivate(): Promise<void> {
+    actionService.unregisterAction(ACTION_SEND_NOW);
+    usageStatsState.reset();
+  }
 }
 
 export default new UsageStatsExtension();

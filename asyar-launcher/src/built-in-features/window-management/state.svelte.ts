@@ -105,6 +105,10 @@ export class WindowManagementState {
       await targetStore.set(STORAGE_KEY_PREV_BOUNDS, JSON.stringify(bounds));
     }
   }
+
+  reset(): void {
+    this.selection.setIndex(0);
+  }
 }
 
 export const windowManagementState = new WindowManagementState();

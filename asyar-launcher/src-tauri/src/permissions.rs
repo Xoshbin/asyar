@@ -143,16 +143,22 @@ impl ExtensionPermissionRegistry {
 /// Returns None if the call type is a core call that doesn't require a permission.
 fn get_required_permission(call_type: &str) -> Option<&'static str> {
     match call_type {
-        // Clipboard
+        // Clipboard: current clipboard read/write
         "asyar:api:clipboard:readCurrentClipboard" => Some("clipboard:read"),
         "asyar:api:clipboard:readCurrentText" => Some("clipboard:read"),
-        "asyar:api:clipboard:getRecentItems" => Some("clipboard:read"),
         "asyar:api:clipboard:writeToClipboard" => Some("clipboard:write"),
         "asyar:api:clipboard:pasteItem" => Some("clipboard:write"),
         "asyar:api:clipboard:simulatePaste" => Some("clipboard:write"),
-        "asyar:api:clipboard:toggleItemFavorite" => Some("clipboard:write"),
-        "asyar:api:clipboard:deleteItem" => Some("clipboard:write"),
-        "asyar:api:clipboard:clearNonFavorites" => Some("clipboard:write"),
+        // Clipboard History: stored history query
+        "asyar:api:clipboard:getRecentItems" => Some("clipboard-history:read"),
+        "asyar:api:clipboard:searchHistory" => Some("clipboard-history:read"),
+        // Clipboard History: background capture subscription
+        "asyar:api:clipboard:subscribeCapture" => Some("clipboard-history:capture"),
+        "asyar:api:clipboard:unsubscribeCapture" => Some("clipboard-history:capture"),
+        // Clipboard History: deletion and management
+        "asyar:api:clipboard:toggleItemFavorite" => Some("clipboard-history:manage"),
+        "asyar:api:clipboard:deleteItem" => Some("clipboard-history:manage"),
+        "asyar:api:clipboard:clearNonFavorites" => Some("clipboard-history:manage"),
         // Notifications
         "asyar:api:feedback:sendBackground" => Some("notifications:send"),
         "asyar:api:feedback:dismissBackground" => Some("notifications:send"),
@@ -189,8 +195,11 @@ fn get_required_permission(call_type: &str) -> Option<&'static str> {
         "asyar:api:cache:set" => Some("cache:write"),
         "asyar:api:cache:delete" => Some("cache:write"),
         "asyar:api:cache:clear" => Some("cache:write"),
-        // Screen sampling (eyedropper)
+        // Screen sampling (eyedropper) and OCR capture
         "asyar:api:screen:pickColor" => Some("screen:pick-color"),
+        "asyar:api:screen:captureText" => Some("screen:capture"),
+        // Calculator evaluation
+        "asyar:api:calculator:evaluate" => Some("calculator:evaluate"),
         // Selection
         "asyar:api:selection:getSelectedText" => Some("selection:read"),
         "asyar:api:selection:getSelectedFinderItems" => Some("selection:read"),
@@ -413,12 +422,9 @@ fn is_public_call(call_type: &str) -> bool {
             | "asyar:api:browser:subscribeEvents"
             | "asyar:api:browser:unsubscribeEvents"
         // TODO(policy): `ai:streamChat` spends the user's configured AI provider
-        // credits with no permission, and `clipboard:stopMonitoring` toggles
-        // clipboard-history capture. Both preserved as public to keep current
-        // behavior; gating either needs a new manifest permission (owner
-        // decision, tracked separately).
+        // credits with no permission. Preserved as public to keep current behavior;
+        // gating needs a new manifest permission (owner decision, tracked separately).
             | "asyar:api:ai:streamChat"
-            | "asyar:api:clipboard:stopMonitoring"
         // An extension marking its OWN per-extension onboarding complete
         // (extension_id is host-injected from the trusted iframe attribute,
         // never the payload — see INJECTS_EXTENSION_ID) — scoped to the
@@ -1045,6 +1051,84 @@ mod tests {
             get_required_permission("asyar:api:clipboard:writeToClipboard"),
             Some("clipboard:write")
         );
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:pasteItem"),
+            Some("clipboard:write")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:simulatePaste"),
+            Some("clipboard:write")
+        );
+    }
+
+    #[test]
+    fn test_clipboard_permissions_granularity() {
+        // Explicit current clipboard read
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:readCurrentClipboard"),
+            Some("clipboard:read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:readCurrentText"),
+            Some("clipboard:read")
+        );
+
+        // Stored history queries require clipboard-history:read (not clipboard:read)
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:getRecentItems"),
+            Some("clipboard-history:read")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:searchHistory"),
+            Some("clipboard-history:read")
+        );
+
+        // Background capture subscription requires clipboard-history:capture
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:subscribeCapture"),
+            Some("clipboard-history:capture")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:unsubscribeCapture"),
+            Some("clipboard-history:capture")
+        );
+
+        // History management requires clipboard-history:manage
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:toggleItemFavorite"),
+            Some("clipboard-history:manage")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:deleteItem"),
+            Some("clipboard-history:manage")
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:clearNonFavorites"),
+            Some("clipboard-history:manage")
+        );
+    }
+
+    #[test]
+    fn test_old_clipboard_monitoring_calls_are_denied() {
+        // TDD requirement 24: IPC permission tests prove the old global public lifecycle calls are unavailable.
+        assert_eq!(
+            gate_decision("asyar:api:clipboard:startMonitoring"),
+            GateDecision::Deny
+        );
+        assert_eq!(
+            gate_decision("asyar:api:clipboard:stopMonitoring"),
+            GateDecision::Deny
+        );
+        assert!(!is_public_call("asyar:api:clipboard:startMonitoring"));
+        assert!(!is_public_call("asyar:api:clipboard:stopMonitoring"));
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:startMonitoring"),
+            None
+        );
+        assert_eq!(
+            get_required_permission("asyar:api:clipboard:stopMonitoring"),
+            None
+        );
     }
 
     #[test]
@@ -1409,6 +1493,22 @@ mod tests {
     }
 
     #[test]
+    fn screen_capture_text_maps_to_screen_capture() {
+        assert_eq!(
+            get_required_permission("asyar:api:screen:captureText"),
+            Some("screen:capture")
+        );
+    }
+
+    #[test]
+    fn calculator_evaluate_maps_to_calculator_evaluate() {
+        assert_eq!(
+            get_required_permission("asyar:api:calculator:evaluate"),
+            Some("calculator:evaluate")
+        );
+    }
+
+    #[test]
     fn snippets_register_requires_contribute_permission() {
         assert_eq!(
             get_required_permission("asyar:api:snippets:registerShortcodes"),
@@ -1456,6 +1556,7 @@ mod tests {
                 description: String::new(),
                 author: None,
                 extension_type: None,
+                lifecycle: None,
                 background: None,
                 searchable: None,
                 icon: None,
@@ -1474,6 +1575,7 @@ mod tests {
             },
             enabled: true,
             is_built_in,
+            disableable: !is_built_in,
             path: format!("/tmp/{id}"),
             compatibility: crate::extensions::CompatibilityStatus::Unknown,
             first_view_component: None,

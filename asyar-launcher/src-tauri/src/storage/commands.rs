@@ -188,8 +188,12 @@ pub fn snippet_clear_all(store: State<'_, DataStore>) -> Result<(), AppError> {
 /// Tell every window a note changed. Each Asyar window is its own webview with
 /// its own JS module instances, so in-process store subscribers never cross the
 /// window boundary — the launcher view and each sticky window rely on this.
-pub(crate) fn emit_note_changed(app: &AppHandle, id: &str) {
-    let _ = app.emit("notes:changed", serde_json::json!({ "id": id }));
+fn note_change_payload(id: &str, change_type: &str) -> serde_json::Value {
+    serde_json::json!({ "id": id, "type": change_type })
+}
+
+pub(crate) fn emit_note_changed(app: &AppHandle, id: &str, change_type: &str) {
+    let _ = app.emit("notes:changed", note_change_payload(id, change_type));
 }
 
 #[tauri::command]
@@ -204,7 +208,7 @@ pub fn note_upsert(
         let conn = store.conn()?;
         super::notes::upsert_with_fts(&conn, &note, keystore.master_key(), fts.inner())?;
     }
-    emit_note_changed(&app, &note.id);
+    emit_note_changed(&app, &note.id, "upsert");
     Ok(())
 }
 
@@ -253,7 +257,7 @@ pub fn note_update(
             fts.inner(),
         )?;
     }
-    emit_note_changed(&app, &id);
+    emit_note_changed(&app, &id, "upsert");
     Ok(())
 }
 
@@ -271,7 +275,7 @@ pub fn note_remove(
     // Cascade: a deleted note must not leave a sticky window (or its row)
     // behind. Best-effort — the note itself is already gone.
     let _ = crate::sticky_window::close(&app, &id);
-    emit_note_changed(&app, &id);
+    emit_note_changed(&app, &id, "delete");
     Ok(())
 }
 
@@ -285,7 +289,7 @@ pub fn note_toggle_pin(
         let conn = store.conn()?;
         super::notes::toggle_pin(&conn, &id)?
     };
-    emit_note_changed(&app, &id);
+    emit_note_changed(&app, &id, "upsert");
     Ok(pinned)
 }
 
@@ -305,6 +309,23 @@ pub fn note_search(
         limit as usize,
         keystore.master_key(),
     )
+}
+
+#[cfg(test)]
+mod note_change_event_tests {
+    use super::note_change_payload;
+
+    #[test]
+    fn note_change_payload_distinguishes_upserts_from_deletes() {
+        assert_eq!(
+            note_change_payload("note-1", "upsert"),
+            serde_json::json!({ "id": "note-1", "type": "upsert" })
+        );
+        assert_eq!(
+            note_change_payload("note-1", "delete"),
+            serde_json::json!({ "id": "note-1", "type": "delete" })
+        );
+    }
 }
 
 /// Resolve a note by id or exact (case-insensitive) title. Returns `None`

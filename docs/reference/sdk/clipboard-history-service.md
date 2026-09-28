@@ -3,22 +3,35 @@
 **Runs in:** view only. Clipboard reads/writes are tied to user interaction
 and live in the view's proxy bag.
 
-**Permission required:** `clipboard:read` for reads, `clipboard:write` for writes.
-`stripHtml`/`stripRtf` are the exception — see below.
+**Permission required:**
+
+- `clipboard:read`: explicit current clipboard reads (`readCurrentClipboard`, `readCurrentText`).
+- `clipboard:write`: clipboard writes and simulated paste (`writeToClipboard`, `pasteItem`, `simulatePaste`).
+- `clipboard-history:read`: querying stored history (`getRecentItems`, `searchHistory`).
+- `clipboard-history:capture`: subscribing to background capture (`subscribeCapture`, `unsubscribeCapture`).
+- `clipboard-history:manage`: managing stored history (`deleteItem`, `toggleItemFavorite`, `clearNonFavorites`).
+- `stripHtml`/`stripRtf` are permission-free (pure compute transforms of caller-supplied markup).
 
 ```typescript
 interface IClipboardHistoryService {
-  // Read
+  // Read current clipboard
   readCurrentClipboard(): Promise<{ type: ClipboardItemType; content: string }>;
   readCurrentText(): Promise<string>;
-  getRecentItems(limit?: number): Promise<ClipboardHistoryItem[]>;
 
-  // Write
+  // Query stored history (requires clipboard-history:read)
+  getRecentItems(limit?: number): Promise<ClipboardHistoryItem[]>;
+  searchHistory(query: string): Promise<ClipboardHistoryItem[]>;
+
+  // Write (requires clipboard:write)
   writeToClipboard(item: ClipboardHistoryItem): Promise<void>;
   pasteItem(item: ClipboardHistoryItem): Promise<void>;
   simulatePaste(): Promise<boolean>;
 
-  // Manage history
+  // Scoped capture subscription (requires clipboard-history:capture)
+  subscribeCapture(): Promise<void>;
+  unsubscribeCapture(): Promise<void>;
+
+  // Manage history (requires clipboard-history:manage)
   toggleItemFavorite(itemId: string): Promise<boolean>;
   deleteItem(itemId: string): Promise<boolean>;
   clearNonFavorites(): Promise<boolean>;
@@ -28,7 +41,6 @@ interface IClipboardHistoryService {
   normalizeImageData(content: string): string;
   isValidImageData(content: string): boolean;
   initialize(): Promise<void>;
-  stopMonitoring(): void;
   hideWindow(): Promise<void>;
 
   // Markup stripping — no permission required (see note below)

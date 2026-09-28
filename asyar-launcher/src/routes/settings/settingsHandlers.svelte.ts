@@ -31,6 +31,7 @@ export interface ExtensionItem {
   commands?: ExtensionCommand[];
   preferences?: any[];
   isBuiltIn?: boolean;
+  disableable?: boolean;
   permissions?: string[];
   permissionArgs?: Record<string, unknown>;
 }
@@ -342,7 +343,7 @@ export class SettingsHandler {
   }
 
   async toggleExtension(extension: ExtensionItem) {
-    if (extension.isBuiltIn) return;
+    if (extension.isBuiltIn && !extension.disableable) return;
     if (this.togglingExtension === extension.title) return;
 
     this.togglingExtension = extension.title;

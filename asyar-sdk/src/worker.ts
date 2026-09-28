@@ -54,6 +54,7 @@ import { BrowserServiceProxy } from './services/BrowserServiceProxy';
 import { FilesServiceProxy } from './services/FilesServiceProxy';
 import { OpenerServiceProxy } from './services/OpenerServiceProxy';
 import { EnvironmentServiceProxy } from './services/EnvironmentServiceProxy';
+import { CalculatorServiceProxy } from './services/CalculatorServiceProxy';
 import { extensionRpc } from './services/ExtensionRpc';
 
 import { ExtensionContextCore } from './ExtensionContextCore';
@@ -72,6 +73,7 @@ function buildWorkerProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     application: new ApplicationServiceProxy(),
     power: new PowerServiceProxy(),
     screen: new ScreenServiceProxy(),
+    calculator: new CalculatorServiceProxy(),
     process: new ProcessServiceProxy(),
     systemEvents: new SystemEventsServiceProxy(),
     timers: new TimerServiceProxy(),

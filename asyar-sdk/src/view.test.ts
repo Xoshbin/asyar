@@ -34,6 +34,7 @@ const VIEW_PROXY_NAMESPACES = [
   'files',
   'opener',
   'environment',
+  'calculator',
 ] as const;
 
 function setRole(role: string | undefined) {

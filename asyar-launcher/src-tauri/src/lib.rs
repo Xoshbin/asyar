@@ -142,6 +142,7 @@ pub mod auth;
 pub mod browser;
 pub mod calculator;
 pub mod clipboard_cache;
+pub mod clipboard_capture;
 pub mod clipboard_markup;
 pub mod clipboard_privacy;
 pub mod color_sampler;
@@ -398,6 +399,7 @@ pub fn run() {
         .manage(std::sync::Arc::new(fs_watcher::FsWatcherRegistry::new()))
         .manage(clipboard_privacy::ClipboardPrivacyState::new())
         .manage(commands::clipboard_privacy::UserDenylist::new())
+        .manage(clipboard_capture::ClipboardCaptureManager::default())
         .manage(secret_detection::SecretDetectionState::new())
         .manage::<std::sync::Arc<dyn app_events::AppPresenceQuery>>(std::sync::Arc::from(
             app_events::default_presence_query(),
@@ -674,6 +676,10 @@ pub fn run() {
             commands::clipboard_markup::clipboard_strip_rtf,
             clipboard_cache::commands::clipboard_adopt_image,
             clipboard_cache::commands::clipboard_forget_image,
+            commands::clipboard_capture::clipboard_capture_subscribe,
+            commands::clipboard_capture::clipboard_capture_unsubscribe,
+            commands::clipboard_capture::clipboard_capture_force_remove,
+            commands::clipboard_capture::clipboard_capture_get_consumers,
             // Storage: snippets
             storage::commands::snippet_upsert,
             storage::commands::snippet_get_all,

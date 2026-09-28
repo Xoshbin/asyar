@@ -27,14 +27,7 @@ class RunsExtension implements Extension {
     return undefined;
   }
 
-  async activate(): Promise<void> {}
-
-  async deactivate(): Promise<void> {}
-
-  async viewActivated(_viewPath: string): Promise<void> {
-    this.inView = true;
-    window.addEventListener('keydown', this.handleKeydownBound);
-
+  private registerViewActions(): void {
     actionService.registerAction({
       id: CLEAR_RECENT_ACTION_ID,
       label: 'Clear Recent',
@@ -62,6 +55,34 @@ class RunsExtension implements Extension {
         if (runId) await openAgentRunInChat(runId);
       },
     } as ApplicationAction);
+  }
+
+  private unregisterViewActions(): void {
+    actionService.unregisterAction(CLEAR_RECENT_ACTION_ID);
+    actionService.unregisterAction(OPEN_AGENT_RUN_IN_CHAT_ACTION_ID);
+  }
+
+  async activate(): Promise<void> {
+    await runService.loadHistory();
+  }
+
+  async deactivate(): Promise<void> {
+    this.inView = false;
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+    }
+    this.unregisterViewActions();
+    runService.selectedRunId = null;
+  }
+
+  async viewActivated(_viewPath: string): Promise<void> {
+    this.inView = true;
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+      window.addEventListener('keydown', this.handleKeydownBound);
+    }
+
+    this.registerViewActions();
 
     // Initial history load might complete after registerAction
     runService.loadHistory().then(() => {
@@ -70,10 +91,12 @@ class RunsExtension implements Extension {
   }
 
   async viewDeactivated(_viewPath: string): Promise<void> {
-    window.removeEventListener('keydown', this.handleKeydownBound);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+    }
     this.inView = false;
-    actionService.unregisterAction(CLEAR_RECENT_ACTION_ID);
-    actionService.unregisterAction(OPEN_AGENT_RUN_IN_CHAT_ACTION_ID);
+    this.unregisterViewActions();
+    runService.selectedRunId = null;
   }
 
   private selectedAgentRunId(): string | null {

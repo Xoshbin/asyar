@@ -177,3 +177,37 @@ describe('RunsExtension keyboard navigation', () => {
     await RunsExtension.viewDeactivated!('runs/RunView');
   });
 });
+
+describe('RunsExtension lifecycle: activate and deactivate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(window, 'addEventListener');
+    vi.spyOn(window, 'removeEventListener');
+  });
+
+  it('activate() loads history from runService', async () => {
+    await RunsExtension.activate!();
+    expect(runService.loadHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it('deactivate() cleans up keydown listener, unregisters actions, and resets selectedRunId', async () => {
+    (runService as any).selectedRunId = 'r1';
+    await RunsExtension.viewActivated!('runs/RunView');
+
+    await RunsExtension.deactivate!();
+
+    expect(window.removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('runs:clear-recent');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:open-run-in-chat');
+    expect(runService.selectedRunId).toBeNull();
+  });
+
+  it('deactivate() is safe when not in view', async () => {
+    (runService as any).selectedRunId = 'r2';
+    await RunsExtension.deactivate!();
+
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('runs:clear-recent');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('agents:open-run-in-chat');
+    expect(runService.selectedRunId).toBeNull();
+  });
+});

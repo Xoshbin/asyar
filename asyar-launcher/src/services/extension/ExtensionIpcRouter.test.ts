@@ -14,6 +14,8 @@ vi.mock('./extensionPreferencesService.svelte', () => ({
 vi.mock('./streamDispatcher.svelte', () => ({ streamDispatcher: { abort: vi.fn() } }));
 vi.mock('../../lib/ipc/commands', () => ({
   checkExtensionPermission: vi.fn(),
+  calculatorEvaluate: vi.fn(),
+  ocrCaptureScreenText: vi.fn(),
 }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('../feedback/feedbackService.svelte', () => ({
@@ -964,5 +966,719 @@ describe('ExtensionIpcRouter — opener dispatch and caller injection', () => {
     );
 
     expect(openPath).toHaveBeenCalledWith(null, '/my/path', { with: 'Ghostty' });
+  });
+});
+
+describe('ExtensionIpcRouter — clipboard capture caller identity injection', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivileged: boolean,
+    originRole?: 'view' | 'worker',
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
+  }
+
+  it('clipboard:subscribeCapture from iframe injects host-authenticated extensionId as callerId', async () => {
+    const subscribeCapture = vi.fn(async () => undefined);
+    const registry = { clipboard: { subscribeCapture } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:clipboard:subscribeCapture',
+      {},
+      'org.example.replacement',
+      false,
+    );
+
+    expect(subscribeCapture).toHaveBeenCalledWith('org.example.replacement');
+  });
+
+  it('clipboard:subscribeCapture ignores callerId forged in payload by iframe extension', async () => {
+    const subscribeCapture = vi.fn(async () => undefined);
+    const registry = { clipboard: { subscribeCapture } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:clipboard:subscribeCapture',
+      { callerId: 'clipboard-history' },
+      'org.example.evil',
+      false,
+    );
+
+    expect(subscribeCapture).toHaveBeenCalledWith('org.example.evil');
+  });
+
+  it('clipboard:unsubscribeCapture from iframe injects extensionId as callerId', async () => {
+    const unsubscribeCapture = vi.fn(async () => undefined);
+    const registry = { clipboard: { unsubscribeCapture } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:clipboard:unsubscribeCapture',
+      {},
+      'org.example.replacement',
+      false,
+    );
+
+    expect(unsubscribeCapture).toHaveBeenCalledWith('org.example.replacement');
+  });
+
+  it('clipboard:subscribeCapture from privileged host context defaults to clipboard-history', async () => {
+    const subscribeCapture = vi.fn(async () => undefined);
+    const registry = { clipboard: { subscribeCapture } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)('asyar:api:clipboard:subscribeCapture', undefined, undefined, true);
+
+    expect(subscribeCapture).toHaveBeenCalledWith('clipboard-history');
+  });
+
+  it('clipboard:searchHistory forwards query to searchHistory', async () => {
+    const searchHistory = vi.fn(async () => []);
+    const registry = { clipboard: { searchHistory } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:clipboard:searchHistory',
+      { query: 'hello' },
+      'org.example.replacement',
+      false,
+    );
+
+    expect(searchHistory).toHaveBeenCalledWith('hello');
+  });
+});
+
+describe('ExtensionIpcRouter — files service dispatch and caller identity injection', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivileged: boolean,
+    originRole?: 'view' | 'worker',
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
+  }
+
+  it('files:search from iframe injects host-authenticated extensionId as callerId', async () => {
+    const search = vi.fn(async () => [{ fileId: 'f1', name: 'report.pdf' }]);
+    const registry = { files: { search } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const result = await dispatchAs(router)(
+      'asyar:api:files:search',
+      { query: 'report', opts: { typeFilter: 'document', limit: 10 } },
+      'org.example.tier2',
+      false,
+    );
+
+    expect(search).toHaveBeenCalledWith('org.example.tier2', 'report', {
+      typeFilter: 'document',
+      limit: 10,
+    });
+    expect(result).toEqual([{ fileId: 'f1', name: 'report.pdf' }]);
+  });
+
+  it('files:status from iframe injects callerId', async () => {
+    const status = vi.fn(async () => ({ state: 'ready', entryCount: 42 }));
+    const registry = { files: { status } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const result = await dispatchAs(router)(
+      'asyar:api:files:status',
+      {},
+      'org.example.tier2',
+      false,
+    );
+
+    expect(status).toHaveBeenCalledWith('org.example.tier2');
+    expect(result).toEqual({ state: 'ready', entryCount: 42 });
+  });
+
+  it('files:search from privileged host context injects null as callerId', async () => {
+    const search = vi.fn(async () => []);
+    const registry = { files: { search } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)('asyar:api:files:search', { query: 'notes' }, undefined, true);
+
+    expect(search).toHaveBeenCalledWith(null, 'notes');
+  });
+});
+
+describe('ExtensionIpcRouter — notes platform service dispatch', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivileged: boolean,
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
+  }
+
+  it('dispatches notes:search and notes:get to registry.notes', async () => {
+    const search = vi.fn(async () => [{ id: 'n1', title: 'Note 1', snippet: 'preview' }]);
+    const get = vi.fn(async () => ({ id: 'n1', title: 'Note 1', body: 'full' }));
+    const registry = { notes: { search, get } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const searchResult = await dispatchAs(router)(
+      'asyar:api:notes:search',
+      { query: 'test', limit: 5 },
+      'org.example.tier2',
+      false,
+    );
+    expect(search).toHaveBeenCalledWith('test', 5);
+    expect(searchResult).toEqual([{ id: 'n1', title: 'Note 1', snippet: 'preview' }]);
+
+    const getResult = await dispatchAs(router)(
+      'asyar:api:notes:get',
+      { idOrTitle: 'n1' },
+      'org.example.tier2',
+      false,
+    );
+    expect(get).toHaveBeenCalledWith('n1');
+    expect(getResult).toEqual({ id: 'n1', title: 'Note 1', body: 'full' });
+  });
+});
+
+describe('ExtensionIpcRouter — runs platform service dispatch with injected callerId', () => {
+  type DispatchApiCall = (
+    type: string,
+    payload: unknown,
+    extensionId: string | undefined,
+    isPrivileged: boolean,
+  ) => Promise<unknown>;
+
+  function dispatchAs(router: ExtensionIpcRouter): DispatchApiCall {
+    return (router as unknown as { dispatchApiCall: DispatchApiCall }).dispatchApiCall.bind(router);
+  }
+
+  it('runs:write injects caller extensionId as first argument', async () => {
+    const write = vi.fn(async () => undefined);
+    const registry = { runs: { write } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:runs:write',
+      { id: 'run-1', line: 'hello stdout' },
+      'org.example.runner',
+      false,
+    );
+
+    expect(write).toHaveBeenCalledWith('org.example.runner', 'run-1', 'hello stdout');
+  });
+
+  it('dispatches calculator:evaluate to registry.calculator', async () => {
+    const evaluate = vi.fn(async () => [{ value: '42', detail: '6 * 7', kind: 'math' }]);
+    const registry = { calculator: { evaluate } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const result = await dispatchAs(router)(
+      'asyar:api:calculator:evaluate',
+      { query: '6 * 7' },
+      'org.example.calculator',
+      false,
+    );
+
+    expect(evaluate).toHaveBeenCalledWith('6 * 7');
+    expect(result).toEqual([{ value: '42', detail: '6 * 7', kind: 'math' }]);
+  });
+
+  it('dispatches screen:captureText injecting caller extensionId to registry.screen', async () => {
+    const captureText = vi.fn(async () => 'recognized text');
+    const registry = { screen: { captureText } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const result = await dispatchAs(router)(
+      'asyar:api:screen:captureText',
+      {},
+      'org.example.ocr',
+      false,
+    );
+
+    expect(captureText).toHaveBeenCalledWith('org.example.ocr');
+    expect(result).toBe('recognized text');
+  });
+
+  it('rejects calculator_evaluate via asyar:api:invoke as unavailable', async () => {
+    const router = new ExtensionIpcRouter({} as ServiceRegistry, vi.fn(), vi.fn(), vi.fn());
+    await expect(
+      dispatchAs(router)(
+        'asyar:api:invoke',
+        { cmd: 'calculator_evaluate', args: { query: '6 * 7' } },
+        'org.example.calculator',
+        false,
+      ),
+    ).rejects.toThrow('Command "calculator_evaluate" is not available to extensions');
+  });
+
+  it('rejects ocr_capture_screen_text via asyar:api:invoke as unavailable', async () => {
+    const router = new ExtensionIpcRouter({} as ServiceRegistry, vi.fn(), vi.fn(), vi.fn());
+    await expect(
+      dispatchAs(router)(
+        'asyar:api:invoke',
+        { cmd: 'ocr_capture_screen_text' },
+        'org.example.ocr',
+        false,
+      ),
+    ).rejects.toThrow('Command "ocr_capture_screen_text" is not available to extensions');
+  });
+
+  it('dispatches tools:registerTool injecting caller extensionId', async () => {
+    const registerTool = vi.fn(async () => undefined);
+    const registry = { tools: { registerTool } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    const tool = { id: 'search-api', name: 'Search API', description: 'Search' };
+    await dispatchAs(router)('asyar:api:tools:registerTool', { tool }, 'org.example.tools', false);
+
+    expect(registerTool).toHaveBeenCalledWith('org.example.tools', tool);
+  });
+
+  it('dispatches window management commands to registry.window', async () => {
+    const applyPreset = vi.fn(async () => undefined);
+    const getWindowBounds = vi.fn(async () => ({ x: 0, y: 0, width: 800, height: 600 }));
+    const registry = { window: { applyPreset, getWindowBounds } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(registry, vi.fn(), vi.fn(), vi.fn());
+
+    await dispatchAs(router)(
+      'asyar:api:window:applyPreset',
+      { presetId: 'left-half' },
+      'org.example.tiler',
+      false,
+    );
+    expect(applyPreset).toHaveBeenCalledWith('left-half');
+
+    const bounds = await dispatchAs(router)(
+      'asyar:api:window:getWindowBounds',
+      undefined,
+      'org.example.tiler',
+      false,
+    );
+    expect(getWindowBounds).toHaveBeenCalled();
+    expect(bounds).toEqual({ x: 0, y: 0, width: 800, height: 600 });
+  });
+});
+
+describe('ExtensionIpcRouter — real IPC pipeline tests (Calculator, Screen OCR, Notes)', () => {
+  let iframeEl: HTMLIFrameElement;
+  let postMessageSpy: ReturnType<typeof vi.spyOn>;
+  let declaredPermissions: Set<string>;
+  let knownManifests: Map<string, any>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    document.querySelectorAll('iframe[data-extension-id]').forEach((el) => el.remove());
+
+    declaredPermissions = new Set<string>();
+    knownManifests = new Map<string, any>();
+
+    iframeEl = document.createElement('iframe');
+    iframeEl.setAttribute('data-extension-id', 'org.example.tier2');
+    iframeEl.setAttribute('data-role', 'view');
+    document.body.appendChild(iframeEl);
+
+    postMessageSpy = vi
+      .spyOn(iframeEl.contentWindow as Window, 'postMessage')
+      .mockImplementation(() => {});
+
+    knownManifests.set('org.example.tier2', {
+      id: 'org.example.tier2',
+      name: 'Tier 2 Extension',
+      permissions: [],
+    });
+
+    vi.mocked(commands.checkExtensionPermission).mockImplementation(async (_extId, apiType) => {
+      let required: string | undefined;
+      if (apiType === 'asyar:api:calculator:evaluate') required = 'calculator:evaluate';
+      else if (apiType === 'asyar:api:screen:captureText') required = 'screen:capture';
+      else if (apiType === 'asyar:api:screen:pickColor') required = 'screen:pick-color';
+      else if (apiType === 'asyar:api:invoke') required = 'shell:spawn';
+      else if (
+        apiType.startsWith('asyar:api:notes:create') ||
+        apiType.startsWith('asyar:api:notes:append')
+      )
+        required = 'notes:write';
+      else if (
+        apiType.startsWith('asyar:api:notes:search') ||
+        apiType.startsWith('asyar:api:notes:get')
+      )
+        required = 'notes:read';
+
+      if (required && declaredPermissions.has(required)) {
+        return { allowed: true } as any;
+      }
+      return {
+        allowed: false,
+        requiredPermission: required,
+        reason: `Permission denied: "${required}" is required but not declared in manifest.json`,
+      } as any;
+    });
+  });
+
+  afterEach(() => {
+    iframeEl?.remove();
+    postMessageSpy.mockRestore();
+  });
+
+  function getReplies() {
+    return postMessageSpy.mock.calls.map(
+      (call) =>
+        call[0] as {
+          type?: string;
+          messageId?: string;
+          result?: unknown;
+          error?: string;
+          errorCode?: string;
+        },
+    );
+  }
+
+  it('evaluates calculation through real pipeline when calculator:evaluate is declared', async () => {
+    declaredPermissions.add('calculator:evaluate');
+    const evaluate = vi.fn(async (q: string) => [{ value: '42', detail: q, kind: 'math' }]);
+    const registry = { calculator: { evaluate } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:calculator:evaluate',
+          messageId: 'calc-1',
+          payload: { query: '6 * 7' },
+        },
+      }),
+    );
+
+    expect(evaluate).toHaveBeenCalledWith('6 * 7');
+    const replies = getReplies();
+    const reply = replies.find((r) => r.messageId === 'calc-1');
+    expect(reply).toBeDefined();
+    expect(reply?.result).toEqual([{ value: '42', detail: '6 * 7', kind: 'math' }]);
+    expect(reply?.error).toBeUndefined();
+  });
+
+  it('denies calculator evaluation when calculator:evaluate is not declared', async () => {
+    const evaluate = vi.fn(async () => []);
+    const registry = { calculator: { evaluate } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:calculator:evaluate',
+          messageId: 'calc-2',
+          payload: { query: '1 + 1' },
+        },
+      }),
+    );
+
+    expect(evaluate).not.toHaveBeenCalled();
+    const replies = getReplies();
+    const reply = replies.find((r) => r.messageId === 'calc-2');
+    expect(reply).toBeDefined();
+    expect(reply?.errorCode).toBe('PERMISSION_DENIED');
+    expect(reply?.error).toContain('calculator:evaluate');
+  });
+
+  it('denies calculator evaluation when only shell:spawn is declared', async () => {
+    declaredPermissions.add('shell:spawn');
+    const evaluate = vi.fn(async () => []);
+    const registry = { calculator: { evaluate } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:calculator:evaluate',
+          messageId: 'calc-3',
+          payload: { query: '1 + 1' },
+        },
+      }),
+    );
+
+    expect(evaluate).not.toHaveBeenCalled();
+    const replies = getReplies();
+    const reply = replies.find((r) => r.messageId === 'calc-3');
+    expect(reply?.errorCode).toBe('PERMISSION_DENIED');
+    expect(reply?.error).toContain('calculator:evaluate');
+  });
+
+  it('captures screen text through real pipeline when screen:capture is declared', async () => {
+    declaredPermissions.add('screen:capture');
+    const captureText = vi.fn(async () => 'Hello World');
+    const registry = { screen: { captureText } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:screen:captureText',
+          messageId: 'ocr-1',
+          payload: {},
+        },
+      }),
+    );
+
+    expect(captureText).toHaveBeenCalledWith('org.example.tier2');
+    const replies = getReplies();
+    const reply = replies.find((r) => r.messageId === 'ocr-1');
+    expect(reply?.result).toBe('Hello World');
+    expect(reply?.error).toBeUndefined();
+  });
+
+  it('denies screen capture text when screen:capture is missing', async () => {
+    const captureText = vi.fn(async () => 'secret');
+    const registry = { screen: { captureText } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:screen:captureText',
+          messageId: 'ocr-2',
+          payload: {},
+        },
+      }),
+    );
+
+    expect(captureText).not.toHaveBeenCalled();
+    const replies = getReplies();
+    const reply = replies.find((r) => r.messageId === 'ocr-2');
+    expect(reply?.errorCode).toBe('PERMISSION_DENIED');
+    expect(reply?.error).toContain('screen:capture');
+  });
+
+  it('denies screen capture text when caller only has screen:pick-color', async () => {
+    declaredPermissions.add('screen:pick-color');
+    const captureText = vi.fn(async () => 'secret');
+    const registry = { screen: { captureText } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:screen:captureText',
+          messageId: 'ocr-3',
+          payload: {},
+        },
+      }),
+    );
+
+    expect(captureText).not.toHaveBeenCalled();
+    const replies = getReplies();
+    const reply = replies.find((r) => r.messageId === 'ocr-3');
+    expect(reply?.errorCode).toBe('PERMISSION_DENIED');
+    expect(reply?.error).toContain('screen:capture');
+  });
+
+  it('denies screen capture text when caller only has shell:spawn', async () => {
+    declaredPermissions.add('shell:spawn');
+    const captureText = vi.fn(async () => 'secret');
+    const registry = { screen: { captureText } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:screen:captureText',
+          messageId: 'ocr-4',
+          payload: {},
+        },
+      }),
+    );
+
+    expect(captureText).not.toHaveBeenCalled();
+    const replies = getReplies();
+    const reply = replies.find((r) => r.messageId === 'ocr-4');
+    expect(reply?.errorCode).toBe('PERMISSION_DENIED');
+  });
+
+  it('handles notes:create and notes:append through real pipeline with notes:write', async () => {
+    declaredPermissions.add('notes:write');
+    const create = vi.fn(async (t: string, b?: string) => ({ id: 'n1', title: t }));
+    const append = vi.fn(async (id: string, text: string) => ({ id: 'n1', title: 'Note 1' }));
+    const registry = { notes: { create, append } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:notes:create',
+          messageId: 'note-create-1',
+          payload: { title: 'My Note', body: 'content' },
+        },
+      }),
+    );
+
+    expect(create).toHaveBeenCalledWith('My Note', 'content');
+    let replies = getReplies();
+    expect(replies.find((r) => r.messageId === 'note-create-1')?.result).toEqual({
+      id: 'n1',
+      title: 'My Note',
+    });
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:notes:append',
+          messageId: 'note-append-1',
+          payload: { idOrTitle: 'My Note', text: 'more content' },
+        },
+      }),
+    );
+
+    expect(append).toHaveBeenCalledWith('My Note', 'more content');
+    replies = getReplies();
+    expect(replies.find((r) => r.messageId === 'note-append-1')?.result).toEqual({
+      id: 'n1',
+      title: 'Note 1',
+    });
+  });
+
+  it('denies notes:create when extension only has notes:read', async () => {
+    declaredPermissions.add('notes:read');
+    const create = vi.fn(async () => ({ id: 'n1', title: 'title' }));
+    const registry = { notes: { create } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:notes:create',
+          messageId: 'note-create-denied',
+          payload: { title: 'Denied Note' },
+        },
+      }),
+    );
+
+    expect(create).not.toHaveBeenCalled();
+    const replies = getReplies();
+    const reply = replies.find((r) => r.messageId === 'note-create-denied');
+    expect(reply?.errorCode).toBe('PERMISSION_DENIED');
+    expect(reply?.error).toContain('notes:write');
+  });
+
+  it('allows notes:search when extension has notes:read', async () => {
+    declaredPermissions.add('notes:read');
+    const search = vi.fn(async (q: string, l?: number) => [
+      { id: 'n1', title: 'Test', snippet: 'snip' },
+    ]);
+    const registry = { notes: { search } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:notes:search',
+          messageId: 'note-search-1',
+          payload: { query: 'test', limit: 5 },
+        },
+      }),
+    );
+
+    expect(search).toHaveBeenCalledWith('test', 5);
+    const replies = getReplies();
+    expect(replies.find((r) => r.messageId === 'note-search-1')?.result).toEqual([
+      { id: 'n1', title: 'Test', snippet: 'snip' },
+    ]);
+  });
+
+  it('rejects message from iframe with unregistered extension manifest', async () => {
+    iframeEl.setAttribute('data-extension-id', 'org.unknown.extension');
+    const evaluate = vi.fn(async () => []);
+    const registry = { calculator: { evaluate } } as unknown as ServiceRegistry;
+    const router = new ExtensionIpcRouter(
+      registry,
+      (id) => knownManifests.get(id),
+      vi.fn(),
+      vi.fn(),
+    );
+
+    await router.handleMessage(
+      new MessageEvent('message', {
+        source: iframeEl.contentWindow,
+        data: {
+          type: 'asyar:api:calculator:evaluate',
+          messageId: 'unknown-1',
+          payload: { query: '1+1' },
+        },
+      }),
+    );
+
+    expect(evaluate).not.toHaveBeenCalled();
+    const replies = getReplies();
+    const reply = replies.find((r) => r.messageId === 'unknown-1');
+    expect(reply?.error).toContain('Unknown extension: org.unknown.extension');
   });
 });

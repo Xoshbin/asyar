@@ -2,6 +2,7 @@
   "id": "window-management",
   "name": "Window Management",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "Resize and reposition the frontmost window using layout presets",
   "type": "extension",
   "searchable": true,

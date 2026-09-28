@@ -183,6 +183,9 @@ export interface ValidationError {
 export const VALID_PERMISSIONS = [
   'clipboard:read',
   'clipboard:write',
+  'clipboard-history:read',
+  'clipboard-history:capture',
+  'clipboard-history:manage',
   'store:read',
   'store:write',
   'notifications:send',
@@ -202,6 +205,8 @@ export const VALID_PERMISSIONS = [
   'cache:write',
   'window:manage',
   'screen:pick-color',
+  'screen:capture',
+  'calculator:evaluate',
   'application:read',
   'entitlements:read',
   'power:inhibit',

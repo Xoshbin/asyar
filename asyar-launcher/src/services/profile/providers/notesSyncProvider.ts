@@ -1,4 +1,11 @@
-import { noteStore, type Note } from '../../../built-in-features/notes/noteStore.svelte';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import {
+  noteGetAllForService,
+  noteRemove,
+  noteUpdate,
+  noteUpsert,
+  type StoredNote,
+} from '../../../lib/ipc/commands';
 import type {
   ISyncProvider,
   SyncProviderData,
@@ -27,7 +34,7 @@ export class NotesSyncProvider implements ISyncProvider {
       providerId: this.id,
       version: 1,
       exportedAt: Date.now(),
-      data: noteStore.getAll(),
+      data: await noteGetAllForService(),
     };
   }
 
@@ -36,8 +43,8 @@ export class NotesSyncProvider implements ISyncProvider {
   }
 
   async preview(incoming: SyncProviderData): Promise<ImportPreview> {
-    const local = noteStore.getAll();
-    const incomingItems = incoming.data as Note[];
+    const local = await noteGetAllForService();
+    const incomingItems = incoming.data as StoredNote[];
     const localIds = new Set(local.map((n) => n.id));
     const incomingIds = new Set(incomingItems.map((n) => n.id));
 
@@ -51,7 +58,7 @@ export class NotesSyncProvider implements ISyncProvider {
   }
 
   async applyImport(incoming: SyncProviderData, strategy: ConflictStrategy): Promise<ImportResult> {
-    const incomingItems = incoming.data as Note[];
+    const incomingItems = incoming.data as StoredNote[];
 
     if (strategy === 'skip') {
       return { success: true, itemsAdded: 0, itemsUpdated: 0, itemsRemoved: 0, warnings: [] };
@@ -61,9 +68,9 @@ export class NotesSyncProvider implements ISyncProvider {
       // Notes intentionally has no clearAll — a "wipe every document" bulk
       // action doesn't exist in the UI either (see the plan doc); remove
       // existing items individually instead.
-      const existingIds = noteStore.getAll().map((n) => n.id);
-      for (const id of existingIds) noteStore.remove(id);
-      for (const item of incomingItems) noteStore.add(item);
+      const existingIds = (await noteGetAllForService()).map((n) => n.id);
+      for (const id of existingIds) await noteRemove(id);
+      for (const item of incomingItems) await noteUpsert(item);
       return {
         success: true,
         itemsAdded: incomingItems.length,
@@ -76,7 +83,7 @@ export class NotesSyncProvider implements ISyncProvider {
     // merge — newest-edit-wins, using updatedAt (notes are edited
     // continuously, unlike snippets/shortcuts, so updatedAt is the
     // meaningful "which copy is newer" signal, not createdAt).
-    const local = noteStore.getAll();
+    const local = await noteGetAllForService();
     const localById = new Map(local.map((n) => [n.id, n]));
     let added = 0;
     let updated = 0;
@@ -84,10 +91,14 @@ export class NotesSyncProvider implements ISyncProvider {
     for (const item of incomingItems) {
       const existing = localById.get(item.id);
       if (!existing) {
-        noteStore.add(item);
+        await noteUpsert(item);
         added++;
       } else if (item.updatedAt > existing.updatedAt) {
-        noteStore.update(item.id, { title: item.title, body: item.body, pinned: item.pinned });
+        await noteUpdate(
+          item.id,
+          { title: item.title, body: item.body, pinned: item.pinned },
+          item.updatedAt,
+        );
         updated++;
       }
     }
@@ -102,7 +113,7 @@ export class NotesSyncProvider implements ISyncProvider {
   }
 
   async getLocalSummary(): Promise<DataSummary> {
-    const items = noteStore.getAll();
+    const items = await noteGetAllForService();
     return {
       itemCount: items.length,
       label: `${items.length} note${items.length !== 1 ? 's' : ''}`,
@@ -113,7 +124,7 @@ export class NotesSyncProvider implements ISyncProvider {
   // Collection: one SyncItem per note keyed by note.id.
 
   async exportItems(): Promise<SyncItem[]> {
-    return noteStore.getAll().map((note) => ({
+    return (await noteGetAllForService()).map((note) => ({
       id: note.id,
       categoryId: this.id,
       content: note,
@@ -121,16 +132,28 @@ export class NotesSyncProvider implements ISyncProvider {
   }
 
   async applyItemUpsert(item: SyncItem): Promise<void> {
-    noteStore.add(item.content as Note);
+    await noteUpsert(item.content as StoredNote);
   }
 
   async applyItemDelete(itemId: string): Promise<void> {
-    noteStore.remove(itemId);
+    await noteRemove(itemId);
   }
 
   subscribeToChanges(callback: (event: SyncChangeEvent) => void): Unsubscribe {
-    return noteStore.subscribe((ev) => {
-      callback({ type: ev.type, itemId: ev.itemId, categoryId: this.id });
+    let disposed = false;
+    let unlisten: UnlistenFn | null = null;
+
+    void listen<{ id: string; type: 'upsert' | 'delete' }>('notes:changed', (event) => {
+      if (disposed) return;
+      callback({ type: event.payload.type, itemId: event.payload.id, categoryId: this.id });
+    }).then((stopListening) => {
+      if (disposed) stopListening();
+      else unlisten = stopListening;
     });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }
 }

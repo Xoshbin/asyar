@@ -175,6 +175,84 @@ describe('DeeplinkService.handleExtensionDeeplink', () => {
     expect(logService.error).toHaveBeenCalled();
   });
 
+  it('rejects disabled optional built-in extension (e.g. clipboard-history) gracefully', async () => {
+    const manifest = makeManifest({
+      id: 'clipboard-history',
+      lifecycle: { disableable: true } as any,
+    });
+    vi.mocked(deps.getManifestById).mockReturnValue(manifest);
+    vi.mocked(deps.isExtensionEnabled).mockReturnValue(false);
+
+    await service.handleExtensionDeeplink({
+      extensionId: 'clipboard-history',
+      commandId: 'show-clipboard',
+      args: {},
+    });
+
+    expect(deps.executeCommand).not.toHaveBeenCalled();
+    expect(logService.error).toHaveBeenCalled();
+  });
+
+  it('rejects disabled optional built-in extension (file-search) gracefully', async () => {
+    const manifest = makeManifest({
+      id: 'file-search',
+      lifecycle: { disableable: true } as any,
+    });
+    vi.mocked(deps.getManifestById).mockReturnValue(manifest);
+    vi.mocked(deps.isExtensionEnabled).mockReturnValue(false);
+
+    await service.handleExtensionDeeplink({
+      extensionId: 'file-search',
+      commandId: 'show-files',
+      args: {},
+    });
+
+    expect(deps.executeCommand).not.toHaveBeenCalled();
+    expect(logService.error).toHaveBeenCalled();
+  });
+
+  it('rejects disabled optional built-in extensions gracefully', async () => {
+    const cases = [
+      { id: 'notes', command: 'open-notes' },
+      { id: 'runs', command: 'open-runs' },
+      { id: 'snippets', command: 'open-snippets' },
+      { id: 'store', command: 'browse' },
+      { id: 'walkthrough', command: 'show-walkthrough' },
+      { id: 'agents', command: 'open' },
+      { id: 'calculator', command: 'calculate' },
+      { id: 'mcp', command: 'servers' },
+      { id: 'portals', command: 'manage' },
+      { id: 'screen-ocr', command: 'capture' },
+      { id: 'scripts', command: 'library' },
+      { id: 'shortcuts', command: 'manage' },
+      { id: 'usage-stats', command: 'view' },
+      { id: 'window-management', command: 'presets' },
+      { id: 'raycast-import', command: 'import' },
+    ];
+
+    for (const { id, command } of cases) {
+      vi.clearAllMocks();
+      const manifest = makeManifest({
+        id,
+        commands: [{ id: command, name: command, mode: 'view' }],
+        lifecycle: { disableable: true } as any,
+      });
+      vi.mocked(deps.getManifestById).mockReturnValue(manifest);
+      vi.mocked(deps.isExtensionEnabled).mockReturnValue(false);
+
+      await service.handleExtensionDeeplink({
+        extensionId: id,
+        commandId: command,
+        args: {},
+      });
+
+      expect(deps.executeCommand).not.toHaveBeenCalled();
+      expect(logService.error).toHaveBeenCalledWith(
+        expect.stringContaining(`[Deeplink] Extension is disabled: ${id}`),
+      );
+    }
+  });
+
   // ── Validation: command not in manifest ──────────────────────────────
 
   it('rejects command that does not exist in manifest', async () => {

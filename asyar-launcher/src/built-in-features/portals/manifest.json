@@ -3,6 +3,7 @@
   "name": "Portals",
   "icon": "icon:globe",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "Save URLs as named, searchable shortcuts",
   "author": "Core",
   "searchable": true,

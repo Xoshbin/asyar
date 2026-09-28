@@ -241,3 +241,29 @@ describe('deep search', () => {
     expect(fileSearchViewState.deepResults).toEqual([hit('newone')]);
   });
 });
+
+describe('fileSearchViewState.reset', () => {
+  it('resets all view state fields to default values', () => {
+    fileSearchViewState.searchQuery = 'query';
+    fileSearchViewState.typeFilter = 'audio';
+    fileSearchViewState.results = [hit('a')];
+    fileSearchViewState.deepResults = [hit('b')];
+    fileSearchViewState.selectedFileId = 'a';
+    fileSearchViewState.loading = true;
+    fileSearchViewState.pinnedFiles = [hit('p')];
+    fileSearchViewState.deepSearchProviderId = 'mdfind';
+    fileSearchViewState.deepSearchLoading = true;
+
+    fileSearchViewState.reset();
+
+    expect(fileSearchViewState.searchQuery).toBe('');
+    expect(fileSearchViewState.typeFilter).toBe('all');
+    expect(fileSearchViewState.results).toEqual([]);
+    expect(fileSearchViewState.deepResults).toEqual([]);
+    expect(fileSearchViewState.selectedFileId).toBeNull();
+    expect(fileSearchViewState.loading).toBe(false);
+    expect(fileSearchViewState.pinnedFiles).toEqual([]);
+    expect(fileSearchViewState.deepSearchProviderId).toBeNull();
+    expect(fileSearchViewState.deepSearchLoading).toBe(false);
+  });
+});

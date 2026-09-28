@@ -3,6 +3,7 @@
   "name": "Scripts",
   "icon": "icon:terminal",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "Run and manage scripts from watched directories",
   "author": "Core",
   "searchable": false,

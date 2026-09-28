@@ -189,4 +189,18 @@ describe('ScriptsExtension', () => {
 
     expect(dispatchScriptCommand).toHaveBeenCalledWith('deploy-id', undefined);
   });
+
+  it('starts scriptsManager on activate and stops it on deactivate', async () => {
+    await ScriptsExtension.activate?.();
+    expect(scriptsManager.start).toHaveBeenCalled();
+
+    await ScriptsExtension.viewActivated?.('scripts/ScriptLibraryView');
+    expect(actionService.registerAction).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'scripts:run' }),
+    );
+
+    await ScriptsExtension.deactivate?.();
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('scripts:run');
+    expect(scriptsManager.stop).toHaveBeenCalled();
+  });
 });

@@ -297,6 +297,25 @@ pub(crate) async fn uninstall(
         }
     }
 
+    // Drop any clipboard capture subscription held by this extension.
+    if let Some(manager) =
+        app_handle.try_state::<crate::clipboard_capture::ClipboardCaptureManager>()
+    {
+        match manager.force_remove(extension_id) {
+            Ok(res) if res.transition != crate::clipboard_capture::CaptureTransition::NoChange => {
+                let _ = app_handle.emit(
+                    crate::commands::clipboard_capture::CAPTURE_STATE_CHANGED_EVENT,
+                    &res,
+                );
+            }
+            Ok(_) => {}
+            Err(e) => warn!(
+                "Failed to clear clipboard capture consumer for '{}': {}",
+                extension_id, e
+            ),
+        }
+    }
+
     // Kill any shell processes this extension left running. Mirrors the
     // power-inhibitor sweep above so uninstall doesn't orphan child
     // processes whose parent extension is gone.
@@ -534,6 +553,7 @@ pub(crate) fn discover_all(
                     manifest,
                     enabled: true,
                     is_built_in: false,
+                    disableable: true,
                     path: path.clone(),
                     compatibility,
                 });
@@ -588,6 +608,35 @@ fn sort_extension_records(records: &mut [ExtensionRecord]) {
     });
 }
 
+/// Validates whether an extension can be disabled.
+/// Built-in features require `record.disableable == true`.
+/// Installed extensions can always be disabled.
+pub(crate) fn validate_can_disable(record: &ExtensionRecord) -> Result<(), AppError> {
+    if record.is_built_in && !record.disableable {
+        return Err(AppError::Validation(format!(
+            "Cannot disable required built-in extension: {}",
+            record.manifest.id
+        )));
+    }
+    Ok(())
+}
+
+/// Applies the enabled map to extension records.
+/// Required built-in features are always kept enabled: true.
+/// Disableable built-in features and installed extensions respect the map (defaulting to enabled: true if absent).
+pub(crate) fn apply_enabled_map(
+    records: &mut [ExtensionRecord],
+    enabled_map: &serde_json::Map<String, serde_json::Value>,
+) {
+    for record in records.iter_mut() {
+        if record.is_built_in && !record.disableable {
+            record.enabled = true;
+        } else if let Some(enabled) = enabled_map.get(&record.manifest.id) {
+            record.enabled = enabled.as_bool().unwrap_or(true);
+        }
+    }
+}
+
 pub(crate) fn apply_extension_states(
     app_handle: &AppHandle,
     records: &mut [ExtensionRecord],
@@ -599,13 +648,9 @@ pub(crate) fn apply_extension_states(
 
     if let Some(settings_value) = store.get("settings") {
         if let Some(extensions) = settings_value.get("extensions") {
-            if let Some(enabled_map) = extensions.get("enabled") {
-                for record in records.iter_mut() {
-                    if record.is_built_in {
-                        record.enabled = true;
-                    } else if let Some(enabled) = enabled_map.get(&record.manifest.id) {
-                        record.enabled = enabled.as_bool().unwrap_or(true);
-                    }
+            if let Some(enabled_val) = extensions.get("enabled") {
+                if let Some(enabled_map) = enabled_val.as_object() {
+                    apply_enabled_map(records, enabled_map);
                 }
             }
         }
@@ -631,6 +676,7 @@ mod tests {
                 description: String::new(),
                 author: None,
                 extension_type: None,
+                lifecycle: None,
                 background: None,
                 searchable: None,
                 icon: None,
@@ -649,6 +695,7 @@ mod tests {
             },
             enabled: true,
             is_built_in,
+            disableable: !is_built_in,
             path: format!("/tmp/{id}"),
             compatibility: CompatibilityStatus::Unknown,
             first_view_component: None,
@@ -939,6 +986,150 @@ mod tests {
 
         assert!(!crate::extensions::onboarding_state::is_onboarded(&conn, "ext.a").unwrap());
     }
+
+    #[test]
+    fn required_builtin_rejects_disable_validation() {
+        let mut req_record = make_record("settings", "Settings", true);
+        req_record.disableable = false;
+
+        let err =
+            validate_can_disable(&req_record).expect_err("required built-in must reject disable");
+        match err {
+            AppError::Validation(msg) => {
+                assert!(msg.contains("Cannot disable required built-in"));
+                assert!(msg.contains("settings"));
+            }
+            other => panic!("expected AppError::Validation, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn optional_builtin_allows_disable_validation() {
+        let mut opt_record = make_record("clipboard-history", "Clipboard History", true);
+        opt_record.disableable = true;
+
+        assert!(
+            validate_can_disable(&opt_record).is_ok(),
+            "optional built-in must allow disable"
+        );
+    }
+
+    #[test]
+    fn file_search_builtin_allows_disable_validation() {
+        let mut fs_record = make_record("file-search", "File Search", true);
+        fs_record.disableable = true;
+
+        assert!(
+            validate_can_disable(&fs_record).is_ok(),
+            "file-search optional built-in must allow disable"
+        );
+    }
+
+    #[test]
+    fn optional_builtins_allow_disable_validation() {
+        for (id, name) in [
+            ("notes", "Notes"),
+            ("runs", "Runs"),
+            ("snippets", "Snippets"),
+            ("store", "Store"),
+            ("walkthrough", "Walkthrough"),
+            ("agents", "Agents"),
+            ("calculator", "Calculator"),
+            ("mcp", "MCP"),
+            ("portals", "Portals"),
+            ("screen-ocr", "Screen OCR"),
+            ("scripts", "Scripts"),
+            ("shortcuts", "Shortcuts"),
+            ("usage-stats", "Usage Stats"),
+            ("window-management", "Window Management"),
+            ("raycast-import", "Raycast Import"),
+        ] {
+            let mut record = make_record(id, name, true);
+            record.disableable = true;
+
+            assert!(
+                validate_can_disable(&record).is_ok(),
+                "{id} optional built-in must allow disable"
+            );
+        }
+    }
+
+    #[test]
+    fn installed_extension_allows_disable_validation() {
+        let inst_record = make_record("com.example.ext", "Example", false);
+        assert!(
+            validate_can_disable(&inst_record).is_ok(),
+            "installed extension must allow disable"
+        );
+    }
+
+    #[test]
+    fn apply_enabled_map_respects_disableable_policy() {
+        let mut req_record = make_record("system", "System", true);
+        req_record.disableable = false;
+
+        let opt_ids = [
+            "clipboard-history",
+            "file-search",
+            "notes",
+            "runs",
+            "snippets",
+            "store",
+            "walkthrough",
+            "agents",
+            "calculator",
+            "mcp",
+            "portals",
+            "screen-ocr",
+            "scripts",
+            "shortcuts",
+            "usage-stats",
+            "window-management",
+            "raycast-import",
+        ];
+
+        let mut inst_record = make_record("com.example.ext", "Example", false);
+        inst_record.disableable = true;
+
+        let mut records = vec![req_record];
+        let mut map = serde_json::Map::new();
+        map.insert("system".to_string(), serde_json::json!(false));
+
+        for id in opt_ids {
+            let mut rec = make_record(id, id, true);
+            rec.disableable = true;
+            records.push(rec);
+            map.insert(id.to_string(), serde_json::json!(false));
+        }
+
+        records.push(inst_record);
+        map.insert("com.example.ext".to_string(), serde_json::json!(false));
+
+        apply_enabled_map(&mut records, &map);
+
+        let system = records.iter().find(|r| r.manifest.id == "system").unwrap();
+        assert!(
+            system.enabled,
+            "required built-in MUST remain enabled: true even if map says false"
+        );
+
+        for id in opt_ids {
+            let rec = records.iter().find(|r| r.manifest.id == id).unwrap();
+            assert!(
+                !rec.enabled,
+                "{id} optional built-in MUST be disabled: false when map says false"
+            );
+        }
+
+        let inst = records
+            .iter()
+            .find(|r| r.manifest.id == "com.example.ext")
+            .unwrap();
+        assert!(
+            !inst.enabled,
+            "installed extension MUST be disabled: false when map says false"
+        );
+    }
 }
 
 pub(crate) async fn set_enabled(
@@ -954,10 +1145,8 @@ pub(crate) async fn set_enabled(
     {
         let mut reg = registry.extensions.lock().map_err(|_| AppError::Lock)?;
         if let Some(record) = reg.get_mut(extension_id) {
-            if record.is_built_in {
-                return Err(AppError::Validation(
-                    "Cannot disable built-in extensions".into(),
-                ));
+            if !enabled {
+                validate_can_disable(record)?;
             }
             record.enabled = enabled;
             has_background_main = record
@@ -1161,6 +1350,27 @@ pub(crate) async fn set_enabled(
                 app_handle,
                 extension_id.to_string(),
             );
+        }
+
+        // Drop any clipboard capture subscription held by this extension.
+        if let Some(manager) =
+            app_handle.try_state::<crate::clipboard_capture::ClipboardCaptureManager>()
+        {
+            match manager.force_remove(extension_id) {
+                Ok(res)
+                    if res.transition != crate::clipboard_capture::CaptureTransition::NoChange =>
+                {
+                    let _ = app_handle.emit(
+                        crate::commands::clipboard_capture::CAPTURE_STATE_CHANGED_EVENT,
+                        &res,
+                    );
+                }
+                Ok(_) => {}
+                Err(e) => warn!(
+                    "Failed to clear clipboard capture consumer for disabled '{}': {}",
+                    extension_id, e
+                ),
+            }
         }
     } else if has_background_main {
         // Register any manifest-declared agent tools so they're available

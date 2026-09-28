@@ -283,6 +283,7 @@
       "section_builtin": "內建功能",
       "section_installed": "已安裝的擴充套件",
       "type_builtin": "內建",
+      "required_builtin_explanation": "核心必需功能無法停用",
       "type_command": "命令",
       "type_extension": "擴充套件",
       "type_theme": "主題"

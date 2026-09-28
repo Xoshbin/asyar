@@ -490,10 +490,21 @@ class StoreExtension implements Extension {
 
   // Optional lifecycle methods
   async activate(): Promise<void> {
+    initializeStore();
     this.logService?.info('Store extension activated.');
   }
 
   async deactivate(): Promise<void> {
+    this.inView = false;
+    this.currentView = null;
+    this.currentDetailIsInstalled = null;
+    this.currentDetailExtensionId = undefined;
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound, true);
+    }
+    this.unregisterDetailViewActions();
+    this.unregisterListViewActions();
+    this.extensionManager?.setActiveViewActionLabel(null);
     this.logService?.info('Store extension deactivated.');
   }
 
@@ -738,7 +749,10 @@ class StoreExtension implements Extension {
     this.currentView = viewPath;
 
     // Add global key listener (capture phase, so it fires before the search input's handler)
-    window.addEventListener('keydown', this.handleKeydownBound, true);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound, true);
+      window.addEventListener('keydown', this.handleKeydownBound, true);
+    }
 
     // Unregister actions from the *previous* view first, then register/update new ones
     this.extensionManager?.setActiveViewActionLabel(null); // Clear label initially via manager
@@ -768,7 +782,9 @@ class StoreExtension implements Extension {
     this.currentView = null;
 
     // Remove global key listener (must match capture flag used in addEventListener)
-    window.removeEventListener('keydown', this.handleKeydownBound, true);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound, true);
+    }
 
     // Unregister actions and clear label specific to the deactivated view
     if (viewPath === `${EXTENSION_ID}/DetailView`) {

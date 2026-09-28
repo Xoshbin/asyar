@@ -291,8 +291,15 @@
     </div>
     <div class="panel-actions">
       <Toggle
-        checked={extension.isBuiltIn ? true : extension.enabled === true}
-        disabled={extension.isBuiltIn || isToggling}
+        checked={extension.isBuiltIn
+          ? extension.disableable
+            ? extension.enabled === true
+            : true
+          : extension.enabled === true}
+        disabled={(extension.isBuiltIn && !extension.disableable) || isToggling}
+        title={extension.isBuiltIn && !extension.disableable
+          ? t('settings.extensions.required_builtin_explanation')
+          : undefined}
         onchange={() => onToggle?.(extension!)}
       />
       {#if !extension.isBuiltIn}

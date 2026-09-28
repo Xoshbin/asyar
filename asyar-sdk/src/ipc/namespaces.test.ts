@@ -44,6 +44,7 @@ describe('NAMESPACES', () => {
       'screen',
       'notes',
       'environment',
+      'calculator',
     ]);
   });
 
@@ -74,5 +75,9 @@ describe('NAMESPACES', () => {
 
   it('includes screen', () => {
     expect(NAMESPACES).toContain('screen');
+  });
+
+  it('includes calculator', () => {
+    expect(NAMESPACES).toContain('calculator');
   });
 });

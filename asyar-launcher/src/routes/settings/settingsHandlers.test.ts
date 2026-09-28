@@ -329,18 +329,34 @@ describe('SettingsHandler.toggleExtension', () => {
     mockToggleExtensionState.mockClear();
   });
 
-  it('does nothing when extension is built-in', async () => {
+  it('does nothing when extension is a non-disableable built-in', async () => {
     const handler = new SettingsHandler();
     const ext = {
       id: 'calculator',
       title: 'Calculator',
       isBuiltIn: true,
+      disableable: false,
       enabled: true,
       commands: [],
     };
     await handler.toggleExtension(ext as any);
     expect(mockToggleExtensionState).not.toHaveBeenCalled();
     expect(ext.enabled).toBe(true);
+  });
+
+  it('toggles state for disableable built-in extensions (e.g. clipboard-history)', async () => {
+    const handler = new SettingsHandler();
+    const ext = {
+      id: 'clipboard-history',
+      title: 'Clipboard History',
+      isBuiltIn: true,
+      disableable: true,
+      enabled: true,
+      commands: [],
+    };
+    await handler.toggleExtension(ext as any);
+    expect(mockToggleExtensionState).toHaveBeenCalledWith('clipboard-history', false);
+    expect(ext.enabled).toBe(false);
   });
 
   it('toggles state for non-built-in extensions', async () => {

@@ -24,11 +24,23 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
   },
   'clipboard:read': {
     title: 'Read clipboard',
-    description: 'Read current clipboard content and clipboard history.',
+    description: 'Read the current system clipboard content.',
   },
   'clipboard:write': {
     title: 'Write clipboard',
-    description: 'Write, paste, and manage clipboard content.',
+    description: 'Write or paste content to the system clipboard.',
+  },
+  'clipboard-history:read': {
+    title: 'Read clipboard history',
+    description: 'Query and search stored clipboard history records.',
+  },
+  'clipboard-history:capture': {
+    title: 'Capture clipboard history',
+    description: 'Subscribe to background clipboard changes to record history.',
+  },
+  'clipboard-history:manage': {
+    title: 'Manage clipboard history',
+    description: 'Delete records, toggle favorites, or clear stored clipboard history.',
   },
   'storage:read': {
     title: 'Read extension storage',
@@ -127,6 +139,15 @@ export const PERMISSION_CATALOG: Record<string, PermissionInfo> = {
   'screen:pick-color': {
     title: 'Pick colors from the screen',
     description: 'Show the OS eyedropper and read the color of a screen pixel the user picks.',
+  },
+  'screen:capture': {
+    title: 'Capture screen text',
+    description:
+      'Capture screen regions and extract text via on-device optical character recognition (OCR).',
+  },
+  'calculator:evaluate': {
+    title: 'Evaluate math and conversions',
+    description: 'Evaluate mathematical expressions, unit conversions, and currency calculations.',
   },
   'power:inhibit': {
     title: 'Keep system awake',

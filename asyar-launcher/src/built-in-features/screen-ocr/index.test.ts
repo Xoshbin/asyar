@@ -27,4 +27,9 @@ describe('ScreenOcrExtension', () => {
     expect(ocrCaptureScreenText).not.toHaveBeenCalled();
     expect(result).toBeUndefined();
   });
+
+  it('supports idempotent activate and deactivate lifecycle calls', async () => {
+    await expect(screenOcrExtension.activate()).resolves.toBeUndefined();
+    await expect(screenOcrExtension.deactivate()).resolves.toBeUndefined();
+  });
 });

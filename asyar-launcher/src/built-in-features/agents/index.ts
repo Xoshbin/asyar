@@ -56,6 +56,10 @@ class AgentsExtension implements Extension {
       await this.runDeleteThread();
     });
 
+    this.registerContextMode();
+  }
+
+  private registerContextMode(): void {
     contextModeService.registerProvider({
       id: 'agents:default',
       triggers: ['ask ai'],
@@ -81,13 +85,21 @@ class AgentsExtension implements Extension {
     });
   }
 
+  private unregisterContextMode(): void {
+    contextModeService.unregisterProvider('agents:default');
+  }
+
   async activate(): Promise<void> {
+    this.registerContextMode();
     await agentsManager.start();
   }
 
   async deactivate(): Promise<void> {
+    this.unregisterContextMode();
     this.unregisterListViewActions();
     this.unregisterChatViewActions();
+    agentsManager.activeAbortController?.abort();
+    agentsManager.activeAbortController = null;
     await agentsManager.stop();
   }
 

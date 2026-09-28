@@ -3,6 +3,7 @@
   "name": "store",
   "description": "Browse and install Asyar extensions.",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "author": "Asyar",
   "icon": "icon:store",
   "type": "extension",

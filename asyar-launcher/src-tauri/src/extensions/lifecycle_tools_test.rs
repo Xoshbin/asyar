@@ -35,6 +35,7 @@ mod lifecycle_tools_tests {
             description: String::new(),
             author: None,
             extension_type: Some("extension".to_string()),
+            lifecycle: None,
             background: Some(BackgroundSpec {
                 main: "dist/worker.js".to_string(),
             }),
@@ -66,6 +67,7 @@ mod lifecycle_tools_tests {
             manifest,
             enabled,
             is_built_in: false,
+            disableable: true,
             path: format!("/tmp/{}", extension_id),
             compatibility: CompatibilityStatus::Unknown,
         };

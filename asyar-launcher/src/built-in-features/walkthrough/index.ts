@@ -85,16 +85,25 @@ class WalkthroughExtension implements Extension {
   }
 
   async viewActivated(_viewPath: string): Promise<void> {
-    if (this.isViewActive) return;
     this.isViewActive = true;
-    window.addEventListener('keydown', this.handleKeydownBound);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+      window.addEventListener('keydown', this.handleKeydownBound);
+    }
     this.extensionManager?.setActiveViewActionLabel('Open Task');
     this.registerViewActions();
   }
 
   async viewDeactivated(_viewPath: string): Promise<void> {
-    window.removeEventListener('keydown', this.handleKeydownBound);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+    }
     this.extensionManager?.setActiveViewActionLabel(null);
+    this.unregisterViewActions();
+    this.isViewActive = false;
+  }
+
+  private unregisterViewActions(): void {
     for (const id of [
       COMPLETE_ACTION_ID,
       COMPLETE_ALL_ACTION_ID,
@@ -103,7 +112,6 @@ class WalkthroughExtension implements Extension {
     ]) {
       actionService.unregisterAction(id);
     }
-    this.isViewActive = false;
   }
 
   private registerViewActions(): void {
@@ -213,8 +221,19 @@ class WalkthroughExtension implements Extension {
     }
   }
 
-  async activate(): Promise<void> {}
-  async deactivate(): Promise<void> {}
+  async activate(): Promise<void> {
+    void walkthroughService.refresh();
+  }
+
+  async deactivate(): Promise<void> {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+    }
+    this.extensionManager?.setActiveViewActionLabel(null);
+    this.unregisterViewActions();
+    walkthroughViewState.reset();
+    this.isViewActive = false;
+  }
 }
 
 export default new WalkthroughExtension();

@@ -75,7 +75,8 @@ expands the placement guidance.
 | `FileSystemWatcherService` | `IFileSystemWatcherService` | view (pending worker redesign) | `fs:watch` (+ `permissionArgs.fs:watch`)          | Watch declared directories for changes (Apple Shortcuts, SSH config, dotfiles). Roots-up coalesced `{ type: 'change', paths }` events. |
 | `RunService`               | `IRunService`               | worker                         | `runs:track`                                      | Track long-running work in the launcher's runs UI and compact HUD badge                                                                |
 | `FilesService`             | `IFilesService`             | both                           | `files:search`                                    | Search the same bounded, cached local file index that backs the host's "Search Files" view                                             |
-| `ScreenService`            | `IScreenService`            | both                           | `screen:pick-color`                               | Show the OS eyedropper and read the sRGB color of the one screen pixel the user picks                                                  |
+| `ScreenService`            | `IScreenService`            | both                           | `screen:pick-color`, `screen:capture`             | Sample screen pixel colors with native eyedropper and extract screen text with on-device OCR                                           |
+| `CalculatorService`        | `ICalculatorService`        | both                           | `calculator:evaluate`                             | Evaluate math expressions, unit conversions, and currency conversions via Asyar's calculation engine                                   |
 | `BrowserService`           | `IBrowserService`           | both                           | `browser:*` (per method)                          | Read bookmarks / history / open tabs and drive page content in paired browsers — requires the Asyar browser companion                  |
 | `OpenerService`            | `IOpenerService`            | both                           | `shell:open-url`, `shell:open-path`, `fs:read`    | Open URLs, local paths in external applications, or reveal files/folders in the system file manager                                    |
 | `OnboardingService`        | `IOnboardingService`        | both                           | None (implicit)                                   | Signal first-run onboarding completion and trigger automatic re-dispatch of pending commands                                           |
@@ -123,6 +124,7 @@ expands the placement guidance.
 - **[RunService](./run-service.md)**
 - **[FilesService](./files-service.md)**
 - **[ScreenService](./screen-service.md)**
+- **[CalculatorService](./calculator-service.md)**
 - **[BrowserService](./browser-service.md)**
 - **[OpenerService](./opener-service.md)**
 - **[OnboardingService](./onboarding-service.md)**

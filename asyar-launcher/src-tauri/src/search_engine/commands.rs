@@ -18,23 +18,34 @@ pub async fn merged_search(
     app_handle: tauri::AppHandle,
     state: State<'_, std::sync::Arc<SearchState>>,
     alias_state: State<'_, crate::aliases::AliasState>,
+    extensions: State<'_, crate::extensions::ExtensionRegistryState>,
 ) -> Result<super::models::MergedSearchResponse, SearchError> {
     let disabled = read_disabled_application_ids(&app_handle);
-    let mut response = state.merged_search_with_aliases(
+    let disabled_extensions: Vec<String> = extensions
+        .extensions
+        .lock()
+        .map_err(|_| SearchError::LockError)?
+        .iter()
+        .filter(|(_, record)| !record.enabled)
+        .map(|(id, _)| id.clone())
+        .collect();
+    let mut response = state.merged_search_with_aliases_filtered(
         &query,
         external_results,
         min_results.unwrap_or(20),
         &alias_state,
         &disabled,
+        &disabled_extensions,
     )?;
 
     // The only file-search touch point on the root-search hot path: an O(1)
     // check (one Arc + one RwLock read, no file-index data touched) plus a
     // bounded Vec insert. See `file_search_fallback` for the full contract.
-    let file_search_available = app_handle
-        .try_state::<std::sync::Arc<crate::file_index::service::FileIndexState>>()
-        .map(|s| s.config().enabled)
-        .unwrap_or(false);
+    let file_search_available = !disabled_extensions.iter().any(|id| id == "file-search")
+        && app_handle
+            .try_state::<std::sync::Arc<crate::file_index::service::FileIndexState>>()
+            .map(|s| s.config().enabled)
+            .unwrap_or(false);
     // Backfilled suggestions are marked `score == -1.0` by
     // `SearchState::merged_search`; everything else is a real match.
     let matched_count = response.results.iter().filter(|r| r.score != -1.0).count();
@@ -44,6 +55,14 @@ pub async fn merged_search(
         matched_count,
         file_search_available,
     );
+    if response.alias_match.as_ref().is_some_and(|alias| {
+        !response
+            .results
+            .iter()
+            .any(|result| result.object_id == alias.object_id)
+    }) {
+        response.alias_match = None;
+    }
 
     Ok(response)
 }

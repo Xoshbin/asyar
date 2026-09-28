@@ -313,6 +313,19 @@ pub struct BackgroundSpec {
     pub main: String,
 }
 
+/// Declares the lifecycle policy for the extension.
+/// For built-in features, `disableable: true` allows the feature to be disabled.
+/// When omitted or false for built-in features, the feature is required core infrastructure
+/// and cannot be disabled. Installed extensions are always disableable.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LifecycleSpec {
+    #[serde(default)]
+    pub disableable: Option<bool>,
+    #[serde(default)]
+    pub background: Option<bool>,
+}
+
 /// Mirrors the ExtensionManifest from asyar-sdk
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -324,6 +337,8 @@ pub struct ExtensionManifest {
     pub description: String,
     #[serde(default)]
     pub author: Option<String>,
+    #[serde(default)]
+    pub lifecycle: Option<LifecycleSpec>,
     /// Top-level extension kind. Legal values are `"extension"` (default
     /// when absent) and `"theme"`. The legacy values `"view"` and `"result"`
     /// are strictly rejected at parse time; per-command `mode` now carries
@@ -429,6 +444,11 @@ pub struct ExtensionRecord {
     pub manifest: ExtensionManifest,
     pub enabled: bool,
     pub is_built_in: bool,
+    /// Whether this extension/feature can be disabled.
+    /// Installed extensions are always disableable.
+    /// Built-in features require `lifecycle.disableable == true` in their manifest.
+    #[serde(default)]
+    pub disableable: bool,
     /// Filesystem path to the extension directory
     pub path: String,
     #[serde(default)]
@@ -1210,6 +1230,7 @@ mod tests {
                     description: String::new(),
                     author: None,
                     extension_type: None,
+                    lifecycle: None,
                     background: None,
                     searchable: None,
                     icon: None,
@@ -1228,6 +1249,7 @@ mod tests {
                 },
                 enabled: true,
                 is_built_in: false,
+                disableable: true,
                 path: "/tmp/test".into(),
                 compatibility: CompatibilityStatus::Unknown,
                 first_view_component: None,

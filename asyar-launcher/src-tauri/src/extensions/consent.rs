@@ -15,7 +15,7 @@ use crate::permissions::ExtensionPermissionRegistry;
 use crate::storage::{shell as shell_storage, DataStore};
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_store::StoreExt;
 
 /// Flag under `settings.extensions` marking that the one-shot grandfather
@@ -519,6 +519,17 @@ pub fn revoke_extension_consent(
     }
     clear_consent(&app_handle, &extension_id)?;
     registry.unregister(&extension_id);
+    if let Some(manager) =
+        app_handle.try_state::<crate::clipboard_capture::ClipboardCaptureManager>()
+    {
+        let res = manager.force_remove(&extension_id)?;
+        if res.transition != crate::clipboard_capture::CaptureTransition::NoChange {
+            let _ = app_handle.emit(
+                crate::commands::clipboard_capture::CAPTURE_STATE_CHANGED_EVENT,
+                &res,
+            );
+        }
+    }
     shell_storage::cleanup_extension(&*db.conn()?, &extension_id)?;
     emit_consent_changed(&app_handle, &extension_id);
     Ok(())
@@ -719,6 +730,7 @@ mod tests {
                 description: String::new(),
                 author: None,
                 extension_type: None,
+                lifecycle: None,
                 background: None,
                 searchable: None,
                 icon: None,
@@ -737,6 +749,7 @@ mod tests {
             },
             enabled,
             is_built_in,
+            disableable: !is_built_in,
             path: format!("/tmp/{id}"),
             compatibility: CompatibilityStatus::Unknown,
             first_view_component: None,

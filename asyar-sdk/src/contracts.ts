@@ -83,6 +83,9 @@ export type {
   ActiveInhibitor,
   IScreenService,
   PickedColor,
+  ICalculatorService,
+  CalcResult,
+  CalcKind,
   IProcessService,
   ProcessSortBy,
   ProcessInfo,
@@ -108,6 +111,7 @@ export { FileSystemWatcherServiceProxy } from './services';
 export { LaunchCommandError } from './services';
 export { ProcessServiceProxy } from './services';
 export { OpenerServiceProxy } from './services';
+export { CalculatorServiceProxy } from './services';
 
 export type { ISearchBarAccessoryService } from './services/ISearchBarAccessoryService';
 export type {

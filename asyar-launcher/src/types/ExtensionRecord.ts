@@ -5,6 +5,7 @@ export interface ExtensionRecord {
   manifest: ExtensionManifest;
   enabled: boolean;
   isBuiltIn: boolean;
+  disableable?: boolean;
   path: string;
   compatibility?: CompatibilityStatus;
   firstViewComponent?: string | null;

@@ -3,6 +3,7 @@
   "name": "Import from Raycast",
   "icon": "icon:download",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "Bring your Raycast snippets, quicklinks, and app hotkeys into Asyar",
   "type": "extension",
   "searchable": false,

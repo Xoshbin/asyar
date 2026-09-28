@@ -31,6 +31,7 @@ import { buildServiceRegistry } from './buildServiceRegistry';
 import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
 import { TimerBridge } from '../timers/timerBridge.svelte';
 import { dispatch } from './extensionDispatcher.svelte';
+import { clipboardHistoryService } from '../clipboard/clipboardHistoryService';
 
 /**
  * Shape of a loaded extension module. Can be either a direct Extension instance
@@ -396,11 +397,13 @@ export class ExtensionManager implements IExtensionManager {
     this.timerBridge.unsubscribe();
     void walkthroughService.unsubscribe();
 
-    // Clear commands first
+    // Clear commands and actions first
     this.manifestsById.forEach((manifest) => {
       if (manifest && manifest.id) {
         // Check manifest and id exist
         commandService.clearCommandsForExtension(manifest.id);
+        actionService.clearActionsForExtension(manifest.id);
+        void clipboardHistoryService.forceRemoveConsumer(manifest.id);
       }
     });
 
@@ -429,7 +432,8 @@ export class ExtensionManager implements IExtensionManager {
       );
     }
 
-    // Clear internal state
+    // Clear bridge and internal state
+    this.bridge.clear?.();
     this.extensionModulesById.clear(); // Clear modules map
     this.manifestsById.clear();
     this.allLoadedCommands = [];

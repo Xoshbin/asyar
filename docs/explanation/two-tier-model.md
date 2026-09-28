@@ -39,6 +39,7 @@ Asyar extensions come in two tiers. Understanding this distinction shapes every 
 - **Context:** They run directly within the Privileged Host Context (the same `window` object as SvelteKit).
 - **Execution:** Flagged internally as `isBuiltIn: true`. They export a standard Svelte component via falling back through module keys (typically `DefaultView`). They can directly access Tauri commands and internal DOM elements without serialization overhead.
 - **Convention:** The component must be exported as `DefaultView` to correctly match routing identifiers.
+- **Service/UI Separation & Disableability:** Tier 1 features maintain a strict boundary between platform services (Rust core, background SQLite stores, indexing/OCR engines) and user-facing UI. All 21 optional built-in features declare `"lifecycle": { "disableable": true }` in their manifest. When a user disables a built-in feature in **Settings → Extensions**, its commands, search contributions, views, actions, and deeplinks are unregistered from the UI, but the underlying platform service remains running and accessible to permission-authorized Tier 2 extensions (e.g. `files:search`, `screen:capture`, `calculator:evaluate`, `notes:read`). Only core recovery/system infrastructure (`system` and `settings`) declares `"lifecycle": { "disableable": false }` and cannot be disabled.
 
 ## Tier 2 — Installed Extensions
 

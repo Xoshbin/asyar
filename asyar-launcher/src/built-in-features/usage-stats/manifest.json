@@ -3,6 +3,7 @@
   "name": "Usage Stats",
   "icon": "icon:info",
   "version": "1.0.0",
+  "lifecycle": { "disableable": true },
   "description": "See a local-only dashboard of how often you launch and which commands you run most",
   "type": "extension",
   "searchable": true,

@@ -87,8 +87,10 @@ class FileSearchExtension implements Extension {
     // stale root-search selection label that used to leak in as "Run".
     // Same pipeline ScriptLibraryView uses for its "Run Script" hint.
     viewManager.activeViewPrimaryActionLabel = t('actions.open');
+    this.registerViewActions();
     logService.debug(`[FileSearch] view activated: ${viewPath}`);
     if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
       window.addEventListener('keydown', this.handleKeydownBound);
     }
   }
@@ -321,12 +323,28 @@ class FileSearchExtension implements Extension {
     fileSearchViewState.searchQuery = query;
   }
 
-  async activate(): Promise<void> {}
+  async activate(): Promise<void> {
+    try {
+      await loadPinnedFiles();
+      await checkDeepSearchAvailability();
+      logService.debug('[FileSearch] extension activated');
+    } catch (error) {
+      logService.error(`[FileSearch] failed to activate: ${error}`);
+      throw error;
+    }
+  }
 
   async deactivate(): Promise<void> {
-    if (this.inView) {
-      this.unregisterViewActions();
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
     }
+    this.unregisterViewActions();
+    if (viewManager.activeViewPrimaryActionLabel === t('actions.open')) {
+      viewManager.activeViewPrimaryActionLabel = null;
+    }
+    fileSearchViewState.reset();
+    this.inView = false;
+    logService.debug('[FileSearch] extension deactivated');
   }
 }
 

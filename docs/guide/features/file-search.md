@@ -54,6 +54,7 @@ Everywhere else in the app, typing a search that doesn't match many apps or comm
 - **Large files are never fully loaded just to preview them.** Text previews are capped, and images/other previews are generated as small cached thumbnails — so even a huge video file or a multi-gigabyte archive previews quickly instead of stalling the app.
 - **Configure what gets indexed** in **Settings → File Search** — narrow to specific folders, add exclude patterns, or turn indexing off entirely. See [Settings](../settings.md#file-search).
 - **Indexing your whole home folder uses more resources than the rest of Asyar.** Keeping a live, searchable index of a large home folder means some ongoing background CPU/memory use beyond Asyar's usual light footprint — normally brief scans plus small background updates as files change. If you'd rather keep Asyar as lean as possible and don't need file search, turn it off (or narrow **Search Roots** to just the folders you actually search) in **Settings → File Search**.
+- **Disabling the File Search UI** — You can disable the bundled File Search feature in **Settings → Extensions**. Disabling removes the `Search Files` command, the root search fallback row, and direct views. The underlying file index and watcher platform service remain intact and accessible to permission-authorized Tier 2 extensions via `IFilesService`.
 
 ## Related
 

@@ -4,7 +4,7 @@ import { portalStore } from './portalStore.svelte';
 import { openUrl } from '../../lib/ipc/commands';
 import { actionService } from '../../services/action/actionService.svelte';
 import { ActionContext } from 'asyar-sdk/contracts';
-import { syncPortalToIndex } from './portalLifecycle';
+import { syncPortalToIndex, removePortalFromIndex } from './portalLifecycle';
 import { resolveTemplate } from '../../lib/placeholders';
 
 class PortalsUiState {
@@ -45,13 +45,18 @@ class PortalsExtension implements Extension {
   async viewActivated(_viewId: string): Promise<void> {
     this.inView = true;
     portalsUiState.selectedIndex = -1;
-    window.addEventListener('keydown', this.handleKeydownBound);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+      window.addEventListener('keydown', this.handleKeydownBound);
+    }
     this.registerViewActions();
   }
 
   async viewDeactivated(_viewId: string): Promise<void> {
     this.inView = false;
-    window.removeEventListener('keydown', this.handleKeydownBound);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+    }
     this.unregisterViewActions();
     portalsUiState.openMode = 'list';
     portalsUiState.selectedIndex = -1;
@@ -92,9 +97,25 @@ class PortalsExtension implements Extension {
     actionService.unregisterAction('portals:new-portal');
   }
 
-  async activate(): Promise<void> {}
+  async activate(): Promise<void> {
+    const portals = portalStore.portals;
+    for (const portal of portals) {
+      await syncPortalToIndex(portal);
+    }
+  }
+
   async deactivate(): Promise<void> {
-    if (this.inView) this.unregisterViewActions();
+    this.inView = false;
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this.handleKeydownBound);
+    }
+    this.unregisterViewActions();
+    portalsUiState.openMode = 'list';
+    portalsUiState.selectedIndex = -1;
+    const portals = portalStore.portals;
+    for (const portal of portals) {
+      await removePortalFromIndex(portal.id);
+    }
   }
 }
 

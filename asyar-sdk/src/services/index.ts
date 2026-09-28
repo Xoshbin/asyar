@@ -89,6 +89,9 @@ export { PowerServiceProxy } from './PowerServiceProxy';
 export type { IScreenService, PickedColor } from './IScreenService';
 export { ScreenServiceProxy } from './ScreenServiceProxy';
 
+export type { ICalculatorService, CalcResult, CalcKind } from './ICalculatorService';
+export { CalculatorServiceProxy } from './CalculatorServiceProxy';
+
 export type {
   IProcessService,
   ProcessSortBy,

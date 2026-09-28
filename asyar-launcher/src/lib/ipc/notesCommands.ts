@@ -1,6 +1,6 @@
 // asyar-launcher/src/lib/ipc/notesCommands.ts
 // Tauri command wrappers, re-exported through ./commands (the barrel).
-import { invokeSafe } from './invokeSafe';
+import { invokeRaw, invokeSafe } from './invokeSafe';
 
 // ── Storage: Notes ───────────────────────────────────────────────────────────
 
@@ -19,11 +19,15 @@ export interface NoteSearchResult {
 }
 
 export async function noteUpsert(note: StoredNote): Promise<void> {
-  await invokeSafe('note_upsert', { note });
+  await invokeRaw('note_upsert', { note });
 }
 
 export async function noteGetAll(): Promise<StoredNote[] | null> {
   return invokeSafe<StoredNote[]>('note_get_all');
+}
+
+export async function noteGetAllForService(): Promise<StoredNote[]> {
+  return invokeRaw<StoredNote[]>('note_get_all');
 }
 
 export async function noteGetById(id: string): Promise<StoredNote | null> {
@@ -35,7 +39,7 @@ export async function noteUpdate(
   changes: { title?: string; body?: string; pinned?: boolean },
   updatedAt: number,
 ): Promise<void> {
-  await invokeSafe('note_update', {
+  await invokeRaw('note_update', {
     id,
     title: changes.title ?? null,
     body: changes.body ?? null,
@@ -45,7 +49,7 @@ export async function noteUpdate(
 }
 
 export async function noteRemove(id: string): Promise<void> {
-  await invokeSafe('note_remove', { id });
+  await invokeRaw('note_remove', { id });
 }
 
 export async function noteTogglePin(id: string): Promise<boolean | null> {
@@ -56,8 +60,16 @@ export async function noteSearch(query: string, limit = 50): Promise<NoteSearchR
   return invokeSafe<NoteSearchResult>('note_search', { query, limit });
 }
 
+export async function noteSearchForService(query: string, limit = 50): Promise<NoteSearchResult> {
+  return invokeRaw<NoteSearchResult>('note_search', { query, limit });
+}
+
 export async function noteFind(idOrTitle: string): Promise<StoredNote | null> {
   return invokeSafe<StoredNote | null>('note_find', { idOrTitle });
+}
+
+export async function noteFindForService(idOrTitle: string): Promise<StoredNote | null> {
+  return invokeRaw<StoredNote | null>('note_find', { idOrTitle });
 }
 
 export async function noteBacklinks(idOrTitle: string): Promise<StoredNote[] | null> {

@@ -61,4 +61,23 @@ describe('ExtensionSearchAggregator.searchAll', () => {
 
     expect(results.map((r) => r.title)).toEqual(['Low', 'High']);
   });
+
+  it('omits results from extensions when isExtensionEnabled returns false', async () => {
+    const aggregator = new ExtensionSearchAggregator();
+    const modulesById = new Map<string, Extension>([
+      ['calculator', makeExtension(makeResult('Calc Result', 0.5))],
+      ['clipboard-history', makeExtension(makeResult('Clipboard Result', 0.8))],
+    ]);
+
+    aggregator.init(
+      modulesById,
+      new Map(),
+      (id) => id !== 'clipboard-history',
+      () => {},
+      new Map(),
+    );
+
+    const results = await aggregator.searchAll('test');
+    expect(results.map((r) => r.title)).toEqual(['Calc Result']);
+  });
 });

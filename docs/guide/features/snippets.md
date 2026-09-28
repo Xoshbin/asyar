@@ -89,6 +89,7 @@ Standard formatting tokens (`YYYY`, `yyyy`, `MMMM`, `MMM`, `MM`, `dd`, `d`, `HH`
 - **Dynamic placeholders** — type `{` in the expansion field while creating or editing to browse all available placeholders. The picker inserts the correct `{token}` syntax for you.
 - **Pinned snippets** — pin frequently used snippets so they always appear at the top of the list regardless of search.
 - **Save from clipboard** — if you see something in Clipboard History that you want to reuse often, use **Save as Snippet** in the clipboard action panel (`⌘K`) to open it pre-filled in the snippet editor.
+- **Disabling the Snippets UI** — You can turn off the bundled Snippets UI in **Settings → Extensions**. Disabling removes snippet commands, views, and search entries, while the background shortcode expansion engine and Tier 2 snippet contribution APIs (`ISnippetsService`) remain functional.
 
 ## Emoji shortcodes
 

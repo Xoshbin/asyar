@@ -6,11 +6,13 @@ does, how to use it, shortcuts, tips, and related pages.
 - [Calculator](./calculator.md) — Math, units, currency & crypto, percentages, dates, world clocks, colors, and more, inline.
 - [Clipboard History](./clipboard-history.md) — Browse, filter, favorite, and paste past copies.
 - [File Search](./file-search.md) — Find any file by name, instantly, with a rich preview.
+- [Notes](./notes.md) — Instant Markdown notes, daily logs, and desktop stickies.
 - [Snippets](./snippets.md) — Text expansion: type a keyword, paste the full text.
 - [Window Management](./window-management.md) — Resize and arrange windows with layout presets.
 - [Aliases & Shortcuts](./aliases-and-shortcuts.md) — Custom triggers and global hotkeys for any command.
 - [Portals](./portals.md) — Save URLs as named launchers you can find by name.
 - [Scripts](./scripts.md) — Run shell scripts from watched folders.
+- [Runs](./runs.md) — Monitor, inspect, and manage active and recent background tasks.
 - [AI & Agents](./ai-and-agents.md) — Ask AI, build agents, choose providers, manage threads.
 - [MCP](./mcp.md) — Connect external tools to your agents.
 - [Browser Integration](./browser-integration.md) — Search bookmarks, history, and tabs.
