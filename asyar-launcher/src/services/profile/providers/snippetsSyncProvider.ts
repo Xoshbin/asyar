@@ -110,15 +110,29 @@ export class SnippetsSyncProvider implements ISyncProvider {
   // Collection: one SyncItem per snippet keyed by snippet.id.
 
   async exportItems(): Promise<SyncItem[]> {
-    return snippetStore.getAll().map((snippet) => ({
-      id: snippet.id,
-      categoryId: this.id,
-      content: snippet,
-    }));
+    return snippetStore
+      .getAll()
+      .filter((snippet) => snippet.expansion && snippet.expansion.trim() !== '')
+      .map((snippet) => ({
+        id: snippet.id,
+        categoryId: this.id,
+        content: snippet,
+      }));
   }
 
   async applyItemUpsert(item: SyncItem): Promise<void> {
-    snippetStore.add(item.content as Snippet);
+    const incoming = item.content as Snippet;
+    if (!incoming) return;
+    const existing = snippetStore.getAll().find((s) => s.id === incoming.id);
+    if (
+      existing &&
+      existing.expansion &&
+      existing.expansion.trim() !== '' &&
+      (!incoming.expansion || incoming.expansion.trim() === '')
+    ) {
+      return;
+    }
+    snippetStore.add(incoming);
   }
 
   async applyItemDelete(itemId: string): Promise<void> {

@@ -13,15 +13,14 @@ fn encrypt_opt(plaintext: Option<&str>, master_key: &[u8; 32]) -> Result<Option<
     }
 }
 
-/// Decrypt an optional ciphertext column. Pre-Layer-3 plaintext rows
-/// (no `enc:v1:` prefix) and rows that fail to decrypt under the
-/// current master key are returned as `None` — beta-phase clean break,
-/// no migration of legacy values.
+/// Decrypt an optional ciphertext column. If encrypted with `enc:v1:`,
+/// decrypts under `master_key`. Plaintext values (e.g. from sync or legacy)
+/// are preserved as-is so data is never discarded.
 fn decrypt_opt(stored: Option<String>, master_key: &[u8; 32]) -> Option<String> {
     match stored {
         None => None,
         Some(v) if cipher::is_encrypted_value(&v) => cipher::decrypt(&v, master_key).ok(),
-        Some(_) => None, // legacy plaintext — surface as missing so cleanup evicts it naturally
+        Some(v) => Some(v),
     }
 }
 
@@ -275,9 +274,45 @@ pub fn add_item(
     item: &ClipboardItem,
     master_key: &[u8; 32],
 ) -> Result<(), AppError> {
-    let encrypted_content = encrypt_opt(item.content.as_deref(), master_key)?;
-    let encrypted_preview = encrypt_opt(item.preview.as_deref(), master_key)?;
-    let content_hash = compute_content_hash(&item.item_type, item.content.as_deref(), master_key);
+    // If an existing row exists, and incoming content/preview is None or empty,
+    struct ExistingRow {
+        content: Option<String>,
+        preview: Option<String>,
+        content_hash: Option<Vec<u8>>,
+    }
+
+    let existing: Option<ExistingRow> = conn
+        .query_row(
+            "SELECT content, preview, content_hash FROM clipboard_items WHERE id = ?1",
+            params![item.id],
+            |r| {
+                Ok(ExistingRow {
+                    content: r.get(0)?,
+                    preview: r.get(1)?,
+                    content_hash: r.get(2)?,
+                })
+            },
+        )
+        .ok();
+
+    let encrypted_content = match item.content.as_deref() {
+        Some(c) if !c.is_empty() => encrypt_opt(Some(c), master_key)?,
+        _ => existing.as_ref().and_then(|e| e.content.clone()),
+    };
+    let encrypted_preview = match item.preview.as_deref() {
+        Some(p) if !p.is_empty() => encrypt_opt(Some(p), master_key)?,
+        _ => existing.as_ref().and_then(|e| e.preview.clone()),
+    };
+    let content_hash = if item
+        .content
+        .as_deref()
+        .map(|c| !c.is_empty())
+        .unwrap_or(false)
+    {
+        compute_content_hash(&item.item_type, item.content.as_deref(), master_key)
+    } else {
+        existing.and_then(|e| e.content_hash)
+    };
 
     conn.execute(
         "INSERT OR REPLACE INTO clipboard_items
@@ -1411,10 +1446,10 @@ mod tests {
     }
 
     #[test]
-    fn test_get_all_returns_none_for_legacy_plaintext_rows() {
+    fn test_get_all_preserves_plaintext_rows() {
         let conn = setup();
         let key = test_key();
-        // Insert a pre-Layer-3 plaintext row by going around add_item.
+        // Insert a plaintext row by going around add_item.
         conn.execute(
             "INSERT INTO clipboard_items
                 (id, item_type, content, preview, created_at, favorite)
@@ -1426,14 +1461,45 @@ mod tests {
         let items = get_all(&conn, &key).unwrap();
         assert_eq!(items.len(), 1, "row still listed");
         assert_eq!(items[0].id, "legacy");
-        assert!(
-            items[0].content.is_none(),
-            "legacy plaintext content surfaces as None"
+        assert_eq!(
+            items[0].content.as_deref(),
+            Some("plaintext leftover"),
+            "plaintext content is preserved"
         );
-        assert!(
-            items[0].preview.is_none(),
-            "legacy plaintext preview surfaces as None"
+        assert_eq!(
+            items[0].preview.as_deref(),
+            Some("plaintext leftover"),
+            "plaintext preview is preserved"
         );
+    }
+
+    #[test]
+    fn test_add_item_preserves_existing_content_when_incoming_is_none() {
+        let conn = setup();
+        let key = test_key();
+        let mut item = make_item("preserve-1", "important content", false);
+        item.preview = Some("important preview".into());
+        add_item(&conn, &item, &key).unwrap();
+
+        // Now simulate a sync upsert that has content: None, preview: None
+        let empty_item = ClipboardItem {
+            id: "preserve-1".into(),
+            item_type: "text".into(),
+            content: None,
+            preview: None,
+            created_at: 2.0,
+            favorite: true,
+            metadata: None,
+            source_app: None,
+            redacted_kinds: None,
+        };
+        add_item(&conn, &empty_item, &key).unwrap();
+
+        let fetched = get_all(&conn, &key).unwrap();
+        assert_eq!(fetched.len(), 1);
+        assert_eq!(fetched[0].content.as_deref(), Some("important content"));
+        assert_eq!(fetched[0].preview.as_deref(), Some("important preview"));
+        assert!(fetched[0].favorite, "favorite status was updated");
     }
 
     #[test]

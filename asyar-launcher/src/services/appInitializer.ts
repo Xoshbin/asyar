@@ -23,6 +23,7 @@ import { snippetStore } from '../built-in-features/snippets/snippetStore.svelte'
 import { snippetService } from '../built-in-features/snippets/snippetService';
 import { portalStore } from '../built-in-features/portals/portalStore.svelte';
 import { noteStore } from '../built-in-features/notes/noteStore.svelte';
+import { clipboardHistoryStore } from './clipboard/stores/clipboardHistoryStore.svelte';
 import { profileService } from './profile/profileService';
 import { extensionUpdateService } from './extension/extensionUpdateService.svelte';
 import { extensionOAuthService } from './oauth/extensionOAuthService.svelte';
@@ -178,6 +179,7 @@ export const appInitializer = {
         await snippetStore.reload();
         await portalStore.reload();
         await noteStore.reload();
+        await clipboardHistoryStore.loadInitial();
         logService.info('Stores reloaded after cloud restore.');
       }).catch((err: any) => {
         logService.warn(`Failed to register stores-restored listener: ${err}`);

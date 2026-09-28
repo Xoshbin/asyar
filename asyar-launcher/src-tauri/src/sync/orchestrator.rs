@@ -20,16 +20,20 @@ use crate::sync::types::{
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 
-/// Per-item maximum payload (256 KB). Payloads above this are dropped via
+/// Per-item maximum payload (2 MB). Payloads above this are dropped via
 /// [`UploadDecision::DropOversize`] and surface a diagnostic. The user's
 /// launcher keeps the item locally; the cloud copy is whatever was last
 /// successfully uploaded.
-pub const MAX_ITEM_PAYLOAD_BYTES: usize = 256 * 1024;
+pub const MAX_ITEM_PAYLOAD_BYTES: usize = 2 * 1024 * 1024;
 
 /// Per-batch maximum item count (500). The orchestrator chunks
 /// `Vec<UploadDecision>` into batches of at most this size for the
 /// `api_client` to send.
 pub const MAX_BATCH_ITEM_COUNT: usize = 500;
+
+/// Per-batch maximum wire payload bytes (4 MB). The orchestrator chunks
+/// batches to stay comfortably below server batch caps (10 MB).
+pub const MAX_BATCH_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
 
 /// SHA-256 the plaintext, return both raw 32 bytes and lowercase hex.
 ///
@@ -175,10 +179,28 @@ pub fn chunk_for_upload(decisions: Vec<UploadDecision>) -> Vec<Vec<ItemPushItem>
         return Vec::new();
     }
 
-    push_items
-        .chunks(MAX_BATCH_ITEM_COUNT)
-        .map(|c| c.to_vec())
-        .collect()
+    let mut chunks: Vec<Vec<ItemPushItem>> = Vec::new();
+    let mut current_chunk: Vec<ItemPushItem> = Vec::new();
+    let mut current_bytes: usize = 0;
+
+    for item in push_items {
+        let item_bytes = item.payload.as_ref().map(|p| p.len()).unwrap_or(0);
+        if !current_chunk.is_empty()
+            && (current_chunk.len() >= MAX_BATCH_ITEM_COUNT
+                || current_bytes.saturating_add(item_bytes) > MAX_BATCH_PAYLOAD_BYTES)
+        {
+            chunks.push(std::mem::take(&mut current_chunk));
+            current_bytes = 0;
+        }
+        current_bytes = current_bytes.saturating_add(item_bytes);
+        current_chunk.push(item);
+    }
+
+    if !current_chunk.is_empty() {
+        chunks.push(current_chunk);
+    }
+
+    chunks
 }
 
 /// Decide what to do with a server pull page.
@@ -613,12 +635,41 @@ mod tests {
     }
 
     #[test]
-    fn decide_uploads_respects_max_payload_per_item_256kb() {
-        let exactly_256k: String = "a".repeat(MAX_ITEM_PAYLOAD_BYTES);
+    fn chunk_for_upload_chunks_by_byte_size() {
+        // Two items with payloads of 2.5 MB each.
+        // Even though count is 2 (well under MAX_BATCH_ITEM_COUNT 500),
+        // combined payload size is 5 MB which exceeds MAX_BATCH_PAYLOAD_BYTES (4 MB).
+        // It must split them into 2 separate chunks.
+        let large_payload = "a".repeat(2_500_000);
+        let decisions = vec![
+            UploadDecision::PushItem {
+                item_id: "item-1".into(),
+                category_id: "snippets".into(),
+                plaintext: large_payload.clone(),
+                content_hash: [0u8; 32],
+            },
+            UploadDecision::PushItem {
+                item_id: "item-2".into(),
+                category_id: "snippets".into(),
+                plaintext: large_payload,
+                content_hash: [0u8; 32],
+            },
+        ];
+        let chunks = chunk_for_upload(decisions);
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].len(), 1);
+        assert_eq!(chunks[0][0].id, "item-1");
+        assert_eq!(chunks[1].len(), 1);
+        assert_eq!(chunks[1][0].id, "item-2");
+    }
+
+    #[test]
+    fn decide_uploads_respects_max_payload_per_item() {
+        let exactly_limit: String = "a".repeat(MAX_ITEM_PAYLOAD_BYTES);
         let too_big: String = "a".repeat(MAX_ITEM_PAYLOAD_BYTES + 1);
 
         let local = vec![
-            local_source("ok", "snippets", &exactly_256k),
+            local_source("ok", "snippets", &exactly_limit),
             local_source("oversize", "snippets", &too_big),
         ];
         let decisions = decide_uploads(&local, &[]);
