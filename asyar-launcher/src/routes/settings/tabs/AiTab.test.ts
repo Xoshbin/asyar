@@ -367,4 +367,36 @@ describe('AiTab', () => {
       },
     });
   });
+
+  it('renders api key input when serply engine is configured', async () => {
+    settingsService.currentSettings = {
+      ai: {
+        providers: {
+          anthropic: { enabled: true, apiKey: 'sk-ant', lastModelId: 'claude-sonnet-5' },
+        },
+        maxTokens: 1024,
+        temperature: 0.7,
+        defaultAgentId: null,
+        tabContinuesLastThread: false,
+        webSearch: {
+          engine: 'serply',
+        },
+      },
+    } as any;
+
+    render(AiTab, { mode: 'full' });
+
+    const apiKeyInput = screen.getByLabelText('Serply API key') as HTMLInputElement;
+    expect(apiKeyInput).toBeTruthy();
+    expect(apiKeyInput.placeholder).toBe('Enter your API key');
+
+    apiKeyInput.value = 'test-serply-key';
+    await fireEvent.blur(apiKeyInput);
+    expect(settingsService.updateSettings).toHaveBeenCalledWith('ai', {
+      webSearch: {
+        engine: 'serply',
+        apiKey: 'test-serply-key',
+      },
+    });
+  });
 });

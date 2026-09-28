@@ -319,7 +319,7 @@ Each result entry contains `title`, `url`, and `snippet`. The `sources` array co
 ### Notes
 
 - **Wire encoding:** Sent to provider APIs as `builtin__web-search`.
-- **Search backends:** Supports configurable providers including DuckDuckGo HTML / Lite (zero-configuration fallback, no API key required), Brave Search API (`brave`), Tavily AI Search (`tavily`), SearXNG (`searxng`), and Wikipedia API fallback.
+- **Search backends:** Supports configurable providers including DuckDuckGo HTML / Lite (zero-configuration fallback, no API key required), Brave Search API (`brave`), Tavily AI Search (`tavily`), Serply (`serply`, Google results), SearXNG (`searxng`), and Wikipedia API fallback.
 - **Redirect unwrapping:** Unwraps intermediate redirect links (such as DuckDuckGo `//duckduckgo.com/l/?uddg=...`) to direct destination URLs.
 - **HTML stripping:** Cleans and strips HTML markup and decodes common HTML entities from titles and snippets before returning them to the agent.
 - `limit` defaults to 5 if omitted or null.
