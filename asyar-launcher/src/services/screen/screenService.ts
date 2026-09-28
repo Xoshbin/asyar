@@ -1,6 +1,6 @@
 import type { PickedColor } from 'asyar-sdk/contracts';
 import { screenPickColor } from '../../lib/ipc/systemCommands';
-import { ocrCaptureScreenText } from '../../lib/ipc/ocrCommands';
+import { ocrCaptureScreenTextForExtension } from '../../lib/ipc/ocrCommands';
 
 /**
  * Host-side thin wrapper over the Rust `screen_pick_color` and `ocr_capture_screen_text` Tauri commands.
@@ -15,6 +15,6 @@ export const screenService = {
     return screenPickColor(extensionId);
   },
   async captureText(_extensionId?: string | null): Promise<string | null> {
-    return ocrCaptureScreenText();
+    return ocrCaptureScreenTextForExtension();
   },
 };

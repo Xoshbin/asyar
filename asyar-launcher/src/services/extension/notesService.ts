@@ -1,7 +1,7 @@
 import {
-  noteSearch as noteSearchIpc,
-  noteGetAll,
-  noteFind,
+  noteSearchForService,
+  noteGetAllForService,
+  noteFindForService,
   noteUpsert,
   noteUpdate,
   type StoredNote,
@@ -25,17 +25,17 @@ function toHit(note: StoredNote): NoteSearchHit {
 // No extensionId param → `notes` is NOT in INJECTS_EXTENSION_ID.
 export const notesService = {
   async search(query: string, limit?: number): Promise<NoteSearchHit[]> {
-    const result = await noteSearchIpc(query, limit ?? 10);
-    return (result?.items ?? []).map(toHit);
+    const result = await noteSearchForService(query, limit ?? 10);
+    return result.items.map(toHit);
   },
 
   async list(limit?: number): Promise<NoteSearchHit[]> {
-    const all = await noteGetAll();
-    return (all ?? []).slice(0, limit ?? 20).map(toHit);
+    const all = await noteGetAllForService();
+    return all.slice(0, limit ?? 20).map(toHit);
   },
 
   async get(idOrTitle: string): Promise<NoteDetail | null> {
-    const note = await noteFind(idOrTitle);
+    const note = await noteFindForService(idOrTitle);
     if (!note) return null;
     return {
       id: note.id,
@@ -61,7 +61,7 @@ export const notesService = {
   },
 
   async append(idOrTitle: string, text: string): Promise<{ id: string; title: string }> {
-    const note = await noteFind(idOrTitle);
+    const note = await noteFindForService(idOrTitle);
     if (!note) throw new Error(`No note matching "${idOrTitle}"`);
     const newBody = note.body.trim() ? `${note.body}\n${text}` : text;
     await noteUpdate(note.id, { body: newBody }, Date.now());

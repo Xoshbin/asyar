@@ -29,13 +29,13 @@ describe('CalculatorServiceProxy', () => {
     expect(result).toEqual(sample);
   });
 
-  it('evaluate resolves to null when query is not an expression', async () => {
-    vi.mocked(mockBroker.invoke).mockResolvedValueOnce(null);
+  it('evaluate resolves to an empty array when query is not an expression', async () => {
+    vi.mocked(mockBroker.invoke).mockResolvedValueOnce([]);
 
     const result = await proxy.evaluate('random text');
 
     expect(mockBroker.invoke).toHaveBeenCalledWith('calculator:evaluate', { query: 'random text' });
-    expect(result).toBeNull();
+    expect(result).toEqual([]);
   });
 
   it('evaluate propagates broker errors', async () => {

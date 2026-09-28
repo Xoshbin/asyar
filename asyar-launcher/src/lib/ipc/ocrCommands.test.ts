@@ -6,7 +6,7 @@ vi.mock('../../services/log/logService', () => ({
 }));
 
 import { invoke } from '@tauri-apps/api/core';
-import { ocrCaptureScreenText } from './ocrCommands';
+import { ocrCaptureScreenText, ocrCaptureScreenTextForExtension } from './ocrCommands';
 
 describe('ocrCommands', () => {
   beforeEach(() => {
@@ -37,5 +37,11 @@ describe('ocrCommands', () => {
     const result = await ocrCaptureScreenText();
 
     expect(result).toBeNull();
+  });
+
+  it('propagates platform failures for extension callers', async () => {
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('OCR backend unavailable'));
+
+    await expect(ocrCaptureScreenTextForExtension()).rejects.toThrow('OCR backend unavailable');
   });
 });

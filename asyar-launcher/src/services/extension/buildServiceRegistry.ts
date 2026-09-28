@@ -47,7 +47,7 @@ import { filesService } from '../files/filesService';
 import { extensionStateService } from '../extensionState/extensionStateService';
 import { runService } from '../run/runService.svelte';
 import { agentsToolsRegisterTier2, agentsToolsList, getSystemLocale } from '../../lib/ipc/commands';
-import { calculatorEvaluate } from '../../lib/ipc/calculatorCommands';
+import { calculatorEvaluateForExtension } from '../../lib/ipc/calculatorCommands';
 import { completeExtensionOnboarding } from '../../lib/ipc/extensionLifecycleCommands';
 import type { ManifestTool } from 'asyar-sdk/contracts';
 
@@ -250,7 +250,7 @@ export function buildServiceRegistry(deps: {
       },
     },
     calculator: {
-      evaluate: async (query: string) => calculatorEvaluate(query),
+      evaluate: async (query: string) => calculatorEvaluateForExtension(query),
     },
   });
 }

@@ -1,6 +1,6 @@
 // asyar-launcher/src/lib/ipc/ocrCommands.ts
 // Tauri command wrappers for Screen OCR, re-exported through ./commands.
-import { invokeSafe } from './invokeSafe';
+import { invokeRaw, invokeSafe } from './invokeSafe';
 
 /**
  * Initiates interactive screen capture and on-device OCR.
@@ -14,4 +14,10 @@ import { invokeSafe } from './invokeSafe';
  */
 export async function ocrCaptureScreenText(): Promise<string | null> {
   return invokeSafe<string | null>('ocr_capture_screen_text');
+}
+
+/** Platform-service transport for Tier 2 callers. Cancellation remains a
+ * successful `null`; backend failures reject and are returned as IPC errors. */
+export async function ocrCaptureScreenTextForExtension(): Promise<string | null> {
+  return invokeRaw<string | null>('ocr_capture_screen_text');
 }

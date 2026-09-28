@@ -333,7 +333,7 @@ pub fn sticky_new(
     }
 
     open(&app, &note.id)?;
-    crate::storage::commands::emit_note_changed(&app, &note.id);
+    crate::storage::commands::emit_note_changed(&app, &note.id, "upsert");
     Ok(note.id)
 }
 

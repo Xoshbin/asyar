@@ -469,7 +469,7 @@ mod bindings_export {
     use specta_typescript::{BigIntExportBehavior, Typescript};
 
     /// Run `cargo test export_bindings -- --ignored` from src-tauri/ to regenerate
-    /// asyar-launcher/src/bindings.ts whenever Rust model types change.
+    /// the launcher and SDK TypeScript bindings whenever Rust model types change.
     #[test]
     #[ignore = "Only run manually to regenerate TypeScript bindings"]
     fn export_bindings() {
@@ -522,5 +522,25 @@ mod bindings_export {
             .bigint(BigIntExportBehavior::Number)
             .export_to(std::path::PathBuf::from("../src/bindings.ts"), &types)
             .expect("Failed to export TypeScript bindings to src/bindings.ts");
+
+        let calculator_types = specta::TypeCollection::default()
+            .register::<crate::calculator::CalcResult>()
+            .register::<crate::calculator::CalcKind>();
+
+        Typescript::default()
+            .bigint(BigIntExportBehavior::Number)
+            .export_to(
+                std::path::PathBuf::from("../../asyar-sdk/src/generated/calculator.ts"),
+                &calculator_types,
+            )
+            .expect("Failed to export SDK calculator bindings");
+    }
+
+    #[test]
+    fn sdk_calculator_bindings_are_generated_from_rust() {
+        let bindings = std::fs::read_to_string("../../asyar-sdk/src/generated/calculator.ts")
+            .expect("SDK calculator bindings are missing; run the export_bindings test");
+        assert!(bindings.contains("export type CalcResult"));
+        assert!(bindings.contains("export type CalcKind"));
     }
 }

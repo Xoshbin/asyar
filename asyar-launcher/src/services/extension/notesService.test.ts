@@ -6,9 +6,9 @@ const mockNoteFind = vi.fn();
 const mockNoteUpsert = vi.fn();
 const mockNoteUpdate = vi.fn();
 vi.mock('../../lib/ipc/commands', () => ({
-  noteSearch: (...args: unknown[]) => mockNoteSearch(...args),
-  noteGetAll: (...args: unknown[]) => mockNoteGetAll(...args),
-  noteFind: (...args: unknown[]) => mockNoteFind(...args),
+  noteSearchForService: (...args: unknown[]) => mockNoteSearch(...args),
+  noteGetAllForService: (...args: unknown[]) => mockNoteGetAll(...args),
+  noteFindForService: (...args: unknown[]) => mockNoteFind(...args),
   noteUpsert: (...args: unknown[]) => mockNoteUpsert(...args),
   noteUpdate: (...args: unknown[]) => mockNoteUpdate(...args),
 }));
@@ -50,6 +50,11 @@ describe('notesService', () => {
       const [hit] = await notesService.search('x');
       expect(hit.snippet.length).toBeLessThan(300);
       expect(hit.snippet.endsWith('…')).toBe(true);
+    });
+
+    it('propagates platform failures to the extension', async () => {
+      mockNoteSearch.mockRejectedValueOnce(new Error('storage unavailable'));
+      await expect(notesService.search('x')).rejects.toThrow('storage unavailable');
     });
   });
 
