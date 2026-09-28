@@ -15,7 +15,7 @@ export async function completeStep(): Promise<void> {
 }
 
 function isTheme(item: ApiExtension): boolean {
-  return item.category?.toLowerCase() === 'theme';
+  return item.manifest?.type === 'theme' || item.category?.toLowerCase() === 'theme';
 }
 
 export async function fetchTopThemes(limit: number): Promise<ApiExtension[]> {

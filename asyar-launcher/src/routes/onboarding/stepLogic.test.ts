@@ -64,10 +64,42 @@ describe('fetchTopThemes', () => {
     expect(out.map((t) => t.id)).toEqual([2, 1]);
   });
 
+  it('recognizes themes by manifest type even when their store category is not theme', async () => {
+    vi.mocked(fetchAllStoreItems).mockResolvedValueOnce([
+      {
+        id: 1,
+        name: 'Nord',
+        category: 'appearance',
+        install_count: 10,
+        manifest: { type: 'theme' },
+      } as any,
+      { id: 2, name: 'Utility', category: 'utility', install_count: 20 } as any,
+    ]);
+
+    const out = await fetchTopThemes(5);
+    expect(out.map((theme) => theme.id)).toEqual([1]);
+  });
+
   it('returns empty array on fetch error', async () => {
     vi.mocked(fetchAllStoreItems).mockRejectedValueOnce(new Error('net'));
     const out = await fetchTopThemes(5);
     expect(out).toEqual([]);
+  });
+
+  it('excludes manifest-declared themes from featured extensions', async () => {
+    vi.mocked(fetchAllStoreItems).mockResolvedValueOnce([
+      {
+        id: 1,
+        name: 'Nord',
+        category: 'appearance',
+        install_count: 100,
+        manifest: { type: 'theme' },
+      } as any,
+      { id: 2, name: 'Utility', category: 'utility', install_count: 20 } as any,
+    ]);
+
+    const out = await fetchTopExtensions(5, 'macos');
+    expect(out.map((extension) => extension.id)).toEqual([2]);
   });
 });
 

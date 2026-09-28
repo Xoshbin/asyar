@@ -5,17 +5,17 @@
   import { advanceStep, fetchTopThemes } from '../stepLogic';
   import { onboardingNav } from '../onboardingNav.svelte';
   import type { ApiExtension } from '../../../built-in-features/store/state.svelte';
-  import storeExtension from '../../../built-in-features/store/index.svelte';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
-  import { applyTheme, removeTheme } from '../../../services/theme/themeService';
+  import { removeTheme } from '../../../services/theme/themeService';
   import { discoverExtensions } from '../../../lib/ipc/commands';
   import { logService } from '../../../services/log/logService';
   import { feedbackService } from '../../../services/feedback/feedbackService.svelte';
   import { t } from '../../../services/i18n';
+  import { applyInstalledTheme, installThemeExtension } from './themeSetup';
 
   let themes = $state<ApiExtension[]>([]);
   let loading = $state(true);
-  let installingId = $state<number | null>(null);
+  let installingId = $state<string | number | null>(null);
   // Maps store-API theme name → on-disk manifest.id. Populated as themes are
   // discovered (at load time and after each install). Lets us answer "is this
   // theme installed?" and "is this theme applied?" from the API row.
@@ -55,31 +55,10 @@
   async function install(theme: ApiExtension) {
     installingId = theme.id;
     try {
-      await storeExtension.installExtension(theme.slug, theme.id, theme.name);
+      await installThemeExtension(theme);
       await refreshDiscovery();
-
-      const themeId = nameToManifestId[theme.name];
-      if (!themeId) {
-        logService.warn(
-          `[onboarding] installed theme not found in registry after install: ${theme.name}`,
-        );
-        feedbackService.report({
-          source: 'frontend',
-          kind: 'manual',
-          severity: 'warning',
-          retryable: true,
-          context: { message: `Couldn't apply ${theme.name} — try again from Settings.` },
-        });
-        return;
-      }
-
-      await applyTheme(themeId);
-      await settingsService.updateSettings('appearance', { activeTheme: themeId });
-      await emit('asyar:theme-changed', { themeId });
-      // activeThemeId is $derived — it re-reads automatically once the
-      // store write completes.
     } catch (err) {
-      logService.error(`[onboarding] failed to install/apply theme ${theme.name}: ${err}`);
+      logService.error(`[onboarding] failed to install theme ${theme.name}: ${err}`);
       feedbackService.report({
         source: 'frontend',
         kind: 'manual',
@@ -89,6 +68,23 @@
       });
     } finally {
       installingId = null;
+    }
+  }
+
+  async function apply(theme: ApiExtension) {
+    const themeId = nameToManifestId[theme.name];
+    if (!themeId) return;
+    try {
+      await applyInstalledTheme(themeId);
+    } catch (err) {
+      logService.error(`[onboarding] failed to apply theme ${theme.name}: ${err}`);
+      feedbackService.report({
+        source: 'frontend',
+        kind: 'manual',
+        severity: 'error',
+        retryable: true,
+        context: { message: `Could not apply "${theme.name}"` },
+      });
     }
   }
 
@@ -160,7 +156,10 @@
           {:else if status === 'applied'}
             <span class="grid__status grid__status--applied">{t('settings.general.applied')}</span>
           {:else}
-            <Button onclick={() => install(theme)} disabled={installingId !== null}>
+            <Button
+              onclick={() => (status === 'installed' ? apply(theme) : install(theme))}
+              disabled={installingId !== null}
+            >
               {status === 'installed' ? t('common.apply') : t('common.install')}
             </Button>
           {/if}
