@@ -36,8 +36,8 @@
       id: 'anthropic',
       name: 'Claude Code CLI',
       binary: 'claude',
-      defaultModel: 'claude-sonnet-4-6',
-      fallbackModel: 'claude-sonnet-4-6',
+      defaultModel: 'sonnet',
+      fallbackModel: 'sonnet',
       icon: '✳',
     },
   ] as const;

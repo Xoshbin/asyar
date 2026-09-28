@@ -218,3 +218,40 @@ async fn list_models_impl_only_offers_reasoning_effort_for_thinking_capable_olla
         Some(vec!["low".into(), "medium".into(), "high".into()])
     );
 }
+
+#[test]
+fn cli_models_lists_claude_aliases() {
+    let ids: Vec<String> = super::models::cli_models("anthropic_16782567")
+        .into_iter()
+        .map(|m| m.id)
+        .collect();
+    assert_eq!(ids, ["opus", "sonnet", "haiku"]);
+}
+
+#[test]
+fn cli_models_claude_offers_effort_only_where_supported() {
+    let models = super::models::cli_models("anthropic_1");
+    let efforts = |id: &str| {
+        models
+            .iter()
+            .find(|m| m.id == id)
+            .unwrap()
+            .reasoning_efforts
+            .clone()
+    };
+    assert_eq!(efforts("opus").unwrap(), ["low", "medium", "high"]);
+    assert_eq!(efforts("sonnet").unwrap(), ["low", "medium", "high"]);
+    assert!(efforts("haiku").is_none());
+}
+
+#[tokio::test]
+async fn list_models_impl_returns_claude_models_in_cli_mode() {
+    let mut cfg = config(None, None);
+    cfg.provider_type = Some("anthropic".to_string());
+    cfg.connection_mode = Some("cli".to_string());
+    let models = list_models_impl("anthropic_1", &cfg).await.unwrap();
+    assert_eq!(
+        models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
+        ["opus", "sonnet", "haiku"]
+    );
+}

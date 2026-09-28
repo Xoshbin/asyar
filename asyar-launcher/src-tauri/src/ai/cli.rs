@@ -10,7 +10,11 @@ use tokio_util::codec::{FramedRead, LinesCodec};
 
 /// Resolves the home directory safely without panic.
 fn resolve_home_dir() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
+    // `HOME` is unset on Windows by default; fall back to the platform home dir (USERPROFILE).
+    std::env::var_os("HOME")
+        .filter(|h| !h.is_empty())
+        .map(PathBuf::from)
+        .or_else(dirs::home_dir)
 }
 
 /// Normalizes an engine name or provider identifier (e.g. "google_d5019aba" -> "google", "openai_8f12b" -> "openai", "anthropic_123" -> "claude").
@@ -253,8 +257,24 @@ pub fn build_cli_prompt(messages: &[ChatMessage], params: &ChatParams) -> String
     parts.join("\n\n")
 }
 
+/// Per-run parser state for engines whose stream repeats content (Claude Code emits
+/// text deltas and then the same text again in the completed `assistant` message).
+#[derive(Debug, Default)]
+pub struct CliStreamState {
+    claude_message_streamed: bool,
+}
+
 /// Parses a single line of stdout from a CLI process into stream event payloads.
 pub fn parse_cli_stream_line(engine: &str, line: &str) -> Vec<ChatStreamEventPayload> {
+    parse_cli_stream_line_stateful(engine, line, &mut CliStreamState::default())
+}
+
+/// Like [`parse_cli_stream_line`], but carries `state` across the lines of one run.
+pub fn parse_cli_stream_line_stateful(
+    engine: &str,
+    line: &str,
+    state: &mut CliStreamState,
+) -> Vec<ChatStreamEventPayload> {
     let trimmed = line.trim();
     if trimmed.is_empty() {
         return Vec::new();
@@ -375,34 +395,72 @@ pub fn parse_cli_stream_line(engine: &str, line: &str) -> Vec<ChatStreamEventPay
             }
         }
         "claude" => {
-            if let Some(delta) = val
-                .get("delta")
-                .and_then(|d| d.get("text"))
-                .and_then(|t| t.as_str())
-            {
-                events.push(ChatStreamEventPayload::Token {
-                    token: delta.to_string(),
-                });
-            } else if let Some(content) = val
-                .get("message")
-                .and_then(|m| m.get("content"))
-                .and_then(|c| c.as_array())
-            {
-                for part in content {
-                    if let Some(text) = part.get("text").and_then(|t| t.as_str()) {
-                        events.push(ChatStreamEventPayload::Token {
-                            token: text.to_string(),
-                        });
+            // `claude -p --output-format stream-json --verbose --include-partial-messages`:
+            //   {"type":"stream_event","event":{"type":"message_start"}}
+            //   {"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hi"}}}
+            //   {"type":"assistant","message":{"content":[{"type":"text","text":"Hi"}]}}   (repeats the deltas)
+            //   {"type":"result","is_error":false,"result":"Hi"}                           (repeats the text again)
+            match val.get("type").and_then(|t| t.as_str()) {
+                Some("stream_event") => {
+                    let event = val.get("event");
+                    match event.and_then(|e| e.get("type")).and_then(|t| t.as_str()) {
+                        Some("message_start") => state.claude_message_streamed = false,
+                        Some("content_block_delta") => {
+                            if let Some(text) = event
+                                .and_then(|e| e.get("delta"))
+                                .filter(|d| {
+                                    d.get("type").and_then(|t| t.as_str()) == Some("text_delta")
+                                })
+                                .and_then(|d| d.get("text"))
+                                .and_then(|t| t.as_str())
+                            {
+                                state.claude_message_streamed = true;
+                                events.push(ChatStreamEventPayload::Token {
+                                    token: text.to_string(),
+                                });
+                            }
+                        }
+                        _ => {}
                     }
                 }
-            } else if let Some(text) = val.get("text").and_then(|t| t.as_str()) {
-                events.push(ChatStreamEventPayload::Token {
-                    token: text.to_string(),
-                });
-            } else if let Some(result) = val.get("result").and_then(|r| r.as_str()) {
-                events.push(ChatStreamEventPayload::Token {
-                    token: result.to_string(),
-                });
+                Some("assistant") => {
+                    // Only fall back to the completed message when no deltas were streamed for it.
+                    if !state.claude_message_streamed {
+                        if let Some(content) = val
+                            .get("message")
+                            .and_then(|m| m.get("content"))
+                            .and_then(|c| c.as_array())
+                        {
+                            for text in content
+                                .iter()
+                                .filter(|part| {
+                                    part.get("type").and_then(|t| t.as_str()) == Some("text")
+                                })
+                                .filter_map(|part| part.get("text").and_then(|t| t.as_str()))
+                            {
+                                events.push(ChatStreamEventPayload::Token {
+                                    token: text.to_string(),
+                                });
+                            }
+                        }
+                    }
+                }
+                // The text was already emitted; only surface failures (e.g. "Not logged in").
+                Some("result") if val.get("is_error").and_then(|e| e.as_bool()) == Some(true) => {
+                    let error = val
+                        .get("result")
+                        .and_then(|r| r.as_str())
+                        .filter(|r| !r.is_empty())
+                        .map(str::to_string)
+                        .or_else(|| {
+                            val.get("subtype")
+                                .and_then(|t| t.as_str())
+                                .map(str::to_string)
+                        })
+                        .unwrap_or_else(|| "Claude Code reported an error".to_string());
+                    events.push(ChatStreamEventPayload::Error { error });
+                }
+                _ => {}
             }
         }
         _ => {
@@ -639,6 +697,35 @@ pub fn ensure_mcp_registered_for_claude() {
     register_mcp_server_in_config(&config_file, &current_exe_str);
 }
 
+/// Builds the argument list for a non-interactive `claude` run.
+pub fn claude_cli_args(prompt: &str, model: &str, effort: Option<&str>) -> Vec<String> {
+    let mut args: Vec<String> = [
+        "-p",
+        prompt,
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--include-partial-messages",
+        "--disable-slash-commands",
+        "--permission-mode",
+        "bypassPermissions",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect();
+    if !model.is_empty() {
+        args.push("--model".into());
+        args.push(model.into());
+    }
+    if let Some(effort) =
+        effort.filter(|e| matches!(*e, "low" | "medium" | "high" | "xhigh" | "max"))
+    {
+        args.push("--effort".into());
+        args.push(effort.into());
+    }
+    args
+}
+
 /// Executes a prompt using a local CLI runtime process and streams tokens back to `on_event`.
 pub async fn cli_stream_chat_impl<F>(
     provider_id: &str,
@@ -725,19 +812,11 @@ where
             }
         }
         "claude" => {
-            // claude -p <prompt> --output-format stream-json --verbose --permission-mode bypassPermissions
-            cmd.arg("-p")
-                .arg(&prompt)
-                .arg("--output-format")
-                .arg("stream-json")
-                .arg("--verbose")
-                .arg("--permission-mode")
-                .arg("bypassPermissions");
-
-            let model = params.model_id.trim();
-            if !model.is_empty() {
-                cmd.arg("--model").arg(model);
-            }
+            cmd.args(claude_cli_args(
+                &prompt,
+                params.model_id.trim(),
+                config.reasoning_effort.as_deref(),
+            ));
         }
         _ => {
             cmd.arg(&prompt);
@@ -779,11 +858,13 @@ where
     });
 
     let mut out_lines = FramedRead::new(tokio::io::BufReader::new(stdout), LinesCodec::new());
+    let mut stream_state = CliStreamState::default();
 
     while let Some(line_res) = out_lines.next().await {
         match line_res {
             Ok(line) => {
-                let payloads = parse_cli_stream_line(engine_type, &line);
+                let payloads =
+                    parse_cli_stream_line_stateful(engine_type, &line, &mut stream_state);
                 for payload in payloads {
                     on_event(payload);
                 }
@@ -819,6 +900,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_resolve_home_dir_is_some() {
+        // Falls back to the platform home dir when HOME is unset (Windows).
+        assert!(super::resolve_home_dir().is_some());
+    }
 
     #[test]
     fn test_cli_candidates_returns_paths_for_supported_engines() {
@@ -889,6 +976,112 @@ mod tests {
             ChatStreamEventPayload::Error { error } => assert_eq!(error, "Quota exceeded"),
             _ => panic!("Expected error event"),
         }
+    }
+
+    #[test]
+    fn test_cli_candidates_include_claude_install_locations() {
+        let candidates = cli_candidates("anthropic_16782567");
+        assert!(candidates.iter().any(|p| p.ends_with(".local/bin/claude")));
+        #[cfg(windows)]
+        assert!(candidates
+            .iter()
+            .any(|p| p.ends_with(".local/bin/claude.exe")));
+    }
+
+    fn token_text(events: &[ChatStreamEventPayload]) -> String {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                ChatStreamEventPayload::Token { token } => Some(token.as_str()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Feeds lines captured from a real `claude -p --output-format stream-json --verbose
+    /// --include-partial-messages` run through the stateful parser.
+    fn run_claude_stream(lines: &[&str]) -> Vec<ChatStreamEventPayload> {
+        let mut state = CliStreamState::default();
+        lines
+            .iter()
+            .flat_map(|l| parse_cli_stream_line_stateful("anthropic_1", l, &mut state))
+            .collect()
+    }
+
+    #[test]
+    fn test_parse_claude_stream_does_not_duplicate_text() {
+        let events = run_claude_stream(&[
+            r#"{"type":"system","subtype":"init"}"#,
+            r#"{"type":"stream_event","event":{"type":"message_start"}}"#,
+            r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":""}}}"#,
+            r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hey"}}}"#,
+            r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":", what's up?"}}}"#,
+            r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Hey, what's up?"}]}}"#,
+            r#"{"type":"stream_event","event":{"type":"message_stop"}}"#,
+            r#"{"type":"result","subtype":"success","is_error":false,"result":"Hey, what's up?"}"#,
+        ]);
+        assert_eq!(token_text(&events), "Hey, what's up?");
+        assert!(!events
+            .iter()
+            .any(|e| matches!(e, ChatStreamEventPayload::Error { .. })));
+    }
+
+    #[test]
+    fn test_parse_claude_stream_falls_back_to_assistant_message_without_deltas() {
+        let events = run_claude_stream(&[
+            r#"{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"hm"},{"type":"text","text":"Hello"}]}}"#,
+            r#"{"type":"result","subtype":"success","is_error":false,"result":"Hello"}"#,
+        ]);
+        assert_eq!(token_text(&events), "Hello");
+    }
+
+    #[test]
+    fn test_parse_claude_stream_multiple_messages_after_tool_use() {
+        let events = run_claude_stream(&[
+            r#"{"type":"stream_event","event":{"type":"message_start"}}"#,
+            r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Checking. "}}}"#,
+            r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Checking. "},{"type":"tool_use","name":"Bash"}]}}"#,
+            r#"{"type":"user","message":{"content":[{"type":"tool_result","content":"ok"}]}}"#,
+            r#"{"type":"stream_event","event":{"type":"message_start"}}"#,
+            r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Done."}]}}"#,
+            r#"{"type":"result","is_error":false,"result":"Done."}"#,
+        ]);
+        // The second message had no deltas, so its completed text must not be lost.
+        assert_eq!(token_text(&events), "Checking. Done.");
+    }
+
+    #[test]
+    fn test_parse_claude_stream_surfaces_errors() {
+        let events = run_claude_stream(&[
+            r#"{"type":"result","subtype":"success","is_error":true,"result":"Not logged in · Please run /login"}"#,
+        ]);
+        assert!(token_text(&events).is_empty());
+        assert!(matches!(
+            events.as_slice(),
+            [ChatStreamEventPayload::Error { error }] if error.contains("Not logged in")
+        ));
+    }
+
+    #[test]
+    fn test_claude_cli_args() {
+        let args = claude_cli_args("hello", "sonnet", Some("high"));
+        assert_eq!(&args[..2], ["-p", "hello"]);
+        for flag in [
+            "--verbose",
+            "--include-partial-messages",
+            "--disable-slash-commands",
+            "bypassPermissions",
+        ] {
+            assert!(args.iter().any(|a| a == flag), "missing {flag}");
+        }
+        let pos = |flag: &str| args.iter().position(|a| a == flag).unwrap();
+        assert_eq!(args[pos("--model") + 1], "sonnet");
+        assert_eq!(args[pos("--effort") + 1], "high");
+
+        let bare = claude_cli_args("hello", "", None);
+        assert!(!bare.iter().any(|a| a == "--model" || a == "--effort"));
+        let bogus = claude_cli_args("hello", "", Some("bogus"));
+        assert!(!bogus.iter().any(|a| a == "--effort"));
     }
 
     #[test]

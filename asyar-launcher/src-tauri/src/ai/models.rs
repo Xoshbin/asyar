@@ -496,6 +496,24 @@ pub fn cli_models(engine: &str) -> Vec<ModelInfo> {
                 reasoning_efforts: None,
             },
         ],
+        // Claude Code accepts these aliases for `--model` and resolves them to the latest release.
+        "claude" => vec![
+            ModelInfo {
+                id: "opus".into(),
+                label: "Claude Opus (latest)".into(),
+                reasoning_efforts: Some(vec!["low".into(), "medium".into(), "high".into()]),
+            },
+            ModelInfo {
+                id: "sonnet".into(),
+                label: "Claude Sonnet (latest)".into(),
+                reasoning_efforts: Some(vec!["low".into(), "medium".into(), "high".into()]),
+            },
+            ModelInfo {
+                id: "haiku".into(),
+                label: "Claude Haiku (latest)".into(),
+                reasoning_efforts: None,
+            },
+        ],
         _ => vec![],
     }
 }
