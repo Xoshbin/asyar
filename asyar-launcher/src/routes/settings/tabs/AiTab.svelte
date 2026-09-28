@@ -1039,10 +1039,10 @@
               />
             </div>
             <p class="field-description">
-              Google search results over a JSON API. Provides 2,500 free credits, no card required,
-              at
+              Google search results over a JSON API. Provides 2,500 free credits, plus 25% off
+              credit packs with code <code>ASYAROS</code>, at
               <a
-                href="https://serply.io"
+                href="https://app.serply.io/settings/billing?promo=ASYAROS#buy-credits"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="external-link"
