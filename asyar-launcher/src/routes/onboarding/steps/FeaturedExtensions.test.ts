@@ -14,6 +14,7 @@ const advanceStep = vi.hoisted(() => vi.fn());
 const goBackStep = vi.hoisted(() => vi.fn());
 const completeStep = vi.hoisted(() => vi.fn());
 const installExtension = vi.hoisted(() => vi.fn());
+const listInstalledExtensions = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 
 vi.mock('../stepLogic', () => ({
   fetchTopExtensions,
@@ -30,11 +31,27 @@ vi.mock('../../../built-in-features/store/index.svelte', () => ({
   default: { installExtension },
 }));
 
+vi.mock('../../../lib/ipc/commands', () => ({ listInstalledExtensions }));
+
 import FeaturedExtensions from './FeaturedExtensions.svelte';
 
 describe('FeaturedExtensions step', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    listInstalledExtensions.mockResolvedValue([]);
+  });
+
+  it('hides Emoji when it was installed in the earlier onboarding step', async () => {
+    listInstalledExtensions.mockResolvedValueOnce(['org.asyar.emoji']);
+    fetchTopExtensions.mockResolvedValueOnce([
+      { id: 100, name: 'Emoji', slug: 'emoji' },
+      { id: 101, name: 'GitHub Assistant', slug: 'github-assistant' },
+    ]);
+
+    render(FeaturedExtensions);
+
+    expect(await screen.findByText('GitHub Assistant')).toBeTruthy();
+    expect(screen.queryByText('Emoji')).toBeNull();
   });
 
   it('renders extension list and mentions creating custom extensions with AI when store feels empty', async () => {

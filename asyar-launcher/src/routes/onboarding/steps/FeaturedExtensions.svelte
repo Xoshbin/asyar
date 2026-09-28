@@ -7,6 +7,8 @@
   import { platform } from '@tauri-apps/plugin-os';
   import { onboardingNav } from '../onboardingNav.svelte';
   import { t } from '../../../services/i18n';
+  import { listInstalledExtensions } from '../../../lib/ipc/commands';
+  import { EMOJI_ID } from './emojiSetup';
 
   let extensions = $state<ApiExtension[]>([]);
   let selected = $state<Set<number>>(new Set());
@@ -18,7 +20,13 @@
     loading = true;
     try {
       const p = platform();
-      extensions = await fetchTopExtensions(5, p);
+      const [featured, installed] = await Promise.all([
+        fetchTopExtensions(5, p),
+        listInstalledExtensions(),
+      ]);
+      extensions = installed?.includes(EMOJI_ID)
+        ? featured.filter((extension) => extension.slug !== 'emoji')
+        : featured;
     } finally {
       loading = false;
     }

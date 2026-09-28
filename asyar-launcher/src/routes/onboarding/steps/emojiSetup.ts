@@ -3,7 +3,7 @@ import { listInstalledExtensions } from '../../../lib/ipc/commands';
 import { agentService } from '../../../built-in-features/agents/agentService.svelte';
 import { fetchAllStoreItems } from '../../../built-in-features/store/storeFetch';
 
-const EMOJI_ID = 'org.asyar.emoji';
+export const EMOJI_ID = 'org.asyar.emoji';
 
 export async function installEmoji(): Promise<boolean> {
   const installed = (await listInstalledExtensions()) ?? [];
