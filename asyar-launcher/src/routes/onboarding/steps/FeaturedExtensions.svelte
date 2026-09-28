@@ -41,7 +41,7 @@
         installingIds = new Set([...installingIds, id]);
         try {
           const ext = extensions.find((e) => e.id === id);
-          if (ext) await storeExtension.installExtension(ext.slug, ext.id, ext.name);
+          if (ext) await storeExtension.installExtension(ext.slug, ext.id, ext.name, ext);
         } catch {
           failedIds = new Set([...failedIds, id]);
         } finally {

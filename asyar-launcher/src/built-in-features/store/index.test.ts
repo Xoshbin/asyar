@@ -64,6 +64,7 @@ vi.mock('./DefaultView.svelte', () => ({ default: {} }));
 vi.mock('./DetailView.svelte', () => ({ default: {} }));
 
 import { actionService } from '../../services/action/actionService.svelte';
+import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
 import storeExtension from './index.svelte';
 import { initializeStore } from './state.svelte';
 
@@ -136,5 +137,31 @@ describe('StoreExtension lifecycle and commands', () => {
   it('deactivate() is safe and idempotent when not in view', async () => {
     await storeExtension.deactivate();
     expect(actionService.unregisterAction).toHaveBeenCalledWith('app.asyar.store:install-detail');
+  });
+
+  it('uses caller-supplied listing metadata for consent before downloading', async () => {
+    vi.mocked(permissionConsentService.requestConsent).mockResolvedValueOnce(false);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    await storeExtension.installExtension('files', 42, 'Files', {
+      id: 42,
+      name: 'Files',
+      slug: 'files',
+      description: '',
+      category: 'productivity',
+      status: 'published',
+      author: { id: 1, name: 'Asyar' },
+      manifest: { permissions: ['fs:read'] },
+    });
+
+    expect(permissionConsentService.requestConsent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extensionId: '42',
+        extensionName: 'Files',
+        reason: 'install',
+        permissions: ['fs:read'],
+      }),
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
