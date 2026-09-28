@@ -49,6 +49,7 @@ pub struct ProviderConfig {
     pub max_tokens: Option<u32>,
     pub connection_mode: Option<String>,
     pub cli_binary_path: Option<String>,
+    pub custom_headers: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]

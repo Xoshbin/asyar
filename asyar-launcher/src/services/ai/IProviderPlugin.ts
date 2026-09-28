@@ -26,6 +26,7 @@ export interface ProviderConfig {
   maxTokens?: number;
   connectionMode?: ConnectionMode;
   cliBinaryPath?: string;
+  customHeaders?: Record<string, string>;
 }
 
 export type ChatStreamStatus = 'searching';
