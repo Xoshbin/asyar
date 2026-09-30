@@ -2630,7 +2630,7 @@ mod service_tests {
         let external = vec![
             models::ExternalSearchResult {
                 object_id: "cmd_notes_open-notes".to_string(),
-                name: "Open Notes".to_string(),
+                name: "Notes".to_string(),
                 description: Some("Browse notes".to_string()),
                 result_type: "command".to_string(),
                 score: 1.0,
@@ -2654,7 +2654,7 @@ mod service_tests {
             },
             models::ExternalSearchResult {
                 object_id: "cmd_snippets_open-snippets".to_string(),
-                name: "Open Snippets".to_string(),
+                name: "Snippets".to_string(),
                 description: Some("Manage snippets".to_string()),
                 result_type: "command".to_string(),
                 score: 1.0,

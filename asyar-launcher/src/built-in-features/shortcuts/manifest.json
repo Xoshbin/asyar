@@ -11,7 +11,7 @@
   "commands": [
     {
       "id": "open-shortcuts",
-      "name": "Open Shortcuts",
+      "name": "Shortcuts",
       "icon": "icon:keyboard",
       "trigger": "shortcuts",
       "description": "Manage assigned global shortcuts",
