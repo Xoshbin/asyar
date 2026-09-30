@@ -119,8 +119,9 @@ export async function clipboardCount(): Promise<ClipboardCount | null> {
 
 export async function clipboardRecordCapture(
   item: StoredClipboardItem,
+  retentionMs?: number,
 ): Promise<ClipboardCaptureResult | null> {
-  return invokeSafe<ClipboardCaptureResult>('clipboard_record_capture', { item });
+  return invokeSafe<ClipboardCaptureResult>('clipboard_record_capture', { item, retentionMs });
 }
 
 export async function clipboardToggleFavorite(id: string): Promise<boolean | null> {

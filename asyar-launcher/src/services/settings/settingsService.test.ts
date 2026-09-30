@@ -512,3 +512,40 @@ describe('DEFAULT_SETTINGS.ai shape', () => {
     });
   });
 });
+
+// ── clipboardHistory ──────────────────────────────────────────────────────────
+
+describe('clipboardHistory', () => {
+  beforeEach(() => {
+    resetState();
+    injectStore();
+  });
+
+  it('defaults retentionMs to 90 days', () => {
+    const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+    const result = (settingsService as any).mergeWithDefaults(null);
+    expect(result.clipboardHistory).toBeDefined();
+    expect(result.clipboardHistory.retentionMs).toBe(ninetyDaysMs);
+  });
+
+  it('persists an updated retentionMs', async () => {
+    const fiveMinMs = 5 * 60 * 1000;
+    const ok = await settingsService.updateSettings('clipboardHistory', { retentionMs: fiveMinMs });
+    expect(ok).toBe(true);
+    expect(settingsService.currentSettings.clipboardHistory?.retentionMs).toBe(fiveMinMs);
+  });
+
+  it('mergeWithDefaults fills clipboardHistory with defaults when missing from stored settings', () => {
+    const result = (settingsService as any).mergeWithDefaults({});
+    expect(result.clipboardHistory).toBeDefined();
+    expect(result.clipboardHistory.retentionMs).toBe(90 * 24 * 60 * 60 * 1000);
+  });
+
+  it('mergeWithDefaults preserves a stored retentionMs', () => {
+    const oneHourMs = 60 * 60 * 1000;
+    const result = (settingsService as any).mergeWithDefaults({
+      clipboardHistory: { retentionMs: oneHourMs },
+    });
+    expect(result.clipboardHistory.retentionMs).toBe(oneHourMs);
+  });
+});

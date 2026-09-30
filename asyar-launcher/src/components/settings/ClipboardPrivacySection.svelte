@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { SettingsCard, SettingsRow, Input, Button, Badge, EmptyState } from '../index';
+  import { SettingsCard, SettingsRow, Input, Button, Badge, EmptyState, Select } from '../index';
   import { clipboardPrivacyService } from '../../services/privacy/clipboardPrivacyService.svelte';
+  import { settingsService } from '../../services/settings/settingsService.svelte';
   import { t } from '../../services/i18n';
 
   let newEntry = $state('');
@@ -12,6 +13,29 @@
   let isLinux = $derived(
     typeof document !== 'undefined' && document.documentElement.dataset.platform === 'linux',
   );
+
+  let retentionOptions = $derived([
+    { value: String(60 * 1000), label: t('settings.privacy.retention_1min') },
+    { value: String(5 * 60 * 1000), label: t('settings.privacy.retention_5min') },
+    { value: String(10 * 60 * 1000), label: t('settings.privacy.retention_10min') },
+    { value: String(60 * 60 * 1000), label: t('settings.privacy.retention_1hour') },
+    { value: String(24 * 60 * 60 * 1000), label: t('settings.privacy.retention_24hours') },
+    { value: String(7 * 24 * 60 * 60 * 1000), label: t('settings.privacy.retention_7days') },
+    { value: String(30 * 24 * 60 * 60 * 1000), label: t('settings.privacy.retention_30days') },
+    { value: String(90 * 24 * 60 * 60 * 1000), label: t('settings.privacy.retention_90days') },
+  ]);
+
+  let retentionValue = $derived(
+    String(
+      settingsService.currentSettings.clipboardHistory?.retentionMs ?? 90 * 24 * 60 * 60 * 1000,
+    ),
+  );
+
+  async function handleRetentionChange(value: string) {
+    const ms = Number(value);
+    if (!Number.isFinite(ms) || ms <= 0) return;
+    await settingsService.updateSettings('clipboardHistory', { retentionMs: ms });
+  }
 
   async function handleAdd() {
     const trimmed = newEntry.trim();
@@ -49,6 +73,15 @@
   >
     {#snippet children()}
       <Badge text={`${totalSkipped} skipped`} variant="info" />
+    {/snippet}
+  </SettingsRow>
+
+  <SettingsRow
+    label={t('settings.privacy.retention_period')}
+    description={t('settings.privacy.retention_period_desc')}
+  >
+    {#snippet children()}
+      <Select value={retentionValue} options={retentionOptions} onchange={handleRetentionChange} />
     {/snippet}
   </SettingsRow>
 

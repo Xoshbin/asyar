@@ -95,6 +95,7 @@ pub fn clipboard_count(
 pub fn clipboard_record_capture(
     app: tauri::AppHandle,
     item: super::clipboard::ClipboardItem,
+    retention_ms: Option<f64>,
     store: State<'_, DataStore>,
     keystore: State<'_, KeystoreState>,
     fts: State<'_, Arc<ClipboardFts>>,
@@ -111,6 +112,7 @@ pub fn clipboard_record_capture(
         Some(&cache_dir),
         keystore.master_key(),
         fts.inner(),
+        retention_ms,
     )
 }
 

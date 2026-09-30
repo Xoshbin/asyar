@@ -449,7 +449,17 @@
       "rotate_dialog_body": "你的恢復短語不會改變 —— 只有用於解鎖加密同步的口令會變。",
       "error_rotate_failed": "無法更改口令。請檢查原口令後重試。",
       "error_passwords_mismatch": "兩次輸入的新口令不一致。",
-      "changing": "更改中……"
+      "changing": "更改中……",
+      "retention_period": "歷史記錄保留時間",
+      "retention_period_desc": "自動刪除超過所選時間的剪貼簿條目。收藏夾中的條目永不刪除。",
+      "retention_1min": "1 分鐘",
+      "retention_5min": "5 分鐘",
+      "retention_10min": "10 分鐘",
+      "retention_1hour": "1 小時",
+      "retention_24hours": "24 小時",
+      "retention_7days": "7 天",
+      "retention_30days": "30 天",
+      "retention_90days": "90 天（預設）"
     },
     "about": {
       "section_updates": "更新",

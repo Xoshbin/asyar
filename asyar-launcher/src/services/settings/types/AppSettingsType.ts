@@ -56,6 +56,13 @@ export interface AppSettings {
   developer?: DeveloperSettings;
   privacy: PrivacySettings;
   fileSearch: FileSearchSettings;
+  clipboardHistory?: ClipboardHistorySettings;
+}
+
+export interface ClipboardHistorySettings {
+  /** Time-to-live in milliseconds; non-favorites older than this are evicted on
+   *  every clipboard capture. Use -1 to mean "keep forever" (practically 90 days). */
+  retentionMs: number;
 }
 
 export interface FeedbackSettings {
