@@ -18,7 +18,7 @@ export async function getUsageStats(): Promise<UsageStats | null> {
   return invokeSafe('get_usage_stats');
 }
 export async function recordActiveDay(): Promise<void> {
-  await invokeSafe('record_active_day');
+  await invokeSafe('record_active_day', undefined, { silent: true });
 }
 export async function getUsageAnonId(): Promise<string | null> {
   return invokeSafe('get_usage_anon_id');

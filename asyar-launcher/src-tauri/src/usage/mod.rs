@@ -49,20 +49,42 @@ pub fn init_schema(conn: &rusqlite::Connection) -> Result<(), UsageError> {
 }
 
 /// Open (or create) usage.db in the app data dir and build managed state.
+/// Falls back to an ephemeral database so usage commands always have state.
 pub fn initialize_usage_state<R: tauri::Runtime>(
     app_handle: &tauri::AppHandle<R>,
 ) -> Result<UsageState, Box<dyn std::error::Error>> {
     use tauri::Manager;
-    let dir = app_handle.path().app_data_dir()?;
-    std::fs::create_dir_all(&dir)?;
-    let conn = rusqlite::Connection::open(dir.join(DB_FILE_NAME))?;
-    init_schema(&conn)?;
-    Ok(UsageState {
-        db: Mutex::new(conn),
-    })
+    let on_disk = (|| -> Result<UsageState, Box<dyn std::error::Error>> {
+        let dir = app_handle.path().app_data_dir()?;
+        std::fs::create_dir_all(&dir)?;
+        let conn = rusqlite::Connection::open(dir.join(DB_FILE_NAME))?;
+        init_schema(&conn)?;
+        Ok(UsageState {
+            db: Mutex::new(conn),
+        })
+    })();
+
+    match on_disk {
+        Ok(state) => Ok(state),
+        Err(e) => {
+            log::warn!(
+                "Failed to open on-disk usage.db: {e}; falling back to in-memory usage state"
+            );
+            UsageState::in_memory().map_err(Into::into)
+        }
+    }
 }
 
 impl UsageState {
+    pub fn in_memory() -> Result<Self, UsageError> {
+        let conn =
+            rusqlite::Connection::open_in_memory().map_err(|e| UsageError::Db(e.to_string()))?;
+        init_schema(&conn)?;
+        Ok(Self {
+            db: Mutex::new(conn),
+        })
+    }
+
     pub fn record_launch(&self, target: &str, day: &str) -> Result<(), UsageError> {
         let conn = self.db.lock().map_err(|_| UsageError::Lock)?;
         conn.execute(
@@ -297,6 +319,18 @@ mod tests {
         UsageState {
             db: std::sync::Mutex::new(conn),
         }
+    }
+
+    #[test]
+    fn in_memory_state_records_launches_and_active_days() {
+        let state = UsageState::in_memory().unwrap();
+
+        state.record_launch("cmd_test", "2026-09-30").unwrap();
+        state.record_active_day("2026-09-30").unwrap();
+
+        let stats = state.stats().unwrap();
+        assert_eq!(stats.total_launches, 1);
+        assert_eq!(stats.active_days, 1);
     }
 
     #[test]
