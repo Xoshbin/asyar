@@ -247,11 +247,15 @@ pub async fn install_extension_from_file(
 #[tauri::command]
 pub async fn show_open_extension_dialog(app_handle: AppHandle) -> Result<Option<String>, AppError> {
     use tauri_plugin_dialog::DialogExt;
-    let result = app_handle
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app_handle
         .dialog()
         .file()
         .add_filter("Asyar Package", &["asyar"])
-        .blocking_pick_file();
+        .pick_file(move |file_path| {
+            let _ = tx.send(file_path);
+        });
+    let result = rx.await.ok().flatten();
     Ok(result.map(|p| p.to_string()))
 }
 

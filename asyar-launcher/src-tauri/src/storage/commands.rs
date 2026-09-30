@@ -370,14 +370,17 @@ pub async fn note_export_markdown(
     .ok_or_else(|| AppError::NotFound(format!("note {id} not found")))?;
 
     let default_name = format!("{}.md", crate::notes_export::sanitize_filename(&note.title));
-    let dest = app_handle
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app_handle
         .dialog()
         .file()
         .set_file_name(&default_name)
         .add_filter("Markdown", &["md"])
-        .blocking_save_file();
-    let Some(dest) = dest else {
-        return Ok(None); // user cancelled
+        .save_file(move |dest| {
+            let _ = tx.send(dest);
+        });
+    let Some(dest) = rx.await.ok().flatten() else {
+        return Ok(None); // user cancelled or dialog aborted
     };
     let path = dest.to_string();
 

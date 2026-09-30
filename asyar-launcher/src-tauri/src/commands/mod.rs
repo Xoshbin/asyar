@@ -99,3 +99,21 @@ pub use system_events::*;
 pub use templating::*;
 pub use timers::*;
 pub use window_management::*;
+
+#[cfg(test)]
+mod dialog_api_tests {
+    #[test]
+    fn async_commands_do_not_use_blocking_dialog_apis() {
+        let command_sources = [
+            include_str!("extensions.rs"),
+            include_str!("profile.rs"),
+            include_str!("scripts.rs"),
+            include_str!("../storage/commands.rs"),
+        ];
+
+        for source in command_sources {
+            assert!(!source.contains(concat!("blocking_", "pick")));
+            assert!(!source.contains(concat!("blocking_", "save")));
+        }
+    }
+}

@@ -140,7 +140,11 @@ pub async fn scripts_list_directories(db: State<'_, DataStore>) -> Result<Vec<St
 #[tauri::command]
 pub async fn scripts_pick_directory(app: tauri::AppHandle) -> Result<Option<String>, AppError> {
     use tauri_plugin_dialog::DialogExt;
-    let result = app.dialog().file().blocking_pick_folder();
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog().file().pick_folder(move |folder_path| {
+        let _ = tx.send(folder_path);
+    });
+    let result = rx.await.ok().flatten();
     Ok(result.map(|p| p.to_string()))
 }
 
