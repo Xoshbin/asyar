@@ -11,6 +11,14 @@ vi.mock('../../../lib/ipc/commands', () => ({
   clipboardClearNonFavorites: vi.fn(),
 }));
 
+vi.mock('../../settings/settingsService.svelte', () => ({
+  settingsService: {
+    currentSettings: {
+      clipboardHistory: { retentionMs: 90 * 24 * 60 * 60 * 1000 },
+    },
+  },
+}));
+
 vi.mock('../../feedback/feedbackService.svelte', () => ({
   feedbackService: { report: vi.fn() },
 }));
@@ -153,6 +161,7 @@ describe('clipboardHistoryStore', () => {
 
     expect(clipboardHistoryStore.recent[0].id).toBe('new');
     expect(events).toEqual([{ type: 'upsert', id: 'new' }]);
+    expect(mockCapture).toHaveBeenCalledWith(expect.anything(), 90 * 24 * 60 * 60 * 1000);
     unsub();
   });
 

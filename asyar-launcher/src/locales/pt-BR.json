@@ -449,7 +449,17 @@
       "rotate_dialog_body": "Sua frase de recuperação não mudará — apenas a frase secreta usada para desbloquear a sincronização criptografada.",
       "error_rotate_failed": "Não foi possível alterar a frase secreta. Verifique a frase antiga e tente novamente.",
       "error_passwords_mismatch": "As novas frases secretas não coincidem.",
-      "changing": "Alterando…"
+      "changing": "Alterando…",
+      "retention_period": "Retenção do histórico",
+      "retention_period_desc": "Excluir automaticamente itens da área de transferência mais antigos que o período selecionado. Os favoritos nunca são excluídos.",
+      "retention_1min": "1 minuto",
+      "retention_5min": "5 minutos",
+      "retention_10min": "10 minutos",
+      "retention_1hour": "1 hora",
+      "retention_24hours": "24 horas",
+      "retention_7days": "7 dias",
+      "retention_30days": "30 dias",
+      "retention_90days": "90 dias (padrão)"
     },
     "about": {
       "section_updates": "Atualizações",

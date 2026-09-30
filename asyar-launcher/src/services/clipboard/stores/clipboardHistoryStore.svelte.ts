@@ -15,6 +15,7 @@ import {
   type ClipboardDeleteResult,
   type ClipboardClearResult,
 } from '../../../lib/ipc/commands';
+import { settingsService } from '../../settings/settingsService.svelte';
 
 export type ClipboardStoreChangeEvent =
   { type: 'upsert'; itemId: string } | { type: 'delete'; itemId: string };
@@ -116,7 +117,8 @@ export class ClipboardHistoryStoreClass {
 
   async addHistoryItem(item: ClipboardHistoryItem): Promise<void> {
     const stored = item as unknown as StoredClipboardItem;
-    const res = await clipboardRecordCapture(stored);
+    const retentionMs = settingsService.currentSettings.clipboardHistory?.retentionMs;
+    const res = await clipboardRecordCapture(stored, retentionMs);
     if (res === null) return;
     if (res.evictedIds.length > 0) {
       const evicted = new Set(res.evictedIds);

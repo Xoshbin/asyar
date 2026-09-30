@@ -61,7 +61,8 @@ fn main() {
     // Seed.
     let t = Instant::now();
     for i in 0..n {
-        record_capture_with_fts(&conn, &make_text_item(i, base_ms), None, &key, &fts).unwrap();
+        record_capture_with_fts(&conn, &make_text_item(i, base_ms), None, &key, &fts, None)
+            .unwrap();
     }
     eprintln!("seed {n} rows: {:.0} ms", t.elapsed().as_millis());
 

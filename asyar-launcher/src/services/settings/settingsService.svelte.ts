@@ -92,6 +92,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     excludePatterns: [],
     indexHidden: false,
   },
+  clipboardHistory: {
+    retentionMs: 90 * 24 * 60 * 60 * 1000, // 90 days
+  },
 };
 
 // Settings service implementation
@@ -423,6 +426,9 @@ class SettingsService implements ISettingsService {
           ...DEFAULT_SETTINGS.fileSearch,
           ...(typedStored?.fileSearch ?? {}),
         },
+        clipboardHistory: typedStored?.clipboardHistory
+          ? { ...DEFAULT_SETTINGS.clipboardHistory, ...typedStored.clipboardHistory }
+          : DEFAULT_SETTINGS.clipboardHistory,
       };
     } catch (error) {
       logService.error(`Error merging settings: ${error}`);

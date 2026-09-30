@@ -219,16 +219,28 @@ Code paths: [`src-tauri/src/sync/e2ee/`](../../asyar-launcher/src-tauri/src/sync
 [`src/components/settings/DisableE2eeDialog.svelte`](../../asyar-launcher/src/components/settings/DisableE2eeDialog.svelte).
 Settings UI: **Settings → Account → Encrypted Sync**.
 
-## Layer 5 — Retention + per-item opt-out (planned)
+## Layer 5 — Retention & automatic eviction (shipped 2026-09-30)
+
+Time-to-live (TTL) automatic eviction ensures that captured clipboard items do
+not persist indefinitely on local storage. Configurable in
+**Settings → Privacy → Clipboard Privacy**:
+
+- Retention periods range from **1 minute**, **5 minutes**, **10 minutes**, **1 hour**,
+  **24 hours**, **7 days**, **30 days**, to **90 days** (default).
+- On every capture, the storage engine runs age-based cleanup in SQLite
+  (`createdAt < now - retentionMs`) alongside the 50,000 item volume cap.
+- **Favourited items are exempt**: starred entries persist until explicitly deleted
+  or unpinned by the user.
+- Addresses threats 1, 2, and 4 by shrinking the exposure window for sensitive or
+  incidental copies that bypassed capture-time denylists.
+
+Additional planned controls under Layer 5:
 
 - Per-clipboard-item right-click "Don't sync" toggle.
 - AI conversations capped at last N (configurable).
 - Snippet "private" tag — never syncs even if cloud sync is on.
 - Optional "scrub long pastes" mode — drops conversation messages over
   X lines that look like code blocks.
-
-Addresses user agency rather than a specific threat: even with all
-prior layers, the user remains the last line of defense.
 
 ## What this is NOT
 

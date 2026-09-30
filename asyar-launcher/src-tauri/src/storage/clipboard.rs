@@ -977,6 +977,7 @@ pub fn record_capture(
     item: &ClipboardItem,
     icon_cache_dir: Option<&Path>,
     master_key: &[u8; 32],
+    retention_ms: Option<f64>,
 ) -> Result<CaptureResult, AppError> {
     let mut new_item = item.clone();
     if let Some(cache_dir) = icon_cache_dir {
@@ -1015,7 +1016,8 @@ pub fn record_capture(
     }
 
     add_item(conn, &new_item, master_key)?;
-    let evicted_ids = cleanup(conn, MAX_HISTORY_AGE_MS, MAX_HISTORY_ITEMS)?;
+    let age_ms = retention_ms.unwrap_or(MAX_HISTORY_AGE_MS);
+    let evicted_ids = cleanup(conn, age_ms, MAX_HISTORY_ITEMS)?;
 
     Ok(CaptureResult {
         inserted_id: new_item.id,
@@ -1033,6 +1035,7 @@ pub fn record_capture_with_fts(
     icon_cache_dir: Option<&Path>,
     master_key: &[u8; 32],
     fts: &ClipboardFts,
+    retention_ms: Option<f64>,
 ) -> Result<CaptureResult, AppError> {
     // Look up the dup id (if any) BEFORE record_capture deletes it, so
     // we can drop its FTS row.
@@ -1046,7 +1049,7 @@ pub fn record_capture_with_fts(
     if let Some(d) = &dup {
         fts.delete(&d.id)?;
     }
-    let res = record_capture(conn, item, icon_cache_dir, master_key)?;
+    let res = record_capture(conn, item, icon_cache_dir, master_key, retention_ms)?;
     // New row is in the DB now — index it.
     fts.upsert(
         &res.inserted_id,
@@ -1291,6 +1294,55 @@ mod tests {
     }
 
     #[test]
+    fn test_cleanup_custom_retention_evicts_old_non_favorites() {
+        let conn = setup();
+        let key = test_key();
+
+        // In test mode js_sys_now() == 0.0, so any positive created_at is "in the future".
+        // We simulate a short retention window by using a large negative cutoff indirectly:
+        // pass retention_ms = 0 → cutoff = 0 - 0 = 0, evicting items with created_at < 0
+        // (none). Instead we use very large created_at values (future) and a tiny
+        // retention_ms to push the cutoff past them.
+        //
+        // Strategy: use created_at = 1000.0 and retention_ms = Some(1.0).
+        // In production, cutoff = now_ms - 1.0 ≈ now_ms. In tests, js_sys_now()=0,
+        // so cutoff = 0 - 1.0 = -1.0 — items with created_at=1000.0 survive because
+        // 1000 > -1. That means a direct retention_ms test via record_capture won't
+        // evict items in test mode (by design — see js_sys_now test stub).
+        //
+        // So we test cleanup() directly with an explicit cutoff that is past created_at.
+        // Items with created_at = 1000.0 should be evicted when we call cleanup with
+        // max_age_ms = 0 AND a fake "now" that is large — but we can't override js_sys_now
+        // here. Instead, set created_at to a large negative value so the default cutoff
+        // (0 - max_age_ms) falls above them.
+        let mut old_item = make_item("old_nonfav", "old text", false);
+        old_item.created_at = -100.0; // ancient; cutoff = 0 - 1 = -1 > -100 → evicted
+        add_item(&conn, &old_item, &key).unwrap();
+
+        let mut fav_item = make_item("old_fav", "fav text", true);
+        fav_item.created_at = -100.0;
+        add_item(&conn, &fav_item, &key).unwrap();
+
+        // max_age_ms = 1 → cutoff = js_sys_now() - 1 = 0 - 1 = -1
+        // old_nonfav created_at = -100 < -1 → evicted
+        // old_fav is a favorite → SQL WHERE favorite = 0 skips it → kept
+        let evicted = cleanup(&conn, 1.0, MAX_HISTORY_ITEMS).unwrap();
+        assert_eq!(
+            evicted,
+            vec!["old_nonfav"],
+            "non-favorite past TTL must be evicted"
+        );
+
+        let remaining = get_all(&conn, &key).unwrap();
+        assert_eq!(remaining.len(), 1, "only the favorite should remain");
+        assert_eq!(remaining[0].id, "old_fav");
+        assert!(
+            remaining[0].favorite,
+            "the surviving item must be a favorite"
+        );
+    }
+
+    #[test]
     fn test_metadata_roundtrip() {
         let conn = setup();
         let key = test_key();
@@ -1361,7 +1413,7 @@ mod tests {
         let mut new_item = make_item("2", "hello", false); // favorite = false
         new_item.created_at = 2000.0;
 
-        let result = record_capture(&conn, &new_item, None, &key).unwrap();
+        let result = record_capture(&conn, &new_item, None, &key, None).unwrap();
         let items = get_all(&conn, &key).unwrap();
 
         // The inserted id is the new item
@@ -1388,7 +1440,7 @@ mod tests {
         let mut item_b = make_item("2", "same content", false);
         item_b.created_at = 2000.0;
 
-        let result = record_capture(&conn, &item_b, None, &key).unwrap();
+        let result = record_capture(&conn, &item_b, None, &key, None).unwrap();
         let items = get_all(&conn, &key).unwrap();
 
         // The inserted id is the new item
@@ -1412,7 +1464,7 @@ mod tests {
         let mut new_item = make_item("2", "new", false);
         new_item.created_at = 2000.0;
 
-        let result = record_capture(&conn, &new_item, None, &key).unwrap();
+        let result = record_capture(&conn, &new_item, None, &key, None).unwrap();
         let items = get_all(&conn, &key).unwrap();
 
         // The inserted id is the new item
@@ -1652,7 +1704,7 @@ mod tests {
         // Capture same content with a new id — triggers dedup → delete_item("old")
         let mut new_item = make_item("new", "same content", false);
         new_item.created_at = 2000.0;
-        record_capture(&conn, &new_item, None, &key).unwrap();
+        record_capture(&conn, &new_item, None, &key, None).unwrap();
 
         // "old" must be tombstoned
         let row = journal_row(&conn, "old");
@@ -2216,7 +2268,7 @@ mod tests {
 
         let mut new_item = make_item("fresh", "new body", false);
         new_item.created_at = 9999.0;
-        let res = record_capture(&conn, &new_item, None, &key).unwrap();
+        let res = record_capture(&conn, &new_item, None, &key, None).unwrap();
         assert_eq!(res.inserted_id, "fresh");
         assert!(
             res.evicted_ids.is_empty(),
@@ -2261,7 +2313,7 @@ mod tests {
         let key = test_key();
         let mut item = make_item("c1", "searchable apple body", false);
         item.preview = Some("preview apple".into());
-        record_capture_with_fts(&conn, &item, None, &key, &fts).unwrap();
+        record_capture_with_fts(&conn, &item, None, &key, &fts, None).unwrap();
 
         let hits = fts.search("apple", 10).unwrap();
         assert_eq!(hits, vec!["c1".to_string()]);
@@ -2272,7 +2324,7 @@ mod tests {
         let (conn, fts) = setup_with_fts();
         let key = test_key();
         let item = make_item("c1", "banana body", false);
-        record_capture_with_fts(&conn, &item, None, &key, &fts).unwrap();
+        record_capture_with_fts(&conn, &item, None, &key, &fts, None).unwrap();
         assert!(!fts.search("banana", 10).unwrap().is_empty());
 
         delete_item_with_fts(&conn, "c1", &key, &fts).unwrap();
@@ -2289,11 +2341,12 @@ mod tests {
             None,
             &key,
             &fts,
+            None,
         )
         .unwrap();
         let mut fav = make_item("favid", "carrot favorite", true);
         fav.created_at = 2000.0;
-        record_capture_with_fts(&conn, &fav, None, &key, &fts).unwrap();
+        record_capture_with_fts(&conn, &fav, None, &key, &fts, None).unwrap();
 
         clear_non_favorites_with_fts(&conn, &key, &fts).unwrap();
         let hits = fts.search("carrot", 10).unwrap();
@@ -2306,11 +2359,11 @@ mod tests {
         let key = test_key();
         let mut old = make_item("old", "duplicate body", false);
         old.created_at = 1000.0;
-        record_capture_with_fts(&conn, &old, None, &key, &fts).unwrap();
+        record_capture_with_fts(&conn, &old, None, &key, &fts, None).unwrap();
 
         let mut new = make_item("new", "duplicate body", false);
         new.created_at = 2000.0;
-        record_capture_with_fts(&conn, &new, None, &key, &fts).unwrap();
+        record_capture_with_fts(&conn, &new, None, &key, &fts, None).unwrap();
 
         let hits = fts.search("duplicate", 10).unwrap();
         assert_eq!(
@@ -2332,11 +2385,11 @@ mod tests {
         for i in 0..10u32 {
             let mut it = make_item(&i.to_string(), &format!("body apple {i}"), false);
             it.created_at = 1000.0 + i as f64;
-            record_capture_with_fts(&conn, &it, None, &key, &fts).unwrap();
+            record_capture_with_fts(&conn, &it, None, &key, &fts, None).unwrap();
         }
         let mut other = make_item("z", "body banana z", false);
         other.created_at = 2000.0;
-        record_capture_with_fts(&conn, &other, None, &key, &fts).unwrap();
+        record_capture_with_fts(&conn, &other, None, &key, &fts, None).unwrap();
 
         // Ready required.
         crate::storage::clipboard_fts::mark_ready();

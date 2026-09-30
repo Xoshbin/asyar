@@ -97,7 +97,7 @@ This section is split across two related tabs.
 **Privacy** tab:
 
 - **Encryption status** — Shows whether Asyar's local data store is encrypted on disk.
-- **Clipboard privacy** — Configure rules to prevent certain apps or patterns from being captured in Clipboard History.
+- **Clipboard privacy** — Configure the history retention period (TTL from 1 minute up to 90 days), inspect session capture stats, and manage application denylist rules to prevent sensitive apps (like password managers) from being captured into Clipboard History.
 - **Secret redaction** — Automatically strip API keys and tokens from clipboard entries before they are stored.
 
 **Scripts** tab:

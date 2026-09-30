@@ -450,7 +450,17 @@
       "rotate_dialog_body": "Your recovery phrase will not change — only the passphrase used to unlock encrypted sync.",
       "error_rotate_failed": "Couldn't change passphrase. Check the old passphrase and try again.",
       "error_passwords_mismatch": "New passphrases don't match.",
-      "changing": "Changing…"
+      "changing": "Changing…",
+      "retention_period": "History retention",
+      "retention_period_desc": "Automatically delete clipboard items older than the selected period. Favorites are never deleted.",
+      "retention_1min": "1 minute",
+      "retention_5min": "5 minutes",
+      "retention_10min": "10 minutes",
+      "retention_1hour": "1 hour",
+      "retention_24hours": "24 hours",
+      "retention_7days": "7 days",
+      "retention_30days": "30 days",
+      "retention_90days": "90 days (default)"
     },
     "about": {
       "section_updates": "Updates",
