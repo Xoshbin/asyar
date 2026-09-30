@@ -613,7 +613,12 @@
       "keyword_label": "Keyword",
       "content_label": "Snippet Content",
       "delete_confirm_title": "Delete snippet",
-      "this_snippet": "this snippet"
+      "this_snippet": "this snippet",
+      "private_badge": "Private",
+      "private_label": "Private (Local Only)",
+      "private_hint": "Keep this snippet on this device and exclude it from cloud sync.",
+      "toggle_private": "Toggle Private (Local Only)",
+      "toggle_private_description": "Mark or unmark the selected snippet as private to prevent cloud sync."
     },
     "file_search": {
       "title": "File Search",

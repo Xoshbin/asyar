@@ -244,9 +244,16 @@ AI conversation history retention cap (shipped 2026-09-30):
 - **Pinned threads are strictly preserved**: pinned conversations (`is_pinned = 1`)
   are exempt from retention cleanup.
 
+Snippet "private" tag / local-only sync opt-out (shipped 2026-09-30):
+
+- Snippets can be individually marked as **Private (Local Only)** via the snippet editor toggle or the `⌘K` Action Panel ("Toggle Private (Local Only)").
+- Private snippets are visually badged with a "Private" indicator in both list rows and detail headers.
+- **Sync exclusion**: Private snippets are strictly filtered out from sync payloads (`export_for_sync`, `exportItems`) and never leave the local device even when cloud sync is active.
+- **Tombstone suppression**: Local updates or deletions of private snippets suppress cloud sync change events and tombstones, eliminating cross-device leakage.
+- Remote sync merge or replace imports preserve local private snippets without overwriting or removing them.
+
 Additional planned controls under Layer 5:
 
-- Snippet "private" tag — never syncs even if cloud sync is on.
 - Optional "scrub long pastes" mode — drops conversation messages over
   X lines that look like code blocks.
 

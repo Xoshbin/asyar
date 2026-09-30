@@ -694,6 +694,8 @@ pub fn run() {
             storage::commands::snippet_get_all,
             storage::commands::snippet_remove,
             storage::commands::snippet_toggle_pin,
+            storage::commands::snippet_toggle_private,
+            storage::commands::snippet_export_for_sync,
             storage::commands::snippet_clear_all,
             // Storage: notes
             storage::commands::note_upsert,

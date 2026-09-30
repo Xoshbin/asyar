@@ -177,6 +177,22 @@ class SnippetsExtension implements Extension {
       },
     });
     actionService.registerAction({
+      id: 'snippets:toggle-private',
+      label: 'Toggle Private (Local Only)',
+      icon: 'icon:lock',
+      description: 'Mark or unmark the selected snippet as private to prevent cloud sync',
+      category: 'Snippets',
+      extensionId: 'snippets',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        const s = snippetViewState.selectedSnippet;
+        if (s) {
+          snippetStore.togglePrivate(s.id);
+          await snippetService.syncToRust();
+        }
+      },
+    });
+    actionService.registerAction({
       id: 'snippets:clear-all',
       label: 'Clear All Snippets',
       icon: 'icon:trash',
@@ -201,6 +217,7 @@ class SnippetsExtension implements Extension {
     actionService.unregisterAction('snippets:copy-expansion');
     actionService.unregisterAction('snippets:duplicate');
     actionService.unregisterAction('snippets:toggle-pin');
+    actionService.unregisterAction('snippets:toggle-private');
     actionService.unregisterAction('snippets:clear-all');
   }
 

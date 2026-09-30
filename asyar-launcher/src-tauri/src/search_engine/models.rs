@@ -518,7 +518,8 @@ mod bindings_export {
             .register::<crate::launcher_placement::LauncherAnchor>()
             .register::<crate::locale::ParsedLocale>()
             .register::<crate::locale::NumberFormat>()
-            .register::<crate::window_management::types::AppWindowInfo>();
+            .register::<crate::window_management::types::AppWindowInfo>()
+            .register::<crate::storage::snippets::Snippet>();
 
         Typescript::default()
             .bigint(BigIntExportBehavior::Number)

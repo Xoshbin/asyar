@@ -612,7 +612,12 @@
       "keyword_label": "關鍵詞",
       "content_label": "片段內容",
       "delete_confirm_title": "刪除片段",
-      "this_snippet": "此片段"
+      "this_snippet": "此片段",
+      "private_badge": "私密",
+      "private_label": "私密（僅本機）",
+      "private_hint": "將此片段保留在此裝置上，並從雲端同步中排除。",
+      "toggle_private": "切換私密（僅本機）",
+      "toggle_private_description": "標記或取消標記所選片段為私密以防止雲端同步。"
     },
     "file_search": {
       "title": "檔案搜尋",

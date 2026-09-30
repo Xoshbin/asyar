@@ -3,6 +3,7 @@ import {
   snippetGetAll,
   snippetRemove,
   snippetTogglePin,
+  snippetTogglePrivate,
   snippetClearAll,
 } from '../../lib/ipc/commands';
 import { logService } from '../../services/log/logService';
@@ -26,6 +27,7 @@ export interface Snippet {
   name: string; // display label
   createdAt: number;
   pinned?: boolean;
+  isPrivate?: boolean;
   /**
    * Set when the secret detector matched on save. The Rust store encrypts the
    * original expansion at rest and returns it decrypted for use and editing.
@@ -38,7 +40,8 @@ export interface Snippet {
  * the cloud sync delta provider to mark items dirty for the next push.
  */
 export type SnippetStoreChangeEvent =
-  { type: 'upsert'; itemId: string } | { type: 'delete'; itemId: string };
+  | { type: 'upsert'; itemId: string; isPrivate?: boolean }
+  | { type: 'delete'; itemId: string; isPrivate?: boolean };
 
 class SnippetStoreClass {
   snippets = $state<Snippet[]>([]);
@@ -68,7 +71,7 @@ class SnippetStoreClass {
 
     try {
       const data = await snippetGetAll();
-      this.snippets = data as Snippet[];
+      this.snippets = (data as Snippet[]) || [];
     } catch {
       // Keep empty default
     }
@@ -81,7 +84,7 @@ class SnippetStoreClass {
   add(snippet: Snippet) {
     this.snippets = [...this.snippets.filter((s) => s.id !== snippet.id), snippet];
     snippetUpsert(snippet as any).catch((err) => reportPersistenceFailure('Failed to save', err));
-    this.#notify({ type: 'upsert', itemId: snippet.id });
+    this.#notify({ type: 'upsert', itemId: snippet.id, isPrivate: snippet.isPrivate ?? false });
   }
 
   update(id: string, changes: Partial<Snippet>) {
@@ -91,26 +94,40 @@ class SnippetStoreClass {
       snippetUpsert(updated as any).catch((err) =>
         reportPersistenceFailure('Failed to update', err),
       );
-    this.#notify({ type: 'upsert', itemId: id });
+    this.#notify({ type: 'upsert', itemId: id, isPrivate: updated?.isPrivate ?? false });
   }
 
   remove(id: string) {
+    const existing = this.snippets.find((s) => s.id === id);
+    const isPrivate = existing?.isPrivate ?? false;
     this.snippets = this.snippets.filter((s) => s.id !== id);
     snippetRemove(id).catch((err) => reportPersistenceFailure('Failed to delete', err));
-    this.#notify({ type: 'delete', itemId: id });
+    this.#notify({ type: 'delete', itemId: id, isPrivate });
   }
 
   togglePin(id: string) {
     this.snippets = this.snippets.map((s) => (s.id === id ? { ...s, pinned: !s.pinned } : s));
+    const updated = this.snippets.find((s) => s.id === id);
     snippetTogglePin(id).catch((err) => reportPersistenceFailure('Failed to toggle pin', err));
-    this.#notify({ type: 'upsert', itemId: id });
+    this.#notify({ type: 'upsert', itemId: id, isPrivate: updated?.isPrivate ?? false });
+  }
+
+  togglePrivate(id: string) {
+    this.snippets = this.snippets.map((s) => (s.id === id ? { ...s, isPrivate: !s.isPrivate } : s));
+    const updated = this.snippets.find((s) => s.id === id);
+    snippetTogglePrivate(id).catch((err) =>
+      reportPersistenceFailure('Failed to toggle private', err),
+    );
+    this.#notify({ type: 'upsert', itemId: id, isPrivate: updated?.isPrivate ?? false });
   }
 
   clearAll() {
-    const removedIds = this.snippets.map((s) => s.id);
+    const removedSnippets = [...this.snippets];
     this.snippets = [];
     snippetClearAll().catch((err) => reportPersistenceFailure('Failed to clear all', err));
-    removedIds.forEach((id) => this.#notify({ type: 'delete', itemId: id }));
+    removedSnippets.forEach((s) =>
+      this.#notify({ type: 'delete', itemId: s.id, isPrivate: s.isPrivate ?? false }),
+    );
   }
 
   async reload() {

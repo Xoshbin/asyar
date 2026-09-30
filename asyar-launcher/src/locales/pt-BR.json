@@ -612,7 +612,12 @@
       "keyword_label": "Palavra-chave",
       "content_label": "Conteúdo do Snippet",
       "delete_confirm_title": "Excluir snippet",
-      "this_snippet": "este snippet"
+      "this_snippet": "este snippet",
+      "private_badge": "Privado",
+      "private_label": "Privado (Apenas Local)",
+      "private_hint": "Mantenha este snippet neste dispositivo e exclua-o da sincronização na nuvem.",
+      "toggle_private": "Alternar Privado (Apenas Local)",
+      "toggle_private_description": "Marcar ou desmarcar o snippet selecionado como privado para evitar a sincronização na nuvem."
     },
     "file_search": {
       "title": "Busca de Arquivos",

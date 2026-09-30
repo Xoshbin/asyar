@@ -180,6 +180,21 @@ pub fn snippet_toggle_pin(id: String, store: State<'_, DataStore>) -> Result<boo
 }
 
 #[tauri::command]
+pub fn snippet_toggle_private(id: String, store: State<'_, DataStore>) -> Result<bool, AppError> {
+    let conn = store.conn()?;
+    super::snippets::toggle_private(&conn, &id)
+}
+
+#[tauri::command]
+pub fn snippet_export_for_sync(
+    store: State<'_, DataStore>,
+    keystore: State<'_, KeystoreState>,
+) -> Result<Vec<super::snippets::Snippet>, AppError> {
+    let conn = store.conn()?;
+    super::snippets::export_for_sync(&conn, keystore.master_key())
+}
+
+#[tauri::command]
 pub fn snippet_clear_all(store: State<'_, DataStore>) -> Result<(), AppError> {
     let conn = store.conn()?;
     super::snippets::clear_all(&conn)
