@@ -1,0 +1,22 @@
+# Exclude tests from GitHub language statistics
+*.test.ts linguist-vendored=true
+*.spec.ts linguist-vendored=true
+*.test.js linguist-vendored=true
+*.spec.js linguist-vendored=true
+*.test.mjs linguist-vendored=true
+*.test.svelte linguist-vendored=true
+asyar-launcher/tests/** linguist-vendored=true
+asyar-sdk/tests/** linguist-vendored=true
+
+# Mark auto-generated files from Rust specta and generation scripts
+asyar-launcher/src/bindings.ts linguist-generated=true
+asyar-launcher/src/services/diagnostics/kinds.ts linguist-generated=true
+asyar-launcher/src/services/extension/gatedPermissions.ts linguist-generated=true
+asyar-sdk/cli/lib/gatedPermissions.ts linguist-generated=true
+asyar-sdk/cli/lib/knownRuntimes.ts linguist-generated=true
+
+# Mark documentation, benchmarks, and fixtures
+docs/** linguist-documentation=true
+benchmarks/** linguist-documentation=true
+*.sqlite linguist-vendored=true
+*.plist linguist-vendored=true
