@@ -11,7 +11,7 @@
   "commands": [
     {
       "id": "open-notes",
-      "name": "Open Notes",
+      "name": "Notes",
       "icon": "icon:type",
       "trigger": "notes",
       "description": "Browse, search, and write notes",

@@ -1,6 +1,6 @@
 {
   "id": "store",
-  "name": "store",
+  "name": "Store",
   "description": "Browse and install Asyar extensions.",
   "version": "1.0.0",
   "lifecycle": { "disableable": true },

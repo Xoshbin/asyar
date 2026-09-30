@@ -21,8 +21,8 @@
   "commands": [
     {
       "id": "show-clipboard",
-      "name": "Show Clipboard History",
-      "description": "Show clipboard history",
+      "name": "Clipboard History",
+      "description": "View and manage clipboard history",
       "trigger": "clip",
       "icon": "icon:clipboard",
       "mode": "view",

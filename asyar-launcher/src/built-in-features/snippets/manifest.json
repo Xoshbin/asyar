@@ -11,7 +11,7 @@
   "commands": [
     {
       "id": "open-snippets",
-      "name": "Open Snippets",
+      "name": "Snippets",
       "icon": "icon:snippets",
       "trigger": "snippets",
       "description": "Manage text expansion snippets",

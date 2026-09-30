@@ -247,7 +247,7 @@ describe('buildSectionedView', () => {
     const favCommand = makeItem({
       type: 'command',
       object_id: 'cmd_clipboard',
-      title: 'Show Clipboard History',
+      title: 'Clipboard History',
       favorite: true,
     });
     const regularCommand = makeItem({
@@ -261,7 +261,7 @@ describe('buildSectionedView', () => {
 
     expect(rows).toHaveLength(4); // 2 headers + 2 items
     expect(rows[0]).toMatchObject({ kind: 'header', title: 'Favorites', section: 'favorites' });
-    expect(rows[1]).toMatchObject({ kind: 'item', item: { title: 'Show Clipboard History' } });
+    expect(rows[1]).toMatchObject({ kind: 'item', item: { title: 'Clipboard History' } });
     expect(rows[2]).toMatchObject({ kind: 'header', title: 'Commands', section: 'commands' });
     expect(rows[3]).toMatchObject({ kind: 'item', item: { title: 'Search Files' } });
   });
@@ -276,7 +276,7 @@ describe('buildSectionedView', () => {
     const favCommand = makeItem({
       type: 'command',
       object_id: 'cmd_clipboard',
-      title: 'Show Clipboard History',
+      title: 'Clipboard History',
       favorite: true,
     });
 

@@ -1067,7 +1067,7 @@ describe('buildMappedItems run rows surface tail output', () => {
   it('maps result.favorite onto mappedItem.favorite', () => {
     const favResult = makeResult({
       objectId: 'cmd_clipboard',
-      name: 'Show Clipboard History',
+      name: 'Clipboard History',
       favorite: true,
     });
     const nonFavResult = makeResult({
@@ -1098,7 +1098,7 @@ describe('buildMappedItems run rows surface tail output', () => {
     });
     const fav = makeResult({
       objectId: 'cmd_clipboard',
-      name: 'Show Clipboard History',
+      name: 'Clipboard History',
       favorite: true,
     });
 

@@ -12,7 +12,7 @@ Every note is stored locally in SQLite on your machine, with full Markdown rende
 
 ### Open the Notes editor
 
-1. Open Asyar and type `notes` — or select **Open Notes** from search results.
+1. Open Asyar and type `notes` — or select **Notes** from search results.
 2. The notes view opens. The left pane lists your notes (pinned notes first, followed by recent notes).
 3. Use `↑` / `↓` to move through your notes, or start typing in the search bar to filter by title or body.
 4. Press `⌘N` (or choose **New Note** from `⌘K`) to create a new note.
@@ -44,17 +44,17 @@ Keep important information visible over your workspace:
 
 ## Shortcuts & actions
 
-| Action                   | Shortcut              |
-| :----------------------- | :-------------------- |
-| Open Notes               | `Enter` on Open Notes |
-| Create New Note          | `⌘N`                  |
-| Toggle Pin / Unpin       | `⌘P`                  |
-| Stick to Desktop (Float) | `⌘S`                  |
-| Copy as Markdown         | `⌘⇧C`                 |
-| Duplicate Note           | `⌘D`                  |
-| Export as Markdown file  | `⌘E`                  |
-| Delete Note              | `⌘K` → Delete Note    |
-| Open Action Panel        | `⌘K`                  |
+| Action                   | Shortcut           |
+| :----------------------- | :----------------- |
+| Notes                    | `Enter` on Notes   |
+| Create New Note          | `⌘N`               |
+| Toggle Pin / Unpin       | `⌘P`               |
+| Stick to Desktop (Float) | `⌘S`               |
+| Copy as Markdown         | `⌘⇧C`              |
+| Duplicate Note           | `⌘D`               |
+| Export as Markdown file  | `⌘E`               |
+| Delete Note              | `⌘K` → Delete Note |
+| Open Action Panel        | `⌘K`               |
 
 **Action panel (⌘K) entries while Notes is open:**
 
@@ -71,7 +71,7 @@ Keep important information visible over your workspace:
 - **Fast capture with hotkeys** — Assign a global shortcut to **Quick Note** or **Add to Today** in **Settings → Extensions** to capture thoughts in a single keystroke.
 - **Markdown formatting** — Notes supports headers (`#`), bold/italic (`**bold**`), lists (`- [ ] task`), code blocks, and blockquotes with live preview.
 - **Daily notes keep history organized** — Using `today <text>` groups your sporadic thoughts under a single daily note, keeping your note list tidy.
-- **Disabling Notes** — You can turn off the Notes feature in **Settings → Extensions**. When disabled, its commands (`Open Notes`, `Quick Note`, `New Sticky Note`, `Add to Today`), views, and search entries are hidden. Existing notes stored in SQLite are preserved intact and will reappear upon re-enabling. Authorized Tier 2 extensions with `notes:read` and `notes:write` permissions retain full access to query and create notes via the `INotesService` platform API even while the bundled UI is disabled.
+- **Disabling Notes** — You can turn off the Notes feature in **Settings → Extensions**. When disabled, its commands (`Notes`, `Quick Note`, `New Sticky Note`, `Add to Today`), views, and search entries are hidden. Existing notes stored in SQLite are preserved intact and will reappear upon re-enabling. Authorized Tier 2 extensions with `notes:read` and `notes:write` permissions retain full access to query and create notes via the `INotesService` platform API even while the bundled UI is disabled.
 
 ## Related
 
