@@ -171,23 +171,31 @@ pub async fn show_save_profile_dialog(
     default_filename: String,
 ) -> Result<Option<String>, AppError> {
     use tauri_plugin_dialog::DialogExt;
-    let result = app_handle
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app_handle
         .dialog()
         .file()
         .set_file_name(&default_filename)
         .add_filter("Asyar Profile", &["asyar"])
-        .blocking_save_file();
+        .save_file(move |file_path| {
+            let _ = tx.send(file_path);
+        });
+    let result = rx.await.ok().flatten();
     Ok(result.map(|p| p.to_string()))
 }
 
 #[tauri::command]
 pub async fn show_open_profile_dialog(app_handle: AppHandle) -> Result<Option<String>, AppError> {
     use tauri_plugin_dialog::DialogExt;
-    let result = app_handle
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app_handle
         .dialog()
         .file()
         .add_filter("Asyar Profile", &["asyar"])
-        .blocking_pick_file();
+        .pick_file(move |file_path| {
+            let _ = tx.send(file_path);
+        });
+    let result = rx.await.ok().flatten();
     Ok(result.map(|p| p.to_string()))
 }
 
