@@ -55,6 +55,17 @@ Asyar also records which app each item came from, so you can see the source appl
 - **Merged paste is plain text, in selection order** — `⌘Click`/`⌘↑`/`⌘↓` build an ordered multi-selection independent of the normal cursor, so browsing around with plain clicks or arrow keys never loses it. Pressing `Enter` joins every selected item's text with a newline and pastes it as one block, in the order you selected them. Images and files can't be merged as text and are skipped (you'll see a toast if any were).
 - **Disabling Clipboard History** — You can turn off Clipboard History in **Settings → Extensions**. When disabled, background clipboard monitoring and capture immediately stop, active views are closed, and search contributions are hidden. Existing history is safely preserved and will reappear if re-enabled. Shared clipboard read/write actions used by other features continue to function normally.
 
+## Automatic history retention (TTL)
+
+To protect your privacy and keep your clipboard database lean, Asyar automatically purges older clipboard entries based on a configurable time-to-live (TTL).
+
+- **Configurable retention periods** — In **Settings → Privacy → Clipboard Privacy**, you can choose how long items are kept before automatic eviction:
+  - `1 minute`, `5 minutes`, `10 minutes` (for high-privacy or temporary scratchpad usage)
+  - `1 hour`, `24 hours`, `7 days`, `30 days`
+  - `90 days` (default)
+- **Automatic eviction on capture** — Each time a new item is copied and captured, Asyar deletes non-favourited items that have aged past your selected retention window.
+- **Favourites are protected** — Starred/favourited entries are strictly preserved and will never be automatically deleted by the retention timer.
+
 ## Related
 
 - [The Basics](../the-basics.md)

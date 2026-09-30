@@ -115,3 +115,28 @@ unrecognised falls back to the default, so a hand-edited or downgraded file
 cannot leave the launcher unreachable.
 
 ---
+
+### Clipboard History Retention
+
+Asyar manages captured clipboard items with encryption at rest and automated retention cleanup (**Settings > Privacy > Clipboard Privacy**).
+
+#### Retention Period (TTL)
+
+The `clipboardHistory.retentionMs` setting controls how long non-favourited clipboard items persist before automatic eviction.
+
+| Option              | Milliseconds | Typical Use Case                                |
+| ------------------- | ------------ | ----------------------------------------------- |
+| `1 minute`          | `60000`      | Strict zero-trace privacy; temporary scratchpad |
+| `5 minutes`         | `300000`     | Quick cross-app copy/paste workflows            |
+| `10 minutes`        | `600000`     | Short-lived session retention                   |
+| `1 hour`            | `3600000`    | Task-based retention                            |
+| `24 hours`          | `86400000`   | Daily workspace cache                           |
+| `7 days`            | `604800000`  | Weekly working memory                           |
+| `30 days`           | `2592000000` | Monthly archive                                 |
+| `90 days` (Default) | `7776000000` | Standard long-term history                      |
+
+#### Eviction Mechanics
+
+- **Automatic Eviction**: Whenever a new clipboard item is captured, the storage engine executes an age-based purge in SQLite (`createdAt < now - retentionMs`).
+- **Favourite Protection**: Items marked as favourites are strictly preserved and never deleted by the retention cleanup.
+- **Maximum Item Cap**: In addition to time-based retention, the store enforces a safety ceiling of 50,000 total items (`MAX_HISTORY_ITEMS`), evicting the oldest non-favourite items if the count exceeds this limit.
