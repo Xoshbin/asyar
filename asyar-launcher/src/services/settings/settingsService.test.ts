@@ -492,6 +492,10 @@ describe('DEFAULT_SETTINGS.ai shape', () => {
     expect(productionAi).not.toHaveProperty('allowExtensionUse');
   });
 
+  it('has historyRetentionCap set to 100', () => {
+    expect(productionAi).toHaveProperty('historyRetentionCap', 100);
+  });
+
   it('matches the full new AISettings shape', () => {
     expect(productionAi).toEqual({
       providers: {
@@ -506,6 +510,7 @@ describe('DEFAULT_SETTINGS.ai shape', () => {
       maxTokens: 2048,
       defaultAgentId: null,
       tabContinuesLastThread: false,
+      historyRetentionCap: 100,
       webSearch: {
         engine: 'duckduckgo',
       },

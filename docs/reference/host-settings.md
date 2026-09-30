@@ -140,3 +140,28 @@ The `clipboardHistory.retentionMs` setting controls how long non-favourited clip
 - **Automatic Eviction**: Whenever a new clipboard item is captured, the storage engine executes an age-based purge in SQLite (`createdAt < now - retentionMs`).
 - **Favourite Protection**: Items marked as favourites are strictly preserved and never deleted by the retention cleanup.
 - **Maximum Item Cap**: In addition to time-based retention, the store enforces a safety ceiling of 50,000 total items (`MAX_HISTORY_ITEMS`), evicting the oldest non-favourite items if the count exceeds this limit.
+
+---
+
+### AI Conversation History Retention
+
+Asyar provides automatic history management and retention pruning for AI conversation threads (**Settings > AI > Behavior > History retention cap**).
+
+#### Retention Cap
+
+The `ai.historyRetentionCap` setting defines the maximum number of conversation sessions retained before older unpinned conversations are automatically pruned.
+
+| Option                   | Value | Behavior                                       |
+| ------------------------ | ----- | ---------------------------------------------- |
+| `Unlimited (keep all)`   | `0`   | Never automatically evict conversation threads |
+| `25 sessions`            | `25`  | Minimal session footprint                      |
+| `50 sessions`            | `50`  | Medium working session memory                  |
+| `100 sessions` (Default) | `100` | Standard default session retention             |
+| `Custom`                 | `N`   | User-defined ceiling (e.g. 10, 200, 500)       |
+
+#### Eviction Mechanics
+
+- **Automatic FIFO Eviction**: Pruning triggers on new thread creation, agent run completion, or when changing the retention cap in Settings. When total non-pinned threads exceed the configured cap, the oldest sessions (ordered by `updated_at DESC`) are automatically deleted.
+- **Pin Protection**: Pinned conversations (`is_pinned = 1`) are strictly preserved and exempt from automatic retention eviction.
+- **Active Session Protection**: The currently active conversation thread is shielded from deletion during active runner execution.
+- **Transactional Cascading Deletion**: Deletion of a thread atomically cascades across SQLite to remove all associated user/assistant messages, tool execution runs (`runs_history`), and execution logs within a single database transaction.

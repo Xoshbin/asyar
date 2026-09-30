@@ -1,8 +1,9 @@
 use crate::commands::agents::{
     agents_create_impl, agents_delete_impl, agents_get_impl, agents_list_impl,
     agents_message_insert_impl, agents_messages_list_impl, agents_thread_create_impl,
-    agents_thread_delete_impl, agents_threads_list_impl, agents_update_impl, AgentCreateInput,
-    AgentUpdateInput, MessageInsertInput, ThreadCreateInput,
+    agents_thread_delete_impl, agents_thread_set_pinned_impl, agents_threads_list_impl,
+    agents_threads_prune_impl, agents_update_impl, AgentCreateInput, AgentUpdateInput,
+    MessageInsertInput, ThreadCreateInput,
 };
 use crate::error::AppError;
 use crate::storage::agents::{
@@ -272,6 +273,8 @@ fn agents_thread_create_impl_requires_existing_agent() {
     let input = ThreadCreateInput {
         agent_id: "00000000-0000-0000-0000-000000000000".to_string(),
         title: Some("Orphan thread".to_string()),
+        is_pinned: None,
+        retention_cap: None,
     };
     let result = agents_thread_create_impl(&conn, input);
     assert!(
@@ -288,6 +291,8 @@ fn agents_thread_create_impl_inserts() {
     let input = ThreadCreateInput {
         agent_id: agent.id.clone(),
         title: Some("My Thread".to_string()),
+        is_pinned: None,
+        retention_cap: None,
     };
     let thread = agents_thread_create_impl(&conn, input).unwrap();
 
@@ -307,6 +312,8 @@ fn agents_thread_delete_impl_removes_thread() {
     let thread_input = ThreadCreateInput {
         agent_id: agent.id.clone(),
         title: None,
+        is_pinned: None,
+        retention_cap: None,
     };
     let thread = agents_thread_create_impl(&conn, thread_input).unwrap();
 
@@ -329,6 +336,7 @@ fn agents_threads_list_impl_orders_desc() {
         id: "t-older-00000000-0000-0000-0000-000000000001".to_string(),
         agent_id: agent.id.clone(),
         title: Some("Older".to_string()),
+        is_pinned: false,
         created_at: Some(1000),
         updated_at: Some(1000),
     };
@@ -336,6 +344,7 @@ fn agents_threads_list_impl_orders_desc() {
         id: "t-newer-00000000-0000-0000-0000-000000000002".to_string(),
         agent_id: agent.id.clone(),
         title: Some("Newer".to_string()),
+        is_pinned: false,
         created_at: Some(5000),
         updated_at: Some(5000),
     };
@@ -378,6 +387,8 @@ fn agents_message_insert_impl_inserts() {
         ThreadCreateInput {
             agent_id: agent.id.clone(),
             title: None,
+            is_pinned: None,
+            retention_cap: None,
         },
     )
     .unwrap();
@@ -413,6 +424,8 @@ fn agents_messages_list_impl_orders_asc() {
         ThreadCreateInput {
             agent_id: agent.id.clone(),
             title: None,
+            is_pinned: None,
+            retention_cap: None,
         },
     )
     .unwrap();
@@ -556,4 +569,112 @@ fn agents_update_impl_overrides_silent_fields_when_specified() {
     assert!(updated.silent);
     assert_eq!(updated.input_source, SilentInputSource::Selection);
     assert_eq!(updated.output_action, SilentOutputAction::Hud);
+}
+
+// ── Thread Pinning & Prune Command Tests ─────────────────────────────────────
+
+#[test]
+fn agents_thread_create_with_retention_cap_prunes_older_threads() {
+    let conn = make_conn();
+    let agent = agents_create_impl(&conn, valid_create_input()).unwrap();
+
+    // Create 3 threads without cap
+    for i in 1..=3 {
+        agents_thread_create_impl(
+            &conn,
+            ThreadCreateInput {
+                agent_id: agent.id.clone(),
+                title: Some(format!("Thread {i}")),
+                is_pinned: None,
+                retention_cap: None,
+            },
+        )
+        .unwrap();
+    }
+    assert_eq!(
+        agents_threads_list_impl(&conn, agent.id.clone())
+            .unwrap()
+            .len(),
+        3
+    );
+
+    // Create a 4th thread with retention_cap = 2 -> keeps newest 2, prunes oldest 2
+    let newest = agents_thread_create_impl(
+        &conn,
+        ThreadCreateInput {
+            agent_id: agent.id.clone(),
+            title: Some("Thread 4 (Cap 2)".to_string()),
+            is_pinned: None,
+            retention_cap: Some(2),
+        },
+    )
+    .unwrap();
+
+    let threads = agents_threads_list_impl(&conn, agent.id.clone()).unwrap();
+    assert_eq!(
+        threads.len(),
+        2,
+        "threads should be pruned to retention cap of 2"
+    );
+    assert!(
+        threads.iter().any(|t| t.id == newest.id),
+        "newest created thread must be retained"
+    );
+}
+
+#[test]
+fn agents_thread_set_pinned_impl_pins_and_unpins() {
+    let conn = make_conn();
+    let agent = agents_create_impl(&conn, valid_create_input()).unwrap();
+    let thread = agents_thread_create_impl(
+        &conn,
+        ThreadCreateInput {
+            agent_id: agent.id.clone(),
+            title: Some("Pinned Thread".to_string()),
+            is_pinned: Some(false),
+            retention_cap: None,
+        },
+    )
+    .unwrap();
+    assert!(!thread.is_pinned);
+
+    agents_thread_set_pinned_impl(&conn, thread.id.clone(), true).unwrap();
+    let fetched = crate::storage::agents::get_thread(&conn, &thread.id)
+        .unwrap()
+        .unwrap();
+    assert!(fetched.is_pinned);
+
+    agents_thread_set_pinned_impl(&conn, thread.id.clone(), false).unwrap();
+    let fetched_unpinned = crate::storage::agents::get_thread(&conn, &thread.id)
+        .unwrap()
+        .unwrap();
+    assert!(!fetched_unpinned.is_pinned);
+}
+
+#[test]
+fn agents_threads_prune_impl_prunes_correctly() {
+    let conn = make_conn();
+    let agent = agents_create_impl(&conn, valid_create_input()).unwrap();
+
+    let mut thread_ids = Vec::new();
+    for i in 1..=4 {
+        let t = agents_thread_create_impl(
+            &conn,
+            ThreadCreateInput {
+                agent_id: agent.id.clone(),
+                title: Some(format!("Thread {i}")),
+                is_pinned: None,
+                retention_cap: None,
+            },
+        )
+        .unwrap();
+        thread_ids.push(t.id);
+    }
+
+    // Prune to 2
+    let pruned = agents_threads_prune_impl(&conn, 2, None).unwrap();
+    assert_eq!(pruned, 2);
+
+    let remaining = agents_threads_list_impl(&conn, agent.id).unwrap();
+    assert_eq!(remaining.len(), 2);
 }

@@ -68,6 +68,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     maxTokens: 2048,
     defaultAgentId: null,
     tabContinuesLastThread: false,
+    historyRetentionCap: 100,
     webSearch: {
       engine: 'duckduckgo',
     },
@@ -408,6 +409,10 @@ class SettingsService implements ISettingsService {
         ai: {
           ...DEFAULT_SETTINGS.ai,
           ...typedStored?.ai,
+          historyRetentionCap:
+            typeof typedStored?.ai?.historyRetentionCap === 'number'
+              ? typedStored.ai.historyRetentionCap
+              : DEFAULT_SETTINGS.ai.historyRetentionCap,
           // Deep-merge providers map so new providers get defaults
           providers: {
             ...DEFAULT_SETTINGS.ai.providers,

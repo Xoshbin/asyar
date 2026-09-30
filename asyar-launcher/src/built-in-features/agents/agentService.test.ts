@@ -11,6 +11,8 @@ vi.mock('../../lib/ipc/commands', () => ({
   agentsThreadsList: vi.fn(),
   agentsMessageInsert: vi.fn(),
   agentsMessagesList: vi.fn(),
+  agentsThreadSetPinned: vi.fn(),
+  agentsThreadsPrune: vi.fn(),
   agentsResolveDefault: vi.fn(),
   agentsUpsertDefault: vi.fn(),
   agentsSeedGrammarFix: vi.fn(),
@@ -200,8 +202,32 @@ describe('AgentService', () => {
 
     const result = await service.createThread('a1', 'My Thread');
 
-    expect(commands.agentsThreadCreate).toHaveBeenCalledWith('a1', 'My Thread');
+    expect(commands.agentsThreadCreate).toHaveBeenCalledWith('a1', 'My Thread', undefined, 100);
     expect(result).toEqual(thread);
+  });
+
+  it('createThread_passes_isPinned_and_retentionCap', async () => {
+    const thread = makeThread({ title: 'Pinned Thread' });
+    vi.mocked(commands.agentsThreadCreate).mockResolvedValueOnce(thread as never);
+
+    const result = await service.createThread('a1', 'Pinned Thread', true);
+
+    expect(commands.agentsThreadCreate).toHaveBeenCalledWith('a1', 'Pinned Thread', true, 100);
+    expect(result).toEqual(thread);
+  });
+
+  it('setThreadPinned_calls_ipc', async () => {
+    vi.mocked(commands.agentsThreadSetPinned).mockResolvedValueOnce(true as never);
+    const result = await service.setThreadPinned('t1', true);
+    expect(commands.agentsThreadSetPinned).toHaveBeenCalledWith('t1', true);
+    expect(result).toBeUndefined();
+  });
+
+  it('pruneThreads_calls_ipc_with_cap', async () => {
+    vi.mocked(commands.agentsThreadsPrune).mockResolvedValueOnce(3 as never);
+    const result = await service.pruneThreads(50, 't1');
+    expect(commands.agentsThreadsPrune).toHaveBeenCalledWith(50, 't1');
+    expect(result).toBe(3);
   });
 
   it('insertMessage_forwards_args_to_agentsMessageInsert', async () => {

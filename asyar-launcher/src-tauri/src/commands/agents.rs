@@ -91,6 +91,10 @@ pub struct AgentUpdateInput {
 pub struct ThreadCreateInput {
     pub agent_id: String,
     pub title: Option<String>,
+    #[serde(default)]
+    pub is_pinned: Option<bool>,
+    #[serde(default)]
+    pub retention_cap: Option<usize>,
 }
 
 #[derive(serde::Deserialize, specta::Type)]
@@ -195,11 +199,37 @@ pub fn agents_thread_create_impl(
         id: new_id(),
         agent_id: input.agent_id,
         title: input.title,
+        is_pinned: input.is_pinned.unwrap_or(false),
         created_at: Some(now),
         updated_at: Some(now),
     };
     insert_thread(conn, &row)?;
+    if let Some(cap) = input.retention_cap {
+        if cap > 0 {
+            let _ = crate::storage::agents::prune_sessions_with_active(conn, cap, Some(&row.id));
+        }
+    }
     Ok(row)
+}
+
+pub fn agents_thread_set_pinned_impl(
+    conn: &Connection,
+    id: String,
+    pinned: bool,
+) -> Result<(), AppError> {
+    crate::storage::agents::set_thread_pinned(conn, &id, pinned)
+}
+
+pub fn agents_threads_prune_impl(
+    conn: &Connection,
+    max_retained: usize,
+    active_thread_id: Option<String>,
+) -> Result<usize, AppError> {
+    crate::storage::agents::prune_sessions_with_active(
+        conn,
+        max_retained,
+        active_thread_id.as_deref(),
+    )
 }
 
 pub fn agents_thread_delete_impl(conn: &Connection, id: String) -> Result<(), AppError> {
@@ -384,11 +414,48 @@ pub async fn agents_seed_emoji_fallback(
 
 #[tauri::command]
 pub async fn agents_thread_create(
+    app: AppHandle,
     db: State<'_, DataStore>,
     input: ThreadCreateInput,
 ) -> Result<ThreadRow, AppError> {
-    let conn = db.conn()?;
-    agents_thread_create_impl(&conn, input)
+    let row = {
+        let conn = db.conn()?;
+        agents_thread_create_impl(&conn, input)?
+    };
+    let _ = app.emit("agents:changed", ());
+    Ok(row)
+}
+
+#[tauri::command]
+pub async fn agents_thread_set_pinned(
+    app: AppHandle,
+    db: State<'_, DataStore>,
+    id: String,
+    pinned: bool,
+) -> Result<(), AppError> {
+    {
+        let conn = db.conn()?;
+        agents_thread_set_pinned_impl(&conn, id, pinned)?;
+    }
+    let _ = app.emit("agents:changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn agents_threads_prune(
+    app: AppHandle,
+    db: State<'_, DataStore>,
+    max_retained: usize,
+    active_thread_id: Option<String>,
+) -> Result<usize, AppError> {
+    let pruned = {
+        let conn = db.conn()?;
+        agents_threads_prune_impl(&conn, max_retained, active_thread_id)?
+    };
+    if pruned > 0 {
+        let _ = app.emit("agents:changed", ());
+    }
+    Ok(pruned)
 }
 
 #[tauri::command]

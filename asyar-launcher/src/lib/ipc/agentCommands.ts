@@ -52,8 +52,31 @@ export async function agentsGet(
 export async function agentsThreadCreate(
   agentId: string,
   title?: string | null,
+  isPinned?: boolean,
+  retentionCap?: number,
 ): Promise<import('../../built-in-features/agents/types').ThreadDef | null> {
-  return invokeSafe('agents_thread_create', { input: { agentId, title: title ?? null } });
+  return invokeSafe('agents_thread_create', {
+    input: {
+      agentId,
+      title: title ?? null,
+      isPinned: isPinned ?? null,
+      retentionCap: retentionCap ?? null,
+    },
+  });
+}
+
+export async function agentsThreadSetPinned(id: string, pinned: boolean): Promise<void> {
+  await invokeSafe('agents_thread_set_pinned', { id, pinned });
+}
+
+export async function agentsThreadsPrune(
+  maxRetained: number,
+  activeThreadId?: string | null,
+): Promise<number | null> {
+  return invokeSafe('agents_threads_prune', {
+    maxRetained,
+    activeThreadId: activeThreadId ?? null,
+  });
 }
 
 export async function agentsThreadDelete(id: string): Promise<void> {

@@ -871,6 +871,8 @@ pub fn run() {
             commands::agents::agents_seed_grammar_fix,
             commands::agents::agents_seed_emoji_fallback,
             commands::agents::agents_thread_create,
+            commands::agents::agents_thread_set_pinned,
+            commands::agents::agents_threads_prune,
             commands::agents::agents_thread_delete,
             commands::agents::agents_thread_update_title,
             commands::agents::agents_threads_list,
