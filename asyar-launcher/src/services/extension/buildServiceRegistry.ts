@@ -49,6 +49,7 @@ import { runService } from '../run/runService.svelte';
 import { agentsToolsRegisterTier2, agentsToolsList, getSystemLocale } from '../../lib/ipc/commands';
 import { calculatorEvaluateForExtension } from '../../lib/ipc/calculatorCommands';
 import { completeExtensionOnboarding } from '../../lib/ipc/extensionLifecycleCommands';
+import { aiService } from '../ai/aiService';
 import type { ManifestTool } from 'asyar-sdk/contracts';
 
 export function buildServiceRegistry(deps: {
@@ -252,5 +253,6 @@ export function buildServiceRegistry(deps: {
     calculator: {
       evaluate: async (query: string) => calculatorEvaluateForExtension(query),
     },
+    ai: aiService,
   });
 }

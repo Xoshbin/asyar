@@ -26,6 +26,7 @@ import { WindowManagementServiceProxy } from './services/WindowManagementService
 import { PowerServiceProxy } from './services/PowerServiceProxy';
 import { ScreenServiceProxy } from './services/ScreenServiceProxy';
 import { CalculatorServiceProxy } from './services/CalculatorServiceProxy';
+import { AiServiceProxy } from './services/AiServiceProxy';
 import { ProcessServiceProxy } from './services/ProcessServiceProxy';
 import { SystemEventsServiceProxy } from './services/SystemEventsServiceProxy';
 import { TimerServiceProxy } from './services/TimerServiceProxy';
@@ -82,6 +83,7 @@ function buildFullProxyBag(): Partial<Record<Namespace, BaseServiceProxy>> {
     browser: new BrowserServiceProxy(),
     files: new FilesServiceProxy(),
     environment: new EnvironmentServiceProxy(),
+    ai: new AiServiceProxy(),
   };
 }
 

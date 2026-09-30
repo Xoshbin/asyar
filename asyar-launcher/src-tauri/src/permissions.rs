@@ -421,9 +421,10 @@ fn is_public_call(call_type: &str) -> bool {
             | "asyar:api:applicationIndex:unsubscribe"
             | "asyar:api:browser:subscribeEvents"
             | "asyar:api:browser:unsubscribeEvents"
-        // TODO(policy): `ai:streamChat` spends the user's configured AI provider
+        // TODO(policy): `ai:streamChat` and `ai:complete` spend the user's configured AI provider
         // credits with no permission. Preserved as public to keep current behavior;
         // gating needs a new manifest permission (owner decision, tracked separately).
+            | "asyar:api:ai:complete"
             | "asyar:api:ai:streamChat"
         // An extension marking its OWN per-extension onboarding complete
         // (extension_id is host-injected from the trusted iframe attribute,
@@ -1278,6 +1279,7 @@ mod tests {
     #[test]
     fn removed_ai_stream_chat_wire_type_is_not_registered() {
         assert_eq!(get_required_permission("asyar:api:ai:streamChat"), None);
+        assert_eq!(get_required_permission("asyar:api:ai:complete"), None);
     }
 
     #[test]

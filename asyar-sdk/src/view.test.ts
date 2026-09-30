@@ -35,6 +35,7 @@ const VIEW_PROXY_NAMESPACES = [
   'opener',
   'environment',
   'calculator',
+  'ai',
 ] as const;
 
 function setRole(role: string | undefined) {

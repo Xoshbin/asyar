@@ -45,6 +45,7 @@ describe('NAMESPACES', () => {
       'notes',
       'environment',
       'calculator',
+      'ai',
     ]);
   });
 
