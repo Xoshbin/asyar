@@ -114,5 +114,7 @@ export interface AISettings {
   maxTokens: number;
   defaultAgentId: string | null;
   tabContinuesLastThread: boolean;
+  /** Maximum conversation threads retained in history. 0 means unlimited. Default is 100. */
+  historyRetentionCap: number;
   webSearch?: WebSearchSettings;
 }

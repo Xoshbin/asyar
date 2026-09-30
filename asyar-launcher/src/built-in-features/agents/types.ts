@@ -41,6 +41,7 @@ export interface ThreadDef {
   id: string;
   agentId: string;
   title: string | null;
+  isPinned?: boolean;
   createdAt: number | null;
   updatedAt: number | null;
 }
@@ -80,4 +81,11 @@ export interface MessageInsertInput {
   role: MessageRole;
   content: unknown;
   runId?: string | null;
+}
+
+export interface ThreadCreateInput {
+  agentId: string;
+  title?: string | null;
+  isPinned?: boolean;
+  retentionCap?: number;
 }

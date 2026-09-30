@@ -2,8 +2,8 @@
 use crate::storage::agents::{
     delete_agent, delete_thread, find_run_origin, get_agent, init_table, insert_agent,
     insert_message, insert_thread, list_agents, list_messages_for_thread, list_threads_for_agent,
-    update_agent, AgentRow, MessageRole, MessageRow, SilentInputSource, SilentOutputAction,
-    ThreadRow,
+    prune_sessions, prune_sessions_with_active, set_thread_pinned, update_agent, AgentRow,
+    MessageRole, MessageRow, SilentInputSource, SilentOutputAction, ThreadRow,
 };
 use rusqlite::Connection;
 
@@ -38,6 +38,7 @@ fn thread(id: &str, agent_id: &str, updated_at: i64) -> ThreadRow {
         id: id.to_string(),
         agent_id: agent_id.to_string(),
         title: Some(format!("Thread {id}")),
+        is_pinned: false,
         created_at: Some(updated_at),
         updated_at: Some(updated_at),
     }
@@ -425,4 +426,194 @@ fn list_agents_returns_silent_fields() {
     assert!(rows[0].silent);
     assert_eq!(rows[0].input_source, SilentInputSource::None);
     assert_eq!(rows[0].output_action, SilentOutputAction::Paste);
+}
+
+// ── Pruning & Pinning Tests ──────────────────────────────────────────────────
+
+#[test]
+fn prune_sessions_zero_max_retained_is_noop() {
+    let conn = make_conn();
+    insert_agent(&conn, &agent("a1", 1000)).unwrap();
+    insert_thread(&conn, &thread("t1", "a1", 1000)).unwrap();
+    insert_thread(&conn, &thread("t2", "a1", 2000)).unwrap();
+
+    let pruned = prune_sessions(&conn, 0).unwrap();
+    assert_eq!(pruned, 0, "0 max_retained means unlimited — no pruning");
+    let remaining = list_threads_for_agent(&conn, "a1").unwrap();
+    assert_eq!(remaining.len(), 2);
+}
+
+#[test]
+fn prune_sessions_below_cap_does_nothing() {
+    let conn = make_conn();
+    insert_agent(&conn, &agent("a1", 1000)).unwrap();
+    insert_thread(&conn, &thread("t1", "a1", 1000)).unwrap();
+    insert_thread(&conn, &thread("t2", "a1", 2000)).unwrap();
+
+    let pruned = prune_sessions(&conn, 5).unwrap();
+    assert_eq!(pruned, 0);
+    let remaining = list_threads_for_agent(&conn, "a1").unwrap();
+    assert_eq!(remaining.len(), 2);
+}
+
+#[test]
+fn prune_sessions_fifo_evicts_oldest_threads() {
+    let conn = make_conn();
+    insert_agent(&conn, &agent("a1", 1000)).unwrap();
+
+    // Insert 5 threads with distinct timestamps
+    for i in 1..=5 {
+        insert_thread(&conn, &thread(&format!("t{i}"), "a1", i * 1000)).unwrap();
+    }
+
+    // Keep 3 newest threads -> t1 and t2 (oldest) should be pruned
+    let pruned = prune_sessions(&conn, 3).unwrap();
+    assert_eq!(pruned, 2);
+
+    let remaining = list_threads_for_agent(&conn, "a1").unwrap();
+    assert_eq!(remaining.len(), 3);
+    assert_eq!(remaining[0].id, "t5");
+    assert_eq!(remaining[1].id, "t4");
+    assert_eq!(remaining[2].id, "t3");
+}
+
+#[test]
+fn prune_sessions_protects_pinned_threads() {
+    let conn = make_conn();
+    insert_agent(&conn, &agent("a1", 1000)).unwrap();
+
+    // t1 is the oldest but pinned
+    let mut t1 = thread("t1", "a1", 1000);
+    t1.is_pinned = true;
+    insert_thread(&conn, &t1).unwrap();
+
+    // t2..t5 are unpinned
+    for i in 2..=5 {
+        insert_thread(&conn, &thread(&format!("t{i}"), "a1", i * 1000)).unwrap();
+    }
+
+    // Cap at 2 unpinned sessions. Older unpinned (t2, t3) should be evicted,
+    // but pinned t1 must remain protected even though it is the oldest!
+    let pruned = prune_sessions(&conn, 2).unwrap();
+    assert_eq!(pruned, 2);
+
+    let remaining = list_threads_for_agent(&conn, "a1").unwrap();
+    // 1 pinned + 2 unpinned = 3 total
+    assert_eq!(remaining.len(), 3);
+
+    let ids: Vec<String> = remaining.into_iter().map(|t| t.id).collect();
+    assert!(
+        ids.contains(&"t1".to_string()),
+        "pinned t1 must be preserved"
+    );
+    assert!(
+        ids.contains(&"t4".to_string()),
+        "newer unpinned t4 preserved"
+    );
+    assert!(
+        ids.contains(&"t5".to_string()),
+        "newest unpinned t5 preserved"
+    );
+}
+
+#[test]
+fn prune_sessions_protects_active_thread() {
+    let conn = make_conn();
+    insert_agent(&conn, &agent("a1", 1000)).unwrap();
+
+    // Insert 4 threads
+    for i in 1..=4 {
+        insert_thread(&conn, &thread(&format!("t{i}"), "a1", i * 1000)).unwrap();
+    }
+
+    // Cap at 2, but protect t1 as the active thread:
+    // Slot 1: active thread t1. Slot 2: newest other thread t4.
+    // Older other threads (t2, t3) are pruned.
+    let pruned = prune_sessions_with_active(&conn, 2, Some("t1")).unwrap();
+    assert_eq!(pruned, 2);
+
+    let remaining = list_threads_for_agent(&conn, "a1").unwrap();
+    assert_eq!(remaining.len(), 2);
+    let ids: Vec<String> = remaining.into_iter().map(|t| t.id).collect();
+    assert!(
+        ids.contains(&"t1".to_string()),
+        "active thread t1 preserved"
+    );
+    assert!(
+        ids.contains(&"t4".to_string()),
+        "newest other thread t4 preserved"
+    );
+    assert!(
+        !ids.contains(&"t2".to_string()),
+        "oldest unpinned t2 evicted"
+    );
+    assert!(!ids.contains(&"t3".to_string()), "old unpinned t3 evicted");
+}
+
+#[test]
+fn prune_sessions_cascades_to_messages_and_runs() {
+    let conn = make_conn();
+    crate::storage::runs_history::init_table(&conn).unwrap();
+
+    insert_agent(&conn, &agent("a1", 1000)).unwrap();
+    insert_thread(&conn, &thread("t1", "a1", 1000)).unwrap();
+    insert_thread(&conn, &thread("t2", "a1", 2000)).unwrap();
+
+    // Insert message for t1 with an associated run_id
+    let mut m1 = message("m1", "t1", MessageRole::User, 1000);
+    m1.run_id = Some("run-for-t1".to_string());
+    insert_message(&conn, &m1).unwrap();
+
+    // Insert run in runs_history
+    conn.execute(
+        "INSERT INTO runs_history (id, kind, label, status, started_at, cancellable)
+         VALUES ('run-for-t1', 'agent', 'Test Run', 'success', 1000, 0)",
+        [],
+    )
+    .unwrap();
+
+    // Prune keeping 1 (t2 stays, t1 is pruned)
+    let pruned = prune_sessions(&conn, 1).unwrap();
+    assert_eq!(pruned, 1);
+
+    // Verify messages for t1 are gone
+    let msgs = list_messages_for_thread(&conn, "t1").unwrap();
+    assert!(
+        msgs.is_empty(),
+        "messages for pruned thread must be deleted"
+    );
+
+    // Verify run_history row for t1 is cascade deleted
+    let run_count: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM runs_history WHERE id = 'run-for-t1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(run_count, 0, "run in runs_history must be cascade deleted");
+}
+
+#[test]
+fn set_thread_pinned_updates_pin_status() {
+    let conn = make_conn();
+    insert_agent(&conn, &agent("a1", 1000)).unwrap();
+    insert_thread(&conn, &thread("t1", "a1", 1000)).unwrap();
+
+    let before = crate::storage::agents::get_thread(&conn, "t1")
+        .unwrap()
+        .unwrap();
+    assert!(!before.is_pinned);
+
+    set_thread_pinned(&conn, "t1", true).unwrap();
+    let after = crate::storage::agents::get_thread(&conn, "t1")
+        .unwrap()
+        .unwrap();
+    assert!(after.is_pinned);
+
+    set_thread_pinned(&conn, "t1", false).unwrap();
+    let after_unpin = crate::storage::agents::get_thread(&conn, "t1")
+        .unwrap()
+        .unwrap();
+    assert!(!after_unpin.is_pinned);
 }

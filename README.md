@@ -237,9 +237,14 @@ Opt-in passphrase-based E2EE on top of the per-item sync layer. Default OFF. Ena
 - Passphrase entered once at enrolment; derived key cached in the OS keychain — daily UX has zero friction.
 - 24-word BIP-39 recovery phrase issued at enrolment. Passphrase loss without the recovery phrase means data loss; Asyar.org cannot reset it.
 
+### Layer 5 — Retention & automatic eviction
+
+- **Clipboard History TTL** — Configurable retention window (1 min to 90 days) with favourite protection (**Settings → Privacy → Clipboard Privacy**).
+- **AI Conversation Retention Cap** — Maximum retained threads (Unlimited, 25, 50, 100 [default], or custom) with pinned thread protection (**Settings → AI → Behavior**).
+
 ### Future layers (planned)
 
-- **Layer 5** — Per-item "don't sync" toggles, AI conversation retention cap, snippet "private" tag.
+- Snippet "private" tag, optional long paste scrubber.
 
 See [`docs/explanation/clipboard-privacy.md`](docs/explanation/clipboard-privacy.md) for the full design.
 

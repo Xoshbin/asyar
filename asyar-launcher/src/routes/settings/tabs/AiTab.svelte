@@ -19,6 +19,7 @@
     EmptyState,
     SettingsCard,
     ModelSelector,
+    Select,
   } from '../../../components';
   import { settingsService } from '../../../services/settings/settingsService.svelte';
   import { providerRegistry } from '../../../services/ai/providerRegistry';
@@ -352,6 +353,52 @@
 
   /** Plugins available for the draft row dropdown */
   let availableForDraft = $derived(availableProvidersForNewRow(allPlugins, configuredIds));
+
+  const standardRetentionCaps = [0, 25, 50, 100];
+  let customRetentionMode = $state(false);
+
+  let currentRetentionCap = $derived(settings.historyRetentionCap ?? 100);
+
+  let isCustomRetention = $derived(
+    customRetentionMode || !standardRetentionCaps.includes(currentRetentionCap),
+  );
+
+  let retentionSelectValue = $derived(isCustomRetention ? 'custom' : String(currentRetentionCap));
+
+  let retentionOptions = $derived([
+    { value: '0', label: t('settings.ai.retention_unlimited') },
+    { value: '25', label: t('settings.ai.retention_25') },
+    { value: '50', label: t('settings.ai.retention_50') },
+    { value: '100', label: t('settings.ai.retention_100') },
+    { value: 'custom', label: t('settings.ai.retention_custom') },
+  ]);
+
+  function handleRetentionSelectChange(value: string) {
+    if (value === 'custom') {
+      customRetentionMode = true;
+    } else {
+      customRetentionMode = false;
+      const num = Number(value);
+      if (Number.isFinite(num) && num >= 0) {
+        if (handler?.handleHistoryRetentionCapChange) {
+          handler.handleHistoryRetentionCapChange(num);
+        } else {
+          settingsService.updateSettings('ai', { historyRetentionCap: num });
+        }
+      }
+    }
+  }
+
+  function handleCustomRetentionInput(e: Event) {
+    const raw = parseInt((e.target as HTMLInputElement).value, 10);
+    if (Number.isFinite(raw) && raw >= 1) {
+      if (handler?.handleHistoryRetentionCapChange) {
+        handler.handleHistoryRetentionCapChange(raw);
+      } else {
+        settingsService.updateSettings('ai', { historyRetentionCap: raw });
+      }
+    }
+  }
 </script>
 
 <div class="ai-tab">
@@ -368,6 +415,32 @@
             onchange={() =>
               handler!.handleToggleTabContinuesLastThread(!settings.tabContinuesLastThread)}
           />
+        </SettingsRow>
+        <SettingsRow
+          label={t('settings.ai.history_retention_cap')}
+          description={t('settings.ai.history_retention_cap_description')}
+        >
+          <div class="retention-control">
+            <div class="retention-select-wrap">
+              <Select
+                value={retentionSelectValue}
+                options={retentionOptions}
+                onchange={handleRetentionSelectChange}
+              />
+            </div>
+            {#if isCustomRetention}
+              <div class="retention-custom-input">
+                <Input
+                  type="number"
+                  min="1"
+                  max="10000"
+                  placeholder={t('settings.ai.retention_custom_placeholder')}
+                  value={String(currentRetentionCap > 0 ? currentRetentionCap : 100)}
+                  oninput={handleCustomRetentionInput}
+                />
+              </div>
+            {/if}
+          </div>
         </SettingsRow>
       </SettingsCard>
     </div>
@@ -1621,5 +1694,19 @@
     flex-shrink: 0;
     font-size: var(--font-size-base);
     padding: var(--space-1);
+  }
+
+  .retention-control {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .retention-select-wrap {
+    min-width: 170px;
+  }
+
+  .retention-custom-input {
+    width: 80px;
   }
 </style>

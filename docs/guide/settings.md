@@ -75,6 +75,7 @@ This section is split across two related tabs.
 **AI** tab:
 
 - **Tab continues last thread** — When on, pressing `Tab` to enter AI mode resumes your previous conversation instead of starting a new one.
+- **History retention cap** — Maximum conversation sessions to keep before older unpinned threads are automatically deleted (Unlimited, 25, 50, 100 [default], or custom). Pinned threads are always preserved.
 - **Providers** — Add one or more AI providers (Anthropic, OpenAI, OpenRouter, Google, Ollama, or a custom endpoint).
 - **Local CLI Providers (Zero-Key)** — Connect directly to your local authenticated Google (`agy`) and OpenAI (`codex`) CLIs without needing to enter an API key.
 - **Searchable Model Filter** — Easily search and filter through large provider catalogs (e.g. OpenRouter or Ollama).

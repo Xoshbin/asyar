@@ -68,6 +68,7 @@ Each agent keeps its conversation history in threads. Inside the chat view:
   - **Delete Current Thread**: Removes the active conversation.
   - **Cancel Run**: Aborts an in-flight streaming response.
 - Chat text and code blocks are fully selectable for copying.
+- **Automatic History Retention**: In **Settings → AI → Behavior**, configure the **History retention cap** (default 100 sessions, or Unlimited, 25, 50, custom). Older unpinned threads are automatically evicted when the cap is reached; pinned threads are always protected.
 
 ## Quick AI commands (silent agents)
 

@@ -123,6 +123,8 @@ pub struct ThreadRow {
     pub id: String,
     pub agent_id: String,
     pub title: Option<String>,
+    #[serde(default)]
+    pub is_pinned: bool,
     pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
 }
@@ -177,6 +179,7 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
             id          TEXT    PRIMARY KEY,
             agent_id    TEXT    NOT NULL,
             title       TEXT,
+            is_pinned   INTEGER NOT NULL DEFAULT 0,
             created_at  INTEGER NOT NULL,
             updated_at  INTEGER NOT NULL,
             FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
@@ -184,6 +187,9 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
 
         CREATE INDEX IF NOT EXISTS idx_threads_agent_updated
             ON threads(agent_id, updated_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_threads_pinned_updated
+            ON threads(is_pinned, updated_at DESC);
 
         CREATE TABLE IF NOT EXISTS messages (
             id          TEXT    PRIMARY KEY,
@@ -239,6 +245,22 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
     if !cols.contains(&"shortcode_trigger".to_string()) {
         conn.execute(
             "ALTER TABLE agents ADD COLUMN shortcode_trigger TEXT NOT NULL DEFAULT ':'",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    }
+
+    let thread_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(threads)")
+        .map_err(|e| AppError::Database(e.to_string()))?
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|e| AppError::Database(e.to_string()))?
+        .filter_map(Result::ok)
+        .collect();
+
+    if !thread_cols.contains(&"is_pinned".to_string()) {
+        conn.execute(
+            "ALTER TABLE threads ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0",
             [],
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
@@ -462,12 +484,13 @@ pub fn get_agent(conn: &Connection, id: &str) -> Result<Option<AgentRow>, AppErr
 /// Insert a new thread row.
 pub fn insert_thread(conn: &Connection, thread: &ThreadRow) -> Result<(), AppError> {
     conn.execute(
-        "INSERT INTO threads (id, agent_id, title, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO threads (id, agent_id, title, is_pinned, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             thread.id,
             thread.agent_id,
             thread.title,
+            thread.is_pinned as i64,
             thread.created_at,
             thread.updated_at,
         ],
@@ -480,7 +503,7 @@ pub fn insert_thread(conn: &Connection, thread: &ThreadRow) -> Result<(), AppErr
 pub fn get_thread(conn: &Connection, id: &str) -> Result<Option<ThreadRow>, AppError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, agent_id, title, created_at, updated_at
+            "SELECT id, agent_id, title, is_pinned, created_at, updated_at
              FROM threads
              WHERE id = ?1",
         )
@@ -492,8 +515,9 @@ pub fn get_thread(conn: &Connection, id: &str) -> Result<Option<ThreadRow>, AppE
                 id: row.get(0)?,
                 agent_id: row.get(1)?,
                 title: row.get(2)?,
-                created_at: row.get(3)?,
-                updated_at: row.get(4)?,
+                is_pinned: row.get::<_, i64>(3)? != 0,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
             })
         })
         .map_err(|error| AppError::Database(error.to_string()))?;
@@ -634,36 +658,29 @@ pub fn list_threads_for_agent(
 ) -> Result<Vec<ThreadRow>, AppError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, agent_id, title, created_at, updated_at
+            "SELECT id, agent_id, title, is_pinned, created_at, updated_at
              FROM threads
              WHERE agent_id = ?1
-             ORDER BY updated_at DESC",
+             ORDER BY is_pinned DESC, updated_at DESC",
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
 
     let rows = stmt
         .query_map(params![agent_id], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, Option<String>>(2)?,
-                row.get::<_, Option<i64>>(3)?,
-                row.get::<_, Option<i64>>(4)?,
-            ))
+            Ok(ThreadRow {
+                id: row.get(0)?,
+                agent_id: row.get(1)?,
+                title: row.get(2)?,
+                is_pinned: row.get::<_, i64>(3)? != 0,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
         })
         .map_err(|e| AppError::Database(e.to_string()))?;
 
     let mut threads = Vec::new();
     for row in rows {
-        let (id, agent_id, title, created_at, updated_at) =
-            row.map_err(|e| AppError::Database(e.to_string()))?;
-        threads.push(ThreadRow {
-            id,
-            agent_id,
-            title,
-            created_at,
-            updated_at,
-        });
+        threads.push(row.map_err(|e| AppError::Database(e.to_string()))?);
     }
     Ok(threads)
 }
@@ -736,4 +753,119 @@ pub fn list_messages_for_thread(
         });
     }
     Ok(messages)
+}
+
+/// Set the pinned status of a thread.
+pub fn set_thread_pinned(conn: &Connection, id: &str, pinned: bool) -> Result<(), AppError> {
+    let rows = conn
+        .execute(
+            "UPDATE threads SET is_pinned = ?1 WHERE id = ?2",
+            params![pinned as i64, id],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    if rows == 0 {
+        return Err(AppError::NotFound(format!("thread '{id}' not found")));
+    }
+    Ok(())
+}
+
+/// Return total count of conversation threads.
+pub fn count_threads(conn: &Connection) -> Result<usize, AppError> {
+    let count: i64 = conn
+        .query_row("SELECT count(*) FROM threads", [], |r| r.get(0))
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    Ok(count as usize)
+}
+
+/// Prune unpinned threads that exceed `max_retained`, ordered by `updated_at` / `created_at` descending.
+/// Pinned threads are strictly preserved. Associated messages and execution runs are cascade-deleted.
+/// If `max_retained == 0`, retention is unlimited and no rows are pruned.
+pub fn prune_sessions(conn: &Connection, max_retained: usize) -> Result<usize, AppError> {
+    prune_sessions_with_active(conn, max_retained, None)
+}
+
+/// Prune unpinned threads exceeding `max_retained`, additionally protecting `active_thread_id` (if any).
+pub fn prune_sessions_with_active(
+    conn: &Connection,
+    max_retained: usize,
+    active_thread_id: Option<&str>,
+) -> Result<usize, AppError> {
+    if max_retained == 0 {
+        return Ok(0);
+    }
+
+    // If an active thread is protected, it consumes 1 of the retained slots.
+    let other_limit = if active_thread_id.is_some() {
+        max_retained.saturating_sub(1)
+    } else {
+        max_retained
+    };
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id FROM threads
+             WHERE is_pinned = 0
+               AND (?1 IS NULL OR id != ?1)
+               AND id NOT IN (
+                   SELECT id FROM threads
+                   WHERE is_pinned = 0
+                     AND (?1 IS NULL OR id != ?1)
+                   ORDER BY updated_at DESC, created_at DESC, id DESC
+                   LIMIT ?2
+               )",
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+    let ids_to_delete: Vec<String> = stmt
+        .query_map(params![active_thread_id, other_limit as i64], |row| {
+            row.get(0)
+        })
+        .map_err(|e| AppError::Database(e.to_string()))?
+        .filter_map(Result::ok)
+        .collect();
+
+    if ids_to_delete.is_empty() {
+        return Ok(0);
+    }
+
+    let tx = conn
+        .unchecked_transaction()
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+    for thread_id in &ids_to_delete {
+        let mut run_ids: Vec<String> = Vec::new();
+        {
+            let mut run_stmt = tx
+                .prepare(
+                    "SELECT DISTINCT run_id FROM messages
+                     WHERE thread_id = ?1
+                       AND run_id IS NOT NULL
+                       AND trim(run_id) <> ''",
+                )
+                .map_err(|e| AppError::Database(e.to_string()))?;
+            let mapped = run_stmt
+                .query_map(params![thread_id], |row| row.get(0))
+                .map_err(|e| AppError::Database(e.to_string()))?;
+            for r in mapped.flatten() {
+                run_ids.push(r);
+            }
+        }
+
+        for run_id in run_ids {
+            let _ = tx.execute("DELETE FROM runs_history WHERE id = ?1", params![run_id]);
+        }
+
+        tx.execute(
+            "DELETE FROM messages WHERE thread_id = ?1",
+            params![thread_id],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+        tx.execute("DELETE FROM threads WHERE id = ?1", params![thread_id])
+            .map_err(|e| AppError::Database(e.to_string()))?;
+    }
+
+    tx.commit().map_err(|e| AppError::Database(e.to_string()))?;
+
+    Ok(ids_to_delete.len())
 }

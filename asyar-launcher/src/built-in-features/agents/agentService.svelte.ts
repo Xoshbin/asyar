@@ -5,6 +5,8 @@ import {
   agentsDelete,
   agentsThreadsList,
   agentsThreadCreate,
+  agentsThreadSetPinned,
+  agentsThreadsPrune,
   agentsThreadDelete,
   agentsThreadUpdateTitle,
   agentsMessagesList,
@@ -46,7 +48,7 @@ export class AgentService {
     _currentInstance = this;
     void listen('agents:changed', () => {
       void this.refresh();
-    }).catch(() => {
+    })?.catch(() => {
       // No-op outside Tauri runtime (e.g. unit-test environments).
     });
   }
@@ -184,10 +186,25 @@ export class AgentService {
     return result;
   }
 
-  async createThread(agentId: string, title?: string | null): Promise<ThreadDef> {
-    const result = await agentsThreadCreate(agentId, title);
+  async createThread(
+    agentId: string,
+    title?: string | null,
+    isPinned?: boolean,
+  ): Promise<ThreadDef> {
+    const retentionCap = settingsService.currentSettings.ai.historyRetentionCap ?? 100;
+    const result = await agentsThreadCreate(agentId, title, isPinned, retentionCap);
     if (result === null) throw new Error('Failed to create agent thread');
     return result;
+  }
+
+  async setThreadPinned(id: string, pinned: boolean): Promise<void> {
+    await agentsThreadSetPinned(id, pinned);
+  }
+
+  async pruneThreads(cap?: number, activeThreadId?: string): Promise<number> {
+    const effectiveCap = cap ?? settingsService.currentSettings.ai.historyRetentionCap ?? 100;
+    const pruned = await agentsThreadsPrune(effectiveCap, activeThreadId ?? null);
+    return pruned ?? 0;
   }
 
   async deleteThread(id: string): Promise<void> {

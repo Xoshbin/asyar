@@ -13,6 +13,7 @@ import { feedbackService } from '../../services/feedback/feedbackService.svelte'
 import { permissionConsentService } from '../../services/extension/permissionConsentService.svelte';
 import type { AppSettings } from '../../services/settings/types/AppSettingsType';
 import { logService } from '../../services/log/logService';
+import { agentService } from '../../built-in-features/agents/agentService.svelte';
 import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
 import type { ExtensionCommand, PreferenceDeclaration } from 'asyar-sdk/contracts';
 
@@ -91,6 +92,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     maxTokens: 2048,
     defaultAgentId: null,
     tabContinuesLastThread: false,
+    historyRetentionCap: 100,
   },
   developer: {
     enabled: false,
@@ -643,6 +645,18 @@ export class SettingsHandler {
       await settingsService.updateSettings('ai', { tabContinuesLastThread: value });
     } catch (error) {
       logService.error(`Failed to update tab continues last thread: ${error}`);
+    }
+  }
+
+  async handleHistoryRetentionCapChange(value: number): Promise<void> {
+    try {
+      const cap = Math.max(0, Math.floor(value));
+      await settingsService.updateSettings('ai', { historyRetentionCap: cap });
+      if (cap > 0) {
+        await agentService.pruneThreads(cap);
+      }
+    } catch (error) {
+      logService.error(`Failed to update history retention cap: ${error}`);
     }
   }
 

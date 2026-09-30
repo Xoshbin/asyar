@@ -292,6 +292,14 @@ describe('SettingsHandler — AI settings handlers', () => {
     expect(mockUpdateSettings).toHaveBeenCalledWith('ai', { tabContinuesLastThread: false });
   });
 
+  it('handleHistoryRetentionCapChange calls updateSettings with historyRetentionCap', async () => {
+    const handler = new SettingsHandler();
+    await (
+      handler as unknown as { handleHistoryRetentionCapChange(v: number): Promise<void> }
+    ).handleHistoryRetentionCapChange(50);
+    expect(mockUpdateSettings).toHaveBeenCalledWith('ai', { historyRetentionCap: 50 });
+  });
+
   it('DEFAULT_SETTINGS.ai does not include legacy AI-Chat keys', () => {
     const ai = DEFAULT_SETTINGS.ai as unknown as Record<string, unknown>;
     expect(ai).not.toHaveProperty('activeProviderId');
@@ -301,6 +309,7 @@ describe('SettingsHandler — AI settings handlers', () => {
     // New keys must be present with defaults
     expect(ai).toHaveProperty('defaultAgentId', null);
     expect(ai).toHaveProperty('tabContinuesLastThread', false);
+    expect(ai).toHaveProperty('historyRetentionCap', 100);
   });
 });
 

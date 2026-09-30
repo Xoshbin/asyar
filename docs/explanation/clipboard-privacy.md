@@ -234,10 +234,18 @@ not persist indefinitely on local storage. Configurable in
 - Addresses threats 1, 2, and 4 by shrinking the exposure window for sensitive or
   incidental copies that bypassed capture-time denylists.
 
+AI conversation history retention cap (shipped 2026-09-30):
+
+- Configurable in **Settings → AI → Behavior → History retention cap**.
+- Retention cap choices: **Unlimited (keep all)** (`0`), **25 sessions**, **50 sessions**,
+  **100 sessions** (default), or **Custom** (1–10,000).
+- FIFO automatic eviction runs on thread creation, run completion, or setting update,
+  pruning oldest unpinned threads when the cap is reached.
+- **Pinned threads are strictly preserved**: pinned conversations (`is_pinned = 1`)
+  are exempt from retention cleanup.
+
 Additional planned controls under Layer 5:
 
-- Per-clipboard-item right-click "Don't sync" toggle.
-- AI conversations capped at last N (configurable).
 - Snippet "private" tag — never syncs even if cloud sync is on.
 - Optional "scrub long pastes" mode — drops conversation messages over
   X lines that look like code blocks.

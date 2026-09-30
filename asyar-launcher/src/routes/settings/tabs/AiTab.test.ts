@@ -13,6 +13,7 @@ vi.mock('../../../components', async () => ({
   SettingsRow: (await import('../../../components/settings/SettingsRow.svelte')).default,
   Toggle: (await import('../../../components/base/Toggle.svelte')).default,
   ModelSelector: (await import('../../../components/form/ModelSelector.svelte')).default,
+  Select: (await import('../../../components/base/Select.svelte')).default,
 }));
 vi.mock('../../../services/settings/settingsService.svelte', () => ({
   settingsService: {
@@ -25,6 +26,7 @@ vi.mock('../../../services/settings/settingsService.svelte', () => ({
         temperature: 0.7,
         defaultAgentId: null,
         tabContinuesLastThread: false,
+        historyRetentionCap: 100,
       },
     },
     updateSettings: vi.fn(),
@@ -325,7 +327,7 @@ describe('AiTab', () => {
     render(AiTab, { mode: 'full' });
 
     expect(screen.getByText('Web Search')).toBeTruthy();
-    const select = screen.getByRole('combobox') as HTMLSelectElement;
+    const select = screen.getByLabelText('Search engine') as HTMLSelectElement;
     expect(select.value).toBe('duckduckgo');
 
     // Switch to Brave Search
@@ -398,5 +400,26 @@ describe('AiTab', () => {
         apiKey: 'test-serply-key',
       },
     });
+  });
+
+  it('renders history retention cap and handles option change', async () => {
+    const handler = {
+      handleHistoryRetentionCapChange: vi.fn(),
+    } as any;
+
+    render(AiTab, { mode: 'full', handler });
+
+    expect(screen.getByText('History retention cap')).toBeTruthy();
+
+    const select = screen.getAllByRole('combobox').find((el) => {
+      const options = Array.from((el as HTMLSelectElement).options).map((o) => o.value);
+      return options.includes('100') && options.includes('custom');
+    }) as HTMLSelectElement;
+
+    expect(select).toBeTruthy();
+    expect(select.value).toBe('100');
+
+    await fireEvent.change(select, { target: { value: '50' } });
+    expect(handler.handleHistoryRetentionCapChange).toHaveBeenCalledWith(50);
   });
 });
