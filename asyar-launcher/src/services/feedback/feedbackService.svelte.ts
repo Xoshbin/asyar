@@ -42,8 +42,23 @@ interface ActiveDialog {
   variant?: 'default' | 'danger';
 }
 
-/** Default HUD visibility duration. */
+/** Default HUD visibility duration for routine success and information. */
 const DEFAULT_HUD_DURATION_MS = 1500;
+/** Extended HUD visibility duration for actionable warning and error feedback. */
+const IMPORTANT_HUD_DURATION_MS = 5000;
+
+type HudSeverity = 'info' | 'success' | 'warning' | 'error' | 'fatal';
+
+interface HudOptions {
+  severity?: HudSeverity;
+  durationMs?: number;
+}
+
+function defaultHudDuration(severity: HudSeverity = 'info'): number {
+  return severity === 'warning' || severity === 'error' || severity === 'fatal'
+    ? IMPORTANT_HUD_DURATION_MS
+    : DEFAULT_HUD_DURATION_MS;
+}
 
 /**
  * Live handle on a spinning HUD. Returned by `showHUDSpinning`. The HUD stays
@@ -54,11 +69,15 @@ const DEFAULT_HUD_DURATION_MS = 1500;
 export interface HudSpinnerHandle {
   /**
    * Replace the displayed title. By default the spinner stops and the HUD
-   * is auto-hidden after `durationMs` (default 1500ms). Pass `spinning: true`
+   * is auto-hidden after `durationMs` (default 1500ms for success/info and
+   * 5000ms for warnings/errors). Pass `spinning: true`
    * to keep the spinner visible (e.g. progress phases like "Reading…" →
    * "Thinking…").
    */
-  replace(title: string, options?: { spinning?: boolean; durationMs?: number }): Promise<void>;
+  replace(
+    title: string,
+    options?: { spinning?: boolean; durationMs?: number; severity?: HudSeverity },
+  ): Promise<void>;
   /** Hide the HUD now. */
   dismiss(): Promise<void>;
 }
@@ -279,11 +298,12 @@ class FeedbackService implements IFeedbackService {
     await this.reportRegistry.get(id)?.();
   }
 
-  async showHUD(title: string): Promise<void> {
+  async showHUD(title: string, options?: HudOptions): Promise<void> {
     // Show the HUD window first (Rust positions it, displays the title, schedules
     // auto-hide), then hide the main launcher window. The HUD lives in its own
     // Tauri window, so it survives the main launcher hide.
-    await commands.showHud({ title, durationMs: DEFAULT_HUD_DURATION_MS, spinning: false });
+    const durationMs = options?.durationMs ?? defaultHudDuration(options?.severity);
+    await commands.showHud({ title, durationMs, spinning: false });
     try {
       await commands.hideWindow();
     } catch {
@@ -310,7 +330,7 @@ class FeedbackService implements IFeedbackService {
     return {
       replace: async (newTitle, options) => {
         const spinning = options?.spinning ?? false;
-        const durationMs = options?.durationMs ?? DEFAULT_HUD_DURATION_MS;
+        const durationMs = options?.durationMs ?? defaultHudDuration(options?.severity);
         await commands.showHud({ title: newTitle, durationMs, spinning });
       },
       dismiss: async () => {

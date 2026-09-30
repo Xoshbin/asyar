@@ -10,6 +10,9 @@ use crate::extensions::extension_runtime::{
     ticker as extension_runtime_ticker, ExtensionRuntimeManager, RuntimeConfig,
 };
 
+const LOG_MAX_FILE_SIZE_BYTES: u128 = 2_000_000;
+const LOG_FILES_TO_KEEP: usize = 2;
+
 /// Shared application state managed by Tauri's state system.
 pub struct AppState {
     /// When `true`, prevents the launcher window from losing keyboard focus.
@@ -316,9 +319,10 @@ pub fn run() {
             // Silence verbose third-party crate logging (the browser-bridge axum
             // server, the WebSocket layer, hyper, the keychain, and the notify
             // file-watcher behind the file index) so a busy companion or a burst
-            // of filesystem events does not flood the log with TRACE lines —
-            // the 40 kB delete-on-rotate file sink loses all history within
-            // minutes under a flood. Asyar's own logs are unaffected.
+            // of filesystem events does not flood the log with TRACE lines.
+            // The file sink keeps two rotated 2 MB files plus the active file,
+            // preserving useful diagnostic history with bounded disk usage.
+            // Asyar's own logs are unaffected.
             tauri_plugin_log::Builder::new()
                 .targets([
                     #[cfg(debug_assertions)]
@@ -328,6 +332,10 @@ pub fn run() {
                     }),
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
                 ])
+                .max_file_size(LOG_MAX_FILE_SIZE_BYTES)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(
+                    LOG_FILES_TO_KEEP,
+                ))
                 .level_for("axum", log::LevelFilter::Warn)
                 .level_for("hyper", log::LevelFilter::Warn)
                 .level_for("hyper_util", log::LevelFilter::Warn)
@@ -2853,6 +2861,17 @@ mod link_audit_tests {
              so vendored xz sources are compiled into the binary instead of \
              dynamic-linking against /opt/homebrew/.../liblzma.5.dylib. See issue #345."
         );
+    }
+}
+
+#[cfg(test)]
+mod log_retention_tests {
+    use super::{LOG_FILES_TO_KEEP, LOG_MAX_FILE_SIZE_BYTES};
+
+    #[test]
+    fn retains_two_rotated_two_megabyte_log_files() {
+        assert_eq!(LOG_MAX_FILE_SIZE_BYTES, 2_000_000);
+        assert_eq!(LOG_FILES_TO_KEEP, 2);
     }
 }
 

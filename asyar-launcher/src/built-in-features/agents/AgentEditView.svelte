@@ -126,7 +126,7 @@
       await feedbackService.showHUD('✓ Promoted to snippet');
       await loadCache();
     } catch {
-      await feedbackService.showHUD('Failed to promote');
+      await feedbackService.showHUD('Failed to promote', { severity: 'error' });
     }
   }
 
@@ -136,7 +136,7 @@
       await agentsForgetCached(editAgentId, input);
       await loadCache();
     } catch {
-      await feedbackService.showHUD('Failed to delete');
+      await feedbackService.showHUD('Failed to delete', { severity: 'error' });
     }
   }
 
@@ -146,7 +146,7 @@
       await agentsClearCached(editAgentId);
       await loadCache();
     } catch {
-      await feedbackService.showHUD('Failed to clear');
+      await feedbackService.showHUD('Failed to clear', { severity: 'error' });
     }
   }
 

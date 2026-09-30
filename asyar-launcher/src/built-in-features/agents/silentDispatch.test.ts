@@ -187,7 +187,9 @@ describe('dispatchSilentAgentCommand', () => {
 
     await dispatchSilentAgentCommand({ agentId: 'agent-1' });
 
-    expect(feedbackService.showHUD).toHaveBeenCalledWith('No selection');
+    expect(feedbackService.showHUD).toHaveBeenCalledWith('No selection', {
+      severity: 'warning',
+    });
     expect(commands.agentsRunSilent).not.toHaveBeenCalled();
   });
 
@@ -303,7 +305,7 @@ describe('dispatchSilentAgentCommand', () => {
 
     expect(spinnerMock.replace).toHaveBeenCalledWith('⚠️ Grammar Fix failed', {
       spinning: false,
-      durationMs: 3000,
+      severity: 'error',
     });
     expect(feedbackService.report).toHaveBeenCalledWith(
       expect.objectContaining({ developerDetail: 'provider unavailable' }),
