@@ -19,6 +19,7 @@ const DB_FILE_NAME: &str = "search_index.db";
 // Simplified state: A list of searchable items protected by a RwLock for concurrent reads
 pub struct SearchState {
     pub items: RwLock<Vec<SearchableItem>>,
+    favorites: RwLock<HashSet<String>>,
     db: Mutex<rusqlite::Connection>,
 }
 
@@ -28,6 +29,9 @@ fn init_db(conn: &rusqlite::Connection) -> Result<(), SearchError> {
             id TEXT PRIMARY KEY,
             category TEXT NOT NULL,
             data TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS search_favorites (
+            object_id TEXT PRIMARY KEY
         );",
     )
     .map_err(|e| SearchError::Other(format!("Failed to initialize database: {}", e)))?;
@@ -63,6 +67,17 @@ fn load_items_from_db(conn: &rusqlite::Connection) -> Result<Vec<SearchableItem>
         .collect();
 
     Ok(items)
+}
+
+fn load_favorites_from_db(conn: &rusqlite::Connection) -> Result<HashSet<String>, SearchError> {
+    let mut stmt = conn
+        .prepare("SELECT object_id FROM search_favorites")
+        .map_err(|e| SearchError::Other(format!("Failed to prepare favorites query: {e}")))?;
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| SearchError::Other(format!("Failed to query favorites: {e}")))?;
+    rows.collect::<Result<HashSet<_>, _>>()
+        .map_err(|e| SearchError::Other(format!("Failed to read favorites: {e}")))
 }
 
 fn save_items_to_db(
@@ -168,10 +183,12 @@ pub fn initialize_search_state<R: tauri::Runtime>(
 
     // Load items into memory
     let items = load_items_from_db(&conn)?;
+    let favorites = load_favorites_from_db(&conn)?;
     log::info!("Loaded {} items from database.", items.len());
 
     Ok(SearchState {
         items: RwLock::new(items),
+        favorites: RwLock::new(favorites),
         db: Mutex::new(conn),
     })
 }
@@ -329,6 +346,7 @@ impl SearchState {
         init_db(&conn).expect("Failed to init search_items table for SearchState::new_for_test");
         Self {
             items: RwLock::new(vec![]),
+            favorites: RwLock::new(HashSet::new()),
             db: Mutex::new(conn),
         }
     }
@@ -375,6 +393,7 @@ impl SearchState {
     pub fn search(&self, query: &str) -> Result<Vec<SearchResult>, SearchError> {
         let trimmed = query.trim();
         let guard = self.items.read().map_err(|_| SearchError::LockError)?;
+        let favorites = self.favorites.read().map_err(|_| SearchError::LockError)?;
         let limit = 20;
         let mut results: Vec<SearchResult> = Vec::new();
 
@@ -412,6 +431,7 @@ impl SearchState {
                         description: description_for(item),
                         type_label: type_label_for(item),
                         has_arguments: has_arguments_for(item),
+                        favorite: favorites.contains(item.id()),
                         style: None,
                         alias: None,
                         tier: ranker::Tier::ExactTitle as u8,
@@ -504,6 +524,7 @@ impl SearchState {
                             description: description_for(item),
                             type_label: type_label_for(item),
                             has_arguments: has_arguments_for(item),
+                            favorite: favorites.contains(item.id()),
                             style: None,
                             alias: None,
                             tier: ranker::Tier::ExactTitle as u8,
@@ -554,6 +575,7 @@ impl SearchState {
                             description: description_for(item),
                             type_label: type_label_for(item),
                             has_arguments: has_arguments_for(item),
+                            favorite: favorites.contains(item.id()),
                             style: None,
                             alias: None,
                             tier: ranker::Tier::ExactTitle as u8,
@@ -622,6 +644,7 @@ impl SearchState {
                             description: description_for(item),
                             type_label: type_label_for(item),
                             has_arguments: has_arguments_for(item),
+                            favorite: favorites.contains(item.id()),
                             style: None,
                             alias: None,
                             tier: ranker::Tier::ExactTitle as u8,
@@ -637,9 +660,14 @@ impl SearchState {
             sorted.sort_unstable_by(|a, b| {
                 let score_a = frecency_score(a.usage_count(), a.last_used_at());
                 let score_b = frecency_score(b.usage_count(), b.last_used_at());
-                score_b
-                    .partial_cmp(&score_a)
-                    .unwrap_or(std::cmp::Ordering::Equal)
+                favorites
+                    .contains(b.id())
+                    .cmp(&favorites.contains(a.id()))
+                    .then_with(|| {
+                        score_b
+                            .partial_cmp(&score_a)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    })
                     .then_with(|| a.get_name().cmp(b.get_name()))
             });
             for item in sorted.into_iter().take(limit) {
@@ -663,6 +691,7 @@ impl SearchState {
                     description: description_for(item),
                     type_label: type_label_for(item),
                     has_arguments: has_arguments_for(item),
+                    favorite: favorites.contains(item.id()),
                     style: None,
                     alias: None,
                     // Untiered: this is the raw frecency/skim search, not the
@@ -720,6 +749,7 @@ impl SearchState {
                         description: description_for(item),
                         type_label: type_label_for(item),
                         has_arguments: has_arguments_for(item),
+                        favorite: favorites.contains(item.id()),
                         style: None,
                         alias: None,
                         // Untiered: see comment on the empty-query branch above.
@@ -755,6 +785,44 @@ impl SearchState {
         }
         // NOTE: No self.save() here — usage counts are flushed when launcher hides
         Ok(())
+    }
+
+    pub fn set_favorite(&self, object_id: &str, favorite: bool) -> Result<bool, SearchError> {
+        let found = self
+            .items
+            .read()
+            .map_err(|_| SearchError::LockError)?
+            .iter()
+            .any(|item| item.id() == object_id);
+        if !found {
+            return Ok(false);
+        }
+        let conn = self.db.lock().map_err(|_| SearchError::LockError)?;
+        if favorite {
+            conn.execute(
+                "INSERT OR IGNORE INTO search_favorites (object_id) VALUES (?1)",
+                [object_id],
+            )
+        } else {
+            conn.execute(
+                "DELETE FROM search_favorites WHERE object_id = ?1",
+                [object_id],
+            )
+        }
+        .map_err(|e| SearchError::Other(format!("Failed to update favorite: {e}")))?;
+        drop(conn);
+        let mut favorites = self.favorites.write().map_err(|_| SearchError::LockError)?;
+        if favorite {
+            favorites.insert(object_id.to_string());
+        } else {
+            favorites.remove(object_id);
+        }
+        Ok(found)
+    }
+
+    pub fn favorite_count(&self) -> Result<u32, SearchError> {
+        let favorites = self.favorites.read().map_err(|_| SearchError::LockError)?;
+        Ok(favorites.len().try_into().unwrap_or(u32::MAX))
     }
 
     /// Update the subtitle of a command in the search index.
@@ -893,6 +961,15 @@ impl SearchState {
         let mut guard = self.items.write().map_err(|_| SearchError::LockError)?;
         guard.clear();
         drop(guard);
+        self.favorites
+            .write()
+            .map_err(|_| SearchError::LockError)?
+            .clear();
+        self.db
+            .lock()
+            .map_err(|_| SearchError::LockError)?
+            .execute("DELETE FROM search_favorites", [])
+            .map_err(|e| SearchError::Other(format!("Failed to reset favorites: {e}")))?;
         self.save_items_to_db()?;
         if let Some(cache) = icon_cache_dir {
             if cache.exists() {
@@ -984,6 +1061,7 @@ impl SearchState {
                     description: ext.description,
                     type_label: None,
                     has_arguments: false,
+                    favorite: false,
                     style: ext.style,
                     alias: None,
                     // Empty-query short-circuit doesn't classify by tier,
@@ -1058,6 +1136,7 @@ impl SearchState {
                         description: ext.description,
                         type_label: None,
                         has_arguments: false,
+                        favorite: false,
                         style: ext.style,
                         alias: None,
                         tier: ranker::Tier::ExactTitle as u8,
@@ -1169,6 +1248,7 @@ impl SearchState {
                 description: ext.description,
                 type_label: None,
                 has_arguments: false,
+                favorite: false,
                 style: ext.style,
                 alias: None,
                 tier: key.tier as u8,
@@ -1322,6 +1402,7 @@ mod service_tests {
         init_db(&conn).expect("Failed to init test db");
         SearchState {
             items: RwLock::new(vec![]),
+            favorites: RwLock::new(HashSet::new()),
             db: Mutex::new(conn),
         }
     }
@@ -1588,6 +1669,68 @@ mod service_tests {
         let by_usage = state.search("").unwrap();
         assert_eq!(by_usage[0].name, "Chrome");
         assert_eq!(by_usage[0].score, 1.0);
+    }
+
+    #[test]
+    fn favorite_items_lead_empty_query_regardless_of_frecency() {
+        let state = make_state();
+        state.index_one(app("app_busy", "Busy", 100)).unwrap();
+        state.index_one(cmd("cmd_test_calm", "Calm", 0)).unwrap();
+
+        assert!(state.set_favorite("cmd_test_calm", true).unwrap());
+
+        let results = state.search("").unwrap();
+        assert_eq!(results[0].object_id, "cmd_test_calm");
+        assert!(results[0].favorite);
+        assert!(!results[1].favorite);
+    }
+
+    #[test]
+    fn favorite_does_not_override_a_nonempty_query_match() {
+        let state = make_state();
+        state.index_one(app("app_arc", "Arc", 0)).unwrap();
+        state
+            .index_one(cmd("cmd_test_calendar", "Calendar", 0))
+            .unwrap();
+        state.set_favorite("app_arc", true).unwrap();
+
+        let results = state.search("calendar").unwrap();
+        assert_eq!(results[0].object_id, "cmd_test_calendar");
+    }
+
+    #[test]
+    fn favorite_survives_reindexing_the_same_item() {
+        let state = make_state();
+        state.index_one(cmd("cmd_test_alpha", "Alpha", 3)).unwrap();
+        state.set_favorite("cmd_test_alpha", true).unwrap();
+
+        state
+            .index_one(cmd("cmd_test_alpha", "Renamed Alpha", 0))
+            .unwrap();
+
+        let result = state
+            .search("")
+            .unwrap()
+            .into_iter()
+            .find(|result| result.object_id == "cmd_test_alpha")
+            .unwrap();
+        assert_eq!(result.name, "Renamed Alpha");
+        assert!(result.favorite);
+    }
+
+    #[test]
+    fn favorite_count_tracks_both_applications_and_commands() {
+        let state = make_state();
+        state.index_one(app("app_arc", "Arc", 0)).unwrap();
+        state.index_one(cmd("cmd_test_alpha", "Alpha", 0)).unwrap();
+        assert_eq!(state.favorite_count().unwrap(), 0);
+
+        state.set_favorite("app_arc", true).unwrap();
+        state.set_favorite("cmd_test_alpha", true).unwrap();
+        assert_eq!(state.favorite_count().unwrap(), 2);
+
+        state.set_favorite("app_arc", false).unwrap();
+        assert_eq!(state.favorite_count().unwrap(), 1);
     }
 
     #[test]
@@ -2046,6 +2189,7 @@ mod service_tests {
         .unwrap();
         SearchState {
             items: std::sync::RwLock::new(items),
+            favorites: std::sync::RwLock::new(std::collections::HashSet::new()),
             db: std::sync::Mutex::new(conn),
         }
     }

@@ -31,6 +31,19 @@
         "type": "launch",
         "target": "cmd_walkthrough_show-walkthrough"
       }
+    },
+    {
+      "id": "favorite-an-item",
+      "title": "Keep a favorite ready",
+      "summary": "Favorite an application or command you use often",
+      "icon": "icon:star",
+      "order": 5,
+      "body": "Favorites stay at the top when the search is empty, ahead of Asyar's automatic usage ranking. They can be applications or commands, and typed searches still rank by relevance.\n\n## To complete the task\n\n1. Select any application or command in the launcher.\n2. Open **Actions** with **⌘K**.\n3. Choose **Add to favorites**.\n4. Clear the search to see it at the top.",
+      "completion": {
+        "type": "state",
+        "probe": "favorites.count",
+        "atLeast": 1
+      }
     }
   ]
 }

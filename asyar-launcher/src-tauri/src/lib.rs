@@ -537,6 +537,7 @@ pub fn run() {
             search_engine::commands::delete_item,
             search_engine::commands::reset_search_index,
             search_engine::commands::record_item_usage,
+            search_engine::commands::set_item_favorite,
             search_engine::commands::update_command_metadata,
             commands::dynamic_commands::replace_dynamic_commands,
             commands::dynamic_commands::replace_dynamic_commands_builtin,

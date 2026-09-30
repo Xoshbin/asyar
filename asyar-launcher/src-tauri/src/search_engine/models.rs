@@ -86,6 +86,8 @@ pub struct SearchResult {
     pub type_label: Option<String>,
     #[serde(default)]
     pub has_arguments: bool,
+    #[serde(default)]
+    pub favorite: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub style: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

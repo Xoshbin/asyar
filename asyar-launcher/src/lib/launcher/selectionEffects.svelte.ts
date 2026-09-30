@@ -8,7 +8,12 @@ import type { Run } from 'asyar-sdk/contracts';
 import type { ItemShortcut } from '../../built-in-features/shortcuts/shortcutStore.svelte';
 import type { LauncherState } from './launcherState.svelte';
 import { commandService } from '../../services/extension/commandService.svelte';
-import { warmIfTier2 } from '../../services/search/searchOrchestrator.svelte';
+import * as commands from '../../lib/ipc/commands';
+import {
+  warmIfTier2,
+  searchOrchestrator,
+  invalidateTopItemsCache,
+} from '../../services/search/searchOrchestrator.svelte';
 import { feedbackService } from '../../services/feedback/feedbackService.svelte';
 import { aliasStore } from '../../built-in-features/aliases/aliasStore.svelte';
 import { runService } from '../../services/run/runService.svelte';
@@ -253,6 +258,62 @@ export function setupSelectionEffects(state: LauncherState) {
     }
     return () => {
       actionService.unregisterAction('aliases:assign');
+    };
+  });
+
+  // Effect 10b: Favorite / unfavorite action registration for selected item.
+  // Favorites apply only to indexed applications and commands.
+  $effect(() => {
+    const item = state.currentSelectedItemOriginal;
+    const isEligible =
+      item &&
+      (item.type === 'application' || item.type === 'command') &&
+      (item.objectId.startsWith('app_') || item.objectId.startsWith('cmd_'));
+
+    if (isEligible) {
+      if (item.favorite) {
+        actionService.unregisterAction('favorite_item');
+        actionService.registerAction({
+          id: 'unfavorite_item',
+          label: 'Remove from favorites',
+          icon: 'icon:star',
+          description: 'Return this item to automatic ranking',
+          category: 'Item',
+          context: ActionContext.CORE,
+          execute: async () => {
+            const updated = await commands.setItemFavorite(item.objectId, false);
+            if (!updated) return;
+            invalidateTopItemsCache();
+            await searchOrchestrator.handleSearch(searchStores.query || '');
+            state.getBottomBar()?.closeActionList();
+          },
+        });
+      } else {
+        actionService.unregisterAction('unfavorite_item');
+        actionService.registerAction({
+          id: 'favorite_item',
+          label: 'Add to favorites',
+          icon: 'icon:star',
+          description: 'Show this item first when the search is empty',
+          category: 'Item',
+          context: ActionContext.CORE,
+          execute: async () => {
+            const updated = await commands.setItemFavorite(item.objectId, true);
+            if (!updated) return;
+            invalidateTopItemsCache();
+            await searchOrchestrator.handleSearch(searchStores.query || '');
+            state.getBottomBar()?.closeActionList();
+          },
+        });
+      }
+    } else {
+      actionService.unregisterAction('favorite_item');
+      actionService.unregisterAction('unfavorite_item');
+    }
+
+    return () => {
+      actionService.unregisterAction('favorite_item');
+      actionService.unregisterAction('unfavorite_item');
     };
   });
 }

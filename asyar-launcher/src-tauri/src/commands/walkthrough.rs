@@ -35,11 +35,18 @@ fn qualify_all(contributions: Vec<WalkthroughContribution>) -> Vec<WalkthroughTa
 #[tauri::command]
 pub async fn sync_walkthrough_tasks(
     contributions: Vec<WalkthroughContribution>,
-    probes: Probes,
+    mut probes: Probes,
     data: State<'_, DataStore>,
     usage: State<'_, Arc<UsageState>>,
     walkthrough: State<'_, Arc<WalkthroughState>>,
+    search: State<'_, Arc<crate::search_engine::SearchState>>,
 ) -> Result<WalkthroughSnapshot, AppError> {
+    probes.insert(
+        "favorites.count".into(),
+        search
+            .favorite_count()
+            .map_err(|error| AppError::Other(error.to_string()))?,
+    );
     service::sync(
         &data,
         &usage,

@@ -1,12 +1,15 @@
 import type { MappedSearchItem } from '../../services/search/types/MappedSearchItem';
 
-export type SectionKey = 'scripts' | 'agents' | 'commands';
+export type SectionKey = 'favorites' | 'scripts' | 'agents' | 'commands';
 
 export type SectionedRow =
   | { kind: 'header'; title: string; section: SectionKey }
   | { kind: 'item'; item: MappedSearchItem; originalIndex: number };
 
 export function categorizeItem(item: MappedSearchItem): SectionKey {
+  if (item.favorite) {
+    return 'favorites';
+  }
   // Scripts and Agents are activity surfaces — they display run rows only.
   // Run-row variants: 'run' (live), 'run-failed' (failed-pending-dismiss),
   // 'run-done' (kept succeeded agent thread / kept script result). All three
@@ -21,9 +24,10 @@ export function categorizeItem(item: MappedSearchItem): SectionKey {
   return 'commands';
 }
 
-const SECTION_ORDER: SectionKey[] = ['scripts', 'agents', 'commands'];
+const SECTION_ORDER: SectionKey[] = ['favorites', 'scripts', 'agents', 'commands'];
 
 const SECTION_TITLES: Record<SectionKey, string> = {
+  favorites: 'Favorites',
   scripts: 'Scripts',
   agents: 'Agents',
   commands: 'Commands',
@@ -31,6 +35,7 @@ const SECTION_TITLES: Record<SectionKey, string> = {
 
 export function buildSectionedView(items: MappedSearchItem[]): SectionedRow[] {
   const buckets: Record<SectionKey, Array<{ item: MappedSearchItem; originalIndex: number }>> = {
+    favorites: [],
     scripts: [],
     agents: [],
     commands: [],

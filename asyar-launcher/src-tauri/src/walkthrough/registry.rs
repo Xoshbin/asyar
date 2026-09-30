@@ -69,6 +69,12 @@ impl WalkthroughState {
         }
     }
 
+    pub fn set_probe(&self, name: &str, value: u32) {
+        if let Ok(mut registry) = self.registry.lock() {
+            registry.probes.insert(name.to_string(), value);
+        }
+    }
+
     /// Lock-poisoning falls back to "relevant", which costs one wasted
     /// evaluation instead of silently dropping a completion.
     pub fn is_launch_relevant(&self, latched: &Latched, object_id: &str) -> bool {
@@ -202,5 +208,19 @@ mod tests {
 
         let (_, probes) = state.snapshot();
         assert_eq!(probes.get("snippets.count"), Some(&4));
+    }
+
+    #[test]
+    fn updating_one_probe_preserves_the_rest() {
+        let state = WalkthroughState::new();
+        let mut probes = Probes::new();
+        probes.insert("snippets.count".into(), 4);
+        state.replace(vec![], probes);
+
+        state.set_probe("favorites.count", 2);
+
+        let (_, probes) = state.snapshot();
+        assert_eq!(probes.get("snippets.count"), Some(&4));
+        assert_eq!(probes.get("favorites.count"), Some(&2));
     }
 }

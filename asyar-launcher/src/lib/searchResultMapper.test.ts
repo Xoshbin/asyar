@@ -1063,4 +1063,58 @@ describe('buildMappedItems run rows surface tail output', () => {
     const runRow = mappedItems.find((m) => m.object_id === 'run_r-quiet');
     expect(runRow?.subtitle).toBe('Done · (no output)');
   });
+
+  it('maps result.favorite onto mappedItem.favorite', () => {
+    const favResult = makeResult({
+      objectId: 'cmd_clipboard',
+      name: 'Show Clipboard History',
+      favorite: true,
+    });
+    const nonFavResult = makeResult({
+      objectId: 'cmd_files',
+      name: 'Search Files',
+      favorite: false,
+    });
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [favResult, nonFavResult],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      query: '',
+    });
+
+    expect(mappedItems[0].favorite).toBe(true);
+    expect(mappedItems[1].favorite).toBe(false);
+  });
+
+  it('empty query: sorts favorite items to the top before non-favorite commands', () => {
+    const nonFav = makeResult({
+      objectId: 'cmd_walkthrough',
+      name: 'Beyond the basics',
+      favorite: false,
+    });
+    const fav = makeResult({
+      objectId: 'cmd_clipboard',
+      name: 'Show Clipboard History',
+      favorite: true,
+    });
+
+    const { mappedItems } = buildMappedItems({
+      searchItems: [nonFav, fav],
+      activeContext: null,
+      shortcutStore: [],
+      localSearchValue: '',
+      selectedIndex: 0,
+      onError: vi.fn(),
+      query: '',
+    });
+
+    expect(mappedItems[0].object_id).toBe('cmd_clipboard');
+    expect(mappedItems[0].favorite).toBe(true);
+    expect(mappedItems[1].object_id).toBe('cmd_walkthrough');
+    expect(mappedItems[1].favorite).toBe(false);
+  });
 });
