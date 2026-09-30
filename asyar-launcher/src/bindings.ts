@@ -393,6 +393,21 @@ export type SearchResult = {
 
 export type SearchableItem = { category: "application" } & Application | { category: "command" } & Command;
 
+export type Snippet = {
+	id: string,
+	keyword?: string | null,
+	expansion: string,
+	name: string,
+	createdAt: number,
+	pinned?: boolean,
+	isPrivate?: boolean,
+	/**
+	 *  Comma-separated list of secret-detector kind names matched in
+	 *  `expansion` at save time. See [`crate::secret_detection::redact`].
+	 */
+	redactedKinds?: string[] | null,
+};
+
 export type StreamEventPayload = {
 	streamId: string,
 	event: ChatStreamEventPayload,

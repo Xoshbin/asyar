@@ -1,17 +1,11 @@
 // asyar-launcher/src/lib/ipc/snippetCommands.ts
 // Tauri command wrappers, re-exported through ./commands (the barrel).
 import { invokeSafe, invokeSafeVoid } from './invokeSafe';
+import type { Snippet } from '../../bindings';
 
 // ── Storage: Snippets ────────────────────────────────────────────────────────
 
-export interface StoredSnippet {
-  id: string;
-  keyword?: string;
-  expansion: string;
-  name: string;
-  createdAt: number;
-  pinned: boolean;
-}
+export type StoredSnippet = Snippet;
 
 export async function snippetUpsert(snippet: StoredSnippet): Promise<void> {
   await invokeSafe('snippet_upsert', { snippet });
@@ -27,6 +21,14 @@ export async function snippetRemove(id: string): Promise<void> {
 
 export async function snippetTogglePin(id: string): Promise<boolean | null> {
   return invokeSafe<boolean>('snippet_toggle_pin', { id });
+}
+
+export async function snippetTogglePrivate(id: string): Promise<boolean | null> {
+  return invokeSafe<boolean>('snippet_toggle_private', { id });
+}
+
+export async function snippetExportForSync(): Promise<StoredSnippet[] | null> {
+  return invokeSafe<StoredSnippet[]>('snippet_export_for_sync');
 }
 
 export async function snippetClearAll(): Promise<void> {

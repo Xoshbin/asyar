@@ -15,6 +15,7 @@
     FormField,
     Button,
     PlaceholderPicker,
+    Toggle,
   } from '../../components';
   import { feedbackService } from '../../services/feedback/feedbackService.svelte';
   import { t } from '../../services/i18n';
@@ -36,6 +37,7 @@
   let formName = $state('');
   let formKeyword = $state('');
   let formExpansion = $state('');
+  let formIsPrivate = $state(false);
   let formError = $state<string | null>(null);
   let formId = $state('');
 
@@ -80,6 +82,7 @@
       formName = '';
       formKeyword = '';
       formExpansion = prefillExpansion ?? '';
+      formIsPrivate = false;
       formError = null;
       formId = crypto.randomUUID();
     } else if (snippetViewState.mode === 'edit' && snippetViewState.editingSnippet) {
@@ -87,6 +90,7 @@
       formName = s.name;
       formKeyword = s.keyword ?? '';
       formExpansion = s.expansion;
+      formIsPrivate = s.isPrivate ?? false;
       formError = null;
       formId = s.id;
     }
@@ -137,6 +141,7 @@
       name: formName.trim(),
       keyword: formKeyword.trim().toLowerCase(),
       expansion: processedExpansion,
+      isPrivate: formIsPrivate,
       createdAt: snippetViewState.editingSnippet?.createdAt ?? Date.now(),
       redactedKinds,
     };
@@ -199,6 +204,7 @@
       name: snippet.name + ' Copy',
       keyword: newKeyword,
       expansion: snippet.expansion,
+      isPrivate: snippet.isPrivate,
       createdAt: Date.now(),
     };
   }
@@ -268,6 +274,11 @@
               />
             </svg>
           </div>
+        {/snippet}
+        {#snippet trailing()}
+          {#if snippet.isPrivate}
+            <Badge text={t('features.snippets.private_badge')} variant="warning" />
+          {/if}
         {/snippet}
       </LauncherListRow>
     {/snippet}
@@ -342,6 +353,13 @@
                 Press <code class="code-inline">{'{'}</code> to browse.
               </p>
             </FormField>
+            <div class="private-toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-label">{t('features.snippets.private_label')}</span>
+                <span class="toggle-hint">{t('features.snippets.private_hint')}</span>
+              </div>
+              <Toggle id="form-is-private" bind:checked={formIsPrivate} />
+            </div>
             {#if formError}
               <div class="form-error">{formError}</div>
             {/if}
@@ -360,8 +378,13 @@
         <!-- Detail view -->
         <div class="snippet-detail-content custom-scrollbar">
           <div class="detail-header">
-            <h2 class="snippet-name">{selectedSnippet.name}</h2>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <h2 class="snippet-name truncate">{selectedSnippet.name}</h2>
+              {#if selectedSnippet.isPrivate}
+                <Badge text={t('features.snippets.private_badge')} variant="warning" />
+              {/if}
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
               <Button class="edit-btn" onclick={() => handleDuplicate(selectedSnippet)}
                 >Duplicate</Button
               >
@@ -390,6 +413,9 @@
           {#snippet left()}
             <div class="flex items-center gap-3">
               <Badge text="snippet" variant="default" mono />
+              {#if selectedSnippet.isPrivate}
+                <Badge text={t('features.snippets.private_badge')} variant="warning" />
+              {/if}
               <span class="flex items-center gap-1 text-caption">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -558,5 +584,27 @@
     border-radius: var(--radius-xs);
     font-family: var(--font-mono);
     font-size: 0.9em;
+  }
+  .private-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-3) 0;
+    border-top: 1px solid var(--separator);
+  }
+  .toggle-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .toggle-label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .toggle-hint {
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
   }
 </style>

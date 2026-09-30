@@ -6,6 +6,7 @@ vi.mock('../../lib/ipc/commands', () => ({
   snippetGetAll: vi.fn(async () => []),
   snippetRemove: vi.fn().mockResolvedValue(undefined),
   snippetTogglePin: vi.fn().mockResolvedValue(undefined),
+  snippetTogglePrivate: vi.fn().mockResolvedValue(undefined),
   snippetClearAll: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -73,6 +74,39 @@ describe('snippetStore', () => {
     snippetStore.add({ id: '1', name: 'A', keyword: ';a', expansion: 'alpha', createdAt: 0 });
     snippetStore.add({ id: '2', name: 'B', keyword: ';b', expansion: 'beta', createdAt: 1 });
     expect(snippetStore.getAll()).toHaveLength(2);
+  });
+
+  it('togglePrivate() flips isPrivate state and notifies subscribers', () => {
+    const events: Array<{ type: string; itemId: string; isPrivate?: boolean }> = [];
+    snippetStore.subscribe((ev) => events.push(ev));
+
+    snippetStore.add({ id: '1', name: 'A', keyword: ';a', expansion: 'alpha', createdAt: 0 });
+    expect(snippetStore.snippets[0].isPrivate).toBeFalsy();
+
+    snippetStore.togglePrivate('1');
+    expect(snippetStore.snippets[0].isPrivate).toBe(true);
+    expect(events).toContainEqual({ type: 'upsert', itemId: '1', isPrivate: true });
+
+    snippetStore.togglePrivate('1');
+    expect(snippetStore.snippets[0].isPrivate).toBe(false);
+    expect(events).toContainEqual({ type: 'upsert', itemId: '1', isPrivate: false });
+  });
+
+  it('remove() notifies subscriber with isPrivate matching the deleted snippet', () => {
+    const events: Array<{ type: string; itemId: string; isPrivate?: boolean }> = [];
+    snippetStore.subscribe((ev) => events.push(ev));
+
+    snippetStore.add({
+      id: 'priv-1',
+      name: 'P',
+      keyword: ';p',
+      expansion: 'secret',
+      createdAt: 0,
+      isPrivate: true,
+    });
+    snippetStore.remove('priv-1');
+
+    expect(events).toContainEqual({ type: 'delete', itemId: 'priv-1', isPrivate: true });
   });
 
   describe('reload()', () => {

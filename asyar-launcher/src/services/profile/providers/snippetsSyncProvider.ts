@@ -33,13 +33,19 @@ export class SnippetsSyncProvider implements ISyncProvider {
   }
 
   async exportForSync(): Promise<SyncProviderData> {
-    return this.exportFull();
+    return {
+      providerId: this.id,
+      version: 1,
+      exportedAt: Date.now(),
+      data: snippetStore.getAll().filter((s) => !s.isPrivate),
+    };
   }
 
   async preview(incoming: SyncProviderData): Promise<ImportPreview> {
     const local = snippetStore.getAll();
     const incomingItems = incoming.data as Snippet[];
-    const localIds = new Set(local.map((s) => s.id));
+    const localSyncable = local.filter((s) => !s.isPrivate);
+    const localIds = new Set(localSyncable.map((s) => s.id));
     const incomingIds = new Set(incomingItems.map((s) => s.id));
 
     return {
@@ -47,7 +53,7 @@ export class SnippetsSyncProvider implements ISyncProvider {
       incomingCount: incomingItems.length,
       conflicts: incomingItems.filter((s) => localIds.has(s.id)).length,
       newItems: incomingItems.filter((s) => !localIds.has(s.id)).length,
-      removedItems: local.filter((s) => !incomingIds.has(s.id)).length,
+      removedItems: localSyncable.filter((s) => !incomingIds.has(s.id)).length,
     };
   }
 
@@ -59,9 +65,13 @@ export class SnippetsSyncProvider implements ISyncProvider {
     }
 
     if (strategy === 'replace') {
+      const localPrivate = snippetStore.getAll().filter((s) => s.isPrivate);
       snippetStore.clearAll();
       for (const item of incomingItems) {
         snippetStore.add(item);
+      }
+      for (const priv of localPrivate) {
+        snippetStore.add(priv);
       }
       return {
         success: true,
@@ -80,6 +90,9 @@ export class SnippetsSyncProvider implements ISyncProvider {
 
     for (const item of incomingItems) {
       const existing = localById.get(item.id);
+      if (existing?.isPrivate) {
+        continue;
+      }
       if (!existing) {
         snippetStore.add(item);
         added++;
@@ -112,7 +125,9 @@ export class SnippetsSyncProvider implements ISyncProvider {
   async exportItems(): Promise<SyncItem[]> {
     return snippetStore
       .getAll()
-      .filter((snippet) => snippet.expansion && snippet.expansion.trim() !== '')
+      .filter(
+        (snippet) => !snippet.isPrivate && snippet.expansion && snippet.expansion.trim() !== '',
+      )
       .map((snippet) => ({
         id: snippet.id,
         categoryId: this.id,
@@ -124,6 +139,9 @@ export class SnippetsSyncProvider implements ISyncProvider {
     const incoming = item.content as Snippet;
     if (!incoming) return;
     const existing = snippetStore.getAll().find((s) => s.id === incoming.id);
+    if (existing?.isPrivate) {
+      return;
+    }
     if (
       existing &&
       existing.expansion &&
@@ -136,11 +154,18 @@ export class SnippetsSyncProvider implements ISyncProvider {
   }
 
   async applyItemDelete(itemId: string): Promise<void> {
+    const existing = snippetStore.getAll().find((s) => s.id === itemId);
+    if (existing?.isPrivate) {
+      return;
+    }
     snippetStore.remove(itemId);
   }
 
   subscribeToChanges(callback: (event: SyncChangeEvent) => void): Unsubscribe {
     return snippetStore.subscribe((ev) => {
+      if (ev.isPrivate) {
+        return;
+      }
       callback({ type: ev.type, itemId: ev.itemId, categoryId: this.id });
     });
   }

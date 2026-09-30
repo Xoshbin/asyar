@@ -208,7 +208,7 @@ describe('SnippetsExtension lifecycle: activate and deactivate', () => {
     expect(reloadSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('viewActivated registers view actions', async () => {
+  it('viewActivated registers view actions including toggle-private', async () => {
     await snippetsExtension.viewActivated('snippets/DefaultView');
     expect(actionService.registerAction).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'snippets:add' }),
@@ -219,6 +219,36 @@ describe('SnippetsExtension lifecycle: activate and deactivate', () => {
     expect(actionService.registerAction).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'snippets:delete' }),
     );
+    expect(actionService.registerAction).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'snippets:toggle-private', icon: 'icon:lock' }),
+    );
+  });
+
+  it('snippets:toggle-private executes togglePrivate on selectedSnippet and syncs to rust', async () => {
+    snippetStore.snippets = [
+      {
+        id: '1',
+        name: 'Work Email',
+        keyword: ';email',
+        expansion: 'work@example.com',
+        createdAt: 1,
+        isPrivate: false,
+      },
+    ];
+    snippetViewState.reset();
+    await snippetsExtension.viewActivated('snippets/DefaultView');
+
+    const toggleCall = vi
+      .mocked(actionService.registerAction)
+      .mock.calls.find(([call]) => call.id === 'snippets:toggle-private');
+    expect(toggleCall).toBeDefined();
+
+    const toggleAction = toggleCall![0];
+    const toggleSpy = vi.spyOn(snippetStore, 'togglePrivate');
+    await toggleAction.execute();
+
+    expect(toggleSpy).toHaveBeenCalledWith('1');
+    expect(snippetService.syncToRust).toHaveBeenCalled();
   });
 
   it('deactivate() cleans up keydown listener, resets view state, and unregisters actions', async () => {
@@ -233,6 +263,7 @@ describe('SnippetsExtension lifecycle: activate and deactivate', () => {
     expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:copy-expansion');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:duplicate');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:toggle-pin');
+    expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:toggle-private');
     expect(actionService.unregisterAction).toHaveBeenCalledWith('snippets:clear-all');
   });
 

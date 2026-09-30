@@ -13,7 +13,7 @@ fn decrypt_expansion(stored: String, master_key: &[u8; 32]) -> String {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Snippet {
     pub id: String,
@@ -24,6 +24,8 @@ pub struct Snippet {
     pub created_at: f64,
     #[serde(default)]
     pub pinned: bool,
+    #[serde(default)]
+    pub is_private: bool,
     /// Comma-separated list of secret-detector kind names matched in
     /// `expansion` at save time. See [`crate::secret_detection::redact`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -50,7 +52,8 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
             expansion TEXT NOT NULL,
             name TEXT NOT NULL,
             created_at REAL NOT NULL,
-            pinned INTEGER NOT NULL DEFAULT 0
+            pinned INTEGER NOT NULL DEFAULT 0,
+            is_private INTEGER NOT NULL DEFAULT 0
         );",
     )
     .map_err(|e| AppError::Database(format!("Failed to init snippets table: {e}")))?;
@@ -69,6 +72,29 @@ pub fn init_table(conn: &Connection) -> Result<(), AppError> {
         conn.execute("ALTER TABLE snippets ADD COLUMN redacted_kinds TEXT", [])
             .map_err(|e| AppError::Database(format!("Failed to add redacted_kinds column: {e}")))?;
     }
+
+    // Migration: add is_private column if it doesn't exist yet.
+    let is_private_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('snippets') WHERE name='is_private'",
+            [],
+            |row| row.get::<_, i32>(0),
+        )
+        .map(|c| c > 0)
+        .unwrap_or(false);
+
+    if !is_private_exists {
+        conn.execute(
+            "ALTER TABLE snippets ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("Failed to add is_private column: {e}")))?;
+    }
+
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_snippets_is_private ON snippets (is_private);",
+    )
+    .map_err(|e| AppError::Database(format!("Failed to init snippets indexes: {e}")))?;
 
     Ok(())
 }
@@ -102,8 +128,8 @@ pub fn upsert(conn: &Connection, snippet: &Snippet, master_key: &[u8; 32]) -> Re
     };
 
     conn.execute(
-        "INSERT OR REPLACE INTO snippets (id, keyword, expansion, name, created_at, pinned, redacted_kinds)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT OR REPLACE INTO snippets (id, keyword, expansion, name, created_at, pinned, is_private, redacted_kinds)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             snippet.id,
             snippet.keyword,
@@ -111,6 +137,7 @@ pub fn upsert(conn: &Connection, snippet: &Snippet, master_key: &[u8; 32]) -> Re
             snippet.name,
             snippet.created_at,
             snippet.pinned as i32,
+            snippet.is_private as i32,
             encode_redacted_kinds(&snippet.redacted_kinds),
         ],
     )
@@ -120,6 +147,7 @@ pub fn upsert(conn: &Connection, snippet: &Snippet, master_key: &[u8; 32]) -> Re
 
 /// Update specific fields of a snippet. When `expansion` is being
 /// changed, the new value is encrypted before storage.
+#[allow(clippy::too_many_arguments)]
 pub fn update(
     conn: &Connection,
     id: &str,
@@ -127,6 +155,7 @@ pub fn update(
     expansion: Option<&str>,
     name: Option<&str>,
     pinned: Option<bool>,
+    is_private: Option<bool>,
     master_key: &[u8; 32],
 ) -> Result<(), AppError> {
     // Build SET clauses dynamically
@@ -147,6 +176,10 @@ pub fn update(
     }
     if let Some(v) = pinned {
         sets.push("pinned = ?");
+        values.push(Box::new(v as i32));
+    }
+    if let Some(v) = is_private {
+        sets.push("is_private = ?");
         values.push(Box::new(v as i32));
     }
 
@@ -190,6 +223,25 @@ pub fn toggle_pin(conn: &Connection, id: &str) -> Result<bool, AppError> {
     Ok(new_val)
 }
 
+/// Toggle private status. Returns the new is_private value.
+pub fn toggle_private(conn: &Connection, id: &str) -> Result<bool, AppError> {
+    conn.execute(
+        "UPDATE snippets SET is_private = 1 - is_private WHERE id = ?1",
+        params![id],
+    )
+    .map_err(|e| AppError::Database(format!("Failed to toggle is_private: {e}")))?;
+
+    let new_val: bool = conn
+        .query_row(
+            "SELECT is_private FROM snippets WHERE id = ?1",
+            params![id],
+            |row| Ok(row.get::<_, i32>(0)? != 0),
+        )
+        .map_err(|e| AppError::Database(format!("Failed to read is_private: {e}")))?;
+
+    Ok(new_val)
+}
+
 /// Delete all snippets.
 pub fn clear_all(conn: &Connection) -> Result<(), AppError> {
     conn.execute("DELETE FROM snippets", [])
@@ -203,14 +255,14 @@ pub fn clear_all(conn: &Connection) -> Result<(), AppError> {
 pub fn get_all(conn: &Connection, master_key: &[u8; 32]) -> Result<Vec<Snippet>, AppError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, keyword, expansion, name, created_at, pinned, redacted_kinds
+            "SELECT id, keyword, expansion, name, created_at, pinned, is_private, redacted_kinds
              FROM snippets ORDER BY created_at DESC",
         )
         .map_err(|e| AppError::Database(format!("Failed to prepare query: {e}")))?;
 
     let items = stmt
         .query_map([], |row| {
-            let redacted_kinds_str: Option<String> = row.get(6)?;
+            let redacted_kinds_str: Option<String> = row.get(7)?;
             let raw_expansion: String = row.get(2)?;
             Ok(Snippet {
                 id: row.get(0)?,
@@ -219,10 +271,44 @@ pub fn get_all(conn: &Connection, master_key: &[u8; 32]) -> Result<Vec<Snippet>,
                 name: row.get(3)?,
                 created_at: row.get(4)?,
                 pinned: row.get::<_, i32>(5)? != 0,
+                is_private: row.get::<_, i32>(6)? != 0,
                 redacted_kinds: decode_redacted_kinds(redacted_kinds_str),
             })
         })
         .map_err(|e| AppError::Database(format!("Failed to query snippets: {e}")))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(items)
+}
+
+/// Export snippets eligible for sync (omits all private / local-only snippets).
+pub fn export_for_sync(conn: &Connection, master_key: &[u8; 32]) -> Result<Vec<Snippet>, AppError> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, keyword, expansion, name, created_at, pinned, is_private, redacted_kinds
+             FROM snippets
+             WHERE is_private = 0
+             ORDER BY created_at DESC",
+        )
+        .map_err(|e| AppError::Database(format!("Failed to prepare export_for_sync query: {e}")))?;
+
+    let items = stmt
+        .query_map([], |row| {
+            let redacted_kinds_str: Option<String> = row.get(7)?;
+            let raw_expansion: String = row.get(2)?;
+            Ok(Snippet {
+                id: row.get(0)?,
+                keyword: row.get(1)?,
+                expansion: decrypt_expansion(raw_expansion, master_key),
+                name: row.get(3)?,
+                created_at: row.get(4)?,
+                pinned: row.get::<_, i32>(5)? != 0,
+                is_private: row.get::<_, i32>(6)? != 0,
+                redacted_kinds: decode_redacted_kinds(redacted_kinds_str),
+            })
+        })
+        .map_err(|e| AppError::Database(format!("Failed to query syncable snippets: {e}")))?
         .filter_map(|r| r.ok())
         .collect();
 
@@ -255,6 +341,7 @@ mod tests {
             name: format!("Snippet {id}"),
             created_at: 1000.0 + id.parse::<f64>().unwrap_or(0.0),
             pinned: false,
+            is_private: false,
             redacted_kinds: None,
         }
     }
@@ -334,7 +421,17 @@ mod tests {
         let key = test_key();
         upsert(&conn, &make_snippet("1", ";a", "alpha"), &key).unwrap();
 
-        update(&conn, "1", None, Some("new expansion"), None, None, &key).unwrap();
+        update(
+            &conn,
+            "1",
+            None,
+            Some("new expansion"),
+            None,
+            None,
+            None,
+            &key,
+        )
+        .unwrap();
 
         let items = get_all(&conn, &key).unwrap();
         assert_eq!(items[0].expansion, "new expansion");
@@ -411,5 +508,104 @@ mod tests {
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].expansion, "real expansion code");
         assert_eq!(items[0].name, "Updated Label");
+    }
+
+    #[test]
+    fn test_is_private_round_trip() {
+        let conn = setup();
+        let key = test_key();
+        let mut s = make_snippet("1", ";priv", "private expansion");
+        s.is_private = true;
+        upsert(&conn, &s, &key).unwrap();
+
+        let items = get_all(&conn, &key).unwrap();
+        assert_eq!(items.len(), 1);
+        assert!(items[0].is_private);
+    }
+
+    #[test]
+    fn test_init_table_idempotent_adds_is_private() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE snippets (
+                id TEXT PRIMARY KEY,
+                keyword TEXT,
+                expansion TEXT NOT NULL,
+                name TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                pinned INTEGER NOT NULL DEFAULT 0,
+                redacted_kinds TEXT
+            );",
+        )
+        .unwrap();
+
+        init_table(&conn).unwrap();
+        let count: i32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('snippets') WHERE name='is_private'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+
+        // Idempotent re-run.
+        init_table(&conn).unwrap();
+    }
+
+    #[test]
+    fn test_toggle_private() {
+        let conn = setup();
+        let key = test_key();
+        upsert(&conn, &make_snippet("1", ";a", "alpha"), &key).unwrap();
+
+        let is_priv = toggle_private(&conn, "1").unwrap();
+        assert!(is_priv);
+
+        let items = get_all(&conn, &key).unwrap();
+        assert!(items[0].is_private);
+
+        let is_priv = toggle_private(&conn, "1").unwrap();
+        assert!(!is_priv);
+
+        let items = get_all(&conn, &key).unwrap();
+        assert!(!items[0].is_private);
+    }
+
+    #[test]
+    fn test_update_partial_is_private() {
+        let conn = setup();
+        let key = test_key();
+        upsert(&conn, &make_snippet("1", ";a", "alpha"), &key).unwrap();
+
+        update(&conn, "1", None, None, None, None, Some(true), &key).unwrap();
+
+        let items = get_all(&conn, &key).unwrap();
+        assert!(items[0].is_private);
+    }
+
+    #[test]
+    fn test_export_for_sync_omits_private_snippets() {
+        let conn = setup();
+        let key = test_key();
+
+        let mut s1 = make_snippet("1", ";priv", "super secret private");
+        s1.is_private = true;
+        let mut s2 = make_snippet("2", ";pub", "public snippet");
+        s2.is_private = false;
+
+        upsert(&conn, &s1, &key).unwrap();
+        upsert(&conn, &s2, &key).unwrap();
+
+        // get_all returns both for local launcher use
+        let local_all = get_all(&conn, &key).unwrap();
+        assert_eq!(local_all.len(), 2);
+
+        // export_for_sync returns ONLY non-private snippet
+        let sync_items = export_for_sync(&conn, &key).unwrap();
+        assert_eq!(sync_items.len(), 1);
+        assert_eq!(sync_items[0].id, "2");
+        assert_eq!(sync_items[0].expansion, "public snippet");
+        assert!(!sync_items[0].is_private);
     }
 }

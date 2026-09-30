@@ -202,7 +202,7 @@ describe('SnippetsSyncProvider', () => {
         await import('../../../built-in-features/snippets/snippetStore.svelte');
       const emit = (
         snippetStore as unknown as {
-          __emit: (e: { type: 'upsert' | 'delete'; itemId: string }) => void;
+          __emit: (e: { type: 'upsert' | 'delete'; itemId: string; isPrivate?: boolean }) => void;
         }
       ).__emit;
       emit({ type: 'upsert', itemId: '1' });
@@ -213,6 +213,160 @@ describe('SnippetsSyncProvider', () => {
         { type: 'delete', itemId: '2', categoryId: 'snippets' },
       ]);
       unsub();
+    });
+
+    it('suppresses sync change events and tombstones for private snippets', async () => {
+      const events: Array<{ type: string; itemId: string; categoryId: string }> = [];
+      const unsub = provider.subscribeToChanges((ev) => events.push(ev));
+
+      const { snippetStore } =
+        await import('../../../built-in-features/snippets/snippetStore.svelte');
+      const emit = (
+        snippetStore as unknown as {
+          __emit: (e: { type: 'upsert' | 'delete'; itemId: string; isPrivate?: boolean }) => void;
+        }
+      ).__emit;
+      emit({ type: 'upsert', itemId: 'priv-1', isPrivate: true });
+      emit({ type: 'delete', itemId: 'priv-2', isPrivate: true });
+
+      expect(events).toEqual([]);
+      unsub();
+    });
+  });
+
+  describe('private snippet local-only sync opt-out', () => {
+    it('exportForSync omits private snippets', async () => {
+      const { snippetStore } =
+        await import('../../../built-in-features/snippets/snippetStore.svelte');
+      vi.mocked(snippetStore.getAll).mockReturnValueOnce([
+        {
+          id: '1',
+          keyword: ';pub',
+          expansion: 'Public',
+          name: 'Pub',
+          createdAt: 1000,
+          isPrivate: false,
+        },
+        {
+          id: '2',
+          keyword: ';priv',
+          expansion: 'Secret',
+          name: 'Priv',
+          createdAt: 2000,
+          isPrivate: true,
+        },
+      ]);
+
+      const sync = await provider.exportForSync();
+      const items = sync.data as Array<{ id: string; isPrivate?: boolean }>;
+      expect(items.length).toBe(1);
+      expect(items[0].id).toBe('1');
+    });
+
+    it('exportItems omits private snippets from cloud delta sync', async () => {
+      const { snippetStore } =
+        await import('../../../built-in-features/snippets/snippetStore.svelte');
+      vi.mocked(snippetStore.getAll).mockReturnValueOnce([
+        {
+          id: '1',
+          keyword: ';pub',
+          expansion: 'Public',
+          name: 'Pub',
+          createdAt: 1000,
+          isPrivate: false,
+        },
+        {
+          id: '2',
+          keyword: ';priv',
+          expansion: 'Secret',
+          name: 'Priv',
+          createdAt: 2000,
+          isPrivate: true,
+        },
+      ]);
+
+      const items = await provider.exportItems();
+      expect(items.length).toBe(1);
+      expect(items[0].id).toBe('1');
+    });
+
+    it('applyItemUpsert does not overwrite existing local private snippet', async () => {
+      const { snippetStore } =
+        await import('../../../built-in-features/snippets/snippetStore.svelte');
+      vi.mocked(snippetStore.getAll).mockReturnValueOnce([
+        {
+          id: 'priv-1',
+          keyword: ';priv',
+          expansion: 'Local Secret',
+          name: 'Priv',
+          createdAt: 1000,
+          isPrivate: true,
+        },
+      ]);
+
+      await provider.applyItemUpsert({
+        id: 'priv-1',
+        categoryId: 'snippets',
+        content: {
+          id: 'priv-1',
+          keyword: ';priv',
+          expansion: 'Remote Overwrite',
+          name: 'Priv',
+          createdAt: 2000,
+        },
+      });
+
+      expect(snippetStore.add).not.toHaveBeenCalled();
+    });
+
+    it('applyItemDelete does not remove local private snippet', async () => {
+      const { snippetStore } =
+        await import('../../../built-in-features/snippets/snippetStore.svelte');
+      vi.mocked(snippetStore.getAll).mockReturnValueOnce([
+        {
+          id: 'priv-1',
+          keyword: ';priv',
+          expansion: 'Local Secret',
+          name: 'Priv',
+          createdAt: 1000,
+          isPrivate: true,
+        },
+      ]);
+
+      await provider.applyItemDelete('priv-1');
+      expect(snippetStore.remove).not.toHaveBeenCalled();
+    });
+
+    it('applyImport preserves local private snippets when replace strategy is used', async () => {
+      const { snippetStore } =
+        await import('../../../built-in-features/snippets/snippetStore.svelte');
+      vi.mocked(snippetStore.getAll).mockReturnValueOnce([
+        {
+          id: 'priv-1',
+          keyword: ';priv',
+          expansion: 'Keep Me',
+          name: 'Priv',
+          createdAt: 1000,
+          isPrivate: true,
+        },
+      ]);
+
+      const incoming: SyncProviderData = {
+        providerId: 'snippets',
+        version: 1,
+        exportedAt: Date.now(),
+        data: [
+          { id: 'pub-2', keyword: ';pub', expansion: 'New Item', name: 'Pub', createdAt: 2000 },
+        ],
+      };
+
+      await provider.applyImport(incoming, 'replace');
+      expect(snippetStore.clearAll).toHaveBeenCalled();
+      // Should add incoming item AND preserve private item
+      expect(snippetStore.add).toHaveBeenCalledWith(expect.objectContaining({ id: 'pub-2' }));
+      expect(snippetStore.add).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'priv-1', isPrivate: true }),
+      );
     });
   });
 });
