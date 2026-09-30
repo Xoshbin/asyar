@@ -1573,14 +1573,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // Local-first usage recording. Manage before any command (record_item_usage,
     // the usage commands) can run. Recording is always local; egress is gated
-    // behind UsageShareMode (default Off). Log + continue on init failure so a
-    // usage.db problem never blocks app startup.
-    match usage::initialize_usage_state(app.handle()) {
-        Ok(usage_state) => {
-            app.manage(std::sync::Arc::new(usage_state));
-        }
-        Err(e) => log::error!("usage state init failed: {e}"),
-    }
+    // behind UsageShareMode (default Off). Disk failures fall back to an
+    // in-memory database, so every running app always manages UsageState.
+    let usage_state = usage::initialize_usage_state(app.handle())?;
+    app.manage(std::sync::Arc::new(usage_state));
 
     // Walkthrough task registry. Starts empty and is filled by the frontend's
     // `sync_walkthrough_tasks` once manifests are loaded, so an empty registry

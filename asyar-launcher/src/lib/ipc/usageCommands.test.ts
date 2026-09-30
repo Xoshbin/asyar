@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
+vi.mock('./invokeSafe', async () => {
+  const actual = await vi.importActual<typeof import('./invokeSafe')>('./invokeSafe');
+  return { ...actual, invokeSafe: vi.fn(actual.invokeSafe) };
+});
 
 import { invoke } from '@tauri-apps/api/core';
+import { invokeSafe } from './invokeSafe';
 import {
   getUsageStats,
   recordActiveDay,
@@ -13,6 +18,7 @@ import {
 } from './commands';
 
 const mockInvoke = invoke as ReturnType<typeof vi.fn>;
+const mockInvokeSafe = vi.mocked(invokeSafe);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -34,10 +40,10 @@ describe('getUsageStats', () => {
 });
 
 describe('recordActiveDay', () => {
-  it('calls invoke with record_active_day', async () => {
+  it('silently invokes record_active_day', async () => {
     mockInvoke.mockResolvedValue(undefined);
     await recordActiveDay();
-    expect(mockInvoke).toHaveBeenCalledWith('record_active_day', undefined);
+    expect(mockInvokeSafe).toHaveBeenCalledWith('record_active_day', undefined, { silent: true });
   });
 });
 
