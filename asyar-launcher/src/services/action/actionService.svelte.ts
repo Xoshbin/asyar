@@ -536,7 +536,7 @@ export class ActionService implements IActionService {
         } catch (err) {
           logService.error(`Uninstall failed for '${appPath}': ${err}`);
           const reason = err instanceof Error ? err.message : String(err);
-          await feedbackService.showHUD(`Uninstall failed: ${reason}`);
+          await feedbackService.showHUD(`Uninstall failed: ${reason}`, { severity: 'error' });
         }
       },
     });

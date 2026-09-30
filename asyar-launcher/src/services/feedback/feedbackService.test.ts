@@ -190,11 +190,24 @@ describe('HUD', () => {
     await feedbackService.showHUD('Copied');
     expect(commands.showHud).toHaveBeenCalledWith({
       title: 'Copied',
-      durationMs: expect.any(Number),
+      durationMs: 1500,
       spinning: false,
     });
     expect(commands.hideWindow).toHaveBeenCalledOnce();
   });
+
+  it.each(['warning', 'error'] as const)(
+    'keeps %s HUD feedback visible long enough to read',
+    async (severity) => {
+      await feedbackService.showHUD('Something went wrong', { severity });
+
+      expect(commands.showHud).toHaveBeenCalledWith({
+        title: 'Something went wrong',
+        durationMs: 5000,
+        spinning: false,
+      });
+    },
+  );
 
   it('supports a spinning HUD for headless work', async () => {
     const handle = feedbackService.showHUDSpinning('Working');
@@ -206,5 +219,17 @@ describe('HUD', () => {
       spinning: true,
     });
     expect(commands.hideHud).toHaveBeenCalledOnce();
+  });
+
+  it('keeps an error replacement visible long enough to read', async () => {
+    const handle = feedbackService.showHUDSpinning('Working');
+
+    await handle.replace('Failed', { severity: 'error' });
+
+    expect(commands.showHud).toHaveBeenLastCalledWith({
+      title: 'Failed',
+      durationMs: 5000,
+      spinning: false,
+    });
   });
 });

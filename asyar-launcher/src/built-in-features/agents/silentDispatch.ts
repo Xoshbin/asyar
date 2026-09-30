@@ -142,7 +142,7 @@ async function runSilentAgentCommand(input: SilentDispatchInput): Promise<void> 
         await callFinalText(input, '');
         return;
       }
-      await spinner.replace('⚠️ Empty response', { spinning: false, durationMs: 3000 });
+      await spinner.replace('⚠️ Empty response', { spinning: false, severity: 'warning' });
       spinner = null;
       await reportFailure(agent, 'Agent returned empty response');
       return;
@@ -171,7 +171,10 @@ async function runSilentAgentCommand(input: SilentDispatchInput): Promise<void> 
       ? { id: resolvedAgent.id, name: resolvedAgent.name }
       : { id: input.agentId, name: 'AI command' };
     if (spinner) {
-      await spinner.replace(`⚠️ ${errorTarget.name} failed`, { spinning: false, durationMs: 3000 });
+      await spinner.replace(`⚠️ ${errorTarget.name} failed`, {
+        spinning: false,
+        severity: 'error',
+      });
       spinner = null;
     }
     await reportFailure(errorTarget, detail);
@@ -211,26 +214,26 @@ async function captureInput(
       try {
         const text = await selectionService.getSelectedText();
         if (!text || text.trim().length === 0) {
-          await feedbackService.showHUD('No selection');
+          await feedbackService.showHUD('No selection', { severity: 'warning' });
           return null;
         }
         return text;
       } catch (cause) {
         logService.warn(`[silent-agents] selection capture failed: ${cause}`);
-        await feedbackService.showHUD('Could not read selection');
+        await feedbackService.showHUD('Could not read selection', { severity: 'error' });
         return null;
       }
     case 'clipboard':
       try {
         const text = await readText();
         if (!text || text.trim().length === 0) {
-          await feedbackService.showHUD('Clipboard is empty');
+          await feedbackService.showHUD('Clipboard is empty', { severity: 'warning' });
           return null;
         }
         return text;
       } catch (cause) {
         logService.warn(`[silent-agents] clipboard capture failed: ${cause}`);
-        await feedbackService.showHUD('Could not read clipboard');
+        await feedbackService.showHUD('Could not read clipboard', { severity: 'error' });
         return null;
       }
     case 'argument':
