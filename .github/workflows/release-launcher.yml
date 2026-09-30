@@ -347,7 +347,7 @@ jobs:
             fi
           done
 
-      - name: Verify AppImage ABI and structure
+      - name: Verify AppImage graphics ABI
         run: |
           set -euo pipefail
           appimage_dir="src-tauri/target/${{ matrix.rust-target }}/release/bundle/appimage"
