@@ -56,6 +56,16 @@ describe('categorizeItem', () => {
     const item = makeItem({ type: 'command', object_id: 'cmd_org.foo_bar' });
     expect(categorizeItem(item)).toBe('commands');
   });
+
+  it('returns "favorites" for a command with favorite: true', () => {
+    const item = makeItem({ type: 'command', object_id: 'cmd_clipboard', favorite: true });
+    expect(categorizeItem(item)).toBe('favorites');
+  });
+
+  it('returns "favorites" for an application with favorite: true', () => {
+    const item = makeItem({ type: 'application', object_id: 'app_safari', favorite: true });
+    expect(categorizeItem(item)).toBe('favorites');
+  });
 });
 
 // ── buildSectionedView ────────────────────────────────────────────────────────
@@ -219,5 +229,67 @@ describe('buildSectionedView', () => {
     };
     expect(header.title).toBe('Commands');
     expect(header.section).toBe('commands');
+  });
+
+  it('favorites header has title "Favorites" and section "favorites"', () => {
+    const item = makeItem({ type: 'command', object_id: 'cmd_clip', favorite: true });
+    const rows = buildSectionedView([item]);
+    const header = rows.find((r) => r.kind === 'header') as {
+      kind: 'header';
+      title: string;
+      section: string;
+    };
+    expect(header.title).toBe('Favorites');
+    expect(header.section).toBe('favorites');
+  });
+
+  it('outputs "Favorites" section first when favorite items exist', () => {
+    const favCommand = makeItem({
+      type: 'command',
+      object_id: 'cmd_clipboard',
+      title: 'Show Clipboard History',
+      favorite: true,
+    });
+    const regularCommand = makeItem({
+      type: 'command',
+      object_id: 'cmd_search_files',
+      title: 'Search Files',
+      favorite: false,
+    });
+
+    const rows = buildSectionedView([regularCommand, favCommand]);
+
+    expect(rows).toHaveLength(4); // 2 headers + 2 items
+    expect(rows[0]).toMatchObject({ kind: 'header', title: 'Favorites', section: 'favorites' });
+    expect(rows[1]).toMatchObject({ kind: 'item', item: { title: 'Show Clipboard History' } });
+    expect(rows[2]).toMatchObject({ kind: 'header', title: 'Commands', section: 'commands' });
+    expect(rows[3]).toMatchObject({ kind: 'item', item: { title: 'Search Files' } });
+  });
+
+  it('preserves originalIndex when favorite items are grouped at top', () => {
+    const regularCommand = makeItem({
+      type: 'command',
+      object_id: 'cmd_walkthrough',
+      title: 'Beyond the basics',
+      favorite: false,
+    });
+    const favCommand = makeItem({
+      type: 'command',
+      object_id: 'cmd_clipboard',
+      title: 'Show Clipboard History',
+      favorite: true,
+    });
+
+    const rows = buildSectionedView([regularCommand, favCommand]);
+
+    const itemRows = rows.filter((r) => r.kind === 'item') as {
+      kind: 'item';
+      item: MappedSearchItem;
+      originalIndex: number;
+    }[];
+
+    expect(itemRows).toHaveLength(2);
+    expect(itemRows[0].originalIndex).toBe(1); // favCommand was index 1 in input
+    expect(itemRows[1].originalIndex).toBe(0); // regularCommand was index 0 in input
   });
 });

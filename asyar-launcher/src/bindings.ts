@@ -380,6 +380,7 @@ export type SearchResult = {
 	description?: string | null,
 	typeLabel?: string | null,
 	hasArguments?: boolean,
+	favorite?: boolean,
 	style?: string | null,
 	alias?: string | null,
 	/**

@@ -33,7 +33,10 @@ vi.mock('../extension/commandService.svelte', () => ({
   commandService: mockCommandService,
 }));
 
-const mockSearchOrchestrator = vi.hoisted(() => ({ items: [] as any[] }));
+const mockSearchOrchestrator = vi.hoisted(() => ({
+  items: [] as any[],
+  handleSearch: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('../search/searchOrchestrator.svelte', () => ({
   searchOrchestrator: mockSearchOrchestrator,
 }));

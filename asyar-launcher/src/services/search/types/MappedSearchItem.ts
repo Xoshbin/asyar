@@ -18,6 +18,7 @@ export type MappedSearchItem = {
   style?: 'default' | 'large';
   shortcut?: string;
   alias?: string;
+  favorite?: boolean;
   /**
    * Runs the row. `extra` is merged into the payload the command receives:
    * how declared argument values reach a command Enter fired without stopping

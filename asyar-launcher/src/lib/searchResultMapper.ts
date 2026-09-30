@@ -179,18 +179,19 @@ function buildRunMappedItem(run: Run): MappedSearchItem {
 const NO_MATCH_TIER = 5;
 
 function getSectionWeight(item: MappedSearchItem): number {
-  // Section Order: scripts (0), agents (1), commands (2)
+  // Section Order: favorites (0), scripts (1), agents (2), commands (3)
   // Keep this weight function exactly aligned with SECTION_ORDER and
   // categorizeItem in src/components/list/sectionedListLogic.ts. Scripts and
   // Agents sections are status-only — only run rows weight into them. Def
   // rows (incl. `cmd_scripts_dyn_*`, `cmd_agents_dyn_*`) fall through to
-  // Commands.
+  // Commands, while favorited items route to Favorites.
+  if (item.favorite) return 0;
   if (item.type === 'run' || item.type === 'run-failed' || item.type === 'run-done') {
-    if (item.typeLabel === 'Script') return 0;
-    if (item.typeLabel === 'Agent') return 1;
-    return 2;
+    if (item.typeLabel === 'Script') return 1;
+    if (item.typeLabel === 'Agent') return 2;
+    return 3;
   }
-  return 2;
+  return 3;
 }
 
 export type BuildMappedItemsResult = {
@@ -360,6 +361,7 @@ export function buildMappedItems({
       action: actionFunction,
       style: result.style,
       shortcut: shortcutMap.get(objectId)?.shortcut,
+      favorite: result.favorite ?? false,
       // Optimistic override: a freshly assigned alias appears in the chip
       // immediately, before the next search round-trip refreshes result.alias.
       alias: aliasStore.byObjectId.get(objectId) ?? result.alias ?? undefined,

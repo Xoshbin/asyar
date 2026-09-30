@@ -1,6 +1,6 @@
 use super::models::{SearchResult, SearchableItem};
 use super::{SearchError, SearchState};
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 
 #[tauri::command]
 pub async fn search_items(
@@ -163,6 +163,41 @@ pub async fn record_item_usage(
     // `on_item_launched` returns before touching a database.
     notify_walkthrough(&app_handle, &usage, &object_id);
     Ok(())
+}
+
+#[tauri::command]
+pub async fn set_item_favorite(
+    object_id: String,
+    favorite: bool,
+    app_handle: tauri::AppHandle,
+    state: State<'_, std::sync::Arc<SearchState>>,
+) -> Result<bool, SearchError> {
+    let updated = state.set_favorite(&object_id, favorite)?;
+    if updated {
+        notify_favorite_walkthrough(&app_handle, state.favorite_count()?);
+    }
+    Ok(updated)
+}
+
+fn notify_favorite_walkthrough(app_handle: &tauri::AppHandle, count: u32) {
+    let (Some(data), Some(usage), Some(walkthrough)) = (
+        app_handle.try_state::<crate::storage::DataStore>(),
+        app_handle.try_state::<std::sync::Arc<crate::usage::UsageState>>(),
+        app_handle.try_state::<std::sync::Arc<crate::walkthrough::registry::WalkthroughState>>(),
+    ) else {
+        return;
+    };
+    walkthrough.set_probe("favorites.count", count);
+    match crate::walkthrough::service::evaluate(&data, &usage, &walkthrough) {
+        Ok(newly) if !newly.is_empty() => {
+            if let Ok(snapshot) = crate::walkthrough::service::snapshot(&data, &usage, &walkthrough)
+            {
+                let _ = app_handle.emit("asyar:walkthrough:changed", snapshot);
+            }
+        }
+        Ok(_) => {}
+        Err(error) => log::warn!("walkthrough favorite probe failed: {error}"),
+    }
 }
 
 /// Best-effort: a walkthrough problem must never fail a launch.
@@ -465,6 +500,7 @@ mod tests {
         .unwrap();
         SearchState {
             items: RwLock::new(vec![]),
+            favorites: RwLock::new(std::collections::HashSet::new()),
             db: Mutex::new(conn),
         }
     }

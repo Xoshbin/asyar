@@ -94,6 +94,10 @@ export async function recordItemUsage(objectId: string): Promise<void> {
   await invokeSafe('record_item_usage', { objectId });
 }
 
+export async function setItemFavorite(objectId: string, favorite: boolean): Promise<boolean> {
+  return (await invokeSafe<boolean>('set_item_favorite', { objectId, favorite })) ?? false;
+}
+
 // boolean (not void): SearchService.resetIndex needs to know whether the
 // reset actually succeeded to report its own specific diagnostic on failure.
 export async function resetSearchIndex(): Promise<boolean> {
