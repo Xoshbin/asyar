@@ -1,6 +1,6 @@
 {
   "id": "feedback",
-  "name": "Send Feedback",
+  "name": "Feedback",
   "icon": "icon:info",
   "version": "1.0.0",
   "lifecycle": { "disableable": true },

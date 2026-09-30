@@ -1,6 +1,6 @@
 {
   "id": "raycast-import",
-  "name": "Import from Raycast",
+  "name": "Raycast Import",
   "icon": "icon:download",
   "version": "1.0.0",
   "lifecycle": { "disableable": true },

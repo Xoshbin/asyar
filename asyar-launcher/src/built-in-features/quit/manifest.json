@@ -1,6 +1,6 @@
 {
   "id": "quit",
-  "name": "Quit Asyar",
+  "name": "Asyar",
   "icon": "icon:power",
   "version": "1.0.0",
   "lifecycle": { "disableable": true },
