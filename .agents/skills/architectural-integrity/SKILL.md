@@ -294,6 +294,25 @@ Built-in features in Asyar (Tier 1) are not monoliths. They consist of two disti
 
 ---
 
+## Principle 7: Strict Separation of Presentation Lifecycle and Daemon Compute
+
+### The Pattern
+
+A desktop launcher operates on two fundamentally divergent timescales:
+
+1. **The Ephemeral Window Presentation Lifecycle (Milliseconds)**:
+   - Triggered by hotkey (`Cmd+Space` / `Option+Space`).
+   - Must achieve sub-16ms first-frame render (60/120 FPS), instantaneous query typing, zero-IPC instant filtering, and sub-10ms dismissal (`hideWindow()`).
+2. **The Durable Extension Daemon Lifecycle (Minutes to Days)**:
+   - Background extensions manage long-lived states: WebSocket connections, filesystem watchers, background timers, clipboard history collectors, and sync engines.
+
+### Invariants
+
+- **Zero-Cost Reveal Invariant**: Revealing, typing in, and dismissing the launcher UI must never await or be blocked by extension daemon lifecycle events (mounting, syncing, network reconnection, command indexing). Hotkey invocation, window dismissal, and state reset touch only UI presentation concerns (query reset, navigation stack shrink, focus). Extension command indexing and worker restoration are non-blocking, deferred to idle periods (`runWhenIdle`), ensuring the launcher window is immediately interactive on cold boot.
+- **Independent Daemon Lifespan**: Background extensions are long-lived daemons managed by the runtime. Hiding or resetting the search window must never destroy, suspend, or corrupt background worker state. Workers, long-running background timers, WebSocket connections, and native background watchers continue executing reliably even when the launcher window remains hidden for hours.
+
+---
+
 ## Session Start Protocol
 
 At the start of every conversation:

@@ -235,22 +235,24 @@ export const appInitializer = {
 
       await extensionManager.init(); // Initialize ExtensionManager first
 
-      // Must run after the workerRegistry/viewRegistry listeners above are
-      // committed — EVENT_MOUNT is fire-and-forget and would otherwise be lost.
-      // Failure here means every always-on extension is dormant until the
-      // user re-enables it, so it surfaces through the diagnostics channel
-      // rather than a quiet log.
-      restoreWorkers().then((result) => {
-        if (result === null) {
-          void feedbackService.report({
-            source: 'frontend',
-            kind: 'extension-runtime/restore-workers-failed',
-            severity: 'error',
-            retryable: false,
-            developerDetail: 'restore_workers failed',
+      // Deferred to idle periods so cold-start presentation and initial query
+      // typing have zero contention from background worker restoration.
+      runWhenIdle(
+        () => {
+          restoreWorkers().then((result) => {
+            if (result === null) {
+              void feedbackService.report({
+                source: 'frontend',
+                kind: 'extension-runtime/restore-workers-failed',
+                severity: 'error',
+                retryable: false,
+                developerDetail: 'restore_workers failed',
+              });
+            }
           });
-        }
-      });
+        },
+        { timeout: 1500 },
+      );
 
       // Initialize extension update service for silent auto-updates
       const { viewManager } = await import('./extension/viewManager.svelte');

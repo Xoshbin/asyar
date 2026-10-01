@@ -38,6 +38,9 @@ if (typeof MessageEvent === 'undefined') {
 }
 
 // Mock all external dependencies
+vi.mock('../../lib/idle', () => ({
+  runWhenIdle: vi.fn((task: () => void) => task()),
+}));
 vi.mock('../log/logService', () => ({
   logService: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), custom: vi.fn() },
 }));
@@ -304,6 +307,12 @@ describe('ExtensionManager Characterization Tests', () => {
       const spy = vi.spyOn(extensionManager as any, 'syncCommandIndex');
       await extensionManager.init();
       expect(spy).toHaveBeenCalled();
+    });
+
+    it('defers syncCommandIndex and syncWalkthroughTasks to runWhenIdle during cold boot init', async () => {
+      const { runWhenIdle } = await import('../../lib/idle');
+      await extensionManager.init();
+      expect(runWhenIdle).toHaveBeenCalledWith(expect.any(Function), { timeout: 1500 });
     });
 
     it('loadExtensions() processes loaded extensions from extensionLoaderService', async () => {

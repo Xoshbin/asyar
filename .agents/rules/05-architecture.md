@@ -37,3 +37,14 @@
   - **Headless Worker (`role: 'worker'`)**: Must execute in off-main-thread compute environments (e.g. Web Workers or isolated worker host contexts). Headless background execution (schedules, interval pollers, push subscriptions, WebSocket/fetch connections, tools, RPC handlers) must never reside in main-window DOM iframes where JavaScript execution contends with the launcher's search bar, input latency, and 120 FPS animations.
   - **Visual Canvas (`role: 'view'`)**: Strictly reserved for UI presentation. Sandboxed `<iframe>` elements at `asyar-extension://` are mounted on-demand only when a foreground visual view is active and dismissed when the user navigates away.
   - **Multi-Engine Horizon**: Web Workers off the main thread today $\rightarrow$ pluggable isolated native runtimes (e.g. QuickJS or Wasm components with direct Rust IPC bindings) for high-throughput extensions tomorrow, completely eliminating browser engine overhead for background compute.
+
+## 6. Strict Separation of Presentation Lifecycle and Daemon Compute
+
+- **Zero-Cost Reveal Invariant**:
+  - Revealing, typing in, and dismissing the launcher UI must never await or be blocked by extension daemon lifecycle events (mounting, syncing, network reconnection, command indexing).
+  - Hotkey summon (`showWindow`), dismiss (`hideWindow`), and state reset (`resetLauncherState`) touch strictly UI presentation concerns (query reset, navigation stack shrink, focus).
+  - Extension command indexing and worker restoration must remain non-blocking, deferred to idle periods (`runWhenIdle`), ensuring the launcher window is immediately interactive on cold boot.
+- **Independent Daemon Lifespan**:
+  - Background extensions are long-lived daemons managed by the runtime.
+  - Hiding, unmapping, or resetting the search window must never destroy, suspend, or corrupt background worker state.
+  - Workers, long-running background timers, WebSocket connections, and native background watchers must continue executing reliably even when the launcher window remains hidden for hours.

@@ -26,6 +26,7 @@ import { applyTheme } from '../theme/themeService';
 import { ExtensionIpcRouter } from './ExtensionIpcRouter';
 import { ExtensionLoader } from './ExtensionLoader';
 import { resetLauncherState } from '../../lib/launcher/launcherReset';
+import { runWhenIdle } from '../../lib/idle';
 import type { ServiceRegistry } from './defineServiceRegistry';
 import { buildServiceRegistry } from './buildServiceRegistry';
 import { ExtensionEventSubscriptions } from './extensionEventSubscriptions';
@@ -196,22 +197,31 @@ export class ExtensionManager implements IExtensionManager {
           extensionSearchAggregator.resolveExtensionInstance(module as any),
       });
 
-      performanceService.startTiming('command-index-sync');
-      await this.syncCommandIndex();
-      const syncMetrics = performanceService.stopTiming('command-index-sync');
-      logService.custom(
-        `🔄 Commands index synced in ${syncMetrics.duration?.toFixed(2)}ms`,
-        'PERF',
-        'blue',
-      );
-
       this.updateExtensionRecords();
 
-      // Push manifest-declared walkthrough tasks to Rust. Same shape as the
-      // command-index sync above: the frontend transports declarations, Rust
-      // decides everything about them. Never fatal — a walkthrough failure
-      // must not stop extensions from loading.
-      await this.syncWalkthroughTasks();
+      // Push manifest-declared walkthrough tasks and sync command index to Rust.
+      // Non-blocking and deferred to idle periods so cold-start presentation latency is zero.
+      // Existing indexed commands in Rust's SQLite database remain immediately searchable.
+      runWhenIdle(
+        () => {
+          performanceService.startTiming('command-index-sync');
+          this.syncCommandIndex()
+            .then(() => {
+              const syncMetrics = performanceService.stopTiming('command-index-sync');
+              logService.custom(
+                `🔄 Commands index synced in ${syncMetrics.duration?.toFixed(2)}ms`,
+                'PERF',
+                'blue',
+              );
+            })
+            .catch((err) => {
+              logService.error(`Failed to sync command index: ${err}`);
+            });
+
+          void this.syncWalkthroughTasks();
+        },
+        { timeout: 1500 },
+      );
 
       // Start listening for scheduled command ticks and preference changes
       // from Rust. Both listeners are managed by ExtensionEventSubscriptions.

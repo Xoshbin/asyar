@@ -50,7 +50,9 @@ Or manually run the steps:
 - **Separation of Headless Compute and Visual Canvas (Evolved Extension Sandboxing)**:
   - Background workers (`role: 'worker'`) must execute off-main-thread in dedicated headless compute environments (Web Workers / isolated worker contexts), with zero DOM/style overhead and zero main-thread event loop contention, keeping the launcher's search bar, input, and 120 FPS animations smooth.
   - Browser `<iframe>` contexts are strictly reserved for visual canvases and on-demand UI presentation (`role: 'view'`).
-  - Multi-engine horizon: Web Workers today $\rightarrow$ isolated native/QuickJS/Wasm runtime options for high-throughput extensions.
+- **Strict Separation of Presentation Lifecycle and Daemon Compute**:
+  - **Zero-Cost Reveal Invariant**: Revealing, typing in, and dismissing the launcher UI must never await or be blocked by extension daemon lifecycle events (mounting, syncing, network reconnection, command indexing). Hotkey summon (`showWindow`), dismiss (`hideWindow`), and state reset (`resetLauncherState`) touch strictly UI presentation concerns.
+  - **Independent Daemon Lifespan**: Background extensions are long-lived daemons managed by the runtime; hiding, unmapping, or resetting the search window must never destroy, suspend, or corrupt background worker state. Workers, timers, and watchers persist across ephemeral window presentations.
 - **Never Hand-Edit Generated Files**: Always edit source definitions and run generators (`src/bindings.ts`, `kinds.ts`, `gatedPermissions.ts`, `knownRuntimes.ts`).
 
 ## 6. Tech Stack Standards
