@@ -1,3 +1,6 @@
+#[cfg(any(target_os = "windows", target_os = "linux", test))]
+pub mod arboard_guard;
+
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
